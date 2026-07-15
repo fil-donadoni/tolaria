@@ -156,7 +156,7 @@ import {
     validateAlternativeHandCostPicks,
     handCardMatchesFilter,
 } from "./gre/alternativeCost";
-import { hasSupertypeLive, liveSupertypesOf } from "./gre/snow";
+import { hasSupertypeLive, liveSupertypesOf, countSnowLands } from "./gre/snow";
 import { computeSoloViewerId } from "./soloViewer";
 import { compactState, expandState } from "./gre/serialize";
 import { assertExpectedInput, refreshExpectedInput } from "./gre/expectedInput";
@@ -4434,6 +4434,20 @@ export const announceCast = mutation({
             "string";
         if (hasX && (args.chosenX === undefined || args.chosenX < 0)) {
             throw new Error("Must choose X (≥ 0) for this spell");
+        }
+        // CR 107.3 — a board-count upper bound on X ("X can't be greater than
+        // the number of snow lands you control", Winter's Chill). Announcing a
+        // larger X is illegal; the Bot's X enumeration (moves.ts) caps to the
+        // same ceiling so the two never disagree.
+        if (
+            hasX &&
+            cardDef.castXUpperBound === "snow-lands" &&
+            args.chosenX !== undefined &&
+            args.chosenX > countSnowLands(player.battlefield)
+        ) {
+            throw new Error(
+                "X can't be greater than the number of snow lands you control"
+            );
         }
         // CR 601.2b / 118.4 — "pay X life" additional cost (Fire Covenant):
         // the caster chooses X independently of the mana cost. Validate it's

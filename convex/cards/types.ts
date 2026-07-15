@@ -2078,6 +2078,21 @@ export interface SpellContext {
         target: TargetSelection,
         ability: string
     ) => void;
+    /** Grants an ACTIVATED ability to `target` for a limited duration
+     *  (CR 113.1, 611.1b). The template is looked up at activation time on the
+     *  granting card's `grantTemplates[]` (`sourceCardId` + `abilityId`), so
+     *  the permanent exposes it as if printed on it. The duration-scoped
+     *  sibling of the continuous `activated-grant` static effect; the
+     *  phase-boundary purge removes it when `duration` expires. An "activate
+     *  only once" cap rides on the template's `oncePerTurn` (until-EOT grant ==
+     *  one turn). No-op if target has left the battlefield. Used by Touch of
+     *  Vitae's "gains '{0}: Untap this creature. Activate only once.'". */
+    grantActivatedAbility: (
+        target: TargetSelection,
+        sourceCardId: string,
+        abilityId: string,
+        duration: DurationSpec
+    ) => void;
     /** Grants a triggered ability to `target` for a limited duration
      *  (CR 113.1, 611.1b). The template is looked up at trigger-scan time on
      *  the granting card's `triggeredGrantTemplates[]` (`sourceCardId` +
@@ -6373,26 +6388,31 @@ export type EffectOp =
           action: "tap" | "untap";
           target: EffectObjectSelector;
       }
-    /** CR 611.1b / 613.1f (layer 6, issue #843) — grant a keyword static
-     *  ability to a permanent for a limited duration. A thin declarative skin
-     *  over the SpellContext primitive `grantStaticAbility`, one execution path
-     *  (ADR 0045). `ability` is the keyword granted ("flying", "trample",
-     *  "haste", "banding", …; a free-form keyword read at combat / rules-check
-     *  time). `target` names the permanent: an announced target slot (Berserk's
-     *  "target creature gains trample"), the resolving source (`$source` — a
-     *  permanent granting itself an ability), or the current member of a
-     *  `forEach` set (`{ ref: "$each" }` — a mass grant). `duration` is the
-     *  phase boundary at which the grant expires (CR 611.2 — the phase-boundary
-     *  purge splices the keyword back out). Skipped when the referenced
-     *  permanent is gone (CR 608.2b — the spell does as much as it can); the
-     *  primitive is a no-op if the permanent has left the battlefield.
-     *  Ability REMOVAL / loss (`removeStaticAbilities`) takes a predicate
-     *  closure and stays `resolve()` by design — not expressible as a JSON Op. */
+    /** CR 611.1b / 613.1f (layer 6, issue #843) — grant an ability to a
+     *  permanent for a limited duration. A thin declarative skin over the
+     *  SpellContext primitives `grantStaticAbility` / `grantActivatedAbility`,
+     *  one execution path (ADR 0045). Exactly one of two payloads:
+     *  - `ability` — a keyword static ability ("flying", "trample", "haste",
+     *    "banding", …; a free-form keyword read at combat / rules-check time,
+     *    Berserk's "target creature gains trample").
+     *  - `grantedActivatedId` — the `id` of an activated-ability template on the
+     *    RESOLVING source's `grantTemplates[]` (issue #738, Touch of Vitae's
+     *    "gains '{0}: Untap this creature. Activate only once.'"). The template
+     *    carries its own cost / effects / `oncePerTurn` cap.
+     *  `target` names the permanent: an announced target slot, the resolving
+     *  source (`$source`), or the current member of a `forEach` set
+     *  (`{ ref: "$each" }`). `duration` is the phase boundary at which the grant
+     *  expires (CR 611.2 — the phase-boundary purge splices it back out).
+     *  Skipped when the referenced permanent is gone (CR 608.2b — the spell does
+     *  as much as it can); the primitive is a no-op if the permanent has left
+     *  the battlefield. Ability REMOVAL / loss (`removeStaticAbilities`) takes a
+     *  predicate closure and stays `resolve()` by design — not a JSON Op. */
     | {
           op: "grantAbility";
-          ability: string;
           target: EffectObjectSelector;
           duration: DurationSpec;
+          ability?: string;
+          grantedActivatedId?: string;
       }
     /** CR 701.20 (issue #844) — shuffle a player's library. A thin declarative
      *  skin over the SpellContext primitive `shuffleLibrary`, one execution
@@ -7534,6 +7554,15 @@ export interface CardDefinition {
      *  list. Used by Berserk ("cast only before the combat damage step") —
      *  the instant-speed check still applies, this only narrows further. */
     castPhaseRestriction?: Phase[];
+    /** CR 107.3 — an upper bound on the chosen X, keyed to a LIVE board count
+     *  that only the engine can read ("X can't be greater than the number of
+     *  snow lands you control", Winter's Chill). A declarative tag (not a
+     *  closure — JSON-pure) resolved by the cast path and the Bot's X
+     *  enumeration to the caster's current count; announcing a larger X is
+     *  rejected at cast time. `"snow-lands"` counts the caster's snow lands via
+     *  `countSnowLands` (honoring Melting / Arcum's Weathervane supertype
+     *  mutation). Extend the union as further board-count caps arise. */
+    castXUpperBound?: "snow-lands";
     /** CR 601.3e — "Cast this spell only if no permanent[s] named <this card's
      *  name> are on the battlefield." When true, the spell's Cast action is
      *  suppressed (and the server cast rejected) while any permanent on either

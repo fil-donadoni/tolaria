@@ -1249,9 +1249,14 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     grantAbility(rawOp, scenario) {
         const op = rawOp as Extract<EffectOp, { op: "grantAbility" }>;
         if (!("target" in op.target)) return null;
+        // The activated-ability grant variant (`grantedActivatedId`, issue #738)
+        // isn't observable via `staticAbilities`; its cards carry a hand-written
+        // per-card test, so skip it here (return null → smoke test skips).
+        if (op.ability === undefined) return null;
+        const ability = op.ability;
         const permId = scenario.targetPermanentIds[op.target.target];
         return {
-            label: `grant "${op.ability}" to permanent ${permId}`,
+            label: `grant "${ability}" to permanent ${permId}`,
             check: (post) => {
                 const perm = post.players
                     .flatMap((p) => p.battlefield)
@@ -1259,12 +1264,12 @@ const OP_ASSERTORS: Record<string, Assertor> = {
                 if (!perm) {
                     return { ok: false, detail: "target permanent gone" };
                 }
-                const has = perm.staticAbilities.includes(op.ability);
+                const has = perm.staticAbilities.includes(ability);
                 return {
                     ok: has,
                     detail: has
-                        ? `has "${op.ability}"`
-                        : `missing "${op.ability}" (staticAbilities: ${perm.staticAbilities.join(", ")})`,
+                        ? `has "${ability}"`
+                        : `missing "${ability}" (staticAbilities: ${perm.staticAbilities.join(", ")})`,
                 };
             },
         };

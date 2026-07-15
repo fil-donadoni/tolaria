@@ -834,10 +834,10 @@ export const freyalisesWinds: CardDefinition = {
 //   Subdual are all ACTIVE in the CU section below (#726). Ritual of Subdual
 //   ({4}{G}{G}) is mono-green by colour identity and homes here despite its
 //   triage stub originally sitting in multicolor.ts.
-//   • Next-upkeep delayed cantrip — Pyknite: ACTIVE (#660). Touch of Vitae
-//     remains deferred: its cantrip + haste legs are buildable but the granted
-//     "{0}: Untap this creature. Activate only once." activated ability needs a
-//     duration-scoped activated-ability grant primitive (see its stub below).
+//   • Next-upkeep delayed cantrip — Pyknite: ACTIVE (#660). Touch of Vitae:
+//     ACTIVE (#738) — the granted "{0}: Untap this creature. Activate only
+//     once." activated ability now rides the duration-scoped
+//     `grantActivatedAbility` seam (see its definition below).
 //   • Snow-matters — Snowblind / Whiteout / Woolly Mammoths / Rime Dryad
 //     (snow-land counting, snow landwalk evasion, snow-land sac recursion). No
 //     snow supertype filter / snow-evasion plumbing yet — snow cluster.
@@ -1560,30 +1560,62 @@ export const tinderWall: CardDefinition = {
         },
     ],
 };
-// DEFERRED (#738) — Touch of Vitae. Two of three clauses ship today: the haste
-// leg (`grantAbility` Op, layer 6) and the next-upkeep cantrip (`delayedTrigger`
-// timing "next-upkeep"). The blocker is the granted ACTIVATED ability
-// "{0}: Untap this creature. Activate only once." granted to a target UNTIL END
-// OF TURN by a one-shot instant. `CardInstanceState.grantedActivatedAbilities`
-// (gre/state.ts) exists but is keyed ONLY by `auraId` (a lingering source
-// permanent) — the `grantedTriggeredAbilities` sibling carries a `duration?`
-// variant, the activated one does NOT. An instant leaves no source permanent,
-// so there is no seam to attach a duration-scoped granted activated ability.
-// Genuinely-absent seam (do NOT paper with resolve(), per ADR 0045): add a
-// `duration?` variant to `grantedActivatedAbilities`, a
-// `grantActivatedAbility(target, sourceCardId, abilityId, duration)` primitive
-// (activated sibling of `grantStaticAbility`), its phase-boundary purge, a
-// grant-template slot on the source def, and an Op skin. The "activate only
-// once" cap reuses `oncePerTurn` (once per until-EOT grant == once). Stop-and-
-// issue: stub kept, tracked by #738.
-// export const touchOfVitae: CardDefinition = {
-//     id: "48d2cd18-a24d-40e0-a654-777d9e623ae2",
-//     name: "Touch of Vitae",
-//     rarity: "uncommon",
-//     oracleText: "Until end of turn, target creature gains haste and \"{0}: Untap this creature. Activate only once.\"\nDraw a card at the beginning of the next turn's upkeep.",
-//     manaCost: { X: 2, G: 1 },
-//     types: ["Instant"],
-// };
+// Touch of Vitae — {2}{G} Instant (issue #738). "Until end of turn, target
+// creature gains haste and '{0}: Untap this creature. Activate only once.'
+// Draw a card at the beginning of the next turn's upkeep." Two until-EOT grants
+// (CR 611.1b): the keyword `haste` and an ACTIVATED ability. The activated
+// grant rides the duration-scoped `grantActivatedAbility` seam (#738): the
+// ability template lives on this card's `grantTemplates[]`, and
+// `grantAbility { grantedActivatedId }` pushes it onto the target with an
+// end-of-turn duration (spliced out by the phase-boundary purge). The "Activate
+// only once" cap is the template's `oncePerTurn` — an until-EOT grant spans
+// exactly one turn, so once-per-turn == once-per-grant. The {0} ability untaps
+// its own permanent (`tapUntap` on `$source`). The next-upkeep cantrip is a
+// `delayedTrigger` Op with an inline draw body (CR 603.7d, the Urza's Bauble /
+// Foxfire shape; fires at the very next upkeep for the scheduling controller).
+export const touchOfVitae: CardDefinition = {
+    id: "48d2cd18-a24d-40e0-a654-777d9e623ae2",
+    name: "Touch of Vitae",
+    rarity: "uncommon",
+    oracleText:
+        'Until end of turn, target creature gains haste and "{0}: Untap this creature. Activate only once."\nDraw a card at the beginning of the next turn\'s upkeep.',
+    manaCost: { X: 2, G: 1 },
+    types: ["Instant"],
+    targetRequirement: { type: "Creature", count: 1 },
+    effects: [
+        {
+            op: "grantAbility",
+            ability: "haste",
+            target: { target: 0 },
+            duration: { phase: "end-of-turn" },
+        },
+        {
+            op: "grantAbility",
+            grantedActivatedId: "touch-of-vitae-untap",
+            target: { target: 0 },
+            duration: { phase: "end-of-turn" },
+        },
+        {
+            op: "delayedTrigger",
+            timing: "next-upkeep",
+            oracleText:
+                "At the beginning of the next turn's upkeep, draw a card.",
+            effects: [{ op: "draw", player: "controller", count: 1 }],
+        },
+    ],
+    grantTemplates: [
+        {
+            id: "touch-of-vitae-untap",
+            oracleText: "{0}: Untap this creature. Activate only once.",
+            cost: {},
+            useStack: true,
+            oncePerTurn: true,
+            effects: [
+                { op: "tapUntap", action: "untap", target: { ref: "$source" } },
+            ],
+        },
+    ],
+};
 // Trailblazer — "Target creature can't be blocked this turn." (CR 509.1b — a
 // can't-be-blocked restriction set on the target until end of turn.)
 export const trailblazer: CardDefinition = {

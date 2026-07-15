@@ -8952,6 +8952,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Touch of Vitae",
+        "scryfallId": "48d2cd18-a24d-40e0-a654-777d9e623ae2",
+        "oracleId": "84f1e596-f56f-48c9-9bff-2c0bb2cea2d3",
+        "firstSet": "ice"
+    },
+    {
         "name": "Tourach's Chant",
         "scryfallId": "06883fd2-eccd-47c6-8c34-10d95e923685",
         "oracleId": "bdf4e225-23b5-47d9-9936-ddcec8aa1ca4",
@@ -9874,6 +9880,12 @@
         "scryfallId": "9359f60c-9a27-4e53-b35b-964a121a6fba",
         "oracleId": "1dcbd583-3388-4b34-a7cd-131648aa6abd",
         "firstSet": "lea"
+    },
+    {
+        "name": "Winter's Chill",
+        "scryfallId": "a779aca7-ff2c-48d8-9484-6ad04b2c6bcb",
+        "oracleId": "ae78d498-11c7-427f-9d13-3f1b7096f803",
+        "firstSet": "ice"
     },
     {
         "name": "Wishclaw Talisman",

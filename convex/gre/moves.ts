@@ -43,7 +43,7 @@ import {
 } from "./combat";
 import { getInstanceManaCost, tryGetDefinition } from "../cards";
 import { matchesPermanentFilter } from "../cards/filters";
-import { liveSupertypesOf } from "./snow";
+import { liveSupertypesOf, countSnowLands } from "./snow";
 import { substituteColorFilter } from "./textChanges";
 
 /** One land tap the executor must perform to fund a cast/activation. */
@@ -437,9 +437,20 @@ function enumerateCastMoves(
     // uses — so the Bot and the gate can never disagree on the reachable range.
     // Each X is still re-checked below via `planManaPayment`, so an X the shared
     // greedy ceiling over-counts is filtered there (never over-offered).
+    // CR 107.3 — a board-count upper bound on X ("X can't be greater than the
+    // number of snow lands you control", Winter's Chill) caps the enumeration
+    // to the same ceiling the cast mutation enforces, so the Bot never offers
+    // an X the human cast path would reject.
     const hasX = typeof rawCost.X === "string";
+    const xCeiling =
+        def?.castXUpperBound === "snow-lands"
+            ? Math.min(
+                  maxAffordableX(player, card),
+                  countSnowLands(player.battlefield)
+              )
+            : maxAffordableX(player, card);
     const xValues: (number | undefined)[] = hasX
-        ? Array.from({ length: maxAffordableX(player, card) + 1 }, (_, i) => i)
+        ? Array.from({ length: xCeiling + 1 }, (_, i) => i)
         : [undefined];
 
     // CR 107.4f — a Phyrexian cost ({B/P}, {U/P}) is paid pip-by-pip with mana

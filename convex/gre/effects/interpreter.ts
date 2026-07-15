@@ -1196,7 +1196,23 @@ export const OP_EXECUTORS: {
     grantAbility(ctx, op) {
         const target = resolveObjectRef(ctx, op.target);
         if (!target) return;
-        ctx.grantStaticAbility(target, op.ability, op.duration);
+        // Keyword static grant (Berserk's trample) OR a duration-scoped
+        // activated-ability grant whose template lives on the resolving
+        // source's `grantTemplates[]` (issue #738, Touch of Vitae). One field
+        // is set per Op (enforced by `validate`); a card may emit both as two
+        // separate `grantAbility` Ops (Touch of Vitae grants haste + the {0}
+        // untap ability).
+        if (op.ability) {
+            ctx.grantStaticAbility(target, op.ability, op.duration);
+        }
+        if (op.grantedActivatedId) {
+            ctx.grantActivatedAbility(
+                target,
+                ctx.sourceCardId,
+                op.grantedActivatedId,
+                op.duration
+            );
+        }
     },
     // CR 701.20 (issue #844) — shuffle a player's library. A thin declarative
     // skin over `shuffleLibrary`, ONE execution path (ADR 0045): the seeded

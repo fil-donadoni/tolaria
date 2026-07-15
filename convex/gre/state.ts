@@ -301,17 +301,24 @@ export type CardInstanceState = {
          *  The entry is removed when the aura unattaches or leaves play. */
         auraId?: string;
     }[];
-    /** Activated abilities granted to this permanent by a lord-style static
-     *  effect (CR 113.1, 611). Each entry references an ability template on
-     *  another card def — the template is looked up at activation time via
-     *  `getDefinition(sourceCardId).activatedAbilities`. The grant is keyed by
-     *  `auraId` (the granting source's instance id) so it can be spliced out
-     *  when the source leaves play. Used by Zombie Master ("Other Zombies
-     *  have '{B}: Regenerate this creature.'"). */
+    /** Activated abilities granted to this permanent by another source
+     *  (CR 113.1, 611). Each entry references an ability template on another
+     *  card def — the template is looked up at activation time on
+     *  `getDefinition(sourceCardId).grantTemplates`.
+     *
+     *  Two flavours, exactly one keyed field set per entry:
+     *  - `auraId` (the granting source's instance id) for continuous
+     *    lord-style static-effect grants, spliced out when the source leaves
+     *    play (Zombie Master: "Other Zombies have '{B}: Regenerate this
+     *    creature.'").
+     *  - `duration` for one-shot until-end-of-turn grants (CR 611.1b), spliced
+     *    out by the phase-boundary purge when the duration expires (Touch of
+     *    Vitae: "gains '{0}: Untap this creature. Activate only once.'"). */
     grantedActivatedAbilities?: {
         sourceCardId: string;
         abilityId: string;
-        auraId: string;
+        auraId?: string;
+        duration?: Duration;
     }[];
     /** Triggered abilities granted to this permanent by an anthem-style static
      *  effect (CR 113.1, 611). Each entry references a triggered-ability
@@ -8635,6 +8642,34 @@ export function buildSpellContext(
             found.card.grantedStaticAbilities = [
                 ...(found.card.grantedStaticAbilities ?? []),
                 { ability },
+            ];
+        },
+        // CR 113.1 / 611.1b: grants an ACTIVATED ability for a limited
+        // duration (Touch of Vitae: "gains '{0}: Untap this creature. Activate
+        // only once.' until end of turn"). The template lives on the granting
+        // card's `grantTemplates[]` (looked up by the activation entry point in
+        // game.ts), so the permanent exposes it as if printed on it. The
+        // duration-scoped sibling of the continuous `activated-grant` static
+        // effect; the phase-boundary purge splices it back out when `duration`
+        // expires. The "activate only once" cap rides on the template's
+        // `oncePerTurn` — an until-EOT grant spans exactly one turn, so
+        // once-per-turn == once-per-grant.
+        grantActivatedAbility(
+            target: TargetSelection,
+            sourceCardId: string,
+            abilityId: string,
+            duration: DurationSpec
+        ): void {
+            if (target.type !== "permanent") return;
+            const found = findOnBattlefield(state, target.id);
+            if (!found) return;
+            found.card.grantedActivatedAbilities = [
+                ...(found.card.grantedActivatedAbilities ?? []),
+                {
+                    sourceCardId,
+                    abilityId,
+                    duration: resolveDuration(duration, item.castById, state),
+                },
             ];
         },
         // CR 113.1 / 611.1b: grants a triggered ability for a limited duration.

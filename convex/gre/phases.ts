@@ -2131,6 +2131,28 @@ function tickAllDurations(state: GameState): void {
         }
     }
 
+    // Granted activated abilities with a duration (CR 611.1b — Touch of Vitae's
+    // "gains '{0}: Untap this creature. Activate only once.' until end of
+    // turn"). Aura-sourced grants carry an `auraId` and no `duration`; they're
+    // managed by the aura's lifetime (unapplySourceStaticEffects) and pass
+    // through this purge unchanged. Nothing to splice out of `staticAbilities`
+    // — a granted activated ability lives only in `grantedActivatedAbilities`.
+    for (const p of state.players) {
+        for (const card of p.battlefield) {
+            if (!card.grantedActivatedAbilities?.length) continue;
+            const kept: typeof card.grantedActivatedAbilities = [];
+            for (const grant of card.grantedActivatedAbilities) {
+                if (!grant.duration) {
+                    kept.push(grant);
+                    continue;
+                }
+                const next = tickDuration(grant.duration, view);
+                if (next !== null) kept.push({ ...grant, duration: next });
+            }
+            card.grantedActivatedAbilities = kept.length > 0 ? kept : undefined;
+        }
+    }
+
     // Temporarily removed keywords (CR 611.1b layer 6 — Shelkin Brownie /
     // Tolaria "loses banding / 'bands with other' until end of turn"). On
     // expiry, push one occurrence of the keyword back into `staticAbilities`

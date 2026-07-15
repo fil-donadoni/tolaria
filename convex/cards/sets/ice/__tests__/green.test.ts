@@ -50,6 +50,7 @@ import {
     hymnOfRebirth,
     foxfire,
     pyknite,
+    touchOfVitae,
     whiteout,
     woollyMammoths,
     freyalisesWinds,
@@ -77,6 +78,7 @@ import {
     emitBlockersConfirmedEvents,
     emitAttackersDeclaredEvents,
     fireDelayedTriggers,
+    advancePhase,
 } from "../../../../gre/phases";
 import { recordBlockedAttackers } from "../../../../gre/banding";
 import { applyMayPaySubmit } from "../../../../gre/pendingChoiceSubmit";
@@ -1712,6 +1714,96 @@ describe("Pyknite (1/1 Ouphe with self-ETB cantrip, CR 603.6a)", () => {
         expect(pyknite.power).toBe(1);
         expect(pyknite.toughness).toBe(1);
         expect(pyknite.subtypes).toContain("Ouphe");
+    });
+});
+
+describe("Touch of Vitae (until-EOT haste + granted {0} untap, once; CR 611.1b)", () => {
+    it("grants haste + a duration-scoped {0} untap ability; the ability untaps, and the EOT purge removes both", () => {
+        const creature = vanilla("c", 2, 2, {
+            id: "c",
+            controllerId: "p1",
+            ownerId: "p1",
+            isTapped: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [creature],
+                    library: library("p1", ["draw1"]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        state.activePlayerId = "p1";
+        // Resolve Touch of Vitae targeting the tapped creature.
+        castCantrip(state, touchOfVitae.id, "p1", [
+            { type: "permanent", id: "c" },
+        ]);
+        let c = state.players[0].battlefield.find((x) => x.id === "c")!;
+        // Both until-EOT grants applied (CR 611.1b): the haste keyword and the
+        // duration-scoped activated ability, each with an end-of-turn duration.
+        expect(c.staticAbilities).toContain("haste");
+        expect(c.grantedActivatedAbilities).toHaveLength(1);
+        expect(c.grantedActivatedAbilities![0].abilityId).toBe(
+            "touch-of-vitae-untap"
+        );
+        expect(c.grantedActivatedAbilities![0].sourceCardId).toBe(
+            touchOfVitae.id
+        );
+        expect(c.grantedActivatedAbilities![0].duration?.phase).toBe(
+            "end-of-turn"
+        );
+        // The next-upkeep cantrip is scheduled as a delayed trigger.
+        expect(
+            state.delayedTriggers?.some((d) => d.timing === "next-upkeep")
+        ).toBe(true);
+        // Wire format: the granted activated ability (with its duration) must
+        // survive projection, or the UI never offers the {0} untap affordance.
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (x) => x.id === "c"
+        )!;
+        expect(slim.grantedActivatedAbilities).toHaveLength(1);
+        expect(slim.grantedActivatedAbilities![0].abilityId).toBe(
+            "touch-of-vitae-untap"
+        );
+        expect(slim.grantedActivatedAbilities![0].duration?.phase).toBe(
+            "end-of-turn"
+        );
+        // Activate the granted {0} ability — the creature untaps itself.
+        state.stack.push({
+            ...c,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "touch-of-vitae-untap",
+            grantedSourceCardId: touchOfVitae.id,
+            targets: [],
+        });
+        resolveTopOfStack(state);
+        c = state.players[0].battlefield.find((x) => x.id === "c")!;
+        expect(c.isTapped).toBe(false);
+        // "Activate only once" — the once-per-grant cap rides on the template's
+        // oncePerTurn (an until-EOT grant spans exactly one turn), enforced by
+        // the shared CR 602.5 activation-legality path.
+        expect(
+            touchOfVitae.grantTemplates?.find(
+                (t) => t.id === "touch-of-vitae-untap"
+            )?.oncePerTurn
+        ).toBe(true);
+        // EOT purge (CR 611.2 / 514.2): drive END_STEP → CLEANUP; both the haste
+        // keyword and the granted activated ability expire.
+        state.phase = "END_STEP";
+        advancePhase(state);
+        c = state.players[0].battlefield.find((x) => x.id === "c")!;
+        expect(c.staticAbilities).not.toContain("haste");
+        expect(c.grantedActivatedAbilities).toBeUndefined();
+    });
+
+    it("is a {2}{G} Instant that registers by id and name", () => {
+        expect(touchOfVitae.manaCost).toEqual({ X: 2, G: 1 });
+        expect(touchOfVitae.types).toEqual(["Instant"]);
+        expect(getDefinition(touchOfVitae.id)).toBe(touchOfVitae);
+        expect(getCardByName("Touch of Vitae")).toBe(touchOfVitae);
     });
 });
 

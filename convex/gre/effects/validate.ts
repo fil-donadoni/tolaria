@@ -1313,9 +1313,25 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     // which the grant expires (CR 611.2).
     grantAbility: {
         required: {
-            ability: isNonEmptyString,
             target: isObjectSelector,
             duration: isDurationSpec,
+        },
+        optional: {
+            ability: isNonEmptyString,
+            grantedActivatedId: isNonEmptyString,
+        },
+        // Exactly one payload: a keyword static grant (`ability`) OR a
+        // duration-scoped activated-ability grant (`grantedActivatedId`, a
+        // `grantTemplates[]` id on the resolving source, issue #738).
+        check: (op) => {
+            const hasKeyword = "ability" in op;
+            const hasActivated = "grantedActivatedId" in op;
+            if (hasKeyword === hasActivated) {
+                return [
+                    'requires exactly one of "ability" or "grantedActivatedId"',
+                ];
+            }
+            return [];
         },
     },
     // CR 701.20 (issue #844) — shuffle a player's library. `action` is

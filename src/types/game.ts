@@ -125,13 +125,16 @@ export interface CardInstance {
      *  on auras that ETB attached to a host. */
     attachedTo?: string;
     /** Activated abilities granted to this permanent by another card
-     *  (CR 113.1, e.g. Zombie Master granting "{B}: Regenerate ~"). The
-     *  template lives on the granting card's def — UI resolves via
-     *  `getDefinition(grant.sourceCardId)`. */
+     *  (CR 113.1, e.g. Zombie Master granting "{B}: Regenerate ~", or Touch of
+     *  Vitae's until-EOT "{0}: Untap this creature"). Exactly one keyed field is
+     *  set: `auraId` for a continuous lord-style grant, `duration` for a
+     *  one-shot until-end-of-turn grant. The template lives on the granting
+     *  card's def — UI resolves via `getDefinition(grant.sourceCardId)`. */
     grantedActivatedAbilities?: {
         sourceCardId: string;
         abilityId: string;
-        auraId: string;
+        auraId?: string;
+        duration?: unknown;
     }[];
     /** Static keywords granted to this permanent by another card (CR 113.1,
      *  611 — landwalk via a granting permanent, etc.). Each entry is also

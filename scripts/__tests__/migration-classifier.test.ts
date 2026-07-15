@@ -765,9 +765,18 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // at least one other still-uncovered primitive too. Net: total
         // 693→692, FREE/AFK-ready/X-only unchanged (451/413/14), Op-blocked
         // 228→227. Partition: 451+14+227=692.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(692);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(451);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(413);
+        //
+        // Then Winter's Chill ships (issue #738 — the combat-only capped-X
+        // three-way-may-pay card): it adds TWO new closures (its `resolveSteps`
+        // body + its `delayedTriggers[]` end-of-combat destroy resolve), both
+        // FREE and AFK-ready (the card carries a per-card describe block). Touch
+        // of Vitae (same issue) is authored DSL-first (`effects[]`), so it adds
+        // no closure. Net: total 692→694, FREE 451→453, AFK-ready 413→415,
+        // X-only unchanged (14), Op-blocked unchanged (227). Partition:
+        // 453+14+227=694.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(694);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(453);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(415);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
         expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(227);
     });
