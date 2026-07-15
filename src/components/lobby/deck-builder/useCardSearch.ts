@@ -4,6 +4,7 @@ import { api } from "@convex/_generated/api";
 import type { CardPrinting } from "@convex/cards";
 import { foldAccents } from "@convex/cards/textNormalize";
 import { FORMAT_RULES, type FormatId } from "@convex/formats";
+import { compareEntries, type SortKey } from "./cardSort";
 
 export interface CardIndexEntry {
     cardId: string;
@@ -48,6 +49,9 @@ export interface CardSearchFilters {
      *  cube restricts the pool to its member cards (the built ∩ cube list) —
      *  a discovery filter, orthogonal to the deck's Format. */
     cube: string;
+    /** Result ordering key. Orthogonal to matching — it never affects which
+     *  cards match, only their order, so it is excluded from `hasAnyFilter`. */
+    sort: SortKey;
 }
 
 export const DEFAULT_FILTERS: CardSearchFilters = {
@@ -61,6 +65,7 @@ export const DEFAULT_FILTERS: CardSearchFilters = {
     sets: [],
     setMode: "any",
     cube: "",
+    sort: "manaValue",
 };
 
 function matchesColors(
@@ -255,9 +260,7 @@ export function useCardSearch(
                 matchesManaValue(e.manaValue, filters.manaValues) &&
                 matchesSets(e.prints, filters.sets, filters.setMode)
         );
-        return filtered.sort(
-            (a, b) => a.manaValue - b.manaValue || a.name.localeCompare(b.name)
-        );
+        return filtered.sort(compareEntries(filters.sort));
     }, [all, filters, idle, allowedSets, cubeIds]);
 
     return { entries, total: all?.length ?? 0, idle };

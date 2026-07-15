@@ -14,6 +14,7 @@ export default function DebugScenarioRow({
     disabled,
     onLoad,
     onToggleGolden,
+    onEdit,
     onRegenerate,
     onVary,
     onDelete,
@@ -22,6 +23,7 @@ export default function DebugScenarioRow({
     disabled: boolean;
     onLoad: () => void;
     onToggleGolden: () => void;
+    onEdit: () => void;
     onRegenerate: () => void;
     onVary: () => void;
     onDelete: () => void;
@@ -38,6 +40,9 @@ export default function DebugScenarioRow({
             </DebugButton>
             <DebugButton onClick={onLoad} disabled={disabled}>
                 {row.label}
+            </DebugButton>
+            <DebugButton onClick={onEdit} disabled={disabled}>
+                {"✎"}
             </DebugButton>
             {hasPrompt && (
                 <>

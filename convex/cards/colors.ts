@@ -31,6 +31,31 @@ export function getColorsFromCost(cost?: ManaCost): Color[] {
 
 const COLORED = MANA_COLORS.filter((c) => c !== "C");
 
+/** Basic land name for each color (CR 305.6 intrinsic mana). */
+const BASIC_BY_COLOR: Record<Color, string> = {
+    W: "Plains",
+    U: "Island",
+    B: "Swamp",
+    R: "Mountain",
+    G: "Forest",
+    C: "Plains", // colourless has no basic; callers fall back to Plains
+};
+
+/**
+ * The ordered list of basic lands to seed for a set of colours, in canonical
+ * WUBRG order — a mono-red board → `["Mountain"]`, a UW board →
+ * `["Plains", "Island"]`. An empty/colourless set falls back to `["Plains"]`
+ * (the historical debug behaviour). Used by the debug scenario builder to seed
+ * `landCount`/`libraryCount` lands that actually cast the placed cards.
+ */
+export function basicLandsForColors(colors: Iterable<Color>): string[] {
+    const set = new Set<Color>(colors);
+    const cycle = COLORED.filter((c) => set.has(c)).map(
+        (c) => BASIC_BY_COLOR[c]
+    );
+    return cycle.length > 0 ? cycle : ["Plains"];
+}
+
 /** Deck-builder color identity for a `CardDefinition`. Spells return the
  *  colors of their mana cost; lands (and other cards without a cost) return
  *  the colors of mana their tap-mana abilities can produce — derived from

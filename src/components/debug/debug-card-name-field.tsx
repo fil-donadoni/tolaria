@@ -1,0 +1,82 @@
+import { useMemo, useState } from "react";
+import { getAllCardNames } from "@convex/cards";
+
+/** Controlled card-name autocomplete for the debug scenario builder. Unlike
+ *  `CardNameInput` (which owns a submit button for a `name-card` choice), this
+ *  is a plain value/onChange field: the parent repeater owns the value and the
+ *  save. Suggestions are filtered over the implemented card registry
+ *  (`getAllCardNames`) with exact → prefix → substring ranking, capped for the
+ *  UI. A dropdown of matches shows while the field is focused and the typed
+ *  value isn't already an exact match. */
+export default function DebugCardNameField({
+    value,
+    onChange,
+    placeholder = "Card name…",
+    ariaLabel = "Card name",
+}: {
+    value: string;
+    onChange: (name: string) => void;
+    placeholder?: string;
+    ariaLabel?: string;
+}) {
+    const [focused, setFocused] = useState(false);
+    const allNames = useMemo(() => getAllCardNames(), []);
+
+    const trimmed = value.trim();
+    const suggestions = useMemo(() => {
+        const q = trimmed.toLowerCase();
+        if (q.length === 0) return [];
+        const exact: string[] = [];
+        const prefix: string[] = [];
+        const substring: string[] = [];
+        for (const n of allNames) {
+            const lower = n.toLowerCase();
+            if (lower === q) exact.push(n);
+            else if (lower.startsWith(q)) prefix.push(n);
+            else if (lower.includes(q)) substring.push(n);
+            if (prefix.length >= 8) break;
+        }
+        return [...exact, ...prefix, ...substring].slice(0, 8);
+    }, [allNames, trimmed]);
+
+    // Hide the dropdown once the typed value is an exact registry match — no
+    // point suggesting the card that's already chosen.
+    const exactMatch = suggestions.length === 1 && suggestions[0] === value;
+    const showList = focused && suggestions.length > 0 && !exactMatch;
+
+    return (
+        <div className="relative flex-1">
+            <input
+                type="text"
+                value={value}
+                placeholder={placeholder}
+                aria-label={ariaLabel}
+                onChange={(e) => onChange(e.target.value)}
+                onFocus={() => setFocused(true)}
+                // Delay blur so a suggestion click registers before the list unmounts.
+                onBlur={() => setTimeout(() => setFocused(false), 120)}
+                className="w-full px-2 py-1 rounded bg-black/40 border border-white/20 text-white text-xs placeholder:text-white/30 outline-none focus:border-white/40"
+            />
+            {showList && (
+                <ul className="absolute left-0 right-0 top-full z-10 mt-0.5 max-h-40 overflow-y-auto rounded border border-white/20 bg-black/95 shadow-xl">
+                    {suggestions.map((name) => (
+                        <li key={name}>
+                            <button
+                                type="button"
+                                className="w-full text-left px-2 py-1 text-xs text-white/80 hover:bg-white/10"
+                                onMouseDown={(e) => {
+                                    // onMouseDown (not onClick) so it fires before blur.
+                                    e.preventDefault();
+                                    onChange(name);
+                                    setFocused(false);
+                                }}
+                            >
+                                {name}
+                            </button>
+                        </li>
+                    ))}
+                </ul>
+            )}
+        </div>
+    );
+}

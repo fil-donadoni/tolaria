@@ -23,8 +23,27 @@ describe("filterSearch encode/decode", () => {
             sets: ["lea", "arn"],
             setMode: "all",
             cube: "vintage-cube",
+            sort: "color",
         };
         expect(decodeFilters(encodeFilters(filters))).toEqual(filters);
+    });
+
+    it("round-trips a non-default sort via the `sort` key", () => {
+        const search = encodeFilters({ ...DEFAULT_FILTERS, sort: "name" });
+        expect(search).toEqual({ sort: "name" });
+        expect(decodeFilters(search).sort).toBe("name");
+    });
+
+    it("omits the default sort from the search object", () => {
+        expect(
+            encodeFilters({ ...DEFAULT_FILTERS, sort: "manaValue" })
+        ).toEqual({});
+    });
+
+    it("falls back to the default sort on an unknown value", () => {
+        expect(decodeFilters({ sort: "bogus" }).sort).toBe(
+            DEFAULT_FILTERS.sort
+        );
     });
 
     it("round-trips a selected cube via the `cube` key", () => {

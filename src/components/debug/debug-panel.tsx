@@ -10,6 +10,7 @@ import { copyMinified } from "~/lib/clipboard";
 import DebugButton from "./debug-button";
 import DebugDbScenarios from "./debug-db-scenarios";
 import DebugGenerateScenario from "./debug-generate-scenario";
+import DebugSaveScenario, { type EditingScenario } from "./debug-save-scenario";
 
 const theme = {
     scheme: "tolaria",
@@ -51,6 +52,8 @@ export default function DebugPanel({
     const [isOpen, setIsOpen] = useState(false);
     const [showScenarios, setShowScenarios] = useState(false);
     const [scenarioFilter, setScenarioFilter] = useState("");
+    const [editingScenario, setEditingScenario] =
+        useState<EditingScenario | null>(null);
     const [verbose, setVerbose] = useState(false);
     const [copyFeedback, setCopyFeedback] = useState(false);
     const panelRef = useRef<HTMLDivElement>(null);
@@ -179,12 +182,6 @@ export default function DebugPanel({
                 {isOpen && (
                     <div className="border-t border-white/10">
                         <div className="flex flex-wrap gap-2 px-3 py-2 border-b border-white/10">
-                            <DebugButton onClick={onToggleShowAllCards}>
-                                {showAllCards ? "Hide cards" : "Show all cards"}
-                            </DebugButton>
-                            <DebugButton onClick={onToggleDebugAllActions}>
-                                {debugAllActions ? "Rules on" : "All actions"}
-                            </DebugButton>
                             <DebugButton
                                 onClick={() => setShowScenarios(!showScenarios)}
                             >
@@ -195,6 +192,26 @@ export default function DebugPanel({
                                 variant="danger"
                             >
                                 Reset Game
+                            </DebugButton>
+                            <DebugButton
+                                onClick={() => {
+                                    if (state) {
+                                        copyMinified(state);
+                                        setCopyFeedback(true);
+                                        setTimeout(
+                                            () => setCopyFeedback(false),
+                                            1500
+                                        );
+                                    }
+                                }}
+                            >
+                                {copyFeedback ? "Copied!" : "Copy State"}
+                            </DebugButton>
+                            <DebugButton onClick={onToggleShowAllCards}>
+                                {showAllCards ? "Hide cards" : "Show all cards"}
+                            </DebugButton>
+                            <DebugButton onClick={onToggleDebugAllActions}>
+                                {debugAllActions ? "Rules on" : "All actions"}
                             </DebugButton>
                             <DebugButton onClick={handleNewSolo}>
                                 {game?.solo && !game?.vsAi
@@ -211,20 +228,6 @@ export default function DebugPanel({
                                 disabled={bo3Pending}
                             >
                                 {bo3Pending ? "Bo3…" : "Bo3 Sideboarding"}
-                            </DebugButton>
-                            <DebugButton
-                                onClick={() => {
-                                    if (state) {
-                                        copyMinified(state);
-                                        setCopyFeedback(true);
-                                        setTimeout(
-                                            () => setCopyFeedback(false),
-                                            1500
-                                        );
-                                    }
-                                }}
-                            >
-                                {copyFeedback ? "Copied!" : "Copy State"}
                             </DebugButton>
                             <DebugButton onClick={() => setVerbose((v) => !v)}>
                                 {verbose ? "Verbose ON" : "Verbose"}
@@ -259,9 +262,23 @@ export default function DebugPanel({
                                 <DebugDbScenarios
                                     gameId={gameId}
                                     filter={scenarioFilter}
+                                    onEdit={(row) =>
+                                        setEditingScenario({
+                                            id: row._id,
+                                            label: row.label,
+                                            spec: row.spec,
+                                        })
+                                    }
                                 />
                                 <div className="mt-2 pt-2 border-t border-white/10">
                                     <DebugGenerateScenario />
+                                </div>
+                                <div className="mt-2 pt-2 border-t border-white/10">
+                                    <DebugSaveScenario
+                                        key={editingScenario?.id ?? "new"}
+                                        editing={editingScenario}
+                                        onDone={() => setEditingScenario(null)}
+                                    />
                                 </div>
                             </div>
                         )}
@@ -272,11 +289,8 @@ export default function DebugPanel({
                                     data={state}
                                     theme={theme}
                                     invertTheme={false}
-                                    shouldExpandNodeInitially={(
-                                        _keyPath,
-                                        _data,
-                                        level
-                                    ) => level < 2}
+                                    // Collapsed by default — expand on demand.
+                                    shouldExpandNodeInitially={() => false}
                                 />
                             ) : (
                                 <span className="text-white/40">

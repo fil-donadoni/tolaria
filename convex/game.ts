@@ -10,7 +10,7 @@ import {
     getInstanceManaCost,
     tryGetDefinition,
 } from "./cards";
-import { getCardColors } from "./cards/colors";
+import { basicLandsForColors, getCardColors } from "./cards/colors";
 import {
     type CardInstanceState,
     type GameState,
@@ -10497,9 +10497,14 @@ export const debugSetupScenario = mutation({
             })
         ),
         phase: v.optional(v.string()),
-        /** Give each player this many Plains. Default 0. */
+        /** Give each player this many basic lands. The land TYPES match the
+         *  colours of the cards placed in the scenario (CR 202.2) — a mono-red
+         *  board seeds Mountains, a UW board alternates Islands and Plains — so
+         *  the placed cards are actually castable. Colourless/empty → Plains.
+         *  Default 0. */
         landCount: v.optional(v.number()),
-        /** Fill each player's library with this many Plains. Default: unchanged. */
+        /** Fill each player's library with this many basic lands, colour-matched
+         *  to the placed cards like `landCount`. Default: unchanged. */
         libraryCount: v.optional(v.number()),
         /** Override the turn number. Default: unchanged (turn 1 of a fresh solo
          *  game skips the draw step — set ≥2 to exercise draw-step effects). */
@@ -10689,11 +10694,26 @@ export const debugSetupScenario = mutation({
             }
         }
 
+        // Base lands seeded by `landCount`/`libraryCount` match the COLORS of
+        // the cards placed in the scenario (CR 202.2): a mono-red board seeds
+        // Mountains, a UW board alternates Islands and Plains — so the placed
+        // cards are actually castable. A colourless/empty board falls back to
+        // Plains (the historical behaviour).
+        const colorsPresent = new Set<Color>();
+        for (const entry of args.cards) {
+            const def = getCardByName(entry.name);
+            for (const c of getCardColors(def)) colorsPresent.add(c);
+        }
+        const basicLandCycle = basicLandsForColors(colorsPresent);
+        const basicLandAt = (i: number) =>
+            basicLandCycle[i % basicLandCycle.length];
+
         // Add lands (only if explicitly requested)
         const landCount = args.landCount ?? 0;
         for (let i = 0; i < landCount; i++) {
-            p1.battlefield.push(makeInstance("Plains", p1.id, "battlefield"));
-            p2.battlefield.push(makeInstance("Plains", p2.id, "battlefield"));
+            const name = basicLandAt(i);
+            p1.battlefield.push(makeInstance(name, p1.id, "battlefield"));
+            p2.battlefield.push(makeInstance(name, p2.id, "battlefield"));
         }
 
         // CR 303.4 / 701.3 — resolve queued Aura/Equipment attachments now that
@@ -10719,8 +10739,9 @@ export const debugSetupScenario = mutation({
             p1.library = [];
             p2.library = [];
             for (let i = 0; i < args.libraryCount; i++) {
-                p1.library.push(makeInstance("Plains", p1.id, "library"));
-                p2.library.push(makeInstance("Plains", p2.id, "library"));
+                const name = basicLandAt(i);
+                p1.library.push(makeInstance(name, p1.id, "library"));
+                p2.library.push(makeInstance(name, p2.id, "library"));
             }
         }
 

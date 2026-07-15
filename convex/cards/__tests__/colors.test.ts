@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { getCardColors, getColorsFromCost } from "../colors";
+import {
+    basicLandsForColors,
+    getCardColors,
+    getColorsFromCost,
+} from "../colors";
 import type { CardDefinition } from "../types";
 
 describe("getColorsFromCost", () => {
@@ -74,5 +78,30 @@ describe("getCardColors", () => {
             ],
         });
         expect(getCardColors(def)).toEqual(["B", "R"]);
+    });
+});
+
+describe("basicLandsForColors (debug scenario land seeding)", () => {
+    it("falls back to Plains for an empty/colorless board", () => {
+        expect(basicLandsForColors([])).toEqual(["Plains"]);
+        expect(basicLandsForColors(["C"])).toEqual(["Plains"]);
+    });
+
+    it("maps a single color to its basic land", () => {
+        expect(basicLandsForColors(["R"])).toEqual(["Mountain"]);
+        expect(basicLandsForColors(["G"])).toEqual(["Forest"]);
+    });
+
+    it("returns basics in canonical WUBRG order regardless of input order", () => {
+        expect(basicLandsForColors(["U", "W"])).toEqual(["Plains", "Island"]);
+        expect(basicLandsForColors(["G", "B", "W"])).toEqual([
+            "Plains",
+            "Swamp",
+            "Forest",
+        ]);
+    });
+
+    it("dedupes repeated colors", () => {
+        expect(basicLandsForColors(["R", "R"])).toEqual(["Mountain"]);
     });
 });

@@ -82,6 +82,42 @@ export const saveDebugScenario = mutation({
 });
 
 /**
+ * Update an existing scenario's label + spec in place (edit an existing row).
+ * Ownership is enforced (a row owned by another user is treated as not found)
+ * and the same loadability guard as `saveDebugScenario` runs before write, so an
+ * edit can't introduce an unknown card name. `golden`/`prompt`/`schemaVersion`
+ * are left untouched — editing the board doesn't change a row's keep status or
+ * its regenerate provenance.
+ */
+export const updateDebugScenario = mutation({
+    args: {
+        id: v.id("debugScenarios"),
+        label: v.string(),
+        spec: scenarioSpecValidator,
+    },
+    returns: v.null(),
+    handler: async (ctx, args) => {
+        const user = await assertIsAdmin(ctx);
+        const row = await ctx.db.get(args.id);
+        if (!row || row.userId !== user._id) {
+            throw new Error("Scenario not found");
+        }
+        const unresolved = collectUnresolvedCardNames(
+            args.spec,
+            (name) => tryGetCardByName(name) !== null
+        );
+        if (unresolved.length > 0) {
+            throw new Error(`Unknown card name(s): ${unresolved.join(", ")}`);
+        }
+        await ctx.db.patch(args.id, {
+            label: args.label.trim() || "Untitled scenario",
+            spec: args.spec,
+        });
+        return null;
+    },
+});
+
+/**
  * Promote a scenario to "golden" (keep) or demote it back to ephemeral (issue
  * #772, ADR 0044). Golden rows survive `cleanupEphemeralScenarios`; ephemeral
  * rows are prunable. Promoting stamps the current `schemaVersion` (the drift tag

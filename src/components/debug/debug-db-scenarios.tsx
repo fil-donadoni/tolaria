@@ -2,10 +2,7 @@ import { useState } from "react";
 import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
-import {
-    normalizeScenarioSpec,
-    type ScenarioSpec,
-} from "@convex/debugScenarioSpec";
+import { normalizeScenarioSpec } from "@convex/debugScenarioSpec";
 import { useCurrentUser } from "~/hooks/useCurrentUser";
 import DebugButton from "./debug-button";
 import DebugScenarioRow from "./debug-scenario-row";
@@ -31,9 +28,11 @@ type Preview = {
 export default function DebugDbScenarios({
     gameId,
     filter,
+    onEdit,
 }: {
     gameId: Id<"games">;
     filter: string;
+    onEdit: (row: Doc<"debugScenarios">) => void;
 }) {
     const user = useCurrentUser();
     const isAdmin = user?.isAdmin === true;
@@ -43,7 +42,6 @@ export default function DebugDbScenarios({
         isAdmin ? {} : "skip"
     );
     const setupScenario = useMutation(api.game.debugSetupScenario);
-    const saveScenario = useMutation(api.debugScenarios.saveDebugScenario);
     const deleteScenario = useMutation(api.debugScenarios.deleteDebugScenario);
     const setGolden = useMutation(api.debugScenarios.setDebugScenarioGolden);
     const cleanup = useMutation(api.debugScenarios.cleanupEphemeralScenarios);
@@ -51,10 +49,7 @@ export default function DebugDbScenarios({
         api.debugScenarioGenerator.regenerateDebugScenario
     );
 
-    const [label, setLabel] = useState("");
-    const [specText, setSpecText] = useState("");
     const [error, setError] = useState<string | null>(null);
-    const [pending, setPending] = useState(false);
     const [busyId, setBusyId] = useState<Id<"debugScenarios"> | null>(null);
     const [cleaning, setCleaning] = useState(false);
     const [varyingId, setVaryingId] = useState<Id<"debugScenarios"> | null>(
@@ -70,29 +65,6 @@ export default function DebugDbScenarios({
         // then hand the clean args to the unchanged builder.
         const normalized = normalizeScenarioSpec(spec);
         void setupScenario({ gameId, ...normalized });
-    };
-
-    const handleSave = async () => {
-        if (pending) return;
-        setError(null);
-        let parsed: unknown;
-        try {
-            parsed = JSON.parse(specText);
-        } catch {
-            setError("Spec is not valid JSON");
-            return;
-        }
-        const spec: ScenarioSpec = normalizeScenarioSpec(parsed);
-        setPending(true);
-        try {
-            await saveScenario({ label: label.trim() || "Untitled", spec });
-            setLabel("");
-            setSpecText("");
-        } catch (e) {
-            setError(e instanceof Error ? e.message : "Save failed");
-        } finally {
-            setPending(false);
-        }
     };
 
     const handleToggleGolden = (row: Doc<"debugScenarios">) => {
@@ -164,6 +136,7 @@ export default function DebugDbScenarios({
                             disabled={busyId !== null}
                             onLoad={() => handleLoad(s.spec)}
                             onToggleGolden={() => handleToggleGolden(s)}
+                            onEdit={() => onEdit(s)}
                             onRegenerate={() => void runRegenerate(s)}
                             onVary={() => {
                                 setVaryingId(s._id);
@@ -231,27 +204,7 @@ export default function DebugDbScenarios({
                 />
             )}
 
-            <span className="text-white/40 text-[10px] uppercase tracking-wide mt-1 pt-2 border-t border-white/10">
-                Save scenario
-            </span>
-            <input
-                type="text"
-                value={label}
-                onChange={(e) => setLabel(e.target.value)}
-                placeholder="Label…"
-                className="w-full px-2 py-1 rounded bg-black/40 border border-white/20 text-white text-xs placeholder:text-white/30 outline-none focus:border-white/40"
-            />
-            <textarea
-                value={specText}
-                onChange={(e) => setSpecText(e.target.value)}
-                placeholder='{"cards":[{"name":"Plains","owner":"me"}],"landCount":2}'
-                rows={3}
-                className="w-full px-2 py-1 rounded bg-black/40 border border-white/20 text-white text-xs placeholder:text-white/30 outline-none focus:border-white/40 font-mono"
-            />
             {error && <span className="text-red-400 text-[10px]">{error}</span>}
-            <DebugButton onClick={() => void handleSave()} disabled={pending}>
-                {pending ? "Saving…" : "Save to DB"}
-            </DebugButton>
         </div>
     );
 }

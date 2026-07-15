@@ -43,6 +43,8 @@ import DeckBanlistPanel from "./deck-banlist-panel";
 import SetFilter from "./set-filter";
 import TypeFilter from "./type-filter";
 import CubeFilter from "./cube-filter";
+import SortSelect from "./sort-select";
+import { type SortKey } from "./cardSort";
 import DeckLegalityPanel from "./deck-legality-panel";
 import { useCardZoom } from "./useCardZoom";
 import { useFilterSearchParams } from "./useFilterSearchParams";
@@ -489,6 +491,13 @@ export default function DeckBuilder({
         [setFilters]
     );
 
+    const setSort = useCallback(
+        (sort: SortKey) => {
+            setFilters((f) => ({ ...f, sort }));
+        },
+        [setFilters]
+    );
+
     // Typing only touches local state — the box never stutters. The debounced
     // value is the one that reaches the filter/URL (effect below).
     const setText = useCallback((text: string) => {
@@ -658,6 +667,7 @@ export default function DeckBuilder({
                             onToggle={toggleManaValue}
                         />
                         <CubeFilter value={filters.cube} onChange={setCube} />
+                        <SortSelect value={filters.sort} onChange={setSort} />
                         <div className="ml-auto flex items-center gap-2 text-xs text-text-muted">
                             <span className="tracking-wide">Results</span>
                             <CardZoomSlider
