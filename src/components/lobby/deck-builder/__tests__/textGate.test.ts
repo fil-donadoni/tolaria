@@ -4,6 +4,7 @@ import {
     MIN_TEXT_QUERY_LENGTH,
     hasAnyFilter,
     isTextActive,
+    matchesCube,
     type CardIndexEntry,
     type CardSearchFilters,
 } from "../useCardSearch";
@@ -80,6 +81,29 @@ describe("3-char text gate (issue #504)", () => {
             expect(
                 hasAnyFilter({ ...DEFAULT_FILTERS, text: "a", colors: ["R"] })
             ).toBe(true);
+        });
+
+        it("a bare cube selection counts as an active filter", () => {
+            expect(
+                hasAnyFilter({ ...DEFAULT_FILTERS, cube: "vintage-cube" })
+            ).toBe(true);
+        });
+    });
+
+    describe("matchesCube — cube membership gate", () => {
+        const members = new Set(["a", "b"]);
+
+        it("passes every card when no cube is selected (null)", () => {
+            expect(matchesCube("anything", null)).toBe(true);
+        });
+
+        it("passes only cards in the cube's member set", () => {
+            expect(matchesCube("a", members)).toBe(true);
+            expect(matchesCube("z", members)).toBe(false);
+        });
+
+        it("matches nothing for an empty set (unresolved / loading cube)", () => {
+            expect(matchesCube("a", new Set())).toBe(false);
         });
     });
 

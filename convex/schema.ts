@@ -265,6 +265,22 @@ export default defineSchema({
         // synced before this field existed carry no id.
         scryfallId: v.optional(v.string()),
     }).index("by_format", ["format"]),
+    // Cube lists (deck-builder discovery filter). A named, curated card list
+    // (e.g. the Vintage Cube) that narrows the builder's card pool to its
+    // members — a card *list*, not a set list, so it does not fit a Format's
+    // `allowedSets`. Stored by oracle NAME (not cardId), resolved to the built
+    // pool at read time via `tryGetCardByName` (same pattern as `formatBanlists`
+    // + `ResolveCardByName`): a name with no built `CardDefinition` is dropped
+    // from the filter, and a card ships straight into every cube it's named in
+    // with no cube edit. Purely a discovery filter — it never gates deck
+    // legality (`validateDeck`/`assertDeckLegal`). Write path is `assertIsAdmin`
+    // -gated (`convex/cubes.ts`).
+    cubeLists: defineTable({
+        slug: v.string(),
+        name: v.string(),
+        cardNames: v.array(v.string()),
+        updatedAt: v.number(),
+    }).index("by_slug", ["slug"]),
     // Debug scenarios (issue #769, ADR 0044). A preset board state — the
     // *argument* to the unchanged `debugSetupScenario` builder — relocated out
     // of the `PRESET_SCENARIOS` code literal into the DB, scoped per user. The

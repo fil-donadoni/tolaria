@@ -44,6 +44,10 @@ export interface CardSearchFilters {
     sets: string[];
     /** How multiple selected sets combine. Only relevant with 2+ selected. */
     setMode: MatchMode;
+    /** Selected cube slug (e.g. `"vintage-cube"`), or empty for no cube. A
+     *  cube restricts the pool to its member cards (the built ∩ cube list) —
+     *  a discovery filter, orthogonal to the deck's Format. */
+    cube: string;
 }
 
 export const DEFAULT_FILTERS: CardSearchFilters = {
@@ -56,6 +60,7 @@ export const DEFAULT_FILTERS: CardSearchFilters = {
     manaValues: [],
     sets: [],
     setMode: "any",
+    cube: "",
 };
 
 function matchesColors(
@@ -186,8 +191,23 @@ export function hasAnyFilter(filters: CardSearchFilters): boolean {
         filters.includeColorless ||
         filters.types.length > 0 ||
         filters.manaValues.length > 0 ||
-        filters.sets.length > 0
+        filters.sets.length > 0 ||
+        filters.cube.length > 0
     );
+}
+
+/**
+ * Cube membership gate: a card is offered only when it belongs to the selected
+ * cube. `cubeIds === null` means "no cube selected" (no gate). An empty set
+ * means the cube resolved to no built members (or is still loading) — nothing
+ * matches, rather than falling through to the unfiltered pool.
+ */
+export function matchesCube(
+    cardId: string,
+    cubeIds: ReadonlySet<string> | null
+): boolean {
+    if (cubeIds === null) return true;
+    return cubeIds.has(cardId);
 }
 
 export function useCardSearch(
@@ -208,12 +228,27 @@ export function useCardSearch(
     // never hardcodes set codes — it reads them from the Format registry.
     const allowedSets =
         format === undefined ? null : FORMAT_RULES[format].allowedSets;
+
+    // Cube membership (discovery filter). Only queried when a cube is selected;
+    // `"skip"` avoids the round-trip otherwise. `null` = no cube gate; while
+    // the query is in flight the set is empty, so a bare cube selection shows
+    // nothing until it resolves rather than flashing the whole pool.
+    const cubeMembership = useQuery(
+        api.cubes.membership,
+        filters.cube ? { slug: filters.cube } : "skip"
+    );
+    const cubeIds = useMemo<ReadonlySet<string> | null>(
+        () => (filters.cube ? new Set(cubeMembership ?? []) : null),
+        [filters.cube, cubeMembership]
+    );
+
     const entries = useMemo(() => {
         if (!all) return undefined;
         if (idle) return [];
         const filtered = all.filter(
             (e) =>
                 matchesFormatSets(e.prints, e.supertypes, allowedSets) &&
+                matchesCube(e.cardId, cubeIds) &&
                 matchesText(e, filters.text) &&
                 matchesColors(e.colors, filters) &&
                 matchesTypes(e, filters.types, filters.typeMode) &&
@@ -223,7 +258,7 @@ export function useCardSearch(
         return filtered.sort(
             (a, b) => a.manaValue - b.manaValue || a.name.localeCompare(b.name)
         );
-    }, [all, filters, idle, allowedSets]);
+    }, [all, filters, idle, allowedSets, cubeIds]);
 
     return { entries, total: all?.length ?? 0, idle };
 }

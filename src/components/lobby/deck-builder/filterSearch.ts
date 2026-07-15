@@ -45,6 +45,7 @@ export function encodeFilters(filters: CardSearchFilters): FilterSearch {
     if (filters.manaValues.length) out.mv = filters.manaValues.join(",");
     if (filters.sets.length) out.s = filters.sets.join(",");
     if (filters.setMode !== DEFAULT_FILTERS.setMode) out.sm = filters.setMode;
+    if (filters.cube) out.cube = filters.cube;
     return out;
 }
 
@@ -74,5 +75,6 @@ export function decodeFilters(search: FilterSearch): CardSearchFilters {
             .filter((n) => Number.isInteger(n)),
         sets: splitList(search.s),
         setMode,
+        cube: asString(search.cube),
     };
 }

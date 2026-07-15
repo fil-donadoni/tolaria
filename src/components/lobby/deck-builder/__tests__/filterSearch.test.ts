@@ -22,8 +22,18 @@ describe("filterSearch encode/decode", () => {
             manaValues: [0, 3, 7],
             sets: ["lea", "arn"],
             setMode: "all",
+            cube: "vintage-cube",
         };
         expect(decodeFilters(encodeFilters(filters))).toEqual(filters);
+    });
+
+    it("round-trips a selected cube via the `cube` key", () => {
+        const search = encodeFilters({
+            ...DEFAULT_FILTERS,
+            cube: "vintage-cube",
+        });
+        expect(search).toEqual({ cube: "vintage-cube" });
+        expect(decodeFilters(search).cube).toBe("vintage-cube");
     });
 
     it("keeps the query string clean (plain string values, no JSON)", () => {
