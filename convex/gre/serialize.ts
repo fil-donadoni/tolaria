@@ -233,6 +233,20 @@ function compactCard(
     if (card.madnessExiled) {
         out.madnessExiled = card.madnessExiled;
     }
+    // CR 702.74a — the Evoke cast marker must survive a save/load between the
+    // cast committing and the "sacrifice if evoked" trigger resolving.
+    if (card.evoked) {
+        out.evoked = card.evoked;
+    }
+    // CR 106.4 / 202.3 — the persistent per-colour spent-mana record (issue
+    // #900) must survive a save/load so a later ETB trigger's condition still
+    // reads it correctly after a DB round-trip.
+    if (
+        card.notedManaSpentOnCast &&
+        Object.keys(card.notedManaSpentOnCast).length > 0
+    ) {
+        out.notedManaSpentOnCast = card.notedManaSpentOnCast;
+    }
     return out;
 }
 
@@ -466,6 +480,17 @@ function expandCard(
     // CR 702.35c — restore the madness-exile marker.
     if (compact.madnessExiled) {
         result.madnessExiled = compact.madnessExiled as boolean;
+    }
+    // CR 702.74a — restore the Evoke cast marker.
+    if (compact.evoked) {
+        result.evoked = compact.evoked as boolean;
+    }
+    // CR 106.4 / 202.3 — restore the persistent per-colour spent-mana record.
+    if (compact.notedManaSpentOnCast) {
+        result.notedManaSpentOnCast = compact.notedManaSpentOnCast as Record<
+            string,
+            number
+        >;
     }
     return result;
 }

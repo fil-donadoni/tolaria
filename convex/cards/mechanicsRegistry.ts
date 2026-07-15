@@ -1318,7 +1318,12 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         name: "Evoke",
         kind: "keyword-ability",
         cr: "702.74",
-        status: "planned",
+        status: "implemented",
+        // Evoke never appears as a literal `staticAbilities[]` string (like
+        // Flashback/Madness/Escape, it is cost-system infra with its own
+        // dedicated CardDefinition field, not a board-visible keyword string).
+        binding: "convex/cards/abilities/evoke.ts",
+        note: 'CR 702.74a represents TWO abilities, both engine infra (issue #900): (1) the alternative-cast static ability — `CardDefinition.evoke` reuses the `AlternativeCost` shape verbatim (CR 118.9 already governs paying it); `convex/gre/alternativeCost.ts`\'s `getAlternativeCost`/`affordableAlternativeCosts` resolve this field alongside the generic `alternativeCosts[]` array, and the cast-commit sites in `convex/game.ts` tag the resulting stack item `evoked: true` whenever the chosen alt cost === `def.evoke` (compared by reference) — that flag rides onto the entering permanent for free (a stack item IS its CardInstanceState, the `escaped` precedent). (2) the sacrifice-on-ETB triggered ability — `evokeTrigger` (convex/cards/abilities/evoke.ts), built on `enteredTrigger` with a CR 603.4 check-time `condition` reading `CardInstanceState.evoked` (not an intervening-if — the flag cannot change between the ETB event and this trigger resolving). A card adds BOTH `evoke: {...}` and `evokeTrigger(name)` (alongside its own ETB ability). Used by Solitude, Grief (MH2 Elemental Incarnations, mh2/white.ts / mh2/black.ts) — their evoke cost is a pure HAND leg ("Exile a <colour> card from your hand"), so it composes with the EXISTING alt-cost hand-leg picker with zero new plumbing. Vibrance/Deceit/Wistfulness (ECL) remain stubbed: their evoke cost is a HYBRID mana pip ({R/G}{R/G} etc.), blocked on the separate hybrid-ManaCost-representation gap (issue #782), not on Evoke itself.',
     },
     // 702.75 Hideaway
     {

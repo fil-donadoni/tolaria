@@ -7,13 +7,22 @@
 // was spent to cast it, this creature deals 3 damage to any target. When
 // this creature enters, if {G}{G} was spent to cast it, search your library
 // for a land card, reveal it, put it into your hand, then shuffle. You gain
-// 2 life. Evoke {R/G}{R/G}." Blocked: Evoke (CR 702.74) is `status: planned`
-// in mechanicsRegistry.ts, and neither ETB condition is checkable — the
-// engine doesn't track WHICH color paid a hybrid cost at cast time (no
-// spent-mana-color primitive exists). Home file is `multicolor.ts` (a
-// genuine R/G card), NOT `colorless.ts` — the worklist auto-classifier's
-// `parseManaCost` drops hybrid `{R/G}` symbols entirely and misfiled it.
-// tracked-by: #900
+// 2 life. Evoke {R/G}{R/G}." Issue #900 SHIPPED both halves this card
+// originally needed: Evoke itself (`CardDefinition.evoke` + `evokeTrigger`,
+// see Solitude/Grief in mh2/white.ts / mh2/black.ts) and spent-mana-color
+// tracking (`CardInstanceState.notedManaSpentOnCast`, populated at ETB from
+// `CardDefinition.noteManaSpent`, readable by a `condition` predicate — the
+// exact shape "if {R}{R} was spent" needs). What remains blocking THIS card
+// specifically is a DIFFERENT, more basic gap that #900 never covered: its
+// printed cost {3}{R/G}{R/G} AND its evoke cost {R/G}{R/G} both need a HYBRID
+// mana pip — `ManaCost` (cards/types.ts) has no hybrid-pip representation at
+// all (single W/U/B/R/G/C numeric fields only), so the cost can't even be
+// declared. Tracked separately at issue #782 ("[engine] Hybrid mana cost
+// encoding") — same root gap as Deathrite Shaman (rtr/colorless.ts, #676).
+// Home file is `multicolor.ts` (a genuine R/G card), NOT `colorless.ts` — the
+// worklist auto-classifier's `parseManaCost` drops hybrid `{R/G}` symbols
+// entirely and misfiled it.
+// tracked-by: #782
 // export const vibrance: CardDefinition = {
 //     id: "b9f71c3b-0840-475f-9c17-fdacbc7f3213",
 //     name: "Vibrance",
@@ -31,10 +40,9 @@
 //     has no hybrid-pip representation at all (single W/U/B/R/G/C numeric
 //     fields only), so the card's mana cost can't even be declared, let
 //     alone its three activation costs ({G/W}, {1}{G/W}{G/W},
-//     {3}{G/W}{G/W}{G/W}). Same root gap flagged on Vibrance above
-//     (tracked-by #900), which is about hybrid spent-mana tracking
-//     specifically — this is the more basic "hybrid pips aren't
-//     representable in ManaCost" gap.
+//     {3}{G/W}{G/W}{G/W}). Same root gap now blocking Vibrance/Deceit above
+//     (tracked-by #782) and Wistfulness (ecl/colorless.ts) — the "hybrid pips
+//     aren't representable in ManaCost" gap, issue #782.
 //  2. Even with a mana-cost workaround, the card's whole mechanic — three
 //     activated abilities that PERMANENTLY reclassify the creature's own
 //     subtypes and base power/toughness in stages (Kithkin → Kithkin Scout
@@ -61,14 +69,14 @@
 // {U}{U} was spent to cast it, return up to one other target nonland
 // permanent to its owner's hand. When this creature enters, if {B}{B} was
 // spent to cast it, target opponent reveals their hand. You choose a nonland
-// card from it. That player discards that card. Evoke {U/B}{U/B}." Blocked:
-// same shape as this file's Vibrance stub above — keyword **Evoke** (CR
-// 702.74) is `status: "planned"`, AND neither ETB condition is checkable (no
-// spent-mana-color primitive tracks WHICH color paid a hybrid cost). Already
-// tracked by #900 ("Cube CAP: Evoke keyword + spent-mana-color tracking for
-// hybrid ETB triggers"). Home file is `multicolor.ts` (a genuine U/B card,
-// hybrid {U/B}{U/B} in its cost), NOT `colorless.ts`.
-// tracked-by: #900
+// card from it. That player discards that card. Evoke {U/B}{U/B}." Same shape
+// as this file's Vibrance stub above: issue #900 shipped both Evoke itself and
+// spent-mana-color tracking, but this card's printed cost {4}{U/B}{U/B} AND
+// its evoke cost {U/B}{U/B} both need a hybrid mana pip, which `ManaCost` has
+// no representation for at all — tracked separately at issue #782. Home file
+// is `multicolor.ts` (a genuine U/B card, hybrid {U/B}{U/B} in its cost), NOT
+// `colorless.ts`.
+// tracked-by: #782
 // export const deceit: CardDefinition = {
 //     id: "bd82c9e4-9871-4e6d-b691-ee00b4b9a3c6",
 //     name: "Deceit",

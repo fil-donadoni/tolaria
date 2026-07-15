@@ -3373,6 +3373,28 @@ export interface PermanentView {
      *  static effect or an indefinite `setSupertype` mutation (Melting /
      *  Arcum's Weathervane — CR 205.4a). Source-keyed like `grantedSupertypes`. */
     removedSupertypes?: ReadonlyArray<{ supertype: string; sourceId: string }>;
+    /** CR 702.74a — true iff this permanent was cast for its Evoke cost (set
+     *  on the stack item at cast commit when the chosen alternative cost ===
+     *  `CardDefinition.evoke`; rides onto the entering permanent for free, the
+     *  `escaped` precedent). Read by the `evokeTrigger` template's `condition`
+     *  ("if its evoke cost was paid, its controller sacrifices it") — a
+     *  check-time (CR 603.4) predicate, not an intervening-if: the flag cannot
+     *  change between the ETB event firing and this trigger resolving, so no
+     *  resolve-time re-check plumbing is needed. */
+    evoked?: boolean;
+    /** CR 106.4 / 202.3 — per-colour mana spent to CAST this permanent,
+     *  snapshotted from the originating stack item's `notedManaSpent`
+     *  (`StackItem`, populated when `CardDefinition.noteManaSpent` is set) the
+     *  instant it enters the battlefield (`resolveTopOfStack`). Distinct from
+     *  `notedManaSpent` (ephemeral, read via `ctx.getNotedManaSpent()` during
+     *  THIS resolution only): this field is a PERSISTENT record on the
+     *  permanent, readable by a LATER triggered ability's `condition` (CR
+     *  603.4 check-time predicate) — e.g. "when this enters, if {R}{R} was
+     *  spent to cast it, ..." (Vibrance/Deceit/Wistfulness, ECL; blocked from
+     *  shipping only by missing hybrid `ManaCost` pip representation, issue
+     *  #782 — this field is the tracking half of #900 and is otherwise ready
+     *  for them). Undefined when the card doesn't opt into `noteManaSpent`. */
+    notedManaSpentOnCast?: Record<string, number>;
     /** Raw card definition reference — predicates read manaCost for color, etc. */
     card: Record<string, unknown>;
 }
@@ -7348,6 +7370,31 @@ export interface CardDefinition {
      *  See {@link AlternativeCost}. Used by Gush, Thwart (return Islands) and
      *  Fireblast (sacrifice Mountains). */
     alternativeCosts?: AlternativeCost[];
+    /** CR 702.74 — Evoke. "Evoke [cost]" represents TWO abilities (702.74a): a
+     *  static ability ("you may cast this card by paying [cost] rather than
+     *  paying its mana cost") and a triggered ability ("when this permanent
+     *  enters, if its evoke cost was paid, its controller sacrifices it").
+     *  This field carries only the FIRST half — reuses the {@link
+     *  AlternativeCost} shape verbatim (CR 118.9 already governs "casting a
+     *  spell for its evoke cost", per 702.74a's own text), the SAME cost-system
+     *  infra as `alternativeCosts` (`convex/gre/alternativeCost.ts`'s
+     *  `getAlternativeCost`/`affordableAlternativeCosts` resolve this field
+     *  alongside the array). Kept as its own dedicated field — like
+     *  `flashback`/`madness`/`escape` — rather than folded into
+     *  `alternativeCosts[]`, because a card's chosen alt cost must be
+     *  IDENTIFIABLE as "the evoke one" at cast commit (compared by reference
+     *  against this field) so the engine can tag the resulting stack item
+     *  `evoked: true` (`convex/game.ts`), which then rides onto the entering
+     *  permanent for free (a stack item IS its `CardInstanceState`, same
+     *  object — the `escaped` precedent). The SECOND half (the sacrifice) is a
+     *  real `TriggeredAbility` a card adds to its own `triggeredAbilities[]`
+     *  via the `evokeTrigger` template (`convex/cards/abilities/evoke.ts`),
+     *  gated on `CardInstanceState.evoked`. Used by Solitude, Grief (MH2
+     *  Elemental Incarnations — their evoke cost is a pure HAND leg, "Exile a
+     *  <colour> card from your hand", so it composes with the EXISTING
+     *  alt-cost hand-leg picker with zero new plumbing). By convention this
+     *  card's `AlternativeCost.id` is `"evoke"`. */
+    evoke?: AlternativeCost;
     /** CR 702.34 — Flashback. A static ability that functions while the card
      *  is in its owner's graveyard: "You may cast this card from your graveyard
      *  by paying [this cost] rather than its mana cost", and "If the flashback

@@ -35,12 +35,16 @@ export const ignobleHierarch: CardDefinition = {
     ],
 };
 
-// TODO(issue #679 stub — Endurance needs Evoke (CR 702.74): mechanicsRegistry.ts
-// lists it `status: "planned"` — same gap already flagged for Solitude
-// (mh2/white.ts), Subtlety (mh2/blue.ts) and Fury (mh2/red.ts). Evoke is
-// integral to the card, so — matching precedent — the whole card stays a
-// stub rather than shipping a hard-cast-only partial. Stop-and-issue per
-// gre-development.md; tracked stub.
+// TODO(issue #900 stub — Evoke itself SHIPPED (#900: `CardDefinition.evoke` +
+// `evokeTrigger`; Solitude/Grief in mh2/white.ts / mh2/black.ts are the
+// working precedent). Endurance's OWN remaining gap is different: "up to one
+// target PLAYER puts all the cards from their graveyard on the bottom of
+// their library in a random order" needs a TRIGGERED ability to choose a
+// PLAYER at resolution time — there is no player-picker primitive
+// (`SpellContext.requestChoice`'s zones are all object zones: "battlefield" |
+// "hand" | "library" | "graveyard"; the closest existing player-targeting
+// path, `candidatePlayerIds`, is scoped to `kind: "choose-damage-target"`
+// only). Stop-and-issue per gre-development.md; tracked stub.
 // export const endurance: CardDefinition = {
 //     id: "eb0e0404-4846-4891-acfa-bd0951ecf9c6",
 //     name: "Endurance",
