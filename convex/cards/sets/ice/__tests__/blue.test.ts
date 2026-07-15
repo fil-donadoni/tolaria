@@ -21,6 +21,8 @@ import {
     silverErne,
     sleightOfMindIce,
     snowDevil,
+    wintersChill,
+    snowCoveredIsland,
     soulBarrier,
     thunderWall,
     windSpirit,
@@ -81,7 +83,12 @@ import { effectiveTriggeredAbilities } from "../../../../gre/copy";
 import { collectTriggers } from "../../../../gre/triggers";
 import { projectPublicState } from "../../../../gameProjections";
 import { getLegalTargets } from "../../../../gre/rules";
-import { advancePhase, finalizeCleanup } from "../../../../gre/phases";
+import { enumerateMoves } from "../../../../gre/moves";
+import {
+    advancePhase,
+    finalizeCleanup,
+    fireDelayedTriggers,
+} from "../../../../gre/phases";
 import { validateAttackerEligibility } from "../../../../gre/combat";
 import {
     applyPendingChoiceSubmit,
@@ -109,6 +116,7 @@ import {
     castCantrip,
     enterUpkeepAndFire,
     makeLand,
+    snowLand,
 } from "./helpers";
 import {
     applyLandManaReplacement,
@@ -2705,5 +2713,175 @@ describe("Phantasmal Mount (bidirectional leave-watch, CR 603.7a / 603.10)", () 
         )!;
         expect(getEffectiveToughness(projected, slim)).toBe(3);
         expect(slim.staticAbilities).toContain("flying");
+    });
+});
+
+describe("Winter's Chill (capped-X + per-target three-way may-pay, CR 107.3/118/615)", () => {
+    /** An attacking creature controlled by `controller` with `mana` colorless
+     *  in that controller's pool. p1 is the Winter's Chill caster. */
+    function combatState(controller: string, mana: number) {
+        const attacker = vanilla("atk", 2, 2, {
+            id: "atk",
+            controllerId: controller,
+            ownerId: controller,
+            isAttacking: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    battlefield: [attacker],
+                    manaPool: { C: mana },
+                }),
+            ],
+        });
+        state.activePlayerId = "p2"; // p2 is the attacking (active) player
+        return state;
+    }
+
+    it("pay {2}: the creature is untouched (no prevention, no destroy)", () => {
+        const state = combatState("p2", 2);
+        pushSpell(state, wintersChill.id, "p1", [
+            { type: "permanent", id: "atk" },
+        ]);
+        resolveTopOfStack(state);
+        // Suspends at the {2} may-pay for the attacker's controller (p2).
+        expect(state.pendingChoices?.[0]?.kind).toBe("may-pay");
+        expect(state.pendingChoices?.[0]?.playerId).toBe("p2");
+        applyMayPaySubmit(state, { playerId: "p2", accept: true });
+        // Paid {2}: pool spent, creature alive, no shield, no delayed destroy.
+        expect(state.players[1].manaPool.C ?? 0).toBe(0);
+        expect(state.players[1].battlefield.some((c) => c.id === "atk")).toBe(
+            true
+        );
+        expect(
+            state.combatDamageImmunity?.some((s) => s.instanceId === "atk")
+        ).toBeFalsy();
+        expect(
+            state.delayedTriggers?.some(
+                (d) => d.triggerId === "winters-chill-destroy"
+            )
+        ).toBeFalsy();
+    });
+
+    it("pay only {1}: all combat damage to and from it is prevented this combat (CR 615)", () => {
+        const state = combatState("p2", 1);
+        pushSpell(state, wintersChill.id, "p1", [
+            { type: "permanent", id: "atk" },
+        ]);
+        resolveTopOfStack(state);
+        // Decline {2} → the step resumes and offers {1}.
+        applyMayPaySubmit(state, { playerId: "p2", accept: false });
+        expect(state.pendingChoices?.[0]?.kind).toBe("may-pay");
+        applyMayPaySubmit(state, { playerId: "p2", accept: true });
+        // Paid {1}: a combat-damage immunity shield covers the creature this
+        // combat; it survives and no destroy is scheduled.
+        expect(state.players[1].manaPool.C ?? 0).toBe(0);
+        expect(
+            state.combatDamageImmunity?.some((s) => s.instanceId === "atk")
+        ).toBe(true);
+        expect(
+            state.delayedTriggers?.some(
+                (d) => d.triggerId === "winters-chill-destroy"
+            )
+        ).toBeFalsy();
+    });
+
+    it("decline both: the creature is destroyed at end of combat (CR 603.7 / 701.7)", () => {
+        const state = combatState("p2", 2); // can afford, but declines
+        pushSpell(state, wintersChill.id, "p1", [
+            { type: "permanent", id: "atk" },
+        ]);
+        resolveTopOfStack(state);
+        applyMayPaySubmit(state, { playerId: "p2", accept: false }); // decline {2}
+        applyMayPaySubmit(state, { playerId: "p2", accept: false }); // decline {1}
+        // No mana spent; a next-end-of-combat destroy is scheduled.
+        expect(state.players[1].manaPool.C ?? 0).toBe(2);
+        expect(
+            state.delayedTriggers?.some(
+                (d) => d.triggerId === "winters-chill-destroy"
+            )
+        ).toBe(true);
+        // The creature still stands until end of combat (it deals damage first).
+        expect(state.players[1].battlefield.some((c) => c.id === "atk")).toBe(
+            true
+        );
+        // Fire end of combat → the delayed trigger hits the stack; resolving it
+        // destroys the creature.
+        fireDelayedTriggers(state, "next-end-of-combat");
+        resolveTopOfStack(state);
+        expect(state.players[1].battlefield.some((c) => c.id === "atk")).toBe(
+            false
+        );
+        expect(state.players[1].graveyard.some((c) => c.id === "atk")).toBe(
+            true
+        );
+    });
+
+    it("X is capped by snow lands: the Bot never enumerates an X above the count (CR 107.3)", () => {
+        // p1 has 2 snow lands (+ plenty of generic mana) — X can be 0..2 only,
+        // even though more mana / more attackers exist.
+        const snow1 = snowLand(snowCoveredIsland.id, "s1", "p1");
+        snow1.zone = "battlefield";
+        const snow2 = snowLand(snowCoveredIsland.id, "s2", "p1");
+        snow2.zone = "battlefield";
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: [
+                        makeInstance(wintersChill.id, {
+                            id: "wc",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "hand",
+                        }),
+                    ],
+                    battlefield: [snow1, snow2],
+                    manaPool: { U: 1, C: 10 },
+                }),
+                makePlayer("p2", {
+                    battlefield: [
+                        vanilla("a1", 1, 1, {
+                            id: "a1",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                            isAttacking: true,
+                        }),
+                        vanilla("a2", 1, 1, {
+                            id: "a2",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                            isAttacking: true,
+                        }),
+                        vanilla("a3", 1, 1, {
+                            id: "a3",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                            isAttacking: true,
+                        }),
+                    ],
+                }),
+            ],
+        });
+        state.phase = "DECLARE_ATTACKERS";
+        state.activePlayerId = "p2";
+        state.priorityPlayerId = "p1";
+        const moves = enumerateMoves(state, "p1");
+        const wcXs = moves
+            .filter((m) => m.kind === "cast-spell" && m.cardInstanceId === "wc")
+            .map((m) => (m as { chosenX?: number }).chosenX ?? 0);
+        expect(wcXs.length).toBeGreaterThan(0);
+        expect(Math.max(...wcXs)).toBe(2); // capped at snow-land count, not 3
+    });
+
+    it("is an {X}{U} Instant castable only at DECLARE_ATTACKERS", () => {
+        expect(wintersChill.manaCost).toEqual({ X: "X", U: 1 });
+        expect(wintersChill.types).toEqual(["Instant"]);
+        expect(wintersChill.castPhaseRestriction).toEqual([
+            "DECLARE_ATTACKERS",
+        ]);
+        expect(wintersChill.castXUpperBound).toBe("snow-lands");
+        expect(getDefinition(wintersChill.id)).toBe(wintersChill);
+        expect(getCardByName("Winter's Chill")).toBe(wintersChill);
     });
 });

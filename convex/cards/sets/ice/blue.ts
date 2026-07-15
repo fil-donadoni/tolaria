@@ -134,8 +134,8 @@ function nextUpkeepDrawTrigger(): DelayedTriggerDef {
 //     "leaves the battlefield this turn" trigger timing), Essence Vortex (pay
 //     LIFE in a may-pay choice), Soldevi Machinist (mana spendable only on
 //     artifact ABILITIES — ManaRestriction has only spell variants), Merieke Ri
-//     Berit (conditional control + destroy-on-untap), Winter's Chill (combat-
-//     only X capped by snow lands), Balduvian Conjurer (animate a snow land),
+//     Berit (conditional control + destroy-on-untap), Balduvian Conjurer
+//     (animate a snow land),
 //     Balduvian Shaman / Sleight-of-Mind-style colour-word text change that
 //     also grants cumulative upkeep.
 //
@@ -2125,30 +2125,107 @@ export const windSpirit: CardDefinition = {
     toughness: 2,
     staticAbilities: ["flying", "menace"],
 };
-// DEFERRED (#738). The novel payloads all ship: X attacking targets
-// (`count:"X"` + `combatRoleFilter:"attacking"`), delayed "destroy at end of
-// combat" (`delayedTrigger` timing "next-end-of-combat"), and per-creature
-// "prevent all combat damage to AND by it" (`preventDamage` mode
-// "combat-to-and-by" / `preventAllCombatDamageToAndBy`). Two seams remain
-// genuinely absent (do NOT paper with resolve(), per ADR 0045):
-//   (1) a chosen-X UPPER-BOUND cap keyed to a board count (CR 107.3) — "X can't
-//       be greater than the number of snow lands you control." `countSnowLands`
-//       reads the count, but there is no `maxX`/cast-announcement cap hook on a
-//       CardDefinition (moves.ts bounds X only by mana + legal-target count).
-//   (2) a per-target THREE-WAY may-pay ({1} / {2} / decline) with a distinct
-//       delayed effect per branch — `requestMayPay` is strictly BINARY (one
-//       `MayPayCost`, pay/skip). A true simultaneous "{1} or {2}" prompt needs
-//       a multi-option pay primitive (or a documented sequential-mayPay
-//       approximation, deferred here for fidelity).
-// Stop-and-issue: stub kept, tracked by #738.
-// export const wintersChill: CardDefinition = {
-//     id: "a779aca7-ff2c-48d8-9484-6ad04b2c6bcb",
-//     name: "Winter's Chill",
-//     rarity: "rare",
-//     oracleText: "Cast this spell only during combat before blockers are declared.\nX can't be greater than the number of snow lands you control.\nChoose X target attacking creatures. For each of those creatures, its controller may pay {1} or {2}. If that player doesn't, destroy that creature at end of combat. If that player pays only {1}, prevent all combat damage that would be dealt to and dealt by that creature this combat.",
-//     manaCost: { X: "X", U: 1 },
-//     types: ["Instant"],
-// };
+// Winter's Chill — {X}{U} Instant (issue #738). "Cast only during combat before
+// blockers are declared. X can't be greater than the number of snow lands you
+// control. Choose X target attacking creatures. For each, its controller may
+// pay {1} or {2}. If they don't, destroy it at end of combat. If they pay only
+// {1}, prevent all combat damage to and from it this combat."
+//
+// Seams, all shipped mechanisms:
+//  • Cast window: `castPhaseRestriction: ["DECLARE_ATTACKERS"]` (CR 117.1b) —
+//    the step where attackers are declared but blockers are not yet.
+//  • X cap: `castXUpperBound: "snow-lands"` (CR 107.3, issue #738) — the cast
+//    mutation + Bot X-enumeration cap X at `countSnowLands`.
+//  • X attacking targets: `count: "X"` + `combatRoleFilter: "attacking"`.
+//  • Per-target THREE-WAY may-pay ({1} / {2} / decline): composed from two
+//    sequential `requestMayPay` prompts (the "{B} or {3}" decomposition,
+//    ice/black.ts) — offer {2} first (creature untouched), then {1} (prevent).
+//    Outcomes are collected across the loop and applied ONCE after it, because
+//    the resolveStep re-runs on every may-pay resume (Stench of Evil pattern) —
+//    the deferred apply keeps `preventAllCombatDamageToAndBy` / the delayed
+//    destroy from firing on each replay.
+//  • Leaves: `preventAllCombatDamageToAndBy` (CR 615) for the {1} branch; one
+//    `next-end-of-combat` delayed destroy per unpaid creature (CR 603.7 /
+//    701.7), the Arcum's Whistle scalar-payload shape.
+const WINTERS_CHILL_ID = "a779aca7-ff2c-48d8-9484-6ad04b2c6bcb";
+export const wintersChill: CardDefinition = {
+    id: WINTERS_CHILL_ID,
+    name: "Winter's Chill",
+    rarity: "rare",
+    oracleText:
+        "Cast this spell only during combat before blockers are declared.\nX can't be greater than the number of snow lands you control.\nChoose X target attacking creatures. For each of those creatures, its controller may pay {1} or {2}. If that player doesn't, destroy that creature at end of combat. If that player pays only {1}, prevent all combat damage that would be dealt to and dealt by that creature this combat.",
+    manaCost: { X: "X", U: 1 },
+    types: ["Instant"],
+    castPhaseRestriction: ["DECLARE_ATTACKERS"],
+    castXUpperBound: "snow-lands",
+    targetRequirement: {
+        type: "Creature",
+        count: "X",
+        combatRoleFilter: "attacking",
+    },
+    resolveSteps: [
+        (ctx: SpellContext) => {
+            const prevent: string[] = [];
+            const destroy: string[] = [];
+            for (let i = 0; i < ctx.targets.length; i++) {
+                const t = ctx.targets[i];
+                if (t.type !== "permanent") continue;
+                // "Its controller may pay {1} or {2}" (CR 118). The attacking
+                // creature's controller — not the caster — pays.
+                const payer = ctx.getController(t);
+                // Offer {2} first: paying {2} leaves the creature untouched.
+                const paid2 = ctx.requestMayPay({
+                    playerId: payer,
+                    choiceId: `winters-chill-2-${i}`,
+                    cost: { X: 2 },
+                    prompt: "Pay {2} so Winter's Chill has no effect on this creature? (Decline to be offered {1}.)",
+                });
+                if (paid2 === undefined) return; // suspend for the may-pay
+                if (paid2) continue;
+                // Then offer {1}: paying {1} prevents all combat damage to/by it.
+                const paid1 = ctx.requestMayPay({
+                    playerId: payer,
+                    choiceId: `winters-chill-1-${i}`,
+                    cost: { X: 1 },
+                    prompt: "Pay {1} to prevent all combat damage to and from this creature this combat? (Decline: it is destroyed at end of combat.)",
+                });
+                if (paid1 === undefined) return; // suspend for the may-pay
+                if (paid1) prevent.push(t.id);
+                else destroy.push(t.id);
+            }
+            // All decisions in — apply outcomes exactly once (CR 615 shield /
+            // CR 603.7 delayed destroy).
+            for (const id of prevent) {
+                ctx.preventAllCombatDamageToAndBy(
+                    { type: "permanent", id },
+                    { phase: "end-of-combat" }
+                );
+            }
+            for (const id of destroy) {
+                ctx.scheduleDelayedTrigger(
+                    WINTERS_CHILL_ID,
+                    "winters-chill-destroy",
+                    "next-end-of-combat",
+                    { targetId: id }
+                );
+            }
+        },
+    ],
+    delayedTriggers: [
+        {
+            id: "winters-chill-destroy",
+            oracleText: "Destroy that creature at end of combat.",
+            timing: "next-end-of-combat",
+            resolve: (ctx, payload) => {
+                const targetId = payload.targetId;
+                if (!targetId) return;
+                // CR 701.7 — a no-op if the creature already left the
+                // battlefield (CR 608.2b).
+                ctx.destroy({ type: "permanent", id: targetId });
+            },
+        },
+    ],
+};
 // Word of Undoing — "Return target creature and all white Auras you own
 // attached to it to their owners' hands." (CR 701.14 return to hand.) Before
 // bouncing the creature (which would otherwise drop its Auras to the

@@ -106,6 +106,73 @@ describe("validateEffectScript — schema + vocabulary (ADR 0045)", () => {
         expect(errors).toHaveLength(1);
         expect(errors[0]).toMatch(/unknown field "forEach".*frozen/);
     });
+
+    // grantAbility carries exactly one payload (issue #738): a keyword static
+    // grant (`ability`) OR a duration-scoped activated-ability grant
+    // (`grantedActivatedId`). Both-set or neither-set is a schema error.
+    it("accepts grantAbility with only ability (keyword grant)", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "grantAbility",
+                        ability: "haste",
+                        target: { target: 0 },
+                        duration: { phase: "end-of-turn" },
+                    },
+                ],
+            })
+        );
+        expect(errors).toEqual([]);
+    });
+
+    it("accepts grantAbility with only grantedActivatedId (activated grant)", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "grantAbility",
+                        grantedActivatedId: "some-template",
+                        target: { target: 0 },
+                        duration: { phase: "end-of-turn" },
+                    },
+                ],
+            })
+        );
+        expect(errors).toEqual([]);
+    });
+
+    it("rejects grantAbility with BOTH ability and grantedActivatedId", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "grantAbility",
+                        ability: "haste",
+                        grantedActivatedId: "some-template",
+                        target: { target: 0 },
+                        duration: { phase: "end-of-turn" },
+                    },
+                ],
+            })
+        );
+        expect(errors.some((e) => /exactly one of/.test(e))).toBe(true);
+    });
+
+    it("rejects grantAbility with NEITHER ability nor grantedActivatedId", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "grantAbility",
+                        target: { target: 0 },
+                        duration: { phase: "end-of-turn" },
+                    } as never,
+                ],
+            })
+        );
+        expect(errors.some((e) => /exactly one of/.test(e))).toBe(true);
+    });
 });
 
 describe("validateEffectScript — bind + ref + count constructs (#802)", () => {
