@@ -55,6 +55,7 @@ vi.mock("@convex/_generated/api", () => ({
 let cardDef: {
     name: string;
     manaCost?: { X?: string };
+    additionalCosts?: { payXLife?: boolean };
     modes?: unknown[];
     activatedAbilities?: unknown[];
 } = {
@@ -297,6 +298,24 @@ describe("BoardHandCard drag-commit parity (seam 3, #254)", () => {
 
         expect(dragArgs).toEqual(clickArgs);
         expect(dragArgs).toMatchObject({ chosenX: 3 });
+    });
+
+    it("a pay-X-life spell (no mana X) opens the cost dialog and sends chosenX (Toxic Deluge, Fire Covenant)", () => {
+        // Regression: payXLife cards have no `manaCost.X`, so the old gate never
+        // opened the dialog and announceCast fired without chosenX → server
+        // "Must choose X (≥ 0) life to pay".
+        cardDef = {
+            name: "Toxic Deluge",
+            additionalCosts: { payXLife: true },
+        };
+        const card = makeCard("toxic", ["cast"]);
+
+        renderCard(card);
+        fireEvent.click(el());
+        expect(announceCast).not.toHaveBeenCalled(); // deferred to cost dialog
+        fireEvent.click(screen.getByTestId("cost-confirm"));
+
+        expect(announceCast.mock.calls[0][0]).toMatchObject({ chosenX: 3 });
     });
 
     it("a modal-spell drag opens the SAME mode picker as a click, dispatching the chosen mode", () => {

@@ -220,7 +220,13 @@ export function useHandCardCommit(cardInstance: CardInstance) {
         // `e.target` which may be a nested child. Falls back to the pointer
         // coords if the rect is degenerate. Captured now so the downstream
         // mode / alt-cost pickers can still anchor after the cost dialog closes.
-        const hasX = typeof def.manaCost?.X === "string";
+        // X is chosen before announcement whether it lives in the mana cost
+        // (CR 107.3, e.g. Fireball) or is a "pay X life" additional cost
+        // (CR 601.2b / 118.4, e.g. Toxic Deluge, Fire Covenant). Both send
+        // `chosenX`, so both must open the cost dialog.
+        const hasX =
+            typeof def.manaCost?.X === "string" ||
+            def.additionalCosts?.payXLife === true;
         const anchor = e.currentTarget as HTMLElement | null;
         const rect = anchor?.getBoundingClientRect();
         const position =
