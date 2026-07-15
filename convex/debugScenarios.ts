@@ -291,6 +291,25 @@ const MIGRATED_PRESET_SCENARIOS: { label: string; spec: ScenarioSpec }[] = [
             landCount: 4,
         },
     },
+    {
+        // Exalted (CR 702.83 — the attack-alone buff keyword, Cube CAP #699).
+        // Noble Hierarch (exalted) stands next to two Grizzly Bears. Move to
+        // combat and attack with ONE Bears: the exalted trigger fires and that
+        // lone attacker gets +1/+1 (2/2 → 3/3) until end of turn (golden path).
+        // Edge case: attack with BOTH Bears instead — no creature attacked
+        // ALONE, so exalted does not trigger and neither is pumped. (A second
+        // Noble Hierarch would stack the buff; one is enough to feel it.)
+        label: "Exalted — Noble Hierarch buffs the lone attacker",
+        spec: {
+            cards: [
+                { name: "Noble Hierarch", owner: "me", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            landCount: 3,
+        },
+    },
 ];
 
 /**

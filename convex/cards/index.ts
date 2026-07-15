@@ -11,6 +11,7 @@ import type {
 } from "./types";
 import { cantBeEnchantedSelfGuard } from "./types";
 import { expandFadingVanishing } from "./abilities/fadingVanishing";
+import { expandKeywordTriggers } from "./abilities/keywordTriggers";
 import { setCardManaCostLookup } from "./manaCostLookup";
 import { setCardSupertypeLookup } from "./supertypeLookup";
 import * as lea from "./sets/lea";
@@ -459,7 +460,10 @@ const expansionCache = new WeakMap<CardDefinition, CardDefinition>();
 const expandDefinition = (base: CardDefinition): CardDefinition => {
     const cached = expansionCache.get(base);
     if (cached) return cached;
-    const expanded = expandFadingVanishing(base);
+    // ADR 0054 — chained keyword expansions. Each is a no-op unless its keyword
+    // string is present, so order is irrelevant. Exalted/Prowess (issue #699)
+    // inject triggered abilities from a bare `staticAbilities` string.
+    const expanded = expandKeywordTriggers(expandFadingVanishing(base));
     expansionCache.set(base, expanded);
     return expanded;
 };
