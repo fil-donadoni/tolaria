@@ -4771,6 +4771,16 @@ export interface SpellCastEvent {
     spellSubtypes: ReadonlyArray<string>;
     /** Colors derived from the spell's mana cost (CR 202.2). */
     spellColors: ReadonlyArray<Color>;
+    /** Storm (CR 702.40a, ADR 0052) — tally of spells cast by any player
+     *  BEFORE this one this turn (`GameState.spellsCastThisTurn` read prior
+     *  to increment). Fixes storm's copy count at the moment of casting: a
+     *  spell cast later (while priority is held, before the storm trigger
+     *  resolves) is not included, because it is not yet reflected when this
+     *  event is emitted. Optional (defaults to 0 where read) so the many
+     *  pre-existing hand-built `SpellCastEvent` test fixtures that predate
+     *  storm stay valid — the real production emitter (`emitSpellCastEvent`,
+     *  gre/state.ts) always sets it. */
+    priorSpellCount?: number;
 }
 
 /** Tap event emitted whenever a permanent transitions from untapped to

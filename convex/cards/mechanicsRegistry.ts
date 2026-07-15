@@ -1045,7 +1045,9 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         name: "Storm",
         kind: "keyword-ability",
         cr: "702.40",
-        status: "planned",
+        status: "implemented",
+        binding:
+            "GameState.spellsCastThisTurn (gre/state.ts) + collectCastTriggers/resolveStormTrigger (ADR 0052) — engine-synthesized cast trigger, not a per-card resolve()",
     },
     // 702.41 Affinity
     {

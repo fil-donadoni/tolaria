@@ -1086,6 +1086,12 @@
         "firstSet": "fem"
     },
     {
+        "name": "Brain Freeze",
+        "scryfallId": "59a43ef5-08f0-44fc-802d-b6cfd56b7d1f",
+        "oracleId": "464c0150-3dbc-403b-9ada-fef25ab1f29d",
+        "firstSet": "scg"
+    },
+    {
         "name": "Braingeyser",
         "scryfallId": "62b19a12-6914-430e-81ce-dcfca47884df",
         "oracleId": "9908e597-9470-4c13-8387-39431b380138",
@@ -2496,6 +2502,12 @@
         "firstSet": "inv"
     },
     {
+        "name": "Empty the Warrens",
+        "scryfallId": "952bb27c-c58a-478a-b637-eb4f7e1e0ab4",
+        "oracleId": "3a59c882-8bb8-49ba-862f-125020dd5bec",
+        "firstSet": "tsp"
+    },
+    {
         "name": "Enchanted Being",
         "scryfallId": "94c2880d-b37a-43ea-9fee-cd5a8ed75a7e",
         "oracleId": "c98b725e-ca16-4576-bf53-653d4028d861",
@@ -3586,6 +3598,12 @@
         "scryfallId": "f15bf2b2-6848-4fbd-b89a-8d8da8ae1cdc",
         "oracleId": "ef5248d4-4cd1-447c-bdcc-78a09a67d923",
         "firstSet": "lea"
+    },
+    {
+        "name": "Grapeshot",
+        "scryfallId": "4ee33cb6-768e-44a0-b6f4-b8638aa84330",
+        "oracleId": "ebd2d760-5ad8-4027-b124-171822f3edfe",
+        "firstSet": "tsp"
     },
     {
         "name": "Grapeshot Catapult",
@@ -8566,6 +8584,12 @@
         "scryfallId": "794a2b79-8c55-4423-8843-7e6e96f84071",
         "oracleId": "f413a83d-a40d-434c-b20a-4c707c0527fa",
         "firstSet": "rav"
+    },
+    {
+        "name": "Tendrils of Agony",
+        "scryfallId": "0559352e-95c1-403b-bd8f-d0679717cfa2",
+        "oracleId": "78db3190-59bc-4033-95bc-32d8ed872b6a",
+        "firstSet": "scg"
     },
     {
         "name": "Terror",
