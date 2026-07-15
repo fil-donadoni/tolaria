@@ -46,6 +46,7 @@ export const mineCollapse: CardDefinition = {
 // none), and `SpellContext.requestChoice`'s `choose-permanents` kind returns a
 // flat id list with no per-pick amount. Stop-and-issue per gre-development.md;
 // tracked stub.
+// tracked-by: #1206
 // export const fury: CardDefinition = {
 //     id: "bd281158-8180-40b9-a5b7-03cfc712d81a",
 //     name: "Fury",

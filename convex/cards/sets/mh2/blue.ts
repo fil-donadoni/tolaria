@@ -10,6 +10,7 @@
 // has no stack-zone kind (`zone: "battlefield" | "hand" | "library" |
 // "graveyard"` only) — there is no way to raise a mid-resolution choice over
 // the stack today. Stop-and-issue per gre-development.md; tracked stub.
+// tracked-by: #1205
 // export const subtlety: CardDefinition = {
 //     id: "701256d5-1389-48b7-9581-d6037209bd06",
 //     name: "Subtlety",

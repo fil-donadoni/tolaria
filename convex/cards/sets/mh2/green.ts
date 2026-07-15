@@ -45,6 +45,7 @@ export const ignobleHierarch: CardDefinition = {
 // "hand" | "library" | "graveyard"; the closest existing player-targeting
 // path, `candidatePlayerIds`, is scoped to `kind: "choose-damage-target"`
 // only). Stop-and-issue per gre-development.md; tracked stub.
+// tracked-by: #1207
 // export const endurance: CardDefinition = {
 //     id: "eb0e0404-4846-4891-acfa-bd0951ecf9c6",
 //     name: "Endurance",
