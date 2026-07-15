@@ -34,8 +34,19 @@ export const mineCollapse: CardDefinition = {
     effects: [{ op: "dealDamage", amount: 5, to: { target: 0 } }],
 };
 
-// Buggy WIP stub — needs fixing and completing once Evoke ships (tracked-by:
-// #900 — Cube CAP: Evoke keyword + spent-mana-color tracking).
+// TODO(issue #900 stub — Evoke itself SHIPPED (#900: `CardDefinition.evoke` +
+// `evokeTrigger`; use `evoke: { id: "evoke", handCost: {...} }` — NOT
+// `alternativeCosts` — see Solitude/Grief in mh2/white.ts / mh2/black.ts for
+// the working shape this earlier WIP stub got wrong). Fury's OWN remaining gap
+// is different: "deals 4 damage divided as you choose among any number of
+// target creatures and/or planeswalkers" needs a TRIGGERED ability to pick
+// MULTIPLE targets and divide an amount among them at resolution time —
+// `divideAsChosen` (types.ts) lives on `TargetRequirement`, which only
+// `CardDefinition`/`ActivatedAbility` carry (ADR 0002; `TriggeredAbility` has
+// none), and `SpellContext.requestChoice`'s `choose-permanents` kind returns a
+// flat id list with no per-pick amount. Stop-and-issue per gre-development.md;
+// tracked stub.
+// tracked-by: #1206
 // export const fury: CardDefinition = {
 //     id: "bd281158-8180-40b9-a5b7-03cfc712d81a",
 //     name: "Fury",
@@ -45,32 +56,6 @@ export const mineCollapse: CardDefinition = {
 //     subtypes: ["Elemental", "Incarnation"],
 //     power: 3,
 //     toughness: 3,
-//     alternativeCosts: [
-//         {
-//             id: "pitch-exile-red",
-//             description: "Exile a red card from your hand",
-//             handCost: {
-//                 action: "exile",
-//                 requirements: [{ filter: { color: "R" }, count: 1 }],
-//             },
-//         },
-//     ],
-//     triggeredAbilities: [
-//         enteredTrigger({
-//             id: "fury-etb",
-//             oracleText:
-//                 "When this creature enters, it deals 4 damage divided as you choose among any number of target creatures and/or planeswalkers.",
-//             scope: "any",
-//             targetRequirement: {
-//                 type: "Creature",
-//                 count: { min: 1 },
-//                 divideAsChosen: { total: 4 },
-//             },
-//             resolve: (ctx) => {
-//                 ctx.dealDamageDividedAsChosen(ctx.targets, 4);
-//             },
-//         }),
-//     ],
 // };
 
 // Unholy Heat — {R} Instant. "Unholy Heat deals 2 damage to target creature or

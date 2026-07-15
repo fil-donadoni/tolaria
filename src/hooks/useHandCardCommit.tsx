@@ -158,8 +158,17 @@ export function useHandCardCommit(cardInstance: CardInstance) {
         // unpayable alt (Force of Negation on your turn, Snuff Out without a
         // Swamp) would otherwise throw a hard `announceCast` rejection on click.
         // With no affordable alternative the picker is skipped and the spell is
-        // cast for its normal mana cost.
-        if (def.alternativeCosts && def.alternativeCosts.length > 0) {
+        // cast for its normal mana cost. CR 702.74a — Evoke IS an alternative
+        // cost ("casting a spell for its evoke cost follows the rules for
+        // paying alternative costs"); `def.evoke` lives in its own dedicated
+        // field (not `alternativeCosts[]`, see the type doc), so the gate below
+        // checks both — `affordableAltCostsForCard` (delegating to the server's
+        // `affordableAlternativeCosts`) already folds `def.evoke` into its
+        // result either way.
+        if (
+            (def.alternativeCosts && def.alternativeCosts.length > 0) ||
+            def.evoke
+        ) {
             const affordableAlts = affordableAltCostsForCard(
                 cardInstance,
                 playerId,

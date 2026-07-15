@@ -242,17 +242,26 @@ export function canPayAlternativeCost(
 }
 
 /** Look up a card's alternative cost by id, or `undefined` if the card has no
- *  such variant. */
+ *  such variant. CR 702.74 — also resolves `def.evoke` (the Evoke cost lives
+ *  in its own dedicated field, not `alternativeCosts[]`, so the caster's
+ *  chosen alt cost can be IDENTIFIED as "the evoke one" by reference equality
+ *  at cast commit — see the doc on `CardDefinition.evoke`), matched by its own
+ *  `id` exactly like any array entry. */
 export function getAlternativeCost(
     def: CardDefinition | undefined,
     altCostId: string
 ): AlternativeCost | undefined {
+    if (def?.evoke?.id === altCostId) return def.evoke;
     return def?.alternativeCosts?.find((a) => a.id === altCostId);
 }
 
 /** The alternative costs of a hand card the caster can currently AFFORD
  *  (CR 118.9). Used to keep "cast" legal when the mana cost can't be paid but an
- *  alternative can. */
+ *  alternative can. CR 702.74 — also offers `def.evoke` (Evoke IS an
+ *  alternative cost, CR 702.74a: "casting a spell for its evoke cost follows
+ *  the rules for paying alternative costs in rules 601.2b and 601.2f–h"),
+ *  gated by the SAME `canPayAlternativeCost` affordability check as every
+ *  other alt cost. */
 export function affordableAlternativeCosts(
     state: GameState,
     player: PlayerState,
@@ -260,8 +269,13 @@ export function affordableAlternativeCosts(
 ): AlternativeCost[] {
     const cardId = (card.card as { id?: string }).id;
     const def = cardId ? tryGetDefinition(cardId) : undefined;
-    if (!def?.alternativeCosts || def.alternativeCosts.length === 0) return [];
-    return def.alternativeCosts.filter((a) =>
+    if (!def) return [];
+    const variants = [
+        ...(def.alternativeCosts ?? []),
+        ...(def.evoke ? [def.evoke] : []),
+    ];
+    if (variants.length === 0) return [];
+    return variants.filter((a) =>
         canPayAlternativeCost(state, player.id, a, card.id)
     );
 }

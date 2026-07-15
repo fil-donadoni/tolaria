@@ -63,11 +63,7 @@ import {
     getEffectivePower,
     getEffectiveToughness,
 } from "./layers";
-import {
-    getMadnessCost,
-    markMadnessExiled,
-    windowExpiryTurn,
-} from "./madness";
+import { getMadnessCost, markMadnessExiled, windowExpiryTurn } from "./madness";
 import { isProtectedFromSource } from "./protection";
 import { isGuardedAgainst } from "./permanentGuard";
 import { getEffectiveBlockGraph } from "./banding";
@@ -777,6 +773,21 @@ export type CardInstanceState = {
      *  swept to the graveyard at cleanup (`sweepUncastMadness`). Persisted so it
      *  survives a DB round-trip. */
     madnessExiled?: boolean;
+    /** CR 702.74a — true iff this permanent was cast for its Evoke cost. Set
+     *  on the stack item at cast commit (`convex/game.ts`, when the chosen
+     *  alternative cost === `CardDefinition.evoke`) and rides onto the
+     *  resulting battlefield permanent for free (a stack item IS its
+     *  CardInstanceState, the `escaped` precedent). Read by the
+     *  `evokeTrigger` template's `condition` (`convex/cards/abilities/evoke.ts`)
+     *  to decide whether the "sacrifice this when it enters" half of Evoke
+     *  fires. See {@link PermanentView.evoked} for the full doc. */
+    evoked?: boolean;
+    /** CR 106.4 / 202.3 — per-colour mana spent to CAST this permanent,
+     *  captured once at ETB (`resolveTopOfStack`) from the originating stack
+     *  item's `notedManaSpent`. See {@link PermanentView.notedManaSpentOnCast}
+     *  for the full doc — this is the persistent post-ETB twin of the
+     *  ephemeral `StackItem.notedManaSpent`. */
+    notedManaSpentOnCast?: Record<string, number>;
 };
 
 /** ADR 0026 — clears persistent card knowledge over a Hidden Zone. The single
@@ -1304,6 +1315,12 @@ export type PendingCast = {
         excludeInstanceId: string;
         pickedCardIds?: string[];
     };
+    /** CR 702.74a — true iff the alternative cost chosen for this cast is the
+     *  card's Evoke cost (`chosenAltCost === cardDef.evoke` at announcement).
+     *  Carried through a parked pick (real hand-cost choice) so the deferred
+     *  commit (`tryAutoCommitPendingCast`) can still tag the resulting stack
+     *  item `evoked: true` once the picker resolves. */
+    evoked?: boolean;
 };
 
 /** Tracks an in-progress activated-ability payment (CR 602.1, 602.2b).
@@ -3374,6 +3391,17 @@ function finalizeSpellResolution(
         // any built echo card enters today.)
         if (cardDef?.staticAbilities?.includes("echo")) {
             item.echoPending = true;
+        }
+        // CR 106.4 / 202.3 — spent-mana-color tracking (issue #900): snapshot
+        // the ephemeral cast-commit `notedManaSpent` (present only when
+        // `CardDefinition.noteManaSpent` is set) onto a PERSISTENT permanent
+        // field the instant this stack item becomes a battlefield permanent,
+        // so a later triggered ability's check-time `condition` can read
+        // "which colour(s) were spent to cast this" (Vibrance/Deceit/
+        // Wistfulness-style "if {R}{R} was spent" ETB clauses — see
+        // `PermanentView.notedManaSpentOnCast`).
+        if (item.notedManaSpent) {
+            item.notedManaSpentOnCast = { ...item.notedManaSpent };
         }
         controller.battlefield.push(item);
         // CR 122.1, 614.1c — apply ETB-counters before the layer system runs
@@ -10843,7 +10871,8 @@ export function discardToGraveyard(
     // to the graveyard (a Yawgmoth's-Will exile redirect already sent it to
     // exile, so madness is moot there).
     const madnessCost = getMadnessCost(handCard);
-    const madnessRoute = madnessCost !== undefined && destination === "graveyard";
+    const madnessRoute =
+        madnessCost !== undefined && destination === "graveyard";
     if (madnessRoute) destination = "exile";
     const moved = moveCard(player, repl.cardInstanceId, "hand", destination);
     if (madnessRoute) {

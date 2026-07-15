@@ -1982,6 +1982,10 @@ export function tryAutoCommitPendingCast(
         ...(pendingChosenModeId ? { chosenModeId: pendingChosenModeId } : {}),
         ...(additionalSacrificeSnapshot ? { additionalSacrificeSnapshot } : {}),
         ...(castNotedManaSpent ? { notedManaSpent: castNotedManaSpent } : {}),
+        // CR 702.74a — a parked Evoke cast (real hand-cost choice) carries the
+        // marker through `PendingCast.evoked` (set at announcement) so it
+        // still lands on the stack item once the picker completes.
+        ...(state.pendingCast.evoked ? { evoked: true } : {}),
         ...graveyardCastStackFlags(state, spellCard, castFromZone),
     };
     state.stack.push(stackItem);
@@ -3680,6 +3684,12 @@ export function finalizeTargetSelection(
     const chosenAltCost = pt.alternativeCostId
         ? getAlternativeCost(cardDef, pt.alternativeCostId)
         : undefined;
+    // CR 702.74a — the chosen alt cost IS the card's Evoke cost (compared by
+    // reference — `getAlternativeCost` resolves `def.evoke` for its own id):
+    // the resulting stack item is tagged `evoked: true` below so the
+    // "sacrifice this when it enters" trigger (`evokeTrigger`) fires.
+    const isEvokeCost =
+        chosenAltCost !== undefined && chosenAltCost === cardDef.evoke;
 
     // CR 702.34a — a Flashback cast pays the flashback cost from the graveyard
     // instead of the printed mana cost.
@@ -3855,6 +3865,7 @@ export function finalizeTargetSelection(
             ...(altHandChoice
                 ? { alternativeCostHandChoice: altHandChoice }
                 : {}),
+            ...(isEvokeCost ? { evoked: true } : {}),
         };
         (state.pendingCast as Record<string, unknown>).targets = targets;
         return;
@@ -3925,6 +3936,7 @@ export function finalizeTargetSelection(
             ...(immediateNotedManaSpent
                 ? { notedManaSpent: immediateNotedManaSpent }
                 : {}),
+            ...(isEvokeCost ? { evoked: true } : {}),
             ...graveyardCastStackFlags(state, card, castZone),
         };
         state.stack.push(stackItem);
@@ -4278,6 +4290,11 @@ export const announceCast = mutation({
         ) {
             throw new Error("Can't pay the alternative cost");
         }
+        // CR 702.74a — the chosen alt cost IS the card's Evoke cost. Tags the
+        // resulting stack item `evoked: true` at commit below so the
+        // "sacrifice this when it enters" trigger fires.
+        const isEvokeCost =
+            chosenAltCost !== undefined && chosenAltCost === cardDef.evoke;
 
         // Validate X is provided iff the cost contains a string X (CR 107.3).
         const hasX =
@@ -4545,6 +4562,7 @@ export const announceCast = mutation({
                     ...(altHandChoice
                         ? { alternativeCostHandChoice: altHandChoice }
                         : {}),
+                    ...(isEvokeCost ? { evoked: true } : {}),
                 };
                 await saveGameState(
                     ctx,
@@ -4577,6 +4595,7 @@ export const announceCast = mutation({
                 ...(args.chosenModeId
                     ? { chosenModeId: args.chosenModeId }
                     : {}),
+                ...(isEvokeCost ? { evoked: true } : {}),
             };
             state.stack.push(stackItem);
             state.passCount = 0;

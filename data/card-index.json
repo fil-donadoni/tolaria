@@ -3666,6 +3666,12 @@
         "firstSet": "lea"
     },
     {
+        "name": "Grief",
+        "scryfallId": "e6befbc4-1320-4f26-bd9f-b1814fedda10",
+        "oracleId": "0d6b89dc-23fb-48e9-a54b-cea2838ae7c8",
+        "firstSet": "mh2"
+    },
+    {
         "name": "Grim Lavamancer",
         "scryfallId": "5dd72697-24be-42c7-a6d9-a837bdbd4662",
         "oracleId": "37445e06-88a1-4e2e-a432-383736c9b977",
@@ -7906,6 +7912,12 @@
         "scryfallId": "e7a8eb7a-eb3f-405e-8f44-d8ea64d76386",
         "oracleId": "d41ab41d-07c8-4f6d-be5e-7aec9f5f6365",
         "firstSet": "jud"
+    },
+    {
+        "name": "Solitude",
+        "scryfallId": "47a6234f-309f-4e03-9263-66da48b57153",
+        "oracleId": "dcb9c2a7-ae54-4ddc-a567-640bf4bf4366",
+        "firstSet": "mh2"
     },
     {
         "name": "Songs of the Damned",

@@ -1,8 +1,16 @@
 // mh2 — blue cards (ADR 0043 colour split).
 
-// TODO(issue #679 stub — Evoke (CR 702.74) is `planned` in
-// mechanicsRegistry.ts: no `staticAbilities[]` name and no alternate-cast
-// primitive exist yet. Stop-and-issue per gre-development.md; tracked stub.
+// TODO(issue #900 stub — Evoke itself SHIPPED (#900: `CardDefinition.evoke` +
+// `evokeTrigger`, see Solitude/Grief in this same set for the working shape).
+// Subtlety's OWN remaining gap is different: "choose up to one target
+// creature spell or planeswalker spell. Its owner puts it on top or bottom of
+// their library" targets a SPELL ON THE STACK from a TRIGGERED ability's
+// resolution — `TriggeredAbility` carries no `targetRequirement` (ADR 0002;
+// only `CardDefinition`/`ActivatedAbility` do) and `SpellContext.requestChoice`
+// has no stack-zone kind (`zone: "battlefield" | "hand" | "library" |
+// "graveyard"` only) — there is no way to raise a mid-resolution choice over
+// the stack today. Stop-and-issue per gre-development.md; tracked stub.
+// tracked-by: #1205
 // export const subtlety: CardDefinition = {
 //     id: "701256d5-1389-48b7-9581-d6037209bd06",
 //     name: "Subtlety",

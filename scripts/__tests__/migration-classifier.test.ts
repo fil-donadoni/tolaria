@@ -727,11 +727,33 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // pure DSL (`effects[]` pump, 0 closures). Net: total 692→693, FREE
         // 449→450, AFK-ready 412→413, X-only 14 / Op-blocked 229 unchanged.
         // Partition: 450+14+229=693.
+        //
+        // Then Evoke ships (issue #900): Solitude (mh2/white.ts) adds ONE
+        // real `resolve()` closure (its ETB — cross-controller battlefield
+        // choice, the Loran precedent, `// protocol:` justified) using only
+        // COVERED primitives (requestChoice / exile / gainLife / getPower /
+        // getController) → buckets FREE. Grief (mh2/black.ts) is pure DSL
+        // (`effects[]`, the Thoughtseize template) — 0 closures. The
+        // classifier's `closures()` scan is a RAW-TEXT regex over
+        // `resolve(|resolveSteps)\s*:` with no comment-awareness, so it was
+        // ALSO counting the OLD Fury stub's commented-out WIP `resolve:`
+        // body (mh2/red.ts, `ctx.dealDamageDividedAsChosen` — uncovered,
+        // Op-blocked) before this change rewrote that stub's comment to drop
+        // the `resolve:` text (Fury itself stays a stub — CR-accurate
+        // multi-target divided damage at trigger-resolution time is a
+        // separate, still-unbuilt gap). Net effect: one Op-blocked closure
+        // (the old comment text) is replaced by one FREE closure (Solitude's
+        // real code) — total closures unchanged (693), FREE 450→451,
+        // AFK-ready unchanged (413 — Solitude has no per-card describe block
+        // matching this heuristic; it lands in "need test first" instead,
+        // covered instead by the dedicated `convex/gre/__tests__/evoke.test.ts`
+        // end-to-end mechanism suite), Op-blocked 229→228. Partition:
+        // 451+14+228=693.
         expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(693);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(450);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(451);
         expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(413);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(229);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(228);
     });
 
     it("surfaces the demonstrated new-Op backlog (a covered primitive leaves it)", () => {

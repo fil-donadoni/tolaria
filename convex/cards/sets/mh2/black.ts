@@ -1,5 +1,7 @@
 // mh2 — black cards (ADR 0043 colour split).
 import type { CardDefinition, EffectOp } from "../../types";
+import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
+import { evokeTrigger } from "../../abilities/evoke";
 
 // Archon of Cruelty — {6}{B}{B} Creature Archon, 6/6, flying (Vintage Cube
 // FREE: edict/discard/hand-disruption, issue #682). "Flying. Whenever this
@@ -79,26 +81,66 @@ export const archonOfCruelty: CardDefinition = {
 };
 
 // Grief — {2}{B}{B} Creature Elemental Incarnation, 3/2, menace (Vintage Cube
-// edict/discard/hand-disruption, issue #682). "Menace. When this creature
-// enters, target opponent reveals their hand. You choose a nonland card from
-// it. That player discards that card. Evoke—Exile a black card from your
-// hand." Blocked: keyword **Evoke** (CR 702.74) is `status: "planned"` in
-// mechanicsRegistry.ts, and there is no `CardDefinition` alternative-cost
-// shape for it at all — Evoke is integral to how Grief is played (the whole
-// point is the free hand-disruption evoke line), so shipping only the
-// hard-cast body would misrepresent the card (never ship partial). See
-// issue #931 (split from #682).
-// tracked-by: #900, #931
-// export const grief: CardDefinition = {
-//     id: "e6befbc4-1320-4f26-bd9f-b1814fedda10",
-//     name: "Grief",
-//     rarity: "mythic",
-//     manaCost: { X: 2, B: 2 },
-//     types: ["Creature"],
-//     subtypes: ["Elemental", "Incarnation"],
-//     power: 3,
-//     toughness: 2,
-// };
+// edict/discard/hand-disruption, issue #682/#931; ships via #900). "Menace.
+// When this creature enters, target opponent reveals their hand. You choose a
+// nonland card from it. That player discards that card. Evoke—Exile a black
+// card from your hand." CR 702.74 Evoke: the alt cast is a pure HAND leg
+// (`evoke`, reusing `AlternativeCost`'s `handCost` shape), the sacrifice-on-
+// ETB half is `evokeTrigger`. "Target opponent" is deterministic in this
+// engine's 2-player-only scope — no target selection needed (Archon of
+// Cruelty above is the precedent: `player: "opponent"` directly). The ETB
+// effect is the canonical Thoughtseize/Duress template (`reveal` + `choice
+// (choose-hand-card)` with `zoneOwnerId` — lrw/black.ts): reveal the
+// opponent's hand, the CONTROLLER picks a nonland card from it, that card is
+// discarded. DSL-first (ADR 0045) — every Op here is already exercised by
+// Thoughtseize, so no hand-written GRE/wire test is required (per-Op regime).
+const griefTriggerEffects: EffectOp[] = [
+    { op: "reveal", player: "opponent", zone: "hand" },
+    {
+        op: "choice",
+        kind: "choose-hand-card",
+        player: "controller",
+        zoneOwnerId: "opponent",
+        zone: "hand",
+        filter: { excludeType: "Land" },
+        count: 1,
+        prompt: "Choose a nonland card from your opponent's hand.",
+        bind: "$picked",
+    },
+    { op: "discard", player: "opponent", cards: { ref: "$picked" } },
+];
+
+export const grief: CardDefinition = {
+    id: "e6befbc4-1320-4f26-bd9f-b1814fedda10",
+    rarity: "mythic",
+    name: "Grief",
+    oracleText:
+        "Menace\nWhen this creature enters, target opponent reveals their hand. You choose a nonland card from it. That player discards that card.\nEvoke—Exile a black card from your hand.",
+    manaCost: { X: 2, B: 2 },
+    types: ["Creature"],
+    subtypes: ["Elemental", "Incarnation"],
+    power: 3,
+    toughness: 2,
+    staticAbilities: ["menace"],
+    evoke: {
+        id: "evoke",
+        description: "Evoke—Exile a black card from your hand",
+        handCost: {
+            action: "exile",
+            requirements: [{ filter: { color: "B" }, count: 1 }],
+        },
+    },
+    triggeredAbilities: [
+        enteredTrigger({
+            id: "grief-etb",
+            oracleText:
+                "When this creature enters, target opponent reveals their hand. You choose a nonland card from it. That player discards that card.",
+            scope: "self",
+            effects: griefTriggerEffects,
+        }),
+        evokeTrigger("Grief"),
+    ],
+};
 
 // TODO(issue #676 stub — "as an additional cost, sacrifice a creature or
 // discard a card" is a CASTER-CHOSEN alternative additional cost;
