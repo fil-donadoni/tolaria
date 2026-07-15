@@ -25,3 +25,27 @@ export const stifle: CardDefinition = {
     },
     effects: [{ op: "counter", target: { target: 0 } }],
 };
+
+// Brain Freeze — {1}{U} Instant. "Target player mills three cards. Storm
+// (When you cast this spell, copy it for each spell cast before it this
+// turn. You may choose new targets for the copies.)" (CR 702.40 Storm, ADR
+// 0052 + PRD #1041 — the storm TRACER card, the target-player retarget
+// path.) `staticAbilities: ["storm"]` drives the whole copy mechanism —
+// `collectCastTriggers` / `resolveStormTrigger` (convex/gre/state.ts), an
+// engine-synthesized cast trigger, not a per-card `resolve()`. The card's OWN
+// effect is a plain DSL `mill` Op (CR 701.17) on the announced target
+// player — the exact shape Thought Scour already exercises (dka/blue.ts),
+// reused verbatim (per-Op test regime: no new Op, no hand-written per-card
+// test required).
+export const brainFreeze: CardDefinition = {
+    id: "59a43ef5-08f0-44fc-802d-b6cfd56b7d1f",
+    name: "Brain Freeze",
+    rarity: "uncommon",
+    oracleText:
+        "Target player mills three cards.\nStorm (When you cast this spell, copy it for each spell cast before it this turn. You may choose new targets for the copies.)",
+    manaCost: { X: 1, U: 1 },
+    types: ["Instant"],
+    staticAbilities: ["storm"],
+    targetRequirement: { type: "player", count: 1 },
+    effects: [{ op: "mill", player: { target: 0 }, count: 3 }],
+};

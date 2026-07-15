@@ -737,6 +737,17 @@ function compactStackItem(item: StackItem): CompactCard {
     }
     if (item.triggerSourceId) base.triggerSourceId = item.triggerSourceId;
     if (item.triggerEvent) base.triggerEvent = item.triggerEvent;
+    // Storm (CR 702.40, ADR 0052) — the cast-trigger's detached snapshot and
+    // remaining-copies counter must survive a save/load while the trigger
+    // sits on the stack awaiting priority (or a per-copy retarget answer).
+    // The snapshot is itself a full StackItem, so it recurses through this
+    // same compactor rather than duplicating its field list.
+    if (item.stormSnapshot) {
+        base.stormSnapshot = compactStackItem(item.stormSnapshot);
+    }
+    if (item.stormCopiesRemaining !== undefined) {
+        base.stormCopiesRemaining = item.stormCopiesRemaining;
+    }
     if (item.delayedTriggerId) base.delayedTriggerId = item.delayedTriggerId;
     if (item.delayedPayload) base.delayedPayload = item.delayedPayload;
     // ADR 0048 — an inline delayed-trigger body (pure JSON) must survive a
@@ -804,6 +815,15 @@ function expandStackItem(compact: CompactCard): StackItem {
     }
     if (compact.triggerEvent) {
         item.triggerEvent = compact.triggerEvent as StackItem["triggerEvent"];
+    }
+    // Storm (CR 702.40, ADR 0052) — rehydrate the cast-trigger's detached
+    // snapshot (recursing through this same expander) and remaining-copies
+    // counter.
+    if (compact.stormSnapshot) {
+        item.stormSnapshot = expandStackItem(compact.stormSnapshot as CompactCard);
+    }
+    if (compact.stormCopiesRemaining !== undefined) {
+        item.stormCopiesRemaining = compact.stormCopiesRemaining as number;
     }
     if (compact.delayedTriggerId) {
         item.delayedTriggerId = compact.delayedTriggerId as string;
@@ -880,6 +900,10 @@ export const PERSISTED_OPTIONAL_KEYS = [
     "nextInstanceId",
     "pendingEvents",
     "deathsThisTurn",
+    // Storm (CR 702.40a, ADR 0052) — the per-turn spell tally must survive a
+    // DB round-trip while the turn is in progress (e.g. saved mid-priority
+    // between two casts).
+    "spellsCastThisTurn",
     "pendingUntapStep",
     "pendingCleanupDiscard",
     "damageDealtToPlayerThisTurn",

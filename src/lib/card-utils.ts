@@ -1079,6 +1079,14 @@ export function getAbilityOracleText(
     return null;
 }
 
+/** Storm's cast trigger (CR 702.40, ADR 0052) is engine-synthesized — no card
+ *  declares it in `triggeredAbilities` (it is not a per-card DSL/`resolve()`
+ *  ability, see `collectCastTriggers` / `resolveStormTrigger` in
+ *  `convex/gre/state.ts`) — so its label can't come from a card-def lookup.
+ *  Matches the Mechanics Registry row id (`storm`, `mechanicsRegistry.ts`). */
+const STORM_TRIGGER_ORACLE_TEXT =
+    "Storm (When you cast this spell, copy it for each spell cast before it this turn. You may choose new targets for the copies.)";
+
 /** Returns the oracle text for a triggered ability by id, or null. Checks
  *  the card's own definition first, then any granted-triggered entries on the
  *  passed instance (resolved via the granting card's `triggeredGrantTemplates`)
@@ -1091,6 +1099,7 @@ export function getTriggeredAbilityOracleText(
         abilityId: string;
     }>
 ): string | null {
+    if (triggeredAbilityId === "storm") return STORM_TRIGGER_ORACLE_TEXT;
     const cardDef = getDefinition(cardId);
     const ability = cardDef.triggeredAbilities?.find(
         (a) => a.id === triggeredAbilityId

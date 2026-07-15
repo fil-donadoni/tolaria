@@ -2485,6 +2485,11 @@ function advanceTurn(state: GameState): void {
     ) {
         state.islandSanctuaryProtection = undefined;
     }
+    // Storm (CR 702.40a, ADR 0052) — "this turn" resets at the start of each
+    // turn, by any player. A general primitive: future "spells cast this
+    // turn" mechanics (prowess/magecraft/Aetherflux-style) read this same
+    // field and reset at the same boundary.
+    state.spellsCastThisTurn = undefined;
 }
 
 /**

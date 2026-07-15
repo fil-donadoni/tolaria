@@ -267,6 +267,12 @@ export interface StackItem extends CardInstance {
     abilityId?: string;
     /** If set, this stack item is a triggered ability (CR 603). */
     triggeredAbilityId?: string;
+    /** Storm (CR 702.40, ADR 0052) — present only on the synthesized storm
+     *  cast-trigger stack item (`triggeredAbilityId === "storm"`): copies
+     *  still to be created as this trigger resolves. Useful for a "N copies
+     *  left" hint; the engine-internal `stormSnapshot` field is intentionally
+     *  NOT sent over the wire (see `slimCard`, gameProjections.ts). */
+    stormCopiesRemaining?: number;
     /** If set, this stack item is a delayed triggered ability (CR 603.7a)
      *  queued by an earlier spell/ability's resolution (e.g. Mishra's
      *  Bauble's "draw a card at the beginning of the next turn's upkeep").

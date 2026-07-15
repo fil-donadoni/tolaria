@@ -190,6 +190,13 @@ function slimCard<
     // ADR 0026 — the raw per-viewer knowledge set must NEVER cross the wire;
     // identity is gated upstream and the eye flag is derived separately.
     delete (slimmed as { knownTo?: string[] }).knownTo;
+    // Storm (CR 702.40, ADR 0052) — `stormSnapshot` is a resolution-time
+    // engine artifact (a full nested StackItem with its OWN fat `card`
+    // field) the client has no use for; ship the trigger item itself (and
+    // `stormCopiesRemaining`, useful for a "N copies left" hint) but drop
+    // the snapshot rather than doubling the payload with a duplicate,
+    // un-slimmed card.
+    delete (slimmed as { stormSnapshot?: unknown }).stormSnapshot;
     return slimmed;
 }
 

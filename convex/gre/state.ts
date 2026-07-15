@@ -18,6 +18,7 @@ import {
     type MovableZone,
     type PermanentFilter,
     type PermanentView,
+    type SpellCastEvent,
     type SpellContext,
     type StaticEffect,
     type TargetRequirement,
@@ -1086,6 +1087,19 @@ export type StackItem = CardInstanceState & {
     triggerSourceId?: string;
     /** The originating event captured at trigger time. Passed to resolve(). */
     triggerEvent?: GameEvent;
+    /** Storm (CR 702.40, ADR 0052) — present ONLY on the synthesized storm
+     *  cast-trigger's own stack item (`triggeredAbilityId === "storm"`). A
+     *  detached snapshot of the spell being copied, captured at cast time —
+     *  NOT a live stack reference — so `resolveStormTrigger` still creates
+     *  copies from it even if the original spell has since left the stack
+     *  (countered). See `collectCastTriggers`. */
+    stormSnapshot?: StackItem;
+    /** Storm — copies still to create as this trigger resolves. Initialized
+     *  to `priorSpellCount` (CR 702.40a) at cast time; decremented by one per
+     *  copy created. The trigger stays on the stack (peek-and-pop) while this
+     *  is > 0 so a suspended per-copy retarget prompt resumes the loop for
+     *  the next copy rather than losing progress. */
+    stormCopiesRemaining?: number;
     /** If set, this stack item is a delayed triggered ability (CR 603.7a)
      *  queued by an earlier spell's resolution. The resolve function lives on
      *  `cardDef.delayedTriggers[triggerId]` and receives `delayedPayload` —
@@ -2171,6 +2185,15 @@ export type GameState = {
      *  reset at turn start. Read by Scavenging Ghoul and similar
      *  count-based triggers. */
     deathsThisTurn?: number;
+    /** Storm (CR 702.40a) — count of spells cast by ANY player this turn.
+     *  Incremented inside `emitSpellCastEvent`; reset at the start of each
+     *  turn (`advanceTurn`, ADR 0052). A spell COPY (`cloneSpellOntoStack`)
+     *  is put onto the stack, not cast (CR 707.10), so it never passes
+     *  through `emitSpellCastEvent` and never increments this. A general
+     *  primitive — future "spells cast this turn" mechanics (prowess,
+     *  magecraft, Aetherflux) reuse it rather than reinventing their own
+     *  counter. */
+    spellsCastThisTurn?: number;
     /** Cumulative damage taken by each player this turn (CR 120.3 tally).
      *  Map `playerId → total damage`. Incremented every time damage actually
      *  lands on a player (after replacement / prevention / protection).
@@ -3026,6 +3049,18 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
     // `selectResolutionChoice`) can locate it via `stackItemId` and write
     // back `collectedChoices`. The next `resolveTopOfStack` call replays
     // the resolve which now reads the stored answer and runs to completion.
+
+    // Storm cast-trigger resolution (CR 702.40, ADR 0052) — engine code, not
+    // a per-card `resolve()`. MUST be checked before the generic triggered-
+    // ability branch below: that branch looks up `cardDef.triggeredAbilities`
+    // for an ability matching `triggeredAbilityId`, and the storm trigger's
+    // card (the storm SPELL itself, e.g. Grapeshot) has no such entry — the
+    // generic branch would silently find nothing and pop the trigger with
+    // zero copies. Marked by `stormSnapshot`, unique to storm-produced stack
+    // items (`collectCastTriggers`).
+    if (top.triggeredAbilityId === STORM_TRIGGER_ID && top.stormSnapshot) {
+        return resolveStormTrigger(state, top);
+    }
 
     // Inline delayed triggered ability resolution (CR 603.7a, ADR 0048) —
     // the Effect Script path: the body Op list rides ON the stack item (no
@@ -5428,7 +5463,18 @@ export function returnExiledForSource(
 
 /** Emits a SPELL_CAST event for a freshly-pushed stack item (CR 601.2i).
  *  Reads the spell's card definition to derive types, subtypes, and colors
- *  so trigger predicates can filter without re-resolving the registry. */
+ *  so trigger predicates can filter without re-resolving the registry.
+ *
+ *  Storm (CR 702.40a, ADR 0052) — this is the single choke point every cast
+ *  goes through, so it doubles as the per-turn spell counter: reads
+ *  `spellsCastThisTurn` BEFORE incrementing (the tally of spells cast
+ *  strictly before this one), carries it on the emitted event as
+ *  `priorSpellCount`, then increments. A spell COPY (`cloneSpellOntoStack`)
+ *  is put onto the stack directly and never calls this function, so copies
+ *  never inflate the count (CR 707.10 — a copy isn't cast). Also runs the
+ *  cast-trigger collection pass (`collectCastTriggers`) so a keyword-
+ *  synthesized cast trigger (today only storm) goes on the stack above this
+ *  spell in the same atomic step the spell itself is announced. */
 export function emitSpellCastEvent(state: GameState, item: StackItem): void {
     const cardId = (item.card as { id?: string }).id;
     if (!cardId) return;
@@ -5438,18 +5484,71 @@ export function emitSpellCastEvent(state: GameState, item: StackItem): void {
     if (caster) caster.qualifyingActionThisTurn = true;
     const def = tryGetDefinition(cardId);
     const colors = def?.manaCost ? getColorsFromCost(def.manaCost) : [];
-    state.pendingEvents = [
-        ...(state.pendingEvents ?? []),
-        {
-            type: "SPELL_CAST",
-            casterId: item.castById,
-            spellInstanceId: item.id,
-            spellCardId: cardId,
-            spellTypes: item.types,
-            spellSubtypes: item.subtypes,
-            spellColors: colors,
-        },
-    ];
+    const priorSpellCount = state.spellsCastThisTurn ?? 0;
+    state.spellsCastThisTurn = priorSpellCount + 1;
+    const event: SpellCastEvent = {
+        type: "SPELL_CAST",
+        casterId: item.castById,
+        spellInstanceId: item.id,
+        spellCardId: cardId,
+        spellTypes: item.types,
+        spellSubtypes: item.subtypes,
+        spellColors: colors,
+        priorSpellCount,
+    };
+    state.pendingEvents = [...(state.pendingEvents ?? []), event];
+    collectCastTriggers(state, item, event);
+}
+
+const STORM_KEYWORD = "storm";
+/** Stack-item marker id for the synthesized storm cast trigger. Matches the
+ *  Mechanics Registry row id (`cards/mechanicsRegistry.ts`, CR 702.40). */
+const STORM_TRIGGER_ID = "storm";
+
+/** Cast-trigger collection pass (CR 702.40, ADR 0052) — distinct from
+ *  `collectTriggers` (triggers.ts), which only scans BATTLEFIELD (plus
+ *  just-left graveyard/exile) sources and would never see a trigger that
+ *  belongs to the very spell being announced onto the stack. Invoked once per
+ *  cast, from `emitSpellCastEvent`'s single choke point. Recognizes
+ *  keyword-synthesized cast triggers — today only `storm` — and pushes a
+ *  StackItem ABOVE `castSpell` so it resolves first (CR 603.3b — a new stack
+ *  object goes on top). Built for the class, not the single keyword:
+ *  gravestorm (CR 702.69, still `planned` in the registry) attaches here
+ *  later as another case, not a new mechanism. */
+function collectCastTriggers(
+    state: GameState,
+    castSpell: StackItem,
+    event: SpellCastEvent
+): void {
+    const cardId = (castSpell.card as { id?: string }).id;
+    const def = cardId ? tryGetDefinition(cardId) : undefined;
+    const hasStorm = def?.staticAbilities?.some(
+        (a) => a.toLowerCase() === STORM_KEYWORD
+    );
+    if (!hasStorm) return;
+    // The storm trigger's resolve body is engine code (like flying's combat
+    // handling), exempt from the DSL-first card-authoring mandate — it is the
+    // keyword's implementation, not a card's effect. It carries a detached
+    // SNAPSHOT of the spell (not a live stack reference) so copies are
+    // created even if `castSpell` is later countered before this trigger
+    // resolves (the Grapeshot/Tendrils ruling) — see `resolveStormTrigger`.
+    const stormItem: StackItem = {
+        ...castSpell,
+        id: allocInstanceId(state),
+        zone: "stack",
+        castById: castSpell.castById,
+        triggeredAbilityId: STORM_TRIGGER_ID,
+        triggerSourceId: castSpell.id,
+        triggerEvent: event,
+        // CR 603.3d — a trigger's targets are chosen when it goes on the
+        // stack, not inherited from what it's watching; this item targets
+        // nothing itself (the COPIES it produces carry the snapshot's
+        // targets instead).
+        targets: undefined,
+        stormSnapshot: structuredClone(castSpell),
+        stormCopiesRemaining: event.priorSpellCount ?? 0,
+    };
+    state.stack.push(stormItem);
 }
 
 /** Emits CARD_DRAWN events for a player who just drew `count` cards
@@ -6323,6 +6422,182 @@ function cloneSpellOntoStack(
     const insertAt = selfIdx === -1 ? state.stack.length : selfIdx;
     state.stack.splice(insertAt, 0, copy);
     return copy.id;
+}
+
+/** CR 707.10b / 707.12c — offers `copy`'s controller a chance to choose new
+ *  targets, by populating `state.pendingTarget` (kind `"copy-retarget"`).
+ *  Extracted so both `SpellContext.requestCopyRetarget` (Fork, Chain
+ *  Lightning, Onslaught — always prompts) and storm's engine-code copy loop
+ *  (`resolveStormTrigger`, which wraps this with an auto-resolve zero-branch
+ *  check, ADR 0052) share one implementation instead of duplicating the
+ *  target-requirement → PendingTarget filter translation. */
+function requestCopyRetargetOn(state: GameState, copy: StackItem): void {
+    const cardId = (copy.card as { id?: string }).id;
+    const def = cardId ? tryGetDefinition(cardId) : undefined;
+    // A copy of a modal spell retargets within its chosen mode
+    // (CR 700.2); otherwise use the card-level requirement.
+    const req =
+        (copy.chosenModeId
+            ? def?.modes?.find((m) => m.id === copy.chosenModeId)
+                  ?.targetRequirement
+            : undefined) ?? def?.targetRequirement;
+    if (!req) return; // copied spell targets nothing — keep as-is
+    // CR 107.3 — resolve an "X" target count against the copy's X.
+    const rawCount = req.count;
+    const count =
+        rawCount === "X" ? Math.max(0, copy.chosenX ?? 0) : rawCount;
+    const minNeeded = typeof count === "number" ? count : count.min;
+    if (minNeeded <= 0) return; // no targets to choose
+    const subtypeFilter = req.subtypeFilter
+        ? Array.isArray(req.subtypeFilter)
+            ? req.subtypeFilter
+            : [req.subtypeFilter]
+        : undefined;
+    const supertypeFilter = req.supertypeFilter
+        ? Array.isArray(req.supertypeFilter)
+            ? req.supertypeFilter
+            : [req.supertypeFilter]
+        : undefined;
+    const excludeSubtypes = req.excludeSubtypes
+        ? Array.isArray(req.excludeSubtypes)
+            ? req.excludeSubtypes
+            : [req.excludeSubtypes]
+        : undefined;
+    const excludeSupertypes = req.excludeSupertypes
+        ? Array.isArray(req.excludeSupertypes)
+            ? req.excludeSupertypes
+            : [req.excludeSupertypes]
+        : undefined;
+    // Inline mvFilter "X" resolution (mirrors rules.resolveMvFilter;
+    // duplicated to avoid a state ↔ rules import cycle).
+    const resolveMv = (v: number | "X" | undefined): number | undefined =>
+        v === undefined ? undefined : v === "X" ? (copy.chosenX ?? 0) : v;
+    const mvFilter = req.mvFilter
+        ? {
+              ...(req.mvFilter.min !== undefined
+                  ? { min: resolveMv(req.mvFilter.min)! }
+                  : {}),
+              ...(req.mvFilter.max !== undefined
+                  ? { max: resolveMv(req.mvFilter.max)! }
+                  : {}),
+              ...(req.mvFilter.equals !== undefined
+                  ? { equals: resolveMv(req.mvFilter.equals)! }
+                  : {}),
+          }
+        : undefined;
+    // CR 707.10b / 707.12c — the COPY's controller chooses new targets.
+    // For Fork this equals the resolving spell's caster; for Chain
+    // Lightning it's the player who paid {R}{R} (the copy's controller),
+    // so key the chooser off the copy itself, not the resolving item's caster.
+    state.pendingTarget = {
+        playerId: copy.controllerId,
+        cardInstanceId: copy.id,
+        targetType: req.type,
+        count,
+        selected: [],
+        kind: "copy-retarget",
+        ...(req.colorFilter ? { colorFilter: req.colorFilter } : {}),
+        ...(req.colorFilterAny ? { colorFilterAny: req.colorFilterAny } : {}),
+        ...(req.zone ? { zone: req.zone } : {}),
+        ...(req.controller ? { controller: req.controller } : {}),
+        ...(subtypeFilter ? { subtypeFilter } : {}),
+        ...(supertypeFilter ? { supertypeFilter } : {}),
+        ...(req.powerFilter ? { powerFilter: req.powerFilter } : {}),
+        ...(req.toughnessFilter ? { toughnessFilter: req.toughnessFilter } : {}),
+        ...(excludeSubtypes ? { excludeSubtypes } : {}),
+        ...(excludeSupertypes ? { excludeSupertypes } : {}),
+        ...(mvFilter ? { mvFilter } : {}),
+        ...(req.spellTypeFilter
+            ? {
+                  spellTypeFilter: Array.isArray(req.spellTypeFilter)
+                      ? req.spellTypeFilter
+                      : [req.spellTypeFilter],
+              }
+            : {}),
+        ...(req.spellExcludeTypeFilter
+            ? {
+                  spellExcludeTypeFilter: Array.isArray(
+                      req.spellExcludeTypeFilter
+                  )
+                      ? req.spellExcludeTypeFilter
+                      : [req.spellExcludeTypeFilter],
+              }
+            : {}),
+        ...(req.spellCreaturePtFilter
+            ? { spellCreaturePtFilter: req.spellCreaturePtFilter }
+            : {}),
+    };
+}
+
+/** Storm's per-copy retarget offer (CR 707.10b "you may choose new targets
+ *  for the copies", ADR 0052) — narrowed to the project's Arena-style
+ *  zero-branch UX convention (auto-resolve a choice with no real branch):
+ *  when the copy's inherited target is the ONLY legal target, there is no
+ *  real choice to make, so the copy silently keeps it and no prompt is
+ *  shown. Otherwise defers to `requestCopyRetargetOn`, the exact machinery
+ *  Fork/Chain Lightning/Onslaught already use. */
+function requestStormCopyRetarget(state: GameState, copy: StackItem): void {
+    const cardId = (copy.card as { id?: string }).id;
+    const def = cardId ? tryGetDefinition(cardId) : undefined;
+    const req =
+        (copy.chosenModeId
+            ? def?.modes?.find((m) => m.id === copy.chosenModeId)
+                  ?.targetRequirement
+            : undefined) ?? def?.targetRequirement;
+    if (!req) return; // untargeted (Empty the Warrens) — nothing to offer
+    const legal = getLegalTargets(
+        state,
+        req,
+        STATIC_EFFECT_CTX.getColors(copy),
+        copy.controllerId,
+        copy.chosenX,
+        copy.types,
+        copy.subtypes,
+        true // sourceIsSpell — a spell copy, still on the stack (CR 109.5)
+    );
+    const currentKeys = new Set(
+        (copy.targets ?? []).map((t) => `${t.type}:${t.id}`)
+    );
+    const hasAlternative = legal.some(
+        (t) => !currentKeys.has(`${t.type}:${t.id}`)
+    );
+    if (!hasAlternative) return; // zero-branch — keep the inherited target
+    requestCopyRetargetOn(state, copy);
+}
+
+/** Storm cast-trigger resolution (CR 702.40, ADR 0052). Loops
+ *  `stormCopiesRemaining` times, creating ONE copy from the detached
+ *  snapshot and offering its optional retarget PER ITERATION — never all at
+ *  once — because a copy-retarget is a single-slot `state.pendingTarget`
+ *  prompt: creating every copy up front would silently overwrite all but the
+ *  last prompt. When a copy's retarget is offered, this suspends (returns
+ *  `null`, leaving the trigger item on the stack via the ordinary
+ *  peek-and-pop discipline) so the resume — once both players pass again
+ *  after the choice is answered — continues the loop from where it left off.
+ *  Untargeted copies (Empty the Warrens) or copies with no legal alternative
+ *  target loop straight through without suspending, so an all-untargeted or
+ *  all-zero-branch storm resolves in one pass like any other trigger. */
+function resolveStormTrigger(
+    state: GameState,
+    top: StackItem
+): StackItem | null {
+    while ((top.stormCopiesRemaining ?? 0) > 0) {
+        top.stormCopiesRemaining = (top.stormCopiesRemaining ?? 0) - 1;
+        // CR 707.10/702.40 — cloned from the detached SNAPSHOT, not a live
+        // stack lookup, so a copy is still produced even if the original
+        // spell was countered before this trigger resolved.
+        const copyId = cloneSpellOntoStack(state, top.stormSnapshot!, top);
+        if (copyId) {
+            const copy = state.stack.find((s) => s.id === copyId);
+            if (copy) requestStormCopyRetarget(state, copy);
+            if (state.pendingTarget) return null; // suspend for this copy
+        }
+    }
+    delete top.stormSnapshot;
+    delete top.stormCopiesRemaining;
+    delete top.collectedChoices;
+    state.stack.pop();
+    return top;
 }
 
 /** Builds a SpellContext with primitives bound to the current game state. */
@@ -9078,111 +9353,7 @@ export function buildSpellContext(
         requestCopyRetarget(copyStackItemId): void {
             const copy = state.stack.find((s) => s.id === copyStackItemId);
             if (!copy) return;
-            const cardId = (copy.card as { id?: string }).id;
-            const def = cardId ? tryGetDefinition(cardId) : undefined;
-            // A copy of a modal spell retargets within its chosen mode
-            // (CR 700.2); otherwise use the card-level requirement.
-            const req =
-                (copy.chosenModeId
-                    ? def?.modes?.find((m) => m.id === copy.chosenModeId)
-                          ?.targetRequirement
-                    : undefined) ?? def?.targetRequirement;
-            if (!req) return; // copied spell targets nothing — keep as-is
-            // CR 107.3 — resolve an "X" target count against the copy's X.
-            const rawCount = req.count;
-            const count =
-                rawCount === "X" ? Math.max(0, copy.chosenX ?? 0) : rawCount;
-            const minNeeded = typeof count === "number" ? count : count.min;
-            if (minNeeded <= 0) return; // no targets to choose
-            const subtypeFilter = req.subtypeFilter
-                ? Array.isArray(req.subtypeFilter)
-                    ? req.subtypeFilter
-                    : [req.subtypeFilter]
-                : undefined;
-            const supertypeFilter = req.supertypeFilter
-                ? Array.isArray(req.supertypeFilter)
-                    ? req.supertypeFilter
-                    : [req.supertypeFilter]
-                : undefined;
-            const excludeSubtypes = req.excludeSubtypes
-                ? Array.isArray(req.excludeSubtypes)
-                    ? req.excludeSubtypes
-                    : [req.excludeSubtypes]
-                : undefined;
-            const excludeSupertypes = req.excludeSupertypes
-                ? Array.isArray(req.excludeSupertypes)
-                    ? req.excludeSupertypes
-                    : [req.excludeSupertypes]
-                : undefined;
-            // Inline mvFilter "X" resolution (mirrors rules.resolveMvFilter;
-            // duplicated to avoid a state ↔ rules import cycle).
-            const resolveMv = (
-                v: number | "X" | undefined
-            ): number | undefined =>
-                v === undefined
-                    ? undefined
-                    : v === "X"
-                      ? (copy.chosenX ?? 0)
-                      : v;
-            const mvFilter = req.mvFilter
-                ? {
-                      ...(req.mvFilter.min !== undefined
-                          ? { min: resolveMv(req.mvFilter.min)! }
-                          : {}),
-                      ...(req.mvFilter.max !== undefined
-                          ? { max: resolveMv(req.mvFilter.max)! }
-                          : {}),
-                      ...(req.mvFilter.equals !== undefined
-                          ? { equals: resolveMv(req.mvFilter.equals)! }
-                          : {}),
-                  }
-                : undefined;
-            // CR 707.10b / 707.12c — the COPY's controller chooses new targets.
-            // For Fork this equals the resolving spell's caster; for Chain
-            // Lightning it's the player who paid {R}{R} (the copy's controller),
-            // so key the chooser off the copy itself, not `item.castById`.
-            state.pendingTarget = {
-                playerId: copy.controllerId,
-                cardInstanceId: copy.id,
-                targetType: req.type,
-                count,
-                selected: [],
-                kind: "copy-retarget",
-                ...(req.colorFilter ? { colorFilter: req.colorFilter } : {}),
-                ...(req.colorFilterAny
-                    ? { colorFilterAny: req.colorFilterAny }
-                    : {}),
-                ...(req.zone ? { zone: req.zone } : {}),
-                ...(req.controller ? { controller: req.controller } : {}),
-                ...(subtypeFilter ? { subtypeFilter } : {}),
-                ...(supertypeFilter ? { supertypeFilter } : {}),
-                ...(req.powerFilter ? { powerFilter: req.powerFilter } : {}),
-                ...(req.toughnessFilter
-                    ? { toughnessFilter: req.toughnessFilter }
-                    : {}),
-                ...(excludeSubtypes ? { excludeSubtypes } : {}),
-                ...(excludeSupertypes ? { excludeSupertypes } : {}),
-                ...(mvFilter ? { mvFilter } : {}),
-                ...(req.spellTypeFilter
-                    ? {
-                          spellTypeFilter: Array.isArray(req.spellTypeFilter)
-                              ? req.spellTypeFilter
-                              : [req.spellTypeFilter],
-                      }
-                    : {}),
-                ...(req.spellExcludeTypeFilter
-                    ? {
-                          spellExcludeTypeFilter: Array.isArray(
-                              req.spellExcludeTypeFilter
-                          )
-                              ? req.spellExcludeTypeFilter
-                              : [req.spellExcludeTypeFilter],
-                      }
-                    : {}),
-                ...(req.spellCreaturePtFilter
-                    ? { spellCreaturePtFilter: req.spellCreaturePtFilter }
-                    : {}),
-            };
+            requestCopyRetargetOn(state, copy);
         },
         requestRetarget(spellStackItemId, requirement): void {
             // CR 114.6 — change the target(s) of a spell ALREADY on the stack
