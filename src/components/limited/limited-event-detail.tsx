@@ -12,6 +12,7 @@ import ActionButton from "~/components/board/action-button";
 import LimitedEventSeatList from "./limited-event-seat-list";
 import LimitedDraftTable from "./limited-draft-table";
 import LimitedSeatPoolPanel from "./limited-seat-pool-panel";
+import LimitedVsAiPanel from "./limited-vs-ai-panel";
 
 /** One Limited Event's detail page (PRD #1107, ADR 0054/0055): the Seat list,
  *  a Join button (open events, no seat yet), a Start button (the event's
@@ -38,6 +39,12 @@ export default function LimitedEventDetail({
     const isCreator = user !== null && event.createdBy === user._id;
     const canJoin = event.status === "open" && !viewerSeat;
     const canStart = event.status === "open" && isCreator;
+    // Mirrors `isEventPoolFinal` (`convex/limited/autoBuild.ts`, issue
+    // #1115): the point at which every bot seat's Pool — and therefore its
+    // Auto-Built deck — is final and the vs-AI hookup can offer it.
+    const isPoolFinal =
+        event.status === "started" &&
+        (event.type === "sealed" || event.draftCompletedAt !== undefined);
 
     const runMutation = async (run: () => Promise<unknown>) => {
         if (pending) return;
@@ -129,6 +136,14 @@ export default function LimitedEventDetail({
                             pool={viewerSeat.pool}
                         />
                     )}
+
+                {isPoolFinal && viewerSeat && (
+                    <LimitedVsAiPanel
+                        eventId={eventId}
+                        event={event}
+                        viewerSeatIndex={viewerSeat.seatIndex}
+                    />
+                )}
             </PanelBody>
         </Panel>
     );
