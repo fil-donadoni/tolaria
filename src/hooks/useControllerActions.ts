@@ -3,6 +3,7 @@ import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { useGameContext } from "~/hooks/useGameContext";
 import { usePendingChoicePrimaryAction } from "~/hooks/usePendingChoicePrimaryAction";
+import { isEditableTarget } from "~/lib/editable-target";
 import {
     computeHasPriority,
     isAssigningDamage as isAssigningDamageFn,
@@ -187,6 +188,10 @@ export function useControllerActions(): ControllerState {
 
     useEffect(() => {
         function onKeyDown(e: KeyboardEvent) {
+            // Never hijack keystrokes destined for a text field — Space/Enter/U
+            // must type/submit normally when the user is focused in an input,
+            // textarea or contenteditable (e.g. renaming a card, chat, forms).
+            if (isEditableTarget(e.target)) return;
             if (isBusy) return;
             if (e.key === "u" && !e.metaKey && !e.ctrlKey && !e.altKey) {
                 if (isPayingCast) {

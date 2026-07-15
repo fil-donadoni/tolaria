@@ -139,6 +139,16 @@ describe("ControllerPod Space hotkey", () => {
         expect(calls.map((c) => c.ref)).toContain("passPriority");
     });
 
+    it("does NOT pass priority when Space is typed into an <input>", () => {
+        renderPod();
+        const input = document.createElement("input");
+        document.body.appendChild(input);
+        input.focus();
+        fireEvent.keyDown(input, { code: "Space" });
+        expect(calls.map((c) => c.ref)).not.toContain("passPriority");
+        input.remove();
+    });
+
     it("confirms a may-pay choice (Pay) instead of passing priority", () => {
         renderPod(
             {
