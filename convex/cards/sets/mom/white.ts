@@ -8,7 +8,11 @@
 // and `EffectTokenSpec` has no dynamic-counter-count / token-activated-ability
 // fields. Do not invent a name or paper over the gap with `resolve()` (the
 // "Op doesn't exist yet" case is stop-and-issue, not the escape hatch).
-// tracked-by: #924
+// Investigated end-to-end in #924 (confirmed no transform/DFC machinery and
+// no token counters-at-creation / token-activated-ability support anywhere
+// in the engine); the underlying engine capability is tracked as its own
+// issue, #1210.
+// tracked-by: #924, #1210
 // export const sunfall: CardDefinition = {
 //     id: "32e29c7d-ed4b-4eff-b3c2-d99e5b63ef8d",
 //     name: "Sunfall",

@@ -561,6 +561,7 @@ const KEYWORD_ACTIONS: MechanicRow[] = [
         kind: "keyword-action",
         cr: "701.53",
         status: "planned",
+        note: "Blocked on two engine gaps, confirmed in #924: (1) no transform/DFC machinery for permanents (only faceDown/faceDownOf morph state exists, a different mechanic — CR 712 needs distinct front/back characteristic sets); (2) EffectTokenSpec/TokenSpec have no counters-at-creation or token-scoped activatedAbilities field. Tracked-by #1210. Blocks Sunfall (convex/cards/sets/mom/white.ts, stub id 32e29c7d-ed4b-4eff-b3c2-d99e5b63ef8d).",
     },
     // 701.54 The Ring Tempts You
     {
