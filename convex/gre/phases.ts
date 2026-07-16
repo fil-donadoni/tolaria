@@ -2645,6 +2645,14 @@ function tickAllDurations(state: GameState): void {
     if (state.allCreaturesMustAttack) {
         state.allCreaturesMustAttack = undefined;
     }
+    // CR 122 / 603.3 / 514.2 (issue #1189) — the per-source per-turn
+    // ability-resolution tally (Omnath, Locus of Creation; Scythecat Cub) is
+    // scoped to "this turn"; cleared unconditionally at CLEANUP, same
+    // CLEANUP-only boundary as the cast/activation locks above (this
+    // function also ticks at END_OF_COMBAT, where the tally must survive).
+    if (view.phase === "CLEANUP" && state.abilityResolutionCounts) {
+        state.abilityResolutionCounts = undefined;
+    }
 }
 
 /** Undoes the mutations applied by `animateAsCreature`, restoring the

@@ -1129,6 +1129,18 @@ export type StackItem = CardInstanceState & {
     triggerSourceId?: string;
     /** The originating event captured at trigger time. Passed to resolve(). */
     triggerEvent?: GameEvent;
+    /** CR 122 / 603.3 (issue #1189) — set the FIRST time this triggered
+     *  ability's resolution has tallied `GameState.abilityResolutionCounts`
+     *  (`recordAbilityResolution`, `resolveTopOfStackInner`). A dedicated
+     *  per-item guard rather than reusing `resolutionStep`: `resolutionStep`
+     *  is ONLY set by a `resolveSteps` loop or the DSL interpreter's own
+     *  checkpointing (`runEffectScript`) — a plain imperative `resolve()`
+     *  ability that suspends via a bare `ctx.requestChoice` (Scythecat Cub's
+     *  target pick) leaves `resolutionStep` undefined across the
+     *  suspend/resume replay, so gating the tally on it would double-count.
+     *  This flag is set unconditionally on first tally and simply travels
+     *  with the stack item until it resolves/pops — no cleanup needed. */
+    abilityResolutionRecorded?: boolean;
     /** CR 702.35d — set on the synthetic reflexive triggered ability that a
      *  discarded madness card puts on the stack (`buildMadnessReflexiveTrigger`,
      *  triggers.ts). Holds the id of the exiled card. On resolution
@@ -2521,6 +2533,18 @@ export type GameState = {
      *  Siren's Call). Checked in `getRequiredAttackerIds` alongside the
      *  per-creature `mustAttackThisTurn`. Cleared at CLEANUP. */
     allCreaturesMustAttack?: string;
+    /** CR 122 / 603.3 (issue #1189) — per-source, per-turn tally of how many
+     *  times a triggered ability has RESOLVED this turn, keyed by
+     *  `${triggerSourceId}:${triggeredAbilityId}` (a triggered ability firing
+     *  off a DIFFERENT source, or a DIFFERENT ability on the SAME source, each
+     *  get an independent tally). Incremented by `resolveTopOfStackInner`
+     *  exactly once per resolution, BEFORE the effect runs, so "the first
+     *  time this ability has resolved this turn" reads 1, not 0. Read back by
+     *  `SpellContext.getAbilityResolutionCount()` / the
+     *  `{ abilityResolutionCount: true }` EffectValue grammar member (Omnath,
+     *  Locus of Creation; Scythecat Cub's escalating branches). Cleared at
+     *  CLEANUP (CR 514.2) — the tally is scoped to "this turn". */
+    abilityResolutionCounts?: Record<string, number>;
     /** Transient destroy-replacement shields (CR 614, Pyramids mode 2). Each
      *  entry replaces the next destruction of its keyed permanent before
      *  `duration` expires. Consumed via `destroyWithReplacements`; unconsumed
@@ -2963,6 +2987,31 @@ export function resolveTopOfStack(state: GameState): StackItem | null {
         processPendingActionTriggers(state);
     }
     return result;
+}
+
+/** CR 122 / 603.3 (issue #1189) — records that a triggered ability just
+ *  resolved, incrementing its per-source per-turn tally BEFORE its effect
+ *  runs (called from `resolveTopOfStackInner`), so "the Nth time this
+ *  ability has resolved this turn" (Omnath, Locus of Creation; Scythecat
+ *  Cub) reads back the count INCLUDING this resolution — the first
+ *  resolution reads 1, not 0. Keyed by `${sourceInstanceId}:${abilityId}`:
+ *  the SAME triggered ability firing off a DIFFERENT source (two landfall
+ *  permanents), or a DIFFERENT ability on the SAME source, each get an
+ *  independent tally. The caller is responsible for calling this EXACTLY
+ *  ONCE per resolution — the increment is irreversible, so a
+ *  suspend/resume replay (CR 608.3) of the effect must not call it twice
+ *  (gated by the caller checking `resolutionStep === undefined`, true only
+ *  on a fresh entry). Reset at CLEANUP (`tickAllDurations`, CR 514.2) — the
+ *  tally is scoped to "this turn". */
+function recordAbilityResolution(
+    state: GameState,
+    sourceInstanceId: string,
+    abilityId: string
+): void {
+    const key = `${sourceInstanceId}:${abilityId}`;
+    const counts = state.abilityResolutionCounts ?? {};
+    counts[key] = (counts[key] ?? 0) + 1;
+    state.abilityResolutionCounts = counts;
 }
 
 /** True when this trigger StackItem is a triggered MANA ability (CR 605.1b):
@@ -3415,6 +3464,23 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
                     state.stack.pop();
                     return top;
                 }
+            }
+            // CR 122 / 603.3 (issue #1189) — tally this resolution BEFORE the
+            // effect runs, exactly once per resolution (guarded by the
+            // dedicated `abilityResolutionRecorded` flag, NOT `resolutionStep`
+            // — a plain imperative `resolve()` ability that suspends via a
+            // bare `ctx.requestChoice` never sets `resolutionStep`, so that
+            // guard would double-count across the suspend/resume replay, CR
+            // 608.3). Read back by the `abilityResolutionCount` EffectValue
+            // (Omnath, Locus of Creation; Scythecat Cub's escalating
+            // branches).
+            if (!top.abilityResolutionRecorded && top.triggerSourceId) {
+                recordAbilityResolution(
+                    state,
+                    top.triggerSourceId,
+                    top.triggeredAbilityId
+                );
+                top.abilityResolutionRecorded = true;
             }
             // Stepped triggered-ability resolve (CR 608.2) — mirror of the
             // stepped spell/activated paths. `resolutionStep` is checkpointed so
@@ -8620,6 +8686,18 @@ export function buildSpellContext(
         // path, no duplicated logic.
         getDomain(playerId: string): number {
             return countDomain(state as never, playerId);
+        },
+        // CR 122 / 603.3 (issue #1189) — how many times the CURRENTLY
+        // RESOLVING triggered ability has resolved this turn, counting this
+        // resolution. Keyed by (triggerSourceId, triggeredAbilityId); 0 when
+        // the resolving item isn't a triggered ability (no key to read) or
+        // the key has never been recorded. The tally itself is written by
+        // `resolveTopOfStackInner` (once per resolution, before the effect
+        // runs) — this getter only reads it back.
+        getAbilityResolutionCount(): number {
+            if (!item.triggerSourceId || !item.triggeredAbilityId) return 0;
+            const key = `${item.triggerSourceId}:${item.triggeredAbilityId}`;
+            return state.abilityResolutionCounts?.[key] ?? 0;
         },
         // CR 202.3 / 202.3b — mana value lookup. For permanents on the
         // battlefield, X in the printed cost counts as 0 (the chosen X is

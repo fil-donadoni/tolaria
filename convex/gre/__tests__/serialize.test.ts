@@ -1097,6 +1097,7 @@ describe("schema drift guard", () => {
         ];
         state.drawLookReplacements = [{ playerId: "p1", x: 3 }];
         state.landManaReplacedToBlueThisTurn = ["p1"];
+        state.abilityResolutionCounts = { "src-1:ability-1": 1 };
 
         const stateKeys = new Set(Object.keys(state));
         const missing = [...stateKeys].filter((k) => !allKnown.has(k));
@@ -1790,6 +1791,20 @@ describe("optional field round-trip smoke tests", () => {
         const state = freshState();
         state.landPlayLocked = true;
         expect(roundTrip(state).landPlayLocked).toBe(true);
+    });
+
+    it("abilityResolutionCounts (issue #1189 — Omnath / Scythecat Cub escalating tallies)", () => {
+        const state = freshState();
+        // Two independent keys — a different source AND a different ability
+        // on the same source both get their own entry.
+        state.abilityResolutionCounts = {
+            "omnath-1:omnath-landfall": 2,
+            "omnath-1:omnath-etb": 1,
+        };
+        expect(roundTrip(state).abilityResolutionCounts).toEqual({
+            "omnath-1:omnath-landfall": 2,
+            "omnath-1:omnath-etb": 1,
+        });
     });
 });
 

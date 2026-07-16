@@ -1909,6 +1909,18 @@ export interface SpellContext {
      *  closures (Kavu Scout, Wayfaring Giant, Exotic Curse, Strength of
      *  Unity) via the shared `countDomain` helper directly. */
     getDomain: (playerId: string) => number;
+    /** CR 122 / 603.3 (issue #1189) — how many times (1-indexed, counting
+     *  this resolution) the CURRENTLY RESOLVING triggered ability has
+     *  resolved this turn. Reads `GameState.abilityResolutionCounts`, keyed
+     *  by `${triggerSourceId}:${triggeredAbilityId}`; 0 when the resolving
+     *  stack item isn't a triggered ability (no key to read). The engine
+     *  increments the tally exactly once per resolution, BEFORE the effect
+     *  runs (`resolveTopOfStackInner`), so the first resolution reads 1.
+     *  Used by the `{ abilityResolutionCount: true }` EffectValue grammar
+     *  member (Omnath, Locus of Creation; Scythecat Cub's escalating
+     *  branches) — read via this getter rather than duplicating the lookup
+     *  in the interpreter, one execution path (ADR 0045). */
+    getAbilityResolutionCount: () => number;
     /** CR 104.2a — an alternate win condition set by a resolving spell/ability
      *  (Coalition Victory), through the SAME `state.gameOver` seam State-Based
      *  Actions use (`checkGameOverSBA`, `gre/sba.ts`). Sets `winnerId` to
@@ -6261,9 +6273,11 @@ export type EffectDomainValue = {
 /** A runtime numeric parameter of an Op (ADR 0045): a literal count, a `ref`
  *  reading a bound object's numeric property, a `count` of a selected set, the
  *  chosen-cost `X` (issue #852), a `counters` count on a selected object
- *  (issue #1015), a selected object's `manaValue` (issue #680), or a player's
- *  `domain` (issue #1066). The value grammar is capped at these — no
- *  arithmetic, no expressions (the frozen-grammar defence, ADR 0045). */
+ *  (issue #1015), a selected object's `manaValue` (issue #680), a player's
+ *  `domain` (issue #1066), a permanent's `escaped` flag (issue #695), or the
+ *  currently-resolving triggered ability's `abilityResolutionCount` (issue
+ *  #1189). The value grammar is capped at these — no arithmetic, no
+ *  expressions (the frozen-grammar defence, ADR 0045). */
 export type EffectValue =
     | number
     | EffectRef
@@ -6273,7 +6287,8 @@ export type EffectValue =
     | EffectKickerCountValue
     | EffectManaValueValue
     | EffectDomainValue
-    | EffectEscapedValue;
+    | EffectEscapedValue
+    | EffectAbilityResolutionCountValue;
 
 /** CR 702.138e — resolves to 1 if the referenced permanent ESCAPED (was cast
  *  from a graveyard via Escape, `CardInstanceState.escaped`), else 0. Powers the
@@ -6286,6 +6301,36 @@ export type EffectValue =
 export interface EffectEscapedValue {
     escaped: { of: EffectObjectSelector };
 }
+
+/** abilityResolutionCount — how many times (1-indexed, COUNTING this
+ *  resolution) the CURRENTLY RESOLVING triggered ability has resolved this
+ *  turn (CR 122 / 603.3, issue #1189), a thin JSON-pure skin over
+ *  `SpellContext.getAbilityResolutionCount()`. An ELEVENTH `EffectValue`
+ *  grammar member; like `domain` (issue #1066) and `escaped` (issue #695) it
+ *  is NOT an Op and NOT a new STRUCTURAL construct — it does not reopen ADR
+ *  0045.
+ *
+ *  No `of` selector: unlike `counters`/`manaValue` (object-scoped) or
+ *  `domain` (player-scoped), this value is scoped to the RESOLVING STACK
+ *  ITEM itself — there is exactly one "currently resolving triggered
+ *  ability", so there is nothing to select. The engine tallies the count in
+ *  `GameState.abilityResolutionCounts`, keyed by
+ *  `${triggerSourceId}:${triggeredAbilityId}`, incremented by
+ *  `resolveTopOfStackInner` exactly once per resolution — BEFORE the effect
+ *  runs, so "the first time" reads 1, "the second time" reads 2, and so on.
+ *  Reset to absent (0) at CLEANUP (CR 514.2) — the tally is scoped to "this
+ *  turn". Composes with the comparison predicate
+ *  (`{ left: { abilityResolutionCount: true }, op: "eq", right: 1 }`) to
+ *  drive an escalating-branch effect (Omnath, Locus of Creation's
+ *  first/second/third-resolution modes; Scythecat Cub's "double on the
+ *  second time" clause). Only meaningful at a TRIGGERED-ability effect
+ *  site — the engine only increments the tally on the triggered-ability
+ *  resolution path (`gre/state.ts`); reading it anywhere else (a spell, an
+ *  activated ability) always resolves to 0 (no `triggerSourceId` /
+ *  `triggeredAbilityId` to key by). */
+export type EffectAbilityResolutionCountValue = {
+    abilityResolutionCount: true;
+};
 
 /** negate — wraps any plain `EffectValue` and flips its resolved sign at read
  *  time (issue #926, blocking Toxic Deluge's "-X/-X"). NOT a tenth `EffectValue`

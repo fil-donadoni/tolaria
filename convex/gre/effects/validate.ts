@@ -446,11 +446,30 @@ function isEscapedValue(value: unknown): boolean {
     return isObjectSelector(s.of);
 }
 
+/** `{ abilityResolutionCount: true }` — SHAPE of the ability-resolution-count
+ *  value construct (CR 122 / 603.3, issue #1189). No parameters — reads the
+ *  CURRENTLY RESOLVING triggered ability's per-turn tally off the game state
+ *  (`SpellContext.getAbilityResolutionCount()`). Mirrors `isKickerCountValue`
+ *  / `isXValue` (a single literal-`true` key, no `of` selector — unlike
+ *  `counters`/`manaValue`/`domain`, this value is scoped to the resolving
+ *  stack item itself, not an announced object or player). */
+function isAbilityResolutionCountValue(value: unknown): boolean {
+    if (typeof value !== "object" || value === null) return false;
+    const keys = Object.keys(value);
+    return (
+        keys.length === 1 &&
+        keys[0] === "abilityResolutionCount" &&
+        (value as { abilityResolutionCount: unknown })
+            .abilityResolutionCount === true
+    );
+}
+
 /** A numeric Op parameter (ADR 0045 value grammar): a positive-int literal,
  *  a `ref`, a `count`, the chosen-cost `X` (issue #852), a `counters` count
  *  on a selected object (issue #1015), a selected object's `manaValue` (issue
- *  #680), a player's `domain` (issue #1066), or an object's `escaped` flag
- *  (issue #695). Exactly those — no arithmetic, no expressions. */
+ *  #680), a player's `domain` (issue #1066), an object's `escaped` flag
+ *  (issue #695), or the resolving triggered ability's `abilityResolutionCount`
+ *  (issue #1189). Exactly those — no arithmetic, no expressions. */
 function isEffectValue(value: unknown): boolean {
     return (
         isPositiveInt(value) ||
@@ -461,7 +480,8 @@ function isEffectValue(value: unknown): boolean {
         isKickerCountValue(value) ||
         isManaValueValue(value) ||
         isDomainValue(value) ||
-        isEscapedValue(value)
+        isEscapedValue(value) ||
+        isAbilityResolutionCountValue(value)
     );
 }
 
