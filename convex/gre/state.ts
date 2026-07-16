@@ -3000,8 +3000,10 @@ export function resolveTopOfStack(state: GameState): StackItem | null {
  *  independent tally. The caller is responsible for calling this EXACTLY
  *  ONCE per resolution — the increment is irreversible, so a
  *  suspend/resume replay (CR 608.3) of the effect must not call it twice
- *  (gated by the caller checking `resolutionStep === undefined`, true only
- *  on a fresh entry). Reset at CLEANUP (`tickAllDurations`, CR 514.2) — the
+ *  (gated by the caller checking the `StackItem.abilityResolutionRecorded`
+ *  flag, set true on the first entry so any resume skips re-recording — a
+ *  bare-`requestChoice` `resolve()` never touches `resolutionStep`, so that
+ *  field must NOT be used as the guard). Reset at CLEANUP (`tickAllDurations`, CR 514.2) — the
  *  tally is scoped to "this turn". */
 function recordAbilityResolution(
     state: GameState,
