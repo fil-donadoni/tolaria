@@ -63,6 +63,13 @@ export default function DebugGenerateScenario() {
             <textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
+                onKeyDown={(e) => {
+                    // Ctrl/Cmd+Enter submits, mirroring the Generate button.
+                    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+                        e.preventDefault();
+                        void handleGenerate();
+                    }
+                }}
                 placeholder="e.g. Mishra's Factory with the lands to animate it; opponent holds Shatter and has 2 Mountains"
                 rows={2}
                 className="w-full px-2 py-1 rounded bg-black/40 border border-white/20 text-white text-xs placeholder:text-white/30 outline-none focus:border-white/40"
