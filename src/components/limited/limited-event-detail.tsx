@@ -14,6 +14,7 @@ import LimitedDraftTable from "./limited-draft-table";
 import LimitedSeatPoolPanel from "./limited-seat-pool-panel";
 import LimitedVsAiPanel from "./limited-vs-ai-panel";
 import LimitedReviewPanel from "./limited-review-panel";
+import LimitedShareInviteButton from "./limited-share-invite-button";
 
 /** One Limited Event's detail page (PRD #1107, ADR 0054/0055): the Seat list,
  *  a Join button (open events, no seat yet), a Start button (the event's
@@ -101,6 +102,9 @@ export default function LimitedEventDetail({
                 )}
 
                 <div className="flex justify-end gap-2">
+                    {event.status === "open" && (
+                        <LimitedShareInviteButton eventId={eventId} />
+                    )}
                     {canJoin && (
                         <ActionButton
                             onClick={handleJoin}
