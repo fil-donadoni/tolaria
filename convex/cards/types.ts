@@ -1694,6 +1694,18 @@ export interface SpellContext {
         target: TargetSelection,
         destination?: CounterDestination
     ) => void;
+    /** CR 701.5-adjacent (issue #1205, Subtlety) — move a SPELL on the stack
+     *  onto the top or bottom of its owner's library WITHOUT countering it.
+     *  Distinct from `counter(target, "library-top")`: this is a "put on
+     *  library" effect, not a counter, so it ignores `cantBeCountered` (CR
+     *  701.5c shields only against COUNTER effects). Target must be a
+     *  `type: "spell"` TargetSelection; no-op if it has left the stack
+     *  (CR 608.2b). An ability on the stack (no card) just vanishes, mirroring
+     *  `counter`. `position` is the owner's chosen library end. */
+    putSpellOnLibrary: (
+        target: TargetSelection,
+        position: "top" | "bottom"
+    ) => void;
     /** Player discards `amount` cards chosen uniformly at random (CR 701.8a).
      *  Capped at current hand size — no-op on an empty hand. Randomness is
      *  drawn from the game's seeded PRNG so replays reproduce the same picks.
