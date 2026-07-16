@@ -12,7 +12,7 @@ import {
     pushSpell,
 } from "../../../__tests__/setup";
 import { resolveTopOfStack } from "../../../../gre/state";
-import type { GameState } from "../../../../gre/state";
+import type { GameState, StackItem } from "../../../../gre/state";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { advancePhase } from "../../../../gre/phases";
 import { projectPublicState } from "../../../../gameProjections";
@@ -31,13 +31,49 @@ function answer(state: GameState, picks: string[]): void {
     });
 }
 
+/** Pushes Vision Charm onto the stack with its mode (and target) already
+ *  chosen — mirroring the cast-time `announceCast` flow (CR 601.2b–c / 700.2c):
+ *  the mode is locked and the chosen mode's target announced BEFORE the spell
+ *  hits the stack. Sets `chosenModeId` + `targets` on the stack item exactly as
+ *  `announceCast` does. */
+function pushModalVisionCharm(
+    state: GameState,
+    modeId: string,
+    targets: StackItem["targets"] = []
+): StackItem {
+    const item = pushSpell(state, visionCharm.id, "p1", targets);
+    item.chosenModeId = modeId;
+    return item;
+}
+
 describe("Vision Charm (VIS, {U} modal instant — CR 700.2)", () => {
-    it("is a {U} instant with the three modern-oracle modes", () => {
+    it("is a {U} instant whose three modes carry per-mode targeting (CR 700.2d)", () => {
         expect(visionCharm.manaCost).toEqual({ U: 1 });
         expect(visionCharm.types).toEqual(["Instant"]);
         expect(visionCharm.oracleText).toContain("Target player mills four");
         expect(visionCharm.oracleText).toContain("basic land type");
         expect(visionCharm.oracleText).toContain("Target artifact phases out");
+
+        // Migrated onto the cast-time modes framework (CR 601.2b): NO card-level
+        // resolve, and the mode is picked at cast — never via a resolution-time
+        // option choice.
+        expect(visionCharm.resolve).toBeUndefined();
+        const modes = visionCharm.modes!;
+        expect(modes.map((m) => m.id)).toEqual(["mill", "land-type", "phase"]);
+        // Per-mode target requirements (CR 700.2d): mode 1 → a player, mode 2 →
+        // no target, mode 3 → an artifact.
+        expect(modes[0].targetRequirement).toEqual({
+            type: "player",
+            count: 1,
+        });
+        expect(modes[1].targetRequirement).toBeUndefined();
+        expect(modes[2].targetRequirement).toEqual({
+            type: "Artifact",
+            count: 1,
+        });
+        // Each mode ships its own oracle bullet line for the stack display.
+        expect(modes[0].oracleText).toBe("Target player mills four cards.");
+        expect(modes[2].oracleText).toBe("Target artifact phases out.");
     });
 
     it("mode 1 — target player mills four cards (CR 701.17)", () => {
@@ -52,10 +88,10 @@ describe("Vision Charm (VIS, {U} modal instant — CR 700.2)", () => {
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2", { library: lib })],
         });
-        pushSpell(state, visionCharm.id, "p1");
-        expect(resolveTopOfStack(state)).toBeNull(); // suspends on mode pick
-        answer(state, ["mill"]); // choose mode
-        answer(state, ["p2"]); // choose the milled player
+        // Mode + target announced at cast (CR 601.2c) — resolution is
+        // choice-free.
+        pushModalVisionCharm(state, "mill", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
 
         const p2 = state.players[1];
         expect(p2.graveyard).toHaveLength(4);
@@ -75,15 +111,13 @@ describe("Vision Charm (VIS, {U} modal instant — CR 700.2)", () => {
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2", { library: lib })],
         });
-        pushSpell(state, visionCharm.id, "p1");
+        pushModalVisionCharm(state, "mill", [{ type: "player", id: "p2" }]);
         resolveTopOfStack(state);
-        answer(state, ["mill"]);
-        answer(state, ["p2"]);
         expect(state.players[1].graveyard).toHaveLength(2);
         expect(state.players[1].library).toHaveLength(0);
     });
 
-    it("mode 2 — lands of the chosen type become the chosen basic type until end of turn (CR 305.7)", () => {
+    it("mode 2 — land-type sub-choices stay resolution-time (CR 608.2); lands of the chosen type become the chosen basic type until end of turn (CR 305.7)", () => {
         const isl = makeInstance(island.id, {
             id: "isl",
             controllerId: "p1",
@@ -107,9 +141,10 @@ describe("Vision Charm (VIS, {U} modal instant — CR 700.2)", () => {
             state.players[0].battlefield.find((c) => c.id === "isl")!.subtypes
         ).toEqual(["Island"]);
 
-        pushSpell(state, visionCharm.id, "p1");
-        resolveTopOfStack(state);
-        answer(state, ["land-type"]); // mode
+        // Mode picked at cast (no target); the two land-type picks remain
+        // RESOLUTION-time choices (CR 608.2).
+        pushModalVisionCharm(state, "land-type");
+        expect(resolveTopOfStack(state)).toBeNull(); // suspends on land-from
         answer(state, ["Island"]); // from type
         answer(state, ["Swamp"]); // to type
 
@@ -150,10 +185,11 @@ describe("Vision Charm (VIS, {U} modal instant — CR 700.2)", () => {
             turn: 1,
             activePlayerId: "p1",
         });
-        pushSpell(state, visionCharm.id, "p1");
+        // Mode + artifact target announced at cast (CR 700.2d).
+        pushModalVisionCharm(state, "phase", [
+            { type: "permanent", id: "lotus" },
+        ]);
         resolveTopOfStack(state);
-        answer(state, ["phase"]); // mode
-        answer(state, ["lotus"]); // target artifact
 
         // Phased out: gone from the battlefield, held in an untap-cycle bundle
         // stamped with the turn it phased out (CR 702.26f skip-first guard).
@@ -190,10 +226,10 @@ describe("Vision Charm (VIS, {U} modal instant — CR 700.2)", () => {
                 makePlayer("p2"),
             ],
         });
-        pushSpell(state, visionCharm.id, "p1");
+        pushModalVisionCharm(state, "phase", [
+            { type: "permanent", id: "lotus" },
+        ]);
         resolveTopOfStack(state);
-        answer(state, ["phase"]);
-        answer(state, ["lotus"]);
 
         // Phasing is public (set aside face-up): both the controller and the
         // opponent see the bundle, and the card def is slimmed to `{ id }`.

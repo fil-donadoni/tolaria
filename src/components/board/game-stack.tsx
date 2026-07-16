@@ -5,6 +5,7 @@ import type { StackItem } from "~/types/game";
 import {
     getAbilityOracleText,
     getDelayedTriggerOracleText,
+    getStackModeLines,
     getTriggeredAbilityOracleText,
     matchesSpellTypeFilter,
     matchesSpellExcludeTypeFilter,
@@ -20,6 +21,7 @@ import { useDraggable } from "~/hooks/useDraggable";
 import { repositionLeaderLines } from "~/hooks/use-leader-lines";
 import DragHandle from "./drag-handle";
 import StackAbilityTile from "./stack-ability-tile";
+import StackModeLines from "./stack-mode-lines";
 import ColorOverlayCardImage from "../cards/color-overlay-card-image";
 
 type GameStackProps = {
@@ -134,6 +136,11 @@ export default function GameStack({ stack }: GameStackProps) {
                                 pendingTarget?.spellTargetsInstanceIds
                             );
 
+                        // CR 700.2c (issue #1274) — a modal spell that locked
+                        // in a mode at cast shows its modal oracle lines with the
+                        // chosen one highlighted, visible to both players.
+                        const modeLines = getStackModeLines(item);
+
                         const litState = highlight?.nodes
                             ? highlight.nodes.has(item.id)
                                 ? "lit"
@@ -187,10 +194,15 @@ export default function GameStack({ stack }: GameStackProps) {
                                         kind={abilityKind}
                                     />
                                 ) : (
-                                    <ColorOverlayCardImage
-                                        card={item}
-                                        showCopyBadge={item.isCopy}
-                                    />
+                                    <>
+                                        <ColorOverlayCardImage
+                                            card={item}
+                                            showCopyBadge={item.isCopy}
+                                        />
+                                        {modeLines && (
+                                            <StackModeLines lines={modeLines} />
+                                        )}
+                                    </>
                                 )}
                             </button>
                         );
