@@ -394,9 +394,9 @@ describe("effectivePower / effectiveToughness (CR 611, 613)", () => {
             expect(effectiveToughness(players, lion)).toBe(1);
             // With the emblem: +1/+0 → 3/1 (toughness unchanged).
             expect(effectivePower(players, lion, [sorinEmblem("me")])).toBe(3);
-            expect(
-                effectiveToughness(players, lion, [sorinEmblem("me")])
-            ).toBe(1);
+            expect(effectiveToughness(players, lion, [sorinEmblem("me")])).toBe(
+                1
+            );
         });
 
         it("is owner-scoped — an opponent's emblem does not buff my creatures", () => {

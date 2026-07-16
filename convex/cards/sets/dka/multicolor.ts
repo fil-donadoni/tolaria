@@ -41,7 +41,7 @@ export const sorinLordOfInnistrad: CardDefinition = {
     supertypes: ["Legendary"],
     loyalty: 3,
     oracleText:
-        "+1: Create a 1/1 black Vampire creature token with lifelink.\n−2: You get an emblem with \"Creatures you control get +1/+0.\"\n−6: Destroy up to three target creatures and/or other planeswalkers. Return each card put into a graveyard this way to the battlefield under your control.",
+        '+1: Create a 1/1 black Vampire creature token with lifelink.\n−2: You get an emblem with "Creatures you control get +1/+0."\n−6: Destroy up to three target creatures and/or other planeswalkers. Return each card put into a graveyard this way to the battlefield under your control.',
     activatedAbilities: [
         {
             id: "sorin-lord-of-innistrad-plus1",

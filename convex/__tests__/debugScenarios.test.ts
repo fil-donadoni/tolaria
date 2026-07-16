@@ -18,12 +18,14 @@ import { MIGRATED_PRESET_SCENARIOS } from "../debugScenarios";
 import {
     collectUnresolvedCardNames,
     normalizeScenarioSpec,
+    resolveScenarioBattlefieldCounters,
     selectEphemeralIdsToPrune,
     SCENARIO_SCHEMA_VERSION,
     EPHEMERAL_KEEP_BOUND,
     type PrunableScenarioRow,
     type ScenarioSpec,
 } from "../debugScenarioSpec";
+import { getCardByName } from "../cards";
 
 function user(isAdmin?: boolean): Doc<"users"> {
     return {
@@ -45,6 +47,83 @@ describe("debugScenarios — admin gate (issue #769)", () => {
 
     it("allows an admin caller through the gate", () => {
         expect(isAdminUser(user(true))).toBe(true);
+    });
+});
+
+describe("resolveScenarioBattlefieldCounters — real loyalty counters (CR 306.5b)", () => {
+    it("folds a free-text 'Loyalty' counter onto the engine's lowercase `loyalty` key", () => {
+        // The editor's counter type is free text — a walker given "Loyalty" 6
+        // must become real loyalty (read by the badge / SBA / damage removal),
+        // not an inert cosmetic counter.
+        const out = resolveScenarioBattlefieldCounters(
+            { Loyalty: 6 },
+            { isPlaneswalker: true, printedLoyalty: 3 }
+        );
+        expect(out).toEqual({ loyalty: 6 });
+    });
+
+    it("treats an explicit loyalty counter as authoritative (does not add printed)", () => {
+        const out = resolveScenarioBattlefieldCounters(
+            { LOYALTY: 9 },
+            { isPlaneswalker: true, printedLoyalty: 3 }
+        );
+        expect(out).toEqual({ loyalty: 9 });
+    });
+
+    it("seeds a planeswalker's printed starting loyalty when no counter is set", () => {
+        const out = resolveScenarioBattlefieldCounters(undefined, {
+            isPlaneswalker: true,
+            printedLoyalty: 3,
+        });
+        expect(out).toEqual({ loyalty: 3 });
+    });
+
+    it("leaves non-loyalty counters untouched and still seeds loyalty for a walker", () => {
+        const out = resolveScenarioBattlefieldCounters(
+            { "+1/+1": 2 },
+            { isPlaneswalker: true, printedLoyalty: 4 }
+        );
+        expect(out).toEqual({ "+1/+1": 2, loyalty: 4 });
+    });
+
+    it("passes non-loyalty counters through unchanged for a non-planeswalker", () => {
+        const out = resolveScenarioBattlefieldCounters(
+            { "+1/+1": 3, charge: 1 },
+            { isPlaneswalker: false }
+        );
+        expect(out).toEqual({ "+1/+1": 3, charge: 1 });
+    });
+
+    it("returns undefined for a non-planeswalker with no counters (minimal instance shape)", () => {
+        expect(
+            resolveScenarioBattlefieldCounters(undefined, {
+                isPlaneswalker: false,
+            })
+        ).toBeUndefined();
+    });
+
+    it("does not seed loyalty for a stub planeswalker with no printed loyalty", () => {
+        expect(
+            resolveScenarioBattlefieldCounters(undefined, {
+                isPlaneswalker: true,
+            })
+        ).toBeUndefined();
+    });
+
+    it("drives a real planeswalker (Liliana of the Veil, printed loyalty 3) from the catalogue", () => {
+        const def = getCardByName("Liliana of the Veil");
+        const pw = {
+            isPlaneswalker: def.types.includes("Planeswalker"),
+            printedLoyalty: def.loyalty,
+        };
+        // No explicit counter → printed loyalty is seeded.
+        expect(resolveScenarioBattlefieldCounters(undefined, pw)).toEqual({
+            loyalty: 3,
+        });
+        // An explicit "Loyalty" counter overrides the printed value.
+        expect(resolveScenarioBattlefieldCounters({ Loyalty: 6 }, pw)).toEqual({
+            loyalty: 6,
+        });
     });
 });
 

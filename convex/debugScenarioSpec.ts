@@ -89,6 +89,54 @@ export type ScenarioSpec = {
     poison?: { me?: number; opp?: number };
 };
 
+// ---- Battlefield counter resolution ----------------------------------------
+
+/** The engine's canonical loyalty-counter key (CR 306.5b). Loyalty lives in the
+ *  same generic `counters` map as +1/+1 etc., under this exact lowercase key —
+ *  the loyalty badge (`planeswalker-loyalty-badge.tsx`), damage removal
+ *  (`removeLoyaltyForDamage`) and the zero-loyalty SBA (`checkZeroLoyaltySBA`)
+ *  all read `counters["loyalty"]`. */
+export const LOYALTY_COUNTER = "loyalty";
+
+/**
+ * Resolve the counters a scenario places on a BATTLEFIELD card into the engine's
+ * canonical shape. Two corrections over the raw spec record:
+ *
+ *  1. **Loyalty key canonicalization.** The editor's counter *type* is free
+ *     text, so any case variant of the loyalty key ("Loyalty", "LOYALTY") is
+ *     folded onto the lowercase `loyalty` the engine reads — otherwise the
+ *     value renders as an inert cosmetic counter instead of real loyalty.
+ *  2. **Planeswalker starting loyalty (CR 306.5b).** A planeswalker placed by
+ *     the scenario builder bypasses the normal ETB path (`gre/state.ts`), which
+ *     is where a walker is seeded with loyalty counters equal to its printed
+ *     starting loyalty. So when the spec sets no explicit loyalty counter, seed
+ *     the printed `loyalty` — otherwise the walker enters at 0 and the
+ *     zero-loyalty SBA sweeps it immediately.
+ *
+ * Returns `undefined` when there are no counters to place, so the caller leaves
+ * the instance's `counters` field unset (the builder's minimal shape).
+ */
+export function resolveScenarioBattlefieldCounters(
+    rawCounters: Record<string, number> | undefined,
+    pw: { isPlaneswalker: boolean; printedLoyalty?: number }
+): Record<string, number> | undefined {
+    const counters: Record<string, number> = {};
+    for (const [type, n] of Object.entries(rawCounters ?? {})) {
+        const key =
+            type.toLowerCase() === LOYALTY_COUNTER ? LOYALTY_COUNTER : type;
+        counters[key] = n;
+    }
+    if (
+        pw.isPlaneswalker &&
+        (counters[LOYALTY_COUNTER] ?? 0) <= 0 &&
+        pw.printedLoyalty !== undefined &&
+        pw.printedLoyalty > 0
+    ) {
+        counters[LOYALTY_COUNTER] = pw.printedLoyalty;
+    }
+    return Object.keys(counters).length > 0 ? counters : undefined;
+}
+
 // ---- Disposable / promotable policy (issue #772, ADR 0044) -----------------
 
 /**

@@ -32,10 +32,11 @@ HAND (source pool), and you drag exactly 2 cards out of it into the TOP fan; the
 rest stay in hand.
 
 Shape ≈ the picker's existing `distribute` mode, INVERTED:
+
 - distribute: left = BOTTOM pool, right = HAND (keep exactly N)
-- putBack:    left = HAND pool,   right = TOP  (keep exactly N = 2), ordered,
-              submit right topmost-first as the `choose-hand-card` picks; leftover
-              hand cards submit nothing (already in hand).
+- putBack: left = HAND pool, right = TOP (keep exactly N = 2), ordered,
+  submit right topmost-first as the `choose-hand-card` picks; leftover
+  hand cards submit nothing (already in hand).
 
 → Implement as a new MODE on `LibraryOrderPicker` (sibling to `distribute`),
 reusing layout.ts / insertion drag / OrderCard / DeckMock. "hai già tutto."

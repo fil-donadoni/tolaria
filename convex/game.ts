@@ -11,6 +11,7 @@ import {
     tryGetDefinition,
 } from "./cards";
 import { basicLandsForColors, getCardColors } from "./cards/colors";
+import { resolveScenarioBattlefieldCounters } from "./debugScenarioSpec";
 import {
     type CardInstanceState,
     type GameState,
@@ -10818,10 +10819,24 @@ export const debugSetupScenario = mutation({
                     if (entry.faceDown) {
                         turnFaceDown(instance as CardInstanceState);
                     }
-                    if (entry.counters) {
-                        (instance as CardInstanceState).counters = {
-                            ...entry.counters,
-                        };
+                    // Canonicalize the loyalty counter key and seed a
+                    // planeswalker's printed starting loyalty (CR 306.5b) — this
+                    // path bypasses the ETB loyalty seed in `gre/state.ts`, and
+                    // the editor's free-text counter type must fold onto the
+                    // engine's lowercase `loyalty` key to be treated as real
+                    // loyalty (see `resolveScenarioBattlefieldCounters`).
+                    const resolvedCounters = resolveScenarioBattlefieldCounters(
+                        entry.counters,
+                        {
+                            isPlaneswalker: isPlaneswalker(
+                                instance as CardInstanceState
+                            ),
+                            printedLoyalty: getCardByName(entry.name).loyalty,
+                        }
+                    );
+                    if (resolvedCounters) {
+                        (instance as CardInstanceState).counters =
+                            resolvedCounters;
                     }
                     if (entry.attackedLastTurn) {
                         (instance as CardInstanceState).attackedDuringLastTurn =

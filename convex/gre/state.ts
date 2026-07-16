@@ -34,10 +34,7 @@ import {
     tryGetDefinition,
     isPrintedInSet as isCardPrintedInSet,
 } from "../cards";
-import {
-    getEmblemDefinition,
-    tryGetEmblemDefinition,
-} from "../cards/emblems";
+import { getEmblemDefinition, tryGetEmblemDefinition } from "../cards/emblems";
 import { turnFaceDown } from "./faceDown";
 import { applyIndefiniteSupertypeMutation, liveSupertypesOf } from "./snow";
 import {
