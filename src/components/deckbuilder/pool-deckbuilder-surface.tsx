@@ -70,13 +70,13 @@ export default function PoolDeckbuilderSurface({
         zone: "pool-main",
         min: 1,
         max: 2.2,
-        initial: 1.25,
+        initial: 1.0,
     });
     const sideZoom = useCardZoom({
         zone: "pool-side",
         min: 1,
         max: 2.2,
-        initial: 1.25,
+        initial: 1.0,
     });
 
     const sensors = useMemo(
