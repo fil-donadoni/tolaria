@@ -29,11 +29,12 @@ export interface LimitedEventRow {
     draftRound?: number;
     draftPacksRemaining?: number;
     draftCompletedAt?: number;
-    /** Per-pick timer, seconds (issue #1114, PRD #1107 story 5) — absent ===
-     *  disabled. Not per-seat: it's the event-wide config, always visible
-     *  (not hidden information) so every seat's UI knows whether a countdown
-     *  should render at all. */
-    timerSeconds?: number;
+    /** Per-pick timer on/off (issue #1114, PRD #1107 story 5; ADR 0060 /
+     *  issue #1243 replaced the fixed-seconds value with this boolean) —
+     *  absent/false === disabled. Not per-seat: it's the event-wide config,
+     *  always visible (not hidden information) so every seat's UI knows
+     *  whether a countdown should render at all. */
+    timerEnabled?: boolean;
     seats: LimitedEventSeat[];
     createdAt: number;
     updatedAt: number;
@@ -118,7 +119,7 @@ export interface LimitedEventView {
     draftRound?: number;
     draftPacksRemaining?: number;
     draftCompletedAt?: number;
-    timerSeconds?: number;
+    timerEnabled?: boolean;
     /** True once every seat has a Deck (issue #1116) — the caller-computed
      *  gate (`convex/limited/completion.ts`'s `computeEventCompletion`) that
      *  ALSO controls the `pool`/`humanDeck` full-disclosure reveal below.
@@ -171,7 +172,7 @@ export function projectLimitedEvent(
         draftRound: event.draftRound,
         draftPacksRemaining: event.draftPacksRemaining,
         draftCompletedAt: event.draftCompletedAt,
-        timerSeconds: event.timerSeconds,
+        timerEnabled: event.timerEnabled,
         completed,
         seatsWithDeck,
         createdAt: event.createdAt,

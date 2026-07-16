@@ -7,6 +7,7 @@
 // `submitPick` mutations stay thin DB-read/write shells around it.
 import { generateBooster } from "./boosterGenerator";
 import { makeRng } from "../gre/rng";
+import { pickTimerSecondsForCardsRemaining } from "./pickTimerSchedule";
 import type { GetBoosterConfig, ResolveCardMeta } from "./eventLogic";
 import type { DraftPackCard, LimitedEventSeat } from "./eventTypes";
 
@@ -64,41 +65,55 @@ function generateRoundPacks(
     );
 }
 
-/** Per-pick timer config (issue #1114, PRD #1107 stories 5/14): threaded
- *  through `startDraft`/`applyPick`/`runBotAutoPicks` as a single optional
- *  trailing parameter so every existing call site with no timer configured
- *  compiles and behaves byte-identically (no `pickDeadline`/`pickSeq` fields
- *  are ever written when this is omitted). `now` is captured ONCE by the
- *  mutation shell at the top of the call (`Date.now()`) and threaded through
- *  every pure call in that invocation, so every deadline stamped within the
- *  same mutation shares one time reference — never re-read mid-computation. */
+/** Per-pick timer config (issue #1114, PRD #1107 stories 5/14; ADR 0060 /
+ *  issue #1243 replaced the fixed `timerSeconds` with the descending
+ *  schedule): threaded through `startDraft`/`applyPick`/`runBotAutoPicks` as
+ *  a single optional trailing parameter so every existing call site with no
+ *  timer configured compiles and behaves byte-identically (no
+ *  `pickDeadline`/`pickSeq` fields are ever written when this is omitted).
+ *  `now` is captured ONCE by the mutation shell at the top of the call
+ *  (`Date.now()`) and threaded through every pure call in that invocation, so
+ *  every deadline stamped within the same mutation shares one time
+ *  reference — never re-read mid-computation. The per-pick SECONDS value is
+ *  no longer carried here at all: it's computed fresh for every stamped pack
+ *  from `pickTimerSecondsForCardsRemaining(pack.length)` (see
+ *  `assignFreshPack`), which is what makes a sub-15 pack (ARN/ATQ = 8 cards)
+ *  "just work" against the same table with no separate scaling. */
 export interface TimerConfig {
-    /** Per-pick timer length, seconds. Always > 0 — a disabled timer is
-     *  represented by omitting `TimerConfig` entirely, never `timerSeconds:
-     *  0`. */
-    timerSeconds: number;
-    /** Epoch ms "now" for this call — a deadline is `now + timerSeconds *
-     *  1000`. */
+    /** Epoch ms "now" for this call — a deadline is `now + seconds * 1000`,
+     *  where `seconds` comes from the descending schedule. */
     now: number;
 }
 
 /** One seat whose `currentPack` was freshly assigned this call, timer-on
  *  (issue #1114) — the mutation shell schedules exactly one
  *  `ctx.scheduler.runAfter` Auto-Pick timeout per entry, carrying `pickSeq`
- *  as the value `autoPickSeatTimeout` must still match when it fires. */
+ *  as the value `autoPickSeatTimeout` must still match when it fires, and
+ *  `pickDeadline` (issue #1243) so the shell can compute THIS entry's own
+ *  delay — no longer a single shared `timerSeconds` for the whole event. */
 export interface SeatTimerUpdate {
     seatIndex: number;
     pickSeq: number;
+    pickDeadline: number;
 }
 
 /** Stamps a seat that just received `pack` as its fresh `currentPack` (dealt
  *  or passed in) with a new Auto-Pick deadline, when timer-on
  *  (`timerConfig` present) and the seat is human (a Bot Drafter never idles
  *  on a pack — `runBotAutoPicks` always resolves it within the same call, so
- *  stamping one would be dead state). Returns the stamped seat and, only when
- *  a schedule is actually needed, a `SeatTimerUpdate` for the mutation shell
- *  to act on. Timer-off (`timerConfig` undefined) writes NEITHER field, so a
- *  timer-off event's seats stay byte-identical to pre-#1114 shape. */
+ *  stamping one would be dead state). The per-pick seconds come from the
+ *  descending schedule (ADR 0060, issue #1243), indexed by `pack.length`
+ *  (cards remaining) — NOT a fixed per-event value. Returns the stamped seat
+ *  and, only when a schedule is actually needed, a `SeatTimerUpdate` for the
+ *  mutation shell to act on. Timer-off (`timerConfig` undefined) writes
+ *  NEITHER field, so a timer-off event's seats stay byte-identical to
+ *  pre-#1114 shape.
+ *
+ *  When the schedule returns `null` ("auto" — 1 card remaining, no real
+ *  choice left to time) `pickSeq` is still bumped (invalidating any pending
+ *  schedule from the seat's PREVIOUS pack) but no deadline is stamped and no
+ *  `SeatTimerUpdate` is returned — the seat shows no countdown and nothing is
+ *  scheduled for it; the player still submits the final pick manually. */
 function assignFreshPack(
     seat: LimitedEventSeat,
     pack: DraftPackCard[],
@@ -108,14 +123,21 @@ function assignFreshPack(
         return { seat: { ...seat, currentPack: pack } };
     }
     const pickSeq = (seat.pickSeq ?? 0) + 1;
+    const seconds = pickTimerSecondsForCardsRemaining(pack.length);
+    if (seconds === null) {
+        return {
+            seat: {
+                ...seat,
+                currentPack: pack,
+                pickSeq,
+                pickDeadline: undefined,
+            },
+        };
+    }
+    const pickDeadline = timerConfig.now + seconds * 1000;
     return {
-        seat: {
-            ...seat,
-            currentPack: pack,
-            pickSeq,
-            pickDeadline: timerConfig.now + timerConfig.timerSeconds * 1000,
-        },
-        update: { seatIndex: seat.seatIndex, pickSeq },
+        seat: { ...seat, currentPack: pack, pickSeq, pickDeadline },
+        update: { seatIndex: seat.seatIndex, pickSeq, pickDeadline },
     };
 }
 

@@ -326,11 +326,15 @@ export default defineSchema({
         // Event RNG seed (ADR 0055), set once at `startEvent` so the seat
         // Pools it produced are reproducible/replayable given the same seed.
         seed: v.optional(v.number()),
-        // Per-pick timer, in seconds (issue #1114, PRD #1107 story 5/14).
-        // Configured once at `createLimitedEvent`; absent === disabled (no
-        // countdown, no Auto-Pick ever scheduled). Draft only — a Sealed
-        // event has no picks to time.
-        timerSeconds: v.optional(v.number()),
+        // Per-pick timer on/off (issue #1114, PRD #1107 story 5/14; ADR 0060
+        // / issue #1243 replaced the fixed `timerSeconds` value with this
+        // boolean). Configured once at `createLimitedEvent`; absent/false ===
+        // disabled (no countdown, no Auto-Pick ever scheduled). When true,
+        // each pick's actual countdown length comes from the official
+        // descending schedule indexed by cards remaining
+        // (`convex/limited/pickTimerSchedule.ts`), never a fixed value. Draft
+        // only — a Sealed event has no picks to time.
+        timerEnabled: v.optional(v.boolean()),
         // Draft only (issue #1112): 0-indexed current booster round —
         // `packSlots[draftRound]` is the Pack Source of the boosters in play.
         // Absent for Sealed / before a Draft starts.
@@ -396,9 +400,11 @@ export default defineSchema({
                 ),
                 // Draft only, timer-on events (issue #1114): epoch ms when
                 // this seat's CURRENT pack's pick timer expires. Absent when
-                // the event has no `timerSeconds`, this is a Bot Drafter seat
-                // (bots pick instantly, never idly holding a pack), or
-                // nothing is currently in front of the seat. Server-written
+                // the event has `timerEnabled` unset/false, this is a Bot
+                // Drafter seat (bots pick instantly, never idly holding a
+                // pack), nothing is currently in front of the seat, or the
+                // seat's current pack has only 1 card left ("auto" — see
+                // `pickTimerSchedule.ts`). Server-written
                 // only (`draftEngine.ts`'s pure stamping helpers) — never
                 // client-settable, so a client can't extend its own timer.
                 pickDeadline: v.optional(v.number()),

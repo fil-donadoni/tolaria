@@ -15,15 +15,12 @@ export interface CreateLimitedEventPayload {
     seatCount: number;
     packSlots: string[];
     sealedBoosterCount: number;
-    /** Per-pick timer, seconds (issue #1114, PRD #1107 story 5). Omitted
-     *  when the admin leaves the timer off. */
-    timerSeconds?: number;
+    /** Per-pick timer on/off (issue #1114, PRD #1107 story 5; ADR 0060 /
+     *  issue #1243: a clear On/Off control, no seconds field — when on, each
+     *  pick's countdown follows the official descending schedule indexed by
+     *  cards remaining). Omitted/false when the admin leaves the timer off. */
+    timerEnabled?: boolean;
 }
-
-/** Default per-pick timer length offered when the admin turns the timer on
- *  (issue #1114) — generous enough for a first-time drafter to read a
- *  15-card Booster, short enough to keep a table moving. */
-const DEFAULT_TIMER_SECONDS = 60;
 
 interface CreateLimitedEventDialogProps {
     open: boolean;
@@ -61,7 +58,6 @@ export default function CreateLimitedEventDialog({
         DEFAULT_SEALED_BOOSTER_COUNT
     );
     const [timerEnabled, setTimerEnabled] = useState(false);
-    const [timerSeconds, setTimerSeconds] = useState(DEFAULT_TIMER_SECONDS);
 
     const resolvedSetCode = setCode ?? firstDraftable;
     const canSubmit = !pending && resolvedSetCode !== undefined;
@@ -73,8 +69,7 @@ export default function CreateLimitedEventDialog({
             seatCount,
             packSlots: [resolvedSetCode],
             sealedBoosterCount,
-            timerSeconds:
-                type === "draft" && timerEnabled ? timerSeconds : undefined,
+            timerEnabled: type === "draft" && timerEnabled,
         });
     };
 
@@ -234,47 +229,44 @@ export default function CreateLimitedEventDialog({
                 )}
 
                 {type === "draft" && (
-                    <div className="flex flex-col gap-1 text-sm">
+                    <div className="flex flex-col gap-1">
                         <span className="text-[10px] font-semibold uppercase tracking-wide text-text-muted">
-                            Per-Pick Timer
+                            Pick Timer
                         </span>
-                        <label className="flex items-center gap-2">
-                            <input
-                                type="checkbox"
-                                checked={timerEnabled}
-                                disabled={pending}
-                                onChange={(e) =>
-                                    setTimerEnabled(e.currentTarget.checked)
-                                }
-                            />
-                            <span>
-                                {timerEnabled
-                                    ? "Timer on — an expired pick auto-picks with the bot engine"
-                                    : "Timer off — seats pick at their own pace"}
-                            </span>
-                        </label>
-                        {timerEnabled && (
-                            <label className="flex flex-col gap-1">
-                                <span className="text-xs text-text-muted">
-                                    Seconds per pick
-                                </span>
-                                <Input
-                                    type="number"
-                                    min={1}
-                                    value={timerSeconds}
+                        <div
+                            role="radiogroup"
+                            aria-label="Pick Timer"
+                            className="inline-flex overflow-hidden rounded-sm border border-border-subtle/40"
+                        >
+                            {(
+                                [
+                                    { value: false, label: "Off" },
+                                    { value: true, label: "On" },
+                                ] as const
+                            ).map((opt) => (
+                                <button
+                                    key={String(opt.value)}
+                                    type="button"
+                                    role="radio"
+                                    aria-checked={timerEnabled === opt.value}
                                     disabled={pending}
-                                    onChange={(e) =>
-                                        setTimerSeconds(
-                                            Math.max(
-                                                1,
-                                                Number(e.currentTarget.value) ||
-                                                    DEFAULT_TIMER_SECONDS
-                                            )
-                                        )
+                                    onClick={() => setTimerEnabled(opt.value)}
+                                    className={
+                                        "px-3 py-1 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-40 " +
+                                        (timerEnabled === opt.value
+                                            ? "bg-accent text-surface-base"
+                                            : "bg-surface-elevated/30 text-text hover:bg-surface-elevated/50")
                                     }
-                                />
-                            </label>
-                        )}
+                                >
+                                    {opt.label}
+                                </button>
+                            ))}
+                        </div>
+                        <span className="text-xs text-text-muted">
+                            {timerEnabled
+                                ? "On — each pick's time tightens through the pack on the official schedule; an expired pick auto-picks with the bot engine."
+                                : "Off — seats pick at their own pace."}
+                        </span>
                     </div>
                 )}
 
