@@ -471,10 +471,7 @@ export function runBotAutoPicks(
 
 /** Checks whether a scheduled Auto-Pick timeout (issue #1114) is still valid
  *  to apply — the seq-based cancellation guard (see `SeatTimerUpdate`'s doc
- *  comment). Returns the `pickId` to Auto-Pick with, chosen via the SAME
- *  `chooseBotPick` a real Bot Drafter seat uses (PRD #1107 story 14: "an
- *  expired timer Auto-Picks with the bot engine, never randomly" — the
- *  acceptance criterion this directly satisfies), or `null` when the
+ *  comment). Returns the `pickId` to Auto-Pick with, or `null` when the
  *  schedule is stale and must be a no-op:
  *
  *  - the seat no longer exists (out-of-range index — defensive only),
@@ -483,7 +480,23 @@ export function runBotAutoPicks(
  *  - the seat currently has nothing to pick from (should be unreachable
  *    given a matching `pickSeq`, but never assumed away), or
  *  - the seat is a Bot Drafter (defensive: bots are never scheduled, but a
- *    stray schedule must never auto-pick a seat nobody is late on). */
+ *    stray schedule must never auto-pick a seat nobody is late on).
+ *
+ *  ADR 0060 / issue #1249: once the schedule is confirmed live, the seat's
+ *  **Selected Card** (`selectedPickId`, issue #1248 — a tentative,
+ *  never-committed click) is honoured FIRST: "a player pre-selects the card
+ *  they want and can walk away safely." It's re-validated against the LIVE
+ *  `currentPack` rather than trusted blindly — a stale `selectedPickId` (the
+ *  pack it named has since emptied/passed on with no fresher selection
+ *  overwriting it — should be unreachable given the round/seat/index-scoped
+ *  `pickId` format, but never assumed away) simply falls through to the
+ *  heuristic exactly as if nothing were selected, instead of ever being
+ *  force-applied to a pack that no longer contains it.
+ *
+ *  With NO (or a stale) selection, falls back to the SAME `chooseBotPick` a
+ *  real Bot Drafter seat uses (PRD #1107 story 14 / PRD #1241 story 24: "an
+ *  expired timer with nothing selected Auto-Picks with the bot engine, never
+ *  randomly, never position-1"). */
 export function resolveAutoPickTimeout(
     seats: readonly LimitedEventSeat[],
     seatIndex: number,
@@ -494,5 +507,13 @@ export function resolveAutoPickTimeout(
     if (!seat || seat.isBot) return null;
     if ((seat.pickSeq ?? 0) !== expectedSeq) return null;
     if (!seat.currentPack || seat.currentPack.length === 0) return null;
+
+    if (
+        seat.selectedPickId !== undefined &&
+        seat.currentPack.some((c) => c.pickId === seat.selectedPickId)
+    ) {
+        return seat.selectedPickId;
+    }
+
     return chooseBotPick(seat, seat.currentPack);
 }

@@ -751,6 +751,138 @@ describe("Limited Event Draft Timer + Auto-Pick (issue #1114, PRD #1107 stories 
         );
         expect(stalePickId).toBeNull();
     });
+
+    it("ADR 0060 / issue #1249: Auto-Pick honours the seat's Selected Card over the Bot Drafter heuristic, through the exact autoPickSeatTimeout sequence", () => {
+        // Against the REAL LEA registry/heuristic, exactly like the sibling
+        // "same choice the Bot Drafter would make" test above — but here a
+        // Selected Card (`selectedPickId`, issue #1248's persisted seat field)
+        // is set to a DIFFERENT card than what the heuristic would choose, so
+        // this proves the selection actually wins, not just "happens to
+        // agree with the heuristic."
+        const packSlots = ["lea"];
+        const seed = 9001;
+        const timerConfig: TimerConfig = { now: 5_000 };
+
+        const started = startDraft(
+            fillBotSeats(buildEmptySeats(2)).map((s, i) =>
+                i === 0 ? { ...s, isBot: false, userId: "human1" } : s
+            ),
+            packSlots,
+            seed,
+            getBoosterConfig,
+            resolveCardMeta,
+            timerConfig
+        );
+        const afterBots = runBotAutoPicks(
+            started.seats,
+            started.draftRound,
+            started.draftPacksRemaining,
+            packSlots,
+            seed,
+            getBoosterConfig,
+            resolveCardMeta,
+            botChoosePick,
+            false,
+            timerConfig
+        );
+        const humanSeat = afterBots.seats[0];
+        expect(humanSeat.currentPack).toBeDefined();
+
+        // What the heuristic alone would pick, for contrast.
+        const heuristicPickId = chooseBotPick(
+            humanSeat.currentPack!,
+            humanSeat.pool ?? [],
+            getCardEvalMeta
+        );
+        // The human's tentative Selected Card — a DIFFERENT card in the same
+        // pack (mirrors `selectDraftPick`'s persisted `selectedPickId`).
+        const selected = humanSeat.currentPack!.find(
+            (c) => c.pickId !== heuristicPickId
+        )!;
+        expect(selected).toBeDefined();
+
+        const seatsWithSelection = afterBots.seats.map((s, i) =>
+            i === 0 ? { ...s, selectedPickId: selected.pickId } : s
+        );
+
+        // Exactly the `autoPickSeatTimeout` mutation body's sequence.
+        const timeoutPickId = resolveAutoPickTimeout(
+            seatsWithSelection,
+            0,
+            humanSeat.pickSeq!,
+            botChoosePick
+        );
+        expect(timeoutPickId).toBe(selected.pickId);
+        expect(timeoutPickId).not.toBe(heuristicPickId);
+
+        const picked = applyPick(
+            seatsWithSelection,
+            afterBots.draftRound,
+            afterBots.draftPacksRemaining,
+            packSlots,
+            0,
+            timeoutPickId!,
+            seed,
+            getBoosterConfig,
+            resolveCardMeta,
+            timerConfig
+        );
+        const pickedPool = picked.seats[0].pool!;
+        expect(pickedPool[pickedPool.length - 1].scryfallId).toBe(
+            selected.scryfallId
+        );
+    });
+
+    it("ADR 0060 / issue #1249: a stale Selected Card (no longer in the live currentPack) is ignored — Auto-Pick still falls back to the heuristic, never a forced phantom pick", () => {
+        const packSlots = ["lea"];
+        const seed = 9001;
+        const timerConfig: TimerConfig = { now: 5_000 };
+
+        const started = startDraft(
+            fillBotSeats(buildEmptySeats(2)).map((s, i) =>
+                i === 0 ? { ...s, isBot: false, userId: "human1" } : s
+            ),
+            packSlots,
+            seed,
+            getBoosterConfig,
+            resolveCardMeta,
+            timerConfig
+        );
+        const afterBots = runBotAutoPicks(
+            started.seats,
+            started.draftRound,
+            started.draftPacksRemaining,
+            packSlots,
+            seed,
+            getBoosterConfig,
+            resolveCardMeta,
+            botChoosePick,
+            false,
+            timerConfig
+        );
+        const humanSeat = afterBots.seats[0];
+        expect(humanSeat.currentPack).toBeDefined();
+
+        const heuristicPickId = chooseBotPick(
+            humanSeat.currentPack!,
+            humanSeat.pool ?? [],
+            getCardEvalMeta
+        );
+
+        // A selection referencing a card that is NOT in the live pack —
+        // e.g. left over from an earlier pack that already emptied/passed on.
+        const seatsWithStaleSelection = afterBots.seats.map((s, i) =>
+            i === 0 ? { ...s, selectedPickId: "r0-p0-c999" } : s
+        );
+
+        const timeoutPickId = resolveAutoPickTimeout(
+            seatsWithStaleSelection,
+            0,
+            humanSeat.pickSeq!,
+            botChoosePick
+        );
+        expect(timeoutPickId).toBe(heuristicPickId);
+    });
 });
 
 describe("Limited Event completion + full-disclosure review (issue #1116): sealed event → build → completion → all pools readable by any participant", () => {
