@@ -782,6 +782,7 @@ export function getStackAbilities(
             };
         };
         activationPhaseRestriction?: ReadonlyArray<Phase>;
+        sorcerySpeedOnly?: boolean;
         activatableByOpponentsOnly?: boolean;
         activateFromHand?: boolean;
         activateFromGraveyard?: boolean;
@@ -839,6 +840,23 @@ export function getStackAbilities(
             a.activationPhaseRestriction &&
             phase !== undefined &&
             !a.activationPhaseRestriction.includes(phase)
+        ) {
+            return false;
+        }
+        // CR 602.3b (issue #1156) — "activate only as a sorcery" (Dauthi
+        // Voidwalker's second ability). A cheap client hint mirroring the
+        // loyalty gate's own admitted looseness above ("the full 'stack
+        // empty + priority' refinement is the server's job"): this view has
+        // no stack-length/priority-holder field to check, so it narrows to
+        // the main-phase half of `isSorceryTiming` only. The
+        // `activateAbility` mutation (`assertActivationTimingLegal`) is
+        // authoritative regardless. Skipped when `phase` is unknown
+        // (undefined) — same fail-open discipline as `activationPhaseRestriction`.
+        if (
+            a.sorcerySpeedOnly &&
+            phase !== undefined &&
+            phase !== "PRECOMBAT_MAIN" &&
+            phase !== "POSTCOMBAT_MAIN"
         ) {
             return false;
         }

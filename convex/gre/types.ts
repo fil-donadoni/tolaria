@@ -54,6 +54,16 @@ export type ZonePickKind =
     // (cards present at the moment the choice is raised, after any earlier
     // discard step in the same resolution).
     | "choose-graveyard-card"
+    // Dauthi Voidwalker (MH2, issue #1156): mid-resolution pick of ONE card
+    // from an EXILE zone, filtered to those bearing a specific counter type
+    // ("an exiled card an opponent owns with a void counter on it"). The
+    // first exile-zone requestChoice kind — generalizes `choose-graveyard-
+    // card`'s public-zone-with-candidateIds-allow-list shape (ADR 0045
+    // "generalize an existing shape before adding a new one") to the exile
+    // zone; `candidateIds` are precomputed from `EffectCardFilter.hasCounter`
+    // (a filter dimension every zone-choice's `choice` Op shares), exactly
+    // like a graveyard/library card-type filter precomputes its allow-list.
+    | "choose-exile-card"
     | "choose-damage-target"
     // Trigger-time PLAYER target (CR 115.1a — a player is a legal target),
     // chosen mid-resolution when a `TriggeredAbility` (which carries no

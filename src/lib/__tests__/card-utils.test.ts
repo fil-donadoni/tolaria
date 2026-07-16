@@ -43,6 +43,7 @@ import { gitaxianProbe } from "@convex/cards/sets/nph/blue";
 import { dominate } from "@convex/cards/sets/nem";
 import { fellwarStone, deepWater, gaeasTouch } from "@convex/cards/sets/drk";
 import { powerArmor } from "@convex/cards/sets/inv";
+import { dauthiVoidwalker } from "@convex/cards/sets/mh2/black";
 import { viviOrnitier } from "@convex/cards/sets/fin";
 import {
     redManaBattery,
@@ -410,6 +411,33 @@ describe("getStackAbilities", () => {
         const card = makeCardInstance({
             card: { id: "8d82d94b-ceef-4533-a4f2-b6442a61b839" },
             types: ["Artifact"],
+            isTapped: false,
+        });
+        expect(getStackAbilities(card)).toHaveLength(1);
+    });
+
+    // Dauthi Voidwalker's "{T}, Sacrifice this creature: ... Activate only
+    // as a sorcery" (CR 602.3b, issue #1156) — `sorcerySpeedOnly` hides the
+    // ability outside a main phase (a cheap client hint; the mutation's
+    // `assertActivationTimingLegal` is authoritative).
+    it("hides a sorcerySpeedOnly ability outside a main phase, shows it during one", () => {
+        const card = makeCardInstance({
+            card: { id: dauthiVoidwalker.id },
+            types: ["Creature"],
+            isTapped: false,
+        });
+        expect(getStackAbilities(card, "DECLARE_ATTACKERS")).toHaveLength(0);
+        expect(getStackAbilities(card, "END_STEP")).toHaveLength(0);
+        const inMain = getStackAbilities(card, "PRECOMBAT_MAIN");
+        expect(inMain).toHaveLength(1);
+        expect(inMain[0].id).toBe("dauthi-voidwalker-cast");
+        expect(getStackAbilities(card, "POSTCOMBAT_MAIN")).toHaveLength(1);
+    });
+
+    it("returns a sorcerySpeedOnly ability when `phase` is omitted (no filter applied)", () => {
+        const card = makeCardInstance({
+            card: { id: dauthiVoidwalker.id },
+            types: ["Creature"],
             isTapped: false,
         });
         expect(getStackAbilities(card)).toHaveLength(1);

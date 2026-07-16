@@ -1280,15 +1280,53 @@ function tapOtherCandidates(
 }
 
 /** Cast-from-exile lookup (CR 601.3e — Ice Cauldron: "You may cast that card
- *  for as long as it remains exiled"). Returns the card in `player`'s exile that
- *  carries `castableFromExileBy === player.id` and matches `instanceId`, or
- *  undefined. The cast pipeline checks the hand first, then this. */
+ *  for as long as it remains exiled"). Returns the card carrying
+ *  `castableFromExileBy === casterId` and matching `instanceId`, or undefined.
+ *  Searches EVERY player's exile, not just the caster's own (issue #1156):
+ *  a grant is usually same-player (Ice Cauldron), but `grantCastFromExile`'s
+ *  `zoneOwnerId` already supports a CROSS-PLAYER grant (Robber of the Rich,
+ *  Dauthi Voidwalker — the redirected/exiled card stays in ITS OWNER's exile,
+ *  CR 400.7, while a different player is granted the cast permission), so the
+ *  lookup can't assume the caster's own zone. The cast pipeline checks the
+ *  hand first, then this. */
 function findCastableExileCard(
-    player: PlayerState,
+    state: GameState,
+    casterId: string,
     instanceId: string
 ): CardInstanceState | undefined {
-    return player.exile.find(
-        (c) => c.id === instanceId && c.castableFromExileBy === player.id
+    for (const p of state.players) {
+        const found = p.exile.find(
+            (c) => c.id === instanceId && c.castableFromExileBy === casterId
+        );
+        if (found) return found;
+    }
+    return undefined;
+}
+
+/** CR 601.3e / 400.7 (issue #1156) — the player whose zone actually holds a
+ *  card being cast/played, which may differ from the CASTER (`player`) for a
+ *  cross-player exile grant (Robber of the Rich, Dauthi Voidwalker). Every
+ *  other cast zone (hand, graveyard) is always the caster's own — Flashback /
+ *  Escape / the broad graveyard-cast permission all read from the caster's
+ *  OWN graveyard, no cross-player graveyard-cast primitive exists — so this
+ *  only ever redirects for `zone === "exile"`. Falls back to `player` when
+ *  the card isn't found in any exile (defensive; callers have already located
+ *  the card via `locateCastSource` / `findCastableExileCard`, so this should
+ *  always resolve for a real cast). Exported so the cross-player cast-commit
+ *  integration test can drive the exact removal the mutation performs (no
+ *  convex-test harness in this repo — mirrors `locateCastSource` /
+ *  `castRawManaCost`, issue #944 pattern). */
+export function castZoneOwner(
+    state: GameState,
+    player: PlayerState,
+    cardInstanceId: string,
+    zone: CastFromZone
+): PlayerState {
+    if (zone !== "exile") return player;
+    return (
+        state.players.find((p) =>
+            p.exile.some((c) => c.id === cardInstanceId)
+        ) ?? player
     );
 }
 
@@ -1347,7 +1385,7 @@ export function locateCastSource(
 ): { card?: CardInstanceState; zone: CastFromZone } {
     const inHand = player.hand.find((c) => c.id === instanceId);
     if (inHand) return { card: inHand, zone: "hand" };
-    const exile = findCastableExileCard(player, instanceId);
+    const exile = findCastableExileCard(state, player.id, instanceId);
     if (exile) return { card: exile, zone: "exile" };
     const flashback = findFlashbackCastable(player, instanceId);
     if (flashback) return { card: flashback, zone: "graveyard" };
@@ -1421,6 +1459,16 @@ export function castRawManaCost(
     card: CardInstanceState,
     zone: CastFromZone
 ): ManaCost | undefined {
+    // CR 601.3e / 117.6 (issue #1156) — Dauthi Voidwalker's "play it without
+    // paying its mana cost" free-cast waiver: this specific exile-sourced
+    // card was granted a cost-free cast (`SpellContext.grantCastFromExile`'s
+    // `withoutPayingManaCost` option). Checked BEFORE the Madness branch — a
+    // card can't carry both markers in practice (they come from unrelated
+    // exile sources), but the free-cast waiver wins if it ever did, since
+    // "no cost is required" is stronger than any specific alternative cost.
+    if (zone === "exile" && card.castFromExileWithoutPayingManaCost) {
+        return {};
+    }
     // CR 702.35d — a card discarded via Madness is cast from exile for its
     // madness cost, not its printed mana cost. `Madness {0}` is the empty cost.
     if (zone === "exile" && card.madnessExiled) {
@@ -2143,8 +2191,15 @@ export function tryAutoCommitPendingCast(
     // CR 601.3e / 702.34 — remove from the zone the card was actually cast from
     // (hand, exile for Ice Cauldron's noted card, or graveyard for Flashback).
     const castFromZone = castSource.zone;
+    // issue #1156 — a cross-player exile grant (Dauthi Voidwalker, Robber of
+    // the Rich) removes from the ACTUAL exile owner, not the caster.
     const spellCard = removeFromZone(
-        player,
+        castZoneOwner(
+            state,
+            player,
+            state.pendingCast.cardInstanceId,
+            castFromZone
+        ),
         state.pendingCast.cardInstanceId,
         castFromZone
     );
@@ -3097,7 +3152,7 @@ export const playCard = mutation({
         );
         const exileLand = cardInHand
             ? undefined
-            : findCastableExileCard(player, args.cardInstanceId);
+            : findCastableExileCard(state, player.id, args.cardInstanceId);
         const graveyardLand =
             cardInHand || exileLand
                 ? undefined
@@ -3182,7 +3237,12 @@ function resolveActivatedAbility(
 export function assertActivationTimingLegal(
     state: GameState,
     card: CardInstanceState,
-    ability: { id: string; controllerTurnOnly?: boolean; oncePerTurn?: boolean }
+    ability: {
+        id: string;
+        controllerTurnOnly?: boolean;
+        oncePerTurn?: boolean;
+        sorcerySpeedOnly?: boolean;
+    }
 ): void {
     if (
         ability.controllerTurnOnly &&
@@ -3195,6 +3255,14 @@ export function assertActivationTimingLegal(
         if (used >= 1) {
             throw new Error("Activate only once each turn");
         }
+    }
+    // CR 602.3b / 307.5 template — "activate only as a sorcery" follows the
+    // same timing window a sorcery's own casting does (main phase, empty
+    // stack, activator holds priority). Reuses the engine's canonical
+    // `isSorceryTiming` helper — the same one `assertLoyaltyActivationLegal`
+    // layers an active-player requirement on top of for loyalty abilities.
+    if (ability.sorcerySpeedOnly && !isSorceryTiming(state)) {
+        throw new Error("Activate only as a sorcery");
     }
 }
 
@@ -4182,7 +4250,13 @@ export function finalizeTargetSelection(
         if (altHandChoice?.pickedCardIds) {
             payAlternativeCostHandChoice(state, playerId, altHandChoice);
         }
-        const card = removeFromZone(player, cardInstanceId, castZone);
+        // issue #1156 — a cross-player exile grant removes from the ACTUAL
+        // exile owner, not the caster.
+        const card = removeFromZone(
+            castZoneOwner(state, player, cardInstanceId, castZone),
+            cardInstanceId,
+            castZone
+        );
         // CR 601.2f / 118.5 / 118.9 / 701.21a — pay the filtered give-up cost as
         // the spell hits the stack: the fungible/forced additional sacrifice
         // (Drought / own cost) OR the chosen alternative cost (return / sacrifice
@@ -4877,8 +4951,10 @@ export const announceCast = mutation({
                 );
             }
             if (altPayLife > 0) player.life -= altPayLife;
+            // issue #1156 — a cross-player exile grant removes from the
+            // ACTUAL exile owner, not the caster.
             const card = removeFromZone(
-                player,
+                castZoneOwner(state, player, args.cardInstanceId, castFromZone),
                 args.cardInstanceId,
                 castFromZone
             );
@@ -5133,8 +5209,10 @@ export const announceCast = mutation({
             // CR 107.4f — pay the Phyrexian pips chosen as life as the spell
             // moves to the stack (Phyrexian Metamorph's {U/P} for 2 life).
             if (phyrexianPayLife > 0) player.life -= phyrexianPayLife;
+            // issue #1156 — a cross-player exile grant removes from the
+            // ACTUAL exile owner, not the caster.
             const card = removeFromZone(
-                player,
+                castZoneOwner(state, player, args.cardInstanceId, castFromZone),
                 args.cardInstanceId,
                 castFromZone
             );

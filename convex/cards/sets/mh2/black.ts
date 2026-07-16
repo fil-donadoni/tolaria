@@ -168,34 +168,123 @@ export const grief: CardDefinition = {
 //     types: ["Sorcery"],
 // };
 
-// STOP-AND-ISSUE (tracked-by: #1156) — Dauthi Voidwalker: "Shadow. If a card
-// would be put into an opponent's graveyard from anywhere, instead exile it
-// with a void counter on it. {T}, Sacrifice this creature: Choose an exiled
-// card an opponent owns with a void counter on it. You may play it this turn
-// without paying its mana cost. Activate only as a sorcery." The FIRST
-// ability's replacement clause SHIPPED via #1145: the `"graveyard-bound"`
-// `ReplacementEventKind` + apply-loop hook
-// (`gre/replacements.ts::applyGraveyardBoundReplacements`), scoped to an
-// OPPONENT's graveyard and tagging the redirected card with a `void` counter
-// — fully implemented and tested
-// (`gre/__tests__/graveyardBoundReplacement.test.ts`). Still missing: the
-// SECOND ability, which needs three new pieces of engine surface with no
-// existing precedent — an exile-zone filtered choice kind ("choose an exiled
-// card an opponent owns with a void counter"), a free-cast primitive ("play
-// it without paying its mana cost" — `SpellContext.grantCastFromExile` grants
-// CAST PERMISSION only, no cost waiver), and an "activate only as a sorcery"
-// timing restriction on `ActivatedAbility` (no such field exists today). See
-// #1156 for the full design notes. Vintage Cube FREE tranche, issue #686.
-// Whole card left as one stub (never ship partial, Grief/Evoke precedent in
-// this same file) — the first ability alone is not the full printed card.
-// export const dauthiVoidwalker: CardDefinition = {
-//     id: "dce5db87-4a78-4b8d-b5c2-918ccd1ba4e3", // MH2 81
-//     name: "Dauthi Voidwalker",
-//     rarity: "rare",
-//     manaCost: { B: 2 },
-//     types: ["Creature"],
-//     subtypes: ["Dauthi", "Rogue"],
-//     power: 3,
-//     toughness: 2,
-//     staticAbilities: ["shadow"],
-// };
+// Dauthi Voidwalker — {1}{B} Creature Dauthi Rogue, 3/2, shadow (MH2 81,
+// Vintage Cube FREE tranche, issue #686). "Shadow. If a card would be put
+// into an opponent's graveyard from anywhere, exile it with a void counter on
+// it instead. {T}, Sacrifice this creature: Choose an exiled card an opponent
+// owns with a void counter on it. You may play it this turn without paying
+// its mana cost. Activate only as a sorcery."
+//
+// Ability 1 (the graveyard-bound redirect) shipped as engine infra via
+// #1145 — the `"graveyard-bound"` `ReplacementEventKind` + apply-loop hook
+// (`gre/replacements.ts::applyGraveyardBoundReplacements`), already tested
+// end to end against a synthetic Dauthi-shaped permanent
+// (`gre/__tests__/graveyardBoundReplacement.test.ts`). Wired here as a
+// `replacementEffects[]` entry, opponent-scoped (`event.ownerId !==
+// self.controllerId`), tagging the redirected card `{ void: 1 }`.
+//
+// Ability 2 ships via #1156 with three new general engine primitives (each
+// reusable by future cards, not Dauthi-specific):
+//  - `choose-exile-card` — the exile-zone `choice` kind (`gre/types.ts`
+//    `ZonePickKind`, `cards/types.ts` `EffectChoiceKind`), generalizing
+//    `choose-graveyard-card`'s public-zone-allow-list shape to exile.
+//  - `EffectCardFilter.hasCounter` — "has a counter of type X" filter
+//    dimension, matched against the new `SpellContext.getExileCards`'
+//    `counters` field (the graveyard-bound replacement's `tagCounters` stamp
+//    lands directly on the exiled `CardInstanceState`).
+//  - `ActivatedAbility.sorcerySpeedOnly` — "activate only as a sorcery" (CR
+//    602.3b), checked via the engine's `isSorceryTiming` at the shared
+//    `assertActivationTimingLegal` chokepoint (`convex/game.ts`).
+//  - `SpellContext.grantCastFromExile`'s `withoutPayingManaCost` option (+
+//    the new `grantCastFromExile` Op skin wrapping it, issue #1145's
+//    addendum comment flagged this as the natural follow-up) — the free-cast
+//    waiver, consulted by `castRawManaCost` (the ONE place a cast's mana
+//    cost is computed) and `getLegalActions`'s exile-cast affordability
+//    branch. Fixed as part of the same issue: the cast-from-exile pipeline
+//    (`findCastableExileCard` / `locateCastSource` / the `removeFromZone`
+//    commit sites / `applyPlayLandFromExile`) was SAME-PLAYER-ONLY before
+//    this card — Dauthi's grant is the first CROSS-PLAYER one to actually
+//    exercise the `zoneOwnerId` path end to end (Robber of the Rich,
+//    eld/red.ts, declared the same shape earlier but nothing drove it
+//    through `announceCast`/`playCard`), so those choke points now search
+//    every player's exile for the granted card instead of assuming the
+//    caster's own.
+//
+// Shadow (CR 702.28) also ships here — Dauthi is the FIRST shadow creature —
+// via a new `combatRegistry.ts` `EvasionRule` (the attacker-has-shadow half,
+// attacker-keyed like Fear/Flying) plus a direct blocker-keyed check in
+// `combat.ts::validateBlockerEligibility` (the reverse half — a shadow
+// creature can't block a non-shadow attacker either — not expressible by the
+// attacker-keyed `EvasionRule` shape). See the `mechanicsRegistry.ts` "shadow"
+// row for the split.
+export const dauthiVoidwalker: CardDefinition = {
+    id: "dce5db87-4a78-4b8d-b5c2-918ccd1ba4e3", // MH2 81
+    name: "Dauthi Voidwalker",
+    rarity: "rare",
+    oracleText:
+        "Shadow (This creature can block or be blocked by only creatures with shadow.)\nIf a card would be put into an opponent's graveyard from anywhere, exile it with a void counter on it instead.\n{T}, Sacrifice this creature: Choose an exiled card an opponent owns with a void counter on it. You may play it this turn without paying its mana cost. Activate only as a sorcery.",
+    manaCost: { B: 2 },
+    types: ["Creature"],
+    subtypes: ["Dauthi", "Rogue"],
+    power: 3,
+    toughness: 2,
+    staticAbilities: ["shadow"],
+    replacementEffects: [
+        {
+            id: "dauthi-voidwalker-void-exile",
+            oracleText:
+                "If a card would be put into an opponent's graveyard from anywhere, exile it with a void counter on it instead.",
+            eventKind: "graveyard-bound",
+            appliesTo: (event, self) => {
+                if (event.kind !== "graveyard-bound") return false;
+                // CR 400.7 — "an opponent's graveyard": scoped to a card whose
+                // OWNER (not necessarily controller) differs from Dauthi's
+                // controller.
+                return event.ownerId !== self.controllerId;
+            },
+            replace: (event) => {
+                if (event.kind !== "graveyard-bound") {
+                    throw new Error("unexpected event kind");
+                }
+                return {
+                    kind: "modified",
+                    event: {
+                        ...event,
+                        destination: "exile",
+                        tagCounters: { void: 1 },
+                    },
+                };
+            },
+        },
+    ],
+    activatedAbilities: [
+        {
+            id: "dauthi-voidwalker-cast",
+            oracleText:
+                "{T}, Sacrifice this creature: Choose an exiled card an opponent owns with a void counter on it. You may play it this turn without paying its mana cost. Activate only as a sorcery.",
+            cost: { tap: true, sacrifice: true },
+            sorcerySpeedOnly: true,
+            useStack: true,
+            effects: [
+                {
+                    op: "choice",
+                    kind: "choose-exile-card",
+                    player: "controller",
+                    zoneOwnerId: "opponent",
+                    zone: "exile",
+                    filter: { hasCounter: { type: "void" } },
+                    count: 1,
+                    prompt: "Choose an exiled card your opponent owns with a void counter on it.",
+                    bind: "$picked",
+                },
+                {
+                    op: "grantCastFromExile",
+                    card: { ref: "$picked" },
+                    player: "controller",
+                    window: "this-turn",
+                    withoutPayingManaCost: true,
+                },
+            ],
+        },
+    ],
+};

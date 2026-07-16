@@ -2204,6 +2204,9 @@ export function finalizeCleanup(state: GameState): void {
             ) {
                 delete card.castableFromExileBy;
                 delete card.castableFromExileUntilTurn;
+                // issue #1156 — the free-cast waiver (Dauthi Voidwalker) rides
+                // the same turn-scoped window; expires together.
+                delete card.castFromExileWithoutPayingManaCost;
             }
         }
     }

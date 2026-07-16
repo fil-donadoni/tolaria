@@ -828,11 +828,26 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // the same slice) is pure DSL, no closure. Net: total 702→703, FREE
         // 455→456, AFK-ready 417→418, X-only/Op-blocked unchanged (14/233).
         // Partition: 456+14+233=703.
+        //
+        // Then issue #1156 (Dauthi Voidwalker) ships the `grantCastFromExile`
+        // Op — a thin declarative skin over the pre-existing SpellContext
+        // primitive `grantCastFromExile` (already used by five `resolve()`
+        // closures: Headliner Scarlett, Robber of the Rich, two Ice Cauldron-
+        // family cards, and Expressive Iteration). Registering the Op's
+        // `binding` retroactively marks that primitive COVERED for every
+        // closure calling it, not just Dauthi's own (DSL, so it adds no
+        // closures itself). Of the five, only Expressive Iteration
+        // (stx/multicolor.ts) had `grantCastFromExile` as its SOLE remaining
+        // blocker — the other four still call at least one other unshipped
+        // primitive (e.g. `exileFaceDown`) and stay Op-blocked. Total
+        // unchanged (still 703 — no new closures), FREE 456→457, AFK-ready
+        // 418→419 (Expressive Iteration carries a test), X-only unchanged
+        // (14), Op-blocked 233→232. Partition: 457+14+232=703.
         expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(703);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(456);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(418);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(457);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(419);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(233);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(232);
     });
 
     it("surfaces the demonstrated new-Op backlog (a covered primitive leaves it)", () => {

@@ -165,6 +165,21 @@ const FLYING_RULE: EvasionRule = {
     reason: "Only creatures with flying or reach can block a creature with flying",
 };
 
+// CR 702.28b (issue #1156) — Shadow: "A creature with shadow can block or be
+// blocked by only creatures with shadow." This registry entry covers the
+// ATTACKER-has-shadow half (blocker must also have shadow), the same
+// attacker-keyed shape Fear/Flying use. The REVERSE half (a shadow creature
+// can't block a NON-shadow attacker either) isn't expressible by this
+// attacker-keyed `EvasionRule` shape — see the direct check in
+// `combat.ts::validateBlockerEligibility` (Pass 0d).
+const SHADOW_RULE: EvasionRule = {
+    keyword: "shadow",
+    cr: "702.28b",
+    canBlock: (_attacker, blocker) =>
+        blocker.staticAbilities.includes("shadow"),
+    reason: "Attacker has shadow — only creatures with shadow can block it",
+};
+
 export const EVASION_RULES: readonly EvasionRule[] = [
     UNBLOCKABLE_RULE,
     ...LANDWALK_RULES,
@@ -172,6 +187,7 @@ export const EVASION_RULES: readonly EvasionRule[] = [
     ...LANDWALK_SNOW_RULES,
     FEAR_RULE,
     FLYING_RULE,
+    SHADOW_RULE,
 ];
 
 // ---------------------------------------------------------------------------

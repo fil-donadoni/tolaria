@@ -895,6 +895,22 @@ export interface ActivatedAbility {
      *  which is phase-keyed and turn-independent. Used by Instill Energy's
      *  "{0}: Untap enchanted creature. Activate only during your turn." */
     controllerTurnOnly?: boolean;
+    /** "Activate only as a sorcery" (CR 602.3b via 307.5's timing template —
+     *  the same restriction a sorcery's own casting follows: only while the
+     *  activating player has priority, the stack is empty, and it's a main
+     *  phase). Distinct from a LOYALTY ability's timing (`cost.loyalty`,
+     *  `assertLoyaltyActivationLegal`), which additionally requires the
+     *  activator to be the ACTIVE player — "activate only as a sorcery" alone
+     *  does not (any player may do so on their own priority window as long as
+     *  the timing template is met, e.g. during an opponent's main phase with
+     *  an empty stack if some effect granted them priority there — CR 117.3c).
+     *  Checked via the engine's existing `isSorceryTiming(state)` helper
+     *  (`gre/phases.ts`) at the shared activation-legality chokepoint
+     *  (`assertActivationTimingLegal`). First consumer: Dauthi Voidwalker's
+     *  "{T}, Sacrifice this creature: ... Activate only as a sorcery." (MH2,
+     *  issue #1156) — general enough for any future "activate only as a
+     *  sorcery" activated ability, not loyalty-specific. */
+    sorcerySpeedOnly?: boolean;
     /** Dynamic target requirement computed at activation time from the source
      *  permanent's state. If set, overrides `targetRequirement`. Used by
      *  abilities whose target legality depends on the source (Stone Giant:
@@ -1842,12 +1858,21 @@ export interface SpellContext {
      *    - "this-turn": an impulse window ("play that card this turn" —
      *      Headliner Scarlett, Expressive Iteration). The permission is revoked
      *      at the CLEANUP step of the turn it was granted, while the card stays
-     *      exiled. */
+     *      exiled.
+     *
+     *  `opts.withoutPayingManaCost` (CR 601.3e / 117.6, issue #1156) —
+     *  ALSO waives the card's mana cost entirely (Dauthi Voidwalker: "you
+     *  may play it this turn without paying its mana cost"), stamping
+     *  `CardInstanceState.castFromExileWithoutPayingManaCost` alongside the
+     *  permission flag. Omitted/false is the historical permission-only
+     *  shape (Ice Cauldron, Robber of the Rich — cast for the normal
+     *  printed cost). */
     grantCastFromExile: (
         cardInstanceId: string,
         playerId: string,
         zoneOwnerId?: string,
-        window?: "this-turn" | "while-exiled"
+        window?: "this-turn" | "while-exiled",
+        opts?: { withoutPayingManaCost?: boolean }
     ) => void;
     /** Value chosen for X at cast-time (CR 107.3, 601.2b). 0 if the spell
      *  has no X in its cost. Read by spells like Fireball on resolution. */
@@ -2687,7 +2712,7 @@ export interface SpellContext {
         // submitted subset is pile A; the zone-minus-submission remainder is
         // pile B) — no bespoke primitive needed, "generalize don't add".
         kind: ZonePickKind | "divide-piles";
-        zone: "battlefield" | "hand" | "library" | "graveyard";
+        zone: "battlefield" | "hand" | "library" | "graveyard" | "exile";
         filter?: PermanentFilter;
         count: number | { min: number; max: number };
         prompt: string;
@@ -3217,6 +3242,26 @@ export interface SpellContext {
      *  resolve a graveyard-source `$source` (Ashen Ghoul's self-reanimation)
      *  to a `graveyard-card` selection without a battlefield presence check. */
     getGraveyardCardOwner: (id: string) => string | undefined;
+
+    /** CR 108.1 — exile card characteristics from the registry (issue #1156).
+     *  Mirrors `getGraveyardCards`, PLUS `counters` (CR 122.6) — the ONE zone
+     *  snapshot that carries counters, because it's the only public-zone
+     *  `choice` source a card needs to filter by counter type today (Dauthi
+     *  Voidwalker: "an exiled card ... with a void counter on it", tagged by
+     *  the graveyard-bound replacement's `tagCounters`, `gre/replacements.ts`).
+     *  Empty for an empty exile. */
+    getExileCards: (playerId: string) => Array<{
+        id: string;
+        name: string;
+        types: CardType[];
+        subtypes: string[];
+        manaValue: number;
+        colors: Color[];
+        counters: Record<string, number>;
+    }>;
+    /** CR 400.7 — owner of the exile zone currently holding `id`, or undefined
+     *  when the card isn't in any exile. Mirrors `getGraveyardCardOwner`. */
+    getExileCardOwner: (id: string) => string | undefined;
 
     /** Revolt (CR 702.RV): true when a permanent the given player controlled
      *  left the battlefield this turn. Read by cards with the Revolt ability
@@ -6171,6 +6216,18 @@ export interface EffectCardFilter {
      *  single card name; matched case-sensitively against the registry name,
      *  ANDed with every other field. */
     name?: string;
+    /** "With a <type> counter on it" (CR 122.6, issue #1156 — Dauthi
+     *  Voidwalker: "an exiled card ... with a void counter on it"). Matches
+     *  when the object carries at least `min` (default 1) counters of `type`.
+     *  Meaningful only for a card-SHAPE that actually tracks counters — today
+     *  only the `choice(zone: "exile")` branch's `getExileCards` snapshot
+     *  carries a `counters` map (a hand/library/graveyard card has none, CR
+     *  122.6 counters live only on objects that persist as a single "thing"
+     *  in a zone that supports them — battlefield permanents and, per the
+     *  graveyard-bound-replacement tag, exile); a filter shape with no
+     *  `counters` field fails closed (0 counters of any type). ANDed with
+     *  every other field. */
+    hasCounter?: { type: string; min?: number };
     /** OR ACROSS filter dimensions (issue #897) — a disjunctive clause list.
      *  Every other field on this interface is ANDed together (and each of
      *  `type`/`subtype`/`color` is itself an OR-WITHIN-that-field array,
@@ -6549,7 +6606,12 @@ export type EffectChoiceKind =
     | "discard-hand"
     | "search-library"
     | "choose-hand-card"
-    | "choose-graveyard-card";
+    | "choose-graveyard-card"
+    // Dauthi Voidwalker (issue #1156) — pick ONE card from an EXILE zone,
+    // filtered via `EffectCardFilter.hasCounter` ("an exiled card an
+    // opponent owns with a void counter on it"). See `ZonePickKind`
+    // (`gre/types.ts`) for the full design note.
+    | "choose-exile-card";
 
 /** One mode of an `optionChoice` Op (ADR 0045, issue #849) — a labelled
  *  sub-effect-list. The chooser picks one mode; the interpreter then runs that
@@ -6674,6 +6736,30 @@ export type EffectOp =
      *  stack. Cleared unconditionally at CLEANUP (CR 514.2). Skipped when the
      *  player cannot be resolved (CR 608.2b). */
     | { op: "armGraveyardRedirect"; player: EffectPlayerRef }
+    /** CR 601.3e / 117.6 (issue #1156) — grant `player` permission to cast/play
+     *  the EXILE card a preceding `choice(zone: "exile")` Op picked (a bare
+     *  picks ref, `card`), optionally ALSO waiving its mana cost. A thin
+     *  declarative skin over `SpellContext.grantCastFromExile`, one execution
+     *  path (ADR 0045) — the "close to free" wrap issue #1145's addendum
+     *  comment flagged as a follow-up once the redirect-replacement (Dauthi
+     *  Voidwalker's first ability) shipped. `card`'s owner (looked up via
+     *  `getExileCardOwner`, since the picked card may sit in an OPPONENT's
+     *  exile per CR 400.7) becomes `grantCastFromExile`'s `zoneOwnerId` —
+     *  this is what makes the grant work CROSS-PLAYER (Robber of the Rich's
+     *  shape) without a separate Op. `window` mirrors the primitive's own
+     *  (`"this-turn"` / `"while-exiled"`, default `"while-exiled"`); Dauthi
+     *  Voidwalker passes `"this-turn"` ("you may play it THIS TURN").
+     *  `withoutPayingManaCost` (default false) is Dauthi's differentiator
+     *  from Ice Cauldron/Robber of the Rich, which grant permission only.
+     *  Skipped when `player` can't be resolved, the picks binding was never
+     *  captured, or the picked card is no longer in any exile (CR 608.2b). */
+    | {
+          op: "grantCastFromExile";
+          card: EffectRef;
+          player: EffectPlayerRef;
+          window?: "this-turn" | "while-exiled";
+          withoutPayingManaCost?: boolean;
+      }
     /** CR 106.1 (issue #850) — add mana to a player's mana pool (a one-shot
      *  effect that produces mana: a ritual like Dark Ritual "Add {B}{B}{B}").
      *  A thin declarative skin over the SpellContext mana-add primitives
@@ -7237,14 +7323,17 @@ export type EffectOp =
      *  hidden zone, so the interpreter precomputes an explicit `candidateIds`
      *  allow-list from the filter instead, "search your library for a [type]
      *  card" — Mystical Tutor, Green Sun's Zenith, a fetchland); the
-     *  validator rejects it for `"hand"`/`"graveyard"`. */
+     *  validator rejects it for `"hand"`/`"graveyard"`. `zone: "exile"`
+     *  (issue #1156 — Dauthi Voidwalker) is a PUBLIC zone like graveyard: a
+     *  `filter` (typically `hasCounter`) precomputes a `candidateIds`
+     *  allow-list the same way. */
     | {
           op: "choice";
           kind: EffectChoiceKind;
           /** The chooser. Defaults to also being the owner of the zone picked
            *  from (Mind Rot, Innocent Blood — the common case). */
           player: EffectPlayerRef;
-          zone: "battlefield" | "hand" | "library" | "graveyard";
+          zone: "battlefield" | "hand" | "library" | "graveyard" | "exile";
           /** Owner of the zone picked from, when it differs from the chooser
            *  (issue #920 generalization). Maps 1:1 onto the `zoneOwnerId`
            *  parameter `SpellContext.requestChoice` already accepts and

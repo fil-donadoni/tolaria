@@ -773,6 +773,19 @@ export function applyPendingChoiceSubmit(
                 throw new Error("Card is not an eligible choice");
             }
         }
+    } else if (head.zone === "exile") {
+        // Dauthi Voidwalker (issue #1156) — choose an exiled card matching a
+        // filter (typically `hasCounter`). Exile is public (CR 400.2);
+        // eligibility is the snapshot taken when the choice was raised,
+        // carried verbatim in `candidateIds`, mirroring the graveyard branch.
+        for (const id of args.cardInstanceIds) {
+            if (!zoneOwner.exile.find((c: CardInstanceState) => c.id === id)) {
+                throw new Error("Card not in exile");
+            }
+            if (head.candidateIds && !head.candidateIds.includes(id)) {
+                throw new Error("Card is not an eligible choice");
+            }
+        }
     }
 
     // --- Kind-specific dispatchers ---

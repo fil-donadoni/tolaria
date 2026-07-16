@@ -410,9 +410,28 @@ export function validateBlockerEligibility(
         }
     }
 
+    // Pass 0d — CR 702.28b (issue #1156): Shadow is BIDIRECTIONAL — "A
+    // creature with shadow can block or be blocked by only creatures with
+    // shadow." The attacker-has-shadow half is registry-driven below (the
+    // `shadow` `EvasionRule`, keyed on the ATTACKER's keyword like Fear/
+    // Flying); this is the reverse half the attacker-keyed `EvasionRule`
+    // shape can't express — a BLOCKER carrying shadow is illegal against a
+    // non-shadow attacker too. Checked directly (not registry-driven) since
+    // it's the only keyword needing a blocker-keyed rule so far (Dauthi
+    // Voidwalker, the first and — as of this issue — only shadow creature).
+    if (
+        blocker.staticAbilities.includes("shadow") &&
+        !attacker.staticAbilities.includes("shadow")
+    ) {
+        return {
+            eligible: false,
+            reason: "This creature has shadow and can only block creatures with shadow",
+        };
+    }
+
     // Pass 1 — keyword-level evasion (registry-driven).
     // Covers: unblockable (509.1b), landwalk (702.13b), fear (702.36b),
-    // flying (702.9b).
+    // flying (702.9b), shadow (702.28b).
     const keywordResult = evaluateBlockerKeywords(
         attacker,
         blocker,

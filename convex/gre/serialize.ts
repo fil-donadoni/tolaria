@@ -222,6 +222,12 @@ function compactCard(
     if (card.castableFromExileUntilTurn !== undefined) {
         out.castableFromExileUntilTurn = card.castableFromExileUntilTurn;
     }
+    // CR 601.3e / 117.6 (issue #1156) — Dauthi Voidwalker's free-cast waiver
+    // rides `castableFromExileBy`'s permission window and must survive a
+    // save/load the same way.
+    if (card.castFromExileWithoutPayingManaCost) {
+        out.castFromExileWithoutPayingManaCost = true;
+    }
     // CR 702.34 — an instance-level Flashback grant (Snapcaster Mage) on a
     // graveyard card must survive a save/load until it expires at cleanup.
     if (card.grantedFlashback) {
@@ -484,6 +490,9 @@ function expandCard(
     if (compact.castableFromExileUntilTurn !== undefined) {
         result.castableFromExileUntilTurn =
             compact.castableFromExileUntilTurn as number;
+    }
+    if (compact.castFromExileWithoutPayingManaCost) {
+        result.castFromExileWithoutPayingManaCost = true;
     }
     if (compact.grantedFlashback) {
         result.grantedFlashback =
