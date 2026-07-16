@@ -66,9 +66,11 @@ describe("CreateLimitedEventDialog — Pick Timer (ADR 0060, issue #1243)", () =
         fireEvent.click(screen.getByRole("radio", { name: "Draft" }));
         fireEvent.click(screen.getByRole("radio", { name: "On" }));
 
-        expect(screen.getByRole("radio", { name: "On" }).getAttribute(
-            "aria-checked"
-        )).toBe("true");
+        expect(
+            screen
+                .getByRole("radio", { name: "On" })
+                .getAttribute("aria-checked")
+        ).toBe("true");
 
         fireEvent.click(screen.getByText("Create Event"));
         expect(onCreate).toHaveBeenCalledWith(
@@ -139,9 +141,9 @@ describe("CreateLimitedEventDialog — Draft 3-booster packSlots (issue #1246)",
         fireEvent.click(screen.getByRole("radio", { name: "Draft" }));
 
         expect(screen.queryByText(/Sealed Boosters per Seat/)).toBe(null);
-        expect(
-            screen.queryByRole("spinbutton", { name: /booster/i })
-        ).toBe(null);
+        expect(screen.queryByRole("spinbutton", { name: /booster/i })).toBe(
+            null
+        );
     });
 
     it("still renders the editable Sealed Boosters per Seat field for Sealed", () => {
@@ -182,9 +184,7 @@ describe("CreateLimitedEventDialog — Seats bot hint (issue #1245)", () => {
     it("renders helper text under Seats explaining unfilled seats become bots", () => {
         renderDialog();
         expect(
-            screen.getByText(
-                /Unfilled seats become bots when the event starts/
-            )
+            screen.getByText(/Unfilled seats become bots when the event starts/)
         ).toBeTruthy();
         // Mentions setting the full table size for a solo draft.
         expect(screen.getByText(/solo draft/)).toBeTruthy();

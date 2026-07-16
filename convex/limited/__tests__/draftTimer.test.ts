@@ -376,9 +376,9 @@ describe("applyPick — timer stamping and clearing (issue #1114)", () => {
         expect(result.seats[0].pickSeq).toBe(2); // round-0 stamp (1) + round-1 stamp (2)
         expect(result.seats[1].pickDeadline).toBeUndefined(); // bot: never stamped
         expect(result.seats[1].pickSeq).toBeUndefined();
-        expect(
-            result.timerUpdates.filter((u) => u.seatIndex === 0)
-        ).toEqual([]);
+        expect(result.timerUpdates.filter((u) => u.seatIndex === 0)).toEqual(
+            []
+        );
     });
 });
 

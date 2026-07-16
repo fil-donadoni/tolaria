@@ -61,9 +61,7 @@ export default function LimitedDraftTable({
         useLimitedEventMutations();
     const [pending, setPending] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [menu, setMenu] = useState<LimitedPickContextMenuState | null>(
-        null
-    );
+    const [menu, setMenu] = useState<LimitedPickContextMenuState | null>(null);
     // Booster zoom slider (ADR 0060, issue #1247, PRD #1107 story 21) —
     // mirrors the deckbuilder's per-zone `useCardZoom`/`CardZoomSlider`
     // wiring, its own "booster" zone so it persists independently of the
@@ -164,9 +162,7 @@ export default function LimitedDraftTable({
 
     const handleDragEnd = (event: DragEndEvent) => {
         if (event.canceled) return;
-        const data = event.operation?.source?.data as
-            | DraftDragData
-            | undefined;
+        const data = event.operation?.source?.data as DraftDragData | undefined;
         const destId = event.operation?.target?.id as string | undefined;
         const action = resolveDraftDragAction(data, destId);
         if (!action) return;
@@ -261,7 +257,9 @@ export default function LimitedDraftTable({
                     return (
                         <div
                             className="aspect-5/7"
-                            style={{ width: "calc(min(7.5rem, 17vw, 9dvh) * 1.1)" }}
+                            style={{
+                                width: "calc(min(7.5rem, 17vw, 9dvh) * 1.1)",
+                            }}
                         >
                             <CardImage card={{ id: d.cardId }} />
                         </div>

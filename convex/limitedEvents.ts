@@ -159,10 +159,7 @@ const limitedEventSeatViewValidator = v.object({
     currentPack: v.union(v.array(draftPackCardValidator), v.null()),
     packQueueCount: v.union(v.number(), v.null()),
     pickDeadline: v.union(v.number(), v.null()),
-    poolArrangement: v.union(
-        v.array(poolArrangementEntryValidator),
-        v.null()
-    ),
+    poolArrangement: v.union(v.array(poolArrangementEntryValidator), v.null()),
     // Selected Card (ADR 0060, issue #1248) — owner-only, same discipline as
     // `currentPack`/`pickDeadline`/`poolArrangement` above.
     selectedPickId: v.union(v.string(), v.null()),
@@ -677,10 +674,13 @@ export const startLimitedEvent = mutation({
                 updatedAt: now,
                 ...(afterBots.completed ? { draftCompletedAt: now } : {}),
             });
-            await scheduleSeatTimers(ctx, args.eventId, event.timerEnabled, now, [
-                ...dealt.timerUpdates,
-                ...afterBots.timerUpdates,
-            ]);
+            await scheduleSeatTimers(
+                ctx,
+                args.eventId,
+                event.timerEnabled,
+                now,
+                [...dealt.timerUpdates, ...afterBots.timerUpdates]
+            );
             return null;
         }
 

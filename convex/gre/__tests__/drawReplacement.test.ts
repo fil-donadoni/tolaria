@@ -34,7 +34,10 @@ const bearsId = getCardByName("Balduvian Bears").id;
 const plainsId = getCardByName("Plains").id;
 
 function zursInstance(controllerId: string) {
-    return makeInstance(zursWeirding.id, { controllerId, ownerId: controllerId });
+    return makeInstance(zursWeirding.id, {
+        controllerId,
+        ownerId: controllerId,
+    });
 }
 function enduringInstance(controllerId: string) {
     return makeInstance(enduringRenewal.id, {
@@ -46,7 +49,10 @@ function enduringInstance(controllerId: string) {
 describe("draw event payload (CR 121.1, ADR 0061)", () => {
     it("drawIndexThisTurn reads drawnThisTurn (promoted read-side source)", () => {
         const state = makeState({
-            players: [makePlayer("p1", { drawnThisTurn: ["a", "b"] }), makePlayer("p2")],
+            players: [
+                makePlayer("p1", { drawnThisTurn: ["a", "b"] }),
+                makePlayer("p2"),
+            ],
         });
         const event = buildDrawEvent(state, "p1", 3, true);
         expect(event).toEqual({
@@ -74,9 +80,9 @@ describe("draw-replacement outcomes → plan (CR 614, ADR 0061)", () => {
     };
 
     it("prevent → no draw (Leovold, story 8)", () => {
-        expect(
-            drawPlanForOutcome({ kind: "prevent" }, baseCtx)
-        ).toEqual({ kind: "prevent" });
+        expect(drawPlanForOutcome({ kind: "prevent" }, baseCtx)).toEqual({
+            kind: "prevent",
+        });
     });
 
     it("modify-count → draw N+delta (Quantum Riddler, story 16)", () => {
@@ -90,12 +96,21 @@ describe("draw-replacement outcomes → plan (CR 614, ADR 0061)", () => {
     });
 
     it("reveal-type-to-graveyard: creature top → bin, else normal (Enduring Renewal)", () => {
-        const outcome = { kind: "reveal-type-to-graveyard", cardType: "Creature" } as const;
+        const outcome = {
+            kind: "reveal-type-to-graveyard",
+            cardType: "Creature",
+        } as const;
         expect(
-            drawPlanForOutcome(outcome, { ...baseCtx, topCardHasType: () => true })
+            drawPlanForOutcome(outcome, {
+                ...baseCtx,
+                topCardHasType: () => true,
+            })
         ).toEqual({ kind: "bin" });
         expect(
-            drawPlanForOutcome(outcome, { ...baseCtx, topCardHasType: () => false })
+            drawPlanForOutcome(outcome, {
+                ...baseCtx,
+                topCardHasType: () => false,
+            })
         ).toEqual({ kind: "normal", count: 1 });
         // Empty library short-circuits to a normal draw (flags hasDrawnFromEmpty).
         expect(
@@ -105,8 +120,16 @@ describe("draw-replacement outcomes → plan (CR 614, ADR 0061)", () => {
 
     it("reveal-others-may-pay-life: affordable → may-pay-bin (Zur's Weirding)", () => {
         expect(
-            drawPlanForOutcome({ kind: "reveal-others-may-pay-life", life: 2 }, baseCtx)
-        ).toEqual({ kind: "may-pay-bin", chooserId: "p2", life: 2, revealedCardId: "top" });
+            drawPlanForOutcome(
+                { kind: "reveal-others-may-pay-life", life: 2 },
+                baseCtx
+            )
+        ).toEqual({
+            kind: "may-pay-bin",
+            chooserId: "p2",
+            life: 2,
+            revealedCardId: "top",
+        });
     });
 
     it("reveal-others-may-pay-life: CR 119.4 chooser can't afford → normal draw", () => {
@@ -152,8 +175,16 @@ describe("CR 616.1 — multiple applicable draw-replacements ordered by the affe
 describe("commitDrawPlan (CR 614/704.5b, ADR 0061)", () => {
     it("modify-count normal plan draws N cards", () => {
         const lib = [
-            makeInstance(plainsId, { id: "c1", ownerId: "p1", zone: "library" }),
-            makeInstance(plainsId, { id: "c2", ownerId: "p1", zone: "library" }),
+            makeInstance(plainsId, {
+                id: "c1",
+                ownerId: "p1",
+                zone: "library",
+            }),
+            makeInstance(plainsId, {
+                id: "c2",
+                ownerId: "p1",
+                zone: "library",
+            }),
         ];
         const state = makeState({
             players: [makePlayer("p1", { library: lib }), makePlayer("p2")],
@@ -193,12 +224,23 @@ function registerDrawSpell(id: string, count: number): string {
 describe("DSL draw Op under Zur's Weirding (CR 614, #1250 — effect-draw suspension)", () => {
     function stateCastingDraw(id: string, p2Life = 20) {
         // p1 casts the draw spell; p2 controls Zur's and decides the pay.
-        const top = makeInstance(bearsId, { id: "p1-top", ownerId: "p1", zone: "library" });
-        const top2 = makeInstance(plainsId, { id: "p1-top2", ownerId: "p1", zone: "library" });
+        const top = makeInstance(bearsId, {
+            id: "p1-top",
+            ownerId: "p1",
+            zone: "library",
+        });
+        const top2 = makeInstance(plainsId, {
+            id: "p1-top2",
+            ownerId: "p1",
+            zone: "library",
+        });
         const state = makeState({
             players: [
                 makePlayer("p1", { library: [top, top2] }),
-                makePlayer("p2", { life: p2Life, battlefield: [zursInstance("p2")] }),
+                makePlayer("p2", {
+                    life: p2Life,
+                    battlefield: [zursInstance("p2")],
+                }),
             ],
         });
         pushSpell(state, id, "p1");
@@ -243,7 +285,9 @@ describe("DSL draw Op under Zur's Weirding (CR 614, #1250 — effect-draw suspen
         applyMayPaySubmit(state, { playerId: "p2", accept: true });
         // Exactly one card drawn (the first), one binned (the second); no double-draw.
         expect(state.players[0].hand.map((c) => c.id)).toEqual(["p1-top"]);
-        expect(state.players[0].graveyard.map((c) => c.id)).toContain("p1-top2");
+        expect(state.players[0].graveyard.map((c) => c.id)).toContain(
+            "p1-top2"
+        );
         expect(state.players[1].life).toBe(18); // paid once
         expect(state.stack).toHaveLength(0);
     });
@@ -253,7 +297,11 @@ describe("DSL draw Op under Zur's Weirding (CR 614, #1250 — effect-draw suspen
 
 describe("draw-replacement pending choice survives projectPublicState (S5)", () => {
     it("the draw-step choice + revealed card cross the wire", () => {
-        const top = makeInstance(bearsId, { id: "p1-top", ownerId: "p1", zone: "library" });
+        const top = makeInstance(bearsId, {
+            id: "p1-top",
+            ownerId: "p1",
+            zone: "library",
+        });
         const state = makeState({
             turn: 2,
             phase: "UPKEEP",

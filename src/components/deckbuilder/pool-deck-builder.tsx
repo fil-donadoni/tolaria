@@ -53,7 +53,9 @@ export default function PoolDeckBuilder({
             // the signal `PoolDeckBuilderForm` uses to fall back to the
             // pre-#1247 "everything starts in the Sideboard" default.
             poolArrangement={
-                event.type === "draft" ? (viewerSeat.poolArrangement ?? []) : null
+                event.type === "draft"
+                    ? (viewerSeat.poolArrangement ?? [])
+                    : null
             }
         />
     );

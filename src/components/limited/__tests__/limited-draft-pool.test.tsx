@@ -131,7 +131,9 @@ describe("LimitedDraftPool through projectLimitedEvent (ADR 0060, issue #1247)",
             "user1"
         );
         const own = view.seats.find((s) => s.seatIndex === 0)!;
-        expect(own.poolArrangement).toEqual([{ poolIndex: 2, sideboard: true }]);
+        expect(own.poolArrangement).toEqual([
+            { poolIndex: 2, sideboard: true },
+        ]);
 
         const { getByText } = render(
             <LimitedDraftPool

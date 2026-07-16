@@ -215,9 +215,7 @@ export function projectLimitedEvent(
                 poolArrangement: isViewer
                     ? (seat.poolArrangement ?? null)
                     : null,
-                selectedPickId: isViewer
-                    ? (seat.selectedPickId ?? null)
-                    : null,
+                selectedPickId: isViewer ? (seat.selectedPickId ?? null) : null,
             };
         }),
     };

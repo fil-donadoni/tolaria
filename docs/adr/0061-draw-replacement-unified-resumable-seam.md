@@ -71,7 +71,7 @@ the synchronous `ReplacementApplyContext` mutator path.**
 
 4. **Rich event payload + predicate scope.** The `"draw"` event carries
    `{ drawingPlayer, drawIndexThisTurn (0-based), isTurnBasedDrawStepDraw,
-   requestedCount }`. Scope is expressed by the `applies(event, source)`
+requestedCount }`. Scope is expressed by the `applies(event, source)`
    **predicate** (`event.drawingPlayer !== source.controllerId` = "each
    opponent"), **not** a `controller | all-players | each-opponent` enum — CR
    models replacements as "a player / an opponent" conditions, which an enum
@@ -84,7 +84,7 @@ the synchronous `ReplacementApplyContext` mutator path.**
 cards (slice 1), the 38-caller migration + CI guard closing #1250 (slice 2), and
 Hullbreacher + Leovold (slice 3). **Dredge** (CR 702.52 — graveyard-source, may,
 mill+return) and **miracle** (CR 702.94 — first-draw trigger + special cast
-window) are explicit follow-ups the seam is *designed* to accommodate but does
+window) are explicit follow-ups the seam is _designed_ to accommodate but does
 not implement here. **Quantum Riddler** is deferred to a future **Warp** keyword
 issue (its draw-replacement half — the count-bump case — is exercised by an
 interpreter test until a card uses it). The general "opponent drew a card"

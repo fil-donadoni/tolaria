@@ -35,7 +35,9 @@ export function usePendingChoicePrimaryAction(): PendingChoicePrimaryAction | nu
     const bufferCtx = usePendingChoiceBuffer();
     const submitMayPay = useMutation(api.game.submitMayPay);
     const submitLandEntryChoice = useMutation(api.game.submitLandEntryChoice);
-    const submitDrawReplacementPay = useMutation(api.game.submitDrawReplacementPay);
+    const submitDrawReplacementPay = useMutation(
+        api.game.submitDrawReplacementPay
+    );
     const [isBusy, setIsBusy] = useState(false);
 
     const choice = pendingChoices?.[0];
@@ -87,7 +89,11 @@ export function usePendingChoicePrimaryAction(): PendingChoicePrimaryAction | nu
         } else if (choice.kind === "draw-replacement") {
             setIsBusy(true);
             try {
-                await submitDrawReplacementPay({ gameId, playerId, accept: true });
+                await submitDrawReplacementPay({
+                    gameId,
+                    playerId,
+                    accept: true,
+                });
             } finally {
                 setIsBusy(false);
             }

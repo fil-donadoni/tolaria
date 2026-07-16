@@ -34,9 +34,7 @@ describe("upsertPoolArrangementEntry (ADR 0060, issue #1247)", () => {
     });
 
     it("merges a patch into an existing entry, preserving the untouched dimension", () => {
-        const existing: PoolArrangementEntry[] = [
-            { poolIndex: 1, column: 3 },
-        ];
+        const existing: PoolArrangementEntry[] = [{ poolIndex: 1, column: 3 }];
         // Only patches `sideboard` — `column: 3` must survive untouched.
         const next = upsertPoolArrangementEntry(existing, {
             poolIndex: 1,

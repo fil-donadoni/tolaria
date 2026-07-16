@@ -29,7 +29,10 @@ describe("groupPoolIntoColumns (ADR 0060, issue #1248)", () => {
     });
 
     it("buckets a Land card into Lands and a spell into its auto Mana Value column", () => {
-        const pool = [poolCard(BOLT_ID, "Lightning Bolt"), poolCard(PLAINS_ID, "Plains")];
+        const pool = [
+            poolCard(BOLT_ID, "Lightning Bolt"),
+            poolCard(PLAINS_ID, "Plains"),
+        ];
         const placements = resolvePoolPlacements(pool, undefined);
         const columns = groupPoolIntoColumns(placements);
 
@@ -51,7 +54,9 @@ describe("groupPoolIntoColumns (ADR 0060, issue #1248)", () => {
 
         expect(columns.find((c) => c.key === "mv-1")!.entries).toHaveLength(0);
         expect(
-            columns.find((c) => c.key === "mv-5")!.entries.map((e) => e.poolIndex)
+            columns
+                .find((c) => c.key === "mv-5")!
+                .entries.map((e) => e.poolIndex)
         ).toEqual([0]);
     });
 
@@ -89,9 +94,9 @@ describe("groupPoolIntoColumns (ADR 0060, issue #1248)", () => {
 
 describe("resolveDisplayColumn", () => {
     it("returns 'lands' for a Land card with no override", () => {
-        expect(resolveDisplayColumn(poolCard(PLAINS_ID, "Plains"), undefined)).toBe(
-            "lands"
-        );
+        expect(
+            resolveDisplayColumn(poolCard(PLAINS_ID, "Plains"), undefined)
+        ).toBe("lands");
     });
 
     it("returns the card's own Mana Value with no override", () => {
@@ -101,12 +106,12 @@ describe("resolveDisplayColumn", () => {
     });
 
     it("an override always wins, clamped to the fixed 0..MAX_POOL_COLUMN range", () => {
-        expect(resolveDisplayColumn(poolCard(BOLT_ID, "Lightning Bolt"), 4)).toBe(
-            4
-        );
-        expect(resolveDisplayColumn(poolCard(BOLT_ID, "Lightning Bolt"), -1)).toBe(
-            0
-        );
+        expect(
+            resolveDisplayColumn(poolCard(BOLT_ID, "Lightning Bolt"), 4)
+        ).toBe(4);
+        expect(
+            resolveDisplayColumn(poolCard(BOLT_ID, "Lightning Bolt"), -1)
+        ).toBe(0);
     });
 });
 
@@ -120,16 +125,15 @@ describe("sideboardEntries", () => {
             { poolIndex: 0, sideboard: true },
             { poolIndex: 1, sideboard: true },
         ]);
-        expect(sideboardEntries(placements).map((e) => e.card.cardName)).toEqual([
-            "Lightning Bolt",
-            "Plains",
-        ]);
+        expect(
+            sideboardEntries(placements).map((e) => e.card.cardName)
+        ).toEqual(["Lightning Bolt", "Plains"]);
     });
 
     it("returns an empty list when nothing is sideboarded", () => {
         const pool = [poolCard(BOLT_ID, "Lightning Bolt")];
-        expect(sideboardEntries(resolvePoolPlacements(pool, undefined))).toEqual(
-            []
-        );
+        expect(
+            sideboardEntries(resolvePoolPlacements(pool, undefined))
+        ).toEqual([]);
     });
 });

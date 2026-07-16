@@ -66,7 +66,10 @@ describe("LimitedDraftPackCard gestures (ADR 0060, issue #1248)", () => {
                 pending={false}
             />
         );
-        fireEvent.contextMenu(getByRole("button"), { clientX: 12, clientY: 34 });
+        fireEvent.contextMenu(getByRole("button"), {
+            clientX: 12,
+            clientY: 34,
+        });
         expect(onOpenMenu).toHaveBeenCalledWith("r0-p0-c0", 12, 34);
         expect(onSelect).not.toHaveBeenCalled();
         expect(onPick).not.toHaveBeenCalled();

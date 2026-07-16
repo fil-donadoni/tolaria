@@ -58,9 +58,7 @@ export function computeDraftability(config: BoosterConfig): DraftabilityResult {
 
     for (const [sheetName, sheet] of Object.entries(config.sheets)) {
         const ids = Object.keys(sheet.cards);
-        const missingCardIds = ids
-            .filter((id) => !tryGetDefinition(id))
-            .sort();
+        const missingCardIds = ids.filter((id) => !tryGetDefinition(id)).sort();
         for (const id of missingCardIds) allMissing.add(id);
 
         const totalCards = ids.length;

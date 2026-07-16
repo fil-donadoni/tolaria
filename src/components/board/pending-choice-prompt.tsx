@@ -52,7 +52,9 @@ export default function PendingChoicePrompt({
     const { offset, dragHandlers } = useDraggable();
     const submitMayPay = useMutation(api.game.submitMayPay);
     const submitLandEntryChoice = useMutation(api.game.submitLandEntryChoice);
-    const submitDrawReplacementPay = useMutation(api.game.submitDrawReplacementPay);
+    const submitDrawReplacementPay = useMutation(
+        api.game.submitDrawReplacementPay
+    );
     const submitMadnessDecline = useMutation(api.game.submitMadnessDecline);
     const announceCast = useMutation(api.game.announceCast);
     const submitNameCard = useMutation(api.game.submitNameCard);
@@ -416,11 +418,13 @@ export default function PendingChoicePrompt({
                                                         }
                                                     );
                                                 } else if (isDrawReplacement) {
-                                                    await submitDrawReplacementPay({
-                                                        gameId,
-                                                        playerId,
-                                                        accept: false,
-                                                    });
+                                                    await submitDrawReplacementPay(
+                                                        {
+                                                            gameId,
+                                                            playerId,
+                                                            accept: false,
+                                                        }
+                                                    );
                                                 } else {
                                                     await submitMayPay({
                                                         gameId,

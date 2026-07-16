@@ -32,8 +32,8 @@ export default function IncompletenessNotice({
             {set.setCode.toUpperCase()} is missing {set.missingCardCount} card
             {set.missingCardCount === 1 ? "" : "s"} with no implemented
             definition yet. They are dropped from the print run and every
-            Booster Sheet's weights are renormalized, so no booster ever
-            shows a placeholder.
+            Booster Sheet's weights are renormalized, so no booster ever shows a
+            placeholder.
         </p>
     );
 }

@@ -37,7 +37,7 @@ kinds alone, including `search-library`, `look-top`, `order-top`,
 
 ### 1.1 SO-ISMCTS, +POM, MO-ISMCTS (Cowling, Powley & Whitehouse 2012)
 
-*"Information Set Monte Carlo Tree Search"*, IEEE TCIAIG 4(2):120–143.
+_"Information Set Monte Carlo Tree Search"_, IEEE TCIAIG 4(2):120–143.
 [DOI](https://doi.org/10.1109/TCIAIG.2012.2200894) ·
 [open PDF](https://eprints.whiterose.ac.uk/id/eprint/75048/1/CowlingPowleyWhitehouse2012.pdf)
 
@@ -50,22 +50,22 @@ kinds alone, including `search-library`, `look-top`, `order-top`,
 - **Subset-armed bandit / availability counts.** When an action is legal only
   in some determinizations, UCB1's parent-visit term is wrong. Fix (their
   Algorithm 1): each node keeps an **availability count** `n′(v)` — every
-  sibling *available for selection* on a parent visit gets incremented, and
+  sibling _available for selection_ on a parent visit gets incremented, and
   `n′` replaces the parent visit count in the UCB formula. This is the correct
   bandit statistic when a choice's options vary across determinizations
   (targets that exist only in some worlds, searchable cards).
-- **SO-ISMCTS+POM / MO-ISMCTS**: handle *opponent* moves that the root player
+- **SO-ISMCTS+POM / MO-ISMCTS**: handle _opponent_ moves that the root player
   cannot fully observe (+POM shares one edge per indistinguishable move but
   degrades the opponent model to uniform-random; MO keeps one tree per player).
   Relevant only once the bot must reason about the opponent's hidden
   mid-resolution choices (e.g., what an opponent's tutor took).
 - **Not solved by any variant**: determinizations are sampled uniformly — no
-  belief updating, so Frank & Basin's *non-locality* (§2) remains.
+  belief updating, so Frank & Basin's _non-locality_ (§2) remains.
 
 ### 1.2 The MTG paper itself decomposed moves into in-tree decision nodes
 
-Cowling, Ward & Powley 2012, *"Ensemble Determinization in MCTS for the
-Imperfect Information Card Game Magic: The Gathering"*, IEEE TCIAIG 4(4).
+Cowling, Ward & Powley 2012, _"Ensemble Determinization in MCTS for the
+Imperfect Information Card Game Magic: The Gathering"_, IEEE TCIAIG 4(4).
 [DOI](https://doi.org/10.1109/TCIAIG.2012.2204883) ·
 [open PDF](https://eprints.whiterose.ac.uk/id/eprint/75050/1/EnsDetMagic.pdf)
 
@@ -77,7 +77,7 @@ The single most on-point precedent, verified at source:
   "tricks" were excluded because they "increase enormously the complexity").
 - Measured MTG branching: 75–90 compound moves at 1 ply, 7,000–8,000 at 2 ply,
   ~10⁶ at 3 ply.
-- **Binary decision decomposition (§VI-B2)**: a main-phase move (a *subset* of
+- **Binary decision decomposition (§VI-B2)**: a main-phase move (a _subset_ of
   hand cards) is deconstructed into a chain of binary yes/no in-tree decisions
   ("play card X?" one card at a time), "so that parts of a move can be
   reinforced separately". The binary-tree player was consistently strong
@@ -98,7 +98,7 @@ The single most on-point precedent, verified at source:
 
 **Takeaway**: deepening the tree by factoring compound decisions into
 low-arity sequential nodes is not a cost to be mitigated — done right it is
-the published *remedy* for MTG's branching.
+the published _remedy_ for MTG's branching.
 
 ---
 
@@ -106,22 +106,22 @@ the published *remedy* for MTG's branching.
 
 ### 2.1 Strategy fusion and non-locality
 
-Frank & Basin 1998, *"Search in games with incomplete information: a case
-study using Bridge card play"*, Artificial Intelligence 100(1–2).
-[DOI](https://doi.org/10.1016/S0004-3702(97)00082-9)
+Frank & Basin 1998, _"Search in games with incomplete information: a case
+study using Bridge card play"_, Artificial Intelligence 100(1–2).
+[DOI](<https://doi.org/10.1016/S0004-3702(97)00082-9>)
 ⚠️ paywalled; definitions verified via Long et al. 2010 and Cowling et al. 2012 §V.
 
 - **Strategy fusion**: determinized search wrongly believes it can play a
-  *different strategy in each world*, though states in one information set
+  _different strategy in each world_, though states in one information set
   must get the same move. **Non-locality**: a node's value depends on tree
   regions outside its subtree, because an informed opponent steers play toward
-  worlds favorable to them. Both errors persist *no matter how many worlds are
-  sampled*.
+  worlds favorable to them. Both errors persist _no matter how many worlds are
+  sampled_.
 
 ### 2.2 When PIMC works anyway
 
-Long, Sturtevant, Buro & Furtak 2010, *"Understanding the Success of Perfect
-Information Monte Carlo Sampling in Game Tree Search"*, AAAI 2010.
+Long, Sturtevant, Buro & Furtak 2010, _"Understanding the Success of Perfect
+Information Monte Carlo Sampling in Game Tree Search"_, AAAI 2010.
 [record](https://ojs.aaai.org/index.php/AAAI/article/view/7562) ·
 [PDF](https://cdn.aaai.org/ojs/7562/7562-13-11092-1-2-20201228.pdf)
 
@@ -138,7 +138,7 @@ Information Monte Carlo Sampling in Game Tree Search"*, AAAI 2010.
 
 ### 2.3 The reveal problem — what a library-search choice node will hit
 
-Within one determinization the deck order is fixed and *known to the search*,
+Within one determinization the deck order is fixed and _known to the search_,
 so "search your library" is valued as if the agent already knows what it finds
 — "averaging over clairvoyance" (Russell & Norvig, quoted in exactly this
 context by Cowling et al. 2012 §V via Bjarnason's Klondike example).
@@ -155,8 +155,8 @@ the best card, and information-gathering moves per se are undervalued.
   accumulates the expectation).
 - Small enumerable outcome distributions (coin flip, known-top scry) → an
   explicit **chance node with expectation backup**; nobody optimizes there, so
-  bandit selection is the wrong tool (Lanctot et al. 2013, *"Monte Carlo
-  \*-Minimax Search"*, IJCAI 2013,
+  bandit selection is the wrong tool (Lanctot et al. 2013, _"Monte Carlo
+  \*-Minimax Search"_, IJCAI 2013,
   [PDF](https://www.ijcai.org/Proceedings/13/Papers/093.pdf) — sparse
   sampling: a fixed number of sampled outcomes per chance node suffices, with
   accuracy independent of state-space size).
@@ -170,19 +170,19 @@ the best card, and information-gathering moves per se are undervalued.
 
 ### 3.1 Progressive widening / unpruning
 
-- Coulom 2007, *"Computing Elo Ratings of Move Patterns in the Game of Go"*,
+- Coulom 2007, _"Computing Elo Ratings of Move Patterns in the Game of Go"_,
   ICGA Journal 30(4), §4.2.
   [author PDF](https://www.remi-coulom.fr/Amsterdam2007/icgaj.pdf) — Crazy
-  Stone prunes an internal node to the *n* best moves by prior, with *n*
+  Stone prunes an internal node to the _n_ best moves by prior, with _n_
   growing logarithmically in simulations (`t₀=0`, `t_{n+1} = t_n + 40·1.4ⁿ`);
   contribution on 19×19 was "huge" (0% → 37.5% vs GNU Go).
-- Chaslot, Winands, van den Herik, Uiterwijk & Bouzy 2008, *"Progressive
-  Strategies for Monte-Carlo Tree Search"*, NMNC 4(3).
+- Chaslot, Winands, van den Herik, Uiterwijk & Bouzy 2008, _"Progressive
+  Strategies for Monte-Carlo Tree Search"_, NMNC 4(3).
   [open PDF](https://dke.maastrichtuniversity.nl/m.winands/documents/pMCTS.pdf)
   — independent co-invention ("progressive unpruning") + **progressive bias**
   (heuristic selection term decaying with visits); the benefit of combining
-  both *grows with branching factor*.
-- Couëtoux et al. 2011, *"Continuous Upper Confidence Trees"*, LION 5
+  both _grows with branching factor_.
+- Couëtoux et al. 2011, _"Continuous Upper Confidence Trees"_, LION 5
   ([DOI](https://doi.org/10.1007/978-3-642-25566-3_32), ⚠️ mechanics verified
   via Lanctot et al. 2013 §2.2) — **double progressive widening**: the
   `k = ⌈C·v^α⌉` budget applies to decision-node children AND to a chance
@@ -192,10 +192,10 @@ the best card, and information-gathering moves per se are undervalued.
 
 ### 3.2 Priors and first-play urgency
 
-- Gelly & Silver 2007, *"Combining Online and Offline Knowledge in UCT"*,
+- Gelly & Silver 2007, _"Combining Online and Offline Knowledge in UCT"_,
   ICML 2007.
   [PDF](https://ai.dmi.unibas.ch/research/reading_group/gelly-silver-icml2007.pdf)
-  — initializing nodes with a prior value and an *equivalent-experience*
+  — initializing nodes with a prior value and an _equivalent-experience_
   visit count (best `M_eq ≈ 50` episodes) raised win rate 60% → 69% at only
   3000 sims/move; "with larger branching factors it becomes increasingly
   important to … incorporate prior knowledge". A good prior is worth ~50
@@ -209,21 +209,21 @@ the best card, and information-gathering moves per se are undervalued.
 
 ### 3.3 Move groups / split moves / factored actions
 
-- Childs, Brodeur & Kocsis 2008, *"Transpositions and Move Groups in MCTS"*,
+- Childs, Brodeur & Kocsis 2008, _"Transpositions and Move Groups in MCTS"_,
   CIG 2008 ([DOI](https://doi.org/10.1109/CIG.2008.5035667), ⚠️ paywalled) and
-  Van Eyck & Müller 2011, *"Revisiting Move Groups in Monte-Carlo Tree
-  Search"*, ACG 2011
+  Van Eyck & Müller 2011, _"Revisiting Move Groups in Monte-Carlo Tree
+  Search"_, ACG 2011
   ([author PDF](https://webdocs.cs.ualberta.ca/~mmueller/ps/GVanEyck-MoveGroups-Final.pdf))
   — a move group adds a tree layer (pick group, then pick move within it),
   trading branching for depth. Verified caveat: **arbitrary/random groups only
   speed up the search and do NOT increase per-simulation efficiency**; bad
-  groupings were 6–12% *worse* than flat UCB. Grouping quality is the whole
+  groupings were 6–12% _worse_ than flat UCB. Grouping quality is the whole
   game — groups must separate good arms from bad.
-- Kowalski et al. 2022, *"Split Moves for Monte-Carlo Tree Search"*, AAAI 2022.
+- Kowalski et al. 2022, _"Split Moves for Monte-Carlo Tree Search"_, AAAI 2022.
   [arXiv](https://arxiv.org/abs/2112.07761) — the systematic study: splitting
   one move into a sequence of micro-decisions, each its own node, "can be
   significantly beneficial" under fixed budgets for both single- and
-  multi-action games — *provided* the split layers carry real generalization
+  multi-action games — _provided_ the split layers carry real generalization
   structure (prefix-node statistics shared by all completions, cheaper move
   generation). Decomposition costs when added depth dilutes the budget without
   such sharing.
@@ -244,8 +244,8 @@ instructions except Forge (the rejected baseline).
 
 ### 4.1 Hearthstone MCTS: atomic decomposition of card plays
 
-Świechowski, Tajmajer & Janusz 2018, *"Improving Hearthstone AI by Combining
-MCTS and Supervised Learning Algorithms"*, CIG 2018.
+Świechowski, Tajmajer & Janusz 2018, _"Improving Hearthstone AI by Combining
+MCTS and Supervised Learning Algorithms"_, CIG 2018.
 [arXiv](https://arxiv.org/abs/1808.04794)
 
 - Verified at source (§III-A): "We have decomposed complex game actions into
@@ -267,15 +267,15 @@ MCTS and Supervised Learning Algorithms"*, CIG 2018.
 
 ### 4.2 Hearthstone DUCT: hierarchical card→target decision levels
 
-Zhang & Buro 2017, *"Improving Hearthstone AI by Learning High-Level Rollout
-Policies and Bucketing Chance Node Events"*, CIG 2017.
+Zhang & Buro 2017, _"Improving Hearthstone AI by Learning High-Level Rollout
+Policies and Bucketing Chance Node Events"_, CIG 2017.
 [IEEE](https://ieeexplore.ieee.org/document/8080452) ·
 [PDF](https://skatgame.net/mburo/ps/cig17-hsai.pdf)
 
 - Actions split into **high-level** ("play card X") and **dependent low-level**
   ("choose target for X") decisions — both levels are nodes inside a
   determinized-UCT tree (Fig. 3: `pc(A) ct(A) pc(B) ct(B) et()`).
-- Low-level targets picked in rollouts by a fast *generic* value heuristic;
+- Low-level targets picked in rollouts by a fast _generic_ value heuristic;
   chance nodes bucketed by mana cost and pre-sampled (N=1–2) to cap branching.
 - DUCT + chance bucketing beat the Silverfish baseline 72%.
 
@@ -285,7 +285,7 @@ SabberStone (Hearthstone sim used by the AI competition,
 [repo](https://github.com/HearthSim/SabberStone) — verified in
 `Controller.Options()`): when a mid-resolution `Choice` is pending
 (discover/mulligan), `Options()` returns **only** `ChooseTask.Pick(...)`
-entries — the pending choice *replaces* the action space until answered, so
+entries — the pending choice _replaces_ the action space until answered, so
 any search over `Options()` automatically treats mid-resolution choices as
 decision nodes. This is the engine-level shape of the whole idea, and matches
 Tolaria's `enumerateMoves` seam almost exactly (today it returns `[]` there;
@@ -318,7 +318,7 @@ semantic layer avoids.
 ### 4.6 Academic MTG line: nobody ever searched real resolution choices
 
 - Ward & Cowling 2009 ([IEEE](https://ieeexplore.ieee.org/document/5286501)):
-  creatures+lands only; Monte Carlo applied to card selection *only*;
+  creatures+lands only; Monte Carlo applied to card selection _only_;
   attack/block by fixed expert rules; instants excluded outright.
 - Cowling, Ward & Powley 2012: same subset (see §1.2) — the binary in-tree
   decomposition was applied to hand-subset selection, proposed but never
@@ -336,10 +336,10 @@ semantic layer avoids.
   no card ever asks a follow-up question.
 
 **Synthesis**: the Hearthstone line established the pattern the architecture
-ticket asks about — *sequential decomposition: the pending choice becomes the
+ticket asks about — _sequential decomposition: the pending choice becomes the
 current decision node in the same search/action interface, with generic
 heuristic (or learned) policies substituting per decision level when branching
-explodes*. The engines show both endpoints at scale: Forge's per-card hints
+explodes_. The engines show both endpoints at scale: Forge's per-card hints
 (unbounded authoring, blacklist escape hatch) vs XMage/SabberStone's generic
 enumeration + generic fallback (zero per-card cost, bounded quality). No
 source contradicts the viability of in-tree resolution choices; the recurring
@@ -354,13 +354,13 @@ bucketing, heuristic sub-solvers exposed as actions, or portfolio scripts
 
 ### 5.1 Budget scaling as the tree deepens
 
-- Browne et al. 2012, *"A Survey of Monte Carlo Tree Search Methods"*, IEEE
+- Browne et al. 2012, _"A Survey of Monte Carlo Tree Search Methods"_, IEEE
   TCIAIG 4(1) ([DOI](https://doi.org/10.1109/TCIAIG.2012.2186810) ·
   [open PDF](https://repository.essex.ac.uk/4117/1/MCTS-Survey.pdf)): MCTS is
   an anytime algorithm, but vanilla UCT degrades in wide/deep trees — the
   survey's enhancement chapters (progressive strategies, priors) exist for
-  exactly this. Chaslot et al. 2008 measured strength growing *linearly in
-  log(time)* (R² = 0.9922): each budget doubling buys a roughly constant
+  exactly this. Chaslot et al. 2008 measured strength growing _linearly in
+  log(time)_ (R² = 0.9922): each budget doubling buys a roughly constant
   increment, so raw budget is the weakest lever.
 - **Order of remedies for a fixed 300–600 ms window**: selectivity first
   (priors + progressive unpruning + FPU), decomposition into low-arity nodes
@@ -375,14 +375,14 @@ bucketing, heuristic sub-solvers exposed as actions, or portfolio scripts
   policies collapse ("if the default policy is too deterministic, Monte-Carlo
   simulation fails to provide any benefits"). They construct playout policies
   as **ε-greedy / softmax over a cheap value function**.
-- Silver & Tesauro 2009, *"Monte-Carlo Simulation Balancing"*, ICML 2009
+- Silver & Tesauro 2009, _"Monte-Carlo Simulation Balancing"_, ICML 2009
   ([PDF](https://icml.cc/Conferences/2009/papers/500.pdf)): optimize the
-  *balance* of a simulation policy (accurate spread of outcomes), not its
+  _balance_ of a simulation policy (accurate spread of outcomes), not its
   strength — a stronger policy can weaken the search.
 - Cowling et al. 2012 (MTG, §1.2): randomized reduced-rules rollouts beat the
-  intrinsically stronger deterministic expert player in *all* experiments.
-- Early playout termination + eval at horizon: Lorentz 2015, *"Early Playout
-  Termination in MCTS"*, ACG 2015
+  intrinsically stronger deterministic expert player in _all_ experiments.
+- Early playout termination + eval at horizon: Lorentz 2015, _"Early Playout
+  Termination in MCTS"_, ACG 2015
   ([Springer](https://link.springer.com/chapter/10.1007/978-3-319-27992-3_2),
   ⚠️ abstract) — "even a weak function can compare favorably to a long random
   playout"; corroborated in Hearthstone by Santos et al. 2017
@@ -400,7 +400,7 @@ and seeds the prior".
 
 ### 5.3 Parallelization in a Web Worker context
 
-- Chaslot, Winands & van den Herik 2008, *"Parallel Monte-Carlo Tree Search"*,
+- Chaslot, Winands & van den Herik 2008, _"Parallel Monte-Carlo Tree Search"_,
   CG 2008 ([Springer](https://doi.org/10.1007/978-3-540-87608-3_6) ·
   [open PDF](https://dke.maastrichtuniversity.nl/m.winands/documents/multithreadedMCTS2.pdf)):
   root parallelization at 4 threads achieved **strength-speedup 6.5 — more
@@ -408,7 +408,7 @@ and seeds the prior".
   searches of one second than one large MCTS search of four seconds");
   at 16 threads root (14.9) crushes leaf (2.4) and tree-with-mutexes (3.3–8.5
   with virtual loss).
-- Cowling et al. 2012: ensemble determinization *is* root parallelization for
+- Cowling et al. 2012: ensemble determinization _is_ root parallelization for
   hidden-information games, and the optimum was many small trees (§1.2).
 - [MDN, SharedArrayBuffer](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/SharedArrayBuffer):
   shared memory requires cross-origin isolation (COOP+COEP headers,
@@ -424,13 +424,13 @@ and seeds the prior".
 
 ### 5.4 Anytime behavior / adaptive budgets
 
-- Huang, Coulom & Lin 2010, *"Time Management for Monte-Carlo Tree Search
-  Applied to the Game of Go"*, TAAI 2010
+- Huang, Coulom & Lin 2010, _"Time Management for Monte-Carlo Tree Search
+  Applied to the Game of Go"_, TAAI 2010
   ([PDF](https://www.remi-coulom.fr/Publications/TimeManagement.pdf)):
-  rescheduling a *fixed* total budget adaptively (spend longer when the best
+  rescheduling a _fixed_ total budget adaptively (spend longer when the best
   move is unstable/close, stop early when it cannot change) was worth ~17
   win-rate points alone (43.2% → 60%).
-- Baier & Winands 2016, *"Time Management for Monte-Carlo Tree Search"*, IEEE
+- Baier & Winands 2016, _"Time Management for Monte-Carlo Tree Search"_, IEEE
   TCIAIG 8(3) ([DOI](https://doi.org/10.1109/TCIAIG.2015.2443123), ⚠️
   paywalled): taxonomy of semi-dynamic and dynamic (early-stop/extend)
   strategies across five games.
@@ -462,7 +462,7 @@ Mapping each finding onto the choice-node architecture questions of
   Müller's negative result on arbitrary grouping).
 - Keep the Świechowski "use solver" pattern in the back pocket: for a
   genuinely combinatorial choice, expose the existing heuristic answer as
-  *one enumerated move* alongside (or instead of) the raw alternatives.
+  _one enumerated move_ alongside (or instead of) the raw alternatives.
 
 ### 2. Who "moves" at a choice node (chooser identity / APNAP)
 
@@ -524,20 +524,20 @@ combinatorial, chance-node where nobody decides.
 
 ### 5. Interaction with determinization (choices revealing hidden info)
 
-- The current halt-at-choice behavior accidentally *protects* against
+- The current halt-at-choice behavior accidentally _protects_ against
   clairvoyance; putting choices in-tree removes that shield, so this is the
   one place correctness work is mandatory, not optional (§2.3).
 - Rules: (a) a reveal node's value must be an **average over
   determinizations** — SO-ISMCTS's shared tree + per-iteration
-  re-determinization gives this for free *as long as the tree node keys don't
-  encode the revealed cards of one world* (key search-library nodes by the
+  re-determinization gives this for free _as long as the tree node keys don't
+  encode the revealed cards of one world_ (key search-library nodes by the
   choice identity, not by the concrete found card; the found card is the
-  *outcome*, sampled per iteration); (b) enumerable small reveals → chance
+  _outcome_, sampled per iteration); (b) enumerable small reveals → chance
   node with expectation backup, sparse-sampled (1–2 outcomes per visit,
   Zhang & Buro's bucketing); (c) dense reveals → lazy determinization
   (sample on first visit within the iteration's determinization).
 - Watch for the systematic bias PIMC has here: tutors/searches will be
-  *overvalued* (the search gets the reveal for free) — a blade scenario
+  _overvalued_ (the search gets the reveal for free) — a blade scenario
   asserting the bot doesn't over-tutor is worth adding when this ships.
 - Opponent hidden choices (their search, their scry) are a +POM/MO-ISMCTS
   problem — defer; single-observer with the opponent's choice resolved by
@@ -547,7 +547,7 @@ combinatorial, chance-node where nobody decides.
 
 - Deepening the tree does **not** require a proportional budget increase if
   arity stays low and priors are seeded — Cowling's binary-tree player got
-  *faster* (§1.2). Selectivity first, budget last (§5.1).
+  _faster_ (§1.2). Selectivity first, budget last (§5.1).
 - Rollouts at choice points: ε-greedy over the existing `brain.ts` heuristics
   (ε ≈ 0.1–0.5), never uniform, never fully deterministic (§5.2). The
   turn-boundary horizon (ADR 0015) already caps playout cost.
@@ -565,32 +565,32 @@ combinatorial, chance-node where nobody decides.
 
 ## Source index
 
-| # | Source | Verification |
-|---|--------|--------------|
-| 1 | Cowling, Powley, Whitehouse 2012 — ISMCTS ([PDF](https://eprints.whiterose.ac.uk/id/eprint/75048/1/CowlingPowleyWhitehouse2012.pdf)) | full text |
-| 2 | Cowling, Ward, Powley 2012 — Ensemble determinization in MTG ([PDF](https://eprints.whiterose.ac.uk/id/eprint/75050/1/EnsDetMagic.pdf)) | full text |
-| 3 | Ward & Cowling 2009 — MC card selection in MTG ([IEEE](https://ieeexplore.ieee.org/document/5286501)) | full text |
-| 4 | Frank & Basin 1998 — strategy fusion / non-locality ([DOI](https://doi.org/10.1016/S0004-3702(97)00082-9)) | ⚠️ via Long et al. |
-| 5 | Long, Sturtevant, Buro, Furtak 2010 — PIMC success factors ([PDF](https://cdn.aaai.org/ojs/7562/7562-13-11092-1-2-20201228.pdf)) | full text |
-| 6 | Coulom 2007 — progressive widening ([PDF](https://www.remi-coulom.fr/Amsterdam2007/icgaj.pdf)) | full text |
-| 7 | Chaslot et al. 2008 — progressive strategies ([PDF](https://dke.maastrichtuniversity.nl/m.winands/documents/pMCTS.pdf)) | full text |
-| 8 | Couëtoux et al. 2011 — double progressive widening ([DOI](https://doi.org/10.1007/978-3-642-25566-3_32)) | ⚠️ via Lanctot et al. |
-| 9 | Lanctot et al. 2013 — MC \*-minimax, chance nodes, sparse sampling ([PDF](https://www.ijcai.org/Proceedings/13/Papers/093.pdf)) | full text |
-| 10 | Van Eyck & Müller 2011 — move groups revisited ([PDF](https://webdocs.cs.ualberta.ca/~mmueller/ps/GVanEyck-MoveGroups-Final.pdf)) | full text |
-| 11 | Kowalski et al. 2022 — split moves ([arXiv](https://arxiv.org/abs/2112.07761)) | full text (abstract-level claims) |
-| 12 | Ontañón 2013/17 — combinatorial MAB / NaiveMCTS ([arXiv](https://arxiv.org/abs/1710.04805)) | metadata + AIIDE record |
-| 13 | Świechowski, Tajmajer, Janusz 2018 — Hearthstone MCTS+SL ([arXiv](https://arxiv.org/abs/1808.04794)) | full text |
-| 14 | Zhang & Buro 2017 — HL rollout policies + chance bucketing ([PDF](https://skatgame.net/mburo/ps/cig17-hsai.pdf)) | full text |
-| 15 | SabberStone `Controller.Options()` ([repo](https://github.com/HearthSim/SabberStone)) | source code |
-| 16 | XMage `ComputerPlayer6` / `SimulatedPlayer2` ([repo](https://github.com/magefree/mage)) | source code |
-| 17 | Forge AI wiki + card scripts ([wiki](https://github.com/Card-Forge/forge/wiki/AI)) | docs + source |
-| 18 | Gelly & Silver 2007 — priors, heavy playouts ([PDF](https://ai.dmi.unibas.ch/research/reading_group/gelly-silver-icml2007.pdf)) | full text |
-| 19 | Silver & Tesauro 2009 — simulation balancing ([PDF](https://icml.cc/Conferences/2009/papers/500.pdf)) | full text |
-| 20 | Lorentz 2015 — early playout termination ([Springer](https://link.springer.com/chapter/10.1007/978-3-319-27992-3_2)) | ⚠️ abstract |
-| 21 | Chaslot, Winands, van den Herik 2008 — parallel MCTS ([PDF](https://dke.maastrichtuniversity.nl/m.winands/documents/multithreadedMCTS2.pdf)) | full text |
-| 22 | MDN — SharedArrayBuffer requirements ([MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/SharedArrayBuffer)) | official docs |
-| 23 | Huang, Coulom, Lin 2010 — time management ([PDF](https://www.remi-coulom.fr/Publications/TimeManagement.pdf)) | full text |
-| 24 | Baier & Winands 2016 — time management ([DOI](https://doi.org/10.1109/TCIAIG.2015.2443123)) | ⚠️ metadata |
-| 25 | Churchill & Buro 2015 — Prismata portfolio search ([AIIDE](https://ojs.aaai.org/index.php/AIIDE/article/view/12787)) | ⚠️ abstract |
-| 26 | Browne et al. 2012 — MCTS survey ([PDF](https://repository.essex.ac.uk/4117/1/MCTS-Survey.pdf)) | full text |
-| 27 | gym-locm action space ([repo](https://github.com/ronaldosvieira/gym-locm)) | README/source |
+| #   | Source                                                                                                                                           | Verification                      |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------- |
+| 1   | Cowling, Powley, Whitehouse 2012 — ISMCTS ([PDF](https://eprints.whiterose.ac.uk/id/eprint/75048/1/CowlingPowleyWhitehouse2012.pdf))             | full text                         |
+| 2   | Cowling, Ward, Powley 2012 — Ensemble determinization in MTG ([PDF](https://eprints.whiterose.ac.uk/id/eprint/75050/1/EnsDetMagic.pdf))          | full text                         |
+| 3   | Ward & Cowling 2009 — MC card selection in MTG ([IEEE](https://ieeexplore.ieee.org/document/5286501))                                            | full text                         |
+| 4   | Frank & Basin 1998 — strategy fusion / non-locality ([DOI](<https://doi.org/10.1016/S0004-3702(97)00082-9>))                                     | ⚠️ via Long et al.                |
+| 5   | Long, Sturtevant, Buro, Furtak 2010 — PIMC success factors ([PDF](https://cdn.aaai.org/ojs/7562/7562-13-11092-1-2-20201228.pdf))                 | full text                         |
+| 6   | Coulom 2007 — progressive widening ([PDF](https://www.remi-coulom.fr/Amsterdam2007/icgaj.pdf))                                                   | full text                         |
+| 7   | Chaslot et al. 2008 — progressive strategies ([PDF](https://dke.maastrichtuniversity.nl/m.winands/documents/pMCTS.pdf))                          | full text                         |
+| 8   | Couëtoux et al. 2011 — double progressive widening ([DOI](https://doi.org/10.1007/978-3-642-25566-3_32))                                         | ⚠️ via Lanctot et al.             |
+| 9   | Lanctot et al. 2013 — MC \*-minimax, chance nodes, sparse sampling ([PDF](https://www.ijcai.org/Proceedings/13/Papers/093.pdf))                  | full text                         |
+| 10  | Van Eyck & Müller 2011 — move groups revisited ([PDF](https://webdocs.cs.ualberta.ca/~mmueller/ps/GVanEyck-MoveGroups-Final.pdf))                | full text                         |
+| 11  | Kowalski et al. 2022 — split moves ([arXiv](https://arxiv.org/abs/2112.07761))                                                                   | full text (abstract-level claims) |
+| 12  | Ontañón 2013/17 — combinatorial MAB / NaiveMCTS ([arXiv](https://arxiv.org/abs/1710.04805))                                                      | metadata + AIIDE record           |
+| 13  | Świechowski, Tajmajer, Janusz 2018 — Hearthstone MCTS+SL ([arXiv](https://arxiv.org/abs/1808.04794))                                             | full text                         |
+| 14  | Zhang & Buro 2017 — HL rollout policies + chance bucketing ([PDF](https://skatgame.net/mburo/ps/cig17-hsai.pdf))                                 | full text                         |
+| 15  | SabberStone `Controller.Options()` ([repo](https://github.com/HearthSim/SabberStone))                                                            | source code                       |
+| 16  | XMage `ComputerPlayer6` / `SimulatedPlayer2` ([repo](https://github.com/magefree/mage))                                                          | source code                       |
+| 17  | Forge AI wiki + card scripts ([wiki](https://github.com/Card-Forge/forge/wiki/AI))                                                               | docs + source                     |
+| 18  | Gelly & Silver 2007 — priors, heavy playouts ([PDF](https://ai.dmi.unibas.ch/research/reading_group/gelly-silver-icml2007.pdf))                  | full text                         |
+| 19  | Silver & Tesauro 2009 — simulation balancing ([PDF](https://icml.cc/Conferences/2009/papers/500.pdf))                                            | full text                         |
+| 20  | Lorentz 2015 — early playout termination ([Springer](https://link.springer.com/chapter/10.1007/978-3-319-27992-3_2))                             | ⚠️ abstract                       |
+| 21  | Chaslot, Winands, van den Herik 2008 — parallel MCTS ([PDF](https://dke.maastrichtuniversity.nl/m.winands/documents/multithreadedMCTS2.pdf))     | full text                         |
+| 22  | MDN — SharedArrayBuffer requirements ([MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/SharedArrayBuffer)) | official docs                     |
+| 23  | Huang, Coulom, Lin 2010 — time management ([PDF](https://www.remi-coulom.fr/Publications/TimeManagement.pdf))                                    | full text                         |
+| 24  | Baier & Winands 2016 — time management ([DOI](https://doi.org/10.1109/TCIAIG.2015.2443123))                                                      | ⚠️ metadata                       |
+| 25  | Churchill & Buro 2015 — Prismata portfolio search ([AIIDE](https://ojs.aaai.org/index.php/AIIDE/article/view/12787))                             | ⚠️ abstract                       |
+| 26  | Browne et al. 2012 — MCTS survey ([PDF](https://repository.essex.ac.uk/4117/1/MCTS-Survey.pdf))                                                  | full text                         |
+| 27  | gym-locm action space ([repo](https://github.com/ronaldosvieira/gym-locm))                                                                       | README/source                     |

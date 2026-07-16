@@ -22,14 +22,11 @@ describe("pickTimerSecondsForCardsRemaining (ADR 0060, issue #1243)", () => {
         [4, 5],
         [3, 5],
         [2, 5],
-    ])(
-        "cardsRemaining=%i -> %i seconds",
-        (cardsRemaining, expectedSeconds) => {
-            expect(pickTimerSecondsForCardsRemaining(cardsRemaining)).toBe(
-                expectedSeconds
-            );
-        }
-    );
+    ])("cardsRemaining=%i -> %i seconds", (cardsRemaining, expectedSeconds) => {
+        expect(pickTimerSecondsForCardsRemaining(cardsRemaining)).toBe(
+            expectedSeconds
+        );
+    });
 
     it("returns null ('auto') for exactly 1 card remaining — no real choice to time", () => {
         expect(pickTimerSecondsForCardsRemaining(1)).toBeNull();

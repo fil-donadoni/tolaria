@@ -175,8 +175,8 @@ export default function CreateLimitedEventDialog({
                         }
                     />
                     <span className="text-xs text-text-muted">
-                        Unfilled seats become bots when the event starts — for
-                        a solo draft, set the full table (e.g. {MAX_SEATS}).
+                        Unfilled seats become bots when the event starts — for a
+                        solo draft, set the full table (e.g. {MAX_SEATS}).
                     </span>
                 </label>
 

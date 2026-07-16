@@ -9,10 +9,7 @@
 import { describe, it, expect } from "vitest";
 import leaConfigJson from "../../../data/boosters/lea.json";
 import invRaw from "../../../data/json/INV.json";
-import {
-    computeDraftability,
-    dropUnimplementedCards,
-} from "../draftable";
+import { computeDraftability, dropUnimplementedCards } from "../draftable";
 import { buildBoosterConfig, type MtgjsonSetData } from "../mtgjsonImport";
 import { tryGetDefinition } from "../../cards";
 import type { BoosterConfig } from "../boosterTypes";
@@ -100,10 +97,7 @@ describe("computeDraftability (ADR 0059 — per-sheet ≥80%)", () => {
         // common 10/10 (100%), rare 6/10 real, 4 fake (60%) → average
         // (10+6)/20 = 80% exactly, which a per-set-average gate would admit,
         // but the per-sheet gate must still reject on the rare sheet's 60%.
-        const realIds = Object.keys(leaConfig.sheets.common.cards).slice(
-            0,
-            10
-        );
+        const realIds = Object.keys(leaConfig.sheets.common.cards).slice(0, 10);
         expect(realIds.length).toBe(10);
         for (const id of realIds) {
             expect(tryGetDefinition(id)).not.toBeNull();
@@ -126,9 +120,7 @@ describe("computeDraftability (ADR 0059 — per-sheet ≥80%)", () => {
                 rare: {
                     totalWeight: 10,
                     cards: {
-                        ...Object.fromEntries(
-                            rareRealIds.map((id) => [id, 1])
-                        ),
+                        ...Object.fromEntries(rareRealIds.map((id) => [id, 1])),
                         fake1: 1,
                         fake2: 1,
                         fake3: 1,

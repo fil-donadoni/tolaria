@@ -11586,6 +11586,14 @@ export function putHandCardOnTopOfLibrary(
     if (idx === -1) return false;
     const [card] = player.hand.splice(idx, 1);
     card.zone = "library";
+    // ADR 0026 — hand → library-top is a hidden→hidden move the owner
+    // witnesses (they held the card and placed it), so the owner's knowledge
+    // is granted here, at the primitive, for EVERY caller (Brainstorm's
+    // `putBack`, Sylvan Library, Conch Horn, Stunted Growth, Library of
+    // Leng). Prior knowers persist per the slice-5 cross-zone rules; nobody
+    // new learns it — a reveal clause must call markKnownToAll explicitly.
+    const known = card.knownTo ?? [];
+    if (!known.includes(player.id)) card.knownTo = [...known, player.id];
     player.library.unshift(card);
     return true;
 }

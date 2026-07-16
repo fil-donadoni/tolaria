@@ -1438,10 +1438,10 @@ export const OP_EXECUTORS: {
         // Resume — move each pick to the top; the LAST pick lands on top
         // last (unshift), so the player's chosen order IS the resulting
         // top-of-library order.
+        // ADR 0026 — the owner keeps knowing each put-back card on top
+        // (private — no reveal clause here); knowledge is granted inside the
+        // primitive itself so every hand→library-top site shares it.
         for (const id of picks) ctx.moveHandCardToLibraryTop(playerId, id);
-        // ADR 0026 — the controller chose these cards and their order, so
-        // they keep knowing them on top (private — no reveal clause here).
-        ctx.markKnown(playerId, picks, playerId);
     },
     // CR 615 (issue #845) — establish a damage-prevention shield. A thin
     // declarative skin over three SpellContext prevention primitives, ONE

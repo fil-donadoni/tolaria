@@ -47,10 +47,7 @@ export default function LimitedDraftPool({
         () => groupPoolIntoColumns(placements),
         [placements]
     );
-    const sideboard = useMemo(
-        () => sideboardEntries(placements),
-        [placements]
-    );
+    const sideboard = useMemo(() => sideboardEntries(placements), [placements]);
     const mainCount = pool.length - sideboard.length;
 
     const toggleSideboard = useCallback(

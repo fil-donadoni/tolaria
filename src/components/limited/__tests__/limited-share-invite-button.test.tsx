@@ -21,11 +21,7 @@ afterEach(() => {
 
 describe("LimitedShareInviteButton (issue #1245)", () => {
     it("copies the event URL (origin + /limited/<eventId>) via the shared copyText helper", () => {
-        render(
-            <LimitedShareInviteButton
-                eventId={"event-42" as never}
-            />
-        );
+        render(<LimitedShareInviteButton eventId={"event-42" as never} />);
 
         fireEvent.click(screen.getByText("Share invite link"));
 
@@ -35,11 +31,7 @@ describe("LimitedShareInviteButton (issue #1245)", () => {
     });
 
     it("toggles the label to 'Link copied!' after sharing", () => {
-        render(
-            <LimitedShareInviteButton
-                eventId={"event-42" as never}
-            />
-        );
+        render(<LimitedShareInviteButton eventId={"event-42" as never} />);
 
         fireEvent.click(screen.getByText("Share invite link"));
 

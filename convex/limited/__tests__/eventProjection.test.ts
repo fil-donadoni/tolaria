@@ -396,7 +396,11 @@ describe("projectLimitedEvent — poolArrangement (ADR 0060, issue #1247)", () =
                     userId: "user1",
                     nickname: "Alice",
                     pool: [
-                        { scryfallId: "s1", cardId: "c1", cardName: "Card One" },
+                        {
+                            scryfallId: "s1",
+                            cardId: "c1",
+                            cardName: "Card One",
+                        },
                     ],
                     poolArrangement: [{ poolIndex: 0, sideboard: true }],
                 },
@@ -405,7 +409,11 @@ describe("projectLimitedEvent — poolArrangement (ADR 0060, issue #1247)", () =
                     userId: "user2",
                     nickname: "Bob",
                     pool: [
-                        { scryfallId: "s3", cardId: "c3", cardName: "Card Three" },
+                        {
+                            scryfallId: "s3",
+                            cardId: "c3",
+                            cardName: "Card Three",
+                        },
                     ],
                     poolArrangement: [{ poolIndex: 0, column: 2 }],
                 },
@@ -414,7 +422,9 @@ describe("projectLimitedEvent — poolArrangement (ADR 0060, issue #1247)", () =
 
         const view = projectLimitedEvent(event, "user1");
         const own = view.seats.find((s) => s.seatIndex === 0)!;
-        expect(own.poolArrangement).toEqual([{ poolIndex: 0, sideboard: true }]);
+        expect(own.poolArrangement).toEqual([
+            { poolIndex: 0, sideboard: true },
+        ]);
     });
 
     it("strips every OTHER seat's Pool Arrangement — same 'own seat only' discipline as currentPack/pickDeadline", () => {
@@ -425,7 +435,11 @@ describe("projectLimitedEvent — poolArrangement (ADR 0060, issue #1247)", () =
                     userId: "user1",
                     nickname: "Alice",
                     pool: [
-                        { scryfallId: "s1", cardId: "c1", cardName: "Card One" },
+                        {
+                            scryfallId: "s1",
+                            cardId: "c1",
+                            cardName: "Card One",
+                        },
                     ],
                     poolArrangement: [{ poolIndex: 0, sideboard: true }],
                 },
@@ -434,7 +448,11 @@ describe("projectLimitedEvent — poolArrangement (ADR 0060, issue #1247)", () =
                     userId: "user2",
                     nickname: "Bob",
                     pool: [
-                        { scryfallId: "s3", cardId: "c3", cardName: "Card Three" },
+                        {
+                            scryfallId: "s3",
+                            cardId: "c3",
+                            cardName: "Card Three",
+                        },
                     ],
                     poolArrangement: [{ poolIndex: 0, column: 2 }],
                 },

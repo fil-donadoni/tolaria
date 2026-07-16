@@ -135,6 +135,37 @@ describe("Sylvan Library (draw step: single 0–N topdeck pick, CR 118.4/119.4)"
         expect(state.stack.length).toBe(0);
     });
 
+    it("topdecked cards stay known to the controller (ADR 0026, like Brainstorm's putBack) and project as their known top run, hidden from the opponent", () => {
+        const { state, sylvan } = makeSylvanState({
+            handIds: ["h0"],
+            libIds: ["l0", "l1"],
+            drawnThisTurn: ["h0"],
+        });
+        resolveTrigger(
+            state,
+            sylvan,
+            "sylvan-library-draw-step",
+            drawStepEvent
+        );
+        answerChoice(state, ["draw"]); // draw l0, l1 → N = 2
+        answerChoice(state, ["h0", "l0"]); // topdeck both
+        const lib = state.players[0].library;
+        expect(lib.map((c) => c.id)).toEqual(["l0", "h0"]);
+        // The controller chose and placed them — their knowledge persists on
+        // top (hand → library-top is a witnessed hidden→hidden move).
+        expect(lib[0].knownTo).toEqual(["p1"]);
+        expect(lib[1].knownTo).toEqual(["p1"]);
+        // Wire format: the controller's projection surfaces both as the
+        // contiguous known top-of-library run, in order…
+        const p1View = projectPublicState(state, 1, "p1");
+        const known = p1View.players[0].library.known ?? [];
+        expect(known.map((k) => k.card.id)).toEqual(["l0", "h0"]);
+        expect(known.map((k) => k.index)).toEqual([0, 1]);
+        // …while the opponent still sees a count-only library.
+        const p2View = projectPublicState(state, 1, "p2");
+        expect(p2View.players[0].library.known ?? []).toEqual([]);
+    });
+
     it("selecting 0 (Skip) with sufficient life pays 4 × N and keeps all N", () => {
         const { state, sylvan } = makeSylvanState({
             handIds: ["h0"],

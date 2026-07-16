@@ -67,7 +67,9 @@ describe("resolveDraftDragAction (ADR 0060, issue #1248)", () => {
     });
 
     it("an unrecognized drop-target id is a no-op", () => {
-        expect(resolveDraftDragAction(booster, "some-unrelated-zone")).toBeNull();
+        expect(
+            resolveDraftDragAction(booster, "some-unrelated-zone")
+        ).toBeNull();
     });
 });
 
