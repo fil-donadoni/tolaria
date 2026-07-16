@@ -8,7 +8,7 @@
 // board-visible outcome (survives / sacrificed).
 
 import { describe, it, expect } from "vitest";
-import { goblinPatrol, goblinCadets, arcLightning } from "..";
+import { goblinPatrol, goblinCadets, arcLightning, sneakAttack } from "..";
 import {
     makeInstance,
     makePlayer,
@@ -22,7 +22,11 @@ import {
     type GameState,
     type StackItem,
 } from "../../../../gre/state";
-import { applyMayPaySubmit } from "../../../../gre/pendingChoiceSubmit";
+import {
+    applyMayPaySubmit,
+    applyPendingChoiceSubmit,
+} from "../../../../gre/pendingChoiceSubmit";
+import { fireDelayedTriggers } from "../../../../gre/phases";
 
 const ECHO_ABILITY = "goblin-patrol-echo";
 
@@ -380,5 +384,202 @@ describe("Arc Lightning ({2}{R} — 3 damage divided as you choose, CR 601.2d / 
         const projected = projectPublicState(state, 1, "p1");
         expect(projected.players[0].life).toBe(18); // p1 took 2
         expect(projected.players[1].life).toBe(19); // p2 took 1
+    });
+});
+
+// Sneak Attack — {3}{R} Enchantment, {R}: You may put a creature card from
+// your hand onto the battlefield. That creature gains haste. Sacrifice the
+// creature at the beginning of the next end step. (CR 400.7 / 702.10 haste /
+// 603.7 delayed trigger / 701.16 sacrifice.) SHIPPED by issue #1151, which
+// closed two composability gaps: the `sacrifice` Op's existing single-object
+// `target` form now also serves a `delayedTrigger`-captured object (no
+// separate `sacrificeObject` Op needed), and `moveZone`'s choice-driven
+// `cards` shape gained a `bind` field so the entered creature can be
+// snapshotted for the haste grant + delayed capture (closing #1120 gap 3).
+// The interpreter-level combination (choice + moveZone(bind) + grantAbility +
+// delayedTrigger(capture) + sacrifice(target)) has its own permanent test in
+// `convex/gre/effects/__tests__/interpreter.test.ts` — these tests exercise
+// the REAL activated ability (cost, `useStack`) end to end.
+describe("Sneak Attack — {R}: put a creature from hand, gain haste, sacrifice at next end step (CR 400.7 / 702.10 / 603.7 / 701.16, issue #1151)", () => {
+    const SNEAK_ABILITY = "sneak-attack-put";
+
+    it("definitional: {3}{R} Enchantment with the single {R} activated ability", () => {
+        expect(sneakAttack.manaCost).toEqual({ X: 3, R: 1 });
+        expect(sneakAttack.types).toEqual(["Enchantment"]);
+        expect(sneakAttack.activatedAbilities).toHaveLength(1);
+        expect(sneakAttack.activatedAbilities?.[0].id).toBe(SNEAK_ABILITY);
+        expect(sneakAttack.activatedAbilities?.[0].cost).toEqual({
+            mana: { R: 1 },
+        });
+        expect(sneakAttack.activatedAbilities?.[0].useStack).toBe(true);
+    });
+
+    /** Pushes Sneak Attack's activated ability onto the stack from
+     *  `source` (already on the battlefield) and resolves it. */
+    function activateSneak(state: GameState, source: CardInstanceState): void {
+        state.stack.push({
+            ...source,
+            zone: "stack",
+            castById: source.controllerId,
+            abilityId: SNEAK_ABILITY,
+            targets: [],
+        });
+        resolveTopOfStack(state);
+    }
+
+    it("puts the chosen creature onto the battlefield with haste, then sacrifices EXACTLY that creature at the next end step", () => {
+        const sneak = makeInstance(sneakAttack.id, {
+            id: "sneak-perm",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const goblin = makeInstance(goblinCadets.id, {
+            id: "sneak-goblin",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [sneak],
+                    hand: [goblin],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        activateSneak(state, sneak);
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("choose-hand-card");
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["sneak-goblin"],
+        });
+        const entered = state.players[0].battlefield.find(
+            (c) => c.id === "sneak-goblin"
+        )!;
+        expect(entered).toBeDefined();
+        expect(entered.staticAbilities).toContain("haste");
+        expect(state.players[0].hand).toHaveLength(0);
+        // The exact creature was captured — not a fresh player choice at
+        // fire time.
+        expect(state.delayedTriggers).toHaveLength(1);
+        expect(state.delayedTriggers![0].payload).toEqual({
+            captured: "sneak-goblin",
+        });
+        fireDelayedTriggers(state, "next-end-step");
+        resolveTopOfStack(state);
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "sneak-goblin")
+        ).toBe(false);
+        expect(state.players[0].graveyard.map((c) => c.id)).toContain(
+            "sneak-goblin"
+        );
+        // Sneak Attack itself stays on the battlefield — only the
+        // put-in-play creature is sacrificed.
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "sneak-perm")
+        ).toBe(true);
+    });
+
+    it("declining the 'you may' leaves the hand untouched and the delayed trigger (if scheduled) is a no-op at fire time", () => {
+        const sneak = makeInstance(sneakAttack.id, {
+            id: "sneak-perm-decline",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const goblin = makeInstance(goblinCadets.id, {
+            id: "sneak-goblin-decline",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [sneak],
+                    hand: [goblin],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        activateSneak(state, sneak);
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: [],
+        });
+        expect(state.players[0].hand.map((c) => c.id)).toContain(
+            "sneak-goblin-decline"
+        );
+        expect(state.players[0].battlefield).toHaveLength(1); // just Sneak Attack
+        // `$sneak` never bound (the moveZone loop ran zero iterations), so
+        // the delayed trigger's `capture` resolves nothing — the interpreter
+        // still schedules the instance (CR 608.2b — "as much as possible" is
+        // the general Op-scheduling policy, not a per-capture gate), but its
+        // body has no captured object to act on. Whether or not an instance
+        // is present, firing it must be a complete no-op: nothing to
+        // sacrifice, nothing observable changes.
+        fireDelayedTriggers(state, "next-end-step");
+        if (state.stack.length > 0) resolveTopOfStack(state);
+        expect(state.players[0].hand.map((c) => c.id)).toContain(
+            "sneak-goblin-decline"
+        );
+        expect(state.players[0].battlefield).toHaveLength(1);
+        expect(state.players[0].graveyard).toHaveLength(0);
+    });
+
+    it("wire format: the granted haste is visible on the battlefield, and the creature reaches the public graveyard after the delayed sacrifice", () => {
+        const sneak = makeInstance(sneakAttack.id, {
+            id: "sneak-perm-wire",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const goblin = makeInstance(goblinCadets.id, {
+            id: "sneak-goblin-wire",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [sneak],
+                    hand: [goblin],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        activateSneak(state, sneak);
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["sneak-goblin-wire"],
+        });
+        const projectedBefore = projectPublicState(state, 1, "p2");
+        const slimBefore = projectedBefore.players[0].battlefield.find(
+            (c) => c.id === "sneak-goblin-wire"
+        )!;
+        expect(slimBefore.staticAbilities).toContain("haste");
+        fireDelayedTriggers(state, "next-end-step");
+        resolveTopOfStack(state);
+        const projectedAfter = projectPublicState(state, 2, "p2");
+        expect(
+            projectedAfter.players[0].battlefield.some(
+                (c) => c.id === "sneak-goblin-wire"
+            )
+        ).toBe(false);
+        expect(projectedAfter.players[0].graveyard.map((c) => c.id)).toContain(
+            "sneak-goblin-wire"
+        );
     });
 });

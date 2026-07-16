@@ -1155,8 +1155,8 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     // selector (announced slot or a bare snapshot ref like `$source`); `to` is
     // the destination zone. The source zone is inferred from the object's kind,
     // so there is no `from` field. `bind` (issue #680) snapshots the object
-    // BEFORE the move — valid only alongside `target` (the `cards` shape's
-    // picks are hidden-zone ids with no snapshot machinery).
+    // BEFORE the move — valid alongside `target` always, or alongside `cards`
+    // ONLY when `to: "battlefield"` (issue #1151, below).
     // SECOND SHAPE (issue #677, #680): `cards` (a bare choice-picks ref) +
     // `player` + `from` — the search/self-select half of a tutor/fetch/
     // graveyard-pick effect, consuming a `choice(zone: "library" | "hand" |
@@ -1165,7 +1165,11 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     // Exactly one of `target` / `cards` is required; `player`/`from` are
     // required with `cards` and invalid with `target`. `tapped` (optional) is
     // valid only alongside `cards` AND `to: "battlefield"` (Fabled Passage's
-    // forced-tapped fetch).
+    // forced-tapped fetch). `bind` (issue #1151, closing #1120 gap 3) is
+    // likewise valid alongside `cards` only with `to: "battlefield"` — it
+    // snapshots the permanent that just entered, unblocking a follow-up Op
+    // (haste grant, delayed-sacrifice capture) on a hand-sourced permanent
+    // (Sneak Attack, Cauldron Dance's hand-side clause).
     moveZone: {
         required: { to: isMoveZone },
         optional: {
@@ -1191,8 +1195,14 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
                 if (!("from" in entry)) {
                     errors.push('field "from" is required with "cards"');
                 }
-                if ("bind" in entry) {
-                    errors.push('field "bind" is not valid with "cards"');
+                // issue #1151 (closing #1120 gap 3) — `bind` snapshots the
+                // permanent that just entered the battlefield, so it only
+                // makes sense alongside `to: "battlefield"` (a library/
+                // graveyard/exile destination has no permanent to snapshot).
+                if ("bind" in entry && entry.to !== "battlefield") {
+                    errors.push(
+                        'field "bind" is only valid with "cards" and to: "battlefield"'
+                    );
                 }
                 if ("controller" in entry) {
                     errors.push('field "controller" is not valid with "cards"');

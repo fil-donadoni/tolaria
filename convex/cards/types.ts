@@ -6711,7 +6711,20 @@ export type EffectOp =
      *  setting it aside first, since a full shuffle including it then
      *  relocating it to the front yields the same distribution as shuffling
      *  the remainder and placing it on top), then this Op moves it to the
-     *  front. */
+     *  front. `bind` (issue #1151, closing #1120 gap 3) snapshots the
+     *  permanent that just entered the battlefield — valid only alongside
+     *  `to: "battlefield"` (validator-enforced) — for a follow-up Op to act on
+     *  it: a haste grant, a `delayedTrigger` capture ("You may put a creature
+     *  card from your hand onto the battlefield. That creature gains haste.
+     *  Sacrifice it at the beginning of the next end step.", Sneak Attack /
+     *  Cauldron Dance's hand-side clause). The picked-card idiom this shape
+     *  serves is always a `count: { min: 0, max: 1 }` choice, so exactly one
+     *  entry (or none) actually enters; when a future card's `choice` allows
+     *  more than one pick, `bind` snapshots the LAST permanent that entered
+     *  (each loop iteration overwrites the same binding name) — a caveat
+     *  documented here rather than validator-enforced, since the linked
+     *  `choice` Op's `count` lives in a separate Op the validator does not
+     *  cross-reference. */
     | {
           op: "moveZone";
           cards: EffectRef;
@@ -6719,6 +6732,7 @@ export type EffectOp =
           from: "library" | "hand" | "graveyard";
           to: EffectMoveZone | "library-top";
           tapped?: boolean;
+          bind?: string;
       }
     /** CR 613.4c (layer 7c, issue #840) — a temporary P/T modification that
      *  expires at a phase boundary. A thin declarative skin over the

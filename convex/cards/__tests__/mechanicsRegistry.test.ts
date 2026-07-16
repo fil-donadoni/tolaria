@@ -591,13 +591,17 @@ describe("Effect Script Op census (ADR 0045/0046, PRD #826)", () => {
         // `coinFlip` (issue #851) SHIPPED — moved to EFFECT_OP_REGISTRY (the
         // suspending reveal flip folded; the synchronous flipCoin and the
         // repeat/doubling loops stay resolve()). Migrating Goblin Kites surfaced
-        // a new gap: `sacrificeObject` (sacrifice a single bound object) is a
-        // planned backlog stub.
+        // a new gap: `sacrificeObject` (sacrifice a single bound object) was a
+        // planned backlog stub, since CLOSED (issue #1151) — not promoted to a
+        // distinct Op name, but folded into the existing `sacrifice` Op's
+        // `target` form (already shipped for Kjeldoran Elite Guard, issue
+        // #731) which now also serves a `delayedTrigger`-captured object. See
+        // the `sacrifice` row's note in EFFECT_OP_REGISTRY.
         // `scryReorder` (issue #885) SHIPPED — moved to EFFECT_OP_REGISTRY as
         // two orthogonal Ops (`scryReorder` = the choice-driven look/reorder
         // skin over orderTop; `mill` = the deterministic library→graveyard
         // loop); no longer a backlog reservation.
-        const named = ["createTokenCopy", "sacrificeObject"];
+        const named = ["createTokenCopy"];
         const backlog = new Set(EFFECT_OP_BACKLOG.map((r) => r.op));
         for (const op of named) expect(backlog.has(op), op).toBe(true);
         // …plus low-frequency long-tail reservations beyond the named set.

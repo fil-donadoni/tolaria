@@ -7908,6 +7908,12 @@
         "firstSet": "isd"
     },
     {
+        "name": "Sneak Attack",
+        "scryfallId": "d07dc95d-82a8-4a58-8ea2-d4513bd7316d",
+        "oracleId": "e7aee670-e6ac-4b3a-b3d1-7b7013db8f3d",
+        "firstSet": "usg"
+    },
+    {
         "name": "Snow Devil",
         "scryfallId": "2be3a9a5-2ac5-4ea4-915d-8cff35c0e72f",
         "oracleId": "e743b4ec-65bf-4e8d-ad87-6746a2e6ba73",

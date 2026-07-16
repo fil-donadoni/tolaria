@@ -1064,10 +1064,16 @@ export const OP_EXECUTORS: {
     //    second ability) — `tapped` forces the entering permanent tapped
     //    (Fabled Passage) via a direct `ctx.tap` immediately after entry, a
     //    simplification that skips any "as this enters tapped" replacement
-    //    interaction (none of the cube cards using it need one); every other
-    //    destination routes through `moveCardById(player, id, from, to)` (a
-    //    tutor). Skipped when the binding was never captured (no candidates,
-    //    CR 608.2b) or the player cannot be resolved.
+    //    interaction (none of the cube cards using it need one); `bind`
+    //    (issue #1151, closing #1120 gap 3, `to: "battlefield"` only)
+    //    snapshots the entered permanent so a follow-up Op can act on it — a
+    //    haste grant + `delayedTrigger` capture for the SPECIFIC creature
+    //    (Sneak Attack's "You may put a creature card from your hand onto the
+    //    battlefield. That creature gains haste. Sacrifice it at the
+    //    beginning of the next end step."); every other destination routes
+    //    through `moveCardById(player, id, from, to)` (a tutor). Skipped when
+    //    the binding was never captured (no candidates, CR 608.2b) or the
+    //    player cannot be resolved.
     //  - `target` (issue #839) — the current zone is inferred from the
     //    object's kind (a permanent is on the battlefield; a graveyard-card is
     //    in the graveyard), so the Op carries no `from`. Skipped when the
@@ -1109,6 +1115,20 @@ export const OP_EXECUTORS: {
                               : ctx.putFromLibraryOntoBattlefield(playerId, id);
                     if (entered && op.tapped) {
                         ctx.tap({ type: "permanent", id });
+                    }
+                    // issue #1151 (closing #1120 gap 3) — snapshot the
+                    // permanent that just entered so a follow-up Op (a haste
+                    // grant, a `delayedTrigger` capture) can act on it. The
+                    // picked-card idiom this shape serves is always a
+                    // `count: { min: 0, max: 1 }` choice (validator note
+                    // above), so `ids` holds at most one entry in practice;
+                    // a hypothetical multi-pick script would simply have this
+                    // binding overwritten to the LAST entered permanent.
+                    if (entered && op.bind) {
+                        bindSnapshot(ctx, op.bind, {
+                            type: "permanent",
+                            id,
+                        });
                     }
                 } else {
                     ctx.moveCardById(playerId, id, op.from, op.to);
