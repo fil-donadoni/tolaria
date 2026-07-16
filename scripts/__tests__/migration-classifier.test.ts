@@ -774,11 +774,20 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // no closure. Net: total 692→694, FREE 451→453, AFK-ready 413→415,
         // X-only unchanged (14), Op-blocked unchanged (227). Partition:
         // 453+14+227=694.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(694);
+        //
+        // #700 (planeswalker/loyalty framework, ADR 0058 — Karn/Liliana
+        // tracers) ADDED one loyalty `resolve()` closure: a tracer
+        // planeswalker's loyalty ability resolves via a card-level closure,
+        // Op-blocked (no loyalty-ability Op vocabulary yet — the framework
+        // ships `cost.loyalty` + damage→loyalty + the 0-loyalty SBA, not a
+        // migratable effect Op). Net: total 694→695, Op-blocked 227→228,
+        // FREE/AFK-ready/X-only unchanged (453/415/14). Partition:
+        // 453+14+228=695.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(695);
         expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(453);
         expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(415);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(227);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(228);
     });
 
     it("surfaces the demonstrated new-Op backlog (a covered primitive leaves it)", () => {
