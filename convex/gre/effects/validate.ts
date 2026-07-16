@@ -235,6 +235,10 @@ const TOKEN_SUPERTYPES = new Set([
 /** Valid `EffectTokenSpec.colors` members (CR 105.1, the five colors + C). */
 const TOKEN_COLORS = new Set(["W", "U", "B", "R", "G", "C"]);
 
+/** Valid `grantGraveyardPlay.zones` members (issue #1149) — which card kinds
+ *  a graveyard-cast permission grant covers. */
+const GRAVEYARD_PLAY_ZONES = new Set(["land", "spell"]);
+
 function isStringArray(value: unknown, allowed?: Set<string>): boolean {
     return (
         Array.isArray(value) &&
@@ -1116,6 +1120,22 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     // CR 602.1 / 605.1a (issue #1124) — a turn-scoped per-player "can't
     // activate non-mana abilities" lock (Abeyance). `player` names whom to lock.
     restrictActivation: { required: { player: isPlayerRef } },
+    // CR 305.1-analog / 601 (issue #1149) — grant a turn-scoped, player-wide
+    // graveyard play/cast permission (Yawgmoth's Will). `player` names the
+    // grantee; `zones` (optional, defaults to both) narrows to "land" and/or
+    // "spell"; `maxManaValue` (optional) caps the spell half.
+    grantGraveyardPlay: {
+        required: { player: isPlayerRef },
+        optional: {
+            zones: (v: unknown) => isStringArray(v, GRAVEYARD_PLAY_ZONES),
+            maxManaValue: (v: unknown) =>
+                typeof v === "number" && Number.isInteger(v) && v >= 0,
+        },
+    },
+    // CR 614 (issue #1145 / #1149) — arm a turn-scoped graveyard-bound
+    // exile-redirect grant (Yawgmoth's Will's second clause). `player` names
+    // the grantee.
+    armGraveyardRedirect: { required: { player: isPlayerRef } },
     // CR 106.1 (issue #850) — add mana to a player's mana pool. `mana` is the
     // JSON-pure per-colour amount map (WUBRGC, positive integers); `player`
     // (optional) names whose pool (default the resolving controller).

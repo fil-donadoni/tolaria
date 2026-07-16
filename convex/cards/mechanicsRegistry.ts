@@ -2451,6 +2451,20 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         note: "Impose a turn-scoped per-player \"can't activate abilities that aren't mana abilities\" restriction (CR 602.1 / 605.1a, issue #1124 — Abeyance: \"target player can't cast instant or sorcery spells, and that player can't activate abilities that aren't mana abilities\"). A thin declarative skin over the single SpellContext primitive `restrictAbilityActivation`, one execution path (ADR 0045): `player` names whom to lock. Adds the player id to `state.cannotActivateAbilitiesThisTurn`, enforced directly by the `activateAbility` mutation (`convex/game.ts`) — the ONLY mutation that handles non-mana (`useStack: true`) abilities (mana abilities go through the separate `tapUntap` mutation and are structurally exempt, so the restriction needs no explicit mana-ability carve-out) — and cleared unconditionally at CLEANUP (CR 514.2). Mirrored as a UI hint in `getStackAbilities` (`src/lib/card-utils.ts`) via the wire-projected `TriggerStateView.cannotActivateAbilitiesThisTurn`.",
     },
     {
+        op: "grantGraveyardPlay",
+        status: "implemented",
+        cr: "305.1 / 601",
+        binding: "SpellContext.grantGraveyardPlay",
+        note: "Grant a turn-scoped, player-wide permission to play lands and/or cast spells from OWN graveyard (CR 305.1-analog / 601, issue #1149 — Yawgmoth's Will: \"Until end of turn, you may play lands and cast spells from your graveyard\"). A thin declarative skin over the single SpellContext primitive `grantGraveyardPlay`, one execution path (ADR 0045): `zones` lists which card kinds the grant covers (\"land\" and/or \"spell\"; omitted = both, the Yawgmoth's Will shape), `maxManaValue` optionally caps the spell half (unused by Yawgmoth's Will — reserved for a future SCOPED grant reusing this same parametrized shape, mirroring how `grantedFlashback` generalizes Snapcaster's single-card case, per the issue's design notes). Adds/extends an entry on `state.graveyardPlayPermissionThisTurn`, read live by `canPlayLandsFromGraveyard` (the land half, unioned with the battlefield-derived `playsLandsFromGraveyard` permission, issue #1190) and by `getLegalActions` / `locateCastSource` / `castRawManaCost` / `graveyardCastStackFlags` (the spell half — a permission-cast pays the card's normal printed mana cost, no exile-on-resolve, distinct from Flashback/Escape which it defers to when either is also available). Cleared unconditionally at CLEANUP (CR 514.2), same boundary as `restrictCasting`/`restrictActivation`.",
+    },
+    {
+        op: "armGraveyardRedirect",
+        status: "implemented",
+        cr: "614.1a",
+        binding: "SpellContext.armGraveyardRedirectThisTurn",
+        note: 'Arm a turn-scoped "if a card would be put into the player\'s graveyard from anywhere this turn, exile that card instead" redirect (CR 614, issue #1145 / #1149 — Yawgmoth\'s Will\'s second clause). A thin declarative Op skin over the SpellContext primitive `armGraveyardRedirectThisTurn`, shipped as engine/replacement infra by issue #1145 (the `"graveyard-bound"` `ReplacementEventKind` + `applyGraveyardBoundReplacements` apply-loop hook, `gre/replacements.ts`) with no Op skin until #1149 needed one to keep Yawgmoth\'s Will DSL-first (ADR 0045) — no new engine logic, one execution path. Adds an entry to `state.graveyardBoundRedirectThisTurn`, consulted alongside the permanent-bound `replacementEffects[]` `"graveyard-bound"` shape (Dauthi Voidwalker) but surviving the casting spell leaving the stack (a one-shot sorcery has no battlefield presence to carry a continuous effect). Cleared unconditionally at CLEANUP (CR 514.2).',
+    },
+    {
         op: "destroy",
         status: "implemented",
         cr: "701.8",

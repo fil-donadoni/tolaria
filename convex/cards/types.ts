@@ -2312,6 +2312,21 @@ export interface SpellContext {
      *  which only ever handles non-mana (`useStack: true`) abilities — mana
      *  abilities go through `tapUntap` and are structurally unaffected. */
     restrictAbilityActivation: (playerId: string) => void;
+    /** CR 305.1-analog / 601 (issue #1149) — grants `playerId` a turn-scoped,
+     *  player-wide permission to play lands and/or cast spells from their OWN
+     *  graveyard (Yawgmoth's Will: "Until end of turn, you may play lands and
+     *  cast spells from your graveyard"). `zones` lists which card kinds the
+     *  grant covers; `maxManaValue` optionally caps the spell half. Idempotent
+     *  per player: a repeated grant UNIONS the zones and a broader
+     *  (`undefined`) `maxManaValue` always wins over a narrower one. Cleared
+     *  unconditionally at CLEANUP (CR 514.2), same boundary as
+     *  `restrictSpellCasting`. See the `grantGraveyardPlay` Op doc
+     *  (`convex/cards/types.ts`) for the full parameter shape. */
+    grantGraveyardPlay: (
+        playerId: string,
+        zones: Array<"land" | "spell">,
+        maxManaValue?: number
+    ) => void;
     /** Replaces the mana produced by `playerId`'s LANDS with {U} until end of
      *  turn (CR 614 — Deep Water: "if you tap a land you control for mana, it
      *  produces {U} instead of any other type"). The same total quantity of mana
@@ -6409,6 +6424,41 @@ export type EffectOp =
      *  and cleared at CLEANUP (CR 514.2). Skipped when the player cannot be
      *  resolved (CR 608.2b). */
     | { op: "restrictActivation"; player: EffectPlayerRef }
+    /** CR 305.1-analog / 601 (issue #1149) — grant `player` a turn-scoped,
+     *  player-wide permission to play lands and/or cast spells from their OWN
+     *  graveyard (Yawgmoth's Will: "Until end of turn, you may play lands and
+     *  cast spells from your graveyard"). A thin declarative skin over
+     *  `SpellContext.grantGraveyardPlay`, one execution path (ADR 0045).
+     *  `zones` lists which card kinds the grant covers — `"land"` and/or
+     *  `"spell"`; omitted defaults to BOTH (the Yawgmoth's Will shape).
+     *  `maxManaValue` optionally caps the SPELL half's mana value (unused by
+     *  Yawgmoth's Will — lands have no mana cost and are unaffected — but the
+     *  SAME parametrized shape a future SCOPED grant would reuse, mirroring
+     *  how `grantedFlashback` generalizes Snapcaster's single-card case).
+     *  Read live off `state.graveyardPlayPermissionThisTurn` by
+     *  `canPlayLandsFromGraveyard` (the land half) and `getLegalActions` /
+     *  `locateCastSource` (the spell half); cleared unconditionally at
+     *  CLEANUP (CR 514.2), the same boundary as `restrictCasting` /
+     *  `restrictActivation`. Skipped when the player cannot be resolved
+     *  (CR 608.2b). */
+    | {
+          op: "grantGraveyardPlay";
+          player: EffectPlayerRef;
+          zones?: Array<"land" | "spell">;
+          maxManaValue?: number;
+      }
+    /** CR 614 (issue #1145 / #1149) — arms a turn-scoped "if a card would be
+     *  put into `player`'s graveyard from anywhere this turn, exile that card
+     *  instead" redirect (Yawgmoth's Will's second clause). A thin
+     *  declarative skin over `SpellContext.armGraveyardRedirectThisTurn`
+     *  (shipped by issue #1145 as engine infra with no Op skin yet), one
+     *  execution path (ADR 0045). Distinct from a permanent-bound
+     *  `replacementEffects[]` entry with `eventKind: "graveyard-bound"`
+     *  (Dauthi Voidwalker) — that lasts only as long as its source stays on
+     *  the battlefield, while this survives the casting spell leaving the
+     *  stack. Cleared unconditionally at CLEANUP (CR 514.2). Skipped when the
+     *  player cannot be resolved (CR 608.2b). */
+    | { op: "armGraveyardRedirect"; player: EffectPlayerRef }
     /** CR 106.1 (issue #850) — add mana to a player's mana pool (a one-shot
      *  effect that produces mana: a ritual like Dark Ritual "Add {B}{B}{B}").
      *  A thin declarative skin over the SpellContext mana-add primitives

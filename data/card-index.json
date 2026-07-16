@@ -10128,6 +10128,12 @@
         "firstSet": "atq"
     },
     {
+        "name": "Yawgmoth's Will",
+        "scryfallId": "6d3e3c3a-d351-4d91-8884-312d4b6f540d",
+        "oracleId": "322f0459-f394-44f0-977b-55fd0cbe0712",
+        "firstSet": "usg"
+    },
+    {
         "name": "Ydwen Efreet",
         "scryfallId": "efdba2a9-d171-45ed-8dd4-9d0046128f68",
         "oracleId": "15b9b0cc-47ef-4147-aba7-a7adae41921b",

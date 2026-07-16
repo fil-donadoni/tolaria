@@ -1713,6 +1713,158 @@ describe("Effect Script Op: restrictActivation (CR 602.1 / 605.1a, issue #1124)"
     });
 });
 
+// New Op (issue #1149) → full per-Op regime: interpreter coverage of the
+// construct combinations it participates in (default zones / narrowed zones /
+// maxManaValue / idempotent merge), plus a wire-format assertion through
+// projectPublicState.
+describe("Effect Script Op: grantGraveyardPlay (CR 305.1-analog / 601, issue #1149)", () => {
+    it("grants the controller a broad (land + spell) graveyard-cast permission by default (Yawgmoth's Will)", () => {
+        const id = registerScript("test-op-grant-gy-broad", [
+            { op: "grantGraveyardPlay", player: "controller" },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.graveyardPlayPermissionThisTurn).toEqual([
+            {
+                playerId: "p1",
+                zones: ["land", "spell"],
+                maxManaValue: undefined,
+            },
+        ]);
+    });
+
+    it("narrows to the declared zones when provided", () => {
+        const id = registerScript("test-op-grant-gy-narrow", [
+            { op: "grantGraveyardPlay", player: "opponent", zones: ["land"] },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.graveyardPlayPermissionThisTurn).toEqual([
+            { playerId: "p2", zones: ["land"], maxManaValue: undefined },
+        ]);
+    });
+
+    it("carries an optional maxManaValue cap on the spell half", () => {
+        const id = registerScript("test-op-grant-gy-mv", [
+            {
+                op: "grantGraveyardPlay",
+                player: "controller",
+                zones: ["spell"],
+                maxManaValue: 3,
+            },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.graveyardPlayPermissionThisTurn).toEqual([
+            { playerId: "p1", zones: ["spell"], maxManaValue: 3 },
+        ]);
+    });
+
+    it("is idempotent per player — a second grant UNIONS zones, and an unlimited maxManaValue wins over a narrower one", () => {
+        const id = registerScript("test-op-grant-gy-idem", [
+            {
+                op: "grantGraveyardPlay",
+                player: "controller",
+                zones: ["spell"],
+                maxManaValue: 3,
+            },
+            { op: "grantGraveyardPlay", player: "controller", zones: ["land"] },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.graveyardPlayPermissionThisTurn).toEqual([
+            {
+                playerId: "p1",
+                zones: ["spell", "land"],
+                maxManaValue: undefined,
+            },
+        ]);
+    });
+
+    it("locks the announced player target", () => {
+        const id = registerScript(
+            "test-op-grant-gy-target",
+            [{ op: "grantGraveyardPlay", player: { target: 0 } }],
+            { targetRequirement: { type: "player", count: 1 } }
+        );
+        const state = makeState();
+        pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        expect(state.graveyardPlayPermissionThisTurn).toEqual([
+            {
+                playerId: "p2",
+                zones: ["land", "spell"],
+                maxManaValue: undefined,
+            },
+        ]);
+    });
+
+    it("the permission survives projection (wire format)", () => {
+        const id = registerScript("test-op-grant-gy-wire", [
+            { op: "grantGraveyardPlay", player: "controller" },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.graveyardPlayPermissionThisTurn).toEqual([
+            {
+                playerId: "p1",
+                zones: ["land", "spell"],
+                maxManaValue: undefined,
+            },
+        ]);
+    });
+});
+
+// New Op (issue #1145 / #1149) → full per-Op regime: interpreter coverage of
+// the construct combinations it participates in, plus a wire-format
+// assertion through projectPublicState.
+describe("Effect Script Op: armGraveyardRedirect (CR 614, issue #1145 / #1149)", () => {
+    it("arms the controller's turn-scoped graveyard-bound redirect", () => {
+        const id = registerScript("test-op-arm-gy-redirect", [
+            { op: "armGraveyardRedirect", player: "controller" },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.graveyardBoundRedirectThisTurn).toEqual([
+            { ownerId: "p1" },
+        ]);
+    });
+
+    it("locks the announced player target", () => {
+        const id = registerScript(
+            "test-op-arm-gy-redirect-target",
+            [{ op: "armGraveyardRedirect", player: { target: 0 } }],
+            { targetRequirement: { type: "player", count: 1 } }
+        );
+        const state = makeState();
+        pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        expect(state.graveyardBoundRedirectThisTurn).toEqual([
+            { ownerId: "p2" },
+        ]);
+    });
+
+    it("the redirect grant survives projection (wire format)", () => {
+        const id = registerScript("test-op-arm-gy-redirect-wire", [
+            { op: "armGraveyardRedirect", player: "controller" },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.graveyardBoundRedirectThisTurn).toEqual([
+            { ownerId: "p1" },
+        ]);
+    });
+});
+
 describe("Effect Script Op: addMana (CR 106.1, issue #850)", () => {
     it("adds fixed mana to the controller's pool by default (a ritual — Dark Ritual)", () => {
         const id = registerScript("test-op-addmana-ritual", [

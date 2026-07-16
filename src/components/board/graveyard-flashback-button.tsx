@@ -31,13 +31,19 @@ export default function GraveyardFlashbackButton({
     // button so an illegal cast is disabled rather than dispatched and rejected
     // by `assertLegalAction`.
     const enabled = card.legalActions?.includes("cast") ?? false;
-    // CR 702.34 vs 702.138 — the projection tags which graveyard-cast keyword
-    // surfaced this affordance so the label and disabled-tooltip match.
+    // CR 702.34 vs 702.138 vs 305.1-analog — the projection tags which
+    // graveyard-cast keyword surfaced this affordance so the label and
+    // disabled-tooltip match.
     const isEscape = card.castKind === "escape";
-    const label = isEscape ? "Escape" : "Flashback";
+    // CR 305.1-analog / 601 (issue #1149) — a permission cast (Yawgmoth's
+    // Will) pays the card's NORMAL printed mana cost, not an alternative one.
+    const isPermissionCast = card.castKind === "graveyard-permission";
+    const label = isEscape ? "Escape" : isPermissionCast ? "Cast" : "Flashback";
     const disabledTitle = isEscape
         ? "Can't escape yet — not your main phase, or you can't pay the escape cost (mana, or exile enough other cards from your graveyard)."
-        : "Can't flash back yet — not your main phase, or you can't pay the flashback cost (mana, sacrifice, or exile-from-hand).";
+        : isPermissionCast
+          ? "Can't cast yet — not your main phase, or you can't pay this card's mana cost."
+          : "Can't flash back yet — not your main phase, or you can't pay the flashback cost (mana, sacrifice, or exile-from-hand).";
 
     return (
         <>

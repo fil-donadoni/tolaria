@@ -92,6 +92,7 @@ import {
     findFlashbackCastable,
     getFlashbackAdditionalCost,
     getFlashbackCost,
+    hasFlashback,
 } from "./gre/flashback";
 import {
     countDistinctCardTypes,
@@ -124,6 +125,7 @@ import type {
 } from "./cards/types";
 import {
     assertLegalAction,
+    canCastFromGraveyardByPermission,
     canPlayLandsFromGraveyard,
     getLegalTargets,
     getPendingTargetSourceColors,
@@ -1297,12 +1299,32 @@ function findCastableExileCard(
  *  grant), this permission is derived live from the battlefield every call —
  *  there is nothing to check or clear on the card itself. */
 function findPlayableGraveyardLand(
+    state: GameState,
     player: PlayerState,
     instanceId: string
 ): CardInstanceState | undefined {
-    if (!canPlayLandsFromGraveyard(player)) return undefined;
+    if (!canPlayLandsFromGraveyard(state, player)) return undefined;
     const card = player.graveyard.find((c) => c.id === instanceId);
     return card && card.types.includes("Land") ? card : undefined;
+}
+
+/** CR 305.1-analog / 601 (issue #1149) — the SPELL half of the BROAD,
+ *  turn-scoped graveyard-cast permission (Yawgmoth's Will). Returns the
+ *  NON-LAND card in `player`'s graveyard matching `instanceId` while the
+ *  permission covers it, or undefined. Never returns a card that already has
+ *  Flashback/Escape — `locateCastSource` checks those first, so this is only
+ *  ever reached for a card with neither (the permission then covers it for
+ *  its normal printed mana cost). */
+function findGraveyardPermissionCastable(
+    state: GameState,
+    player: PlayerState,
+    instanceId: string
+): CardInstanceState | undefined {
+    const card = player.graveyard.find((c) => c.id === instanceId);
+    if (!card) return undefined;
+    return canCastFromGraveyardByPermission(state, player, card)
+        ? card
+        : undefined;
 }
 
 /** The zone a cast originates from (CR 601.3e). Normally the hand; exile for
@@ -1310,11 +1332,13 @@ function findPlayableGraveyardLand(
 type CastFromZone = "hand" | "exile" | "graveyard";
 
 /** Locate the card being cast and the zone it comes from — hand, exile
- *  (Ice Cauldron, CR 601.3e), or graveyard (Flashback, CR 702.34). A single
- *  choke point so every cast-commit site derives the origin identically. The
- *  `card` is undefined when the id isn't castable from any zone (callers throw
- *  "Card not in hand"). Exported so the flashback integration test can drive
- *  the REAL cast-source resolution (no convex-test harness — issue #944). */
+ *  (Ice Cauldron, CR 601.3e), or graveyard (Flashback, CR 702.34, Escape,
+ *  CR 702.138, or the BROAD graveyard-cast permission, CR 305.1-analog / 601,
+ *  issue #1149). A single choke point so every cast-commit site derives the
+ *  origin identically. The `card` is undefined when the id isn't castable
+ *  from any zone (callers throw "Card not in hand"). Exported so the
+ *  flashback integration test can drive the REAL cast-source resolution (no
+ *  convex-test harness — issue #944). */
 export function locateCastSource(
     state: GameState,
     player: PlayerState,
@@ -1329,6 +1353,14 @@ export function locateCastSource(
     // CR 702.138b — a card with escape may be cast from its owner's graveyard.
     const escape = findEscapeCastable(state, player, instanceId);
     if (escape) return { card: escape, zone: "graveyard" };
+    // CR 305.1-analog / 601 (issue #1149) — a card castable purely under the
+    // BROAD graveyard-cast permission (neither Flashback nor Escape).
+    const permissionCast = findGraveyardPermissionCastable(
+        state,
+        player,
+        instanceId
+    );
+    if (permissionCast) return { card: permissionCast, zone: "graveyard" };
     return { zone: "hand" };
 }
 
@@ -1346,12 +1378,16 @@ export function flashbackStackFlags(zone: CastFromZone): {
         : {};
 }
 
-/** CR 702.34 / 702.138 — the stack-item flags a graveyard cast adds, choosing
- *  between Flashback and Escape by the card's live capability:
+/** CR 702.34 / 702.138 / 305.1-analog — the stack-item flags a graveyard cast
+ *  adds, choosing between Escape, Flashback, and the BROAD graveyard-cast
+ *  permission by the card's live capability:
  *   - Escape (CR 702.138e): `castFromGraveyard` + `escaped` — the resulting
  *     permanent escaped. NO `exileOnResolve` (the card resolves normally).
  *   - Flashback (CR 702.34a): `castFromGraveyard` + `exileOnResolve` — the card
  *     is exiled as it leaves the stack.
+ *   - Permission cast (CR 305.1-analog / 601, issue #1149, Yawgmoth's Will):
+ *     `castFromGraveyard` only — the card resolves and lands in the graveyard
+ *     normally, exactly like a hand cast, no exile / no `escaped`.
  *  A non-graveyard cast adds nothing. Exported for the escape integration test. */
 export function graveyardCastStackFlags(
     state: GameState,
@@ -1362,13 +1398,23 @@ export function graveyardCastStackFlags(
     if (hasEscape(state, card)) {
         return { castFromGraveyard: true, escaped: true };
     }
-    return flashbackStackFlags(zone);
+    if (hasFlashback(card)) {
+        return flashbackStackFlags(zone);
+    }
+    // CR 305.1-analog / 601 (issue #1149) — neither Escape nor Flashback: this
+    // is a plain cast under the BROAD graveyard-cast permission (Yawgmoth's
+    // Will). No exile-on-resolve, no `escaped` — the card resolves and lands
+    // in the graveyard exactly like any other spell (CR 608.2m).
+    return { castFromGraveyard: true };
 }
 
 /** The mana cost a cast pays: the Escape cost or Flashback cost when cast from
  *  the graveyard (CR 702.138a / 702.34a — "rather than paying its mana cost"),
- *  else the card's printed mana cost. Exported for the flashback/escape
- *  integration tests (issue #944 pattern). */
+ *  the card's normal printed mana cost under the BROAD graveyard-cast
+ *  permission (CR 305.1-analog / 601, issue #1149 — Yawgmoth's Will pays no
+ *  alternative cost, just the printed one), else the card's printed mana cost
+ *  for a hand/exile cast. Exported for the flashback/escape integration tests
+ *  (issue #944 pattern). */
 export function castRawManaCost(
     state: GameState,
     card: CardInstanceState,
@@ -1382,7 +1428,16 @@ export function castRawManaCost(
     if (zone !== "graveyard") return getInstanceManaCost(card);
     // CR 702.138a — an escape cast pays the escape mana cost; a card never has
     // both escape and flashback, so this preference is unambiguous.
-    return getEscapeManaCost(state, card) ?? getFlashbackCost(card);
+    if (hasEscape(state, card)) return getEscapeManaCost(state, card);
+    // CR 702.34a — a Flashback cast pays the flashback mana cost, which may be
+    // ABSENT for a purely non-mana flashback (Lava Dart: "Sacrifice a
+    // Mountain", no mana portion) — `undefined` here correctly means "no mana
+    // to pay", NOT "fall back to the printed cost".
+    if (hasFlashback(card)) return getFlashbackCost(card);
+    // CR 305.1-analog / 601 (issue #1149) — neither Escape nor Flashback: a
+    // plain cast under the BROAD graveyard-cast permission (Yawgmoth's Will)
+    // pays the card's normal printed mana cost.
+    return getInstanceManaCost(card);
 }
 
 /** Resolves an activated ability's mana cost, folding in the FEM Merseine
@@ -3045,7 +3100,7 @@ export const playCard = mutation({
         const graveyardLand =
             cardInHand || exileLand
                 ? undefined
-                : findPlayableGraveyardLand(player, args.cardInstanceId);
+                : findPlayableGraveyardLand(state, player, args.cardInstanceId);
         const playSource = cardInHand ?? exileLand ?? graveyardLand;
         if (!playSource) throw new Error("Card not in hand");
         if (exileLand && !exileLand.types.includes("Land")) {

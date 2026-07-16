@@ -10,6 +10,7 @@ import { getPendingChoiceMax } from "./gre/state";
 import type { CardAction } from "./gre/types";
 import type { ActivatedAbility, ManaCost } from "./cards/types";
 import {
+    canCastFromGraveyardByPermission,
     canPlayLandsFromGraveyard,
     getLegalActions,
     phyrexianLifePipOptions,
@@ -64,19 +65,22 @@ export type SlimExileCard = SlimCardInstance & {
 
 /** Graveyard card in projected state: slim, plus `legalActions` when the viewer
  *  may cast it from the graveyard via Flashback (CR 702.34), escape (CR
- *  702.138), or play it as a LAND under an unconditional play-lands-from-
- *  graveyard permission (CR 305.1-analog, Icetill Explorer, issue #1190).
- *  Present only on the viewer's own graveyard cards; drives the Flashback /
- *  Escape / Play affordance's enabled state, exactly like
+ *  702.138), the BROAD turn-scoped graveyard-cast permission (CR 305.1-analog
+ *  / 601, Yawgmoth's Will, issue #1149), or play it as a LAND under an
+ *  unconditional play-lands-from-graveyard permission (CR 305.1-analog,
+ *  Icetill Explorer #1190, or the same BROAD #1149 permission when its zones
+ *  cover "land"). Present only on the viewer's own graveyard cards; drives the
+ *  Flashback / Escape / Cast / Play affordance's enabled state, exactly like
  *  {@link SlimExileCard.legalActions} for an exile cast. */
 export type SlimGraveyardCard = SlimCardInstance & {
     legalActions?: CardAction[];
-    /** CR 702.34 / 702.138 — which graveyard-cast keyword surfaced this card's
-     *  affordance, so the UI labels the button "Flashback" vs "Escape". Present
-     *  only alongside `legalActions` for a CAST affordance — a land tagged
-     *  under the play-from-graveyard permission carries `legalActions` with NO
-     *  `castKind` (it's a "play", not a keyword cast). */
-    castKind?: "flashback" | "escape";
+    /** CR 702.34 / 702.138 / 305.1-analog — which graveyard-cast keyword
+     *  surfaced this card's affordance, so the UI labels the button
+     *  "Flashback" / "Escape" / "Cast". Present only alongside `legalActions`
+     *  for a CAST affordance — a land tagged under a play-from-graveyard
+     *  permission carries `legalActions` with NO `castKind` (it's a "play",
+     *  not a keyword cast). */
+    castKind?: "flashback" | "escape" | "graveyard-permission";
 };
 
 /** ADR 0026 / PRD #338 — one viewer-known library card, projected sparsely.
@@ -373,6 +377,7 @@ function projectExileCard(
  *  affordance). */
 function projectGraveyardCard(
     state: GameState,
+    player: PlayerState,
     card: CardInstanceState,
     isOwnGraveyard: boolean,
     legalActionsFor: () => CardAction[],
@@ -393,6 +398,22 @@ function projectGraveyardCard(
     }
     if (isOwnGraveyard && hasEscape(state, card)) {
         return { ...slim, legalActions: legalActionsFor(), castKind: "escape" };
+    }
+    // CR 305.1-analog / 601 (issue #1149) — a NON-LAND card sitting in the
+    // viewer's own graveyard while the BROAD, turn-scoped graveyard-cast
+    // permission (Yawgmoth's Will) covers it — re-derived live every
+    // projection, so the affordance disappears the instant the permission
+    // expires (CLEANUP), no stale flag. Only reached when the card has
+    // NEITHER Flashback nor Escape (those branches above return first).
+    if (
+        isOwnGraveyard &&
+        canCastFromGraveyardByPermission(state, player, card)
+    ) {
+        return {
+            ...slim,
+            legalActions: legalActionsFor(),
+            castKind: "graveyard-permission",
+        };
     }
     // CR 305.1-analog — a LAND sitting in the viewer's own graveyard while
     // `canPlayLandsFromGraveyard` holds (re-derived live from the battlefield
@@ -628,7 +649,7 @@ export function projectPublicState(
         // CR 305.1-analog — read live off THIS player's battlefield once per
         // projection (Icetill Explorer, issue #1190); passed into every
         // graveyard card below instead of re-scanning per card.
-        const graveyardLandPlayable = canPlayLandsFromGraveyard(player);
+        const graveyardLandPlayable = canPlayLandsFromGraveyard(state, player);
         const common = {
             ...player,
             // CR 702.34 / 702.138 / 305.1-analog — the viewer's own graveyard
@@ -639,6 +660,7 @@ export function projectPublicState(
             graveyard: player.graveyard.map((c) =>
                 projectGraveyardCard(
                     state,
+                    player,
                     c,
                     player.id === viewerId,
                     () => getLegalActions(state, player, c, allActions),
@@ -805,10 +827,11 @@ export function projectFullState(
             graveyard: player.graveyard.map((c) =>
                 projectGraveyardCard(
                     state,
+                    player,
                     c,
                     true,
                     () => getLegalActions(state, player, c, allActions),
-                    canPlayLandsFromGraveyard(player)
+                    canPlayLandsFromGraveyard(state, player)
                 )
             ),
             // Full debug view has no single viewer — attach exile legalActions

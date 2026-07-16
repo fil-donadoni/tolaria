@@ -2522,6 +2522,13 @@ function tickAllDurations(state: GameState): void {
     if (view.phase === "CLEANUP" && state.graveyardBoundRedirectThisTurn) {
         state.graveyardBoundRedirectThisTurn = undefined;
     }
+    // CR 305.1-analog / 601 / 514.2 (issue #1149) — Yawgmoth's Will's
+    // turn-scoped "may play lands / cast spells from your graveyard"
+    // permission expires at end of turn, same CLEANUP-only boundary as the
+    // cast/activation locks above.
+    if (view.phase === "CLEANUP" && state.graveyardPlayPermissionThisTurn) {
+        state.graveyardPlayPermissionThisTurn = undefined;
+    }
     // ICE Gaze of Pain — the "until end of turn" floating rider expires.
     if (state.gazeOfPainActiveThisTurn) {
         state.gazeOfPainActiveThisTurn = undefined;

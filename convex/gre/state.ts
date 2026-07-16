@@ -2469,6 +2469,25 @@ export type GameState = {
      *  non-mana (`useStack: true`) activation, with no separate mana-ability
      *  branch to special-case. Cleared unconditionally at CLEANUP. */
     cannotActivateAbilitiesThisTurn?: string[];
+    /** CR 305.1-analog / 601 / 514.2 (issue #1149) — turn-scoped, player-wide
+     *  permission to play lands and/or cast spells from OWN graveyard
+     *  (Yawgmoth's Will: "Until end of turn, you may play lands and cast
+     *  spells from your graveyard"). Granted by the `grantGraveyardPlay`
+     *  Effect Script Op. `zones` names which card kinds the grant covers;
+     *  `maxManaValue` optionally caps the spell half (unused by Yawgmoth's
+     *  Will, reserved for a future scoped grant reusing this shape). Read
+     *  live by `canPlayLandsFromGraveyard` (land half, unioned with the
+     *  battlefield-derived `playsLandsFromGraveyard` permission, #1190) and
+     *  `getLegalActions` / `locateCastSource` (spell half). Distinct from the
+     *  per-instance SCOPED grant a future card (Serra Paragon, still a
+     *  tracked stub) would need — that grants ONE specific graveyard card,
+     *  not every card a player owns. Cleared unconditionally at CLEANUP
+     *  (CR 514.2), same boundary as `cannotCastSpellsThisTurn`. */
+    graveyardPlayPermissionThisTurn?: {
+        playerId: string;
+        zones: Array<"land" | "spell">;
+        maxManaValue?: number;
+    }[];
     /** Turn-scoped all-unblocked combat-damage redirects (CR 614.6 — Kjeldoran
      *  Royal Guard). Each entry redirects ALL combat damage that unblocked
      *  attackers would deal to `playerId` onto the permanent `toPermanentId`
@@ -9301,6 +9320,31 @@ export function buildSpellContext(
             const list = state.cannotActivateAbilitiesThisTurn ?? [];
             if (!list.includes(playerId)) list.push(playerId);
             state.cannotActivateAbilitiesThisTurn = list;
+        },
+
+        grantGraveyardPlay(
+            playerId: string,
+            zones: Array<"land" | "spell">,
+            maxManaValue?: number
+        ): void {
+            // CR 305.1-analog / 601 (issue #1149) — grant/extend a turn-scoped
+            // graveyard play/cast permission (Yawgmoth's Will). Idempotent per
+            // player: a repeated grant UNIONS the zones and a broader
+            // (undefined) maxManaValue always wins over a narrower cap.
+            // Cleared unconditionally at CLEANUP (CR 514.2).
+            const list = state.graveyardPlayPermissionThisTurn ?? [];
+            const existing = list.find((e) => e.playerId === playerId);
+            if (!existing) {
+                list.push({ playerId, zones: [...zones], maxManaValue });
+            } else {
+                existing.zones = Array.from(
+                    new Set([...existing.zones, ...zones])
+                ) as Array<"land" | "spell">;
+                if (maxManaValue === undefined) {
+                    existing.maxManaValue = undefined;
+                }
+            }
+            state.graveyardPlayPermissionThisTurn = list;
         },
 
         markAssignsNoCombatDamage(target: TargetSelection): void {

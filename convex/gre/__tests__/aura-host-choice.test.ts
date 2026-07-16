@@ -563,7 +563,8 @@ describe("enchant-player Aura hosts (CR 303.4, issue #1119)", () => {
         resolveTopOfStack(state);
 
         const attached = state.players[0].battlefield.find(
-            (c) => (c.card as { id?: string }).id === TEST_ENCHANT_PLAYER_AURA_ID
+            (c) =>
+                (c.card as { id?: string }).id === TEST_ENCHANT_PLAYER_AURA_ID
         );
         expect(attached).toBeDefined();
         expect(attached!.attachedTo).toBe("p2");
