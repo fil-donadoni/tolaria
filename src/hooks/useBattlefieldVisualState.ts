@@ -432,8 +432,7 @@ export function useBattlefieldVisualState(player: Player) {
             !!activeChoice &&
             bufferCtx.buffer.includes(card.id);
 
-        const isAttackTargetPw =
-            isAttackTargetBoard && isPlaneswalker(card);
+        const isAttackTargetPw = isAttackTargetBoard && isPlaneswalker(card);
 
         const interactive = isSelectingChoice
             ? isValidChoice

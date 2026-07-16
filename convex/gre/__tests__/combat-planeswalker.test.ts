@@ -9,10 +9,7 @@
 // #700's loyalty-removal path + 0-loyalty SBA (reused, not re-implemented).
 
 import { describe, it, expect } from "vitest";
-import {
-    makePlayer,
-    makeState,
-} from "../../cards/__tests__/setup";
+import { makePlayer, makeState } from "../../cards/__tests__/setup";
 import type { CardInstanceState, GameState } from "../state";
 import type { CardType } from "../../cards/types";
 import { applyAllCombatDamage, buildAutoDamageAssignments } from "../phases";
@@ -161,9 +158,9 @@ describe("combat damage → planeswalker loyalty (CR 120.3c / 509.1h, #1220)", (
         expect(
             state.players[1].battlefield.find((c) => c.id === "pw")
         ).toBeUndefined();
-        expect(
-            state.players[1].graveyard.some((c) => c.id === "pw")
-        ).toBe(true);
+        expect(state.players[1].graveyard.some((c) => c.id === "pw")).toBe(
+            true
+        );
     });
 
     it("without an attack target the same attacker still hits the defending player", () => {
@@ -179,8 +176,8 @@ describe("combat damage → planeswalker loyalty (CR 120.3c / 509.1h, #1220)", (
 
         expect(state.players[1].life).toBe(startLife - 3);
         expect(
-            state.players[1].battlefield.find((c) => c.id === "pw")
-                ?.counters?.loyalty
+            state.players[1].battlefield.find((c) => c.id === "pw")?.counters
+                ?.loyalty
         ).toBe(5);
     });
 
@@ -260,8 +257,8 @@ describe("trample over a planeswalker (CR 702.19f, #1220)", () => {
 
         // 2 lethal to the blocker, 3 excess → the planeswalker's loyalty.
         expect(
-            state.players[1].battlefield.find((c) => c.id === "pw")
-                ?.counters?.loyalty
+            state.players[1].battlefield.find((c) => c.id === "pw")?.counters
+                ?.loyalty
         ).toBe(7);
         // The blocker died; the player took no combat damage.
         expect(
