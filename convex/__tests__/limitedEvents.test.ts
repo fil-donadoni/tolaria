@@ -70,10 +70,12 @@ const getCardEvalMeta: GetCardEvalMeta = (scryfallId) => {
 const botChoosePick: ChooseBotPick = (seat, pack) =>
     chooseBotPick(pack, seat.pool ?? [], getCardEvalMeta);
 
-/** `createLimitedEvent`'s server-side gate: every packSlot must currently be
- *  Draftable. Modeled here exactly as the mutation enforces it. */
+/** `createLimitedEvent`'s server-side gate: every DISTINCT packSlot must
+ *  currently be Draftable (issue #1246: deduped, since a 3-element Draft
+ *  `packSlots` is typically the same set 3×). Modeled here exactly as the
+ *  mutation enforces it. */
 function assertPackSlotsDraftable(packSlots: string[]): void {
-    for (const setCode of packSlots) {
+    for (const setCode of new Set(packSlots)) {
         if (!isDraftableSet(setCode)) {
             throw new Error(`Set "${setCode}" is not a Draftable Set.`);
         }
@@ -216,6 +218,27 @@ describe("Limited Event: create → join → start → pools exist (PRD #1107)",
         expect(() => assertPackSlotsDraftable(["not-a-real-set"])).toThrow(
             /not a Draftable Set/
         );
+    });
+
+    // Issue #1246: `packSlots` already supports a multi-set shape (e.g. a
+    // future INV/PLS/APC block draft) — a mixed list with one Draftable and
+    // one non-Draftable entry must still be rejected, proving the gate
+    // validates EVERY distinct entry rather than short-circuiting on the
+    // first (Draftable) one it happens to check.
+    it("rejects a mixed packSlots list where only ONE distinct entry is non-Draftable (multi-set smuggling)", () => {
+        expect(() =>
+            assertPackSlotsDraftable(["lea", "not-a-real-set"])
+        ).toThrow(/not a Draftable Set/);
+        // Order shouldn't matter either.
+        expect(() =>
+            assertPackSlotsDraftable(["not-a-real-set", "lea"])
+        ).toThrow(/not a Draftable Set/);
+    });
+
+    it("accepts a mixed packSlots list where every distinct entry IS Draftable", () => {
+        expect(() =>
+            assertPackSlotsDraftable(["lea", "ice", "lea"])
+        ).not.toThrow();
     });
 
     it("rejects starting when no seats are open (join saturation)", () => {

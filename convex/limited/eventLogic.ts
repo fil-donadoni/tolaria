@@ -16,6 +16,17 @@ export const MAX_SEATS = 8;
 /** Default Sealed booster count per seat (PRD #1107 story 6). */
 export const DEFAULT_SEALED_BOOSTER_COUNT = 6;
 
+/** Fixed Draft booster count (PRD #1241 story 7, issue #1246): a classic
+ *  Draft is always three boosters — NOT admin-editable like Sealed's
+ *  `sealedBoosterCount`. The create-event path (`create-limited-event-
+ *  dialog.tsx`) emits `packSlots` as `DRAFT_BOOSTER_COUNT` copies of the
+ *  chosen set; `draftEngine.ts`'s `applyPick` already completes the draft
+ *  exactly when `packSlots.length` rounds have emptied, so this constant is
+ *  the ONLY thing standing between "draft ends after 1 booster" (the
+ *  pre-#1246 bug — a single-element `packSlots`) and a real 3-booster
+ *  draft. */
+export const DRAFT_BOOSTER_COUNT = 3;
+
 /** Builds the initial N empty Seats for a freshly-created event: every seat
  *  starts unclaimed (`userId`/`isBot` both absent) — `joinLimitedEvent` claims
  *  one per human, `startLimitedEvent` fills whichever are still empty with
