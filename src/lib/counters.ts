@@ -59,20 +59,22 @@ function toneFor(type: string): CounterDisplay["tone"] {
 export function getCounterDisplays(card: CardInstance): CounterDisplay[] {
     const counters = card.counters;
     if (!counters) return [];
-    return Object.entries(counters)
-        // CR 306.5b — loyalty counters are shown by the dedicated planeswalker
-        // loyalty badge (bottom-right), not as a generic named-counter badge.
-        .filter(([type, count]) => count > 0 && type !== "loyalty")
-        .map(([type, count]) => ({
-            type,
-            count,
-            label: isPTCounter(type) ? type : titleCase(type),
-            short: isPTCounter(type) ? type : shortToken(type),
-            tone: toneFor(type),
-        }))
-        .sort((a, b) => {
-            const ap = isPTCounter(a.type) ? 0 : 1;
-            const bp = isPTCounter(b.type) ? 0 : 1;
-            return ap - bp || a.type.localeCompare(b.type);
-        });
+    return (
+        Object.entries(counters)
+            // CR 306.5b — loyalty counters are shown by the dedicated planeswalker
+            // loyalty badge (bottom-right), not as a generic named-counter badge.
+            .filter(([type, count]) => count > 0 && type !== "loyalty")
+            .map(([type, count]) => ({
+                type,
+                count,
+                label: isPTCounter(type) ? type : titleCase(type),
+                short: isPTCounter(type) ? type : shortToken(type),
+                tone: toneFor(type),
+            }))
+            .sort((a, b) => {
+                const ap = isPTCounter(a.type) ? 0 : 1;
+                const bp = isPTCounter(b.type) ? 0 : 1;
+                return ap - bp || a.type.localeCompare(b.type);
+            })
+    );
 }

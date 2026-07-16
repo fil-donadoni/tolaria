@@ -9,5 +9,3 @@ gitaxian probe deve mostare la mano come pile di carte, il peek della mano deve 
 I target legali sul board di una spell o abilità in pila devono avere un ring, come quello che hanno i players quando sono bersagli legali
 
 L'abilità attivata di formidable speaker non è stata implementata. cerca altri casi di carte create in modo incompleto.
-
-Abbiamo detto che per brainstorm usiamo la UI di "metti carte in cima al grimorio, simil-scry

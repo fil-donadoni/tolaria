@@ -20,10 +20,7 @@ import {
 } from "../../cards/__tests__/setup";
 import { resolveTopOfStack, type GameState } from "../state";
 import { checkStateBasedActions, checkZeroLoyaltySBA } from "../sba";
-import {
-    assertLoyaltyActivationLegal,
-    payLoyaltyCost,
-} from "../../game";
+import { assertLoyaltyActivationLegal, payLoyaltyCost } from "../../game";
 import { projectPublicState } from "../../gameProjections";
 import { lightningBolt } from "../../cards/sets/lea/red";
 import { lilianaOfTheVeil } from "../../cards/sets/isd/black";
@@ -121,7 +118,10 @@ describe("0-loyalty SBA (CR 704.5i)", () => {
             counters: { loyalty: 0 },
         });
         const state = makeState({
-            players: [makePlayer("p1", { battlefield: [pw] }), makePlayer("p2")],
+            players: [
+                makePlayer("p1", { battlefield: [pw] }),
+                makePlayer("p2"),
+            ],
         });
         expect(checkZeroLoyaltySBA(state)).toBe(true);
         expect(state.players[0].battlefield).toHaveLength(0);
@@ -138,7 +138,10 @@ describe("0-loyalty SBA (CR 704.5i)", () => {
             counters: { loyalty: 1 },
         });
         const state = makeState({
-            players: [makePlayer("p1", { battlefield: [pw] }), makePlayer("p2")],
+            players: [
+                makePlayer("p1", { battlefield: [pw] }),
+                makePlayer("p2"),
+            ],
         });
         expect(checkZeroLoyaltySBA(state)).toBe(false);
         expect(state.players[0].battlefield).toHaveLength(1);
@@ -170,9 +173,7 @@ describe("loyalty-ability cost payment (CR 606.2/606.5)", () => {
 
 describe("loyalty-ability activation gates (CR 606.3/606.5)", () => {
     function stateWithPw(
-        overrides: Partial<
-            import("../state").CardInstanceState
-        > = {}
+        overrides: Partial<import("../state").CardInstanceState> = {}
     ): { state: GameState; pw: import("../state").CardInstanceState } {
         const pw = makeInstance(LILIANA, {
             id: "pw",
@@ -182,7 +183,10 @@ describe("loyalty-ability activation gates (CR 606.3/606.5)", () => {
             ...overrides,
         });
         const state = makeState({
-            players: [makePlayer("p1", { battlefield: [pw] }), makePlayer("p2")],
+            players: [
+                makePlayer("p1", { battlefield: [pw] }),
+                makePlayer("p2"),
+            ],
             phase: "PRECOMBAT_MAIN",
             activePlayerId: "p1",
             priorityPlayerId: "p1",

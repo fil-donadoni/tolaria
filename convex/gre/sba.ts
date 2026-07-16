@@ -293,8 +293,7 @@ export function checkZeroLoyaltySBA(state: GameState): boolean {
         let removed = false;
         for (const player of state.players) {
             const victim = player.battlefield.find(
-                (c) =>
-                    isPlaneswalker(c) && (c.counters?.loyalty ?? 0) <= 0
+                (c) => isPlaneswalker(c) && (c.counters?.loyalty ?? 0) <= 0
             );
             if (victim) {
                 removePermanentTo(state, victim.id, "graveyard");

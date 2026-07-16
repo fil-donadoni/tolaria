@@ -15,8 +15,7 @@ planeswalker a first-class permanent, deliberately scoped to the framework plus
 two tracer planeswalkers — combat (attacking a planeswalker), emblems, and the
 remaining Cube planeswalkers are separate follow-ups.
 
-Two originally-listed requirements are dead letters under the modern CR (ADR
-0004) and need no code:
+Two originally-listed requirements are dead letters under the modern CR (ADR 0004) and need no code:
 
 - **Uniqueness** — removed from the CR in 2017. Every planeswalker is Legendary,
   so the legend rule (ADR 0030 legend-keep SBA) already handles two-of-a-name.
