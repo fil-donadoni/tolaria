@@ -1,5 +1,6 @@
 import type { CardInstanceState, GameState } from "./state";
 import {
+    auraEnchantsPlayers,
     destroyWithReplacements,
     getOpponentId,
     processPendingActionTriggers,
@@ -134,7 +135,25 @@ export function checkAuraAttachmentSBA(state: GameState): boolean {
         for (const card of player.battlefield) {
             if (!isAura(card)) continue;
             const hostId = card.attachedTo;
-            const host = hostId ? findOnBattlefield(state, hostId) : null;
+            if (!hostId) {
+                toDetach.push(card.id);
+                continue;
+            }
+            // CR 303.4 "Enchant player" — a player is a legal host in its own
+            // right (never a battlefield object, so `findOnBattlefield` below
+            // would never find it). This engine's card pool models no
+            // player-scoped protection-from-color or cantBeEnchanted guard, so
+            // an Aura still attached to a player currently in the game (this
+            // engine never drops a player from `state.players` mid-game — CR
+            // 800.4a elimination isn't modeled) stays legally attached as
+            // long as its own restriction still names `"player"` (a
+            // text-changing effect could, in principle, rewrite it away, CR
+            // 612.6).
+            if (state.players.some((p) => p.id === hostId)) {
+                if (!auraEnchantsPlayers(card)) toDetach.push(card.id);
+                continue;
+            }
+            const host = findOnBattlefield(state, hostId);
             if (!host || !hostMatchesAuraRestriction(card, host)) {
                 toDetach.push(card.id);
                 continue;

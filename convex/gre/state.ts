@@ -3601,6 +3601,7 @@ function finalizeSpellResolution(
         if (isAura(item)) {
             const target = item.targets?.[0];
             let host: CardInstanceState | undefined;
+            let hostPlayerId: string | undefined;
 
             if (target && target.type === "graveyard-card" && target.playerId) {
                 // CR 303.4i — "enchant <card type> in a graveyard" auras
@@ -3623,15 +3624,28 @@ function finalizeSpellResolution(
                 }
             } else if (target && target.type === "permanent") {
                 host = findOnBattlefield(state, target.id)?.card;
+            } else if (target && target.type === "player") {
+                // CR 303.4 "Enchant player". The general target-legality gate
+                // (hexproof / shroud / protection-from-targeting, CR 608.2b)
+                // already re-ran in `targetLegalityGate` before this dispatch,
+                // and this engine's card pool models no player-scoped
+                // protection-from-color or cantBeEnchanted guard (CR
+                // 702.16b/303.4's restriction there is purely the enchant-type
+                // match, which the target selection already guaranteed by
+                // only offering a player when the Aura's own
+                // `targetRequirement` includes `"player"`) — so a target that
+                // survived that gate is unconditionally a legal host.
+                hostPlayerId = target.id;
             }
 
             const isLegalHost =
-                host !== undefined && isFullyLegalAuraHost(state, host, item);
-            if (!isLegalHost || host === undefined) {
+                hostPlayerId !== undefined ||
+                (host !== undefined && isFullyLegalAuraHost(state, host, item));
+            if (!isLegalHost) {
                 sendStackItemToGraveyard(state, item);
                 return;
             }
-            item.attachedTo = host.id;
+            item.attachedTo = hostPlayerId ?? host!.id;
         }
         item.zone = "battlefield";
         // CR 614.1c + 110.5b — a permanent enters tapped if its own card flag
@@ -4495,8 +4509,10 @@ export function applyExistingGrantsTo(
 /** CR 303.4 / 702.5a: a host is legal if it satisfies the aura's enchant
  *  restriction. The restriction is read from the aura's `targetRequirement`
  *  — e.g. Control Magic enchants creatures, Steal Artifact enchants
- *  artifacts. Only `CardType` restrictions are supported; `player`/`any`/
- *  `spell` targets don't make sense for an aura. */
+ *  artifacts. Only `CardType` restrictions are supported here; a `player`
+ *  restriction never matches a permanent (see `auraEnchantsPlayers` for that
+ *  branch) and `any`/`spell`/`spell-or-permanent`/`card` don't make sense for
+ *  an aura's enchant clause. */
 function isLegalAuraHost(
     host: CardInstanceState,
     aura: CardInstanceState
@@ -4520,14 +4536,37 @@ function isLegalAuraHost(
     return false;
 }
 
-/** CR 303.4 / 702.16b — the FULL host-legality predicate: `host` satisfies
- *  `aura`'s enchant restriction (`isLegalAuraHost`), is not protected from the
- *  Aura's color (CR 702.16b), and hasn't become "can't be enchanted" (Guardian
- *  Beast, CR 303.4). This is the same three-part gate the cast path applies at
- *  resolution (CR 608.2b) — factored out so the non-cast entry paths
- *  (`findAllLegalAuraHosts`, reanimation) enforce it identically instead of the
- *  type-only `isLegalAuraHost`. `aura` may be a resolving StackItem or a
- *  reanimated CardInstanceState (both carry `.card` + `types`). */
+/** CR 303.4: true if `aura`'s enchant restriction accepts a PLAYER host (an
+ *  "Enchant player" Aura — Curse-cycle style, `targetRequirement.type`
+ *  includes `"player"`). Read from the same `targetRequirement` source as
+ *  `isLegalAuraHost`'s type-match loop, just testing the branch that loop
+ *  deliberately skips. Exported for `sba.ts`'s CR 704.5m ongoing-legality
+ *  sweep, which must recognize a player-attached Aura as legitimately
+ *  attached rather than "attached to nothing on the battlefield". */
+export function auraEnchantsPlayers(aura: CardInstanceState): boolean {
+    const cardId = (aura.card as { id?: string }).id;
+    const def = cardId ? tryGetDefinition(cardId) : null;
+    const req = def?.targetRequirement;
+    if (!req) return false;
+    const types = Array.isArray(req.type) ? req.type : [req.type];
+    return types.includes("player");
+}
+
+/** CR 303.4 / 702.16b — the FULL host-legality predicate for a PERMANENT
+ *  host: `host` satisfies `aura`'s enchant restriction (`isLegalAuraHost`),
+ *  is not protected from the Aura's color (CR 702.16b), and hasn't become
+ *  "can't be enchanted" (Guardian Beast, CR 303.4). This is the same
+ *  three-part gate the cast path applies at resolution (CR 608.2b) —
+ *  factored out so the non-cast entry paths (`findAllLegalAuraHosts`,
+ *  reanimation) enforce it identically instead of the type-only
+ *  `isLegalAuraHost`. `aura` may be a resolving StackItem or a reanimated
+ *  CardInstanceState (both carry `.card` + `types`). A PLAYER host has no
+ *  permanent-shaped `CardInstanceState` to run through this predicate — see
+ *  `auraEnchantsPlayers` for that branch, applied separately by every caller
+ *  below (this engine's card pool models no protection-from-color or
+ *  cantBeEnchanted guard scoped to a player, so a still-legal player target
+ *  is unconditionally a legal host — CR 702.16b/303.4's restriction there is
+ *  purely the enchant-type match). */
 function isFullyLegalAuraHost(
     state: GameState,
     host: CardInstanceState,
@@ -4540,26 +4579,69 @@ function isFullyLegalAuraHost(
     );
 }
 
-/** CR 303.4f — every permanent on the battlefield (any controller) that is a
- *  fully-legal host for `aura`, in deterministic player/battlefield scan order.
- *  The candidate set offered when an Aura enters NOT as a cast spell and the
- *  effect doesn't name what it enchants. An Aura with an "enchant player"
- *  restriction has no permanent host and yields `[]` (CR 303.4g handles it).
- *  `excludeId` drops one permanent from consideration (an Aura can't enchant
- *  itself / a sibling Aura's own object). */
+/** A legal Aura-host candidate: either a permanent on the battlefield, or a
+ *  player (CR 303.4 "Enchant player"). `id` is the value `CardInstanceState
+ *  .attachedTo` should be set to — a battlefield permanent id or a
+ *  `PlayerState.id` respectively — so every caller below can stay agnostic
+ *  to which kind it got and just read `.id`. */
+type AuraHostCandidate =
+    | { kind: "permanent"; id: string; card: CardInstanceState }
+    | { kind: "player"; id: string };
+
+/** CR 303.4f — every legal host for `aura` (permanent OR player, deterministic
+ *  player/battlefield scan order, players listed after permanents) — the
+ *  candidate set offered when an Aura enters NOT as a cast spell and the
+ *  effect doesn't name what it enchants. An Aura with neither a matching
+ *  permanent type nor `"player"` in its restriction yields `[]` (CR 303.4g
+ *  handles it: the Aura stays wherever it is). `excludeId` drops one
+ *  permanent from consideration (an Aura can't enchant itself / a sibling
+ *  Aura's own object) — irrelevant to player candidates, an Aura is never a
+ *  player. */
 function findAllLegalAuraHosts(
     state: GameState,
     aura: CardInstanceState,
     excludeId?: string
-): CardInstanceState[] {
-    const hosts: CardInstanceState[] = [];
+): AuraHostCandidate[] {
+    const hosts: AuraHostCandidate[] = [];
     for (const player of state.players) {
         for (const host of player.battlefield) {
             if (host.id === excludeId) continue;
-            if (isFullyLegalAuraHost(state, host, aura)) hosts.push(host);
+            if (isFullyLegalAuraHost(state, host, aura)) {
+                hosts.push({ kind: "permanent", id: host.id, card: host });
+            }
+        }
+    }
+    if (auraEnchantsPlayers(aura)) {
+        for (const player of state.players) {
+            hosts.push({ kind: "player", id: player.id });
         }
     }
     return hosts;
+}
+
+/** CR 303.4f — resolves a single candidate `hostId` (as chosen from a
+ *  `findAllLegalAuraHosts` candidate set, or re-validated at `finalizeAuraHost`
+ *  time) against `aura`'s enchant restriction, returning the matching
+ *  candidate or `undefined` if `hostId` no longer names a legal host (the
+ *  permanent left the battlefield / lost eligibility, or — defensively — the
+ *  id matches neither a battlefield permanent nor a player). Shared by the
+ *  auto-attach (single-candidate) and prompted (`finalizeAuraHost`) paths so
+ *  both apply the identical gate `findAllLegalAuraHosts` used to build the
+ *  candidate set in the first place. */
+function resolveAuraHostCandidate(
+    state: GameState,
+    aura: CardInstanceState,
+    hostId: string
+): AuraHostCandidate | undefined {
+    if (auraEnchantsPlayers(aura)) {
+        const player = state.players.find((p) => p.id === hostId);
+        if (player) return { kind: "player", id: player.id };
+    }
+    const host = findOnBattlefield(state, hostId)?.card;
+    if (host && isFullyLegalAuraHost(state, host, aura)) {
+        return { kind: "permanent", id: host.id, card: host };
+    }
+    return undefined;
 }
 
 /** Applies the first matching `control-change` static effect declared on
@@ -6433,8 +6515,14 @@ export function putReanimatedSetOnBattlefield(
  *  from its origin) and enqueue the controller's "choose what to enchant" pick.
  *  Freezes priority on the chooser; the Aura enters via `finalizeAuraHost` when
  *  the choice is answered. `candidateIds` are the legal hosts computed by the
- *  caller (`findAllLegalAuraHosts`). Only called with ≥2 candidates — a 0/1-host
- *  Aura is resolved inline without a prompt (CR 303.4g / ADR 0003). */
+ *  caller (`findAllLegalAuraHosts`) — a mix of permanent ids and, for an
+ *  "Enchant player" Aura (issue #1119), player ids. Only called with ≥2
+ *  candidates — a 0/1-host Aura is resolved inline without a prompt (CR
+ *  303.4g / ADR 0003). DIVERGENCE (tracked-by: #1233): the client's
+ *  `choose-aura-host` prompt renderer currently only highlights battlefield
+ *  permanents matching `candidateIds` — a player candidate has no on-board
+ *  affordance yet. No card in the catalogue ships an untargeted "Enchant
+ *  player" Aura today, so this branch is latent, not exercised. */
 function enqueueAuraHostChoice(
     state: GameState,
     aura: CardInstanceState,
@@ -6521,12 +6609,12 @@ export function finalizeAuraHost(
         state.stagedAuraEntries = entries.length > 0 ? entries : undefined;
         const aura = entry.aura;
         const hostId = selectedIds[0];
-        const host = hostId
-            ? findOnBattlefield(state, hostId)?.card
+        const resolvedHost = hostId
+            ? resolveAuraHostCandidate(state, aura, hostId)
             : undefined;
-        if (host && isFullyLegalAuraHost(state, host, aura)) {
+        if (resolvedHost) {
             if (stageReanimatedOnBattlefield(state, aura, entry.controllerId)) {
-                aura.attachedTo = host.id;
+                aura.attachedTo = resolvedHost.id;
                 finishAuraEntry(state, aura);
             }
         } else {
