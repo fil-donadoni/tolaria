@@ -16,7 +16,6 @@ import JoinRoute from "./routes/join.route";
 import LimitedEventsRoute from "./routes/limited-events.route";
 import LimitedEventDetailRoute from "./routes/limited-event-detail.route";
 import LimitedDeckBuilderRoute from "./routes/limited-deck-builder.route";
-import PrototypePutBackRoute from "./routes/prototype/put-back/route";
 
 const rootRoute = createRootRoute({
     component: () => (
@@ -116,14 +115,6 @@ const limitedDeckBuilderRoute = createRoute({
     component: LimitedDeckBuilderRoute,
 });
 
-// PROTOTYPE (throwaway) — Brainstorm put-back picker. Delete with the route
-// folder once the real `putBack` mode + wiring land.
-const prototypePutBackRoute = createRoute({
-    getParentRoute: () => rootRoute,
-    path: "/prototype/put-back",
-    component: PrototypePutBackRoute,
-});
-
 const routeTree = rootRoute.addChildren([
     indexRoute,
     decksCreateRoute,
@@ -136,7 +127,6 @@ const routeTree = rootRoute.addChildren([
     limitedEventsRoute,
     limitedEventDetailRoute,
     limitedDeckBuilderRoute,
-    prototypePutBackRoute,
 ]);
 
 const router = createRouter({ routeTree });

@@ -188,6 +188,12 @@ export default function PendingChoicePrompt({
         return <TriggerOrderPrompt choice={choice} gameId={gameId} />;
     }
 
+    // Brainstorm's putBack pick (`choose-hand-card` + `putOnTop`) — the chooser
+    // orders cards from their OWN hand onto the library top via the full-screen
+    // `PutBackPicker` (mounted by the board). Suppress the generic banner + the
+    // in-hand toggle so they don't double up with the ordered drag surface.
+    if (choice.kind === "choose-hand-card" && choice.putOnTop) return null;
+
     // A `choose-hand-card` pick from ANOTHER player's hand (Thoughtseize /
     // Duress / Hymn to Tourach) owns its own modal picker (`HandCardPick`,
     // mounted by the board), which reuses the search-library surface + a

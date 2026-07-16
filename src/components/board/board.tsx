@@ -63,6 +63,7 @@ import PendingChoicePrompt from "./pending-choice-prompt";
 import PileDivisionPicker from "./pile-division/pile-division-picker";
 import { resolvePileDivisionCards } from "~/lib/pile-division";
 import HandCardPick from "./hand-card-pick";
+import PutBackPicker from "./put-back-picker";
 import MinimizedChoiceIndicator from "./minimized-choice-indicator";
 import MulliganPrompt from "./mulligan-prompt";
 import ErrorToast from "./error-toast";
@@ -744,6 +745,7 @@ export default function Board({
                                         />
                                     )}
                                 <HandCardPick />
+                                <PutBackPicker />
 
                                 {mulligan && !mulligan.bottoming && (
                                     <MulliganPrompt

@@ -1697,6 +1697,14 @@ export type PendingChoice = {
      *  step (`SpellContext.orderTop`) to apply the split. See
      *  {@link LibraryDestination}. */
     destination?: LibraryDestination;
+    /** Client-routing hint for a `choose-hand-card` pick that puts the chosen
+     *  cards on TOP of the chooser's library in chosen order (Brainstorm's
+     *  `putBack` Op, CR 401.4). Purely a UI discriminator: the submit path and
+     *  GRE semantics are the ordinary `choose-hand-card` (the ordered
+     *  `cardInstanceIds` ARE the resulting top order). When set, the client
+     *  mounts the ordered HAND→TOP drag picker (`PutBackPicker`) instead of the
+     *  in-hand toggle. Carried verbatim through the wire projection. */
+    putOnTop?: boolean;
     /** For `kind: "name-card"` only — the chosen card name once the chooser has
      *  submitted it (CR 202.3 / 701.x "chooses a card name"). The candidate set
      *  is the whole card registry (no zone, no `options` allow-list); the
@@ -9730,6 +9738,7 @@ export function buildSpellContext(
                 entry.candidatePlayerIds = req.candidatePlayerIds;
             }
             if (req.destination) entry.destination = req.destination;
+            if (req.putOnTop) entry.putOnTop = true;
             state.pendingChoices = [...(state.pendingChoices ?? []), entry];
             return undefined;
         },

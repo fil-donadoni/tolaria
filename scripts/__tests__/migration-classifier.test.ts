@@ -774,11 +774,20 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // no closure. Net: total 692→694, FREE 451→453, AFK-ready 413→415,
         // X-only unchanged (14), Op-blocked unchanged (227). Partition:
         // 453+14+227=694.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(694);
+        //
+        // Then Endurance ships (issue #1207 — the MH2 "choose up to one player:
+        // they put their graveyard on the bottom of their library" incarnation):
+        // it adds ONE `resolve()` closure (its trigger-time `choose-player` +
+        // `putGraveyardOnBottomOfLibrary` body). That primitive is still
+        // UNCOVERED by any Op, so the closure buckets Op-blocked, and the card
+        // carries no per-card describe of the migratable kind → FREE/AFK-ready/
+        // X-only unchanged. Net: total 694→695, Op-blocked 227→228. Partition:
+        // 453+14+228=695.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(695);
         expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(453);
         expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(415);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(227);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(228);
     });
 
     it("surfaces the demonstrated new-Op backlog (a covered primitive leaves it)", () => {

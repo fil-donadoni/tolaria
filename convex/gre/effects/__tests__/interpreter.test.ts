@@ -10247,6 +10247,21 @@ describe("Effect Script Op: putBack (CR 401.4, issue #1046)", () => {
         expect(state.pendingChoices).toBeUndefined();
     });
 
+    it("flags the raised choice `putOnTop` so the client mounts the ordered HAND→TOP picker", () => {
+        const id = registerScript("test-op-putback-flag", [
+            { op: "putBack", player: "controller", count: 2 },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { hand: handOf("p1", ["h1", "h2"]) }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        expect(resolveTopOfStack(state)).toBeNull(); // suspended
+        expect(state.pendingChoices![0].putOnTop).toBe(true);
+    });
+
     it("clamps count to hand size and no-ops (never suspends) on an empty hand; a later Op still runs", () => {
         const idClamp = registerScript("test-op-putback-clamp", [
             { op: "putBack", player: "controller", count: 5 },
@@ -10343,6 +10358,22 @@ describe("Effect Script Op: putBack (CR 401.4, issue #1046)", () => {
 
         const oppView = projectPublicState(state, 1, "p2");
         expect(oppView.players[0].library.known ?? []).toEqual([]);
+    });
+
+    it("wire format: the `putOnTop` flag survives projection so the client can route to the picker", () => {
+        const id = registerScript("test-op-putback-wire-flag", [
+            { op: "putBack", player: "controller", count: 2 },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { hand: handOf("p1", ["h1", "h2"]) }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state); // suspends
+        const casterView = projectPublicState(state, 1, "p1");
+        expect(casterView.pendingChoices?.[0]?.putOnTop).toBe(true);
     });
 
     it("puts back a target player's hand cards, not the controller's", () => {

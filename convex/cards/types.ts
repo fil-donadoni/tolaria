@@ -2603,6 +2603,13 @@ export interface SpellContext {
          *  order-only). Prefer the higher-level {@link SpellContext.orderTop},
          *  which raises this choice and applies the split for you. */
         destination?: LibraryDestination;
+        /** Client-routing hint for a `choose-hand-card` pick whose destination is
+         *  the TOP of the chooser's library, in chosen order (Brainstorm's
+         *  `putBack`, CR 401.4). Purely a UI discriminator — the submit path and
+         *  the GRE semantics are the ordinary `choose-hand-card` (the ordered
+         *  `cardInstanceIds` ARE the top order). When set, the client mounts the
+         *  ordered HAND→TOP drag picker instead of the in-hand toggle. */
+        putOnTop?: boolean;
     }) => string[] | undefined;
 
     /** Requests an optional yes/no decision with an optional mana cost
