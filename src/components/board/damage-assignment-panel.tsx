@@ -1,4 +1,5 @@
 import type { CardInstance, Combat, Player } from "~/types/game";
+import type { EmblemInstance } from "@convex/cards/types";
 import type { Id } from "@convex/_generated/dataModel";
 import type { ReactMutation } from "convex/react";
 import { useMutation } from "convex/react";
@@ -94,12 +95,19 @@ export default function DamageAssignmentPanel({
     gameId,
     playerId,
     defenderId,
+    emblems,
 }: {
     combat: Combat;
     allPlayers: Player[];
     gameId: Id<"games">;
     playerId: string;
     defenderId: string;
+    // CR 114 (issue #1221) — command-zone emblems, threaded from the parent
+    // ({@link CombatPanels}, which reads game context). Folded into the
+    // effective-power budget below, matching server-side validation. Passed as
+    // a prop rather than read via context so the panel stays renderable in
+    // isolation (its other game data — combat, allPlayers — are props too).
+    emblems?: EmblemInstance[];
 }) {
     const setDamageAssignment = useMutation(api.game.setDamageAssignment);
 
@@ -123,7 +131,10 @@ export default function DamageAssignmentPanel({
                 // setDamageAssignment. Reading the raw base power field would
                 // ignore buffs like Giant Growth and clamp the +/- buttons too
                 // low.
-                const power = Math.max(0, effectivePower(allPlayers, source));
+                const power = Math.max(
+                    0,
+                    effectivePower(allPlayers, source, emblems)
+                );
                 const hasTrample =
                     source.staticAbilities?.includes("trample") ?? false;
                 const isAttacker = combat.attackerIds.includes(sourceId);

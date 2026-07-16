@@ -11,8 +11,14 @@
 // battlefield-declaration order), and the placement helper lets each controller
 // order their own slice before the batch lands on the stack.
 
-import type { GameEvent, StateCheckEvent } from "../cards/types";
+import type {
+    EmblemInstance,
+    GameEvent,
+    PermanentView,
+    StateCheckEvent,
+} from "../cards/types";
 import { tryGetDefinition } from "../cards";
+import { tryGetEmblemDefinition } from "../cards/emblems";
 import type {
     CardInstanceState,
     DelayedTriggerInstance,
@@ -101,6 +107,55 @@ export function buildMadnessReflexiveTrigger(
         isTapped: false,
         castById: ownerId,
         madnessTrigger: card.id,
+    };
+}
+
+/** CR 114 (issue #1221) — a source-less synthetic `PermanentView` standing in
+ *  for a command-zone emblem, passed as `self` to an emblem triggered ability's
+ *  `matches` predicate. `controllerId`/`ownerId` are the emblem's owner
+ *  (CR 114.3), so a "whenever you cast a spell" predicate (comparing the event's
+ *  caster to `self.controllerId`) scopes to the emblem's owner. */
+function emblemAsTriggerSelf(emblem: EmblemInstance): PermanentView {
+    return {
+        id: emblem.id,
+        controllerId: emblem.ownerId,
+        ownerId: emblem.ownerId,
+        types: [],
+        subtypes: [],
+        isTapped: false,
+        // Registry-keyed like a card's `card.id`, for any predicate that reads
+        // the source's underlying definition.
+        card: { id: emblem.emblemId },
+    } as PermanentView;
+}
+
+/** CR 114 — builds the source-less StackItem for a triggered ability that fired
+ *  from a command-zone emblem. Mirrors `buildMadnessReflexiveTrigger`: no
+ *  battlefield permanent is spread in. `emblemSourceId` (the emblem's registry
+ *  key) tells `resolveTopOfStack` to resolve the ability from the emblem
+ *  registry; `triggerSourceId` pins the emblem instance for LKI. Controlled by
+ *  the emblem's owner. Issue #1221. */
+function buildEmblemTriggerItem(
+    state: GameState,
+    emblem: EmblemInstance,
+    triggeredAbilityId: string,
+    event: GameEvent
+): StackItem {
+    return {
+        id: allocInstanceId(state),
+        card: { id: emblem.emblemId },
+        controllerId: emblem.ownerId,
+        ownerId: emblem.ownerId,
+        zone: "stack",
+        types: [],
+        subtypes: [],
+        staticAbilities: [],
+        isTapped: false,
+        castById: emblem.ownerId,
+        triggeredAbilityId,
+        triggerSourceId: emblem.id,
+        triggerEvent: event,
+        emblemSourceId: emblem.emblemId,
     };
 }
 
@@ -224,6 +279,31 @@ export function collectTriggers(
                     if (!ability.matches(event, card, state)) continue;
                     out.push(buildTriggerItem(state, card, ability.id, event));
                 }
+            }
+        }
+    }
+
+    // CR 114 (issue #1221) — command-zone emblems' triggered abilities. Emblems
+    // have no permanent source, so they are scanned here with a synthetic
+    // owner-scoped `self`. APNAP grouping is applied later in
+    // `placeTriggersOnStack` (which buckets by `controllerId`), so collection
+    // order here need not be APNAP-perfect.
+    for (const emblem of state.emblems ?? []) {
+        const abilities = tryGetEmblemDefinition(
+            emblem.emblemId
+        )?.triggeredAbilities;
+        if (!abilities || abilities.length === 0) continue;
+        const self = emblemAsTriggerSelf(emblem);
+        for (const ability of abilities) {
+            let firedThisBatch = false;
+            for (const event of events) {
+                if (event.type !== ability.event) continue;
+                if (ability.oncePerEventBatch && firedThisBatch) continue;
+                if (!ability.matches(event, self, state)) continue;
+                firedThisBatch = true;
+                out.push(
+                    buildEmblemTriggerItem(state, emblem, ability.id, event)
+                );
             }
         }
     }

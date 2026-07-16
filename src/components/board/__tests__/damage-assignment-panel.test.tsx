@@ -6,6 +6,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, fireEvent, cleanup, within } from "@testing-library/react";
 import type { CardInstance, Combat, Player } from "~/types/game";
+import type { EmblemInstance } from "@convex/cards/types";
+import { SORIN_LORD_OF_INNISTRAD_EMBLEM_ID } from "@convex/cards/emblems";
 
 // --- Mutation capture ---
 type MutArgs = Record<string, unknown>;
@@ -111,7 +113,11 @@ function buffedScenario(powerMod: number): {
     };
 }
 
-function renderPanel(combat: Combat, allPlayers: Player[]) {
+function renderPanel(
+    combat: Combat,
+    allPlayers: Player[],
+    emblems?: EmblemInstance[]
+) {
     return render(
         <DamageAssignmentPanel
             combat={combat}
@@ -119,6 +125,7 @@ function renderPanel(combat: Combat, allPlayers: Player[]) {
             gameId={"game-id" as never}
             playerId="p1"
             defenderId="p2"
+            emblems={emblems}
         />
     );
 }
@@ -161,6 +168,26 @@ describe("DamageAssignmentPanel effective-power budget (issue #366)", () => {
         const plusButtons = getAllByText("+");
         fireEvent.click(plusButtons[1]); // try to add to unicorn
         expect(setDamageAssignment).not.toHaveBeenCalled();
+    });
+
+    // CR 114 (issue #1221) — a command-zone emblem anthem is a source-less,
+    // owner-scoped continuous static threaded into the panel via the `emblems`
+    // prop (from CombatPanels' game context). It must raise the assignable
+    // budget just like a temporary P/T mod.
+    it("folds an emblem anthem (+1/+0) into the budget (2 -> 3)", () => {
+        const sorinEmblem: EmblemInstance = {
+            id: "emblem-1",
+            ownerId: "p1",
+            emblemId: SORIN_LORD_OF_INNISTRAD_EMBLEM_ID,
+            name: "Sorin, Lord of Innistrad emblem",
+            text: "Creatures you control get +1/+0.",
+        };
+        // buffedScenario(0): base 2/1 attacker, no temporary mod.
+        const { combat, allPlayers } = buffedScenario(0);
+        const { getByText } = renderPanel(combat, allPlayers, [sorinEmblem]);
+        // Emblem lifts the effective-power budget from base 2 to 3.
+        expect(getByText(/Elvish Archers \(3 dmg\)/)).toBeTruthy();
+        expect(getByText("0/3")).toBeTruthy();
     });
 
     it("lowers the budget for a negative temporary modifier (-1/-1 -> 1)", () => {

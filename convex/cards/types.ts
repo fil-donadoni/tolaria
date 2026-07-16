@@ -1936,6 +1936,13 @@ export interface SpellContext {
         count?: number,
         createdBy?: string
     ) => string[];
+    /** CR 114 — create an emblem in the command zone, owned/controlled by
+     *  `ownerId` (CR 114.3). `emblemId` keys the emblem registry
+     *  (`convex/cards/emblems.ts`), whose definition carries the granted
+     *  continuous/triggered abilities. Appends an {@link EmblemInstance} to
+     *  `GameState.emblems`. Returns the new emblem's instance id. Throws if
+     *  `emblemId` is not registered. */
+    createEmblem: (emblemId: string, ownerId: string) => string;
     /** Records a one-shot prevention effect: the next time the given source
      *  would deal damage to `playerId`, that damage is prevented (CR 615.1,
      *  615.6). Consumed by the first matching damage event; any unused
@@ -3483,6 +3490,13 @@ export interface StaticEffectStateView {
      *  "2 plus opponents' Swamps during your turn, 2 otherwise" — can read it
      *  identically server-side and after `projectPublicState`. */
     activePlayerId?: string;
+    /** CR 114 — command-zone emblems (issue #1221). Their continuous static
+     *  abilities are collected owner-scoped by the layer system with no
+     *  permanent source. Optional/read best-effort: a top-level `GameState`
+     *  field that survives the wire projection unchanged, so an owner-scoped
+     *  anthem emblem reads identically server-side and after
+     *  `projectPublicState`. */
+    emblems?: ReadonlyArray<EmblemInstance>;
 }
 
 /** Read-only board snapshot for a `CardDefinition.entersTappedUnless`
@@ -5333,6 +5347,68 @@ export interface TapManaBonusForPotential {
         | { kind: "perProducedColor"; count: number };
 }
 
+// --- Emblems (CR 114) ---
+//
+// An emblem is an object created by a resolving spell or ability (typically a
+// planeswalker's ultimate loyalty ability) that lives in the COMMAND ZONE and
+// has no characteristics other than a set of continuous and/or triggered
+// abilities that affect the game "from outside" (CR 114.1, 114.2a). An emblem
+// can't be targeted, enchanted, equipped, destroyed, or otherwise interacted
+// with, and it stays in the command zone for the rest of the game (CR 114.4) —
+// so there is no permanent SOURCE for its abilities to leave play with.
+//
+// The abilities carry closures (`applies` / `matches` / `resolve`), so — like a
+// card definition — an emblem is stored in game state only by KEY
+// (`EmblemInstance.emblemId`); the closure-bearing definition lives in the
+// central registry (`convex/cards/emblems.ts`) and is resolved at read time by
+// the layer system (continuous abilities) and the trigger scanner (triggered
+// abilities). This keeps `GameState` JSON-pure and serializable (ADR 0046),
+// mirroring how a permanent references its `card.id`.
+
+/** The closure-bearing definition of an emblem's granted abilities (CR 114.2a).
+ *  Registered by key in `convex/cards/emblems.ts`; never stored in game state
+ *  directly (its closures aren't serializable). */
+export interface EmblemDefinition {
+    /** Stable key, referenced by `EffectOp` `{ op: "emblem", emblem }` and
+     *  `EmblemInstance.emblemId`. */
+    id: string;
+    /** Display name shown in the command zone, e.g. "Sorin, Lord of Innistrad
+     *  emblem". */
+    name: string;
+    /** Oracle text of the granted abilities, for display. */
+    text: string;
+    /** Continuous static abilities the emblem contributes (CR 114.2a, 611).
+     *  Source-less: collected by the layer system with the emblem scoped to its
+     *  owner (an owner-scoped anthem reads `source.controllerId` = the owner).
+     *  Same shape as `CardDefinition.staticEffects`. */
+    staticEffects?: StaticEffect[];
+    /** Triggered abilities the emblem contributes (CR 114.2a, 113.3, 603).
+     *  Source-less: collected by the trigger scanner scoped to the owner. Same
+     *  shape as `CardDefinition.triggeredAbilities`. */
+    triggeredAbilities?: TriggeredAbility[];
+}
+
+/** A command-zone emblem object (CR 114) as it lives in `GameState.emblems`.
+ *  Pure, serializable data — the abilities are resolved by key from the emblem
+ *  registry at read time (see {@link EmblemDefinition}). */
+export interface EmblemInstance {
+    /** Deterministic id "emblem-N" from `GameState.nextEmblemSeq`. */
+    id: string;
+    /** The player who owns and controls the emblem (CR 114.3) — its abilities'
+     *  "you" / "creatures you control". For continuous abilities this is the
+     *  synthetic source's `controllerId`; for triggered abilities the trigger's
+     *  controller. */
+    ownerId: string;
+    /** Key into the emblem registry (`convex/cards/emblems.ts`) — the analogue
+     *  of a permanent's `card.id`. */
+    emblemId: string;
+    /** Denormalized display name (from the definition) so the wire projection is
+     *  self-describing without the client resolving the registry. */
+    name: string;
+    /** Denormalized display oracle text of the granted abilities. */
+    text: string;
+}
+
 // --- Replacement effects (CR 614) ---
 //
 // Continuous effects that intercept a game event BEFORE the original action
@@ -6650,6 +6726,15 @@ export type EffectOp =
           controller: EffectPlayerRef;
           count?: EffectValue;
       }
+    /** CR 114 (issue #1221) — create an emblem in the command zone. A thin
+     *  declarative skin over the single SpellContext primitive `createEmblem`,
+     *  one execution path (ADR 0045). `emblem` is a KEY into the emblem registry
+     *  (`convex/cards/emblems.ts`); the granted continuous/triggered abilities
+     *  (closures) live there, so the Op body stays JSON-pure (ADR 0046) — the
+     *  emblem is referenced by id exactly as a token references its synthesized
+     *  card def. `controller` (default "controller") is the emblem's owner
+     *  (CR 114.3). Typically the body of a planeswalker's ultimate. */
+    | { op: "emblem"; emblem: string; controller?: EffectPlayerRef }
     /** CR 613.1b (issue #848) — change control of a permanent (layer 2). A thin
      *  declarative skin over the single SpellContext primitive `gainControl`,
      *  one execution path (ADR 0045). `target` names the permanent whose

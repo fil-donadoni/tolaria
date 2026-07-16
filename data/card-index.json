@@ -10144,5 +10144,11 @@
         "scryfallId": "152a72b1-a7b7-4e5c-8558-fab97465f549",
         "oracleId": "bc7b90b1-3517-4e5d-9bd8-68b4d8a259fd",
         "firstSet": "ice"
+    },
+    {
+        "name": "Sorin, Lord of Innistrad",
+        "scryfallId": "27bb371f-d49f-41bd-bbe0-d5e1e2067e36",
+        "oracleId": "5c780dda-ee76-482a-a610-53c321c4fdec",
+        "firstSet": "dka"
     }
 ]

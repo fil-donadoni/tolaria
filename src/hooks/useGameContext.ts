@@ -1,6 +1,7 @@
 import { createContext, useContext } from "react";
 import type { Id } from "@convex/_generated/dataModel";
 import type { Phase } from "@convex/gre/types";
+import type { EmblemInstance } from "@convex/cards/types";
 import type {
     CardInstance,
     Combat,
@@ -45,6 +46,12 @@ type GameContext = {
     cannotActivateAbilitiesThisTurn?: string[];
     gameOver?: GameOver;
     allPlayers: Player[];
+    /** CR 114 (issue #1221) — command-zone emblems, forwarded from the wire
+     *  `GameState.emblems`. Owner-scoped continuous statics (an emblem anthem)
+     *  are threaded into `effectivePower`/`effectiveToughness` so the buff shows
+     *  client-side; without this the P/T reducer recomputes without the emblem
+     *  and the buff is invisible. */
+    emblems?: EmblemInstance[];
     /** CR 702.26 — permanents currently phased out (host + attachments),
      *  flattened across all bundles. Each card keeps its `controllerId` so the
      *  battlefield renders it dimmed/inert on the controller's side rather than

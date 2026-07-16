@@ -648,6 +648,21 @@ function analyseOp(op: EffectOp, req: Requirements): void {
                 return;
             }
             return;
+        case "emblem":
+            // CR 114 (issue #1221) — creating an emblem appends one command-zone
+            // object owned by the resolved controller, a deterministic
+            // same-resolution outcome (the canned scenario seeds no emblems).
+            // A targeted / ref owner is not modelled — skip and let the card's
+            // own per-card test cover it.
+            if (
+                op.controller !== undefined &&
+                op.controller !== "controller" &&
+                op.controller !== "opponent"
+            ) {
+                req.skip ??= `Op "emblem" controller is a targeted/ref player the canned generator does not model — covered by the card's own per-card test`;
+                return;
+            }
+            return;
         case "gainControl":
             // CR 613.1b (issue #848) — a control change flips a permanent to a
             // new controller and (for a "for as long as" duration) installs a
@@ -1402,6 +1417,29 @@ const OP_ASSERTORS: Record<string, Assertor> = {
                 return {
                     ok: now === expected,
                     detail: `matching tokens ${now}, expected ${expected}`,
+                };
+            },
+        };
+    },
+    // `emblem` (CR 114, issue #1221) — a deterministic same-resolution outcome:
+    // one command-zone emblem with the named key appears in `GameState.emblems`,
+    // owned by the resolved controller (the canned scenario seeds no emblems).
+    emblem(rawOp, _scenario, pre) {
+        const op = rawOp as Extract<EffectOp, { op: "emblem" }>;
+        const ctrl = op.controller ?? "controller";
+        if (ctrl !== "controller" && ctrl !== "opponent") return null;
+        const pid = assertionPlayerId(ctrl);
+        const matches = (e: { emblemId: string; ownerId: string }) =>
+            e.emblemId === op.emblem && e.ownerId === pid;
+        const before = (pre.emblems ?? []).filter(matches).length;
+        const expected = before + 1;
+        return {
+            label: `emblem "${op.emblem}" for player ${pid} (${before}→${expected})`,
+            check: (post) => {
+                const now = (post.emblems ?? []).filter(matches).length;
+                return {
+                    ok: now === expected,
+                    detail: `matching emblems ${now}, expected ${expected}`,
                 };
             },
         };

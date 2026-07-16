@@ -10,6 +10,9 @@ import type {
     StaticEffect,
 } from "./types";
 import { cantBeEnchantedSelfGuard } from "./types";
+// CR 114 (issue #1221) — side-effect import so the emblem registry
+// (`convex/cards/emblems.ts`) is populated whenever the card catalogue loads.
+import "./emblems";
 import { expandFadingVanishing } from "./abilities/fadingVanishing";
 import { expandKeywordTriggers } from "./abilities/keywordTriggers";
 import { setCardManaCostLookup } from "./manaCostLookup";
