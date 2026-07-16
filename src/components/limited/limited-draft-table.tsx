@@ -4,9 +4,11 @@ import {
     useLimitedEventMutations,
     type LimitedEventSeatView,
 } from "~/hooks/useLimitedEvent";
+import CardZoomSlider from "~/components/lobby/deck-builder/card-zoom-slider";
+import { useCardZoom } from "~/components/lobby/deck-builder/useCardZoom";
 import LimitedDraftPack from "./limited-draft-pack";
 import LimitedDraftTimer from "./limited-draft-timer";
-import LimitedPoolView from "./limited-pool-view";
+import LimitedDraftPool from "./limited-draft-pool";
 
 /** The Draft table (PRD #1107 stories 10-13, issue #1112): the Booster in
  *  front of the viewer with a Pick button per card, how many packs are
@@ -28,6 +30,16 @@ export default function LimitedDraftTable({
     const { submitPick } = useLimitedEventMutations();
     const [pending, setPending] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    // Booster zoom slider (ADR 0060, issue #1247, PRD #1107 story 21) —
+    // mirrors the deckbuilder's per-zone `useCardZoom`/`CardZoomSlider`
+    // wiring, its own "booster" zone so it persists independently of the
+    // Pool surface's own zoom.
+    const boosterZoom = useCardZoom({
+        zone: "limited-booster",
+        min: 1,
+        max: 2.2,
+        initial: 1.2,
+    });
 
     const handlePick = async (pickId: string) => {
         if (pending) return;
@@ -55,6 +67,13 @@ export default function LimitedDraftTable({
                     Booster {round + 1} of {totalRounds}
                 </span>
                 <div className="flex items-center gap-2">
+                    <CardZoomSlider
+                        value={boosterZoom.value}
+                        min={boosterZoom.min}
+                        max={boosterZoom.max}
+                        onChange={boosterZoom.set}
+                        label="Booster card size"
+                    />
                     <LimitedDraftTimer pickDeadline={seat.pickDeadline} />
                     <span>
                         {queueCount > 0
@@ -74,13 +93,18 @@ export default function LimitedDraftTable({
                 pack={pack}
                 onPick={handlePick}
                 pending={pending}
+                zoom={boosterZoom.value}
             />
 
             <div className="border-t border-border-accent/20 pt-3">
                 <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-text-muted">
                     Your Pool ({pool.length})
                 </h3>
-                <LimitedPoolView pool={pool} />
+                <LimitedDraftPool
+                    eventId={eventId}
+                    pool={pool}
+                    arrangement={seat.poolArrangement}
+                />
             </div>
         </div>
     );

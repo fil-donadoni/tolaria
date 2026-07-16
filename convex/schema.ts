@@ -420,6 +420,24 @@ export default defineSchema({
                 // CLAUDE.md's priority-timeout pattern uses, adapted here
                 // since Convex has no cheap "cancel a scheduled job" call.
                 pickSeq: v.optional(v.number()),
+                // Pool Arrangement (ADR 0060, issue #1247): per-card Maindeck/
+                // Sideboard membership + a manual Mana-Value column override,
+                // for the continuous draft→build surface. Absent/empty means
+                // every Pool card is still at its default placement (Maindeck,
+                // auto column) — see `convex/limited/poolArrangement.ts`'s
+                // `resolvePoolPlacements`. Keyed by `poolIndex` (this seat's
+                // `pool` array position), not by card id — `pool` can hold
+                // duplicate cardIds and is append-only/never reordered, so the
+                // index is the stable per-copy identity.
+                poolArrangement: v.optional(
+                    v.array(
+                        v.object({
+                            poolIndex: v.number(),
+                            column: v.optional(v.number()),
+                            sideboard: v.optional(v.boolean()),
+                        })
+                    )
+                ),
             })
         ),
         createdAt: v.number(),

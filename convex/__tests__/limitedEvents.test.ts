@@ -38,6 +38,7 @@ import {
     assertLimitedSeatOwnership,
     resolvePoolFromEvent,
 } from "../limited/poolResolution";
+import { upsertPoolArrangementEntry } from "../limited/poolArrangement";
 import { getBoosterConfig, isDraftableSet } from "../limited/registry";
 
 const resolveCardMeta: ResolveCardMeta = (scryfallId) => {
@@ -1022,5 +1023,156 @@ describe("Limited Event completion + full-disclosure review (issue #1116): seale
             // reports `null` here for a bot seat.
             expect(botView.humanDeck).toBeNull();
         }
+    });
+});
+
+describe("Limited Event Pool Arrangement (ADR 0060, issue #1247): setPoolArrangementEntry's exact mutation-shell path", () => {
+    /** Mirrors `setPoolArrangementEntry`'s handler body exactly: derive the
+     *  caller's seatIndex from userId, bounds-check `poolIndex` against the
+     *  seat's ACTUAL Pool length, fold the patch via `upsertPoolArrangementEntry`,
+     *  and write the new seat back. No convex-test harness (project
+     *  convention, see this file's header) — this drives the same pure
+     *  sequence the mutation calls, in the same order. */
+    function applySetPoolArrangementEntry(
+        event: LimitedEventRow,
+        callerUserId: string,
+        args: { poolIndex: number; sideboard?: boolean; column?: number | null }
+    ): LimitedEventRow {
+        const seatIndex = event.seats.findIndex(
+            (s) => s.userId === callerUserId
+        );
+        if (seatIndex === -1) {
+            throw new Error("You do not have a Seat in this event.");
+        }
+        const seat = event.seats[seatIndex];
+        const poolSize = seat.pool?.length ?? 0;
+        if (
+            !Number.isInteger(args.poolIndex) ||
+            args.poolIndex < 0 ||
+            args.poolIndex >= poolSize
+        ) {
+            throw new Error("poolIndex is out of range for this seat's Pool.");
+        }
+        const nextArrangement = upsertPoolArrangementEntry(
+            seat.poolArrangement ?? [],
+            args
+        );
+        const seats = [...event.seats];
+        seats[seatIndex] = { ...seat, poolArrangement: nextArrangement };
+        return { ...event, seats, updatedAt: event.updatedAt + 1 };
+    }
+
+    function eventWithTwoSealedSeats(): LimitedEventRow {
+        return {
+            _id: "arrangement-event-1",
+            createdBy: "admin1",
+            type: "sealed",
+            status: "started",
+            seatCount: 2,
+            packSlots: ["lea"],
+            sealedBoosterCount: 6,
+            seats: [
+                {
+                    seatIndex: 0,
+                    userId: "user1",
+                    nickname: "Alice",
+                    pool: [
+                        { scryfallId: "s1", cardId: "c1", cardName: "Card One" },
+                        { scryfallId: "s2", cardId: "c2", cardName: "Card Two" },
+                    ],
+                },
+                {
+                    seatIndex: 1,
+                    userId: "user2",
+                    nickname: "Bob",
+                    pool: [
+                        {
+                            scryfallId: "s3",
+                            cardId: "c3",
+                            cardName: "Card Three",
+                        },
+                    ],
+                },
+            ],
+            createdAt: 0,
+            updatedAt: 0,
+        };
+    }
+
+    it("sideboards the caller's own card at poolIndex, persisted on their seat only", () => {
+        let event = eventWithTwoSealedSeats();
+        event = applySetPoolArrangementEntry(event, "user1", {
+            poolIndex: 1,
+            sideboard: true,
+        });
+        expect(event.seats[0].poolArrangement).toEqual([
+            { poolIndex: 1, sideboard: true },
+        ]);
+        // Bob's seat is untouched.
+        expect(event.seats[1].poolArrangement).toBeUndefined();
+    });
+
+    it("rejects a poolIndex the caller has no Seat for", () => {
+        const event = eventWithTwoSealedSeats();
+        expect(() =>
+            applySetPoolArrangementEntry(event, "no-such-user", {
+                poolIndex: 0,
+                sideboard: true,
+            })
+        ).toThrow(/do not have a Seat/);
+    });
+
+    it("rejects a poolIndex out of range for the caller's ACTUAL Pool length (defense against a stale/forged client index)", () => {
+        const event = eventWithTwoSealedSeats();
+        // Bob's pool has only 1 card (index 0) — index 5 is out of range.
+        expect(() =>
+            applySetPoolArrangementEntry(event, "user2", {
+                poolIndex: 5,
+                sideboard: true,
+            })
+        ).toThrow(/out of range/);
+        // Also rejects a negative index.
+        expect(() =>
+            applySetPoolArrangementEntry(event, "user1", {
+                poolIndex: -1,
+                sideboard: true,
+            })
+        ).toThrow(/out of range/);
+    });
+
+    it("privacy: the mutated Arrangement is visible ONLY to its own seat's viewer through projectLimitedEvent — never another seat's, even after the same patch call", () => {
+        let event = eventWithTwoSealedSeats();
+        event = applySetPoolArrangementEntry(event, "user1", {
+            poolIndex: 0,
+            column: 3,
+        });
+
+        const aliceView = projectLimitedEvent(event, "user1");
+        const aliceOwn = aliceView.seats.find((s) => s.seatIndex === 0)!;
+        expect(aliceOwn.poolArrangement).toEqual([
+            { poolIndex: 0, column: 3 },
+        ]);
+
+        const bobView = projectLimitedEvent(event, "user2");
+        const aliceFromBob = bobView.seats.find((s) => s.seatIndex === 0)!;
+        expect(aliceFromBob.poolArrangement).toBeNull();
+        // Bob's own (untouched) seat still projects to null, not [].
+        const bobOwn = bobView.seats.find((s) => s.seatIndex === 1)!;
+        expect(bobOwn.poolArrangement).toBeNull();
+    });
+
+    it("a second edit merges onto the first instead of clobbering the other dimension", () => {
+        let event = eventWithTwoSealedSeats();
+        event = applySetPoolArrangementEntry(event, "user1", {
+            poolIndex: 0,
+            column: 3,
+        });
+        event = applySetPoolArrangementEntry(event, "user1", {
+            poolIndex: 0,
+            sideboard: true,
+        });
+        expect(event.seats[0].poolArrangement).toEqual([
+            { poolIndex: 0, column: 3, sideboard: true },
+        ]);
     });
 });

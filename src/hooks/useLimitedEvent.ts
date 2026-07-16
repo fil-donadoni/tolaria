@@ -52,5 +52,9 @@ export function useLimitedEventMutations() {
     const join = useMutation(api.limitedEvents.joinLimitedEvent);
     const start = useMutation(api.limitedEvents.startLimitedEvent);
     const submitPick = useMutation(api.limitedEvents.submitPick);
-    return { create, join, start, submitPick };
+    // Pool Arrangement persistence (ADR 0060, issue #1247).
+    const setPoolArrangementEntry = useMutation(
+        api.limitedEvents.setPoolArrangementEntry
+    );
+    return { create, join, start, submitPick, setPoolArrangementEntry };
 }
