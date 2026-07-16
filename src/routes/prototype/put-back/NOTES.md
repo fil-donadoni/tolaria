@@ -9,15 +9,23 @@ Done is inert (logs the topmost-first array to the console).
 
 ## Final shape (single variant)
 
-Mounts the REAL `LibraryOrderPicker` in `distribute` mode: every card starts in
-the LEFT pool, pull exactly 2 into the RIGHT zone. The RIGHT is ONE drop area
-with internal drag-reorder (right = top, higher z + slight lateral offset) —
-identical to the scry/surveil/Portent top-zone. The only novelty vs those is that
-the LEFT pool is the HAND (scry: bottom-of-library, surveil: graveyard).
+Mounts the REAL `LibraryOrderPicker` in the new `putBack` mode: every card starts
+in the LEFT (HAND) pool, pull exactly 2 into the RIGHT (TOP OF LIBRARY) zone. The
+RIGHT is ONE drop area with internal drag-reorder (right = top, higher z + slight
+lateral offset) — identical to the scry/surveil/Portent top-zone. The only
+novelty vs those is that the LEFT pool is the HAND (scry: bottom-of-library,
+surveil: graveyard).
 
-Cosmetic-only delta vs the shipped feature: distribute mode hardcodes the labels
-BOTTOM/HAND; the real `putBack` mode reads HAND / TOP OF LIBRARY. Interaction and
-drag-reorder are already exactly right.
+`putBack` mode (implemented on `LibraryOrderPicker`) = `distribute` inverted:
+- labels HAND / TOP OF LIBRARY
+- HAND zone `detached` → wider gap from the library
+- top zone HARD-CAPPED at `keep` (drag a 3rd card in → rejected, stays in hand)
+- Done gated at exactly `keep`; `onConfirm` right array (topmost-first) is the
+  put-on-top order; left array ignored by the caller.
+
+Still TODO for the real feature (see the design spec): the `putOnTop` flag on the
+`choose-hand-card` choice + the board-side `PutBackPicker` mount + ordered submit
++ reducer walk. Delete this prototype folder once those land.
 
 (Earlier throwaway variants B/two-panel and C/click-select were dropped once A —
 corrected to a single top drop zone — was confirmed as the shape.)
