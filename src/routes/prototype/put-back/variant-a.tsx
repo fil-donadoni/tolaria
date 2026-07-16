@@ -1,14 +1,9 @@
-// PROTOTYPE Variant A — the REAL LibraryOrderPicker, proving the target shape:
-// left zone = HAND pool, ONE right zone = TOP of library (single drop area with
-// internal drag-reorder, right = top, higher z + lateral offset). This is the
-// existing scry/surveil/distribute mechanic with the left zone repurposed as the
-// hand — exactly "put 2 hand cards on top, reorder by dragging".
-//
-// Mounted here via `distribute={{ keep: 2 }}`: every card starts in the LEFT
-// (pool) zone, pull exactly 2 into the RIGHT (top) zone, reorder within it. The
-// only cosmetic delta vs the real feature is the zone labels — distribute mode
-// hardcodes BOTTOM/HAND; the shipped `putBack` mode will read HAND / TOP OF
-// LIBRARY. Interaction + drag-reorder are identical. Throwaway.
+// PROTOTYPE Variant A — the REAL LibraryOrderPicker in `putBack` mode, proving
+// the target shape: left zone = HAND pool, ONE right zone = TOP OF LIBRARY
+// (single drop area with internal drag-reorder, right = top, higher z + lateral
+// offset). Same scry/surveil mechanic with the left zone repurposed as the hand
+// — "put 2 hand cards on top, reorder by dragging". The top zone is hard-capped
+// at 2. Throwaway — the real feature mounts this exact mode from the board.
 import LibraryOrderPicker from "~/components/board/library-order/library-order-picker";
 import {
     MinimizedChoiceContext,
@@ -28,9 +23,9 @@ export default function VariantA() {
                     defId: c.defId,
                 }))}
                 destination="none"
-                prompt={`${PROMPT} (prototype: left zone = HAND, right zone = TOP — labels say BOTTOM/HAND here only because it borrows distribute mode)`}
+                prompt={PROMPT}
                 submitting={false}
-                distribute={{ keep: PUT_BACK_COUNT }}
+                putBack={{ keep: PUT_BACK_COUNT }}
                 onConfirm={(topTopmostFirst) => {
                     // Inert — the shipped picker submits this as the ordered
                     // choose-hand-card picks (topmost first).

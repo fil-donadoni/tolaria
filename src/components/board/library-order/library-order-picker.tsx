@@ -80,6 +80,7 @@ export default function LibraryOrderPicker({
     prompt,
     submitting,
     distribute,
+    putBack,
     onConfirm,
 }: {
     lookedAt: LookedAtCard[];
@@ -90,9 +91,16 @@ export default function LibraryOrderPicker({
      *  (exactly `keep` cards), the LEFT zone the ordered bottom. Omit for the
      *  scry/surveil/ponder order-top modes. */
     distribute?: { keep: number };
+    /** `putBack` mode (Brainstorm, CR 401.4): the LEFT zone is the HAND (source
+     *  pool), the RIGHT zone the TOP OF LIBRARY — pull EXACTLY `keep` cards onto
+     *  the top and order them (right = topmost). The top zone is HARD-CAPPED at
+     *  `keep`; leftover hand cards move nowhere (`onConfirm`'s second array is
+     *  ignored by the caller). Mutually exclusive with `distribute`. */
+    putBack?: { keep: number };
     /** `topTopmostFirst` = kept cards, topmost first (or the HAND cards in
-     *  `distribute` mode); `secondIds` = the rest, ordered, sent to the
-     *  destination (empty for `none`). Both are INSTANCE ids. */
+     *  `distribute` mode / the cards put on top in `putBack` mode); `secondIds`
+     *  = the rest, ordered, sent to the destination (empty for `none` and
+     *  ignored by the `putBack` caller). Both are INSTANCE ids. */
     onConfirm: (topTopmostFirst: string[], secondIds: string[]) => void;
 }) {
     // Issue #315 — collapse this full-screen picker to the board indicator so
@@ -108,8 +116,24 @@ export default function LibraryOrderPicker({
               hasSecond: true,
               detached: false,
           }
-        : chromeFor(destination);
+        : putBack
+          ? {
+                leftLabel: "HAND",
+                rightLabel: "TOP OF LIBRARY",
+                hasSecond: true,
+                // Detached so the HAND pool reads as its own zone, set apart
+                // from the library with the wider gap (GAP_DETACHED).
+                detached: true,
+            }
+          : chromeFor(destination);
     const { leftLabel, rightLabel, hasSecond, detached } = chrome;
+
+    // Both `distribute` and `putBack` are "pool" modes: every card starts in the
+    // LEFT (`second`) zone and the player pulls exactly `keep` into the RIGHT
+    // (`top`) zone. `putBack` additionally HARD-CAPS the top zone at `keep`.
+    const poolMode = distribute !== undefined || putBack !== undefined;
+    const keep = distribute?.keep ?? putBack?.keep;
+    const topCap = putBack ? putBack.keep : undefined;
 
     const defById = useMemo(
         () => Object.fromEntries(lookedAt.map((c) => [c.instanceId, c.defId])),
@@ -125,10 +149,10 @@ export default function LibraryOrderPicker({
     // zone. Dragging moves cards between the two arrays ON RELEASE only
     // (deferred commit).
     const [top, setTop] = useState<string[]>(() =>
-        distribute ? [] : [...lookedAt].reverse().map((c) => c.instanceId)
+        poolMode ? [] : [...lookedAt].reverse().map((c) => c.instanceId)
     );
     const [second, setSecond] = useState<string[]>(() =>
-        distribute ? lookedAt.map((c) => c.instanceId) : []
+        poolMode ? lookedAt.map((c) => c.instanceId) : []
     );
     const [drag, setDrag] = useState<Drag | null>(null);
 
@@ -183,8 +207,15 @@ export default function LibraryOrderPicker({
             hasSecond,
             detached
         );
-        const destZone: Zone =
+        let destZone: Zone =
             hasSecond && drag.pointerX < hit.libCenter ? "second" : "top";
+        // putBack cap (CR 401.4, exactly `keep` on top): the top zone holds at
+        // most `topCap` cards. A HAND→top drag into an already-full top is
+        // rejected (the card stays in HAND); a within-top reorder still works
+        // because `top0` excludes the dragged card, so its length is under cap.
+        if (topCap !== undefined && destZone === "top" && top0.length >= topCap) {
+            destZone = "second";
+        }
         const destArr = destZone === "second" ? second0 : top0;
         const dropIndex = insertionIndex(
             hit,
@@ -321,7 +352,7 @@ export default function LibraryOrderPicker({
     // before Done is legal (the engine enforces count = keep; gating here avoids
     // a rejected submit). order-top modes accept any split.
     const confirmDisabled =
-        submitting || (distribute ? top.length !== distribute.keep : false);
+        submitting || (keep !== undefined ? top.length !== keep : false);
 
     const handleConfirm = () => {
         if (confirmDisabled) return;
