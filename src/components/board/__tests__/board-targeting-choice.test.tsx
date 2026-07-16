@@ -22,6 +22,8 @@ import {
     DivideBufferContext,
     type DivideBuffer,
 } from "~/hooks/useDivideBuffer";
+import DivideTargetChip from "../divide-target-chip";
+import type { DivideTargetItem } from "~/hooks/useDivideTargets";
 
 // --- Mutation capture: each api.game.* ref resolves to its own spy ---
 type MutArgs = Record<string, unknown>;
@@ -255,11 +257,12 @@ describe("board targeting parity (#279)", () => {
 });
 
 // Divide-as-you-choose (CR 601.2d, Pyrokinesis): while a `divideTotal`
-// selection is active, a target is NOT click-to-select — every legal target
-// carries an on-card [−] N [+] stepper that dials the shared divide buffer, and
-// the banner "Deal damage" submits the whole split. Clicking the card itself is
-// inert (the stepper owns assignment); a normal, non-divide target still
-// dispatches selectTarget on click.
+// selection is active, a target is NOT click-to-select. The per-target
+// [−] N [+] steppers now live in the divide dialog (`DivideTargetList` /
+// `DivideTargetChip`), not on the board card, so they are no longer occluded by
+// neighbouring cards. Clicking the card itself is inert (the dialog owns
+// assignment); a normal, non-divide target still dispatches selectTarget on
+// click.
 describe("board targeting — divide-as-you-choose steppers (CR 601.2d)", () => {
     function makeDivide(overrides: Partial<DivideBuffer> = {}): DivideBuffer {
         return {
@@ -317,18 +320,42 @@ describe("board targeting — divide-as-you-choose steppers (CR 601.2d)", () => 
         expect(selectTarget).not.toHaveBeenCalled();
     });
 
-    it("renders an on-card stepper on a legal divide target and dials the buffer", () => {
+    it("no longer renders an on-card stepper on a divide target — moved to the divide dialog", () => {
+        // The divide steppers were lifted off the board into the divide dialog
+        // (`DivideTargetList` / `DivideTargetChip`) so they stop being occluded
+        // by neighbouring cards. The board card must therefore NOT carry the
+        // `[−] N [+]` stepper any more.
         const me = makePlayer("me", [creature("bear1")]);
-        const inc = vi.fn();
-        const { getByLabelText } = renderWithDivide(
+        const { queryByLabelText } = renderWithDivide(
             me,
             [me],
             divideCtx,
-            makeDivide({ inc })
+            makeDivide()
+        );
+        expect(queryByLabelText("Assign one more")).toBeNull();
+    });
+
+    it("the divide-dialog chip stepper dials the shared buffer (CR 601.2d)", () => {
+        // The stepper's old on-card assertion now lives on its new home,
+        // `DivideTargetChip`: clicking `[+]` assigns one more point to that
+        // target through the shared divide buffer. `DivideTargetChip` receives a
+        // pre-resolved `DivideTargetItem` (name already looked up), so this test
+        // exercises the stepper without touching the card registry.
+        const inc = vi.fn();
+        const item: DivideTargetItem = {
+            type: "permanent",
+            id: "bear1",
+            name: "Grizzly Bears",
+            card: creature("bear1"),
+            mine: true,
+        };
+        const { getByLabelText } = render(
+            <DivideBufferContext value={makeDivide({ inc })}>
+                <DivideTargetChip item={item} />
+            </DivideBufferContext>
         );
         fireEvent.click(getByLabelText("Assign one more"));
         expect(inc).toHaveBeenCalledWith("bear1", "permanent");
-        expect(selectTarget).not.toHaveBeenCalled();
     });
 
     it("sends NO amount for a normal (non-divide) target — regression", () => {
