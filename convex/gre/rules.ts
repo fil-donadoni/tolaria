@@ -22,6 +22,7 @@ import {
     PLACEHOLDER_CARD_ID,
     abilitiesSuppressed,
     getManaTapOptionsDetailed,
+    hasInstantSpeed,
     isLand,
     isTapLockedBySummoningSickness,
     manaValue,
@@ -90,13 +91,6 @@ const ALL_HAND_ACTIONS: CardAction[] = [
     "putToLibrary",
 ];
 
-function hasInstantTiming(card: CardInstanceState): boolean {
-    const types = card.types;
-    if (types.includes("Instant")) return true;
-    // TODO: check for Flash keyword
-    return false;
-}
-
 /** Returns the list of legal actions for a card in a player's hand. */
 export function getLegalActions(
     state: GameState,
@@ -161,9 +155,7 @@ export function getLegalActions(
         player.graveyard.some((c) => c.id === card.id) &&
         hasFlashback(card);
     if (isFlashbackCast) {
-        const baseLegal = hasInstantTiming(card)
-            ? true
-            : isSorceryTiming(state);
+        const baseLegal = hasInstantSpeed(card) ? true : isSorceryTiming(state);
         // CR 702.34a — the mana portion may be absent (Lava Dart pays only a
         // sacrifice); an empty cost is always affordable.
         const flashbackMana = getFlashbackCost(card) ?? {};
@@ -196,9 +188,7 @@ export function getLegalActions(
         player.graveyard.some((c) => c.id === card.id) &&
         hasEscape(state, card);
     if (isEscapeCast) {
-        const baseLegal = hasInstantTiming(card)
-            ? true
-            : isSorceryTiming(state);
+        const baseLegal = hasInstantSpeed(card) ? true : isSorceryTiming(state);
         if (
             baseLegal &&
             passesCastPhaseRestriction(state, card) &&
@@ -240,7 +230,7 @@ export function getLegalActions(
 
     // "Cast" is for all non-land cards
     if (!types.includes("Land")) {
-        const baseLegal = hasInstantTiming(card)
+        const baseLegal = hasInstantSpeed(card)
             ? // Instants can be cast anytime a player has priority
               true
             : // Sorcery-speed: main phase, empty stack, active player has priority

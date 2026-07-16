@@ -5,6 +5,7 @@ import { useBattlefieldInteraction } from "~/hooks/useBattlefieldInteraction";
 import { usePendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
 import { useIsPortrait } from "~/hooks/useIsPortrait";
 import { isCreature, isLand } from "~/lib/card-utils";
+import { tryGetDefinition } from "@convex/cards";
 import {
     bandedRowsLayout,
     stackFootprintWidth,
@@ -16,6 +17,7 @@ import BoardBattlefieldCard from "./board-battlefield-card";
 import type { CardVisualState } from "./battlefield-card";
 import BattlefieldStack from "./battlefield-stack";
 import CombatPanels from "./combat-panels";
+import AttachedCardsCluster from "./attached-cards-cluster";
 
 /** Two battlefield rows: creatures hold the combat line in FRONT (toward the
  *  midline), and everything noncreature — lands plus other permanents (artifacts
@@ -114,6 +116,7 @@ export default function BoardBattlefield({
     const isPortrait = useIsPortrait();
     const {
         getVisualState,
+        handleClick,
         handleClickWithEvent,
         getActivatable,
         handleActivateAbility,
@@ -189,30 +192,35 @@ export default function BoardBattlefield({
         };
     }
 
-    /** Render a single host permanent with its attached auras pinned up-and-left
-     *  (CR 303.4) — unchanged from the per-card path. A host is always "altered"
-     *  per `groupBattlefield`, so it only ever appears as a singleton group. */
+    /** Render a single host permanent with its attached auras (CR 303.4) as a
+     *  corner peek-stack BEHIND the host ({@link AttachedCardsCluster}): the
+     *  front aura sits in the top-left overhang and each further one peeks a
+     *  sliver behind it, with a ×N badge and a click-to-open pile dialog showing
+     *  every aura. Replaces the old cascade that hid all but the last aura. A
+     *  host is always "altered" per `groupBattlefield`, so it only ever appears
+     *  as a singleton group.
+     *
+     *  Each aura is still rendered via the interactive `renderCard`, so the
+     *  front card keeps its board click/target/ability affordances; the pile
+     *  dialog routes a card click to `handleClick` so an aura buried in the
+     *  stack can still be targeted (Disenchant). */
     function renderHostWithAuras(card: CardInstance): React.ReactNode {
         const auras = attachedAurasByHost.get(card.id);
         if (!auras?.length) return renderCard(card);
-        // Host slot carries its auras as overlays pinned up-and-left, so they
-        // track the host through the spring/tilt motion. The host paints last
-        // (on top); each extra aura fans further out.
+        const hostName = tryGetDefinition(card.card.id)?.name ?? "permanent";
         return (
             <div className="relative w-full h-full">
-                {auras.map((aura, i) => (
-                    <div
-                        key={aura.id}
-                        className="absolute w-full h-full"
-                        style={{
-                            top: `-${22 * (i + 1)}%`,
-                            left: `-${22 * (i + 1)}%`,
-                        }}
-                    >
-                        {renderCard(aura)}
-                    </div>
-                ))}
-                {renderCard(card)}
+                <AttachedCardsCluster
+                    cards={auras}
+                    renderMember={renderCard}
+                    interactiveMembers
+                    pileTitle={`Attached to ${hostName}`}
+                    onPileCardClick={handleClick}
+                />
+                {/* Host paints above the peek-stack (which is z-0). */}
+                <div className="relative z-10 w-full h-full">
+                    {renderCard(card)}
+                </div>
             </div>
         );
     }

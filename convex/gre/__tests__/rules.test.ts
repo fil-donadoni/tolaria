@@ -17,6 +17,7 @@ import {
 } from "../../cards/sets/lea";
 import { naturalOrder } from "../../cards/sets/vis";
 import { soulExchange } from "../../cards/sets/fem";
+import { subtlety } from "../../cards/sets/mh2/blue";
 
 // ---------------------------------------------------------------------------
 // Test helpers
@@ -139,6 +140,30 @@ describe("getLegalActions", () => {
 
             const actions = getLegalActions(state, player, lion);
             expect(actions).not.toContain("play");
+        });
+    });
+
+    describe("flash creatures (CR 702.8 — instant timing)", () => {
+        it("flash creature CAN be cast responding to an opponent's spell on the stack", () => {
+            // Regression: getLegalActions' local instant-timing helper carried a
+            // `// TODO: check for Flash keyword` and ignored the keyword, so flash
+            // permanents (Subtlety, MH2 #1205) were gated to sorcery timing and
+            // could never be flashed in on an opponent's spell. Now delegates to
+            // the canonical `hasInstantSpeed` (constants.ts).
+            const state = makeGameState({
+                stack: [
+                    {
+                        ...card(savannahLions.id, { zone: "stack" }),
+                        castById: "p2",
+                    },
+                ],
+            });
+            const player = makePlayer();
+            const flasher = card(subtlety.id);
+            expect(flasher.staticAbilities).toContain("flash");
+
+            const actions = getLegalActions(state, player, flasher);
+            expect(actions).toContain("cast");
         });
     });
 

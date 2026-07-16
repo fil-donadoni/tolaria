@@ -10,7 +10,8 @@ import CardTilt3D from "./card-tilt-3d";
 import CounterBadges from "./counter-badges";
 import PlaneswalkerLoyaltyBadge from "./planeswalker-loyalty-badge";
 import NotedManaBadge from "./noted-mana-badge";
-import ExiledAssociatedCard from "./exiled-associated-card";
+import AttachedCardsCluster from "./attached-cards-cluster";
+import ExileCastButton from "./exile-cast-button";
 import ActivatableAbilityMenu from "./activatable-ability-menu";
 import { useAbilityCardClick } from "~/hooks/useAbilityCardClick";
 
@@ -79,7 +80,7 @@ export default function BoardBattlefieldCard({
     onActivateAbility,
     phased = false,
 }: BoardBattlefieldCardProps) {
-    const { allPlayers, emblems } = useGameContext();
+    const { allPlayers, emblems, playerId } = useGameContext();
     const creature = isCreature(card);
 
     // CR 601.2d — divide-as-you-choose: a legal target of an active divide spell
@@ -251,7 +252,7 @@ export default function BoardBattlefieldCard({
             data-arrow-anchor-permanent={card.id}
             data-tapped={card.isTapped ? "true" : undefined}
             data-phased={phased ? "true" : undefined}
-            className={`w-full h-full ${vs.combatOffset} ${
+            className={`relative w-full h-full ${vs.combatOffset} ${
                 phased ? "cursor-default pointer-events-none" : cursorClass
             } transition duration-250`}
             style={{
@@ -263,10 +264,28 @@ export default function BoardBattlefieldCard({
             onPointerLeave={onPointerLeave}
             {...clickHandlers}
         >
-            {inner}
-            {associatedExiled.map((exiled) => (
-                <ExiledAssociatedCard key={exiled.id} exiledCard={exiled} />
-            ))}
+            {/* Cards held in exile by this permanent (Parallax Wave / Banishing
+                Light) render as a corner peek-stack BEHIND the host, with a pile
+                dialog on click; cast-from-exile (Ice Cauldron / Dauthi) rides on
+                each dialog card. */}
+            {associatedExiled.length > 0 && (
+                <AttachedCardsCluster
+                    cards={associatedExiled}
+                    renderMember={(exiled) => <CardImage card={exiled} />}
+                    interactiveMembers={false}
+                    pileTitle="Held in exile"
+                    renderPileAction={(exiled, onClose) =>
+                        exiled.castableFromExileBy === playerId ? (
+                            <ExileCastButton
+                                card={exiled}
+                                onCommitted={onClose}
+                            />
+                        ) : null
+                    }
+                />
+            )}
+            {/* Host paints above the peek-stack (which is z-0). */}
+            <div className="relative z-10 w-full h-full">{inner}</div>
         </div>
     );
 

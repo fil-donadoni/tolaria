@@ -188,7 +188,7 @@ describe("PlayerExile cast-from-exile (#754, CR 601.3e)", () => {
 
     it("de-duplicates a card pinned to its exiler from the Exile pile (rendered attached on the board instead)", () => {
         // A card with exiledByPermanentId is shown attached to its permanent
-        // (board-battlefield-card → ExiledAssociatedCard), so it must NOT also
+        // (board-battlefield-card → AttachedCardsCluster), so it must NOT also
         // appear in the loose Exile pile — no Cast affordance here either.
         const card = makeExiledCard(["cast"]);
         card.exiledByPermanentId = "cauldron";
