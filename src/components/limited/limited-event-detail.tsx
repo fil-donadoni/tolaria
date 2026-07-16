@@ -13,6 +13,7 @@ import LimitedEventSeatList from "./limited-event-seat-list";
 import LimitedDraftTable from "./limited-draft-table";
 import LimitedSeatPoolPanel from "./limited-seat-pool-panel";
 import LimitedVsAiPanel from "./limited-vs-ai-panel";
+import LimitedReviewPanel from "./limited-review-panel";
 
 /** One Limited Event's detail page (PRD #1107, ADR 0054/0055): the Seat list,
  *  a Join button (open events, no seat yet), a Start button (the event's
@@ -87,6 +88,18 @@ export default function LimitedEventDetail({
 
                 <LimitedEventSeatList event={event} />
 
+                {/* Event completion status (PRD #1107 story 26, issue #1116):
+                    "completed" is reached exactly when every seat has a deck
+                    (humans submitted, bots auto-built) — visible here, and
+                    it's the same flag that gates `LimitedReviewPanel` below. */}
+                {event.status === "started" && (
+                    <p className="text-xs text-text-muted">
+                        {event.completed
+                            ? "Event completed — every seat has a deck."
+                            : `${event.seatsWithDeck}/${event.seatCount} decks in.`}
+                    </p>
+                )}
+
                 <div className="flex justify-end gap-2">
                     {canJoin && (
                         <ActionButton
@@ -144,6 +157,8 @@ export default function LimitedEventDetail({
                         viewerSeatIndex={viewerSeat.seatIndex}
                     />
                 )}
+
+                <LimitedReviewPanel event={event} />
             </PanelBody>
         </Panel>
     );

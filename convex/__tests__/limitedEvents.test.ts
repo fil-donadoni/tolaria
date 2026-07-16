@@ -9,8 +9,10 @@
 import { describe, it, expect } from "vitest";
 import { resolveDeckCardMeta, tryGetDefinition } from "../cards";
 import { getCardColors } from "../cards/colors";
+import { assertDeckLegal, type GateDeck } from "../formats";
 import { manaValue } from "../gre/constants";
 import { makeRng } from "../gre/rng";
+import { computeEventCompletion } from "../limited/completion";
 import {
     applyPick,
     resolveAutoPickTimeout,
@@ -29,8 +31,13 @@ import {
 } from "../limited/eventLogic";
 import {
     projectLimitedEvent,
+    type HumanDeckView,
     type LimitedEventRow,
 } from "../limited/eventProjection";
+import {
+    assertLimitedSeatOwnership,
+    resolvePoolFromEvent,
+} from "../limited/poolResolution";
 import { getBoosterConfig, isDraftableSet } from "../limited/registry";
 
 const resolveCardMeta: ResolveCardMeta = (scryfallId) => {
@@ -742,5 +749,278 @@ describe("Limited Event Draft Timer + Auto-Pick (issue #1114, PRD #1107 stories 
             botChoosePick
         );
         expect(stalePickId).toBeNull();
+    });
+});
+
+describe("Limited Event completion + full-disclosure review (issue #1116): sealed event → build → completion → all pools readable by any participant", () => {
+    /** Mirrors `userDecks.create`'s persisted shape (`convex/userDecks.ts`) —
+     *  what the mutation would insert. `_creationTime` stands in for the
+     *  field Convex stamps automatically; `loadHumanDecksBySeat`
+     *  (`convex/limitedEvents.ts`) sorts by it to break ties. */
+    interface FakeUserDeckRow {
+        _creationTime: number;
+        format: "limited";
+        cards: { cardId: string; cardName: string }[];
+        sideboard: { cardId: string; cardName: string }[];
+        colors: string[];
+        limitedEventId: string;
+        limitedSeatId: string;
+    }
+
+    /** Builds a Limited-legal deck straight from a seat's Pool — the exact
+     *  main/side split `limitedDeckbuild.test.ts` uses (≥40 Maindeck padded
+     *  with the Pool's own basics, everything else to the Sideboard). */
+    function buildLegalDeckFromPool(
+        pool: readonly { cardId: string; cardName: string }[]
+    ): {
+        cards: { cardId: string; cardName: string }[];
+        sideboard: {
+            cardId: string;
+            cardName: string;
+        }[];
+    } {
+        const nonBasic = pool.filter(
+            (c) => resolveDeckCardMeta(c.cardId)?.isBasic !== true
+        );
+        const basic = pool.find(
+            (c) => resolveDeckCardMeta(c.cardId)?.isBasic === true
+        )!;
+        const mainCount = Math.min(30, nonBasic.length);
+        const mainFromPool = nonBasic.slice(0, mainCount);
+        const sideFromPool = nonBasic.slice(mainCount);
+        const basicsNeeded = Math.max(0, 40 - mainFromPool.length);
+        return {
+            cards: [
+                ...mainFromPool,
+                ...Array.from({ length: basicsNeeded }, () => ({
+                    cardId: basic.cardId,
+                    cardName: basic.cardName,
+                })),
+            ],
+            sideboard: sideFromPool,
+        };
+    }
+
+    /** Mirrors `loadHumanDecksBySeat` (`convex/limitedEvents.ts`) against a
+     *  plain in-memory row list, since there is no convex-test harness to
+     *  drive the real DB-backed query through. */
+    function humanDecksBySeatFrom(
+        rows: readonly FakeUserDeckRow[]
+    ): Map<number, HumanDeckView> {
+        const bySeat = new Map<number, HumanDeckView>();
+        for (const row of [...rows].sort(
+            (a, b) => b._creationTime - a._creationTime
+        )) {
+            const seatIndex = Number(row.limitedSeatId);
+            if (!Number.isInteger(seatIndex) || bySeat.has(seatIndex)) {
+                continue;
+            }
+            bySeat.set(seatIndex, {
+                cards: row.cards,
+                sideboard: row.sideboard,
+                colors: row.colors,
+            });
+        }
+        return bySeat;
+    }
+
+    it("a 3-seat sealed event (2 humans, 1 bot) completes exactly when both humans submit, then every pool + deck is readable by any participant", () => {
+        // 1. createLimitedEvent — a 3-seat Sealed LEA event.
+        const packSlots = ["lea"];
+        assertPackSlotsDraftable(packSlots);
+        let event: LimitedEventRow = {
+            _id: "completion-event-1",
+            createdBy: "admin1",
+            type: "sealed",
+            status: "open",
+            seatCount: 3,
+            packSlots,
+            sealedBoosterCount: 6,
+            seats: buildEmptySeats(3),
+            createdAt: 0,
+            updatedAt: 0,
+        };
+
+        // 2. joinLimitedEvent — Alice and Bob take seats 0/1; seat 2 stays
+        // open and becomes a Bot Drafter at start.
+        event = {
+            ...event,
+            seats: assignFreeSeat(event.seats, "user1", "Alice"),
+        };
+        event = {
+            ...event,
+            seats: assignFreeSeat(event.seats, "user2", "Bob"),
+        };
+
+        // 3. startLimitedEvent — bot fills seat 2, every seat's Pool is
+        // dealt in full (Sealed: final the instant the event starts).
+        const filled = fillBotSeats(event.seats);
+        const seededSeats = generateSealedPools(
+            filled,
+            event.packSlots,
+            event.sealedBoosterCount!,
+            getBoosterConfig,
+            resolveCardMeta,
+            makeRng(2026)
+        );
+        event = { ...event, seats: seededSeats, status: "started" };
+        const aliceSeat = event.seats.find((s) => s.userId === "user1")!;
+        const bobSeat = event.seats.find((s) => s.userId === "user2")!;
+        const botSeat = event.seats.find((s) => s.isBot)!;
+
+        const eventContext = {
+            type: event.type,
+            status: event.status,
+            draftCompletedAt: event.draftCompletedAt,
+        };
+
+        // 4. BEFORE either human submits a deck: not completed, and the
+        // projection STILL strips every other seat's Pool (the "strips
+        // during" direction) — even though the bot's Pool is already final.
+        let deckRows: FakeUserDeckRow[] = [];
+        let completion = computeEventCompletion(
+            event.seats,
+            eventContext,
+            (seatIndex) => humanDecksBySeatFrom(deckRows).has(seatIndex)
+        );
+        expect(completion.completed).toBe(false);
+        expect(completion.seatsWithDeck).toBe(1); // only the bot seat counts so far
+
+        let view = projectLimitedEvent(
+            event,
+            "user1",
+            completion.completed,
+            completion.seatsWithDeck,
+            humanDecksBySeatFrom(deckRows)
+        );
+        expect(view.completed).toBe(false);
+        const bobViewBefore = view.seats.find((s) => s.seatIndex === 1)!;
+        expect(bobViewBefore.pool).toBeNull();
+        expect(bobViewBefore.humanDeck).toBeNull();
+
+        // 5. Alice builds + submits her deck — `userDecks.create`'s exact
+        // seat-ownership gate, then the persisted row.
+        expect(() =>
+            assertLimitedSeatOwnership(
+                event,
+                String(aliceSeat.seatIndex),
+                "user1"
+            )
+        ).not.toThrow();
+        const aliceDeck = buildLegalDeckFromPool(aliceSeat.pool!);
+        deckRows = [
+            ...deckRows,
+            {
+                _creationTime: 10,
+                format: "limited",
+                cards: aliceDeck.cards,
+                sideboard: aliceDeck.sideboard,
+                colors: ["R"],
+                limitedEventId: event._id,
+                limitedSeatId: String(aliceSeat.seatIndex),
+            },
+        ];
+        // Alice's own deck is also a REAL legal deck through the
+        // authoritative game-start gate — completion tracks EXISTENCE, but
+        // this proves the deck built along the way is a genuine playable one.
+        const resolvePoolAlice = () =>
+            resolvePoolFromEvent(event, String(aliceSeat.seatIndex));
+        const aliceGateDeck: GateDeck = {
+            name: "Alice's Sealed Deck",
+            format: "limited",
+            cards: aliceDeck.cards,
+            sideboard: aliceDeck.sideboard,
+            limitedEventId: event._id,
+            limitedSeatId: String(aliceSeat.seatIndex),
+        };
+        expect(() =>
+            assertDeckLegal(
+                aliceGateDeck,
+                undefined,
+                undefined,
+                resolvePoolAlice
+            )
+        ).not.toThrow();
+
+        // 6. Still not completed — Bob hasn't submitted yet.
+        completion = computeEventCompletion(
+            event.seats,
+            eventContext,
+            (seatIndex) => humanDecksBySeatFrom(deckRows).has(seatIndex)
+        );
+        expect(completion.completed).toBe(false);
+        expect(completion.seatsWithDeck).toBe(2); // Alice + the bot
+
+        // 7. Bob builds + submits his deck too.
+        expect(() =>
+            assertLimitedSeatOwnership(
+                event,
+                String(bobSeat.seatIndex),
+                "user2"
+            )
+        ).not.toThrow();
+        const bobDeck = buildLegalDeckFromPool(bobSeat.pool!);
+        deckRows = [
+            ...deckRows,
+            {
+                _creationTime: 20,
+                format: "limited",
+                cards: bobDeck.cards,
+                sideboard: bobDeck.sideboard,
+                colors: ["U"],
+                limitedEventId: event._id,
+                limitedSeatId: String(bobSeat.seatIndex),
+            },
+        ];
+
+        // 8. NOW every seat has a deck (Alice + Bob submitted, the bot was
+        // free the whole time) — the event is completed.
+        const humanDecksBySeat = humanDecksBySeatFrom(deckRows);
+        completion = computeEventCompletion(
+            event.seats,
+            eventContext,
+            (seatIndex) => humanDecksBySeat.has(seatIndex)
+        );
+        expect(completion.completed).toBe(true);
+        expect(completion.seatsWithDeck).toBe(3);
+
+        // 9. The "reveals at completion" direction: EVERY seat's Pool AND
+        // human Deck are now readable by ANY participant — Alice's view,
+        // Bob's view, AND a non-participant outsider's view all agree.
+        for (const viewerId of ["user1", "user2", "outsider-user"]) {
+            view = projectLimitedEvent(
+                event,
+                viewerId,
+                completion.completed,
+                completion.seatsWithDeck,
+                humanDecksBySeat
+            );
+            expect(view.completed).toBe(true);
+            expect(view.seatsWithDeck).toBe(3);
+
+            const aliceView = view.seats.find((s) => s.seatIndex === 0)!;
+            const bobView = view.seats.find((s) => s.seatIndex === 1)!;
+            const botView = view.seats.find((s) => s.seatIndex === 2)!;
+
+            expect(aliceView.pool).toEqual(aliceSeat.pool);
+            expect(bobView.pool).toEqual(bobSeat.pool);
+            expect(botView.pool).toEqual(botSeat.pool);
+
+            expect(aliceView.humanDeck).toEqual({
+                cards: aliceDeck.cards,
+                sideboard: aliceDeck.sideboard,
+                colors: ["R"],
+            });
+            expect(bobView.humanDeck).toEqual({
+                cards: bobDeck.cards,
+                sideboard: bobDeck.sideboard,
+                colors: ["U"],
+            });
+            // The bot seat's Deck travels through `autoBuiltDeck` elsewhere
+            // (`convex/limitedEvents.ts`'s `projectEventForViewer`), never
+            // through `humanDeck` — this pure-projection seam only ever
+            // reports `null` here for a bot seat.
+            expect(botView.humanDeck).toBeNull();
+        }
     });
 });

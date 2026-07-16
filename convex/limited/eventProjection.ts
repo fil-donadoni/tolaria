@@ -39,6 +39,27 @@ export interface LimitedEventRow {
     updatedAt: number;
 }
 
+/** A minimal `{ cardId, cardName }` entry — mirrors `DeckCard`
+ *  (`convex/deckPresets.ts`) without importing it, keeping this module
+ *  dependency-free (project convention, see `LimitedPoolCard`/`DraftPackCard`
+ *  above). */
+export interface ReviewDeckCard {
+    cardId: string;
+    cardName: string;
+}
+
+/** A human seat's submitted `limited` Deck, projected for the review surface
+ *  (issue #1116) — the SAME shape as a bot seat's `AutoBuiltDeck.cards` /
+ *  `.sideboard` (`convex/limited/autoBuild.ts`), minus the strict 2-color
+ *  tuple (a human's `userDecks.colors` is a free-form `string[]`, not
+ *  Auto-Build's derived `[TrueColor, TrueColor]`). Populated ONLY once the
+ *  event is `completed` — see `LimitedEventSeatView.humanDeck`. */
+export interface HumanDeckView {
+    cards: ReviewDeckCard[];
+    sideboard: ReviewDeckCard[];
+    colors: string[];
+}
+
 export interface LimitedEventSeatView {
     seatIndex: number;
     userId?: string;
@@ -51,11 +72,22 @@ export interface LimitedEventSeatView {
      *  so a player can see the table opened boosters — `null` before
      *  `startLimitedEvent` runs. */
     poolCount: number | null;
-    /** Full Pool contents. Populated ONLY for the viewer's own seat; every
-     *  other seat's Pool is stripped here (PRD #1107 story 15: "my picks
-     *  hidden from other Seats during the draft" — the same discipline
-     *  extends to a Sealed seat's opened boosters). */
+    /** Full Pool contents. Populated for the viewer's own seat ALWAYS, and for
+     *  every OTHER seat once the event has reached `completed` (issue #1116:
+     *  "full disclosure for study" — the projection is the enforcement point
+     *  both ways, `strips during, reveals at completion`). Before completion,
+     *  every other seat's Pool is stripped (PRD #1107 story 15: "my picks
+     *  hidden from other Seats during the draft"). For a DRAFT event, this
+     *  array's element order IS the seat's pick order (`applyPick` appends
+     *  one entry per Pick, never reorders) — the review UI numbers it
+     *  directly, no separate "pick order" field needed. */
     pool: LimitedPoolCard[] | null;
+    /** This seat's submitted `limited` Deck (issue #1116) — `null` for a bot
+     *  seat (see `autoBuiltDeck` on `convex/limitedEvents.ts`'s wire shape
+     *  instead, computed on demand rather than stored), for a human seat
+     *  with no deck submitted yet, or whenever the event isn't `completed`
+     *  yet (the SAME full-disclosure-at-completion gate as `pool` above). */
+    humanDeck: HumanDeckView | null;
     /** Draft only: the pack currently in front of THIS seat. Populated ONLY
      *  for the viewer's own seat — another seat's current pack is exactly
      *  the hidden information a Draft protects (PRD #1107 story 15). `null`
@@ -87,6 +119,15 @@ export interface LimitedEventView {
     draftPacksRemaining?: number;
     draftCompletedAt?: number;
     timerSeconds?: number;
+    /** True once every seat has a Deck (issue #1116) — the caller-computed
+     *  gate (`convex/limited/completion.ts`'s `computeEventCompletion`) that
+     *  ALSO controls the `pool`/`humanDeck` full-disclosure reveal below.
+     *  Defaults `false` for a caller that doesn't pass one (keeps every
+     *  pre-#1116 test/call site byte-identical). */
+    completed: boolean;
+    /** How many seats currently have a Deck — "3/4 decks in" progress, live
+     *  even before `completed` flips. */
+    seatsWithDeck: number;
     seats: LimitedEventSeatView[];
     createdAt: number;
     updatedAt: number;
@@ -94,10 +135,30 @@ export interface LimitedEventView {
 
 /** Projects a `limitedEvents` row for `viewerUserId` (`null` for an
  *  unauthenticated/anonymous read, which the lobby list never actually issues
- *  since every route requires login — kept for a defensive default). */
+ *  since every route requires login — kept for a defensive default).
+ *
+ *  `completed`/`seatsWithDeck` and `humanDecksBySeat` are CALLER-COMPUTED
+ *  (issue #1116): whether the event is complete depends on the separate
+ *  `userDecks` table (`computeEventCompletion`, `convex/limited/completion.ts`),
+ *  a DB read this module — like the rest of `convex/limited/**` — never
+ *  performs itself. Both default to "nothing complete, no decks known" so
+ *  this stays call-compatible with every caller written before #1116.
+ *
+ *  Full-disclosure reveal (PRD #1107 story 26): once `completed` is true,
+ *  EVERY seat's `pool` is exposed to EVERY viewer — participant or not — the
+ *  same "strip during, reveal after" flip for `humanDeck`. This is
+ *  deliberately broader than "only the event's own participants": the PRD's
+ *  framing ("As a student of the game, I want all Pools revealed... so I can
+ *  review what the table drafted") is a post-mortem study feature, not a
+ *  participant perk — hidden-information discipline exists only to protect a
+ *  LIVE draft/build from signal leakage, which is moot once every seat's
+ *  deck is locked in. */
 export function projectLimitedEvent(
     event: LimitedEventRow,
-    viewerUserId: string | null
+    viewerUserId: string | null,
+    completed = false,
+    seatsWithDeck = 0,
+    humanDecksBySeat: ReadonlyMap<number, HumanDeckView> = new Map()
 ): LimitedEventView {
     return {
         _id: event._id,
@@ -111,11 +172,14 @@ export function projectLimitedEvent(
         draftPacksRemaining: event.draftPacksRemaining,
         draftCompletedAt: event.draftCompletedAt,
         timerSeconds: event.timerSeconds,
+        completed,
+        seatsWithDeck,
         createdAt: event.createdAt,
         updatedAt: event.updatedAt,
         seats: event.seats.map((seat) => {
             const isViewer =
                 viewerUserId !== null && seat.userId === viewerUserId;
+            const poolRevealed = isViewer || completed;
             return {
                 seatIndex: seat.seatIndex,
                 userId: seat.userId,
@@ -123,7 +187,11 @@ export function projectLimitedEvent(
                 isBot: seat.isBot ?? false,
                 isViewer,
                 poolCount: seat.pool ? seat.pool.length : null,
-                pool: isViewer ? (seat.pool ?? null) : null,
+                pool: poolRevealed ? (seat.pool ?? null) : null,
+                humanDeck:
+                    completed && !seat.isBot
+                        ? (humanDecksBySeat.get(seat.seatIndex) ?? null)
+                        : null,
                 currentPack: isViewer ? (seat.currentPack ?? null) : null,
                 packQueueCount: isViewer ? (seat.packQueue?.length ?? 0) : null,
                 pickDeadline: isViewer ? (seat.pickDeadline ?? null) : null,
