@@ -131,7 +131,8 @@ import {
     isProtectedFromColors,
     matchesBattlefieldController,
     matchesMvFilter,
-    resolveMvFilter,
+    pendingTargetFiltersFromRequirement,
+    raiseTriggerTargetSelection,
     solvePhyrexianSplit,
     spellMatchesCreaturePtFilter,
     spellMatchesExcludeTypeFilter,
@@ -3255,60 +3256,9 @@ function finalizeDivideAmounts(
     return out;
 }
 
-/** The requirement-derived target FILTER fields, as a partial `PendingTarget`
- *  carrying ONLY the fields the requirement actually sets (no `undefined`
- *  keys). This is the single source of truth for BOTH pending-target builders:
- *  the `announceCast` primary-group literal spreads it, and
- *  `applyRequirementToPendingTarget` (the additional-group re-application)
- *  assigns it. Keeping one builder means the two can never drift — the
- *  divergence that once dropped `spellStackKind` from the announce path (and
- *  left Stifle's on-stack ability target un-clickable, CR 113 / 701.5a) is
- *  structurally impossible now.
- *
- *  Only requirement-derived filters live here; the count/target-type/selected
- *  fields and the divide-as-you-choose bookkeeping are owned by each caller. */
-export function pendingTargetFiltersFromRequirement(
-    req: TargetRequirement,
-    chosenX: number | undefined
-): Partial<PendingTarget> {
-    const toArr = (v: string | string[] | undefined): string[] | undefined =>
-        v === undefined ? undefined : Array.isArray(v) ? v : [v];
-    const out: Partial<PendingTarget> = {};
-    if (req.colorFilter !== undefined) out.colorFilter = req.colorFilter;
-    if (req.colorFilterAny) out.colorFilterAny = req.colorFilterAny;
-    const sub = toArr(req.subtypeFilter);
-    if (sub) out.subtypeFilter = sub;
-    const sup = toArr(req.supertypeFilter);
-    if (sup) out.supertypeFilter = sup;
-    const exSub = toArr(req.excludeSubtypes);
-    if (exSub) out.excludeSubtypes = exSub;
-    const exSup = toArr(req.excludeSupertypes);
-    if (exSup) out.excludeSupertypes = exSup;
-    if (req.powerFilter) out.powerFilter = req.powerFilter;
-    if (req.toughnessFilter) out.toughnessFilter = req.toughnessFilter;
-    const mv = resolveMvFilter(req.mvFilter, chosenX);
-    if (mv) out.mvFilter = mv;
-    const spellType = toArr(req.spellTypeFilter);
-    if (spellType) out.spellTypeFilter = spellType as CardType[];
-    const spellExcludeType = toArr(req.spellExcludeTypeFilter);
-    if (spellExcludeType)
-        out.spellExcludeTypeFilter = spellExcludeType as CardType[];
-    if (req.spellCreaturePtFilter)
-        out.spellCreaturePtFilter = req.spellCreaturePtFilter;
-    if (req.spellSingleTargetingController)
-        out.spellSingleTargetingController = true;
-    if (req.spellWouldDestroyLandYouControl)
-        out.spellWouldDestroyLandYouControl = true;
-    if (req.spellStackKind) out.spellStackKind = req.spellStackKind;
-    const stackSrc = toArr(req.stackSourceTypeFilter);
-    if (stackSrc) out.stackSourceTypeFilter = stackSrc as CardType[];
-    if (req.spellTargetsInstanceIds)
-        out.spellTargetsInstanceIds = [...req.spellTargetsInstanceIds];
-    if (req.playerAttackedThisTurn) out.playerAttackedThisTurn = true;
-    if (req.zone) out.zone = req.zone;
-    if (req.controller) out.controller = req.controller;
-    return out;
-}
+// `pendingTargetFiltersFromRequirement` moved to `./gre/rules` (issue #1193) so
+// the gre trigger-target path (`raiseTriggerTargetSelection`) can build a
+// `PendingTarget` without importing `game.ts`. Imported above; same behavior.
 
 /** Loads the next INDEPENDENT target group of a multi-group spell (CR 601.2c —
  *  Fumarole) into `pt` in place: clears every group-specific filter field and
@@ -3527,6 +3477,26 @@ export function finalizeTargetSelection(
     if (kind === "retarget") {
         const spell = state.stack.find((s) => s.id === cardInstanceId);
         if (spell) spell.targets = targets;
+        state.priorityPlayerId = state.activePlayerId;
+        state.passCount = 0;
+        drainAutoPasses(state);
+        return;
+    }
+
+    // Trigger-target branch (CR 603.3d, issue #1193). The chosen target(s) —
+    // and the divide-as-you-choose split (Fury's `targetAmounts`) — are written
+    // onto the TRIGGERED-ability stack item already on the stack; nothing is
+    // cast and no cost is paid. Then chain to the next targeted trigger of the
+    // same simultaneous batch (`raiseTriggerTargetSelection`); when none remain,
+    // a fresh priority round begins with the active player (CR 117.3d) and the
+    // (now fully targeted) triggers still on the stack.
+    if (kind === "trigger") {
+        const trig = state.stack.find((s) => s.id === cardInstanceId);
+        if (trig) {
+            trig.targets = targets;
+            if (divideAmounts) trig.targetAmounts = divideAmounts;
+        }
+        if (raiseTriggerTargetSelection(state)) return;
         state.priorityPlayerId = state.activePlayerId;
         state.passCount = 0;
         drainAutoPasses(state);

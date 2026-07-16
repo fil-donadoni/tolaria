@@ -3186,6 +3186,12 @@
         "firstSet": "lea"
     },
     {
+        "name": "Fury",
+        "scryfallId": "bd281158-8180-40b9-a5b7-03cfc712d81a",
+        "oracleId": "fbf9f8c5-849f-45d5-8129-5fc683c21a04",
+        "firstSet": "mh2"
+    },
+    {
         "name": "Fylgja",
         "scryfallId": "3c6358a1-37f0-4b40-93d4-4f1652c38404",
         "oracleId": "df0e5dd8-65e0-474c-ac32-6e0f6f16b8e6",

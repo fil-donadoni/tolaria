@@ -106,3 +106,118 @@ describe("Blazing Rootwalla — Madness {0} + once-per-turn pump (CR 702.35 / 60
         expect(getEffectiveToughness(state, walla)).toBe(1);
     });
 });
+
+// ── Fury — targeted trigger + divide-as-you-choose (CR 603.3d / 601.2d, #1193/#1206) ──
+import { fury } from "../red";
+import { finalizeTargetSelection } from "../../../../game";
+import { raiseTriggerTargetSelection } from "../../../../gre/rules";
+import type { TargetSelection } from "../../../types";
+
+function furyEtbOnStack(state: GameState, controllerId: string): StackItem {
+    const source = makeInstance(fury.id, {
+        id: "fury-src",
+        controllerId,
+        ownerId: controllerId,
+        zone: "battlefield",
+    });
+    const trig: StackItem = {
+        ...source,
+        id: "fury-trig",
+        zone: "stack",
+        castById: controllerId,
+        triggeredAbilityId: "fury-etb",
+        triggerSourceId: source.id,
+        triggerEvent: {
+            type: "PERMANENT_ENTERED",
+            instanceId: source.id,
+            controllerId,
+            types: ["Creature"],
+        } as StackItem["triggerEvent"],
+        targets: undefined,
+    };
+    state.stack.push(trig);
+    return trig;
+}
+
+describe("Fury — targeted triggered ability with divide-as-you-choose (CR 603.3d / 601.2d, #1193)", () => {
+    it("pins the definition (double strike, red evoke, 4-damage divide trigger)", () => {
+        expect(fury.staticAbilities).toContain("double strike");
+        expect(fury.evoke).toEqual({
+            id: "evoke",
+            description: "Evoke—Exile a red card from your hand",
+            handCost: {
+                action: "exile",
+                requirements: [{ filter: { color: "R" }, count: 1 }],
+            },
+        });
+        const etb = fury.triggeredAbilities?.find((a) => a.id === "fury-etb");
+        expect(etb?.targetRequirement).toEqual({
+            type: ["Creature", "Planeswalker"],
+            count: { min: 1, max: 4 },
+            divideAsChosen: { total: 4 },
+        });
+    });
+
+    it("raises a divide target choice at announcement, then deals the chosen split", () => {
+        const treefolk = getCardByName("Ironroot Treefolk"); // 3/5
+        const a = makeInstance(treefolk.id, {
+            id: "a",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "battlefield",
+        });
+        const b = makeInstance(treefolk.id, {
+            id: "b",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [a, b] }),
+            ],
+        });
+        furyEtbOnStack(state, "p1");
+
+        // CR 603.3d — the targeted trigger raises target selection as it is put
+        // on the stack. Divide-as-you-choose ⇒ always a real choice.
+        expect(raiseTriggerTargetSelection(state)).toBe(true);
+        const pt = state.pendingTarget!;
+        expect(pt.kind).toBe("trigger");
+        expect(pt.cardInstanceId).toBe("fury-trig");
+        expect(pt.divideTotal).toBe(4);
+
+        // Assign 1 to A, 3 to B and finalize (mirrors the divide UI submission).
+        pt.selected = [
+            { type: "permanent", id: "a" },
+            { type: "permanent", id: "b" },
+        ] as TargetSelection[];
+        pt.divideAmounts = { "permanent:a": 1, "permanent:b": 3 };
+        finalizeTargetSelection(state, pt, "p1");
+
+        const trig = state.stack.find((s) => s.id === "fury-trig")!;
+        expect(trig.targets).toHaveLength(2);
+        expect(trig.targetAmounts).toEqual({
+            "permanent:a": 1,
+            "permanent:b": 3,
+        });
+
+        resolveTopOfStack(state);
+        const board = state.players[1].battlefield;
+        expect(board.find((c) => c.id === "a")?.damageMarked).toBe(1);
+        expect(board.find((c) => c.id === "b")?.damageMarked).toBe(3);
+    });
+
+    it("removes the trigger from the stack when no legal target exists (CR 603.3c)", () => {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        furyEtbOnStack(state, "p1");
+        // No creatures/planeswalkers anywhere and min 1 required → the trigger
+        // is removed from the stack and does nothing (CR 603.3c).
+        expect(raiseTriggerTargetSelection(state)).toBe(false);
+        expect(state.stack.find((s) => s.id === "fury-trig")).toBeUndefined();
+        expect(state.pendingTarget).toBeUndefined();
+    });
+});

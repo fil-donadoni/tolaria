@@ -34,6 +34,7 @@ import { checkStateBasedActions, finalizeLegendKeep } from "./sba";
 import { applyMulliganBottomChoice } from "./mulligan";
 import { tryGetCardByName } from "../cards";
 import { finalizeLandEntry } from "./playLand";
+import { raiseTriggerTargetSelection } from "./rules";
 
 export type SubmitChoiceArgs = {
     playerId: string;
@@ -649,8 +650,15 @@ export function applyPendingChoiceSubmit(
         const finalBatch = state.pendingTriggerBatch ?? [];
         state.pendingTriggerBatch = undefined;
         state.stack.push(...finalBatch);
-        state.priorityPlayerId = state.activePlayerId;
-        state.passCount = 0;
+        // CR 603.3d (issue #1193) — the ordered triggers are now on the stack;
+        // each targeted one chooses its target(s) as it is placed. If a
+        // controller must choose, suspend on the `kind:"trigger"` PendingTarget
+        // (priority already parked on the chooser); otherwise resume the active
+        // player's priority window.
+        if (!raiseTriggerTargetSelection(state)) {
+            state.priorityPlayerId = state.activePlayerId;
+            state.passCount = 0;
+        }
         checkStateBasedActions(state);
         return;
     }

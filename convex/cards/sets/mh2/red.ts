@@ -1,5 +1,7 @@
 // mh2 — red cards (ADR 0043 colour split).
-import type { CardDefinition } from "../../types";
+import type { CardDefinition, SpellContext } from "../../types";
+import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
+import { evokeTrigger } from "../../abilities/evoke";
 
 // Mine Collapse — {3}{R} Instant. "If it's your turn, you may sacrifice a
 // Mountain rather than pay this spell's mana cost. Mine Collapse deals 5 damage
@@ -34,29 +36,66 @@ export const mineCollapse: CardDefinition = {
     effects: [{ op: "dealDamage", amount: 5, to: { target: 0 } }],
 };
 
-// TODO(issue #900 stub — Evoke itself SHIPPED (#900: `CardDefinition.evoke` +
-// `evokeTrigger`; use `evoke: { id: "evoke", handCost: {...} }` — NOT
-// `alternativeCosts` — see Solitude/Grief in mh2/white.ts / mh2/black.ts for
-// the working shape this earlier WIP stub got wrong). Fury's OWN remaining gap
-// is different: "deals 4 damage divided as you choose among any number of
-// target creatures and/or planeswalkers" needs a TRIGGERED ability to pick
-// MULTIPLE targets and divide an amount among them at resolution time —
-// `divideAsChosen` (types.ts) lives on `TargetRequirement`, which only
-// `CardDefinition`/`ActivatedAbility` carry (ADR 0002; `TriggeredAbility` has
-// none), and `SpellContext.requestChoice`'s `choose-permanents` kind returns a
-// flat id list with no per-pick amount. Stop-and-issue per gre-development.md;
-// tracked stub.
-// tracked-by: #1206
-// export const fury: CardDefinition = {
-//     id: "bd281158-8180-40b9-a5b7-03cfc712d81a",
-//     name: "Fury",
-//     rarity: "mythic",
-//     manaCost: { X: 3, R: 2 },
-//     types: ["Creature"],
-//     subtypes: ["Elemental", "Incarnation"],
-//     power: 3,
-//     toughness: 3,
-// };
+// Fury — {3}{R}{R} Creature — Elemental Incarnation, 3/3 (MH2, issue #1206).
+// "Double strike. When this creature enters, it deals 4 damage divided as you
+// choose among any number of target creatures and/or planeswalkers. Evoke—Exile
+// a red card from your hand." The Evoke halves ship as engine infra (#900):
+// the alt cast is a pure HAND leg (`evoke`, reusing `AlternativeCost.handCost`)
+// and the sacrifice-on-ETB half is `evokeTrigger` (convex/cards/abilities/
+// evoke.ts) — Solitude/Grief precedent.
+//
+// The ETB is the first TARGETED triggered ability with divide-as-you-choose
+// (CR 603.3d + CR 601.2d/120.4, issue #1193): `targetRequirement` on the
+// trigger now selects 1–4 target creatures/planeswalkers across BOTH
+// battlefields and assigns the ≥1-each split of 4 damage AT ANNOUNCEMENT
+// (`raiseTriggerTargetSelection` / the shared divide UI), snapshotting the
+// split onto the trigger stack item's `targetAmounts`.
+// protocol card: the resolve reads that announcement-time divide snapshot via
+// `dealDamageDividedAsChosen(ctx.targets, 4)` — no DSL Op expresses per-target
+// divided damage (the `dealDamage` Op deals to a single `{ target }`), the same
+// justification the divide-as-you-choose spells (Fiery Justice, all/red.ts)
+// carry.
+export const fury: CardDefinition = {
+    id: "bd281158-8180-40b9-a5b7-03cfc712d81a",
+    rarity: "mythic",
+    name: "Fury",
+    oracleText:
+        "Double strike\nWhen this creature enters, it deals 4 damage divided as you choose among any number of target creatures and/or planeswalkers.\nEvoke—Exile a red card from your hand.",
+    manaCost: { X: 3, R: 2 },
+    types: ["Creature"],
+    subtypes: ["Elemental", "Incarnation"],
+    power: 3,
+    toughness: 3,
+    staticAbilities: ["double strike"],
+    evoke: {
+        id: "evoke",
+        description: "Evoke—Exile a red card from your hand",
+        handCost: {
+            action: "exile",
+            requirements: [{ filter: { color: "R" }, count: 1 }],
+        },
+    },
+    triggeredAbilities: [
+        enteredTrigger({
+            id: "fury-etb",
+            oracleText:
+                "When this creature enters, it deals 4 damage divided as you choose among any number of target creatures and/or planeswalkers.",
+            scope: "self",
+            // CR 601.2d/120.4 — divide-as-you-choose: 1–4 targets (each gets
+            // ≥1, so at most 4 targets share the 4 total), any mix of creatures
+            // and planeswalkers on either battlefield.
+            targetRequirement: {
+                type: ["Creature", "Planeswalker"],
+                count: { min: 1, max: 4 },
+                divideAsChosen: { total: 4 },
+            },
+            resolve: (ctx: SpellContext) => {
+                ctx.dealDamageDividedAsChosen(ctx.targets, 4);
+            },
+        }),
+        evokeTrigger("Fury"),
+    ],
+};
 
 // Unholy Heat — {R} Instant. "Unholy Heat deals 2 damage to target creature or
 // planeswalker. Delirium — Unholy Heat deals 6 damage instead if there are four

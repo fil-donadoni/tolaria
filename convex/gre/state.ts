@@ -1951,7 +1951,7 @@ export type PendingTarget = {
      *  of the ORIGINAL spell already on the stack (CR 114.6 — Reflecting Mirror's
      *  "change the target of target spell"); `cardInstanceId` holds the original
      *  spell's stack id and finalization writes the chosen targets onto it. */
-    kind?: "cast" | "ability" | "copy-retarget" | "retarget";
+    kind?: "cast" | "ability" | "copy-retarget" | "retarget" | "trigger";
     /** For `kind: "ability"` only — id of the activated ability template on
      *  the source card definition. */
     abilityId?: string;
