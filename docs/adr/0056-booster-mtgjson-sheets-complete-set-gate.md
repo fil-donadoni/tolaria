@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Accepted, then **superseded by ADR 0059** on the completeness gate: the "every sheet card must resolve" bar is lowered to per-sheet ≥80% (missing cards dropped, weights renormalized). The MTGJSON-import mechanism and the no-placeholder/no-skew principle below still hold — only the 100% threshold is replaced.
 
 ## Context
 

@@ -465,7 +465,11 @@ An admin-created gathering of N **Players** that produces one **Limited**-legal 
 _Avoid_: Tournament (implies pairing/standings), lobby (that's constructed matchmaking)
 
 **Draftable Set**:
-A **Set** eligible for a **Limited Event**: every card of the set is implemented, except cards declared **out of scope** by ADR (which are treated as absent from the print run). A partially-censused set is not draftable — no booster is ever generated with placeholder or skewed contents.
+A **Set** eligible for a **Limited Event**: every **Booster Sheet** of the set retains at least 80% of its cards as implemented **CardDefinitions**, after cards declared **out of scope** by ADR are treated as absent from the print run. Unimplemented cards below that per-sheet ceiling are **dropped from the sheet** (weights renormalized, same mechanism as ADR-excluded cards) — never rendered as placeholders. The 80% per-sheet floor is a **temporary onramp** to ship a Limited experience before every set is fully censused; the standing goal remains 100% implementation, and a set below 100% surfaces an **Incompleteness Notice** at event creation. A sheet under the 80% floor makes the whole set non-draftable.
+_Threshold is per-sheet, not per-set: a set can be 82% overall yet have a rare sheet at 52% (its long tail of complex cards) — a broken slot a per-set average would hide._
+
+**Incompleteness Notice**:
+The user-facing warning shown at **Limited Event** creation whenever a chosen **Draftable Set** is below 100% implemented — the honest disclosure that the Limited environment is an approximation of the real print run, missing some cards. Present as long as the per-sheet 80% onramp exists; disappears per set the day that set reaches 100%.
 _Avoid_: Complete set (completeness is the criterion, draftability is the status), supported set
 
 **Booster**:
@@ -501,7 +505,7 @@ The always-available fallback scoring a **Bot Drafter** uses when no **Pick Rati
 _Avoid_: Bot logic (too broad), default rating
 
 **Draft**:
-The classic booster draft flow of a **Limited Event**: three **Boosters** per **Seat**; each round every seat **Picks** one card and passes the rest to the adjacent seat (left, then right, then left per booster). Picking is **synchronous**: seats pick in parallel, a passed pack queues at the receiving seat, and an optional per-pick timer (admin-configurable, can be off) fires an **Auto-Pick** on expiry so an absent human never freezes the table. **Bot Drafters** pick instantly.
+The classic booster draft flow of a **Limited Event**: three **Boosters** per **Seat**; each round every seat **Picks** one card and passes the rest to the adjacent seat (left, then right, then left per booster). Picking is **synchronous**: seats pick in parallel, a passed pack queues at the receiving seat, and an optional per-pick timer (on/off only — when on, each pick within a pack gets progressively less time, following the official Wizards booster-draft schedule) fires an **Auto-Pick** on expiry so an absent human never freezes the table. **Bot Drafters** pick instantly.
 _Avoid_: Rochester/Winston (other draft variants, out of scope for now)
 
 **Pick**:
@@ -509,8 +513,12 @@ The act of a **Seat** taking exactly one card from the **Booster** currently in 
 _Avoid_: Choice (that's the gameplay **Pending Choice**), selection
 
 **Auto-Pick**:
-The **Pick** made on a human **Seat**'s behalf when its **Draft** timer expires — computed by the same **Pick Rating**/**Pick Heuristic** engine a **Bot Drafter** uses, never randomly.
+The **Pick** made on a human **Seat**'s behalf when its **Draft** timer expires. Resolves the seat's **Selected Card** if one is set; otherwise falls back to the **Pick Rating**/**Pick Heuristic** engine a **Bot Drafter** uses. Never randomly.
 _Avoid_: Random pick, skip
+
+**Selected Card**:
+A human **Seat**'s tentative choice within the **Booster** currently in front of it during a **Draft**, set by a single click (which only selects — it never commits the **Pick**). Server-persisted so the **Auto-Pick** timeout resolver can honour it. A committing gesture — double-click, the context-menu **Pick** action, or a drag into the **Pool**/**Sideboard** — takes the **Pick** immediately, bypassing selection.
+_Avoid_: Highlight, hover (that's the transient preview)
 
 **Sealed**:
 The simpler **Limited Event** flow: each **Seat** receives N unopened **Boosters** (default 6, admin-configurable) whose contents form the seat's **Pool** directly — no picking, no passing.
@@ -519,6 +527,9 @@ _Avoid_: Sealed deck (the Deck is what gets built from the Pool afterwards)
 **Pool**:
 The set of **Card Prints** a **Seat** owns for deckbuilding in a **Limited Event** — the accumulated **Picks** (Draft) or the opened **Boosters**' contents (Sealed). The Pool, plus unlimited basic lands, is the universe the seat's **Deck** may draw from.
 _Avoid_: Card pool (redundant), collection
+
+**Pool Arrangement**:
+The **Seat**-scoped, server-persisted layout of a **Seat**'s **Pool** into fixed **Mana Value** columns plus a **Sideboard** column, with a per-card manual column override (a card pinned to a chosen column stays there, Draftmancer/MTGO-style). It is built up **during the Draft** — each **Pick** lands by default in its Mana Value column — and carries unchanged into the post-draft **Deck**-build: draft and deckbuild are one continuous surface, the build view merely dropping the active **Booster**. Distinct from the **Pool** itself (the authoritative card multiset on the Seat): the Arrangement is presentation/deck-intent over that multiset, never the legality authority.
 
 **Auto-Build**:
 The server-side construction of a **Limited**-legal **Deck** from a **Bot Drafter**'s **Pool** at the end of a **Limited Event**: pick the two strongest colors, ~17 spells + 17 lands, curve-aware. A bot's auto-built Deck is playable — a **User** can start a **vs-AI Game** against any bot **Seat**'s deck, closing the study loop (draft, then test your deck against the table's).

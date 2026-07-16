@@ -2352,6 +2352,12 @@
         "firstSet": "lea"
     },
     {
+        "name": "Earthcraft",
+        "scryfallId": "9dda7531-82a1-4f49-8858-601ddbc6e2bc",
+        "oracleId": "50aa7aff-1f01-4224-9a83-01f74d703ec2",
+        "firstSet": "tmp"
+    },
+    {
         "name": "Earthlink",
         "scryfallId": "a83cb1c4-7c5b-4a5e-b15e-138d644f5cdb",
         "oracleId": "c6e4a5c6-3c9b-49d5-8288-1be46be657dc",
@@ -8188,6 +8194,12 @@
         "scryfallId": "374df061-ebd2-4f1f-9a6e-7940a49197a9",
         "oracleId": "aa6cdcc7-f5ea-47bf-9448-1c63e36b18d1",
         "firstSet": "drk"
+    },
+    {
+        "name": "Squirrel Nest",
+        "scryfallId": "22eccb27-1723-4c5a-96b8-85e6e5739c30",
+        "oracleId": "2d584333-b25e-4291-a2c9-80c6d9f8732a",
+        "firstSet": "ody"
     },
     {
         "name": "Staff of the Ages",
