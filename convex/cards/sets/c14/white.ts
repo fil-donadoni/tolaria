@@ -3,24 +3,55 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-// STOP-AND-ISSUE (tracked-by: #1148) — Containment Priest: "Flash. If a
-// nontoken creature would enter and it wasn't cast, exile it instead." Flash
-// (the keyword) is trivial, but the replacement clause — an
-// enters-the-battlefield event keyed on a cast/not-cast origin flag — has no
-// `ReplacementEventKind` in the engine (the shipped kinds are damage /
-// lifegain / lifeloss / discard / lose-game / tap / destroy; none fires on a
-// permanent entering the battlefield at all). Vintage Cube FREE tranche,
-// issue #686. The whole card is left as one stub rather than a partial
-// implementation (the replacement IS the card).
-// export const containmentPriest: CardDefinition = {
-//     id: "c2c794b9-09da-49be-b258-b0e21f1663e3", // C14 5
-//     name: "Containment Priest",
-//     rarity: "rare",
-//     manaCost: { X: 1, W: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Human", "Cleric"],
-//     power: 2,
-//     toughness: 2,
-// };
+import type { CardDefinition } from "../../types";
 
-export {};
+// Containment Priest — issue #1148, Vintage Cube FREE tranche (issue #686).
+// "Flash. If a nontoken creature would enter and it wasn't cast, exile it
+// instead." Flash is a shipped keyword (mechanicsRegistry.ts). The
+// replacement clause is a permanent-bound `replacementEffects[]` entry
+// (ADR 0020 pattern) on the new `"enters-battlefield"` `ReplacementEventKind`
+// (`gre/replacements.ts::applyEnterBattlefieldReplacements`, issue #1148),
+// fired at every chokepoint that places a permanent on the battlefield:
+// cast-resolution (`wasCast: true`), reanimation/tutor-to-battlefield/hand-
+// cheat (`stageReanimatedOnBattlefield`, `wasCast: false`), and token
+// creation (`createToken`, `isToken: true` — exempt regardless of
+// `wasCast`). `appliesTo` deliberately does not scope on `self` — the
+// printed clause has no "you control" qualifier, so it intercepts ANY
+// nontoken creature entering, either player's. A redirected creature never
+// actually touches the battlefield, so no ETB trigger observes it (matches
+// the printed ruling).
+export const containmentPriest: CardDefinition = {
+    id: "c2c794b9-09da-49be-b258-b0e21f1663e3", // C14 5
+    name: "Containment Priest",
+    rarity: "rare",
+    oracleText:
+        "Flash\nIf a nontoken creature would enter and it wasn't cast, exile it instead.",
+    manaCost: { X: 1, W: 1 },
+    types: ["Creature"],
+    subtypes: ["Human", "Cleric"],
+    power: 2,
+    toughness: 2,
+    staticAbilities: ["flash"],
+    replacementEffects: [
+        {
+            id: "containment-priest-exile-uncast-creature",
+            oracleText:
+                "If a nontoken creature would enter and it wasn't cast, exile it instead.",
+            eventKind: "enters-battlefield",
+            appliesTo: (event) => {
+                if (event.kind !== "enters-battlefield") return false;
+                if (event.isToken || event.wasCast) return false;
+                return event.types.includes("Creature");
+            },
+            replace: (event) => {
+                if (event.kind !== "enters-battlefield") {
+                    throw new Error("unexpected event kind");
+                }
+                return {
+                    kind: "modified",
+                    event: { ...event, destination: "exile" },
+                };
+            },
+        },
+    ],
+};

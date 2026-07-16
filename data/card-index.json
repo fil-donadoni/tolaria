@@ -1626,6 +1626,12 @@
         "firstSet": "eoe"
     },
     {
+        "name": "Containment Priest",
+        "scryfallId": "c2c794b9-09da-49be-b258-b0e21f1663e3",
+        "oracleId": "8a76a9b9-3127-45fe-b20f-a8f643276281",
+        "firstSet": "c14"
+    },
+    {
         "name": "Control Magic",
         "scryfallId": "7b52f459-c703-4a0b-9114-ff69eec61287",
         "oracleId": "cd0d7141-46d2-4aa3-bc77-6b3b4513803e",

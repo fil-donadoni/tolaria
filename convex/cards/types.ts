@@ -5486,7 +5486,8 @@ export type ReplacementEventKind =
     | "lose-game"
     | "tap"
     | "destroy"
-    | "graveyard-bound";
+    | "graveyard-bound"
+    | "enters-battlefield";
 
 /** Damage event subject to CR 614 redirection / prevention. */
 export interface DamageReplacementEvent {
@@ -5611,6 +5612,53 @@ export interface GraveyardBoundReplacementEvent {
     tagCounters?: Record<string, number>;
 }
 
+/** Enters-the-battlefield event: a permanent about to be placed on the
+ *  battlefield (CR 110.5, 401/403/etc. zone changes that land an object
+ *  there, CR 601.2i / 603.6 cast-resolution ETB). Fired at every chokepoint
+ *  that pushes a permanent onto a `battlefield` array — a resolving cast
+ *  permanent (`wasCast: true`, `finalizeSpellResolution`), a reanimated /
+ *  library-tutored / hand-cheated-in permanent (`wasCast: false`, the shared
+ *  `stageReanimatedOnBattlefield` helper behind `returnToBattlefield` /
+ *  `putFromLibraryOntoBattlefield` / `putFromHandOntoBattlefield` / the
+ *  graveyard-set batch path), and token creation (`wasCast: false`,
+ *  `isToken: true`, `createToken`). Containment Priest's "if a nontoken
+ *  creature would enter and it wasn't cast, exile it instead" (issue #1148)
+ *  is the shipped consumer: its `appliesTo` filters on `!event.isToken &&
+ *  !event.wasCast && event.types.includes("Creature")`. Unlike `"destroy"`
+ *  this event never fully cancels — a permanent that would enter always ends
+ *  up SOMEWHERE (battlefield or, replaced, exile) — so redirection is a
+ *  `"modified"` rewrite of `destination`, mirroring
+ *  `GraveyardBoundReplacementEvent` rather than `DestroyReplacementEvent`'s
+ *  `{kind:"consumed"}` shape. A redirected permanent never actually touches
+ *  the battlefield, so no ETB trigger observes it (matches the printed
+ *  Containment Priest ruling). */
+export interface EntersBattlefieldReplacementEvent {
+    kind: "enters-battlefield";
+    /** Instance id of the permanent about to enter. */
+    cardInstanceId: string;
+    /** CR 110.5 — the object's owner (stable across the zone change). */
+    ownerId: string;
+    /** The prospective controller once on the battlefield (CR 110.2). */
+    controllerId: string;
+    /** CR 111 — true for a token-creation entry. Containment Priest's
+     *  "nontoken" clause exempts these regardless of `wasCast`. */
+    isToken: boolean;
+    /** CR 601.2i — true only at the cast-resolution chokepoint. Every
+     *  non-cast zone change onto the battlefield (reanimation, tutor-to-
+     *  battlefield, hand-cheat, token creation) passes `false`. */
+    wasCast: boolean;
+    /** Card types of the entering object (CR 300), read by type-scoped
+     *  filters (Containment Priest's "creature"). Snapshotted directly onto
+     *  the event rather than looked up via `ReplacementStateView.battlefield`
+     *  because the entering object isn't on the battlefield yet at event
+     *  time — it has nothing to be looked up FROM. */
+    types: ReadonlyArray<CardType>;
+    /** Mutable: destination once the replacement loop settles. Starts
+     *  `"battlefield"`; a matching replacement rewrites this to `"exile"` to
+     *  redirect the entry (CR 614.1a). */
+    destination: "battlefield" | "exile";
+}
+
 export type ReplacementEvent =
     | DamageReplacementEvent
     | LifeChangeReplacementEvent
@@ -5618,7 +5666,8 @@ export type ReplacementEvent =
     | LoseGameReplacementEvent
     | TapReplacementEvent
     | DestroyReplacementEvent
-    | GraveyardBoundReplacementEvent;
+    | GraveyardBoundReplacementEvent
+    | EntersBattlefieldReplacementEvent;
 
 /** Side-effect mutators handed to a `ReplacementEffect.replace` body. Lets
  *  the effect issue follow-up actions ("draw N cards instead", "sacrifice
