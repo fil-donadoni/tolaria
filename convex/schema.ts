@@ -442,6 +442,17 @@ export default defineSchema({
                         })
                     )
                 ),
+                // Selected Card (ADR 0060, issue #1248): the seat's tentative
+                // single-click selection within its OWN `currentPack` — never
+                // a commit (that's `submitPick`). `pickId`-keyed, mirroring
+                // `DraftPackCard.pickId`, so it always identifies an exact
+                // physical booster card, never ambiguous across duplicate
+                // prints. Absent = no selection. Server-persisted (not
+                // client-local state) so it survives a refresh/device switch
+                // and so a future Auto-Pick resolver (issue #1249) can honour
+                // it on timer expiry — see `selectDraftPick`
+                // (`convex/limitedEvents.ts`).
+                selectedPickId: v.optional(v.string()),
             })
         ),
         createdAt: v.number(),

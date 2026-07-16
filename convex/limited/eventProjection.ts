@@ -115,6 +115,13 @@ export interface LimitedEventSeatView {
      *  card has ever been moved (an empty/absent stored array still projects
      *  to `null` there — nothing to disclose either way). */
     poolArrangement: PoolArrangementEntry[] | null;
+    /** Selected Card (ADR 0060, issue #1248) — see `LimitedEventSeat.
+     *  selectedPickId`. Same "own seat only" discipline as `currentPack`/
+     *  `pickDeadline`/`poolArrangement` above: another seat's tentative
+     *  selection is exactly the kind of signal a live draft must never leak,
+     *  so it is never revealed even after `completed` (unlike `pool`). `null`
+     *  for a non-viewer seat or when nothing is selected. */
+    selectedPickId: string | null;
 }
 
 export interface LimitedEventView {
@@ -207,6 +214,9 @@ export function projectLimitedEvent(
                 pickDeadline: isViewer ? (seat.pickDeadline ?? null) : null,
                 poolArrangement: isViewer
                     ? (seat.poolArrangement ?? null)
+                    : null,
+                selectedPickId: isViewer
+                    ? (seat.selectedPickId ?? null)
                     : null,
             };
         }),

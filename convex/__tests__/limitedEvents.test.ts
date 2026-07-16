@@ -1176,3 +1176,147 @@ describe("Limited Event Pool Arrangement (ADR 0060, issue #1247): setPoolArrange
         ]);
     });
 });
+
+describe("Limited Event Selected Card (ADR 0060, issue #1248): selectDraftPick's exact mutation-shell path", () => {
+    /** Mirrors `selectDraftPick`'s handler body exactly: derive the caller's
+     *  seatIndex from userId, reject a non-Draft event, reject a `pickId`
+     *  not actually present in the seat's `currentPack`, otherwise overwrite
+     *  `selectedPickId` (a `null` `pickId` clears it). No convex-test
+     *  harness (project convention, see this file's header) — this drives
+     *  the same pure sequence the mutation calls, in the same order. */
+    function applySelectDraftPick(
+        event: LimitedEventRow,
+        callerUserId: string,
+        pickId: string | null
+    ): LimitedEventRow {
+        if (event.type !== "draft") {
+            throw new Error("This event is not a Draft.");
+        }
+        const seatIndex = event.seats.findIndex(
+            (s) => s.userId === callerUserId
+        );
+        if (seatIndex === -1) {
+            throw new Error("You do not have a Seat in this event.");
+        }
+        const seat = event.seats[seatIndex];
+        if (
+            pickId !== null &&
+            !(seat.currentPack ?? []).some((c) => c.pickId === pickId)
+        ) {
+            throw new Error("That card is not in your current pack.");
+        }
+        const seats = [...event.seats];
+        seats[seatIndex] = {
+            ...seat,
+            selectedPickId: pickId ?? undefined,
+        };
+        return { ...event, seats, updatedAt: event.updatedAt + 1 };
+    }
+
+    function draftEventWithPack(): LimitedEventRow {
+        return {
+            _id: "select-event-1",
+            createdBy: "admin1",
+            type: "draft",
+            status: "started",
+            seatCount: 2,
+            packSlots: ["lea"],
+            seats: [
+                {
+                    seatIndex: 0,
+                    userId: "user1",
+                    nickname: "Alice",
+                    pool: [],
+                    currentPack: [
+                        {
+                            scryfallId: "s1",
+                            cardId: "c1",
+                            cardName: "Card One",
+                            pickId: "r0-p0-c0",
+                        },
+                        {
+                            scryfallId: "s2",
+                            cardId: "c2",
+                            cardName: "Card Two",
+                            pickId: "r0-p0-c1",
+                        },
+                    ],
+                },
+                { seatIndex: 1, userId: "user2", nickname: "Bob", pool: [] },
+            ],
+            createdAt: 0,
+            updatedAt: 0,
+        };
+    }
+
+    it("selects a card actually present in the caller's own currentPack", () => {
+        let event = draftEventWithPack();
+        event = applySelectDraftPick(event, "user1", "r0-p0-c1");
+        expect(event.seats[0].selectedPickId).toBe("r0-p0-c1");
+        // Bob's seat is untouched.
+        expect(event.seats[1].selectedPickId).toBeUndefined();
+    });
+
+    it("a later call OVERWRITES the previous selection — never a toggle", () => {
+        let event = draftEventWithPack();
+        event = applySelectDraftPick(event, "user1", "r0-p0-c0");
+        event = applySelectDraftPick(event, "user1", "r0-p0-c1");
+        expect(event.seats[0].selectedPickId).toBe("r0-p0-c1");
+    });
+
+    it("`pickId: null` clears the selection", () => {
+        let event = draftEventWithPack();
+        event = applySelectDraftPick(event, "user1", "r0-p0-c0");
+        event = applySelectDraftPick(event, "user1", null);
+        expect(event.seats[0].selectedPickId).toBeUndefined();
+    });
+
+    it("rejects a pickId not present in the caller's current pack (stale/forged selection)", () => {
+        const event = draftEventWithPack();
+        expect(() =>
+            applySelectDraftPick(event, "user1", "r0-p0-c99")
+        ).toThrow(/not in your current pack/);
+    });
+
+    it("rejects a caller with no Seat in the event", () => {
+        const event = draftEventWithPack();
+        expect(() =>
+            applySelectDraftPick(event, "no-such-user", "r0-p0-c0")
+        ).toThrow(/do not have a Seat/);
+    });
+
+    it("rejects selection on a non-Draft (Sealed) event", () => {
+        const sealed: LimitedEventRow = {
+            ...draftEventWithPack(),
+            type: "sealed",
+        };
+        expect(() =>
+            applySelectDraftPick(sealed, "user1", "r0-p0-c0")
+        ).toThrow(/not a Draft/);
+    });
+
+    it("privacy: selectedPickId is visible ONLY to its own seat's viewer through projectLimitedEvent — never another seat's", () => {
+        let event = draftEventWithPack();
+        event = applySelectDraftPick(event, "user1", "r0-p0-c1");
+
+        const aliceView = projectLimitedEvent(event, "user1");
+        const aliceOwn = aliceView.seats.find((s) => s.seatIndex === 0)!;
+        expect(aliceOwn.selectedPickId).toBe("r0-p0-c1");
+
+        const bobView = projectLimitedEvent(event, "user2");
+        const aliceFromBob = bobView.seats.find((s) => s.seatIndex === 0)!;
+        expect(aliceFromBob.selectedPickId).toBeNull();
+        // A non-participant viewer sees it stripped too.
+        const outsiderView = projectLimitedEvent(event, "outsider-user");
+        const aliceFromOutsider = outsiderView.seats.find(
+            (s) => s.seatIndex === 0
+        )!;
+        expect(aliceFromOutsider.selectedPickId).toBeNull();
+    });
+
+    it("projects to null (not an empty string) for a viewer's own seat with nothing selected", () => {
+        const view = projectLimitedEvent(draftEventWithPack(), "user1");
+        const own = view.seats.find((s) => s.seatIndex === 0)!;
+        expect(own.selectedPickId).toBeNull();
+    });
+});

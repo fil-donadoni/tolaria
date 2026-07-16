@@ -9,19 +9,30 @@ type DraftPackCard = NonNullable<LimitedEventSeatView["currentPack"]>[number];
 const CARD_BASE = "min(7.5rem, 17vw, 9dvh)";
 
 /** The Booster currently in front of the viewer (PRD #1107 stories 10-11,
- *  issue #1112): one Pick button per card, with a zoom slider (ADR 0060,
- *  issue #1247, PRD #1107 story 21) driving each card's rendered size the
- *  same way the deckbuilder's `CardZoomSlider` does. Sorted by name only for
- *  display — `pickId` (not array position) is what `onPick` sends, so
- *  re-sorting never changes which physical card gets picked. */
+ *  issue #1112): one card per tile, with a zoom slider (ADR 0060, issue
+ *  #1247, PRD #1107 story 21) driving each card's rendered size the same way
+ *  the deckbuilder's `CardZoomSlider` does. Sorted by name only for display
+ *  — `pickId` (not array position) is what `onPick`/`onSelect`/`onOpenMenu`
+ *  send, so re-sorting never changes which physical card is targeted.
+ *
+ *  Gesture wiring (ADR 0060, issue #1248) — see `LimitedDraftPackCard`'s doc
+ *  comment for the full single-click/double-click/right-click/drag
+ *  contract; this component only threads `selectedPickId` down to decide
+ *  which single tile renders the "selected" highlight. */
 export default function LimitedDraftPack({
     pack,
+    selectedPickId,
+    onSelect,
     onPick,
+    onOpenMenu,
     pending,
     zoom,
 }: {
     pack: DraftPackCard[];
+    selectedPickId: string | null;
+    onSelect: (pickId: string) => void;
     onPick: (pickId: string) => void;
+    onOpenMenu: (pickId: string, x: number, y: number) => void;
     pending: boolean;
     /** Zoom multiplier from the caller's `useCardZoom` (default 1 if the
      *  caller doesn't wire a slider). */
@@ -52,7 +63,10 @@ export default function LimitedDraftPack({
                 <li key={card.pickId}>
                     <LimitedDraftPackCard
                         card={card}
+                        selected={card.pickId === selectedPickId}
+                        onSelect={onSelect}
                         onPick={onPick}
+                        onOpenMenu={onOpenMenu}
                         pending={pending}
                     />
                 </li>
