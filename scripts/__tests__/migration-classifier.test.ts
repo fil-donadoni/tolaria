@@ -843,11 +843,23 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // unchanged (still 703 — no new closures), FREE 456→457, AFK-ready
         // 418→419 (Expressive Iteration carries a test), X-only unchanged
         // (14), Op-blocked 233→232. Partition: 457+14+232=703.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(703);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(457);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(419);
+        //
+        // Then issue #1274 (modal spells pick their mode at CAST) migrates
+        // Vision Charm (vis/blue.ts) off its single card-level `resolve()`
+        // (which picked the mode at resolution via requestOptionChoice) onto the
+        // cast-time `modes` framework: ONE card-level closure becomes THREE
+        // mode-level `resolve:` closures (+2 net). The classifier's raw
+        // `/(resolve|resolveSteps)\s*:/` scan counts each mode closure. Their
+        // buckets: "mill" (peekLibraryTop + moveCardById) is FREE + AFK-ready
+        // (the card has a test); "land-type" (requestOptionChoice + a
+        // subtype-set primitive) and "phase" (phaseOut) stay Op-blocked. Net:
+        // total 703→705, FREE 457→458, AFK-ready 419→420, X-only unchanged
+        // (14), Op-blocked 232→233. Partition: 458+14+233=705.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(705);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(458);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(420);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(232);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(233);
     });
 
     it("surfaces the demonstrated new-Op backlog (a covered primitive leaves it)", () => {

@@ -1214,6 +1214,55 @@ export function getDelayedTriggerOracleText(
     return trigger?.oracleText ?? null;
 }
 
+/** One line of a modal spell's oracle text as shown on the stack (CR 700.2c). */
+export type StackModeLine = {
+    modeId: string;
+    /** The bullet clause for this mode (`SpellMode.oracleText`). */
+    oracleText: string;
+    /** Short mode label (`SpellMode.label`) — a fallback if oracleText is thin. */
+    label: string;
+    /** True for the mode the caster locked in at cast. */
+    chosen: boolean;
+};
+
+/** CR 700.2c (issue #1274) — for a modal spell on the stack that has locked in
+ *  a mode, returns each declared mode's oracle line flagged with whether it is
+ *  the chosen one, so the stack UI can highlight the chosen mode and
+ *  de-emphasize the rest — visible to BOTH players (the mode is public once the
+ *  spell is on the stack). Reads `chosenModeId`, which survives the wire
+ *  projection (`SlimStackItem` keeps every StackItem field but `card`).
+ *
+ *  Returns null for a stack item that is NOT a modal spell showing a chosen
+ *  mode: an ability (activated / triggered / delayed carries no spell mode), a
+ *  non-modal spell, a spell with no locked mode, or a `chosenModeId` that
+ *  doesn't match any declared mode (defensive against a stale id). */
+export function getStackModeLines(item: {
+    card: Record<string, unknown>;
+    chosenModeId?: string;
+    abilityId?: string;
+    triggeredAbilityId?: string;
+    delayedTriggerId?: string;
+}): StackModeLine[] | null {
+    if (!item.chosenModeId) return null;
+    // Only a spell carries a spell-level chosen mode — never an ability item.
+    if (item.abilityId || item.triggeredAbilityId || item.delayedTriggerId) {
+        return null;
+    }
+    // `card.id` is `unknown` on the fat engine `StackItem` (Record-typed card)
+    // and `string` on the wire `SlimStackItem` — accept both.
+    const cardId = item.card.id;
+    if (typeof cardId !== "string") return null;
+    const def = tryGetDefinition(cardId);
+    if (!def?.modes || def.modes.length === 0) return null;
+    if (!def.modes.some((m) => m.id === item.chosenModeId)) return null;
+    return def.modes.map((m) => ({
+        modeId: m.id,
+        oracleText: m.oracleText,
+        label: m.label,
+        chosen: m.id === item.chosenModeId,
+    }));
+}
+
 /** Display state for a card ability in the zoom panel.
  *  - "native": present on the CardDefinition and still effective.
  *  - "granted": added at runtime by an aura/effect (not on the def).

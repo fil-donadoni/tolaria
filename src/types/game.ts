@@ -298,6 +298,12 @@ export interface StackItem extends CardInstance {
      *  Bauble's "draw a card at the beginning of the next turn's upkeep").
      *  Oracle text lives on `cardDef.delayedTriggers`, looked up by this id. */
     delayedTriggerId?: string;
+    /** CR 700.2c (issue #1274) — the mode a modal spell locked in at cast
+     *  (`SpellMode.id`). Survives the wire projection via `slimCard`
+     *  (`SlimStackItem` keeps every StackItem field but `card`); declared here
+     *  so the stack view can highlight the chosen mode's oracle line for BOTH
+     *  players. Undefined for non-modal spells and abilities. */
+    chosenModeId?: string;
 }
 
 export type {
