@@ -80,6 +80,7 @@ import {
     unapplySourceStaticEffects,
     type CardInstanceState,
     type GameState,
+    type StackItem,
 } from "../../../../gre/state";
 import { collectTriggers } from "../../../../gre/triggers";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
@@ -1930,6 +1931,48 @@ describe("Pirate Ship ({T}: 1 dmg + can't attack unless defender controls Island
         });
         resolveTopOfStack(state);
         expect(state.players[1].life).toBe(19);
+    });
+
+    it("sacrifices itself when its controller controls no Islands (CR 603.8)", () => {
+        const state = setup({ defenderHasIsland: true }); // Island is p2's
+        const ship = state.players[0].battlefield[0];
+        state.stack.push({
+            ...ship,
+            zone: "stack",
+            castById: "p1",
+            triggeredAbilityId: "pirate-ship-no-islands",
+            triggerSourceId: ship.id,
+            triggerEvent: { type: "STATE_CHECK" } as StackItem["triggerEvent"],
+            targets: [],
+        });
+        resolveTopOfStack(state);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "ship")
+        ).toBeUndefined();
+    });
+
+    it("does not sacrifice while its controller controls an Island", () => {
+        const state = setup({ defenderHasIsland: false });
+        const controllerIsland = makeInstance(island.id, {
+            id: "p1-isle",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        state.players[0].battlefield.push(controllerIsland);
+        const ship = state.players[0].battlefield[0];
+        state.stack.push({
+            ...ship,
+            zone: "stack",
+            castById: "p1",
+            triggeredAbilityId: "pirate-ship-no-islands",
+            triggerSourceId: ship.id,
+            triggerEvent: { type: "STATE_CHECK" } as StackItem["triggerEvent"],
+            targets: [],
+        });
+        resolveTopOfStack(state);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "ship")
+        ).toBeDefined();
     });
 });
 

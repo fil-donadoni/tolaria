@@ -679,10 +679,13 @@ export const phantomMonster: CardDefinition = {
 };
 
 // Pirate Ship — "Pirate Ship can't attack unless defender controls an Island.
-// {T}: Pirate Ship deals 1 damage to any target." (CR 508.1c attack
-// restriction, 605 activated ability, 120.1 damage). The attack restriction
-// is data-driven via `staticEffects[attack-restriction]` (same pattern as
-// Sea Serpent).
+// {T}: Pirate Ship deals 1 damage to any target.
+// When you control no Islands, sacrifice this creature." (CR 508.1c attack
+// restriction, 605 activated ability, 120.1 damage, 603.8 state-triggered
+// sacrifice). The attack restriction is data-driven via
+// `staticEffects[attack-restriction]` (same pattern as Sea Serpent); the
+// no-Islands sacrifice reuses the `stateTrigger` "control no Islands" pattern
+// shipped by Seasinger (fem/blue).
 export const pirateShip: CardDefinition = {
     id: "d0a7cb23-d229-43c5-addd-dcf423984b0c",
     rarity: "rare",
@@ -717,6 +720,23 @@ export const pirateShip: CardDefinition = {
             targetRequirement: { type: "any", count: 1 },
             effects: [{ op: "dealDamage", amount: 1, to: { target: 0 } }],
         },
+    ],
+    triggeredAbilities: [
+        // CR 603.8 — state-triggered ability: sacrifice when the controller
+        // controls no Islands (same shape as Seasinger, fem/blue).
+        stateTrigger({
+            id: "pirate-ship-no-islands",
+            oracleText: "When you control no Islands, sacrifice this creature.",
+            condition: (self, state) => {
+                const controller = state.players.find(
+                    (p) => p.id === self.controllerId
+                );
+                return !controller?.battlefield.some((c) =>
+                    c.subtypes.includes("Island")
+                );
+            },
+            resolve: (ctx) => ctx.sacrifice(ctx.sourceInstanceId),
+        }),
     ],
 };
 

@@ -43,7 +43,9 @@ export const formidableSpeaker: CardDefinition = {
                 count: 1,
                 excludeInstanceIds: [source.id],
             }),
-            effects: [{ op: "tapUntap", action: "untap", target: { target: 0 } }],
+            effects: [
+                { op: "tapUntap", action: "untap", target: { target: 0 } },
+            ],
         },
     ],
     triggeredAbilities: [

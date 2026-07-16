@@ -796,9 +796,17 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // DSL Op expresses (same Op-blocked bucket as Fury's divided-damage
         // resolve). Net: total 697→699, FREE/AFK-ready/X-only unchanged
         // (453/415/14), Op-blocked 230→232. Partition: 453+14+232=699.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(699);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(453);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(415);
+        //
+        // Then Pirate Ship (lea) gains its silently-dropped "When you control no
+        // Islands, sacrifice this creature" state trigger (CR 603.8) — a
+        // `stateTrigger` resolve calling `ctx.sacrifice`, the same shape as
+        // Seasinger. `sacrifice` is a COVERED Op, so the closure lands FREE and
+        // (it ships with a per-card test) AFK-ready. Net: total 699→700, FREE
+        // 453→454, AFK-ready 415→416, X-only/Op-blocked unchanged (14/232).
+        // Partition: 454+14+232=700.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(700);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(454);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(416);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
         expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(232);
     });

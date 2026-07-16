@@ -369,3 +369,49 @@ describe("Formidable Speaker (mayPay discard leg, CR 701.9 / 118.3 / 608.2b, iss
         expect(canPayMayPayCost(state, "p1", speakerCost())).toBe(false);
     });
 });
+
+describe("Formidable Speaker — {1}, {T}: Untap another target permanent (CR 605 / 701.20b)", () => {
+    it("declares the activated untap ability with a mana+tap cost", () => {
+        const ability = formidableSpeaker.activatedAbilities![0];
+        expect(ability.id).toBe("formidable-speaker-untap");
+        expect(ability.cost).toEqual({ mana: { X: 1 }, tap: true });
+    });
+
+    it('getTargetRequirement excludes the source itself ("another")', () => {
+        const req = formidableSpeaker.activatedAbilities![0]
+            .getTargetRequirement!({ id: "speaker" } as never, {} as never);
+        expect(req.excludeInstanceIds).toEqual(["speaker"]);
+    });
+
+    it("untaps a tapped target permanent on resolution", () => {
+        const speaker = makeInstance(formidableSpeaker.id, {
+            id: "speaker",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: false,
+        });
+        const other = makeInstance(GRIZZLY_BEARS_ID, {
+            id: "bears",
+            controllerId: "p1",
+            ownerId: "p1",
+            isTapped: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [speaker, other] }),
+                makePlayer("p2"),
+            ],
+        });
+        state.stack.push({
+            ...speaker,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "formidable-speaker-untap",
+            targets: [{ type: "permanent", id: "bears" }],
+        });
+        resolveTopOfStack(state);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "bears")!.isTapped
+        ).toBe(false);
+    });
+});
