@@ -39,7 +39,11 @@ import {
     resolvePoolFromEvent,
 } from "../limited/poolResolution";
 import { upsertPoolArrangementEntry } from "../limited/poolArrangement";
-import { getBoosterConfig, isDraftableSet } from "../limited/registry";
+import {
+    getBoosterConfig,
+    getRuntimeBoosterConfig,
+    isDraftableSet,
+} from "../limited/registry";
 
 const resolveCardMeta: ResolveCardMeta = (scryfallId) => {
     const def = tryGetDefinition(scryfallId);
@@ -122,7 +126,7 @@ describe("Limited Event: create → join → start → pools exist (PRD #1107)",
             filled,
             event.packSlots,
             event.sealedBoosterCount!,
-            getBoosterConfig,
+            getRuntimeBoosterConfig,
             resolveCardMeta,
             makeRng(seed)
         );
@@ -159,7 +163,7 @@ describe("Limited Event: create → join → start → pools exist (PRD #1107)",
             filled,
             event.packSlots,
             event.sealedBoosterCount!,
-            getBoosterConfig,
+            getRuntimeBoosterConfig,
             resolveCardMeta,
             makeRng(seed)
         );
@@ -174,6 +178,37 @@ describe("Limited Event: create → join → start → pools exist (PRD #1107)",
         for (const seat of view.seats.filter((s) => s.seatIndex !== 0)) {
             expect(seat.pool).toBeNull();
             expect(seat.poolCount).toBe(expectedPerSeat);
+        }
+    });
+
+    it("a Sealed event on ICE (a partially-implemented Draftable Set, ADR 0059) never deals a card with no implemented CardDefinition", () => {
+        const packSlots = ["ice"];
+        assertPackSlotsDraftable(packSlots);
+
+        let seats = buildEmptySeats(2);
+        seats = assignFreeSeat(seats, "user1", "Alice");
+        seats = assignFreeSeat(seats, "user2", "Bob");
+        const filled = fillBotSeats(seats);
+
+        const seededSeats = generateSealedPools(
+            filled,
+            packSlots,
+            6,
+            getRuntimeBoosterConfig,
+            resolveCardMeta,
+            makeRng(99)
+        );
+
+        expect(seededSeats.every((s) => (s.pool?.length ?? 0) > 0)).toBe(true);
+        for (const seat of seededSeats) {
+            for (const card of seat.pool!) {
+                // The runtime drop (ADR 0059, `getRuntimeBoosterConfig`) means
+                // every dealt card resolves to a real, implemented
+                // CardDefinition — no placeholder ever reaches a Pool, even
+                // though the checked-in ICE config isn't 100% implemented.
+                expect(tryGetDefinition(card.scryfallId)).not.toBeNull();
+                expect(card.cardName).not.toBe(card.scryfallId);
+            }
         }
     });
 
@@ -203,7 +238,7 @@ describe("Limited Event: create → join → start → pools exist (PRD #1107)",
             filled,
             ["lea"],
             3,
-            getBoosterConfig,
+            getRuntimeBoosterConfig,
             resolveCardMeta,
             makeRng(1)
         );
@@ -258,7 +293,7 @@ describe("Limited Event Draft: create → join → start → scripted picks → 
             filled,
             packSlots,
             seed,
-            getBoosterConfig,
+            getRuntimeBoosterConfig,
             resolveCardMeta
         );
         event = {
@@ -301,7 +336,7 @@ describe("Limited Event Draft: create → join → start → scripted picks → 
                 seatIndex,
                 pickId,
                 seed,
-                getBoosterConfig,
+                getRuntimeBoosterConfig,
                 resolveCardMeta
             );
             seats = result.seats;
@@ -385,7 +420,7 @@ describe("Limited Event Draft: create → join → start → scripted picks → 
             filled,
             packSlots,
             seed,
-            getBoosterConfig,
+            getRuntimeBoosterConfig,
             resolveCardMeta
         );
         const afterInitialBots = runBotAutoPicks(
@@ -394,7 +429,7 @@ describe("Limited Event Draft: create → join → start → scripted picks → 
             dealt.draftPacksRemaining,
             packSlots,
             seed,
-            getBoosterConfig,
+            getRuntimeBoosterConfig,
             resolveCardMeta,
             botChoosePick
         );
@@ -434,7 +469,7 @@ describe("Limited Event Draft: create → join → start → scripted picks → 
                 HUMAN_SEAT,
                 pickId,
                 seed,
-                getBoosterConfig,
+                getRuntimeBoosterConfig,
                 resolveCardMeta
             );
             const afterBots = runBotAutoPicks(
@@ -443,7 +478,7 @@ describe("Limited Event Draft: create → join → start → scripted picks → 
                 picked.draftPacksRemaining,
                 packSlots,
                 seed,
-                getBoosterConfig,
+                getRuntimeBoosterConfig,
                 resolveCardMeta,
                 botChoosePick,
                 picked.completed
@@ -504,7 +539,7 @@ describe("Limited Event Draft: create → join → start → scripted picks → 
             seats,
             packSlots,
             seed,
-            getBoosterConfig,
+            getRuntimeBoosterConfig,
             resolveCardMeta
         );
         const result = runBotAutoPicks(
@@ -513,7 +548,7 @@ describe("Limited Event Draft: create → join → start → scripted picks → 
             dealt.draftPacksRemaining,
             packSlots,
             seed,
-            getBoosterConfig,
+            getRuntimeBoosterConfig,
             resolveCardMeta,
             botChoosePick
         );
@@ -541,7 +576,7 @@ describe("Limited Event Draft Timer + Auto-Pick (issue #1114, PRD #1107 stories 
             ),
             packSlots,
             seed,
-            getBoosterConfig,
+            getRuntimeBoosterConfig,
             resolveCardMeta,
             timerConfig
         );
@@ -552,7 +587,7 @@ describe("Limited Event Draft Timer + Auto-Pick (issue #1114, PRD #1107 stories 
             started.draftPacksRemaining,
             packSlots,
             seed,
-            getBoosterConfig,
+            getRuntimeBoosterConfig,
             resolveCardMeta,
             botChoosePick,
             false,
@@ -599,7 +634,7 @@ describe("Limited Event Draft Timer + Auto-Pick (issue #1114, PRD #1107 stories 
             seats,
             packSlots,
             seed,
-            getBoosterConfig,
+            getRuntimeBoosterConfig,
             resolveCardMeta,
             timerConfig
         );
@@ -609,7 +644,7 @@ describe("Limited Event Draft Timer + Auto-Pick (issue #1114, PRD #1107 stories 
             dealt.draftPacksRemaining,
             packSlots,
             seed,
-            getBoosterConfig,
+            getRuntimeBoosterConfig,
             resolveCardMeta,
             botChoosePick,
             false,
@@ -642,7 +677,7 @@ describe("Limited Event Draft Timer + Auto-Pick (issue #1114, PRD #1107 stories 
                 HUMAN_SEAT,
                 pickId!,
                 seed,
-                getBoosterConfig,
+                getRuntimeBoosterConfig,
                 resolveCardMeta,
                 timerConfig
             );
@@ -652,7 +687,7 @@ describe("Limited Event Draft Timer + Auto-Pick (issue #1114, PRD #1107 stories 
                 picked.draftPacksRemaining,
                 packSlots,
                 seed,
-                getBoosterConfig,
+                getRuntimeBoosterConfig,
                 resolveCardMeta,
                 botChoosePick,
                 picked.completed,
@@ -696,7 +731,7 @@ describe("Limited Event Draft Timer + Auto-Pick (issue #1114, PRD #1107 stories 
             ),
             packSlots,
             seed,
-            getBoosterConfig,
+            getRuntimeBoosterConfig,
             resolveCardMeta,
             timerConfig
         );
@@ -706,7 +741,7 @@ describe("Limited Event Draft Timer + Auto-Pick (issue #1114, PRD #1107 stories 
             started.draftPacksRemaining,
             packSlots,
             seed,
-            getBoosterConfig,
+            getRuntimeBoosterConfig,
             resolveCardMeta,
             botChoosePick,
             false,
@@ -723,7 +758,7 @@ describe("Limited Event Draft Timer + Auto-Pick (issue #1114, PRD #1107 stories 
             0,
             afterBots.seats[0].currentPack![0].pickId,
             seed,
-            getBoosterConfig,
+            getRuntimeBoosterConfig,
             resolveCardMeta,
             timerConfig
         );
@@ -733,7 +768,7 @@ describe("Limited Event Draft Timer + Auto-Pick (issue #1114, PRD #1107 stories 
             humanPicked.draftPacksRemaining,
             packSlots,
             seed,
-            getBoosterConfig,
+            getRuntimeBoosterConfig,
             resolveCardMeta,
             botChoosePick,
             humanPicked.completed,
@@ -992,7 +1027,7 @@ describe("Limited Event completion + full-disclosure review (issue #1116): seale
             filled,
             event.packSlots,
             event.sealedBoosterCount!,
-            getBoosterConfig,
+            getRuntimeBoosterConfig,
             resolveCardMeta,
             makeRng(2026)
         );
@@ -1209,8 +1244,16 @@ describe("Limited Event Pool Arrangement (ADR 0060, issue #1247): setPoolArrange
                     userId: "user1",
                     nickname: "Alice",
                     pool: [
-                        { scryfallId: "s1", cardId: "c1", cardName: "Card One" },
-                        { scryfallId: "s2", cardId: "c2", cardName: "Card Two" },
+                        {
+                            scryfallId: "s1",
+                            cardId: "c1",
+                            cardName: "Card One",
+                        },
+                        {
+                            scryfallId: "s2",
+                            cardId: "c2",
+                            cardName: "Card Two",
+                        },
                     ],
                 },
                 {
@@ -1281,9 +1324,7 @@ describe("Limited Event Pool Arrangement (ADR 0060, issue #1247): setPoolArrange
 
         const aliceView = projectLimitedEvent(event, "user1");
         const aliceOwn = aliceView.seats.find((s) => s.seatIndex === 0)!;
-        expect(aliceOwn.poolArrangement).toEqual([
-            { poolIndex: 0, column: 3 },
-        ]);
+        expect(aliceOwn.poolArrangement).toEqual([{ poolIndex: 0, column: 3 }]);
 
         const bobView = projectLimitedEvent(event, "user2");
         const aliceFromBob = bobView.seats.find((s) => s.seatIndex === 0)!;
@@ -1405,9 +1446,9 @@ describe("Limited Event Selected Card (ADR 0060, issue #1248): selectDraftPick's
 
     it("rejects a pickId not present in the caller's current pack (stale/forged selection)", () => {
         const event = draftEventWithPack();
-        expect(() =>
-            applySelectDraftPick(event, "user1", "r0-p0-c99")
-        ).toThrow(/not in your current pack/);
+        expect(() => applySelectDraftPick(event, "user1", "r0-p0-c99")).toThrow(
+            /not in your current pack/
+        );
     });
 
     it("rejects a caller with no Seat in the event", () => {
@@ -1422,9 +1463,9 @@ describe("Limited Event Selected Card (ADR 0060, issue #1248): selectDraftPick's
             ...draftEventWithPack(),
             type: "sealed",
         };
-        expect(() =>
-            applySelectDraftPick(sealed, "user1", "r0-p0-c0")
-        ).toThrow(/not a Draft/);
+        expect(() => applySelectDraftPick(sealed, "user1", "r0-p0-c0")).toThrow(
+            /not a Draft/
+        );
     });
 
     it("privacy: selectedPickId is visible ONLY to its own seat's viewer through projectLimitedEvent — never another seat's", () => {
