@@ -103,6 +103,15 @@ export type Move =
           accept: boolean;
       }
     | {
+          /** Yes/no answer to a `draw-reveal-pay` pending choice (Zur's Weirding,
+           *  CR 614 / issue #735), realised through the dedicated
+           *  `submitDrawRevealPay` mutation. Like `land-entry` only the boolean
+           *  travels (accept = pay the life to bin the revealed card); the choice
+           *  identity is read from the active pending choice. */
+          kind: "draw-reveal-pay";
+          accept: boolean;
+      }
+    | {
           /** Decline a reflexive `madness-cast` pending choice (CR 702.35d),
            *  realised through the dedicated `submitMadnessDecline` mutation. No
            *  data travels; the choice identity is read from the active pending

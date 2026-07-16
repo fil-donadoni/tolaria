@@ -208,6 +208,7 @@ export type BotAction =
           discardIds?: string[];
       }
     | { kind: "land-entry"; accept: boolean }
+    | { kind: "draw-reveal-pay"; accept: boolean }
     | { kind: "name-card"; cardName: string }
     | { kind: "random-reveal-ack" }
     | { kind: "madness-decline" }
@@ -266,6 +267,7 @@ export function botActionRealisation(
         case "resolution-choice":
         case "may-pay":
         case "land-entry":
+        case "draw-reveal-pay":
         case "name-card":
         case "random-reveal-ack":
         case "madness-decline":
@@ -620,6 +622,7 @@ export function chooseResolution(choice: OwedChoice): string[] {
         // `decideBotAction` (the bot declines): never resolved here.
         case "may-pay":
         case "land-entry-tapped":
+        case "draw-reveal-pay":
         case "mulligan-bottom":
         case "random-reveal":
         case "name-card":
@@ -743,6 +746,14 @@ export function decideBotAction(view: BotView): BotAction {
             // exile for the madness cost is a real value decision deferred to a
             // later slice (ADR 0016); declining is always legal and never stalls.
             return { kind: "madness-decline" };
+        }
+        if (choice.kind === "draw-reveal-pay") {
+            // CR 614 / issue #735 — Zur's Weirding "any other player may pay N
+            // life to bin the revealed draw". The bot's minimal-legal default
+            // (ADR 0016) is to DECLINE (let them draw) — paying life to deny an
+            // unknown card is a value decision deferred to a later slice.
+            // Declining is always legal and never stalls.
+            return { kind: "draw-reveal-pay", accept: false };
         }
         return {
             kind: "resolution-choice",

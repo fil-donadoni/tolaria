@@ -35,15 +35,19 @@ export function usePendingChoicePrimaryAction(): PendingChoicePrimaryAction | nu
     const bufferCtx = usePendingChoiceBuffer();
     const submitMayPay = useMutation(api.game.submitMayPay);
     const submitLandEntryChoice = useMutation(api.game.submitLandEntryChoice);
+    const submitDrawRevealPay = useMutation(api.game.submitDrawRevealPay);
     const [isBusy, setIsBusy] = useState(false);
 
     const choice = pendingChoices?.[0];
     const isChooser = !!choice && choice.playerId === playerId;
-    // CR 117.6 / 614.12 — the two yes-no "pay a cost or not" families share the
-    // affordability + affirmative rendering; only the submit mutation differs
-    // (`may-pay` → submitMayPay, `land-entry-tapped` → submitLandEntryChoice).
+    // CR 117.6 / 614.12 / 614 (#735) — the yes-no "pay a cost or not" families
+    // share the affordability + affirmative rendering; only the submit mutation
+    // differs (`may-pay` → submitMayPay, `land-entry-tapped` →
+    // submitLandEntryChoice, `draw-reveal-pay` → submitDrawRevealPay).
     const isYesNoPay =
-        choice?.kind === "may-pay" || choice?.kind === "land-entry-tapped";
+        choice?.kind === "may-pay" ||
+        choice?.kind === "land-entry-tapped" ||
+        choice?.kind === "draw-reveal-pay";
 
     const confirm = useCallback(async () => {
         if (!choice || isBusy) return;
@@ -80,6 +84,13 @@ export function usePendingChoicePrimaryAction(): PendingChoicePrimaryAction | nu
             } finally {
                 setIsBusy(false);
             }
+        } else if (choice.kind === "draw-reveal-pay") {
+            setIsBusy(true);
+            try {
+                await submitDrawRevealPay({ gameId, playerId, accept: true });
+            } finally {
+                setIsBusy(false);
+            }
         } else {
             // Zone picks route through the buffer, which owns its own
             // in-flight + error state (see usePendingChoiceBuffer).
@@ -90,6 +101,7 @@ export function usePendingChoicePrimaryAction(): PendingChoicePrimaryAction | nu
         isBusy,
         submitMayPay,
         submitLandEntryChoice,
+        submitDrawRevealPay,
         gameId,
         playerId,
         bufferCtx,

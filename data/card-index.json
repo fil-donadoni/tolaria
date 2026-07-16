@@ -2556,6 +2556,12 @@
         "firstSet": "mh2"
     },
     {
+        "name": "Enduring Renewal",
+        "scryfallId": "be77edac-9a8b-4b7f-a859-27df76b10aa6",
+        "oracleId": "47a080c4-ff04-4f52-aca0-2b8e4f4d931e",
+        "firstSet": "ice"
+    },
+    {
         "name": "Energy Flux",
         "scryfallId": "bd1f624b-e8f2-462f-838a-7cb9e8fda988",
         "oracleId": "7a756cd1-29a8-4edf-bb74-fbb5b4020022",
@@ -10204,6 +10210,12 @@
         "scryfallId": "3d4255a0-d445-4c00-b936-bbf07851e1c8",
         "oracleId": "5446c92f-ff22-4e9b-a2f6-e64c8560c1e0",
         "firstSet": "lea"
+    },
+    {
+        "name": "Zur's Weirding",
+        "scryfallId": "e1f8531f-19ca-48a2-baf2-c5dc6f18d79c",
+        "oracleId": "c6eaa147-3566-43a9-999a-d58b877496f5",
+        "firstSet": "ice"
     },
     {
         "name": "Zuran Enchanter",

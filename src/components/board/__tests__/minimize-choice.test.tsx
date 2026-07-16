@@ -40,6 +40,7 @@ vi.mock("@convex/_generated/api", () => {
         "submitResolutionChoice",
         "submitMayPay",
         "submitLandEntryChoice",
+        "submitDrawRevealPay",
         "submitMadnessDecline",
         "announceCast",
         "submitNameCard",

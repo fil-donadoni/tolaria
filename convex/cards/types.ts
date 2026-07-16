@@ -4772,6 +4772,15 @@ export interface CreatureDiedEvent {
     type: "CREATURE_DIED";
     creatureInstanceId: string;
     creatureControllerId: string;
+    /** The dying creature's OWNER (CR 108.3 / 400.7 — a card is always put into
+     *  ITS OWNER's graveyard, regardless of who controlled it). Distinct from
+     *  `creatureControllerId` for a control-changed creature (Control Magic).
+     *  Read by owner-scoped death triggers — Enduring Renewal's "whenever a
+     *  creature is put into YOUR graveyard from the battlefield" (issue #735),
+     *  which is owner-based, not controller-based. Optional so older event
+     *  fixtures / serialized logs without the field deserialize gracefully
+     *  (a `condition` reading it simply sees `undefined`). */
+    creatureOwnerId?: string;
     /** Card types snapshotted at the moment of death (CR 603.10 last known
      *  information). Mirrors `PermanentLeftEvent.types`; consumed by
      *  `diedTrigger`'s last-known-information payload so authors don't have

@@ -193,6 +193,7 @@ export function applyMoveForSearch(
         case "resolution-choice":
         case "may-pay":
         case "land-entry":
+        case "draw-reveal-pay":
         case "name-card":
         case "random-reveal-ack":
         case "madness-decline":

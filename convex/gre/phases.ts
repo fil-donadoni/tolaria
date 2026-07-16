@@ -23,6 +23,11 @@ import {
     consumePreventionIfAny,
     destroyWithReplacements,
     drawCard,
+    drawOneWithReveal,
+    getActiveDrawReveal,
+    commitDrawRevealPay,
+    grantKnowledgeToAll,
+    payMayPayCost,
     emitCardDrawn,
     flushPendingEvents,
     processPendingActionTriggers,
@@ -737,10 +742,100 @@ function drawStep(state: GameState): void {
         return;
     }
 
-    // CR 504.1 — the turn-based draw for the draw step. Emit CARD_DRAWN so
-    // "when you draw a card" triggers (Fasting) fire; the DRAW phase entry
-    // drains pending events right after `drawStep` returns.
-    if (drawCard(player) !== null) emitCardDrawn(state, player.id, 1);
+    // CR 504.1 — the turn-based draw for the draw step, routed through the
+    // draw-reveal choke (CR 614, issue #735 — Zur's Weirding / Enduring
+    // Renewal). Emits CARD_DRAWN so "when you draw a card" triggers (Fasting)
+    // fire; the DRAW phase entry drains pending events right after `drawStep`
+    // returns. Suspends on a `draw-reveal-pay` choice for the interactive branch.
+    performDrawStepDraw(state, player.id);
+}
+
+/** Resolves the turn-based draw-step draw through the draw-reveal choke
+ *  (CR 614, issue #735). A deterministic or absent replacement commits
+ *  synchronously; the interactive branch (Zur's Weirding) reveals the
+ *  would-be-drawn card and raises a `draw-reveal-pay` choice for the other
+ *  player. */
+function performDrawStepDraw(state: GameState, playerId: string): void {
+    const outcome = drawOneWithReveal(state, playerId);
+    if (outcome.kind === "drew") {
+        emitCardDrawn(state, playerId, 1);
+        return;
+    }
+    if (outcome.kind === "binned" || outcome.kind === "empty") return;
+    enqueueDrawRevealPay(state, playerId, outcome.revealedCardId);
+}
+
+/** Raises the interactive draw-reveal pay-choice (CR 614, issue #735 — Zur's
+ *  Weirding, "any other player may pay N life"). The would-be-drawn card is
+ *  revealed to all players (CR — "they reveal it"); the single other player
+ *  (2-player / solo scope, CR 101.4 APNAP) may pay to bin it. When that player
+ *  cannot afford the life (CR 119.4), no choice is raised and the drawing player
+ *  simply draws the revealed card (Arena auto-resolve of a zero-branch choice). */
+function enqueueDrawRevealPay(
+    state: GameState,
+    drawingPlayerId: string,
+    revealedCardId: string
+): void {
+    const active = getActiveDrawReveal(state, drawingPlayerId);
+    const branch = active?.config.branch;
+    if (branch?.kind !== "others-may-pay-life") {
+        // Defensive — only the interactive branch reaches here.
+        commitDrawRevealPay(state, drawingPlayerId, false);
+        return;
+    }
+    const life = branch.life;
+    // CR — "they reveal it": the would-be-drawn card becomes public.
+    grantKnowledgeToAll(state, drawingPlayerId, [revealedCardId]);
+    const chooserId = getOpponentId(state, drawingPlayerId);
+    const chooser = getPlayer(state, chooserId);
+    if (chooser.life < life) {
+        commitDrawRevealPay(state, drawingPlayerId, false);
+        return;
+    }
+    state.pendingChoices = state.pendingChoices ?? [];
+    state.pendingChoices.push({
+        stackItemId: "",
+        step: 0,
+        choiceId: `draw-reveal-pay-${drawingPlayerId}`,
+        playerId: chooserId,
+        zoneOwnerId: drawingPlayerId,
+        kind: "draw-reveal-pay",
+        cardInstanceId: revealedCardId,
+        cost: { life },
+        count: 1,
+        prompt: `You may pay ${life} life to put the revealed card into its owner's graveyard. Otherwise they draw it.`,
+    });
+    state.priorityPlayerId = chooserId;
+}
+
+/** Commits a `draw-reveal-pay` `PendingChoice` (CR 614, issue #735 — Zur's
+ *  Weirding). `paid` true: the choosing player pays the life cost (CR 118.4) and
+ *  the revealed card goes to its owner's graveyard. `paid` false: the drawing
+ *  player draws it. Resumes the draw-step priority window afterward. */
+export function finalizeDrawRevealPay(state: GameState, paid: boolean): void {
+    const queue = state.pendingChoices ?? [];
+    const head = queue[0];
+    if (!head || head.kind !== "draw-reveal-pay") return;
+    const chooserId = head.playerId;
+    const drawingPlayerId = head.zoneOwnerId ?? head.playerId;
+    if (paid && head.cost) {
+        // CR 118.4 — paying life routes through the shared choke (lifeloss
+        // replacement chain + LIFE_LOST emit).
+        payMayPayCost(state, chooserId, head.cost);
+    }
+    commitDrawRevealPay(state, drawingPlayerId, paid);
+
+    queue.shift();
+    state.pendingChoices = queue.length > 0 ? queue : undefined;
+    processPendingActionTriggers(state);
+
+    if ((state.pendingChoices?.length ?? 0) > 0) {
+        state.priorityPlayerId = state.pendingChoices![0].playerId;
+        return;
+    }
+    state.priorityPlayerId = state.activePlayerId;
+    state.passCount = 0;
+    drainAutoPasses(state);
 }
 
 /** Commits a `draw-look-keep` `PendingChoice` (CR 614 — Aladdin's Lamp): the

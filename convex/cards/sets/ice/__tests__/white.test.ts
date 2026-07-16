@@ -61,6 +61,7 @@ import {
     kjeldoranEliteGuard,
     kjeldoranGuard,
     battleCry,
+    enduringRenewal,
 } from "../../ice";
 import { plains } from "../../lea";
 import { getDefinition, getCardByName } from "../../../index";
@@ -77,6 +78,7 @@ import {
     getStaticAdditionalSacrifices,
     removePermanentTo,
     processPendingActionTriggers,
+    drawOneWithReveal,
 } from "../../../../gre/state";
 import {
     canAffordSacrifice,
@@ -2883,5 +2885,194 @@ describe("Battle Cry (untap-all-white + repeating block-buff delayed trigger, CR
             (c) => c.id === "bw"
         )!;
         expect(getEffectiveToughness(projected, slim)).toBe(3);
+    });
+});
+
+// ===========================================================================
+// Enduring Renewal — draw-reveal replacement + hand-reveal + return trigger
+// (CR 614 / 700.4 / 603.2, issue #735)
+// ===========================================================================
+
+describe("Enduring Renewal (draw-reveal + hand-reveal + return, CR 614/700.4, #735)", () => {
+    const bearsId = getCardByName("Balduvian Bears").id;
+
+    it("card definition wires the reveal + draw-reveal statics", () => {
+        expect(enduringRenewal.revealsHand).toBe("controller");
+        expect(enduringRenewal.drawRevealReplacement).toEqual({
+            scope: "controller",
+            branch: { kind: "type-to-graveyard", cardType: "Creature" },
+        });
+    });
+
+    it("CR 614 — a revealed creature is binned; a non-creature is drawn", () => {
+        const er = makeInstance(enduringRenewal.id, {
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const creatureTop = makeInstance(bearsId, {
+            id: "top-creature",
+            ownerId: "p1",
+            zone: "library",
+        });
+        const landTop = makeInstance(plains.id, {
+            id: "top-land",
+            ownerId: "p1",
+            zone: "library",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [er],
+                    library: [creatureTop, landTop],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+
+        // Top is a creature → put into the graveyard, no draw.
+        const binned = drawOneWithReveal(state, "p1");
+        expect(binned.kind).toBe("binned");
+        expect(state.players[0].graveyard.map((c) => c.id)).toContain(
+            "top-creature"
+        );
+        expect(state.players[0].hand).toHaveLength(0);
+
+        // Top is now the land → drawn to hand.
+        const drew = drawOneWithReveal(state, "p1");
+        expect(drew.kind).toBe("drew");
+        expect(state.players[0].hand.map((c) => c.id)).toContain("top-land");
+    });
+
+    it("scope is the controller only — an opponent's draw is unaffected", () => {
+        const er = makeInstance(enduringRenewal.id, {
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const oppCreatureTop = makeInstance(bearsId, {
+            id: "opp-top",
+            ownerId: "p2",
+            zone: "library",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [er] }),
+                makePlayer("p2", { library: [oppCreatureTop] }),
+            ],
+        });
+        // p2 has no Enduring Renewal effect on their draws → normal draw.
+        const out = drawOneWithReveal(state, "p2");
+        expect(out.kind).toBe("drew");
+        expect(state.players[1].hand.map((c) => c.id)).toContain("opp-top");
+    });
+
+    it("CR 700.4 — a creature put into YOUR graveyard from the battlefield returns to hand", () => {
+        const er = makeInstance(enduringRenewal.id, {
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const deadBear = makeInstance(bearsId, {
+            id: "dead-bear",
+            ownerId: "p1",
+            controllerId: "p1",
+            zone: "graveyard",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [er], graveyard: [deadBear] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveTrigger(state, er, "enduring-renewal-return", {
+            type: "CREATURE_DIED",
+            creatureInstanceId: "dead-bear",
+            creatureControllerId: "p1",
+            creatureOwnerId: "p1",
+            creatureTypes: ["Creature"],
+            damagedBySources: [],
+            creaturePower: 2,
+            creatureToughness: 2,
+        });
+        expect(state.players[0].graveyard).toHaveLength(0);
+        expect(state.players[0].hand.map((c) => c.id)).toContain("dead-bear");
+    });
+
+    it("CR 400.7 — the return trigger is owner-scoped: an opponent-owned death does not fire", () => {
+        const er = makeInstance(enduringRenewal.id, {
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const ability = enduringRenewal.triggeredAbilities![0];
+        const selfView = {
+            id: er.id,
+            controllerId: "p1",
+            ownerId: "p1",
+            types: er.types,
+            subtypes: [],
+            staticAbilities: [],
+            power: undefined,
+            toughness: undefined,
+            isTapped: false,
+            card: er.card,
+        };
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [er] }),
+                makePlayer("p2"),
+            ],
+        });
+        const p1Owned = ability.matches(
+            {
+                type: "CREATURE_DIED",
+                creatureInstanceId: "x",
+                creatureControllerId: "p1",
+                creatureOwnerId: "p1",
+                creatureTypes: ["Creature"],
+                damagedBySources: [],
+                creaturePower: 1,
+                creatureToughness: 1,
+            },
+            selfView,
+            state
+        );
+        const p2Owned = ability.matches(
+            {
+                type: "CREATURE_DIED",
+                creatureInstanceId: "y",
+                creatureControllerId: "p1",
+                creatureOwnerId: "p2",
+                creatureTypes: ["Creature"],
+                damagedBySources: [],
+                creaturePower: 1,
+                creatureToughness: 1,
+            },
+            selfView,
+            state
+        );
+        expect(p1Owned).toBe(true);
+        expect(p2Owned).toBe(false);
+    });
+
+    it("hand-reveal survives projection: the controller's hand is visible to the opponent (wire format)", () => {
+        const er = makeInstance(enduringRenewal.id, {
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const handCard = makeInstance(bearsId, {
+            id: "p1-hand-bear",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [er], hand: [handCard] }),
+                makePlayer("p2"),
+            ],
+        });
+        // Opponent (p2) view: p1's hand identities are revealed (not null slots).
+        const projected = projectPublicState(state, 1, "p2");
+        const p1View = projected.players.find((p) => p.id === "p1")!;
+        expect(p1View.hand).toHaveLength(1);
+        expect(p1View.hand[0]).not.toBeNull();
+        expect(p1View.hand[0]!.card.id).toBe(bearsId);
     });
 });

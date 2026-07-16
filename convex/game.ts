@@ -173,6 +173,7 @@ import {
     applyAllCombatDamage,
     emitBlockersConfirmedEvents,
     emitAttackersDeclaredEvents,
+    finalizeDrawRevealPay,
     isSorceryTiming,
 } from "./gre/phases";
 import { freshSeed, seededShuffle } from "./gre/rng";
@@ -8622,6 +8623,45 @@ export const submitMadnessDecline = mutation({
         state.priorityPlayerId = state.activePlayerId;
         state.passCount = 0;
         drainAutoPasses(state);
+        checkStateBasedActions(state);
+
+        const nextSeq = gameState.seq + 1;
+        await saveGameState(ctx, args.gameId, nextSeq, state, gameState);
+        await finalizeGameOver(ctx, args.gameId, nextSeq, state);
+    },
+});
+
+/** Answers a suspended `draw-reveal-pay` choice (CR 614, issue #735 — Zur's
+ *  Weirding). `accept: true` pays the life cost so the revealed would-be-drawn
+ *  card goes to its owner's graveyard; `false` declines and the drawing player
+ *  draws it. Separate entry point from `submitMayPay` because the turn-based
+ *  draw step has no stack item to resume through (mirrors `submitLandEntryChoice`). */
+export const submitDrawRevealPay = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+        accept: v.boolean(),
+    },
+    handler: async (ctx, args) => {
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
+
+        const state = structuredClone(gameState.state) as GameState;
+        assertGameNotOver(state);
+        assertExpectedInput(state, {
+            playerId: args.playerId,
+            expect: "choice",
+        });
+        const head = state.pendingChoices?.[0];
+        if (
+            !head ||
+            head.kind !== "draw-reveal-pay" ||
+            head.playerId !== args.playerId
+        ) {
+            throw new Error("No draw-reveal pay choice to answer");
+        }
+
+        finalizeDrawRevealPay(state, args.accept);
         checkStateBasedActions(state);
 
         const nextSeq = gameState.seq + 1;

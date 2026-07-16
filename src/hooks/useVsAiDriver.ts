@@ -69,6 +69,7 @@ export function useVsAiDriver(
         submitResolutionChoice: useMutation(api.game.submitResolutionChoice),
         submitMayPay: useMutation(api.game.submitMayPay),
         submitLandEntryChoice: useMutation(api.game.submitLandEntryChoice),
+        submitDrawRevealPay: useMutation(api.game.submitDrawRevealPay),
         submitMadnessDecline: useMutation(api.game.submitMadnessDecline),
         submitNameCard: useMutation(api.game.submitNameCard),
         submitRandomRevealAck: useMutation(api.game.submitRandomRevealAck),

@@ -811,9 +811,18 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // (`ctx.setChosenMode`, a NEW SpellContext primitive no Op expresses).
         // Op-blocked, so total 700→701, Op-blocked 232→233, FREE/AFK-ready/X-only
         // unchanged (454/416/14). Partition: 454+14+233=701.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(701);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(454);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(416);
+        //
+        // Then Enduring Renewal (ice, #735) ships its "whenever a creature is put
+        // into your graveyard from the battlefield, return it to your hand"
+        // owner-scoped death trigger — ONE `resolve()` closure (a `diedTrigger`
+        // factory body calling `ctx.moveCardById(graveyard→hand)`, FREE) that
+        // carries a per-card GRE test → AFK-ready. Zur's Weirding (the same slice)
+        // is pure data (hand-reveal + draw-reveal statics), no closure. Net: total
+        // 701→702, FREE 454→455, AFK-ready 416→417, X-only/Op-blocked unchanged
+        // (14/233). Partition: 455+14+233=702.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(702);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(455);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(417);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
         expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(233);
     });

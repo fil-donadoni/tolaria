@@ -876,15 +876,63 @@ export const elvishHealer: CardDefinition = {
         },
     ],
 };
-// TODO(#628): implement.
-// export const enduringRenewal: CardDefinition = {
-//     id: "be77edac-9a8b-4b7f-a859-27df76b10aa6",
-//     name: "Enduring Renewal",
-//     rarity: "rare",
-//     oracleText: "Play with your hand revealed.\nIf you would draw a card, reveal the top card of your library instead. If it's a creature card, put it into your graveyard. Otherwise, draw a card.\nWhenever a creature is put into your graveyard from the battlefield, return it to your hand.",
-//     manaCost: { X: 2, W: 2 },
-//     types: ["Enchantment"],
-// };
+// Enduring Renewal — {2}{W}{W} Enchantment (issue #735). Three clauses over the
+// shipped draw-reveal / hand-reveal engine:
+//   • "Play with your hand revealed" — the continuous hand-reveal projection
+//     static (`revealsHand: "controller"`), surfaced to opponents by
+//     `gameProjections.ts` (CR 702-adjacent).
+//   • "If you would draw a card, reveal the top card of your library instead. If
+//     it's a creature card, put it into your graveyard. Otherwise, draw a card."
+//     — the DETERMINISTIC draw-reveal replacement (CR 614): every draw the
+//     controller takes routes through the `drawOneWithReveal` choke, binning a
+//     revealed creature or drawing otherwise. Fires at all draw sites (draw step
+//     + effect draws), no player choice.
+//   • "Whenever a creature is put into your graveyard from the battlefield,
+//     return it to your hand." — an OWNER-scoped death trigger (CR 700.4 /
+//     603.2). `diedTrigger` matches any dying creature and the `condition`
+//     narrows to the ones OWNED by this card's controller (CR 400.7 — a card
+//     goes to its owner's graveyard), then returns it to that owner's hand.
+//     Authored via the shared `diedTrigger` factory (not a DSL `moveZone` Op)
+//     because "return IT" references the trigger's dead-creature subject, the
+//     `$event.<field>` grammar gap (#865).
+export const enduringRenewal: CardDefinition = {
+    id: "be77edac-9a8b-4b7f-a859-27df76b10aa6",
+    name: "Enduring Renewal",
+    rarity: "rare",
+    oracleText:
+        "Play with your hand revealed.\nIf you would draw a card, reveal the top card of your library instead. If it's a creature card, put it into your graveyard. Otherwise, draw a card.\nWhenever a creature is put into your graveyard from the battlefield, return it to your hand.",
+    manaCost: { X: 2, W: 2 },
+    types: ["Enchantment"],
+    revealsHand: "controller",
+    drawRevealReplacement: {
+        scope: "controller",
+        branch: { kind: "type-to-graveyard", cardType: "Creature" },
+    },
+    triggeredAbilities: [
+        diedTrigger({
+            id: "enduring-renewal-return",
+            oracleText:
+                "Whenever a creature is put into your graveyard from the battlefield, return it to your hand.",
+            scope: "any",
+            // CR 400.7 — a creature goes to its OWNER's graveyard; "your
+            // graveyard" is owner-scoped. Narrow to creatures this card's
+            // controller owns (creatureOwnerId, issue #735).
+            condition: (event, self) =>
+                event.creatureOwnerId === self.controllerId,
+            resolve: (ctx, _event, deadCreature) => {
+                // CR 400.7 — the card is in its owner's (= this controller's)
+                // graveyard; return it to that owner's hand. A no-op if it has
+                // since left the graveyard (CR 608.2b).
+                ctx.moveCardById(
+                    ctx.controller,
+                    deadCreature.id,
+                    "graveyard",
+                    "hand"
+                );
+            },
+        }),
+    ],
+};
 // Energy Storm — {1}{W} Enchantment. Three data-only clauses over shipped
 // seams (issue #727):
 //   • Cumulative upkeep {1} — the ADR 0042 template (`cumulativeUpkeepTrigger`).

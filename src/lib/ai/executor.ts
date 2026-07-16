@@ -80,6 +80,7 @@ export type MoveMutations = {
         a: GP & { accept: boolean; sacrificeIds?: string[] }
     ) => Promise<unknown>;
     submitLandEntryChoice: (a: GP & { accept: boolean }) => Promise<unknown>;
+    submitDrawRevealPay: (a: GP & { accept: boolean }) => Promise<unknown>;
     submitMadnessDecline: (a: GP) => Promise<unknown>;
     submitNameCard: (a: GP & { cardName: string }) => Promise<unknown>;
     submitRandomRevealAck: (
@@ -146,6 +147,16 @@ export async function executeMove(
             // Shock-land pay-choice (CR 614.12 / ADR 0051) — its own entry
             // point (`submitLandEntryChoice`); a played land has no stack item.
             await mutations.submitLandEntryChoice({
+                ...base,
+                accept: move.accept,
+            });
+            return;
+
+        case "draw-reveal-pay":
+            // Zur's Weirding pay-choice (CR 614 / issue #735) — its own entry
+            // point (`submitDrawRevealPay`); the turn-based draw step has no
+            // stack item. Only the boolean travels.
+            await mutations.submitDrawRevealPay({
                 ...base,
                 accept: move.accept,
             });

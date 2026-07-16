@@ -62,6 +62,7 @@ import {
     magusOfTheUnseen,
     mistfolk,
     phantasmalMount,
+    zursWeirding,
 } from "../../ice";
 import { matchesSpellFilter } from "../../../filters";
 import { getDefinition, getCardByName } from "../../../index";
@@ -74,6 +75,7 @@ import {
     addRestrictedManaToPool,
     removePermanentTo,
     processPendingActionTriggers,
+    drawOneWithReveal,
 } from "../../../../gre/state";
 import {
     getEffectivePower,
@@ -88,6 +90,7 @@ import {
     advancePhase,
     finalizeCleanup,
     fireDelayedTriggers,
+    finalizeDrawRevealPay,
 } from "../../../../gre/phases";
 import { validateAttackerEligibility } from "../../../../gre/combat";
 import {
@@ -2883,5 +2886,127 @@ describe("Winter's Chill (capped-X + per-target three-way may-pay, CR 107.3/118/
         expect(wintersChill.castXUpperBound).toBe("snow-lands");
         expect(getDefinition(wintersChill.id)).toBe(wintersChill);
         expect(getCardByName("Winter's Chill")).toBe(wintersChill);
+    });
+});
+
+// ===========================================================================
+// Zur's Weirding — interactive draw-reveal replacement + all-players hand-reveal
+// (CR 614, issue #735)
+// ===========================================================================
+
+describe("Zur's Weirding (interactive draw-reveal + hand-reveal, CR 614, #735)", () => {
+    const topCardId = balduvianBears.id;
+
+    function stateWithZurs(p2Life = 20) {
+        // p1 is the active player about to draw at their draw step; p2 controls
+        // Zur's Weirding (scope all-players → p1's draw is replaced) and decides
+        // whether to pay 2 life.
+        const zurs = makeInstance(zursWeirding.id, {
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const top = makeInstance(topCardId, {
+            id: "p1-top",
+            ownerId: "p1",
+            zone: "library",
+        });
+        return makeState({
+            turn: 2,
+            phase: "UPKEEP",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            players: [
+                makePlayer("p1", { library: [top] }),
+                makePlayer("p2", { life: p2Life, battlefield: [zurs] }),
+            ],
+        });
+    }
+
+    it("card definition wires the reveal + interactive draw-reveal statics", () => {
+        expect(zursWeirding.revealsHand).toBe("all-players");
+        expect(zursWeirding.drawRevealReplacement).toEqual({
+            scope: "all-players",
+            branch: { kind: "others-may-pay-life", life: 2 },
+        });
+    });
+
+    it("CR 614 — a would-be draw suspends on a draw-reveal-pay choice for the other player", () => {
+        const out = drawOneWithReveal(stateWithZurs(), "p1");
+        expect(out.kind).toBe("suspend-pay");
+    });
+
+    it("draw step: the draw is replaced by a reveal + pay-choice for the opponent (integration)", () => {
+        const state = stateWithZurs();
+        advancePhase(state);
+        expect(state.phase).toBe("DRAW");
+        const head = state.pendingChoices?.[0];
+        expect(head?.kind).toBe("draw-reveal-pay");
+        expect(head?.playerId).toBe("p2"); // the other player decides
+        expect(state.priorityPlayerId).toBe("p2");
+        // CR — "they reveal it": the top card is public (known to the payer).
+        const top = state.players[0].library.find((c) => c.id === "p1-top")!;
+        expect(top.knownTo).toContain("p2");
+        // Not drawn yet — the branch is pending.
+        expect(state.players[0].hand).toHaveLength(0);
+    });
+
+    it("pay branch: the payer loses 2 life and the revealed card is binned", () => {
+        const state = stateWithZurs();
+        advancePhase(state);
+        finalizeDrawRevealPay(state, true);
+        expect(state.players[1].life).toBe(18); // p2 paid 2 life
+        expect(state.players[0].graveyard.map((c) => c.id)).toContain("p1-top");
+        expect(state.players[0].hand).toHaveLength(0);
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+    });
+
+    it("decline branch: the drawing player draws the revealed card", () => {
+        const state = stateWithZurs();
+        advancePhase(state);
+        finalizeDrawRevealPay(state, false);
+        expect(state.players[1].life).toBe(20); // no life paid
+        expect(state.players[0].hand.map((c) => c.id)).toContain("p1-top");
+        expect(state.players[0].graveyard).toHaveLength(0);
+    });
+
+    it("CR 119.4 — no pay-choice is raised when the other player can't afford the life (auto-draw)", () => {
+        const state = stateWithZurs(1); // p2 has only 1 life, can't pay 2
+        advancePhase(state);
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        expect(state.players[0].hand.map((c) => c.id)).toContain("p1-top");
+        expect(state.players[1].life).toBe(1);
+    });
+
+    it("all hands are revealed to opponents through the projection (wire format)", () => {
+        const zurs = makeInstance(zursWeirding.id, {
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const p1Hand = makeInstance(topCardId, {
+            id: "p1-hand",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const p2Hand = makeInstance(topCardId, {
+            id: "p2-hand",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [zurs], hand: [p1Hand] }),
+                makePlayer("p2", { hand: [p2Hand] }),
+            ],
+        });
+        // p1's view: p2's hand is revealed (all-players scope).
+        const p1View = projectPublicState(state, 1, "p1");
+        const p2Slim = p1View.players.find((p) => p.id === "p2")!;
+        expect(p2Slim.hand[0]).not.toBeNull();
+        expect(p2Slim.hand[0]!.card.id).toBe(topCardId);
+        // p2's view: p1's hand is revealed too.
+        const p2View = projectPublicState(state, 1, "p2");
+        const p1Slim = p2View.players.find((p) => p.id === "p1")!;
+        expect(p1Slim.hand[0]).not.toBeNull();
+        expect(p1Slim.hand[0]!.card.id).toBe(topCardId);
     });
 });

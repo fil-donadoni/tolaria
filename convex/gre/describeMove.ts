@@ -90,6 +90,10 @@ export function describeMove(move: Move, state: GameState): string {
             return move.accept
                 ? "pay to enter untapped"
                 : "enter tapped (decline)";
+        case "draw-reveal-pay":
+            return move.accept
+                ? "pay life to bin revealed card"
+                : "let them draw (decline)";
         case "name-card":
             return `name a card (${move.cardName})`;
         case "random-reveal-ack":

@@ -5578,6 +5578,9 @@ export function removePermanentTo(
                 type: "CREATURE_DIED",
                 creatureInstanceId: cardId,
                 creatureControllerId: snapshotControllerId,
+                // CR 108.3 / 400.7 (issue #735) — owner, for owner-scoped death
+                // triggers (Enduring Renewal's "put into your graveyard").
+                creatureOwnerId: lkiOwnerId,
                 creatureTypes: lkiTypes,
                 damagedBySources: snapshotDamagedBy,
                 creaturePower: snapshotPower,
@@ -8195,12 +8198,31 @@ export function buildSpellContext(
         },
         // CR 121.1: cards are drawn one at a time. Stops if the library empties
         // (CR 704.5b: hasDrawnFromEmpty flagged by drawCard; SBA ends the game).
+        // CR 614 (issue #735) — each draw passes through the draw-reveal choke,
+        // so Enduring Renewal's deterministic "creature → graveyard" branch
+        // fires on effect-driven draws too, one card at a time.
         drawCards(playerId: string, amount: number): void {
             const player = getPlayer(state, playerId);
             let drawn = 0;
             for (let i = 0; i < amount; i++) {
-                if (drawCard(player) === null) break;
-                drawn++;
+                const active = getActiveDrawReveal(state, playerId);
+                if (active?.config.branch.kind === "others-may-pay-life") {
+                    // DIVERGENCE: an interactive draw-replacement (Zur's Weirding,
+                    // "any other player may pay 2 life") cannot suspend inside
+                    // this synchronous primitive, so an EFFECT-driven draw — the
+                    // DSL `draw` Op and every `resolve()`-closure `ctx.drawCards`
+                    // caller alike route through here — is taken WITHOUT offering
+                    // the pay-choice. Only the turn-based DRAW STEP honors the
+                    // interactive branch (a phase-level `draw-reveal-pay` choice,
+                    // `phases.ts`). Making effect draws suspend needs the primitive
+                    // + its callers rebuilt around a suspend seam. tracked-by: #1250
+                    if (drawCard(player) !== null) drawn++;
+                    continue;
+                }
+                const outcome = drawOneWithReveal(state, playerId);
+                if (outcome.kind === "empty") break;
+                if (outcome.kind === "drew") drawn++;
+                // "binned" — the revealed card went to the graveyard, no draw.
             }
             // CR 121.1 — emit a draw event so "when you draw a card" triggers
             // (Fasting) fire. The post-resolution scan in `resolveTopOfStack`
@@ -11405,7 +11427,13 @@ export function binRevealedTopCard(
 ): string | null {
     const top = player.library[0];
     if (!top) return null;
-    moveCardWithGraveyardReplacement(state, player, top.id, "library", "graveyard");
+    moveCardWithGraveyardReplacement(
+        state,
+        player,
+        top.id,
+        "library",
+        "graveyard"
+    );
     return top.id;
 }
 
@@ -11425,7 +11453,11 @@ export type DrawRevealOutcome =
     | { kind: "drew" } // a card entered the hand — caller emits CARD_DRAWN
     | { kind: "binned" } // the revealed card went to its owner's graveyard
     | { kind: "empty" } // library empty (hasDrawnFromEmpty already flagged)
-    | { kind: "suspend-pay"; source: CardInstanceState; revealedCardId: string };
+    | {
+          kind: "suspend-pay";
+          source: CardInstanceState;
+          revealedCardId: string;
+      };
 
 /** Resolves ONE draw for `playerId` through the draw-reveal choke (CR 614,
  *  issue #735). With no active replacement, or a DETERMINISTIC one

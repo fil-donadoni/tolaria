@@ -2301,15 +2301,34 @@ export const wrathOfMaritLage: CardDefinition = {
         }),
     ],
 };
-// TODO(#628): implement.
-// export const zursWeirding: CardDefinition = {
-//     id: "e1f8531f-19ca-48a2-baf2-c5dc6f18d79c",
-//     name: "Zur's Weirding",
-//     rarity: "rare",
-//     oracleText: "Players play with their hands revealed.\nIf a player would draw a card, they reveal it instead. Then any other player may pay 2 life. If a player does, put that card into its owner's graveyard. Otherwise, that player draws a card.",
-//     manaCost: { X: 3, U: 1 },
-//     types: ["Enchantment"],
-// };
+// Zur's Weirding — {3}{U} Enchantment (issue #735). Two clauses over the shipped
+// draw-reveal / hand-reveal engine:
+//   • "Players play with their hands revealed" — the continuous hand-reveal
+//     projection static with `"all-players"` scope: EVERY player's hand is
+//     surfaced to their opponents by `gameProjections.ts` (CR 702-adjacent).
+//   • "If a player would draw a card, they reveal it instead. Then any other
+//     player may pay 2 life. If a player does, put that card into its owner's
+//     graveyard. Otherwise, that player draws a card." — the INTERACTIVE
+//     draw-reveal replacement (CR 614): the would-be-drawn card is revealed and
+//     the other player may pay 2 life to bin it. Fully honored at the turn-based
+//     DRAW STEP (a phase-level `draw-reveal-pay` choice). DIVERGENCE: effect-
+//     driven draws (the synchronous `drawCards` primitive — the DSL `draw` Op and
+//     resolve()-closure draws) are taken WITHOUT the pay-choice, as the primitive
+//     cannot suspend mid-resolution. tracked-by: #1250
+export const zursWeirding: CardDefinition = {
+    id: "e1f8531f-19ca-48a2-baf2-c5dc6f18d79c",
+    name: "Zur's Weirding",
+    rarity: "rare",
+    oracleText:
+        "Players play with their hands revealed.\nIf a player would draw a card, they reveal it instead. Then any other player may pay 2 life. If a player does, put that card into its owner's graveyard. Otherwise, that player draws a card.",
+    manaCost: { X: 3, U: 1 },
+    types: ["Enchantment"],
+    revealsHand: "all-players",
+    drawRevealReplacement: {
+        scope: "all-players",
+        branch: { kind: "others-may-pay-life", life: 2 },
+    },
+};
 // Zuran Enchanter — "{2}{B}, {T}: Target player discards a card. Activate only
 // during your turn." (CR 605 activated ability, CR 701.8 discard chosen by the
 // targeted player, CR 602.5b "only during your turn" via `controllerTurnOnly`.)
