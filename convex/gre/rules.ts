@@ -82,6 +82,25 @@ export function getExtraLandDrops(player: PlayerState): number {
     return extra;
 }
 
+/** Whether `player` currently holds an unconditional, player-wide permission
+ *  to play lands from their own graveyard (CR 305.1 special action / 601-
+ *  analog permission), granted by ANY permanent declaring
+ *  `playsLandsFromGraveyard` on their battlefield (Icetill Explorer, issue
+ *  #1190). Read live from the battlefield (mirrors `getExtraLandDrops`), so
+ *  the permission ends the instant the granting source leaves play — no
+ *  stale flag. Distinct from a SCOPED once-per-turn permission granted to one
+ *  specific graveyard card (Serra Paragon, issue #1149), which is tracked as
+ *  a per-instance `CardInstanceState` grant instead. */
+export function canPlayLandsFromGraveyard(player: PlayerState): boolean {
+    for (const card of player.battlefield) {
+        const cardId = (card.card as { id?: string }).id;
+        if (!cardId) continue;
+        const def = tryGetDefinition(cardId);
+        if (def?.playsLandsFromGraveyard) return true;
+    }
+    return false;
+}
+
 const ALL_HAND_ACTIONS: CardAction[] = [
     "play",
     "cast",

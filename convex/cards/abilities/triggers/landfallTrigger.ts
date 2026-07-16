@@ -9,13 +9,15 @@
 // This is a thin semantic skin over `enteredTrigger` with `scope: "yours"`
 // (CR 109.2 — the entering permanent shares the source's controller) and the
 // Land type filter baked in, so every landfall card declares only its id,
-// oracle text and effect. Built once here; its sole live consumer today is
-// Bristly Bill, Spine Sower (`sets/otj/green.ts`). The other Landfall cards
-// from issue #694 are tracked stubs blocked on OTHER capabilities and do NOT
-// use this factory yet: Omnath / Scythecat Cub (#1189, per-turn
-// ability-resolution-count escalation), Icetill Explorer (#1190,
-// play-lands-from-graveyard), Tireless Tracker (#1191, Investigate / Clue).
-// Mirrors `enteredTrigger`'s DSL-first / resolve contract unchanged.
+// oracle text and effect. Live consumers: Bristly Bill, Spine Sower
+// (`sets/otj/green.ts`) and Icetill Explorer (`sets/eoe/green.ts`, issue
+// #1190 — its landfall-mill half; the "play lands from graveyard" half is a
+// separate `playsLandsFromGraveyard` static declaration, not part of this
+// factory). Other Landfall cards from issue #694 remain tracked stubs
+// blocked on OTHER capabilities and do NOT use this factory yet: Omnath /
+// Scythecat Cub (#1189, per-turn ability-resolution-count escalation),
+// Tireless Tracker (#1191, Investigate / Clue). Mirrors `enteredTrigger`'s
+// DSL-first / resolve contract unchanged.
 
 import type {
     EffectOp,

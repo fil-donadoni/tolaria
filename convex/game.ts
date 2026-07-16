@@ -124,6 +124,7 @@ import type {
 } from "./cards/types";
 import {
     assertLegalAction,
+    canPlayLandsFromGraveyard,
     getLegalTargets,
     getPendingTargetSourceColors,
     getPendingTargetSourceTypes,
@@ -217,7 +218,11 @@ import {
     applyMeleeUnblockedRider,
 } from "./gre/banding";
 import { checkStateBasedActions } from "./gre/sba";
-import { applyPlayLand, applyPlayLandFromExile } from "./gre/playLand";
+import {
+    applyPlayLand,
+    applyPlayLandFromExile,
+    applyPlayLandFromGraveyard,
+} from "./gre/playLand";
 import {
     applyPendingChoiceSubmit,
     applyMayPaySubmit,
@@ -1281,6 +1286,22 @@ function findCastableExileCard(
     return player.exile.find(
         (c) => c.id === instanceId && c.castableFromExileBy === player.id
     );
+}
+
+/** Play-from-graveyard lookup (CR 305.1-analog permission, issue #1190 —
+ *  Icetill Explorer). Returns the LAND in `player`'s graveyard matching
+ *  `instanceId` while `player` holds the unconditional, player-wide
+ *  play-lands-from-graveyard permission (`canPlayLandsFromGraveyard`), or
+ *  undefined. Unlike the exile permission (`castableFromExileBy`, a per-card
+ *  grant), this permission is derived live from the battlefield every call —
+ *  there is nothing to check or clear on the card itself. */
+function findPlayableGraveyardLand(
+    player: PlayerState,
+    instanceId: string
+): CardInstanceState | undefined {
+    if (!canPlayLandsFromGraveyard(player)) return undefined;
+    const card = player.graveyard.find((c) => c.id === instanceId);
+    return card && card.types.includes("Land") ? card : undefined;
 }
 
 /** The zone a cast originates from (CR 601.3e). Normally the hand; exile for
@@ -3010,14 +3031,21 @@ export const playCard = mutation({
         // Validate: card must be a legal "play" source. The normal source is a
         // hand card; CR 601.3e — a LAND in exile carrying a play-from-exile
         // permission (Headliner Scarlett / Expressive Iteration exiling a land,
-        // "you may play that card this turn") is also a legal play source.
+        // "you may play that card this turn") is also a legal play source; a
+        // LAND in the graveyard is a legal play source while the controller
+        // holds an unconditional play-lands-from-graveyard permission (Icetill
+        // Explorer, issue #1190 — `canPlayLandsFromGraveyard`).
         const cardInHand = player.hand.find(
             (c) => c.id === args.cardInstanceId
         );
         const exileLand = cardInHand
             ? undefined
             : findCastableExileCard(player, args.cardInstanceId);
-        const playSource = cardInHand ?? exileLand;
+        const graveyardLand =
+            cardInHand || exileLand
+                ? undefined
+                : findPlayableGraveyardLand(player, args.cardInstanceId);
+        const playSource = cardInHand ?? exileLand ?? graveyardLand;
         if (!playSource) throw new Error("Card not in hand");
         if (exileLand && !exileLand.types.includes("Land")) {
             // A non-land exile card is cast (announceCast), never played here.
@@ -3036,6 +3064,8 @@ export const playCard = mutation({
         // same turn could illegally attack — issue: manland summoning sickness.)
         if (exileLand) {
             applyPlayLandFromExile(state, player, args.cardInstanceId);
+        } else if (graveyardLand) {
+            applyPlayLandFromGraveyard(state, player, args.cardInstanceId);
         } else {
             applyPlayLand(state, player, args.cardInstanceId);
         }
