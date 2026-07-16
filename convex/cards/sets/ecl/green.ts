@@ -3,6 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 import type { CardDefinition } from "../../types";
+import { PERMANENT_TYPES } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 
 // Formidable Speaker — "When this creature enters, you may discard a card.
@@ -19,12 +20,32 @@ export const formidableSpeaker: CardDefinition = {
     name: "Formidable Speaker",
     rarity: "rare",
     oracleText:
-        "When this creature enters, you may discard a card. If you do, search your library for a creature card, reveal it, put it into your hand, then shuffle.",
+        "When this creature enters, you may discard a card. If you do, search your library for a creature card, reveal it, put it into your hand, then shuffle.\n{1}, {T}: Untap another target permanent.",
     manaCost: { X: 2, G: 1 },
     types: ["Creature"],
     subtypes: ["Elf", "Druid"],
     power: 2,
     toughness: 4,
+    // "{1}, {T}: Untap another target permanent." (CR 605 activated ability,
+    // CR 701.20b untap.) "another target permanent" = any of the CR 300.1
+    // permanent types (Vindicate precedent) minus the source itself, injected
+    // via a dynamic getTargetRequirement carrying the source id (Sorceress
+    // Queen precedent).
+    activatedAbilities: [
+        {
+            id: "formidable-speaker-untap",
+            oracleText: "{1}, {T}: Untap another target permanent.",
+            cost: { mana: { X: 1 }, tap: true },
+            useStack: true,
+            targetRequirement: { type: [...PERMANENT_TYPES], count: 1 },
+            getTargetRequirement: (source) => ({
+                type: [...PERMANENT_TYPES],
+                count: 1,
+                excludeInstanceIds: [source.id],
+            }),
+            effects: [{ op: "tapUntap", action: "untap", target: { target: 0 } }],
+        },
+    ],
     triggeredAbilities: [
         enteredTrigger({
             id: "formidable-speaker-etb",

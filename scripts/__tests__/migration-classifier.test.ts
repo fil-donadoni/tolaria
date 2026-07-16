@@ -789,11 +789,18 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // ONE Op-blocked closure. Net: total 696→697, FREE/AFK-ready/X-only
         // unchanged (453/415/14), Op-blocked 229→230. Partition:
         // 453+14+230=697.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(697);
+        //
+        // Then Arc Lightning (usg) + Arc Mage (nem) ship (divide-as-you-choose
+        // damage — the spell + the first ACTIVATED-ability divide): each adds
+        // ONE `resolve()` closure calling `dealDamageDividedAsChosen`, which no
+        // DSL Op expresses (same Op-blocked bucket as Fury's divided-damage
+        // resolve). Net: total 697→699, FREE/AFK-ready/X-only unchanged
+        // (453/415/14), Op-blocked 230→232. Partition: 453+14+232=699.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(699);
         expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(453);
         expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(415);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(230);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(232);
     });
 
     it("surfaces the demonstrated new-Op backlog (a covered primitive leaves it)", () => {
