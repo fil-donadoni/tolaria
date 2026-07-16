@@ -105,9 +105,10 @@ export function canPlayLandsFromGraveyard(
     // graveyard-cast/land-play permission (Yawgmoth's Will) also covers
     // lands when its `zones` include "land" — unioned with the
     // battlefield-derived permission above.
-    return getGraveyardPlayPermission(state, player.id)?.zones.includes(
-        "land"
-    ) ?? false;
+    return (
+        getGraveyardPlayPermission(state, player.id)?.zones.includes("land") ??
+        false
+    );
 }
 
 /** Reads the turn-scoped, player-wide graveyard play/cast permission granted
@@ -285,7 +286,11 @@ export function getLegalActions(
             baseLegal &&
             passesCastPhaseRestriction(state, card) &&
             castProhibitionReason(player.id, card, state) === undefined &&
-            canPotentiallyPayCost(player, card, getInstanceManaCost(card) ?? {}) &&
+            canPotentiallyPayCost(
+                player,
+                card,
+                getInstanceManaCost(card) ?? {}
+            ) &&
             hasEnoughLegalTargets(state, player, card)
         ) {
             actions.push("cast");

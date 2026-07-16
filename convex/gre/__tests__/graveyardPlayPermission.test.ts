@@ -37,7 +37,11 @@ import {
     graveyardCastStackFlags,
 } from "../../game";
 import { projectPublicState } from "../../gameProjections";
-import { makeInstance, makePlayer, makeState } from "../../cards/__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../cards/__tests__/setup";
 import { lightningBolt, mountain } from "../../cards/sets/lea";
 
 describe("Graveyard-cast/land-play permission (CR 305.1-analog / 601, issue #1149)", () => {
@@ -283,7 +287,11 @@ describe("Graveyard-cast/land-play permission (CR 305.1-analog / 601, issue #114
                 ],
             });
 
-            const src = locateCastSource(state, getPlayer(state, "p1"), "gy-bolt");
+            const src = locateCastSource(
+                state,
+                getPlayer(state, "p1"),
+                "gy-bolt"
+            );
             const removed = removeFromZone(
                 getPlayer(state, "p1"),
                 "gy-bolt",

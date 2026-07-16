@@ -1726,7 +1726,11 @@ describe("Effect Script Op: grantGraveyardPlay (CR 305.1-analog / 601, issue #11
         pushSpell(state, id, "p1");
         resolveTopOfStack(state);
         expect(state.graveyardPlayPermissionThisTurn).toEqual([
-            { playerId: "p1", zones: ["land", "spell"], maxManaValue: undefined },
+            {
+                playerId: "p1",
+                zones: ["land", "spell"],
+                maxManaValue: undefined,
+            },
         ]);
     });
 
@@ -1773,7 +1777,11 @@ describe("Effect Script Op: grantGraveyardPlay (CR 305.1-analog / 601, issue #11
         pushSpell(state, id, "p1");
         resolveTopOfStack(state);
         expect(state.graveyardPlayPermissionThisTurn).toEqual([
-            { playerId: "p1", zones: ["spell", "land"], maxManaValue: undefined },
+            {
+                playerId: "p1",
+                zones: ["spell", "land"],
+                maxManaValue: undefined,
+            },
         ]);
     });
 
@@ -1787,7 +1795,11 @@ describe("Effect Script Op: grantGraveyardPlay (CR 305.1-analog / 601, issue #11
         pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]);
         resolveTopOfStack(state);
         expect(state.graveyardPlayPermissionThisTurn).toEqual([
-            { playerId: "p2", zones: ["land", "spell"], maxManaValue: undefined },
+            {
+                playerId: "p2",
+                zones: ["land", "spell"],
+                maxManaValue: undefined,
+            },
         ]);
     });
 
@@ -1800,7 +1812,11 @@ describe("Effect Script Op: grantGraveyardPlay (CR 305.1-analog / 601, issue #11
         resolveTopOfStack(state);
         const projected = projectPublicState(state, 1, "p1");
         expect(projected.graveyardPlayPermissionThisTurn).toEqual([
-            { playerId: "p1", zones: ["land", "spell"], maxManaValue: undefined },
+            {
+                playerId: "p1",
+                zones: ["land", "spell"],
+                maxManaValue: undefined,
+            },
         ]);
     });
 });

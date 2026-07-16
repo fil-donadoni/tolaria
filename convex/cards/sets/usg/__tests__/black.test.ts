@@ -131,7 +131,11 @@ describe("Yawgmoth's Will (CR 305.1-analog / 601 permission + CR 614 redirect, i
         resolveTopOfStack(state);
 
         expect(state.graveyardPlayPermissionThisTurn).toEqual([
-            { playerId: "p1", zones: ["land", "spell"], maxManaValue: undefined },
+            {
+                playerId: "p1",
+                zones: ["land", "spell"],
+                maxManaValue: undefined,
+            },
         ]);
         expect(state.graveyardBoundRedirectThisTurn).toEqual([
             { ownerId: "p1" },
@@ -156,7 +160,11 @@ describe("Yawgmoth's Will (CR 305.1-analog / 601 permission + CR 614 redirect, i
         const src = locateCastSource(state, getPlayer(state, "p1"), "gy-bolt");
         expect(src.zone).toBe("graveyard");
         expect(castRawManaCost(state, src.card!, src.zone)).toEqual({ R: 1 });
-        const removed = removeFromZone(getPlayer(state, "p1"), "gy-bolt", src.zone);
+        const removed = removeFromZone(
+            getPlayer(state, "p1"),
+            "gy-bolt",
+            src.zone
+        );
         const stackItem: StackItem = {
             ...removed,
             castById: "p1",

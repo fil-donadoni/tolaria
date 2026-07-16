@@ -1663,7 +1663,11 @@ describe("optional field round-trip smoke tests", () => {
     it("graveyardPlayPermissionThisTurn (issue #1149 — Yawgmoth's Will)", () => {
         const state = freshState();
         state.graveyardPlayPermissionThisTurn = [
-            { playerId: "p1", zones: ["land", "spell"], maxManaValue: undefined },
+            {
+                playerId: "p1",
+                zones: ["land", "spell"],
+                maxManaValue: undefined,
+            },
         ];
         expect(roundTrip(state).graveyardPlayPermissionThisTurn).toEqual(
             state.graveyardPlayPermissionThisTurn
