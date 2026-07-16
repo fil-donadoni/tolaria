@@ -804,11 +804,18 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // (it ships with a per-card test) AFK-ready. Net: total 699→700, FREE
         // 453→454, AFK-ready 415→416, X-only/Op-blocked unchanged (14/232).
         // Partition: 454+14+232=700.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(700);
+        //
+        // Then Chromatic Armor (ice, #734) ships its "{X}: Put a sleight counter
+        // on this Aura and choose a color" re-choose ability — a `resolve()`
+        // closure that re-writes the host Aura's stored modal colour post-ETB
+        // (`ctx.setChosenMode`, a NEW SpellContext primitive no Op expresses).
+        // Op-blocked, so total 700→701, Op-blocked 232→233, FREE/AFK-ready/X-only
+        // unchanged (454/416/14). Partition: 454+14+233=701.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(701);
         expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(454);
         expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(416);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(232);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(233);
     });
 
     it("surfaces the demonstrated new-Op backlog (a covered primitive leaves it)", () => {

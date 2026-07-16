@@ -7622,6 +7622,17 @@ export function buildSpellContext(
             next[type] = (next[type] ?? 0) + count;
             found.card.counters = next;
         },
+        // CR 700.2c — re-write a permanent's stored modal colour post-ETB. The
+        // "choose a color" half of a re-choosable modal permanent (Chromatic
+        // Armor's "{X}: … choose a color"). No-op if the permanent has left the
+        // battlefield (CR 608.2b). A colour-filtered replacement/static reading
+        // `self.chosenModeId` (the shipped Prismatic-Ward shield) reflects the
+        // new pick on its next evaluation.
+        setChosenMode(instanceId: string, modeId: string): void {
+            const found = findOnBattlefield(state, instanceId);
+            if (!found) return;
+            found.card.chosenModeId = modeId;
+        },
         // CR 122.6: remove up to `count` counters of `type`. Returns the
         // number actually removed (clamped to current count).
         removeCounter(

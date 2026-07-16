@@ -697,6 +697,18 @@ export interface ActivatedAbility {
          *  Pair with `canActivate` to restrict who may activate it (Merseine
          *  limits it to the enchanted creature's controller). */
         manaEqualToEnchantedCreatureCost?: boolean;
+        /** Dynamic generic mana cost equal to the number of counters of `type`
+         *  the SOURCE permanent has at activation time (CR 601.2f — Chromatic
+         *  Armor: "{X}: Put a sleight counter on this Aura and choose a color. X
+         *  is the number of sleight counters on this Aura."). Unlike a
+         *  player-chosen `{X}` (`mana.X === "X"`), X is FIXED by board state, so
+         *  the ability declares NO `mana.X` and never prompts for a value: the
+         *  engine reads `card.counters[type]` at activation and folds that many
+         *  generic pips onto any declared `mana`. Because the source counts its
+         *  OWN counters BEFORE the effect adds one (CR 602.1 — costs are
+         *  determined at announcement), each successive activation costs one
+         *  more (1 counter → {1}, then {2}, …). */
+        manaEqualToCounterCount?: { type: string };
     };
     /** Oracle text for this ability (displayed in context menus and on the stack). */
     oracleText: string;
@@ -1377,6 +1389,14 @@ export interface SpellContext {
     /** Reads the count of a given counter type on `target` (CR 122.6). Returns
      *  0 if the target has no counters of that type or has left play. */
     getCounterCount: (target: TargetSelection, type: string) => number;
+    /** Re-writes a permanent's stored modal choice (`chosenModeId`, CR 700.2c)
+     *  post-ETB — the "choose a color" half of a re-choosable modal permanent
+     *  (Chromatic Armor: "{X}: Put a sleight counter on this Aura and choose a
+     *  color"). No-op if the permanent has left the battlefield. The new
+     *  `modeId` must be one of the card's declared `modes[].id`; a
+     *  colour-filtered replacement/static that reads `self.chosenModeId`
+     *  (the shipped Prismatic-Ward shield) immediately reflects the new pick. */
+    setChosenMode: (instanceId: string, modeId: string) => void;
     /** CR 702.138e — true iff `target` is a permanent that ESCAPED (was cast
      *  from a graveyard via Escape, `CardInstanceState.escaped`). False for a
      *  non-permanent target or one that left play. Read by the `escaped`

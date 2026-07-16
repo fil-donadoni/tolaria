@@ -1386,6 +1386,12 @@
         "firstSet": "inv"
     },
     {
+        "name": "Chromatic Armor",
+        "scryfallId": "2657e85b-8f77-41fa-9df2-233443efef43",
+        "oracleId": "65b3a40e-1d2b-4b24-996f-c935414ded7d",
+        "firstSet": "ice"
+    },
+    {
         "name": "Chromatic Star",
         "scryfallId": "1d7a1357-debd-49b0-9fd5-560d5b3f589e",
         "oracleId": "fedbd40b-e3a5-449c-a8a3-b42e9da191a9",
