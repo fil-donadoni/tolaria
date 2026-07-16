@@ -93,7 +93,14 @@ export default defineSchema({
         // `ResolvePool`); absent on every non-limited deck.
         limitedEventId: v.optional(v.string()),
         limitedSeatId: v.optional(v.string()),
-    }).index("by_user", ["userId"]),
+    })
+        .index("by_user", ["userId"])
+        // Every `limited`-format deck tied to one event, across ALL users
+        // (issue #1116: event completion needs "does every SEAT have a
+        // deck", not "does this ONE user have a deck" — `by_user` can't
+        // answer that without a full table scan). Bounded query: at most
+        // `seatCount` (<=8) rows ever match one eventId.
+        .index("by_limitedEvent", ["limitedEventId"]),
     // Preset Decks (PRD #466, ADR 0033). The built-in decklists, moved out of
     // the in-code `PRESET_DECKS` constant into the DB so a trusted Admin can
     // curate them live from the deck editor. Mirrors `userDecks` minus

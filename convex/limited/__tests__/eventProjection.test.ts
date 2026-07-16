@@ -234,3 +234,140 @@ describe("projectLimitedEvent — Draft privacy (issue #1112, PRD #1107 story 15
         }
     });
 });
+
+describe("projectLimitedEvent — completion full-disclosure reveal (issue #1116, PRD #1107 story 26)", () => {
+    const humanDecks = new Map([
+        [
+            0,
+            {
+                cards: [{ cardId: "c1", cardName: "Card One" }],
+                sideboard: [{ cardId: "c2", cardName: "Card Two" }],
+                colors: ["W"],
+            },
+        ],
+    ]);
+
+    // --- Direction 1: DURING the event (completed omitted/false) — every
+    // other seat's Pool AND humanDeck STILL stripped, exactly like the
+    // pre-#1116 privacy tests above. This is the "strips during" half of the
+    // mandatory both-directions wire-format test.
+    it("before completion: every other seat's pool is still stripped, humanDeck is always null", () => {
+        const view = projectLimitedEvent(row(), "user1", false, 1, humanDecks);
+        const own = view.seats.find((s) => s.seatIndex === 0)!;
+        const other = view.seats.find((s) => s.seatIndex === 1)!;
+        expect(view.completed).toBe(false);
+        expect(own.pool).not.toBeNull(); // still visible: it's the VIEWER'S own seat
+        expect(other.pool).toBeNull(); // every other seat stays hidden
+        expect(own.humanDeck).toBeNull(); // humanDeck NEVER reveals pre-completion
+        expect(other.humanDeck).toBeNull();
+    });
+
+    it("before completion: even a call site that forgets the extra params defaults to not-completed (backward compatible)", () => {
+        const view = projectLimitedEvent(row(), "user1");
+        expect(view.completed).toBe(false);
+        expect(view.seatsWithDeck).toBe(0);
+        expect(view.seats.find((s) => s.seatIndex === 1)!.pool).toBeNull();
+    });
+
+    // --- Direction 2: AFTER completion — every seat's Pool AND humanDeck
+    // (human seats only) are revealed, to ANY viewer (participant or not).
+    // This is the "reveals at completion" half of the mandatory test.
+    it("after completion: every OTHER seat's pool is revealed too", () => {
+        const view = projectLimitedEvent(row(), "user1", true, 2, humanDecks);
+        expect(view.completed).toBe(true);
+        expect(view.seatsWithDeck).toBe(2);
+        const other = view.seats.find((s) => s.seatIndex === 1)!;
+        expect(other.pool).toEqual([
+            { scryfallId: "s3", cardId: "c3", cardName: "Card Three" },
+        ]);
+    });
+
+    it("after completion: a human seat's submitted deck is revealed via humanDeck", () => {
+        const view = projectLimitedEvent(row(), "user1", true, 2, humanDecks);
+        const seat0 = view.seats.find((s) => s.seatIndex === 0)!;
+        expect(seat0.humanDeck).toEqual({
+            cards: [{ cardId: "c1", cardName: "Card One" }],
+            sideboard: [{ cardId: "c2", cardName: "Card Two" }],
+            colors: ["W"],
+        });
+    });
+
+    it("after completion: a human seat with no entry in humanDecksBySeat reveals humanDeck: null (never throws)", () => {
+        const view = projectLimitedEvent(row(), "user1", true, 1, humanDecks);
+        const seat1 = view.seats.find((s) => s.seatIndex === 1)!;
+        expect(seat1.humanDeck).toBeNull();
+        expect(seat1.pool).not.toBeNull(); // pool itself still reveals regardless
+    });
+
+    it("after completion: a bot seat's humanDeck is always null (its deck is autoBuiltDeck, computed elsewhere)", () => {
+        const withBot = row({
+            seats: [
+                row().seats[0],
+                { seatIndex: 1, isBot: true, nickname: "Bot 2", pool: [] },
+            ],
+        });
+        const view = projectLimitedEvent(withBot, "user1", true, 1);
+        const botSeat = view.seats.find((s) => s.seatIndex === 1)!;
+        expect(botSeat.isBot).toBe(true);
+        expect(botSeat.humanDeck).toBeNull();
+    });
+
+    it("after completion: reveal reaches a NON-PARTICIPANT viewer too (post-mortem study, not participant-gated)", () => {
+        const view = projectLimitedEvent(
+            row(),
+            "outsider",
+            true,
+            2,
+            humanDecks
+        );
+        expect(view.seats.every((s) => !s.isViewer)).toBe(true);
+        expect(view.seats.every((s) => s.pool !== null)).toBe(true);
+        expect(
+            view.seats.find((s) => s.seatIndex === 0)!.humanDeck
+        ).not.toBeNull();
+    });
+
+    it("after completion: reveal reaches a null (unauthenticated/defensive) viewer too", () => {
+        const view = projectLimitedEvent(row(), null, true, 2, humanDecks);
+        expect(view.seats.every((s) => s.pool !== null)).toBe(true);
+    });
+
+    it("for a DRAFT event, the revealed pool's array order IS the seat's pick order — never reordered by the projection", () => {
+        const draft = row({
+            type: "draft",
+            packSlots: ["lea", "lea"],
+            seats: [
+                {
+                    seatIndex: 0,
+                    userId: "user1",
+                    nickname: "Alice",
+                    pool: [
+                        {
+                            scryfallId: "p1",
+                            cardId: "p1",
+                            cardName: "First Pick",
+                        },
+                        {
+                            scryfallId: "p2",
+                            cardId: "p2",
+                            cardName: "Second Pick",
+                        },
+                        {
+                            scryfallId: "p3",
+                            cardId: "p3",
+                            cardName: "Third Pick",
+                        },
+                    ],
+                },
+            ],
+            draftCompletedAt: 999,
+        });
+        const view = projectLimitedEvent(draft, "someone-else", true, 1);
+        const seat = view.seats.find((s) => s.seatIndex === 0)!;
+        expect(seat.pool!.map((c) => c.cardName)).toEqual([
+            "First Pick",
+            "Second Pick",
+            "Third Pick",
+        ]);
+    });
+});

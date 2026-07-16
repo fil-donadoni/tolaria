@@ -12,6 +12,7 @@ import {
     mutation,
     query,
     type MutationCtx,
+    type QueryCtx,
 } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import { assertIsAdmin, getCurrentUser, getCurrentUserId } from "./auth";
@@ -32,6 +33,7 @@ import {
     type GetAutoBuildCardMeta,
     type ResolveBasicLand,
 } from "./limited/autoBuild";
+import { computeEventCompletion } from "./limited/completion";
 import {
     applyPick,
     resolveAutoPickTimeout,
@@ -53,6 +55,7 @@ import {
 } from "./limited/eventLogic";
 import {
     projectLimitedEvent,
+    type HumanDeckView,
     type LimitedEventSeatView,
     type LimitedEventView,
 } from "./limited/eventProjection";
@@ -116,6 +119,18 @@ const autoBuiltDeckValidator = v.object({
     colors: v.array(colorValidator),
 });
 
+/** Wire shape of a human seat's submitted `limited` Deck (issue #1116) — the
+ *  full-disclosure counterpart to `autoBuiltDeck` below, populated ONLY once
+ *  the event is `completed`. `colors` is a free-form `v.array(v.string())`
+ *  (a human's `userDecks.colors`, NOT the Auto-Build-derived `colorValidator`
+ *  pair) — a human's deck editor never constrains it to exactly two WUBRG
+ *  letters. */
+const humanDeckValidator = v.object({
+    cards: v.array(deckCardValidator),
+    sideboard: v.array(deckCardValidator),
+    colors: v.array(v.string()),
+});
+
 const limitedEventSeatViewValidator = v.object({
     seatIndex: v.number(),
     userId: v.optional(v.string()),
@@ -123,7 +138,14 @@ const limitedEventSeatViewValidator = v.object({
     isBot: v.boolean(),
     isViewer: v.boolean(),
     poolCount: v.union(v.number(), v.null()),
+    // Full Pool contents: the viewer's own seat ALWAYS, every other seat ONLY
+    // once the event is `completed` (issue #1116 full-disclosure reveal —
+    // see `projectLimitedEvent`'s doc comment). For a DRAFT event, array
+    // order IS the seat's pick order (no separate field).
     pool: v.union(v.array(limitedPoolCardValidator), v.null()),
+    // This seat's submitted `limited` Deck (issue #1116) — `null` for a bot
+    // seat (its deck is `autoBuiltDeck` below instead) or before `completed`.
+    humanDeck: v.union(humanDeckValidator, v.null()),
     currentPack: v.union(v.array(draftPackCardValidator), v.null()),
     packQueueCount: v.union(v.number(), v.null()),
     pickDeadline: v.union(v.number(), v.null()),
@@ -133,7 +155,7 @@ const limitedEventSeatViewValidator = v.object({
     // deckbuilder, issue #1111). Unlike `pool`/`currentPack`, this is NOT
     // stripped for non-owner viewers: it's the derived opponent decklist a
     // human needs to start a vs-AI Match against the table (PRD #1107 story
-    // 25), not the hidden Pool itself (full Pool reveal is issue #1116).
+    // 25), not the hidden Pool itself.
     autoBuiltDeck: v.union(autoBuiltDeckValidator, v.null()),
 });
 
@@ -152,6 +174,11 @@ const limitedEventViewValidator = v.object({
     draftPacksRemaining: v.optional(v.number()),
     draftCompletedAt: v.optional(v.number()),
     timerSeconds: v.optional(v.number()),
+    // Event completion (issue #1116): true exactly when every seat has a
+    // Deck — see `convex/limited/completion.ts`'s `computeEventCompletion`.
+    completed: v.boolean(),
+    // "N/seatCount decks in" progress, live even before `completed`.
+    seatsWithDeck: v.number(),
     seats: v.array(limitedEventSeatViewValidator),
     createdAt: v.number(),
     updatedAt: v.number(),
@@ -269,22 +296,81 @@ interface EventViewWithAutoBuild extends Omit<LimitedEventView, "seats"> {
     seats: SeatViewWithAutoBuild[];
 }
 
+/** Every submitted `limited` Deck tied to `eventId`, keyed by `seatIndex`
+ *  (issue #1116) — the DB read `projectLimitedEvent`/`computeEventCompletion`
+ *  both need but can never perform themselves (project convention: pure
+ *  domain functions, DB access confined to the thin mutation/query shell).
+ *  Uses the `by_limitedEvent` index (`convex/schema.ts`) so this is a bounded
+ *  read (at most `seatCount` <= 8 rows), never a table scan. When more than
+ *  one row somehow references the same seat (nothing server-side stops a
+ *  user from calling `userDecks.create` twice for the same event+seat instead
+ *  of `update` — the client always avoids this via `pool-deck-builder.tsx`'s
+ *  `existingDeck` lookup, but it isn't enforced), the most recently created
+ *  row wins — a defensive tie-break, not an expected case. */
+async function loadHumanDecksBySeat(
+    ctx: QueryCtx,
+    eventId: Id<"limitedEvents">
+): Promise<Map<number, HumanDeckView>> {
+    const rows = await ctx.db
+        .query("userDecks")
+        .withIndex("by_limitedEvent", (q) => q.eq("limitedEventId", eventId))
+        .collect();
+    const bySeat = new Map<number, HumanDeckView>();
+    for (const row of [...rows].sort(
+        (a, b) => b._creationTime - a._creationTime
+    )) {
+        if (row.limitedSeatId === undefined) continue;
+        const seatIndex = Number(row.limitedSeatId);
+        if (!Number.isInteger(seatIndex) || bySeat.has(seatIndex)) continue;
+        bySeat.set(seatIndex, {
+            cards: row.cards,
+            sideboard: row.sideboard ?? [],
+            colors: row.colors,
+        });
+    }
+    return bySeat;
+}
+
 /** Zips `projectLimitedEvent`'s privacy-stripped view with each bot seat's
  *  Auto-Built deck (issue #1115) — kept OUT of `eventProjection.ts` itself
  *  so that module stays a pure privacy projection with no card-registry
  *  dependency (mirrors how `resolveCardMeta`/`getCardEvalMeta` are kept out
  *  of `eventLogic.ts`/`botDrafter.ts`). Every query below routes through
- *  this instead of calling `projectLimitedEvent` directly. */
-function projectEventForViewer(
+ *  this instead of calling `projectLimitedEvent` directly.
+ *
+ *  Also the event-completion seam (issue #1116): loads every human seat's
+ *  submitted Deck (`loadHumanDecksBySeat`, skipped for a still-`open` event —
+ *  it can never have a final Pool, so completion is trivially `false` and the
+ *  query is a pure waste of a DB read), computes `computeEventCompletion`,
+ *  and threads BOTH the completion flag and the human-deck map into
+ *  `projectLimitedEvent` — the single call that decides the full-disclosure
+ *  reveal (`pool`/`humanDeck` exposed for every seat once `completed`). */
+async function projectEventForViewer(
+    ctx: QueryCtx,
     event: Doc<"limitedEvents">,
     viewerUserId: string | null
-): EventViewWithAutoBuild {
-    const base = projectLimitedEvent(event, viewerUserId);
+): Promise<EventViewWithAutoBuild> {
     const eventContext: AutoBuildEventContext = {
         type: event.type,
         status: event.status,
         draftCompletedAt: event.draftCompletedAt,
     };
+    const humanDecksBySeat =
+        event.status === "started"
+            ? await loadHumanDecksBySeat(ctx, event._id)
+            : new Map<number, HumanDeckView>();
+    const completion = computeEventCompletion(
+        event.seats,
+        eventContext,
+        (seatIndex) => humanDecksBySeat.has(seatIndex)
+    );
+    const base = projectLimitedEvent(
+        event,
+        viewerUserId,
+        completion.completed,
+        completion.seatsWithDeck,
+        humanDecksBySeat
+    );
     const resolveBasicLand = resolveBasicLandFor(event.packSlots[0] ?? "");
     return {
         ...base,
@@ -368,7 +454,9 @@ export const listOpenLimitedEvents = query({
             .query("limitedEvents")
             .withIndex("by_status", (q) => q.eq("status", "open"))
             .collect();
-        return events.map((event) => projectEventForViewer(event, null));
+        return Promise.all(
+            events.map((event) => projectEventForViewer(ctx, event, null))
+        );
     },
 });
 
@@ -388,9 +476,11 @@ export const myLimitedEvents = query({
             .query("limitedEvents")
             .order("desc")
             .take(MY_EVENTS_SCAN_LIMIT);
-        return events
-            .filter((event) => event.seats.some((s) => s.userId === userId))
-            .map((event) => projectEventForViewer(event, userId));
+        return Promise.all(
+            events
+                .filter((event) => event.seats.some((s) => s.userId === userId))
+                .map((event) => projectEventForViewer(ctx, event, userId))
+        );
     },
 });
 
@@ -403,7 +493,7 @@ export const getLimitedEvent = query({
         const userId = await getCurrentUserId(ctx);
         const event = await ctx.db.get(args.eventId);
         if (!event) throw new Error("Event not found");
-        return projectEventForViewer(event, userId);
+        return projectEventForViewer(ctx, event, userId);
     },
 });
 
