@@ -6,8 +6,10 @@ import { describe, expect, it } from "vitest";
 import {
     putReanimatedSetOnBattlefield,
     finalizeAuraHost,
+    resolveTopOfStack,
     type GameState,
 } from "../state";
+import { checkAuraAttachmentSBA } from "../sba";
 import { applyPendingChoiceSubmit } from "../pendingChoiceSubmit";
 import { getEffectivePower, getEffectiveToughness } from "../layers";
 import { projectPublicState } from "../../gameProjections";
@@ -15,6 +17,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
+    pushSpell,
 } from "../../cards/__tests__/setup";
 import {
     unholyStrength,
@@ -22,7 +25,39 @@ import {
     grizzlyBears,
     savannahLions,
     mountain,
+    whiteKnight,
+    warpArtifact,
+    basaltMonolith,
 } from "../../cards/sets/lea";
+import { guardianBeast } from "../../cards/sets/arn";
+import { registerTokenDefinition } from "../../cards";
+import type { CardDefinition } from "../../cards/types";
+
+// Issue #1119 — "enchant player" host support. No shipped card in the
+// catalogue has `subtypes: ["Aura"]` + `targetRequirement: { type: "player" }`
+// yet (the real-world analogue is Fallen Empires' Nettling Curse, not
+// currently implemented), so this test-only definition exercises the engine
+// capability directly rather than inventing a card-shaped fixture.
+// `registerTokenDefinition` is the production seam that inserts a synthetic
+// `CardDefinition` into the SAME registry `getDefinition`/`tryGetDefinition`
+// read from (used in prod for token synthesis) — idempotent, and safe under
+// this suite's `isolate: false` vitest config (module-mocking approaches like
+// `vi.mock` are NOT: the registry module is a process-wide singleton shared
+// across test files, and a per-file mock factory only wins the race if this
+// file's module graph evaluates before any other file already imported the
+// real registry).
+const TEST_ENCHANT_PLAYER_AURA_ID = "test-only-enchant-player-aura";
+const testEnchantPlayerAuraDef: CardDefinition = {
+    id: TEST_ENCHANT_PLAYER_AURA_ID,
+    rarity: "common",
+    name: "Test Enchant-Player Aura",
+    oracleText: "Enchant player",
+    manaCost: { B: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "player", count: 1 },
+};
+registerTokenDefinition(testEnchantPlayerAuraDef);
 
 /** Board where `p1` has the named Aura in graveyard plus `creatures` creature
  *  instances on the battlefield (and an optional non-creature). Returns the
@@ -290,5 +325,248 @@ describe("non-cast Aura host choice (CR 303.4f)", () => {
         // The subject card id survives the wire so the dialog can render the
         // Aura image client-side.
         expect(choice?.subjectCardId).toBe(unholyStrength.id);
+    });
+});
+
+// Issue #1119 — bulk-reanimated Aura host check must honour the SAME
+// protection (CR 702.16b) / cantBeEnchanted (CR 303.4) gate the cast path
+// applies (`isFullyLegalAuraHost`, ADR-less shared predicate), not the
+// narrower type-only match.
+describe("bulk-reanimated Aura host legality — protection & cantBeEnchanted (CR 702.16b/303.4, issue #1119)", () => {
+    it("CR 702.16b — a host protected from the Aura's color is never a candidate", () => {
+        // Unholy Strength is black; White Knight has protection from black.
+        // Grizzly Bears has no protection, so it's the only legal host.
+        const aura = makeInstance(unholyStrength.id, {
+            id: "aura-1",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const knight = makeInstance(whiteKnight.id, {
+            id: "knight-1",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear-1",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        const p1 = makePlayer("p1", {
+            graveyard: [aura],
+            battlefield: [knight, bear],
+        });
+        const state = makeState({ players: [p1, makePlayer("p2")] });
+
+        const entered = putReanimatedSetOnBattlefield(state, [
+            { card: aura, controllerId: "p1" },
+        ]);
+
+        // Exactly one legal host (the unprotected bear) — auto-attach, no
+        // prompt. Proves the protected White Knight was excluded, not just
+        // that a host existed at all.
+        expect(entered).toContain("aura-1");
+        const attached = state.players[0].battlefield.find(
+            (c) => c.id === "aura-1"
+        );
+        expect(attached?.attachedTo).toBe("bear-1");
+    });
+
+    it("CR 702.16b — protected from EVERY candidate: the Aura stays in the graveyard", () => {
+        const aura = makeInstance(unholyStrength.id, {
+            id: "aura-1",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const knight = makeInstance(whiteKnight.id, {
+            id: "knight-1",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        const p1 = makePlayer("p1", {
+            graveyard: [aura],
+            battlefield: [knight],
+        });
+        const state = makeState({ players: [p1, makePlayer("p2")] });
+
+        const entered = putReanimatedSetOnBattlefield(state, [
+            { card: aura, controllerId: "p1" },
+        ]);
+
+        expect(entered).toEqual([]);
+        const gyAura = state.players[0].graveyard.find(
+            (c) => c.id === "aura-1"
+        );
+        expect(gyAura).toBeDefined();
+        expect(gyAura!.attachedTo).toBeUndefined();
+    });
+
+    it("CR 303.4 (Guardian Beast) — a cantBeEnchanted host is never a candidate", () => {
+        // Guardian Beast (untapped): noncreature artifacts ITS CONTROLLER
+        // controls can't be enchanted. Warp Artifact enchants any artifact.
+        const aura = makeInstance(warpArtifact.id, {
+            id: "aura-1",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const beast = makeInstance(guardianBeast.id, {
+            id: "beast-1",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+            isTapped: false,
+        });
+        const monolith = makeInstance(basaltMonolith.id, {
+            id: "monolith-1",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        const p1 = makePlayer("p1", {
+            graveyard: [aura],
+            battlefield: [beast, monolith],
+        });
+        const state = makeState({ players: [p1, makePlayer("p2")] });
+
+        const entered = putReanimatedSetOnBattlefield(state, [
+            { card: aura, controllerId: "p1" },
+        ]);
+
+        // Guardian Beast excludes the ONLY artifact on the board — no legal
+        // host — the Aura stays in the graveyard (CR 303.4g).
+        expect(entered).toEqual([]);
+        const gyAura = state.players[0].graveyard.find(
+            (c) => c.id === "aura-1"
+        );
+        expect(gyAura).toBeDefined();
+        expect(gyAura!.attachedTo).toBeUndefined();
+    });
+
+    it("CR 303.4 (Guardian Beast) — a TAPPED Guardian Beast no longer guards: the artifact is a legal host", () => {
+        const aura = makeInstance(warpArtifact.id, {
+            id: "aura-1",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const beast = makeInstance(guardianBeast.id, {
+            id: "beast-1",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+            isTapped: true, // the guard is "as long as untapped"
+        });
+        const monolith = makeInstance(basaltMonolith.id, {
+            id: "monolith-1",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        const p1 = makePlayer("p1", {
+            graveyard: [aura],
+            battlefield: [beast, monolith],
+        });
+        const state = makeState({ players: [p1, makePlayer("p2")] });
+
+        const entered = putReanimatedSetOnBattlefield(state, [
+            { card: aura, controllerId: "p1" },
+        ]);
+
+        expect(entered).toContain("aura-1");
+        const attached = state.players[0].battlefield.find(
+            (c) => c.id === "aura-1"
+        );
+        expect(attached?.attachedTo).toBe("monolith-1");
+    });
+});
+
+// Issue #1119 — `findAllLegalAuraHosts` scanned permanents only, so an
+// "Enchant player" Aura reanimated with no fixed target never found a legal
+// host and silently stayed in the graveyard even in a normal 2-player game
+// (CR 303.4). This block proves the player-host branch, both through the
+// non-cast (reanimation) entry path and — for symmetry — the ordinary CAST
+// path, and that a player-attached Aura survives the CR 704.5m SBA sweep
+// instead of being immediately detached (the SBA previously assumed
+// `attachedTo` was always a battlefield permanent id).
+describe("enchant-player Aura hosts (CR 303.4, issue #1119)", () => {
+    it("bulk reanimation: both players are offered as candidates (2-player game)", () => {
+        const aura = makeInstance(TEST_ENCHANT_PLAYER_AURA_ID, {
+            id: "aura-1",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const p1 = makePlayer("p1", { graveyard: [aura] });
+        const p2 = makePlayer("p2");
+        const state = makeState({ players: [p1, p2] });
+
+        const entered = putReanimatedSetOnBattlefield(state, [
+            { card: aura, controllerId: "p1" },
+        ]);
+
+        // Deferred to a choice — not zero candidates, not an auto-attach.
+        // Before the fix this would have been `[]` (0 candidates, straight
+        // back to the graveyard) because the scan never considered players.
+        expect(entered).toEqual([]);
+        const choice = state.pendingChoices?.[0];
+        expect(choice?.kind).toBe("choose-aura-host");
+        expect(new Set(choice?.candidateIds)).toEqual(new Set(["p1", "p2"]));
+    });
+
+    it("finalizeAuraHost attaches the reanimated Aura to the chosen PLAYER and it survives the SBA sweep", () => {
+        const aura = makeInstance(TEST_ENCHANT_PLAYER_AURA_ID, {
+            id: "aura-1",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const p1 = makePlayer("p1", { graveyard: [aura] });
+        const p2 = makePlayer("p2");
+        const state = makeState({ players: [p1, p2] });
+        putReanimatedSetOnBattlefield(state, [
+            { card: aura, controllerId: "p1" },
+        ]);
+
+        finalizeAuraHost(state, ["p2"]);
+
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        const attached = state.players[0].battlefield.find(
+            (c) => c.id === "aura-1"
+        );
+        expect(attached).toBeDefined();
+        expect(attached!.attachedTo).toBe("p2");
+
+        // CR 704.5m — the ongoing-legality SBA must NOT treat a player id as
+        // "attached to nothing on the battlefield" and sweep it away.
+        const acted = checkAuraAttachmentSBA(state);
+        expect(acted).toBe(false);
+        const stillAttached = state.players[0].battlefield.find(
+            (c) => c.id === "aura-1"
+        );
+        expect(stillAttached).toBeDefined();
+        expect(stillAttached!.attachedTo).toBe("p2");
+    });
+
+    it("cast path: an Aura targeting a player attaches to that player and survives the SBA sweep", () => {
+        const p1 = makePlayer("p1");
+        const p2 = makePlayer("p2");
+        const state = makeState({ players: [p1, p2] });
+        pushSpell(state, TEST_ENCHANT_PLAYER_AURA_ID, "p1", [
+            { type: "player", id: "p2" },
+        ]);
+
+        resolveTopOfStack(state);
+
+        const attached = state.players[0].battlefield.find(
+            (c) => (c.card as { id?: string }).id === TEST_ENCHANT_PLAYER_AURA_ID
+        );
+        expect(attached).toBeDefined();
+        expect(attached!.attachedTo).toBe("p2");
+        expect(checkAuraAttachmentSBA(state)).toBe(false);
     });
 });
