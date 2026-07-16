@@ -820,9 +820,17 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // is pure data (hand-reveal + draw-reveal statics), no closure. Net: total
         // 701→702, FREE 454→455, AFK-ready 416→417, X-only/Op-blocked unchanged
         // (14/233). Partition: 455+14+233=702.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(702);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(455);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(417);
+        //
+        // Then Scythecat Cub (j25, #1189) ships its Landfall escalation — a
+        // `resolve()` triggered ability (targeting "creature you control" per the
+        // #917 precedent, then a resolution-count-gated counter double) that
+        // carries per-card GRE tests → FREE + AFK-ready. Omnath (the sibling in
+        // the same slice) is pure DSL, no closure. Net: total 702→703, FREE
+        // 455→456, AFK-ready 417→418, X-only/Op-blocked unchanged (14/233).
+        // Partition: 456+14+233=703.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(703);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(456);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(418);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
         expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(233);
     });
