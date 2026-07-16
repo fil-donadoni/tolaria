@@ -2976,6 +2976,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Flash",
+        "scryfallId": "63af3c26-5b1f-46f6-9aa2-036c615bf5ea",
+        "oracleId": "3e057471-e415-4105-9064-8236a0a5047d",
+        "firstSet": "mir"
+    },
+    {
         "name": "Flash Counter",
         "scryfallId": "3c3cd450-f1cd-416b-9271-37d95815c089",
         "oracleId": "75b2dd64-a2f5-4032-a19f-5b485dc44b16",

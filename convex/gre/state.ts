@@ -8667,6 +8667,42 @@ export function buildSpellContext(
             }
             return 0;
         },
+        // CR 202.1 — printed mana cost lookup. Mirrors `getManaValue`'s
+        // per-target-shape resolution (permanent / stack spell /
+        // graveyard-card) but returns the full `ManaCost` (colored pips +
+        // generic) instead of a single reduced number — needed by a
+        // dynamically-derived `mayPay` cost (issue #1150, Flash — "pay its
+        // mana cost reduced by {2}"), which must preserve colored pips while
+        // only the generic portion is reduced. Undefined for a
+        // player/unknown target or a card with no mana cost (a land).
+        getManaCost(target: TargetSelection): CardManaCost | undefined {
+            if (target.type === "permanent") {
+                const found = findOnBattlefield(state, target.id);
+                if (!found) return undefined;
+                const cardId = (found.card.card as { id?: string }).id;
+                const def = cardId ? tryGetDefinition(cardId) : undefined;
+                return def?.manaCost;
+            }
+            if (target.type === "spell") {
+                const stackItem = state.stack.find((s) => s.id === target.id);
+                if (!stackItem) return undefined;
+                const cardId = (stackItem.card as { id?: string }).id;
+                const def = cardId ? tryGetDefinition(cardId) : undefined;
+                return def?.manaCost;
+            }
+            if (target.type === "graveyard-card") {
+                const owner = target.playerId;
+                if (owner === undefined) return undefined;
+                const found = getPlayer(state, owner).graveyard.find(
+                    (c) => c.id === target.id
+                );
+                if (!found) return undefined;
+                const cardId = (found.card as { id?: string }).id;
+                const def = cardId ? tryGetDefinition(cardId) : undefined;
+                return def?.manaCost;
+            }
+            return undefined;
+        },
         // CR 120.1: damage divided evenly, rounded down, among target
         // creatures/players. E.g. 5 damage / 2 targets = 2 each (remainder
         // discarded). Empty targets list is a silent no-op.

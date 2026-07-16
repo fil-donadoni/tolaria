@@ -843,6 +843,38 @@ function isMayPayCost(value: unknown): boolean {
     return isManaCost(value);
 }
 
+/** A `mayPay` Op's dynamically-derived mana cost (issue #1150): `{
+ *  manaCostOf, reducedBy }` — "pay a runtime-selected object's own printed
+ *  mana cost, reduced by a fixed generic amount" (Flash, MIR — "pay its mana
+ *  cost reduced by {2}"). `manaCostOf` is a bare PICKS ref (the object a
+ *  `choice` Op selected, e.g. `{ ref: "$picked" }` — the ordered ref pass
+ *  enforces the picks family, same position as `moveZone`'s `cards`);
+ *  `reducedBy` is a non-negative integer generic amount. A SECOND accepted
+ *  shape for `mayPay`'s `cost` field, alongside the static `isMayPayCost`
+ *  union. */
+function isDynamicMayPayManaCost(value: unknown): boolean {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+        return false;
+    }
+    const obj = value as Record<string, unknown>;
+    const keys = Object.keys(obj);
+    if (keys.length !== 2 || !("manaCostOf" in obj) || !("reducedBy" in obj)) {
+        return false;
+    }
+    if (!isBarePicksRef(obj.manaCostOf)) return false;
+    return (
+        typeof obj.reducedBy === "number" &&
+        Number.isInteger(obj.reducedBy) &&
+        obj.reducedBy >= 0
+    );
+}
+
+/** `mayPay`'s `cost` field: the static `MayPayCost` union OR the
+ *  dynamically-derived `{ manaCostOf, reducedBy }` shape (issue #1150). */
+function isMayPayCostOrDynamic(value: unknown): boolean {
+    return isMayPayCost(value) || isDynamicMayPayManaCost(value);
+}
+
 /** The relational operators an `if` comparison predicate may use (CR 107). */
 const COMPARISON_OPS = new Set(["eq", "ne", "lt", "le", "gt", "ge"]);
 
@@ -1533,7 +1565,9 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             prompt: isNonEmptyString,
             bind: isBindingName,
         },
-        optional: { cost: isMayPayCost },
+        // `cost` accepts the static MayPayCost union OR a dynamically-derived
+        // mana cost read off a runtime-selected object (issue #1150).
+        optional: { cost: isMayPayCostOrDynamic },
     },
     // if — the `if` structural construct (ADR 0045, issue #806). `predicate`
     // shape is checked here; branch Op validity and predicate binding
@@ -1781,7 +1815,12 @@ function collectRefUses(value: unknown, keyHint: string, out: RefUse[]): void {
                 keyHint === "divider" ||
                 keyHint === "chooser"
                     ? "player"
-                    : keyHint === "cards" || keyHint === "permanents"
+                    : keyHint === "cards" ||
+                        keyHint === "permanents" ||
+                        // `mayPay`'s dynamically-derived cost (issue #1150):
+                        // `manaCostOf` is a bare picks ref — the object an
+                        // earlier `choice` Op selected.
+                        keyHint === "manaCostOf"
                       ? "picks"
                       : keyHint === "target" ||
                           keyHint === "to" ||

@@ -68,6 +68,7 @@
 
 import type {
     ControlChangeCondition,
+    DynamicMayPayManaCost,
     EffectCaptureSource,
     EffectCardFilter,
     EffectComparisonOp,
@@ -84,6 +85,8 @@ import type {
     EffectTargetRef,
     EffectValue,
     GainControlDuration,
+    ManaCost,
+    MayPayCost,
     PermanentFilter,
     SpellContext,
     TargetSelection,
@@ -730,6 +733,63 @@ function resolveObjectRef(
     // `getOwnerId` is battlefield-scoped, so undefined means it left.
     if (ctx.getOwnerId(id) === undefined) return undefined;
     return { type: "permanent", id };
+}
+
+/** Reduces the GENERIC portion of a printed `ManaCost` by `amount`, floored at
+ *  {0} (CR 118.9 — a cost cannot be reduced below {0}); colored pips pass
+ *  through untouched — a generic reduction never removes a colored pip (CR
+ *  601.2f). Mirrors the existing `applyCostModifiers` clamp
+ *  (`Math.max(0, generic - reduction)`, `convex/gre/state.ts`). A variable
+ *  `{X}` marker contributes 0 to the generic total, matching `getManaValue`'s
+ *  own X-counts-as-0 convention for a permanent target (CR 202.3 — the chosen
+ *  X isn't preserved on the resulting permanent). Used by a `mayPay` Op's
+ *  dynamically-derived cost leg (issue #1150, Flash — "pay its mana cost
+ *  reduced by {2}"). */
+function reduceGenericMana(cost: ManaCost, amount: number): ManaCost {
+    const result: ManaCost = {};
+    for (const color of ["W", "U", "B", "R", "G", "C"] as const) {
+        const v = cost[color];
+        if (v) result[color] = v;
+    }
+    const generic =
+        (typeof cost.X === "number" ? cost.X : 0) + (cost.generic ?? 0);
+    const reduced = Math.max(0, generic - amount);
+    if (reduced > 0) result.generic = reduced;
+    return result;
+}
+
+/** Sentinel returned by `resolveMayPayCost` when a dynamically-derived cost's
+ *  referenced object can't be resolved (CR 608.2b — it left the battlefield
+ *  before this Op ran). Distinct from a resolved `cost: undefined` (the
+ *  bare cost-free "you may" shape, issue #680) — the caller SKIPS the whole
+ *  `mayPay` Op on this sentinel rather than risk an unpayable/wrong-priced
+ *  mana leg, exactly like a missing player ref. */
+const MAY_PAY_COST_UNRESOLVABLE = Symbol("mayPay-cost-unresolvable");
+
+/** Resolves a `mayPay` Op's `cost` field to the concrete `MayPayCost`
+ *  `SpellContext.requestMayPay` consumes (issue #1150). A static cost (the
+ *  historical `MayPayCost` union) passes through unchanged. A
+ *  `DynamicMayPayManaCost` (`{ manaCostOf, reducedBy }`) is resolved HERE, at
+ *  Op execution time: `manaCostOf` is a bare PICKS ref (an earlier `choice`
+ *  Op's selected instance id — Flash's "the creature just put onto the
+ *  battlefield"), looked up via `resolvePicks`; its printed mana cost is read
+ *  via `ctx.getManaCost` (CR 608.2b — must still be on the battlefield,
+ *  checked through `ctx.getOwnerId`), and the generic portion reduced by
+ *  `reducedBy` (`reduceGenericMana`) — the resulting concrete `ManaCost`
+ *  becomes the `mana` leg of a `MayPayCost`. */
+function resolveMayPayCost(
+    ctx: SpellContext,
+    cost: MayPayCost | DynamicMayPayManaCost | undefined
+): MayPayCost | undefined | typeof MAY_PAY_COST_UNRESOLVABLE {
+    if (!cost || !("manaCostOf" in cost)) return cost;
+    const ids = resolvePicks(ctx, cost.manaCostOf);
+    const id = ids?.[0];
+    if (!id || ctx.getOwnerId(id) === undefined) {
+        return MAY_PAY_COST_UNRESOLVABLE; // CR 608.2b — gone, skip
+    }
+    const printed = ctx.getManaCost({ type: "permanent", id });
+    if (!printed) return MAY_PAY_COST_UNRESOLVABLE;
+    return { mana: reduceGenericMana(printed, cost.reducedBy) };
 }
 
 /** Maps a `gainControl` Op's JSON-pure `duration` discriminator onto the
@@ -1644,16 +1704,23 @@ export const OP_EXECUTORS: {
     // execution (after the generic `submitMayPay` commit) reads the boolean
     // outcome back — `requestMayPay` stores it under this Op's binding name, so
     // the binding IS the may-pay answer. A later `if` predicate reads it.
+    // `op.cost` may be the static `MayPayCost` union OR a dynamically-derived
+    // mana cost (issue #1150 — `DynamicMayPayManaCost`, Flash's "pay its mana
+    // cost reduced by {2}"); `resolveMayPayCost` resolves either shape into
+    // the concrete `MayPayCost` `requestMayPay` consumes, skipping the whole
+    // Op (CR 608.2b) when a dynamic cost's referenced object can't be found.
     mayPay(ctx, op) {
         const playerId = resolvePlayerRef(ctx, op.player);
         if (playerId === undefined) return; // CR 608.2b — payer gone, skip
+        const resolvedCost = resolveMayPayCost(ctx, op.cost);
+        if (resolvedCost === MAY_PAY_COST_UNRESOLVABLE) return;
         const paid = ctx.requestMayPay({
             playerId,
             // The binding name doubles as the choiceId (unique within the
             // script, validator-enforced), so the stored ["yes"|"no"] answer
             // IS the boolean binding read by `readBoolBinding`.
             choiceId: op.bind,
-            cost: op.cost,
+            cost: resolvedCost,
             prompt: op.prompt,
         });
         if (paid === undefined) return "suspend"; // enqueued — wait
