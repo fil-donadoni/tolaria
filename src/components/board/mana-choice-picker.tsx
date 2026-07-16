@@ -87,7 +87,27 @@ export default function ManaChoicePicker({
                     const pips: Color[] = colors.flatMap((c) =>
                         Array.from({ length: cost[c] ?? 0 }, () => c)
                     );
-                    if (!pips.length) return null;
+                    // A board-conditional non-tap chooser (Vivi Ornitier at 0
+                    // power, issue #1179) can legally produce a ZERO-mana
+                    // option (CR 605.1a — still a legal, if useless,
+                    // activation). Render it as an explicit "0" entry rather
+                    // than silently dropping the button — every existing
+                    // tap-based choice list has a minimum of 1 mana, so this
+                    // branch never fires for them.
+                    if (!pips.length) {
+                        return (
+                            <button
+                                key={i}
+                                className="flex items-center justify-center gap-0.5 rounded-full bg-white/5 px-2 py-1 cursor-pointer ring-1 ring-white/15 transition-colors hover:bg-white/15"
+                                onClick={() => onSelect(i)}
+                                title="Add no mana"
+                            >
+                                <span className="flex size-6 shrink-0 items-center justify-center text-xs font-semibold text-white/80">
+                                    0
+                                </span>
+                            </button>
+                        );
+                    }
                     const title = `Add ${pips.map((c) => `{${c}}`).join("")}`;
                     return (
                         <button

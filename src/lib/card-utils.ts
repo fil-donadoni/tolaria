@@ -15,6 +15,7 @@ import {
     LAND_SUBTYPE_MANA,
     LANDWALK_KEYWORDS,
     LANDWALK_SUPERTYPE_KEYWORDS,
+    getEffectiveManaChoices,
     getManaTapOptions,
 } from "@convex/gre/constants";
 import type {
@@ -212,6 +213,41 @@ export function getManaChoices(
         return options.length > 0 ? options : null;
     }
     return null;
+}
+
+/** Returns the mana CHOICES for a NON-tap mana ability (Vivi Ornitier's
+ *  {U}/{R} split), or null when the card has no non-tap, non-sacrifice
+ *  choice-based mana ability. Issue #1179's client analog of
+ *  {@link getManaChoices}: that helper reads the unified TAP options list
+ *  (`getManaTapOptions`), which deliberately EXCLUDES a mana ability with no
+ *  {T}/sacrifice component (CR 605.1a — it's reached through the
+ *  activated-ability menu, not a direct tap), so a non-tap chooser needs its
+ *  own resolver. Reads the SAME `getEffectiveManaChoices` helper the server
+ *  (`activateManaAbility`) validates the submitted `manaChoiceIndex`
+ *  against, so the picker's index always matches what the server expects.
+ *  Board-conditional choosers need every player's battlefield (CR 106.1 /
+ *  613.4 — Vivi's list is derived from her CURRENT effective power). */
+export function getNonTapManaChoices(
+    card: CardInstance,
+    players?: ReadonlyArray<{ id: string; battlefield: CardInstance[] }>
+): ManaCost[] | null {
+    const cardDef = getDefinition(card.card.id);
+    const ability = cardDef.activatedAbilities?.find(
+        (a) =>
+            !a.useStack &&
+            !a.cost.tap &&
+            !a.cost.sacrifice &&
+            (a.manaChoices || a.getManaChoices)
+    );
+    if (!ability) return null;
+    return getEffectiveManaChoices(
+        card as unknown as CardInstanceState,
+        card.controllerId,
+        (players ?? []).map((p) => ({
+            playerId: p.id,
+            battlefield: p.battlefield as unknown as CardInstanceState[],
+        }))
+    );
 }
 
 /** Returns the mana color produced by an activated tap ability, or null. */

@@ -23,6 +23,7 @@ import {
     shouldShowOracleText,
     resolvePreviewAbilities,
     getManaChoices,
+    getNonTapManaChoices,
     hasManaAbility,
     isLandwalkUnblockable,
     mayPayCanAfford,
@@ -42,6 +43,7 @@ import { gitaxianProbe } from "@convex/cards/sets/nph/blue";
 import { dominate } from "@convex/cards/sets/nem";
 import { fellwarStone, deepWater, gaeasTouch } from "@convex/cards/sets/drk";
 import { powerArmor } from "@convex/cards/sets/inv";
+import { viviOrnitier } from "@convex/cards/sets/fin";
 import {
     redManaBattery,
     greatWall,
@@ -1937,6 +1939,57 @@ describe("Mana Battery mana picker (charge-counter scaling, #482)", () => {
     it("offers only the base 1 {R} when the battery has no counters", () => {
         const players = [{ id: "p1", battlefield: [battery()] }];
         expect(getManaChoices(battery(), players)).toEqual([{ R: 1 }]);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// getNonTapManaChoices — Vivi Ornitier (issue #1179). The non-tap analog of
+// getManaChoices: a NON-tap, choice-based mana ability (no {T}/sacrifice) is
+// deliberately EXCLUDED from the unified tap-options list, so it needs its
+// own client resolver reading the SAME `getEffectiveManaChoices` the server
+// (`activateManaAbility`) validates the submitted index against.
+// ---------------------------------------------------------------------------
+
+describe("getNonTapManaChoices — Vivi Ornitier (non-tap choice-based mana ability)", () => {
+    function vivi(counters?: Record<string, number>): CardInstance {
+        return makeCardInstance({
+            id: "vivi",
+            card: { id: viviOrnitier.id },
+            controllerId: "p1",
+            types: ["Creature"],
+            subtypes: ["Wizard"],
+            power: 0,
+            toughness: 3,
+            ...(counters ? { counters } : {}),
+        });
+    }
+
+    it("is null for a card with no non-tap choice-based mana ability (regular getManaChoices, e.g. Fellwar Stone, has its own describe block)", () => {
+        const rock = makeCardInstance({
+            id: "fs-nontap",
+            card: { id: fellwarStone.id },
+            controllerId: "p1",
+            types: ["Artifact"],
+            subtypes: [],
+        });
+        expect(getNonTapManaChoices(rock)).toBeNull();
+    });
+
+    it("enumerates every {U}/{R} split summing to Vivi's CURRENT effective power", () => {
+        const players = [{ id: "p1", battlefield: [vivi({ "+1/+1": 2 })] }];
+        expect(getNonTapManaChoices(vivi({ "+1/+1": 2 }), players)).toEqual(
+            expect.arrayContaining([{ R: 2 }, { U: 1, R: 1 }, { U: 2 }])
+        );
+    });
+
+    it("is the single zero-mana option at base power (no counters yet)", () => {
+        const players = [{ id: "p1", battlefield: [vivi()] }];
+        expect(getNonTapManaChoices(vivi(), players)).toEqual([{}]);
+    });
+
+    it("is NOT surfaced by the TAP-based getManaChoices (she has no {T} component, CR 605.1a)", () => {
+        const players = [{ id: "p1", battlefield: [vivi({ "+1/+1": 2 })] }];
+        expect(getManaChoices(vivi({ "+1/+1": 2 }), players)).toBeNull();
     });
 });
 

@@ -187,6 +187,7 @@ import {
     getActivatedManaColor,
     getActivatedManaRestriction,
     getDynamicManaProduced,
+    getEffectiveManaChoices,
     getManaTapOptionsDetailed,
     getFixedManaAmount,
     hasManaAbility,
@@ -3119,8 +3120,10 @@ function resolveActivatedAbility(
 /** Throws a descriptive Error if the activated ability's CR 602.5 timing
  *  restrictions (controller-turn-only, once-per-turn cap) are violated
  *  against the current state. Called by every activation entry point before
- *  cost lock so the rejection is surfaced before any mutation. */
-function assertActivationTimingLegal(
+ *  cost lock so the rejection is surfaced before any mutation. Exported so an
+ *  integration test can drive the real check (no convex-test harness in this
+ *  repo — see `untapRefundsLife.test.ts`). */
+export function assertActivationTimingLegal(
     state: GameState,
     card: CardInstanceState,
     ability: { id: string; controllerTurnOnly?: boolean; oncePerTurn?: boolean }
@@ -10152,6 +10155,50 @@ export const tapUntap = mutation({
     },
 });
 
+/** CR 605.1a / 613.4 (issue #1179) — resolves a NON-tap mana ability's
+ *  runtime CHOICE (Vivi Ornitier's "any combination of {U} and/or {R}") against
+ *  the unified `getEffectiveManaChoices` list and adds the CHOSEN `ManaCost`
+ *  directly to the controller's pool — mirrors `tapSourceIntoPayment`'s
+ *  bypass-the-closure pattern: the ability's own `effect`/`resolve` never
+ *  runs. Returns null when the source has no choice-based non-tap mana
+ *  ability at all (caller falls back to the fixed-effect path); throws when a
+ *  choice exists but `manaChoiceIndex` is missing/out of range. Increments
+ *  the per-turn activation count BEFORE adding mana (CR 602.5 — so a repeat
+ *  activation this turn is rejected by the caller's `assertActivationTimingLegal`)
+ *  and flushes the ABILITY_ACTIVATED trigger the increment queues (CR
+ *  603.2/603.3). Exported as a standalone primitive — like
+ *  `tapSourceIntoPayment` — so an integration test can drive the REAL
+ *  resolution path directly (no convex-test harness in this repo). */
+export function resolveNonTapManaChoice(
+    state: GameState,
+    player: PlayerState,
+    card: CardInstanceState,
+    abilityId: string,
+    manaChoiceIndex: number | undefined
+): ManaCost | null {
+    const manaChoices = getEffectiveManaChoices(
+        card,
+        player.id,
+        manaTapBattlefields(state)
+    );
+    if (!manaChoices) return null;
+    if (manaChoiceIndex === undefined) {
+        throw new Error("Must choose a mana color");
+    }
+    const chosen = manaChoices[manaChoiceIndex];
+    if (!chosen) {
+        throw new Error("Invalid mana choice");
+    }
+    recordActivation(state, card, abilityId, false);
+    for (const [color, amount] of Object.entries(chosen)) {
+        if (color !== "X" && typeof amount === "number" && amount > 0) {
+            player.manaPool[color] = (player.manaPool[color] ?? 0) + amount;
+        }
+    }
+    processPendingActionTriggers(state);
+    return chosen;
+}
+
 /** Activate a NON-tap mana ability whose cost is mana (CR 605.1a / 605.3c —
  *  Farrelite Priest "{1}: Add {W}"). Unlike `tapUntap`, the source is not a tap
  *  toggle: the ability has no {T} component, may be activated repeatedly, and
@@ -10170,6 +10217,12 @@ export const activateManaAbility = mutation({
         playerId: v.string(),
         cardInstanceId: v.string(),
         abilityId: v.string(),
+        // CR 605.1a / 605.3c (issue #1179) — resolves against the unified
+        // `getEffectiveManaChoices` list for a non-tap mana ability that
+        // offers a runtime colour/amount CHOICE (Vivi Ornitier's {U}/{R}
+        // split). Mirrors the TAP path's `manaChoiceIndex`
+        // (`tapSourceIntoPayment` / `tapUntap`).
+        manaChoiceIndex: v.optional(v.number()),
     },
     handler: async (ctx, args) => {
         const gameState = await getLatestGameState(ctx, args.gameId);
@@ -10219,9 +10272,14 @@ export const activateManaAbility = mutation({
         if (ability.useStack) {
             throw new Error("Use activateAbility for stack abilities");
         }
-        // This path is for non-tap, mana-cost mana abilities only. Tap mana
-        // abilities (lands, mana rocks) go through `tapUntap`.
-        if (ability.cost.tap || !ability.cost.mana) {
+        // This path is for non-tap mana abilities only — a mana-cost ability
+        // (Farrelite Priest "{1}: Add {W}") or a free "{0}:" ability (Vivi
+        // Ornitier). Tap and sacrifice mana abilities (lands, mana rocks,
+        // Lotus Petal) go through `tapUntap` / `tapSourceIntoPayment`'s
+        // unified mana-tap options list instead (CR 605.1a — see the mirrored
+        // `!ability.cost.tap && !ability.cost.sacrifice` gate in
+        // `getManaTapOptionsDetailed`).
+        if (ability.cost.tap || ability.cost.sacrifice) {
             throw new Error("Use tapUntap for tap mana abilities");
         }
         // CR 602.5 — phase-restricted templates are illegal outside their phase.
@@ -10231,8 +10289,13 @@ export const activateManaAbility = mutation({
         ) {
             throw new Error("Ability cannot be activated during this phase");
         }
+        // CR 602.5b — controller-turn-only / once-per-turn timing (Vivi
+        // Ornitier: "Activate only during your turn and only once each
+        // turn."). Mirrors the check every other activation entry point runs
+        // before cost lock.
+        assertActivationTimingLegal(state, card, ability);
 
-        const manaCost = normalizeManaCost(ability.cost.mana);
+        const manaCost = normalizeManaCost(ability.cost.mana ?? {});
         if (
             !isManaCostCovered(
                 player.manaPool,
@@ -10248,6 +10311,30 @@ export const activateManaAbility = mutation({
             getManaSubstitutions(state, player.id)
         );
         commitLandsForCost(player, manaCost);
+
+        // CR 605.1a / 613.4 (issue #1179) — a non-tap mana ability that
+        // declares `manaChoices` / `getManaChoices` (Vivi Ornitier's runtime
+        // {U}/{R} split, board-conditional on her CURRENT effective power)
+        // offers a CHOICE the activator must resolve; `null` means this
+        // ability has no choice (Farrelite Priest), so fall through to the
+        // fixed-effect stack path below.
+        const chosen = resolveNonTapManaChoice(
+            state,
+            player,
+            card,
+            args.abilityId,
+            args.manaChoiceIndex
+        );
+        if (chosen) {
+            await saveGameState(
+                ctx,
+                args.gameId,
+                gameState.seq + 1,
+                state,
+                gameState
+            );
+            return;
+        }
 
         // CR 605.3c — resolve immediately without the stack. Synthesize a
         // transient stack item so `resolveTopOfStack` builds a full
