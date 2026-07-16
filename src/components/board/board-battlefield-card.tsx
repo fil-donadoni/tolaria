@@ -131,16 +131,17 @@ export default function BoardBattlefieldCard({
     // Legal target of the spell/ability on the stack currently choosing targets
     // (CR 601.2c). Same accent-strong ring + glow the player nameplate uses when
     // it is a legal target (player-nameplate.tsx) so a targetable permanent and
-    // a targetable player read identically.
-    const targetGlowRing = vs.targetGlow ? (
-        <div
-            className="absolute inset-0 rounded-sm pointer-events-none z-30"
-            style={{
-                boxShadow:
-                    "0 0 0 2px var(--color-accent-strong), 0 0 16px 1px color-mix(in oklab, var(--color-accent-strong) 45%, transparent)",
-            }}
-        />
-    ) : null;
+    // a targetable player read identically. It MUST be the card wrapper's OWN
+    // box-shadow, not a child overlay: the wrapper is `overflow-hidden`, which
+    // clips a descendant's outward box-shadow (the glow) but never its own — the
+    // same reason the pre-existing `ringClass` rings live on the wrapper itself.
+    const TARGET_GLOW =
+        "0 0 0 2px var(--color-accent-strong)," +
+        " 0 0 16px 1px color-mix(in oklab, var(--color-accent-strong) 45%, transparent)";
+    // Base chrome (black hairline + drop shadow) the wrapper normally gets from
+    // Tailwind; inlined here so the glow composes with it instead of the inline
+    // `boxShadow` wiping the Tailwind shadow out.
+    const BASE_SHADOW = "0 0 0 1px rgba(0,0,0,0.4), 0 6px 16px rgba(0,0,0,0.55)";
 
     // Phased-out permanents are set aside (CR 702.26) — no abilities, no clicks.
     const abilities = phased ? [] : (activatableAbilities ?? []);
@@ -220,13 +221,21 @@ export default function BoardBattlefieldCard({
     const inner = (
         <CardTilt3D>
             <div
-                className={`relative w-full h-full rounded-sm overflow-hidden ring-1 ring-black/40 shadow-[0_6px_16px_rgba(0,0,0,0.55)] ${vs.ringClass}`}
+                className={`relative w-full h-full rounded-sm overflow-hidden ${
+                    vs.targetGlow
+                        ? ""
+                        : "ring-1 ring-black/40 shadow-[0_6px_16px_rgba(0,0,0,0.55)]"
+                } ${vs.ringClass}`}
+                style={
+                    vs.targetGlow
+                        ? { boxShadow: `${TARGET_GLOW}, ${BASE_SHADOW}` }
+                        : undefined
+                }
             >
                 <CardImage card={card} />
                 {colorOverrideOverlay}
                 {darkenOverlay}
                 {highlightRing}
-                {targetGlowRing}
                 {phasedBadge}
                 <CounterBadges card={card} />
                 <NotedManaBadge card={card} />
