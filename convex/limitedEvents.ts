@@ -561,7 +561,12 @@ export const createLimitedEvent = mutation({
                 "At least one Pack Source (Draftable Set) is required."
             );
         }
-        for (const setCode of args.packSlots) {
+        // Validate every DISTINCT set once (issue #1246) — a 3-element Draft
+        // `packSlots` is typically 3 copies of the same set, and a future
+        // multi-set block draft (INV/PLS/APC) repeats none of them anyway;
+        // deduping just avoids redundant registry lookups for the homogeneous
+        // case without changing which lists are accepted.
+        for (const setCode of new Set(args.packSlots)) {
             if (!isDraftableSet(setCode)) {
                 const config = getBoosterConfig(setCode);
                 if (!config) {

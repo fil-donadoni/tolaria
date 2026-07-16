@@ -102,6 +102,82 @@ describe("CreateLimitedEventDialog — Pick Timer (ADR 0060, issue #1243)", () =
     });
 });
 
+// Draft 3-booster packSlots + fixed booster count (PRD #1241 story 7, issue
+// #1246): the create path was emitting a single-element `packSlots` for
+// EVERY event type, which made `applyPick` complete a Draft after just one
+// booster (the bug this issue fixes). Drives the SURFACE assertion through
+// the real `onCreate` payload the dialog submits — a hand-built payload
+// would mask the exact bug (a single-element array) this test exists to
+// catch.
+describe("CreateLimitedEventDialog — Draft 3-booster packSlots (issue #1246)", () => {
+    it("submits a 3-element packSlots (three copies of the chosen set) for a Draft", () => {
+        const onCreate = vi.fn();
+        renderDialog({ onCreate });
+        fireEvent.click(screen.getByRole("radio", { name: "Draft" }));
+        fireEvent.click(screen.getByText("Create Event"));
+
+        expect(onCreate).toHaveBeenCalledWith(
+            expect.objectContaining({
+                type: "draft",
+                packSlots: ["lea", "lea", "lea"],
+            })
+        );
+    });
+
+    it("submits a single-element packSlots for Sealed (unchanged)", () => {
+        const onCreate = vi.fn();
+        renderDialog({ onCreate });
+        fireEvent.click(screen.getByText("Create Event"));
+
+        expect(onCreate).toHaveBeenCalledWith(
+            expect.objectContaining({ type: "sealed", packSlots: ["lea"] })
+        );
+    });
+
+    it("never renders an editable booster-count field for Draft (fixed at 3, not user-editable)", () => {
+        renderDialog();
+        fireEvent.click(screen.getByRole("radio", { name: "Draft" }));
+
+        expect(screen.queryByText(/Sealed Boosters per Seat/)).toBe(null);
+        expect(
+            screen.queryByRole("spinbutton", { name: /booster/i })
+        ).toBe(null);
+    });
+
+    it("still renders the editable Sealed Boosters per Seat field for Sealed", () => {
+        renderDialog();
+        expect(screen.getByText(/Sealed Boosters per Seat/)).toBeTruthy();
+    });
+
+    it("re-derives packSlots to 3× the newly-picked set when switching the Pack Source while Draft is selected", () => {
+        const onCreate = vi.fn();
+        renderDialog({
+            onCreate,
+            draftableSets: [
+                ...DRAFTABLE_SETS,
+                {
+                    setCode: "ice",
+                    draftable: true,
+                    missingCardCount: 5,
+                    sheets: [
+                        { sheetName: "common", coverage: 0.9, passes: true },
+                    ],
+                },
+            ],
+        });
+        fireEvent.click(screen.getByRole("radio", { name: "Draft" }));
+        fireEvent.click(screen.getByRole("radio", { name: /^ICE$/i }));
+        fireEvent.click(screen.getByText("Create Event"));
+
+        expect(onCreate).toHaveBeenCalledWith(
+            expect.objectContaining({
+                type: "draft",
+                packSlots: ["ice", "ice", "ice"],
+            })
+        );
+    });
+});
+
 describe("CreateLimitedEventDialog — Seats bot hint (issue #1245)", () => {
     it("renders helper text under Seats explaining unfilled seats become bots", () => {
         renderDialog();

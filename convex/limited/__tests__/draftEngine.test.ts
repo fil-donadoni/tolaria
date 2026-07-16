@@ -496,6 +496,189 @@ describe("applyPick — round advancement and draft completion (PRD #1107 storie
     });
 });
 
+// Issue #1246: the create path was emitting a single-element `packSlots` for
+// EVERY Draft, so `applyPick`'s round-advance condition (`round <
+// packSlots.length - 1`) never advanced past round 0 — a real Draft ended
+// after one booster. These tests drive a genuine THREE-element `packSlots`
+// (the shape the fixed create dialog now emits) all the way to completion,
+// asserting `completed` stays false after boosters 1 AND 2 and only flips
+// true after the third — and that a heterogeneous 3-set list (the
+// already-supported multi-set shape, e.g. a future block draft) deals the
+// correct set each round.
+describe("applyPick — 3-booster Draft completion (issue #1246, PRD #1241 story 6)", () => {
+    it("stays incomplete after boosters 1 and 2 and completes only after the third, homogeneous packSlots (3× the same set)", () => {
+        const single: Record<string, BoosterConfig> = {
+            solo: tinyConfig("solo", 1),
+        };
+        const oneCardConfig: GetBoosterConfig = (setCode) =>
+            single[setCode] ?? null;
+        const packSlots = ["solo", "solo", "solo"];
+
+        const state = startDraft(
+            seatsOf(2),
+            packSlots,
+            7,
+            oneCardConfig,
+            resolveCardMeta
+        );
+        let round = state.draftRound;
+        let remaining = state.draftPacksRemaining;
+        let seats = state.seats;
+        let completed = false;
+
+        // 3 rounds × 2 seats × 1-card packs = 6 total picks before completion.
+        for (let pick = 0; pick < 6; pick++) {
+            const seatIndex = seats.findIndex(
+                (s) => s.currentPack && s.currentPack.length > 0
+            );
+            expect(seatIndex).not.toBe(-1);
+            const pickId = seats[seatIndex].currentPack![0].pickId;
+            const result = applyPick(
+                seats,
+                round,
+                remaining,
+                packSlots,
+                seatIndex,
+                pickId,
+                7,
+                oneCardConfig,
+                resolveCardMeta
+            );
+            seats = result.seats;
+            round = result.draftRound;
+            remaining = result.draftPacksRemaining;
+            completed = result.completed;
+
+            if (pick < 5) {
+                // Not yet the very last pick of the last round.
+                expect(completed).toBe(false);
+            }
+        }
+
+        expect(completed).toBe(true);
+        for (const seat of seats) {
+            // 3 boosters × 1 card/booster = 3 cards in the final Pool —
+            // proof all three rounds actually dealt and were picked, not
+            // just the first.
+            expect(seat.pool).toHaveLength(3);
+            expect(seat.currentPack).toBeUndefined();
+        }
+    });
+
+    it("deals the correct DISTINCT set each round for a heterogeneous 3-set packSlots (multi-set / future block draft)", () => {
+        const three: Record<string, BoosterConfig> = {
+            inv: tinyConfig("inv", 1),
+            pls: tinyConfig("pls", 1),
+            apc: tinyConfig("apc", 1),
+        };
+        const threeSetConfig: GetBoosterConfig = (setCode) =>
+            three[setCode] ?? null;
+        const packSlots = ["inv", "pls", "apc"];
+
+        const state = startDraft(
+            seatsOf(2),
+            packSlots,
+            11,
+            threeSetConfig,
+            resolveCardMeta
+        );
+        // Round 0 packs are stamped with an "r0-" pickId prefix (see
+        // `generateRoundPacks`) — the round-0 set is whichever config
+        // `packSlots[0]` ("inv") resolves to; content is opaque here (the
+        // tiny config's cards are named "common-a".."d" regardless of set),
+        // so the round tag on `pickId` is what proves the RIGHT slot fed
+        // this round, not merely "some" config.
+        for (const seat of state.seats) {
+            expect(seat.currentPack![0].pickId).toMatch(/^r0-/);
+        }
+
+        let round = state.draftRound;
+        let remaining = state.draftPacksRemaining;
+        let seats = state.seats;
+        let completed = false;
+
+        for (let pick = 0; pick < 2; pick++) {
+            const seatIndex = seats.findIndex(
+                (s) => s.currentPack && s.currentPack.length > 0
+            );
+            const pickId = seats[seatIndex].currentPack![0].pickId;
+            const result = applyPick(
+                seats,
+                round,
+                remaining,
+                packSlots,
+                seatIndex,
+                pickId,
+                11,
+                threeSetConfig,
+                resolveCardMeta
+            );
+            seats = result.seats;
+            round = result.draftRound;
+            remaining = result.draftPacksRemaining;
+            completed = result.completed;
+        }
+        expect(completed).toBe(false);
+        expect(round).toBe(1);
+        for (const seat of seats) {
+            expect(seat.currentPack![0].pickId).toMatch(/^r1-/);
+        }
+
+        for (let pick = 0; pick < 2; pick++) {
+            const seatIndex = seats.findIndex(
+                (s) => s.currentPack && s.currentPack.length > 0
+            );
+            const pickId = seats[seatIndex].currentPack![0].pickId;
+            const result = applyPick(
+                seats,
+                round,
+                remaining,
+                packSlots,
+                seatIndex,
+                pickId,
+                11,
+                threeSetConfig,
+                resolveCardMeta
+            );
+            seats = result.seats;
+            round = result.draftRound;
+            remaining = result.draftPacksRemaining;
+            completed = result.completed;
+        }
+        expect(completed).toBe(false);
+        expect(round).toBe(2);
+        for (const seat of seats) {
+            expect(seat.currentPack![0].pickId).toMatch(/^r2-/);
+        }
+
+        for (let pick = 0; pick < 2; pick++) {
+            const seatIndex = seats.findIndex(
+                (s) => s.currentPack && s.currentPack.length > 0
+            );
+            const pickId = seats[seatIndex].currentPack![0].pickId;
+            const result = applyPick(
+                seats,
+                round,
+                remaining,
+                packSlots,
+                seatIndex,
+                pickId,
+                11,
+                threeSetConfig,
+                resolveCardMeta
+            );
+            seats = result.seats;
+            round = result.draftRound;
+            remaining = result.draftPacksRemaining;
+            completed = result.completed;
+        }
+        expect(completed).toBe(true);
+        for (const seat of seats) {
+            expect(seat.pool).toHaveLength(3);
+        }
+    });
+});
+
 describe("applyPick — full 3-seat round trace (queueing under diverging pick speed)", () => {
     it("every pack visits every seat exactly once per lap and the round completes with correct pools", () => {
         // 3 seats, 2-card packs (booster size == seat count so each pack

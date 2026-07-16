@@ -5,6 +5,7 @@ import { Input } from "~/components/ui/input";
 import type { DraftableSetInfo } from "~/hooks/useLimitedEvent";
 import {
     DEFAULT_SEALED_BOOSTER_COUNT,
+    DRAFT_BOOSTER_COUNT,
     MAX_SEATS,
     MIN_SEATS,
 } from "@convex/limited/eventLogic";
@@ -39,10 +40,10 @@ interface CreateLimitedEventDialogProps {
 
 /** Admin-only "Create Event" form (PRD #1107 stories 1-6, ADR 0054/0055):
  *  event type (Sealed/Draft), 2-8 Seats, a Pack Source (Draftable Set), and —
- *  for Sealed — the booster count (default 6). Draft's pick/pass flow isn't
- *  playable yet (`startLimitedEvent` rejects it server-side), but the type
- *  choice is still offered here so the event skeleton doesn't need a second
- *  migration once Draft lands. */
+ *  for Sealed only — an editable booster count (default 6, story 8). Draft's
+ *  booster count is fixed at `DRAFT_BOOSTER_COUNT` (3, PRD #1241 story 7 /
+ *  issue #1246) and never shown as an editable field — a classic Draft is
+ *  always three boosters. */
 export default function CreateLimitedEventDialog({
     open,
     onOpenChange,
@@ -68,10 +69,24 @@ export default function CreateLimitedEventDialog({
 
     const handleSubmit = () => {
         if (!canSubmit || !resolvedSetCode) return;
+        // Draft is a fixed 3-booster classic draft (PRD #1241 story 7, issue
+        // #1246) — packSlots is DRAFT_BOOSTER_COUNT copies of the chosen set,
+        // not a single element. `draftEngine.ts`'s `applyPick` completes the
+        // draft exactly when `packSlots.length` rounds have emptied, so a
+        // single-element list (the pre-fix bug) ended the draft after one
+        // booster. Sealed keeps its single-entry `packSlots`, cycled
+        // `sealedBoosterCount` times by `generateSealedPools`.
+        const packSlots =
+            type === "draft"
+                ? Array.from(
+                      { length: DRAFT_BOOSTER_COUNT },
+                      () => resolvedSetCode
+                  )
+                : [resolvedSetCode];
         onCreate({
             type,
             seatCount,
-            packSlots: [resolvedSetCode],
+            packSlots,
             sealedBoosterCount,
             timerEnabled: type === "draft" && timerEnabled,
         });
