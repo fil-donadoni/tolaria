@@ -1,13 +1,5 @@
 import { useCallback, useMemo, useRef, useState, useEffect } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import {
-    DragDropProvider,
-    DragOverlay,
-    KeyboardSensor,
-    PointerSensor,
-    type DragEndEvent,
-} from "@dnd-kit/react";
-import { PointerActivationConstraints } from "@dnd-kit/dom";
 import type { Id } from "@convex/_generated/dataModel";
 import type { LimitedPoolCard } from "@convex/limited/eventTypes";
 import { validateDeck } from "@convex/formats";
@@ -21,18 +13,12 @@ import {
     type SideboardSplit,
 } from "~/lib/deckSideboard";
 import type { DeckCard } from "~/types/game";
-import CardImage from "~/components/cards/card-image";
-import DeckPileArea from "~/components/lobby/deck-builder/deck-pile-area";
 import DeckLegalityPanel from "~/components/lobby/deck-builder/deck-legality-panel";
 import SaveDeckBar from "~/components/lobby/deck-builder/save-deck-bar";
-import type {
-    CardDragData,
-    DropZoneId,
-} from "~/components/lobby/deck-builder/dnd-types";
 import { isBasicLandCardId, resolveBasicLandCardIds } from "./basicLands";
 import PoolBasicLandsBar from "./pool-basic-lands-bar";
+import PoolDeckbuilderSurface from "./pool-deckbuilder-surface";
 
-const CARD_BASE = "min(7.5rem, 17vw, 9dvh)";
 const SAVE_DEBOUNCE_MS = 800;
 
 interface WorkingDeck {
@@ -265,115 +251,34 @@ export default function PoolDeckBuilderForm({
         [deck, eventId, seatIndex, pool]
     );
 
-    const sensors = useMemo(
-        () => [
-            PointerSensor.configure({
-                activationConstraints: (e: PointerEvent) =>
-                    e.pointerType === "touch"
-                        ? [
-                              new PointerActivationConstraints.Delay({
-                                  value: 250,
-                                  tolerance: 10,
-                              }),
-                          ]
-                        : [
-                              new PointerActivationConstraints.Distance({
-                                  value: 8,
-                              }),
-                          ],
-            }),
-            KeyboardSensor,
-        ],
-        []
-    );
-
-    const handleDragEnd = useCallback(
-        (event: DragEndEvent) => {
-            if (event.canceled) return;
-            const source = event.operation?.source;
-            const target = event.operation?.target;
-            if (!source || !target) return;
-            const data = source.data as CardDragData | undefined;
-            if (!data) return;
-            const dest = target.id as DropZoneId;
-            if (data.kind === "main" && dest === "side") {
-                handleMainClick(data.cardId);
-            } else if (data.kind === "side" && dest === "main") {
-                handleSideClick(data.cardId);
-            }
-        },
-        [handleMainClick, handleSideClick]
-    );
-
     return (
-        <div
-            className="flex h-dvh flex-col bg-surface-base text-text"
-            style={{ "--card-base": CARD_BASE } as React.CSSProperties}
-        >
-            <DragDropProvider sensors={sensors} onDragEnd={handleDragEnd}>
-                <div className="flex items-center gap-3 border-b border-border-subtle/30 bg-surface/60 px-4 py-3 md:px-6">
-                    <button
-                        onClick={() => void handleDone()}
-                        className="btn-base btn-tone-ghost px-3 py-1.5 text-sm"
-                    >
-                        ← Back to Event
-                    </button>
-                    <h1 className="text-lg font-semibold font-beleren tracking-wide text-parchment">
-                        Build Limited Deck
-                    </h1>
-                </div>
-
-                <PoolBasicLandsBar
-                    cardIdsBySubtype={basicCardIds}
-                    onAdd={handleAddBasic}
-                    disabled={saving}
-                />
-
-                <div
-                    className="grid flex-1 grid-cols-1 divide-x divide-border-subtle/30 overflow-hidden md:grid-cols-2"
-                    style={
-                        {
-                            "--card-w": "var(--card-base)",
-                            "--card-h": "calc(var(--card-base) * 7 / 5)",
-                        } as React.CSSProperties
-                    }
+        <div className="flex h-dvh flex-col bg-surface-base text-text">
+            <div className="flex items-center gap-3 border-b border-border-subtle/30 bg-surface/60 px-4 py-3 md:px-6">
+                <button
+                    onClick={() => void handleDone()}
+                    className="btn-base btn-tone-ghost px-3 py-1.5 text-sm"
                 >
-                    <div className="h-full overflow-hidden">
-                        <DeckPileArea
-                            title="Maindeck"
-                            zone="main"
-                            grouped
-                            cards={deck.cards}
-                            onRemove={handleMainClick}
-                            emptyMessage="Move Pool cards here (or add Basics above) to build your deck."
-                        />
-                    </div>
-                    <div className="h-full overflow-hidden">
-                        <DeckPileArea
-                            title="Pool (Sideboard)"
-                            zone="side"
-                            grouped
-                            cards={deck.sideboard}
-                            onRemove={handleSideClick}
-                            emptyMessage="Every remaining Pool card lives here until moved to the Maindeck."
-                        />
-                    </div>
-                </div>
+                    ← Back to Event
+                </button>
+                <h1 className="text-lg font-semibold font-beleren tracking-wide text-parchment">
+                    Build Limited Deck
+                </h1>
+            </div>
 
-                <DragOverlay dropAnimation={null}>
-                    {(source) => {
-                        const d = source.data as CardDragData;
-                        return (
-                            <div
-                                className="aspect-5/7"
-                                style={{ width: `calc(${CARD_BASE} * 1.1)` }}
-                            >
-                                <CardImage card={{ id: d.cardId }} />
-                            </div>
-                        );
-                    }}
-                </DragOverlay>
-            </DragDropProvider>
+            <PoolBasicLandsBar
+                cardIdsBySubtype={basicCardIds}
+                onAdd={handleAddBasic}
+                disabled={saving}
+            />
+
+            <PoolDeckbuilderSurface
+                mainCards={deck.cards}
+                sideCards={deck.sideboard}
+                onMoveToSideboard={handleMainClick}
+                onMoveToMaindeck={handleSideClick}
+                mainEmptyMessage="Move Pool cards here (or add Basics above) to build your deck."
+                sideEmptyMessage="Every remaining Pool card lives here until moved to the Maindeck."
+            />
 
             <DeckLegalityPanel
                 formatLabel="Limited"
