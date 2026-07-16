@@ -3342,6 +3342,122 @@ describe("Effect Script Op: moveZone — cards/player shape (CR 400.7, issue #67
         );
     });
 
+    // `bind` on the `cards` shape (issue #1151, closing #1120 gap 3) — the
+    // hand-source move had no way to snapshot the permanent that just
+    // entered for a follow-up Op (Cauldron Dance's hand-side clause, Sneak
+    // Attack's haste grant). `bind` snapshots it exactly like the
+    // announced-target shape's `bind` already does, unblocking a chained
+    // `grantAbility` on the SPECIFIC creature that entered from hand.
+    it("captures the just-entered permanent via `bind` for a chained grantAbility (Sneak Attack's haste grant)", () => {
+        const id = registerScript("test-op-movezone-hand-source-bind", [
+            {
+                op: "choice",
+                kind: "choose-hand-card",
+                player: "controller",
+                zone: "hand",
+                filter: { type: "Creature" },
+                count: { min: 0, max: 1 },
+                prompt: "Put a creature card from your hand onto the battlefield.",
+                bind: "$picked",
+            },
+            {
+                op: "moveZone",
+                cards: { ref: "$picked" },
+                player: "controller",
+                from: "hand",
+                to: "battlefield",
+                bind: "$sneak",
+            },
+            {
+                op: "grantAbility",
+                ability: "haste",
+                target: { ref: "$sneak" },
+                duration: { phase: "end-of-turn" },
+            },
+        ]);
+        const creature = makeInstance(BEAR_ID, {
+            id: "handCreature1",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [makePlayer("p1", { hand: [creature] }), makePlayer("p2")],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["handCreature1"],
+        });
+        const entered = state.players[0].battlefield.find(
+            (c) => c.id === "handCreature1"
+        )!;
+        expect(entered).toBeDefined();
+        // The bind resolved to THIS specific permanent, not a fresh choice.
+        expect(entered.staticAbilities).toContain("haste");
+    });
+
+    // Declining the "you may" choice (count min: 0) leaves nothing bound —
+    // `bind` on an unresolved picks list is a no-op, not a crash (CR 608.2b).
+    it("is a no-op for `bind` when the choice picked nothing (declined 'you may')", () => {
+        const id = registerScript("test-op-movezone-hand-source-bind-decline", [
+            {
+                op: "choice",
+                kind: "choose-hand-card",
+                player: "controller",
+                zone: "hand",
+                filter: { type: "Creature" },
+                count: { min: 0, max: 1 },
+                prompt: "Put a creature card from your hand onto the battlefield.",
+                bind: "$picked",
+            },
+            {
+                op: "moveZone",
+                cards: { ref: "$picked" },
+                player: "controller",
+                from: "hand",
+                to: "battlefield",
+                bind: "$sneak",
+            },
+            {
+                op: "grantAbility",
+                ability: "haste",
+                target: { ref: "$sneak" },
+                duration: { phase: "end-of-turn" },
+            },
+        ]);
+        const creature = makeInstance(BEAR_ID, {
+            id: "handCreatureDecline1",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [makePlayer("p1", { hand: [creature] }), makePlayer("p2")],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const head = state.pendingChoices![0];
+        expect(() =>
+            applyPendingChoiceSubmit(state, {
+                playerId: "p1",
+                stackItemId: head.stackItemId,
+                step: head.step,
+                choiceId: head.choiceId,
+                cardInstanceIds: [],
+            })
+        ).not.toThrow();
+        expect(state.players[0].hand.map((c) => c.id)).toContain(
+            "handCreatureDecline1"
+        );
+        expect(state.players[0].battlefield).toHaveLength(0);
+    });
+
     // `from: "graveyard"` (issue #680) — the self-selection pick pattern
     // ("each player puts A CREATURE CARD FROM THEIR GRAVEYARD onto the
     // battlefield", Exhume), distinct from the `target`-shape's announced
@@ -8642,6 +8758,172 @@ describe("Effect Script Op: delayedTrigger (CR 603.7)", () => {
         expect(reloadedFired.players[1].graveyard.map((c) => c.id)).toEqual([
             "dtw1",
         ]);
+    });
+});
+
+// --- Sneak Attack shape: choice(hand) + moveZone(bind) + grantAbility +
+// delayedTrigger(capture) + sacrifice(target) (CR 400.7 / 603.7 / 701.16,
+// issue #1151) -----------------------------------------------------------
+// The full "You may put a creature card from your hand onto the
+// battlefield. That creature gains haste. Sacrifice the creature at the
+// beginning of the next end step." template, end to end through the real
+// resolution path. Exercises the NEW combination this issue closes: a
+// `moveZone` cards-shape `bind` feeding BOTH an immediate `grantAbility` and
+// a `delayedTrigger` capture, whose body sacrifices the EXACT captured
+// creature via the `sacrifice` Op's `target` form — not a fresh `choice`.
+describe("Effect Script construct: choice + moveZone(bind) + grantAbility + delayedTrigger(capture) + sacrifice(target) — Sneak Attack shape (CR 400.7 / 603.7 / 701.16, issue #1151)", () => {
+    const SNEAK_SCRIPT: EffectOp[] = [
+        {
+            op: "choice",
+            kind: "choose-hand-card",
+            player: "controller",
+            zone: "hand",
+            filter: { type: "Creature" },
+            count: { min: 0, max: 1 },
+            prompt: "Put a creature card from your hand onto the battlefield.",
+            bind: "$picked",
+        },
+        {
+            op: "moveZone",
+            cards: { ref: "$picked" },
+            player: "controller",
+            from: "hand",
+            to: "battlefield",
+            bind: "$sneak",
+        },
+        {
+            op: "grantAbility",
+            ability: "haste",
+            target: { ref: "$sneak" },
+            duration: { phase: "end-of-turn" },
+        },
+        {
+            op: "delayedTrigger",
+            timing: "next-end-step",
+            oracleText:
+                "Sacrifice the creature at the beginning of the next end step.",
+            capture: { $captured: { ref: "$sneak" } },
+            effects: [{ op: "sacrifice", target: { ref: "$captured" } }],
+        },
+    ];
+
+    it("puts the picked creature onto the battlefield with haste, then sacrifices EXACTLY that creature at the next end step", () => {
+        const id = registerScript("test-sneak-attack-shape", SNEAK_SCRIPT);
+        const creature = makeInstance(BEAR_ID, {
+            id: "sneak1",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [makePlayer("p1", { hand: [creature] }), makePlayer("p2")],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("choose-hand-card");
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["sneak1"],
+        });
+        const entered = state.players[0].battlefield.find(
+            (c) => c.id === "sneak1"
+        )!;
+        expect(entered).toBeDefined();
+        expect(entered.staticAbilities).toContain("haste");
+        // The delayed trigger captured the SAME instance id the moveZone
+        // Op's `bind` snapshotted — not a picks list a later choice re-derives.
+        expect(state.delayedTriggers).toHaveLength(1);
+        expect(state.delayedTriggers![0].payload).toEqual({
+            captured: "sneak1",
+        });
+        // Firing it sacrifices the exact creature — no further player choice.
+        fireDelayedTriggers(state, "next-end-step");
+        resolveTopOfStack(state);
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "sneak1")
+        ).toBe(false);
+        expect(state.players[0].graveyard.map((c) => c.id)).toContain("sneak1");
+    });
+
+    it("skips the sacrifice (no throw) when the captured creature already left before the trigger fires (CR 608.2b)", () => {
+        const id = registerScript("test-sneak-attack-shape-gone", SNEAK_SCRIPT);
+        const creature = makeInstance(BEAR_ID, {
+            id: "sneak2",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [makePlayer("p1", { hand: [creature] }), makePlayer("p2")],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["sneak2"],
+        });
+        const entered = state.players[0].battlefield.find(
+            (c) => c.id === "sneak2"
+        )!;
+        expect(entered).toBeDefined();
+        // Removed by something else (a blocker trade, a removal spell)
+        // before the delayed trigger's boundary — moved straight to the
+        // graveyard, exactly once.
+        state.players[0].battlefield = [];
+        state.players[0].graveyard.push({ ...entered, zone: "graveyard" });
+        fireDelayedTriggers(state, "next-end-step");
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+        // No double-move — the graveyard still has exactly one copy (the
+        // body's sacrifice skipped, CR 608.2b — the captured binding no
+        // longer resolves to a battlefield permanent).
+        expect(
+            state.players[0].graveyard.filter((c) => c.id === "sneak2")
+        ).toHaveLength(1);
+    });
+
+    it("survives the wire projection: the entered creature's granted haste is visible, and after the delayed sacrifice fires it moves to the public graveyard", () => {
+        const id = registerScript("test-sneak-attack-shape-wire", SNEAK_SCRIPT);
+        const creature = makeInstance(BEAR_ID, {
+            id: "sneak3",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [makePlayer("p1", { hand: [creature] }), makePlayer("p2")],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["sneak3"],
+        });
+        const projectedBefore = projectPublicState(state, 1, "p2");
+        const slimBefore = projectedBefore.players[0].battlefield.find(
+            (c) => c.id === "sneak3"
+        )!;
+        expect(slimBefore.staticAbilities).toContain("haste");
+        fireDelayedTriggers(state, "next-end-step");
+        resolveTopOfStack(state);
+        const projectedAfter = projectPublicState(state, 2, "p2");
+        expect(
+            projectedAfter.players[0].battlefield.some((c) => c.id === "sneak3")
+        ).toBe(false);
+        expect(projectedAfter.players[0].graveyard.map((c) => c.id)).toContain(
+            "sneak3"
+        );
     });
 });
 

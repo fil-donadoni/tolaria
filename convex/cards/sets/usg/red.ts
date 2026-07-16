@@ -85,25 +85,85 @@ export const goblinCadets: CardDefinition = {
     ],
 };
 
-// STOP-AND-ISSUE (tracked-by: #1151) — Sneak Attack: "{R}: You may put a
-// creature card from your hand onto the battlefield. That creature gains
-// haste. Sacrifice the creature at the beginning of the next end step." The
-// put-onto-battlefield + haste-grant + delayedTrigger(next end step) shape is
-// otherwise fully composable from shipped Ops (`choice(hand)` +
-// `moveZone(hand->battlefield)`, already used by Stoneforge Mystic +
-// `grantAbility(haste)` + `delayedTrigger`) — ONLY the delayed body's
-// sacrifice of the SPECIFIC captured creature is blocked: the shipped
-// `sacrifice` Op consumes a `choice` picks-list binding, not a single
-// captured/bound object (a `sacrificeObject` Op is `planned` in
-// `EFFECT_OP_BACKLOG`, matching Goblin Kites' identical gap). Vintage Cube
-// FREE tranche, issue #686.
-// export const sneakAttack: CardDefinition = {
-//     id: "d07dc95d-82a8-4a58-8ea2-d4513bd7316d", // USG 218
-//     name: "Sneak Attack",
-//     rarity: "rare",
-//     manaCost: { X: 3, R: 1 },
-//     types: ["Enchantment"],
-// };
+// Sneak Attack — {3}{R} Enchantment. "{R}: You may put a creature card from
+// your hand onto the battlefield. That creature gains haste. Sacrifice the
+// creature at the beginning of the next end step." (CR 400.7 hand →
+// battlefield, CR 702.10 haste, CR 603.7 delayed trigger, CR 701.16
+// sacrifice.) Vintage Cube FREE tranche, issue #686; SHIPPED by issue #1151,
+// which closed two composability gaps this card needed:
+//   1. `sacrificeObject` (mechanicsRegistry.ts EFFECT_OP_BACKLOG) — turned out
+//      to already be shipped as the existing `sacrifice` Op's single-object
+//      `target` form (issue #731, Kjeldoran Elite Guard), which also serves a
+//      `delayedTrigger`-captured object at fire time (`runDelayedTriggerBody`
+//      re-binds a captured battlefield permanent id as a fresh snapshot). The
+//      stale backlog reservation is removed; no new Op name was needed.
+//   2. `moveZone`'s choice-driven `cards`-shape had no `bind` field (issue
+//      #1120 gap 3, Cauldron Dance's identical hand-side clause) — there was
+//      no way to snapshot the permanent that just entered from hand for a
+//      follow-up Op. `bind` (valid only with `to: "battlefield"`) now
+//      captures it, letting `grantAbility` and `delayedTrigger`'s `capture`
+//      read `{ ref: "$sneak" }` for the exact creature that entered.
+// `grantAbility(haste)` uses `duration: { phase: "end-of-turn" }` (Spinal
+// Embrace's identical idiom, inv/multicolor.ts) rather than a genuinely
+// indefinite grant — the DSL's `grantAbility` Op requires a `DurationSpec`
+// (no "indefinite" member). No behavioural divergence: the delayed trigger
+// fires at the BEGINNING of the next end step (sacrificing the creature),
+// strictly before the end-of-turn CLEANUP boundary the duration expires at —
+// the creature is always gone before the grant would lapse on its own.
+export const sneakAttack: CardDefinition = {
+    id: "d07dc95d-82a8-4a58-8ea2-d4513bd7316d", // USG 218
+    name: "Sneak Attack",
+    rarity: "rare",
+    oracleText:
+        "{R}: You may put a creature card from your hand onto the battlefield. That creature gains haste. Sacrifice the creature at the beginning of the next end step.",
+    manaCost: { X: 3, R: 1 },
+    types: ["Enchantment"],
+    activatedAbilities: [
+        {
+            id: "sneak-attack-put",
+            oracleText:
+                "{R}: You may put a creature card from your hand onto the battlefield. That creature gains haste. Sacrifice the creature at the beginning of the next end step.",
+            cost: { mana: { R: 1 } },
+            useStack: true,
+            effects: [
+                {
+                    op: "choice",
+                    kind: "choose-hand-card",
+                    player: "controller",
+                    zone: "hand",
+                    filter: { type: "Creature" },
+                    count: { min: 0, max: 1 },
+                    prompt: "Put a creature card from your hand onto the battlefield (or none).",
+                    bind: "$picked",
+                },
+                {
+                    op: "moveZone",
+                    cards: { ref: "$picked" },
+                    player: "controller",
+                    from: "hand",
+                    to: "battlefield",
+                    bind: "$sneak",
+                },
+                {
+                    op: "grantAbility",
+                    ability: "haste",
+                    target: { ref: "$sneak" },
+                    duration: { phase: "end-of-turn" },
+                },
+                {
+                    op: "delayedTrigger",
+                    timing: "next-end-step",
+                    oracleText:
+                        "Sacrifice the creature at the beginning of the next end step.",
+                    capture: { $captured: { ref: "$sneak" } },
+                    effects: [
+                        { op: "sacrifice", target: { ref: "$captured" } },
+                    ],
+                },
+            ],
+        },
+    ],
+};
 
 // Arc Lightning — "Arc Lightning deals 3 damage divided as you choose among
 // one, two, or three targets." (CR 601.2d / 120.4 divide-as-you-choose.) The
