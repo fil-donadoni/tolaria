@@ -1,22 +1,10 @@
-// PROTOTYPE route (/prototype/put-back) — Brainstorm "put back 2 on top" picker,
-// 3 variants switchable via ?variant=. Throwaway (see NOTES.md); delete once a
-// variant wins and fold it into the real PutBackPicker.
-import PrototypeSwitcher, { type Variant } from "./switcher";
+// PROTOTYPE route (/prototype/put-back) — Brainstorm "put back 2 on top" picker.
+// Mounts the REAL LibraryOrderPicker (distribute mode) with a mocked hand as the
+// left pool, proving the target shape: single TOP drop zone with internal
+// drag-reorder (right = top). Throwaway (see NOTES.md); delete once the `putBack`
+// mode + wiring land.
 import VariantA from "./variant-a";
-import VariantB from "./variant-b";
-import VariantC from "./variant-c";
 
-export default function PrototypePutBackRoute({
-    variant,
-}: {
-    variant: Variant;
-}) {
-    return (
-        <>
-            {variant === "A" && <VariantA />}
-            {variant === "B" && <VariantB />}
-            {variant === "C" && <VariantC />}
-            <PrototypeSwitcher current={variant} />
-        </>
-    );
+export default function PrototypePutBackRoute() {
+    return <VariantA />;
 }
