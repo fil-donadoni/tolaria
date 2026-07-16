@@ -14,7 +14,7 @@
 // hardcoded literal, so this file asserts the INTEGRATION — that
 // `assignFreshPack` calls the schedule with the right cards-remaining count —
 // without duplicating the table itself.
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
     applyPick,
     resolveAutoPickTimeout,
@@ -437,6 +437,67 @@ describe("resolveAutoPickTimeout — seq-based cancellation guard (issue #1114)"
     it("is a no-op for an out-of-range seat index", () => {
         const seats = [humanSeatWithPack(1)];
         expect(resolveAutoPickTimeout(seats, 5, 1, firstCardPick)).toBeNull();
+    });
+});
+
+describe("resolveAutoPickTimeout — Selected Card takes priority over the heuristic (ADR 0060, issue #1249)", () => {
+    function humanSeatWithPack(
+        pickSeq: number,
+        selectedPickId?: string
+    ): LimitedEventSeat {
+        return {
+            seatIndex: 0,
+            pool: [],
+            currentPack: [
+                {
+                    scryfallId: "common-a",
+                    cardId: "common-a",
+                    cardName: "COMMON-A",
+                    pickId: "r0-p0-c0",
+                },
+                {
+                    scryfallId: "common-b",
+                    cardId: "common-b",
+                    cardName: "COMMON-B",
+                    pickId: "r0-p0-c1",
+                },
+            ],
+            pickSeq,
+            pickDeadline: deadlineFor(2),
+            selectedPickId,
+        };
+    }
+
+    it("picks the seat's selectedPickId when set, WITHOUT ever consulting the heuristic engine", () => {
+        const seat = humanSeatWithPack(1, "r0-p0-c1");
+        const heuristic = vi.fn(() => "r0-p0-c0");
+        const pickId = resolveAutoPickTimeout([seat], 0, 1, heuristic);
+        expect(pickId).toBe("r0-p0-c1");
+        expect(heuristic).not.toHaveBeenCalled();
+    });
+
+    it("falls back to the heuristic (Pick Rating engine) when nothing is selected", () => {
+        const seat = humanSeatWithPack(1); // selectedPickId absent
+        // A heuristic stand-in that deliberately does NOT pick position 0 —
+        // proves the fallback result is whatever the heuristic returns, not
+        // a hardcoded "first card"/random default.
+        const heuristic: ChooseBotPick = (_seat, pack) => pack[1].pickId;
+        const pickId = resolveAutoPickTimeout([seat], 0, 1, heuristic);
+        expect(pickId).toBe("r0-p0-c1");
+    });
+
+    it("falls back to the heuristic when the selected card is stale (no longer in currentPack) — never force-applies a phantom pickId", () => {
+        const seat = humanSeatWithPack(1, "r0-p0-c99"); // not in currentPack
+        const pickId = resolveAutoPickTimeout([seat], 0, 1, firstCardPick);
+        expect(pickId).toBe("r0-p0-c0"); // heuristic's pick, never the stale id
+    });
+
+    it("never falls back to random or position-1 by construction — the ONLY fallback path is the injected heuristic", () => {
+        const seat = humanSeatWithPack(1); // nothing selected
+        const heuristic = vi.fn<ChooseBotPick>(() => "r0-p0-c1");
+        const pickId = resolveAutoPickTimeout([seat], 0, 1, heuristic);
+        expect(pickId).toBe("r0-p0-c1");
+        expect(heuristic).toHaveBeenCalledWith(seat, seat.currentPack);
     });
 });
 
