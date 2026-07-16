@@ -58,7 +58,7 @@ function engineMutations(state: GameState): MoveMutations {
             applyMayPaySubmit(state, { playerId, accept, sacrificeIds });
         },
         submitMadnessDecline: reject,
-        submitDrawRevealPay: reject,
+        submitDrawReplacementPay: reject,
         submitLandEntryChoice: reject,
         submitNameCard: reject,
         submitRandomRevealAck: reject,

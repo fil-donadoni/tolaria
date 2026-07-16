@@ -8,6 +8,9 @@ import {
     type CounterDestination,
     type DelayedTriggerInlineBody,
     type DelayedTriggerTiming,
+    type DrawReplacementEvent,
+    type DrawReplacementOutcome,
+    type DrawStepPlan,
     type DurationSpec,
     type EffectCardFilter,
     type EffectOp,
@@ -88,6 +91,7 @@ import {
     applyTransientDamageRedirections,
     describeDamageSource,
     enterBattlefieldDestinationFor,
+    getFirstApplicableDrawReplacement,
     graveyardDestinationFor,
 } from "./replacements";
 import { collectTriggers, placeTriggersOnStack } from "./triggers";
@@ -8198,36 +8202,31 @@ export function buildSpellContext(
         },
         // CR 121.1: cards are drawn one at a time. Stops if the library empties
         // (CR 704.5b: hasDrawnFromEmpty flagged by drawCard; SBA ends the game).
-        // CR 614 (issue #735) — each draw passes through the draw-reveal choke,
-        // so Enduring Renewal's deterministic "creature → graveyard" branch
-        // fires on effect-driven draws too, one card at a time.
+        // CR 614 (ADR 0061) — each draw passes through the unified draw seam, so
+        // a DETERMINISTIC draw replacement (Enduring Renewal "creature →
+        // graveyard") fires on effect-driven draws too, one card at a time.
         drawCards(playerId: string, amount: number): void {
-            const player = getPlayer(state, playerId);
-            let drawn = 0;
             for (let i = 0; i < amount; i++) {
-                const active = getActiveDrawReveal(state, playerId);
-                if (active?.config.branch.kind === "others-may-pay-life") {
-                    // DIVERGENCE: an interactive draw-replacement (Zur's Weirding,
-                    // "any other player may pay 2 life") cannot suspend inside
-                    // this synchronous primitive, so an EFFECT-driven draw — the
-                    // DSL `draw` Op and every `resolve()`-closure `ctx.drawCards`
-                    // caller alike route through here — is taken WITHOUT offering
-                    // the pay-choice. Only the turn-based DRAW STEP honors the
-                    // interactive branch (a phase-level `draw-reveal-pay` choice,
-                    // `phases.ts`). Making effect draws suspend needs the primitive
-                    // + its callers rebuilt around a suspend seam. tracked-by: #1250
-                    if (drawCard(player) !== null) drawn++;
+                const plan = planDrawStep(state, playerId, amount, false);
+                if (plan.kind === "may-pay-bin") {
+                    // DIVERGENCE (ADR 0061): an INTERACTIVE draw replacement
+                    // (Zur's Weirding "any other player may pay 2 life") cannot
+                    // suspend inside this synchronous primitive, so the drawing
+                    // player draws WITHOUT offering the pay-choice. The DSL
+                    // `draw` Op is the suspend-capable path; the ~38
+                    // `resolve()`-closure callers of this primitive migrate onto
+                    // that Op in slice 2. tracked-by: #1250
+                    commitDrawPlan(state, playerId, plan, false);
                     continue;
                 }
-                const outcome = drawOneWithReveal(state, playerId);
-                if (outcome.kind === "empty") break;
-                if (outcome.kind === "drew") drawn++;
-                // "binned" — the revealed card went to the graveyard, no draw.
+                commitDrawPlan(state, playerId, plan);
             }
-            // CR 121.1 — emit a draw event so "when you draw a card" triggers
-            // (Fasting) fire. The post-resolution scan in `resolveTopOfStack`
-            // drains this from `pendingEvents`.
-            emitCardDrawn(state, playerId, drawn);
+        },
+        planDraw(playerId, requestedCount): DrawStepPlan {
+            return planDrawStep(state, playerId, requestedCount, false);
+        },
+        commitDraw(playerId, plan, paid): number {
+            return commitDrawPlan(state, playerId, plan, paid);
         },
         // CR 701.17: mill the top `amount` cards library → graveyard, one at a
         // time — re-reading the LIVE top each pass so successive mills chase the
@@ -11374,53 +11373,28 @@ export function drawCard(player: PlayerState): CardInstanceState | null {
     return drawn;
 }
 
-// --- Draw-reveal replacement (CR 614, issue #735) --------------------------
+// --- Draw replacement seam (CR 614, ADR 0061) ------------------------------
 //
-// Zur's Weirding / Enduring Renewal replace an affected player's draw with a
-// reveal-and-branch: reveal the would-be-drawn card (top of library), then
-// either put it into its owner's graveyard or draw it. Unlike `drawStepReplacement`
-// (a whole draw-STEP skip) this is a per-DRAW-EVENT interception that fires on
-// effect-driven draws too, so it lives at the single-card draw choke rather
-// than in the draw step alone.
+// A draw is a first-class `"draw"` ReplacementEvent (cards/types.ts). Discovery
+// + CR 616.1 ordering live in `replacements.ts`; APPLICATION lives here at the
+// single suspend-capable draw seam that every draw funnels through — the DSL
+// `draw` Op, the turn-based draw step, and the synchronous `drawCards`
+// primitive. Because a draw replacement may require a choice (Zur's "may pay",
+// CR 616.1 pick-which, a count bump), it is applied at this RESUMABLE seam via
+// `PendingChoice`/`resolutionStep`, never through the synchronous
+// `ReplacementApplyContext` mutator path (ADR 0061 — obsoletes #894).
+//
+// PLAN vs COMMIT: `buildDrawEvent` + `planDrawStep` compute the plan (pure,
+// aside from the idempotent reveal of an interactive candidate); `commitDrawPlan`
+// applies it and emits CARD_DRAWN. The split lets three call sites share ONE
+// seam with different suspend idioms (see `DrawStepPlan`).
 
-export type DrawRevealConfig = NonNullable<
-    CardDefinition["drawRevealReplacement"]
->;
-
-/** The active continuous draw-reveal replacement (CR 614, issue #735) affecting
- *  `playerId`'s next draw, or undefined. Scans the battlefield for a permanent
- *  whose def carries `drawRevealReplacement` with a matching scope
- *  (`"all-players"` always applies; `"controller"` only to its own controller —
- *  permanents live in their controller's battlefield array, so the array owner
- *  IS the controller). CR 616.1 — were more than one to apply, the affected
- *  player would choose the order; the engine applies the first found. Out of
- *  scope: multi-source draw-replacement ordering (no two such enchantments are
- *  expected to affect the same draw). */
-export function getActiveDrawReveal(
-    state: GameState,
-    playerId: string
-): { source: CardInstanceState; config: DrawRevealConfig } | undefined {
-    for (const player of state.players) {
-        for (const card of player.battlefield) {
-            const cardId = (card.card as { id?: string }).id;
-            const config = cardId
-                ? tryGetDefinition(cardId)?.drawRevealReplacement
-                : undefined;
-            if (!config) continue;
-            if (config.scope === "controller" && player.id !== playerId)
-                continue;
-            return { source: card, config };
-        }
-    }
-    return undefined;
-}
-
-/** CR 614 (issue #735) — puts the top card of `player`'s library into its
- *  owner's graveyard (the reveal-branch "bin" outcome), honoring any
- *  graveyard-bound replacement (CR 614 — Yawgmoth's Will redirect). Returns the
- *  binned card's instance id, or null if the library was empty. Not a mill
- *  (CR 701.17a): emits no CARD_MILLED, so "put into your graveyard from your
- *  library" mill triggers correctly don't see it. */
+/** CR 614 — puts the top card of `player`'s library into its owner's graveyard
+ *  (the reveal-branch "bin" outcome), honoring any graveyard-bound replacement
+ *  (CR 614 — Yawgmoth's Will redirect). Returns the binned card's instance id,
+ *  or null if the library was empty. Not a mill (CR 701.17a): emits no
+ *  CARD_MILLED, so "put into your graveyard from your library" mill triggers
+ *  correctly don't see it. */
 export function binRevealedTopCard(
     state: GameState,
     player: PlayerState
@@ -11448,74 +11422,153 @@ function topCardHasType(player: PlayerState, cardType: CardType): boolean {
     return types?.includes(cardType) ?? false;
 }
 
-/** Outcome of resolving one draw through the draw-reveal choke. */
-export type DrawRevealOutcome =
-    | { kind: "drew" } // a card entered the hand — caller emits CARD_DRAWN
-    | { kind: "binned" } // the revealed card went to its owner's graveyard
-    | { kind: "empty" } // library empty (hasDrawnFromEmpty already flagged)
-    | {
-          kind: "suspend-pay";
-          source: CardInstanceState;
-          revealedCardId: string;
-      };
-
-/** Resolves ONE draw for `playerId` through the draw-reveal choke (CR 614,
- *  issue #735). With no active replacement, or a DETERMINISTIC one
- *  (`type-to-graveyard` — Enduring Renewal), it commits synchronously and
- *  returns the outcome. An INTERACTIVE replacement (`others-may-pay-life` —
- *  Zur's Weirding) reveals the top card and returns `suspend-pay` WITHOUT
- *  committing, so the caller can raise the "pay N life?" choice through its own
- *  suspend machinery (draw step: a `draw-reveal-pay` PendingChoice; effect
- *  resolution: `requestMayPay`). The caller commits the branch via
- *  `commitDrawRevealPay` once the choice resolves. */
-export function drawOneWithReveal(
+/** Build the CR 614 draw event (ADR 0061) for `playerId`'s NEXT single draw.
+ *  `drawIndexThisTurn` is read from `drawnThisTurn` — promoted to the read-side
+ *  source (CR 121.1); a prevented/binned draw never appended a card, so a
+ *  further attempt sees the same index and "the first card each turn" holds. */
+export function buildDrawEvent(
     state: GameState,
-    playerId: string
-): DrawRevealOutcome {
+    playerId: string,
+    requestedCount: number,
+    isTurnBasedDrawStepDraw: boolean
+): DrawReplacementEvent {
     const player = getPlayer(state, playerId);
-    const active = getActiveDrawReveal(state, playerId);
-    if (!active) {
-        return drawCard(player) === null ? { kind: "empty" } : { kind: "drew" };
-    }
-    // An empty library can't be revealed from — the draw itself flags
-    // hasDrawnFromEmpty (CR 120.3 / 704.5c handled by drawCard + SBA).
-    if (player.library.length === 0) {
-        drawCard(player);
-        return { kind: "empty" };
-    }
-    const branch = active.config.branch;
-    if (branch.kind === "type-to-graveyard") {
-        if (topCardHasType(player, branch.cardType)) {
-            binRevealedTopCard(state, player);
-            return { kind: "binned" };
-        }
-        return drawCard(player) === null ? { kind: "empty" } : { kind: "drew" };
-    }
-    // Interactive: reveal, then defer to the caller's choice machinery.
     return {
-        kind: "suspend-pay",
-        source: active.source,
-        revealedCardId: player.library[0].id,
+        kind: "draw",
+        drawingPlayer: playerId,
+        drawIndexThisTurn: (player.drawnThisTurn ?? []).length,
+        isTurnBasedDrawStepDraw,
+        requestedCount,
     };
 }
 
-/** Commits the interactive draw-reveal branch (CR 614, issue #735 — Zur's
- *  Weirding) once the "pay N life?" choice resolves. `paid` true: the paying
- *  player has already spent the life (the caller deducts it as the cost); the
- *  revealed card goes to its owner's graveyard. `paid` false: `playerId` draws
- *  the revealed card. Idempotent on the identity of the revealed card — a no-op
- *  if it has since left the top of the library (CR 614 event long since gone). */
-export function commitDrawRevealPay(
+/** Pure mapping (ADR 0061) from a matched draw-replacement OUTCOME + the live
+ *  context of the drawing player's next card to a `DrawStepPlan`. Extracted so
+ *  every outcome shape — including `prevent` (Leovold) and `modify-count`
+ *  (Quantum Riddler, ADR 0061 story 16) that no shipping card uses yet — is
+ *  unit-tested directly. `libraryEmpty` short-circuits every reveal branch to a
+ *  normal draw (the empty draw flags hasDrawnFromEmpty, CR 704.5b). */
+export function drawPlanForOutcome(
+    outcome: DrawReplacementOutcome,
+    ctx: {
+        libraryEmpty: boolean;
+        topCardHasType: (t: CardType) => boolean;
+        revealedCardId: string | undefined;
+        chooserId: string | undefined;
+        chooserCanAfford: (life: number) => boolean;
+    }
+): DrawStepPlan {
+    switch (outcome.kind) {
+        case "prevent":
+            return { kind: "prevent" };
+        case "modify-count":
+            // CR — draw 1 → draw (1 + delta), clamped ≥ 0. The extra cards are
+            // drawn raw by `commitDrawPlan` and do NOT re-trigger the
+            // replacement (CR 616.1d — applies once per event).
+            return { kind: "normal", count: Math.max(0, 1 + outcome.delta) };
+        case "reveal-type-to-graveyard":
+            if (ctx.libraryEmpty) return { kind: "normal", count: 1 };
+            return ctx.topCardHasType(outcome.cardType)
+                ? { kind: "bin" }
+                : { kind: "normal", count: 1 };
+        case "reveal-others-may-pay-life": {
+            // CR 119.4 — no choice is raised when no other player can afford the
+            // life (Arena auto-resolve of a zero-branch choice) → drawing player
+            // draws. Also a plain draw for an empty library.
+            if (
+                ctx.libraryEmpty ||
+                ctx.chooserId === undefined ||
+                ctx.revealedCardId === undefined ||
+                !ctx.chooserCanAfford(outcome.life)
+            ) {
+                return { kind: "normal", count: 1 };
+            }
+            return {
+                kind: "may-pay-bin",
+                chooserId: ctx.chooserId,
+                life: outcome.life,
+                revealedCardId: ctx.revealedCardId,
+            };
+        }
+    }
+}
+
+/** Computes the CR 614 plan for `playerId`'s next single draw (ADR 0061):
+ *  discovers the applicable draw replacement (CR 616.1 first), maps its outcome
+ *  to a `DrawStepPlan`, and — for the interactive `may-pay-bin` plan — REVEALS
+ *  the top card to all players ("they reveal it instead"). No draw happens
+ *  here; `commitDrawPlan` applies the plan. With no applicable replacement the
+ *  plan is a plain `{ normal, count: 1 }`. */
+export function planDrawStep(
     state: GameState,
     playerId: string,
-    paid: boolean
-): void {
+    requestedCount: number,
+    isTurnBasedDrawStepDraw: boolean
+): DrawStepPlan {
+    const event = buildDrawEvent(
+        state,
+        playerId,
+        requestedCount,
+        isTurnBasedDrawStepDraw
+    );
+    const match = getFirstApplicableDrawReplacement(state, event);
+    if (!match) return { kind: "normal", count: 1 };
     const player = getPlayer(state, playerId);
-    if (paid) {
-        if (binRevealedTopCard(state, player) !== null) return;
-        return; // library emptied between reveal and commit — nothing to bin
+    const revealedCardId = player.library[0]?.id;
+    const chooserId = getOpponentId(state, playerId);
+    const plan = drawPlanForOutcome(match.effect.outcome, {
+        libraryEmpty: player.library.length === 0,
+        topCardHasType: (t) => topCardHasType(player, t),
+        revealedCardId,
+        chooserId,
+        chooserCanAfford: (life) => getPlayer(state, chooserId).life >= life,
+    });
+    // CR — "they reveal it instead": surface the would-be-drawn card to all
+    // players the instant the interactive pay-choice is raised.
+    if (plan.kind === "may-pay-bin") {
+        grantKnowledgeToAll(state, playerId, [plan.revealedCardId]);
     }
-    if (drawCard(player) !== null) emitCardDrawn(state, playerId, 1);
+    return plan;
+}
+
+/** Applies a computed `DrawStepPlan` (ADR 0061) and returns how many cards
+ *  actually entered `playerId`'s hand (emitting CARD_DRAWN per card, CR 121.1).
+ *  `paid` is the `may-pay-bin` answer — true bins the revealed top card (the
+ *  chooser's life is paid by the CALLER as the cost), false draws it; ignored
+ *  for other plan kinds. */
+export function commitDrawPlan(
+    state: GameState,
+    playerId: string,
+    plan: DrawStepPlan,
+    paid?: boolean
+): number {
+    const player = getPlayer(state, playerId);
+    switch (plan.kind) {
+        case "prevent":
+            return 0; // CR — the draw doesn't happen; no draw-from-empty loss.
+        case "bin":
+            binRevealedTopCard(state, player);
+            return 0;
+        case "normal": {
+            let drawn = 0;
+            for (let i = 0; i < plan.count; i++) {
+                if (drawCard(player) !== null) drawn++;
+                else break; // library empty (CR 704.5b flagged by drawCard)
+            }
+            emitCardDrawn(state, playerId, drawn);
+            return drawn;
+        }
+        case "may-pay-bin":
+            if (paid) {
+                binRevealedTopCard(state, player);
+                return 0;
+            }
+            if (drawCard(player) !== null) {
+                emitCardDrawn(state, playerId, 1);
+                return 1;
+            }
+            return 0;
+    }
 }
 
 /** Moves a card between player zones (not stack). Returns the moved card.

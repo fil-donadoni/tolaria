@@ -173,7 +173,7 @@ import {
     applyAllCombatDamage,
     emitBlockersConfirmedEvents,
     emitAttackersDeclaredEvents,
-    finalizeDrawRevealPay,
+    finalizeDrawReplacementPay,
     isSorceryTiming,
 } from "./gre/phases";
 import { freshSeed, seededShuffle } from "./gre/rng";
@@ -8631,12 +8631,12 @@ export const submitMadnessDecline = mutation({
     },
 });
 
-/** Answers a suspended `draw-reveal-pay` choice (CR 614, issue #735 — Zur's
+/** Answers a suspended `draw-replacement` choice (CR 614, ADR 0061 — Zur's
  *  Weirding). `accept: true` pays the life cost so the revealed would-be-drawn
  *  card goes to its owner's graveyard; `false` declines and the drawing player
  *  draws it. Separate entry point from `submitMayPay` because the turn-based
  *  draw step has no stack item to resume through (mirrors `submitLandEntryChoice`). */
-export const submitDrawRevealPay = mutation({
+export const submitDrawReplacementPay = mutation({
     args: {
         gameId: v.id("games"),
         playerId: v.string(),
@@ -8655,13 +8655,13 @@ export const submitDrawRevealPay = mutation({
         const head = state.pendingChoices?.[0];
         if (
             !head ||
-            head.kind !== "draw-reveal-pay" ||
+            head.kind !== "draw-replacement" ||
             head.playerId !== args.playerId
         ) {
-            throw new Error("No draw-reveal pay choice to answer");
+            throw new Error("No draw-replacement pay choice to answer");
         }
 
-        finalizeDrawRevealPay(state, args.accept);
+        finalizeDrawReplacementPay(state, args.accept);
         checkStateBasedActions(state);
 
         const nextSeq = gameState.seq + 1;

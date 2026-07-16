@@ -1608,8 +1608,29 @@ export interface SpellContext {
         filter?: CardType | CardType[] | PermanentFilter,
         opts?: { cantBeRegenerated?: boolean }
     ) => void;
-    /** Player draws N cards one at a time (CR 121.1). Stops if library empties; sets hasDrawnFromEmpty (CR 704.5b). */
+    /** Player draws N cards one at a time (CR 121.1). Stops if library empties; sets hasDrawnFromEmpty (CR 704.5b).
+     *  Each draw funnels through the CR 614 draw-replacement seam
+     *  (`planDrawStep`/`commitDrawPlan`), so a DETERMINISTIC replacement
+     *  (Enduring Renewal) fires here too. INTERACTIVE replacements (Zur's
+     *  Weirding "may pay 2 life") cannot suspend in this synchronous primitive,
+     *  so the drawing player draws without offering the pay-choice — the DSL
+     *  `draw` Op is the suspend-capable path (ADR 0061). tracked-by: #1250 */
     drawCards: (playerId: string, amount: number) => void;
+    /** CR 614 / ADR 0061 — the suspend-capable draw seam, exposed for the DSL
+     *  `draw` Op. `planDraw` computes the replacement plan for the drawing
+     *  player's NEXT single draw (revealing the top card when an interactive
+     *  replacement will offer a pay-choice); `commitDraw` applies a computed
+     *  plan and returns how many cards actually entered the hand (emitting
+     *  CARD_DRAWN per card). The Op loops `planDraw` → `requestMayPay` (only
+     *  for `may-pay-bin`) → `commitDraw`, one card at a time, so an interactive
+     *  draw replacement suspends and resumes at the exact card. `paid` is the
+     *  `may-pay-bin` answer (ignored for other plan kinds). */
+    planDraw: (playerId: string, requestedCount: number) => DrawStepPlan;
+    commitDraw: (
+        playerId: string,
+        plan: DrawStepPlan,
+        paid?: boolean
+    ) => number;
     /** CR 701.17 — mills the top `amount` cards of a player's library into
      *  their graveyard, one at a time (re-reading the live top each pass so
      *  successive mills chase the receding library top), stopping early once
@@ -5511,7 +5532,8 @@ export type ReplacementEventKind =
     | "tap"
     | "destroy"
     | "graveyard-bound"
-    | "enters-battlefield";
+    | "enters-battlefield"
+    | "draw";
 
 /** Damage event subject to CR 614 redirection / prevention. */
 export interface DamageReplacementEvent {
@@ -5683,6 +5705,37 @@ export interface EntersBattlefieldReplacementEvent {
     destination: "battlefield" | "exile";
 }
 
+/** Draw event: a player about to draw ONE card (CR 120.1 / 121.1). A
+ *  first-class `ReplacementEventKind` (ADR 0061) discovered through the central
+ *  replacement system but APPLIED at the single suspend-capable draw seam
+ *  (`planDrawStep` / `commitDrawPlan` in `gre/state.ts`), never via the
+ *  synchronous `ReplacementApplyContext` mutator path — a draw replacement may
+ *  require a player choice (Zur's Weirding "may pay 2 life", dredge "may mill",
+ *  CR 616.1 pick-which), so it resolves at the resumable seam. Fires once PER
+ *  CARD at every draw site: the turn-based draw step, the DSL `draw` Op, and
+ *  (after the #1264 migration) every effect draw. Its condition is an
+ *  `applies(event, source)` predicate over this payload (ADR 0061 — predicate
+ *  scope, no `controller | all-players | each-opponent` enum); its outcome may
+ *  modify the count (draw N → N+1), redirect the draw, or prevent it. */
+export interface DrawReplacementEvent {
+    kind: "draw";
+    /** CR 120.1 — the player who would draw. */
+    drawingPlayer: string;
+    /** 0-based index of THIS draw among the drawing player's draws this turn
+     *  (CR 121.1), read from `PlayerState.drawnThisTurn.length` at event time.
+     *  Feeds "the first card drawn this turn" / "each opponent's second and
+     *  later draw" predicates (Leovold). */
+    drawIndexThisTurn: number;
+    /** True only for the turn-based draw-step draw (CR 504.1). Lets a
+     *  replacement exempt the draw-step draw (Hullbreacher — "except the first
+     *  one they draw in each of their draw steps"). */
+    isTurnBasedDrawStepDraw: boolean;
+    /** How many cards the originating draw instruction requested (CR 121.2 —
+     *  "draw N cards"). The event fires once per card; this is the batch size
+     *  the draw came from, read by hand-size / count-conditioned predicates. */
+    requestedCount: number;
+}
+
 export type ReplacementEvent =
     | DamageReplacementEvent
     | LifeChangeReplacementEvent
@@ -5691,7 +5744,78 @@ export type ReplacementEvent =
     | TapReplacementEvent
     | DestroyReplacementEvent
     | GraveyardBoundReplacementEvent
-    | EntersBattlefieldReplacementEvent;
+    | EntersBattlefieldReplacementEvent
+    | DrawReplacementEvent;
+
+/** Outcome of a matched draw replacement (ADR 0061), applied at the resumable
+ *  draw seam. Distinct from the sync `ReplacementResult` because a draw
+ *  replacement's application may suspend for a choice — so its outcome is a
+ *  DATA descriptor the seam interprets, not a `replace()` mutator closure.
+ *  - `reveal-type-to-graveyard` — reveal the top card; if it has `cardType`,
+ *    put it into its owner's graveyard, otherwise draw it (deterministic —
+ *    Enduring Renewal, creature → graveyard).
+ *  - `reveal-others-may-pay-life` — reveal the top card; any OTHER player
+ *    (APNAP, CR 101.4) may pay `life` to bin it, otherwise the drawing player
+ *    draws it (interactive — Zur's Weirding, pay 2 life).
+ *  - `prevent` — the draw simply doesn't happen: no card, no draw-from-empty
+ *    loss (Leovold, "can't draw more than one card each turn").
+ *  - `modify-count` — the single draw yields `1 + delta` cards instead of 1
+ *    (Quantum Riddler, draw N → N+1). The extra cards are drawn raw and do NOT
+ *    re-trigger the replacement (CR 616.1d — a replacement applies once per
+ *    event). Built into the seam now (ADR 0061 story 16) though no shipping
+ *    card uses it yet. */
+export type DrawReplacementOutcome =
+    | { kind: "reveal-type-to-graveyard"; cardType: CardType }
+    | { kind: "reveal-others-may-pay-life"; life: number }
+    | { kind: "prevent" }
+    | { kind: "modify-count"; delta: number };
+
+/** A continuous draw-event replacement (CR 614, ADR 0061) carried by a card
+ *  definition. While ANY permanent with this declaration is on the
+ *  battlefield, every draw an affected player would take is intercepted at the
+ *  single draw seam (read live from the battlefield, like the sync
+ *  `replacementEffects[]`, so it ends the instant the source leaves play).
+ *  `applies` is the predicate scope (ADR 0061): `event.drawingPlayer !==
+ *  source.controllerId` = "each opponent", hand-size conditions read `state`.
+ *  Supersedes the retired `drawRevealReplacement` field (#735). */
+export interface DrawReplacementEffect {
+    id: string;
+    oracleText: string;
+    /** CR 614 — does this replacement intercept `event`? `source` is the
+     *  permanent carrying it; `state` a read-only view for board-conditioned
+     *  predicates. */
+    applies: (
+        event: DrawReplacementEvent,
+        source: PermanentView,
+        state: ReplacementStateView
+    ) => boolean;
+    outcome: DrawReplacementOutcome;
+}
+
+/** The resolved plan for ONE draw event, produced by `planDrawStep`
+ *  (`gre/state.ts`) after replacement discovery + CR 616.1 ordering, and
+ *  applied by `commitDrawPlan`. Splitting PLAN (pure compute + reveal) from
+ *  COMMIT (the mutation) is what lets the single seam serve three call sites
+ *  with different suspend idioms: the DSL `draw` Op (interpreter
+ *  `requestMayPay`), the turn-based draw step (phase-level `draw-replacement`
+ *  PendingChoice), and the synchronous `drawCards` primitive (no suspend — the
+ *  legacy `resolve()`-closure path, migrated off in #1264).
+ *  - `normal` — draw `count` cards via the raw primitive (count possibly bumped
+ *    by a `modify-count` outcome; the extra cards are NOT re-replaced).
+ *  - `prevent` — no draw at all (Leovold): no card, no draw-from-empty loss.
+ *  - `bin` — deterministic reveal-then-graveyard (Enduring Renewal creature).
+ *  - `may-pay-bin` — interactive: `chooserId` may pay `life` to bin the
+ *    revealed top card, else the drawing player draws it (Zur's Weirding). */
+export type DrawStepPlan =
+    | { kind: "normal"; count: number }
+    | { kind: "prevent" }
+    | { kind: "bin" }
+    | {
+          kind: "may-pay-bin";
+          chooserId: string;
+          life: number;
+          revealedCardId: string;
+      };
 
 /** Side-effect mutators handed to a `ReplacementEffect.replace` body. Lets
  *  the effect issue follow-up actions ("draw N cards instead", "sacrifice
@@ -7867,29 +7991,18 @@ export interface CardDefinition {
      *  - `"all-players"` — reveal every player's hand (Zur's Weirding, "Players
      *    play with their hands revealed"). */
     revealsHand?: "controller" | "all-players";
-    /** Continuous draw-event replacement (CR 614) that intercepts EVERY card
-     *  draw an affected player would take and reveals the would-be-drawn card,
-     *  then branches (issue #735). Distinct from `drawStepReplacement` (a whole
-     *  draw-STEP skip): this fires on effect-driven draws too, one card at a
-     *  time, at the single draw choke point (`drawWithReveal`). Read live from
-     *  the battlefield (like `extraLandDrops`) so it ends the instant the source
-     *  leaves play.
-     *  - `scope` — whose draws are replaced: `"controller"` (Enduring Renewal,
-     *    "If YOU would draw") or `"all-players"` (Zur's Weirding, "If a player
-     *    would draw").
-     *  - `branch.kind: "type-to-graveyard"` — reveal the top card; if it has
-     *    `cardType`, put it into its owner's graveyard, otherwise draw it
-     *    (deterministic — Enduring Renewal, creature → graveyard).
-     *  - `branch.kind: "others-may-pay-life"` — reveal the top card; any OTHER
-     *    player (APNAP, CR 101.4) may pay `life` to put it into its owner's
-     *    graveyard, otherwise the drawing player draws it (interactive — Zur's
-     *    Weirding, pay 2 life). */
-    drawRevealReplacement?: {
-        scope: "controller" | "all-players";
-        branch:
-            | { kind: "type-to-graveyard"; cardType: CardType }
-            | { kind: "others-may-pay-life"; life: number };
-    };
+    /** Continuous draw-event replacement (CR 614, ADR 0061) that intercepts
+     *  EVERY card draw an affected player would take, one card at a time, at
+     *  the single suspend-capable draw seam (`planDrawStep` in `gre/state.ts`).
+     *  Distinct from `drawStepReplacement` (a whole draw-STEP skip): this fires
+     *  on effect-driven draws too. Read live from the battlefield (like
+     *  `extraLandDrops`) so it ends the instant the source leaves play. Scope
+     *  is the `applies(event, source, state)` predicate — no enum (ADR 0061).
+     *  Supersedes the retired `drawRevealReplacement` field (#735): Enduring
+     *  Renewal is `applies: e => e.drawingPlayer === source.controllerId` with
+     *  a `reveal-type-to-graveyard` outcome; Zur's Weirding is `applies: () =>
+     *  true` with a `reveal-others-may-pay-life` outcome. */
+    drawReplacement?: DrawReplacementEffect;
     /** Restricts cast timing by whose turn it is (CR 117.1b). `"opponent"` —
      *  only during an opponent's turn (Siren's Call). `"self"` — only during the
      *  controller's own turn (Camouflage's "during your declare attackers

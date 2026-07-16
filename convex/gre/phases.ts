@@ -1,6 +1,7 @@
 import type { Phase } from "./types";
 import type {
     CardType,
+    DrawStepPlan,
     GameEvent,
     StaticUntapRestriction,
 } from "../cards/types";
@@ -23,10 +24,8 @@ import {
     consumePreventionIfAny,
     destroyWithReplacements,
     drawCard,
-    drawOneWithReveal,
-    getActiveDrawReveal,
-    commitDrawRevealPay,
-    grantKnowledgeToAll,
+    planDrawStep,
+    commitDrawPlan,
     payMayPayCost,
     emitCardDrawn,
     flushPendingEvents,
@@ -743,79 +742,66 @@ function drawStep(state: GameState): void {
     }
 
     // CR 504.1 — the turn-based draw for the draw step, routed through the
-    // draw-reveal choke (CR 614, issue #735 — Zur's Weirding / Enduring
-    // Renewal). Emits CARD_DRAWN so "when you draw a card" triggers (Fasting)
-    // fire; the DRAW phase entry drains pending events right after `drawStep`
-    // returns. Suspends on a `draw-reveal-pay` choice for the interactive branch.
+    // unified draw seam (CR 614, ADR 0061 — Zur's Weirding / Enduring Renewal).
+    // Emits CARD_DRAWN so "when you draw a card" triggers (Fasting) fire; the
+    // DRAW phase entry drains pending events right after `drawStep` returns.
+    // Suspends on a `draw-replacement` choice for an interactive replacement.
     performDrawStepDraw(state, player.id);
 }
 
-/** Resolves the turn-based draw-step draw through the draw-reveal choke
- *  (CR 614, issue #735). A deterministic or absent replacement commits
- *  synchronously; the interactive branch (Zur's Weirding) reveals the
- *  would-be-drawn card and raises a `draw-reveal-pay` choice for the other
- *  player. */
+/** Resolves the turn-based draw-step draw through the unified draw seam
+ *  (CR 614, ADR 0061). A deterministic or absent replacement commits inline
+ *  (`isTurnBasedDrawStepDraw: true`); the interactive branch (Zur's Weirding)
+ *  raises a `draw-replacement` choice for the other player. */
 function performDrawStepDraw(state: GameState, playerId: string): void {
-    const outcome = drawOneWithReveal(state, playerId);
-    if (outcome.kind === "drew") {
-        emitCardDrawn(state, playerId, 1);
+    const plan = planDrawStep(state, playerId, 1, true);
+    if (plan.kind === "may-pay-bin") {
+        enqueueDrawReplacementPay(state, playerId, plan);
         return;
     }
-    if (outcome.kind === "binned" || outcome.kind === "empty") return;
-    enqueueDrawRevealPay(state, playerId, outcome.revealedCardId);
+    // Deterministic / no replacement — commit and emit CARD_DRAWN inline.
+    commitDrawPlan(state, playerId, plan);
 }
 
-/** Raises the interactive draw-reveal pay-choice (CR 614, issue #735 — Zur's
- *  Weirding, "any other player may pay N life"). The would-be-drawn card is
- *  revealed to all players (CR — "they reveal it"); the single other player
- *  (2-player / solo scope, CR 101.4 APNAP) may pay to bin it. When that player
- *  cannot afford the life (CR 119.4), no choice is raised and the drawing player
- *  simply draws the revealed card (Arena auto-resolve of a zero-branch choice). */
-function enqueueDrawRevealPay(
+/** Raises the interactive draw-replacement pay-choice (CR 614, ADR 0061 —
+ *  Zur's Weirding, "any other player may pay N life") at the turn-based draw
+ *  step. The would-be-drawn card is already revealed by `planDrawStep` ("they
+ *  reveal it"), and the affordability gate (CR 119.4) already ran there — a
+ *  `may-pay-bin` plan is only produced when the other player can pay — so this
+ *  just enqueues the phase-level choice for the chooser. */
+function enqueueDrawReplacementPay(
     state: GameState,
     drawingPlayerId: string,
-    revealedCardId: string
+    plan: Extract<DrawStepPlan, { kind: "may-pay-bin" }>
 ): void {
-    const active = getActiveDrawReveal(state, drawingPlayerId);
-    const branch = active?.config.branch;
-    if (branch?.kind !== "others-may-pay-life") {
-        // Defensive — only the interactive branch reaches here.
-        commitDrawRevealPay(state, drawingPlayerId, false);
-        return;
-    }
-    const life = branch.life;
-    // CR — "they reveal it": the would-be-drawn card becomes public.
-    grantKnowledgeToAll(state, drawingPlayerId, [revealedCardId]);
-    const chooserId = getOpponentId(state, drawingPlayerId);
-    const chooser = getPlayer(state, chooserId);
-    if (chooser.life < life) {
-        commitDrawRevealPay(state, drawingPlayerId, false);
-        return;
-    }
     state.pendingChoices = state.pendingChoices ?? [];
     state.pendingChoices.push({
         stackItemId: "",
         step: 0,
-        choiceId: `draw-reveal-pay-${drawingPlayerId}`,
-        playerId: chooserId,
+        choiceId: `draw-replacement-${drawingPlayerId}`,
+        playerId: plan.chooserId,
         zoneOwnerId: drawingPlayerId,
-        kind: "draw-reveal-pay",
-        cardInstanceId: revealedCardId,
-        cost: { life },
+        kind: "draw-replacement",
+        cardInstanceId: plan.revealedCardId,
+        cost: { life: plan.life },
         count: 1,
-        prompt: `You may pay ${life} life to put the revealed card into its owner's graveyard. Otherwise they draw it.`,
+        prompt: `You may pay ${plan.life} life to put the revealed card into its owner's graveyard. Otherwise they draw it.`,
     });
-    state.priorityPlayerId = chooserId;
+    state.priorityPlayerId = plan.chooserId;
 }
 
-/** Commits a `draw-reveal-pay` `PendingChoice` (CR 614, issue #735 — Zur's
- *  Weirding). `paid` true: the choosing player pays the life cost (CR 118.4) and
- *  the revealed card goes to its owner's graveyard. `paid` false: the drawing
- *  player draws it. Resumes the draw-step priority window afterward. */
-export function finalizeDrawRevealPay(state: GameState, paid: boolean): void {
+/** Commits a `draw-replacement` `PendingChoice` (CR 614, ADR 0061 — Zur's
+ *  Weirding) raised at the draw step. `paid` true: the choosing player pays the
+ *  life cost (CR 118.4) and the revealed card goes to its owner's graveyard.
+ *  `paid` false: the drawing player draws it. Resumes the draw-step priority
+ *  window afterward. */
+export function finalizeDrawReplacementPay(
+    state: GameState,
+    paid: boolean
+): void {
     const queue = state.pendingChoices ?? [];
     const head = queue[0];
-    if (!head || head.kind !== "draw-reveal-pay") return;
+    if (!head || head.kind !== "draw-replacement") return;
     const chooserId = head.playerId;
     const drawingPlayerId = head.zoneOwnerId ?? head.playerId;
     if (paid && head.cost) {
@@ -823,7 +809,19 @@ export function finalizeDrawRevealPay(state: GameState, paid: boolean): void {
         // replacement chain + LIFE_LOST emit).
         payMayPayCost(state, chooserId, head.cost);
     }
-    commitDrawRevealPay(state, drawingPlayerId, paid);
+    // The seam's `may-pay-bin` commit reads only `paid` (bins the current top
+    // or draws it); the life/revealed-card fields are inert at commit time.
+    commitDrawPlan(
+        state,
+        drawingPlayerId,
+        {
+            kind: "may-pay-bin",
+            chooserId,
+            life: 0,
+            revealedCardId: head.cardInstanceId ?? "",
+        },
+        paid
+    );
 
     queue.shift();
     state.pendingChoices = queue.length > 0 ? queue : undefined;

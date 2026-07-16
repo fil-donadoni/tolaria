@@ -2308,13 +2308,13 @@ export const wrathOfMaritLage: CardDefinition = {
 //     surfaced to their opponents by `gameProjections.ts` (CR 702-adjacent).
 //   • "If a player would draw a card, they reveal it instead. Then any other
 //     player may pay 2 life. If a player does, put that card into its owner's
-//     graveyard. Otherwise, that player draws a card." — the INTERACTIVE
-//     draw-reveal replacement (CR 614): the would-be-drawn card is revealed and
-//     the other player may pay 2 life to bin it. Fully honored at the turn-based
-//     DRAW STEP (a phase-level `draw-reveal-pay` choice). DIVERGENCE: effect-
-//     driven draws (the synchronous `drawCards` primitive — the DSL `draw` Op and
-//     resolve()-closure draws) are taken WITHOUT the pay-choice, as the primitive
-//     cannot suspend mid-resolution. tracked-by: #1250
+//     graveyard. Otherwise, that player draws a card." — the INTERACTIVE draw
+//     replacement (CR 614, ADR 0061): the would-be-drawn card is revealed and
+//     the other player may pay 2 life to bin it. `applies: () => true` is the
+//     "if a player would draw" (all-players) scope; the outcome is
+//     `reveal-others-may-pay-life`. Now honored at the turn-based DRAW STEP AND
+//     at DSL `draw` Op effect draws (the unified suspend-capable seam) — the
+//     `drawRevealReplacement`/`draw-reveal-pay` divergence is retired.
 export const zursWeirding: CardDefinition = {
     id: "e1f8531f-19ca-48a2-baf2-c5dc6f18d79c",
     name: "Zur's Weirding",
@@ -2324,9 +2324,13 @@ export const zursWeirding: CardDefinition = {
     manaCost: { X: 3, U: 1 },
     types: ["Enchantment"],
     revealsHand: "all-players",
-    drawRevealReplacement: {
-        scope: "all-players",
-        branch: { kind: "others-may-pay-life", life: 2 },
+    drawReplacement: {
+        id: "zurs-weirding-draw",
+        oracleText:
+            "If a player would draw a card, they reveal it instead. Then any other player may pay 2 life. If a player does, put that card into its owner's graveyard. Otherwise, that player draws a card.",
+        // "If a PLAYER would draw" — every player's draw is affected (CR 614).
+        applies: () => true,
+        outcome: { kind: "reveal-others-may-pay-life", life: 2 },
     },
 };
 // Zuran Enchanter — "{2}{B}, {T}: Target player discards a card. Activate only

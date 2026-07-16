@@ -917,13 +917,40 @@ export const OP_EXECUTORS: {
         const target = resolveObjectRef(ctx, op.to);
         if (target) ctx.dealDamage(target, amount, op.unpreventable);
     },
-    // CR 121.1 — draw from the top of the library.
+    // CR 121.1 — draw from the top of the library, one card at a time, through
+    // the unified suspend-capable draw seam (ADR 0061). A DETERMINISTIC draw
+    // replacement (Enduring Renewal) commits inline; an INTERACTIVE one (Zur's
+    // Weirding "any other player may pay 2 life") suspends on a `may-pay`
+    // PendingChoice and resumes at the EXACT card. Replay-safe: each iteration's
+    // commit is guarded by a per-Op-position, per-index `#draw` progress marker
+    // (mirroring `forEach`'s `#forEach:<pos>:` result guard) so a re-walk after
+    // a later card's suspend never re-commits an earlier card.
     draw(ctx, op) {
         const playerId = resolvePlayerRef(ctx, op.player);
         if (playerId === undefined) return;
         const count = resolveValue(ctx, op.count);
         if (count === undefined || count <= 0) return;
-        ctx.drawCards(playerId, count);
+        const pos = ctx.getScriptCheckpoint() ?? 0;
+        for (let i = 0; i < count; i++) {
+            const doneKey = `#draw:${pos}:${i}`;
+            // Already committed on an earlier run (a later card suspended, and
+            // the tree is being re-walked) — CR 608.3, never replay a step.
+            if (ctx.recallChoice(doneKey) !== undefined) continue;
+            const plan = ctx.planDraw(playerId, count);
+            if (plan.kind === "may-pay-bin") {
+                const paid = ctx.requestMayPay({
+                    playerId: plan.chooserId,
+                    choiceId: `#draw-pay:${pos}:${i}`,
+                    cost: { life: plan.life },
+                    prompt: `You may pay ${plan.life} life to put the revealed card into its owner's graveyard. Otherwise they draw it.`,
+                });
+                if (paid === undefined) return "suspend"; // enqueued — wait
+                ctx.commitDraw(playerId, plan, paid);
+            } else {
+                ctx.commitDraw(playerId, plan);
+            }
+            ctx.noteChoice(doneKey, ["done"]);
+        }
     },
     // CR 119.3a — life gain.
     gainLife(ctx, op) {

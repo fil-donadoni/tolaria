@@ -75,7 +75,7 @@ import {
     addRestrictedManaToPool,
     removePermanentTo,
     processPendingActionTriggers,
-    drawOneWithReveal,
+    planDrawStep,
 } from "../../../../gre/state";
 import {
     getEffectivePower,
@@ -90,7 +90,7 @@ import {
     advancePhase,
     finalizeCleanup,
     fireDelayedTriggers,
-    finalizeDrawRevealPay,
+    finalizeDrawReplacementPay,
 } from "../../../../gre/phases";
 import { validateAttackerEligibility } from "../../../../gre/combat";
 import {
@@ -2922,17 +2922,24 @@ describe("Zur's Weirding (interactive draw-reveal + hand-reveal, CR 614, #735)",
         });
     }
 
-    it("card definition wires the reveal + interactive draw-reveal statics", () => {
+    it("card definition wires the reveal + interactive draw replacement (ADR 0061)", () => {
         expect(zursWeirding.revealsHand).toBe("all-players");
-        expect(zursWeirding.drawRevealReplacement).toEqual({
-            scope: "all-players",
-            branch: { kind: "others-may-pay-life", life: 2 },
+        expect(zursWeirding.drawReplacement?.outcome).toEqual({
+            kind: "reveal-others-may-pay-life",
+            life: 2,
         });
+        // "if a PLAYER would draw" — all-players scope is `applies: () => true`.
+        expect(zursWeirding.drawReplacement?.applies).toBeTypeOf("function");
     });
 
-    it("CR 614 — a would-be draw suspends on a draw-reveal-pay choice for the other player", () => {
-        const out = drawOneWithReveal(stateWithZurs(), "p1");
-        expect(out.kind).toBe("suspend-pay");
+    it("CR 614 — a would-be draw produces a may-pay-bin plan for the other player", () => {
+        const plan = planDrawStep(stateWithZurs(), "p1", 1, false);
+        expect(plan.kind).toBe("may-pay-bin");
+        if (plan.kind === "may-pay-bin") {
+            expect(plan.chooserId).toBe("p2");
+            expect(plan.life).toBe(2);
+            expect(plan.revealedCardId).toBe("p1-top");
+        }
     });
 
     it("draw step: the draw is replaced by a reveal + pay-choice for the opponent (integration)", () => {
@@ -2940,7 +2947,7 @@ describe("Zur's Weirding (interactive draw-reveal + hand-reveal, CR 614, #735)",
         advancePhase(state);
         expect(state.phase).toBe("DRAW");
         const head = state.pendingChoices?.[0];
-        expect(head?.kind).toBe("draw-reveal-pay");
+        expect(head?.kind).toBe("draw-replacement");
         expect(head?.playerId).toBe("p2"); // the other player decides
         expect(state.priorityPlayerId).toBe("p2");
         // CR — "they reveal it": the top card is public (known to the payer).
@@ -2953,7 +2960,7 @@ describe("Zur's Weirding (interactive draw-reveal + hand-reveal, CR 614, #735)",
     it("pay branch: the payer loses 2 life and the revealed card is binned", () => {
         const state = stateWithZurs();
         advancePhase(state);
-        finalizeDrawRevealPay(state, true);
+        finalizeDrawReplacementPay(state, true);
         expect(state.players[1].life).toBe(18); // p2 paid 2 life
         expect(state.players[0].graveyard.map((c) => c.id)).toContain("p1-top");
         expect(state.players[0].hand).toHaveLength(0);
@@ -2963,7 +2970,7 @@ describe("Zur's Weirding (interactive draw-reveal + hand-reveal, CR 614, #735)",
     it("decline branch: the drawing player draws the revealed card", () => {
         const state = stateWithZurs();
         advancePhase(state);
-        finalizeDrawRevealPay(state, false);
+        finalizeDrawReplacementPay(state, false);
         expect(state.players[1].life).toBe(20); // no life paid
         expect(state.players[0].hand.map((c) => c.id)).toContain("p1-top");
         expect(state.players[0].graveyard).toHaveLength(0);

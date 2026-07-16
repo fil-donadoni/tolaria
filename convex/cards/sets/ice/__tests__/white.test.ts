@@ -78,7 +78,8 @@ import {
     getStaticAdditionalSacrifices,
     removePermanentTo,
     processPendingActionTriggers,
-    drawOneWithReveal,
+    planDrawStep,
+    commitDrawPlan,
 } from "../../../../gre/state";
 import {
     canAffordSacrifice,
@@ -2896,12 +2897,14 @@ describe("Battle Cry (untap-all-white + repeating block-buff delayed trigger, CR
 describe("Enduring Renewal (draw-reveal + hand-reveal + return, CR 614/700.4, #735)", () => {
     const bearsId = getCardByName("Balduvian Bears").id;
 
-    it("card definition wires the reveal + draw-reveal statics", () => {
+    it("card definition wires the reveal + draw replacement (ADR 0061)", () => {
         expect(enduringRenewal.revealsHand).toBe("controller");
-        expect(enduringRenewal.drawRevealReplacement).toEqual({
-            scope: "controller",
-            branch: { kind: "type-to-graveyard", cardType: "Creature" },
+        expect(enduringRenewal.drawReplacement?.outcome).toEqual({
+            kind: "reveal-type-to-graveyard",
+            cardType: "Creature",
         });
+        // "if YOU would draw" — controller scope is an `applies` predicate.
+        expect(enduringRenewal.drawReplacement?.applies).toBeTypeOf("function");
     });
 
     it("CR 614 — a revealed creature is binned; a non-creature is drawn", () => {
@@ -2930,16 +2933,18 @@ describe("Enduring Renewal (draw-reveal + hand-reveal + return, CR 614/700.4, #7
         });
 
         // Top is a creature → put into the graveyard, no draw.
-        const binned = drawOneWithReveal(state, "p1");
-        expect(binned.kind).toBe("binned");
+        const binPlan = planDrawStep(state, "p1", 1, false);
+        expect(binPlan.kind).toBe("bin");
+        commitDrawPlan(state, "p1", binPlan);
         expect(state.players[0].graveyard.map((c) => c.id)).toContain(
             "top-creature"
         );
         expect(state.players[0].hand).toHaveLength(0);
 
         // Top is now the land → drawn to hand.
-        const drew = drawOneWithReveal(state, "p1");
-        expect(drew.kind).toBe("drew");
+        const drawPlan = planDrawStep(state, "p1", 1, false);
+        expect(drawPlan.kind).toBe("normal");
+        commitDrawPlan(state, "p1", drawPlan);
         expect(state.players[0].hand.map((c) => c.id)).toContain("top-land");
     });
 
@@ -2960,8 +2965,9 @@ describe("Enduring Renewal (draw-reveal + hand-reveal + return, CR 614/700.4, #7
             ],
         });
         // p2 has no Enduring Renewal effect on their draws → normal draw.
-        const out = drawOneWithReveal(state, "p2");
-        expect(out.kind).toBe("drew");
+        const plan = planDrawStep(state, "p2", 1, false);
+        expect(plan.kind).toBe("normal");
+        commitDrawPlan(state, "p2", plan);
         expect(state.players[1].hand.map((c) => c.id)).toContain("opp-top");
     });
 

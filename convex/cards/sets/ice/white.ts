@@ -883,9 +883,11 @@ export const elvishHealer: CardDefinition = {
 //     `gameProjections.ts` (CR 702-adjacent).
 //   • "If you would draw a card, reveal the top card of your library instead. If
 //     it's a creature card, put it into your graveyard. Otherwise, draw a card."
-//     — the DETERMINISTIC draw-reveal replacement (CR 614): every draw the
-//     controller takes routes through the `drawOneWithReveal` choke, binning a
-//     revealed creature or drawing otherwise. Fires at all draw sites (draw step
+//     — the DETERMINISTIC draw replacement (CR 614, ADR 0061): every draw the
+//     controller takes routes through the unified draw seam, binning a revealed
+//     creature or drawing otherwise. `applies: e => e.drawingPlayer ===
+//     source.controllerId` is the "if YOU would draw" (controller) scope; the
+//     outcome is `reveal-type-to-graveyard`. Fires at all draw sites (draw step
 //     + effect draws), no player choice.
 //   • "Whenever a creature is put into your graveyard from the battlefield,
 //     return it to your hand." — an OWNER-scoped death trigger (CR 700.4 /
@@ -904,9 +906,13 @@ export const enduringRenewal: CardDefinition = {
     manaCost: { X: 2, W: 2 },
     types: ["Enchantment"],
     revealsHand: "controller",
-    drawRevealReplacement: {
-        scope: "controller",
-        branch: { kind: "type-to-graveyard", cardType: "Creature" },
+    drawReplacement: {
+        id: "enduring-renewal-draw",
+        oracleText:
+            "If you would draw a card, reveal the top card of your library instead. If it's a creature card, put it into your graveyard. Otherwise, draw a card.",
+        // "If YOU would draw" — only the controller's draws are affected.
+        applies: (event, source) => event.drawingPlayer === source.controllerId,
+        outcome: { kind: "reveal-type-to-graveyard", cardType: "Creature" },
     },
     triggeredAbilities: [
         diedTrigger({

@@ -35,7 +35,7 @@ export function usePendingChoicePrimaryAction(): PendingChoicePrimaryAction | nu
     const bufferCtx = usePendingChoiceBuffer();
     const submitMayPay = useMutation(api.game.submitMayPay);
     const submitLandEntryChoice = useMutation(api.game.submitLandEntryChoice);
-    const submitDrawRevealPay = useMutation(api.game.submitDrawRevealPay);
+    const submitDrawReplacementPay = useMutation(api.game.submitDrawReplacementPay);
     const [isBusy, setIsBusy] = useState(false);
 
     const choice = pendingChoices?.[0];
@@ -43,11 +43,11 @@ export function usePendingChoicePrimaryAction(): PendingChoicePrimaryAction | nu
     // CR 117.6 / 614.12 / 614 (#735) — the yes-no "pay a cost or not" families
     // share the affordability + affirmative rendering; only the submit mutation
     // differs (`may-pay` → submitMayPay, `land-entry-tapped` →
-    // submitLandEntryChoice, `draw-reveal-pay` → submitDrawRevealPay).
+    // submitLandEntryChoice, `draw-replacement` → submitDrawReplacementPay).
     const isYesNoPay =
         choice?.kind === "may-pay" ||
         choice?.kind === "land-entry-tapped" ||
-        choice?.kind === "draw-reveal-pay";
+        choice?.kind === "draw-replacement";
 
     const confirm = useCallback(async () => {
         if (!choice || isBusy) return;
@@ -84,10 +84,10 @@ export function usePendingChoicePrimaryAction(): PendingChoicePrimaryAction | nu
             } finally {
                 setIsBusy(false);
             }
-        } else if (choice.kind === "draw-reveal-pay") {
+        } else if (choice.kind === "draw-replacement") {
             setIsBusy(true);
             try {
-                await submitDrawRevealPay({ gameId, playerId, accept: true });
+                await submitDrawReplacementPay({ gameId, playerId, accept: true });
             } finally {
                 setIsBusy(false);
             }
@@ -101,7 +101,7 @@ export function usePendingChoicePrimaryAction(): PendingChoicePrimaryAction | nu
         isBusy,
         submitMayPay,
         submitLandEntryChoice,
-        submitDrawRevealPay,
+        submitDrawReplacementPay,
         gameId,
         playerId,
         bufferCtx,
