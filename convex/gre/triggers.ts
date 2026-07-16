@@ -28,6 +28,7 @@ import type {
 } from "./state";
 import { getPlayer, allocInstanceId } from "./state";
 import { effectiveTriggeredAbilities } from "./copy";
+import { raiseTriggerTargetSelection } from "./rules";
 
 /** Builds the StackItem a fired delayed triggered ability resolves from (CR
  *  603.7a, ADR 0048). Shared by the phase-boundary fire path
@@ -542,6 +543,12 @@ export function placeTriggersOnStack(
         // No ordering owed: push in collection order (auto-ordered slices ride
         // along unchanged), exactly as the pre-ADR-0058 engine did.
         state.stack.push(...triggers);
+        // CR 603.3d (issue #1193) — a triggered ability chooses its targets as
+        // it is put on the stack. Lock them now; if any controller must make a
+        // real choice, we suspend on a `kind:"trigger"` PendingTarget (parked on
+        // the chooser), reported to callers as the not-yet-placed / suspended
+        // signal (return false), same contract as the ordering-suspend path.
+        if (raiseTriggerTargetSelection(state)) return false;
         return true;
     }
 

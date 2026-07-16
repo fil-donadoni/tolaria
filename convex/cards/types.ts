@@ -1694,6 +1694,18 @@ export interface SpellContext {
         target: TargetSelection,
         destination?: CounterDestination
     ) => void;
+    /** CR 701.5-adjacent (issue #1205, Subtlety) — move a SPELL on the stack
+     *  onto the top or bottom of its owner's library WITHOUT countering it.
+     *  Distinct from `counter(target, "library-top")`: this is a "put on
+     *  library" effect, not a counter, so it ignores `cantBeCountered` (CR
+     *  701.5c shields only against COUNTER effects). Target must be a
+     *  `type: "spell"` TargetSelection; no-op if it has left the stack
+     *  (CR 608.2b). An ability on the stack (no card) just vanishes, mirroring
+     *  `counter`. `position` is the owner's chosen library end. */
+    putSpellOnLibrary: (
+        target: TargetSelection,
+        position: "top" | "bottom"
+    ) => void;
     /** Player discards `amount` cards chosen uniformly at random (CR 701.8a).
      *  Capped at current hand size — no-op on an empty hand. Randomness is
      *  drawn from the game's seeded PRNG so replays reproduce the same picks.
@@ -5241,6 +5253,20 @@ export interface TriggeredAbility {
     oracleText: string;
     /** Which event kind can fire this ability. Used to index-filter before matches(). */
     event: GameEventType;
+    /** CR 603.3d (issue #1193) — a triggered ability's targets are chosen when
+     *  it is PUT ON THE STACK (unlike a spell/activated ability, which chooses
+     *  targets before it reaches the stack). When set, `placeTriggersOnStack`
+     *  locks the target(s) at announcement via `raiseTriggerTargetSelection`
+     *  (`gre/rules.ts`): a single legal target auto-selects, "up to" with none
+     *  legal goes on the stack targetless, a required target with none legal
+     *  removes the trigger (CR 603.3c), otherwise the controller is prompted
+     *  through the SAME `PendingTarget` machinery as spells (`kind: "trigger"`).
+     *  The resolving effect reads the announced slot via `{ target: 0 }` /
+     *  `ctx.targets[i]`; `divideAsChosen` (Fury) and the `"spell"` type
+     *  (Subtlety) compose with it. Absent → an untargeted trigger (the vast
+     *  majority), unchanged. Reverses ADR 0002's "triggers carry no
+     *  targetRequirement" simplification. */
+    targetRequirement?: TargetRequirement;
     /** Zone the source must be in for this ability to be scanned (CR 603.6e —
      *  abilities that function while the card is in a zone other than the
      *  battlefield). Defaults to the battlefield when omitted. `"graveyard"`

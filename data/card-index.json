@@ -3186,6 +3186,12 @@
         "firstSet": "lea"
     },
     {
+        "name": "Fury",
+        "scryfallId": "bd281158-8180-40b9-a5b7-03cfc712d81a",
+        "oracleId": "fbf9f8c5-849f-45d5-8129-5fc683c21a04",
+        "firstSet": "mh2"
+    },
+    {
         "name": "Fylgja",
         "scryfallId": "3c6358a1-37f0-4b40-93d4-4f1652c38404",
         "oracleId": "df0e5dd8-65e0-474c-ac32-6e0f6f16b8e6",
@@ -8350,6 +8356,12 @@
         "scryfallId": "a64d4f93-0c04-4078-aec0-7e9de92f260f",
         "oracleId": "9a28d53e-c789-47de-8f3e-a251843ac596",
         "firstSet": "atq"
+    },
+    {
+        "name": "Subtlety",
+        "scryfallId": "701256d5-1389-48b7-9581-d6037209bd06",
+        "oracleId": "377179d5-ac83-4d34-b5b1-f3d8caa60f79",
+        "firstSet": "mh2"
     },
     {
         "name": "Sulam Djinn",
