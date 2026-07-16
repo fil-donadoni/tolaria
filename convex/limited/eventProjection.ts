@@ -13,6 +13,7 @@ import type {
     LimitedEventStatus,
     LimitedEventType,
     LimitedPoolCard,
+    PoolArrangementEntry,
 } from "./eventTypes";
 
 /** The row shape this module projects — structurally what a `limitedEvents`
@@ -106,6 +107,14 @@ export interface LimitedEventSeatView {
      *  seat's timing is no more the viewer's business than their cards.
      *  `null` when not applicable/not the viewer/no timer configured. */
     pickDeadline: number | null;
+    /** This seat's Pool Arrangement (ADR 0060, issue #1247) — see
+     *  `PoolArrangementEntry`. Same "own seat only" discipline as
+     *  `currentPack`/`pickDeadline` above (never tied to `completed`): it's
+     *  private working-deck state, not something a post-mortem study review
+     *  needs from another seat. `null` for a non-viewer seat or before any
+     *  card has ever been moved (an empty/absent stored array still projects
+     *  to `null` there — nothing to disclose either way). */
+    poolArrangement: PoolArrangementEntry[] | null;
 }
 
 export interface LimitedEventView {
@@ -196,6 +205,9 @@ export function projectLimitedEvent(
                 currentPack: isViewer ? (seat.currentPack ?? null) : null,
                 packQueueCount: isViewer ? (seat.packQueue?.length ?? 0) : null,
                 pickDeadline: isViewer ? (seat.pickDeadline ?? null) : null,
+                poolArrangement: isViewer
+                    ? (seat.poolArrangement ?? null)
+                    : null,
             };
         }),
     };

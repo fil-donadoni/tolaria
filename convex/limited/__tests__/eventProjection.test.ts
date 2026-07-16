@@ -386,3 +386,86 @@ describe("projectLimitedEvent — timerEnabled (ADR 0060, issue #1243)", () => {
         expect(view.timerEnabled).toBeUndefined();
     });
 });
+
+describe("projectLimitedEvent — poolArrangement (ADR 0060, issue #1247)", () => {
+    it("preserves the viewer's own seat's Pool Arrangement", () => {
+        const event = row({
+            seats: [
+                {
+                    seatIndex: 0,
+                    userId: "user1",
+                    nickname: "Alice",
+                    pool: [
+                        { scryfallId: "s1", cardId: "c1", cardName: "Card One" },
+                    ],
+                    poolArrangement: [{ poolIndex: 0, sideboard: true }],
+                },
+                {
+                    seatIndex: 1,
+                    userId: "user2",
+                    nickname: "Bob",
+                    pool: [
+                        { scryfallId: "s3", cardId: "c3", cardName: "Card Three" },
+                    ],
+                    poolArrangement: [{ poolIndex: 0, column: 2 }],
+                },
+            ],
+        });
+
+        const view = projectLimitedEvent(event, "user1");
+        const own = view.seats.find((s) => s.seatIndex === 0)!;
+        expect(own.poolArrangement).toEqual([{ poolIndex: 0, sideboard: true }]);
+    });
+
+    it("strips every OTHER seat's Pool Arrangement — same 'own seat only' discipline as currentPack/pickDeadline", () => {
+        const event = row({
+            seats: [
+                {
+                    seatIndex: 0,
+                    userId: "user1",
+                    nickname: "Alice",
+                    pool: [
+                        { scryfallId: "s1", cardId: "c1", cardName: "Card One" },
+                    ],
+                    poolArrangement: [{ poolIndex: 0, sideboard: true }],
+                },
+                {
+                    seatIndex: 1,
+                    userId: "user2",
+                    nickname: "Bob",
+                    pool: [
+                        { scryfallId: "s3", cardId: "c3", cardName: "Card Three" },
+                    ],
+                    poolArrangement: [{ poolIndex: 0, column: 2 }],
+                },
+            ],
+        });
+
+        const view = projectLimitedEvent(event, "user1");
+        const other = view.seats.find((s) => s.seatIndex === 1)!;
+        expect(other.poolArrangement).toBeNull();
+    });
+
+    it("projects to null (not an empty array) for a viewer's own seat with no Arrangement recorded yet", () => {
+        const view = projectLimitedEvent(row(), "user1");
+        const own = view.seats.find((s) => s.seatIndex === 0)!;
+        expect(own.poolArrangement).toBeNull();
+    });
+
+    it("a viewer with no seat sees every seat's Arrangement stripped", () => {
+        const view = projectLimitedEvent(
+            row({
+                seats: [
+                    {
+                        seatIndex: 0,
+                        userId: "user1",
+                        pool: [],
+                        poolArrangement: [{ poolIndex: 0, sideboard: true }],
+                    },
+                ],
+            }),
+            "outsider"
+        );
+        expect(view.seats.every((s) => s.poolArrangement === null)).toBe(true);
+    });
+});

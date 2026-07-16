@@ -57,7 +57,35 @@ export interface LimitedEventSeat {
      *  guard this powers (seq-based Auto-Pick cancellation, CLAUDE.md's
      *  priority-timeout pattern). */
     pickSeq?: number;
+    /** The seat's Pool Arrangement (ADR 0060, issue #1247) — see
+     *  `PoolArrangementEntry`. Absent means every card is still at its
+     *  default placement (Maindeck, auto Mana-Value column). */
+    poolArrangement?: PoolArrangementEntry[];
 }
 
 export type LimitedEventType = "sealed" | "draft";
 export type LimitedEventStatus = "open" | "started";
+
+/** Per-seat, server-persisted Pool Arrangement (ADR 0060, issue #1247): how
+ *  ONE opened Pool card is currently organised on the continuous draft→build
+ *  surface — its Mana-Value column (with a manual per-card override) and
+ *  whether it's parked in the Maindeck or the Sideboard. Keyed by
+ *  `poolIndex`, the card's position within the seat's `pool` array — the
+ *  stable identity a same-name duplicate needs, since `LimitedPoolCard`
+ *  itself carries no per-copy id; `pool` is append-only (Sealed generates it
+ *  once, Draft appends exactly one entry per Pick) and never reordered, so
+ *  the index is stable for the seat's whole life. Absent for a given
+ *  `poolIndex` (or the whole array absent/empty) means the card hasn't been
+ *  moved yet and defaults to the Maindeck, in its own (auto, mana-value-
+ *  derived) column — see `convex/limited/poolArrangement.ts`'s
+ *  `resolvePoolPlacements`. The column-override DRAG GESTURE itself is wired
+ *  by issue #1248 (tracked-by: #1248); this shape ships now — persistence +
+ *  projection only — so that later change needs no further schema
+ *  migration. */
+export interface PoolArrangementEntry {
+    poolIndex: number;
+    /** Manual override of the auto Mana-Value column. Absent = auto. */
+    column?: number;
+    /** true = Sideboard, false/absent = Maindeck. */
+    sideboard?: boolean;
+}

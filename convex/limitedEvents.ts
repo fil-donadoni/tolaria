@@ -60,6 +60,7 @@ import {
     type LimitedEventView,
 } from "./limited/eventProjection";
 import type { LimitedEventSeat } from "./limited/eventTypes";
+import { upsertPoolArrangementEntry } from "./limited/poolArrangement";
 import {
     getBoosterConfig,
     isDraftableSet,
@@ -91,6 +92,14 @@ const draftPackCardValidator = v.object({
     cardId: v.string(),
     cardName: v.string(),
     pickId: v.string(),
+});
+
+// Pool Arrangement (ADR 0060, issue #1247) — see `PoolArrangementEntry`'s doc
+// comment in `convex/limited/eventTypes.ts`.
+const poolArrangementEntryValidator = v.object({
+    poolIndex: v.number(),
+    column: v.optional(v.number()),
+    sideboard: v.optional(v.boolean()),
 });
 
 const deckCardValidator = v.object({
@@ -149,6 +158,10 @@ const limitedEventSeatViewValidator = v.object({
     currentPack: v.union(v.array(draftPackCardValidator), v.null()),
     packQueueCount: v.union(v.number(), v.null()),
     pickDeadline: v.union(v.number(), v.null()),
+    poolArrangement: v.union(
+        v.array(poolArrangementEntryValidator),
+        v.null()
+    ),
     // Auto-Build + vs-AI hookup (issue #1115): a bot seat's playable Limited
     // deck once its Pool is final (`isEventPoolFinal`), else `null` — always
     // `null` for a human seat (they build their own via the pool-scoped
@@ -669,6 +682,63 @@ export const startLimitedEvent = mutation({
             seats: asDbSeats(seededSeats),
             status: "started",
             seed,
+            updatedAt: Date.now(),
+        });
+        return null;
+    },
+});
+
+/** Persists one Pool Arrangement edit for the CALLER's own Seat (ADR 0060,
+ *  issue #1247) — a Maindeck/Sideboard toggle and/or a manual Mana-Value
+ *  column override for the card at `poolIndex`. `seatIndex` is derived
+ *  server-side from `userId`, exactly like `submitPick` below, so a user can
+ *  only rearrange their own Pool. `poolIndex` is bounds-checked against the
+ *  seat's ACTUAL Pool length — the one piece of trust a client-supplied
+ *  index needs, since nothing else about it can be validated against a
+ *  fixed shape (unlike `pickId`, no separate authoritative list to check
+ *  membership against). Column-override DRAG is wired by issue #1248; this
+ *  mutation already accepts `column` so that later change needs no API
+ *  change, only a new caller. */
+export const setPoolArrangementEntry = mutation({
+    args: {
+        eventId: v.id("limitedEvents"),
+        poolIndex: v.number(),
+        sideboard: v.optional(v.boolean()),
+        // `null` explicitly clears a manual column override back to auto;
+        // `undefined`/omitted leaves any existing override untouched.
+        column: v.optional(v.union(v.number(), v.null())),
+    },
+    returns: v.null(),
+    handler: async (ctx, args) => {
+        const user = await getCurrentUser(ctx);
+        const event = await ctx.db.get(args.eventId);
+        if (!event) throw new Error("Event not found");
+        const seatIndex = event.seats.findIndex((s) => s.userId === user._id);
+        if (seatIndex === -1) {
+            throw new Error("You do not have a Seat in this event.");
+        }
+        const seat = event.seats[seatIndex];
+        const poolSize = seat.pool?.length ?? 0;
+        if (
+            !Number.isInteger(args.poolIndex) ||
+            args.poolIndex < 0 ||
+            args.poolIndex >= poolSize
+        ) {
+            throw new Error("poolIndex is out of range for this seat's Pool.");
+        }
+
+        const nextArrangement = upsertPoolArrangementEntry(
+            seat.poolArrangement ?? [],
+            {
+                poolIndex: args.poolIndex,
+                sideboard: args.sideboard,
+                column: args.column,
+            }
+        );
+        const seats = [...event.seats];
+        seats[seatIndex] = { ...seat, poolArrangement: nextArrangement };
+        await ctx.db.patch(args.eventId, {
+            seats: asDbSeats(seats),
             updatedAt: Date.now(),
         });
         return null;

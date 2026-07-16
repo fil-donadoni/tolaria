@@ -1,9 +1,13 @@
 import { useCallback, useMemo, useRef, useState, useEffect } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import type { Id } from "@convex/_generated/dataModel";
-import type { LimitedPoolCard } from "@convex/limited/eventTypes";
+import type {
+    LimitedPoolCard,
+    PoolArrangementEntry,
+} from "@convex/limited/eventTypes";
 import { validateDeck } from "@convex/formats";
 import { poolFromLimitedPoolCards } from "@convex/limited/poolResolution";
+import { splitPoolByArrangement } from "@convex/limited/poolArrangement";
 import { useUserDeckMutations } from "~/hooks/useUserDecks";
 import type { UserLobbyDeck } from "~/lib/deckTypes";
 import { computeDeckColors } from "~/lib/deckColors";
@@ -28,11 +32,14 @@ interface WorkingDeck {
 }
 
 /** Every opened Pool card (basics included) starts in the Sideboard for a
- *  brand-new deck (PRD #1107 story 19, ADR 0054/0055 — "every unplayed Pool
- *  card kept in the uncapped Sideboard automatically"), empty Maindeck. This
- *  makes AC2 ("Main + Side always equals the Pool") true BY CONSTRUCTION: the
- *  only ops available on a Pool-sourced card are move-to-main / move-to-side,
- *  never delete. */
+ *  brand-new Sealed deck (PRD #1107 story 19, ADR 0054/0055 — "every unplayed
+ *  Pool card kept in the uncapped Sideboard automatically"), empty Maindeck.
+ *  This makes AC2 ("Main + Side always equals the Pool") true BY
+ *  CONSTRUCTION: the only ops available on a Pool-sourced card are
+ *  move-to-main / move-to-side, never delete. Sealed-only — a Sealed event
+ *  never builds a Pool Arrangement (no draft phase to arrange during), so
+ *  this is the one path with no continuous-draft carry-over to seed from
+ *  instead (see `continuousWorkingDeck` below). */
 function defaultWorkingDeck(pool: readonly LimitedPoolCard[]): WorkingDeck {
     return {
         name: "Sealed Pool Deck",
@@ -41,6 +48,24 @@ function defaultWorkingDeck(pool: readonly LimitedPoolCard[]): WorkingDeck {
             cardId: c.cardId,
             cardName: c.cardName,
         })),
+    };
+}
+
+/** A DRAFT event's working deck, seeded from the Pool Arrangement built
+ *  during the draft (ADR 0060, issue #1247) — "the arrangement built during
+ *  the draft carries unchanged into deckbuild": every card the player never
+ *  explicitly sideboarded is ALREADY in the Maindeck (the continuous
+ *  "draft-time Pool IS the working deck" default, `resolvePoolPlacements`),
+ *  unlike Sealed's all-Sideboard start above. */
+function continuousWorkingDeck(
+    pool: readonly LimitedPoolCard[],
+    arrangement: readonly PoolArrangementEntry[]
+): WorkingDeck {
+    const split = splitPoolByArrangement(pool, arrangement);
+    return {
+        name: "Draft Pool Deck",
+        cards: split.cards,
+        sideboard: split.sideboard,
     };
 }
 
@@ -53,6 +78,12 @@ interface PoolDeckBuilderFormProps {
     seatIndex: number;
     pool: readonly LimitedPoolCard[];
     existingDeck: UserLobbyDeck | null;
+    /** The seat's Pool Arrangement (ADR 0060, issue #1247), or `null` for a
+     *  Sealed event (which never builds one). An array — even empty —
+     *  selects the continuous-draft seed (`continuousWorkingDeck`); `null`
+     *  falls back to the pre-#1247 all-Sideboard default. Ignored once
+     *  `existingDeck` is set (a saved deck is always the source of truth). */
+    poolArrangement: PoolArrangementEntry[] | null;
 }
 
 /**
@@ -70,19 +101,23 @@ export default function PoolDeckBuilderForm({
     seatIndex,
     pool,
     existingDeck,
+    poolArrangement,
 }: PoolDeckBuilderFormProps) {
     const navigate = useNavigate();
     const { create, update } = useUserDeckMutations();
 
-    const [deck, setDeck] = useState<WorkingDeck>(() =>
-        existingDeck
-            ? {
-                  name: existingDeck.name,
-                  cards: existingDeck.cards,
-                  sideboard: existingDeck.sideboard ?? [],
-              }
-            : defaultWorkingDeck(pool)
-    );
+    const [deck, setDeck] = useState<WorkingDeck>(() => {
+        if (existingDeck) {
+            return {
+                name: existingDeck.name,
+                cards: existingDeck.cards,
+                sideboard: existingDeck.sideboard ?? [],
+            };
+        }
+        return poolArrangement !== null
+            ? continuousWorkingDeck(pool, poolArrangement)
+            : defaultWorkingDeck(pool);
+    });
     const [saving, setSaving] = useState(false);
 
     const identityRef = useRef<string | null>(existingDeck?.userDeckId ?? null);
