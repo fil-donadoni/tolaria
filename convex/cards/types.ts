@@ -1078,6 +1078,32 @@ export type MayPayCost =
           };
       };
 
+/** A dynamically-derived `mayPay` mana cost (issue #1150): "pay object X's own
+ *  printed mana cost, reduced by a fixed generic amount" — the cost is not
+ *  knowable at authoring time, only once a runtime-selected/bound object
+ *  exists (Flash, MIR — "sacrifice it unless you pay its mana cost reduced by
+ *  {2}"). A SECOND shape accepted by the `mayPay` Op's `cost` field, alongside
+ *  the static `MayPayCost` union (ADR 0045 "generalize, don't add" — the Op's
+ *  cost model grows a leg rather than a new Op or a card-shaped primitive).
+ *  Resolved by the interpreter at `mayPay` execution time, never by
+ *  `SpellContext.requestMayPay` itself: `manaCostOf` is resolved to the
+ *  referenced object, its printed cost read via `SpellContext.getManaCost`,
+ *  the GENERIC portion reduced by `reducedBy` and floored at {0} (CR 118.9 —
+ *  a cost can't be reduced below {0}; colored pips are never removed by a
+ *  generic reduction, mirroring `applyCostModifiers`'s existing
+ *  `Math.max(0, generic - reduction)` clamp), and the resulting concrete
+ *  `ManaCost` is what actually reaches `requestMayPay`'s `mana` leg. */
+export interface DynamicMayPayManaCost {
+    /** The object whose printed mana cost is read: a bare PICKS ref (the
+     *  instance id an earlier `choice` Op selected, e.g. `{ ref: "$picked" }`
+     *  — Flash's "you may put a creature card from your hand onto the
+     *  battlefield... pay ITS mana cost"). Same position/family as
+     *  `moveZone`'s `cards` field; the ordered ref pass enforces it. */
+    manaCostOf: EffectRef;
+    /** Flat generic amount subtracted from the object's printed mana cost. */
+    reducedBy: number;
+}
+
 // --- Token specification (CR 111, 707.1) ---
 
 /** Structural definition of a token permanent created at resolution time
@@ -1843,6 +1869,17 @@ export interface SpellContext {
      *  Returns 0 for player / unknown targets. Used by Spell Blast ("counter
      *  target spell with mana value X"). */
     getManaValue: (target: TargetSelection) => number;
+    /** Printed mana cost of a target (CR 202.1), the full `ManaCost` shape
+     *  (colored pips + generic) rather than `getManaValue`'s single reduced
+     *  number. Mirrors `getManaValue`'s per-target-shape resolution
+     *  (permanent / stack spell / graveyard-card; X counts as 0 exactly as
+     *  `getManaValue` documents — a permanent's chosen X isn't preserved,
+     *  CR 202.3). Returns `undefined` for a player/unknown target or a card
+     *  with no mana cost (a land). Used by a `mayPay` Op's dynamically-derived
+     *  cost leg (issue #1150, Flash — "pay its mana cost reduced by {2}"),
+     *  which needs the colored pips preserved while only the generic portion
+     *  is reduced. */
+    getManaCost: (target: TargetSelection) => ManaCost | undefined;
     /** Mana value snapshotted on the stack item when this spell's
      *  additional sacrifice cost (CR 117.9) was paid at cast time. Returns
      *  `undefined` for spells without an `additionalCosts.sacrificeFilter`.
@@ -7225,10 +7262,13 @@ export type EffectOp =
           /** Who is offered the payment/decision (CR 117.3a — usually the
            *  controller of the affected object, "its controller pays"). */
           player: EffectPlayerRef;
-          /** The cost to pay on accept (mana / life / sacrifice union, CR
-           *  702.24 shape). Omitted for a bare cost-free "you may" decision
-           *  (issue #680). */
-          cost?: MayPayCost;
+          /** The cost to pay on accept: the static mana / life / sacrifice
+           *  union (CR 702.24 shape), OR a dynamically-derived mana cost read
+           *  off a runtime-selected object at execution time (issue #1150 —
+           *  `DynamicMayPayManaCost`, Flash's "pay its mana cost reduced by
+           *  {2}"). Omitted for a bare cost-free "you may" decision (issue
+           *  #680). */
+          cost?: MayPayCost | DynamicMayPayManaCost;
           prompt: string;
           /** REQUIRED — the boolean binding name (`"$paid"`). A may-pay whose
            *  outcome nothing reads is meaningless, so the grammar demands it. */

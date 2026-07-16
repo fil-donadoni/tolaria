@@ -7281,6 +7281,184 @@ describe("Effect Script Op: mayPay (CR 117.3a / 118.4, issue #806)", () => {
     });
 });
 
+// A `mayPay` Op's dynamically-derived cost leg (issue #1150, `DynamicMayPay-
+// ManaCost`: `{ manaCostOf, reducedBy }`) — "pay a runtime-selected object's
+// own printed mana cost, reduced by a fixed generic amount". Exercises the
+// exact template Flash (MIR) uses: a `choice` binds `$picked` to a card put
+// from hand onto the battlefield, `mayPay`'s cost reads THAT card's own
+// printed mana cost via `manaCostOf: { ref: "$picked" }`, and `reducedBy`
+// trims the generic portion (CR 601.2f — colored pips untouched), floored at
+// {0} (CR 118.9).
+describe("Effect Script Op: mayPay dynamic cost (manaCostOf/reducedBy, issue #1150)", () => {
+    const DYNAMIC_COST_CREATURE_ID = "test-op-maypay-dynamic-creature";
+    registerTokenDefinition({
+        id: DYNAMIC_COST_CREATURE_ID,
+        name: DYNAMIC_COST_CREATURE_ID,
+        rarity: "common",
+        // {3}{G} — a 3-generic cost big enough to show a NON-trivial
+        // reduction (reduced by 2 → {1}{G}), distinct from the floor case
+        // exercised below.
+        manaCost: { X: 3, G: 1 },
+        types: ["Creature"],
+        subtypes: ["Bear"],
+        power: 2,
+        toughness: 2,
+    });
+    const CHEAP_CREATURE_ID = "test-op-maypay-dynamic-cheap-creature";
+    registerTokenDefinition({
+        id: CHEAP_CREATURE_ID,
+        name: CHEAP_CREATURE_ID,
+        rarity: "common",
+        // {1}{G} — generic (1) is LESS than reducedBy (2): the reduction
+        // must floor at {0} generic (CR 118.9), not go negative.
+        manaCost: { X: 1, G: 1 },
+        types: ["Creature"],
+        subtypes: ["Bear"],
+        power: 1,
+        toughness: 1,
+    });
+
+    function registerFlashLikeScript(id: string): string {
+        return registerScript(id, [
+            {
+                op: "choice",
+                kind: "choose-hand-card",
+                player: "controller",
+                zone: "hand",
+                filter: { type: "Creature" },
+                count: { min: 0, max: 1 },
+                prompt: "Put a creature card from your hand onto the battlefield (or none).",
+                bind: "$picked",
+            },
+            {
+                op: "moveZone",
+                cards: { ref: "$picked" },
+                player: "controller",
+                from: "hand",
+                to: "battlefield",
+            },
+            {
+                op: "mayPay",
+                player: "controller",
+                cost: { manaCostOf: { ref: "$picked" }, reducedBy: 2 },
+                prompt: "Pay its mana cost reduced by {2}?",
+                bind: "$paid",
+            },
+            {
+                op: "if",
+                predicate: { not: { binding: "$paid" } },
+                then: [{ op: "sacrifice", permanents: { ref: "$picked" } }],
+            },
+        ]);
+    }
+
+    it("derives the reduced ManaCost from the picked object's printed cost and pays it (kept, not sacrificed)", () => {
+        const id = registerFlashLikeScript("test-op-maypay-dynamic-pay");
+        const handCreature = makeInstance(DYNAMIC_COST_CREATURE_ID, {
+            id: "dynCreature1",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: [handCreature],
+                    manaPool: { W: 0, U: 0, B: 0, R: 0, G: 1, C: 1 },
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        expect(resolveTopOfStack(state)).toBeNull(); // suspended on the hand pick
+        const pickHead = state.pendingChoices![0];
+        expect(pickHead.kind).toBe("choose-hand-card");
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: pickHead.stackItemId,
+            step: pickHead.step,
+            choiceId: pickHead.choiceId,
+            cardInstanceIds: ["dynCreature1"],
+        });
+        // The picked creature is now on the battlefield, and the script
+        // suspended again on the mayPay leg.
+        expect(state.players[0].battlefield.map((c) => c.id)).toContain(
+            "dynCreature1"
+        );
+        const payHead = state.pendingChoices![0];
+        expect(payHead.kind).toBe("may-pay");
+        // {3}{G} reduced by {2} → {1}{G} (generic 3-2=1, colored pip untouched).
+        expect(payHead.cost).toEqual({ mana: { G: 1, generic: 1 } });
+        // Wire format (ADR 0045 / gre-development.md convention) — the
+        // dynamically-derived cost must survive the projection unchanged;
+        // the client renders the may-pay prompt from `PublicGameState`, not
+        // the fat server state.
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.pendingChoices?.[0].cost).toEqual({
+            mana: { G: 1, generic: 1 },
+        });
+        applyMayPaySubmit(state, { playerId: "p1", accept: true });
+        // Paid → kept, not sacrificed; the reduced mana was spent.
+        expect(state.players[0].battlefield.map((c) => c.id)).toContain(
+            "dynCreature1"
+        );
+        expect(state.players[0].manaPool.G).toBe(0);
+        expect(state.players[0].manaPool.C).toBe(0);
+    });
+
+    it("floors the reduction at {0} generic (CR 118.9) and sacrifices the object on decline", () => {
+        const id = registerFlashLikeScript("test-op-maypay-dynamic-decline");
+        const handCreature = makeInstance(CHEAP_CREATURE_ID, {
+            id: "cheapCreature1",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { hand: [handCreature] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        expect(resolveTopOfStack(state)).toBeNull();
+        const pickHead = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: pickHead.stackItemId,
+            step: pickHead.step,
+            choiceId: pickHead.choiceId,
+            cardInstanceIds: ["cheapCreature1"],
+        });
+        const payHead = state.pendingChoices![0];
+        // {1}{G} reduced by {2} → generic floors at {0} (CR 118.9), not -1;
+        // the colored pip is never touched by a generic reduction.
+        expect(payHead.cost).toEqual({ mana: { G: 1 } });
+        applyMayPaySubmit(state, { playerId: "p1", accept: false });
+        expect(state.players[0].battlefield.map((c) => c.id)).not.toContain(
+            "cheapCreature1"
+        );
+        expect(state.players[0].graveyard.map((c) => c.id)).toContain(
+            "cheapCreature1"
+        );
+    });
+
+    it("skips the whole mayPay Op (no prompt) when nothing was picked — the bare 'you may' declined", () => {
+        const id = registerFlashLikeScript(
+            "test-op-maypay-dynamic-nothing-picked"
+        );
+        const state = makeState();
+        pushSpell(state, id, "p1"); // empty hand — nothing to pick
+        // The choice finds zero candidates (CR 608.2b) and is skipped
+        // entirely, so the whole script runs to completion in one go —
+        // no may-pay prompt is ever raised for a creature that was never
+        // put into play.
+        expect(resolveTopOfStack(state)).not.toBeNull();
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        expect(state.stack).toHaveLength(0);
+    });
+});
+
 describe("Effect Script construct: if (ADR 0045, CR 608.2c, issue #806)", () => {
     it("runs the then branch and skips else on a true binding predicate", () => {
         const id = registerScript("test-if-then", [

@@ -47,21 +47,60 @@ export const mysticalTutor: CardDefinition = {
     ],
 };
 
-// STOP-AND-ISSUE (tracked-by: #1150) — Flash: "You may put a creature card
-// from your hand onto the battlefield. If you do, sacrifice it unless you
-// pay its mana cost reduced by {2}." The "put a creature from hand onto the
-// battlefield" half is free (`choice(hand)` + `moveZone(hand->battlefield)`,
-// already shipped and used by Stoneforge Mystic, wwk/white.ts) — ONLY the
-// `mayPay` leg is blocked: `MayPayCost` is a STATIC cost fixed at authoring
-// time (ADR 0042); there's no leg for "pay a runtime-selected object's own
-// printed mana cost, reduced by a fixed amount" (the reduced cost isn't
-// knowable until the creature is chosen during resolution). Vintage Cube
-// FREE tranche, issue #686. Whole card left as one stub (the mayPay leg is
-// half the card's function — sacrifice-unless-paid, not a bare "you may").
-// export const flash: CardDefinition = {
-//     id: "63af3c26-5b1f-46f6-9aa2-036c615bf5ea", // MIR 66
-//     name: "Flash",
-//     rarity: "rare",
-//     manaCost: { X: 1, U: 1 },
-//     types: ["Instant"],
-// };
+// Flash — {1}{U} Instant. "You may put a creature card from your hand onto
+// the battlefield. If you do, sacrifice it unless you pay its mana cost
+// reduced by {2}." (Vintage Cube FREE tranche, issue #686.) The "put a
+// creature from hand onto the battlefield" half reuses the existing
+// picks-based `moveZone(hand->battlefield)` shape (Stoneforge Mystic,
+// wwk/white.ts): `choice(kind: "choose-hand-card", zone: "hand", filter:
+// {type: "Creature"}, count: {min:0, max:1})` binds `$picked`, then
+// `moveZone` puts it into play. "sacrifice it unless you pay its mana cost
+// reduced by {2}" is the `mayPay` Op's dynamically-derived cost leg (issue
+// #1150 — `{ manaCostOf: {ref: "$picked"}, reducedBy: 2 }`): resolved at
+// mayPay execution time by reading the just-entered permanent's own printed
+// mana cost and reducing the generic portion by {2}, floored at {0} (CR
+// 118.9). `if (not $paid) sacrifice($picked)` is the "unless" consequence
+// (CR 117.3a) — a no-op when nothing was picked in the first place (an empty
+// picks ref, CR 608.2b), since declining the initial "you may" never raises
+// the mayPay prompt at all (`resolveMayPayCost` skips the whole Op when
+// `$picked` is empty).
+export const flash: CardDefinition = {
+    id: "63af3c26-5b1f-46f6-9aa2-036c615bf5ea", // MIR 66
+    name: "Flash",
+    rarity: "rare",
+    manaCost: { X: 1, U: 1 },
+    types: ["Instant"],
+    oracleText:
+        "You may put a creature card from your hand onto the battlefield. If you do, sacrifice it unless you pay its mana cost reduced by {2}.",
+    effects: [
+        {
+            op: "choice",
+            kind: "choose-hand-card",
+            player: "controller",
+            zone: "hand",
+            filter: { type: "Creature" },
+            count: { min: 0, max: 1 },
+            prompt: "Put a creature card from your hand onto the battlefield (or none).",
+            bind: "$picked",
+        },
+        {
+            op: "moveZone",
+            cards: { ref: "$picked" },
+            player: "controller",
+            from: "hand",
+            to: "battlefield",
+        },
+        {
+            op: "mayPay",
+            player: "controller",
+            cost: { manaCostOf: { ref: "$picked" }, reducedBy: 2 },
+            prompt: "Pay its mana cost reduced by {2}?",
+            bind: "$paid",
+        },
+        {
+            op: "if",
+            predicate: { not: { binding: "$paid" } },
+            then: [{ op: "sacrifice", permanents: { ref: "$picked" } }],
+        },
+    ],
+};
