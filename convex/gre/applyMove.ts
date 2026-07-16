@@ -37,6 +37,7 @@ import {
     discardToGraveyard,
 } from "./state";
 import { matchesPermanentFilter } from "../cards/filters";
+import { isPlaneswalker } from "./constants";
 import { handCardMatchesFilter } from "./alternativeCost";
 import { liveSupertypesOf } from "./snow";
 import { checkStateBasedActions } from "./sba";
@@ -395,8 +396,33 @@ export function applyMoveForSearch(
 
         case "declare-attackers": {
             if (move.attackerIds.length === 0) return next;
+            // CR 508.1a (issue #1220) — carry per-attacker planeswalker attack
+            // targets, keeping only entries whose attacker is declared and whose
+            // planeswalker the defender still controls.
+            const defenderIdForAttack = getOpponentId(next, playerId);
+            const defenderBf =
+                next.players.find((p) => p.id === defenderIdForAttack)
+                    ?.battlefield ?? [];
+            let attackTargets: Record<string, string> | undefined;
+            if (move.attackTargets) {
+                const filtered: Record<string, string> = {};
+                for (const [atkId, pwId] of Object.entries(
+                    move.attackTargets
+                )) {
+                    if (
+                        move.attackerIds.includes(atkId) &&
+                        defenderBf.some(
+                            (c) => c.id === pwId && isPlaneswalker(c)
+                        )
+                    ) {
+                        filtered[atkId] = pwId;
+                    }
+                }
+                if (Object.keys(filtered).length > 0) attackTargets = filtered;
+            }
             next.combat = {
                 attackerIds: [...move.attackerIds],
+                ...(attackTargets ? { attackTargets } : {}),
                 confirmed: true,
                 blockerAssignments: {},
                 blockersConfirmed: false,

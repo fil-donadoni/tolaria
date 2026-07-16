@@ -10,8 +10,9 @@ import type {
     GameState,
     PlayerState,
 } from "./state";
-import { MAX_HAND_SIZE } from "./constants";
+import { MAX_HAND_SIZE, isPlaneswalker } from "./constants";
 import {
+    removeLoyaltyForDamage,
     applyLifelinkLifeGain,
     applyPlayerDamagePrevention,
     applyTargetPrevention,
@@ -851,6 +852,28 @@ function getManualAssignmentSourceIds(
     return ids;
 }
 
+/** CR 508.1a / 702.19e (issue #1220) — the id that a trampling attacker's
+ *  excess-over-blockers damage is assigned to: the planeswalker it declared as
+ *  its attack target (if that planeswalker is still on the battlefield), else
+ *  the defending player. Used to seed the auto/default damage assignments so a
+ *  blocked trampler attacking a planeswalker spills its excess onto the
+ *  planeswalker's loyalty rather than the player. */
+function attackTargetExcessSink(
+    state: GameState,
+    attackerId: string,
+    defenderId: string,
+    defender: PlayerState
+): string {
+    const pwId = state.combat?.attackTargets?.[attackerId];
+    if (
+        pwId &&
+        defender.battlefield.some((c) => c.id === pwId && isPlaneswalker(c))
+    ) {
+        return pwId;
+    }
+    return defenderId;
+}
+
 /** Build auto damage assignments for attackers with 0 or 1 blocker. */
 export function buildAutoDamageAssignments(
     state: GameState,
@@ -870,6 +893,16 @@ export function buildAutoDamageAssignments(
         if (!dealsDamageIn(attacker, kind)) continue;
         const blockers = blockersPerAttacker[attackerId] ?? [];
         const hasTrample = attacker.staticAbilities.includes("trample");
+        // CR 508.1a / 702.19e (issue #1220) — trample excess over blockers goes
+        // to the thing the attacker is attacking. If that is a planeswalker (and
+        // it is still on the battlefield), the excess removes its loyalty; else
+        // it hits the defending player.
+        const excessSink = attackTargetExcessSink(
+            state,
+            attackerId,
+            defenderId,
+            defender
+        );
 
         if (blockers.length === 1) {
             const blocker = defender.battlefield.find(
@@ -887,7 +920,7 @@ export function buildAutoDamageAssignments(
                     [blockers[0]]: toBlocker,
                 };
                 if (toDefender > 0) {
-                    assignment[defenderId] = toDefender;
+                    assignment[excessSink] = toDefender;
                 }
                 result[attackerId] = assignment;
             } else {
@@ -923,6 +956,14 @@ function buildDefaultDamageAssignments(
         if (!dealsDamageIn(attacker, kind)) continue;
         const blockers = blockersPerAttacker[attackerId] ?? [];
         const hasTrample = attacker.staticAbilities.includes("trample");
+        // CR 508.1a / 702.19e (issue #1220) — trample excess sink: the attacked
+        // planeswalker (if alive) else the defending player.
+        const excessSink = attackTargetExcessSink(
+            state,
+            attackerId,
+            defenderId,
+            defender
+        );
 
         if (blockers.length === 1) {
             if (hasTrample) {
@@ -938,7 +979,7 @@ function buildDefaultDamageAssignments(
                 const assignment: Record<string, number> = {
                     [blockers[0]]: toBlocker,
                 };
-                if (toDefender > 0) assignment[defenderId] = toDefender;
+                if (toDefender > 0) assignment[excessSink] = toDefender;
                 result[attackerId] = assignment;
             } else {
                 result[attackerId] = {
@@ -961,7 +1002,7 @@ function buildDefaultDamageAssignments(
                     assignment[blockerId] = toThis;
                     remaining -= toThis;
                 }
-                if (remaining > 0) assignment[defenderId] = remaining;
+                if (remaining > 0) assignment[excessSink] = remaining;
             } else {
                 // Default without trample: all damage to first blocker
                 for (let i = 0; i < blockers.length; i++) {
@@ -1146,8 +1187,20 @@ export function applyAllCombatDamage(
                 finalAmount
             );
             if (reduced <= 0) return;
-            damageReceived[finalTarget.id] =
-                (damageReceived[finalTarget.id] ?? 0) + reduced;
+            // CR 120.3c / 704.5i (issue #1220) — combat damage dealt to a
+            // planeswalker removes that many loyalty counters instead of being
+            // marked against toughness (a planeswalker has none). Route it
+            // through the shared loyalty-removal path (#700); the 0-loyalty
+            // death is the separate `checkZeroLoyaltySBA`, so a planeswalker is
+            // deliberately kept OUT of the `damageReceived` toughness lethal
+            // scan below.
+            const targetIsPlaneswalker = isPlaneswalker(targetCard);
+            if (targetIsPlaneswalker) {
+                removeLoyaltyForDamage(targetCard, reduced);
+            } else {
+                damageReceived[finalTarget.id] =
+                    (damageReceived[finalTarget.id] ?? 0) + reduced;
+            }
             const desc = describeDamageSource(state, source.id);
             events.push({
                 type: "DAMAGE_DEALT",
@@ -1162,7 +1215,8 @@ export function applyAllCombatDamage(
                 sourceStaticAbilities: desc.staticAbilities,
             });
             // CR 702.15b — lifelink: combat damage dealt to a blocking/attacking
-            // creature gains the source's controller that much life (CR 119.3).
+            // creature or planeswalker gains the source's controller that much
+            // life (CR 119.3).
             applyLifelinkLifeGain(
                 state,
                 source.controllerId,
@@ -1173,7 +1227,11 @@ export function applyAllCombatDamage(
             // deathtouch source marks the creature for destruction as an SBA
             // (CR 704.5h). Folded into this step's lethal scan below so the
             // deathtouch death is simultaneous with normal combat deaths.
-            markDeathtouchDamage(targetCard, desc.staticAbilities, reduced);
+            // Meaningless against a planeswalker (no toughness / CR 704.5h), so
+            // it is skipped there.
+            if (!targetIsPlaneswalker) {
+                markDeathtouchDamage(targetCard, desc.staticAbilities, reduced);
+            }
             // CR 603.7 / 119 — Glyph of Life: if a turn-scoped lifegain effect
             // watches this permanent and the damage source is an ATTACKER
             // (CR 506.2 — its id is in the active combat's attacker list), the
@@ -1218,8 +1276,55 @@ export function applyAllCombatDamage(
         const isBlocked = liveBlockers.length > 0 || becameBlocked;
         const hasTrample = attacker.staticAbilities.includes("trample");
 
+        // CR 508.1a (issue #1220) — the planeswalker this attacker declared as
+        // its attack target, if any and if still on the defending player's
+        // battlefield. Absence (or a planeswalker that has since left) means the
+        // attacker is attacking the defending player.
+        const pwTargetId = state.combat.attackTargets?.[attackerId];
+        const pwTargetCard = pwTargetId
+            ? defender.battlefield.find(
+                  (c) => c.id === pwTargetId && isPlaneswalker(c)
+              )
+            : undefined;
+
+        // CR 509.1h / 508.4 (issue #1220) — an attacker that declared a
+        // planeswalker assigns ALL of its combat damage to that planeswalker
+        // (removing loyalty via the shared #700 path). Regular `trample` does
+        // NOT carry excess over to the defending player: "trample over
+        // planeswalkers" (CR 702.19f) is a distinct keyword ability that no
+        // in-scope card has, so damage beyond the planeswalker's loyalty is
+        // simply wasted — there is no planeswalker→controller spill path.
+        function dealToAttackedPlaneswalker(
+            src: CardInstanceState,
+            pwId: string,
+            amount: number
+        ): void {
+            if (amount <= 0) return;
+            applyOneCombatDamage(src, { type: "permanent", id: pwId }, amount);
+        }
+
         if (!isBlocked) {
             if (attackerPower > 0) {
+                if (pwTargetId) {
+                    // CR 508.1a / 509.1h (issue #1220) — this attacker declared
+                    // a planeswalker as its target: ALL its combat damage
+                    // removes that planeswalker's loyalty. Regular trample does
+                    // NOT spill excess to the controlling player (CR 702.19f —
+                    // "trample over planeswalkers" is a distinct, out-of-scope
+                    // keyword). The Kjeldoran / Forcefield shields below are
+                    // defending-player-directed and do not apply. If the
+                    // planeswalker left the battlefield before damage, there is
+                    // nothing to deal to — the damage is NOT redirected to the
+                    // player.
+                    if (pwTargetCard) {
+                        dealToAttackedPlaneswalker(
+                            attacker,
+                            pwTargetId,
+                            attackerPower
+                        );
+                    }
+                    continue;
+                }
                 // CR 614.6 — Kjeldoran Royal Guard: all combat damage unblocked
                 // attackers would deal to the defending player is redirected
                 // onto a chosen permanent instead. The redirect target must
@@ -1275,11 +1380,26 @@ export function applyAllCombatDamage(
             // power through. Forcefield only caps UNblocked creatures, so it
             // does not apply here.
             if (hasTrample && attackerPower > 0) {
-                applyOneCombatDamage(
-                    attacker,
-                    { type: "player", id: defenderId },
-                    attackerPower
-                );
+                if (pwTargetId) {
+                    // CR 508.1a (issue #1220) — trample-through from a blocked
+                    // attacker whose blockers all left assigns ALL its power to
+                    // the attacked planeswalker's loyalty; no excess spills to
+                    // the controller (CR 702.19f — regular trample does not
+                    // carry over a planeswalker).
+                    if (pwTargetCard) {
+                        dealToAttackedPlaneswalker(
+                            attacker,
+                            pwTargetId,
+                            attackerPower
+                        );
+                    }
+                } else {
+                    applyOneCombatDamage(
+                        attacker,
+                        { type: "player", id: defenderId },
+                        attackerPower
+                    );
+                }
             }
         } else {
             const assignments = damageAssignments[attackerId] ?? {};
