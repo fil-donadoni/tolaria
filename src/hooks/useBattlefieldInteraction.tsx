@@ -11,6 +11,7 @@ import {
     isCreature,
     isPlaneswalker,
     getManaChoices,
+    getNonTapManaChoices,
     getActivatedManaMenuEntry,
     canRefundManaTap,
     getStackAbilities,
@@ -119,11 +120,15 @@ export function useBattlefieldInteraction(player: Player) {
 
     // Mana choice picker state. `inPayment` routes the selection to
     // tapForPayment (committing the cast) vs tapUntap (floating mana).
+    // `nonTapAbilityId` (issue #1179) instead routes a NON-tap choice-based
+    // mana ability's (Vivi Ornitier) pick to `activateManaAbility` with the
+    // chosen `manaChoiceIndex`, bypassing the tap mutations entirely.
     const [manaChoiceState, setManaChoiceState] = useState<{
         cardId: string;
         choices: ManaCost[];
         position?: { x: number; y: number };
         inPayment: boolean;
+        nonTapAbilityId?: string;
     } | null>(null);
 
     const [validationError, setValidationError] =
@@ -637,19 +642,26 @@ export function useBattlefieldInteraction(player: Player) {
         // not yet committed to a cost), the same entry flips to a refund —
         // `tapUntap` toggles in both directions so reusing the ability id is
         // sufficient on the server side; only the label changes here.
-        // CR 605.1a / 601.2f — a mana ability whose cost includes MANA (Chromatic
-        // Star "{1}, {T}, Sacrifice: Add any", Farrelite Priest "{1}: Add {W}")
-        // must NOT be a silent left-click tap-for-mana: the player has to choose
-        // to activate it and pay the {1}. Surface it as an explicit menu entry —
-        // tap AND non-tap alike. Selecting it routes through the colour picker +
-        // `tapUntap` (tap) or `activateManaAbility` (non-tap) in
-        // `handleActivateAbility`, so the mana cost is charged. Independent of the
-        // plain `getActivatedManaMenuEntry` tap toggle below (which is for
-        // free-to-activate mana sources). Repeatable, so always offered.
+        // CR 605.1a / 601.2f / 605.3c (issue #1179) — a mana ability must NOT
+        // be a silent left-click tap-for-mana when EITHER: (a) its cost
+        // includes MANA, tap or not (Chromatic Star "{1}, {T}, Sacrifice: Add
+        // any", Farrelite Priest "{1}: Add {W}") — the player has to choose to
+        // pay it; OR (b) it has no {T}/sacrifice component at all (Vivi
+        // Ornitier's free "{0}:" runtime {U}/{R} split) — there is no tap
+        // toggle to reach it through in the first place. Surface it as an
+        // explicit menu entry either way. Selecting it routes through the
+        // colour picker + `tapUntap` (tap) or `activateManaAbility` (non-tap)
+        // in `handleActivateAbility`, so the cost is charged / the choice is
+        // resolved. Independent of the plain `getActivatedManaMenuEntry` tap
+        // toggle below (free-to-activate, no-mana-cost TAP mana sources).
+        // Repeatable, so always offered.
         const manaCostAbility = getDefinition(
             card.card.id
         ).activatedAbilities?.find(
-            (a) => !a.useStack && !!a.cost.mana && a.oracleText
+            (a) =>
+                !a.useStack &&
+                a.oracleText &&
+                (!!a.cost.mana || (!a.cost.tap && !a.cost.sacrifice))
         );
         const manaCostEntry: ActivatableAbility[] = manaCostAbility
             ? [
@@ -695,11 +707,24 @@ export function useBattlefieldInteraction(player: Player) {
         // the mana-ability flow (`tapUntap`, or the mana picker for sources
         // with `manaChoices`) instead of the activated-ability mutation.
         if (ability && !ability.useStack) {
-            // CR 605.1a / 605.3c — a NON-tap mana ability whose cost is mana
-            // (Farrelite Priest "{1}: Add {W}") is not a tap toggle: it pays a
-            // mana cost, resolves immediately, and may carry a side effect.
-            // Route it to `activateManaAbility` rather than `tapUntap`.
-            if (!ability.cost.tap && ability.cost.mana) {
+            // CR 605.1a / 605.3c (issue #1179) — a NON-tap, non-sacrifice
+            // mana ability (Farrelite Priest's mana cost, or Vivi Ornitier's
+            // free "{0}:") is not a tap toggle: it resolves immediately via
+            // `activateManaAbility` rather than `tapUntap`. When it ALSO
+            // declares a runtime CHOICE (Vivi's {U}/{R} split), open the
+            // picker first and submit the chosen index alongside the
+            // mutation instead of firing it directly.
+            if (!ability.cost.tap && !ability.cost.sacrifice) {
+                const nonTapChoices = getNonTapManaChoices(card, allPlayers);
+                if (nonTapChoices) {
+                    setManaChoiceState({
+                        cardId: card.id,
+                        choices: nonTapChoices,
+                        inPayment: false,
+                        nonTapAbilityId: abilityId,
+                    });
+                    return;
+                }
                 guardMutation(
                     activateManaAbility({
                         gameId,
@@ -765,6 +790,22 @@ export function useBattlefieldInteraction(player: Player) {
                     choices={manaChoiceState.choices}
                     position={manaChoiceState.position}
                     onSelect={(index) => {
+                        // CR 605.1a / 605.3c (issue #1179) — a NON-tap choice-
+                        // based mana ability (Vivi Ornitier) submits its pick
+                        // to `activateManaAbility`, not a tap mutation.
+                        if (manaChoiceState.nonTapAbilityId) {
+                            guardMutation(
+                                activateManaAbility({
+                                    gameId,
+                                    playerId,
+                                    cardInstanceId: manaChoiceState.cardId,
+                                    abilityId: manaChoiceState.nonTapAbilityId,
+                                    manaChoiceIndex: index,
+                                })
+                            );
+                            setManaChoiceState(null);
+                            return;
+                        }
                         const args = {
                             gameId,
                             playerId,
