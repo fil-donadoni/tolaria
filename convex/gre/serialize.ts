@@ -930,6 +930,8 @@ export const PERSISTED_OPTIONAL_KEYS = [
     "delayedTriggers",
     "nextDelayedSeq",
     "nextTokenSeq",
+    "emblems",
+    "nextEmblemSeq",
     "nextWorldSeq",
     "nextInstanceId",
     "pendingEvents",

@@ -1270,6 +1270,16 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
         },
         optional: { count: isEffectValue },
     },
+    // CR 114 (issue #1221) — create a command-zone emblem. `emblem` is a
+    // non-empty registry key (the closure-bearing definition lives in
+    // `convex/cards/emblems.ts`); `controller` (default "controller") is the
+    // emblem's owner.
+    emblem: {
+        required: {
+            emblem: (v: unknown) => typeof v === "string" && v.length > 0,
+        },
+        optional: { controller: isPlayerRef },
+    },
     // CR 613.1b (issue #848) — change control of a permanent (layer 2).
     // `target` is the permanent whose control changes (announced slot,
     // `$source`, or a forEach `$each`); `controller` names who gains control

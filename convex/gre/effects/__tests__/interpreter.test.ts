@@ -31,9 +31,14 @@ import {
     checkConditionalControlChanges,
     checkStateBasedActions,
 } from "../../sba";
-import { collectTriggers } from "../../triggers";
+import { collectTriggers, placeTriggersOnStack } from "../../triggers";
 import { INLINE_DELAYED_TRIGGER_ID } from "../interpreter";
 import { getEffectivePower, getEffectiveToughness } from "../../layers";
+import {
+    registerEmblemDefinition,
+    SORIN_LORD_OF_INNISTRAD_EMBLEM_ID,
+} from "../../../cards/emblems";
+import type { GameEvent } from "../../../cards/types";
 
 /** Registers a synthetic DSL-only sorcery under a stable test id. Uses the
  *  registry's injection seam (`registerTokenDefinition` — idempotent
@@ -10945,5 +10950,150 @@ describe("Effect Script Op: winGame (CR 104.2a, issue #1066)", () => {
             loserId: "p2",
             reason: "alternate-win",
         });
+    });
+});
+
+describe("Effect Script Op: emblem (CR 114, issue #1221)", () => {
+    it("creates one command-zone emblem owned by the controller", () => {
+        const id = registerScript("test-op-emblem-create", [
+            { op: "emblem", emblem: SORIN_LORD_OF_INNISTRAD_EMBLEM_ID },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.emblems).toHaveLength(1);
+        expect(state.emblems![0]).toMatchObject({
+            id: "emblem-1",
+            ownerId: "p1",
+            emblemId: SORIN_LORD_OF_INNISTRAD_EMBLEM_ID,
+            name: "Sorin, Lord of Innistrad emblem",
+        });
+    });
+
+    it("survives the wire projection (emblems ride the top-level spread)", () => {
+        const id = registerScript("test-op-emblem-wire", [
+            { op: "emblem", emblem: SORIN_LORD_OF_INNISTRAD_EMBLEM_ID },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.emblems).toHaveLength(1);
+        expect(projected.emblems![0].emblemId).toBe(
+            SORIN_LORD_OF_INNISTRAD_EMBLEM_ID
+        );
+    });
+
+    it("continuous anthem: creatures the owner controls get +1/+0, incl. after projection (CR 114.2a / 611)", () => {
+        const p1Bear = makeInstance(BEAR_ID, {
+            id: "p1-bear",
+            controllerId: "p1",
+        });
+        const p2Bear = makeInstance(BEAR_ID, {
+            id: "p2-bear",
+            controllerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [p1Bear] }),
+                makePlayer("p2", { battlefield: [p2Bear] }),
+            ],
+        });
+        // Baseline (no emblem): the 2/5 bear is unbuffed.
+        expect(getEffectivePower(state, p1Bear)).toBe(2);
+        expect(getEffectiveToughness(state, p1Bear)).toBe(5);
+
+        const id = registerScript("test-op-emblem-anthem", [
+            { op: "emblem", emblem: SORIN_LORD_OF_INNISTRAD_EMBLEM_ID },
+        ]);
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+
+        // p1's creature gets +1/+0; p2's is unaffected (owner-scoped).
+        expect(getEffectivePower(state, p1Bear)).toBe(3);
+        expect(getEffectiveToughness(state, p1Bear)).toBe(5);
+        expect(getEffectivePower(state, p2Bear)).toBe(2);
+
+        // Wire: the source-less anthem still applies through projectPublicState.
+        const projected = projectPublicState(state, 1, "p1");
+        const slimP1Bear = projected.players[0].battlefield.find(
+            (c) => c.id === "p1-bear"
+        )!;
+        const slimP2Bear = projected.players[1].battlefield.find(
+            (c) => c.id === "p2-bear"
+        )!;
+        expect(getEffectivePower(projected, slimP1Bear)).toBe(3);
+        expect(getEffectivePower(projected, slimP2Bear)).toBe(2);
+    });
+
+    it("triggered emblem: fires owner-scoped from the command zone and resolves (CR 114.2a / 603)", () => {
+        // Synthetic triggered emblem: "Whenever you cast a spell, you gain 2
+        // life." Exercises the collectTriggers emblem scan + the emblem-trigger
+        // resolution branch (source-less, no permanent).
+        const TRIGGERED_ID = "test-emblem-cast-lifegain";
+        registerEmblemDefinition({
+            id: TRIGGERED_ID,
+            name: "Test cast-lifegain emblem",
+            text: "Whenever you cast a spell, you gain 2 life.",
+            triggeredAbilities: [
+                {
+                    id: `${TRIGGERED_ID}-trigger`,
+                    oracleText: "Whenever you cast a spell, you gain 2 life.",
+                    event: "SPELL_CAST",
+                    matches: (event, self) =>
+                        event.type === "SPELL_CAST" &&
+                        event.casterId === self.controllerId,
+                    effects: [
+                        { op: "gainLife", player: "controller", amount: 2 },
+                    ],
+                },
+            ],
+        });
+        const state = makeState();
+        state.emblems = [
+            {
+                id: "emblem-1",
+                ownerId: "p1",
+                emblemId: TRIGGERED_ID,
+                name: "Test cast-lifegain emblem",
+                text: "Whenever you cast a spell, you gain 2 life.",
+            },
+        ];
+
+        const castBy = (casterId: string): GameEvent =>
+            ({
+                type: "SPELL_CAST",
+                casterId,
+                spellInstanceId: "s1",
+                spellCardId: "x",
+                spellTypes: ["Sorcery"],
+                spellSubtypes: [],
+                spellColors: [],
+                priorSpellCount: 0,
+            }) as GameEvent;
+
+        // p1 casts a spell → the emblem's owner-scoped trigger fires.
+        const triggers = collectTriggers(state, [castBy("p1")]);
+        expect(triggers).toHaveLength(1);
+        expect(triggers[0].emblemSourceId).toBe(TRIGGERED_ID);
+        expect(triggers[0].controllerId).toBe("p1");
+        placeTriggersOnStack(state, triggers);
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(22);
+
+        // p2 casting does NOT fire p1's emblem (CR 114.3 owner-scoped "you").
+        expect(collectTriggers(state, [castBy("p2")])).toHaveLength(0);
+    });
+
+    it("emblems persist a serialize round-trip (drift guard, CR 114.4)", () => {
+        const id = registerScript("test-op-emblem-serialize", [
+            { op: "emblem", emblem: SORIN_LORD_OF_INNISTRAD_EMBLEM_ID },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const round = expandState(compactState(state));
+        expect(round.emblems).toEqual(state.emblems);
+        expect(round.nextEmblemSeq).toBe(state.nextEmblemSeq);
     });
 });

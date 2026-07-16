@@ -12,6 +12,7 @@ import {
     type EffectCardFilter,
     type EffectOp,
     type FlashbackCost,
+    type EmblemInstance,
     type GameEvent,
     type ManaCost as CardManaCost,
     type MayPayCost,
@@ -33,6 +34,10 @@ import {
     tryGetDefinition,
     isPrintedInSet as isCardPrintedInSet,
 } from "../cards";
+import {
+    getEmblemDefinition,
+    tryGetEmblemDefinition,
+} from "../cards/emblems";
 import { turnFaceDown } from "./faceDown";
 import { applyIndefiniteSupertypeMutation, liveSupertypesOf } from "./snow";
 import {
@@ -1129,6 +1134,15 @@ export type StackItem = CardInstanceState & {
      *  cast window on that card. Distinct from `triggeredAbilityId` (no card-def
      *  ability lookup — the reflexive ability is engine-owned). */
     madnessTrigger?: string;
+    /** CR 114 (issue #1221) — set on a triggered ability that fired from a
+     *  command-zone emblem (`buildEmblemTriggerItem`, triggers.ts). Holds the
+     *  emblem's `emblemId`; `resolveTopOfStack` reads it to resolve the
+     *  triggered ability from the emblem registry (`convex/cards/emblems.ts`)
+     *  rather than the card registry — the emblem's abilities aren't a
+     *  `CardDefinition`, so the generic triggered-ability branch (which looks
+     *  up `cardDef.triggeredAbilities`) can't find them. Distinct from
+     *  `triggerSourceId`, which carries the emblem's instance id for LKI. */
+    emblemSourceId?: string;
     /** Storm (CR 702.40, ADR 0052) — present ONLY on the synthesized storm
      *  cast-trigger's own stack item (`triggeredAbilityId === "storm"`). A
      *  detached snapshot of the spell being copied, captured at cast time —
@@ -2237,6 +2251,17 @@ export type GameState = {
     /** Monotonic counter advanced by each createToken() call. Generates
      *  deterministic `token-N` ids so replays reproduce the same identifiers. */
     nextTokenSeq?: number;
+    /** CR 114 — command-zone emblems (issue #1221). Each is a pure-data
+     *  {@link EmblemInstance} referencing its closure-bearing definition by
+     *  `emblemId`; the layer system and trigger scanner resolve the granted
+     *  continuous / triggered abilities from the emblem registry
+     *  (`convex/cards/emblems.ts`) at read time. Emblems can't be targeted,
+     *  removed, or interacted with and persist the rest of the game (CR 114.4),
+     *  so this list only ever grows. Absent means no emblems exist yet. */
+    emblems?: EmblemInstance[];
+    /** Monotonic counter advanced by each createEmblem() call. Generates
+     *  deterministic `emblem-N` ids so replays reproduce the same identifiers. */
+    nextEmblemSeq?: number;
     /** Monotonic counter backing the world-rule timestamp (CR 704.5m / 613.7m).
      *  The world-rule SBA stamps every World permanent that lacks a
      *  `worldSeq` with the current value, advancing the counter once per SBA
@@ -3248,6 +3273,36 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
                 (top.delayedPayload ?? {}) as Record<string, string>
             );
             if (resolutionSuspendedOnChoice(state)) return null;
+        }
+        delete top.collectedChoices;
+        state.stack.pop();
+        return top;
+    }
+
+    // Emblem triggered-ability resolution (CR 114, issue #1221). MUST precede
+    // the generic branch below: an emblem's abilities are not a
+    // `CardDefinition`, so `cardDef` is undefined and the generic branch (which
+    // reads `cardDef.triggeredAbilities`) would silently find nothing. The
+    // ability is resolved from the emblem registry by `emblemSourceId`, then
+    // run through the SAME interpreter / imperative seam as any trigger. The
+    // emblem is command-zone-resident and can't leave (CR 114.4), so there is
+    // no LKI / source-left handling to do.
+    if (top.triggeredAbilityId && top.emblemSourceId && top.triggerEvent) {
+        const emblemDef = tryGetEmblemDefinition(top.emblemSourceId);
+        const ability = emblemDef?.triggeredAbilities?.find(
+            (a) => a.id === top.triggeredAbilityId
+        );
+        if (ability) {
+            const scriptFn = getAbilityEffectFn(ability);
+            if (scriptFn) {
+                const ctx = buildSpellContext(state, top);
+                scriptFn(ctx);
+                if (resolutionSuspendedOnChoice(state)) return null;
+            } else if (ability.resolve) {
+                const ctx = buildSpellContext(state, top);
+                ability.resolve(ctx, top.triggerEvent);
+                if (resolutionSuspendedOnChoice(state)) return null;
+            }
         }
         delete top.collectedChoices;
         state.stack.pop();
@@ -8647,6 +8702,26 @@ export function buildSpellContext(
                 ids.push(id);
             }
             return ids;
+        },
+        createEmblem(emblemId, ownerId): string {
+            // CR 114 — put a new emblem into the command zone (issue #1221).
+            // The closure-bearing definition is resolved from the registry
+            // (throws on an unknown key); game state keeps only the pure-data
+            // instance (key + owner + display fields), so it serializes.
+            const def = getEmblemDefinition(emblemId);
+            state.nextEmblemSeq = (state.nextEmblemSeq ?? 0) + 1;
+            const id = `emblem-${state.nextEmblemSeq}`;
+            const emblem: EmblemInstance = {
+                id,
+                ownerId,
+                emblemId,
+                name: def.name,
+                text: def.text,
+            };
+            // CR 114.4 — emblems can't be removed and persist the rest of the
+            // game, so the list only ever grows.
+            state.emblems = [...(state.emblems ?? []), emblem];
+            return id;
         },
         createTokenCopyOf(
             sourceCreatureId,

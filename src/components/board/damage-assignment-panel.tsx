@@ -9,6 +9,7 @@ import {
     damageSourcesForPlayer,
 } from "~/lib/combat-graph";
 import { effectivePower } from "~/lib/effective-stats";
+import { useGameContext } from "~/hooks/useGameContext";
 
 function DamageRow({
     targetId,
@@ -102,6 +103,9 @@ export default function DamageAssignmentPanel({
     defenderId: string;
 }) {
     const setDamageAssignment = useMutation(api.game.setDamageAssignment);
+    // CR 114 (issue #1221) — fold owner-scoped emblem anthems into the
+    // effective-power budget below, matching server-side validation.
+    const { emblems } = useGameContext();
 
     const allCards: CardInstance[] = allPlayers.flatMap((p) => p.battlefield);
     const findCard = (id: string) => allCards.find((c) => c.id === id);
@@ -123,7 +127,10 @@ export default function DamageAssignmentPanel({
                 // setDamageAssignment. Reading the raw base power field would
                 // ignore buffs like Giant Growth and clamp the +/- buttons too
                 // low.
-                const power = Math.max(0, effectivePower(allPlayers, source));
+                const power = Math.max(
+                    0,
+                    effectivePower(allPlayers, source, emblems)
+                );
                 const hasTrample =
                     source.staticAbilities?.includes("trample") ?? false;
                 const isAttacker = combat.attackerIds.includes(sourceId);

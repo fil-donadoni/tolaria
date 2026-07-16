@@ -17,6 +17,7 @@ import {
     type Milestone,
 } from "~/lib/graveyard-milestones";
 import type { CardInstance, Player } from "~/types/game";
+import type { EmblemInstance } from "@convex/cards/types";
 
 // The visual content of one card-preview face — the shape consumed by
 // `CardPreviewFace` and, through it, the three preview surfaces (anchored dock,
@@ -59,6 +60,10 @@ export type PreviewBodyContent = {
 type PreviewGameCtx = {
     allPlayers: Player[];
     playerId: string;
+    /** CR 114 (issue #1221) — command-zone emblems, so a preview's effective
+     *  P/T folds in an owner-scoped emblem anthem. Structurally forwarded from
+     *  `GameContext.emblems`. */
+    emblems?: EmblemInstance[];
 };
 
 // Builds one preview face from a definition id.
@@ -103,11 +108,15 @@ export function buildPreviewBody(
     // (deck builder, or the printed ORIGINAL face) fall back to printed P/T.
     const effPower =
         cardInstance && gameCtx
-            ? effectivePower(gameCtx.allPlayers, cardInstance)
+            ? effectivePower(gameCtx.allPlayers, cardInstance, gameCtx.emblems)
             : (cardInstance?.power ?? basePower);
     const effToughness =
         cardInstance && gameCtx
-            ? effectiveToughness(gameCtx.allPlayers, cardInstance)
+            ? effectiveToughness(
+                  gameCtx.allPlayers,
+                  cardInstance,
+                  gameCtx.emblems
+              )
             : (cardInstance?.toughness ?? baseToughness);
     const ptModified =
         basePower !== undefined &&

@@ -1,5 +1,9 @@
 import type { CardInstance, Player } from "~/types/game";
-import type { CardType, PermanentView } from "@convex/cards/types";
+import type {
+    CardType,
+    EmblemInstance,
+    PermanentView,
+} from "@convex/cards/types";
 import {
     getEffectivePower,
     getEffectiveToughness,
@@ -27,7 +31,10 @@ function toPermanentView(card: CardInstance): PermanentView {
     };
 }
 
-function toLayerState(players: Player[]): LayerStateView {
+function toLayerState(
+    players: Player[],
+    emblems?: EmblemInstance[]
+): LayerStateView {
     return {
         players: players.map((p) => ({
             battlefield: p.battlefield.map(toPermanentView),
@@ -37,22 +44,34 @@ function toLayerState(players: Player[]): LayerStateView {
                 types: (c.types ?? []) as CardType[],
             })),
         })),
+        // CR 114 (issue #1221) — command-zone emblems contribute source-less,
+        // owner-scoped continuous statics (Sorin, Lord of Innistrad's +1/+0
+        // anthem). The projected client state carries the top-level `emblems`
+        // field unchanged; forwarding it here is what makes an emblem anthem
+        // visible client-side (dropping it would recompute P/T without the
+        // buff — the classic "reducer drops a field" bug).
+        emblems,
     };
 }
 
 export function effectivePower(
     allPlayers: Player[],
-    card: CardInstance
+    card: CardInstance,
+    emblems?: EmblemInstance[]
 ): number {
-    return getEffectivePower(toLayerState(allPlayers), toPermanentView(card));
+    return getEffectivePower(
+        toLayerState(allPlayers, emblems),
+        toPermanentView(card)
+    );
 }
 
 export function effectiveToughness(
     allPlayers: Player[],
-    card: CardInstance
+    card: CardInstance,
+    emblems?: EmblemInstance[]
 ): number {
     return getEffectiveToughness(
-        toLayerState(allPlayers),
+        toLayerState(allPlayers, emblems),
         toPermanentView(card)
     );
 }
