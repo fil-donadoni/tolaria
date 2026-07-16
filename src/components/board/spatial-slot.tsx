@@ -22,6 +22,10 @@ type SpatialSlotProps = {
      *  lift it over later siblings — the whole slot must be raised. Neighbours
      *  keep springing at their resting stack level. */
     snap?: boolean;
+    /** Resting stack level, lifting this slot above sibling slots (a host with
+     *  attached satellites sets it so its overhanging peek-stack / badge is not
+     *  hidden behind neighbouring cards). Overridden by the drag lift (`snap`). */
+    zIndex?: number;
     children: ReactNode;
 };
 
@@ -56,6 +60,7 @@ export default function SpatialSlot({
     cardWidth,
     cardHeight,
     snap = false,
+    zIndex,
     children,
 }: SpatialSlotProps) {
     const reduceMotion = useReducedMotion();
@@ -86,8 +91,10 @@ export default function SpatialSlot({
                     : "none",
                 // The dragged slot rides above every sibling for the whole
                 // gesture (it never reorders in the DOM, so it needs an explicit
-                // lift over later-painted slots).
-                zIndex: snap ? 50 : undefined,
+                // lift over later-painted slots). Otherwise a host with attached
+                // satellites uses its resting `zIndex` so its overhanging
+                // peek-stack / badge is not covered by neighbouring cards.
+                zIndex: snap ? 50 : zIndex,
             }}
         >
             <motion.div

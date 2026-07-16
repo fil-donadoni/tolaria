@@ -12,6 +12,7 @@ import { raiseTriggerTargetSelection } from "../../../../gre/rules";
 import { finalizeTargetSelection } from "../../../../game";
 import type { TargetSelection } from "../../../types";
 import { subtlety } from "../blue";
+import { projectPublicState } from "../../../../gameProjections";
 
 // Subtlety — {2}{U}{U} 3/3, flash/flying, blue evoke. First TARGETED trigger
 // over a SPELL on the stack (CR 603.3d / 113, #1193/#1205): "choose up to one
@@ -114,6 +115,37 @@ describe("Subtlety — targeted trigger over a stack spell (CR 603.3d / 113, #12
         // The creature spell left the stack onto the top of p2's library.
         expect(state.stack.some((s) => s.id === creatureSpell.id)).toBe(false);
         expect(state.players[1].library[0]?.id).toBe(creatureSpell.id);
+
+        // The spell was public on the stack (CR 405.1) — moving it into the
+        // hidden library keeps it face-up to EVERYONE (ADR 0026 `knownTo`).
+        const buried = state.players[1].library[0]!;
+        expect(new Set(buried.knownTo)).toEqual(new Set(["p1", "p2"]));
+    });
+
+    it("the put-back spell stays revealed to the opponent through the wire projection", () => {
+        const treefolk = getCardByName("Ironroot Treefolk");
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        // p2 casts a creature spell; p1 (the OPPONENT of the library owner)
+        // flashes in Subtlety and puts the spell on top of p2's library.
+        const creatureSpell = pushSpell(state, treefolk.id, "p2");
+        subtletyEtbOnStack(state, "p1");
+        raiseTriggerTargetSelection(state);
+        const pt = state.pendingTarget!;
+        pt.selected = [
+            { type: "spell", id: creatureSpell.id },
+        ] as TargetSelection[];
+        finalizeTargetSelection(state, pt, "p1");
+        resolveTopOfStack(state);
+        answerOptionPick(state, "top");
+
+        // p1 is not the owner but MUST see the revealed card in p2's library.
+        const projected = projectPublicState(state, 1, "p1");
+        const ownerView = projected.players.find((p) => p.id === "p2")!;
+        expect(ownerView.library.count).toBe(1);
+        const knownTop = ownerView.library.known.find((k) => k.index === 0);
+        expect(knownTop?.card.id).toBe(creatureSpell.id);
     });
 
     it("puts the spell on the bottom of the owner's library when chosen", () => {

@@ -8,7 +8,7 @@
 // board-visible outcome (survives / sacrificed).
 
 import { describe, it, expect } from "vitest";
-import { goblinPatrol, goblinCadets } from "..";
+import { goblinPatrol, goblinCadets, arcLightning } from "..";
 import {
     makeInstance,
     makePlayer,
@@ -330,5 +330,55 @@ describe("Goblin Cadets — control-donation drawback (CR 509.1 / 613.1b / 506.4
         expect(state.combat!.blockerAssignments["blocker"]).not.toContain(
             "cadets"
         );
+    });
+});
+
+describe("Arc Lightning ({2}{R} — 3 damage divided as you choose, CR 601.2d / 120.4)", () => {
+    it("definitional: any-target, open-ended count, divide total 3", () => {
+        expect(arcLightning.manaCost).toEqual({ X: 2, R: 1 });
+        expect(arcLightning.types).toEqual(["Sorcery"]);
+        expect(arcLightning.targetRequirement?.type).toBe("any");
+        expect(arcLightning.targetRequirement?.count).toEqual({ min: 1 });
+        expect(arcLightning.targetRequirement?.divideAsChosen).toEqual({
+            total: 3,
+        });
+    });
+
+    it("divides 3 unevenly across two targets from the assigned split", () => {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        const item = pushSpell(state, arcLightning.id, "p1", [
+            { type: "player", id: "p1" },
+            { type: "player", id: "p2" },
+        ]);
+        item.targetAmounts = { "player:p1": 1, "player:p2": 2 };
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(19); // p1 took 1
+        expect(state.players[1].life).toBe(18); // p2 took 2
+    });
+
+    it("a single target absorbs the whole 3 (auto ≥1-each fallback)", () => {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        pushSpell(state, arcLightning.id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(17); // 20 - 3
+    });
+
+    it("wire format: the divided damage survives projectPublicState", () => {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        const item = pushSpell(state, arcLightning.id, "p1", [
+            { type: "player", id: "p1" },
+            { type: "player", id: "p2" },
+        ]);
+        item.targetAmounts = { "player:p1": 2, "player:p2": 1 };
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[0].life).toBe(18); // p1 took 2
+        expect(projected.players[1].life).toBe(19); // p2 took 1
     });
 });

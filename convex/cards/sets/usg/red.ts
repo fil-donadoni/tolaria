@@ -104,3 +104,31 @@ export const goblinCadets: CardDefinition = {
 //     manaCost: { X: 3, R: 1 },
 //     types: ["Enchantment"],
 // };
+
+// Arc Lightning — "Arc Lightning deals 3 damage divided as you choose among
+// one, two, or three targets." (CR 601.2d / 120.4 divide-as-you-choose.) The
+// `divideAsChosen.total` drives the client per-target stepper UI; the count is
+// open-ended `{ min: 1 }`, capped at the 3-point total by the engine (each
+// target needs ≥ 1). Home set is Urza's Saga, its earliest paper printing
+// (ADR 0041).
+//
+// protocol / no-DSL-Op (ADR 0045): divide-as-you-choose damage has no Effect
+// Script Op — `dealDamageDividedAsChosen` is a SpellContext primitive, the same
+// imperative shape shared with Fiery Justice (ice) and Meteor Shower (ice).
+export const arcLightning: CardDefinition = {
+    id: "0c81ade7-0074-4447-ba2c-b16fa0f09ccb", // USG 174
+    rarity: "common",
+    name: "Arc Lightning",
+    oracleText:
+        "Arc Lightning deals 3 damage divided as you choose among one, two, or three targets.",
+    manaCost: { X: 2, R: 1 },
+    types: ["Sorcery"],
+    targetRequirement: {
+        type: "any",
+        count: { min: 1 },
+        divideAsChosen: { total: 3 },
+    },
+    resolve: (ctx) => {
+        ctx.dealDamageDividedAsChosen(ctx.targets, 3);
+    },
+};

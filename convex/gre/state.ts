@@ -1497,6 +1497,11 @@ export type PendingActivation = {
      *  the stack item at commit. Empty/undefined for abilities without
      *  targetRequirement. */
     targets?: TargetSelection[];
+    /** CR 601.2d / 120.4 — divide-as-you-choose split assigned at target
+     *  selection (Arc Mage). Propagated to the stack item's `targetAmounts` at
+     *  commit so the ability's resolve reads the caster's chosen division.
+     *  Undefined for a non-divide ability. */
+    targetAmounts?: Record<string, number>;
     /** Source card def id when the ability was granted to the activator's
      *  permanent by another card (CR 113.1). Pipes through to StackItem so
      *  resolveTopOfStack reads the correct template. Undefined for native
@@ -8273,6 +8278,13 @@ export function buildSpellContext(
             item.zone = "library";
             if (position === "top") owner.library.unshift(item);
             else owner.library.push(item);
+            // The spell was a public object on the stack (CR 405.1), so its
+            // identity is known to everyone. Moving it into the hidden library
+            // does not erase that knowledge — the card stays face-up to all
+            // players until an uncertainty event (shuffle, CR 701.20) clears it.
+            // ADR 0026 `knownTo` reveal-class knowledge, cleared automatically
+            // on shuffle by the same path as any revealed library card.
+            grantKnowledgeToAll(state, item.ownerId, [item.id]);
         },
         discardAtRandom(
             playerId: string,

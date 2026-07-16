@@ -14,6 +14,11 @@ import SpatialSlot from "./spatial-slot";
 export type SpatialItem = {
     key: string;
     node: ReactNode;
+    /** Optional resting stack level for this slot, lifting it above sibling
+     *  slots. A host carrying attached satellites (auras / exile-held cards)
+     *  sets this so its corner peek-stack and ×N badge paint over neighbouring
+     *  permanents instead of being hidden behind them. */
+    zIndex?: number;
 };
 
 type SpatialZoneProps = {
@@ -116,6 +121,7 @@ export default function SpatialZone({
                         cardWidth={cardWidth}
                         cardHeight={cardHeight}
                         snap={item.key === snapSlotId}
+                        zIndex={item.zIndex}
                     >
                         {item.node}
                     </SpatialSlot>

@@ -348,6 +348,18 @@
         "firstSet": "leg"
     },
     {
+        "name": "Arc Lightning",
+        "scryfallId": "0c81ade7-0074-4447-ba2c-b16fa0f09ccb",
+        "oracleId": "5acc8b39-3c3e-4012-8cfd-ac3c2c4ca982",
+        "firstSet": "usg"
+    },
+    {
+        "name": "Arc Mage",
+        "scryfallId": "62982dab-4c27-45b3-9740-38fec3df7226",
+        "oracleId": "011bb6cc-f1a1-4790-befc-373acabf63b8",
+        "firstSet": "nem"
+    },
+    {
         "name": "Arcades Sabboth",
         "scryfallId": "2c1dbc62-ceb5-4540-ae38-901e5deafc75",
         "oracleId": "8ead94c5-8447-4f20-87ec-efdccde689fc",
@@ -7974,6 +7986,12 @@
         "firstSet": "arn"
     },
     {
+        "name": "Sorin, Lord of Innistrad",
+        "scryfallId": "27bb371f-d49f-41bd-bbe0-d5e1e2067e36",
+        "oracleId": "5c780dda-ee76-482a-a610-53c321c4fdec",
+        "firstSet": "dka"
+    },
+    {
         "name": "Sorrow's Path",
         "scryfallId": "6f75946b-1690-43cc-993c-d4e451a1a41c",
         "oracleId": "5419eae0-3c12-4748-9cf8-d927752e527e",
@@ -10156,11 +10174,5 @@
         "scryfallId": "152a72b1-a7b7-4e5c-8558-fab97465f549",
         "oracleId": "bc7b90b1-3517-4e5d-9bd8-68b4d8a259fd",
         "firstSet": "ice"
-    },
-    {
-        "name": "Sorin, Lord of Innistrad",
-        "scryfallId": "27bb371f-d49f-41bd-bbe0-d5e1e2067e36",
-        "oracleId": "5c780dda-ee76-482a-a610-53c321c4fdec",
-        "firstSet": "dka"
     }
 ]

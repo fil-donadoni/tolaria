@@ -1750,6 +1750,9 @@ export function tryAutoCommitPendingActivation(
         castById: playerId,
         abilityId: pa.abilityId,
         ...(pa.targets && pa.targets.length > 0 ? { targets: pa.targets } : {}),
+        // CR 601.2d — divide-as-you-choose split forwarded from the deferred
+        // payment to the resolving stack item (Arc Mage).
+        ...(pa.targetAmounts ? { targetAmounts: pa.targetAmounts } : {}),
         ...(pa.chosenX !== undefined ? { chosenX: pa.chosenX } : {}),
         ...(pa.grantedSourceCardId
             ? { grantedSourceCardId: pa.grantedSourceCardId }
@@ -3747,6 +3750,9 @@ export function finalizeTargetSelection(
                 ...(ability.noteManaSpent ? { noteManaSpent: true } : {}),
                 keepPriority,
                 targets,
+                // CR 601.2d — carry the divide-as-you-choose split through the
+                // deferred payment so it reaches the stack item at commit.
+                ...(divideAmounts ? { targetAmounts: divideAmounts } : {}),
                 ...(grantedSourceCardId ? { grantedSourceCardId } : {}),
             };
             // If mana was already covered (choice-only deferral), commit fires
@@ -3808,6 +3814,9 @@ export function finalizeTargetSelection(
             castById: playerId,
             abilityId,
             targets,
+            // CR 601.2d / 120.4 — the divide-as-you-choose split rides to
+            // resolution so `dealDamageDividedAsChosen` uses the chosen amounts.
+            ...(divideAmounts ? { targetAmounts: divideAmounts } : {}),
             ...(abilityChosenX !== undefined
                 ? { chosenX: abilityChosenX }
                 : {}),
@@ -9141,10 +9150,31 @@ export const activateAbility = mutation({
             if (legal.length === 0) {
                 throw new Error("No legal targets available");
             }
-            const abilityCount = resolveTargetCount(
+            let abilityCount = resolveTargetCount(
                 effectiveTargetReq.count,
                 targetChosenX
             );
+            // CR 601.2d / 120.4 — divide-as-you-choose budget for an activated
+            // ability (Arc Mage). Mirrors the spell-cast path: resolve the total
+            // against the chosen X, cap an open-ended `{ min }` count at the
+            // total (each target needs ≥ 1 point), and carry the total on
+            // pendingTarget so the client drives the per-target stepper UI.
+            const abilityDivideTotal = effectiveTargetReq.divideAsChosen
+                ? resolveDivideTotal(
+                      effectiveTargetReq.divideAsChosen.total,
+                      targetChosenX
+                  )
+                : undefined;
+            if (
+                abilityDivideTotal !== undefined &&
+                typeof abilityCount === "object" &&
+                abilityCount.max === undefined
+            ) {
+                abilityCount = {
+                    min: abilityCount.min,
+                    max: abilityDivideTotal,
+                };
+            }
             state.pendingTarget = {
                 playerId: args.playerId,
                 cardInstanceId: card.id,
@@ -9154,6 +9184,9 @@ export const activateAbility = mutation({
                 keepPriority: args.keepPriority,
                 kind: "ability",
                 abilityId: args.abilityId,
+                ...(abilityDivideTotal !== undefined
+                    ? { divideTotal: abilityDivideTotal }
+                    : {}),
                 ...(targetChosenX !== undefined
                     ? { chosenX: targetChosenX }
                     : {}),

@@ -33,3 +33,49 @@ export const sealOfFire: CardDefinition = {
         },
     ],
 };
+
+// Arc Mage — {2}{R} 2/2 Human Spellshaper. "{2}{R}, {T}, Discard a card: This
+// creature deals 2 damage divided as you choose among one or two targets." (CR
+// 601.2d / 120.4 divide-as-you-choose on an ACTIVATED ability.) The "Discard a
+// card" leg is `cost.discardFilter` with a match-all filter (`{}` matches every
+// hand card) — the same player-choice discard cost shape as Survival of the
+// Fittest (exo). `divideAsChosen.total` drives the client per-target stepper
+// UI; the open-ended `{ min: 1 }` count is capped at the 2-point total by the
+// engine (each target needs ≥ 1).
+//
+// protocol / no-DSL-Op (ADR 0045): divide-as-you-choose damage has no Effect
+// Script Op — `dealDamageDividedAsChosen` is a SpellContext primitive, the same
+// imperative shape shared with Fiery Justice / Meteor Shower / Arc Lightning.
+export const arcMage: CardDefinition = {
+    id: "62982dab-4c27-45b3-9740-38fec3df7226", // NEM 77
+    rarity: "uncommon",
+    name: "Arc Mage",
+    oracleText:
+        "{2}{R}, {T}, Discard a card: This creature deals 2 damage divided as you choose among one or two targets.",
+    manaCost: { X: 2, R: 1 },
+    types: ["Creature"],
+    subtypes: ["Human", "Spellshaper"],
+    power: 2,
+    toughness: 2,
+    activatedAbilities: [
+        {
+            id: "arc-mage-bolt",
+            oracleText:
+                "{2}{R}, {T}, Discard a card: This creature deals 2 damage divided as you choose among one or two targets.",
+            cost: {
+                mana: { X: 2, R: 1 },
+                tap: true,
+                discardFilter: { filter: {}, count: 1 },
+            },
+            useStack: true,
+            targetRequirement: {
+                type: "any",
+                count: { min: 1 },
+                divideAsChosen: { total: 2 },
+            },
+            resolve: (ctx) => {
+                ctx.dealDamageDividedAsChosen(ctx.targets, 2);
+            },
+        },
+    ],
+};

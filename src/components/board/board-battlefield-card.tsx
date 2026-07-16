@@ -141,7 +141,8 @@ export default function BoardBattlefieldCard({
     // Base chrome (black hairline + drop shadow) the wrapper normally gets from
     // Tailwind; inlined here so the glow composes with it instead of the inline
     // `boxShadow` wiping the Tailwind shadow out.
-    const BASE_SHADOW = "0 0 0 1px rgba(0,0,0,0.4), 0 6px 16px rgba(0,0,0,0.55)";
+    const BASE_SHADOW =
+        "0 0 0 1px rgba(0,0,0,0.4), 0 6px 16px rgba(0,0,0,0.55)";
 
     // Phased-out permanents are set aside (CR 702.26) — no abilities, no clicks.
     const abilities = phased ? [] : (activatableAbilities ?? []);

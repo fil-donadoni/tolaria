@@ -18,6 +18,7 @@ import type { CardVisualState } from "./battlefield-card";
 import BattlefieldStack from "./battlefield-stack";
 import CombatPanels from "./combat-panels";
 import AttachedCardsCluster from "./attached-cards-cluster";
+import CardImage from "../cards/card-image";
 
 /** Two battlefield rows: creatures hold the combat line in FRONT (toward the
  *  midline), and everything noncreature — lands plus other permanents (artifacts
@@ -158,6 +159,31 @@ export default function BoardBattlefield({
         return map;
     }, [player.battlefield, allPlayers]);
 
+    // Hosts on this side that hold one or more cards in exile (Parallax Wave /
+    // Banishing Light — projected `exiledByPermanentId`). Those cards render as
+    // a corner peek-stack on the host (`board-battlefield-card.tsx`), so the
+    // host — like an aura host — must be lifted above its neighbours.
+    const hostsHoldingExile = useMemo(() => {
+        const ids = new Set<string>();
+        const hostsOnThisSide = new Set(player.battlefield.map((c) => c.id));
+        for (const p of allPlayers) {
+            for (const c of p.exile) {
+                if (
+                    c.exiledByPermanentId &&
+                    hostsOnThisSide.has(c.exiledByPermanentId)
+                )
+                    ids.add(c.exiledByPermanentId);
+            }
+        }
+        return ids;
+    }, [player.battlefield, allPlayers]);
+
+    // A host carrying attached satellites (auras or exile-held cards) has an
+    // overhanging peek-stack + ×N badge that must paint OVER neighbouring cards,
+    // so its slot rides at a raised resting z (below the drag lift's 50).
+    const hostHasAttachments = (cardId: string) =>
+        attachedAurasByHost.has(cardId) || hostsHoldingExile.has(cardId);
+
     // Auras whose host exists on the board fold into that host's slot (above);
     // ungrouped leftovers (host gone / attachedTo unset) still get their own slot
     // so they never vanish.
@@ -200,10 +226,11 @@ export default function BoardBattlefield({
      *  host is always "altered" per `groupBattlefield`, so it only ever appears
      *  as a singleton group.
      *
-     *  Each aura is still rendered via the interactive `renderCard`, so the
-     *  front card keeps its board click/target/ability affordances; the pile
-     *  dialog routes a card click to `handleClick` so an aura buried in the
-     *  stack can still be targeted (Disenchant). */
+     *  The peek slivers open the pile dialog on click (they render aura ART, not
+     *  the interactive board card, so a tap anywhere on the fan opens the
+     *  reveal); the dialog then routes a card click to `handleClick` so a
+     *  specific aura buried in the stack can still be targeted (Disenchant). The
+     *  host itself stays fully interactive (rendered via `renderCard` at z-10). */
     function renderHostWithAuras(card: CardInstance): React.ReactNode {
         const auras = attachedAurasByHost.get(card.id);
         if (!auras?.length) return renderCard(card);
@@ -212,8 +239,8 @@ export default function BoardBattlefield({
             <div className="relative w-full h-full">
                 <AttachedCardsCluster
                     cards={auras}
-                    renderMember={renderCard}
-                    interactiveMembers
+                    renderMember={(aura) => <CardImage card={aura} />}
+                    interactiveMembers={false}
                     pileTitle={`Attached to ${hostName}`}
                     onPileCardClick={handleClick}
                 />
@@ -236,9 +263,13 @@ export default function BoardBattlefield({
         members: CardInstance[];
     }): SpatialItem {
         if (!group.isStack) {
+            const host = group.members[0];
             return {
                 key: group.key,
-                node: renderHostWithAuras(group.members[0]),
+                node: renderHostWithAuras(host),
+                // Lift a host with attached satellites over its neighbours so its
+                // corner peek-stack / ×N badge is not hidden behind them.
+                zIndex: hostHasAttachments(host.id) ? 30 : undefined,
             };
         }
         return {
