@@ -371,3 +371,18 @@ describe("projectLimitedEvent — completion full-disclosure reveal (issue #1116
         ]);
     });
 });
+
+describe("projectLimitedEvent — timerEnabled (ADR 0060, issue #1243)", () => {
+    it("preserves timerEnabled: true through the projection — event-wide config, never hidden", () => {
+        const view = projectLimitedEvent(
+            row({ type: "draft", timerEnabled: true }),
+            "user1"
+        );
+        expect(view.timerEnabled).toBe(true);
+    });
+
+    it("preserves an absent timerEnabled (timer off) as undefined", () => {
+        const view = projectLimitedEvent(row({ type: "draft" }), "user1");
+        expect(view.timerEnabled).toBeUndefined();
+    });
+});

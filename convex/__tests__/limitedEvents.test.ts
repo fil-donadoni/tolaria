@@ -532,7 +532,7 @@ describe("Limited Event Draft Timer + Auto-Pick (issue #1114, PRD #1107 stories 
         // criterion is literally "same choice the Bot Drafter would make".
         const packSlots = ["lea"];
         const seed = 9001;
-        const timerConfig: TimerConfig = { timerSeconds: 30, now: 5_000 };
+        const timerConfig: TimerConfig = { now: 5_000 };
 
         const started = startDraft(
             fillBotSeats(buildEmptySeats(2)).map((s, i) =>
@@ -587,7 +587,7 @@ describe("Limited Event Draft Timer + Auto-Pick (issue #1114, PRD #1107 stories 
         const packSlots = ["lea", "lea"];
         const seed = 31337;
         const HUMAN_SEAT = 0;
-        const timerConfig: TimerConfig = { timerSeconds: 30, now: 1_000 };
+        const timerConfig: TimerConfig = { now: 1_000 };
 
         let seats = fillBotSeats(
             assignFreeSeat(buildEmptySeats(4), "human1", "Alice")
@@ -687,7 +687,7 @@ describe("Limited Event Draft Timer + Auto-Pick (issue #1114, PRD #1107 stories 
         // pickSeq forward, regardless of who/what invokes the timeout path.
         const packSlots = ["lea"];
         const seed = 55;
-        const timerConfig: TimerConfig = { timerSeconds: 10, now: 0 };
+        const timerConfig: TimerConfig = { now: 0 };
 
         const started = startDraft(
             fillBotSeats(buildEmptySeats(2)).map((s, i) =>

@@ -5,6 +5,15 @@
 // configured, and the `resolveAutoPickTimeout` seq-based cancellation guard
 // `convex/limitedEvents.ts`'s `autoPickSeatTimeout` internalMutation is a
 // thin shell around.
+//
+// ADR 0060 / issue #1243: the fixed `timerSeconds` value is gone —
+// `TimerConfig` now carries only `now`, and every stamped deadline is
+// `now + pickTimerSecondsForCardsRemaining(pack.length) * 1000`. Tests below
+// compute the expected seconds via that SAME pure function (already
+// exhaustively table-tested in `pickTimerSchedule.test.ts`) rather than a
+// hardcoded literal, so this file asserts the INTEGRATION — that
+// `assignFreshPack` calls the schedule with the right cards-remaining count —
+// without duplicating the table itself.
 import { describe, it, expect } from "vitest";
 import {
     applyPick,
@@ -14,6 +23,7 @@ import {
     type ChooseBotPick,
     type TimerConfig,
 } from "../draftEngine";
+import { pickTimerSecondsForCardsRemaining } from "../pickTimerSchedule";
 import type { GetBoosterConfig, ResolveCardMeta } from "../eventLogic";
 import type { BoosterConfig } from "../boosterTypes";
 import type { DraftPackCard, LimitedEventSeat } from "../eventTypes";
@@ -58,8 +68,20 @@ function seatsOf(n: number): LimitedEventSeat[] {
 const firstCardPick: ChooseBotPick = (_seat, pack) => pack[0].pickId;
 
 const NOW = 1_000_000;
-const TIMER_SECONDS = 30;
-const timerConfig: TimerConfig = { timerSeconds: TIMER_SECONDS, now: NOW };
+const timerConfig: TimerConfig = { now: NOW };
+
+/** Expected deadline for a pack with `cardsRemaining` cards, per the SAME
+ *  pure schedule `assignFreshPack` consults. Asserts `null` (the "auto" case)
+ *  is never fed to a deadline-shaped assertion by construction. */
+function deadlineFor(cardsRemaining: number): number {
+    const seconds = pickTimerSecondsForCardsRemaining(cardsRemaining);
+    if (seconds === null) {
+        throw new Error(
+            `deadlineFor: cardsRemaining=${cardsRemaining} is the "auto" case (no deadline) — use a test that asserts pickDeadline is undefined instead.`
+        );
+    }
+    return NOW + seconds * 1000;
+}
 
 describe("startDraft — timer stamping (issue #1114)", () => {
     it("stamps every non-bot seat with pickDeadline/pickSeq and returns one timerUpdate each", () => {
@@ -77,9 +99,11 @@ describe("startDraft — timer stamping (issue #1114)", () => {
             timerConfig
         );
 
-        expect(result.seats[0].pickDeadline).toBe(NOW + TIMER_SECONDS * 1000);
+        // tst1's Booster is 3 cards — the very first pick has 3 cards
+        // remaining.
+        expect(result.seats[0].pickDeadline).toBe(deadlineFor(3));
         expect(result.seats[0].pickSeq).toBe(1);
-        expect(result.seats[2].pickDeadline).toBe(NOW + TIMER_SECONDS * 1000);
+        expect(result.seats[2].pickDeadline).toBe(deadlineFor(3));
         expect(result.seats[2].pickSeq).toBe(1);
 
         // Bot seats never idle on a pack (runBotAutoPicks always resolves it
@@ -89,8 +113,8 @@ describe("startDraft — timer stamping (issue #1114)", () => {
 
         expect(result.timerUpdates).toEqual(
             expect.arrayContaining([
-                { seatIndex: 0, pickSeq: 1 },
-                { seatIndex: 2, pickSeq: 1 },
+                { seatIndex: 0, pickSeq: 1, pickDeadline: deadlineFor(3) },
+                { seatIndex: 2, pickSeq: 1, pickDeadline: deadlineFor(3) },
             ])
         );
         expect(result.timerUpdates).toHaveLength(2);
@@ -183,12 +207,14 @@ describe("applyPick — timer stamping and clearing (issue #1114)", () => {
             timerConfig
         );
 
+        // The remainder passed on is 2 cards (3-card pack minus the one seat0
+        // just picked) — 2 cards remaining, not auto.
         expect(afterSeat0.seats[1].currentPack).toHaveLength(2);
         expect(afterSeat0.seats[1].pickSeq).toBe(2); // round-0 deal (1) + this fresh pass (2)
-        expect(afterSeat0.seats[1].pickDeadline).toBe(
-            NOW + TIMER_SECONDS * 1000
-        );
-        expect(afterSeat0.timerUpdates).toEqual([{ seatIndex: 1, pickSeq: 2 }]);
+        expect(afterSeat0.seats[1].pickDeadline).toBe(deadlineFor(2));
+        expect(afterSeat0.timerUpdates).toEqual([
+            { seatIndex: 1, pickSeq: 2, pickDeadline: deadlineFor(2) },
+        ]);
     });
 
     it("bumps the picker's own pickSeq when it dequeues an already-queued pack", () => {
@@ -204,12 +230,20 @@ describe("applyPick — timer stamping and clearing (issue #1114)", () => {
             cardName: "B",
             pickId: "pick-b",
         };
+        const cardC: DraftPackCard = {
+            scryfallId: "c",
+            cardId: "c",
+            cardName: "C",
+            pickId: "pick-c",
+        };
         const seats: LimitedEventSeat[] = [
             {
                 seatIndex: 0,
                 pool: [],
                 currentPack: [cardA],
-                packQueue: [[cardB]],
+                // 2-card queued pack — 2 cards remaining once dequeued, not
+                // the "auto" (1-card) case.
+                packQueue: [[cardB, cardC]],
                 pickSeq: 1,
                 pickDeadline: NOW - 500, // an already-expired deadline
             },
@@ -229,13 +263,66 @@ describe("applyPick — timer stamping and clearing (issue #1114)", () => {
             timerConfig
         );
 
-        expect(result.seats[0].currentPack).toEqual([cardB]);
+        expect(result.seats[0].currentPack).toEqual([cardB, cardC]);
         expect(result.seats[0].pickSeq).toBe(2);
-        expect(result.seats[0].pickDeadline).toBe(NOW + TIMER_SECONDS * 1000);
-        expect(result.timerUpdates).toEqual([{ seatIndex: 0, pickSeq: 2 }]);
+        expect(result.seats[0].pickDeadline).toBe(deadlineFor(2));
+        expect(result.timerUpdates).toEqual([
+            { seatIndex: 0, pickSeq: 2, pickDeadline: deadlineFor(2) },
+        ]);
     });
 
-    it("re-stamps every non-bot seat on round advancement, leaving bot seats unstamped", () => {
+    it("dequeues an already-queued 1-card pack as 'auto' (ADR 0060/#1243) — bumps pickSeq but stamps no deadline and returns no timerUpdate", () => {
+        const cardA: DraftPackCard = {
+            scryfallId: "a",
+            cardId: "a",
+            cardName: "A",
+            pickId: "pick-a",
+        };
+        const cardB: DraftPackCard = {
+            scryfallId: "b",
+            cardId: "b",
+            cardName: "B",
+            pickId: "pick-b",
+        };
+        const seats: LimitedEventSeat[] = [
+            {
+                seatIndex: 0,
+                pool: [],
+                currentPack: [cardA],
+                packQueue: [[cardB]], // 1-card queued pack — the "auto" case
+                pickSeq: 1,
+                pickDeadline: NOW - 500,
+            },
+            { seatIndex: 1, pool: [], currentPack: [], packQueue: [] },
+        ];
+
+        const result = applyPick(
+            seats,
+            0,
+            5,
+            ["tst1"],
+            0,
+            "pick-a",
+            1,
+            getConfig,
+            resolveCardMeta,
+            timerConfig
+        );
+
+        expect(result.seats[0].currentPack).toEqual([cardB]);
+        // pickSeq still bumps — any stale schedule from before is invalidated
+        // regardless of whether this fresh pack gets its own timer.
+        expect(result.seats[0].pickSeq).toBe(2);
+        expect(result.seats[0].pickDeadline).toBeUndefined();
+        expect(result.timerUpdates).toEqual([]);
+    });
+
+    it("re-stamps every non-bot seat on round advancement (1-card packs — 'auto', ADR 0060/#1243), leaving bot seats unstamped", () => {
+        // 1-card packs mean the round-1 re-deal lands squarely in the "auto"
+        // case (1 card remaining): pickSeq still bumps (invalidating the
+        // round-0 schedule), but no deadline is stamped and no timerUpdate is
+        // returned for it — proven separately with a real (non-auto)
+        // multi-card pack elsewhere in this file.
         const single: Record<string, BoosterConfig> = {
             r0: tinyConfig("r0", 1),
             r1: tinyConfig("r1", 1),
@@ -284,13 +371,14 @@ describe("applyPick — timer stamping and clearing (issue #1114)", () => {
         );
 
         expect(result.draftRound).toBe(1);
-        expect(result.seats[0].pickDeadline).toBe(NOW + TIMER_SECONDS * 1000);
+        // "Auto" case (1 card remaining): pickSeq bumps, no deadline stamped.
+        expect(result.seats[0].pickDeadline).toBeUndefined();
         expect(result.seats[0].pickSeq).toBe(2); // round-0 stamp (1) + round-1 stamp (2)
         expect(result.seats[1].pickDeadline).toBeUndefined(); // bot: never stamped
         expect(result.seats[1].pickSeq).toBeUndefined();
-        expect(result.timerUpdates.filter((u) => u.seatIndex === 0)).toEqual(
-            expect.arrayContaining([{ seatIndex: 0, pickSeq: 2 }])
-        );
+        expect(
+            result.timerUpdates.filter((u) => u.seatIndex === 0)
+        ).toEqual([]);
     });
 });
 
@@ -314,7 +402,7 @@ describe("resolveAutoPickTimeout — seq-based cancellation guard (issue #1114)"
                 },
             ],
             pickSeq,
-            pickDeadline: NOW + TIMER_SECONDS * 1000,
+            pickDeadline: deadlineFor(2), // arbitrary future deadline
         };
     }
 
@@ -453,15 +541,15 @@ describe("Auto-Pick timeout end-to-end: expiry → auto-pick → pack passes on 
 
 describe("runBotAutoPicks — timerConfig threaded through cascading bot picks (issue #1114)", () => {
     it("stamps a human seat that receives a fresh pack as a side effect of a bot pick", () => {
-        // Seat 0 is a bot with a 1-card pack; seat 1 is human with an empty
+        // Seat 0 is a bot with a 3-card pack; seat 1 is human with an empty
         // currentPack (already picked, nothing queued). Seat 0's bot pick
-        // empties its pack (nothing to pass — 1-card pack) — instead use a
-        // 2-card pack so its remainder passes onward to the human neighbor.
-        const twoCard: Record<string, BoosterConfig> = {
-            lap: tinyConfig("lap", 2),
+        // leaves a 2-card remainder (not the "auto" 1-card case) that passes
+        // onward to the human neighbor.
+        const threeCard: Record<string, BoosterConfig> = {
+            lap: tinyConfig("lap", 3),
         };
-        const twoCardConfig: GetBoosterConfig = (setCode) =>
-            twoCard[setCode] ?? null;
+        const threeCardConfig: GetBoosterConfig = (setCode) =>
+            threeCard[setCode] ?? null;
 
         const seats: LimitedEventSeat[] = [
             {
@@ -481,6 +569,12 @@ describe("runBotAutoPicks — timerConfig threaded through cascading bot picks (
                         cardName: "COMMON-B",
                         pickId: "pick-b",
                     },
+                    {
+                        scryfallId: "common-c",
+                        cardId: "common-c",
+                        cardName: "COMMON-C",
+                        pickId: "pick-c",
+                    },
                 ],
             },
             { seatIndex: 1, pool: [], currentPack: undefined },
@@ -492,7 +586,7 @@ describe("runBotAutoPicks — timerConfig threaded through cascading bot picks (
             2,
             ["lap"],
             1,
-            twoCardConfig,
+            threeCardConfig,
             resolveCardMeta,
             firstCardPick,
             false,
@@ -506,9 +600,17 @@ describe("runBotAutoPicks — timerConfig threaded through cascading bot picks (
                 cardName: "COMMON-B",
                 pickId: "pick-b",
             },
+            {
+                scryfallId: "common-c",
+                cardId: "common-c",
+                cardName: "COMMON-C",
+                pickId: "pick-c",
+            },
         ]);
         expect(result.seats[1].pickSeq).toBe(1);
-        expect(result.seats[1].pickDeadline).toBe(NOW + TIMER_SECONDS * 1000);
-        expect(result.timerUpdates).toEqual([{ seatIndex: 1, pickSeq: 1 }]);
+        expect(result.seats[1].pickDeadline).toBe(deadlineFor(2));
+        expect(result.timerUpdates).toEqual([
+            { seatIndex: 1, pickSeq: 1, pickDeadline: deadlineFor(2) },
+        ]);
     });
 });
