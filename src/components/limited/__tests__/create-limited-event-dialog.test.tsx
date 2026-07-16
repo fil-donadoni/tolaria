@@ -96,3 +96,16 @@ describe("CreateLimitedEventDialog — Pick Timer (ADR 0060, issue #1243)", () =
         );
     });
 });
+
+describe("CreateLimitedEventDialog — Seats bot hint (issue #1245)", () => {
+    it("renders helper text under Seats explaining unfilled seats become bots", () => {
+        renderDialog();
+        expect(
+            screen.getByText(
+                /Unfilled seats become bots when the event starts/
+            )
+        ).toBeTruthy();
+        // Mentions setting the full table size for a solo draft.
+        expect(screen.getByText(/solo draft/)).toBeTruthy();
+    });
+});
