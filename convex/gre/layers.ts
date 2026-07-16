@@ -7,11 +7,13 @@
 // scopes/filters to maintain.
 
 import { tryGetDefinition } from "../cards";
+import { tryGetEmblemDefinition } from "../cards/emblems";
 import { getColorsFromCost } from "../cards/colors";
 import { hasSupertypeLive } from "./snow";
 import type {
     CardType,
     Color,
+    EmblemInstance,
     ManaCost,
     PermanentView,
     StaticEffect,
@@ -26,6 +28,34 @@ const ZERO: PTBuff = { power: 0, toughness: 0 };
 /** Re-exported for engine callers; the canonical definition lives in types.ts
  *  so static-effect predicates can reference it without a cycle. */
 export type LayerStateView = StaticEffectStateView;
+
+/** CR 114 — a source-less synthetic `PermanentView` standing in for a
+ *  command-zone emblem, so its owner-scoped continuous static effects flow
+ *  through the same `applies(target, source, ctx)` predicates as a battlefield
+ *  source. `controllerId`/`ownerId` are the emblem's owner (CR 114.3), so an
+ *  anthem's "creatures you control" predicate (controller match) scopes
+ *  correctly. Carries no card characteristics — an emblem has none (CR 114.2a).
+ *  Issue #1221. */
+function emblemAsStaticSource(emblem: EmblemInstance): PermanentView {
+    return {
+        id: emblem.id,
+        controllerId: emblem.ownerId,
+        ownerId: emblem.ownerId,
+        types: [],
+        subtypes: [],
+        isTapped: false,
+        // Registry-keyed like a card's `card.id`, for any ctx helper that reads
+        // the source's underlying definition.
+        card: { id: emblem.emblemId },
+    } as PermanentView;
+}
+
+/** Returns the emblem definition's static effects of a given kind, or [] if the
+ *  emblem is unregistered / carries none. Mirrors `getStaticEffects` for the
+ *  command zone (CR 114). */
+function getEmblemStaticEffects(emblem: EmblemInstance): StaticEffect[] {
+    return tryGetEmblemDefinition(emblem.emblemId)?.staticEffects ?? [];
+}
 
 /** Returns the card definition's static effects, or [] if unknown. */
 function getStaticEffects(card: PermanentView): StaticEffect[] {
@@ -151,6 +181,26 @@ export function getStaticPTBuff(
                 power += effect.power;
                 toughness += effect.toughness;
             }
+        }
+    }
+
+    // CR 114 (issue #1221) — command-zone emblems contribute source-less,
+    // owner-scoped `pt-buff` statics (Sorin, Lord of Innistrad's "Creatures you
+    // control get +1/+0" emblem). Same predicate walk as a battlefield source,
+    // with a synthetic emblem source whose controller is the emblem's owner.
+    for (const emblem of state.emblems ?? []) {
+        const source = emblemAsStaticSource(emblem);
+        for (const effect of getEmblemStaticEffects(emblem)) {
+            if (effect.kind !== "pt-buff") continue;
+            if (!effect.applies(target, source, STATIC_EFFECT_CTX)) continue;
+            if (
+                effect.condition &&
+                !effect.condition(source, state, STATIC_EFFECT_CTX)
+            ) {
+                continue;
+            }
+            power += effect.power;
+            toughness += effect.toughness;
         }
     }
 

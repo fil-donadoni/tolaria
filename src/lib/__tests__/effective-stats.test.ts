@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { effectivePower, effectiveToughness } from "../effective-stats";
 import type { CardInstance, Player } from "~/types/game";
+import type { EmblemInstance } from "@convex/cards/types";
+import { SORIN_LORD_OF_INNISTRAD_EMBLEM_ID } from "@convex/cards/emblems";
 
 // Known card ids from convex/cards/sets/lea.ts
 const SAVANNAH_LIONS = "d05b92bd-797e-413f-a8b0-32e0937a1ee0";
@@ -367,5 +369,40 @@ describe("effectivePower / effectiveToughness (CR 611, 613)", () => {
         const players: Player[] = [me];
         expect(effectivePower(players, whiteLion)).toBe(2);
         expect(effectiveToughness(players, whiteLion)).toBe(1);
+    });
+
+    // CR 114 (issue #1221) — a command-zone emblem is a source-less, owner-
+    // scoped continuous static. The frontend threads `emblems` through
+    // `effectivePower`/`effectiveToughness`; dropping it would recompute P/T
+    // without the buff (invisible client-side). Drive the SURFACE assertion
+    // through the reducer with the top-level emblems field present.
+    describe("command-zone emblem anthem (CR 114, issue #1221)", () => {
+        const sorinEmblem = (ownerId: string): EmblemInstance => ({
+            id: "emblem-1",
+            ownerId,
+            emblemId: SORIN_LORD_OF_INNISTRAD_EMBLEM_ID,
+            name: "Sorin, Lord of Innistrad emblem",
+            text: "Creatures you control get +1/+0.",
+        });
+
+        it("gives the owner's creatures +1/+0 through the reducer", () => {
+            // The fixture creature is a 2/1 (Savannah Lions stats).
+            const lion = makeCreature({ id: "my-lion" });
+            const players: Player[] = [makePlayer("me", [lion])];
+            // Baseline (no emblem forwarded): 2/1.
+            expect(effectivePower(players, lion)).toBe(2);
+            expect(effectiveToughness(players, lion)).toBe(1);
+            // With the emblem: +1/+0 → 3/1 (toughness unchanged).
+            expect(effectivePower(players, lion, [sorinEmblem("me")])).toBe(3);
+            expect(
+                effectiveToughness(players, lion, [sorinEmblem("me")])
+            ).toBe(1);
+        });
+
+        it("is owner-scoped — an opponent's emblem does not buff my creatures", () => {
+            const lion = makeCreature({ id: "my-lion" });
+            const players: Player[] = [makePlayer("me", [lion])];
+            expect(effectivePower(players, lion, [sorinEmblem("opp")])).toBe(2);
+        });
     });
 });

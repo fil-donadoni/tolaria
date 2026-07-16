@@ -1456,6 +1456,15 @@ export const OP_EXECUTORS: {
         if (count === undefined || count <= 0) return;
         ctx.createToken(op.token, controllerId, count);
     },
+    // CR 114 (issue #1221) — create a command-zone emblem owned by the resolved
+    // controller (default the ability's controller). The granted abilities live
+    // in the emblem registry, keyed by `op.emblem`; `SpellContext.createEmblem`
+    // appends the pure-data instance to `GameState.emblems`.
+    emblem(ctx, op) {
+        const ownerId = resolvePlayerRef(ctx, op.controller ?? "controller");
+        if (ownerId === undefined) return;
+        ctx.createEmblem(op.emblem, ownerId);
+    },
     // CR 613.1b (issue #848) — change control of a permanent (layer 2). A thin
     // declarative skin over the single SpellContext primitive `gainControl`,
     // ONE execution path (ADR 0045): the resolved `target` permanent moves to

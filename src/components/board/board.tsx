@@ -358,6 +358,7 @@ export default function Board({
                 cannotActivateAbilitiesThisTurn,
                 gameOver,
                 allPlayers,
+                emblems: state.emblems,
                 phasedOutCards,
                 showAllCards,
                 debugAllActions,

@@ -81,7 +81,7 @@ export default function BoardBattlefieldCard({
     onActivateAbility,
     phased = false,
 }: BoardBattlefieldCardProps) {
-    const { allPlayers } = useGameContext();
+    const { allPlayers, emblems } = useGameContext();
     const creature = isCreature(card);
 
     // CR 601.2d — divide-as-you-choose: a legal target of an active divide spell
@@ -149,8 +149,8 @@ export default function BoardBattlefieldCard({
                 </div>
             )}
             <div className="bg-black p-0.5 rounded-xs text-[10px] font-bold text-white leading-none drop-shadow-[0_0_2px_rgba(0,0,0,0.9)]">
-                {effectivePower(allPlayers, card)}/
-                {effectiveToughness(allPlayers, card)}
+                {effectivePower(allPlayers, card, emblems)}/
+                {effectiveToughness(allPlayers, card, emblems)}
             </div>
         </div>
     ) : null;

@@ -20,8 +20,15 @@ import BandFormationPanel from "./band-formation-panel";
  *  the correct combat steps. Reads ONLY projected game-context fields (no GRE
  *  import). */
 export default function CombatPanels({ player }: { player: Player }) {
-    const { gameId, playerId, activePlayerId, phase, combat, allPlayers } =
-        useGameContext();
+    const {
+        gameId,
+        playerId,
+        activePlayerId,
+        phase,
+        combat,
+        allPlayers,
+        emblems,
+    } = useGameContext();
     const isMe = player.id === playerId;
 
     if (!combat) return null;
@@ -70,6 +77,7 @@ export default function CombatPanels({ player }: { player: Player }) {
                         allPlayers.find((p) => p.id !== activePlayerId)?.id ??
                         ""
                     }
+                    emblems={emblems}
                 />
             )}
         </>
