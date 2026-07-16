@@ -269,20 +269,20 @@ export type DividePilesKind = "divide-piles" | "pick-pile";
  *  cast by accidentally passing priority. */
 export type MadnessCastChoiceKind = "madness-cast";
 
-/** Draw-reveal pay-choice (CR 614, issue #735 — Zur's Weirding). When an
- *  affected player would draw under an interactive draw-reveal replacement, the
+/** Draw-replacement pay-choice (CR 614, ADR 0061 — Zur's Weirding). When an
+ *  affected player would draw under an interactive draw replacement, the
  *  would-be-drawn card is revealed and any OTHER player may pay life to put it
  *  into its owner's graveyard instead. This is the paying player's yes/no
  *  decision. Its own STACKLESS family (like `land-entry-tapped` / `madness-cast`)
  *  because it is raised by the phase-level DRAW STEP, which has no stack item to
- *  commit an answer into; it flows through its own `submitDrawRevealPay`
+ *  commit an answer into; it flows through its own `submitDrawReplacementPay`
  *  mutation. The paying player is `PendingChoice.playerId` (holds priority); the
  *  drawing player (who draws on decline) rides `zoneOwnerId`; the revealed top
  *  card rides `cardInstanceId` (marked known to the payer so their client can
  *  render it); the life cost rides `cost` (`{ life: N }`). The DSL `draw` Op's
  *  effect-draw interactive path instead uses `requestMayPay` (stack-coupled), so
  *  this family covers only the turn-based draw. */
-export type DrawRevealPayChoiceKind = "draw-reveal-pay";
+export type DrawReplacementChoiceKind = "draw-replacement";
 
 export type PendingChoiceKind =
     | ZonePickKind
@@ -294,4 +294,4 @@ export type PendingChoiceKind =
     | RandomRevealKind
     | DividePilesKind
     | MadnessCastChoiceKind
-    | DrawRevealPayChoiceKind;
+    | DrawReplacementChoiceKind;

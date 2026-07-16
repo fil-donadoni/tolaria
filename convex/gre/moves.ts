@@ -103,12 +103,12 @@ export type Move =
           accept: boolean;
       }
     | {
-          /** Yes/no answer to a `draw-reveal-pay` pending choice (Zur's Weirding,
-           *  CR 614 / issue #735), realised through the dedicated
-           *  `submitDrawRevealPay` mutation. Like `land-entry` only the boolean
-           *  travels (accept = pay the life to bin the revealed card); the choice
-           *  identity is read from the active pending choice. */
-          kind: "draw-reveal-pay";
+          /** Yes/no answer to a `draw-replacement` pending choice (Zur's
+           *  Weirding, CR 614 / ADR 0061), realised through the dedicated
+           *  `submitDrawReplacementPay` mutation. Like `land-entry` only the
+           *  boolean travels (accept = pay the life to bin the revealed card);
+           *  the choice identity is read from the active pending choice. */
+          kind: "draw-replacement";
           accept: boolean;
       }
     | {

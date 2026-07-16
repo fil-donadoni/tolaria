@@ -52,7 +52,7 @@ export default function PendingChoicePrompt({
     const { offset, dragHandlers } = useDraggable();
     const submitMayPay = useMutation(api.game.submitMayPay);
     const submitLandEntryChoice = useMutation(api.game.submitLandEntryChoice);
-    const submitDrawRevealPay = useMutation(api.game.submitDrawRevealPay);
+    const submitDrawReplacementPay = useMutation(api.game.submitDrawReplacementPay);
     const submitMadnessDecline = useMutation(api.game.submitMadnessDecline);
     const announceCast = useMutation(api.game.announceCast);
     const submitNameCard = useMutation(api.game.submitNameCard);
@@ -72,8 +72,8 @@ export default function PendingChoicePrompt({
     const isLandEntry = choice.kind === "land-entry-tapped";
     // CR 614 / issue #735 — Zur's Weirding pay-choice: same yes-no Pay/Skip UI
     // as may-pay, only the submit mutation differs (dispatched below).
-    const isDrawRevealPay = choice.kind === "draw-reveal-pay";
-    const isYesNoPay = isMayPay || isLandEntry || isDrawRevealPay;
+    const isDrawReplacement = choice.kind === "draw-replacement";
+    const isYesNoPay = isMayPay || isLandEntry || isDrawReplacement;
     const isOptionPick = choice.kind === "option-pick";
     // CR 702.35d — reflexive Madness cast-choice: Cast (fires the ordinary
     // announceCast on the exiled card, which consumes this choice) or Decline
@@ -415,8 +415,8 @@ export default function PendingChoicePrompt({
                                                             accept: false,
                                                         }
                                                     );
-                                                } else if (isDrawRevealPay) {
-                                                    await submitDrawRevealPay({
+                                                } else if (isDrawReplacement) {
+                                                    await submitDrawReplacementPay({
                                                         gameId,
                                                         playerId,
                                                         accept: false,

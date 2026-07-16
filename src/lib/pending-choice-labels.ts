@@ -55,7 +55,7 @@ const PENDING_CHOICE_KIND_LABELS: Record<PendingChoiceKind, string> = {
     // reflexive Madness cast-choice (CR 702.35d)
     "madness-cast": "Madness",
     // draw-reveal pay-choice (CR 614, issue #735 — Zur's Weirding)
-    "draw-reveal-pay": "Pay life",
+    "draw-replacement": "Pay life",
 };
 
 export function pendingChoiceLabel(kind: PendingChoiceKind): string {

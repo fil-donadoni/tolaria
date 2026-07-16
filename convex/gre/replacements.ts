@@ -23,6 +23,8 @@ import type {
     DamageReplacementEvent,
     DestroyReplacementEvent,
     DiscardReplacementEvent,
+    DrawReplacementEffect,
+    DrawReplacementEvent,
     EntersBattlefieldReplacementEvent,
     GraveyardBoundReplacementEvent,
     LifeChangeReplacementEvent,
@@ -128,6 +130,56 @@ function buildPermanentView(card: CardInstanceState): PermanentView {
         counters: card.counters,
         card: card.card as Record<string, unknown>,
     };
+}
+
+/** CR 614 / 616.1 (ADR 0061) — discovers every draw replacement applicable to
+ *  `event`, in the order the AFFECTED player (the drawing player, CR 616.1c)
+ *  would apply them: the drawing player's OWN permanents first, then others,
+ *  each in battlefield-declaration order. A draw replacement lives on a card
+ *  definition's `drawReplacement` field (NOT the sync `replacementEffects[]`,
+ *  because a draw replacement is applied at the resumable draw seam), so this
+ *  is a separate scan from `collectReplacements`. The seam applies the FIRST
+ *  entry: bin / prevent / draw are terminal outcomes that end the draw; only a
+ *  `modify-count` outcome would chain, which the seam handles inline. A full
+ *  interactive pick-order prompt for two co-applicable replacements is deferred
+ *  (no two draw replacements affect the same draw in the current set); the
+ *  deterministic affected-player ordering is CR-faithful for the one-source
+ *  case and gives a stable order for the two-source case. */
+export function getApplicableDrawReplacements(
+    state: GameState,
+    event: DrawReplacementEvent
+): { source: CardInstanceState; effect: DrawReplacementEffect }[] {
+    const view = buildStateView(state);
+    const own: { source: CardInstanceState; effect: DrawReplacementEffect }[] =
+        [];
+    const others: {
+        source: CardInstanceState;
+        effect: DrawReplacementEffect;
+    }[] = [];
+    for (const player of state.players) {
+        for (const card of player.battlefield) {
+            const cardId = (card.card as { id?: string }).id;
+            if (!cardId) continue;
+            const effect = tryGetDefinition(cardId)?.drawReplacement;
+            if (!effect) continue;
+            const permView = buildPermanentView(card);
+            if (!effect.applies(event, permView, view)) continue;
+            (card.controllerId === event.drawingPlayer ? own : others).push({
+                source: card,
+                effect,
+            });
+        }
+    }
+    return [...own, ...others];
+}
+
+/** The single draw replacement the seam applies to `event` (CR 616.1 — the
+ *  affected player's first-ordered applicable replacement), or undefined. */
+export function getFirstApplicableDrawReplacement(
+    state: GameState,
+    event: DrawReplacementEvent
+): { source: CardInstanceState; effect: DrawReplacementEffect } | undefined {
+    return getApplicableDrawReplacements(state, event)[0];
 }
 
 function buildApplyCtx(

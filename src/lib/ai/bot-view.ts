@@ -600,19 +600,19 @@ export function botActionToMove(
             }
             return { kind: "land-entry", accept: action.accept };
         }
-        case "draw-reveal-pay": {
+        case "draw-replacement": {
             // CR 614 / issue #735 — Zur's Weirding: routes through
-            // `submitDrawRevealPay`. Only the boolean travels; the server reads
+            // `submitDrawReplacementPay`. Only the boolean travels; the server reads
             // the head choice.
             const head = state.pendingChoices?.[0];
             if (
                 !head ||
-                head.kind !== "draw-reveal-pay" ||
+                head.kind !== "draw-replacement" ||
                 head.playerId !== botId
             ) {
                 return null;
             }
-            return { kind: "draw-reveal-pay", accept: action.accept };
+            return { kind: "draw-replacement", accept: action.accept };
         }
         case "name-card": {
             // CR 202.3 — routes through `submitNameCard`. Only the name travels;
