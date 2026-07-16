@@ -11,7 +11,7 @@
 // interveningIf wiring. The only differences are the event kind and the
 // payload field naming exposed to `resolve`.
 
-import type { CardType, EffectOp } from "../../types";
+import type { CardType, EffectOp, TargetRequirement } from "../../types";
 import type {
     GameEvent,
     PermanentEnteredEvent,
@@ -47,6 +47,14 @@ export interface EnteredTriggerArgs {
      *  not supported because the event payload doesn't carry that
      *  information at emit time. */
     filter?: PermanentFilter;
+    /** CR 603.3d (issue #1193) — announcement-time target requirement for a
+     *  TARGETED ETB trigger (Fury's "deals 4 damage divided among target
+     *  creatures/planeswalkers", Subtlety's "target creature or planeswalker
+     *  spell"). Forwarded verbatim onto the built `TriggeredAbility`; the
+     *  engine locks the target(s) as the trigger goes on the stack. The
+     *  resolve/effects body reads the announced slot via `ctx.targets` /
+     *  `{ target: 0 }`. */
+    targetRequirement?: TargetRequirement;
     /** CR 603.4 check-time predicate. Evaluated once when the event fires;
      *  if false the trigger never goes on the stack. Use for arbitrary
      *  domain logic that can't be expressed by `scope` + `filter`. */
@@ -152,6 +160,9 @@ export function enteredTrigger(args: EnteredTriggerArgs): TriggeredAbility {
                   },
               }),
     };
+    if (args.targetRequirement !== undefined) {
+        ability.targetRequirement = args.targetRequirement;
+    }
     if (args.interveningIf !== undefined) {
         const userInterveningIf = args.interveningIf;
         ability.interveningIf = (event, self, state) => {

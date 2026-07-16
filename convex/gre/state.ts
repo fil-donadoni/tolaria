@@ -1962,7 +1962,7 @@ export type PendingTarget = {
      *  of the ORIGINAL spell already on the stack (CR 114.6 — Reflecting Mirror's
      *  "change the target of target spell"); `cardInstanceId` holds the original
      *  spell's stack id and finalization writes the chosen targets onto it. */
-    kind?: "cast" | "ability" | "copy-retarget" | "retarget";
+    kind?: "cast" | "ability" | "copy-retarget" | "retarget" | "trigger";
     /** For `kind: "ability"` only — id of the activated ability template on
      *  the source card definition. */
     abilityId?: string;
@@ -8237,6 +8237,34 @@ export function buildSpellContext(
                     sendStackItemToGraveyard(state, item);
                     break;
             }
+        },
+        putSpellOnLibrary(
+            target: TargetSelection,
+            position: "top" | "bottom"
+        ): void {
+            // CR 701.5-adjacent (issue #1205, Subtlety) — "put target spell on
+            // the top or bottom of its owner's library." NOT a counter: it
+            // ignores `cantBeCountered` (CR 701.5c shields only against counter
+            // effects). Mirrors `counter`'s stack-splice + ability-vanish.
+            if (target.type !== "spell") {
+                throw new Error("putSpellOnLibrary() requires a spell target");
+            }
+            const idx = state.stack.findIndex((s) => s.id === target.id);
+            if (idx === -1) return; // no longer on the stack (CR 608.2b) — no-op.
+            const [item] = state.stack.splice(idx, 1);
+            // An ability on the stack is not a card (CR 113.7a) — it just
+            // ceases to exist, like a countered ability.
+            if (
+                item.abilityId ||
+                item.triggeredAbilityId ||
+                item.delayedTriggerId
+            ) {
+                return;
+            }
+            const owner = getPlayer(state, item.ownerId);
+            item.zone = "library";
+            if (position === "top") owner.library.unshift(item);
+            else owner.library.push(item);
         },
         discardAtRandom(
             playerId: string,

@@ -4,8 +4,15 @@ import type {
     TargetRequirement,
     TargetSelection,
 } from "../cards/types";
-import type { CardInstanceState, GameState, PlayerState } from "./state";
+import type {
+    CardInstanceState,
+    GameState,
+    PendingTarget,
+    PlayerState,
+    StackItem,
+} from "./state";
 import type { CardAction } from "./types";
+import { findTriggeredAbility } from "./copy";
 import { isSorceryTiming } from "./phases";
 import {
     DAMAGEABLE_PERMANENT_TYPES,
@@ -1561,9 +1568,9 @@ export function getLegalTargets(
 export function getPendingTargetSourceColors(
     state: GameState,
     cardInstanceId: string,
-    kind: "cast" | "ability" | "copy-retarget" | "retarget"
+    kind: "cast" | "ability" | "copy-retarget" | "retarget" | "trigger"
 ): Color[] {
-    if (kind === "copy-retarget" || kind === "retarget") {
+    if (kind === "copy-retarget" || kind === "retarget" || kind === "trigger") {
         const si = state.stack.find((x) => x.id === cardInstanceId);
         if (si) return STATIC_EFFECT_CTX.getColors(si);
         return [];
@@ -1592,9 +1599,9 @@ export function getPendingTargetSourceColors(
 export function getPendingTargetSourceTypes(
     state: GameState,
     cardInstanceId: string,
-    kind: "cast" | "ability" | "copy-retarget" | "retarget"
+    kind: "cast" | "ability" | "copy-retarget" | "retarget" | "trigger"
 ): CardType[] {
-    if (kind === "copy-retarget" || kind === "retarget") {
+    if (kind === "copy-retarget" || kind === "retarget" || kind === "trigger") {
         const si = state.stack.find((x) => x.id === cardInstanceId);
         return si ? [...si.types] : [];
     }
@@ -1621,9 +1628,9 @@ export function getPendingTargetSourceTypes(
 export function getPendingTargetSourceSubtypes(
     state: GameState,
     cardInstanceId: string,
-    kind: "cast" | "ability" | "copy-retarget" | "retarget"
+    kind: "cast" | "ability" | "copy-retarget" | "retarget" | "trigger"
 ): string[] {
-    if (kind === "copy-retarget" || kind === "retarget") {
+    if (kind === "copy-retarget" || kind === "retarget" || kind === "trigger") {
         const si = state.stack.find((x) => x.id === cardInstanceId);
         return si ? [...si.subtypes] : [];
     }
@@ -1658,4 +1665,179 @@ export function assertLegalAction(
             `Illegal action "${action}" on "${cardName}". Legal actions: ${legal.join(", ") || "none"}`
         );
     }
+}
+
+// ─── Targeted triggered abilities (CR 603.3d, issue #1193) ──────────────────
+
+/** The requirement-derived target FILTER fields, as a partial `PendingTarget`
+ *  carrying ONLY the fields the requirement sets. Single source of truth for
+ *  BOTH the cast/ability target builders in `game.ts` AND the trigger-target
+ *  path below — kept here (gre) so the two can never drift and the gre layer
+ *  can build a `PendingTarget` without importing `game.ts`.
+ *
+ *  Only requirement-derived filters live here; count/target-type/selected and
+ *  the divide-as-you-choose bookkeeping are owned by each caller. */
+export function pendingTargetFiltersFromRequirement(
+    req: TargetRequirement,
+    chosenX: number | undefined
+): Partial<PendingTarget> {
+    const toArr = (v: string | string[] | undefined): string[] | undefined =>
+        v === undefined ? undefined : Array.isArray(v) ? v : [v];
+    const out: Partial<PendingTarget> = {};
+    if (req.colorFilter !== undefined) out.colorFilter = req.colorFilter;
+    if (req.colorFilterAny) out.colorFilterAny = req.colorFilterAny;
+    const sub = toArr(req.subtypeFilter);
+    if (sub) out.subtypeFilter = sub;
+    const sup = toArr(req.supertypeFilter);
+    if (sup) out.supertypeFilter = sup;
+    const exSub = toArr(req.excludeSubtypes);
+    if (exSub) out.excludeSubtypes = exSub;
+    const exSup = toArr(req.excludeSupertypes);
+    if (exSup) out.excludeSupertypes = exSup;
+    if (req.powerFilter) out.powerFilter = req.powerFilter;
+    if (req.toughnessFilter) out.toughnessFilter = req.toughnessFilter;
+    const mv = resolveMvFilter(req.mvFilter, chosenX);
+    if (mv) out.mvFilter = mv;
+    const spellType = toArr(req.spellTypeFilter);
+    if (spellType) out.spellTypeFilter = spellType as CardType[];
+    const spellExcludeType = toArr(req.spellExcludeTypeFilter);
+    if (spellExcludeType)
+        out.spellExcludeTypeFilter = spellExcludeType as CardType[];
+    if (req.spellCreaturePtFilter)
+        out.spellCreaturePtFilter = req.spellCreaturePtFilter;
+    if (req.spellSingleTargetingController)
+        out.spellSingleTargetingController = true;
+    if (req.spellWouldDestroyLandYouControl)
+        out.spellWouldDestroyLandYouControl = true;
+    if (req.spellStackKind) out.spellStackKind = req.spellStackKind;
+    const stackSrc = toArr(req.stackSourceTypeFilter);
+    if (stackSrc) out.stackSourceTypeFilter = stackSrc as CardType[];
+    if (req.spellTargetsInstanceIds)
+        out.spellTargetsInstanceIds = [...req.spellTargetsInstanceIds];
+    if (req.playerAttackedThisTurn) out.playerAttackedThisTurn = true;
+    if (req.zone) out.zone = req.zone;
+    if (req.controller) out.controller = req.controller;
+    return out;
+}
+
+/** Resolve a trigger requirement's `count` to a concrete {min, max}. Triggers
+ *  do not carry X, so `"X"` collapses to none (0). An "up to" requirement
+ *  without an explicit `max` is treated as unbounded. */
+function triggerTargetMinMax(count: TargetRequirement["count"]): {
+    min: number;
+    max: number;
+} {
+    if (typeof count === "number") return { min: count, max: count };
+    if (count === "X") return { min: 0, max: 0 };
+    return { min: count.min, max: count.max ?? Number.MAX_SAFE_INTEGER };
+}
+
+/** CR 603.3d / 603.3c (issue #1193) — lock announcement-time targets for any
+ *  TARGETED triggered ability now on the stack. Scans the stack top-down; for
+ *  the first not-yet-targeted targeted trigger it either:
+ *   - drops a REQUIRED-target trigger with no legal target (CR 603.3c — it is
+ *     removed from the stack and does nothing), then keeps scanning;
+ *   - locks an empty target set on an "up to" (min 0) trigger with no legal
+ *     target (it stays on the stack, resolves as a no-op);
+ *   - auto-selects the lone target of a mandatory single-target trigger (no
+ *     real choice, no divide);
+ *   - otherwise raises a `kind:"trigger"` `PendingTarget` for the controller —
+ *     the SAME machinery a spell/activated ability uses — and returns `true`
+ *     (suspended; priority parked on the chooser).
+ *  Returns `false` when no further target choice is owed (callers resume the
+ *  normal priority flow). Divide-as-you-choose (Fury) rides on `divideTotal`;
+ *  the per-target amounts are assigned through the existing divide UI and
+ *  written onto the trigger's `targetAmounts` at `finalizeTargetSelection`. */
+export function raiseTriggerTargetSelection(state: GameState): boolean {
+    for (let i = state.stack.length - 1; i >= 0; i--) {
+        const item: StackItem = state.stack[i];
+        // Already-targeted (or engine-locked to []) and non-targeted triggers
+        // are skipped; only a trigger with an un-set target slot is a candidate.
+        if (item.targets !== undefined) continue;
+        if (!item.triggeredAbilityId) continue;
+        const ability = findTriggeredAbility(item, item.triggeredAbilityId);
+        const req = ability?.targetRequirement;
+        if (!req) continue;
+
+        // A triggered ability's source characteristics come from the on-stack
+        // trigger item (a `...self` snapshot of the source), read the same way
+        // a retargeted spell reads its stack item (CR 109.5).
+        const sourceColors = getPendingTargetSourceColors(
+            state,
+            item.id,
+            "retarget"
+        );
+        const sourceTypes = getPendingTargetSourceTypes(
+            state,
+            item.id,
+            "retarget"
+        );
+        const sourceSubtypes = getPendingTargetSourceSubtypes(
+            state,
+            item.id,
+            "retarget"
+        );
+        // CR 113.3 — a triggered ability is not a spell.
+        const legal = getLegalTargets(
+            state,
+            req,
+            sourceColors,
+            item.controllerId,
+            undefined,
+            sourceTypes,
+            sourceSubtypes,
+            false
+        );
+        const { min, max } = triggerTargetMinMax(req.count);
+
+        if (legal.length < min) {
+            // CR 603.3c — required target(s), none legal: remove from the stack.
+            if (min > 0) {
+                state.stack.splice(i, 1);
+                continue;
+            }
+        }
+        if (min === 0 && legal.length === 0) {
+            // "Up to" with nothing legal — stays on the stack, no target.
+            item.targets = [];
+            continue;
+        }
+        if (
+            min === 1 &&
+            max === 1 &&
+            legal.length === 1 &&
+            !req.divideAsChosen
+        ) {
+            // Sole mandatory target auto-selects (no real choice). CR 603.3d.
+            item.targets = [legal[0]];
+            continue;
+        }
+
+        // A real choice is owed — raise the same PendingTarget the spell path
+        // uses, pointed at this on-stack trigger item (kind: "trigger").
+        const divideTotal =
+            req.divideAsChosen && typeof req.divideAsChosen.total === "number"
+                ? req.divideAsChosen.total
+                : undefined;
+        const count: PendingTarget["count"] =
+            typeof req.count === "number"
+                ? req.count
+                : req.count === "X"
+                  ? { min: 0, max: 0 }
+                  : { min: req.count.min, max: req.count.max ?? max };
+        state.pendingTarget = {
+            playerId: item.controllerId,
+            cardInstanceId: item.id,
+            kind: "trigger",
+            targetType: req.type,
+            count,
+            selected: [],
+            ...pendingTargetFiltersFromRequirement(req, undefined),
+            ...(divideTotal !== undefined ? { divideTotal } : {}),
+        };
+        state.priorityPlayerId = item.controllerId;
+        state.passCount = 0;
+        return true;
+    }
+    return false;
 }

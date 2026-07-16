@@ -13,7 +13,7 @@
 // can no longer be dropped.
 
 import { describe, it, expect } from "vitest";
-import { pendingTargetFiltersFromRequirement } from "@convex/game";
+import { pendingTargetFiltersFromRequirement } from "@convex/gre/rules";
 import { stifle } from "@convex/cards/sets/scg/blue";
 import { matchesStackObjectFilter, wantsSpellTarget } from "~/lib/card-utils";
 

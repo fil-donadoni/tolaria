@@ -775,19 +775,25 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // X-only unchanged (14), Op-blocked unchanged (227). Partition:
         // 453+14+227=694.
         //
-        // #700 (planeswalker/loyalty framework, ADR 0058 — Karn/Liliana
-        // tracers) ADDED one loyalty `resolve()` closure: a tracer
-        // planeswalker's loyalty ability resolves via a card-level closure,
-        // Op-blocked (no loyalty-ability Op vocabulary yet — the framework
-        // ships `cost.loyalty` + damage→loyalty + the 0-loyalty SBA, not a
-        // migratable effect Op). Net: total 694→695, Op-blocked 227→228,
-        // FREE/AFK-ready/X-only unchanged (453/415/14). Partition:
-        // 453+14+228=695.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(695);
+        // Then Fury ships (issue #1206 — the first targeted trigger with
+        // divide-as-you-choose, on the #1193 foundation): it adds TWO new
+        // closures — the `fury-etb` divided-damage resolve (no DSL Op expresses
+        // per-target divided damage → Op-blocked) and its `evokeTrigger`
+        // sacrifice-on-ETB resolve (the evoke half, also no DSL Op →
+        // Op-blocked). Net: total 694→696, FREE/AFK-ready/X-only unchanged
+        // (453/415/14), Op-blocked 227→229. Partition: 453+14+229=696.
+        //
+        // Then Subtlety ships (issue #1205 — the first targeted trigger over a
+        // stack SPELL, on the #1193 foundation): its `subtlety-etb` resolve
+        // (owner top/bottom option-pick + putSpellOnLibrary — no DSL Op) adds
+        // ONE Op-blocked closure. Net: total 696→697, FREE/AFK-ready/X-only
+        // unchanged (453/415/14), Op-blocked 229→230. Partition:
+        // 453+14+230=697.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(697);
         expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(453);
         expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(415);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(228);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(230);
     });
 
     it("surfaces the demonstrated new-Op backlog (a covered primitive leaves it)", () => {
