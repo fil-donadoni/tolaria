@@ -483,6 +483,12 @@ export function useBattlefieldVisualState(player: Player) {
 
         // Ring class
         let ringClass = "";
+        // A legal target of the spell/ability on the stack currently choosing
+        // targets reads with the SAME accent-strong glow ring a targetable
+        // player nameplate gets (player-nameplate.tsx) — a box-shadow overlay,
+        // not a `ringClass` (glow can't be a Tailwind ring). Set below when the
+        // faded valid-target branch would otherwise have fired.
+        let targetGlow = false;
         if (pendingBlockerId === card.id) {
             ringClass = "ring-2 ring-amber-400 rounded-sm";
         } else if (
@@ -510,7 +516,10 @@ export function useBattlefieldVisualState(player: Player) {
             // against the faded-gold "valid but unpicked" ring below.
             ringClass = "ring-2 ring-emerald-400 rounded-sm";
         } else if (!ringClass && isValidTarget) {
-            ringClass = "ring-2 ring-accent/50 rounded-sm";
+            // Legal target of a spell/ability on the stack — mirror the player
+            // nameplate's accent-strong glow (player-nameplate.tsx) so a
+            // targetable permanent reads the SAME as a targetable player.
+            targetGlow = true;
         }
         if (!ringClass && isChoiceSelected) {
             // A committed pick reads GREEN — the same emerald selection ring the
@@ -615,6 +624,7 @@ export function useBattlefieldVisualState(player: Player) {
             badge,
             tooltip,
             divideTarget,
+            targetGlow,
         };
     }
 

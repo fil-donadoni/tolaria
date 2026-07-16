@@ -12,9 +12,7 @@ import PlaneswalkerLoyaltyBadge from "./planeswalker-loyalty-badge";
 import NotedManaBadge from "./noted-mana-badge";
 import ExiledAssociatedCard from "./exiled-associated-card";
 import ActivatableAbilityMenu from "./activatable-ability-menu";
-import DivideTargetStepper from "./divide-target-stepper";
 import { useAbilityCardClick } from "~/hooks/useAbilityCardClick";
-import { useDivideBuffer } from "~/hooks/useDivideBuffer";
 
 type BoardBattlefieldCardProps = {
     card: CardInstance;
@@ -85,13 +83,10 @@ export default function BoardBattlefieldCard({
     const creature = isCreature(card);
 
     // CR 601.2d — divide-as-you-choose: a legal target of an active divide spell
-    // (Pyrokinesis) carries an on-card [−] N [+] stepper driven by the shared
-    // client buffer, plus a red pip showing its assigned share. Identical
-    // permanents un-stack during the selection (board-battlefield), so the
-    // stepper is never occluded by a fan neighbour.
-    const divide = useDivideBuffer();
-    const showDivide = divide.active && vs.divideTarget;
-    const divideAssigned = showDivide ? divide.get(card.id) : 0;
+    // (Pyrokinesis) keeps its candidate ring (`vs.ringClass`) so the player can
+    // read which board permanents are eligible, but the per-target [−] N [+]
+    // steppers now live inside the divide dialog (`divide-target-list.tsx`), not
+    // on the card — overlaying them here occluded them behind neighbours.
 
     // Cards exiled-and-associated with THIS permanent (mechanism-agnostic via the
     // projected `exiledByPermanentId`): Banishing Light's held permanent, Ice
@@ -131,6 +126,20 @@ export default function BoardBattlefieldCard({
                 }}
             />
         ) : null;
+
+    // Legal target of the spell/ability on the stack currently choosing targets
+    // (CR 601.2c). Same accent-strong ring + glow the player nameplate uses when
+    // it is a legal target (player-nameplate.tsx) so a targetable permanent and
+    // a targetable player read identically.
+    const targetGlowRing = vs.targetGlow ? (
+        <div
+            className="absolute inset-0 rounded-sm pointer-events-none z-30"
+            style={{
+                boxShadow:
+                    "0 0 0 2px var(--color-accent-strong), 0 0 16px 1px color-mix(in oklab, var(--color-accent-strong) 45%, transparent)",
+            }}
+        />
+    ) : null;
 
     // Phased-out permanents are set aside (CR 702.26) — no abilities, no clicks.
     const abilities = phased ? [] : (activatableAbilities ?? []);
@@ -216,6 +225,7 @@ export default function BoardBattlefieldCard({
                 {colorOverrideOverlay}
                 {darkenOverlay}
                 {highlightRing}
+                {targetGlowRing}
                 {phasedBadge}
                 <CounterBadges card={card} />
                 <NotedManaBadge card={card} />
@@ -254,20 +264,6 @@ export default function BoardBattlefieldCard({
             {...clickHandlers}
         >
             {inner}
-            {showDivide && divideAssigned > 0 && (
-                <div className="absolute top-1 left-1 z-40 min-w-6 h-6 px-1 rounded-full bg-red-600 ring-2 ring-white text-white text-sm font-bold flex items-center justify-center shadow-[0_0_8px_rgba(0,0,0,0.9)] pointer-events-none tabular-nums">
-                    {divideAssigned}
-                </div>
-            )}
-            {showDivide && (
-                <DivideTargetStepper
-                    n={divideAssigned}
-                    canMinus={divideAssigned > 0}
-                    canPlus={divide.remaining > 0}
-                    onMinus={() => divide.dec(card.id)}
-                    onPlus={() => divide.inc(card.id, "permanent")}
-                />
-            )}
             {associatedExiled.map((exiled) => (
                 <ExiledAssociatedCard key={exiled.id} exiledCard={exiled} />
             ))}

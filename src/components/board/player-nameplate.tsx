@@ -3,7 +3,6 @@ import type { PlayerInteraction } from "~/hooks/usePlayerInteraction";
 import AnimatedLifeTotal from "./animated-life-total";
 import PlayerPoisonCounters from "./player-poison-counters";
 import PlayerEnergyCounters from "./player-energy-counters";
-import DivideTargetStepper from "./divide-target-stepper";
 
 type PlayerNameplateProps = {
     player: Player;
@@ -92,22 +91,9 @@ export default function PlayerNameplate({
             </div>
             <PlayerPoisonCounters count={player.poisonCounters} />
             <PlayerEnergyCounters count={player.energyCounters} />
-            {interaction.isDivideTarget && (
-                <>
-                    {interaction.divideAssigned > 0 && (
-                        <div className="absolute -top-2 -left-2 z-40 min-w-6 h-6 px-1 rounded-full bg-red-600 ring-2 ring-white text-white text-sm font-bold flex items-center justify-center shadow-[0_0_8px_rgba(0,0,0,0.9)] pointer-events-none tabular-nums">
-                            {interaction.divideAssigned}
-                        </div>
-                    )}
-                    <DivideTargetStepper
-                        n={interaction.divideAssigned}
-                        canMinus={interaction.divideAssigned > 0}
-                        canPlus={interaction.divideCanPlus}
-                        onMinus={interaction.decDivide}
-                        onPlus={interaction.incDivide}
-                    />
-                </>
-            )}
+            {/* CR 601.2d — a divide-target player keeps its candidate ring (via
+             *  `isTargetable`) but the [−] N [+] stepper now lives inside the
+             *  divide dialog (`divide-target-list.tsx`), not on the nameplate. */}
         </div>
     );
 }

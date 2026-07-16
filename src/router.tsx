@@ -16,6 +16,7 @@ import JoinRoute from "./routes/join.route";
 import LimitedEventsRoute from "./routes/limited-events.route";
 import LimitedEventDetailRoute from "./routes/limited-event-detail.route";
 import LimitedDeckBuilderRoute from "./routes/limited-deck-builder.route";
+import PrototypeAttachmentsRoute from "./routes/prototype-attachments.route";
 
 const rootRoute = createRootRoute({
     component: () => (
@@ -115,6 +116,17 @@ const limitedDeckBuilderRoute = createRoute({
     component: LimitedDeckBuilderRoute,
 });
 
+// PROTOTYPE — throwaway route (delete with `src/components/prototype/`).
+const prototypeAttachmentsRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/prototype/attachments",
+    validateSearch: (search): { variant?: string } => {
+        const raw = search.variant;
+        return typeof raw === "string" ? { variant: raw } : {};
+    },
+    component: PrototypeAttachmentsRoute,
+});
+
 const routeTree = rootRoute.addChildren([
     indexRoute,
     decksCreateRoute,
@@ -127,6 +139,7 @@ const routeTree = rootRoute.addChildren([
     limitedEventsRoute,
     limitedEventDetailRoute,
     limitedDeckBuilderRoute,
+    prototypeAttachmentsRoute,
 ]);
 
 const router = createRouter({ routeTree });

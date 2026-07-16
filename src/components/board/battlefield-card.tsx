@@ -27,6 +27,12 @@ export type CardVisualState = {
      *  choose selection (Pyrokinesis), so it carries an on-card `[−] N [+]`
      *  stepper instead of being click-to-target. Absent ⇒ false. */
     divideTarget?: boolean;
+    /** This permanent is a legal target of the spell/ability currently choosing
+     *  targets (`pendingTarget`), so it renders the SAME accent-strong glow ring
+     *  a targetable player nameplate gets (player-nameplate.tsx) instead of a
+     *  faded Tailwind ring. A box-shadow glow can't live in `ringClass`, so it's
+     *  a separate overlay in `board-battlefield-card`. Absent ⇒ false. */
+    targetGlow?: boolean;
 };
 
 export type ActivatableAbility = {

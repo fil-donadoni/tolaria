@@ -6,6 +6,7 @@ import type { PendingTarget, Player } from "~/types/game";
 import { getDefinition } from "@convex/cards";
 import { useDraggable } from "~/hooks/useDraggable";
 import { useDivideBuffer } from "~/hooks/useDivideBuffer";
+import DivideTargetList from "./divide-target-list";
 
 const TARGET_LABEL: Record<string, string> = {
     Creature: "a creature",
@@ -149,72 +150,79 @@ export default function TargetSelectionBanner({
         >
             <div
                 {...dragHandlers}
-                className="relative flex items-center gap-3 bg-surface border border-border-subtle backdrop-blur-md rounded-sm px-5 py-3 shadow-[0_0_50px_rgba(0,0,0,0.8)] cursor-move select-none"
+                className="relative flex flex-col gap-3 bg-surface border border-border-subtle backdrop-blur-md rounded-sm px-5 py-3 shadow-[0_0_50px_rgba(0,0,0,0.8)] cursor-move select-none"
             >
                 <div className="absolute top-1.5 left-1.5 w-3 h-3 border-t border-l border-border-accent/40" />
                 <div className="absolute top-1.5 right-1.5 w-3 h-3 border-t border-r border-border-accent/40" />
                 <div className="absolute bottom-1.5 left-1.5 w-3 h-3 border-b border-l border-border-accent/40" />
                 <div className="absolute bottom-1.5 right-1.5 w-3 h-3 border-b border-r border-border-accent/40" />
 
-                <div className="text-sm">
-                    <span className="font-beleren tracking-wide text-parchment">
-                        {cardName}
-                    </span>
-                    <br />
-                    <span className="text-text-muted ml-2">
-                        {divide.active
-                            ? `Divide damage — ${divide.remaining} left`
-                            : hint}
-                    </span>
-                </div>
-                {divide.active ? (
-                    // CR 601.2d — divide-as-you-choose: each target carries its
-                    // own on-card [−] N [+] stepper (dialed independently); this
-                    // "Deal damage" finalizes once the whole budget is assigned.
-                    <button
-                        type="button"
-                        disabled={
-                            isBusy || divide.isPending || !divide.canSubmit
-                        }
-                        onClick={() => void divide.submit()}
-                        className="px-3 py-1 rounded-sm text-xs font-beleren tracking-wide bg-accent-soft border border-accent text-accent-strong hover:bg-accent-soft/80 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
-                    >
-                        Deal damage
-                    </button>
-                ) : (
-                    showDone && (
+                <div className="flex items-center gap-3">
+                    <div className="text-sm">
+                        <span className="font-beleren tracking-wide text-parchment">
+                            {cardName}
+                        </span>
+                        <br />
+                        <span className="text-text-muted ml-2">
+                            {divide.active
+                                ? `Divide damage — ${divide.remaining} left`
+                                : hint}
+                        </span>
+                    </div>
+                    {divide.active ? (
+                        // CR 601.2d — divide-as-you-choose: each target below
+                        // carries its own [−] N [+] stepper (dialed independently);
+                        // this "Deal damage" finalizes once the whole budget is
+                        // assigned.
                         <button
-                            disabled={isBusy || !minReached}
-                            onClick={async () => {
-                                if (isBusy) return;
-                                setIsBusy(true);
-                                try {
-                                    await confirmTargets({ gameId, playerId });
-                                } finally {
-                                    setIsBusy(false);
-                                }
-                            }}
+                            type="button"
+                            disabled={
+                                isBusy || divide.isPending || !divide.canSubmit
+                            }
+                            onClick={() => void divide.submit()}
                             className="px-3 py-1 rounded-sm text-xs font-beleren tracking-wide bg-accent-soft border border-accent text-accent-strong hover:bg-accent-soft/80 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
                         >
-                            Done
+                            Deal damage
                         </button>
-                    )
-                )}
-                <button
-                    disabled={isBusy}
-                    onClick={async () => {
-                        if (isBusy) return;
-                        setIsBusy(true);
-                        try {
-                            await cancelTarget({ gameId, playerId });
-                        } finally {
-                            setIsBusy(false);
-                        }
-                    }}
-                    className="px-3 py-1 rounded-sm text-xs font-beleren tracking-wide bg-danger-soft border border-danger text-danger-strong hover:bg-danger-soft/80 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
-                >
-                    {isCopyRetarget ? "Keep targets" : "Cancel"}
-                </button>
+                    ) : (
+                        showDone && (
+                            <button
+                                disabled={isBusy || !minReached}
+                                onClick={async () => {
+                                    if (isBusy) return;
+                                    setIsBusy(true);
+                                    try {
+                                        await confirmTargets({
+                                            gameId,
+                                            playerId,
+                                        });
+                                    } finally {
+                                        setIsBusy(false);
+                                    }
+                                }}
+                                className="px-3 py-1 rounded-sm text-xs font-beleren tracking-wide bg-accent-soft border border-accent text-accent-strong hover:bg-accent-soft/80 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                            >
+                                Done
+                            </button>
+                        )
+                    )}
+                    <button
+                        disabled={isBusy}
+                        onClick={async () => {
+                            if (isBusy) return;
+                            setIsBusy(true);
+                            try {
+                                await cancelTarget({ gameId, playerId });
+                            } finally {
+                                setIsBusy(false);
+                            }
+                        }}
+                        className="px-3 py-1 rounded-sm text-xs font-beleren tracking-wide bg-danger-soft border border-danger text-danger-strong hover:bg-danger-soft/80 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                    >
+                        {isCopyRetarget ? "Keep targets" : "Cancel"}
+                    </button>
+                </div>
+                {divide.active && <DivideTargetList />}
             </div>
         </div>
     );

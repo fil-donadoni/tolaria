@@ -200,17 +200,21 @@ describe("BoardBattlefieldCard visual state + anchors (#256)", () => {
         expect(container.querySelector(".bg-black\\/40")).toBeTruthy();
     });
 
-    it("applies the legal-target highlight ring from the visual state", () => {
-        // During target selection getVisualState supplies a soft target ring.
+    it("renders the accent-strong glow overlay for a legal target (matching a targetable player nameplate)", () => {
+        // During target selection getVisualState sets targetGlow so the
+        // permanent reads the SAME accent-strong glow ring a targetable player
+        // nameplate gets — a box-shadow overlay, not a ringClass.
         const vs: CardVisualState = {
             ...NEUTRAL_VS,
             interactive: true,
             enabled: true,
-            ringClass: "ring-2 ring-accent/50 rounded-sm",
+            targetGlow: true,
         };
         const { container } = renderCard(makeCreature(), vs);
-        const ringed = container.querySelector('[class*="ring-accent/50"]');
-        expect(ringed).toBeTruthy();
+        const glow = container.querySelector(
+            '[style*="--color-accent-strong"]'
+        );
+        expect(glow).toBeTruthy();
     });
 });
 

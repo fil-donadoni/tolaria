@@ -311,15 +311,18 @@ describe("useBattlefieldVisualState — multi-target selected ring is green", ()
         );
     });
 
-    it("a still-valid unpicked target keeps the faded-gold candidate ring", () => {
+    it("a still-valid unpicked target gets the accent-strong glow (matching a targetable player nameplate), not a ringClass", () => {
         const c1 = creature({ id: "c1", isSummoningSick: false });
         const c2 = creature({ id: "c2", isSummoningSick: false });
         const me = makePlayer("me", [c1, c2]);
         const { result } = renderVisualState(me, ctxSelectingCreatures());
 
-        expect(result.current.getVisualState(c2).ringClass).toBe(
-            "ring-2 ring-accent/50 rounded-sm"
-        );
+        const vs = result.current.getVisualState(c2);
+        // A legal-but-unpicked target reads with the same accent-strong glow a
+        // targetable player nameplate gets — rendered as a box-shadow overlay
+        // (targetGlow), not a Tailwind ring class.
+        expect(vs.targetGlow).toBe(true);
+        expect(vs.ringClass).toBe("");
     });
 });
 

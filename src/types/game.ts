@@ -47,6 +47,12 @@ export interface Player {
      *  active (CR 401.4) — the looked-at top cards rendered face-up. Used by
      *  reorder-library and by Aladdin's Lamp's `draw-look-keep` (keep one). */
     libraryPeek?: CardInstance[];
+    /** Set only on the hand owner's player while a `reveal-hand` look choice is
+     *  active (CR 401.4 / 701.18a — Gitaxian Probe's private look) — the owner's
+     *  hand rendered face-up to the single chooser. Independent of `hand` (which
+     *  stays the sparse ADR 0026 shape) so the wire shape is stable for all other
+     *  consumers; the `RevealHandView` pile reads it. */
+    revealedHand?: CardInstance[];
     graveyard: CardInstance[];
     exile: CardInstance[];
     battlefield: CardInstance[];

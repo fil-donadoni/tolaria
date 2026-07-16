@@ -1,9 +1,8 @@
-/** On-card `[−] N [+]` dial for divide-as-you-choose damage (CR 601.2d, ADR
- *  0007 semantic tokens). Rendered over each legal target while a divide
- *  selection is active (Pyrokinesis / Fire Covenant): the player sets each
- *  target's share independently. Styled after the target-selection-banner
- *  stepper; `stopPropagation` so a tap on the dial never falls through to the
- *  card's own click handler. */
+/** `[−] N [+]` dial for divide-as-you-choose damage (CR 601.2d, ADR 0007
+ *  semantic tokens). Rendered inline in the divide dialog beneath each legal
+ *  target (Pyrokinesis / Fire Covenant): the player sets each target's share
+ *  independently. `stopPropagation` so a tap on the dial never falls through to
+ *  the dialog's drag handler. */
 export default function DivideTargetStepper({
     n,
     canMinus,
@@ -25,7 +24,7 @@ export default function DivideTargetStepper({
     };
     return (
         <div
-            className="absolute -bottom-4 left-1/2 -translate-x-1/2 z-40 flex items-center gap-1.5 bg-surface-2 border border-border-subtle rounded-full px-1.5 py-1 shadow-[0_6px_16px_rgba(0,0,0,0.5)]"
+            className="flex items-center gap-1.5 bg-surface-2 border border-border-subtle rounded-full px-1.5 py-1 shadow-[0_6px_16px_rgba(0,0,0,0.5)]"
             onClick={(e) => e.stopPropagation()}
         >
             <button

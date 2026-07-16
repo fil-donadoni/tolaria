@@ -209,6 +209,14 @@ export default function PendingChoicePrompt({
         return null;
     }
 
+    // A `reveal-hand` look (CR 401.4 / 701.18a — Gitaxian Probe / Glasses of
+    // Urza) for the CHOOSER owns its own modal picker (`RevealHandView`, mounted
+    // by the board), which shows the target's hand face-up as a CardsPile grid +
+    // a Done ack. Suppress this generic "Reveal" banner so it doesn't double up
+    // with the pile modal. The non-chooser falls through to the "Waiting for X"
+    // line below.
+    if (isChooser && choice.kind === "reveal-hand") return null;
+
     return (
         <div
             className="absolute top-1/2 left-1/2 z-100 pointer-events-none"
