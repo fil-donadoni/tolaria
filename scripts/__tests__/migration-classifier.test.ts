@@ -775,14 +775,24 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // X-only unchanged (14), Op-blocked unchanged (227). Partition:
         // 453+14+227=694.
         //
-        // #700 (planeswalker/loyalty framework, ADR 0058 — Karn/Liliana
-        // tracers) ADDED one loyalty `resolve()` closure: a tracer
-        // planeswalker's loyalty ability resolves via a card-level closure,
-        // Op-blocked (no loyalty-ability Op vocabulary yet — the framework
-        // ships `cost.loyalty` + damage→loyalty + the 0-loyalty SBA, not a
-        // migratable effect Op). Net: total 694→695, Op-blocked 227→228,
-        // FREE/AFK-ready/X-only unchanged (453/415/14). Partition:
-        // 453+14+228=695.
+        // Two Op-blocked closures land across the cross-merged branches, each
+        // measured from a 694 base that already contained the other (feat and
+        // main cross-merged), so the merged catalogue settles at 695 — not 696:
+        //
+        //  * #700 (planeswalker/loyalty framework, ADR 0058 — Karn/Liliana
+        //    tracers): one loyalty `resolve()` closure. A tracer planeswalker's
+        //    loyalty ability resolves via a card-level closure, Op-blocked (no
+        //    loyalty-ability Op vocabulary yet — the framework ships
+        //    `cost.loyalty` + damage→loyalty + the 0-loyalty SBA, not a
+        //    migratable effect Op).
+        //  * Endurance (issue #1207 — the MH2 "choose up to one player: they put
+        //    their graveyard on the bottom of their library" incarnation): one
+        //    `resolve()` closure (its trigger-time `choose-player` +
+        //    `putGraveyardOnBottomOfLibrary` body). That primitive is still
+        //    UNCOVERED by any Op, so the closure buckets Op-blocked.
+        //
+        // Merged net: total 694→695, Op-blocked 227→228, FREE/AFK-ready/X-only
+        // unchanged (453/415/14). Partition: 453+14+228=695.
         expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(695);
         expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(453);
         expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(415);

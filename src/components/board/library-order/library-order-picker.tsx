@@ -213,7 +213,11 @@ export default function LibraryOrderPicker({
         // most `topCap` cards. A HAND→top drag into an already-full top is
         // rejected (the card stays in HAND); a within-top reorder still works
         // because `top0` excludes the dragged card, so its length is under cap.
-        if (topCap !== undefined && destZone === "top" && top0.length >= topCap) {
+        if (
+            topCap !== undefined &&
+            destZone === "top" &&
+            top0.length >= topCap
+        ) {
             destZone = "second";
         }
         const destArr = destZone === "second" ? second0 : top0;
@@ -261,7 +265,7 @@ export default function LibraryOrderPicker({
                 dropIndex: number;
             },
         };
-    }, [drag, top, second, hasSecond, detached]);
+    }, [drag, top, second, hasSecond, detached, topCap]);
 
     // ---- Gesture (mirrors the hand's activation feel; no cast branch) ----
     const onPointerDown = useCallback(

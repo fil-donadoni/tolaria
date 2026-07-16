@@ -1377,6 +1377,10 @@ export const OP_EXECUTORS: {
             kind: "choose-hand-card",
             zone: "hand",
             count: clamped,
+            // Client-routing hint (UI only): mount the ordered HAND→TOP drag
+            // picker. The ordered picks ARE the resulting top order (last =
+            // topmost), applied below via `moveHandCardToLibraryTop`.
+            putOnTop: true,
             prompt:
                 op.prompt ??
                 `Choose ${clamped} card(s) to put on top of your library (last picked ends up on top).`,

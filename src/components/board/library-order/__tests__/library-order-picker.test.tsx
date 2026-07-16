@@ -138,4 +138,41 @@ describe("LibraryOrderPicker", () => {
         fireEvent.click(done);
         expect(onConfirm).not.toHaveBeenCalled();
     });
+
+    // putBack mode (Brainstorm, CR 401.4): HAND (left, pool) / TOP OF LIBRARY
+    // (right, exactly `keep` on top). Cards start in the HAND zone.
+    it("renders HAND / TOP OF LIBRARY chrome in putBack mode", () => {
+        const { getByText } = renderPicker(
+            <LibraryOrderPicker
+                lookedAt={looked}
+                destination="none"
+                prompt="Brainstorm"
+                submitting={false}
+                putBack={{ keep: 2 }}
+                onConfirm={vi.fn()}
+            />
+        );
+        expect(getByText("HAND")).toBeTruthy();
+        expect(getByText("TOP OF LIBRARY")).toBeTruthy();
+    });
+
+    it("putBack mode gates Done until exactly `keep` cards are on top", () => {
+        // Every card starts in the HAND (left) zone; with keep = 2 and nothing
+        // placed on top yet, Done is disabled and must not submit.
+        const onConfirm = vi.fn();
+        const { getByText } = renderPicker(
+            <LibraryOrderPicker
+                lookedAt={looked}
+                destination="none"
+                prompt="Brainstorm"
+                submitting={false}
+                putBack={{ keep: 2 }}
+                onConfirm={onConfirm}
+            />
+        );
+        const done = getByText("Done") as HTMLButtonElement;
+        expect(done.disabled).toBe(true);
+        fireEvent.click(done);
+        expect(onConfirm).not.toHaveBeenCalled();
+    });
 });
