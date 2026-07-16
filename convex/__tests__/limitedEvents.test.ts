@@ -39,7 +39,11 @@ import {
     resolvePoolFromEvent,
 } from "../limited/poolResolution";
 import { upsertPoolArrangementEntry } from "../limited/poolArrangement";
-import { getRuntimeBoosterConfig, isDraftableSet } from "../limited/registry";
+import {
+    getBoosterConfig,
+    getRuntimeBoosterConfig,
+    isDraftableSet,
+} from "../limited/registry";
 
 const resolveCardMeta: ResolveCardMeta = (scryfallId) => {
     const def = tryGetDefinition(scryfallId);
@@ -195,9 +199,7 @@ describe("Limited Event: create → join → start → pools exist (PRD #1107)",
             makeRng(99)
         );
 
-        expect(seededSeats.every((s) => (s.pool?.length ?? 0) > 0)).toBe(
-            true
-        );
+        expect(seededSeats.every((s) => (s.pool?.length ?? 0) > 0)).toBe(true);
         for (const seat of seededSeats) {
             for (const card of seat.pool!) {
                 // The runtime drop (ADR 0059, `getRuntimeBoosterConfig`) means
@@ -1242,8 +1244,16 @@ describe("Limited Event Pool Arrangement (ADR 0060, issue #1247): setPoolArrange
                     userId: "user1",
                     nickname: "Alice",
                     pool: [
-                        { scryfallId: "s1", cardId: "c1", cardName: "Card One" },
-                        { scryfallId: "s2", cardId: "c2", cardName: "Card Two" },
+                        {
+                            scryfallId: "s1",
+                            cardId: "c1",
+                            cardName: "Card One",
+                        },
+                        {
+                            scryfallId: "s2",
+                            cardId: "c2",
+                            cardName: "Card Two",
+                        },
                     ],
                 },
                 {
@@ -1314,9 +1324,7 @@ describe("Limited Event Pool Arrangement (ADR 0060, issue #1247): setPoolArrange
 
         const aliceView = projectLimitedEvent(event, "user1");
         const aliceOwn = aliceView.seats.find((s) => s.seatIndex === 0)!;
-        expect(aliceOwn.poolArrangement).toEqual([
-            { poolIndex: 0, column: 3 },
-        ]);
+        expect(aliceOwn.poolArrangement).toEqual([{ poolIndex: 0, column: 3 }]);
 
         const bobView = projectLimitedEvent(event, "user2");
         const aliceFromBob = bobView.seats.find((s) => s.seatIndex === 0)!;
@@ -1438,9 +1446,9 @@ describe("Limited Event Selected Card (ADR 0060, issue #1248): selectDraftPick's
 
     it("rejects a pickId not present in the caller's current pack (stale/forged selection)", () => {
         const event = draftEventWithPack();
-        expect(() =>
-            applySelectDraftPick(event, "user1", "r0-p0-c99")
-        ).toThrow(/not in your current pack/);
+        expect(() => applySelectDraftPick(event, "user1", "r0-p0-c99")).toThrow(
+            /not in your current pack/
+        );
     });
 
     it("rejects a caller with no Seat in the event", () => {
@@ -1455,9 +1463,9 @@ describe("Limited Event Selected Card (ADR 0060, issue #1248): selectDraftPick's
             ...draftEventWithPack(),
             type: "sealed",
         };
-        expect(() =>
-            applySelectDraftPick(sealed, "user1", "r0-p0-c0")
-        ).toThrow(/not a Draft/);
+        expect(() => applySelectDraftPick(sealed, "user1", "r0-p0-c0")).toThrow(
+            /not a Draft/
+        );
     });
 
     it("privacy: selectedPickId is visible ONLY to its own seat's viewer through projectLimitedEvent — never another seat's", () => {
