@@ -23,6 +23,7 @@ import type {
     DamageReplacementEvent,
     DestroyReplacementEvent,
     DiscardReplacementEvent,
+    EntersBattlefieldReplacementEvent,
     GraveyardBoundReplacementEvent,
     LifeChangeReplacementEvent,
     LoseGameReplacementEvent,
@@ -555,6 +556,48 @@ export function applyGraveyardRedirectCounters(
         counters[type] = (counters[type] ?? 0) + count;
     }
     if (Object.keys(counters).length > 0) card.counters = counters;
+}
+
+/** Runs CR 614 enters-the-battlefield replacements (issue #1148) — "If a
+ *  nontoken creature would enter and it wasn't cast, exile it instead"
+ *  (Containment Priest). Like `applyGraveyardBoundReplacements`, this event
+ *  never fully cancels: a permanent that would enter always ends up
+ *  somewhere, so a matching replacement rewrites `event.destination` to
+ *  `"exile"` rather than returning `{kind:"consumed"}`. Always returns a
+ *  non-null event; the `?? event` fallback only guards a replacement author
+ *  misusing `"consumed"` on this event kind (a contract violation caught by
+ *  validation/tests, not expected at runtime). */
+export function applyEnterBattlefieldReplacements(
+    state: GameState,
+    event: EntersBattlefieldReplacementEvent
+): EntersBattlefieldReplacementEvent {
+    const result = applyReplacementsLoop(state, "enters-battlefield", event);
+    return (result as EntersBattlefieldReplacementEvent | null) ?? event;
+}
+
+/** Convenience wrapper around `applyEnterBattlefieldReplacements` for the
+ *  zone-change chokepoints (cast-resolution `finalizeSpellResolution`,
+ *  reanimation/tutor/hand-cheat via `stageReanimatedOnBattlefield`, token
+ *  creation via `createToken`) that only need the resolved destination, not
+ *  the full event shape. */
+export function enterBattlefieldDestinationFor(
+    state: GameState,
+    card: { id: string; ownerId: string; types: ReadonlyArray<CardType> },
+    controllerId: string,
+    isToken: boolean,
+    wasCast: boolean
+): "battlefield" | "exile" {
+    const result = applyEnterBattlefieldReplacements(state, {
+        kind: "enters-battlefield",
+        cardInstanceId: card.id,
+        ownerId: card.ownerId,
+        controllerId,
+        isToken,
+        wasCast,
+        types: card.types,
+        destination: "battlefield",
+    });
+    return result.destination;
 }
 
 /** Public helper for resolving a damage source's identity at the moment a

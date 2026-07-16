@@ -87,6 +87,7 @@ import {
     applyTapReplacements,
     applyTransientDamageRedirections,
     describeDamageSource,
+    enterBattlefieldDestinationFor,
     graveyardDestinationFor,
 } from "./replacements";
 import { collectTriggers, placeTriggersOnStack } from "./triggers";
@@ -3595,6 +3596,27 @@ function finalizeSpellResolution(
             sendStackItemToGraveyard(state, item);
             return;
         }
+        // CR 614 (issue #1148) — Containment Priest-style replacement: "If a
+        // nontoken creature would enter and it wasn't cast, exile it
+        // instead." A CAST creature always passes `wasCast: true` here, so
+        // this call only matters for a hypothetical future replacement
+        // unrelated to cast-origin — no shipped card redirects a cast
+        // permanent via this event today. Consulted here for architectural
+        // completeness/parity with the non-cast callsite
+        // (`stageReanimatedOnBattlefield`) and token creation
+        // (`createToken`).
+        const enterDestination = enterBattlefieldDestinationFor(
+            state,
+            { id: item.id, ownerId: item.ownerId, types: item.types },
+            item.castById,
+            false,
+            true
+        );
+        if (enterDestination === "exile") {
+            item.zone = "exile";
+            getPlayer(state, item.ownerId).exile.push(item);
+            return;
+        }
         // CR 303.4: an Aura enters the battlefield attached to its target.
         // CR 608.2b: re-check target legality at resolution; if illegal, the
         // aura fizzles to the graveyard (CR 303.4i) instead of entering play.
@@ -6321,6 +6343,26 @@ function stageReanimatedOnBattlefield(
         getPlayer(state, card.ownerId).graveyard.push(card);
         return false;
     }
+    // CR 614 (issue #1148) — Containment Priest-style replacement: "If a
+    // nontoken creature would enter and it wasn't cast, exile it instead."
+    // This is the shared non-cast chokepoint (reanimation, library/hand
+    // tutor-to-battlefield, the graveyard-set batch path), so every one of
+    // those call sites passes `wasCast: false` here. A redirected permanent
+    // never touches the battlefield — none of the ETB machinery below runs.
+    const enterDestination = enterBattlefieldDestinationFor(
+        state,
+        { id: card.id, ownerId: card.ownerId, types: card.types },
+        controllerId,
+        card.isToken === true,
+        false
+    );
+    if (enterDestination === "exile") {
+        resetBattlefieldTransientState(card);
+        card.zone = "exile";
+        card.attachedTo = undefined;
+        getPlayer(state, card.ownerId).exile.push(card);
+        return false;
+    }
     // CR 400.7 — zone change creates a new object: clear battlefield-only
     // transient state. Then re-establish the fresh-permanent defaults.
     resetBattlefieldTransientState(card);
@@ -8837,6 +8879,31 @@ export function buildSpellContext(
                     // recover +1/+1 counters).
                     ...(createdBy ? { createdBy } : {}),
                 };
+                // CR 614 (issue #1148) — enters-the-battlefield replacement
+                // chokepoint. `isToken: true` here: Containment Priest's own
+                // "nontoken creature" clause exempts every token regardless
+                // of `wasCast`, so this branch is unreachable by any shipped
+                // card today — kept for architectural parity with the
+                // non-cast (`stageReanimatedOnBattlefield`) and cast
+                // (`finalizeSpellResolution`) chokepoints in case a future
+                // replacement targets token entries specifically.
+                const enterDestination = enterBattlefieldDestinationFor(
+                    state,
+                    {
+                        id: token.id,
+                        ownerId: token.ownerId,
+                        types: token.types,
+                    },
+                    controllerId,
+                    true,
+                    false
+                );
+                if (enterDestination === "exile") {
+                    token.zone = "exile";
+                    owner.exile.push(token);
+                    ids.push(id);
+                    continue;
+                }
                 // CR 614.1c + 110.5b — Kismet-style replacement taps an
                 // opponent-controlled artifact/creature/land token as it enters.
                 if (shouldEnterTapped(state, token)) token.isTapped = true;
