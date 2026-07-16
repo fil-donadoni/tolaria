@@ -104,7 +104,6 @@ function makeUpkeepPayOrElse(args: {
 //   • End-of-combat destroy of blocking-or-blocked-by — Kjeldoran Frostbeast
 //     (same delayed end-of-combat combat-relationship trigger flagged for
 //     Venomous Breath).
-//   • Choose-colour-on-ETB + dynamic protection swap — Chromatic Armor.
 //   • Specialized statics / triggers — Earthlink (dies → sac a land), Ghostly
 //     Flame (colourless-damage-source static), Monsoon (per-player end-step
 //     Island tap + damage), Mountain Titan (cast-trigger counter grant),
@@ -196,25 +195,123 @@ export const centaurArcher: CardDefinition = {
 };
 // DEFERRED (#734): the colour-keyed all-damage prevention shield itself now
 // ships (Prismatic Ward — a `replacementEffects[]` damage shield reading the
-// stored `chosenModeId` colour). What still blocks Chromatic Armor is its
-// SECOND clause: "{X}: Put a sleight counter on this Aura and choose a color. X
-// is the number of sleight counters on this Aura." That needs two primitives
-// that don't exist: (a) a variable generic activation cost equal to a permanent's
-// counter count, and (b) a way to RE-CHOOSE and MUTATE the stored colour
-// (`chosenModeId`) post-ETB via an activated ability (with the attendant colour
-// picker). Shipping the shield without the re-choose would be a knowingly
-// different card, so the whole definition stays a tracked stub — stop-and-issue
-// on the uncensused re-choose primitive rather than invent it.
-// export const chromaticArmor: CardDefinition = {
-//     id: "2657e85b-8f77-41fa-9df2-233443efef43",
-//     name: "Chromatic Armor",
-//     rarity: "rare",
-//     oracleText: "Enchant creature\nAs this Aura enters, choose a color.\nThis Aura enters with a sleight counter on it.\nPrevent all damage that would be dealt to enchanted creature by sources of the last chosen color.\n{X}: Put a sleight counter on this Aura and choose a color. X is the number of sleight counters on this Aura.",
-//     manaCost: { X: 1, W: 1, U: 1 },
-//     types: ["Enchantment"],
-//     subtypes: ["Aura"],
-// };
-// TODO(#628): implement.
+// stored `chosenModeId` colour). Chromatic Armor now reuses that exact shield
+// and adds its SECOND clause — "{X}: Put a sleight counter on this Aura and
+// choose a color. X is the number of sleight counters on this Aura." — on the
+// two primitives that shipped for it (#734): the `manaEqualToCounterCount`
+// dynamic activation cost (X = the source's own sleight-counter count, read at
+// announcement, CR 601.2f) and `SpellContext.setChosenMode` (re-write the host
+// Aura's `chosenModeId` post-ETB, CR 700.2c). See `chromaticArmor` below.
+
+// The five colours Chromatic Armor's warded-colour picker offers, at ETB (the
+// modal `chosenModeId` pick) and via the re-choose activated ability. Mirrors
+// Prismatic Ward's WARD_COLORS (`ice/white.ts`) — kept local rather than
+// exported since only these two ICE shields use it.
+const CHROMATIC_ARMOR_COLORS = ["W", "U", "B", "R", "G"] as const;
+const CHROMATIC_ARMOR_COLOR_NAMES: Record<string, string> = {
+    W: "white",
+    U: "blue",
+    B: "black",
+    R: "red",
+    G: "green",
+};
+
+// Chromatic Armor — {1}{W}{U} Aura. "Enchant creature. As this Aura enters,
+// choose a color. This Aura enters with a sleight counter on it. Prevent all
+// damage that would be dealt to enchanted creature by sources of the last
+// chosen color. {X}: Put a sleight counter on this Aura and choose a color. X
+// is the number of sleight counters on this Aura." (CR 700.2c the warded colour
+// is a modal pick stored as `chosenModeId`; CR 122.1 the ETB sleight counter;
+// CR 615 the continuous, source-colour-filtered, ALL-damage prevention shield
+// on the Aura's HOST — the SAME `replacementEffects[]` seam as Prismatic Ward,
+// running at every damage site (combat and non-combat); CR 601.2f the {X}
+// re-choose whose X is fixed by the source's own sleight-counter count.)
+export const chromaticArmor: CardDefinition = {
+    id: "2657e85b-8f77-41fa-9df2-233443efef43",
+    name: "Chromatic Armor",
+    rarity: "rare",
+    oracleText:
+        "Enchant creature\nAs this Aura enters, choose a color.\nThis Aura enters with a sleight counter on it.\nPrevent all damage that would be dealt to enchanted creature by sources of the last chosen color.\n{X}: Put a sleight counter on this Aura and choose a color. X is the number of sleight counters on this Aura.",
+    manaCost: { X: 1, W: 1, U: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Creature", count: 1 },
+    // CR 700.2c — the initial warded colour is chosen as the Aura enters,
+    // stored as `chosenModeId` ("W"/"U"/"B"/"R"/"G") on the instance.
+    modes: CHROMATIC_ARMOR_COLORS.map((color) => ({
+        id: color,
+        label: CHROMATIC_ARMOR_COLOR_NAMES[color],
+        oracleText: `Prevent all damage dealt to enchanted creature by ${CHROMATIC_ARMOR_COLOR_NAMES[color]} sources.`,
+    })),
+    // CR 122.1 — "This Aura enters with a sleight counter on it." Seeds the
+    // {X} re-choose cost at 1 (X = sleight-counter count).
+    entersWith: { counters: [{ type: "sleight", count: 1 }] },
+    // CR 615 — the SAME colour-filtered ALL-damage prevention shield as
+    // Prismatic Ward (`ice/white.ts`): a `replacementEffects[]` entry with
+    // `eventKind: "damage"` that consumes any damage to the Aura's host
+    // (`self.attachedTo`) from a source whose colours include the LAST chosen
+    // colour (`self.chosenModeId`, updated by the re-choose ability). The
+    // replacement pipeline runs at every damage site (combat and non-combat).
+    replacementEffects: [
+        {
+            id: "chromatic-armor-shield",
+            oracleText:
+                "Prevent all damage that would be dealt to enchanted creature by sources of the last chosen color.",
+            eventKind: "damage",
+            appliesTo: (event, self) => {
+                if (event.kind !== "damage") return false;
+                if (self.attachedTo === undefined) return false;
+                if (event.target.type !== "permanent") return false;
+                if (event.target.id !== self.attachedTo) return false;
+                const color = self.chosenModeId;
+                if (color === undefined) return false;
+                return event.sourceColors.includes(color as Color);
+            },
+            // CR 615 — prevent the damage: consuming the event means it is
+            // never dealt.
+            replace: () => ({ kind: "consumed" }),
+        },
+    ],
+    activatedAbilities: [
+        {
+            id: "chromatic-armor-recolor",
+            oracleText:
+                "{X}: Put a sleight counter on this Aura and choose a color. X is the number of sleight counters on this Aura.",
+            // CR 601.2f — X is FIXED by board state (the source's own sleight
+            // counters at announcement), not a player-chosen {X}: each
+            // successive activation costs one more (1 → {1}, then {2}, …).
+            cost: { manaEqualToCounterCount: { type: "sleight" } },
+            useStack: true,
+            // protocol card: re-choosing a modal colour and MUTATING the host
+            // Aura's stored `chosenModeId` post-ETB (CR 700.2c) is not
+            // expressible by the current Op vocabulary — no Op writes a
+            // permanent's persistent modal state. Uses the shipped
+            // `setChosenMode` primitive; the colour lookup stays data (the
+            // Prismatic-Ward shield above reads the new `chosenModeId`).
+            resolve: (ctx: SpellContext) => {
+                // Suspend for the colour pick FIRST — nothing is mutated until
+                // the pick is stored, so on replay `addCounter` runs exactly
+                // once (CR 608.3 — a re-run must not double the counter).
+                const chosen = ctx.requestOptionChoice({
+                    playerId: ctx.controller,
+                    choiceId: "chromatic-armor-recolor",
+                    options: CHROMATIC_ARMOR_COLORS.map((c) => ({
+                        id: c,
+                        label: CHROMATIC_ARMOR_COLOR_NAMES[c],
+                    })),
+                    prompt: "Choose a color (Chromatic Armor)",
+                });
+                if (chosen === undefined) return; // suspended for the pick
+                ctx.addCounter(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    "sleight",
+                    1
+                );
+                ctx.setChosenMode(ctx.sourceInstanceId, chosen);
+            },
+        },
+    ],
+};
 // Diabolic Vision — "Look at the top five cards of your library. Put one of
 // them into your hand and the rest on top of your library in any order." (CR
 // 401 library peek/reorder, CR 121 to hand.) Composition: peek the top five

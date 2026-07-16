@@ -31,6 +31,9 @@ import {
     fumarole,
     floodedWoodlands,
     reclamation,
+    chromaticArmor,
+    knightOfStromgald,
+    seaSpirit,
 } from "../../ice";
 import { mountain, grizzlyBears, scatheZombies } from "../../lea";
 import { collectAttackSacrificeTax } from "../../../../gre/combat";
@@ -44,7 +47,8 @@ import {
 import type { PermanentFilter } from "../../../filters";
 import { isLand } from "../../../../gre/constants";
 import { getDefinition, getCardByName } from "../../../index";
-import { resolveTopOfStack } from "../../../../gre/state";
+import { resolveTopOfStack, runDamageReplacement } from "../../../../gre/state";
+import { resolveAbilityManaCost } from "../../../../game";
 import { describeDamageSource } from "../../../../gre/replacements";
 import {
     getEffectivePower,
@@ -1605,5 +1609,187 @@ describe("Reclamation (CR 508.1c/1g — black-creature attack tax, #733)", () =>
         expect(
             state.players[0].battlefield.filter((c) => isLand(c)).length
         ).toBe(1);
+    });
+});
+
+// Chromatic Armor (#734) — the Prismatic-Ward colour shield PLUS a re-choosable
+// warded colour via a sleight-counter-scaled {X} ability. Reuses the shipped
+// `chosenModeId` shield seam + the new `setChosenMode` / `manaEqualToCounterCount`
+// primitives.
+describe("Chromatic Armor (re-choosable colour shield, CR 615 / 700.2c / 601.2f)", () => {
+    function setup(chosenColor: string, sleight = 1) {
+        const host = vanilla("host", 2, 2, {
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const aura = makeInstance(chromaticArmor.id, {
+            id: "armor",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "host",
+            chosenModeId: chosenColor,
+            counters: { sleight },
+        });
+        // A black source ({B}{B}) and a blue source to fire damage from (CR
+        // 202.2 — colours are read off the source's mana cost).
+        const blackSrc = makeInstance(knightOfStromgald.id, {
+            id: "black-src",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const blueSrc = makeInstance(seaSpirit.id, {
+            id: "blue-src",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [host, aura] }),
+                makePlayer("p2", { battlefield: [blackSrc, blueSrc] }),
+            ],
+        });
+        return { state };
+    }
+
+    it("has an Enchant creature target requirement and five colour modes", () => {
+        expect(chromaticArmor.targetRequirement?.type).toBe("Creature");
+        expect((chromaticArmor.modes ?? []).map((m) => m.id)).toEqual([
+            "W",
+            "U",
+            "B",
+            "R",
+            "G",
+        ]);
+    });
+
+    it("enters with a sleight counter (CR 122.1)", () => {
+        expect(chromaticArmor.entersWith?.counters).toEqual([
+            { type: "sleight", count: 1 },
+        ]);
+    });
+
+    it("prevents all damage to the host from the chosen colour, not others (CR 615)", () => {
+        const { state } = setup("B");
+        // Black source → prevented (event consumed).
+        expect(
+            runDamageReplacement(
+                state,
+                "black-src",
+                "p2",
+                { type: "permanent", id: "host" },
+                3,
+                false
+            )
+        ).toBeNull();
+        // Blue source → lands unmodified.
+        const fresh = setup("B").state;
+        expect(
+            runDamageReplacement(
+                fresh,
+                "blue-src",
+                "p2",
+                { type: "permanent", id: "host" },
+                3,
+                false
+            )?.amount
+        ).toBe(3);
+    });
+
+    it("prevents combat damage too, not just spell/ability damage", () => {
+        const { state } = setup("B");
+        expect(
+            runDamageReplacement(
+                state,
+                "black-src",
+                "p2",
+                { type: "permanent", id: "host" },
+                2,
+                true
+            )
+        ).toBeNull();
+    });
+
+    it("the {X} ability adds a sleight counter and RE-CHOOSES the warded colour (CR 700.2c)", () => {
+        const { state } = setup("B", 1);
+        const aura = state.players[0].battlefield.find((c) => c.id === "armor")!;
+        // Activate the re-choose ability; resolution suspends at the colour pick.
+        resolveActivated(state, aura, "chromatic-armor-recolor");
+        expect(state.pendingChoices?.[0]?.kind).toBe("option-pick");
+        // Choose blue.
+        submitChoice(state, ["U"]);
+        const after = state.players[0].battlefield.find(
+            (c) => c.id === "armor"
+        )!;
+        // Sleight counter incremented 1 → 2 and warded colour is now blue.
+        expect(after.counters?.sleight).toBe(2);
+        expect(after.chosenModeId).toBe("U");
+        // The shield now prevents BLUE and lets BLACK through.
+        expect(
+            runDamageReplacement(
+                state,
+                "blue-src",
+                "p2",
+                { type: "permanent", id: "host" },
+                3,
+                false
+            )
+        ).toBeNull();
+        expect(
+            runDamageReplacement(
+                state,
+                "black-src",
+                "p2",
+                { type: "permanent", id: "host" },
+                3,
+                false
+            )?.amount
+        ).toBe(3);
+    });
+
+    it("the {X} cost equals the source's sleight-counter count (CR 601.2f)", () => {
+        const ability = chromaticArmor.activatedAbilities![0];
+        // 1 sleight counter → {1} (generic total stored under the `X` key).
+        const s1 = setup("B", 1).state;
+        const aura1 = s1.players[0].battlefield.find((c) => c.id === "armor")!;
+        expect(resolveAbilityManaCost(s1, aura1, ability)).toEqual({ X: 1 });
+        // 3 sleight counters → {3}.
+        const s3 = setup("B", 3).state;
+        const aura3 = s3.players[0].battlefield.find((c) => c.id === "armor")!;
+        expect(resolveAbilityManaCost(s3, aura3, ability)).toEqual({ X: 3 });
+    });
+
+    it("wire format: the colour shield survives projectPublicState", () => {
+        const projected = projectPublicState(
+            setup("B").state,
+            1,
+            "p1"
+        ) as unknown as GameState;
+        // Black source still prevented after the projection strips card.card.
+        expect(
+            runDamageReplacement(
+                projected,
+                "black-src",
+                "p2",
+                { type: "permanent", id: "host" },
+                3,
+                false
+            )
+        ).toBeNull();
+        // Blue source still lands.
+        const fresh = projectPublicState(
+            setup("B").state,
+            1,
+            "p1"
+        ) as unknown as GameState;
+        expect(
+            runDamageReplacement(
+                fresh,
+                "blue-src",
+                "p2",
+                { type: "permanent", id: "host" },
+                3,
+                false
+            )?.amount
+        ).toBe(3);
     });
 });

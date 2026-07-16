@@ -679,6 +679,14 @@ function enumerateAbilityMoves(
                 manaCost[sym] = (manaCost[sym] ?? 0) + amt;
             }
         }
+        // Chromatic Armor (CR 601.2f) — "{X}: … X is the number of sleight
+        // counters": fold the source's own counter count into the affordability
+        // check so the Brain only offers the activation when it can pay.
+        if (ability.cost.manaEqualToCounterCount) {
+            const have =
+                perm.counters?.[ability.cost.manaEqualToCounterCount.type] ?? 0;
+            if (have > 0) manaCost.X = (manaCost.X ?? 0) + have;
+        }
         const tapPlan = planManaPayment(player, manaCost);
         if (tapPlan === null) continue;
 

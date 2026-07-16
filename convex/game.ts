@@ -1379,6 +1379,16 @@ export function resolveAbilityManaCost(
     const base = ability.cost.mana
         ? normalizeManaCost(ability.cost.mana, { chosenX: opts.chosenX })
         : undefined;
+    // CR 601.2f — Chromatic Armor's "{X}: … X is the number of sleight counters
+    // on this Aura": fold `card.counters[type]` generic pips onto the base. X is
+    // fixed by board state (no player choice), read at activation.
+    if (ability.cost.manaEqualToCounterCount) {
+        const have =
+            card.counters?.[ability.cost.manaEqualToCounterCount.type] ?? 0;
+        const merged: Record<string, number> = { ...(base ?? {}) };
+        if (have > 0) merged.X = (merged.X ?? 0) + have;
+        return Object.keys(merged).length > 0 ? merged : undefined;
+    }
     if (!ability.cost.manaEqualToEnchantedCreatureCost) return base;
 
     const hostId = card.attachedTo;
