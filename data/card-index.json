@@ -4248,6 +4248,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Icetill Explorer",
+        "scryfallId": "d9482aab-6ddf-48e1-84fa-b13d5ff81e69",
+        "oracleId": "109cdefd-e8cc-4ac7-b6ba-2cfdef8d780f",
+        "firstSet": "eoe"
+    },
+    {
         "name": "Icy Manipulator",
         "scryfallId": "29dc1596-a2e7-4d60-9f99-89babaef8a06",
         "oracleId": "3608f1f7-8dc5-4dd1-ae91-c830e1de9529",

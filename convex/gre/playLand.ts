@@ -146,6 +146,33 @@ export function applyPlayLandFromExile(
     return settleEnteredLand(state, player, card, willEnterTapped);
 }
 
+/** CR 305 / 305.1-analog — play a LAND from the GRAVEYARD under an
+ *  unconditional, player-wide play-from-graveyard permission (Icetill
+ *  Explorer, issue #1190; see `canPlayLandsFromGraveyard` in `rules.ts`).
+ *  Moves `cardInstanceId` from the player's graveyard to the battlefield and
+ *  runs the identical land-entry settlement as {@link applyPlayLand} /
+ *  {@link applyPlayLandFromExile}. The caller (`playCard`) has already
+ *  validated the permission and the "play" legality (land-drop count, sorcery
+ *  timing) — this function only performs the zone move + bookkeeping. Unlike
+ *  the exile path, there is no per-card grant to clear: the permission is
+ *  read live off the battlefield every time, so nothing on the card itself
+ *  needs to be consumed. */
+export function applyPlayLandFromGraveyard(
+    state: GameState,
+    player: PlayerState,
+    cardInstanceId: string
+): CardInstanceState | null {
+    const graveyardCard = player.graveyard.find((c) => c.id === cardInstanceId);
+    if (!graveyardCard) return null;
+
+    // CR 614.1c — tapped-on-entry is decided from the PRE-move board, exactly
+    // like the hand and exile play paths.
+    const willEnterTapped = shouldEnterTapped(state, graveyardCard);
+
+    const card = moveCard(player, cardInstanceId, "graveyard", "battlefield");
+    return settleEnteredLand(state, player, card, willEnterTapped);
+}
+
 /** Post-move land-entry bookkeeping (steps 2–7 of `applyPlayLand`), shared by
  *  the normal path and the land-entry-choice finalizer so a shock land and a
  *  plain land settle through byte-identical logic. Assumes `card` is already

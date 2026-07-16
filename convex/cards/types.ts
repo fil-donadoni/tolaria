@@ -7757,6 +7757,16 @@ export interface CardDefinition {
      *  is on the battlefield (CR 305.2 — Fastbond). Added to LAND_DROPS_PER_TURN
      *  at land-play legality check time. Use 999 for unlimited. */
     extraLandDrops?: number;
+    /** Unconditional, player-wide permission (CR 305.1 special action /
+     *  601.3e-analog) to play lands from the controller's own graveyard, as
+     *  though they were in hand, while ANY permanent with this flag is on the
+     *  battlefield (Icetill Explorer, issue #1190). Read live from the
+     *  battlefield (like `extraLandDrops`) via `canPlayLandsFromGraveyard`, so
+     *  the permission ends the instant the granting source leaves play — no
+     *  stale flag, no `GameState` field. Distinct from a SCOPED once-per-turn
+     *  permission granted to a specific card (Serra Paragon, issue #1149),
+     *  which is a per-instance `CardInstanceState` grant, not player-wide. */
+    playsLandsFromGraveyard?: boolean;
     /** While ANY permanent with this flag is on the battlefield, no player may
      *  play a land (CR 305.1 special action prohibition) AND a land that would
      *  enter the battlefield from any source is prevented from entering (CR 614

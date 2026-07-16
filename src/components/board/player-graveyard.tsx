@@ -12,6 +12,7 @@ import {
 } from "~/lib/card-utils";
 import CardsPile from "./cards-pile";
 import GraveyardFlashbackButton from "./graveyard-flashback-button";
+import GraveyardPlayLandButton from "./graveyard-play-land-button";
 import GraveyardActivateButton from "./graveyard-activate-button";
 import LibrarySearchConfirm from "./library-search-confirm";
 
@@ -148,13 +149,23 @@ export default function PlayerGraveyard({
                     }
                     // CR 702.34 — a card in the viewer's own graveyard with a
                     // Flashback cost (printed or granted, projected as
-                    // `legalActions`) surfaces a Flashback cast button. CR 113.6
-                    // — a card with an `activateFromGraveyard` activated ability
-                    // (Ashen Ghoul) surfaces an Activate button when the ability
-                    // is currently legal (computed client-side from the bundled
-                    // card def, same as the battlefield path). Both are
-                    // suppressed while a graveyard target/choice owns the pile so
-                    // the interactions never collide.
+                    // `legalActions` + `castKind`) surfaces a Flashback/Escape
+                    // cast button. CR 113.6 — a card with an
+                    // `activateFromGraveyard` activated ability (Ashen Ghoul)
+                    // surfaces an Activate button when the ability is
+                    // currently legal (computed client-side from the bundled
+                    // card def, same as the battlefield path). CR 305.1-analog
+                    // (issue #1190) — a LAND tagged `legalActions` with NO
+                    // `castKind` under an active play-lands-from-graveyard
+                    // permission (Icetill Explorer) surfaces a Play button
+                    // instead of the cast button — `castKind` is the
+                    // discriminant (present only for a Flashback/Escape CAST
+                    // affordance; a graveyard land's legalActions may
+                    // legitimately be `[]` while still "playable in
+                    // principle", so `legalActions.includes("play")` alone
+                    // can't tell the two apart). All are suppressed while a
+                    // graveyard target/choice owns the pile so the
+                    // interactions never collide.
                     renderCardAction={
                         player.id === playerId &&
                         !isGraveyardChoice &&
@@ -179,12 +190,23 @@ export default function PlayerGraveyard({
                                           />
                                       );
                                   }
-                                  return card.legalActions !== undefined ? (
+                                  if (card.legalActions === undefined) {
+                                      return null;
+                                  }
+                                  if (card.castKind === undefined) {
+                                      return (
+                                          <GraveyardPlayLandButton
+                                              card={card}
+                                              onCommitted={onClose}
+                                          />
+                                      );
+                                  }
+                                  return (
                                       <GraveyardFlashbackButton
                                           card={card}
                                           onCommitted={onClose}
                                       />
-                                  ) : null;
+                                  );
                               }
                             : undefined
                     }

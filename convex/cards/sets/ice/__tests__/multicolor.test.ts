@@ -1711,7 +1711,9 @@ describe("Chromatic Armor (re-choosable colour shield, CR 615 / 700.2c / 601.2f)
 
     it("the {X} ability adds a sleight counter and RE-CHOOSES the warded colour (CR 700.2c)", () => {
         const { state } = setup("B", 1);
-        const aura = state.players[0].battlefield.find((c) => c.id === "armor")!;
+        const aura = state.players[0].battlefield.find(
+            (c) => c.id === "armor"
+        )!;
         // Activate the re-choose ability; resolution suspends at the colour pick.
         resolveActivated(state, aura, "chromatic-armor-recolor");
         expect(state.pendingChoices?.[0]?.kind).toBe("option-pick");
