@@ -1,4 +1,5 @@
 import type { CardInstance, Combat, Player } from "~/types/game";
+import type { EmblemInstance } from "@convex/cards/types";
 import type { Id } from "@convex/_generated/dataModel";
 import type { ReactMutation } from "convex/react";
 import { useMutation } from "convex/react";
@@ -9,7 +10,6 @@ import {
     damageSourcesForPlayer,
 } from "~/lib/combat-graph";
 import { effectivePower } from "~/lib/effective-stats";
-import { useGameContext } from "~/hooks/useGameContext";
 
 function DamageRow({
     targetId,
@@ -95,17 +95,21 @@ export default function DamageAssignmentPanel({
     gameId,
     playerId,
     defenderId,
+    emblems,
 }: {
     combat: Combat;
     allPlayers: Player[];
     gameId: Id<"games">;
     playerId: string;
     defenderId: string;
+    // CR 114 (issue #1221) — command-zone emblems, threaded from the parent
+    // ({@link CombatPanels}, which reads game context). Folded into the
+    // effective-power budget below, matching server-side validation. Passed as
+    // a prop rather than read via context so the panel stays renderable in
+    // isolation (its other game data — combat, allPlayers — are props too).
+    emblems?: EmblemInstance[];
 }) {
     const setDamageAssignment = useMutation(api.game.setDamageAssignment);
-    // CR 114 (issue #1221) — fold owner-scoped emblem anthems into the
-    // effective-power budget below, matching server-side validation.
-    const { emblems } = useGameContext();
 
     const allCards: CardInstance[] = allPlayers.flatMap((p) => p.battlefield);
     const findCard = (id: string) => allCards.find((c) => c.id === id);
