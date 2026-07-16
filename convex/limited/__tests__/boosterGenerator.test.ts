@@ -6,11 +6,15 @@
 // engine, Bot Drafter, and generator share one seeded-PRNG convention".
 import { describe, it, expect } from "vitest";
 import leaConfigJson from "../../../data/boosters/lea.json";
+import iceConfigJson from "../../../data/boosters/ice.json";
 import { makeRng } from "../../gre/rng";
 import { generateBooster } from "../boosterGenerator";
+import { dropUnimplementedCards } from "../draftable";
+import { tryGetDefinition } from "../../cards";
 import type { BoosterConfig } from "../boosterTypes";
 
 const leaConfig = leaConfigJson as BoosterConfig;
+const iceConfig = iceConfigJson as BoosterConfig;
 
 describe("generateBooster (ADR 0055/0056)", () => {
     it("draws the exact slot counts declared by the chosen variant (LEA: 11 common + 3 uncommon + 1 rare)", () => {
@@ -79,6 +83,28 @@ describe("generateBooster (ADR 0055/0056)", () => {
         expect(() => generateBooster(bad, makeRng(1))).toThrow(
             /unknown sheet "ghost"/
         );
+    });
+
+    describe("reduced config (ADR 0059, PRD #1242 — drop-missing at runtime)", () => {
+        it("produces a full, valid pack from ICE's config with unimplemented cards dropped and weights renormalized", () => {
+            const { config: reduced, missingCardIds } =
+                dropUnimplementedCards(iceConfig);
+            // ICE isn't fully implemented — this reduced config actually
+            // exercises a drop, not a no-op.
+            expect(missingCardIds.length).toBeGreaterThan(0);
+
+            const rng = makeRng(2024);
+            for (let i = 0; i < 25; i++) {
+                const pack = generateBooster(reduced, rng);
+                expect(pack.length).toBeGreaterThan(0);
+                for (const card of pack) {
+                    // Every drawn card resolves to an implemented
+                    // CardDefinition — no placeholder ever reaches the pack.
+                    expect(tryGetDefinition(card.scryfallId)).not.toBeNull();
+                    expect(missingCardIds).not.toContain(card.scryfallId);
+                }
+            }
+        });
     });
 
     describe("weighted sampling (statistical sanity check)", () => {

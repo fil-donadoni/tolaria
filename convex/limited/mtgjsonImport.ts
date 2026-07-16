@@ -11,6 +11,7 @@
 // Draftable" test (`draftable.test.ts`) without checking in a second data
 // file for a set that isn't actually shipping as a Draftable Set yet.
 import { ADR_EXCLUDED_SCRYFALL_IDS } from "./adrExclusions";
+import { dropFromSheet } from "./sheetFiltering";
 import type {
     BoosterConfig,
     BoosterSheet,
@@ -135,8 +136,13 @@ function buildSheet(
     scryfallByUuid: Map<string, string>,
     excluded: ReadonlySet<string>
 ): BoosterSheet {
-    const cards: Record<string, number> = {};
-    let totalWeight = 0;
+    // MTGJSON UUID → Scryfall id first (merging any duplicate resulting id's
+    // weight), then the shared drop+renormalize mechanism (`sheetFiltering.ts`,
+    // ADR 0059) strips ADR-0010 exclusions — the SAME mechanism the runtime
+    // missing-card drop (`draftable.ts`'s `dropUnimplementedCards`) reuses,
+    // just with a different predicate.
+    const rawCards: Record<string, number> = {};
+    let rawTotalWeight = 0;
     for (const [uuid, weight] of Object.entries(sheet.cards)) {
         const scryfallId = scryfallByUuid.get(uuid);
         if (!scryfallId) {
@@ -144,14 +150,17 @@ function buildSheet(
                 `buildBoosterConfig: set "${setCode}" sheet "${sheetName}" references MTGJSON uuid ${uuid} with no identifiers.scryfallId`
             );
         }
-        if (excluded.has(scryfallId)) continue;
-        cards[scryfallId] = (cards[scryfallId] ?? 0) + weight;
-        totalWeight += weight;
+        rawCards[scryfallId] = (rawCards[scryfallId] ?? 0) + weight;
+        rawTotalWeight += weight;
     }
-    if (Object.keys(cards).length === 0) {
+    const { sheet: filtered } = dropFromSheet(
+        { cards: rawCards, totalWeight: rawTotalWeight },
+        (scryfallId) => excluded.has(scryfallId)
+    );
+    if (Object.keys(filtered.cards).length === 0) {
         throw new Error(
             `buildBoosterConfig: set "${setCode}" sheet "${sheetName}" is empty after stripping excluded cards`
         );
     }
-    return { cards, totalWeight };
+    return filtered;
 }

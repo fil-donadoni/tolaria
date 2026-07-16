@@ -63,6 +63,7 @@ import type { LimitedEventSeat } from "./limited/eventTypes";
 import { upsertPoolArrangementEntry } from "./limited/poolArrangement";
 import {
     getBoosterConfig,
+    getRuntimeBoosterConfig,
     isDraftableSet,
     listDraftableSets,
 } from "./limited/registry";
@@ -200,10 +201,19 @@ const limitedEventViewValidator = v.object({
     updatedAt: v.number(),
 });
 
+// Per-sheet Draftability verdict (ADR 0059, PRD #1242 AC5) — which sheet(s),
+// if any, sit below the ≥80% floor, not just the set-level boolean.
+const draftableSheetInfoValidator = v.object({
+    sheetName: v.string(),
+    coverage: v.number(),
+    passes: v.boolean(),
+});
+
 const draftableSetInfoValidator = v.object({
     setCode: v.string(),
     draftable: v.boolean(),
     missingCardCount: v.number(),
+    sheets: v.array(draftableSheetInfoValidator),
 });
 
 // Bound on the full-table scan `myLimitedEvents` does (no index can select
@@ -637,7 +647,7 @@ export const startLimitedEvent = mutation({
                 seats,
                 event.packSlots,
                 seed,
-                getBoosterConfig,
+                getRuntimeBoosterConfig,
                 resolveCardMeta,
                 timerConfig
             );
@@ -647,7 +657,7 @@ export const startLimitedEvent = mutation({
                 dealt.draftPacksRemaining,
                 event.packSlots,
                 seed,
-                getBoosterConfig,
+                getRuntimeBoosterConfig,
                 resolveCardMeta,
                 botChoosePick,
                 false,
@@ -676,7 +686,7 @@ export const startLimitedEvent = mutation({
             seats,
             event.packSlots,
             event.sealedBoosterCount ?? DEFAULT_SEALED_BOOSTER_COUNT,
-            getBoosterConfig,
+            getRuntimeBoosterConfig,
             resolveCardMeta,
             rng
         );
@@ -837,7 +847,7 @@ export const submitPick = mutation({
             seatIndex,
             args.pickId,
             event.seed,
-            getBoosterConfig,
+            getRuntimeBoosterConfig,
             resolveCardMeta,
             timerConfig
         );
@@ -853,7 +863,7 @@ export const submitPick = mutation({
             result.draftPacksRemaining,
             event.packSlots,
             event.seed,
-            getBoosterConfig,
+            getRuntimeBoosterConfig,
             resolveCardMeta,
             botChoosePick,
             result.completed,
@@ -933,7 +943,7 @@ export const autoPickSeatTimeout = internalMutation({
             args.seatIndex,
             pickId,
             event.seed,
-            getBoosterConfig,
+            getRuntimeBoosterConfig,
             resolveCardMeta,
             timerConfig
         );
@@ -943,7 +953,7 @@ export const autoPickSeatTimeout = internalMutation({
             result.draftPacksRemaining,
             event.packSlots,
             event.seed,
-            getBoosterConfig,
+            getRuntimeBoosterConfig,
             resolveCardMeta,
             botChoosePick,
             result.completed,

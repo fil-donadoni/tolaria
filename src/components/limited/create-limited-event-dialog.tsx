@@ -9,6 +9,7 @@ import {
     MIN_SEATS,
 } from "@convex/limited/eventLogic";
 import type { LimitedEventType } from "@convex/limited/eventTypes";
+import IncompletenessNotice from "./incompleteness-notice";
 
 export interface CreateLimitedEventPayload {
     type: LimitedEventType;
@@ -61,6 +62,9 @@ export default function CreateLimitedEventDialog({
 
     const resolvedSetCode = setCode ?? firstDraftable;
     const canSubmit = !pending && resolvedSetCode !== undefined;
+    const selectedSetInfo = draftableSets.find(
+        (s) => s.setCode === resolvedSetCode
+    );
 
     const handleSubmit = () => {
         if (!canSubmit || !resolvedSetCode) return;
@@ -207,6 +211,7 @@ export default function CreateLimitedEventDialog({
                             </label>
                         ))}
                     </div>
+                    <IncompletenessNotice set={selectedSetInfo} />
                 </div>
 
                 {type === "sealed" && (

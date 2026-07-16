@@ -10,7 +10,12 @@ import type { DraftableSetInfo } from "~/hooks/useLimitedEvent";
 import CreateLimitedEventDialog from "../create-limited-event-dialog";
 
 const DRAFTABLE_SETS: DraftableSetInfo[] = [
-    { setCode: "lea", draftable: true, missingCardCount: 0 },
+    {
+        setCode: "lea",
+        draftable: true,
+        missingCardCount: 0,
+        sheets: [{ sheetName: "common", coverage: 1, passes: true }],
+    },
 ];
 
 function renderDialog(
@@ -107,5 +112,67 @@ describe("CreateLimitedEventDialog — Seats bot hint (issue #1245)", () => {
         ).toBeTruthy();
         // Mentions setting the full table size for a solo draft.
         expect(screen.getByText(/solo draft/)).toBeTruthy();
+    });
+});
+
+// Incompleteness Notice (ADR 0059, PRD #1242 AC5) driven through the REAL
+// dialog render — the exact `DraftableSetInfo[]` shape `listDraftableSets`
+// (convex/limited/registry.ts) returns over the wire, not a hand-built
+// `<IncompletenessNotice>` render — per the project's frontend wiring
+// discipline (a hand-built view would mask a dropped/mis-threaded field
+// between the query result and the component prop).
+describe("CreateLimitedEventDialog — Incompleteness Notice (ADR 0059, PRD #1242 AC5)", () => {
+    const ICE_LIKE: DraftableSetInfo = {
+        setCode: "ice",
+        draftable: true,
+        missingCardCount: 42,
+        sheets: [
+            { sheetName: "common", coverage: 0.86, passes: true },
+            { sheetName: "uncommon", coverage: 0.83, passes: true },
+            { sheetName: "rare", coverage: 0.81, passes: true },
+        ],
+    };
+    const LEA_COMPLETE: DraftableSetInfo = {
+        setCode: "lea",
+        draftable: true,
+        missingCardCount: 0,
+        sheets: [
+            { sheetName: "common", coverage: 1, passes: true },
+            { sheetName: "uncommon", coverage: 1, passes: true },
+            { sheetName: "rare", coverage: 1, passes: true },
+        ],
+    };
+
+    it("shows the Notice, naming the set and its drop count, for the selected below-100% set", () => {
+        renderDialog({ draftableSets: [ICE_LIKE, LEA_COMPLETE] });
+
+        // ICE_LIKE is first in the list, so it's the default selection.
+        const notice = screen.getByRole("status");
+        expect(notice.textContent).toMatch(/Incompleteness Notice/);
+        expect(notice.textContent).toMatch(/ICE/);
+        expect(notice.textContent).toMatch(/42 cards/);
+    });
+
+    it("shows no Notice once the selected set reaches 100% (missingCardCount 0)", () => {
+        renderDialog({ draftableSets: [LEA_COMPLETE, ICE_LIKE] });
+
+        // LEA_COMPLETE is first, so it's the default selection — no Notice.
+        expect(screen.queryByRole("status")).toBe(null);
+    });
+
+    it("toggles the Notice on/off as the admin switches the Pack Source selection", () => {
+        renderDialog({ draftableSets: [LEA_COMPLETE, ICE_LIKE] });
+        expect(screen.queryByRole("status")).toBe(null);
+
+        fireEvent.click(screen.getByRole("radio", { name: /^ICE$/i }));
+        expect(screen.getByRole("status").textContent).toMatch(/ICE/);
+
+        fireEvent.click(screen.getByRole("radio", { name: /^LEA$/i }));
+        expect(screen.queryByRole("status")).toBe(null);
+    });
+
+    it("renders no Notice at all when no set is below 100% (e.g. only LEA checked in)", () => {
+        renderDialog({ draftableSets: [LEA_COMPLETE] });
+        expect(screen.queryByRole("status")).toBe(null);
     });
 });
