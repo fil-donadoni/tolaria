@@ -335,6 +335,10 @@ export default defineSchema({
         // (`convex/limited/pickTimerSchedule.ts`), never a fixed value. Draft
         // only — a Sealed event has no picks to time.
         timerEnabled: v.optional(v.boolean()),
+        // Legacy pre-#1243 field: fixed per-pick countdown, superseded by
+        // `timerEnabled` + the descending schedule. Kept only so documents
+        // written before the switch still validate; never read.
+        timerSeconds: v.optional(v.number()),
         // Draft only (issue #1112): 0-indexed current booster round —
         // `packSlots[draftRound]` is the Pack Source of the boosters in play.
         // Absent for Sealed / before a Draft starts.
