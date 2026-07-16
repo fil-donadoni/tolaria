@@ -20,18 +20,25 @@
 //     types: ["Enchantment"],
 // };
 
-// STOP-AND-ISSUE (tracked-by: #1149) — Serra Paragon: "Flying. Once during
+// STOP-AND-ISSUE (tracked-by: #1239) — Serra Paragon: "Flying. Once during
 // each of your turns, you may play a land from your graveyard or cast a
 // permanent spell with mana value 3 or less from your graveyard. If you do,
 // it gains \"When this permanent is put into a graveyard from the
-// battlefield, exile it and you gain 2 life.\"" A SCOPED (once/turn,
-// land-or-MV<=3-permanent) graveyard-cast/land-play permission has no
-// primitive or Op — flashback (`grantedFlashback`) is a per-instance grant,
-// not a player-wide "may play from graveyard" permission — and the "if you
-// do, it gains ..." clause is a RUNTIME ability grant onto the specific card
-// played this way, a second capability on top of the permission itself.
-// Vintage Cube FREE tranche, issue #686. Whole card left as one stub (both
-// clauses must land together).
+// battlefield, exile it and you gain 2 life.\"" Issue #1149 shipped the
+// BROAD, player-wide, turn-scoped graveyard-cast permission (Yawgmoth's
+// Will's `grantGraveyardPlay` Op) — deliberately NOT reused here per its own
+// design notes: Serra's grant is SCOPED (once/turn, land-or-MV<=3-permanent,
+// choice-driven) and per-INSTANCE, not a blanket player-wide flag. Two
+// capabilities still missing: (1) a scoped, once-per-turn, per-instance
+// graveyard-cast/land-play grant (mirrors the existing per-instance
+// `castableFromExileBy` exile-cast grant shape, not #1149's player-wide
+// list), and (2) the "if you do, it gains ..." clause — a RUNTIME ability
+// grant onto the SPECIFIC card played this way, conditional on it actually
+// being played (not merely permitted) — a second capability on top of the
+// permission itself, whose composition with `delayedTrigger`/`grantAbility`
+// is an open design question (see #1239 for the full notes). Vintage Cube
+// FREE tranche, issue #686. Whole card left as one stub (both clauses must
+// land together).
 // export const serraParagon: CardDefinition = {
 //     id: "ce295f1e-fb31-4275-a5d3-8c6f29afff40",
 //     name: "Serra Paragon",

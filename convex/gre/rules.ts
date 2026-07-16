@@ -91,14 +91,59 @@ export function getExtraLandDrops(player: PlayerState): number {
  *  stale flag. Distinct from a SCOPED once-per-turn permission granted to one
  *  specific graveyard card (Serra Paragon, issue #1149), which is tracked as
  *  a per-instance `CardInstanceState` grant instead. */
-export function canPlayLandsFromGraveyard(player: PlayerState): boolean {
+export function canPlayLandsFromGraveyard(
+    state: GameState,
+    player: PlayerState
+): boolean {
     for (const card of player.battlefield) {
         const cardId = (card.card as { id?: string }).id;
         if (!cardId) continue;
         const def = tryGetDefinition(cardId);
         if (def?.playsLandsFromGraveyard) return true;
     }
-    return false;
+    // CR 305.1-analog / 601 (issue #1149) — the BROAD, turn-scoped
+    // graveyard-cast/land-play permission (Yawgmoth's Will) also covers
+    // lands when its `zones` include "land" — unioned with the
+    // battlefield-derived permission above.
+    return getGraveyardPlayPermission(state, player.id)?.zones.includes(
+        "land"
+    ) ?? false;
+}
+
+/** Reads the turn-scoped, player-wide graveyard play/cast permission granted
+ *  to `playerId` by the `grantGraveyardPlay` Effect Script Op (Yawgmoth's
+ *  Will, CR 305.1-analog / 601, issue #1149), or `undefined` if none is
+ *  active. Distinct from the unconditional, indefinite,
+ *  battlefield-derived `playsLandsFromGraveyard` land-only permission
+ *  (#1190, Icetill Explorer) folded into `canPlayLandsFromGraveyard` above. */
+export function getGraveyardPlayPermission(
+    state: GameState,
+    playerId: string
+): { zones: Array<"land" | "spell">; maxManaValue?: number } | undefined {
+    return state.graveyardPlayPermissionThisTurn?.find(
+        (e) => e.playerId === playerId
+    );
+}
+
+/** Whether `card` — a NON-LAND card sitting in `player`'s own graveyard — is
+ *  currently castable purely under the BROAD, turn-scoped graveyard-cast
+ *  permission (Yawgmoth's Will, issue #1149): the permission covers
+ *  `"spell"` and, when capped, the card's printed mana value is within
+ *  `maxManaValue`. Callers only reach this for a card with NEITHER Flashback
+ *  nor Escape — those own keyword-cast mechanisms take precedence (their own
+ *  branches in `getLegalActions` return before this is ever consulted). */
+export function canCastFromGraveyardByPermission(
+    state: GameState,
+    player: PlayerState,
+    card: CardInstanceState
+): boolean {
+    if (card.types.includes("Land")) return false;
+    const permission = getGraveyardPlayPermission(state, player.id);
+    if (!permission || !permission.zones.includes("spell")) return false;
+    if (permission.maxManaValue === undefined) return true;
+    const cardId = (card.card as { id?: string }).id;
+    const def = cardId ? tryGetDefinition(cardId) : undefined;
+    return manaValue(def?.manaCost) <= permission.maxManaValue;
 }
 
 const ALL_HAND_ACTIONS: CardAction[] = [
@@ -219,6 +264,29 @@ export function getLegalActions(
             ) &&
             hasEnoughLegalTargets(state, player, card) &&
             hasPayableEscapeExileCost(state, player, card)
+        ) {
+            actions.push("cast");
+        }
+        return actions;
+    }
+
+    // CR 305.1-analog / 601 (issue #1149) — a NON-LAND card in the player's
+    // OWN graveyard, while the player holds the BROAD, turn-scoped
+    // graveyard-cast permission (Yawgmoth's Will) covering it, is castable
+    // from there for its normal printed mana cost. Only reached when the
+    // card has NEITHER Flashback nor Escape (those branches above return
+    // first); a LAND is handled by the "play" branch instead.
+    const isPermissionCast =
+        player.graveyard.some((c) => c.id === card.id) &&
+        canCastFromGraveyardByPermission(state, player, card);
+    if (isPermissionCast) {
+        const baseLegal = hasInstantSpeed(card) ? true : isSorceryTiming(state);
+        if (
+            baseLegal &&
+            passesCastPhaseRestriction(state, card) &&
+            castProhibitionReason(player.id, card, state) === undefined &&
+            canPotentiallyPayCost(player, card, getInstanceManaCost(card) ?? {}) &&
+            hasEnoughLegalTargets(state, player, card)
         ) {
             actions.push("cast");
         }

@@ -227,14 +227,24 @@ describe("Icetill Explorer (extra land drop; play-lands-from-graveyard permissio
                 ownerId: "p1",
             });
             const withIcetill = makePlayer("p1", { battlefield: [icetill] });
-            expect(canPlayLandsFromGraveyard(withIcetill)).toBe(true);
+            const stateWithIcetill = makeState({
+                players: [withIcetill, makePlayer("p2")],
+            });
+            expect(
+                canPlayLandsFromGraveyard(stateWithIcetill, withIcetill)
+            ).toBe(true);
 
             const withoutIcetill = makePlayer("p1", {
                 battlefield: [
                     makeInstance(grizzlyBears.id, { controllerId: "p1" }),
                 ],
             });
-            expect(canPlayLandsFromGraveyard(withoutIcetill)).toBe(false);
+            const stateWithoutIcetill = makeState({
+                players: [withoutIcetill, makePlayer("p2")],
+            });
+            expect(
+                canPlayLandsFromGraveyard(stateWithoutIcetill, withoutIcetill)
+            ).toBe(false);
         });
 
         // NOTE: `getLegalActions`'s land branch is intentionally zone-agnostic
@@ -349,12 +359,13 @@ describe("Icetill Explorer (extra land drop; play-lands-from-graveyard permissio
                 ownerId: "p1",
             });
             const player = makePlayer("p1", { battlefield: [icetill] });
-            expect(canPlayLandsFromGraveyard(player)).toBe(true);
+            const state = makeState({ players: [player, makePlayer("p2")] });
+            expect(canPlayLandsFromGraveyard(state, player)).toBe(true);
 
             // Icetill leaves the battlefield (e.g. destroyed) — nothing to
             // clear on GameState; the permission is derived live every call.
             player.battlefield = [];
-            expect(canPlayLandsFromGraveyard(player)).toBe(false);
+            expect(canPlayLandsFromGraveyard(state, player)).toBe(false);
         });
 
         it("wire format: a graveyard land carries legalActions:['play'] ONLY while Icetill Explorer is in play", () => {

@@ -84,26 +84,31 @@ export const duress: CardDefinition = {
     ],
 };
 
-// STOP-AND-ISSUE (tracked-by: #1149) — Yawgmoth's Will: "Until end of turn,
-// you may play lands and cast spells from your graveyard. If a card would be
-// put into your graveyard from anywhere this turn, exile that card instead."
-// Two distinct capabilities were needed (never ship partial); #1145 has
-// SHIPPED capability (2): the `"graveyard-bound"` `ReplacementEventKind` +
-// apply-loop hook (`gre/replacements.ts::applyGraveyardBoundReplacements`),
-// including the TURN-SCOPED shape this exact clause needs
-// (`SpellContext.armGraveyardRedirectThisTurn` +
-// `state.graveyardBoundRedirectThisTurn`, cleared at CLEANUP — see
-// `gre/__tests__/graveyardBoundReplacement.test.ts`). Still missing:
-// capability (1), a BROAD, turn-scoped graveyard-cast/land-play permission
-// over the caster's own graveyard — no primitive/Op exists (flashback's
-// `grantedFlashback` is per-instance, spells-only; tracked-by #1149). Once
-// #1149 ships, this card composes the two: `armGraveyardRedirectThisTurn`
-// (already available) + #1149's cast/land-play grant. Vintage Cube FREE
+// Yawgmoth's Will — {2}{B} Sorcery. "Until end of turn, you may play lands
+// and cast spells from your graveyard. If a card would be put into your
+// graveyard from anywhere this turn, exile that card instead." Composes TWO
+// capabilities, both now shipped: `grantGraveyardPlay` (issue #1149 — the
+// BROAD, turn-scoped, own-graveyard land-play/spell-cast permission, read
+// live by `canPlayLandsFromGraveyard` / `getLegalActions` / `locateCastSource`
+// / `castRawManaCost` / `graveyardCastStackFlags`, all in `convex/game.ts` +
+// `convex/gre/rules.ts`) and `armGraveyardRedirect` (issue #1145's
+// `SpellContext.armGraveyardRedirectThisTurn`, now Op-skinned so this card
+// stays DSL-first per ADR 0045 — no new engine logic, a thin wrapper over the
+// already-shipped `graveyard-bound` replacement infra). Both Ops are
+// turn-scoped, cleared unconditionally at CLEANUP (CR 514.2) — omitting
+// `zones` on `grantGraveyardPlay` defaults to `["land", "spell"]`, the exact
+// "play lands AND cast spells" shape this card needs. Vintage Cube FREE
 // tranche, issue #686.
-// export const yawgmothsWill: CardDefinition = {
-//     id: "6d3e3c3a-d351-4d91-8884-312d4b6f540d", // USG 171
-//     name: "Yawgmoth's Will",
-//     rarity: "rare",
-//     manaCost: { X: 2, B: 1 },
-//     types: ["Sorcery"],
-// };
+export const yawgmothsWill: CardDefinition = {
+    id: "6d3e3c3a-d351-4d91-8884-312d4b6f540d", // USG 171
+    name: "Yawgmoth's Will",
+    rarity: "rare",
+    oracleText:
+        "Until end of turn, you may play lands and cast spells from your graveyard. If a card would be put into your graveyard from anywhere this turn, exile that card instead.",
+    manaCost: { X: 2, B: 1 },
+    types: ["Sorcery"],
+    effects: [
+        { op: "grantGraveyardPlay", player: "controller" },
+        { op: "armGraveyardRedirect", player: "controller" },
+    ],
+};

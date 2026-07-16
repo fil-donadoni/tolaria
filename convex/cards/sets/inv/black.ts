@@ -1320,17 +1320,22 @@ export const urborgSkeleton: CardDefinition = {
     ],
 };
 
-// STOP-AND-ISSUE (tracked-by: #1145 + #1149) — Yawgmoth's Agenda: "You can't
-// cast more than one spell each turn. You may play lands and cast spells
-// from your graveyard. If a card would be put into your graveyard from
-// anywhere, exile it instead." Same two capabilities Yawgmoth's Will (USG)
-// needs — a broad graveyard-cast/land-play permission (#1149) and a
-// graveyard-redirect-to-exile replacement (#1145, this variant is
-// INDEFINITE rather than turn-scoped) — split out of #686 ("Cube FREE:
-// graveyard-cast permission / replacement") once the Vintage Cube FREE
-// tranche confirmed neither capability shipped; the whole card is left as
-// one stub rather than a partial (every clause must be enforced together).
-// Not invented; left a stub.
+// STOP-AND-ISSUE (tracked-by: #1238) — Yawgmoth's Agenda: "You can't cast
+// more than one spell each turn. You may play lands and cast spells from
+// your graveyard. If a card would be put into your graveyard from anywhere,
+// exile it instead." #1149 SHIPPED Yawgmoth's Will's TURN-SCOPED shape
+// (`grantGraveyardPlay` Op + `armGraveyardRedirect` Op), but Agenda's clauses
+// are INDEFINITE (a static enchantment ability, no "until end of turn") —
+// needs a battlefield-derived (not turn-scoped) graveyard-cast permission
+// (generalizing the LAND-only `playsLandsFromGraveyard`, #1190, to cover
+// spells) and confirmation the redirect composes with the already-shipped
+// permanent-bound `graveyard-bound` replacement (Dauthi Voidwalker precedent,
+// `mh2/black.ts`, stub #1156). PLUS a third, wholly new capability: "can't
+// cast more than one spell each turn" has no restriction primitive today
+// (only an unenforced `spellsCastThisTurn` counter). Split out of #686 once
+// the Vintage Cube FREE tranche confirmed none of the three had shipped; the
+// whole card stays one stub (every clause must be enforced together). Not
+// invented; left a stub. See #1238 for the full design notes.
 // export const yawgmothsAgenda: CardDefinition = {
 //     id: "50f7ea7f-4f17-4f78-b68e-693e265ca829", // INV 135
 //     name: "Yawgmoth's Agenda",

@@ -398,6 +398,20 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // landing in state.cannotActivateAbilitiesThisTurn (asserted below).
             analysePlayer(op.player, req, false);
             return;
+        case "grantGraveyardPlay":
+            // CR 305.1-analog / 601 (issue #1149) — a turn-scoped graveyard
+            // play/cast permission grant on a player; the deterministic
+            // outcome is the player id (with its zones/maxManaValue) landing
+            // in state.graveyardPlayPermissionThisTurn (asserted below).
+            analysePlayer(op.player, req, false);
+            return;
+        case "armGraveyardRedirect":
+            // CR 614 (issue #1145 / #1149) — a turn-scoped graveyard-bound
+            // redirect grant on a player; the deterministic outcome is the
+            // player id landing in state.graveyardBoundRedirectThisTurn
+            // (asserted below).
+            analysePlayer(op.player, req, false);
+            return;
         case "addMana":
             // CR 106.1 (issue #850) — mana added to a player's pool is a
             // deterministic same-resolution outcome. The default recipient is
@@ -1043,6 +1057,54 @@ const OP_ASSERTORS: Record<string, Assertor> = {
                 return {
                     ok: locked && !wasLocked,
                     detail: `locked=${locked} (was ${wasLocked})`,
+                };
+            },
+        };
+    },
+    // `grantGraveyardPlay` (CR 305.1-analog / 601, issue #1149) — a
+    // deterministic same-resolution state change: the named player's id
+    // lands in state.graveyardPlayPermissionThisTurn. Asserted directly.
+    grantGraveyardPlay(rawOp, _scenario, pre) {
+        const op = rawOp as Extract<EffectOp, { op: "grantGraveyardPlay" }>;
+        const pid = assertionPlayerId(op.player);
+        const wasGranted =
+            pre.graveyardPlayPermissionThisTurn?.some(
+                (e) => e.playerId === pid
+            ) ?? false;
+        return {
+            label: `grantGraveyardPlay grants player ${pid} a graveyard-cast permission this turn`,
+            check: (post) => {
+                const granted =
+                    post.graveyardPlayPermissionThisTurn?.some(
+                        (e) => e.playerId === pid
+                    ) ?? false;
+                return {
+                    ok: granted && !wasGranted,
+                    detail: `granted=${granted} (was ${wasGranted})`,
+                };
+            },
+        };
+    },
+    // `armGraveyardRedirect` (CR 614, issue #1145 / #1149) — a deterministic
+    // same-resolution state change: the named player's id lands in
+    // state.graveyardBoundRedirectThisTurn. Asserted directly.
+    armGraveyardRedirect(rawOp, _scenario, pre) {
+        const op = rawOp as Extract<EffectOp, { op: "armGraveyardRedirect" }>;
+        const pid = assertionPlayerId(op.player);
+        const wasArmed =
+            pre.graveyardBoundRedirectThisTurn?.some(
+                (e) => e.ownerId === pid
+            ) ?? false;
+        return {
+            label: `armGraveyardRedirect arms player ${pid}'s graveyard-bound redirect this turn`,
+            check: (post) => {
+                const armed =
+                    post.graveyardBoundRedirectThisTurn?.some(
+                        (e) => e.ownerId === pid
+                    ) ?? false;
+                return {
+                    ok: armed && !wasArmed,
+                    detail: `armed=${armed} (was ${wasArmed})`,
                 };
             },
         };

@@ -973,6 +973,28 @@ export const OP_EXECUTORS: {
         if (playerId === undefined) return;
         ctx.restrictAbilityActivation(playerId);
     },
+    // CR 305.1-analog / 601 (issue #1149) — grant a turn-scoped, player-wide
+    // permission to play lands and/or cast spells from OWN graveyard
+    // (Yawgmoth's Will). `zones` defaults to BOTH lands and spells when
+    // omitted. Skipped when the player is gone (CR 608.2b).
+    grantGraveyardPlay(ctx, op) {
+        const playerId = resolvePlayerRef(ctx, op.player);
+        if (playerId === undefined) return;
+        ctx.grantGraveyardPlay(
+            playerId,
+            op.zones ?? ["land", "spell"],
+            op.maxManaValue
+        );
+    },
+    // CR 614 (issue #1145 / #1149) — arm a turn-scoped "if a card would be put
+    // into the player's graveyard from anywhere this turn, exile it instead"
+    // redirect (Yawgmoth's Will's second clause). Skipped when the player is
+    // gone (CR 608.2b).
+    armGraveyardRedirect(ctx, op) {
+        const playerId = resolvePlayerRef(ctx, op.player);
+        if (playerId === undefined) return;
+        ctx.armGraveyardRedirectThisTurn(playerId);
+    },
     // CR 106.1 (issue #850) — add mana to a player's mana pool. A thin
     // declarative skin over the SpellContext primitive `addManaTo`, ONE
     // execution path (ADR 0045): the JSON-pure `mana` map is passed straight
