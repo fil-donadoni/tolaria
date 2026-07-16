@@ -469,3 +469,96 @@ describe("projectLimitedEvent — poolArrangement (ADR 0060, issue #1247)", () =
         expect(view.seats.every((s) => s.poolArrangement === null)).toBe(true);
     });
 });
+
+describe("projectLimitedEvent — selectedPickId (ADR 0060, issue #1248)", () => {
+    it("preserves the viewer's own seat's Selected Card", () => {
+        const event = row({
+            type: "draft",
+            seats: [
+                {
+                    seatIndex: 0,
+                    userId: "user1",
+                    nickname: "Alice",
+                    pool: [],
+                    currentPack: [
+                        {
+                            scryfallId: "s1",
+                            cardId: "c1",
+                            cardName: "Card One",
+                            pickId: "r0-p0-c0",
+                        },
+                    ],
+                    selectedPickId: "r0-p0-c0",
+                },
+                { seatIndex: 1, userId: "user2", nickname: "Bob", pool: [] },
+            ],
+        });
+
+        const view = projectLimitedEvent(event, "user1");
+        const own = view.seats.find((s) => s.seatIndex === 0)!;
+        expect(own.selectedPickId).toBe("r0-p0-c0");
+    });
+
+    it("strips every OTHER seat's Selected Card — same 'own seat only' discipline as currentPack/pickDeadline/poolArrangement", () => {
+        const event = row({
+            type: "draft",
+            seats: [
+                {
+                    seatIndex: 0,
+                    userId: "user1",
+                    nickname: "Alice",
+                    pool: [],
+                    selectedPickId: "r0-p0-c0",
+                },
+                {
+                    seatIndex: 1,
+                    userId: "user2",
+                    nickname: "Bob",
+                    pool: [],
+                    selectedPickId: "r0-p1-c0",
+                },
+            ],
+        });
+
+        const view = projectLimitedEvent(event, "user1");
+        const other = view.seats.find((s) => s.seatIndex === 1)!;
+        expect(other.selectedPickId).toBeNull();
+    });
+
+    it("stays stripped for a NON-participant viewer too — never reveals via the completion full-disclosure flip (unlike pool)", () => {
+        const event = row({
+            type: "draft",
+            draftCompletedAt: 999,
+            seats: [
+                {
+                    seatIndex: 0,
+                    userId: "user1",
+                    nickname: "Alice",
+                    pool: [],
+                    selectedPickId: "r0-p0-c0",
+                },
+                { seatIndex: 1, userId: "user2", nickname: "Bob", pool: [] },
+            ],
+        });
+
+        const view = projectLimitedEvent(event, "outsider-user", true, 2);
+        const alice = view.seats.find((s) => s.seatIndex === 0)!;
+        expect(alice.selectedPickId).toBeNull();
+        // The Pool itself DOES reveal post-completion — proves the strip is
+        // specific to `selectedPickId`, not an accidental full lockdown.
+        expect(alice.pool).not.toBeNull();
+    });
+
+    it("projects to null (not an empty string) for a viewer's own seat with nothing selected", () => {
+        const event = row({
+            type: "draft",
+            seats: [
+                { seatIndex: 0, userId: "user1", nickname: "Alice", pool: [] },
+                { seatIndex: 1, userId: "user2", nickname: "Bob", pool: [] },
+            ],
+        });
+        const view = projectLimitedEvent(event, "user1");
+        const own = view.seats.find((s) => s.seatIndex === 0)!;
+        expect(own.selectedPickId).toBeNull();
+    });
+});

@@ -61,6 +61,17 @@ export interface LimitedEventSeat {
      *  `PoolArrangementEntry`. Absent means every card is still at its
      *  default placement (Maindeck, auto Mana-Value column). */
     poolArrangement?: PoolArrangementEntry[];
+    /** Selected Card (ADR 0060, issue #1248): the `pickId` of the card in
+     *  THIS seat's `currentPack` the player has tentatively clicked on — a
+     *  SELECTION, never a commit (`submitPick`/the Pick gestures are the only
+     *  thing that ever moves a card into `pool`). Absent means nothing is
+     *  selected. Set by `selectDraftPick` (`convex/limitedEvents.ts`); a
+     *  stale value referencing a card no longer in `currentPack` (the pack
+     *  emptied/passed on) is simply ignored by every reader — `pickId`
+     *  embeds its originating round (`r<round>-p<seat>-c<idx>`,
+     *  `draftEngine.ts`), so it can never coincidentally match a LATER
+     *  round's card. */
+    selectedPickId?: string;
 }
 
 export type LimitedEventType = "sealed" | "draft";

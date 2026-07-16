@@ -56,5 +56,15 @@ export function useLimitedEventMutations() {
     const setPoolArrangementEntry = useMutation(
         api.limitedEvents.setPoolArrangementEntry
     );
-    return { create, join, start, submitPick, setPoolArrangementEntry };
+    // Selected Card (ADR 0060, issue #1248): single-click selection, never a
+    // commit — see `convex/limitedEvents.ts`'s `selectDraftPick`.
+    const selectDraftPick = useMutation(api.limitedEvents.selectDraftPick);
+    return {
+        create,
+        join,
+        start,
+        submitPick,
+        setPoolArrangementEntry,
+        selectDraftPick,
+    };
 }

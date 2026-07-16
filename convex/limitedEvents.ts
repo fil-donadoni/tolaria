@@ -162,6 +162,9 @@ const limitedEventSeatViewValidator = v.object({
         v.array(poolArrangementEntryValidator),
         v.null()
     ),
+    // Selected Card (ADR 0060, issue #1248) — owner-only, same discipline as
+    // `currentPack`/`pickDeadline`/`poolArrangement` above.
+    selectedPickId: v.union(v.string(), v.null()),
     // Auto-Build + vs-AI hookup (issue #1115): a bot seat's playable Limited
     // deck once its Pool is final (`isEventPoolFinal`), else `null` — always
     // `null` for a human seat (they build their own via the pool-scoped
@@ -737,6 +740,55 @@ export const setPoolArrangementEntry = mutation({
         );
         const seats = [...event.seats];
         seats[seatIndex] = { ...seat, poolArrangement: nextArrangement };
+        await ctx.db.patch(args.eventId, {
+            seats: asDbSeats(seats),
+            updatedAt: Date.now(),
+        });
+        return null;
+    },
+});
+
+/** Sets or clears the CALLER's own Seat's Selected Card (ADR 0060, issue
+ *  #1248) — a single-click SELECTION within the seat's current Booster,
+ *  never a commit (that's `submitPick`/the Pick gestures). `seatIndex` is
+ *  derived server-side from `userId` — never taken from the client — so a
+ *  user can only select within their own pack, mirroring `submitPick`'s
+ *  ownership discipline. `pickId: null` explicitly clears the selection (a
+ *  card can be deselected, or superseded by selecting a different one — the
+ *  mutation always simply overwrites, never toggles). A non-null `pickId`
+ *  must actually be present in the seat's `currentPack` — the same
+ *  membership check `applyPick` does for a real Pick — so a stale/forged
+ *  `pickId` from a previous pack can never be recorded as "selected". */
+export const selectDraftPick = mutation({
+    args: {
+        eventId: v.id("limitedEvents"),
+        pickId: v.union(v.string(), v.null()),
+    },
+    returns: v.null(),
+    handler: async (ctx, args) => {
+        const user = await getCurrentUser(ctx);
+        const event = await ctx.db.get(args.eventId);
+        if (!event) throw new Error("Event not found");
+        if (event.type !== "draft") {
+            throw new Error("This event is not a Draft.");
+        }
+        const seatIndex = event.seats.findIndex((s) => s.userId === user._id);
+        if (seatIndex === -1) {
+            throw new Error("You do not have a Seat in this event.");
+        }
+        const seat = event.seats[seatIndex];
+        if (
+            args.pickId !== null &&
+            !(seat.currentPack ?? []).some((c) => c.pickId === args.pickId)
+        ) {
+            throw new Error("That card is not in your current pack.");
+        }
+
+        const seats = [...event.seats];
+        seats[seatIndex] = {
+            ...seat,
+            selectedPickId: args.pickId ?? undefined,
+        };
         await ctx.db.patch(args.eventId, {
             seats: asDbSeats(seats),
             updatedAt: Date.now(),
