@@ -6,7 +6,7 @@ Accepted. **Supersedes ADR 0056** (draftability gated on a fully-implemented set
 
 ## Context
 
-ADR 0056 made a set **Draftable** only when *every* card in its Booster Sheets
+ADR 0056 made a set **Draftable** only when _every_ card in its Booster Sheets
 resolves to an implemented `CardDefinition`, explicitly rejecting "sample only
 implemented cards" because a distorted print run misrepresents the Limited
 environment. Under that gate the only Draftable Set is **LEA** (100% minus the
@@ -14,7 +14,7 @@ ADR-0010 exclusions). Finishing another set to 100% is expensive: every set
 carries a long tail of complex, unused cards, and that tail is **concentrated
 in the rare sheet** (measured: INV rare 63%, LEG rare 52% implemented, against
 higher common/uncommon coverage). Waiting for 100% blocks the Limited
-experience for months. We want to ship a playable Limited environment *now*,
+experience for months. We want to ship a playable Limited environment _now_,
 with an explicit incompleteness disclosure, without shipping visibly broken
 packs.
 
@@ -26,14 +26,14 @@ packs.
   set non-draftable. The threshold is **per-sheet, deliberately not a per-set
   average** — a set can be 82% overall while its rare sheet sits at 52%, and a
   per-set average would green-light that broken rare slot. Per-sheet is what
-  keeps every *slot* of a generated pack faithful.
+  keeps every _slot_ of a generated pack faithful.
 
 - **Unimplemented cards below the ceiling are dropped from the sheet, weights
   renormalized** — the exact mechanism ADR 0056 already uses for ADR-0010
   exclusions (`buildBoosterConfig` + the `excludedScryfallIds` set). A missing
   card is treated as absent from the print run, never rendered as a placeholder
   or phantom bomb. So the "no skewed/placeholder booster" principle of ADR 0056
-  is *kept*; only the completeness bar is lowered from 100% to per-sheet 80%.
+  is _kept_; only the completeness bar is lowered from 100% to per-sheet 80%.
 
 - **Every Draftable Set below 100% surfaces an Incompleteness Notice** at event
   creation — the honest disclosure that the environment is an approximation

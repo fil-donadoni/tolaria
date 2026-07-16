@@ -12,13 +12,13 @@ timer-expiry Auto-Pick is computed by the Bot Drafter's Pick engine. The
 draft-time pool view shipped as a flat `name ×count` text list, with a distinct
 post-draft deckbuild step (`pool-deck-builder-form`, MTGO-style maindeck +
 sideboard, dnd, piles-by-Mana-Value). Two problems: (1) the draft-time view
-throws away the deckbuilder's affordances a player wants *while* drafting
+throws away the deckbuilder's affordances a player wants _while_ drafting
 (seeing images, sorting by curve, parking cards toward a sideboard), and (2) a
 heuristic Auto-Pick overrides a present-but-slow human's actual intent.
 
 ## Decision
 
-- **The draft-time Pool *is* the working deck.** The draft view reuses the
+- **The draft-time Pool _is_ the working deck.** The draft view reuses the
   existing pool deckbuilder surface (card images, fixed **Mana Value** columns,
   a narrower **Sideboard** column, drag-and-drop) with the active **Booster**
   panel mounted above it. Draft and deckbuild are one continuous surface; the

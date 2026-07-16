@@ -604,6 +604,34 @@ function computeChoiceExposure(
     };
 }
 
+/** Player ids whose hand is projected face-up to their opponents by a
+ *  continuous "plays with hand revealed" static (CR 702-adjacent — Zur's
+ *  Weirding, Enduring Renewal; issue #735). Scans every battlefield permanent
+ *  for a `revealsHand` flag: `"controller"` reveals that permanent's
+ *  controller's hand (permanents live in their controller's battlefield array,
+ *  so the array owner IS the controller); `"all-players"` reveals every
+ *  player's hand. Read live from the battlefield so the reveal ends the instant
+ *  the source leaves play — no stale flag, no `GameState` field. */
+function computeHandRevealedPlayers(state: GameState): Set<string> {
+    const revealed = new Set<string>();
+    for (const player of state.players) {
+        for (const card of player.battlefield) {
+            const cardId = (card.card as { id?: string }).id;
+            const scope = cardId
+                ? tryGetDefinition(cardId)?.revealsHand
+                : undefined;
+            if (!scope) continue;
+            if (scope === "all-players") {
+                // Maximal reveal — every hand is exposed; nothing more to add.
+                for (const p of state.players) revealed.add(p.id);
+                return revealed;
+            }
+            revealed.add(player.id);
+        }
+    }
+    return revealed;
+}
+
 /**
  * Projects GameState into the public view: viewer's own hand has slim cards + legalActions,
  * opponent's hand is an array of nulls of equal length, libraries are reduced to { count }.
@@ -628,6 +656,10 @@ export function projectPublicState(
     // Exiled-card → holding-permanent links (mechanism-agnostic), so the client
     // pins each exiled card to its permanent (Arena treatment).
     const exileAssoc = buildExileAssociation(state);
+
+    // CR 702-adjacent (issue #735) — players forced to play with their hands
+    // revealed; their hand identities cross the wire to opponents (below).
+    const handRevealedPlayers = computeHandRevealedPlayers(state);
 
     const players = state.players.map((player): PublicPlayer => {
         const librarySearch =
@@ -727,11 +759,15 @@ export function projectPublicState(
             };
         }
         // ADR 0026 — opponent hand: known slots carry identity, the rest stay
-        // null. Length is preserved so the back-count is unchanged.
+        // null. Length is preserved so the back-count is unchanged. Issue #735 —
+        // a player forced to play with their hand revealed exposes EVERY hand
+        // card's identity to opponents (a maximal, continuous form of the
+        // per-card `knownTo` reveal).
+        const handRevealed = handRevealedPlayers.has(player.id);
         return {
             ...common,
             hand: player.hand.map((card): SlimHandCard | null =>
-                card.knownTo?.includes(viewerId)
+                handRevealed || card.knownTo?.includes(viewerId)
                     ? { ...slimCard(card), legalActions: [] }
                     : null
             ),

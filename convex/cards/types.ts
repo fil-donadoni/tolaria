@@ -7847,6 +7847,40 @@ export interface CardDefinition {
      *  controls this permanent. A phaseTrigger at DRAW handles the choice
      *  (skip or draw). Used by Island Sanctuary. */
     drawStepReplacement?: boolean;
+    /** Continuous "plays with hand revealed" static (CR 702-adjacent — Zur's
+     *  Weirding, Enduring Renewal; issue #735). While ANY permanent with this
+     *  flag is on the battlefield, the affected player's hand is projected
+     *  face-up to their opponents. Read live from the battlefield (like
+     *  `extraLandDrops`) so the reveal ends the instant the source leaves play —
+     *  no stale flag, no `GameState` field.
+     *  - `"controller"` — reveal the controller's own hand (Enduring Renewal,
+     *    "Play with your hand revealed").
+     *  - `"all-players"` — reveal every player's hand (Zur's Weirding, "Players
+     *    play with their hands revealed"). */
+    revealsHand?: "controller" | "all-players";
+    /** Continuous draw-event replacement (CR 614) that intercepts EVERY card
+     *  draw an affected player would take and reveals the would-be-drawn card,
+     *  then branches (issue #735). Distinct from `drawStepReplacement` (a whole
+     *  draw-STEP skip): this fires on effect-driven draws too, one card at a
+     *  time, at the single draw choke point (`drawWithReveal`). Read live from
+     *  the battlefield (like `extraLandDrops`) so it ends the instant the source
+     *  leaves play.
+     *  - `scope` — whose draws are replaced: `"controller"` (Enduring Renewal,
+     *    "If YOU would draw") or `"all-players"` (Zur's Weirding, "If a player
+     *    would draw").
+     *  - `branch.kind: "type-to-graveyard"` — reveal the top card; if it has
+     *    `cardType`, put it into its owner's graveyard, otherwise draw it
+     *    (deterministic — Enduring Renewal, creature → graveyard).
+     *  - `branch.kind: "others-may-pay-life"` — reveal the top card; any OTHER
+     *    player (APNAP, CR 101.4) may pay `life` to put it into its owner's
+     *    graveyard, otherwise the drawing player draws it (interactive — Zur's
+     *    Weirding, pay 2 life). */
+    drawRevealReplacement?: {
+        scope: "controller" | "all-players";
+        branch:
+            | { kind: "type-to-graveyard"; cardType: CardType }
+            | { kind: "others-may-pay-life"; life: number };
+    };
     /** Restricts cast timing by whose turn it is (CR 117.1b). `"opponent"` —
      *  only during an opponent's turn (Siren's Call). `"self"` — only during the
      *  controller's own turn (Camouflage's "during your declare attackers

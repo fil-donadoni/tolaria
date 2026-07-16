@@ -2958,6 +2958,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Flametongue Kavu",
+        "scryfallId": "e5056bca-bd90-4b50-8630-105558f8ef92",
+        "oracleId": "b215196a-3716-451f-bdbd-d16c05ace5b4",
+        "firstSet": "pls"
+    },
+    {
         "name": "Flare",
         "scryfallId": "d5350236-7bd2-462d-9768-50087626c764",
         "oracleId": "ff8fae94-3a34-4bc6-aaa2-7ab7d2e2d0dd",

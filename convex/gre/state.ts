@@ -11352,6 +11352,140 @@ export function drawCard(player: PlayerState): CardInstanceState | null {
     return drawn;
 }
 
+// --- Draw-reveal replacement (CR 614, issue #735) --------------------------
+//
+// Zur's Weirding / Enduring Renewal replace an affected player's draw with a
+// reveal-and-branch: reveal the would-be-drawn card (top of library), then
+// either put it into its owner's graveyard or draw it. Unlike `drawStepReplacement`
+// (a whole draw-STEP skip) this is a per-DRAW-EVENT interception that fires on
+// effect-driven draws too, so it lives at the single-card draw choke rather
+// than in the draw step alone.
+
+export type DrawRevealConfig = NonNullable<
+    CardDefinition["drawRevealReplacement"]
+>;
+
+/** The active continuous draw-reveal replacement (CR 614, issue #735) affecting
+ *  `playerId`'s next draw, or undefined. Scans the battlefield for a permanent
+ *  whose def carries `drawRevealReplacement` with a matching scope
+ *  (`"all-players"` always applies; `"controller"` only to its own controller —
+ *  permanents live in their controller's battlefield array, so the array owner
+ *  IS the controller). CR 616.1 — were more than one to apply, the affected
+ *  player would choose the order; the engine applies the first found. Out of
+ *  scope: multi-source draw-replacement ordering (no two such enchantments are
+ *  expected to affect the same draw). */
+export function getActiveDrawReveal(
+    state: GameState,
+    playerId: string
+): { source: CardInstanceState; config: DrawRevealConfig } | undefined {
+    for (const player of state.players) {
+        for (const card of player.battlefield) {
+            const cardId = (card.card as { id?: string }).id;
+            const config = cardId
+                ? tryGetDefinition(cardId)?.drawRevealReplacement
+                : undefined;
+            if (!config) continue;
+            if (config.scope === "controller" && player.id !== playerId)
+                continue;
+            return { source: card, config };
+        }
+    }
+    return undefined;
+}
+
+/** CR 614 (issue #735) — puts the top card of `player`'s library into its
+ *  owner's graveyard (the reveal-branch "bin" outcome), honoring any
+ *  graveyard-bound replacement (CR 614 — Yawgmoth's Will redirect). Returns the
+ *  binned card's instance id, or null if the library was empty. Not a mill
+ *  (CR 701.17a): emits no CARD_MILLED, so "put into your graveyard from your
+ *  library" mill triggers correctly don't see it. */
+export function binRevealedTopCard(
+    state: GameState,
+    player: PlayerState
+): string | null {
+    const top = player.library[0];
+    if (!top) return null;
+    moveCardWithGraveyardReplacement(state, player, top.id, "library", "graveyard");
+    return top.id;
+}
+
+/** True when the top card of `player`'s library has `cardType` (CR 300 — read
+ *  from the printed definition, mirroring `millCards`). False for an empty
+ *  library. */
+function topCardHasType(player: PlayerState, cardType: CardType): boolean {
+    const top = player.library[0];
+    if (!top) return false;
+    const cardId = (top.card as { id?: string }).id;
+    const types = cardId ? tryGetDefinition(cardId)?.types : undefined;
+    return types?.includes(cardType) ?? false;
+}
+
+/** Outcome of resolving one draw through the draw-reveal choke. */
+export type DrawRevealOutcome =
+    | { kind: "drew" } // a card entered the hand — caller emits CARD_DRAWN
+    | { kind: "binned" } // the revealed card went to its owner's graveyard
+    | { kind: "empty" } // library empty (hasDrawnFromEmpty already flagged)
+    | { kind: "suspend-pay"; source: CardInstanceState; revealedCardId: string };
+
+/** Resolves ONE draw for `playerId` through the draw-reveal choke (CR 614,
+ *  issue #735). With no active replacement, or a DETERMINISTIC one
+ *  (`type-to-graveyard` — Enduring Renewal), it commits synchronously and
+ *  returns the outcome. An INTERACTIVE replacement (`others-may-pay-life` —
+ *  Zur's Weirding) reveals the top card and returns `suspend-pay` WITHOUT
+ *  committing, so the caller can raise the "pay N life?" choice through its own
+ *  suspend machinery (draw step: a `draw-reveal-pay` PendingChoice; effect
+ *  resolution: `requestMayPay`). The caller commits the branch via
+ *  `commitDrawRevealPay` once the choice resolves. */
+export function drawOneWithReveal(
+    state: GameState,
+    playerId: string
+): DrawRevealOutcome {
+    const player = getPlayer(state, playerId);
+    const active = getActiveDrawReveal(state, playerId);
+    if (!active) {
+        return drawCard(player) === null ? { kind: "empty" } : { kind: "drew" };
+    }
+    // An empty library can't be revealed from — the draw itself flags
+    // hasDrawnFromEmpty (CR 120.3 / 704.5c handled by drawCard + SBA).
+    if (player.library.length === 0) {
+        drawCard(player);
+        return { kind: "empty" };
+    }
+    const branch = active.config.branch;
+    if (branch.kind === "type-to-graveyard") {
+        if (topCardHasType(player, branch.cardType)) {
+            binRevealedTopCard(state, player);
+            return { kind: "binned" };
+        }
+        return drawCard(player) === null ? { kind: "empty" } : { kind: "drew" };
+    }
+    // Interactive: reveal, then defer to the caller's choice machinery.
+    return {
+        kind: "suspend-pay",
+        source: active.source,
+        revealedCardId: player.library[0].id,
+    };
+}
+
+/** Commits the interactive draw-reveal branch (CR 614, issue #735 — Zur's
+ *  Weirding) once the "pay N life?" choice resolves. `paid` true: the paying
+ *  player has already spent the life (the caller deducts it as the cost); the
+ *  revealed card goes to its owner's graveyard. `paid` false: `playerId` draws
+ *  the revealed card. Idempotent on the identity of the revealed card — a no-op
+ *  if it has since left the top of the library (CR 614 event long since gone). */
+export function commitDrawRevealPay(
+    state: GameState,
+    playerId: string,
+    paid: boolean
+): void {
+    const player = getPlayer(state, playerId);
+    if (paid) {
+        if (binRevealedTopCard(state, player) !== null) return;
+        return; // library emptied between reveal and commit — nothing to bin
+    }
+    if (drawCard(player) !== null) emitCardDrawn(state, playerId, 1);
+}
+
 /** Moves a card between player zones (not stack). Returns the moved card.
  *  Card is appended to the destination zone (library push = bottom, since
  *  drawCard reads from index 0). */

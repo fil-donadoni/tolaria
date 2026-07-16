@@ -135,6 +135,9 @@ import * as nph from "./sets/nph";
 // (mmq/c14 carry the tranche's two active new-home-set cards).
 import * as mmq from "./sets/mmq";
 import * as c14 from "./sets/c14";
+// Planeshift home set — Flametongue Kavu routed to its original paper
+// printing (ADR 0041) rather than the c14 reprint.
+import * as pls from "./sets/pls";
 import * as dtk from "./sets/dtk";
 import * as onc from "./sets/onc";
 import * as spm from "./sets/spm";
@@ -336,6 +339,7 @@ const setModules: { code: string; exports: Record<string, unknown> }[] = [
     // Cube FREE: graveyard recursion (issue #680) — new cross-set home sets.
     { code: "mmq", exports: mmq },
     { code: "c14", exports: c14 },
+    { code: "pls", exports: pls },
     { code: "dtk", exports: dtk },
     { code: "onc", exports: onc },
     { code: "spm", exports: spm },
