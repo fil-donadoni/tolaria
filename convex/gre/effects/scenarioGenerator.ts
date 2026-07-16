@@ -286,6 +286,18 @@ function analyseValue(value: EffectValue, req: Requirements): void {
         req.skip ??= `amount reads a permanent's escaped flag — the canned generator does not cast via escape`;
         return;
     }
+    // abilityResolutionCount (CR 122 / 603.3, issue #1189): the amount reads
+    // how many times the CURRENTLY RESOLVING triggered ability has resolved
+    // this turn — meaningless outside a live trigger sequence the canned
+    // single-shot generator doesn't simulate (and every real consumer lives
+    // inside an `if` predicate anyway, which already skips unconditionally
+    // below). Skip-with-reason — the value member's own interpreter test
+    // (across the nested if/else-if/else combo) is the behavioural guarantor
+    // (new-construct regime).
+    if ("abilityResolutionCount" in value) {
+        req.skip ??= `amount reads the resolving triggered ability's per-turn resolution count — not modelled by the canned single-shot generator`;
+        return;
+    }
     req.countSets.push(value.count);
     // A count set's own controller may itself be a ref — unmodelable.
     const c = value.count.controller;

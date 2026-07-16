@@ -385,6 +385,15 @@ function resolveValue(
         if (playerId === undefined) return undefined;
         return ctx.getDomain(playerId) * (value.domain.times ?? 1);
     }
+    // abilityResolutionCount (CR 122 / 603.3, issue #1189) — how many times
+    // the CURRENTLY RESOLVING triggered ability has resolved this turn,
+    // counting this resolution, a thin skin over
+    // ctx.getAbilityResolutionCount(). No `of` selector — it always reads
+    // the resolving stack item's own tally (Omnath, Locus of Creation;
+    // Scythecat Cub's escalating branches).
+    if ("abilityResolutionCount" in value) {
+        return ctx.getAbilityResolutionCount();
+    }
     return countSet(ctx, value.count);
 }
 

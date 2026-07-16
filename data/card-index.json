@@ -6126,6 +6126,12 @@
         "firstSet": "arn"
     },
     {
+        "name": "Omnath, Locus of Creation",
+        "scryfallId": "4e4fb50c-a81f-44d3-93c5-fa9a0b37f617",
+        "oracleId": "cd133d30-51ff-4114-a7d7-029345f0f0d7",
+        "firstSet": "znr"
+    },
+    {
         "name": "Onulet",
         "scryfallId": "d77fe8e2-8438-473e-ace5-01baddd2c4ed",
         "oracleId": "598f948b-bdd3-490f-b3e9-f0f9dc470522",
@@ -7510,6 +7516,12 @@
         "scryfallId": "6d929c38-91e6-457c-937a-d1884f4bba44",
         "oracleId": "a1f20695-6f08-4d5c-9fba-b0018bee298e",
         "firstSet": "lea"
+    },
+    {
+        "name": "Scythecat Cub",
+        "scryfallId": "b3dd3c7d-4685-4579-b483-14ddaaaddf5b",
+        "oracleId": "929117cd-caa6-402b-9d7b-1f684d75695c",
+        "firstSet": "j25"
     },
     {
         "name": "Sea Kings' Blessing",

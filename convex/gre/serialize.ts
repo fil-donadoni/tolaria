@@ -757,6 +757,13 @@ function compactStackItem(item: StackItem): CompactCard {
     }
     if (item.triggerSourceId) base.triggerSourceId = item.triggerSourceId;
     if (item.triggerEvent) base.triggerEvent = item.triggerEvent;
+    // CR 122 / 603.3 (issue #1189) — the per-item "already tallied" guard
+    // must survive a DB round-trip while a suspended triggered ability
+    // (Scythecat Cub's target pick) sits on the stack, or a save/resume would
+    // re-tally the resolution on resume and read the wrong escalation branch.
+    if (item.abilityResolutionRecorded) {
+        base.abilityResolutionRecorded = item.abilityResolutionRecorded;
+    }
     // CR 702.35d — the reflexive Madness cast-trigger marker (the exiled card's
     // id) must survive a save/load while the trigger sits on the stack.
     if (item.madnessTrigger) base.madnessTrigger = item.madnessTrigger;
@@ -838,6 +845,10 @@ function expandStackItem(compact: CompactCard): StackItem {
     }
     if (compact.triggerEvent) {
         item.triggerEvent = compact.triggerEvent as StackItem["triggerEvent"];
+    }
+    if (compact.abilityResolutionRecorded) {
+        item.abilityResolutionRecorded =
+            compact.abilityResolutionRecorded as boolean;
     }
     // CR 702.35d — restore the reflexive Madness cast-trigger marker.
     if (compact.madnessTrigger) {
@@ -966,6 +977,7 @@ export const PERSISTED_OPTIONAL_KEYS = [
     "damageCapShields",
     "islandSanctuaryProtection",
     "allCreaturesMustAttack",
+    "abilityResolutionCounts",
     "destroyReplacementShields",
     "graveyardBoundRedirectThisTurn",
     "graveyardPlayPermissionThisTurn",

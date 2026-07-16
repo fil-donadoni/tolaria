@@ -11532,6 +11532,224 @@ describe("Effect Script value: domain (CR 702 preamble ability word, issue #1066
     });
 });
 
+describe("Effect Script value: abilityResolutionCount (CR 122 / 603.3, issue #1189)", () => {
+    // A synthetic Landfall-shaped source: "At the beginning of your upkeep,
+    // you gain 1 life. If this is the second time this ability has resolved
+    // this turn, gain 10 life instead. If it's the third-or-later time,
+    // gain 100 life instead." Mirrors the nested if/else-if/else shape
+    // Omnath, Locus of Creation's escalating branches use — exercising the
+    // `abilityResolutionCount` value across a THREE-way nested `if` combo,
+    // not just a single bare comparison.
+    const RESOLUTION_COUNT_SOURCE_ID = "test-effects-resolution-count-source";
+    registerTokenDefinition({
+        id: RESOLUTION_COUNT_SOURCE_ID,
+        name: RESOLUTION_COUNT_SOURCE_ID,
+        rarity: "rare",
+        manaCost: { X: 1, R: 1 },
+        types: ["Creature"],
+        subtypes: ["Elemental"],
+        power: 1,
+        toughness: 1,
+        triggeredAbilities: [
+            {
+                id: "resolution-count-upkeep",
+                oracleText:
+                    "At the beginning of your upkeep, you gain 1 life. If this is the second time this ability has resolved this turn, you gain 10 life instead. If it's the third time (or later), you gain 100 life instead.",
+                event: "PHASE_BEGIN",
+                matches: (event, self) =>
+                    event.type === "PHASE_BEGIN" &&
+                    event.phase === "UPKEEP" &&
+                    event.activePlayerId === self.controllerId,
+                effects: [
+                    {
+                        op: "if",
+                        predicate: {
+                            left: { abilityResolutionCount: true },
+                            op: "eq",
+                            right: 1,
+                        },
+                        then: [
+                            { op: "gainLife", player: "controller", amount: 1 },
+                        ],
+                        else: [
+                            {
+                                op: "if",
+                                predicate: {
+                                    left: { abilityResolutionCount: true },
+                                    op: "eq",
+                                    right: 2,
+                                },
+                                then: [
+                                    {
+                                        op: "gainLife",
+                                        player: "controller",
+                                        amount: 10,
+                                    },
+                                ],
+                                else: [
+                                    {
+                                        op: "gainLife",
+                                        player: "controller",
+                                        amount: 100,
+                                    },
+                                ],
+                            },
+                        ],
+                    },
+                ],
+            },
+        ],
+    });
+
+    function upkeepEvent(activePlayerId: string) {
+        return {
+            type: "PHASE_BEGIN" as const,
+            phase: "UPKEEP" as const,
+            activePlayerId,
+        };
+    }
+
+    it("reads 1 on the first resolution this turn", () => {
+        const source = makeInstance(RESOLUTION_COUNT_SOURCE_ID, {
+            id: "rc-src-first",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            activePlayerId: "p1",
+            phase: "UPKEEP",
+            players: [
+                makePlayer("p1", { battlefield: [source] }),
+                makePlayer("p2"),
+            ],
+        });
+        state.stack.push(...collectTriggers(state, [upkeepEvent("p1")]));
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(21); // 20 + 1 (first resolution)
+    });
+
+    it("escalates to the second branch on the SECOND resolution the same turn", () => {
+        const source = makeInstance(RESOLUTION_COUNT_SOURCE_ID, {
+            id: "rc-src-second",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            activePlayerId: "p1",
+            phase: "UPKEEP",
+            players: [
+                makePlayer("p1", { battlefield: [source] }),
+                makePlayer("p2"),
+            ],
+        });
+        state.stack.push(...collectTriggers(state, [upkeepEvent("p1")]));
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(21); // 20 + 1
+        state.stack.push(...collectTriggers(state, [upkeepEvent("p1")]));
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(31); // 21 + 10 (second resolution)
+    });
+
+    it("escalates to the third-or-later branch on the THIRD resolution the same turn", () => {
+        const source = makeInstance(RESOLUTION_COUNT_SOURCE_ID, {
+            id: "rc-src-third",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            activePlayerId: "p1",
+            phase: "UPKEEP",
+            players: [
+                makePlayer("p1", { battlefield: [source] }),
+                makePlayer("p2"),
+            ],
+        });
+        for (let i = 0; i < 3; i++) {
+            state.stack.push(...collectTriggers(state, [upkeepEvent("p1")]));
+            resolveTopOfStack(state);
+        }
+        expect(state.players[0].life).toBe(131); // 20 + 1 + 10 + 100
+    });
+
+    it('resets at CLEANUP (CR 514.2) — next turn\'s first resolution reads 1 again', () => {
+        const source = makeInstance(RESOLUTION_COUNT_SOURCE_ID, {
+            id: "rc-src-cleanup",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            activePlayerId: "p1",
+            phase: "UPKEEP",
+            players: [
+                makePlayer("p1", { battlefield: [source] }),
+                makePlayer("p2"),
+            ],
+        });
+        state.stack.push(...collectTriggers(state, [upkeepEvent("p1")]));
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(21); // 20 + 1
+
+        state.phase = "CLEANUP";
+        finalizeCleanup(state);
+        expect(state.abilityResolutionCounts).toBeUndefined();
+
+        state.stack.push(...collectTriggers(state, [upkeepEvent("p1")]));
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(22); // 21 + 1 again, NOT 21 + 10
+    });
+
+    it("is scoped per (source, ability) — a DIFFERENT source's tally is independent", () => {
+        const sourceA = makeInstance(RESOLUTION_COUNT_SOURCE_ID, {
+            id: "rc-src-a",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const sourceB = makeInstance(RESOLUTION_COUNT_SOURCE_ID, {
+            id: "rc-src-b",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            activePlayerId: "p1",
+            phase: "UPKEEP",
+            players: [
+                makePlayer("p1", { battlefield: [sourceA, sourceB] }),
+                makePlayer("p2"),
+            ],
+        });
+        const triggers = collectTriggers(state, [upkeepEvent("p1")]);
+        expect(triggers).toHaveLength(2);
+        state.stack.push(...triggers);
+        resolveTopOfStack(state); // resolves the top trigger
+        resolveTopOfStack(state); // resolves the other trigger
+        // Both are each other's FIRST resolution — 20 + 1 + 1, not 20 + 1 + 10.
+        expect(state.players[0].life).toBe(22);
+    });
+
+    it("survives the wire projection (life total after the escalating branch is server-computed)", () => {
+        const source = makeInstance(RESOLUTION_COUNT_SOURCE_ID, {
+            id: "rc-src-wire",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            activePlayerId: "p1",
+            phase: "UPKEEP",
+            players: [
+                makePlayer("p1", { battlefield: [source] }),
+                makePlayer("p2"),
+            ],
+        });
+        state.stack.push(...collectTriggers(state, [upkeepEvent("p1")]));
+        resolveTopOfStack(state);
+        state.stack.push(...collectTriggers(state, [upkeepEvent("p1")]));
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(31); // 20 + 1 + 10
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[0].life).toBe(31);
+    });
+});
+
 describe("Effect Script Op: winGame (CR 104.2a, issue #1066)", () => {
     it("sets state.gameOver for the resolving controller", () => {
         const id = registerScript("test-op-wingame-controller", [
