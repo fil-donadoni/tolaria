@@ -161,7 +161,21 @@ export function getLegalActions(
     state: GameState,
     player: PlayerState,
     card: CardInstanceState,
-    debugAllActions = false
+    debugAllActions = false,
+    /** CR 601.3e (issue #1156) — the ACTUAL caster, when it differs from
+     *  `player` (the zone `card` currently lives in). Every shipped
+     *  cast-from-exile/graveyard grant before Dauthi Voidwalker was
+     *  same-player (Ice Cauldron, Flashback, Escape, Yawgmoth's Will), so
+     *  `player` doubled as both "whose zone" and "who is casting" with no
+     *  seam needed. A CROSS-PLAYER grant (Robber of the Rich's opponent-
+     *  library exile, Dauthi Voidwalker's opponent-exile free cast) breaks
+     *  that assumption: `card` sits in `player`'s zone, but priority /
+     *  affordability / target legality must be evaluated for the caster.
+     *  Defaults to `player.id` (unchanged behaviour for every same-player
+     *  call site). Zone-membership scans below (`player.exile.some(...)`
+     *  etc.) intentionally keep reading `player` — that part IS about whose
+     *  zone the card is in. */
+    casterId: string = player.id
 ): CardAction[] {
     if (debugAllActions) {
         return [...ALL_HAND_ACTIONS];
@@ -175,9 +189,18 @@ export function getLegalActions(
     }
 
     // CR 117.1: a player can only take actions while they have priority.
-    if (state.priorityPlayerId !== player.id) {
+    if (state.priorityPlayerId !== casterId) {
         return actions;
     }
+    // The caster's own PlayerState, for cost/target/prohibition checks below
+    // (mana pool, targeting relation). Falls back to `player` when the caster
+    // can't be resolved (should not happen — `casterId` is always a real
+    // player id) or when it IS `player` (the overwhelmingly common
+    // same-player case, skipping a redundant lookup).
+    const caster =
+        casterId === player.id
+            ? player
+            : (state.players.find((p) => p.id === casterId) ?? player);
 
     // Opaque placeholders (hidden-library cards rehydrated for the vs-AI search,
     // issue #136) can never be played or cast — surfacing one as a legal move
@@ -320,6 +343,34 @@ export function getLegalActions(
         return actions;
     }
 
+    // CR 601.3e (issue #1156) — a card in an exile zone (this player's OWN, or
+    // — for a cross-player grant like Dauthi Voidwalker — the CASTER's
+    // opponent's, `casterId` disambiguating) tagged with the free-cast waiver
+    // (`SpellContext.grantCastFromExile`'s `withoutPayingManaCost` option) is
+    // castable from there for FREE: its printed mana cost is waived entirely,
+    // mirroring `castRawManaCost`'s matching branch (`convex/game.ts`) that
+    // actually deducts (or rather doesn't) the cost at commit. Same timing /
+    // phase / target / prohibition gates as an ordinary cast — only
+    // affordability is short-circuited (`costOverride: {}`, always payable).
+    // This branch fully owns the "cast" decision for the exiled card, exactly
+    // like the Madness branch above.
+    const isFreeExileCast =
+        !types.includes("Land") &&
+        card.castFromExileWithoutPayingManaCost === true;
+    if (isFreeExileCast) {
+        const baseLegal = hasInstantSpeed(card) ? true : isSorceryTiming(state);
+        if (
+            baseLegal &&
+            passesCastPhaseRestriction(state, card) &&
+            castProhibitionReason(caster.id, card, state) === undefined &&
+            canPotentiallyPayCost(caster, card, {}) &&
+            hasEnoughLegalTargets(state, caster, card)
+        ) {
+            actions.push("cast");
+        }
+        return actions;
+    }
+
     // "Cast" is for all non-land cards
     if (!types.includes("Land")) {
         const baseLegal = hasInstantSpeed(card)
@@ -336,14 +387,14 @@ export function getLegalActions(
             // battlefields; suppressing "cast" here also blocks the server
             // path, since `assertLegalAction` rejects the cast mutation when
             // "cast" is absent.
-            castProhibitionReason(player.id, card, state) === undefined &&
+            castProhibitionReason(caster.id, card, state) === undefined &&
             // CR 118.9 — the mana cost is payable, OR the caster can afford an
             // ALTERNATIVE cost (Gush/Thwart return Islands, Fireblast sacrifices
             // Mountains) that replaces the mana cost entirely.
-            (canPotentiallyPayCost(player, card) ||
-                affordableAlternativeCosts(state, player, card).length > 0) &&
-            hasEnoughLegalTargets(state, player, card) &&
-            hasPayableAdditionalCost(player, card)
+            (canPotentiallyPayCost(caster, card) ||
+                affordableAlternativeCosts(state, caster, card).length > 0) &&
+            hasEnoughLegalTargets(state, caster, card) &&
+            hasPayableAdditionalCost(caster, card)
         ) {
             actions.push("cast");
         }

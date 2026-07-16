@@ -455,6 +455,14 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // scenario — same skip rationale as `choice`.
             req.skip ??= `Op "discard" consumes a choice binding — covered by the card's own suspension/resume tests`;
             return;
+        case "grantCastFromExile":
+            // `grantCastFromExile` (issue #1156, Dauthi Voidwalker) consumes
+            // a `choice(zone: "exile")` Op's picks binding (the exiled card
+            // chosen) — without the choice's submitted picks the outcome is
+            // undefined in a canned scenario, same skip rationale as
+            // `discard`/`sacrifice`.
+            req.skip ??= `Op "grantCastFromExile" consumes a choice binding — covered by the card's own suspension/resume tests`;
+            return;
         case "reveal":
             // `reveal` (issue #920 / #682) stamps `knownTo` on hidden cards —
             // an information-visibility change, not a battlefield/life/hand-
@@ -1182,6 +1190,14 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     // `discard` (issue #805) — never reached, same rationale as `choice`
     // (its `cards` picks binding depends on a live player pick).
     discard() {
+        return null;
+    },
+    // `grantCastFromExile` (issue #1156) — never reached, same rationale as
+    // `discard`/`sacrifice` (its `card` picks binding depends on a live
+    // player pick from a preceding `choice(zone: "exile")` Op). Kept for the
+    // 1:1 coverage guard; execution coverage is the card's own
+    // suspension/resume tests + the Op's dedicated interpreter tests.
+    grantCastFromExile() {
         return null;
     },
     // `reveal` (issue #920 / #682) — never reached: `analyseOp` skips every

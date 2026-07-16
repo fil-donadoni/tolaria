@@ -924,7 +924,9 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         name: "Shadow",
         kind: "keyword-ability",
         cr: "702.28",
-        status: "planned",
+        status: "implemented",
+        binding: "shadow",
+        note: "combatRegistry.ts EvasionRule (attacker-has-shadow half, attacker-keyed like Fear/Flying) + combat.ts validateBlockerEligibility Pass 0d (the reverse half — a shadow BLOCKER can't block a non-shadow attacker — not expressible by the attacker-keyed EvasionRule shape). Issue #1156, Dauthi Voidwalker — first shadow creature shipped.",
     },
     // 702.29 Cycling
     {
@@ -2463,6 +2465,13 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         cr: "614.1a",
         binding: "SpellContext.armGraveyardRedirectThisTurn",
         note: 'Arm a turn-scoped "if a card would be put into the player\'s graveyard from anywhere this turn, exile that card instead" redirect (CR 614, issue #1145 / #1149 — Yawgmoth\'s Will\'s second clause). A thin declarative Op skin over the SpellContext primitive `armGraveyardRedirectThisTurn`, shipped as engine/replacement infra by issue #1145 (the `"graveyard-bound"` `ReplacementEventKind` + `applyGraveyardBoundReplacements` apply-loop hook, `gre/replacements.ts`) with no Op skin until #1149 needed one to keep Yawgmoth\'s Will DSL-first (ADR 0045) — no new engine logic, one execution path. Adds an entry to `state.graveyardBoundRedirectThisTurn`, consulted alongside the permanent-bound `replacementEffects[]` `"graveyard-bound"` shape (Dauthi Voidwalker) but surviving the casting spell leaving the stack (a one-shot sorcery has no battlefield presence to carry a continuous effect). Cleared unconditionally at CLEANUP (CR 514.2).',
+    },
+    {
+        op: "grantCastFromExile",
+        status: "implemented",
+        cr: "601.3e / 117.6",
+        binding: "SpellContext.grantCastFromExile",
+        note: "Grant cast/play permission for the exile card a preceding `choice(zone: \"exile\")` Op picked, optionally ALSO waiving its mana cost entirely (CR 601.3e / 117.6, issue #1156 — Dauthi Voidwalker: \"Choose an exiled card an opponent owns with a void counter on it. You may play it this turn without paying its mana cost.\"). A thin declarative Op skin over the SpellContext primitive `grantCastFromExile`, one execution path (ADR 0045) — the wrap issue #1145's addendum comment flagged as a follow-up once the redirect-replacement (Dauthi's first ability, the `\"graveyard-bound\"` `ReplacementEventKind`) shipped. The picked card's CURRENT owner (`getExileCardOwner`, since it may sit in an OPPONENT's exile per CR 400.7) becomes the primitive's `zoneOwnerId` — this is what makes the grant CROSS-PLAYER (also the shape Robber of the Rich, eld/red.ts, already relies on) without a bespoke Op. Stamps `castableFromExileBy` (+ `castFromExileWithoutPayingManaCost` when `withoutPayingManaCost` is set) on the picked `CardInstanceState`, consulted by `castRawManaCost` (the ONE place a cast's mana cost is computed, `convex/game.ts`) and `getLegalActions`'s exile-cast affordability branch (`gre/rules.ts`). `window` mirrors the primitive's own turn-scoping.",
     },
     {
         op: "destroy",

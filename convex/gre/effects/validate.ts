@@ -197,6 +197,25 @@ function isCardFilter(value: unknown): boolean {
         if (k === "name") {
             return typeof v === "string" && v.length > 0;
         }
+        // CR 122.6 (issue #1156) — "with a <type> counter on it". `type` is a
+        // non-empty counter type string; optional `min` is a positive integer
+        // (default 1 when omitted).
+        if (k === "hasCounter") {
+            if (typeof v !== "object" || v === null || Array.isArray(v)) {
+                return false;
+            }
+            const hc = v as Record<string, unknown>;
+            const validType = typeof hc.type === "string" && hc.type.length > 0;
+            const validMin =
+                hc.min === undefined ||
+                (typeof hc.min === "number" &&
+                    Number.isInteger(hc.min) &&
+                    hc.min >= 1);
+            const knownKeys = Object.keys(hc).every(
+                (key) => key === "type" || key === "min"
+            );
+            return validType && validMin && knownKeys;
+        }
         // issue #897 — the OR-ACROSS-fields disjunctive clause list. A
         // non-empty array of full `EffectCardFilter` clauses, each itself
         // validated by this same function (an AND-of-fields shape, may
@@ -523,6 +542,7 @@ const EFFECT_CHOICE_KINDS: Record<EffectChoiceKind, true> = {
     "search-library": true,
     "choose-hand-card": true,
     "choose-graveyard-card": true,
+    "choose-exile-card": true,
 };
 
 function isEffectChoiceKind(value: unknown): boolean {
@@ -540,7 +560,8 @@ function isChoiceZone(value: unknown): boolean {
         value === "battlefield" ||
         value === "hand" ||
         value === "library" ||
-        value === "graveyard"
+        value === "graveyard" ||
+        value === "exile"
     );
 }
 
@@ -1188,6 +1209,17 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     // exile-redirect grant (Yawgmoth's Will's second clause). `player` names
     // the grantee.
     armGraveyardRedirect: { required: { player: isPlayerRef } },
+    // CR 601.3e / 117.6 (issue #1156) — grant cast/play permission (+
+    // optional cost waiver) for the exile card a preceding `choice(zone:
+    // "exile")` Op picked. `card` is a bare picks ref; `player` names the
+    // grantee; `window`/`withoutPayingManaCost` are optional.
+    grantCastFromExile: {
+        required: { card: isBarePicksRef, player: isPlayerRef },
+        optional: {
+            window: (v: unknown) => v === "this-turn" || v === "while-exiled",
+            withoutPayingManaCost: isBoolean,
+        },
+    },
     // CR 106.1 (issue #850) — add mana to a player's mana pool. `mana` is the
     // JSON-pure per-colour amount map (WUBRGC, positive integers); `player`
     // (optional) names whose pool (default the resolving controller).
@@ -1850,7 +1882,11 @@ function collectRefUses(value: unknown, keyHint: string, out: RefUse[]): void {
                         // `mayPay`'s dynamically-derived cost (issue #1150):
                         // `manaCostOf` is a bare picks ref — the object an
                         // earlier `choice` Op selected.
-                        keyHint === "manaCostOf"
+                        keyHint === "manaCostOf" ||
+                        // `grantCastFromExile`'s `card` field (issue #1156)
+                        // — a bare picks ref naming a `choice` Op's bind
+                        // (singular: the choice's `count: 1` pick).
+                        keyHint === "card"
                       ? "picks"
                       : keyHint === "target" ||
                           keyHint === "to" ||

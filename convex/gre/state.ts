@@ -782,6 +782,22 @@ export type CardInstanceState = {
      *  can also express "until end of your next turn" (grant with a later turn
      *  number) without a schema change. */
     castableFromExileUntilTurn?: number;
+    /** CR 601.3e / 117.6 (issue #1156) — a cost waiver riding {@link
+     *  castableFromExileBy}: when both are set, `castableFromExileBy`'s
+     *  named player may cast/play this card WITHOUT PAYING ITS MANA COST
+     *  ("You may play it this turn without paying its mana cost" — Dauthi
+     *  Voidwalker's second ability). Distinct from `castableFromExileBy`
+     *  ALONE (Ice Cauldron, Robber of the Rich, Headliner Scarlett), which
+     *  grants only cast PERMISSION — the card is still cast for its normal
+     *  printed mana cost. Consulted at the ONE place a cast's mana cost is
+     *  computed (`castRawManaCost`, `convex/game.ts`) and by
+     *  `getLegalActions`'s exile-cast affordability branch (`gre/rules.ts`)
+     *  so the "Cast" button never requires unaffordable mana. Cleared
+     *  wherever `castableFromExileBy` is cleared (the SAME permission
+     *  window) — `removeFromZone`, the CLEANUP turn-scoped expiry loop
+     *  (`phases.ts`), and `applyPlayLandFromExile`. Persisted so the grant
+     *  survives a DB round-trip. */
+    castFromExileWithoutPayingManaCost?: boolean;
     /** CR 702.34 — a Flashback cost granted to this card at the instance level
      *  (Snapcaster Mage: "target instant or sorcery card in your graveyard
      *  gains flashback until end of turn"). When set on a card in a graveyard,
@@ -1650,8 +1666,9 @@ export type PendingChoice = {
      *  Undefined for choice kinds that don't pick from a zone (`may-pay`).
      *  `graveyard` picks (Recall) always carry a `candidateIds` allow-list — a
      *  graveyard is a public zone, so the submit-validator gates eligibility on
-     *  `candidateIds` rather than a hidden-zone snapshot. */
-    zone?: "battlefield" | "hand" | "library" | "graveyard";
+     *  `candidateIds` rather than a hidden-zone snapshot. `exile` (issue
+     *  #1156 — Dauthi Voidwalker) is the same public-zone shape. */
+    zone?: "battlefield" | "hand" | "library" | "graveyard" | "exile";
     /** Optional battlefield filter (card types / subtypes / keywords). Ignored
      *  for hand choices. */
     filter?: PermanentFilter;
@@ -8643,7 +8660,17 @@ export function buildSpellContext(
             cardInstanceId: string,
             playerId: string,
             zoneOwnerId?: string,
-            window: "this-turn" | "while-exiled" = "while-exiled"
+            window: "this-turn" | "while-exiled" = "while-exiled",
+            opts?: {
+                /** CR 601.3e / 117.6 (issue #1156) — also waive the card's
+                 *  mana cost entirely (Dauthi Voidwalker: "you may play it
+                 *  this turn without paying its mana cost"), stamping
+                 *  {@link CardInstanceState.castFromExileWithoutPayingManaCost}
+                 *  alongside `castableFromExileBy`. Omitted/false is the
+                 *  historical permission-only shape (Ice Cauldron, Robber of
+                 *  the Rich — cast for the normal printed cost). */
+                withoutPayingManaCost?: boolean;
+            }
         ): void {
             // CR 601.3e — Ice Cauldron: mark a card in `zoneOwnerId`'s exile
             // (defaults to `playerId` — the historical same-player shape) as
@@ -8668,6 +8695,11 @@ export function buildSpellContext(
                 card.castableFromExileUntilTurn = state.turn;
             } else {
                 delete card.castableFromExileUntilTurn;
+            }
+            if (opts?.withoutPayingManaCost) {
+                card.castFromExileWithoutPayingManaCost = true;
+            } else {
+                delete card.castFromExileWithoutPayingManaCost;
             }
         },
         getX(): number {
@@ -11048,6 +11080,45 @@ export function buildSpellContext(
             }
             return undefined;
         },
+        // CR 108.1 (issue #1156) — exile card characteristics from the
+        // registry. Mirrors `getGraveyardCards`, PLUS `counters` (CR 122.6):
+        // the graveyard-bound replacement's `tagCounters` (`gre/replacements.ts`,
+        // issue #1145) stamps counters directly onto the exiled
+        // `CardInstanceState`, so this is the one zone snapshot that carries
+        // them through — used by the `choice(zone: "exile")` branch's
+        // `hasCounter` filter (Dauthi Voidwalker: "an exiled card ... with a
+        // void counter on it").
+        getExileCards(playerId: string): Array<{
+            id: string;
+            name: string;
+            types: CardType[];
+            subtypes: string[];
+            manaValue: number;
+            colors: Color[];
+            counters: Record<string, number>;
+        }> {
+            return getPlayer(state, playerId).exile.map((c) => {
+                const cardId = (c.card as { id?: string }).id;
+                const def = cardId ? tryGetDefinition(cardId) : undefined;
+                return {
+                    id: c.id,
+                    name: def?.name ?? "",
+                    types: def?.types ?? c.types,
+                    subtypes: def?.subtypes ?? c.subtypes,
+                    manaValue: manaValue(def?.manaCost),
+                    colors: getColorsFromCost(def?.manaCost),
+                    counters: c.counters ?? {},
+                };
+            });
+        },
+        // CR 400.7 (issue #1156) — which exile holds `id` (owner playerId), or
+        // undefined. Mirrors `getGraveyardCardOwner`.
+        getExileCardOwner(id: string): string | undefined {
+            for (const p of state.players) {
+                if (p.exile.some((c) => c.id === id)) return p.id;
+            }
+            return undefined;
+        },
         // Revolt (CR 702.RV): true when a permanent the given player controlled
         // left the battlefield this turn. Set by removePermanentTo, reset at
         // turn start (advanceTurn).
@@ -11838,6 +11909,9 @@ export function removeFromZone(
     // card leaves exile for the stack; clear the stale flag and its expiry marker.
     delete card.castableFromExileBy;
     delete card.castableFromExileUntilTurn;
+    // CR 601.3e (issue #1156) — the free-cast waiver (Dauthi Voidwalker) rides
+    // the SAME permission window as `castableFromExileBy`; consumed together.
+    delete card.castFromExileWithoutPayingManaCost;
     // CR 702.35d — a madness card cast from exile leaves the madness marker
     // behind (it is no longer a discarded-and-exiled card once it is on the
     // stack); clear it so a later bounce/exile never re-reads it.

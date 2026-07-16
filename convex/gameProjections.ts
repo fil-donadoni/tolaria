@@ -703,8 +703,22 @@ export function projectPublicState(
             // `knownTo`; ordinary face-up exile is public to all.
             exile: player.exile.map((c) =>
                 projectExileCard(c, viewerId, {
+                    // CR 601.3e (issue #1156) — `casterId` disambiguates a
+                    // CROSS-PLAYER grant (Robber of the Rich, Dauthi
+                    // Voidwalker): the card lives in `player`'s exile, but
+                    // `c.castableFromExileBy` may name a DIFFERENT player as
+                    // the caster, whose priority/mana/targets must gate the
+                    // "cast" affordance, not this zone owner's. Defaults to
+                    // `player.id` for every same-player grant (Ice Cauldron),
+                    // so this is a no-op there.
                     legalActionsFor: () =>
-                        getLegalActions(state, player, c, allActions),
+                        getLegalActions(
+                            state,
+                            player,
+                            c,
+                            allActions,
+                            c.castableFromExileBy
+                        ),
                     exiledByPermanentId: exileAssoc.get(c.id),
                 })
             ),
@@ -875,6 +889,8 @@ export function projectFullState(
             // same way it does in the public projection (CR 601.3e), and stamp
             // the mechanism-agnostic permanent association for pinning.
             exile: player.exile.map((c) => {
+                // CR 601.3e (issue #1156) — same `casterId` disambiguation as
+                // the public projection above (cross-player grants).
                 const out: SlimExileCard = c.castableFromExileBy
                     ? {
                           ...slimCard(c),
@@ -882,7 +898,8 @@ export function projectFullState(
                               state,
                               player,
                               c,
-                              allActions
+                              allActions,
+                              c.castableFromExileBy
                           ),
                       }
                     : slimCard(c);

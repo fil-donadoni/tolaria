@@ -114,6 +114,34 @@ export function applyPlayLand(
     return settleEnteredLand(state, player, card, willEnterTapped);
 }
 
+/** CR 400.7 / 601.3e (issue #1156) — moves a single card from `from`'s zone on
+ *  ONE player to `to`'s zone on a DIFFERENT player (`moveCard`'s cross-player
+ *  counterpart — that primitive only moves within a single player's own
+ *  zones). Used exactly once: a cross-player exile grant (Dauthi Voidwalker,
+ *  Robber of the Rich) lets a card leave an OPPONENT's exile straight onto
+ *  the CASTER's battlefield. Both `"exile"` and `"battlefield"` are public
+ *  zones (CR 400.2/403), so `knownTo` is unconditionally cleared, mirroring
+ *  `moveCard`'s `PUBLIC_ZONES` branch for this specific from/to pair. Throws
+ *  if the card isn't in `fromPlayer`'s `from` zone (mirrors `moveCard`). */
+function moveCardAcrossPlayers(
+    fromPlayer: PlayerState,
+    toPlayer: PlayerState,
+    cardInstanceId: string,
+    from: "exile",
+    to: "battlefield"
+): CardInstanceState {
+    const sourceZone = fromPlayer[from];
+    const cardIndex = sourceZone.findIndex((c) => c.id === cardInstanceId);
+    if (cardIndex === -1) {
+        throw new Error(`Card ${cardInstanceId} not found in ${from}`);
+    }
+    const [card] = sourceZone.splice(cardIndex, 1);
+    card.zone = to;
+    delete card.knownTo;
+    toPlayer[to].push(card);
+    return card;
+}
+
 /** CR 305 / 601.3e — play a LAND from exile under a play-from-exile permission
  *  (Headliner Scarlett / Expressive Iteration exiling a land, "you may play that
  *  card this turn"). Moves `cardInstanceId` from the player's exile to the
@@ -132,17 +160,41 @@ export function applyPlayLandFromExile(
     player: PlayerState,
     cardInstanceId: string
 ): CardInstanceState | null {
-    const exileCard = player.exile.find((c) => c.id === cardInstanceId);
+    // CR 601.3e / 400.7 (issue #1156) — the card may sit in a DIFFERENT
+    // player's exile than the one playing it (a cross-player grant — Dauthi
+    // Voidwalker's opponent-owned void-countered land, Robber of the Rich's
+    // opponent-library land). `moveCard` only moves within a single player's
+    // zones, so locate the actual exile owner first; falls back to `player`
+    // for the ordinary same-player case (Headliner Scarlett / Expressive
+    // Iteration exile their OWN card).
+    const exileOwner =
+        state.players.find((p) =>
+            p.exile.some((c) => c.id === cardInstanceId)
+        ) ?? player;
+    const exileCard = exileOwner.exile.find((c) => c.id === cardInstanceId);
     if (!exileCard) return null;
 
     // CR 614.1c — tapped-on-entry is decided from the PRE-move board.
     const willEnterTapped = shouldEnterTapped(state, exileCard);
 
-    const card = moveCard(player, cardInstanceId, "exile", "battlefield");
+    const card =
+        exileOwner === player
+            ? moveCard(player, cardInstanceId, "exile", "battlefield")
+            : moveCardAcrossPlayers(
+                  exileOwner,
+                  player,
+                  cardInstanceId,
+                  "exile",
+                  "battlefield"
+              );
     // The play-from-exile permission is consumed the moment the card leaves
     // exile for the battlefield (CR 601.3e); drop the stale flags.
     delete card.castableFromExileBy;
     delete card.castableFromExileUntilTurn;
+    // issue #1156 — the free-cast waiver (Dauthi Voidwalker) rides the same
+    // permission window; a land has no mana cost to waive, but drop the stale
+    // flag for hygiene, mirroring `removeFromZone`'s spell-side cleanup.
+    delete card.castFromExileWithoutPayingManaCost;
     return settleEnteredLand(state, player, card, willEnterTapped);
 }
 

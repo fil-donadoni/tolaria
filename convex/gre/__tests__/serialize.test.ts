@@ -639,6 +639,9 @@ describe("game_state serialize round-trip", () => {
         // #946 (CR 514.2 / 608.2g) — the turn-scoped impulse-play expiry marker
         // must survive a save/load so cleanup revokes it on the right turn.
         lion.castableFromExileUntilTurn = 7;
+        // issue #1156 (CR 601.3e / 117.6) — the free-cast waiver riding the
+        // exile permission above (Dauthi Voidwalker) must survive a save/load.
+        lion.castFromExileWithoutPayingManaCost = true;
         // #698 (CR 702.35c) — the madness-exile marker on a discarded-and-exiled
         // card must survive a save/load so the cast window + cleanup sweep hold.
         lion.madnessExiled = true;
@@ -738,6 +741,7 @@ describe("game_state serialize round-trip", () => {
         });
         expect(got.castableFromExileBy).toBe("p1");
         expect(got.castableFromExileUntilTurn).toBe(7);
+        expect(got.castFromExileWithoutPayingManaCost).toBe(true);
         expect(got.madnessExiled).toBe(true);
     });
 

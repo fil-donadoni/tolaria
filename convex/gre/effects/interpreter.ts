@@ -455,9 +455,17 @@ function matchesCardFilter(
         supertypes?: readonly string[];
         colors?: readonly string[];
         manaValue: number;
+        counters?: Readonly<Record<string, number>>;
     },
     filter: EffectCardFilter
 ): boolean {
+    // CR 122.6 (issue #1156) — "with a <type> counter on it" (Dauthi
+    // Voidwalker's void counter). Fail-closed for a card shape that carries
+    // no `counters` map (hand/library/graveyard snapshots) — 0 of any type.
+    if (filter.hasCounter !== undefined) {
+        const have = card.counters?.[filter.hasCounter.type] ?? 0;
+        if (have < (filter.hasCounter.min ?? 1)) return false;
+    }
     // CR 201.2 — exact printed-name match ("each other card named Accumulated
     // Knowledge", issue #985). Fail-closed when the card shape carries no name.
     if (filter.name !== undefined && card.name !== filter.name) {
@@ -948,6 +956,27 @@ function choiceCandidates(
     // "a CREATURE card") is precomputed the same way as the hand/library
     // branches above (mirrors `countSet`'s graveyard branch too). No filter —
     // every card in the graveyard is eligible (Eternal Witness).
+    if (op.zone === "exile") {
+        // Exile — a public zone (CR 400.2), same shape as graveyard: an
+        // explicit `candidateIds` allow-list, precomputed via the shared
+        // matcher (issue #1156 — Dauthi Voidwalker's `hasCounter` filter,
+        // "an exiled card ... with a void counter on it"). No filter — every
+        // card in the exile is eligible.
+        const exileCards = ctx.getExileCards(zoneOwnerId);
+        const ids = op.filter
+            ? exileCards
+                  .filter((c) => matchesCardFilter(ctx, c, op.filter!))
+                  .map((c) => c.id)
+            : exileCards.map((c) => c.id);
+        return { available: ids.length, candidateIds: ids };
+    }
+    // graveyard — a public zone: eligibility is the snapshot taken when the
+    // choice is raised, carried as an explicit allow-list (the submit
+    // validator gates graveyard picks on `candidateIds`). A type/subtype/
+    // mana-value restriction (issue #680 — Titania's "a LAND card", Exhume's
+    // "a CREATURE card") is precomputed the same way as the hand/library
+    // branches above (mirrors `countSet`'s graveyard branch too). No filter —
+    // every card in the graveyard is eligible (Eternal Witness).
     const graveyardCards = ctx.getGraveyardCards(zoneOwnerId);
     const ids = op.filter
         ? graveyardCards
@@ -1090,6 +1119,32 @@ export const OP_EXECUTORS: {
         const playerId = resolvePlayerRef(ctx, op.player);
         if (playerId === undefined) return;
         ctx.armGraveyardRedirectThisTurn(playerId);
+    },
+    // CR 601.3e / 117.6 (issue #1156) — grant cast/play permission (optionally
+    // a mana-cost waiver) for the exile card a preceding `choice(zone:
+    // "exile")` Op picked. The picked card's CURRENT exile owner (looked up
+    // live via `getExileCardOwner`, since it may be an OPPONENT's exile —
+    // Dauthi Voidwalker) becomes the primitive's `zoneOwnerId`, so this Op
+    // supports a cross-player grant with no extra parameters. Skipped when
+    // the player can't be resolved, the picks binding was never captured, or
+    // the picked card is no longer in any exile (CR 608.2b).
+    grantCastFromExile(ctx, op) {
+        const playerId = resolvePlayerRef(ctx, op.player);
+        if (playerId === undefined) return;
+        const ids = resolvePicks(ctx, op.card);
+        if (!ids || ids.length === 0) return;
+        const cardInstanceId = ids[0];
+        const zoneOwnerId = ctx.getExileCardOwner(cardInstanceId);
+        if (zoneOwnerId === undefined) return;
+        ctx.grantCastFromExile(
+            cardInstanceId,
+            playerId,
+            zoneOwnerId,
+            op.window,
+            op.withoutPayingManaCost
+                ? { withoutPayingManaCost: true }
+                : undefined
+        );
     },
     // CR 106.1 (issue #850) — add mana to a player's mana pool. A thin
     // declarative skin over the SpellContext primitive `addManaTo`, ONE

@@ -21,6 +21,9 @@ const PENDING_CHOICE_KIND_LABELS: Record<PendingChoiceKind, string> = {
     partition: "Divide",
     "choose-hand-card": "Choose",
     "choose-graveyard-card": "Return",
+    // Dauthi Voidwalker (issue #1156) — pick an exiled card to grant a free
+    // cast for.
+    "choose-exile-card": "Choose",
     "choose-damage-target": "Choose target",
     // trigger-time player target (CR 115.1a — Endurance's "up to one target player")
     "choose-player": "Choose a player",

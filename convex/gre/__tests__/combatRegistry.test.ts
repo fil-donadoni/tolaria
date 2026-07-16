@@ -48,8 +48,8 @@ function makeCard(
 // ---------------------------------------------------------------------------
 
 describe("EVASION_RULES registry", () => {
-    it("contains 15 entries: unblockable + 6 landwalk + legendary landwalk + 5 snow landwalk + fear + flying", () => {
-        expect(EVASION_RULES).toHaveLength(15);
+    it("contains 16 entries: unblockable + 6 landwalk + legendary landwalk + 5 snow landwalk + fear + flying + shadow", () => {
+        expect(EVASION_RULES).toHaveLength(16);
         const keywords = EVASION_RULES.map((r) => r.keyword);
         expect(keywords).toContain("unblockable");
         expect(keywords).toContain("plainswalk");
@@ -69,6 +69,8 @@ describe("EVASION_RULES registry", () => {
         expect(keywords).toContain("snow forestwalk");
         expect(keywords).toContain("fear");
         expect(keywords).toContain("flying");
+        // CR 702.28b (issue #1156) — Shadow (Dauthi Voidwalker).
+        expect(keywords).toContain("shadow");
     });
 });
 

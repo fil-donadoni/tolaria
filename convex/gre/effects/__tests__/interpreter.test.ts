@@ -11958,3 +11958,167 @@ describe("Effect Script Op: emblem (CR 114, issue #1221)", () => {
         expect(round.nextEmblemSeq).toBe(state.nextEmblemSeq);
     });
 });
+
+describe("Effect Script choice kind: choose-exile-card + Op: grantCastFromExile (CR 601.3e / 117.6 / 122.6, issue #1156)", () => {
+    it("filters the exile-zone choice by hasCounter, then grants cast permission + the free-cast waiver cross-player (Dauthi Voidwalker shape)", () => {
+        const voidCard = makeInstance(BEAR_ID, {
+            id: "void1",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "exile",
+            counters: { void: 1 },
+        });
+        const plainExiled = makeInstance(BEAR_ID, {
+            id: "plain1",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "exile",
+        });
+        const id = registerScript("test-op-grant-cast-from-exile", [
+            {
+                op: "choice",
+                kind: "choose-exile-card",
+                player: "controller",
+                zoneOwnerId: "opponent",
+                zone: "exile",
+                filter: { hasCounter: { type: "void" } },
+                count: 1,
+                prompt: "Choose an exiled card with a void counter.",
+                bind: "$picked",
+            },
+            {
+                op: "grantCastFromExile",
+                card: { ref: "$picked" },
+                player: "controller",
+                window: "this-turn",
+                withoutPayingManaCost: true,
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { exile: [voidCard, plainExiled] }),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        expect(resolveTopOfStack(state)).toBeNull(); // suspended on the choice
+
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("choose-exile-card");
+        expect(head.zone).toBe("exile");
+        // The chooser is the caster (p1); the zone belongs to the opponent (p2).
+        expect(head.playerId).toBe("p1");
+        expect(head.zoneOwnerId).toBe("p2");
+        // The hasCounter filter precomputed candidateIds — only the
+        // void-countered card is eligible, not the plain exiled one.
+        expect(head.candidateIds).toEqual(["void1"]);
+
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["void1"],
+        });
+        expect(state.stack).toHaveLength(0);
+        expect(state.pendingChoices).toBeUndefined();
+
+        // The grant lands on the picked card, still in the OPPONENT's exile
+        // (CR 400.7 — the card never changes owner or zone).
+        const granted = state.players[1].exile.find((c) => c.id === "void1")!;
+        expect(granted.castableFromExileBy).toBe("p1");
+        expect(granted.castableFromExileUntilTurn).toBe(state.turn);
+        expect(granted.castFromExileWithoutPayingManaCost).toBe(true);
+        // The non-picked exiled card is untouched.
+        const untouched = state.players[1].exile.find(
+            (c) => c.id === "plain1"
+        )!;
+        expect(untouched.castableFromExileBy).toBeUndefined();
+        expect(untouched.castFromExileWithoutPayingManaCost).toBeUndefined();
+
+        // Wire format: the granted card survives projection, still listed
+        // under its OWNER's (p2's) exile pile for both viewers (CR 400.2 —
+        // exile is a public zone).
+        const projectedForCaster = projectPublicState(state, 1, "p1");
+        expect(
+            projectedForCaster.players[1].exile.find((c) => c.id === "void1")
+        ).toBeDefined();
+        const projectedForOwner = projectPublicState(state, 1, "p2");
+        expect(
+            projectedForOwner.players[1].exile.find((c) => c.id === "void1")
+        ).toBeDefined();
+    });
+
+    it("degrades to a full no-op when no exiled card matches the filter (CR 608.2b) — the choice never suspends and the grant binding stays uncaptured", () => {
+        const plainExiled = makeInstance(BEAR_ID, {
+            id: "plain2",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "exile",
+        });
+        const id = registerScript("test-op-grant-cast-from-exile-empty", [
+            {
+                op: "choice",
+                kind: "choose-exile-card",
+                player: "controller",
+                zoneOwnerId: "opponent",
+                zone: "exile",
+                filter: { hasCounter: { type: "void" } },
+                count: 1,
+                prompt: "Choose an exiled card with a void counter.",
+                bind: "$picked",
+            },
+            {
+                op: "grantCastFromExile",
+                card: { ref: "$picked" },
+                player: "controller",
+                withoutPayingManaCost: true,
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { exile: [plainExiled] }),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+        // No suspension — a 0-candidate fixed-count choice clamps to a no-op
+        // (CR 608.2b) rather than raising an unanswerable PendingChoice.
+        expect(state.pendingChoices).toBeUndefined();
+        expect(state.stack).toHaveLength(0);
+        expect(
+            state.players[1].exile.find((c) => c.id === "plain2")!
+                .castableFromExileBy
+        ).toBeUndefined();
+    });
+
+    it("is a no-op when the grantee player cannot be resolved (CR 608.2b)", () => {
+        const voidCard = makeInstance(BEAR_ID, {
+            id: "void2",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "exile",
+            counters: { void: 1 },
+        });
+        const id = registerScript("test-op-grant-cast-from-exile-no-player", [
+            {
+                op: "grantCastFromExile",
+                card: { ref: "$nope" },
+                player: "controller",
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { exile: [voidCard] }),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+        expect(
+            state.players[1].exile.find((c) => c.id === "void2")!
+                .castableFromExileBy
+        ).toBeUndefined();
+    });
+});
