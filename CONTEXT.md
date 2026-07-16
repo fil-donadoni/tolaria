@@ -214,6 +214,14 @@ _Avoid_: "the domain" (the knowledge area / this glossary's subject — a homony
 One of the two subsets a **Player** separates a set of objects into (all their nontoken lands, the top five cards of a **Library**, all creatures a player controls), after which _another_ player chooses one pile; an effect then applies asymmetrically to the chosen vs. unchosen pile (Fact or Fiction, Do or Die, Bend or Break). The divide-then-choose interaction is a two-step **Pending Choice** with distinct divider and chooser players.
 _Avoid_: Group, stack (that's the **Stack**), heap, partition (informal only)
 
+**Replacement Effect**:
+A continuous effect that watches for an event about to happen and swaps it for a different one before it occurs ("if… would…, instead…", CR 614) — never using the **Stack**. It modifies the event, it does not respond to it (that is a **Triggered Ability**). When several apply to one event the affected **Player** chooses the order (CR 616.1).
+_Avoid_: Interrupt, trigger (a replacement fires _before_ the event, a trigger _after_)
+
+**Draw Replacement**:
+A **Replacement Effect** on the draw event (CR 614, 121.x): "if a **Player** would draw, instead …". Its condition is a predicate over the draw — who is drawing, whether it is the turn-based **Draw Step** draw, and how many draws that player has already made this **Turn** (so "each opponent", "the first card drawn this turn", "in each of their draw steps" are all expressible). Its outcome may change the number drawn (draw N → N+1), redirect the draw to another effect (make a Treasure instead), or prevent it. Distinct from **Miracle** (which does not replace the draw — the card is still drawn, then a trigger offers a cast window) and from a plain "when you draw" **Triggered Ability**.
+_Avoid_: Draw trigger, draw hook
+
 ### Spells & Stack
 
 **Cast**:
