@@ -4,20 +4,23 @@
 top of their library in chosen order (Brainstorm `putBack` Op → `choose-hand-card`
 count 2, ordered — last picked / index 0 = topmost)?
 
-**Route:** `/prototype/put-back?variant=A|B|C` (dev only). Mocked 9-card hand +
-mocked library. All Done buttons are inert stubs; the tray text shows the array
-that WOULD be submitted (topmost first).
+**Route:** `/prototype/put-back` (dev only). Mocked 9-card hand as the left pool.
+Done is inert (logs the topmost-first array to the console).
 
-## Variants
+## Final shape (single variant)
 
-- **A — Extended Portent strip.** Single horizontal row: hand fan · library mock ·
-  2 ordered TOP slots. Drag hand card across into a slot. Literal "extend that
-  component" reading. Swap button reorders.
-- **B — Two-panel vertical.** Hand as arc fan (left); library column (right) with
-  2 TOP slots STACKED above the deck — "top = up" spatial metaphor. Drag up into
-  slots; drag between slots to reorder.
-- **C — Click-select + order tray.** No drag: tap 2 hand cards (numbered badges),
-  they flow into an ordered tray over the library; ⇅ swaps. Touch-friendly.
+Mounts the REAL `LibraryOrderPicker` in `distribute` mode: every card starts in
+the LEFT pool, pull exactly 2 into the RIGHT zone. The RIGHT is ONE drop area
+with internal drag-reorder (right = top, higher z + slight lateral offset) —
+identical to the scry/surveil/Portent top-zone. The only novelty vs those is that
+the LEFT pool is the HAND (scry: bottom-of-library, surveil: graveyard).
+
+Cosmetic-only delta vs the shipped feature: distribute mode hardcodes the labels
+BOTTOM/HAND; the real `putBack` mode reads HAND / TOP OF LIBRARY. Interaction and
+drag-reorder are already exactly right.
+
+(Earlier throwaway variants B/two-panel and C/click-select were dropped once A —
+corrected to a single top drop zone — was confirmed as the shape.)
 
 ## Verdict — A, corrected to the Portent model
 
