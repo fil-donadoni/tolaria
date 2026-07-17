@@ -23,6 +23,7 @@ import {
     type PermanentFilter,
     type PermanentView,
     type SpellCastEvent,
+    type BecameTargetEvent,
     type SpellContext,
     type StaticEffect,
     type TargetRequirement,
@@ -6206,7 +6207,58 @@ export function emitSpellCastEvent(state: GameState, item: StackItem): void {
         priorSpellCount,
     };
     state.pendingEvents = [...(state.pendingEvents ?? []), event];
+    // CR 603.2b (issue #1265) — a cast spell's chosen targets are locked onto
+    // its stack item here, so this doubles as the target-declaration choke for
+    // "whenever ~ becomes the target of a spell" triggers (Leovold). A
+    // non-targeted spell carries no `targets` → no-op.
+    emitBecameTargetEvents(state, item.targets, item.castById);
     collectCastTriggers(state, item, event);
+}
+
+/** Emits a BECAME_TARGET event (CR 603.2b / 115.5, issue #1265) per PERMANENT
+ *  or PLAYER target in `targets` — the target-declaration signal that drives
+ *  "whenever you or a permanent you control becomes the target of a spell or
+ *  ability an opponent controls" triggers (Leovold, Emissary of Trest). The
+ *  targeted object's controller is resolved at emit time (a permanent's live
+ *  `controllerId`, a player's own id) so the trigger's `matches()` tests "you
+ *  or a permanent you control" with one comparison and the opponent filter
+ *  without a battlefield scan. `"spell"` / `"graveyard-card"` targets are
+ *  skipped — they are neither a player nor a permanent under anyone's control.
+ *  No-op for an absent/empty target list (a non-targeted spell or ability). */
+export function emitBecameTargetEvents(
+    state: GameState,
+    targets: readonly TargetSelection[] | undefined,
+    sourceControllerId: string
+): void {
+    if (!targets || targets.length === 0) return;
+    const events: BecameTargetEvent[] = [];
+    for (const target of targets) {
+        let targetControllerId: string | undefined;
+        if (target.type === "player") {
+            targetControllerId = target.id;
+        } else if (target.type === "permanent") {
+            for (const p of state.players) {
+                const perm = p.battlefield.find((c) => c.id === target.id);
+                if (perm) {
+                    targetControllerId = perm.controllerId;
+                    break;
+                }
+            }
+        }
+        // CR 608.2b — a target that has left play (or a spell/graveyard target)
+        // has no battlefield controller; it does not fire a became-target
+        // trigger of the "you or a permanent you control" family.
+        if (targetControllerId === undefined) continue;
+        events.push({
+            type: "BECAME_TARGET",
+            target,
+            targetControllerId,
+            sourceControllerId,
+        });
+    }
+    if (events.length > 0) {
+        state.pendingEvents = [...(state.pendingEvents ?? []), ...events];
+    }
 }
 
 const STORM_KEYWORD = "storm";
@@ -7072,15 +7124,18 @@ function tokenDefinitionId(spec: TokenSpec): string {
         // Empty when the token has no continuous effects (back-compat: a 9-
         // segment id without this trailing segment decodes as "no effects").
         (spec.staticEffects ?? []).map((e) => e.kind).join(","),
-        // 11th segment (index 10, issue #1191): the token's activated
+        // 11th segment (index 10, issues #1191 + #778): the token's activated
         // abilities (Investigate's Clue: "{2}, Sacrifice this token: Draw a
-        // card."), JSON-encoded (they are plain data — an `EffectTokenSpec`
-        // ability carries only `id`/`cost`/`oracleText`/`useStack`/`effects`,
-        // no closures) and URI-escaped so a `|` inside oracle text or an
-        // effect string can never be confused with the segment delimiter. A
-        // token WITH an activated ability gets a distinct definition from one
-        // without. Empty when the token has none (back-compat: a 10-segment
-        // id without this trailing segment decodes as "no abilities").
+        // card."; a functional Treasure's sacrifice-for-mana ability),
+        // JSON-encoded (they are plain data — an `EffectTokenSpec` ability
+        // carries only `id`/`cost`/`oracleText`/`useStack`/`effects`, no
+        // closures) and URI-escaped so a `|` inside oracle text or an effect
+        // string can never be confused with the segment delimiter. A token
+        // WITH an activated ability gets a distinct definition from one
+        // without (and from one with different abilities — the full JSON
+        // subsumes an id-only key). Empty when the token has none (back-compat:
+        // a 10-segment id without this trailing segment decodes as "no
+        // abilities").
         spec.activatedAbilities && spec.activatedAbilities.length > 0
             ? encodeURIComponent(JSON.stringify(spec.activatedAbilities))
             : "",
@@ -9320,117 +9375,13 @@ export function buildSpellContext(
         // `applyExistingGrantsTo` (CR 611). CR 704.5d cleanup is handled by
         // `checkTokenExistenceSBA` if the token ever leaves the battlefield.
         createToken(spec, controllerId, count = 1, createdBy): string[] {
-            const owner = getPlayer(state, controllerId);
-            const ids: string[] = [];
-            const manaCost: CardManaCost = {};
-            for (const c of spec.colors ?? []) {
-                manaCost[c] = (manaCost[c] ?? 0) + 1;
-            }
-            // Synthesize + register one CardDefinition per unique spec
-            // shape. Multiple copies of the same Wasp share the same def
-            // entry; the frontend reads display data through the registry
-            // exactly like printed cards. The id is content-derived so
-            // replays are deterministic.
-            const defId = tokenDefinitionId(spec);
-            registerTokenDefinition({
-                id: defId,
-                name: spec.name,
-                // Tokens have no printing, hence no real rarity (CR 206);
-                // a nominal "common" satisfies the required field.
-                rarity: "common",
-                manaCost,
-                types: [...spec.types],
-                ...(spec.subtypes ? { subtypes: [...spec.subtypes] } : {}),
-                ...(spec.supertypes
-                    ? { supertypes: [...spec.supertypes] }
-                    : {}),
-                power: spec.power,
-                toughness: spec.toughness,
-                ...(spec.staticAbilities
-                    ? { staticAbilities: [...spec.staticAbilities] }
-                    : {}),
-                ...(spec.imagePrintId
-                    ? { imagePrintId: spec.imagePrintId }
-                    : {}),
-                // CR 611 — register the token's continuous static effects on its
-                // synthesized definition so def-keyed readers (isGuardedAgainst
-                // for the Tetravite "can't be enchanted" guard) observe them.
-                ...(spec.staticEffects && spec.staticEffects.length > 0
-                    ? { staticEffects: [...spec.staticEffects] }
-                    : {}),
-                // CR 707.2 (issue #1191) — register the token's activated
-                // abilities on its synthesized definition exactly like a
-                // printed card's, so every existing activation code path
-                // (`activateAbility`, `getStackAbilities`) finds them via the
-                // normal `card.card.id` → registry lookup, with no
-                // denormalized copy on `CardInstanceState`.
-                ...(spec.activatedAbilities &&
-                spec.activatedAbilities.length > 0
-                    ? { activatedAbilities: [...spec.activatedAbilities] }
-                    : {}),
-            });
-            for (let i = 0; i < count; i++) {
-                state.nextTokenSeq = (state.nextTokenSeq ?? 0) + 1;
-                const id = `token-${state.nextTokenSeq}`;
-                const token: CardInstanceState = {
-                    id,
-                    isToken: true,
-                    card: { id: defId },
-                    controllerId,
-                    ownerId: controllerId,
-                    zone: "battlefield",
-                    types: [...spec.types],
-                    subtypes: spec.subtypes ? [...spec.subtypes] : [],
-                    staticAbilities: spec.staticAbilities
-                        ? [...spec.staticAbilities]
-                        : [],
-                    power: spec.power,
-                    toughness: spec.toughness,
-                    isTapped: false,
-                    // CR 302.6 — every token starts its control-continuity
-                    // clock on creation (see `markEnteredThisTurn`); the flag is
-                    // inert for noncreature tokens until they become creatures.
-                    isSummoningSick: true,
-                    // CR 111 / 707.1 — token provenance link. Records the
-                    // creating permanent so a source can later identify the
-                    // tokens it made (Tetravus exiles its own Tetravites to
-                    // recover +1/+1 counters).
-                    ...(createdBy ? { createdBy } : {}),
-                };
-                // CR 614 (issue #1148) — enters-the-battlefield replacement
-                // chokepoint. `isToken: true` here: Containment Priest's own
-                // "nontoken creature" clause exempts every token regardless
-                // of `wasCast`, so this branch is unreachable by any shipped
-                // card today — kept for architectural parity with the
-                // non-cast (`stageReanimatedOnBattlefield`) and cast
-                // (`finalizeSpellResolution`) chokepoints in case a future
-                // replacement targets token entries specifically.
-                const enterDestination = enterBattlefieldDestinationFor(
-                    state,
-                    {
-                        id: token.id,
-                        ownerId: token.ownerId,
-                        types: token.types,
-                    },
-                    controllerId,
-                    true,
-                    false
-                );
-                if (enterDestination === "exile") {
-                    token.zone = "exile";
-                    owner.exile.push(token);
-                    ids.push(id);
-                    continue;
-                }
-                // CR 614.1c + 110.5b — Kismet-style replacement taps an
-                // opponent-controlled artifact/creature/land token as it enters.
-                if (shouldEnterTapped(state, token)) token.isTapped = true;
-                owner.battlefield.push(token);
-                applyExistingGrantsTo(state, token);
-                applySourceStaticEffects(state, token);
-                ids.push(id);
-            }
-            return ids;
+            return createTokenPermanents(
+                state,
+                spec,
+                controllerId,
+                count,
+                createdBy
+            );
         },
         createEmblem(emblemId, ownerId): string {
             // CR 114 — put a new emblem into the command zone (issue #1221).
@@ -11939,6 +11890,118 @@ function topCardHasType(player: PlayerState, cardType: CardType): boolean {
     return types?.includes(cardType) ?? false;
 }
 
+/** Creates `count` token permanents from `spec` under `controllerId`
+ *  (CR 111.2 / 707.2), returning their instance ids. Extracted from the
+ *  `SpellContext.createToken` primitive so a NON-SpellContext caller — the
+ *  draw-replacement seam's `redirect-to-token` outcome (Hullbreacher, issue
+ *  #1265) — can create tokens too. Synthesizes + registers one CardDefinition
+ *  per unique spec shape (content-derived id, deterministic replays), now
+ *  carrying the spec's `activatedAbilities` (issue #778 — a Treasure's "{T},
+ *  Sacrifice this artifact: Add one mana of any color" mana ability), and runs
+ *  each token through the CR 614 enters-the-battlefield chokepoint. */
+export function createTokenPermanents(
+    state: GameState,
+    spec: TokenSpec,
+    controllerId: string,
+    count = 1,
+    createdBy?: string
+): string[] {
+    const owner = getPlayer(state, controllerId);
+    const ids: string[] = [];
+    const manaCost: CardManaCost = {};
+    for (const c of spec.colors ?? []) {
+        manaCost[c] = (manaCost[c] ?? 0) + 1;
+    }
+    // Synthesize + register one CardDefinition per unique spec shape. Multiple
+    // copies of the same Wasp share the same def entry; the frontend reads
+    // display data through the registry exactly like printed cards. The id is
+    // content-derived so replays are deterministic.
+    const defId = tokenDefinitionId(spec);
+    registerTokenDefinition({
+        id: defId,
+        name: spec.name,
+        // Tokens have no printing, hence no real rarity (CR 206); a nominal
+        // "common" satisfies the required field.
+        rarity: "common",
+        manaCost,
+        types: [...spec.types],
+        ...(spec.subtypes ? { subtypes: [...spec.subtypes] } : {}),
+        ...(spec.supertypes ? { supertypes: [...spec.supertypes] } : {}),
+        power: spec.power,
+        toughness: spec.toughness,
+        ...(spec.staticAbilities
+            ? { staticAbilities: [...spec.staticAbilities] }
+            : {}),
+        // CR 707.2 (issue #778) — a token's own activated abilities (Treasure's
+        // sacrifice-for-mana). Registered on the def so the normal activation
+        // path finds them (the instance stores only `card: { id }`).
+        ...(spec.activatedAbilities
+            ? { activatedAbilities: [...spec.activatedAbilities] }
+            : {}),
+        ...(spec.imagePrintId ? { imagePrintId: spec.imagePrintId } : {}),
+        // CR 611 — register the token's continuous static effects on its
+        // synthesized definition so def-keyed readers (isGuardedAgainst for the
+        // Tetravite "can't be enchanted" guard) observe them.
+        ...(spec.staticEffects && spec.staticEffects.length > 0
+            ? { staticEffects: [...spec.staticEffects] }
+            : {}),
+    });
+    for (let i = 0; i < count; i++) {
+        state.nextTokenSeq = (state.nextTokenSeq ?? 0) + 1;
+        const id = `token-${state.nextTokenSeq}`;
+        const token: CardInstanceState = {
+            id,
+            isToken: true,
+            card: { id: defId },
+            controllerId,
+            ownerId: controllerId,
+            zone: "battlefield",
+            types: [...spec.types],
+            subtypes: spec.subtypes ? [...spec.subtypes] : [],
+            staticAbilities: spec.staticAbilities
+                ? [...spec.staticAbilities]
+                : [],
+            power: spec.power,
+            toughness: spec.toughness,
+            isTapped: false,
+            // CR 302.6 — every token starts its control-continuity clock on
+            // creation (see `markEnteredThisTurn`); the flag is inert for
+            // noncreature tokens until they become creatures.
+            isSummoningSick: true,
+            // CR 111 / 707.1 — token provenance link. Records the creating
+            // permanent so a source can later identify the tokens it made
+            // (Tetravus exiles its own Tetravites to recover +1/+1 counters).
+            ...(createdBy ? { createdBy } : {}),
+        };
+        // CR 614 (issue #1148) — enters-the-battlefield replacement chokepoint.
+        const enterDestination = enterBattlefieldDestinationFor(
+            state,
+            {
+                id: token.id,
+                ownerId: token.ownerId,
+                types: token.types,
+            },
+            controllerId,
+            true,
+            false
+        );
+        if (enterDestination === "exile") {
+            token.zone = "exile";
+            owner.exile.push(token);
+            ids.push(id);
+            continue;
+        }
+        // CR 614.1c + 110.5b — Kismet-style replacement taps an
+        // opponent-controlled artifact/creature/land token as it enters.
+        if (shouldEnterTapped(state, token)) token.isTapped = true;
+        owner.battlefield.push(token);
+        applyExistingGrantsTo(state, token);
+        applySourceStaticEffects(state, token);
+        ids.push(id);
+    }
+    return ids;
+}
+
 /** Build the CR 614 draw event (ADR 0061) for `playerId`'s NEXT single draw.
  *  `drawIndexThisTurn` is read from `drawnThisTurn` — promoted to the read-side
  *  source (CR 121.1); a prevented/binned draw never appended a card, so a
@@ -11973,11 +12036,25 @@ export function drawPlanForOutcome(
         revealedCardId: string | undefined;
         chooserId: string | undefined;
         chooserCanAfford: (life: number) => boolean;
+        /** Controller of the replacement source — the beneficiary of a
+         *  `redirect-to-token` outcome (Hullbreacher's "you create a Treasure
+         *  token"). */
+        beneficiaryId: string;
     }
 ): DrawStepPlan {
     switch (outcome.kind) {
         case "prevent":
             return { kind: "prevent" };
+        case "redirect-to-token":
+            // CR 614.1 — the draw is replaced entirely (drawing player draws
+            // nothing, even from an empty library); the source's controller
+            // creates the token instead. Deterministic — commits inline.
+            return {
+                kind: "create-token",
+                beneficiaryId: ctx.beneficiaryId,
+                token: outcome.token,
+                count: outcome.count,
+            };
         case "modify-count":
             // CR — draw 1 → draw (1 + delta), clamped ≥ 0. The extra cards are
             // drawn raw by `commitDrawPlan` and do NOT re-trigger the
@@ -12039,6 +12116,9 @@ export function planDrawStep(
         revealedCardId,
         chooserId,
         chooserCanAfford: (life) => getPlayer(state, chooserId).life >= life,
+        // CR 109.5 — the replacement source's controller receives a
+        // `redirect-to-token` outcome's token (Hullbreacher).
+        beneficiaryId: match.source.controllerId,
     });
     // CR — "they reveal it instead": surface the would-be-drawn card to all
     // players the instant the interactive pay-choice is raised.
@@ -12063,6 +12143,17 @@ export function commitDrawPlan(
     switch (plan.kind) {
         case "prevent":
             return 0; // CR — the draw doesn't happen; no draw-from-empty loss.
+        case "create-token":
+            // CR 614.1 (Hullbreacher) — the drawing player draws nothing (no
+            // card, no draw-from-empty loss); the beneficiary creates the
+            // token(s) instead.
+            createTokenPermanents(
+                state,
+                plan.token,
+                plan.beneficiaryId,
+                plan.count
+            );
+            return 0;
         case "bin":
             binRevealedTopCard(state, player);
             return 0;

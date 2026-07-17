@@ -4134,6 +4134,12 @@
         "firstSet": "lea"
     },
     {
+        "name": "Hullbreacher",
+        "scryfallId": "4df8aabc-7fcb-4b7b-980b-18f499e6c170",
+        "oracleId": "2f533667-e29b-4bec-897a-e7a9eee08314",
+        "firstSet": "cmr"
+    },
+    {
         "name": "Hunding Gjornersen",
         "scryfallId": "07d8e501-6857-4a52-a3b9-2bf0bee5b08c",
         "oracleId": "dd4f3a78-3167-42d0-8334-5ac36750a253",
@@ -5068,6 +5074,12 @@
         "scryfallId": "75b67eb2-b60e-46b4-9d48-11c284957bec",
         "oracleId": "70b69803-1870-4441-954b-dba5b433fcb2",
         "firstSet": "ice"
+    },
+    {
+        "name": "Leovold, Emissary of Trest",
+        "scryfallId": "49bb0ad3-1082-41f1-82a4-52a4006cc9b6",
+        "oracleId": "d5d91377-fd66-4dbe-a092-07f2ea379ca7",
+        "firstSet": "cn2"
     },
     {
         "name": "Leshrac's Rite",

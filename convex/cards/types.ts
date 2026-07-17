@@ -4923,7 +4923,8 @@ export type GameEventType =
     | "CARD_MILLED"
     | "LIFE_LOST"
     | "LIFE_GAINED"
-    | "COUNTER_REMOVED";
+    | "COUNTER_REMOVED"
+    | "BECAME_TARGET";
 
 /** Damage event emitted whenever a source inflicts damage on a target
  *  (CR 120.3). Used by "whenever ~ deals damage" triggers. The
@@ -5391,6 +5392,28 @@ export interface CounterRemovedEvent {
     remaining: number;
 }
 
+/** Target-declaration event (CR 603.2b / 115.5) emitted once PER TARGET when a
+ *  spell or ability's targets are locked onto its stack object — at cast
+ *  (`emitSpellCastEvent`), at activated-ability commit, and at targeted-trigger
+ *  announcement (CR 603.3d). Drives "whenever ~ becomes the target of a spell
+ *  or ability" triggers (Leovold, Emissary of Trest — issue #1265). The event
+ *  resolves the targeted object's controller at emit time so a trigger's
+ *  `matches()` can test "you or a permanent you control" with a single
+ *  comparison and filter to an opponent's source without a battlefield scan. */
+export interface BecameTargetEvent {
+    type: "BECAME_TARGET";
+    /** The object that became a target — a permanent or a player. */
+    target: TargetSelection;
+    /** Controller of the targeted object at emit time: for a permanent target
+     *  its `controllerId`; for a player target the player id itself. So "you or
+     *  a permanent you control" is `targetControllerId === self.controllerId`. */
+    targetControllerId: string;
+    /** Controller of the spell/ability that did the targeting (CR 109.5). An
+     *  "an opponent controls" filter is `sourceControllerId !==
+     *  self.controllerId`. */
+    sourceControllerId: string;
+}
+
 export type GameEvent =
     | DamageDealtEvent
     | PhaseBeginEvent
@@ -5411,7 +5434,8 @@ export type GameEvent =
     | CardMilledEvent
     | LifeLostEvent
     | LifeGainedEvent
-    | CounterRemovedEvent;
+    | CounterRemovedEvent
+    | BecameTargetEvent;
 
 /** Read-only window over the live `GameState` exposed to `matches()` for
  *  state triggers (CR 603.8). Kept narrow on purpose so card definitions can
@@ -5958,7 +5982,16 @@ export type DrawReplacementOutcome =
     | { kind: "reveal-type-to-graveyard"; cardType: CardType }
     | { kind: "reveal-others-may-pay-life"; life: number }
     | { kind: "prevent" }
-    | { kind: "modify-count"; delta: number };
+    | { kind: "modify-count"; delta: number }
+    /** The would-be draw is replaced entirely: the drawing player draws
+     *  nothing (no card, no draw-from-empty loss) and the REPLACEMENT SOURCE's
+     *  controller creates `count` copies of `token` (CR 614.1 redirect —
+     *  Hullbreacher: "instead you create a Treasure token"). Deterministic (no
+     *  player choice), so it commits inline at the draw seam without
+     *  suspending. `token` carries closures (the Treasure mana ability), so a
+     *  card declaring this outcome is a definition-level field, not a JSON-pure
+     *  effect script. */
+    | { kind: "redirect-to-token"; token: TokenSpec; count: number };
 
 /** A continuous draw-event replacement (CR 614, ADR 0061) carried by a card
  *  definition. While ANY permanent with this declaration is on the
@@ -6005,6 +6038,16 @@ export type DrawStepPlan =
           chooserId: string;
           life: number;
           revealedCardId: string;
+      }
+    /** Deterministic redirect (Hullbreacher): the drawing player draws nothing
+     *  and `beneficiaryId` (the replacement source's controller) creates
+     *  `count` copies of `token`. Commits inline — no suspend, no PendingChoice
+     *  — so it never round-trips through serialize. */
+    | {
+          kind: "create-token";
+          beneficiaryId: string;
+          token: TokenSpec;
+          count: number;
       };
 
 /** Side-effect mutators handed to a `ReplacementEffect.replace` body. Lets
