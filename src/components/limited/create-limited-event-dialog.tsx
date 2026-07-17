@@ -11,6 +11,26 @@ import {
 } from "@convex/limited/eventLogic";
 import type { LimitedEventType } from "@convex/limited/eventTypes";
 import IncompletenessNotice from "./incompleteness-notice";
+import CubeAvailabilityNote from "./cube-availability-note";
+
+/** Human-facing Pack Source label — the Vintage Cube pool source (ADR 0062)
+ *  shows a proper name, every real set shows its uppercased code. */
+function packSourceLabel(set: DraftableSetInfo): string {
+    return set.isCube ? "Vintage Cube" : set.setCode.toUpperCase();
+}
+
+/** Whether a Pack Source can be chosen for the given event type. The Vintage
+ *  Cube is a DRAFT-only pool source (ADR 0062: the singleton pool-as-source
+ *  path is wired into the draft engine, not the Sealed pool generator); every
+ *  real Draftable Set works for both. */
+function isSourceSelectable(
+    set: DraftableSetInfo,
+    type: LimitedEventType
+): boolean {
+    if (!set.draftable) return false;
+    if (set.isCube) return type === "draft";
+    return true;
+}
 
 export interface CreateLimitedEventPayload {
     type: LimitedEventType;
@@ -62,10 +82,16 @@ export default function CreateLimitedEventDialog({
     const [timerEnabled, setTimerEnabled] = useState(false);
 
     const resolvedSetCode = setCode ?? firstDraftable;
-    const canSubmit = !pending && resolvedSetCode !== undefined;
     const selectedSetInfo = draftableSets.find(
         (s) => s.setCode === resolvedSetCode
     );
+    // The selected source must be usable for the current event type — the
+    // Vintage Cube (ADR 0062) is Draft-only, so a cube selection carried over
+    // into Sealed blocks submit rather than reaching the Sealed pool generator.
+    const selectionUsable =
+        selectedSetInfo !== undefined &&
+        isSourceSelectable(selectedSetInfo, type);
+    const canSubmit = !pending && selectionUsable;
 
     const handleSubmit = () => {
         if (!canSubmit || !resolvedSetCode) return;
@@ -190,43 +216,65 @@ export default function CreateLimitedEventDialog({
                                 No Draftable Sets available yet.
                             </p>
                         )}
-                        {draftableSets.map((set) => (
-                            <label
-                                key={set.setCode}
-                                className={
-                                    "flex items-center justify-between rounded-sm border px-2 py-1.5 " +
-                                    (set.draftable
-                                        ? "cursor-pointer border-border-subtle/40"
-                                        : "cursor-not-allowed border-border-subtle/20 opacity-50")
-                                }
-                            >
-                                <span className="flex items-center gap-2">
-                                    <input
-                                        type="radio"
-                                        name="limited-pack-source"
-                                        disabled={!set.draftable || pending}
-                                        checked={
-                                            resolvedSetCode === set.setCode
-                                        }
-                                        onChange={() => setSetCode(set.setCode)}
-                                    />
-                                    <span className="uppercase">
-                                        {set.setCode}
+                        {draftableSets.map((set) => {
+                            const selectable = isSourceSelectable(set, type);
+                            return (
+                                <label
+                                    key={set.setCode}
+                                    className={
+                                        "flex items-center justify-between rounded-sm border px-2 py-1.5 " +
+                                        (selectable
+                                            ? "cursor-pointer border-border-subtle/40"
+                                            : "cursor-not-allowed border-border-subtle/20 opacity-50")
+                                    }
+                                >
+                                    <span className="flex items-center gap-2">
+                                        <input
+                                            type="radio"
+                                            name="limited-pack-source"
+                                            disabled={!selectable || pending}
+                                            checked={
+                                                resolvedSetCode === set.setCode
+                                            }
+                                            onChange={() =>
+                                                setSetCode(set.setCode)
+                                            }
+                                        />
+                                        <span
+                                            className={
+                                                set.isCube ? "" : "uppercase"
+                                            }
+                                        >
+                                            {packSourceLabel(set)}
+                                        </span>
                                     </span>
-                                </span>
-                                {!set.draftable && (
-                                    <span className="text-xs text-text-muted">
-                                        {set.missingCardCount} card
-                                        {set.missingCardCount === 1
-                                            ? ""
-                                            : "s"}{" "}
-                                        missing
-                                    </span>
-                                )}
-                            </label>
-                        ))}
+                                    {set.isCube ? (
+                                        <span className="text-xs text-text-muted">
+                                            {set.availableCardCount ?? 0} card
+                                            {(set.availableCardCount ?? 0) === 1
+                                                ? ""
+                                                : "s"}{" "}
+                                            {type === "draft"
+                                                ? "available"
+                                                : "· Draft only"}
+                                        </span>
+                                    ) : (
+                                        !set.draftable && (
+                                            <span className="text-xs text-text-muted">
+                                                {set.missingCardCount} card
+                                                {set.missingCardCount === 1
+                                                    ? ""
+                                                    : "s"}{" "}
+                                                missing
+                                            </span>
+                                        )
+                                    )}
+                                </label>
+                            );
+                        })}
                     </div>
                     <IncompletenessNotice set={selectedSetInfo} />
+                    <CubeAvailabilityNote set={selectedSetInfo} />
                 </div>
 
                 {type === "sealed" && (

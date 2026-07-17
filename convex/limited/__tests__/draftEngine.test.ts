@@ -10,6 +10,7 @@ import {
     roundSeed,
     startDraft,
 } from "../draftEngine";
+import { CUBE_SOURCE_KEY, CUBE_PACK_SIZE } from "../cube";
 import type { GetBoosterConfig, ResolveCardMeta } from "../eventLogic";
 import type { BoosterConfig } from "../boosterTypes";
 import type { LimitedEventSeat, DraftPackCard } from "../eventTypes";
@@ -730,5 +731,95 @@ describe("applyPick — full 3-seat round trace (queueing under diverging pick s
             expect(seat.currentPack).toBeUndefined();
             expect(seat.packQueue).toEqual([]);
         }
+    });
+});
+
+describe("Vintage Cube pool source through the real engine (ADR 0062)", () => {
+    // The cube key never reaches `getConfig` — `generateRoundPacks`
+    // special-cases it before the Booster Config lookup — so a null-returning
+    // stub is correct here (and proves the cube path bypasses it entirely).
+    const noConfig: GetBoosterConfig = () => null;
+    const cubeSlots = [CUBE_SOURCE_KEY, CUBE_SOURCE_KEY, CUBE_SOURCE_KEY];
+
+    it("startDraft deals 15-card cube packs to every seat", () => {
+        const dealt = startDraft(
+            seatsOf(2),
+            cubeSlots,
+            4242,
+            noConfig,
+            resolveCardMeta
+        );
+        for (const seat of dealt.seats) {
+            expect(seat.currentPack).toHaveLength(CUBE_PACK_SIZE);
+        }
+        expect(dealt.draftPacksRemaining).toBe(2);
+    });
+
+    it("is deterministic given a fixed event seed", () => {
+        const a = startDraft(
+            seatsOf(2),
+            cubeSlots,
+            7,
+            noConfig,
+            resolveCardMeta
+        );
+        const b = startDraft(
+            seatsOf(2),
+            cubeSlots,
+            7,
+            noConfig,
+            resolveCardMeta
+        );
+        expect(a.seats.map((s) => s.currentPack)).toEqual(
+            b.seats.map((s) => s.currentPack)
+        );
+    });
+
+    it("runs a full 2-seat draft SINGLETON (283-card pool ≥ 2*15*3=90)", () => {
+        // Drive every pick manually (take the first card of whichever seat
+        // currently holds a pack), exactly the loop a real submit/bot pick
+        // follows — proving cube packs feed the existing pick pipeline
+        // unchanged, and that no card is dealt twice across the whole draft.
+        let seats = startDraft(
+            seatsOf(2),
+            cubeSlots,
+            555,
+            noConfig,
+            resolveCardMeta
+        ).seats;
+        let round = 0;
+        let remaining = 2;
+        let completed = false;
+        for (let guard = 0; guard < 1000 && !completed; guard++) {
+            const seatIndex = seats.findIndex(
+                (s) => s.currentPack && s.currentPack.length > 0
+            );
+            if (seatIndex === -1) break;
+            const result = applyPick(
+                seats,
+                round,
+                remaining,
+                cubeSlots,
+                seatIndex,
+                seats[seatIndex].currentPack![0].pickId,
+                555,
+                noConfig,
+                resolveCardMeta
+            );
+            seats = result.seats;
+            round = result.draftRound;
+            remaining = result.draftPacksRemaining;
+            completed = result.completed;
+        }
+
+        expect(completed).toBe(true);
+        const allPicked: string[] = [];
+        for (const seat of seats) {
+            expect(seat.pool).toHaveLength(3 * CUBE_PACK_SIZE); // 45
+            allPicked.push(...seat.pool!.map((c) => c.scryfallId));
+        }
+        expect(allPicked).toHaveLength(90);
+        // Singleton: every one of the 90 dealt cards is distinct.
+        expect(new Set(allPicked).size).toBe(90);
     });
 });

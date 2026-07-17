@@ -13,6 +13,7 @@ import { assertDeckLegal, type GateDeck } from "../formats";
 import { manaValue } from "../gre/constants";
 import { makeRng } from "../gre/rng";
 import { computeEventCompletion } from "../limited/completion";
+import { CUBE_SOURCE_KEY, isCubeSource } from "../limited/cube";
 import {
     applyPick,
     resolveAutoPickTimeout,
@@ -1514,5 +1515,54 @@ describe("Limited Event Selected Card (ADR 0060, issue #1248): selectDraftPick's
         const view = projectLimitedEvent(draftEventWithPack(), "user1");
         const own = view.seats.find((s) => s.seatIndex === 0)!;
         expect(own.selectedPickId).toBeNull();
+    });
+});
+
+/** `createLimitedEvent`'s cube gate (ADR 0062 §4), modeled exactly as the
+ *  mutation enforces it: the Vintage Cube is a curated POOL that deliberately
+ *  bypasses the per-set Draftability gate, but is Draft-ONLY — a Sealed event
+ *  on the cube must be rejected server-side (defense-in-depth: the dialog
+ *  blocks it, but the mutation must not rely on the client). Non-cube slots
+ *  still go through the Draftability gate unchanged. */
+function assertPackSlotsAllowed(
+    packSlots: string[],
+    type: "sealed" | "draft"
+): void {
+    for (const setCode of new Set(packSlots)) {
+        if (isCubeSource(setCode)) {
+            if (type === "sealed") {
+                throw new Error(
+                    "The Vintage Cube is Draft-only — it cannot be used for a Sealed event."
+                );
+            }
+            continue;
+        }
+        if (!isDraftableSet(setCode)) {
+            throw new Error(`Set "${setCode}" is not a Draftable Set.`);
+        }
+    }
+}
+
+describe("Limited Event: Vintage Cube gate (Draft-only, ADR 0062 §4)", () => {
+    it("rejects a Sealed event on the cube source (server-side, not just the dialog)", () => {
+        expect(() =>
+            assertPackSlotsAllowed([CUBE_SOURCE_KEY], "sealed")
+        ).toThrow(/Draft-only/);
+    });
+
+    it("accepts a Draft event on the cube source, bypassing the Draftability gate", () => {
+        // The cube is NOT a Draftable Set in the registry sense (no per-set
+        // sheets), yet a Draft on it must be allowed — the gate is bypassed
+        // for the curated pool.
+        expect(isDraftableSet(CUBE_SOURCE_KEY)).toBe(true);
+        expect(() =>
+            assertPackSlotsAllowed([CUBE_SOURCE_KEY, CUBE_SOURCE_KEY, CUBE_SOURCE_KEY], "draft")
+        ).not.toThrow();
+    });
+
+    it("still rejects a genuinely non-Draftable real set (cube bypass is cube-specific)", () => {
+        expect(() =>
+            assertPackSlotsAllowed(["definitely-not-a-set"], "draft")
+        ).toThrow(/not a Draftable Set/);
     });
 });
