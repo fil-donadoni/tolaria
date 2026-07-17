@@ -11,7 +11,12 @@ import {
     getCardByName,
     getDefinition,
 } from "../../../index";
-import { buildDrawEvent, resolveTopOfStack } from "../../../../gre/state";
+import {
+    buildDrawEvent,
+    getPlayer,
+    resolveTopOfStack,
+} from "../../../../gre/state";
+import { tapSourceIntoPayment } from "../../../../game";
 import { projectPublicState } from "../../../../gameProjections";
 import {
     makeInstance,
@@ -155,6 +160,81 @@ describe("Hullbreacher (CR 614 / 616.1, ADR 0061 — issue #1265)", () => {
                 c.subtypes.includes("Treasure")
             );
             expect(treasures).toHaveLength(2);
+        });
+    });
+
+    describe("Treasure mana ability activated e2e (issue #778 — sacrifice for any color)", () => {
+        it("activating the redirected Treasure adds the chosen color and sacrifices it", () => {
+            // Redirect an opponent's effect draw into a Treasure for p2, exactly
+            // as the golden path above, then ACTIVATE the token's synthesized
+            // "{T}, Sacrifice: Add one mana of any color" ability through the
+            // real production entry point (`tapSourceIntoPayment` — the same path
+            // Black Lotus's mana ability drives, CR 605.1a / 707.2).
+            const id = registerDrawSpell("test-hullbreacher-treasure-activate", 1);
+            const state = makeState({
+                players: [
+                    makePlayer("p1", {
+                        library: [
+                            makeInstance(bearsId, {
+                                id: "p1-top",
+                                ownerId: "p1",
+                                zone: "library",
+                            }),
+                        ],
+                    }),
+                    makePlayer("p2", {
+                        battlefield: [hullbreacherInstance("p2")],
+                    }),
+                ],
+            });
+            pushSpell(state, id, "p1");
+            resolveTopOfStack(state);
+
+            const p2 = getPlayer(state, "p2");
+            const treasure = p2.battlefield.find((c) =>
+                c.subtypes.includes("Treasure")
+            );
+            expect(treasure).toBeDefined();
+
+            // Choose option index 2 → {B} (manaChoices [{W},{U},{B},{R},{G}]).
+            tapSourceIntoPayment(state, p2, treasure!, 2, []);
+
+            // The chosen color is added; no other color leaked into the pool.
+            expect(p2.manaPool.B).toBe(1);
+            expect(p2.manaPool.W).toBe(0);
+            expect(p2.manaPool.U).toBe(0);
+            // CR 707.2 — the Treasure was sacrificed: it has left the battlefield.
+            expect(p2.battlefield.some((c) => c.id === treasure!.id)).toBe(false);
+        });
+
+        it("a different color pick is honored (index 4 → {G})", () => {
+            const id = registerDrawSpell("test-hullbreacher-treasure-green", 1);
+            const state = makeState({
+                players: [
+                    makePlayer("p1", {
+                        library: [
+                            makeInstance(bearsId, {
+                                id: "p1-top",
+                                ownerId: "p1",
+                                zone: "library",
+                            }),
+                        ],
+                    }),
+                    makePlayer("p2", {
+                        battlefield: [hullbreacherInstance("p2")],
+                    }),
+                ],
+            });
+            pushSpell(state, id, "p1");
+            resolveTopOfStack(state);
+
+            const p2 = getPlayer(state, "p2");
+            const treasure = p2.battlefield.find((c) =>
+                c.subtypes.includes("Treasure")
+            )!;
+            tapSourceIntoPayment(state, p2, treasure, 4, []);
+            expect(p2.manaPool.G).toBe(1);
+            expect(p2.battlefield.some((c) => c.id === treasure.id)).toBe(false);
         });
     });
 
