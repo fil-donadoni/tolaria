@@ -3657,6 +3657,56 @@ export function shouldEnterTapped(
     );
 }
 
+/** CR 400.7-style hygiene for a spell that returns from the stack to its
+ *  owner's HAND instead of the graveyard (CR 702.27a — Buyback). Strips every
+ *  cast/announcement-time snapshot field the `StackItem` extension adds on
+ *  top of `CardInstanceState` — `buybackPaid`, `chosenX`, `targets`,
+ *  `chosenModeId`, `castById`, and the rest — so the hand card carries none
+ *  of them forward.
+ *
+ *  Without this, `finalizeSpellResolution`'s buyback branch used to push
+ *  `item` (still carrying `buybackPaid: true`) straight into `owner.hand`.
+ *  `announceCast`/`finalizeTargetSelection` (`convex/game.ts`) build a fresh
+ *  stack item on RECAST via `{ ...card, ... }`, conditionally overriding
+ *  `buybackPaid` only when the new cast itself pays buyback
+ *  (`...(buybackPaid ? { buybackPaid: true } : {})`) — when the new cast does
+ *  NOT pay buyback that spread is `{}` and does not clear the field, so the
+ *  stale `true` from the hand card silently survived onto the new stack item.
+ *  The spell then resolved back to hand again for free, defeating the CR
+ *  702.27 additional cost on every cast after the first. */
+function resetStackTransientState(item: StackItem): void {
+    delete (item as { castById?: string }).castById;
+    delete item.targets;
+    delete item.chosenX;
+    delete item.kickerCount;
+    delete item.buybackPaid;
+    delete item.targetAmounts;
+    delete item.chosenModeId;
+    delete item.additionalSacrificeSnapshot;
+    delete item.notedManaSpent;
+    delete item.abilityId;
+    delete item.grantedSourceCardId;
+    delete item.triggeredAbilityId;
+    delete item.triggerSourceId;
+    delete item.triggerEvent;
+    delete item.abilityResolutionRecorded;
+    delete item.madnessTrigger;
+    delete item.emblemSourceId;
+    delete item.stormSnapshot;
+    delete item.stormCopiesRemaining;
+    delete item.delayedTriggerId;
+    delete item.delayedPayload;
+    delete item.delayedEffects;
+    delete item.resolutionStep;
+    delete item.collectedChoices;
+    delete item.massRiderTargets;
+    delete item.isCopy;
+    delete item.exileOnResolve;
+    delete item.shuffleIntoLibraryOnResolve;
+    delete item.castFromGraveyard;
+    delete item.actingPlayerId;
+}
+
 /** Moves a stack item (a spell that failed to resolve/finished resolving as
  *  a non-permanent/was countered) into its owner's graveyard — CR 614
  *  (issue #1145) consulted first so a graveyard-bound replacement
@@ -3920,6 +3970,12 @@ function finalizeSpellResolution(
         // of those, but the ordering documents the intended precedence).
         if (item.buybackPaid) {
             item.zone = "hand";
+            // Strip stack-only cast-time snapshots (buybackPaid included)
+            // BEFORE the object enters the hand — see
+            // `resetStackTransientState` for why: otherwise a later recast
+            // that doesn't pay buyback silently inherits the stale flag and
+            // returns to hand for free.
+            resetStackTransientState(item);
             owner.hand.push(item);
             return;
         }

@@ -154,6 +154,81 @@ describe("Buyback — resolution redirect (CR 702.27a)", () => {
     });
 });
 
+describe("Buyback — recast after returning to hand does not leak (fixup, issue #1200)", () => {
+    it("a spell that came back to hand via paid buyback goes to the GRAVEYARD on a later UNPAID recast", () => {
+        // Regression for the review finding: `finalizeSpellResolution`'s
+        // buyback-to-hand branch used to push the resolved stack item
+        // straight into `owner.hand` WITHOUT stripping stack-only fields, so
+        // `buybackPaid: true` physically survived on the hand-card object.
+        // `finalizeTargetSelection`'s cast-commit spread
+        // (`{ ...card, ..., ...(buybackPaid ? { buybackPaid: true } : {}) }`)
+        // only OVERRIDES `buybackPaid` when the NEW cast pays it — when it
+        // doesn't, that spread is `{}` and the stale `true` from `...card`
+        // silently rode onto the fresh stack item, sending the spell back to
+        // hand for free on every subsequent cast.
+        const probe = makeInstance(BUYBACK_PROBE_ID, {
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+            id: "probeRecast",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: [probe],
+                    // Two casts at {2}{B} = 3 mana each.
+                    manaPool: { W: 0, U: 0, B: 6, R: 0, G: 0, C: 0 },
+                }),
+                makePlayer("p2"),
+            ],
+        });
+
+        // First cast: pay buyback → resolves back to hand instead of the
+        // graveyard.
+        finalizeTargetSelection(
+            state,
+            {
+                playerId: "p1",
+                cardInstanceId: "probeRecast",
+                targetType: "any",
+                count: 0,
+                selected: [],
+                buybackPaid: true,
+            },
+            "p1"
+        );
+        resolveTopOfStack(state);
+        const afterFirstCast = getPlayer(state, "p1");
+        expect(
+            afterFirstCast.hand.some((c) => c.id === "probeRecast")
+        ).toBe(true);
+        // The hand card must NOT carry the stack-only buybackPaid snapshot
+        // forward — this is the core assertion the fix guarantees.
+        const handCard = afterFirstCast.hand.find(
+            (c) => c.id === "probeRecast"
+        ) as { buybackPaid?: boolean } | undefined;
+        expect(handCard?.buybackPaid).toBeUndefined();
+
+        // Second cast: do NOT pay buyback this time.
+        finalizeTargetSelection(
+            state,
+            {
+                playerId: "p1",
+                cardInstanceId: "probeRecast",
+                targetType: "any",
+                count: 0,
+                selected: [],
+            },
+            "p1"
+        );
+        resolveTopOfStack(state);
+
+        const p1 = getPlayer(state, "p1");
+        expect(p1.graveyard.some((c) => c.id === "probeRecast")).toBe(true);
+        expect(p1.hand.some((c) => c.id === "probeRecast")).toBe(false);
+    });
+});
+
 describe("Buyback — serialization round-trip (schema drift guard, CR 702.27)", () => {
     it("preserves a stack item's buybackPaid across compact/expand", () => {
         const state = makeState();
