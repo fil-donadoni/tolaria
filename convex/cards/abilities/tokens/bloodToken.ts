@@ -31,13 +31,17 @@ import type {
  *  same shape Arc Mage's "discard a card" leg uses — nem/red.ts), and
  *  `cost.sacrifice: true` sacrifices the ability's own source (the token
  *  itself, CR 602.1). The DSL-only `effects: [{ op: "draw", ... }]` body
- *  draws one card for the activating controller. No `imagePrintId` — no
- *  Blood print is wired into `tokenPrintLookup.ts` yet; the renderer falls
- *  back to the in-app placeholder (name/abilities), same as Clue. */
+ *  draws one card for the activating controller. Carries `imagePrintId`
+ *  (the printed Blood token reverse-linked from its producer) — see the
+ *  spec below. */
 export const BLOOD_TOKEN_SPEC: EffectTokenSpec = {
     name: "Blood",
     types: ["Artifact"],
     subtypes: ["Blood"],
+    // Printed Blood token art reverse-linked from Voldaren Epicure (vow) via
+    // tokenPrintLookup.ts; catalogue guard #941 requires it on any DSL
+    // createToken spec with a known printed counterpart.
+    imagePrintId: "a6f374bc-cd29-469f-808a-6a6c004ee8aa",
     activatedAbilities: [
         {
             id: "sacrifice-discard-draw",
