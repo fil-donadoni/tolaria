@@ -261,6 +261,16 @@ function evalPredicate(ctx: SpellContext, pred: EffectPredicate): boolean {
         // "unless pays" consequence fires — CR 117.3a).
         return readBoolBinding(ctx, pred.not.binding) !== true;
     }
+    // picksNonEmpty (issue #1287) — true iff the named `choice` Op's picks
+    // binding was captured AND is nonempty. Reuses `resolvePicks` (the same
+    // reader `discard`/`sacrifice`'s bare picks refs use): `undefined` for an
+    // uncaptured binding (the choice skipped — zero candidates, CR 608.2b)
+    // and a zero-length array for a captured-but-declined "you may" choice
+    // both read as false — nothing was picked either way.
+    if ("picksNonEmpty" in pred) {
+        const picks = resolvePicks(ctx, pred.picksNonEmpty);
+        return picks !== undefined && picks.length > 0;
+    }
     const left = resolveValue(ctx, pred.left);
     const right = resolveValue(ctx, pred.right);
     if (left === undefined || right === undefined) return false;
@@ -514,6 +524,16 @@ function matchesCardFilter(
     if (
         colors !== undefined &&
         !colors.some((c) => (card.colors ?? []).includes(c))
+    ) {
+        return false;
+    }
+    // issue #1287 — the negative of `color` (Krovikan Sorcerer's "a NONBLACK
+    // card"): fails if the card has ANY listed color. An uncolored card
+    // (empty `colors`) always passes — nothing to exclude (CR 105.2a).
+    const excludeColors = asFilterArray(filter.excludeColor);
+    if (
+        excludeColors !== undefined &&
+        excludeColors.some((c) => (card.colors ?? []).includes(c))
     ) {
         return false;
     }

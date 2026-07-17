@@ -893,9 +893,18 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // COVERED path → FREE + AFK-ready). Net: total 686→689, FREE 438→440,
         // AFK-ready 401→403, X-only unchanged (14), Op-blocked 234→235.
         // Partition: 440+14+235=689.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(689);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(440);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(403);
+        //
+        // Then issue #1287 (picksNonEmpty `if` predicate + excludeColor filter)
+        // migrates Krovikan Sorcerer (both the nonblack and black
+        // discard→draw activated abilities) and Mesmeric Trance from
+        // `resolveSteps`/`resolve` to `effects[]` — the picks-nonempty predicate
+        // now gates the conditional draw and excludeColor expresses the
+        // nonblack filter. Net −3 closures, all FREE (2 AFK-ready + 1
+        // need-test): total 689→686, FREE 440→437, AFK-ready 403→401, X-only
+        // unchanged (14), Op-blocked unchanged (235). Partition: 437+14+235=686.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(686);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(437);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(401);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
         expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(235);
     });

@@ -141,21 +141,22 @@ function isValueOrArray(
     return check(value);
 }
 
-/** `{ type?, excludeType?, subtype?, supertype?, color?, manaValueAtMost?,
- *  isToken?, name? }` — the minimal card filter for a `count` set or a `choice`
- *  Op's
+/** `{ type?, excludeType?, subtype?, supertype?, color?, excludeColor?,
+ *  manaValueAtMost?, isToken?, name? }` — the minimal card filter for a
+ *  `count` set or a `choice` Op's
  *  zone-restricted candidates (issue #677). `type`/`excludeType`/`subtype`/
- *  `color` accept a single value OR a non-empty array (OR within the field —
- *  a fetchland's "a Forest or Island card"). `excludeType` (issue #682) is
- *  the negative of `type` — Thoughtseize's "nonland card", Duress's
- *  "noncreature, nonland card". `supertype` is the "search for a BASIC land
- *  card" restriction (CR 205.4a) and its value must be a real printed
- *  supertype (reuses `TOKEN_SUPERTYPES`). `color` reuses `TOKEN_COLORS`.
- *  `manaValueAtMost` is a mana-value ceiling: a non-negative integer literal
- *  (Spellseeker's "mana value 2 or less") OR the dynamic chosen-cost
- *  `{ X: true }` (issue #898, Green Sun's Zenith's "mana value X or less",
- *  resolved via `ctx.getX()` at resolution — the same shape every other
- *  `EffectXValue` site uses). */
+ *  `color`/`excludeColor` accept a single value OR a non-empty array (OR
+ *  within the field — a fetchland's "a Forest or Island card"). `excludeType`
+ *  (issue #682) is the negative of `type` — Thoughtseize's "nonland card",
+ *  Duress's "noncreature, nonland card". `supertype` is the "search for a
+ *  BASIC land card" restriction (CR 205.4a) and its value must be a real
+ *  printed supertype (reuses `TOKEN_SUPERTYPES`). `color` reuses
+ *  `TOKEN_COLORS`; `excludeColor` (issue #1287) is its negative — Krovikan
+ *  Sorcerer's "a NONBLACK card". `manaValueAtMost` is a mana-value ceiling: a
+ *  non-negative integer literal (Spellseeker's "mana value 2 or less") OR the
+ *  dynamic chosen-cost `{ X: true }` (issue #898, Green Sun's Zenith's "mana
+ *  value X or less", resolved via `ctx.getX()` at resolution — the same shape
+ *  every other `EffectXValue` site uses). */
 function isCardFilter(value: unknown): boolean {
     if (typeof value !== "object" || value === null || Array.isArray(value)) {
         return false;
@@ -180,6 +181,14 @@ function isCardFilter(value: unknown): boolean {
             );
         }
         if (k === "color") {
+            return isValueOrArray(
+                v,
+                (m) => typeof m === "string" && TOKEN_COLORS.has(m)
+            );
+        }
+        // issue #1287 — negative of `color` (Krovikan Sorcerer's "a NONBLACK
+        // card"), same shape as `excludeType`/`excludeSupertype`.
+        if (k === "excludeColor") {
             return isValueOrArray(
                 v,
                 (m) => typeof m === "string" && TOKEN_COLORS.has(m)
@@ -1049,6 +1058,22 @@ function isPredicate(value: unknown): boolean {
             nk.length === 1 &&
             nk[0] === "binding" &&
             isBindingName((n as { binding: unknown }).binding)
+        );
+    }
+    // picksNonEmpty form (issue #1287) — a single key holding a bare picks
+    // ref (`isRefValue` accepts only a `.property` ref, so check the shape
+    // directly: a lone `ref` key whose value is a `$binding` string with no
+    // dot). Binding EXISTENCE and family (must be "picks") are checked by
+    // the ordered ref pass, like every other predicate form.
+    if (keys.length === 1 && keys[0] === "picksNonEmpty") {
+        const p = obj.picksNonEmpty;
+        if (typeof p !== "object" || p === null) return false;
+        const pk = Object.keys(p);
+        return (
+            pk.length === 1 &&
+            pk[0] === "ref" &&
+            typeof (p as { ref: unknown }).ref === "string" &&
+            /^\$[A-Za-z][A-Za-z0-9]*$/.test((p as { ref: string }).ref)
         );
     }
     // Comparison form.
@@ -2115,6 +2140,20 @@ function collectPredicateRefUses(predicate: unknown, out: RefUse[]): void {
         out.push({
             ref: (p.not as { binding: string }).binding,
             kind: "boolean",
+        });
+        return;
+    }
+    // picksNonEmpty (issue #1287) — names a picks binding (a `choice` Op's
+    // `bind`), same family as `discard`/`sacrifice`'s bare `cards`/
+    // `permanents` refs.
+    if (
+        typeof p.picksNonEmpty === "object" &&
+        p.picksNonEmpty !== null &&
+        typeof (p.picksNonEmpty as { ref?: unknown }).ref === "string"
+    ) {
+        out.push({
+            ref: (p.picksNonEmpty as { ref: string }).ref,
+            kind: "picks",
         });
         return;
     }

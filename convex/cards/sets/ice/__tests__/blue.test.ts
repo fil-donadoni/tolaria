@@ -1344,7 +1344,7 @@ describe("Krovikan Sorcerer (colour-filtered looters, CR 601.2h / 121.1)", () =>
         submitChoice(state, ["black-hand"]); // pay the black discard cost
         // Drew two (lib0, lib1); now suspends at the "discard one of them" pick.
         const head = state.pendingChoices![0];
-        expect(head.choiceId).toBe("krovikan-sorcerer-black-then-discard");
+        expect(head.choiceId).toBe("$thenDiscard");
         submitChoice(state, ["lib0"]); // discard one drawn card
         const p1 = state.players[0];
         // black-hand (cost) + lib0 (then-discard) are in the graveyard.
@@ -1356,6 +1356,65 @@ describe("Krovikan Sorcerer (colour-filtered looters, CR 601.2h / 121.1)", () =>
         expect(handIds).toContain("green-hand");
         expect(handIds).toContain("lib1");
         expect(p1.library).toHaveLength(0);
+    });
+});
+
+describe("Mesmeric Trance (looter, CR 601.2h / 121.1, issue #1287)", () => {
+    const BEAR_ID = getCardByName("Grizzly Bears").id;
+
+    function setup() {
+        const trance = makeInstance(mesmericTrance.id, {
+            id: "trance",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const handCard = makeInstance(BEAR_ID, {
+            id: "hand0",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const lib = [
+            makeInstance(BEAR_ID, {
+                id: "lib0",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "library",
+            }),
+        ];
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [trance],
+                    hand: [handCard],
+                    library: lib,
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        return { state, trance };
+    }
+
+    it("discard a card → draw one (CR 121.1)", () => {
+        const { state, trance } = setup();
+        resolveActivated(state, trance, "mesmeric-trance-loot");
+        submitChoice(state, ["hand0"]);
+        const p1 = state.players[0];
+        expect(p1.graveyard.map((c) => c.id)).toContain("hand0");
+        expect(p1.hand.map((c) => c.id)).toEqual(["lib0"]);
+        expect(p1.library).toHaveLength(0);
+        // Wire — the discard/draw outcome is client-visible.
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[0].hand.map((c) => c?.id)).toEqual(["lib0"]);
+    });
+
+    it("empty hand → the discard choice never enqueues and the draw is skipped (CR 608.2b, picksNonEmpty false)", () => {
+        const { state, trance } = setup();
+        state.players[0].hand = [];
+        resolveActivated(state, trance, "mesmeric-trance-loot");
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        expect(state.players[0].library).toHaveLength(1); // untouched
+        expect(state.stack).toHaveLength(0);
     });
 });
 

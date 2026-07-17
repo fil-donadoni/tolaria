@@ -152,8 +152,10 @@ function nextUpkeepDrawTrigger(): DelayedTriggerDef {
 //     also grants cumulative upkeep.
 //
 // COMPLETED (#654) — buildable-now Blue cards using shipped primitives only:
-//   • Krovikan Sorcerer — colour-filtered chosen-discard cost paid in-resolve
-//     (Mesmeric Trance pattern, `candidateIds` from hand colours) + draw.
+//   • Krovikan Sorcerer / Mesmeric Trance — colour-filtered chosen-discard
+//     cost paid in-effect + conditional draw, DSL (ADR 0045, issue #1287):
+//     `choice(zone: "hand", filter: { excludeColor/color })` + `discard` +
+//     an `if { picksNonEmpty }` gate on the draw.
 //   • Shyft — upkeep `may` → `requestOptionChoice` colour → indefinite layer-5
 //     `setColorOverride` (single-colour reading; multicolour deferred).
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1090,12 +1092,17 @@ export const infuse: CardDefinition = {
     ],
 };
 // Krovikan Sorcerer — two looters whose discard cost is colour-filtered
-// (CR 601.2h convention — the chosen-discard is paid in-resolve, Mesmeric
-// Trance pattern). `PermanentFilter` has no `excludeColors`, so "nonblack" is
-// expressed as a precomputed `candidateIds` allow-list from the hand's colours
-// (CR 105.2 — black = colour B). Each ability taps (CR 602.1) and goes on the
-// stack (`useStack: true`). The black branch is a draw-2-then-discard-1
-// (CR 121.1 draw, CR 701.8 discard) sequenced across `resolveSteps`.
+// (CR 601.2h convention — the chosen-discard is paid in-effect, Mesmeric
+// Trance pattern). DSL (ADR 0045, issue #1287): the colour filter reads
+// `EffectCardFilter.excludeColor`/`color` directly (no more precomputed
+// candidateIds workaround), and the conditional "draw only if a card was
+// actually discarded" gate reads the new `{ picksNonEmpty }` `if` predicate
+// (issue #1287) off the `choice` Op's picks binding — true only when the
+// zone had a matching card to discard (CR 608.2b: zero candidates means the
+// choice Op never captures the binding). Each ability taps (CR 602.1) and
+// goes on the stack (`useStack: true`). The black branch is a
+// draw-2-then-discard-1 (CR 121.1 draw, CR 701.8 discard) sequenced inside
+// the `if`'s `then` list.
 export const krovikanSorcerer: CardDefinition = {
     id: "9c5fc053-7b0b-4e76-bf87-ccdb1e8752ed",
     name: "Krovikan Sorcerer",
@@ -1108,110 +1115,88 @@ export const krovikanSorcerer: CardDefinition = {
     power: 1,
     toughness: 1,
     activatedAbilities: [
-        // NOT DSL-migratable (ADR 0045): the conditional "draw only if a card
-        // was actually discarded" gate has no expressible form — EffectPredicate
-        // only reads a boolean `mayPay` binding or a numeric comparison, never
-        // whether a preceding `choice` Op's picks captured anything (there is
-        // no "picks nonempty" predicate). Also "a NONBLACK card" has no filter:
-        // EffectCardFilter's `color` is a positive OR-list match with no
-        // `excludeColor` counterpart. Planned-migratable: worth an issue to add
-        // either predicate form. tracked-by: #1287
         {
             id: "krovikan-sorcerer-nonblack",
             oracleText: "{T}, Discard a nonblack card: Draw a card.",
             cost: { tap: true },
             useStack: true,
-            resolveSteps: [
+            effects: [
                 // Step 0 — pay the discard portion of the cost: a chosen
-                // nonblack card from hand (CR 601.2h convention).
-                (ctx: SpellContext) => {
-                    const candidateIds = ctx
-                        .getHandCards(ctx.controller)
-                        .filter((c) => !c.colors.includes("B"))
-                        .map((c) => c.id);
-                    if (candidateIds.length === 0) return;
-                    const picked = ctx.requestChoice({
-                        playerId: ctx.controller,
-                        choiceId: "krovikan-sorcerer-nonblack-discard",
-                        kind: "choose-hand-card",
-                        zone: "hand",
-                        count: 1,
-                        candidateIds,
-                        prompt: "Discard a nonblack card (Krovikan Sorcerer).",
-                    });
-                    if (!picked || picked.length === 0) return;
-                    ctx.discardCard(ctx.controller, picked[0]);
+                // nonblack card from hand (CR 601.2h convention, CR 105.2
+                // black = colour B).
+                {
+                    op: "choice",
+                    kind: "choose-hand-card",
+                    player: "controller",
+                    zone: "hand",
+                    filter: { excludeColor: "B" },
+                    count: 1,
+                    prompt: "Discard a nonblack card (Krovikan Sorcerer).",
+                    bind: "$discarded",
+                },
+                {
+                    op: "discard",
+                    player: "controller",
+                    cards: { ref: "$discarded" },
                 },
                 // Step 1 — draw a card (CR 121.1). Only if a discard was paid.
-                (ctx: SpellContext) => {
-                    const discarded = ctx.recallChoice(
-                        "krovikan-sorcerer-nonblack-discard"
-                    );
-                    if (!discarded || discarded.length === 0) return;
-                    ctx.drawCards(ctx.controller, 1);
+                {
+                    op: "if",
+                    predicate: { picksNonEmpty: { ref: "$discarded" } },
+                    then: [{ op: "draw", player: "controller", count: 1 }],
                 },
             ],
         },
-        // NOT DSL-migratable (ADR 0045): same "picks nonempty" predicate gap as
-        // the nonblack ability above (the color-filtered choice itself IS
-        // expressible via `filter: { color: "B" }`, but the conditional draw
-        // gated on whether the discard actually happened is not). tracked-by:
-        // #1287
         {
             id: "krovikan-sorcerer-black",
             oracleText:
                 "{T}, Discard a black card: Draw two cards, then discard one of them.",
             cost: { tap: true },
             useStack: true,
-            resolveSteps: [
-                // Step 0 — pay the discard portion of the cost: a chosen black
-                // card from hand (CR 601.2h convention).
-                (ctx: SpellContext) => {
-                    const candidateIds = ctx
-                        .getHandCards(ctx.controller)
-                        .filter((c) => c.colors.includes("B"))
-                        .map((c) => c.id);
-                    if (candidateIds.length === 0) return;
-                    const picked = ctx.requestChoice({
-                        playerId: ctx.controller,
-                        choiceId: "krovikan-sorcerer-black-discard",
-                        kind: "choose-hand-card",
-                        zone: "hand",
-                        count: 1,
-                        candidateIds,
-                        prompt: "Discard a black card (Krovikan Sorcerer).",
-                    });
-                    if (!picked || picked.length === 0) return;
-                    ctx.discardCard(ctx.controller, picked[0]);
+            effects: [
+                // Step 0 — pay the discard portion of the cost: a chosen
+                // black card from hand (CR 601.2h convention).
+                {
+                    op: "choice",
+                    kind: "choose-hand-card",
+                    player: "controller",
+                    zone: "hand",
+                    filter: { color: "B" },
+                    count: 1,
+                    prompt: "Discard a black card (Krovikan Sorcerer).",
+                    bind: "$discarded",
                 },
-                // Step 1 — draw two cards (CR 121.1). Only if the discard cost
-                // was paid.
-                (ctx: SpellContext) => {
-                    const discarded = ctx.recallChoice(
-                        "krovikan-sorcerer-black-discard"
-                    );
-                    if (!discarded || discarded.length === 0) return;
-                    ctx.drawCards(ctx.controller, 2);
+                {
+                    op: "discard",
+                    player: "controller",
+                    cards: { ref: "$discarded" },
                 },
-                // Step 2 — then discard one of them (CR 701.8). A free choice
-                // among the cards now in hand.
-                (ctx: SpellContext) => {
-                    const discarded = ctx.recallChoice(
-                        "krovikan-sorcerer-black-discard"
-                    );
-                    if (!discarded || discarded.length === 0) return;
-                    const handIds = ctx.getHandIds(ctx.controller);
-                    if (handIds.length === 0) return;
-                    const picked = ctx.requestChoice({
-                        playerId: ctx.controller,
-                        choiceId: "krovikan-sorcerer-black-then-discard",
-                        kind: "choose-hand-card",
-                        zone: "hand",
-                        count: 1,
-                        prompt: "Discard one of the drawn cards (Krovikan Sorcerer).",
-                    });
-                    if (!picked || picked.length === 0) return;
-                    ctx.discardCard(ctx.controller, picked[0]);
+                // Step 1 — draw two, then discard one of them (CR 121.1 /
+                // 701.8). Only if the discard cost was paid. The
+                // then-discard is a free choice among the cards now in hand
+                // (the DSL has no way to scope a choice to exactly the two
+                // just-drawn cards — same reading the prior resolveSteps
+                // implementation used).
+                {
+                    op: "if",
+                    predicate: { picksNonEmpty: { ref: "$discarded" } },
+                    then: [
+                        { op: "draw", player: "controller", count: 2 },
+                        {
+                            op: "choice",
+                            kind: "choose-hand-card",
+                            player: "controller",
+                            zone: "hand",
+                            count: 1,
+                            prompt: "Discard one of the drawn cards (Krovikan Sorcerer).",
+                            bind: "$thenDiscard",
+                        },
+                        {
+                            op: "discard",
+                            player: "controller",
+                            cards: { ref: "$thenDiscard" },
+                        },
+                    ],
                 },
             ],
         },
@@ -1286,39 +1271,38 @@ export const mesmericTrance: CardDefinition = {
         }),
     ],
     activatedAbilities: [
-        // NOT DSL-migratable (ADR 0045): same "picks nonempty" predicate gap
-        // as Krovikan Sorcerer above — the conditional draw is gated on
-        // whether the preceding `choice` Op's discard pick actually captured
-        // anything, which EffectPredicate can't read (only a `mayPay` boolean
-        // binding or a numeric comparison). tracked-by: #1287
+        // DSL (ADR 0045, issue #1287): the chosen-discard cost is paid via a
+        // `choice(zone: "hand")` + `discard`, then the draw is gated on the
+        // new `{ picksNonEmpty }` `if` predicate reading whether the discard
+        // choice actually captured a pick — false only on an empty hand
+        // (CR 608.2b: zero candidates means the choice Op never captures the
+        // binding).
         {
             id: "mesmeric-trance-loot",
             oracleText: "{U}, Discard a card: Draw a card.",
             cost: { mana: { U: 1 } },
             useStack: true,
-            resolveSteps: [
+            effects: [
                 // Step 0 — pay the discard portion of the cost (a chosen card).
-                (ctx: SpellContext) => {
-                    const handIds = ctx.getHandIds(ctx.controller);
-                    if (handIds.length === 0) return;
-                    const picked = ctx.requestChoice({
-                        playerId: ctx.controller,
-                        choiceId: "mesmeric-trance-discard",
-                        kind: "choose-hand-card",
-                        zone: "hand",
-                        count: 1,
-                        prompt: "Discard a card (Mesmeric Trance).",
-                    });
-                    if (!picked || picked.length === 0) return;
-                    ctx.discardCard(ctx.controller, picked[0]);
+                {
+                    op: "choice",
+                    kind: "choose-hand-card",
+                    player: "controller",
+                    zone: "hand",
+                    count: 1,
+                    prompt: "Discard a card (Mesmeric Trance).",
+                    bind: "$discarded",
+                },
+                {
+                    op: "discard",
+                    player: "controller",
+                    cards: { ref: "$discarded" },
                 },
                 // Step 1 — draw a card (CR 121.1). Only if a discard was paid.
-                (ctx: SpellContext) => {
-                    const discarded = ctx.recallChoice(
-                        "mesmeric-trance-discard"
-                    );
-                    if (!discarded || discarded.length === 0) return;
-                    ctx.drawCards(ctx.controller, 1);
+                {
+                    op: "if",
+                    predicate: { picksNonEmpty: { ref: "$discarded" } },
+                    then: [{ op: "draw", player: "controller", count: 1 }],
                 },
             ],
         },
