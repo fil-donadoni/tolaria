@@ -6,14 +6,29 @@
 // `botDrafter.ts` itself is UNCHANGED by this slice; only WHICH lookup
 // `convex/limitedEvents.ts` injects into it changes.
 //
-// PURE — no `ctx`, no DB access. `resolveEventPickRating` is handed an
-// already-scoped `GetDbRating` closure (the actual `ctx.db` read happens in
-// `convex/limitedEvents.ts`, the thin mutation shell, mirroring every other
-// pure/DB-access split in this module — `eventLogic.ts`'s `ResolveCardMeta`,
-// `botDrafter.ts`'s `GetCardEvalMeta`). This keeps the layering logic
-// unit-testable with a plain in-memory map, no convex-test harness needed
-// (project convention, `convex/__tests__/adminAuth.test.ts`).
-import { getPickRating } from "./pickRatings";
+// `resolveEventPickRating` (the READ path) is PURE — no `ctx`, no DB access.
+// It is handed an already-scoped `GetDbRating` closure (the actual `ctx.db`
+// read happens in `convex/limitedEvents.ts`, the thin mutation shell,
+// mirroring every other pure/DB-access split in this module —
+// `eventLogic.ts`'s `ResolveCardMeta`, `botDrafter.ts`'s `GetCardEvalMeta`).
+// This keeps the layering logic unit-testable with a plain in-memory map, no
+// convex-test harness needed (project convention,
+// `convex/__tests__/adminAuth.test.ts`).
+//
+// The WRITE path (PRD #1296 Slice B, issue #1298) — `setCardRating` /
+// `clearCardRating` below — DOES own `ctx.db` directly, mirroring
+// `convex/cubes.ts`'s shape: this module is the Convex-function sibling of
+// the pure read-side core, kept in the SAME file because both halves share
+// the one `cardRatings` table and the one `(scope, cardId)` key discipline.
+import { v } from "convex/values";
+import { mutation, type MutationCtx } from "../_generated/server";
+import { assertIsAdmin } from "../auth";
+import {
+    getPickRating,
+    isValidRating,
+    PICK_RATING_MIN,
+    PICK_RATING_MAX,
+} from "./pickRatings";
 import type { GetPickRating } from "./botDrafter";
 
 /** Resolves ONE `(scope, cardId)` pair to its DATABASE rating, or `null` when
@@ -74,3 +89,98 @@ export function resolveEventPickRating(
         return null;
     };
 }
+
+// ─────────────────────────────────────────────────────────────────────────
+// Admin write mutations (PRD #1296 Slice B, issue #1298)
+// ─────────────────────────────────────────────────────────────────────────
+
+/** The exact row `setCardRating` inserts/patches: `scope` normalized to
+ *  lowercase (the SAME case discipline `resolveEventPickRating` and
+ *  `packSlots`/`pickRatings.ts` already use), `cardId` and `rating` carried
+ *  verbatim. Pure — no `ctx` — so the write mutation's row-shape decision is
+ *  unit-testable directly, without a convex-test harness (project
+ *  convention, mirrors `decks.ts`'s `buildPresetPatch`/`buildNewPresetRow`).
+ *  Does NOT validate `rating` — bounds are the caller's job
+ *  (`isValidRating`, reused from Slice A, never duplicated). */
+export function buildCardRatingRow(
+    scope: string,
+    cardId: string,
+    rating: number
+): { scope: string; cardId: string; rating: number } {
+    return { scope: scope.toLowerCase(), cardId, rating };
+}
+
+/** Point lookup on the table's natural primary key — the shared read used by
+ *  both `setCardRating` (to decide patch vs. insert) and `clearCardRating`
+ *  (to decide whether there's anything to delete). `scope` must already be
+ *  normalized (lowercased) by the caller. */
+async function loadCardRating(
+    ctx: MutationCtx,
+    scope: string,
+    cardId: string
+) {
+    return ctx.db
+        .query("cardRatings")
+        .withIndex("by_scope_and_card", (q) =>
+            q.eq("scope", scope).eq("cardId", cardId)
+        )
+        .unique();
+}
+
+/** Admin-only upsert of ONE `(scope, cardId)` rating (PRD #1296 Slice B,
+ *  issue #1298). `assertIsAdmin` runs FIRST, the same "gate before anything
+ *  else" convention as every admin mutation in `convex/decks.ts` /
+ *  `convex/cubes.ts`. Rejects a rating failing `isValidRating` (reused from
+ *  Slice A's `pickRatings.ts` — the ONE bounds authority, never
+ *  re-implemented here): <0, >5, `NaN`, `Infinity`, or a non-number. Patches
+ *  the existing row's rating when `(scope, cardId)` already has one
+ *  (identity/`_id` preserved), else inserts a fresh row — mirrors
+ *  `cubes.ts`'s `upsertCube`. */
+export const setCardRating = mutation({
+    args: {
+        scope: v.string(),
+        cardId: v.string(),
+        rating: v.number(),
+    },
+    returns: v.null(),
+    handler: async (ctx, { scope, cardId, rating }) => {
+        await assertIsAdmin(ctx);
+        if (!isValidRating(rating)) {
+            throw new Error(
+                `Invalid rating ${rating}: must be a finite number in [${PICK_RATING_MIN}, ${PICK_RATING_MAX}]`
+            );
+        }
+        const row = buildCardRatingRow(scope, cardId, rating);
+        const existing = await loadCardRating(ctx, row.scope, row.cardId);
+        if (existing) {
+            await ctx.db.patch(existing._id, { rating: row.rating });
+        } else {
+            await ctx.db.insert("cardRatings", row);
+        }
+        return null;
+    },
+});
+
+/** Admin-only delete of ONE `(scope, cardId)` rating (PRD #1296 Slice B,
+ *  issue #1298) — the card falls back to its seed rating (or the Pick
+ *  Heuristic alone) on the very next read, no separate "revert" step needed
+ *  (`resolveEventPickRating`'s layering already treats an absent database
+ *  row as "fall through"). `assertIsAdmin` runs FIRST. Idempotent: deleting
+ *  an already-absent pair is a no-op, not an error — an Admin re-clicking
+ *  "clear" (or a stale UI re-submitting) never throws. */
+export const clearCardRating = mutation({
+    args: {
+        scope: v.string(),
+        cardId: v.string(),
+    },
+    returns: v.null(),
+    handler: async (ctx, { scope, cardId }) => {
+        await assertIsAdmin(ctx);
+        const normalizedScope = scope.toLowerCase();
+        const existing = await loadCardRating(ctx, normalizedScope, cardId);
+        if (existing) {
+            await ctx.db.delete(existing._id);
+        }
+        return null;
+    },
+});

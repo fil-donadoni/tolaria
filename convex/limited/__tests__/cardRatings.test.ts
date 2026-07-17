@@ -5,8 +5,20 @@
 // standing in for `ctx.db`, exactly like `convex/limitedEvents.ts`'s real
 // `loadEventPickRating` builds one from a `cardRatings` table scan.
 import { describe, it, expect } from "vitest";
-import { resolveEventPickRating, type GetDbRating } from "../cardRatings";
-import { getPickRating, getPickRatingFile } from "../pickRatings";
+import {
+    resolveEventPickRating,
+    buildCardRatingRow,
+    type GetDbRating,
+} from "../cardRatings";
+import {
+    getPickRating,
+    getPickRatingFile,
+    isValidRating,
+    PICK_RATING_MIN,
+    PICK_RATING_MAX,
+} from "../pickRatings";
+import { isAdminUser } from "../../auth";
+import type { Doc } from "../../_generated/dataModel";
 
 /** Builds a `GetDbRating` from a plain `(scope, cardId) -> rating` map — the
  *  test-side stand-in for a `cardRatings` table scan. */
@@ -96,5 +108,227 @@ describe("resolveEventPickRating (PRD #1296 Slice A, issue #1297): the layering 
             fakeDb({ lea: { "never-play-this": 0 } })
         );
         expect(getPickRatingFn("never-play-this")).toBe(0);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// Admin write mutations (PRD #1296 Slice B, issue #1298). No convex-test
+// harness (project convention, `convex/__tests__/adminAuth.test.ts` /
+// `convex/__tests__/decks.test.ts`'s `deletePreset` section) — assert the
+// same pure decisions the `setCardRating`/`clearCardRating` mutations are
+// built from: the admin gate (`isAdminUser`), the bounds check
+// (`isValidRating`, reused verbatim from Slice A — never duplicated), the
+// row-shape builder (`buildCardRatingRow`), and the upsert/delete decision
+// against a `by_scope_and_card` lookup modeled as a plain array.
+function admin(isAdmin?: boolean): Doc<"users"> {
+    return {
+        _id: "u1" as Doc<"users">["_id"],
+        _creationTime: 0,
+        isAdmin,
+    } as Doc<"users">;
+}
+
+describe("buildCardRatingRow — write shape (PRD #1296 Slice B, issue #1298)", () => {
+    it("lowercases the scope, carries cardId/rating verbatim", () => {
+        expect(buildCardRatingRow("LEA", "black-lotus", 5)).toEqual({
+            scope: "lea",
+            cardId: "black-lotus",
+            rating: 5,
+        });
+    });
+
+    it("preserves a fractional rating", () => {
+        expect(buildCardRatingRow("vintage-cube", "sol-ring", 4.5).rating).toBe(
+            4.5
+        );
+    });
+
+    it("already-lowercase scope round-trips unchanged", () => {
+        expect(buildCardRatingRow("lea", "card-x", 1).scope).toBe("lea");
+    });
+});
+
+describe("setCardRating — admin gate (PRD #1296 Slice B, issue #1298)", () => {
+    it("rejects a non-admin caller (assertIsAdmin gate runs first)", () => {
+        expect(isAdminUser(admin(false))).toBe(false);
+        expect(isAdminUser(admin(undefined))).toBe(false);
+        expect(isAdminUser(null)).toBe(false);
+    });
+
+    it("allows an admin through the gate", () => {
+        expect(isAdminUser(admin(true))).toBe(true);
+    });
+});
+
+describe("setCardRating — bounds via isValidRating, reused from Slice A (issue #1298)", () => {
+    it("accepts the endpoints and a mid-range fractional value", () => {
+        expect(isValidRating(PICK_RATING_MIN)).toBe(true);
+        expect(isValidRating(2.5)).toBe(true);
+        expect(isValidRating(PICK_RATING_MAX)).toBe(true);
+    });
+
+    it("rejects a rating below the minimum", () => {
+        expect(isValidRating(PICK_RATING_MIN - 1)).toBe(false);
+    });
+
+    it("rejects a rating above the maximum", () => {
+        expect(isValidRating(PICK_RATING_MAX + 0.1)).toBe(false);
+    });
+
+    it("rejects NaN", () => {
+        expect(isValidRating(NaN)).toBe(false);
+    });
+
+    it("rejects positive and negative Infinity", () => {
+        expect(isValidRating(Infinity)).toBe(false);
+        expect(isValidRating(-Infinity)).toBe(false);
+    });
+
+    it("rejects a non-number value", () => {
+        expect(isValidRating("5" as unknown as number)).toBe(false);
+        expect(isValidRating(null as unknown as number)).toBe(false);
+        expect(isValidRating(undefined as unknown as number)).toBe(false);
+    });
+});
+
+describe("setCardRating — upsert replaces an existing (scope, cardId) row (issue #1298)", () => {
+    // Models ctx.db.patch/insert keyed by the `by_scope_and_card` lookup:
+    // patch the existing row's rating (identity/_id preserved) when found,
+    // else insert a fresh row — mirrors `cubes.ts`'s `upsertCube` shape.
+    interface Row {
+        _id: string;
+        scope: string;
+        cardId: string;
+        rating: number;
+    }
+
+    function upsert(
+        rows: readonly Row[],
+        scope: string,
+        cardId: string,
+        rating: number
+    ): Row[] {
+        const row = buildCardRatingRow(scope, cardId, rating);
+        const idx = rows.findIndex(
+            (r) => r.scope === row.scope && r.cardId === row.cardId
+        );
+        if (idx === -1) {
+            return [...rows, { _id: `new-${rows.length}`, ...row }];
+        }
+        const next = [...rows];
+        next[idx] = { ...next[idx], rating: row.rating };
+        return next;
+    }
+
+    it("inserts a fresh row when none exists for (scope, cardId)", () => {
+        const after = upsert([], "lea", "black-lotus", 5);
+        expect(after).toHaveLength(1);
+        expect(after[0]).toMatchObject({
+            scope: "lea",
+            cardId: "black-lotus",
+            rating: 5,
+        });
+    });
+
+    it("replaces the rating of an existing row, keeping its identity (_id)", () => {
+        const before: Row[] = [
+            { _id: "row-1", scope: "lea", cardId: "black-lotus", rating: 5 },
+        ];
+        const after = upsert(before, "lea", "black-lotus", 2);
+        expect(after).toHaveLength(1);
+        expect(after[0]._id).toBe("row-1");
+        expect(after[0].rating).toBe(2);
+    });
+
+    it("targets the same row regardless of scope casing (LEA vs lea)", () => {
+        const before: Row[] = [
+            { _id: "row-1", scope: "lea", cardId: "black-lotus", rating: 5 },
+        ];
+        const after = upsert(before, "LEA", "black-lotus", 1);
+        expect(after).toHaveLength(1);
+        expect(after[0].rating).toBe(1);
+    });
+
+    it("does not touch a different (scope, cardId) pair", () => {
+        const before: Row[] = [
+            { _id: "row-1", scope: "lea", cardId: "black-lotus", rating: 5 },
+        ];
+        const after = upsert(before, "lea", "sol-ring", 3);
+        expect(after).toHaveLength(2);
+        expect(after.find((r) => r.cardId === "black-lotus")?.rating).toBe(5);
+        expect(after.find((r) => r.cardId === "sol-ring")?.rating).toBe(3);
+    });
+});
+
+describe("clearCardRating — admin gate + idempotent delete (PRD #1296 Slice B, issue #1298)", () => {
+    interface Row {
+        _id: string;
+        scope: string;
+        cardId: string;
+        rating: number;
+    }
+
+    // Models ctx.db.delete keyed by the same `by_scope_and_card` lookup.
+    function clear(
+        rows: readonly Row[],
+        scope: string,
+        cardId: string
+    ): Row[] {
+        const normalizedScope = scope.toLowerCase();
+        return rows.filter(
+            (r) => !(r.scope === normalizedScope && r.cardId === cardId)
+        );
+    }
+
+    it("rejects a non-admin caller (assertIsAdmin gate runs first)", () => {
+        expect(isAdminUser(admin(false))).toBe(false);
+        expect(isAdminUser(admin(undefined))).toBe(false);
+        expect(isAdminUser(null)).toBe(false);
+    });
+
+    it("allows an admin through the gate", () => {
+        expect(isAdminUser(admin(true))).toBe(true);
+    });
+
+    it("deletes the matching row", () => {
+        const before: Row[] = [
+            { _id: "row-1", scope: "lea", cardId: "black-lotus", rating: 5 },
+        ];
+        expect(clear(before, "lea", "black-lotus")).toEqual([]);
+    });
+
+    it("is a no-op (idempotent) when no row exists for the pair", () => {
+        const before: Row[] = [
+            { _id: "row-1", scope: "lea", cardId: "black-lotus", rating: 5 },
+        ];
+        const after = clear(before, "lea", "sol-ring");
+        expect(after).toEqual(before);
+        // Re-clearing the same already-absent pair again changes nothing.
+        expect(clear(after, "lea", "sol-ring")).toEqual(before);
+    });
+
+    it("is idempotent on a repeated clear of the SAME pair (already deleted)", () => {
+        const before: Row[] = [
+            { _id: "row-1", scope: "lea", cardId: "black-lotus", rating: 5 },
+        ];
+        const onceCleared = clear(before, "lea", "black-lotus");
+        expect(onceCleared).toEqual([]);
+        expect(clear(onceCleared, "lea", "black-lotus")).toEqual([]);
+    });
+
+    it("scope is case-insensitive on clear (LEA vs lea)", () => {
+        const before: Row[] = [
+            { _id: "row-1", scope: "lea", cardId: "black-lotus", rating: 5 },
+        ];
+        expect(clear(before, "LEA", "black-lotus")).toEqual([]);
+    });
+
+    it("leaves other rows untouched", () => {
+        const before: Row[] = [
+            { _id: "row-1", scope: "lea", cardId: "black-lotus", rating: 5 },
+            { _id: "row-2", scope: "lea", cardId: "sol-ring", rating: 3 },
+        ];
+        const after = clear(before, "lea", "black-lotus");
+        expect(after).toEqual([before[1]]);
     });
 });
