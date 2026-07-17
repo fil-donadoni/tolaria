@@ -10,6 +10,7 @@ import { Panel, PanelHeader, PanelBody } from "~/components/ui/panel";
 import LoadingScreen from "~/components/ui/loading-screen";
 import ActionButton from "~/components/board/action-button";
 import LimitedEventSeatList from "./limited-event-seat-list";
+import LimitedEventSeatsDisclosure from "./limited-event-seats-disclosure";
 import LimitedDraftTable from "./limited-draft-table";
 import LimitedSeatPoolPanel from "./limited-seat-pool-panel";
 import LimitedVsAiPanel from "./limited-vs-ai-panel";
@@ -47,6 +48,12 @@ export default function LimitedEventDetail({
     const isPoolFinal =
         event.status === "started" &&
         (event.type === "sealed" || event.draftCompletedAt !== undefined);
+    // During an active draft the per-seat roster is noise (the drafter watches
+    // the Booster, not the table), so it collapses behind a "Seats" summary.
+    const draftInProgress =
+        event.status === "started" &&
+        event.type === "draft" &&
+        !event.draftCompletedAt;
 
     const runMutation = async (run: () => Promise<unknown>) => {
         if (pending) return;
@@ -87,18 +94,25 @@ export default function LimitedEventDetail({
                     </div>
                 )}
 
-                <LimitedEventSeatList event={event} />
+                {draftInProgress ? (
+                    <LimitedEventSeatsDisclosure event={event} />
+                ) : (
+                    <>
+                        <LimitedEventSeatList event={event} />
 
-                {/* Event completion status (PRD #1107 story 26, issue #1116):
-                    "completed" is reached exactly when every seat has a deck
-                    (humans submitted, bots auto-built) — visible here, and
-                    it's the same flag that gates `LimitedReviewPanel` below. */}
-                {event.status === "started" && (
-                    <p className="text-xs text-text-muted">
-                        {event.completed
-                            ? "Event completed — every seat has a deck."
-                            : `${event.seatsWithDeck}/${event.seatCount} decks in.`}
-                    </p>
+                        {/* Event completion status (PRD #1107 story 26, issue
+                            #1116): "completed" is reached exactly when every
+                            seat has a deck (humans submitted, bots auto-built)
+                            — visible here, and it's the same flag that gates
+                            `LimitedReviewPanel` below. */}
+                        {event.status === "started" && (
+                            <p className="text-xs text-text-muted">
+                                {event.completed
+                                    ? "Event completed — every seat has a deck."
+                                    : `${event.seatsWithDeck}/${event.seatCount} decks in.`}
+                            </p>
+                        )}
+                    </>
                 )}
 
                 <div className="flex justify-end gap-2">

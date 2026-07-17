@@ -1,3 +1,23 @@
+// Vertical reveal between two overlaid cards in a deckbuilder-style pile, as a
+// fraction of card height. Expressed relative to `--card-h` (not a fixed rem)
+// so it grows with the per-zone zoom: bigger cards get a proportionally bigger
+// gap. 0.23 reproduces the historical 1.4rem reveal at the default density.
+// Shared by `BuilderPile` (lobby deckbuilder) and `LimitedPoolPile` (draft-time
+// Pool) so both piles read identically.
+export const PILE_STACK_OFFSET_RATIO = 0.23;
+
+/** Absolute `top` offset for the card at `index` in an overlaid vertical pile. */
+export function pileCardTop(index: number): string {
+    return `calc(var(--card-h) * ${PILE_STACK_OFFSET_RATIO} * ${index})`;
+}
+
+/** Total height of an overlaid vertical pile of `count` cards — one full card
+ *  plus a stagger reveal for every card after the first. */
+export function pileHeight(count: number): string {
+    const steps = Math.max(0, count - 1);
+    return `calc(var(--card-h) * (1 + ${PILE_STACK_OFFSET_RATIO} * ${steps}))`;
+}
+
 /** Computes fan-style rotation and offset for a card at a given index in a hand. */
 export function getFanStyle(
     cardIndex: number,

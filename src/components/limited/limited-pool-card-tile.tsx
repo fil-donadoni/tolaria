@@ -1,6 +1,7 @@
 import { useDraggable } from "@dnd-kit/react";
 import type { LimitedPoolCard } from "@convex/limited/eventTypes";
 import { cn } from "~/lib/utils";
+import { pileCardTop } from "~/lib/card-layout";
 import CardImage from "~/components/cards/card-image";
 import type { PoolDragData } from "./limitedDraftDrag";
 
@@ -18,6 +19,7 @@ export default function LimitedPoolCardTile({
     card,
     sideboard,
     onToggleSideboard,
+    stackIndex,
 }: {
     poolIndex: number;
     card: LimitedPoolCard;
@@ -25,6 +27,11 @@ export default function LimitedPoolCardTile({
      *  direction and the title copy. */
     sideboard: boolean;
     onToggleSideboard: () => void;
+    /** Position in an overlaid deckbuilder-style pile (ADR 0060). When set,
+     *  the tile renders `absolute` at the staggered `top` offset so only a
+     *  sliver of each lower card shows; the topmost (visible) card reads as
+     *  the primary target. Omitted for the flat Sideboard column. */
+    stackIndex?: number;
 }) {
     const data: PoolDragData = {
         kind: "pool",
@@ -40,6 +47,7 @@ export default function LimitedPoolCardTile({
         ? `Remove ${card.cardName} from the Sideboard (double-click, drag, or click)`
         : `Remove ${card.cardName} (double-click, drag, or click)`;
 
+    const stacked = stackIndex !== undefined;
     return (
         <div
             ref={ref}
@@ -48,8 +56,10 @@ export default function LimitedPoolCardTile({
             title={title}
             onClick={onToggleSideboard}
             onDoubleClick={onToggleSideboard}
+            style={stacked ? { top: pileCardTop(stackIndex) } : undefined}
             className={cn(
-                "aspect-5/7 w-(--card-w) shrink-0 cursor-grab touch-none select-none outline-none transition hover:-translate-y-0.5",
+                "aspect-5/7 w-(--card-w) shrink-0 cursor-grab touch-none select-none outline-none transition hover:-translate-y-0.5 hover:z-10",
+                stacked ? "absolute left-0" : "",
                 isDragging ? "opacity-30" : ""
             )}
         >

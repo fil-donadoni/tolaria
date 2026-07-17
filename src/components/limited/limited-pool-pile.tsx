@@ -1,5 +1,6 @@
 import { useDroppable } from "@dnd-kit/react";
 import { cn } from "~/lib/utils";
+import { pileHeight } from "~/lib/card-layout";
 import type { PoolColumn } from "./limitedPoolColumns";
 import { columnDropId } from "./limitedDraftDrag";
 import LimitedPoolCardTile from "./limited-pool-card-tile";
@@ -37,8 +38,11 @@ export default function LimitedPoolPile({
                     {poolColumn.entries.length}
                 </span>
             </div>
-            <div className="flex flex-col gap-2">
-                {poolColumn.entries.map((entry) => (
+            <div
+                className="relative w-(--card-w)"
+                style={{ height: pileHeight(poolColumn.entries.length) }}
+            >
+                {poolColumn.entries.map((entry, idx) => (
                     <LimitedPoolCardTile
                         key={entry.poolIndex}
                         poolIndex={entry.poolIndex}
@@ -47,6 +51,7 @@ export default function LimitedPoolPile({
                         onToggleSideboard={() =>
                             onToggleSideboard(entry.poolIndex)
                         }
+                        stackIndex={idx}
                     />
                 ))}
             </div>

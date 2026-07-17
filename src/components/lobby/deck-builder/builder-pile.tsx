@@ -1,4 +1,5 @@
 import CardImage from "~/components/cards/card-image";
+import { pileCardTop, pileHeight } from "~/lib/card-layout";
 import type { DeckCard } from "~/types/game";
 import DraggableCard from "./draggable-card";
 import FeaturedCardButton from "./featured-card-button";
@@ -19,12 +20,6 @@ interface BuilderPileProps {
     onSetFeatured?: (cardId: string) => void;
 }
 
-// Vertical reveal between stacked cards, as a fraction of card height. Expressed
-// relative to `--card-h` (not a fixed rem) so it grows with the per-zone zoom:
-// bigger cards get a proportionally bigger gap. 0.23 reproduces the previous
-// 1.4rem reveal at the default density.
-const OFFSET_RATIO = 0.23;
-
 /** Vertical pile mirroring `ManaPile`. Each overlaid card is draggable (drop on
  *  the other zone to move it) and clickable to remove one copy. Last card on top
  *  reads as the primary target so the click/drag lands on the visible art. */
@@ -36,9 +31,6 @@ export default function BuilderPile({
     featuredCardId,
     onSetFeatured,
 }: BuilderPileProps) {
-    const steps = Math.max(0, cards.length - 1);
-    const pileHeight = `calc(var(--card-h) * (1 + ${OFFSET_RATIO} * ${steps}))`;
-
     // The featured affordance/indicator goes on the LAST (topmost, visible)
     // copy of each distinct card in the pile — lower copies are overlapped, so
     // putting the control there would hide it behind the next card.
@@ -55,7 +47,7 @@ export default function BuilderPile({
             )}
             <div
                 className="relative w-(--card-w)"
-                style={{ height: pileHeight }}
+                style={{ height: pileHeight(cards.length) }}
             >
                 {cards.map((card, idx) => {
                     const isTopCopy = topIndexByCardId.get(card.cardId) === idx;
@@ -73,9 +65,7 @@ export default function BuilderPile({
                             onClick={() => onRemove(card.cardId)}
                             title={`Remove ${card.cardName} (drag to move zone)`}
                             className="group absolute left-0 aspect-5/7 w-(--card-w) hover:translate-x-1"
-                            style={{
-                                top: `calc(var(--card-h) * ${OFFSET_RATIO} * ${idx})`,
-                            }}
+                            style={{ top: pileCardTop(idx) }}
                         >
                             <CardImage card={{ id: card.cardId }} />
                             <div className="pointer-events-none absolute inset-0 rounded-sm ring-2 ring-transparent group-hover:ring-danger-strong/70" />
