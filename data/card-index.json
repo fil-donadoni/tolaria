@@ -1392,6 +1392,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Chromatic Sphere",
+        "scryfallId": "920cd17f-9274-443e-906f-c9904f0658d5",
+        "oracleId": "2e03e44a-9fff-4490-859f-b42e89e8563a",
+        "firstSet": "inv"
+    },
+    {
         "name": "Chromatic Star",
         "scryfallId": "1d7a1357-debd-49b0-9fd5-560d5b3f589e",
         "oracleId": "fedbd40b-e3a5-449c-a8a3-b42e9da191a9",
