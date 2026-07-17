@@ -1,6 +1,6 @@
-// BIG — red card behavior tests (ADR 0043 colour split).
+// BIG — green card behavior tests (ADR 0043 colour split).
 import { describe, it, expect } from "vitest";
-import { sandstormSalvager } from "../red";
+import { sandstormSalvager } from "../green";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import {
     type CardInstanceState,
