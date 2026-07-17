@@ -12,6 +12,8 @@ import CardImage from "~/components/cards/card-image";
 import DeckPileArea from "~/components/lobby/deck-builder/deck-pile-area";
 import CardZoomSlider from "~/components/lobby/deck-builder/card-zoom-slider";
 import { useCardZoom } from "~/components/lobby/deck-builder/useCardZoom";
+import { useSplitRatio } from "~/components/lobby/deck-builder/useSplitRatio";
+import PoolSplitDivider from "~/components/deckbuilder/pool-split-divider";
 import type {
     CardDragData,
     DropZoneId,
@@ -79,6 +81,13 @@ export default function PoolDeckbuilderSurface({
         initial: 1.0,
     });
 
+    // Draggable Maindeck/Sideboard split — default 2/3 main · 1/3 side.
+    const {
+        containerRef: splitContainerRef,
+        ratio: splitRatio,
+        dividerProps: splitDividerProps,
+    } = useSplitRatio("pool", 2 / 3);
+
     const sensors = useMemo(
         () => [
             PointerSensor.configure({
@@ -125,9 +134,17 @@ export default function PoolDeckbuilderSurface({
             style={{ "--card-base": CARD_BASE } as React.CSSProperties}
         >
             <DragDropProvider sensors={sensors} onDragEnd={handleDragEnd}>
-                <div className="grid flex-1 grid-cols-1 divide-x divide-border-subtle/30 overflow-hidden md:grid-cols-2">
+                <div
+                    ref={splitContainerRef}
+                    className="flex flex-1 flex-col overflow-hidden md:flex-row"
+                    style={
+                        {
+                            "--split-main": `${splitRatio * 100}%`,
+                        } as React.CSSProperties
+                    }
+                >
                     <div
-                        className="h-full overflow-hidden"
+                        className="min-h-0 min-w-0 flex-1 overflow-hidden md:flex-none md:shrink-0 md:grow-0 md:basis-[var(--split-main)]"
                         style={zoomVars(mainZoom.value)}
                     >
                         <DeckPileArea
@@ -148,8 +165,9 @@ export default function PoolDeckbuilderSurface({
                             }
                         />
                     </div>
+                    <PoolSplitDivider {...splitDividerProps} />
                     <div
-                        className="h-full overflow-hidden"
+                        className="min-h-0 min-w-0 flex-1 overflow-hidden"
                         style={zoomVars(sideZoom.value)}
                     >
                         <DeckPileArea
