@@ -36,7 +36,10 @@ import {
     flashbackStackFlags,
     buildCastSacrificeSelection,
     recordCastExileCostPick,
+    finalizeTargetSelection,
+    tryAutoCommitPendingCast,
 } from "../../game";
+import type { PendingTarget } from "../state";
 import { applySacrificeSelection } from "../sacrificeChoice";
 import { compactState, expandState } from "../serialize";
 import { projectPublicState } from "../../gameProjections";
@@ -543,6 +546,134 @@ describe("Flashback capability (CR 702.34)", () => {
                 expect(
                     state.pendingCast!.exileFromGraveyardChoice!.pickedCardIds
                 ).toEqual([blue.id]);
+            });
+        });
+
+        // Issue #1038 — the exileFromHand picker was wired only into
+        // announceCast's NO-TARGET path; a TARGETED flashback card (any card
+        // needing a target, e.g. Firebolt "deals 2 damage to any target")
+        // carrying exileFromHand returned early into target selection and
+        // finalizeTargetSelection never opened the picker, so the mandatory
+        // cost was silently unpaid. This exercises the full targeted path:
+        // finalizeTargetSelection → recordCastExileCostPick →
+        // tryAutoCommitPendingCast → resolveTopOfStack.
+        describe("targeted flashback cast wires the exile-from-hand picker (issue #1038)", () => {
+            function targetedFlashbackState(): {
+                state: GameState;
+                fb: ReturnType<typeof makeInstance>;
+                blue: ReturnType<typeof makeInstance>;
+            } {
+                const fb = makeInstance(firebolt.id, {
+                    zone: "graveyard",
+                    controllerId: "p1",
+                    ownerId: "p1",
+                    // Purely non-mana flashback cost (Lava-Dart-shaped): the
+                    // card ALSO requires a target (Firebolt's printed
+                    // targetRequirement), which is the gap this issue closes.
+                    grantedFlashback: { exileFromHand: { color: "U" } },
+                });
+                const blue = makeInstance(ancestralRecall.id, {
+                    zone: "hand",
+                    controllerId: "p1",
+                    ownerId: "p1",
+                });
+                const p1 = makePlayer("p1", {
+                    graveyard: [fb],
+                    hand: [blue],
+                    manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
+                });
+                const state = makeState({ players: [p1, makePlayer("p2")] });
+                return { state, fb, blue };
+            }
+
+            it("opens the exile-from-hand picker in finalizeTargetSelection, not just announceCast", () => {
+                const { state, fb } = targetedFlashbackState();
+                const pt: PendingTarget = {
+                    playerId: "p1",
+                    cardInstanceId: fb.id,
+                    targetType: "any",
+                    count: 1,
+                    selected: [{ type: "player", id: "p2" }],
+                };
+
+                finalizeTargetSelection(state, pt, "p1");
+
+                expect(state.pendingCast).toBeDefined();
+                expect(state.pendingCast!.exileFromGraveyardChoice).toEqual({
+                    count: 1,
+                    color: "U",
+                    excludeInstanceId: fb.id,
+                    zone: "hand",
+                });
+            });
+
+            it("rejects a targeted flashback cast when no matching card is in hand", () => {
+                const fb = makeInstance(firebolt.id, {
+                    zone: "graveyard",
+                    controllerId: "p1",
+                    ownerId: "p1",
+                    grantedFlashback: { exileFromHand: { color: "U" } },
+                });
+                const p1 = makePlayer("p1", {
+                    graveyard: [fb],
+                    hand: [], // no blue (or any) card to exile
+                    manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
+                });
+                const state = makeState({ players: [p1, makePlayer("p2")] });
+                const pt: PendingTarget = {
+                    playerId: "p1",
+                    cardInstanceId: fb.id,
+                    targetType: "any",
+                    count: 1,
+                    selected: [{ type: "player", id: "p2" }],
+                };
+
+                expect(() =>
+                    finalizeTargetSelection(state, pt, "p1")
+                ).toThrow(/No matching card in your hand/);
+            });
+
+            it("pays the exile-from-hand cost and resolves the targeted flashback cast end to end", () => {
+                const { state, fb, blue } = targetedFlashbackState();
+                const pt: PendingTarget = {
+                    playerId: "p1",
+                    cardInstanceId: fb.id,
+                    targetType: "any",
+                    count: 1,
+                    selected: [{ type: "player", id: "p2" }],
+                };
+
+                finalizeTargetSelection(state, pt, "p1");
+                // Picker is open — commit is gated until the cost is paid.
+                expect(tryAutoCommitPendingCast(state, "p1")).toBeNull();
+
+                recordCastExileCostPick(state, "p1", [blue.id]);
+                const committed = tryAutoCommitPendingCast(state, "p1");
+                expect(committed).not.toBeNull();
+                expect(committed!.cardInstanceId).toBe(fb.id);
+
+                // The spell is on the stack, targeting p2, with the flashback
+                // exile-on-resolve flags carried over.
+                const stackItem = state.stack.find((s) => s.id === fb.id)!;
+                expect(stackItem.targets).toEqual([
+                    { type: "player", id: "p2" },
+                ]);
+                expect(stackItem.exileOnResolve).toBe(true);
+
+                resolveTopOfStack(state);
+
+                // CR 115.4 — 2 damage to the targeted player.
+                expect(getPlayer(state, "p2").life).toBe(18);
+                // CR 702.34a / 118.5 — BOTH the flashback card and the paid
+                // exile-from-hand cost card end up in exile.
+                const p1After = getPlayer(state, "p1");
+                expect(p1After.exile.some((c) => c.id === fb.id)).toBe(true);
+                expect(p1After.exile.some((c) => c.id === blue.id)).toBe(
+                    true
+                );
+                expect(p1After.hand.some((c) => c.id === blue.id)).toBe(
+                    false
+                );
             });
         });
 
