@@ -1599,18 +1599,26 @@ export function getLegalTargets(
             // ability kind. The default (omitted) AND "spell" both drop
             // abilities; "activated-ability" keeps only activated abilities
             // (Brown Ouphe); "ability" keeps any ability — activated OR
-            // triggered (Stifle). Mana abilities never reach the stack
-            // (CR 605.3a), so they are never targetable regardless.
-            const wantsAbilityKind =
-                stackKind === "activated-ability" || stackKind === "ability";
+            // triggered (Stifle); "any" (Ward, CR 702.21a) keeps BOTH spells
+            // and abilities — "counter that spell or ability" needs no kind
+            // narrowing. Mana abilities never reach the stack (CR 605.3a), so
+            // they are never targetable regardless.
+            const acceptsSpell =
+                stackKind === undefined ||
+                stackKind === "spell" ||
+                stackKind === "any";
+            const acceptsAbility =
+                stackKind === "activated-ability" ||
+                stackKind === "ability" ||
+                stackKind === "any";
             if (isAbilityItem) {
-                if (!wantsAbilityKind) continue;
+                if (!acceptsAbility) continue;
                 // "activated-ability" narrows further to activated abilities.
                 if (stackKind === "activated-ability" && !item.abilityId) {
                     continue;
                 }
-            } else if (wantsAbilityKind) {
-                continue; // an ability-kind target never accepts a spell
+            } else if (!acceptsSpell) {
+                continue; // an ability-only kind never accepts a spell
             }
             // CR 113.7a — restrict by the object's source card types (Brown
             // Ouphe: "from an artifact source"). The ability stack item carries
@@ -1621,10 +1629,12 @@ export function getLegalTargets(
             ) {
                 continue;
             }
-            // CR 114.1 — Mistfolk: the spell must target one of the given
-            // permanent instance ids (its own source). Abilities never qualify.
+            // CR 114.1 — Mistfolk: the object must target one of the given
+            // permanent instance ids (its own source). Spells-only by default
+            // (Mistfolk); with `spellStackKind: "any"` (Ward) an ability also
+            // qualifies — the kind gate above already governs which kinds
+            // reach here, so this filter no longer excludes abilities itself.
             if (spellTargetsIds) {
-                if (isAbilityItem) continue;
                 const tgts = item.targets ?? [];
                 if (
                     !tgts.some(
@@ -1893,6 +1903,19 @@ export function raiseTriggerTargetSelection(state: GameState): boolean {
         const req = ability?.targetRequirement;
         if (!req) continue;
 
+        // CR 702.21a (Ward) — a reflexive requirement resolves its own
+        // instance filter dynamically instead of from static card data:
+        // `spellTargetsSelfSource` pins `spellTargetsInstanceIds` to THIS
+        // trigger's own source permanent (`triggerSourceId`, set by
+        // `buildTriggerItem` to the permanent carrying the ability), so
+        // "counter that spell or ability" resolves to whatever is CURRENTLY
+        // on the stack targeting this permanent — reusing the Mistfolk
+        // instance filter rather than a parallel event→stack-item mechanism.
+        const effectiveReq: TargetRequirement =
+            req.spellTargetsSelfSource && item.triggerSourceId
+                ? { ...req, spellTargetsInstanceIds: [item.triggerSourceId] }
+                : req;
+
         // A triggered ability's source characteristics come from the on-stack
         // trigger item (a `...self` snapshot of the source), read the same way
         // a retargeted spell reads its stack item (CR 109.5).
@@ -1914,7 +1937,7 @@ export function raiseTriggerTargetSelection(state: GameState): boolean {
         // CR 113.3 — a triggered ability is not a spell.
         const legal = getLegalTargets(
             state,
-            req,
+            effectiveReq,
             sourceColors,
             item.controllerId,
             undefined,
@@ -1970,7 +1993,10 @@ export function raiseTriggerTargetSelection(state: GameState): boolean {
             targetType: req.type,
             count,
             selected: [],
-            ...pendingTargetFiltersFromRequirement(req, undefined),
+            // `effectiveReq` (not the static `req`) so a real-choice fallback
+            // for a `spellTargetsSelfSource` requirement (Ward) still carries
+            // the resolved instance filter, not an empty static list.
+            ...pendingTargetFiltersFromRequirement(effectiveReq, undefined),
             ...(divideTotal !== undefined ? { divideTotal } : {}),
         };
         state.priorityPlayerId = item.controllerId;
