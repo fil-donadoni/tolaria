@@ -209,6 +209,9 @@ import * as iko from "./sets/iko";
 import * as snc from "./sets/snc";
 import * as j25 from "./sets/j25";
 import * as soi from "./sets/soi";
+// Per-source exile linkage + discard trigger (issue #791) — Currency Converter's
+// earliest paper printing is New Capenna Commander (ncc, ADR 0041).
+import * as ncc from "./sets/ncc";
 
 function isCardPrint(value: unknown): value is CardPrint {
     return (
@@ -406,6 +409,9 @@ const setModules: { code: string; exports: Record<string, unknown> }[] = [
     // (Commander Legends). Leovold, Emissary of Trest is in the cn2 set
     // (Conspiracy: Take the Crown), already registered above.
     { code: "cmr", exports: cmr },
+    // Per-source exile linkage + discard trigger (issue #791) — Currency
+    // Converter (New Capenna Commander).
+    { code: "ncc", exports: ncc },
 ];
 
 const allCards: CardDefinition[] = setModules.flatMap((m) =>

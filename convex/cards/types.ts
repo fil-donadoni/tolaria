@@ -3367,6 +3367,40 @@ export interface SpellContext {
      *  when the card isn't in any exile. Mirrors `getGraveyardCardOwner`. */
     getExileCardOwner: (id: string) => string | undefined;
 
+    /** CR 111 (issue #791) — stamp the per-source exile provenance link on a
+     *  card that already sits in exile: it becomes "a card exiled with
+     *  `sourceInstanceId`", enumerable later via {@link getCardsExiledWith}.
+     *  Orthogonal to the zone move — compose it AFTER a `moveCardById(... →
+     *  "exile")` (or `exileFaceDown`) so the exile itself stays a plain zone
+     *  operation (Necropotence's discard→exile becomes Currency Converter's by
+     *  appending this stamp). No-op for an id not currently in any exile. The
+     *  card stays in its OWNER's exile (CR 400.7); the link records the
+     *  battlefield source regardless of who owns the exile. Cleared when the
+     *  card leaves exile. */
+    linkExileToSource: (
+        cardInstanceId: string,
+        sourceInstanceId: string
+    ) => void;
+
+    /** CR 111 (issue #791) — every card currently in ANY player's exile that was
+     *  stamped (via {@link linkExileToSource}) as "exiled with
+     *  `sourceInstanceId`". The retrieval half of the per-source exile linkage:
+     *  Currency Converter's "Put a card exiled with this artifact into its
+     *  owner's graveyard" reads this to build its pick list. Each entry carries
+     *  the exile's `ownerId` (CR 400.7 — the card goes back to ITS owner's
+     *  graveyard, not the source controller's) alongside the same characteristic
+     *  snapshot as {@link getExileCards}. Empty when nothing is linked. */
+    getCardsExiledWith: (sourceInstanceId: string) => Array<{
+        id: string;
+        ownerId: string;
+        name: string;
+        types: CardType[];
+        subtypes: string[];
+        manaValue: number;
+        colors: Color[];
+        counters: Record<string, number>;
+    }>;
+
     /** Revolt (CR 702.RV): true when a permanent the given player controlled
      *  left the battlefield this turn. Read by cards with the Revolt ability
      *  word (Fatal Push). */

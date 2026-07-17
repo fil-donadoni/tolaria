@@ -323,6 +323,16 @@ function buildExileAssociation(state: GameState): Map<string, string> {
             if (linked) map.set(linked, c.id);
         }
     }
+    // issue #791 — per-source exile provenance (`exiledBySourceId`, Currency
+    // Converter). A card exiled "with" a battlefield permanent pins to it,
+    // exactly like the exile-and-return bundles above. Only emit when the
+    // source is still on a battlefield (nothing to pin to otherwise).
+    for (const p of state.players) {
+        for (const c of p.exile) {
+            const src = c.exiledBySourceId;
+            if (src && onBattlefield.has(src)) map.set(c.id, src);
+        }
+    }
     return map;
 }
 

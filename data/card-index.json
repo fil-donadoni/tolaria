@@ -1794,6 +1794,12 @@
         "firstSet": "arn"
     },
     {
+        "name": "Currency Converter",
+        "scryfallId": "187b6719-e5ed-4615-a00b-3313ceca055b",
+        "oracleId": "981298e6-ddee-49c0-9377-f47f019b4138",
+        "firstSet": "ncc"
+    },
+    {
         "name": "Curse Artifact",
         "scryfallId": "9fc0d070-8a42-4d5e-8f2b-ceb59147de6f",
         "oracleId": "f08ae501-8b96-40ee-aa7b-c25293ddfa88",
