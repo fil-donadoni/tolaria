@@ -295,14 +295,6 @@ const DRAW_PRIMITIVE_ALLOWLIST: readonly AllowlistEntry[] = [
         issue: 1280,
     },
     {
-        file: "ulg/blue.ts",
-        count: 1,
-        cards: "Frantic Search",
-        reason: 'draw + discard are expressible, but "untap up to three lands" needs a choice(picks) binding consumed by forEach{set:"bound"}, whose validator only accepts the "list" family.',
-        classification: "planned-migratable",
-        issue: 1284,
-    },
-    {
         file: "ulg/colorless.ts",
         count: 1,
         cards: "Memory Jar",

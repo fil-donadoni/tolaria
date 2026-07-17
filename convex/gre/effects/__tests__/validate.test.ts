@@ -1793,6 +1793,75 @@ describe("validateEffectScript — delayedTrigger LIST capture (ADR 0049, issue 
     });
 });
 
+// --- forEach{set:"bound"} widened to accept PICKS bindings (issue #1284) ----
+// A `choice` Op's `bind` (family "picks") and a delayedTrigger/divideIntoPiles
+// list-valued capture (family "list") are the IDENTICAL `string[]` runtime
+// storage — `readBinding`/`recallChoice` don't distinguish them, and
+// `execForEach`'s per-member `$each` snapshot binding is produced the same way
+// regardless of which family supplied the member set. This was a
+// validator-only restriction (the interpreter already ran a picks-family bound
+// forEach correctly, per the issue's throwaway spike); the four frozen
+// structural constructs (bind/ref/if/forEach, ADR 0045) stay frozen — this
+// only widens an existing family-check allow-list.
+describe('validateEffectScript — forEach{set:"bound"} accepts a PICKS binding (issue #1284)', () => {
+    it("accepts a choice Op's picks binding iterated by a bound forEach", () => {
+        const script: EffectOp[] = [
+            {
+                op: "choice",
+                kind: "choose-permanents",
+                player: "controller",
+                zone: "battlefield",
+                filter: { type: "Land" },
+                count: { min: 0, max: 3 },
+                prompt: "Untap up to three lands.",
+                bind: "$lands",
+            },
+            {
+                op: "forEach",
+                select: { set: "bound", ref: "$lands" },
+                effects: [
+                    {
+                        op: "tapUntap",
+                        action: "untap",
+                        target: { ref: "$each" },
+                    },
+                ],
+            },
+        ];
+        expect(validateEffectScript(host({ effects: script }))).toEqual([]);
+    });
+
+    it("still rejects a bound forEach whose ref names a BOOLEAN binding (a mayPay bind)", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "mayPay",
+                        player: "controller",
+                        prompt: "Pay {1}?",
+                        cost: { generic: 1 },
+                        bind: "$paid",
+                    },
+                    {
+                        op: "forEach",
+                        select: { set: "bound", ref: "$paid" },
+                        effects: [
+                            { op: "destroy", target: { ref: "$each" } },
+                        ],
+                    } as never,
+                ],
+            })
+        );
+        expect(
+            errors.some((e) =>
+                /forEach \{ set: "bound" \} ref "\$paid" names a boolean binding/.test(
+                    e
+                )
+            )
+        ).toBe(true);
+    });
+});
+
 // --- $event.<field> refs at trigger sites (ADR 0049, issue #865) ------------
 // `$event.<field>` is legal ONLY at a triggered-ability site: the validator
 // carries the firing event type (from `TriggeredAbility.event`) and checks the

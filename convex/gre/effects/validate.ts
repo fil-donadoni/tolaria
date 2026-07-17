@@ -2112,6 +2112,11 @@ function parseRef(ref: string): { binding: string; property: string } | null {
 // `forEach { set: "bound", ref }` reads it (as its iterated member set), so it
 // has no scalar ref position — a `.property` / object / player / picks / boolean
 // ref naming a list binding is a family mismatch (checkRefUse reports it).
+// `forEach { set: "bound" }` ALSO accepts a PICKS binding as its iterated ref
+// (widened issue #1284): a `choice` Op's picks and a delayedTrigger/
+// divideIntoPiles list capture are the identical `string[]` runtime storage,
+// distinguished only by provenance — the family check on `s.set === "bound"`
+// (below, in `checkOpListRefs`) accepts either.
 type BindingKind = "snapshot" | "picks" | "boolean" | "player" | "list";
 
 /** The binding family a `bind`-carrying Op declares. */
@@ -2526,19 +2531,25 @@ function checkOpListRefs(
             if (select && typeof select === "object") {
                 const s = select as Record<string, unknown>;
                 collectRefUses(s.controller, "controller", uses);
-                // `bound` (ADR 0049, issue #866): the iterated ref MUST name a
-                // LIST binding (a delayedTrigger list-valued capture). The
-                // family is checked here directly — it is not a scalar ref
-                // position `checkRefUse` handles.
+                // `bound` (ADR 0049, issue #866; widened issue #1284): the
+                // iterated ref must name a LIST binding (a delayedTrigger/
+                // divideIntoPiles list-valued capture) OR a PICKS binding (a
+                // `choice` Op's `bind`) — both are the identical `string[]`
+                // runtime storage (`readBinding`/`recallChoice`), distinguished
+                // only by provenance; `execForEach`'s per-member `$each`
+                // snapshot binding is unaffected either way (it snapshots the
+                // member id off `readBinding`'s array regardless of which
+                // family produced it). The family is checked here directly —
+                // it is not a scalar ref position `checkRefUse` handles.
                 if (s.set === "bound" && typeof s.ref === "string") {
                     const family = declared.get(s.ref);
                     if (family === undefined) {
                         errors.push(
-                            `${at}: forEach { set: "bound" } ref "${s.ref}" references undefined binding — no earlier Op binds it (a bound-set ref names a delayedTrigger list-valued capture, ADR 0049)`
+                            `${at}: forEach { set: "bound" } ref "${s.ref}" references undefined binding — no earlier Op binds it (a bound-set ref names a delayedTrigger list-valued capture or a choice Op's picks, ADR 0049 / issue #1284)`
                         );
-                    } else if (family !== "list") {
+                    } else if (family !== "list" && family !== "picks") {
                         errors.push(
-                            `${at}: forEach { set: "bound" } ref "${s.ref}" names a ${family} binding — a bound set iterates a list binding (a delayedTrigger list-valued capture, ADR 0049)`
+                            `${at}: forEach { set: "bound" } ref "${s.ref}" names a ${family} binding — a bound set iterates a list binding (a delayedTrigger list-valued capture) or a picks binding (a choice Op's bind), ADR 0049 / issue #1284`
                         );
                     }
                 }

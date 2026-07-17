@@ -1,26 +1,26 @@
 // Urza's Legacy (ULG) — blue cards, split by colour per ADR 0043. The
 // registry's `import * as ulg from "./sets/ulg"` resolves through ulg/index.ts.
 // Modern Scryfall oracle text is authoritative (ADR 0004).
-import type { CardDefinition, SpellContext } from "../../types";
+import type { CardDefinition } from "../../types";
 import { cyclingAbility } from "../../abilities/cycling";
 
 // Frantic Search — {2}{U} Instant. "Draw two cards, then discard two cards.
-// Untap up to three lands." (CR 121.1 draw, CR 701.8 discard, CR 701.20 untap.)
-// Stepped resolution: the irreversible draw runs first, then the discard pick,
-// then the untap pick — each interactive step is its own `resolveSteps` entry
-// so a suspension never re-applies an earlier step (CR 608.2).
-//
-// NOT DSL-migratable (ADR 0045): the draw + discard clauses ARE
-// expressible (`draw` + `choice(choose-hand-card)` + `discard`), but "untap up
-// to three lands" needs a `choice(choose-permanents, zone: battlefield)`'s
-// picks (family "picks") consumed by `forEach` — and `forEach { set: "bound" }`
-// only accepts a LIST-family binding (a delayedTrigger/divideIntoPiles
-// capture), not a `choice` Op's picks (`convex/gre/effects/validate.ts`,
-// ADR 0049). `effects` is all-or-nothing per site, so this one ungrammatical
-// clause keeps the WHOLE card on `resolveSteps`. tracked-by: #1284
-// Blocked on: widening `forEach { set: "bound" }`'s family check to also
-// accept "picks" (the runtime binding store is already shape-identical — only
-// the static validator is restrictive) — planned-migratable, not protocol.
+// Untap up to three lands." (CR 121.1 draw, CR 701.8 discard, CR 701.20
+// untap.) DSL Effect Script (ADR 0045): `draw` runs first (the hand always
+// grows by 2 before the discard pick, so the fixed `count: 2` on the
+// following `choose-hand-card` choice never over-asks), then a `choice(
+// choose-hand-card)` + `discard` looter pair (the shipped Vodalian Merchant
+// template, inv/blue.ts), then a `choice(choose-permanents, zone:
+// "battlefield", filter: { type: "Land" })` picks up to three of the
+// controller's own lands (`choiceCandidates`'s battlefield branch scopes
+// candidates to the chooser's own permanents already, so no explicit
+// `allControllers`/`candidateIds` is needed) and a `forEach { set: "bound" }`
+// over that PICKS binding untaps each pick (`tapUntap`, CR 701.26). Was
+// `resolveSteps` until issue #1284 widened `forEach { set: "bound" }`'s
+// validator to accept a `choice` Op's picks binding directly (previously
+// LIST-family only, ADR 0049) — the runtime binding store
+// (`readBinding`/`recallChoice`) was always shape-identical for both
+// families; only the static validator was restrictive.
 export const franticSearch: CardDefinition = {
     id: "1904db14-6df7-424f-afa5-e3dfab31300a",
     name: "Frantic Search",
@@ -29,42 +29,38 @@ export const franticSearch: CardDefinition = {
         "Draw two cards, then discard two cards. Untap up to three lands.",
     manaCost: { X: 2, U: 1 },
     types: ["Instant"],
-    resolveSteps: [
-        (ctx: SpellContext) => {
-            ctx.drawCards(ctx.controller, 2);
+    effects: [
+        { op: "draw", player: "controller", count: 2 },
+        {
+            op: "choice",
+            kind: "choose-hand-card",
+            player: "controller",
+            zone: "hand",
+            count: 2,
+            prompt: "Discard two cards (Frantic Search).",
+            bind: "$discards",
         },
-        (ctx: SpellContext) => {
-            const me = ctx.controller;
-            const handCount = ctx.getHandIds(me).length;
-            const discard = Math.min(2, handCount);
-            if (discard === 0) return;
-            const picks = ctx.requestChoice({
-                playerId: me,
-                choiceId: `frantic-search-discard-${ctx.sourceInstanceId}`,
-                kind: "choose-hand-card",
-                zone: "hand",
-                count: discard,
-                prompt: "Discard two cards (Frantic Search).",
-            });
-            if (picks === undefined) return; // suspended on the discard choice
-            for (const id of picks) ctx.discardCard(me, id);
+        {
+            op: "discard",
+            player: "controller",
+            cards: { ref: "$discards" },
         },
-        (ctx: SpellContext) => {
-            const me = ctx.controller;
-            const lands = ctx.getBattlefieldIds(me, { types: "Land" });
-            if (lands.length === 0) return;
-            const picks = ctx.requestChoice({
-                playerId: me,
-                choiceId: `frantic-search-untap-${ctx.sourceInstanceId}`,
-                kind: "choose-permanents",
-                zone: "battlefield",
-                filter: { types: "Land" },
-                candidateIds: lands,
-                count: { min: 0, max: Math.min(3, lands.length) },
-                prompt: "Untap up to three lands (Frantic Search).",
-            });
-            if (picks === undefined) return; // suspended on the untap choice
-            for (const id of picks) ctx.untap({ type: "permanent", id });
+        {
+            op: "choice",
+            kind: "choose-permanents",
+            player: "controller",
+            zone: "battlefield",
+            filter: { type: "Land" },
+            count: { min: 0, max: 3 },
+            prompt: "Untap up to three lands (Frantic Search).",
+            bind: "$lands",
+        },
+        {
+            op: "forEach",
+            select: { set: "bound", ref: "$lands" },
+            effects: [
+                { op: "tapUntap", action: "untap", target: { ref: "$each" } },
+            ],
         },
     ],
 };
