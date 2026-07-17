@@ -4244,6 +4244,35 @@ export function finalizeTargetSelection(
     const altHandChoice = chosenAltCost
         ? buildAlternativeCostHandChoice(player, chosenAltCost, cardInstanceId)
         : undefined;
+    // CR 702.34a / 118.5 — the flashback-only "Exile a <colour> card from your
+    // hand" cost (generalized `FlashbackCost.exileFromHand`) also applies to a
+    // TARGETED flashback cast (e.g. a Lava-Dart-shaped card that both targets
+    // and pays exileFromHand). The no-target announce path builds this same
+    // picker (`zone: "hand"`); a targeted flashback reaches its commit here
+    // instead, AFTER target selection (CR 601.2c → 601.2f), so build the
+    // picker here too and park on it before mana (issue #1038). Reuses the
+    // exile-from-graveyard choice slot — a card never has both. Affordability
+    // is gated by getLegalActions; this re-check is defence in depth.
+    let castExileChoice: PendingCast["exileFromGraveyardChoice"];
+    const fbHandSpec = getFlashbackAdditionalCost(cardInHand)?.exileFromHand;
+    if (fbHandSpec && castZone === "graveyard") {
+        const eligible = player.hand.filter((c) =>
+            graveyardCardMatchesColor(c, fbHandSpec.color)
+        );
+        if (eligible.length < 1) {
+            throw new Error(
+                "No matching card in your hand to pay the flashback cost"
+            );
+        }
+        castExileChoice = {
+            count: 1,
+            ...(fbHandSpec.color !== undefined
+                ? { color: fbHandSpec.color }
+                : {}),
+            excludeInstanceId: cardInstanceId,
+            zone: "hand",
+        };
+    }
     // CR 702.138a — the ESCAPE additional cost "exile N other cards from your
     // graveyard" also applies to a TARGETED escape cast (e.g. a Lightning Bolt
     // granted escape by Underworld Breach, cast from the graveyard at a target).
@@ -4251,10 +4280,9 @@ export function finalizeTargetSelection(
     // reaches its commit here instead, AFTER target selection (CR 601.2c →
     // 601.2f), so build the picker here too and park on it before mana.
     const escExileSpec =
-        castZone === "graveyard"
+        castZone === "graveyard" && !castExileChoice
             ? getEscapeExileSpec(state, cardInHand)
             : undefined;
-    let castExileChoice: PendingCast["exileFromGraveyardChoice"];
     if (escExileSpec) {
         const others = player.graveyard.filter((c) => c.id !== cardInstanceId);
         if ("minCardTypes" in escExileSpec) {
