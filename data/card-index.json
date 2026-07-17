@@ -9684,6 +9684,12 @@
         "firstSet": "leb"
     },
     {
+        "name": "Voldaren Epicure",
+        "scryfallId": "ae154e64-f626-45fb-bd52-840c1c27b2d3",
+        "oracleId": "cef82674-1f61-407b-801b-a76a3803e598",
+        "firstSet": "vow"
+    },
+    {
         "name": "Voracious Cobra",
         "scryfallId": "9d8c5669-11a9-4d95-8431-7065037f1fb6",
         "oracleId": "5b2e1105-5af0-4f34-bfe9-15a2f6881edd",
