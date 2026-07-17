@@ -9,6 +9,7 @@ import leaConfigJson from "../../data/boosters/lea.json";
 import iceConfigJson from "../../data/boosters/ice.json";
 import drkConfigJson from "../../data/boosters/drk.json";
 import { computeDraftability, dropUnimplementedCards } from "./draftable";
+import { CUBE_SOURCE_KEY, cubePoolSize, isCubeSource } from "./cube";
 import type { BoosterConfig } from "./boosterTypes";
 
 const CHECKED_IN_BOOSTER_CONFIGS: Record<string, BoosterConfig> = {
@@ -50,6 +51,14 @@ export interface DraftableSetInfo {
     /** Per-sheet verdict (PRD #1242 AC5) — surfaces WHICH sheet(s), if any,
      *  are below the ≥80% floor, rather than just the set-level boolean. */
     sheets: DraftableSheetInfo[];
+    /** Vintage Cube pool source (ADR 0062): true only for the cube entry.
+     *  A cube is a curated POOL, not a set to complete — the UI shows
+     *  `availableCardCount` ("Cube: N cards available") instead of the
+     *  Incompleteness "N missing" disable. Absent/false for real sets. */
+    isCube?: boolean;
+    /** Cube only (ADR 0062): the implemented pool size N — how many cards the
+     *  cube can currently deal from. Absent for real sets. */
+    availableCardCount?: number;
 }
 
 /** Every checked-in Booster Config's live Draftability (ADR 0059) — computed
@@ -57,21 +66,33 @@ export interface DraftableSetInfo {
  *  flag, so a set becomes Draftable automatically the day its sheets cross
  *  the per-sheet ≥80% floor. */
 export function listDraftableSets(): DraftableSetInfo[] {
-    return Object.entries(CHECKED_IN_BOOSTER_CONFIGS).map(
-        ([setCode, config]) => {
-            const result = computeDraftability(config);
-            return {
-                setCode,
-                draftable: result.draftable,
-                missingCardCount: result.missingCardIds.length,
-                sheets: result.sheets.map((s) => ({
-                    sheetName: s.sheetName,
-                    coverage: s.coverage,
-                    passes: s.passes,
-                })),
-            };
-        }
-    );
+    const sets: DraftableSetInfo[] = Object.entries(
+        CHECKED_IN_BOOSTER_CONFIGS
+    ).map(([setCode, config]) => {
+        const result = computeDraftability(config);
+        return {
+            setCode,
+            draftable: result.draftable,
+            missingCardCount: result.missingCardIds.length,
+            sheets: result.sheets.map((s) => ({
+                sheetName: s.sheetName,
+                coverage: s.coverage,
+                passes: s.passes,
+            })),
+        };
+    });
+    // Append the Vintage Cube pool source (ADR 0062) — ALWAYS draftable (never
+    // the ≥80% per-sheet gate: a cube is curated, not a set to complete),
+    // surfaced with its implemented pool size N, not a missing-card count.
+    sets.push({
+        setCode: CUBE_SOURCE_KEY,
+        draftable: true,
+        missingCardCount: 0,
+        sheets: [],
+        isCube: true,
+        availableCardCount: cubePoolSize(),
+    });
+    return sets;
 }
 
 /** Whether `setCode` both has a checked-in Booster Config AND currently
@@ -80,6 +101,10 @@ export function listDraftableSets(): DraftableSetInfo[] {
  *  (PRD #1107 story 4: "non-Draftable sets are not selectable at creation",
  *  defense-in-depth behind the UI picker). */
 export function isDraftableSet(setCode: string): boolean {
+    // The Vintage Cube pool source (ADR 0062) is ALWAYS draftable — it is a
+    // curated pool, not a set to complete, so it deliberately bypasses the
+    // ≥80% per-sheet gate (and has no checked-in Booster Config to gate on).
+    if (isCubeSource(setCode)) return true;
     const config = getBoosterConfig(setCode);
     return config !== null && computeDraftability(config).draftable;
 }

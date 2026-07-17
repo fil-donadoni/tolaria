@@ -180,6 +180,79 @@ describe("CreateLimitedEventDialog — Draft 3-booster packSlots (issue #1246)",
     });
 });
 
+// Vintage Cube pool source (ADR 0062) driven through the REAL dialog render
+// with the exact `DraftableSetInfo` shape `listDraftableSets` emits for the
+// cube (`isCube: true`, `availableCardCount: N`, `missingCardCount: 0`). A
+// cube is Draft-only and shows an availability note, never the Incompleteness
+// "N missing" disable.
+describe("CreateLimitedEventDialog — Vintage Cube pool source (ADR 0062)", () => {
+    const CUBE: DraftableSetInfo = {
+        setCode: "vintage-cube",
+        draftable: true,
+        missingCardCount: 0,
+        sheets: [],
+        isCube: true,
+        availableCardCount: 283,
+    };
+    const withCube = [DRAFTABLE_SETS[0], CUBE];
+
+    it("lists the cube as 'Vintage Cube' with its available-card count", () => {
+        renderDialog({ draftableSets: withCube });
+        // The radio's accessible name is composed from the label text.
+        expect(
+            screen.getByRole("radio", { name: /Vintage Cube/ })
+        ).toBeTruthy();
+        // Its pool size is surfaced in the row (never a "missing" count).
+        expect(screen.getByText(/283 cards/)).toBeTruthy();
+    });
+
+    it("makes the cube SELECTABLE for Draft (not disabled) and shows 'available'", () => {
+        renderDialog({ draftableSets: withCube });
+        fireEvent.click(screen.getByRole("radio", { name: "Draft" }));
+        const cubeRadio = screen.getByRole("radio", {
+            name: /Vintage Cube/,
+        }) as HTMLInputElement;
+        expect(cubeRadio.disabled).toBe(false);
+        expect(screen.getByText(/283 cards available/)).toBeTruthy();
+    });
+
+    it("disables the cube for Sealed (Draft-only pool source)", () => {
+        renderDialog({ draftableSets: withCube });
+        // Default type is Sealed.
+        const cubeRadio = screen.getByRole("radio", {
+            name: /Vintage Cube/,
+        }) as HTMLInputElement;
+        expect(cubeRadio.disabled).toBe(true);
+        expect(screen.getByText(/Draft only/)).toBeTruthy();
+    });
+
+    it("shows the availability note (not the Incompleteness Notice) when the cube is selected", () => {
+        renderDialog({ draftableSets: withCube });
+        fireEvent.click(screen.getByRole("radio", { name: "Draft" }));
+        fireEvent.click(screen.getByRole("radio", { name: /Vintage Cube/ }));
+
+        const note = screen.getByRole("status");
+        expect(note.textContent).toMatch(/Vintage Cube/);
+        expect(note.textContent).toMatch(/283 cards available/);
+        expect(note.textContent).not.toMatch(/Incompleteness Notice/);
+    });
+
+    it("submits a 3-element cube packSlots for a Draft", () => {
+        const onCreate = vi.fn();
+        renderDialog({ draftableSets: withCube, onCreate });
+        fireEvent.click(screen.getByRole("radio", { name: "Draft" }));
+        fireEvent.click(screen.getByRole("radio", { name: /Vintage Cube/ }));
+        fireEvent.click(screen.getByText("Create Event"));
+
+        expect(onCreate).toHaveBeenCalledWith(
+            expect.objectContaining({
+                type: "draft",
+                packSlots: ["vintage-cube", "vintage-cube", "vintage-cube"],
+            })
+        );
+    });
+});
+
 describe("CreateLimitedEventDialog — Seats bot hint (issue #1245)", () => {
     it("renders helper text under Seats explaining unfilled seats become bots", () => {
         renderDialog();

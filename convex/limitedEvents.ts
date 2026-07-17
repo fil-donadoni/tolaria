@@ -211,6 +211,9 @@ const draftableSetInfoValidator = v.object({
     draftable: v.boolean(),
     missingCardCount: v.number(),
     sheets: v.array(draftableSheetInfoValidator),
+    // Vintage Cube pool source (ADR 0062) — present only on the cube entry.
+    isCube: v.optional(v.boolean()),
+    availableCardCount: v.optional(v.number()),
 });
 
 // Bound on the full-table scan `myLimitedEvents` does (no index can select

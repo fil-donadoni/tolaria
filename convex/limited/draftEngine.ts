@@ -8,6 +8,13 @@
 import { generateBooster } from "./boosterGenerator";
 import { makeRng } from "../gre/rng";
 import { pickTimerSecondsForCardsRemaining } from "./pickTimerSchedule";
+import {
+    isCubeSource,
+    buildCubePool,
+    dealCubeRoundPacks,
+    cubeSampleRegime,
+    CUBE_PACK_SIZE,
+} from "./cube";
 import type { GetBoosterConfig, ResolveCardMeta } from "./eventLogic";
 import type { DraftPackCard, LimitedEventSeat } from "./eventTypes";
 
@@ -42,16 +49,33 @@ function generateRoundPacks(
     setCode: string,
     getConfig: GetBoosterConfig,
     resolveCardMeta: ResolveCardMeta,
-    seed: number,
-    round: number
+    eventSeed: number,
+    round: number,
+    roundCount: number
 ): DraftPackCard[][] {
+    // Cube path (ADR 0062): a curated POOL, not a per-set Booster Config —
+    // branch BEFORE `getConfig`, which returns null for the cube key. The pool
+    // is shuffled once from the raw EVENT seed and each round consumes a
+    // disjoint slice (singleton across the whole draft when the pool is large
+    // enough; with-replacement top-up otherwise — see `dealCubeRoundPacks`).
+    if (isCubeSource(setCode)) {
+        return generateCubeRoundPacks(
+            seatCount,
+            resolveCardMeta,
+            eventSeed,
+            round,
+            roundCount
+        );
+    }
     const config = getConfig(setCode);
     if (!config) {
         throw new Error(
             `generateRoundPacks: no Booster Config for set "${setCode}"`
         );
     }
-    const rng = makeRng(seed);
+    // Per-set path keeps its per-round-derived seed so each round samples an
+    // independent print run (a set is sampled WITH replacement, ADR 0056).
+    const rng = makeRng(roundSeed(eventSeed, round));
     return Array.from({ length: seatCount }, (_, seatIdx) =>
         generateBooster(config, rng).map((drawn, cardIdx) => {
             const meta = resolveCardMeta(drawn.scryfallId);
@@ -59,6 +83,57 @@ function generateRoundPacks(
                 scryfallId: drawn.scryfallId,
                 cardId: meta?.cardId ?? drawn.scryfallId,
                 cardName: meta?.cardName ?? drawn.scryfallId,
+                pickId: `r${round}-p${seatIdx}-c${cardIdx}`,
+            };
+        })
+    );
+}
+
+/** Deals one round of Vintage Cube packs (ADR 0062). The cube pool is built
+ *  once from the implemented subset of the canonical list, shuffled from the
+ *  raw `eventSeed` (NOT `roundSeed` — a single shuffle sliced by round is what
+ *  makes the singleton invariant hold across rounds), and each drawn Card ID is
+ *  resolved to its display name for the pack card exactly as the set path does.
+ *  A cube pack card's `scryfallId` IS its canonical Card ID (`def.id`), which
+ *  `resolveCardMeta` resolves back to name/rarity. `roundCount` (=
+ *  `packSlots.length`) only decides which sampling regime to log — the deal
+ *  itself is identical either way. */
+function generateCubeRoundPacks(
+    seatCount: number,
+    resolveCardMeta: ResolveCardMeta,
+    eventSeed: number,
+    round: number,
+    roundCount: number
+): DraftPackCard[][] {
+    const pool = buildCubePool();
+    const regime = cubeSampleRegime(
+        pool.length,
+        seatCount,
+        CUBE_PACK_SIZE,
+        roundCount
+    );
+    if (regime === "top-up") {
+        // Honor "no minimum — must work from day one": surface (not throw)
+        // that the implemented pool can't fill a fully-singleton draft, so the
+        // shortfall is topped up with-replacement (ADR 0062).
+        console.warn(
+            `[vintage-cube] small-pool top-up mode: implemented pool ${pool.length} < seats*15*rounds ${seatCount * CUBE_PACK_SIZE * roundCount} — dealing with-replacement.`
+        );
+    }
+    const packs = dealCubeRoundPacks(
+        pool,
+        seatCount,
+        CUBE_PACK_SIZE,
+        round,
+        eventSeed
+    );
+    return packs.map((pack, seatIdx) =>
+        pack.map((cardId, cardIdx) => {
+            const meta = resolveCardMeta(cardId);
+            return {
+                scryfallId: cardId,
+                cardId: meta?.cardId ?? cardId,
+                cardName: meta?.cardName ?? cardId,
                 pickId: `r${round}-p${seatIdx}-c${cardIdx}`,
             };
         })
@@ -172,8 +247,9 @@ export function startDraft(
         packSlots[0],
         getConfig,
         resolveCardMeta,
-        roundSeed(eventSeed, 0),
-        0
+        eventSeed,
+        0,
+        packSlots.length
     );
     const timerUpdates: SeatTimerUpdate[] = [];
     const nextSeats = seats.map((seat, i) => {
@@ -328,8 +404,9 @@ export function applyPick(
                 packSlots[round],
                 getConfig,
                 resolveCardMeta,
-                roundSeed(eventSeed, round),
-                round
+                eventSeed,
+                round,
+                packSlots.length
             );
             nextSeats = nextSeats.map((s, i) => {
                 const { seat: stamped, update } = assignFreshPack(
