@@ -142,12 +142,14 @@ export const grief: CardDefinition = {
     ],
 };
 
-// TODO(issue #676 stub — "as an additional cost, sacrifice a creature or
-// discard a card" is a CASTER-CHOSEN alternative additional cost;
+// TODO(issue #1303 residue audit — "as an additional cost, sacrifice a
+// creature or discard a card" is a CASTER-CHOSEN alternative additional cost;
 // `CardDefinition.additionalCosts` only models ONE fixed leg at a time
 // (sacrificeFilter XOR exileFilter XOR payXLife XOR payLife XOR
-// xFromOpponentGraveyard) — there's no "pick cost A or cost B" shape. Stop-
-// and-issue per gre-development.md; tracked stub.
+// xFromOpponentGraveyard) — there's no "pick cost A or cost B" shape.
+// Re-confirmed still absent on re-audit (originally stubbed under the
+// now-closed #676; same root gap as Bitter Triumph, lci/black.ts). Stop-
+// and-issue per gre-development.md; tracked-by: #1353.
 // export const boneShards: CardDefinition = {
 //     id: "1ee98955-4c47-4d45-9377-608dfa755337",
 //     name: "Bone Shards",
