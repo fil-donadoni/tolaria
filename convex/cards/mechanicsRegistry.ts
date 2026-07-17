@@ -237,13 +237,16 @@ const KEYWORD_ACTIONS: MechanicRow[] = [
         cr: "701.15",
         status: "planned",
     },
-    // 701.16 Investigate
+    // 701.16 Investigate (issue #1191)
     {
         id: "investigate",
         name: "Investigate",
         kind: "keyword-action",
         cr: "701.16",
-        status: "planned",
+        status: "implemented",
+        binding:
+            "SpellContext.createToken with the shared CLUE_TOKEN_SPEC (convex/cards/abilities/tokens/clueToken.ts) — no dedicated Op needed, primitive reuse (ADR 0045 § primitive reuse). 'Investigate N' is N createToken calls (count: N).",
+        note: "To investigate, create a Clue artifact token with '{2}, Sacrifice this token: Draw a card.' (CR 701.16a). Unblocked by issue #1191: EffectTokenSpec/TokenSpec gained a token-scoped activatedAbilities[] field (a restricted, JSON-pure ActivatedAbility subset — id/cost{tap,mana,sacrifice}/oracleText/useStack/effects, validated by isEffectTokenSpec and content-hashed into tokenDefinitionId so the client-side maybeSynthesizeToken rehydrates the ability from the token's id). The same capability unblocks the other tokens previously stubbed on this exact gap (Magda's Treasures #778, Voldaren Epicure's Blood token, Sunfall's Incubate #1210) once each card is revisited.",
     },
     // 701.17 Mill
     {

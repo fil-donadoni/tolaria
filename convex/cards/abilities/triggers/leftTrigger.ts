@@ -18,6 +18,7 @@ import type { PermanentFilter } from "../../filters";
 import { matchesPermanentFilter } from "../../filters";
 import type {
     CardType,
+    EffectOp,
     GameEvent,
     PermanentLeftEvent,
     PermanentView,
@@ -69,12 +70,16 @@ export interface LeftTriggerArgs {
     /** Destination zone(s) to gate on. Omitted = match any exit. */
     toZone?: LeftZone | ReadonlyArray<LeftZone>;
     /** Optional `PermanentFilter` applied to the leaving permanent. Reads
-     *  what the `PermanentLeftEvent` carries (types, controllerId,
-     *  instanceId). Subtype / static-ability filters won't fire here — they
-     *  belong in a `condition` callback that walks the registry. */
+     *  what the `PermanentLeftEvent` carries (types, controllerId, instanceId,
+     *  and — since issue #1191 — subtypes, e.g. `{ subtypes: "Clue" }` for
+     *  "whenever you sacrifice a Clue"). Static-ability filters still won't
+     *  fire here — they belong in a `condition` callback that walks the
+     *  registry. */
     filter?: PermanentFilter;
     /** CR 603.4 trigger condition. Evaluated once at fire time. Combine with
-     *  `scope` / `filter` for state lookups the event payload doesn't carry. */
+     *  `scope` / `filter` for state lookups the event payload doesn't carry.
+     *  `wasSacrificed` (this module) is the common "was this a sacrifice, not
+     *  a destroy/bounce/mill" predicate. */
     condition?: (
         event: PermanentLeftEvent,
         self: PermanentView,
@@ -88,9 +93,17 @@ export interface LeftTriggerArgs {
         self: PermanentView,
         state?: TriggerStateView
     ) => boolean;
+    /** Effect Script (ADR 0045) — the DSL-first default. Rides straight to
+     *  the interpreter with the source's controller and `$source` bound; the
+     *  leaving permanent's last-known-info is a separate payload, not
+     *  reachable from the script, so a `resolve` callback is still the escape
+     *  hatch for an effect that needs it (e.g. reading `leaving.attachedToBeforeLeave`).
+     *  Mutually exclusive with `resolve`. */
+    effects?: EffectOp[];
     /** Resolve effect. Receives last-known-info as `leaving` so the callback
-     *  body never has to narrow `event.type`. */
-    resolve: (
+     *  body never has to narrow `event.type`. Mutually exclusive with
+     *  `effects`. */
+    resolve?: (
         ctx: SpellContext,
         event: PermanentLeftEvent,
         leaving: LeavingPermanent
@@ -139,9 +152,12 @@ function passesFilter(
         {
             id: event.instanceId,
             types: event.types,
-            // PermanentLeftEvent does not carry subtypes / static abilities;
-            // filters needing those should be expressed via `condition`.
-            subtypes: [],
+            // CR 205.3 (issue #1191) — the event snapshots real subtypes now
+            // (e.g. "Clue" for a sacrificed Clue token), so a `filter.subtypes`
+            // match works directly. `staticAbilities` still isn't carried by
+            // the event; a filter needing those should be expressed via
+            // `condition`.
+            subtypes: event.subtypes ? [...event.subtypes] : [],
             staticAbilities: [],
             controllerId: event.controllerId,
         },
@@ -177,6 +193,16 @@ export function causedByOpponent(
     );
 }
 
+/** CR 603.4 `condition` helper (issue #1191): true when this departure was a
+ *  SACRIFICE (CR 701.16), as opposed to destruction, bounce, mill, or any
+ *  other exit. Combine with `scope: "yours"` + `filter: { subtypes: "..." }`
+ *  for the general "whenever you sacrifice a <subtype>" shape (Tireless
+ *  Tracker's "whenever you sacrifice a Clue"; reusable by any future
+ *  sacrifice-a-Treasure/Blood/Servo-style trigger — no new factory needed). */
+export function wasSacrificed(event: PermanentLeftEvent): boolean {
+    return event.cause === "sacrifice";
+}
+
 /** Builds a `TriggeredAbility` listening to `PERMANENT_LEFT` (CR 603.10).
  *  See module header for the design rationale; see ADR 0002 for the factory
  *  contract this conforms to. */
@@ -189,8 +215,15 @@ export function leftTrigger(args: LeftTriggerArgs): TriggeredAbility {
         filter,
         condition,
         interveningIf,
+        effects,
         resolve,
     } = args;
+
+    if (effects === undefined && resolve === undefined) {
+        throw new Error(
+            `leftTrigger("${id}"): declare either effects[] or resolve — neither was given`
+        );
+    }
 
     function fires(
         event: GameEvent,
@@ -214,17 +247,21 @@ export function leftTrigger(args: LeftTriggerArgs): TriggeredAbility {
         oracleText,
         event: "PERMANENT_LEFT",
         matches: (event, self, state) => fires(event, self, state),
-        resolve: (ctx, event) => {
-            if (event.type !== "PERMANENT_LEFT") return;
-            resolve(ctx, event, {
-                id: event.instanceId,
-                controllerId: event.controllerId,
-                ownerId: event.ownerId,
-                types: event.types,
-                toZone: event.toZone,
-                attachedToBeforeLeave: event.attachedToBeforeLeave,
-            });
-        },
+        ...(effects
+            ? { effects }
+            : {
+                  resolve: (ctx: SpellContext, event: GameEvent) => {
+                      if (event.type !== "PERMANENT_LEFT") return;
+                      resolve!(ctx, event, {
+                          id: event.instanceId,
+                          controllerId: event.controllerId,
+                          ownerId: event.ownerId,
+                          types: event.types,
+                          toZone: event.toZone,
+                          attachedToBeforeLeave: event.attachedToBeforeLeave,
+                      });
+                  },
+              }),
     };
 
     if (interveningIf !== undefined) {

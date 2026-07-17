@@ -9,7 +9,7 @@
 
 import { describe, it, expect } from "vitest";
 import type { CardDefinition, EffectOp } from "../../../cards/types";
-import { registerTokenDefinition } from "../../../cards";
+import { getDefinition, registerTokenDefinition } from "../../../cards";
 import {
     makeInstance,
     makePlayer,
@@ -5422,6 +5422,115 @@ describe("Effect Script Op: createToken (CR 111 / 701.7, issue #847)", () => {
         expect(slim.toughness).toBe(1);
         expect(slim.types).toEqual(["Artifact", "Creature"]);
         expect(slim.staticAbilities).toContain("flying");
+    });
+});
+
+// CR 707.2 (issue #1191) — a `createToken` token spec may carry token-scoped
+// `activatedAbilities[]` (Investigate's Clue: "{2}, Sacrifice this token:
+// Draw a card."). New capability of the EXISTING `createToken` Op, not a new
+// Op — see `convex/cards/abilities/tokens/clueToken.ts` for the shared spec
+// Tireless Tracker (soi/green.ts) uses.
+describe("Effect Script Op: createToken with token.activatedAbilities (CR 707.2, issue #1191)", () => {
+    const clueSpec = (): EffectOp => ({
+        op: "createToken",
+        token: {
+            name: "Clue",
+            types: ["Artifact"],
+            subtypes: ["Clue"],
+            activatedAbilities: [
+                {
+                    id: "sacrifice-draw",
+                    oracleText: "{2}, Sacrifice this token: Draw a card.",
+                    cost: { mana: { generic: 2 }, sacrifice: true },
+                    useStack: true,
+                    effects: [{ op: "draw", player: "controller", count: 1 }],
+                },
+            ],
+        },
+        controller: "controller",
+    });
+
+    it("creates a token whose synthesized CardDefinition carries the activated ability", () => {
+        const id = registerScript("test-op-token-clue", [clueSpec()]);
+        const state = makeState();
+        pushSpell(state, id, "p1", []);
+        resolveTopOfStack(state);
+        const clue = state.players[0].battlefield.find((c) => c.isToken)!;
+        expect(clue).toBeDefined();
+        expect(clue.types).toEqual(["Artifact"]);
+        expect(clue.subtypes).toContain("Clue");
+        const def = getDefinition((clue.card as { id: string }).id);
+        expect(def.activatedAbilities).toHaveLength(1);
+        expect(def.activatedAbilities![0]).toMatchObject({
+            id: "sacrifice-draw",
+            oracleText: "{2}, Sacrifice this token: Draw a card.",
+            cost: { mana: { generic: 2 }, sacrifice: true },
+            useStack: true,
+        });
+    });
+
+    // The ability's own `effects[]` resolves through the SAME interpreter path
+    // as any other activated ability (mirrors the "creates a token from an
+    // activated ability's effects[]" test above, in reverse: here the TOKEN is
+    // the ability's source). Cost payment (the {2} mana + self-sacrifice) is
+    // paid by `game.ts`'s `activateAbility` BEFORE the stack item exists —
+    // out of scope for this GRE-only resolution test, exactly like every
+    // other `cost.sacrifice` ability's GRE test in the catalogue (e.g.
+    // Mishra's Bauble, csp/colorless.test.ts).
+    it("activating the Clue's sac-draw ability draws a card for the controller (CR 701.16a)", () => {
+        const id = registerScript("test-op-token-clue-activate", [clueSpec()]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: [
+                        makeInstance(BEAR_ID, {
+                            id: "clue-lib-0",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "library",
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1", []);
+        resolveTopOfStack(state);
+        const clue = state.players[0].battlefield.find((c) => c.isToken)!;
+        const handBefore = state.players[0].hand.length;
+        state.stack.push({
+            ...clue,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "sacrifice-draw",
+            targets: [],
+        });
+        resolveTopOfStack(state);
+        expect(state.players[0].hand.length).toBe(handBefore + 1);
+    });
+
+    // Wire format (GRE testing convention): the created Clue's identity is a
+    // synthesized definition; the projection strips `card.card` to `{ id }`
+    // but the id itself is content-derived and decodes back into the SAME
+    // activated ability client-side (see `tokenRegistry.test.ts` for the
+    // dedicated client-rehydration round-trip via `maybeSynthesizeToken`).
+    it("the created Clue projects correctly to the client view (wire format)", () => {
+        const id = registerScript("test-op-token-clue-wire", [clueSpec()]);
+        const state = makeState();
+        pushSpell(state, id, "p1", []);
+        resolveTopOfStack(state);
+        const clue = state.players[0].battlefield.find((c) => c.isToken)!;
+
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === clue.id
+        )!;
+        expect(slim).toBeDefined();
+        expect(slim.isToken).toBe(true);
+        expect(slim.types).toEqual(["Artifact"]);
+        const def = getDefinition((slim.card as { id: string }).id);
+        expect(def.activatedAbilities).toHaveLength(1);
+        expect(def.activatedAbilities![0].id).toBe("sacrifice-draw");
     });
 });
 
@@ -11671,7 +11780,7 @@ describe("Effect Script value: abilityResolutionCount (CR 122 / 603.3, issue #11
         expect(state.players[0].life).toBe(131); // 20 + 1 + 10 + 100
     });
 
-    it('resets at CLEANUP (CR 514.2) — next turn\'s first resolution reads 1 again', () => {
+    it("resets at CLEANUP (CR 514.2) — next turn's first resolution reads 1 again", () => {
         const source = makeInstance(RESOLUTION_COUNT_SOURCE_ID, {
             id: "rc-src-cleanup",
             controllerId: "p1",
