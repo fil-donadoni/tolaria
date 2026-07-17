@@ -26,9 +26,10 @@ function discardEvent(
     return { type: "CARD_DISCARDED", playerId, cardInstanceId };
 }
 
-function withConverter(
-    p1Overrides: Parameters<typeof makePlayer>[1] = {}
-): { state: GameState; cc: ReturnType<typeof makeInstance> } {
+function withConverter(p1Overrides: Parameters<typeof makePlayer>[1] = {}): {
+    state: GameState;
+    cc: ReturnType<typeof makeInstance>;
+} {
     const cc = makeInstance(CC_ID, {
         id: "cc",
         controllerId: "p1",
@@ -171,9 +172,9 @@ describe("Currency Converter — retrieve exiled card + conditional token (CR 11
         expect(state.players[0].exile.find((c) => c.id === "landX")).toBe(
             undefined
         );
-        expect(
-            state.players[0].graveyard.some((c) => c.id === "landX")
-        ).toBe(true);
+        expect(state.players[0].graveyard.some((c) => c.id === "landX")).toBe(
+            true
+        );
         const treasure = state.players[0].battlefield.find(
             (c) => c.isToken && c.subtypes.includes("Treasure")
         );
@@ -185,9 +186,9 @@ describe("Currency Converter — retrieve exiled card + conditional token (CR 11
         resolveActivated(state, cc, "currency-converter-retrieve");
         answerChoice(state, ["bearX"]);
 
-        expect(
-            state.players[0].graveyard.some((c) => c.id === "bearX")
-        ).toBe(true);
+        expect(state.players[0].graveyard.some((c) => c.id === "bearX")).toBe(
+            true
+        );
         const rogue = state.players[0].battlefield.find(
             (c) => c.isToken && c.subtypes.includes("Rogue")
         );
