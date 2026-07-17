@@ -1674,6 +1674,15 @@ export const OP_EXECUTORS: {
         if (ownerId === undefined) return;
         ctx.createEmblem(op.emblem, ownerId);
     },
+    // CR 720.2 (issue #1199) — crown a player the monarch. A thin declarative
+    // skin over the single SpellContext primitive `becomeMonarch`, ONE
+    // execution path (ADR 0045). Skipped when the player ref cannot be
+    // resolved (CR 608.2b).
+    becomeMonarch(ctx, op) {
+        const playerId = resolvePlayerRef(ctx, op.controller ?? "controller");
+        if (playerId === undefined) return;
+        ctx.becomeMonarch(playerId);
+    },
     // CR 613.1b (issue #848) — change control of a permanent (layer 2). A thin
     // declarative skin over the single SpellContext primitive `gainControl`,
     // ONE execution path (ADR 0045): the resolved `target` permanent moves to

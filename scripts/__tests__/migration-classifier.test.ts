@@ -867,11 +867,23 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // Partition: 438+14+233=685. (The 30 draws that stayed resolve() are
         // Op-blocked stubs — already in the Op-blocked count, not FREE — so the
         // FREE/Op-blocked split is unaffected by them.)
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(685);
+        //
+        // Then issue #1199 (Monarch designation) adds Palace Jailer (cn2/
+        // white.ts): its "you become the monarch" ETB is a DSL `becomeMonarch`
+        // Op (no new closure — `becomeMonarch` is now a Covered Op, its
+        // binding read live from EFFECT_OP_REGISTRY), but its "exile target
+        // creature ... until an opponent becomes the monarch" ETB stays
+        // resolve() (protocol card — no Op expresses the monarch-change return
+        // condition, matching the sibling O-Ring-style cards' precedent) and
+        // calls the NEW primitive `SpellContext.exileUntilMonarchChanges`,
+        // which isn't yet in the classifier's covered-Ops list. +1 closure,
+        // Op-blocked (not FREE). Net: total 685→686, FREE/AFK-ready/X-only
+        // unchanged (438/401/14), Op-blocked 233→234. Partition: 438+14+234=686.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(686);
         expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(438);
         expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(401);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(233);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(234);
     });
 
     it("surfaces the demonstrated new-Op backlog (a covered primitive leaves it)", () => {

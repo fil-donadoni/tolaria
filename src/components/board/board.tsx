@@ -362,6 +362,7 @@ export default function Board({
                 allPlayers,
                 emblems: state.emblems,
                 phasedOutCards,
+                monarchId: state.monarchId,
                 showAllCards,
                 debugAllActions,
                 onSwitchGame,

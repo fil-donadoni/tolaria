@@ -1001,6 +1001,12 @@ export const PERSISTED_OPTIONAL_KEYS = [
     "damageTriggeredLifegain",
     "phasedOut",
     "exileHeld",
+    // CR 720 (issue #1199) — the Monarch designation. `monarchId` is a plain
+    // string scalar and `monarchReturnWatch` (Palace Jailer) is pure metadata
+    // (sourceId/controllerId strings, no fat card refs) — both round-trip via
+    // the generic optional-key loop with no per-field compaction needed.
+    "monarchId",
+    "monarchReturnWatch",
     // CR 303.4f — Auras held off every zone while their controller owes a
     // `choose-aura-host` pick. Transiently non-empty only while a matching
     // choice is pending (which is itself a stable save point), so it must

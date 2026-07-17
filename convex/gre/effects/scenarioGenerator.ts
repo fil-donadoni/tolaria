@@ -710,6 +710,15 @@ function analyseOp(op: EffectOp, req: Requirements): void {
                 return;
             }
             return;
+        case "becomeMonarch":
+            // CR 720.2 (issue #1199) — crowning the monarch is a GLOBAL
+            // designation (`GameState.monarchId`), not a per-permanent /
+            // per-player-resource outcome the canned generator's assertion
+            // vocabulary models (battlefield/graveyard/life/counter deltas).
+            // Explicit skip — covered by the Op's own interpreter tests
+            // (per-Op regime).
+            req.skip ??= `Op "becomeMonarch" sets the global monarch designation — covered by the Op's interpreter tests`;
+            return;
         case "gainControl":
             // CR 613.1b (issue #848) — a control change flips a permanent to a
             // new controller and (for a "for as long as" duration) installs a
@@ -1504,6 +1513,14 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     // for the 1:1 coverage guard; the control change and its conditional revert
     // are covered by the Op's own interpreter tests.
     gainControl() {
+        return null;
+    },
+    // `becomeMonarch` (CR 720.2, issue #1199) — never reached: `analyseOp`
+    // skips every script with a becomeMonarch Op (crowning the monarch is a
+    // GLOBAL designation, not a per-permanent / per-player-resource outcome
+    // the canned scenario's assertion vocabulary models). Kept for the 1:1
+    // coverage guard; covered by the Op's own interpreter tests.
+    becomeMonarch() {
         return null;
     },
     // `optionChoice` (CR 700.2 / 601.2b, issue #849) — never reached: `analyseOp`

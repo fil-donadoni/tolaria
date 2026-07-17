@@ -57,6 +57,11 @@ type GameContext = {
      *  battlefield renders it dimmed/inert on the controller's side rather than
      *  letting it vanish. Empty/absent when nothing is phased. */
     phasedOutCards?: CardInstance[];
+    /** CR 720.1 (issue #1199) — the Monarch designation: the id of the player
+     *  who is currently the monarch, forwarded from the wire
+     *  `GameState.monarchId`. Undefined means no one is the monarch yet.
+     *  Consumed by `BoardPlayer` / `PlayerLife` to badge the nameplate. */
+    monarchId?: string;
     showAllCards: boolean;
     debugAllActions: boolean;
     /** Re-point the client session to another game in-place (state swap, no

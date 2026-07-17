@@ -361,6 +361,38 @@ export function collectTriggers(
         }
     }
 
+    // CR 720.2 (Forth Eorlingas!, issue #1199) — repeating combat-damage-to-
+    // player delayed triggers: a `timing:
+    // "this-turn-creature-deals-combat-damage-to-player"` instance fires AT
+    // MOST ONCE per `collectTriggers` batch (the "one or more creatures … one
+    // or more players" wording collapses several simultaneous hits from the
+    // same damage step into a single firing, per the official ruling), for
+    // each delayed-trigger instance whose scheduling controller matches the
+    // damage's source controller. Unlike a one-shot delayed trigger it stays
+    // queued after firing (purged only at CLEANUP, phases.ts) so a LATER,
+    // separate damage step (an extra combat) fires it again.
+    if (state.delayedTriggers?.length) {
+        const damageRepeaters = state.delayedTriggers.filter(
+            (t) =>
+                t.timing === "this-turn-creature-deals-combat-damage-to-player"
+        );
+        for (const t of damageRepeaters) {
+            const matchEvent = events.find(
+                (e) =>
+                    e.type === "DAMAGE_DEALT" &&
+                    e.isCombat &&
+                    e.target.type === "player" &&
+                    e.sourceControllerId === t.controller
+            );
+            if (matchEvent) {
+                out.push({
+                    ...buildDelayedTriggerStackItem(state, t),
+                    triggerEvent: matchEvent,
+                });
+            }
+        }
+    }
+
     // CR 702.35d — the reflexive "may cast" triggered ability of a card discarded
     // via Madness. The ability lives on the discarded card itself (now in its
     // owner's exile), not a battlefield permanent, so every scan above misses it.

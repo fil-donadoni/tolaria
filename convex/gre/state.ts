@@ -2631,6 +2631,26 @@ export type GameState = {
      *  card state — so it serializes as plain data. Its existence is also the
      *  "delayed return is armed" flag (see TriggerStateView.exileHeld). */
     exileHeld?: ExileReturnBundle[];
+    /** CR 720.1 — the Monarch designation (issue #1199). At most one player is
+     *  ever the monarch; undefined means no one is (the game always starts
+     *  with no monarch). Set exclusively through `becomeMonarch` (below) —
+     *  CR 720.2's reassignment falls out for free from a single scalar: crowning
+     *  a new monarch always displaces whoever held it, no explicit "stop being
+     *  monarch" step needed. Read by the CR 720.3 combat-damage steal hook
+     *  (`applyOneCombatDamage`, phases.ts) and the CR 720.4 end-step draw hook
+     *  (phases.ts `END_STEP` phase entry). */
+    monarchId?: string;
+    /** CR 720 (Palace Jailer, issue #1199) — pending "return the exiled
+     *  creature the next time an opponent of `controllerId` becomes the
+     *  monarch" watches, armed by `SpellContext.exileUntilMonarchChanges`.
+     *  Consumed by `becomeMonarch`: when the newly-crowned monarch differs
+     *  from a watch's `controllerId`, the matching `exileHeld` bundle (keyed
+     *  by `sourceId`) is returned via `returnExiledForSource` and the watch is
+     *  removed. Per the official ruling, ANY opponent becoming the monarch
+     *  releases the hold — not necessarily the same opponent who controlled
+     *  the exiled creature — which this engine's 2-player scope makes exact
+     *  ("an opponent" has only one possible value). */
+    monarchReturnWatch?: MonarchReturnWatch[];
     /** CR 303.4f — Auras that have left their origin zone but have NOT yet
      *  entered the battlefield because their controller still owes a "choose
      *  what to enchant" pick (a `choose-aura-host` PendingChoice is queued for
@@ -2887,6 +2907,18 @@ export interface ExileReturnBundle {
     counters: Record<string, number>;
     /** The host returns tapped (Tawnos's Coffin: "tapped"). */
     returnTapped: boolean;
+}
+
+/** CR 720 (Palace Jailer, issue #1199) — a pending "return the exiled creature
+ *  the next time an opponent of `controllerId` becomes the monarch" watch. See
+ *  {@link GameState.monarchReturnWatch}. */
+export interface MonarchReturnWatch {
+    /** `exileHeld` bundle key (the exiling ability's source instance id). */
+    sourceId: string;
+    /** The exiling ability's controller — the watch releases when the newly
+     *  crowned monarch is anyone ELSE (CR 720 "an opponent becomes the
+     *  monarch"). */
+    controllerId: string;
 }
 
 /** CR 303.4f — an Aura removed from its origin zone and awaiting its
@@ -6086,6 +6118,58 @@ export function returnExiledForSource(
     }
 }
 
+// --- Monarch (CR 720, issue #1199) -----------------------------------------
+
+/** CR 720.2 — crowns `playerId` the monarch, displacing whoever held it
+ *  before (a single scalar assignment IS the reassignment — no explicit
+ *  "stop being monarch" step). Idempotent: a player who is already the
+ *  monarch becoming the monarch again is a no-op (CR 720.3's "unless that
+ *  player is already the monarch" reads naturally off this guard, and it
+ *  keeps a same-player re-crowning from spuriously releasing a Palace
+ *  Jailer watch armed against that same controller). When the crown DOES
+ *  change hands, sweeps `monarchReturnWatch` (Palace Jailer, CR 720) and
+ *  returns every held exile whose watch names a DIFFERENT controller than
+ *  the new monarch ("an opponent becomes the monarch"). */
+export function becomeMonarch(state: GameState, playerId: string): void {
+    if (state.monarchId === playerId) return;
+    state.monarchId = playerId;
+    const watches = state.monarchReturnWatch;
+    if (!watches?.length) return;
+    const remaining: MonarchReturnWatch[] = [];
+    for (const w of watches) {
+        if (w.controllerId === playerId) {
+            remaining.push(w);
+        } else {
+            returnExiledForSource(state, w.sourceId);
+        }
+    }
+    state.monarchReturnWatch = remaining.length > 0 ? remaining : undefined;
+}
+
+/** CR 720 (Palace Jailer) — exiles `targetId` (host-only, CR 701.18 — its
+ *  Auras fall to the orphan-aura SBA and Equipment detaches, matching the
+ *  O-Ring precedent) keyed to `sourceId`, and arms a watch that returns it
+ *  the next time an opponent of `controllerId` becomes the monarch
+ *  (`becomeMonarch` above). No-op if the target isn't on the battlefield. */
+export function exileUntilMonarchChanges(
+    state: GameState,
+    targetId: string,
+    sourceId: string,
+    controllerId: string,
+    opts?: { returnTapped?: boolean }
+): void {
+    const bundleId = exileWithAttachments(state, targetId, {
+        sourceId,
+        returnTapped: opts?.returnTapped ?? false,
+        includeAttachments: false,
+    });
+    if (bundleId === null) return;
+    state.monarchReturnWatch = [
+        ...(state.monarchReturnWatch ?? []),
+        { sourceId, controllerId },
+    ];
+}
+
 /** Emits a SPELL_CAST event for a freshly-pushed stack item (CR 601.2i).
  *  Reads the spell's card definition to derive types, subtypes, and colors
  *  so trigger predicates can filter without re-resolving the registry.
@@ -8646,6 +8730,23 @@ export function buildSpellContext(
         // `returnExiledForSource`.
         returnExiledForSource(sourceId) {
             returnExiledForSource(state, sourceId);
+        },
+        // CR 720.2 (issue #1199) — crown `playerId` the monarch. See
+        // `becomeMonarch`.
+        becomeMonarch(playerId) {
+            becomeMonarch(state, playerId);
+        },
+        // CR 720 (Palace Jailer, issue #1199) — exile a creature until an
+        // opponent of `sourceInstanceId`'s controller becomes the monarch. See
+        // `exileUntilMonarchChanges`.
+        exileUntilMonarchChanges(targetId, opts) {
+            exileUntilMonarchChanges(
+                state,
+                targetId,
+                ctx.sourceInstanceId,
+                ctx.controller,
+                opts
+            );
         },
         // CR 701.20: randomize a player's library. Uses the seeded PRNG so
         // replays reproduce the same ordering. ADR 0026: a shuffle is an

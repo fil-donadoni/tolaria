@@ -26,7 +26,11 @@ import {
 import { compactState, expandState } from "../../serialize";
 import { refreshExpectedInput } from "../../expectedInput";
 import { projectPublicState } from "../../../gameProjections";
-import { fireDelayedTriggers, finalizeCleanup } from "../../phases";
+import {
+    fireDelayedTriggers,
+    finalizeCleanup,
+    applyAllCombatDamage,
+} from "../../phases";
 import {
     checkConditionalControlChanges,
     checkStateBasedActions,
@@ -12263,6 +12267,208 @@ describe("Effect Script Op: emblem (CR 114, issue #1221)", () => {
         const round = expandState(compactState(state));
         expect(round.emblems).toEqual(state.emblems);
         expect(round.nextEmblemSeq).toBe(state.nextEmblemSeq);
+    });
+});
+
+describe("Effect Script Op: becomeMonarch (CR 720.2, issue #1199)", () => {
+    it("crowns the resolving controller by default", () => {
+        const id = registerScript("test-op-become-monarch-controller", [
+            { op: "becomeMonarch" },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.monarchId).toBe("p1");
+    });
+
+    it("crowns an explicit player ref (opponent)", () => {
+        const id = registerScript("test-op-become-monarch-opponent", [
+            { op: "becomeMonarch", controller: "opponent" },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.monarchId).toBe("p2");
+    });
+
+    it("is idempotent — re-crowning the current monarch is a no-op", () => {
+        const id = registerScript("test-op-become-monarch-idempotent", [
+            { op: "becomeMonarch" },
+        ]);
+        const state = makeState();
+        state.monarchId = "p1";
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.monarchId).toBe("p1");
+    });
+
+    it("survives the wire projection (monarchId is a top-level GameState key)", () => {
+        const id = registerScript("test-op-become-monarch-wire", [
+            { op: "becomeMonarch" },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.monarchId).toBe("p1");
+    });
+});
+
+describe("delayedTrigger timing: this-turn-creature-deals-combat-damage-to-player (CR 720.2, Forth Eorlingas!, issue #1199)", () => {
+    it("schedules the delayed trigger with no capture map needed", () => {
+        const id = registerScript("test-timing-monarch-damage-schedule", [
+            {
+                op: "delayedTrigger",
+                timing: "this-turn-creature-deals-combat-damage-to-player",
+                oracleText: "test",
+                effects: [{ op: "becomeMonarch" }],
+            },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const watch = state.delayedTriggers?.find(
+            (t) =>
+                t.timing === "this-turn-creature-deals-combat-damage-to-player"
+        );
+        expect(watch).toBeDefined();
+        expect(watch!.payload).toEqual({});
+    });
+
+    it("fires when a creature the scheduling controller controls deals combat damage to a player, crowning them monarch", () => {
+        const id = registerScript("test-timing-monarch-damage-fire", [
+            {
+                op: "delayedTrigger",
+                timing: "this-turn-creature-deals-combat-damage-to-player",
+                oracleText: "test",
+                effects: [{ op: "becomeMonarch" }],
+            },
+        ]);
+        const attacker = makeInstance(BEAR_ID, {
+            id: "atk",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            phase: "COMBAT_DAMAGE",
+            players: [
+                makePlayer("p1", { battlefield: [attacker] }),
+                makePlayer("p2"),
+            ],
+            combat: {
+                confirmed: true,
+                blockerAssignments: {},
+                blockersConfirmed: true,
+                damageConfirmed: false,
+                attackerIds: ["atk"],
+            } as GameState["combat"],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.monarchId).toBeUndefined();
+
+        applyAllCombatDamage(state, {});
+        // The delayed trigger is now on the stack — resolve it.
+        while (
+            state.stack.some(
+                (s) =>
+                    s.delayedTriggerId !== undefined &&
+                    s.triggerEvent?.type === "DAMAGE_DEALT"
+            )
+        ) {
+            resolveTopOfStack(state);
+        }
+
+        expect(state.monarchId).toBe("p1");
+        // CR 603.7d-shaped — NOT consumed by firing; stays queued.
+        expect(
+            state.delayedTriggers?.some(
+                (t) =>
+                    t.timing ===
+                    "this-turn-creature-deals-combat-damage-to-player"
+            )
+        ).toBe(true);
+    });
+
+    it("collapses several simultaneous DAMAGE_DEALT events in one damage step into a single firing (official ruling)", () => {
+        const id = registerScript("test-timing-monarch-damage-collapse", [
+            {
+                op: "delayedTrigger",
+                timing: "this-turn-creature-deals-combat-damage-to-player",
+                oracleText: "test",
+                effects: [{ op: "becomeMonarch", controller: "opponent" }],
+            },
+        ]);
+        // Two attackers CONTROLLED BY p1 (the scheduling player), unblocked —
+        // both hit p2 in the SAME damage step batch.
+        const atk1 = makeInstance(BEAR_ID, {
+            id: "atk1",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const atk2 = makeInstance(BEAR_ID, {
+            id: "atk2",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            phase: "COMBAT_DAMAGE",
+            activePlayerId: "p1",
+            players: [
+                makePlayer("p1", { battlefield: [atk1, atk2] }),
+                makePlayer("p2"),
+            ],
+            combat: {
+                confirmed: true,
+                blockerAssignments: {},
+                blockersConfirmed: true,
+                damageConfirmed: false,
+                attackerIds: ["atk1", "atk2"],
+            } as GameState["combat"],
+        });
+        // Scheduled by p1 ("becomeMonarch controller: opponent" reads back p2
+        // relative to the FIRING stack item's own controller — p1, the
+        // scheduling player).
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+
+        applyAllCombatDamage(state, {});
+        const damageTriggerCount = state.stack.filter(
+            (s) =>
+                s.delayedTriggerId !== undefined &&
+                s.triggerEvent?.type === "DAMAGE_DEALT"
+        ).length;
+        // "One or more creatures ... one or more players" — one firing, not two.
+        expect(damageTriggerCount).toBe(1);
+    });
+
+    it("expires unconditionally at CLEANUP (CR 514.2)", () => {
+        const id = registerScript("test-timing-monarch-damage-cleanup", [
+            {
+                op: "delayedTrigger",
+                timing: "this-turn-creature-deals-combat-damage-to-player",
+                oracleText: "test",
+                effects: [{ op: "becomeMonarch" }],
+            },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(
+            state.delayedTriggers?.some(
+                (t) =>
+                    t.timing ===
+                    "this-turn-creature-deals-combat-damage-to-player"
+            )
+        ).toBe(true);
+        finalizeCleanup(state);
+        expect(
+            state.delayedTriggers?.some(
+                (t) =>
+                    t.timing ===
+                    "this-turn-creature-deals-combat-damage-to-player"
+            ) ?? false
+        ).toBe(false);
     });
 });
 
