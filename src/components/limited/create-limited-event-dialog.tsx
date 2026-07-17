@@ -73,7 +73,7 @@ export default function CreateLimitedEventDialog({
     error,
 }: CreateLimitedEventDialogProps) {
     const [type, setType] = useState<LimitedEventType>("sealed");
-    const [seatCount, setSeatCount] = useState(4);
+    const [seatCount, setSeatCount] = useState(8);
     const firstDraftable = draftableSets.find((s) => s.draftable)?.setCode;
     const [setCode, setSetCode] = useState<string | undefined>(firstDraftable);
     const [sealedBoosterCount, setSealedBoosterCount] = useState(

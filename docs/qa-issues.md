@@ -41,6 +41,5 @@ Fallen Shinobi
 Lurrus
 Lutri
 Grist
-Fort Eorlingas!
 Necromancy
 Fable of the mirror-breaker
