@@ -29,8 +29,10 @@
 // (issue #731/#916) looked promising but is explicitly THIS-TURN-scoped —
 // "every `leaves-battlefield` instance is this-turn scoped... purged at
 // CLEANUP" (convex/gre/phases.ts) — wrong semantics for an "until this
-// leaves the battlefield" duration that must survive across turns. Stop-
-// and-issue per gre-development.md; tracked stub.
+// leaves the battlefield" duration that must survive across turns. Re-
+// audited under the #1305 residue tranche (parent PRD #620) — the gap still
+// stands (2026-07-18). Stop-and-issue per gre-development.md; tracked-by:
+// #1362.
 // export const deepCavernBat: CardDefinition = {
 //     id: "69c68c95-b788-43b1-9f22-1b22c5a00b25",
 //     name: "Deep-Cavern Bat",

@@ -726,6 +726,12 @@
         "firstSet": "drk"
     },
     {
+        "name": "Barrowgoyf",
+        "scryfallId": "f979fc86-2c7e-49b3-965e-607a203cbfb1",
+        "oracleId": "74c0164c-130f-4572-9066-626c77f6e2ff",
+        "firstSet": "m3c"
+    },
+    {
         "name": "Bartel Runeaxe",
         "scryfallId": "f1a42691-98bb-4234-9b56-085e6677f3e4",
         "oracleId": "9beccf09-c024-408b-9f84-fe2c7462babb",
@@ -3898,6 +3904,12 @@
         "scryfallId": "34c78dee-ab45-4638-b89a-10686145b19a",
         "oracleId": "1fa272bf-8759-4750-b40b-8e2f6972d570",
         "firstSet": "inv"
+    },
+    {
+        "name": "Harvester of Misery",
+        "scryfallId": "a3012af9-621d-4fae-b00d-079a89ae35fe",
+        "oracleId": "a0d3bb63-2977-41b2-bcc3-2488e6696cb8",
+        "firstSet": "big"
     },
     {
         "name": "Hasran Ogress",
@@ -7482,6 +7494,12 @@
         "firstSet": "inv"
     },
     {
+        "name": "Satyr Wayfinder",
+        "scryfallId": "13c5a1ce-932a-4b3d-8b86-ed920e646afc",
+        "oracleId": "ead4c01a-e2ae-49c9-95d9-651d81005907",
+        "firstSet": "bng"
+    },
+    {
         "name": "Savaen Elves",
         "scryfallId": "38fb3014-f631-4a75-92cd-7e626b13a4c3",
         "oracleId": "330e109c-1885-4946-9edc-895408519b3d",
@@ -9124,6 +9142,12 @@
         "scryfallId": "5fd99522-4a91-4ccd-91bf-5f32a6ac3510",
         "oracleId": "633b8f22-0384-4f60-ba78-b52c2d82dfde",
         "firstSet": "leg"
+    },
+    {
+        "name": "Torsten, Founder of Benalia",
+        "scryfallId": "0783b426-a527-42c1-9271-be28b229e1c6",
+        "oracleId": "3b1c6c1e-e298-4f45-8ab7-e0bb5358e11f",
+        "firstSet": "dmc"
     },
     {
         "name": "Total War",
