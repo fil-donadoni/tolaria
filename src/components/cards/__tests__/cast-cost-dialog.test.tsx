@@ -151,3 +151,50 @@ describe("CastCostDialog (CR 601.2b {X} + CR 702.33 Kicker)", () => {
         expect(onConfirm).not.toHaveBeenCalled();
     });
 });
+
+describe("CastCostDialog (CR 702.27 Buyback)", () => {
+    it("omits the buyback checkbox when buyback is unset", () => {
+        renderDialog({ askX: false });
+        expect(screen.queryByLabelText("Pay buyback cost")).toBeNull();
+    });
+
+    it("renders a yes/no checkbox for buyback and returns true when checked", () => {
+        const { onConfirm } = renderDialog({ askX: false, buyback: true });
+        fireEvent.click(screen.getByLabelText("Pay buyback cost"));
+        fireEvent.click(castButton());
+        expect(onConfirm).toHaveBeenCalledWith({
+            chosenX: undefined,
+            kickerCount: undefined,
+            buyback: true,
+        });
+    });
+
+    it("returns buyback false when the checkbox stays unchecked", () => {
+        const { onConfirm } = renderDialog({ askX: false, buyback: true });
+        fireEvent.click(castButton());
+        expect(onConfirm).toHaveBeenCalledWith({
+            chosenX: undefined,
+            kickerCount: undefined,
+            buyback: false,
+        });
+    });
+
+    it("collects X, kicker, and buyback together", () => {
+        const { onConfirm } = renderDialog({
+            askX: true,
+            kicker: { multi: false },
+            buyback: true,
+        });
+        fireEvent.change(screen.getByLabelText("Choose X"), {
+            target: { value: "2" },
+        });
+        fireEvent.click(screen.getByLabelText("Pay kicker cost"));
+        fireEvent.click(screen.getByLabelText("Pay buyback cost"));
+        fireEvent.click(castButton());
+        expect(onConfirm).toHaveBeenCalledWith({
+            chosenX: 2,
+            kickerCount: 1,
+            buyback: true,
+        });
+    });
+});

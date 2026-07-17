@@ -801,6 +801,10 @@ function compactStackItem(item: StackItem): CompactCard {
     }
     if (item.isCopy) base.isCopy = item.isCopy;
     if (item.exileOnResolve) base.exileOnResolve = item.exileOnResolve;
+    // CR 702.27a — persist the Buyback-paid flag so the "return to hand
+    // instead of the graveyard" resolution redirect survives a DB round-trip
+    // while the spell sits on the stack.
+    if (item.buybackPaid) base.buybackPaid = item.buybackPaid;
     // issue #898 — persist the self-shuffle-into-library redirect flag so a
     // mid-resolution save (suspended on a choice) survives a DB round-trip.
     if (item.shuffleIntoLibraryOnResolve) {
@@ -900,6 +904,9 @@ function expandStackItem(compact: CompactCard): StackItem {
     if (compact.isCopy) item.isCopy = compact.isCopy as boolean;
     if (compact.exileOnResolve) {
         item.exileOnResolve = compact.exileOnResolve as boolean;
+    }
+    if (compact.buybackPaid) {
+        item.buybackPaid = compact.buybackPaid as boolean;
     }
     if (compact.shuffleIntoLibraryOnResolve) {
         item.shuffleIntoLibraryOnResolve =

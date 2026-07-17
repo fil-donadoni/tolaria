@@ -16,7 +16,15 @@ type CastCostDialogProps = {
      *  `multi: false` → a single yes/no "pay the kicker" toggle; `multi: true`
      *  (Multikicker, CR 702.33e) → a numeric "times to pay kicker" stepper. */
     kicker?: { multi: boolean };
-    onConfirm: (v: { chosenX?: number; kickerCount?: number }) => void;
+    /** CR 702.27 — true when the card has an optional Buyback cost: render a
+     *  single yes/no "pay the buyback cost" toggle, mirroring the single
+     *  (non-multi) Kicker checkbox — Buyback has no repeatable variant. */
+    buyback?: boolean;
+    onConfirm: (v: {
+        chosenX?: number;
+        kickerCount?: number;
+        buyback?: boolean;
+    }) => void;
     onCancel: () => void;
 };
 
@@ -39,12 +47,14 @@ export default function CastCostDialog({
     subtitle,
     askX,
     kicker,
+    buyback,
     onConfirm,
     onCancel,
 }: CastCostDialogProps) {
     const [xRaw, setXRaw] = useState("");
     const [kickerCountRaw, setKickerCountRaw] = useState("0");
     const [kickerPay, setKickerPay] = useState(false);
+    const [buybackPay, setBuybackPay] = useState(false);
 
     // Reset the form each time the dialog is (re)opened so a previous cast's
     // entries never leak into the next one.
@@ -55,6 +65,7 @@ export default function CastCostDialog({
             setXRaw("0");
             setKickerCountRaw("0");
             setKickerPay(false);
+            setBuybackPay(false);
         }
     }
 
@@ -74,6 +85,7 @@ export default function CastCostDialog({
                       ? 1
                       : 0
                 : undefined,
+            buyback: buyback ? buybackPay : undefined,
         });
     };
 
@@ -142,6 +154,20 @@ export default function CastCostDialog({
                         />
                         <span className="text-sm font-medium text-text">
                             Pay kicker cost
+                        </span>
+                    </label>
+                )}
+
+                {buyback && (
+                    <label className="flex items-center gap-2.5">
+                        <input
+                            type="checkbox"
+                            className="size-4 accent-accent"
+                            checked={buybackPay}
+                            onChange={(e) => setBuybackPay(e.target.checked)}
+                        />
+                        <span className="text-sm font-medium text-text">
+                            Pay buyback cost
                         </span>
                     </label>
                 )}

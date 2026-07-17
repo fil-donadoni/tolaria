@@ -919,7 +919,10 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         name: "Buyback",
         kind: "keyword-ability",
         cr: "702.27",
-        status: "planned",
+        status: "implemented",
+        binding:
+            "convex/game.ts (announceCast / finalizeTargetSelection — resolveBuybackChoice, foldBuybackCost) + convex/gre/state.ts (finalizeSpellResolution)",
+        note: 'Cost-system / keyword-cast capability (engine infra, NOT an Effect Script Op) — mirrors the Kicker plumbing (issue #692), scaled down since CR 702.27 has no Multikicker-style repeatable variant. `CardDefinition.buyback` (a plain ManaCost — the optional additional cost). `announceCast` accepts a `buyback` boolean, folds `buyback` into the pending mana cost via `foldBuybackCost` (mirrors `foldKickerCost`), threads it through `pendingTarget`/`pendingCast` as `buybackPaid`, and snapshots it on the StackItem. `finalizeSpellResolution` (`convex/gre/state.ts`) reads `item.buybackPaid` and routes the card to its owner\'s HAND instead of the graveyard as it resolves (CR 702.27a) — checked after a spell\'s own exile-self/shuffle-self-into-library resolution redirects, which take precedence. Used by Corpse Dance (`convex/cards/sets/tmp/black.ts`) — currently a documented stub: its reanimation clause ("the TOP creature card of your graveyard") is blocked on the pre-existing deterministic top-of-graveyard selector gap (issue #920), unrelated to Buyback.',
     },
     // 702.28 Shadow
     {

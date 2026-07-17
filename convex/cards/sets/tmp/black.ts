@@ -48,3 +48,35 @@ export const reanimate: CardDefinition = {
         },
     ],
 };
+
+// Corpse Dance — {2}{B} Instant. "Buyback {2} (You may pay an additional {2}
+// as you cast this spell. If you do, put this card into your hand instead of
+// into your graveyard as it resolves.)\nReturn the top creature card of your
+// graveyard to the battlefield. That creature gains haste until end of turn.
+// Exile it at the beginning of the next end step." (issue #1200, closing the
+// Buyback half — CR 702.27 — of the Vintage Cube split from #699.)
+//
+// Buyback itself is no longer the blocker: `CardDefinition.buyback` (issue
+// #1200) is a shipped, real cost-system capability, and the rest of the
+// oracle text is the Sneak Attack idiom (`convex/cards/sets/usg/red.ts`,
+// issue #1151) — `moveZone`(reanimate) + `grantAbility`(haste,
+// end-of-turn) + `delayedTrigger`(next-end-step, exile the captured
+// permanent) — zero new Ops needed for that half either.
+//
+// Blocked: "the TOP creature card of your graveyard" needs a deterministic
+// (non-player-choice) "top of graveyard" object selector; every
+// graveyard-card selection Op today (`choice(zone: "graveyard")`) is a
+// player pick, not an implicit positional one — the EXACT gap already
+// tracked for Shallow Grave (`convex/cards/sets/mir/black.ts`, issue #920,
+// item 11). Re-flagged rather than worked around: inventing a
+// player-choice substitute for "the top card" would diverge from modern
+// Oracle text (ADR 0004).
+// tracked-by: #920
+// export const corpseDance: CardDefinition = {
+//     id: "76ae81ea-13e3-4ab8-b956-4c7b139a5e9c", // TMP 116
+//     name: "Corpse Dance",
+//     rarity: "rare",
+//     manaCost: { X: 2, B: 1 },
+//     types: ["Instant"],
+//     buyback: { X: 2 },
+// };

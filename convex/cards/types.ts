@@ -8148,6 +8148,21 @@ export interface CardDefinition {
      *  from that graveyard (CR 702.138a). Functions only while this permanent is
      *  on the battlefield. */
     grantsEscapeToOwnGraveyard?: { exileOtherCount: number };
+    /** CR 702.27 — Buyback. An OPTIONAL additional cost the caster may choose
+     *  to pay as they cast this spell ("You may pay an additional [cost] as
+     *  you cast this spell. If you do, put this card into its owner's hand
+     *  instead of into that player's graveyard as it resolves."). Paid ON TOP
+     *  of the mana cost at cast time, mirroring {@link KickerCost} — but
+     *  unlike Kicker (CR 702.33e Multikicker), Buyback has no repeatable
+     *  variant: it is paid at most once per cast (singular "an additional
+     *  [cost]"). Whether it was paid is snapshotted on the resulting stack
+     *  item (`StackItem.buybackPaid`) at cast commit and read when the spell
+     *  resolves: `finalizeSpellResolution` (`convex/gre/state.ts`) routes the
+     *  card to its owner's hand instead of the graveyard when the flag is
+     *  set. Buyback is a cost-system / keyword-cast capability (engine
+     *  infra), NOT an Effect Script Op — the resolving effect itself stays
+     *  DSL-first (`effects`). Used by Corpse Dance. */
+    buyback?: ManaCost;
     /** CR 702.33 — Kicker. An OPTIONAL additional cost the caster may pay as
      *  they cast this spell, snapshotted on the resulting stack item and read at
      *  resolution ({@link KickerCost}). The on-resolution effect stays DSL-first
