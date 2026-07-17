@@ -22,7 +22,7 @@ Ordering per cast: `reduce` → `payWith` prompt → `solveSmartAutoTap` for the
 ## Considered options
 
 - **One unified hook.** Rejected — `reduce` is a 601.2f reduction, `payWith` a 601.2g chosen payment; convoke uniquely pays colored pips. Different CR steps, different choice semantics.
-- **`payWith` as solver pseudo-sources for *payment* (Model 1).** Rejected — the solver would auto-tap your best blocker / auto-exile graveyard synergy fuel, killing a genuinely tactical choice. Kept solver-as-source for the *castability probe* only, where there is no tactical loss.
+- **`payWith` as solver pseudo-sources for _payment_ (Model 1).** Rejected — the solver would auto-tap your best blocker / auto-exile graveyard synergy fuel, killing a genuinely tactical choice. Kept solver-as-source for the _castability probe_ only, where there is no tactical loss.
 - **A bespoke self-cost-reduction field for Emry / a standalone delve picker.** Rejected as card-shaped duplication of `costReduction` and the escape picker respectively (primitive-reuse rule).
 
 ## Consequences

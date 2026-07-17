@@ -131,6 +131,26 @@ any other tapped source (Kismet) still applies independently.
 **Token**:
 A **Permanent** not represented by a physical card. Created by effects. Ceases to exist when it leaves the **Battlefield**.
 
+**Attachment**:
+A **Permanent** attached to another **Permanent** — an **Aura** or an **Equipment**. The umbrella term for anything that tracks a **Host**. Grants its static/triggered abilities to the Host while attached.
+_Avoid_: Attached card, buff (a buff is one possible effect, not the object)
+
+**Host**:
+The **Permanent** an **Attachment** is currently attached to (the enchanted or equipped object).
+_Avoid_: Target (the Host is chosen by targeting, but "host" is the ongoing relationship), parent
+
+**Aura**:
+An **Enchantment** **Attachment**. If its **Host** becomes illegal or it ends up unattached, it is put into its owner's **Graveyard** (CR 704.5m/704.5n).
+_Avoid_: Enchantment (broader — not every enchantment is an Aura)
+
+**Equipment**:
+An **Artifact** **Attachment** (subtype Equipment) attached to a **Creature** via **Equip**. Unlike an **Aura**, when its **Host** becomes illegal it **detaches and stays on the Battlefield** unattached (CR 704.5q). **Control-independent**: it stays attached to its **Host** even if its **Controller** no longer controls that Host (CR 301.5c) — the "you control" restriction binds only at **Equip** time.
+_Avoid_: Artifact (broader), Aura (different detach outcome)
+
+**Equip**:
+The sorcery-speed **Activated Ability** of an **Equipment** — "Equip {cost}: attach to target creature you control" (CR 702.6). Uses the **Stack**; its target must be a **Creature** the **Controller** controls at activation and at resolution.
+_Avoid_: Attach (Attach is the underlying keyword action; Equip is the ability that performs it), cast
+
 **Snow**:
 A supertype (CR 205.4a) marking a **Permanent** as snow. In the Ice Age block snow is referenced only _by type_ ("a snow-covered land", "sacrifice a snow Mountain"); the `{S}` snow-mana symbol is a later (Coldsnap) addition and is **not** used by these sets, so snow needs no mana-system support here — only the supertype on the five snow-covered basics and the few cards that filter on it.
 _Avoid_: Snow-covered (the printed basic-land name, not the supertype)
@@ -439,6 +459,14 @@ _Avoid_: Side, bench, reserve
 **Sideboarding**:
 The step between two **Games** of a **Match** where a **Player** may exchange cards between **Maindeck** and **Sideboard**, keeping the **Maindeck** size constant and the combined card pool unchanged. Produces the **Maindeck** used to build the next **Game**'s **Library**.
 _Avoid_: Swapping, boarding, side-in/side-out
+
+**Companion**:
+A card in a **Player**'s **Sideboard** carrying the **Companion** keyword and a deck-construction condition on the **Maindeck** (Lurrus: every permanent card has mana value ≤ 2; Lutri: singleton). When the condition holds, the card is revealed at **Game** start and held in the **Companion Slot** — a single per-**Player** holder outside the game. Once per **Game**, as a special action at sorcery timing, its controller pays {3} to move it to **Hand**, from where it is cast normally. A **Companion** whose condition fails is an ordinary, inert **Sideboard** card.
+_Avoid_: Commander (a different singleton mechanic), pet, sidekick
+
+**Companion Slot**:
+The single per-**Player** holder for a declared **Companion**, distinct from every in-game **Zone** (it is _outside the game_, not the **Battlefield**/**Hand**/**Exile**). Holds at most one card, is revealed to both **Players**, and tracks whether the once-per-**Game** {3} summon has been spent. Not a general "outside the game" **Zone** — it models a **Companion** and nothing else.
+_Avoid_: Command zone, outside-game zone (reserved for a future general zone)
 
 **Format**:
 A named set of deck-construction constraints a **Deck** is built under, chosen at deck creation and **immutable** thereafter. Determines which **Sets** are legal, the **Maindeck**/**Sideboard** size bounds, and the copy/category limits. Three exist: **Freeform** (no constraints), **Alpha 40** (Alpha/Beta only, ≥40 main, no sideboard, rarity- and category-based limits), **Old School** (Alpha/Beta/Arabian Nights/Antiquities/Legends/The Dark, ≥60 main, ≤15 sideboard, 4-copy + **Restricted**/**Banned** lists). A **Format** constrains deck authoring only — it is **not** a property of a **Game**, and two **Players** may bring **Decks** of different **Formats** to the same **Match**.
