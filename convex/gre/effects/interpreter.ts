@@ -91,6 +91,7 @@ import type {
     SpellContext,
     TargetSelection,
 } from "../../cards/types";
+import type { LibraryDestination } from "../types";
 import { getEventFieldRow } from "../../cards/mechanicsRegistry";
 
 type OpOf<K extends EffectOp["op"]> = Extract<EffectOp, { op: K }>;
@@ -748,8 +749,20 @@ function resolveObjectRef(
     if (!id) return undefined;
     // CR 608.2b — the snapshotted object must still be on the battlefield;
     // `getOwnerId` is battlefield-scoped, so undefined means it left.
-    if (ctx.getOwnerId(id) === undefined) return undefined;
-    return { type: "permanent", id };
+    if (ctx.getOwnerId(id) !== undefined) {
+        return { type: "permanent", id };
+    }
+    // CR 608.2h (issue #1101) — a `digToHand` `bind` snapshots the KEPT card
+    // right after it moves library → hand: it never becomes a permanent, so
+    // the battlefield check above always misses for it. Fall back to a
+    // hand-card lookup in the snapshot's OWNER slot before giving up —
+    // Reviving Vapors' `manaValue: { of: { ref: "$name" } }` resolves
+    // through here.
+    const ownerId = snap[SNAP_OWNER];
+    if (ownerId && ctx.getHandCards(ownerId).some((c) => c.id === id)) {
+        return { type: "hand-card", id, playerId: ownerId };
+    }
+    return undefined;
 }
 
 /** Reduces the GENERIC portion of a printed `ManaCost` by `amount`, floored at
@@ -986,27 +999,43 @@ function choiceCandidates(
     return { available: ids.length, candidateIds: ids };
 }
 
-/** Shared tail of `digToHand` (issue #984, extended #1266): put the un-kept
- *  looked-at cards on the true bottom of the library. `pickSet` is the ids that
- *  went to hand; the bottomed set is every looked-at id not in it (incl.
- *  filter-ineligible cards). `chosenBottom`, when non-empty, is the player's
- *  ordering from the unified picker (the ADR 0026 known path); otherwise the
- *  cards fall in look order. `randomBottom` (Narset's "random order") suppresses
- *  the `markKnown` — CR 401.4's random order is unobservable for face-down
- *  library cards, so no knowledge is granted. */
+/** Shared tail of `digToHand` (issue #984, extended #1266 / #1101): send the
+ *  un-kept looked-at cards to `destination`. `pickSet` is the ids that went to
+ *  hand; the un-kept set is every looked-at id not in it (incl. filter-
+ *  ineligible cards). `chosenBottom`, when non-empty, is the player's ordering
+ *  from the unified picker (the ADR 0026 known path); otherwise the cards fall
+ *  in look order. `randomBottom` (Narset's "random order") suppresses the
+ *  `markKnown` for a `library-bottom` destination — CR 401.4's random order is
+ *  unobservable for face-down library cards, so no knowledge is granted;
+ *  meaningless for `destination: "graveyard"` (a public zone, ADR 0026). */
 function bottomLookedAtCards(
     ctx: SpellContext,
     playerId: string,
     topIds: string[],
     pickSet: Set<string>,
     randomBottom: boolean,
-    chosenBottom: string[] = []
+    chosenBottom: string[] = [],
+    destination: LibraryDestination = "library-bottom"
 ): void {
     const restTop =
         chosenBottom.length > 0
             ? chosenBottom
             : topIds.filter((id) => !pickSet.has(id));
     if (restTop.length === 0) return;
+    if (destination === "graveyard") {
+        // CR 401.4 look + CR 614 (issue #1101, Reviving Vapors) — the un-kept
+        // looked-at cards go to the graveyard instead of the library bottom,
+        // one `moveCardById` per card. `moveCardById` already runs every move
+        // through the graveyard-bound-redirect replacement (Yawgmoth's Will /
+        // Dauthi Voidwalker) — the exact same primitive `scryReorder`'s
+        // Surveil leg uses inline for its own `destination: "graveyard"`. The
+        // graveyard is a public zone, so no `markKnown` call (unlike the
+        // library-bottom branch below).
+        for (const id of restTop) {
+            ctx.moveCardById(playerId, id, "library", "graveyard");
+        }
+        return;
+    }
     // Everything currently in the library minus the un-kept looked-at cards,
     // then the un-kept cards appended — a full reorder that lands the rest on
     // the true bottom (CR 401.4).
@@ -1514,23 +1543,25 @@ export const OP_EXECUTORS: {
         if (count === undefined || count <= 0) return;
         ctx.millCards(playerId, count);
     },
-    // CR 401.4 (issue #984) — dig to hand: look at the top `look` cards, put
-    // `take` (default 1) into hand, the rest on the BOTTOM. A thin declarative
-    // skin composed of existing primitives (the Stock Up composition
-    // generalized), ONE execution path (ADR 0045). SUSPENDS like `choice` /
-    // `scryReorder`: a single `look-distribute` `requestChoice` over exactly the
-    // looked-at ids (candidateIds — projected face-up as `libraryPeek`, never
-    // the whole hidden library) drives the unified HAND/BOTTOM pick; the first
+    // CR 401.4 (issue #984, extended #1101) — dig to hand: look at the top
+    // `look` cards, put `take` (default 1) into hand, the rest to
+    // `destination` (the library BOTTOM by default, or the GRAVEYARD —
+    // Reviving Vapors). A thin declarative skin composed of existing
+    // primitives (the Stock Up composition generalized), ONE execution path
+    // (ADR 0045). SUSPENDS like `choice` / `scryReorder`: a single
+    // `look-distribute` `requestChoice` over exactly the looked-at ids
+    // (candidateIds — projected face-up as `libraryPeek`, never the whole
+    // hidden library) drives the unified HAND/second pick; the first
     // execution enqueues it and reports "suspend", the resumed execution reads
     // the two ordered lists back and finishes the moves. The kept cards move
-    // library→hand (`moveCardById`); the un-kept looked-at cards are bottomed
-    // (`reorderLibraryTop`) in the player's CHOSEN order (CR 401.4 "in any
-    // order") and marked known to the controller (ADR 0026 — you looked at and
-    // PLACED them, so their bottom position is certain until a shuffle; the
-    // projection exposes them as the contiguous known run from the bottom). The
-    // count is EXACTLY `keep` to hand ({min,max}=keep), so the two lists always
-    // partition the looked-at set. Skipped when the player is gone, `look` ≤ 0,
-    // or the library is empty (CR 608.2b — never suspends then).
+    // library→hand (`moveCardById`); the un-kept looked-at cards go to
+    // `destination` via `bottomLookedAtCards` (bottomed + marked known, ADR
+    // 0026, for the library-bottom default; moved straight to the graveyard,
+    // no `markKnown`, for the graveyard leg — issue #1101). The count is
+    // EXACTLY `keep` to hand ({min,max}=keep unless `optional`), so the two
+    // lists always partition the looked-at set. Skipped when the player is
+    // gone, `look` ≤ 0, or the library is empty (CR 608.2b — never suspends
+    // then).
     digToHand(ctx, op) {
         const playerId = resolvePlayerRef(ctx, op.player);
         if (playerId === undefined) return; // CR 608.2b — player gone, skip
@@ -1542,12 +1573,14 @@ export const OP_EXECUTORS: {
         if (take === undefined || take <= 0) return;
         const optional = op.optional === true;
         const randomBottom = op.randomBottom === true;
+        const destination = op.destination ?? "library-bottom";
         // Hand-eligible subset: with a `filter` (Narset's "noncreature, nonland
         // card") only the looked-at cards matching it may go to hand; the rest
-        // (incl. filtered-out cards) are always bottomed (issue #1266). The
-        // whole looked-at window is still SHOWN face-up ("look at the top four")
-        // — only the HAND pile is gated, via the `eligibleIds` allow-list, so
-        // `candidateIds` stays the full window and the peek reveals all of it.
+        // (incl. filtered-out cards) always go to `destination` (issue #1266).
+        // The whole looked-at window is still SHOWN face-up ("look at the top
+        // four") — only the HAND pile is gated, via the `eligibleIds`
+        // allow-list, so `candidateIds` stays the full window and the peek
+        // reveals all of it.
         let eligible: string[] | undefined;
         if (op.filter) {
             const filter = op.filter;
@@ -1561,11 +1594,20 @@ export const OP_EXECUTORS: {
         }
         const keep = Math.min(take, (eligible ?? topIds).length);
         // Nothing takeable (filter matched nothing, or take clamped to 0): no
-        // real choice — skip straight to bottoming the looked-at cards.
-        // Auto-resolve over a zero-branch pick rather than prompt an empty
-        // picker (the Arena UX default for choice-less resolutions).
+        // real choice — skip straight to sending the looked-at cards to
+        // `destination`. Auto-resolve over a zero-branch pick rather than
+        // prompt an empty picker (the Arena UX default for choice-less
+        // resolutions). No `bind` either — nothing was kept (CR 608.2b).
         if (keep === 0) {
-            bottomLookedAtCards(ctx, playerId, topIds, new Set(), randomBottom);
+            bottomLookedAtCards(
+                ctx,
+                playerId,
+                topIds,
+                new Set(),
+                randomBottom,
+                [],
+                destination
+            );
             return;
         }
         const picks = ctx.requestChoice({
@@ -1578,26 +1620,45 @@ export const OP_EXECUTORS: {
             zone: "library",
             // The FULL looked-at window is shown (candidateIds); `eligibleIds`
             // (when a filter is present) restricts which of those may go to
-            // hand — the filtered-out cards can only be bottomed.
+            // hand — the filtered-out cards can only go to `destination`.
             candidateIds: topIds,
             eligibleIds: eligible,
             // `optional` ("you may") allows keeping 0; otherwise EXACTLY `keep`.
-            // The picker partitions the rest to the ordered bottom (submit
+            // The picker partitions the rest to the second zone (submit
             // validates the partition) unless `randomBottom` discards the order.
             count: { min: optional ? 0 : keep, max: keep },
-            destination: "library-bottom",
+            destination,
             prompt:
                 op.prompt ??
-                "Choose which card(s) to put into your hand, then order the rest on the bottom of your library.",
+                (destination === "graveyard"
+                    ? "Choose which card(s) to put into your hand, then put the rest into your graveyard."
+                    : "Choose which card(s) to put into your hand, then order the rest on the bottom of your library."),
         });
         if (picks === undefined) return "suspend"; // enqueued — wait
         // Resume — the kept cards go to hand. A picked id that has since left the
         // library is a no-op in `moveCardById` (CR 608.2b).
         for (const id of picks)
             ctx.moveCardById(playerId, id, "library", "hand");
+        // `bind` (issue #1101) — snapshot the FIRST kept card so a later Op
+        // (e.g. `gainLife`'s `manaValue: { of: { ref: op.bind } }`, Reviving
+        // Vapors) can read it back through the ordinary object-ref path. The
+        // card is ALREADY in hand at this point — `bindSnapshot`'s
+        // non-permanent branch reads `target.playerId` for controller/owner
+        // and `ctx.getManaValue` for the mana-value slot, both of which work
+        // for a `"hand-card"` target (unlike destroy/exile's PRE-move
+        // snapshot, there's no last-known-info need here: the object still
+        // physically sits in the hand array `resolveObjectRef`'s fallback
+        // re-reads).
+        if (op.bind && picks.length > 0) {
+            bindSnapshot(ctx, op.bind, {
+                type: "hand-card",
+                id: picks[0],
+                playerId,
+            });
+        }
         const pickSet = new Set(picks);
         // The un-kept looked-at cards (every looked-at id not taken, incl. the
-        // filtered-out ones) go to the bottom.
+        // filtered-out ones) go to `destination`.
         const chosenBottom = randomBottom
             ? []
             : ctx.readOrderedSecond("dig-to-hand");
@@ -1607,7 +1668,8 @@ export const OP_EXECUTORS: {
             topIds,
             pickSet,
             randomBottom,
-            chosenBottom
+            chosenBottom,
+            destination
         );
     },
     // CR 401.4 (issue #1046) — put N hand cards on top of the library, in the

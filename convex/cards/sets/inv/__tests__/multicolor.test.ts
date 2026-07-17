@@ -73,6 +73,7 @@ import {
     thunderscapeApprentice,
     thunderscapeMaster,
     sterlingGrove,
+    revivingVapors,
 } from "../multicolor";
 import {
     makeInstance,
@@ -2607,6 +2608,97 @@ describe("Sterling Grove (CR 611/613 layer 6 keyword grant + 702.18 Shroud, issu
         );
         expect(isGuardedAgainst(projected, pOpp, "cantBeTargeted", SRC)).toBe(
             false
+        );
+    });
+});
+
+// Reviving Vapors — {2}{W}{U} Instant (CR 401.4 look, CR 202.3 mana value,
+// issue #1101). `digToHand`'s `destination`/`bind` extension already has its
+// OWN permanent interpreter coverage (per-Op regime, ADR 0045,
+// `convex/gre/effects/__tests__/interpreter.test.ts`); a hand-written test
+// still lands here because the catalogue's auto-generated canned-scenario
+// smoke sweep (`effectScriptSmoke.test.ts`) explicitly SKIPS every
+// `digToHand` card (it suspends on a live look-distribute pick — the
+// generator can't drive that choice), so this is the card-level proof the DSL
+// script is wired correctly end to end.
+const REVIVING_VAPORS_MV4_ID = "test-reviving-vapors-mv4";
+registerTokenDefinition({
+    id: REVIVING_VAPORS_MV4_ID,
+    name: REVIVING_VAPORS_MV4_ID,
+    rarity: "common",
+    manaCost: { generic: 4 },
+    types: ["Sorcery"],
+});
+
+describe("Reviving Vapors (CR 401.4 look, issue #1101)", () => {
+    const libOf = (ids: [string, string][]) =>
+        ids.map(([cid, defId]) =>
+            makeInstance(defId, {
+                id: cid,
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "library",
+            })
+        );
+
+    it("puts the kept card into hand, gains life equal to its mana value, and sends the other two to the graveyard", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: libOf([
+                        ["keep", REVIVING_VAPORS_MV4_ID], // mana value 4
+                        ["bin1", island.id],
+                        ["bin2", island.id],
+                        ["untouched", island.id],
+                    ]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, revivingVapors.id, "p1");
+        expect(resolveTopOfStack(state)).toBeNull(); // suspends on the dig pick
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("look-distribute");
+        expect(head.candidateIds).toEqual(["keep", "bin1", "bin2"]);
+        expect(head.destination).toBe("graveyard");
+
+        submitChoice(state, ["keep"]);
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        expect(state.players[0].hand.map((c) => c.id)).toContain("keep");
+        expect(state.players[0].life).toBe(24); // 20 + 4 (the kept card's MV)
+        expect(state.players[0].graveyard.map((c) => c.id)).toEqual(
+            expect.arrayContaining(["bin1", "bin2"])
+        );
+        // The 4th library card never entered the look window — untouched.
+        expect(state.players[0].library.map((c) => c.id)).toEqual([
+            "untouched",
+        ]);
+    });
+
+    it("wire format: the kept card, graveyard cards, and life gain all survive projectPublicState", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: libOf([
+                        ["keep", REVIVING_VAPORS_MV4_ID],
+                        ["bin1", island.id],
+                        ["bin2", island.id],
+                    ]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, revivingVapors.id, "p1");
+        resolveTopOfStack(state); // suspends
+        submitChoice(state, ["keep"]);
+
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[0].hand.some((c) => c?.id === "keep")).toBe(
+            true
+        );
+        expect(projected.players[0].life).toBe(24);
+        expect(projected.players[0].graveyard.map((c) => c.id)).toEqual(
+            expect.arrayContaining(["bin1", "bin2"])
         );
     });
 });

@@ -85,6 +85,14 @@ function resolveTarget(
             return target.playerId
                 ? (anchors.graveyard[target.playerId] ?? null)
                 : null;
+        case "hand-card":
+            // issue #1101 — `TargetSelection.type` grew a "hand-card" member
+            // for `digToHand`'s internal `bind` resolution, but it is never a
+            // real ANNOUNCED target (CR 601.2c): `selectTarget` /
+            // `getLegalTargets` never produce it, so no stack item's
+            // `targets[]` ever actually carries one. No anchor to draw an
+            // arrow to.
+            return null;
         default: {
             // Exhaustiveness guard: a new target type must be handled here.
             const _exhaustive: never = target.type;

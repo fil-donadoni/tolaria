@@ -503,16 +503,46 @@ export const wingsOfHope: CardDefinition = {
 // paid flag, not an arbitrary chosen X, so it cannot express "put X feather
 // counters" for this shape.)
 
+// ─────────────────────────────────────────────────────────────────────────
+// digToHand destination + bind cluster (issue #1101)
+// ─────────────────────────────────────────────────────────────────────────
+
 // Reviving Vapors — {2}{W}{U} Instant. "Reveal the top three cards of your
 // library and put one of them into your hand. You gain life equal to that
 // card's mana value. Put all other cards revealed this way into your
-// graveyard." tracked-by: #1101 (the `digToHand` Op always bottoms its
-// non-kept looked-at cards — issue #984's documented scope — with no
-// destination parameter for "into the graveyard instead"; it also has no
-// `bind` for the kept card, so there is no way to read that card's mana
-// value back into a `gainLife` amount. Needs `digToHand` extended with an
-// optional `destination` + `bind`, mirroring how `scryReorder` already has a
-// `destination` discriminator for its own non-kept cards.)
+// graveyard." (CR 401.4 look, CR 202.3 mana value, issue #1101.) Ships as a
+// straight DSL card once `digToHand` grows a `destination` discriminator
+// (mirrors `scryReorder`'s own `library-bottom`/`graveyard` split) and a
+// `bind` (mirrors `destroy`/`exile`'s SNAPSHOT-family object bind) for the
+// kept card: `digToHand` looks 3, keeps 1, sends the other 2 straight to the
+// graveyard (`destination: "graveyard"`), and snapshot-binds the kept card as
+// `$kept`; the trailing `gainLife` reads `manaValue: { of: { ref: "$kept" } }`
+// to size the life gain off that card's mana value (CR 202.3b — an {X} in a
+// library card's cost counts as 0, per the card's own ruling).
+export const revivingVapors: CardDefinition = {
+    id: "47a23c32-e122-400b-b252-e636ea2e684b",
+    name: "Reviving Vapors",
+    rarity: "uncommon",
+    oracleText:
+        "Reveal the top three cards of your library and put one of them into your hand. You gain life equal to that card's mana value. Put all other cards revealed this way into your graveyard.",
+    manaCost: { generic: 2, W: 1, U: 1 },
+    types: ["Instant"],
+    effects: [
+        {
+            op: "digToHand",
+            player: "controller",
+            look: 3,
+            take: 1,
+            destination: "graveyard",
+            bind: "$kept",
+        },
+        {
+            op: "gainLife",
+            player: "controller",
+            amount: { manaValue: { of: { ref: "$kept" } } },
+        },
+    ],
+};
 
 // ─────────────────────────────────────────────────────────────────────────
 // Free tranche — UB (issue #1076, parent PRD #1063)

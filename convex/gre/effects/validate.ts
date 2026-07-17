@@ -1596,12 +1596,15 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             count: isEffectValue,
         },
     },
-    // CR 401.4 (issue #984) — dig to hand: look at the top `look` cards, put
-    // `take` (default 1) into hand, the rest on the bottom. Suspends on a
-    // `look-top` choice over the looked-at ids. `player` names whose library;
-    // `look` is how many top cards to look at; `take` (optional, default 1) is
-    // how many to keep; `prompt` is an optional choice header. No `bind` — the
-    // pick is consumed internally, not by a later Op.
+    // CR 401.4 (issue #984, extended #1101) — dig to hand: look at the top
+    // `look` cards, put `take` (default 1) into hand, the rest to
+    // `destination` (library bottom by default, graveyard — Reviving Vapors —
+    // when set). Suspends on a `look-top` choice over the looked-at ids.
+    // `player` names whose library; `look` is how many top cards to look at;
+    // `take` (optional, default 1) is how many to keep; `prompt` is an
+    // optional choice header. `bind` (issue #1101) snapshot-binds the FIRST
+    // kept card for a later Op's `manaValue`-of read (Reviving Vapors'
+    // "gain life equal to that card's mana value").
     digToHand: {
         required: {
             player: isPlayerRef,
@@ -1609,13 +1612,19 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
         },
         // `filter` restricts the hand-eligible subset (Narset's "noncreature,
         // nonland card"); `optional` makes the hand pick a "may" (min 0);
-        // `randomBottom` bottoms the rest unordered + unknown (issue #1266).
+        // `destination` (issue #1101) is where the un-kept cards go
+        // (`library-bottom` default / `graveyard`, mirrors `scryReorder`);
+        // `randomBottom` bottoms the rest unordered + unknown (issue #1266,
+        // meaningless for a graveyard destination); `bind` names the kept-card
+        // snapshot binding.
         optional: {
             take: isEffectValue,
             prompt: isNonEmptyString,
             filter: isCardFilter,
             optional: isBoolean,
+            destination: isLibraryDestination,
             randomBottom: isBoolean,
+            bind: isBindingName,
         },
     },
     // CR 401.4 (issue #1046) — put N cards from a hand on top of a library,

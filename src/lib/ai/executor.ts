@@ -204,6 +204,14 @@ export async function executeMove(
                 chosenModeId: move.chosenModeId,
             });
             for (const t of move.targets) {
+                // issue #1101 — `TargetSelection.type` grew a "hand-card"
+                // member for `digToHand`'s internal `bind` resolution, but
+                // it is never a real ANNOUNCED target (CR 601.2c):
+                // `getLegalTargets` / `enumerateTargetTuples` never produce
+                // it, so `move.targets` never actually carries one. Narrow
+                // it away here rather than widening `selectTarget`'s
+                // validator to accept a kind it must never receive.
+                if (t.type === "hand-card") continue;
                 await mutations.selectTarget({
                     ...base,
                     targetType: t.type,
@@ -232,6 +240,8 @@ export async function executeMove(
                 chosenX: move.chosenX,
             });
             for (const t of move.targets) {
+                // See the matching comment in the "cast-spell" branch above.
+                if (t.type === "hand-card") continue;
                 await mutations.selectTarget({
                     ...base,
                     targetType: t.type,
