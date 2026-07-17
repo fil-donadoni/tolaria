@@ -11,7 +11,7 @@ import type { CardDefinition } from "../../types";
 // owner's library" redirect clause.) An unconditional counter — no
 // mayPay/if — so the effect is a single Op.
 export const memoryLapse: CardDefinition = {
-    id: "30202613-d05f-4f47-af97-d0b75ccac293",
+    id: "3d2cc591-3a81-468a-91a4-3c3aac83a21a",
     rarity: "common",
     name: "Memory Lapse",
     oracleText:

@@ -1041,7 +1041,7 @@ export const PREMODERN_BANNED: ReadonlySet<string> = new Set([
     "f60a2091-fb97-4f04-911b-fce9b6351044", // Entomb (ody) — legal-set printing
     "9ddc9fe1-17c8-4e1d-aeb8-c4214e881280", // Grim Monolith (ulg) — legal-set printing
     "19499cb7-eccb-4e69-af32-6002d447a160", // Mana Vault (lea)
-    "60b70b7f-6f24-4c00-947a-b109f302205b", // Memory Jar (ulg) — legal-set printing
+    "a15d33d6-7213-4482-a1be-ac0a73644af6", // Memory Jar (ulg) — legal-set printing
     "eee9e106-a248-49d2-b8c8-6bbcd56ce739", // Mind Twist (lea)
     "54d7a0c1-efb4-4a8d-ad92-a96d43835052", // Necropotence (ice) — legal-set printing
     "e7880157-7f27-4f1b-9cdc-ab36a6252376", // Strip Mine (atq)

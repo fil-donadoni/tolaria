@@ -7,3 +7,40 @@ Flash of Insight non risulta castabile con flashback
 Se premo space 2 volte troppo velocemente su declare attackers ricevo un 500 e il gioco si blocca finché non refresho la pagina
 
 Se ho una terra che aggiunge 2 mana (1 blu e uno verde) e casto un artefatto costo 1, non mi fa scegliere quale mana usare
+
+Versione Memory Jar
+
+Carte cubo da creare:
+Atraxa
+Sin
+Doomsday
+Thassa's Oracle
+Narset
+Bowmaster
+The one ring
+Emrakul
+Craterhoof
+Ocelot Pride
+Jacked Rabbit
+Phelia, Exuberant Shepherd
+Gut
+Laelia
+Troll of Kazad-dum
+Bitter Triumph
+Pyrogoyf
+Minsc&Boo
+worldspine wurm
+Skullclamp
+Nadu
+Lightning Greaves
+Springheart Nantuko
+Mox Opal
+Teferino
+Teferone
+Fallen Shinobi
+Lurrus
+Lutri
+Grist
+Fort Eorlingas!
+Necromancy
+Fable of the mirror-breaker

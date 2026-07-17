@@ -6,7 +6,7 @@ import type { CardDefinition } from "../../types";
 // (leg/blue.ts) — same mayPay + if(not $paid) + counter shape, one Op
 // vocabulary, no card-specific logic (issue #683).
 export const manaTithe: CardDefinition = {
-    id: "9ae707d5-d81d-4320-b947-6016dc188898",
+    id: "7d48d622-f397-4f31-b1a5-0c23f60aa71c",
     rarity: "common",
     name: "Mana Tithe",
     oracleText: "Counter target spell unless its controller pays {1}.",

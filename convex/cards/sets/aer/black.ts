@@ -16,7 +16,7 @@ import type { CardDefinition } from "../../types";
 // with revolt). The frozen predicate grammar does not express "target's mana
 // value" as an EffectValue.
 export const fatalPush: CardDefinition = {
-    id: "6e9d8fe4-fd9b-4923-92bf-7dd6b8fa02e7",
+    id: "b5e81649-9954-424c-89d1-f87d73b66047",
     rarity: "uncommon",
     name: "Fatal Push",
     oracleText:

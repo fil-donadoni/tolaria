@@ -69,7 +69,7 @@ export const grimMonolith: CardDefinition = {
 const MEMORY_JAR_RETURN_TRIGGER_ID = "memory-jar-return";
 
 export const memoryJar: CardDefinition = {
-    id: "60b70b7f-6f24-4c00-947a-b109f302205b",
+    id: "a15d33d6-7213-4482-a1be-ac0a73644af6",
     name: "Memory Jar",
     rarity: "rare",
     oracleText:

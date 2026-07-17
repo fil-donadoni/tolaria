@@ -9,7 +9,7 @@ import type { CardDefinition } from "../../types";
 // instead if there are seven or more cards in your graveyard." (CR 704.5n
 // Threshold ability word — engine infra, no registry row.)
 export const cabalRitual: CardDefinition = {
-    id: "a5d85875-22da-4054-ae42-e85b472a6d5d",
+    id: "5403b49d-03a7-4cc3-af3c-df098c1c9c2e",
     rarity: "uncommon",
     name: "Cabal Ritual",
     oracleText:
