@@ -1579,6 +1579,10 @@ export interface NormalizedMayPayCost {
     /** Discard leg (CR 701.9 / 118.3, issue #899). Fixed cardinal only — the
      *  payer picks exactly `count` distinct cards from hand. */
     discard?: { count: number };
+    /** Energy leg (CR 122.1, issue #1194). Fixed count only — "pay
+     *  {E}{E}{E}" (Guide of Souls). Mirrors the backend `MayPayCost.energy`
+     *  leg 1:1. */
+    energy?: number;
 }
 
 function isMayPayUnion(
@@ -1588,12 +1592,13 @@ function isMayPayUnion(
         "mana" in cost ||
         "life" in cost ||
         "sacrifice" in cost ||
-        "discard" in cost
+        "discard" in cost ||
+        "energy" in cost
     );
 }
 
 /** Widens either `may-pay` cost shape to `{ mana?, life?, sacrifice?,
- *  discard? }`. */
+ *  discard?, energy? }`. */
 export function normalizeMayPayCost(cost: MayPayCost): NormalizedMayPayCost {
     if (isMayPayUnion(cost)) {
         return {
@@ -1603,6 +1608,7 @@ export function normalizeMayPayCost(cost: MayPayCost): NormalizedMayPayCost {
                 ? { sacrifice: { count: cost.sacrifice.count } }
                 : {}),
             ...(cost.discard ? { discard: { count: cost.discard.count } } : {}),
+            ...(cost.energy !== undefined ? { energy: cost.energy } : {}),
         };
     }
     return { mana: cost as ManaCost };
@@ -1632,7 +1638,12 @@ export function mayPayCanAfford(
     /** The chooser's hand size (CR 701.9 / 118.3, issue #899). Required for a
      *  discard leg — affordable iff the hand holds at least `count` cards.
      *  Ignored for a cost with no discard leg. */
-    handCount?: number
+    handCount?: number,
+    /** The chooser's current energy counters (CR 122.1, issue #1194). Required
+     *  for an energy leg — affordable iff the chooser holds at least `energy`
+     *  counters. Ignored for a cost with no energy leg. Survives the wire
+     *  projection as `PlayerState.energyCounters`. */
+    chooserEnergy?: number
 ): boolean {
     if (!cost) return true;
     const norm = normalizeMayPayCost(cost);
@@ -1659,6 +1670,9 @@ export function mayPayCanAfford(
         }
     }
     if (norm.discard && (handCount ?? 0) < norm.discard.count) {
+        return false;
+    }
+    if (norm.energy !== undefined && (chooserEnergy ?? 0) < norm.energy) {
         return false;
     }
     return true;
@@ -1804,6 +1818,14 @@ export function mayPayCostLabel(cost?: MayPayCost): string {
     if (norm.discard) {
         const n = norm.discard.count;
         parts.push(n === 1 ? "discard a card" : `discard ${n} cards`);
+    }
+    if (norm.energy !== undefined && norm.energy > 0) {
+        // CR 122.1 / issue #1194 — energy costs print as repeated {E} symbol
+        // tokens ("{E}{E}{E}"), the same convention `manaCostToString` uses
+        // for mana above; `formatOracleText` (the label's only consumer)
+        // already renders any `{X}` token generically, so no new glyph
+        // plumbing is needed here.
+        parts.push("{E}".repeat(norm.energy));
     }
     return parts.join(" and ");
 }

@@ -2179,6 +2179,14 @@ describe("may-pay cost union helpers (CR 117.3a / 118.4 / 702.24, #638)", () => 
         });
     });
 
+    it("normalizeMayPayCost preserves the energy leg (CR 122.1, #1194)", () => {
+        expect(normalizeMayPayCost({ energy: 3 })).toEqual({ energy: 3 });
+        expect(normalizeMayPayCost({ mana: { B: 1 }, energy: 2 })).toEqual({
+            mana: { B: 1 },
+            energy: 2,
+        });
+    });
+
     it("mayPayCostLabel renders mana symbols, life, and sacrifice words", () => {
         expect(mayPayCostLabel({ X: 1, U: 1 })).toBe("{1}{U}");
         expect(mayPayCostLabel({ life: 2 })).toBe("2 life");
@@ -2217,6 +2225,44 @@ describe("may-pay cost union helpers (CR 117.3a / 118.4 / 702.24, #638)", () => 
         expect(mayPayCanAfford(mix, { B: 1 }, 0, 0)).toBe(false);
         // cost-less is always affordable
         expect(mayPayCanAfford(undefined, {}, 0, 0)).toBe(true);
+    });
+
+    // CR 122.1 (issue #1194) — the energy leg wasn't wired into the frontend
+    // affordability gate: Guide of Souls' `{ energy: 3 }` may-pay left the Pay
+    // button enabled below 3 energy, and clicking it hit the server's
+    // "Cannot pay the cost" rejection (`canPayMayPayCost`). Regression test for
+    // that fixup.
+    it("mayPayCanAfford gates the energy leg (CR 122.1, #1194)", () => {
+        const energyCost = { energy: 3 };
+        // Insufficient energy (undefined / below the leg) → not affordable.
+        expect(mayPayCanAfford(energyCost, {}, 20, 0)).toBe(false);
+        expect(
+            mayPayCanAfford(energyCost, {}, 20, 0, undefined, undefined, undefined, 2)
+        ).toBe(false);
+        // Energy meeting / exceeding the leg → affordable.
+        expect(
+            mayPayCanAfford(energyCost, {}, 20, 0, undefined, undefined, undefined, 3)
+        ).toBe(true);
+        expect(
+            mayPayCanAfford(energyCost, {}, 20, 0, undefined, undefined, undefined, 4)
+        ).toBe(true);
+        // Mixed with another leg: all-or-nothing, energy insufficient still
+        // fails even when mana is covered.
+        const mix = { mana: { U: 1 }, energy: 2 };
+        expect(
+            mayPayCanAfford(mix, { U: 1 }, 20, 0, undefined, undefined, undefined, 1)
+        ).toBe(false);
+        expect(
+            mayPayCanAfford(mix, { U: 1 }, 20, 0, undefined, undefined, undefined, 2)
+        ).toBe(true);
+    });
+
+    it("mayPayCostLabel renders the energy leg as repeated {E} tokens (CR 122.1, #1194)", () => {
+        expect(mayPayCostLabel({ energy: 3 })).toBe("{E}{E}{E}");
+        expect(mayPayCostLabel({ energy: 1 })).toBe("{E}");
+        expect(mayPayCostLabel({ mana: { B: 1 }, energy: 2 })).toBe(
+            "{B} and {E}{E}"
+        );
     });
 
     it("mayPaySacrificeCount counts matching battlefield permanents", () => {
