@@ -9761,6 +9761,112 @@ describe("Effect Script Op: delayedTrigger LIST capture (combatPartners, CR 509.
     });
 });
 
+// --- forEach{set:"bound"} over a PICKS-family binding (issue #1284) ---------
+// `forEach { set: "bound", ref }`'s validator, until now, only accepted a LIST
+// binding (a delayedTrigger/divideIntoPiles capture, tested above). This was
+// a validator-only restriction: a `choice` Op's picks binding (family
+// "picks") is the identical frozen `string[]` runtime storage
+// (`readBinding`/`recallChoice`), and `execForEach`'s per-member `$each`
+// snapshot binding is produced the same way regardless of which family
+// supplied the member set. This test drives the pattern the widened validator
+// unblocks — Frantic Search's "untap up to three lands" (`convex/cards/sets/
+// ulg/blue.ts`) — through the REAL resolution path: a `choice(kind:
+// "choose-permanents")` picks a subset of the caster's lands, and the
+// following `forEach { set: "bound" }` consumes that PICKS binding directly
+// (no intervening list-family capture) to untap each pick.
+describe('Effect Script Op: forEach{set:"bound"} over a picks-family binding (issue #1284)', () => {
+    const UNTAP_PICKED_SCRIPT: EffectOp[] = [
+        {
+            op: "choice",
+            kind: "choose-permanents",
+            player: "controller",
+            zone: "battlefield",
+            filter: { type: "Land" },
+            count: { min: 0, max: 3 },
+            prompt: "Untap up to three lands.",
+            bind: "$lands",
+        },
+        {
+            op: "forEach",
+            select: { set: "bound", ref: "$lands" },
+            effects: [
+                { op: "tapUntap", action: "untap", target: { ref: "$each" } },
+            ],
+        },
+    ];
+
+    function threeTappedLands(): GameState {
+        const land = (id: string) =>
+            makeInstance(LAND_ID, {
+                id,
+                controllerId: "p1",
+                ownerId: "p1",
+                isTapped: true,
+            });
+        return makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [land("landA"), land("landB"), land("landC")],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+    }
+
+    it("untaps exactly the picked lands, leaving the unpicked one tapped", () => {
+        const id = registerScript("test-op-bound-picks-untap", UNTAP_PICKED_SCRIPT);
+        const state = threeTappedLands();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("choose-permanents");
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["landA", "landB"],
+        });
+        const byId = (cid: string) =>
+            state.players[0].battlefield.find((c) => c.id === cid)!;
+        expect(byId("landA").isTapped).toBe(false);
+        expect(byId("landB").isTapped).toBe(false);
+        expect(byId("landC").isTapped).toBe(true); // not picked — stays tapped
+        // Wire format: the untapped state must survive the projection (the
+        // client reads tap state off the slimmed wire state).
+        const projected = projectPublicState(state, 1, "p1");
+        const slimA = projected.players[0].battlefield.find(
+            (c) => c.id === "landA"
+        )!;
+        const slimC = projected.players[0].battlefield.find(
+            (c) => c.id === "landC"
+        )!;
+        expect(slimA.isTapped).toBe(false);
+        expect(slimC.isTapped).toBe(true);
+    });
+
+    it("declining down to ZERO picks is legal — the bound forEach then iterates nothing", () => {
+        const id = registerScript(
+            "test-op-bound-picks-untap-decline",
+            UNTAP_PICKED_SCRIPT
+        );
+        const state = threeTappedLands();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: [],
+        });
+        expect(
+            state.players[0].battlefield.every((c) => c.isTapped)
+        ).toBe(true);
+    });
+});
+
 // --- optionChoice Op: modal "choose one" (CR 700.2 / 601.2b, issue #849) ------
 // The interpreter presents the ordered modes as an `option-pick` Pending Choice
 // and SUSPENDS; on the pick it runs the chosen mode's `effects` through the same

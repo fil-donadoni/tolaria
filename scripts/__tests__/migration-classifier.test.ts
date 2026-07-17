@@ -902,9 +902,23 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // nonblack filter. Net −3 closures, all FREE (2 AFK-ready + 1
         // need-test): total 689→686, FREE 440→437, AFK-ready 403→401, X-only
         // unchanged (14), Op-blocked unchanged (235). Partition: 437+14+235=686.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(686);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(437);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(401);
+        //
+        // Then issue #1284 widens `forEach { set: "bound" }`'s validator to
+        // also accept a PICKS-family binding (a `choice` Op's `bind`, not just
+        // a delayedTrigger/divideIntoPiles LIST capture) and migrates Frantic
+        // Search (ulg/blue.ts) off its `resolveSteps: [...]` array to
+        // `effects[]` — draw + choice(choose-hand-card)/discard + choice(
+        // choose-permanents)/forEach(bound)/tapUntap. The classifier counts one
+        // closure per `resolve:`/`resolveSteps:` KEY (not per array entry), so
+        // this drops exactly ONE closure — it was FREE + AFK-ready (the card
+        // already carried its own suspend/resume test, ulg/__tests__/blue.
+        // test.ts, which still passes unchanged against the DSL script). Net
+        // −1 closure: total 686→685, FREE 437→436, AFK-ready 401→400, X-only
+        // unchanged (14), Op-blocked unchanged (235). Partition:
+        // 436+14+235=685.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(685);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(436);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(400);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
         expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(235);
     });
