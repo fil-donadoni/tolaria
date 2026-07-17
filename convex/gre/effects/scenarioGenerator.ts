@@ -1219,6 +1219,23 @@ const OP_ASSERTORS: Record<string, Assertor> = {
             },
         };
     },
+    // `attach` (CR 701.3a, ADR 0065, issue #1311) — never reached: `analyseOp`
+    // skips every script with an attach Op (Reconfigure's "target creature YOU
+    // control" requirement is not modelable by the canned generator's
+    // opponent-battlefield target placement). Kept for the 1:1 coverage
+    // guard; the Op's own interpreter + card tests are the behavioural
+    // guarantor.
+    attach() {
+        return null;
+    },
+    // `unattach` (CR 701.3d, ADR 0065, issue #1311) — never reached:
+    // `analyseOp` skips every script with an unattach Op (its outcome is only
+    // observable after a prior attach ran in the same script, which the
+    // generator doesn't sequence). Kept for the 1:1 coverage guard; the Op's
+    // own interpreter + card tests are the behavioural guarantor.
+    unattach() {
+        return null;
+    },
     // `choice` (issue #805) — never reached: `analyseOp` skips every script
     // containing a choice Op (a canned scenario cannot submit a live player
     // pick). The entry exists so the registry ⇄ assertor coverage guard stays
