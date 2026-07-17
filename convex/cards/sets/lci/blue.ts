@@ -23,4 +23,27 @@
 //     toughness: 2,
 // };
 
+// tracked-by: #1344 (residue of #1302, parent PRD #620) — Malcolm, Alluring
+// Scoundrel. "Flash. Flying. Whenever Malcolm deals combat damage to a
+// player, put a chorus counter on it. Draw a card, then discard a card. If
+// there are four or more chorus counters on Malcolm, you may cast the
+// discarded card without paying its mana cost." The combat-damage trigger
+// (counters + draw + choice(discard) + discard) is Op-expressible today, but
+// the threshold-gated "cast the discarded card for free" clause has no
+// primitive: `grantCastFromExile` is exile-zone only, and `grantGraveyardPlay`
+// is a player-wide permission with no per-card targeting and no mana-cost
+// waiver. Needs a `grantCastFromGraveyard` Op (or a `zone` discriminator on
+// `grantCastFromExile`) — see #1344. Left as a tracked stub pending that Op.
+// export const malcolmAlluringScoundrel: CardDefinition = {
+//     id: "19d6834d-afa3-4747-a62d-0654f4d9729f",
+//     name: "Malcolm, Alluring Scoundrel",
+//     rarity: "rare",
+//     manaCost: { X: 1, U: 1 },
+//     types: ["Creature"],
+//     supertypes: ["Legendary"],
+//     subtypes: ["Siren", "Pirate"],
+//     power: 2,
+//     toughness: 1,
+// };
+
 export {};

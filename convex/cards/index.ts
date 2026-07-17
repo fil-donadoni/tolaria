@@ -103,6 +103,7 @@ import * as neo from "./sets/neo";
 import * as bok from "./sets/bok";
 import * as roe from "./sets/roe";
 import * as lci from "./sets/lci";
+import * as soc from "./sets/soc";
 import * as akh from "./sets/akh";
 import * as aer from "./sets/aer";
 import * as rtr from "./sets/rtr";
@@ -314,6 +315,9 @@ const setModules: { code: string; exports: Record<string, unknown> }[] = [
     { code: "bok", exports: bok },
     { code: "roe", exports: roe },
     { code: "lci", exports: lci },
+    // Vintage Cube residue tranche (issue #1302, parent PRD #620) — new home
+    // set, currently stub-only (Staff of the Storyteller, tracked-by #1345).
+    { code: "soc", exports: soc },
     { code: "akh", exports: akh },
     { code: "aer", exports: aer },
     { code: "rtr", exports: rtr },
