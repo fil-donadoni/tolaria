@@ -35,13 +35,15 @@ export const anjesRavager: CardDefinition = {
             matches: (event, self) =>
                 event.type === "ATTACKERS_DECLARED" &&
                 event.attackerIds.includes(self.id),
-            // protocol card: "discard your hand" has no Effect Script Op — the
-            // `discard` Op requires an explicit picks binding (a `choice` Op's
-            // fixed-count selection), and there is no whole-hand selector. This
-            // matches the shipped Wheel of Fortune / Windfall resolve() pattern
-            // (`lea/red.ts`). `ctx.discardCard` routes through
-            // `discardToGraveyard`, so a discarded card with madness is itself
-            // exiled + made castable (CR 702.35c), not just binned.
+            // NOT DSL-migratable (ADR 0045): "discard your hand" has no
+            // Effect Script Op — the `discard` Op requires an explicit picks
+            // binding (a `choice` Op's fixed-count selection), and there is
+            // no whole-hand selector. This matches the shipped Wheel of
+            // Fortune / Windfall resolve() pattern (`lea/red.ts`).
+            // `ctx.discardCard` routes through `discardToGraveyard`, so a
+            // discarded card with madness is itself exiled + made castable
+            // (CR 702.35c), not just binned. Blocked on: a whole-hand discard
+            // selector Op (planned-migratable). tracked-by: #1279
             resolve: (ctx: SpellContext) => {
                 const controller = ctx.controller;
                 for (const cardId of ctx.getHandIds(controller)) {

@@ -1573,10 +1573,30 @@ describe("Flare (1 damage to any target + cantrip, CR 120.1)", () => {
 });
 
 describe("Panic (target creature can't block + cantrip, CR 509.1b)", () => {
-    it("declares the cast restriction and the cantrip shape", () => {
+    it("declares the cast restriction", () => {
         expect(panic.castPhaseRestriction).toContain("DECLARE_ATTACKERS");
         expect(panic.castPhaseRestriction).toContain("BEGINNING_OF_COMBAT");
-        expect(panic.delayedTriggers?.[0]?.timing).toBe("next-upkeep");
+    });
+
+    it("restricts the target from blocking and cantrips at next upkeep", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: library("p1", ["a"]) }),
+                makePlayer("p2", {
+                    battlefield: [vanilla("wall", 0, 4, { zone: "battlefield" })],
+                }),
+            ],
+        });
+        castCantrip(state, panic.id, "p1", [
+            { type: "permanent", id: "wall" },
+        ]);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "wall")
+                ?.cantBlockThisTurn
+        ).toBe(true);
+        enterUpkeepAndFire(state, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].hand.map((c) => c.id)).toContain("a");
     });
 });
 

@@ -49,6 +49,12 @@ function nextUpkeepDrawTrigger(): DelayedTriggerDef {
         id: NEXT_UPKEEP_DRAW_TRIGGER_ID,
         oracleText: "At the beginning of the next turn's upkeep, draw a card.",
         timing: "next-upkeep",
+        // NOT DSL-migratable (ADR 0045): `DelayedTriggerDef` has no `effects`
+        // site today (only `resolve`), so this shared ~22-card cantrip rider
+        // can't move to the DSL `draw` Op without first adding
+        // `effects?: EffectOp[]` support to `DelayedTriggerDef` itself.
+        // Blocked on: DelayedTriggerDef effects-site support (engine
+        // capability, not a missing Op). tracked-by: #1280
         resolve: (ctx) => {
             // CR 121.1 — the trigger's controller (the scheduling spell's
             // controller, or the activator on the tap-rider path) draws one
@@ -741,16 +747,22 @@ export const freyalisesCharm: CardDefinition = {
                 "Whenever an opponent casts a black spell, you may pay {G}{G}. If you do, you draw a card.",
             scope: "opponents",
             filter: { colors: "B" },
-            resolve: (ctx: SpellContext) => {
-                const paid = ctx.requestMayPay({
-                    playerId: ctx.controller,
-                    choiceId: "freyalises-charm-pay",
+            // Migrated resolve()→effects[] (ADR 0045, issue #1264): mayPay +
+            // if(bound $paid) + draw, the Force Spike shape (leg/blue.ts).
+            effects: [
+                {
+                    op: "mayPay",
+                    player: "controller",
                     cost: { G: 2 },
                     prompt: "Pay {G}{G} to draw a card?",
-                });
-                if (paid === undefined) return; // suspended for the choice
-                if (paid) ctx.drawCards(ctx.controller, 1);
-            },
+                    bind: "$paid",
+                },
+                {
+                    op: "if",
+                    predicate: { binding: "$paid" },
+                    then: [{ op: "draw", player: "controller", count: 1 }],
+                },
+            ],
         }),
     ],
     activatedAbilities: [

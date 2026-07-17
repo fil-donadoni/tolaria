@@ -281,10 +281,13 @@ export const bazaarOfBaghdad: CardDefinition = {
             oracleText: "{T}: Draw two cards, then discard three cards.",
             cost: { tap: true },
             useStack: true,
-            // DSL-expressible (draw → choice → discard) but NOT migrated: the
-            // per-card test pins the internal choice id "bazaar-discard", which
-            // the interpreter regenerates for a `choice` Op — migrating would
-            // force a test edit, breaking the untouched-harness invariant.
+            // NOT DSL-migratable (ADR 0045): DSL-expressible in
+            // principle (draw → choice → discard), but the per-card test pins
+            // the internal choice id "bazaar-discard", which the interpreter
+            // regenerates for a `choice` Op — migrating would force a test
+            // edit, breaking the untouched-harness equivalence invariant.
+            // Blocked on: interpreter support for an author-supplied `choice`
+            // Op id (planned-migratable). tracked-by: #1282
             resolveSteps: [
                 // Step 0 — draw two (CR 121.6). Isolated in its own step so a
                 // suspension in the discard step never re-runs the draw.

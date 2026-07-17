@@ -1112,19 +1112,24 @@ export const verduranEnchantress: CardDefinition = {
                 "Whenever you cast an enchantment spell, you may draw a card.",
             scope: "you",
             filter: { types: "Enchantment" },
-            // NOT DSL-migratable (ADR 0045, issue #831): "you may draw a card"
-            // is an optional (no-cost) yes/no effect; `mayPay` models paying a
-            // cost, not a bare optional, and the optional-choice Op is `planned`.
-            // Blocked on: `optionChoice` (cost-free may) Op.
-            resolve: (ctx) => {
-                const accept = ctx.requestMayPay({
-                    playerId: ctx.controller,
-                    choiceId: ctx.controller,
+            // Migrated resolve()→effects[] (ADR 0045, closes #1264/#1250): a
+            // bare cost-free "you may" decision (`mayPay` with `cost`
+            // omitted, issue #680) gates the DSL `draw` Op — the interpreter's
+            // suspend-capable draw seam (ADR 0061) now also makes this an
+            // interactive-replacement-aware draw (Zur's Weirding).
+            effects: [
+                {
+                    op: "mayPay",
+                    player: "controller",
                     prompt: "Draw a card?",
-                });
-                if (accept === undefined) return;
-                if (accept) ctx.drawCards(ctx.controller, 1);
-            },
+                    bind: "$paid",
+                },
+                {
+                    op: "if",
+                    predicate: { binding: "$paid" },
+                    then: [{ op: "draw", player: "controller", count: 1 }],
+                },
+            ],
         }),
     ],
 };

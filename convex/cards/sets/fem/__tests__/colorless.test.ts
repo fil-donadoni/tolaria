@@ -47,7 +47,12 @@ import { getEffectiveManaChoices } from "../../../../gre/constants";
 import { collectTriggers } from "../../../../gre/triggers";
 import { grizzlyBears } from "../../lea";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
-import { resolveTrigger, UPKEEP, resolveActivated } from "./helpers";
+import {
+    resolveTrigger,
+    UPKEEP,
+    resolveActivated,
+    answerPendingChoices,
+} from "./helpers";
 
 // ---------------------------------------------------------------------------
 // Registry parity — the set must be reachable by id, by name and in the
@@ -595,9 +600,50 @@ describe("FEM C6 sacrifice / tap-effect artifacts (reuse-only)", () => {
         expect(shielded.regenerationShields ?? 0).toBeGreaterThan(0);
     });
 
-    it("Ring of Renewal and Conch Horn draw cards (CR 121.1)", () => {
+    it("Conch Horn draws two cards, then puts one back on top of the library (CR 121.1, 401.4)", () => {
+        const horn = makeInstance(conchHorn.id, {
+            id: "horn",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: [
+                        makeInstance(grizzlyBears.id, {
+                            id: "h1",
+                            controllerId: "p1",
+                            zone: "hand",
+                        }),
+                    ],
+                    library: [
+                        makeInstance(grizzlyBears.id, {
+                            id: "a",
+                            controllerId: "p1",
+                            zone: "library",
+                        }),
+                        makeInstance(grizzlyBears.id, {
+                            id: "b",
+                            controllerId: "p1",
+                            zone: "library",
+                        }),
+                    ],
+                    battlefield: [horn],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, horn, "conch-horn");
+        answerPendingChoices(state);
+        const p1 = state.players[0];
+        expect(p1.hand.map((c) => c.id)).toEqual(
+            expect.arrayContaining(["a", "b"])
+        );
+        expect(p1.hand.map((c) => c.id)).not.toContain("h1");
+        expect(p1.library[0]?.id).toBe("h1");
+    });
+
+    it("Ring of Renewal draws cards (CR 121.1)", () => {
         expect(ringOfRenewal.manaCost).toEqual({ X: 5 });
-        expect(conchHorn.activatedAbilities?.[0].resolveSteps?.length).toBe(2);
         // Delif's Cone exposes the sac+tap cost and a creature target.
         expect(delifsCone.activatedAbilities?.[0].cost).toEqual({
             tap: true,

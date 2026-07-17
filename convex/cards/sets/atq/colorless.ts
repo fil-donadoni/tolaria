@@ -1804,6 +1804,13 @@ export const urzasMiter: CardDefinition = {
             filter: { types: "Artifact" },
             // CR 603.4 — only fires when the artifact was NOT sacrificed.
             condition: (event) => event.cause !== "sacrifice",
+            // NOT DSL-migratable (ADR 0045): the mayPay + if + draw shape
+            // itself IS Op-expressible (mirrors Force Spike, `leg/blue.ts`),
+            // but the `leftTrigger` factory (`abilities/triggers/
+            // leftTrigger.ts`) only accepts a `resolve` callback in
+            // `LeftTriggerArgs` — it has no `effects` alternative to route a
+            // declarative script through. Blocked on: `leftTrigger` factory
+            // support for `effects`. tracked-by: #1280
             resolve: (ctx) => {
                 const accept = ctx.requestMayPay({
                     playerId: ctx.controller,

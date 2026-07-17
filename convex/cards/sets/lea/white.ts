@@ -722,6 +722,15 @@ export const islandSanctuary: CardDefinition = {
                 "Skip your draw? If you do, you can't be attacked except by creatures with flying or islandwalk until your next turn.",
             phase: "DRAW",
             scope: "your",
+            // NOT DSL-migratable (ADR 0045): the "skip" branch sets a
+            // player-scoped combat-restriction flag
+            // (`setIslandSanctuaryProtection`, "can't be attacked except by
+            // flying/islandwalk creatures until your next turn") that has no
+            // registered Op — `restrictCombat` is permanent-scoped
+            // (cant-attack/cant-block on a target) and has no "except by"
+            // qualifier or player-scoped shape. Blocked on: a new Op (or a
+            // generalized `restrictCombat`) for a player-scoped "can't be
+            // attacked except by …" protection. tracked-by: #1283
             resolve: (ctx) => {
                 const accept = ctx.requestMayPay({
                     playerId: ctx.controller,

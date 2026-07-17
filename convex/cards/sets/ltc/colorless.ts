@@ -2,7 +2,7 @@
 // mana cost, split by colour per ADR 0043. The registry's
 // `import * as ltc from "./sets/ltc"` resolves through ltc/index.ts. Modern
 // Scryfall oracle text is authoritative (ADR 0004); generic mana is `X: n`.
-import type { CardDefinition, SpellContext } from "../../types";
+import type { CardDefinition } from "../../types";
 
 // Relic of Sauron — {4} Artifact. A Grixis mana rock with a card-advantage
 // outlet (CR 605.1a mana ability resolves immediately; CR 605 activated
@@ -40,22 +40,22 @@ export const relicOfSauron: CardDefinition = {
             oracleText: "{3}, {T}: Draw two cards, then discard a card.",
             cost: { mana: { X: 3 }, tap: true },
             useStack: true,
-            resolveSteps: [
-                (ctx: SpellContext) => {
-                    ctx.drawCards(ctx.controller, 2);
+            // Migrated resolveSteps()→effects[] (ADR 0045, issue #1264): draw
+            // two through the unified suspend-capable draw seam (CR 121.1,
+            // ADR 0061), then a `choice`-driven discard of one (CR 701.8) —
+            // same shape as Traumatic Critique (sos/multicolor.ts).
+            effects: [
+                { op: "draw", player: "controller", count: 2 },
+                {
+                    op: "choice",
+                    kind: "choose-hand-card",
+                    player: "controller",
+                    zone: "hand",
+                    count: 1,
+                    prompt: "Choose a card to discard.",
+                    bind: "$discard",
                 },
-                (ctx: SpellContext) => {
-                    const picks = ctx.requestChoice({
-                        playerId: ctx.controller,
-                        choiceId: "relic-of-sauron-discard",
-                        kind: "choose-hand-card",
-                        zone: "hand",
-                        count: 1,
-                        prompt: "Choose a card to discard.",
-                    });
-                    if (picks === undefined) return; // suspended on the discard
-                    for (const id of picks) ctx.discardCard(ctx.controller, id);
-                },
+                { op: "discard", player: "controller", cards: { ref: "$discard" } },
             ],
         },
     ],

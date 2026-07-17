@@ -379,28 +379,16 @@ export const conchHorn: CardDefinition = {
                 "{1}, {T}, Sacrifice this artifact: Draw two cards, then put a card from your hand on top of your library.",
             cost: { mana: { X: 1 }, tap: true, sacrifice: true },
             useStack: true,
-            resolveSteps: [
-                (ctx: SpellContext) => {
-                    ctx.drawCards(ctx.controller, 2);
-                },
-                (ctx: SpellContext) => {
-                    const hand = ctx
-                        .getHandCards(ctx.controller)
-                        .map((c) => c.id);
-                    if (hand.length === 0) return;
-                    const picks = ctx.requestChoice({
-                        playerId: ctx.controller,
-                        choiceId: `conch-horn-${ctx.sourceInstanceId}`,
-                        kind: "choose-hand-card",
-                        zone: "hand",
-                        candidateIds: hand,
-                        count: 1,
-                        prompt: "Conch Horn: put a card from your hand on top of your library.",
-                    });
-                    if (picks === undefined) return; // suspended
-                    const cardId = picks[0];
-                    if (!cardId) return;
-                    ctx.moveHandCardToLibraryTop(ctx.controller, cardId);
+            // Migrated resolve()→effects[] (ADR 0045, issue #1264): CR 121.1
+            // draw 2, then CR 401.4 put 1 card from hand on top via `putBack`
+            // (same shape as Brainstorm, ice/blue.ts).
+            effects: [
+                { op: "draw", player: "controller", count: 2 },
+                {
+                    op: "putBack",
+                    player: "controller",
+                    count: 1,
+                    prompt: "Conch Horn: put a card from your hand on top of your library.",
                 },
             ],
         },

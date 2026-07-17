@@ -2,7 +2,7 @@
 // colour per ADR 0043. The registry's `import * as wth from "./sets/wth"`
 // resolves through wth/index.ts. Modern Scryfall oracle text is authoritative
 // (ADR 0004); generic mana is encoded as `X: n` (e.g. {2} → { X: 2 }).
-import type { CardDefinition, SpellContext } from "../../types";
+import type { CardDefinition } from "../../types";
 
 // Mind Stone — {2} Artifact. A mana rock that can be cashed in for a card late
 // (CR 605.1a mana ability resolves immediately; CR 605 activated draw goes on
@@ -28,9 +28,8 @@ export const mindStone: CardDefinition = {
             oracleText: "{1}, {T}, Sacrifice this artifact: Draw a card.",
             cost: { mana: { X: 1 }, tap: true, sacrifice: true },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.drawCards(ctx.controller, 1);
-            },
+            // Migrated resolve()→effects[] (ADR 0045, issue #1264).
+            effects: [{ op: "draw", player: "controller", count: 1 }],
         },
     ],
 };

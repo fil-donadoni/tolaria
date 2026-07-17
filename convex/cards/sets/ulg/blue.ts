@@ -9,6 +9,18 @@ import { cyclingAbility } from "../../abilities/cycling";
 // Stepped resolution: the irreversible draw runs first, then the discard pick,
 // then the untap pick — each interactive step is its own `resolveSteps` entry
 // so a suspension never re-applies an earlier step (CR 608.2).
+//
+// NOT DSL-migratable (ADR 0045): the draw + discard clauses ARE
+// expressible (`draw` + `choice(choose-hand-card)` + `discard`), but "untap up
+// to three lands" needs a `choice(choose-permanents, zone: battlefield)`'s
+// picks (family "picks") consumed by `forEach` — and `forEach { set: "bound" }`
+// only accepts a LIST-family binding (a delayedTrigger/divideIntoPiles
+// capture), not a `choice` Op's picks (`convex/gre/effects/validate.ts`,
+// ADR 0049). `effects` is all-or-nothing per site, so this one ungrammatical
+// clause keeps the WHOLE card on `resolveSteps`. tracked-by: #1284
+// Blocked on: widening `forEach { set: "bound" }`'s family check to also
+// accept "picks" (the runtime binding store is already shape-identical — only
+// the static validator is restrictive) — planned-migratable, not protocol.
 export const franticSearch: CardDefinition = {
     id: "1904db14-6df7-424f-afa5-e3dfab31300a",
     name: "Frantic Search",

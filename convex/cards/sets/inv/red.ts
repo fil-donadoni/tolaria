@@ -929,13 +929,14 @@ export const slimyKavu: CardDefinition = {
 };
 
 // Stun — {1}{R} Instant. "Target creature can't block this turn. Draw a
-// card." (CR 509.1b block restriction on an ANNOUNCED target. NOT
-// DSL-migratable, ADR 0045 — the Panic precedent, ice/red.ts: no Effect
-// Script Op wraps the SpellContext primitive `setCantBlockThisTurn` (unlike
-// the permanent's-own-ability `block-restriction` staticEffect, this is a
-// one-shot targeted rider). Same execution path as Panic; only the cantrip
-// timing differs — immediate draw here vs. Panic's next-upkeep delayed
-// draw.)
+// card." (CR 509.1b block restriction on an ANNOUNCED target.
+// NOT DSL-migratable (ADR 0045), re-assessed for #1264: the earlier "no
+// Effect Script Op wraps setCantBlockThisTurn" reasoning is STALE — the
+// `restrictCombat` Op now covers this shape (Panic, `ice/red.ts`, migrated
+// onto it). The real remaining blocker: this card has no per-card behavior
+// test today, so it's ineligible for an AFK migration (no green-before
+// baseline to prove equivalence). tracked-by: #1285 — add a test, then
+// migrate to `effects: [{ op: "restrictCombat", ... }]`.)
 export const stun: CardDefinition = {
     id: "d22f3ae8-a40b-4dab-abf4-3ab7b05191f7",
     rarity: "common",

@@ -74,9 +74,10 @@ export const soulGuideLantern: CardDefinition = {
             oracleText: "{1}, {T}, Sacrifice this artifact: Draw a card.",
             cost: { mana: { X: 1 }, tap: true, sacrifice: true },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.drawCards(ctx.controller, 1);
-            },
+            // Migrated resolve()→effects[] (ADR 0045, issue #1264): a single
+            // controller draw through the unified suspend-capable draw seam
+            // (CR 121.1, ADR 0061).
+            effects: [{ op: "draw", player: "controller", count: 1 }],
         },
     ],
 };

@@ -30,6 +30,16 @@ import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
 // Shared because the rider repeats verbatim across the whole cantrip cycle —
 // extracting it keeps each card definition to its unique body (per the
 // "extract on the second occurrence" convention).
+//
+// NOT DSL-migratable (ADR 0045): this legacy `DelayedTriggerDef` template is
+// still the sole schedule target of Barbed Sextant's `armsDelayedTriggerOnTap`
+// rider below (ADR 0040) — that field schedules a trigger BY ID off
+// `delayedTriggers[]`, it has no inline-Effect-Script-body counterpart, so the
+// mana-ability tap-rider can't reach the ADR 0048 `delayedTrigger` Op the way
+// a stack ability can (Urza's Bauble, Flare, Panic, Touch of Death, Krovikan
+// Fetish all migrated to the inline form). Blocked on: `armsDelayedTriggerOnTap`
+// gaining an inline `effects`/`oracleText` body alongside `triggerId`.
+// tracked-by: #1280
 const NEXT_UPKEEP_DRAW_TRIGGER_ID = "next-upkeep-cantrip";
 
 function nextUpkeepDrawTrigger(): DelayedTriggerDef {

@@ -624,9 +624,19 @@ export const howlingMine: CardDefinition = {
             // resolve. If the artifact is tapped between trigger and
             // resolve (Icy Manipulator response), the trigger fizzles.
             interveningIf: (_event, self) => !self.isTapped,
-            resolve: (ctx, _event, playerId) => {
-                ctx.drawCards(playerId, 1);
-            },
+            // Migrated resolve()→effects[] (ADR 0045, closes #1264/#1250):
+            // `scope: "each"` reads the scoped (drawing) player via the
+            // censused `{ ref: "$event.activePlayerId" }` event-field selector
+            // (ADR 0049, issue #1066 precedent: Collapsing Borders,
+            // inv/red.ts) rather than the plain `"controller"` selector, which
+            // would incorrectly read the artifact's own controller.
+            effects: [
+                {
+                    op: "draw",
+                    player: { ref: "$event.activePlayerId" },
+                    count: 1,
+                },
+            ],
         }),
     ],
 };

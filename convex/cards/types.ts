@@ -1656,7 +1656,11 @@ export interface SpellContext {
      *  (Enduring Renewal) fires here too. INTERACTIVE replacements (Zur's
      *  Weirding "may pay 2 life") cannot suspend in this synchronous primitive,
      *  so the drawing player draws without offering the pay-choice — the DSL
-     *  `draw` Op is the suspend-capable path (ADR 0061). tracked-by: #1250 */
+     *  `draw` Op is the suspend-capable path (ADR 0061). By design: every
+     *  `resolve()`/`resolveSteps` card that needs interactivity migrated onto
+     *  the DSL `draw` Op (issue #1264, closed #1250); this primitive now
+     *  serves internal non-interactive plumbing plus the narrow allowlisted
+     *  stragglers in `convex/cards/__tests__/drawPrimitiveGuard.test.ts`. */
     drawCards: (playerId: string, amount: number) => void;
     /** CR 614 / ADR 0061 — the suspend-capable draw seam, exposed for the DSL
      *  `draw` Op. `planDraw` computes the replacement plan for the drawing

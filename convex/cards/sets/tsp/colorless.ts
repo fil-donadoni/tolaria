@@ -36,6 +36,12 @@ export const chromaticStar: CardDefinition = {
                 "When this artifact is put into a graveyard from the battlefield, draw a card.",
             scope: "self",
             toZone: "graveyard",
+            // NOT DSL-migratable (ADR 0045): the `leftTrigger` factory site
+            // only exposes a `resolve` callback, no `effects` alternative —
+            // the draw itself is trivially a `draw` Op, but the factory has
+            // no field to carry one.
+            // Blocked on: extending trigger factories (leftTrigger et al.) to
+            // accept `effects`, not a missing Op. tracked-by: #1280
             resolve: (ctx: SpellContext) => {
                 ctx.drawCards(ctx.controller, 1);
             },

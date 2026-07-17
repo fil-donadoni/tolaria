@@ -6,7 +6,6 @@
 import type {
     CardDefinition,
     CardPrint,
-    DelayedTriggerDef,
     PermanentView,
     SpellContext,
     TargetSelection,
@@ -19,44 +18,6 @@ import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { untapRestriction } from "../../abilities/static/untapRestriction";
 import { damageDealtTrigger } from "../../abilities/triggers/damageDealtTrigger";
 
-// "Draw a card at the beginning of the next turn's upkeep" cantrip rider
-// (CR 502.2 / 603.7d) — the signature kicker on ~22 Ice Age commons. The
-// scheduling spell/ability calls `scheduleNextUpkeepDraw` from its `resolve`;
-// the matching `DelayedTriggerDef` (from `nextUpkeepDrawTrigger`) lives on the
-// card's `delayedTriggers[]`. The trigger carries no `targetPlayerId`, so it
-// fires at the VERY NEXT upkeep regardless of whose turn it is and dequeues
-// exactly once (`fireDelayedTriggers` in gre/phases.ts). The drawing player is
-// the spell's controller, captured in `payload.controller` (CR 113.7).
-//
-// Shared because the rider repeats verbatim across the whole cantrip cycle —
-// extracting it keeps each card definition to its unique body (per the
-// "extract on the second occurrence" convention).
-const NEXT_UPKEEP_DRAW_TRIGGER_ID = "next-upkeep-cantrip";
-
-function scheduleNextUpkeepDraw(ctx: SpellContext, sourceCardId: string): void {
-    ctx.scheduleDelayedTrigger(
-        sourceCardId,
-        NEXT_UPKEEP_DRAW_TRIGGER_ID,
-        "next-upkeep",
-        {}
-    );
-}
-
-function nextUpkeepDrawTrigger(): DelayedTriggerDef {
-    return {
-        id: NEXT_UPKEEP_DRAW_TRIGGER_ID,
-        oracleText: "At the beginning of the next turn's upkeep, draw a card.",
-        timing: "next-upkeep",
-        resolve: (ctx) => {
-            // CR 121.1 — the trigger's controller (the scheduling spell's
-            // controller, or the activator on the tap-rider path) draws one
-            // card. `ctx.controller` is the delayed trigger's controller in
-            // both scheduling paths (`fireDelayedTriggers` sets the stack
-            // item's controller to the instance's `controller`).
-            ctx.drawCards(ctx.controller, 1);
-        },
-    };
-}
 // ─────────────────────────────────────────────────────────────────────────────
 // Red free tranche (#633)
 //
@@ -800,12 +761,20 @@ export const flare: CardDefinition = {
     manaCost: { X: 2, R: 1 },
     types: ["Instant"],
     targetRequirement: { type: "any", count: 1 },
-    resolve: (ctx: SpellContext) => {
-        const t = ctx.targets[0];
-        if (t) ctx.dealDamage(t, 1);
-        scheduleNextUpkeepDraw(ctx, flare.id);
-    },
-    delayedTriggers: [nextUpkeepDrawTrigger()],
+    // Migrated resolve()→effects[] (ADR 0045, issue #1264): 1 damage to the
+    // announced target (CR 120.1), then the next-upkeep draw cantrip via the
+    // ADR 0048 `delayedTrigger` Op with an inline `draw` body — replacing the
+    // legacy `DelayedTriggerDef` seam so the scheduled draw is
+    // replacement-aware (CR 614, ADR 0061).
+    effects: [
+        { op: "dealDamage", amount: 1, to: { target: 0 } },
+        {
+            op: "delayedTrigger",
+            timing: "next-upkeep",
+            oracleText: "Draw a card at the beginning of the next turn's upkeep.",
+            effects: [{ op: "draw", player: "controller", count: 1 }],
+        },
+    ],
 };
 // Game of Chaos — {R}{R}{R} Sorcery. A coin-flip doubling loop (CR 705.2 reveal
 // + CR 119/118 life swing). Each round the caster flips: on a WIN the caster
@@ -1927,12 +1896,18 @@ export const panic: CardDefinition = {
     types: ["Instant"],
     castPhaseRestriction: ["BEGINNING_OF_COMBAT", "DECLARE_ATTACKERS"],
     targetRequirement: { type: "Creature", count: 1 },
-    resolve: (ctx: SpellContext) => {
-        const t = ctx.targets[0];
-        if (t?.type === "permanent") ctx.setCantBlockThisTurn(t);
-        scheduleNextUpkeepDraw(ctx, panic.id);
-    },
-    delayedTriggers: [nextUpkeepDrawTrigger()],
+    // Migrated resolve()→effects[] (ADR 0045, issue #1264): "can't block" via
+    // the ADR 0053 `restrictCombat` Op, then the next-upkeep draw cantrip via
+    // the ADR 0048 `delayedTrigger` Op with an inline `draw` body.
+    effects: [
+        { op: "restrictCombat", restriction: "cant-block", target: { target: 0 } },
+        {
+            op: "delayedTrigger",
+            timing: "next-upkeep",
+            oracleText: "Draw a card at the beginning of the next turn's upkeep.",
+            effects: [{ op: "draw", player: "controller", count: 1 }],
+        },
+    ],
 };
 // Pyroblast — modal "choose one" (CR 700.2): counter a blue spell OR destroy a
 // blue permanent. The colour-mirror of Hydroblast, gating each mode's target on

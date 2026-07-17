@@ -855,9 +855,21 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // subtype-set primitive) and "phase" (phaseOut) stay Op-blocked. Net:
         // total 703→705, FREE 457→458, AFK-ready 419→420, X-only unchanged
         // (14), Op-blocked 232→233. Partition: 458+14+233=705.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(705);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(458);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(420);
+        //
+        // Then issue #1264 (migrate ~38 resolve() effect-draws to the DSL
+        // `draw` Op, on the #1263 draw-replacement seam) migrates 19 cards —
+        // 20 closures — off resolve() (Night's Whisper, Mystic Remora, Howling
+        // Mine, Verduran Enchantress, Winds of Change, Fasting, …). All 20 were
+        // FREE draw closures (`draw` is a COVERED Op), so they leave FREE only;
+        // X-only and Op-blocked are untouched. 19 carried a per-card test, so
+        // AFK-ready drops by 19. Net: total 705→685, FREE 458→438, AFK-ready
+        // 420→401, X-only unchanged (14), Op-blocked unchanged (233).
+        // Partition: 438+14+233=685. (The 30 draws that stayed resolve() are
+        // Op-blocked stubs — already in the Op-blocked count, not FREE — so the
+        // FREE/Op-blocked split is unaffected by them.)
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(685);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(438);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(401);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
         expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(233);
     });
@@ -881,13 +893,14 @@ describe("migration classifier — census buckets (PRD #826)", () => {
 describe("migration classifier — known-card routing (PRD #826)", () => {
     const free = run("--free");
 
-    it("routes a draw spell (Night's Whisper) to the FREE tranche", () => {
-        // Night's Whisper's effect is draw + lose-life — every clause maps onto
-        // an existing Op (`draw`, `loseLife`), so it is migratable now with no
-        // new engine code. (Canary: this asserts a specific still-resolve() card
-        // lands in FREE; when it eventually migrates, swap for another
-        // existing-Op-only card that has not yet been migrated.)
-        expect(free).toMatch(/Night's Whisper/);
+    it("routes an existing-Op-only card (Cuombajj Witches) to the FREE tranche", () => {
+        // Cuombajj Witches' effect maps entirely onto existing Ops, so the
+        // classifier routes it to FREE (migratable now, no new engine code).
+        // (Canary: this asserts a specific still-resolve() card lands in FREE;
+        // when it eventually migrates, swap for another existing-Op-only card
+        // that has not yet been migrated. Swapped from Night's Whisper, whose
+        // draw/loseLife closure migrated to the DSL `draw` Op in #1264.)
+        expect(free).toMatch(/Cuombajj Witches/);
     });
 
     it("does NOT route an Op-blocked card (Word of Command) to the FREE tranche", () => {

@@ -85,6 +85,18 @@ function scheduleNextUpkeepDraw(ctx: SpellContext, sourceCardId: string): void {
     );
 }
 
+// NOT DSL-migratable (ADR 0045): the legacy `DelayedTriggerDef` template
+// interface has no `effects` field (only `resolve` — see its declaration in
+// convex/cards/types.ts), so this factory's body can't become a DSL script in
+// place. Moving its 4 callers (Clairvoyance, Force Void, Portent, Ray of
+// Erasure) onto the newer inline `delayedTrigger` Effect Op (ADR 0048) instead
+// would additionally require each caller's OWN effect to be fully
+// DSL-expressible — Clairvoyance's "look at target player's hand" is a
+// private peek (`ctx.revealHand`), distinct from the DSL `reveal` Op (which
+// always does a public `markKnownToAll`), so at least that one caller stays
+// blocked either way. Planned-migratable: worth an issue to add `effects`
+// support to `DelayedTriggerDef` (or a private-look Op) and re-home all 4
+// cantrips at once. tracked-by: #1280
 function nextUpkeepDrawTrigger(): DelayedTriggerDef {
     return {
         id: NEXT_UPKEEP_DRAW_TRIGGER_ID,
@@ -1096,6 +1108,14 @@ export const krovikanSorcerer: CardDefinition = {
     power: 1,
     toughness: 1,
     activatedAbilities: [
+        // NOT DSL-migratable (ADR 0045): the conditional "draw only if a card
+        // was actually discarded" gate has no expressible form — EffectPredicate
+        // only reads a boolean `mayPay` binding or a numeric comparison, never
+        // whether a preceding `choice` Op's picks captured anything (there is
+        // no "picks nonempty" predicate). Also "a NONBLACK card" has no filter:
+        // EffectCardFilter's `color` is a positive OR-list match with no
+        // `excludeColor` counterpart. Planned-migratable: worth an issue to add
+        // either predicate form. tracked-by: #1287
         {
             id: "krovikan-sorcerer-nonblack",
             oracleText: "{T}, Discard a nonblack card: Draw a card.",
@@ -1132,6 +1152,11 @@ export const krovikanSorcerer: CardDefinition = {
                 },
             ],
         },
+        // NOT DSL-migratable (ADR 0045): same "picks nonempty" predicate gap as
+        // the nonblack ability above (the color-filtered choice itself IS
+        // expressible via `filter: { color: "B" }`, but the conditional draw
+        // gated on whether the discard actually happened is not). tracked-by:
+        // #1287
         {
             id: "krovikan-sorcerer-black",
             oracleText:
@@ -1261,6 +1286,11 @@ export const mesmericTrance: CardDefinition = {
         }),
     ],
     activatedAbilities: [
+        // NOT DSL-migratable (ADR 0045): same "picks nonempty" predicate gap
+        // as Krovikan Sorcerer above — the conditional draw is gated on
+        // whether the preceding `choice` Op's discard pick actually captured
+        // anything, which EffectPredicate can't read (only a `mayPay` boolean
+        // binding or a numeric comparison). tracked-by: #1287
         {
             id: "mesmeric-trance-loot",
             oracleText: "{U}, Discard a card: Draw a card.",
@@ -1488,25 +1518,34 @@ export const mysticRemora: CardDefinition = {
             cost: { X: 1 },
             costLabel: "{1}",
         }),
+        // Migrated resolve()→effects[] (ADR 0045, #1264): mayPay {4} (the
+        // casting opponent, resolved via "opponent" — this engine is
+        // 2-player/solo only, so "opponent" of the source's controller is
+        // always exactly the spell's caster given `scope: "opponents"`
+        // already gates on that) then, unless paid, the controller draws
+        // (CR 121.1) through the DSL `draw` Op — the unified suspend-capable
+        // draw seam (ADR 0061), so an interactive draw replacement (Zur's
+        // Weirding) now offers its pay-choice on this effect draw too.
         spellCastTrigger({
             id: "mystic-remora-draw-tax",
             oracleText:
                 "Whenever an opponent casts a noncreature spell, you may draw a card unless that player pays {4}.",
             scope: "opponents",
             filter: { excludeTypes: "Creature" },
-            resolve: (ctx: SpellContext, _event, spell) => {
-                // CR 117.3a — the casting opponent may pay {4} to prevent the
-                // draw. The payer is the caster, not the source's controller.
-                const paid = ctx.requestMayPay({
-                    playerId: spell.casterId,
-                    choiceId: `mystic-remora-pay-${ctx.sourceInstanceId}`,
+            effects: [
+                {
+                    op: "mayPay",
+                    player: "opponent",
                     cost: { X: 4 },
                     prompt: "Pay {4} or your opponent draws a card (Mystic Remora)?",
-                });
-                if (paid === undefined) return; // suspended for the choice
-                // Unpaid: the source's controller draws a card (CR 121.1).
-                if (!paid) ctx.drawCards(ctx.controller, 1);
-            },
+                    bind: "$paid",
+                },
+                {
+                    op: "if",
+                    predicate: { not: { binding: "$paid" } },
+                    then: [{ op: "draw", player: "controller", count: 1 }],
+                },
+            ],
         }),
     ],
 };
@@ -1865,19 +1904,24 @@ export const sibilantSpirit: CardDefinition = {
             matches: (event, self) =>
                 event.type === "ATTACKERS_DECLARED" &&
                 event.attackerIds.includes(self.id),
-            resolve: (ctx) => {
-                const defender = ctx.allPlayerIds.find(
-                    (p) => p !== ctx.controller
-                );
-                if (!defender) return;
-                const accept = ctx.requestMayPay({
-                    playerId: defender,
-                    choiceId: "sibilant-spirit-draw",
+            // Migrated resolve()→effects[] (ADR 0045, #1264): a cost-free
+            // "you may" decision (defending player == "opponent" of the
+            // attacker's controller — this engine is 2-player/solo only)
+            // then, if accepted, the DSL `draw` Op — the unified
+            // suspend-capable draw seam (ADR 0061).
+            effects: [
+                {
+                    op: "mayPay",
+                    player: "opponent",
                     prompt: "Draw a card (Sibilant Spirit)?",
-                });
-                if (accept === undefined) return; // suspended
-                if (accept) ctx.drawCards(defender, 1);
-            },
+                    bind: "$accept",
+                },
+                {
+                    op: "if",
+                    predicate: { binding: "$accept" },
+                    then: [{ op: "draw", player: "opponent", count: 1 }],
+                },
+            ],
         },
     ],
 };
