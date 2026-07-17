@@ -7470,6 +7470,12 @@
         "firstSet": "arn"
     },
     {
+        "name": "Sandstorm Salvager",
+        "scryfallId": "13b0f27c-a359-4702-833a-82fec161eeec",
+        "oracleId": "ec19a9bc-6fc1-4150-976b-37a47b165016",
+        "firstSet": "big"
+    },
+    {
         "name": "Sapphire Leech",
         "scryfallId": "e6763ffd-9d89-4f26-871a-be24fbdef38d",
         "oracleId": "500aff17-0d69-46ac-a4f9-2fc6db061ce7",

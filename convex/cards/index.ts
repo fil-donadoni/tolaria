@@ -213,6 +213,9 @@ import * as soi from "./sets/soi";
 // Per-source exile linkage + discard trigger (issue #791) — Currency Converter's
 // earliest paper printing is New Capenna Commander (ncc, ADR 0041).
 import * as ncc from "./sets/ncc";
+// Cube FREE residue: token makers (issue #1304). c21/stx already registered
+// above; arb is new (Thopter Foundry, a tracked stub blocked on #782).
+import * as arb from "./sets/arb";
 
 function isCardPrint(value: unknown): value is CardPrint {
     return (
@@ -416,6 +419,7 @@ const setModules: { code: string; exports: Record<string, unknown> }[] = [
     // Per-source exile linkage + discard trigger (issue #791) — Currency
     // Converter (New Capenna Commander).
     { code: "ncc", exports: ncc },
+    { code: "arb", exports: arb },
 ];
 
 const allCards: CardDefinition[] = setModules.flatMap((m) =>
