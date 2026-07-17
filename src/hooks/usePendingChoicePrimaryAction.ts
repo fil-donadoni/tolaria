@@ -168,7 +168,11 @@ export function usePendingChoicePrimaryAction(): PendingChoicePrimaryAction | nu
                               choice.cost,
                               chooser.battlefield
                           ),
-                          chooser.hand.length
+                          chooser.hand.length,
+                          // CR 122.1 (issue #1194) — energy leg affordability;
+                          // energy survives the wire projection unchanged
+                          // (`PlayerState.energyCounters`).
+                          chooser.energyCounters
                       )
                     : false));
     } else {

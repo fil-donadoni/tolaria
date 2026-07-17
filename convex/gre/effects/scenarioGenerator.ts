@@ -609,6 +609,19 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             }
             recordSlot(req, op.target.target, "permanent");
             return;
+        case "addSubtype":
+            // `addSubtype` (issue #1194) adds a subtype to a permanent
+            // INDEFINITELY (CR 613.1d layer 4). The generator can assert an
+            // add on an announced permanent slot (it seeds a filler creature
+            // there and reads `subtypes` after resolution). A `$source` /
+            // `$each` target is not modelled — skip and let the card's own
+            // per-card test cover it.
+            if (!("target" in op.target)) {
+                req.skip ??= `Op "addSubtype" targets $source/$each — covered by the card's own per-card test`;
+                return;
+            }
+            recordSlot(req, op.target.target, "permanent");
+            return;
         case "forEach":
             // The forEach construct (issue #807) iterates a runtime-selected
             // set; the generator cannot predict per-member outcomes (and a
@@ -1375,6 +1388,35 @@ const OP_ASSERTORS: Record<string, Assertor> = {
                     detail: has
                         ? `has "${ability}"`
                         : `missing "${ability}" (staticAbilities: ${perm.staticAbilities.join(", ")})`,
+                };
+            },
+        };
+    },
+    // `addSubtype` (issue #1194, CR 613.1d layer 4) — an add on an announced
+    // permanent slot is observable as the subtype appearing in the target's
+    // `subtypes` (the primitive appends it immediately, indefinitely).
+    // `$source`/`$each` targets are skipped upstream in `analyseOp` (returns
+    // null defensively here).
+    addSubtype(rawOp, scenario) {
+        const op = rawOp as Extract<EffectOp, { op: "addSubtype" }>;
+        if (!("target" in op.target)) return null;
+        const subtype = op.subtype;
+        const permId = scenario.targetPermanentIds[op.target.target];
+        return {
+            label: `add subtype "${subtype}" to permanent ${permId}`,
+            check: (post) => {
+                const perm = post.players
+                    .flatMap((p) => p.battlefield)
+                    .find((c) => c.id === permId);
+                if (!perm) {
+                    return { ok: false, detail: "target permanent gone" };
+                }
+                const has = perm.subtypes.includes(subtype);
+                return {
+                    ok: has,
+                    detail: has
+                        ? `has subtype "${subtype}"`
+                        : `missing subtype "${subtype}" (subtypes: ${perm.subtypes.join(", ")})`,
                 };
             },
         };

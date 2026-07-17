@@ -1407,6 +1407,18 @@ export const OP_EXECUTORS: {
             );
         }
     },
+    // CR 613.1d layer 4 (issue #1194) — add a subtype to a permanent
+    // INDEFINITELY, in addition to its other types. A thin declarative skin
+    // over `addSubtype`, ONE execution path (ADR 0045). Skipped when the
+    // target is gone (CR 608.2b — `resolveObjectRef` returns undefined). No
+    // duration — the resolving-ability effect doesn't depend on its source
+    // staying in play (CR 611.2c), unlike the aura-style `subtype-add`
+    // continuous static effect.
+    addSubtype(ctx, op) {
+        const target = resolveObjectRef(ctx, op.target);
+        if (!target) return;
+        ctx.addSubtype(target, op.subtype);
+    },
     // CR 701.20 (issue #844) — shuffle a player's library. A thin declarative
     // skin over `shuffleLibrary`, ONE execution path (ADR 0045): the seeded
     // PRNG reorder that also clears persistent knowledge (ADR 0026). Skipped

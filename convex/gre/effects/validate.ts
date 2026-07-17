@@ -907,15 +907,21 @@ function isSacrificeCount(value: unknown): boolean {
     return isPositiveInt(obj.minTotalPower);
 }
 
-/** A `mayPay` cost (CR 117.3a / 118.4 / 702.24 / 701.9): a bare `ManaCost`, or
- *  the `{ mana?, life?, sacrifice?, discard? }` union. At least one leg must
- *  be present. */
+/** A `mayPay` cost (CR 117.3a / 118.4 / 702.24 / 701.9 / 122.1): a bare
+ *  `ManaCost`, or the `{ mana?, life?, sacrifice?, discard?, energy? }`
+ *  union. At least one leg must be present. */
 function isMayPayCost(value: unknown): boolean {
     if (typeof value !== "object" || value === null || Array.isArray(value)) {
         return false;
     }
     const obj = value as Record<string, unknown>;
-    const unionKeys = new Set(["mana", "life", "sacrifice", "discard"]);
+    const unionKeys = new Set([
+        "mana",
+        "life",
+        "sacrifice",
+        "discard",
+        "energy",
+    ]);
     const isUnion = Object.keys(obj).every((k) => unionKeys.has(k));
     if (isUnion && Object.keys(obj).length > 0) {
         if ("mana" in obj && !isManaCost(obj.mana)) return false;
@@ -948,6 +954,10 @@ function isMayPayCost(value: unknown): boolean {
             if (!("count" in disc) || !isPositiveInt(disc.count)) {
                 return false;
             }
+        }
+        if ("energy" in obj) {
+            // Energy leg (CR 122.1, issue #1194): fixed positive count only.
+            if (!isPositiveInt(obj.energy)) return false;
         }
         return true;
     }
@@ -1527,6 +1537,17 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
                 ];
             }
             return [];
+        },
+    },
+    // CR 613.1d layer 4 (issue #1194) — add a subtype to a permanent
+    // INDEFINITELY, in addition to its other types. `target` is an object
+    // selector (announced slot, `$source`, or a forEach `$each`); `subtype`
+    // is the added subtype string. No `duration` — the effect is generated
+    // by a resolving ability (CR 611.2c) and never expires on its own.
+    addSubtype: {
+        required: {
+            target: isObjectSelector,
+            subtype: isNonEmptyString,
         },
     },
     // CR 701.20 (issue #844) — shuffle a player's library. `action` is
