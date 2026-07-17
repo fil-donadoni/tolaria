@@ -154,22 +154,6 @@ const DRAW_PRIMITIVE_ALLOWLIST: readonly AllowlistEntry[] = [
         issue: 1280,
     },
     {
-        file: "ice/blue.ts",
-        count: 2,
-        cards: "Krovikan Sorcerer (nonblack + black activated abilities)",
-        reason: 'the conditional "draw only if a card was actually discarded" gate has no EffectPredicate form (no "choice picks nonempty" read); nonblack also needs an excludeColor filter mode.',
-        classification: "planned-migratable",
-        issue: 1287,
-    },
-    {
-        file: "ice/blue.ts",
-        count: 1,
-        cards: "Mesmeric Trance",
-        reason: 'same "choice picks nonempty" EffectPredicate gap as Krovikan Sorcerer.',
-        classification: "planned-migratable",
-        issue: 1287,
-    },
-    {
         file: "ice/colorless.ts",
         count: 1,
         cards: "Barbed Sextant (nextUpkeepDrawTrigger via armsDelayedTriggerOnTap)",

@@ -80,6 +80,17 @@ registerTokenDefinition({
     toughness: 5,
 });
 
+/** A black instant (issue #1287 — `excludeColor` filter tests: hand cards
+ *  derive colors from `manaCost` via `getColorsFromCost`). */
+const BLACK_CARD_ID = "test-effects-black-instant";
+registerTokenDefinition({
+    id: BLACK_CARD_ID,
+    name: BLACK_CARD_ID,
+    rarity: "common",
+    manaCost: { X: 1, B: 1 },
+    types: ["Instant"],
+});
+
 describe("Effect Script Op: dealDamage (CR 120.1)", () => {
     it("deals damage to the announced player target and puts the sorcery in the graveyard", () => {
         const id = registerScript("test-op-dmg-player", [
@@ -7344,6 +7355,68 @@ describe("Effect Script Op: choice — zoneOwnerId (issue #920)", () => {
         expect(state.players[1].hand.map((c) => c.id)).toEqual(["land1"]);
         expect(state.players[1].graveyard.map((c) => c.id)).toEqual(["bear1"]);
     });
+
+    // issue #1287 — `excludeColor` is the negative of `color` (mirrors
+    // `excludeType`/`excludeSupertype`'s negation shape exactly), exposed on
+    // the hand/library/graveyard `EffectCardFilter`. Krovikan Sorcerer's
+    // "Discard a NONBLACK card" template.
+    it("excludes cards of the listed color(s) from a hand choice via excludeColor (issue #1287)", () => {
+        const blackCard = makeInstance(BLACK_CARD_ID, {
+            id: "black1",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const bear = makeInstance(BEAR_ID, {
+            id: "bear1",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const id = registerScript(
+            "test-op-choice-excludecolor",
+            [
+                { op: "reveal", player: { target: 0 }, zone: "hand" },
+                {
+                    op: "choice",
+                    kind: "choose-hand-card",
+                    player: "controller",
+                    zoneOwnerId: { target: 0 },
+                    zone: "hand",
+                    filter: { excludeColor: "B" },
+                    count: 1,
+                    prompt: "Choose a nonblack card.",
+                    bind: "$picked",
+                },
+                {
+                    op: "discard",
+                    player: { target: 0 },
+                    cards: { ref: "$picked" },
+                },
+            ],
+            { targetRequirement: { type: "player", count: 1 } }
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { hand: [blackCard, bear] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        const head = state.pendingChoices![0];
+        // Only the green (nonblack) card is a legal candidate.
+        expect(head.candidateIds).toEqual(["bear1"]);
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["bear1"],
+        });
+        expect(state.players[1].hand.map((c) => c.id)).toEqual(["black1"]);
+        expect(state.players[1].graveyard.map((c) => c.id)).toEqual(["bear1"]);
+    });
 });
 
 // --- if construct + mayPay / counter Ops (ADR 0045, issue #806) --------------
@@ -8133,6 +8206,117 @@ describe("Effect Script construct: if (ADR 0045, CR 608.2c, issue #806)", () => 
         expect(state.players[1].life).toBe(15);
         expect(state.players[1].hand.map((c) => c.id)).toEqual(["r2"]);
         expect(state.stack).toHaveLength(0);
+    });
+
+    // picksNonEmpty (issue #1287) — reads whether a preceding `choice` Op's
+    // picks binding actually captured anything. Krovikan Sorcerer / Mesmeric
+    // Trance's "discard a card: draw a card" template: the discard is paid
+    // in-effect via `choice` + `discard`, and the draw is gated on whether
+    // the discard choice found a card to pick (CR 608.2b — zero candidates
+    // means the choice Op skips entirely and the binding is never captured).
+    describe("picksNonEmpty predicate (issue #1287)", () => {
+        function looterScript(id: string): string {
+            return registerScript(id, [
+                {
+                    op: "choice",
+                    kind: "choose-hand-card",
+                    player: "controller",
+                    zone: "hand",
+                    count: 1,
+                    prompt: "Discard a card.",
+                    bind: "$discarded",
+                },
+                {
+                    op: "discard",
+                    player: "controller",
+                    cards: { ref: "$discarded" },
+                },
+                {
+                    op: "if",
+                    predicate: { picksNonEmpty: { ref: "$discarded" } },
+                    then: [{ op: "draw", player: "controller", count: 1 }],
+                },
+            ]);
+        }
+
+        it("a captured, nonempty pick takes the then branch (discard → draw)", () => {
+            const id = looterScript("test-if-picksnonempty-true");
+            const hand = [
+                makeInstance(BEAR_ID, {
+                    id: "h1",
+                    controllerId: "p1",
+                    ownerId: "p1",
+                    zone: "hand",
+                }),
+            ];
+            const lib = [
+                makeInstance(BEAR_ID, {
+                    id: "lib0",
+                    controllerId: "p1",
+                    ownerId: "p1",
+                    zone: "library",
+                }),
+            ];
+            const state = makeState({
+                players: [
+                    makePlayer("p1", { hand, library: lib }),
+                    makePlayer("p2"),
+                ],
+            });
+            pushSpell(state, id, "p1");
+            // Suspends on the discard choice.
+            expect(resolveTopOfStack(state)).toBeNull();
+            const head = state.pendingChoices![0];
+            applyPendingChoiceSubmit(state, {
+                playerId: "p1",
+                stackItemId: head.stackItemId,
+                step: head.step,
+                choiceId: head.choiceId,
+                cardInstanceIds: ["h1"],
+            });
+            // Discarded h1, then picksNonEmpty($discarded) is true → drew
+            // lib0. (The resolved sorcery itself also lands in the
+            // graveyard, CR 608.2k — assert h1 is THERE, not exact equality.)
+            expect(state.players[0].graveyard.map((c) => c.id)).toContain("h1");
+            expect(state.players[0].hand.map((c) => c.id)).toEqual(["lib0"]);
+            expect(state.stack).toHaveLength(0);
+            // Wire — the outcome (hand/graveyard contents) is client-visible;
+            // re-run the same assertion against the projected state.
+            const projected = projectPublicState(state, 2, "p1");
+            expect(projected.players[0].hand.map((c) => c?.id)).toEqual([
+                "lib0",
+            ]);
+            expect(projected.players[0].graveyard.map((c) => c.id)).toContain(
+                "h1"
+            );
+        });
+
+        it("an uncaptured pick (empty hand, zero candidates) takes no branch — the draw is skipped (CR 608.2b)", () => {
+            const id = looterScript("test-if-picksnonempty-false");
+            const lib = [
+                makeInstance(BEAR_ID, {
+                    id: "lib0",
+                    controllerId: "p1",
+                    ownerId: "p1",
+                    zone: "library",
+                }),
+            ];
+            const state = makeState({
+                players: [
+                    makePlayer("p1", { hand: [], library: lib }),
+                    makePlayer("p2"),
+                ],
+            });
+            pushSpell(state, id, "p1");
+            // Zero hand candidates → the choice Op skips entirely (no
+            // suspension), the discard Op skips (binding never captured),
+            // and picksNonEmpty reads false → the draw never happens.
+            resolveTopOfStack(state);
+            expect(state.pendingChoices ?? []).toHaveLength(0);
+            expect(state.players[0].hand).toHaveLength(0);
+            expect(state.players[0].library.map((c) => c.id)).toEqual(["lib0"]);
+            expect(state.stack).toHaveLength(0);
+        });
     });
 });
 

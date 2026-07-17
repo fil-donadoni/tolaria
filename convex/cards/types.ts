@@ -6428,6 +6428,20 @@ export interface EffectCardFilter {
      *  the LIVE supertype set (snow-aware) for battlefield counts. */
     excludeSupertype?: CardSupertype | CardSupertype[];
     color?: Color | Color[];
+    /** Negative of `color` (CR 105.2, issue #1287) — a card matches only if
+     *  it has NONE of the listed colors. Mirrors `excludeType`/
+     *  `excludeSupertype`'s negation shape exactly (ADR 0045 "generalize,
+     *  don't add" — a symmetric field on an existing primitive, not a new
+     *  one). Krovikan Sorcerer's "Discard a NONBLACK card" is
+     *  `excludeColor: "B"`. A single value is shorthand for one color; an
+     *  uncolored card (empty `colors`) always matches (CR 105.2a — no color
+     *  to exclude). AND with every other field. Like `manaValueAtMost`, this
+     *  field is read only by `matchesCardFilter` — the hand/library/
+     *  graveyard/exile branches of a `choice`/`count` construct — and does
+     *  NOT propagate through `toPermanentFilter` onto a `zone: "battlefield"`
+     *  choice; `PermanentFilter` has no exclude-colors counterpart yet (no
+     *  shipped card needs a battlefield-scoped color exclusion). */
+    excludeColor?: Color | Color[];
     manaValueAtMost?: number | EffectXValue;
     isToken?: boolean;
     excludeType?: CardType | CardType[];
@@ -7913,7 +7927,7 @@ export type EffectOp =
       };
 
 /** A PREDEFINED predicate form for the `if` construct (ADR 0045, issue #806).
- *  The grammar is frozen at two enumerated forms — there are NO arbitrary
+ *  The grammar is frozen at three enumerated forms — there are NO arbitrary
  *  boolean expressions, so the validator can statically check every reference
  *  and the bot can read the branch condition without executing the card:
  *
@@ -7923,13 +7937,24 @@ export type EffectOp =
  *  - a COMPARISON between two numeric operands — each a literal, a `ref` on a
  *    bound snapshot's power/toughness, or a `count` of a declaratively-selected
  *    set — with one of the standard relational operators.
+ *  - a PICKS-NONEMPTY test (issue #1287) — reads whether a `choice` Op's
+ *    picks binding actually captured anything. This is the "draw only if a
+ *    card was actually discarded" gate: a chosen-discard cost paid in-effect
+ *    (CR 601.2h convention, `choice(zone: "hand")` + `discard`) has no picks
+ *    when the zone had zero matching candidates (the choice Op skips
+ *    entirely, CR 608.2b — the binding is never captured); a later Op's
+ *    outcome that should track "did the discard actually happen" reads this
+ *    predicate rather than a boolean binding, since `choice` has no
+ *    mayPay-style yes/no outcome of its own. Krovikan Sorcerer / Mesmeric
+ *    Trance: `{ picksNonEmpty: { ref: "$discarded" } }`.
  *
  *  Growing the predicate vocabulary (a new comparison operator, a new binding
  *  kind) is cheap; adding a NON-enumerated form (a raw expression) requires
  *  reopening ADR 0045. */
 export type EffectPredicate =
     | EffectBindingPredicate
-    | EffectComparisonPredicate;
+    | EffectComparisonPredicate
+    | EffectPicksNonEmptyPredicate;
 
 /** Boolean-binding predicate: true iff the named boolean binding is true
  *  (`{ binding }`) or false (`{ not: { binding } }`). The binding MUST be a
@@ -7950,6 +7975,18 @@ export interface EffectComparisonPredicate {
     left: EffectValue;
     op: EffectComparisonOp;
     right: EffectValue;
+}
+
+/** Picks-nonempty predicate (issue #1287): true iff the named `choice` Op's
+ *  picks binding was captured AND is nonempty. `ref` is a bare picks ref
+ *  (`EffectRef` — a `"$binding"` string, no property path), naming a `choice`
+ *  Op's `bind` — the same picks-binding family `discard`/`sacrifice`'s bare
+ *  `cards`/`permanents` refs already read. Reads `false` for an UNCAPTURED
+ *  binding (the choice Op skipped — zero candidates existed, CR 608.2b) and
+ *  for a CAPTURED-but-empty pick set (a `{ min: 0, ... }` "you may" choice the
+ *  player declined) alike — both mean "nothing was picked". */
+export interface EffectPicksNonEmptyPredicate {
+    picksNonEmpty: EffectRef;
 }
 
 // `EffectChoiceKind` must stay a subset of the engine's `ZonePickKind` — the
