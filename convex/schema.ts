@@ -460,6 +460,45 @@ export default defineSchema({
     })
         .index("by_status", ["status"])
         .index("by_createdBy", ["createdBy"]),
+    // Bot Drafter Pick Ratings (PRD #1296, ADR 0065, issue #1297). Evolves
+    // the checked-in `data/pick-ratings/*.json` seed layer
+    // (`convex/limited/pickRatings.ts`, issue #1117) into an Admin-editable
+    // DATABASE override — mirrors ADR 0033's "Preset Decks → DB,
+    // Admin-editable" move. One row per `(scope, cardId)`: `scope` is a
+    // lowercased pack-source identity — a Draftable Set code (e.g. `"lea"`)
+    // or the reserved Vintage Cube key (`convex/limited/cube.ts`'s
+    // `CUBE_SOURCE_KEY`, `"vintage-cube"`) — the SAME string space as
+    // `limitedEvents.packSlots`, so the layered read path
+    // (`convex/limited/cardRatings.ts`'s `resolveEventPickRating`) never
+    // needs a cube-specific branch. `cardId` is the canonical
+    // `CardDefinition.id` (NOT a printing's `scryfallId`), matching
+    // `PickRatingFile.ratings`'s key discipline. `rating` is
+    // `PICK_RATING_MIN`..`PICK_RATING_MAX` (0-5, fractional allowed,
+    // `pickRatings.ts`'s `isValidRating`). A database row for `(scope,
+    // cardId)` OVERRIDES that pair's seed-file value; an empty table drafts
+    // byte-identically to the seed-only path (this issue's regression
+    // acceptance). Admin write mutations (`setCardRating`/`clearCardRating`)
+    // land in a later slice (PRD #1296 Slice B) — this slice only needs the
+    // table + the read path.
+    cardRatings: defineTable({
+        scope: v.string(),
+        cardId: v.string(),
+        // Bound enforced at the WRITE boundary, not the schema type: the
+        // (later-slice) `setCardRating` mutation rejects a non-finite or
+        // out-of-`[PICK_RATING_MIN, PICK_RATING_MAX]` value via the shared
+        // `isValidRating` (`pickRatings.ts`) before ever inserting/patching a
+        // row — mirrors how `PickRatingFile.ratings`' bounds are enforced by
+        // `validatePickRatingFile`, not by a schema-level range on JSON. This
+        // slice never writes the table at all (read path only), so no caller
+        // can smuggle an out-of-range value in yet.
+        rating: v.number(),
+    })
+        // Every rating for one scope — the shape the read path loads once
+        // per distinct event scope (`resolveEventPickRating`'s caller).
+        .index("by_scope", ["scope"])
+        // Point lookup / upsert target for the (later-slice) Admin write
+        // mutations — `(scope, cardId)` is this table's natural primary key.
+        .index("by_scope_and_card", ["scope", "cardId"]),
     debugScenarios: defineTable({
         userId: v.id("users"),
         label: v.string(),

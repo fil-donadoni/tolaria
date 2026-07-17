@@ -40,6 +40,22 @@ export interface PickRatingFile {
 export const PICK_RATING_MIN = 0;
 export const PICK_RATING_MAX = 5;
 
+/** The single bounds check for a Pick Rating value (issue #1297, PRD #1296),
+ *  extracted out of `validatePickRatingFile`'s per-entry rule so BOTH the
+ *  checked-in seed file guard below AND the (later-slice) Admin write
+ *  mutations (`setCardRating`) share one authority — never two copies of
+ *  "is this a legal rating" that could drift apart. A finite number in
+ *  `[PICK_RATING_MIN, PICK_RATING_MAX]`; rejects `NaN`, `Infinity`, a string,
+ *  or anything out of range. */
+export function isValidRating(rating: unknown): rating is number {
+    return (
+        typeof rating === "number" &&
+        Number.isFinite(rating) &&
+        rating >= PICK_RATING_MIN &&
+        rating <= PICK_RATING_MAX
+    );
+}
+
 const CHECKED_IN_PICK_RATINGS: Record<string, PickRatingFile> = {
     lea: leaRatingsJson as PickRatingFile,
 };
@@ -122,12 +138,7 @@ export function validatePickRatingFile(
                 `${file.setCode}: rated cardId "${cardId}" does not resolve to a card of the set`
             );
         }
-        if (
-            typeof rating !== "number" ||
-            !Number.isFinite(rating) ||
-            rating < PICK_RATING_MIN ||
-            rating > PICK_RATING_MAX
-        ) {
+        if (!isValidRating(rating)) {
             errors.push(
                 `${file.setCode}: rating for "${cardId}" (${rating}) is out of bounds [${PICK_RATING_MIN}, ${PICK_RATING_MAX}]`
             );

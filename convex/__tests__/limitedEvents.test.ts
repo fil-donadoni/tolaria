@@ -28,7 +28,16 @@ import {
     type ChooseBotPick,
     type TimerConfig,
 } from "../limited/draftEngine";
-import { chooseBotPick, type GetCardEvalMeta } from "../limited/botDrafter";
+import {
+    chooseBotPick,
+    type GetCardEvalMeta,
+    type GetPickRating,
+} from "../limited/botDrafter";
+import {
+    resolveEventPickRating,
+    type GetDbRating,
+} from "../limited/cardRatings";
+import { getPickRatingByCardId } from "../limited/pickRatings";
 import {
     assignFreeSeat,
     buildEmptySeats,
@@ -1605,5 +1614,152 @@ describe("Limited Event: Vintage Cube gate (Draft-only, ADR 0062 §4)", () => {
         expect(() =>
             assertPackSlotsAllowed(cubeSlots, "draft", cap)
         ).not.toThrow();
+    });
+});
+
+describe("Limited Event Bot Pick Rating DB layer (PRD #1296 Slice A, ADR 0065, issue #1297): the exact loadEventPickRating + makeBotChoosePick wiring convex/limitedEvents.ts's mutations use", () => {
+    /** Mirrors `convex/limitedEvents.ts`'s `makeBotChoosePick` exactly. */
+    function makeBotChoosePick(getPickRating: GetPickRating): ChooseBotPick {
+        return (seat, pack) =>
+            chooseBotPick(
+                pack,
+                seat.pool ?? [],
+                getCardEvalMeta,
+                getPickRating
+            );
+    }
+
+    /** Mirrors `loadEventPickRating`'s eventual in-memory result: a
+     *  `GetDbRating` built from a plain `(scope, cardId) -> rating` map,
+     *  standing in for a `cardRatings` table scan (no convex-test harness —
+     *  project convention, see this file's header). */
+    function fakeDb(rows: Record<string, Record<string, number>>): GetDbRating {
+        return (scope, cardId) => rows[scope]?.[cardId] ?? null;
+    }
+
+    /** A rating comfortably above any real seed-file ceiling
+     *  (`PICK_RATING_MAX` = 5) — guarantees the forced target DOMINATES
+     *  regardless of whether the pack happens to already contain a
+     *  seed-rated bomb (e.g. Black Lotus) tied at the real ceiling. Bounds
+     *  enforcement is the future Admin write mutation's job (PRD #1296
+     *  Slice B); this pure layering seam is intentionally unbounded, exactly
+     *  like `scoreCandidateWithRating`'s own `rating` parameter. */
+    const DOMINANT_TEST_RATING = 100;
+
+    it("a database rating for a SET scope (lea) changes which card the bot picks vs. today's exact wiring", () => {
+        const packSlots = ["lea"];
+        const seed = 424242;
+        const dealt = startDraft(
+            fillBotSeats(buildEmptySeats(2)),
+            packSlots,
+            seed,
+            getRuntimeBoosterConfig,
+            resolveCardMeta
+        );
+        const pack = dealt.seats[0].currentPack!;
+        expect(pack.length).toBeGreaterThan(1);
+
+        // Baseline: today's EXACT pre-Slice-A wiring (`getPickRatingByCardId`).
+        const baselinePickId = chooseBotPick(
+            pack,
+            [],
+            getCardEvalMeta,
+            getPickRatingByCardId
+        );
+        const target = pack.find((c) => c.pickId !== baselinePickId)!;
+        expect(target).toBeDefined();
+
+        const getPickRating = resolveEventPickRating(
+            packSlots,
+            fakeDb({ lea: { [target.cardId]: DOMINANT_TEST_RATING } })
+        );
+        const layeredPickId = makeBotChoosePick(getPickRating)(
+            dealt.seats[0],
+            pack
+        );
+
+        expect(layeredPickId).toBe(target.pickId);
+        expect(layeredPickId).not.toBe(baselinePickId);
+    });
+
+    it("a database rating for the vintage-cube scope changes which card the bot picks", () => {
+        const cubeSlots = [CUBE_SOURCE_KEY];
+        const seed = 13;
+        const dealt = startDraft(
+            fillBotSeats(buildEmptySeats(2)),
+            cubeSlots,
+            seed,
+            getRuntimeBoosterConfig,
+            resolveCardMeta
+        );
+        const pack = dealt.seats[0].currentPack!;
+        expect(pack.length).toBe(CUBE_PACK_SIZE);
+
+        const baselinePickId = chooseBotPick(
+            pack,
+            [],
+            getCardEvalMeta,
+            getPickRatingByCardId
+        );
+        const target = pack.find((c) => c.pickId !== baselinePickId)!;
+        expect(target).toBeDefined();
+
+        const getPickRating = resolveEventPickRating(
+            cubeSlots,
+            fakeDb({
+                [CUBE_SOURCE_KEY]: { [target.cardId]: DOMINANT_TEST_RATING },
+            })
+        );
+        const layeredPickId = makeBotChoosePick(getPickRating)(
+            dealt.seats[0],
+            pack
+        );
+
+        expect(layeredPickId).toBe(target.pickId);
+        expect(layeredPickId).not.toBe(baselinePickId);
+    });
+
+    it("regression: an empty cardRatings table reproduces today's EXACT multi-round, all-bot lea draft outcome (pool for pool)", () => {
+        const packSlots = ["lea", "lea"];
+        const seed = 909090;
+
+        const oldChoosePick: ChooseBotPick = (seat, pack) =>
+            chooseBotPick(
+                pack,
+                seat.pool ?? [],
+                getCardEvalMeta,
+                getPickRatingByCardId
+            );
+        const newChoosePick = makeBotChoosePick(
+            resolveEventPickRating(packSlots, fakeDb({}))
+        );
+
+        function runFullBotDraft(pick: ChooseBotPick) {
+            const seats = fillBotSeats(buildEmptySeats(4));
+            const dealt = startDraft(
+                seats,
+                packSlots,
+                seed,
+                getRuntimeBoosterConfig,
+                resolveCardMeta
+            );
+            return runBotAutoPicks(
+                dealt.seats,
+                dealt.draftRound,
+                dealt.draftPacksRemaining,
+                packSlots,
+                seed,
+                getRuntimeBoosterConfig,
+                resolveCardMeta,
+                pick
+            );
+        }
+
+        const oldResult = runFullBotDraft(oldChoosePick);
+        const newResult = runFullBotDraft(newChoosePick);
+
+        expect(oldResult.completed).toBe(true);
+        expect(newResult.completed).toBe(true);
+        expect(newResult.seats).toEqual(oldResult.seats);
     });
 });
