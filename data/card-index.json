@@ -3804,6 +3804,12 @@
         "firstSet": "arn"
     },
     {
+        "name": "Guide of Souls",
+        "scryfallId": "76c3cad2-1e25-4abe-878d-9194de6fcc27",
+        "oracleId": "b304ac72-7f40-40de-b8d6-6392909b6029",
+        "firstSet": "mh3"
+    },
+    {
         "name": "Gush",
         "scryfallId": "e755bbef-bf34-49c0-ae72-d70e3599de52",
         "oracleId": "16d8ee99-8ec8-429f-9ba7-818a74b6f910",

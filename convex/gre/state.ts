@@ -38,6 +38,7 @@ import {
     isPrintedInSet as isCardPrintedInSet,
 } from "../cards";
 import { getEmblemDefinition, tryGetEmblemDefinition } from "../cards/emblems";
+import { getKeywordCounterGrant } from "../cards/mechanicsRegistry";
 import { turnFaceDown } from "./faceDown";
 import { applyIndefiniteSupertypeMutation, liveSupertypesOf } from "./snow";
 import {
@@ -299,15 +300,24 @@ export type CardInstanceState = {
     /** Keyword abilities granted for a limited duration (CR 113.1 / 611.1b).
      *  Each entry is also pushed to `staticAbilities` for read-time lookups
      *  (combat logic inspects `staticAbilities.includes("trample")`) and is
-     *  spliced back out either when the parametric `duration` expires or,
+     *  spliced back out either when the parametric `duration` expires,
      *  for grants sourced from an attached aura, when the aura leaves the
-     *  battlefield. Exactly one of `duration` / `auraId` is set per entry. */
+     *  battlefield, or — for a keyword-counter grant — when the counter is
+     *  fully removed. Exactly one of `duration` / `auraId` / `counterType`
+     *  is set per entry. */
     grantedStaticAbilities?: {
         ability: string;
         duration?: Duration;
         /** Instance id of the aura that produced this grant (CR 303.4e).
          *  The entry is removed when the aura unattaches or leaves play. */
         auraId?: string;
+        /** CR 122.1c / 613.4d (issue #1194) — the counter TYPE that granted
+         *  this keyword (a "flying" counter granting flying). Neither
+         *  duration-bounded nor tied to a live source: it persists for as
+         *  long as at least one counter of this type remains on the
+         *  permanent, and is spliced back out by `SpellContext.removeCounter`
+         *  the moment the counter type's count reaches zero. */
+        counterType?: string;
     }[];
     /** Activated abilities granted to this permanent by another source
      *  (CR 113.1, 611). Each entry references an ability template on another
@@ -4146,6 +4156,63 @@ function unapplySupertypeSetGrant(
     }
 }
 
+/** CR 122.1c / 613.4d (issue #1194) — grants `counterType`'s matching keyword
+ *  (if it names one) onto `card`, mirroring `grantStaticAbility`'s mutation-
+ *  sync discipline: push the keyword onto `staticAbilities` (so every
+ *  existing combat/rules read site sees it with zero changes) and record
+ *  provenance on `grantedStaticAbilities` so `unapplyKeywordCounterGrant` can
+ *  splice exactly this grant back out when the counter runs out. Idempotent —
+ *  a card can never carry two live grants for the same counter type
+ *  (`addCounter` only calls this on the 0 → present transition), but the
+ *  guard is kept defensive in case a future caller invokes it directly. No-op
+ *  when `counterType` doesn't name an implemented keyword (the vast majority
+ *  of counter types). */
+function applyKeywordCounterGrant(
+    card: CardInstanceState,
+    counterType: string
+): void {
+    const keyword = getKeywordCounterGrant(counterType);
+    if (!keyword) return;
+    const already = (card.grantedStaticAbilities ?? []).some(
+        (g) => g.counterType === counterType
+    );
+    if (already) return;
+    card.staticAbilities = [...card.staticAbilities, keyword];
+    card.grantedStaticAbilities = [
+        ...(card.grantedStaticAbilities ?? []),
+        { ability: keyword, counterType },
+    ];
+}
+
+/** Reverse of `applyKeywordCounterGrant`: splices the keyword grant sourced
+ *  from `counterType` back out of `card.staticAbilities` (one occurrence, so
+ *  a natively-declared duplicate survives, CR 113.1) and drops its
+ *  `grantedStaticAbilities` entry. Called by `removeCounter` once the
+ *  counter type's count reaches zero. No-op when `counterType` grants no
+ *  keyword or no live grant is on record (nothing to undo). */
+function unapplyKeywordCounterGrant(
+    card: CardInstanceState,
+    counterType: string
+): void {
+    const keyword = getKeywordCounterGrant(counterType);
+    if (!keyword) return;
+    const grants = card.grantedStaticAbilities;
+    if (!grants?.length) return;
+    const idx = grants.findIndex((g) => g.counterType === counterType);
+    if (idx === -1) return;
+    card.grantedStaticAbilities = [
+        ...grants.slice(0, idx),
+        ...grants.slice(idx + 1),
+    ];
+    const abilityIdx = card.staticAbilities.indexOf(keyword);
+    if (abilityIdx !== -1) {
+        card.staticAbilities = [
+            ...card.staticAbilities.slice(0, abilityIdx),
+            ...card.staticAbilities.slice(abilityIdx + 1),
+        ];
+    }
+}
+
 export function applySourceStaticEffects(
     state: GameState,
     source: CardInstanceState
@@ -7960,9 +8027,20 @@ export function buildSpellContext(
             if (target.type !== "permanent") return;
             const found = findOnBattlefield(state, target.id);
             if (!found) return;
+            const wasZero = (found.card.counters?.[type] ?? 0) === 0;
             const next = { ...(found.card.counters ?? {}) };
             next[type] = (next[type] ?? 0) + count;
             found.card.counters = next;
+            // CR 122.1c / 613.4d (issue #1194) — a counter whose TYPE
+            // case-insensitively names an implemented keyword ability GRANTS
+            // that keyword (a "flying" counter grants flying) for as long as
+            // at least one counter of the type remains. Grant exactly once,
+            // when the type transitions 0 → present, mirroring every other
+            // keyword-grant channel's mutation-sync discipline
+            // (`grantStaticAbility` et al. push straight onto
+            // `staticAbilities`, read everywhere combat/rules code already
+            // checks it — no new read-time layer needed).
+            if (wasZero) applyKeywordCounterGrant(found.card, type);
         },
         // CR 700.2c — re-write a permanent's stored modal colour post-ETB. The
         // "choose a color" half of a re-choosable modal permanent (Chromatic
@@ -7995,6 +8073,13 @@ export function buildSpellContext(
             else next[type] = remaining;
             found.card.counters =
                 Object.keys(next).length > 0 ? next : undefined;
+            // CR 122.1c / 613.4d (issue #1194) — the counter type fully ran
+            // out: splice the keyword-counter grant back out (mirrors the
+            // duration/aura splice paths for the other two grant
+            // provenances). Only fires when the type had a live grant AND
+            // is now completely gone (`remaining === 0`) — a partial removal
+            // (3 flying counters → 1) leaves the keyword granted.
+            if (remaining === 0) unapplyKeywordCounterGrant(found.card, type);
             // CR 122.6 — emit a COUNTER_REMOVED event so "whenever a counter is
             // removed" triggers (Vanishing's CR 702.63d sacrifice) can fire.
             // Drained by `processPendingActionTriggers` after the current
@@ -8066,6 +8151,30 @@ export function buildSpellContext(
             const found = findOnBattlefield(state, target.id);
             if (!found) return;
             applyIndefiniteSupertypeMutation(found.card, supertype, present);
+        },
+        // CR 613.1d layer 4 (issue #1194) — indefinite subtype-add mutation
+        // generated by a RESOLVING ability (CR 611.2c: doesn't depend on its
+        // source staying in play, unlike the aura-style `subtype-add` static
+        // effect below in `applySourceStaticEffects`). Writes the SAME
+        // `grantedSubtypesAdd` markers that static effect uses, keyed to the
+        // `"indefinite"` sentinel source id — mirrors `setSupertype` exactly.
+        addSubtype(target: TargetSelection, subtype: string): void {
+            if (target.type !== "permanent") return;
+            const found = findOnBattlefield(state, target.id);
+            if (!found) return;
+            const card = found.card;
+            const origins = card.grantedSubtypesAdd ?? [];
+            const already = origins.some(
+                (o) => o.auraId === "indefinite" && o.subtype === subtype
+            );
+            if (already) return;
+            card.grantedSubtypesAdd = [
+                ...origins,
+                { subtype, auraId: "indefinite" },
+            ];
+            if (!card.subtypes.includes(subtype)) {
+                card.subtypes = [...card.subtypes, subtype];
+            }
         },
         getCounterCount(target: TargetSelection, type: string): number {
             if (target.type !== "permanent") return 0;
@@ -12832,12 +12941,15 @@ export interface NormalizedMayPayCost {
     discard?: {
         count: number;
     };
+    /** Energy leg (CR 122.1, issue #1194 — "pay {E}{E}{E}", Guide of Souls).
+     *  Fixed count only; paid via `SpellContext.payEnergy`. */
+    energy?: number;
 }
 
-/** Distinguishes the union shape `{ mana?, life?, sacrifice?, discard? }` from
- *  a bare `ManaCost`. The union is the ONLY value carrying a `mana` / `life` /
- *  `sacrifice` / `discard` key; a bare `ManaCost` carries only mana symbol
- *  keys. */
+/** Distinguishes the union shape `{ mana?, life?, sacrifice?, discard?,
+ *  energy? }` from a bare `ManaCost`. The union is the ONLY value carrying a
+ *  `mana` / `life` / `sacrifice` / `discard` / `energy` key; a bare
+ *  `ManaCost` carries only mana symbol keys. */
 function isMayPayUnion(cost: MayPayCost): cost is {
     mana?: CardManaCost;
     life?: number;
@@ -12848,18 +12960,20 @@ function isMayPayUnion(cost: MayPayCost): cost is {
     discard?: {
         count: number;
     };
+    energy?: number;
 } {
     return (
         "mana" in cost ||
         "life" in cost ||
         "sacrifice" in cost ||
-        "discard" in cost
+        "discard" in cost ||
+        "energy" in cost
     );
 }
 
 /** Normalizes either `may-pay` cost shape to `{ mana?, life?, sacrifice?,
- *  discard? }`. A bare `ManaCost` (the historical mana-only shape) widens to
- *  `{ mana }` so every legacy caller is unaffected (ADR 0042). */
+ *  discard?, energy? }`. A bare `ManaCost` (the historical mana-only shape)
+ *  widens to `{ mana }` so every legacy caller is unaffected (ADR 0042). */
 export function normalizeMayPayCost(cost: MayPayCost): NormalizedMayPayCost {
     if (isMayPayUnion(cost)) {
         return {
@@ -12867,6 +12981,7 @@ export function normalizeMayPayCost(cost: MayPayCost): NormalizedMayPayCost {
             ...(cost.life !== undefined ? { life: cost.life } : {}),
             ...(cost.sacrifice ? { sacrifice: cost.sacrifice } : {}),
             ...(cost.discard ? { discard: cost.discard } : {}),
+            ...(cost.energy !== undefined ? { energy: cost.energy } : {}),
         };
     }
     return { mana: cost as CardManaCost };
@@ -13125,6 +13240,12 @@ export function canPayMayPayCost(
     if (norm.discard && player.hand.length < norm.discard.count) {
         return false;
     }
+    if (
+        norm.energy !== undefined &&
+        (player.energyCounters ?? 0) < norm.energy
+    ) {
+        return false;
+    }
     return true;
 }
 
@@ -13233,5 +13354,11 @@ export function payMayPayCost(
         for (const c of toDiscard) {
             discardToGraveyard(state, playerId, c.id);
         }
+    }
+    if (norm.energy !== undefined && norm.energy > 0) {
+        // CR 122.1 (issue #1194) — "pay {E}": spend energy counters through
+        // the existing all-or-nothing primitive. `canPayMayPayCost` already
+        // confirmed affordability, so this never returns false here.
+        player.energyCounters = (player.energyCounters ?? 0) - norm.energy;
     }
 }
