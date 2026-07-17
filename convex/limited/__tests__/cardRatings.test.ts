@@ -8,6 +8,8 @@ import { describe, it, expect } from "vitest";
 import {
     resolveEventPickRating,
     buildCardRatingRow,
+    listScopeCards,
+    buildScopeCardRatings,
     type GetDbRating,
 } from "../cardRatings";
 import {
@@ -18,6 +20,7 @@ import {
     PICK_RATING_MAX,
 } from "../pickRatings";
 import { isAdminUser } from "../../auth";
+import { buildCubePool, CUBE_SOURCE_KEY } from "../cube";
 import type { Doc } from "../../_generated/dataModel";
 
 /** Builds a `GetDbRating` from a plain `(scope, cardId) -> rating` map — the
@@ -330,5 +333,151 @@ describe("clearCardRating — admin gate + idempotent delete (PRD #1296 Slice B,
         ];
         const after = clear(before, "lea", "black-lotus");
         expect(after).toEqual([before[1]]);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// Admin editor read query (PRD #1296 Slice C, issue #1300). Same "no
+// convex-test harness" discipline as the rest of this file
+// (`convex/__tests__/limitedEvents.test.ts`'s doc comment) — drives the exact
+// pure functions the query handler calls, against the REAL card registry and
+// the REAL checked-in LEA Booster Config / Vintage Cube pool, not stubs.
+// ─────────────────────────────────────────────────────────────────────────
+
+describe("listScopeCards — set scope (PRD #1296 Slice C, issue #1300)", () => {
+    it("enumerates LEA's cards with canonical cardId + display name", () => {
+        const cards = listScopeCards("lea");
+        expect(cards.length).toBeGreaterThan(0);
+        // Every entry from the checked-in LEA Pick Rating seed file must
+        // resolve to a card of the enumerated LEA scope.
+        const leaRatings = getPickRatingFile("lea")!;
+        const ids = new Set(cards.map((c) => c.cardId));
+        for (const cardId of Object.keys(leaRatings.ratings)) {
+            expect(ids.has(cardId)).toBe(true);
+        }
+        // Every card carries a non-empty display name.
+        expect(cards.every((c) => c.name.length > 0)).toBe(true);
+    });
+
+    it("deduplicates by canonical cardId across sheets", () => {
+        const cards = listScopeCards("lea");
+        const ids = cards.map((c) => c.cardId);
+        expect(new Set(ids).size).toBe(ids.length);
+    });
+
+    it("is case-insensitive on the scope (LEA vs lea)", () => {
+        expect(listScopeCards("LEA")).toEqual(listScopeCards("lea"));
+    });
+
+    it("returns [] for a scope with no checked-in Booster Config", () => {
+        expect(listScopeCards("not-a-real-set")).toEqual([]);
+    });
+});
+
+describe("listScopeCards — Vintage Cube scope (PRD #1296 Slice C, issue #1300)", () => {
+    it("enumerates the SAME pool buildCubePool() reports, as {cardId, name}", () => {
+        const cards = listScopeCards(CUBE_SOURCE_KEY);
+        const pool = buildCubePool();
+        expect(cards.map((c) => c.cardId).sort()).toEqual([...pool].sort());
+        expect(cards.every((c) => c.name.length > 0)).toBe(true);
+    });
+
+    it("is case-insensitive on the cube scope key", () => {
+        expect(listScopeCards("Vintage-Cube")).toEqual(
+            listScopeCards(CUBE_SOURCE_KEY)
+        );
+    });
+});
+
+describe("buildScopeCardRatings — layering annotation (PRD #1296 Slice C, issue #1300)", () => {
+    it("attaches null dbRating and null seedRating when neither layer has an entry", () => {
+        const rows = buildScopeCardRatings(
+            "lea",
+            [{ cardId: "totally-unrated-card", name: "Nothing" }],
+            fakeDb({})
+        );
+        expect(rows).toEqual([
+            {
+                cardId: "totally-unrated-card",
+                name: "Nothing",
+                dbRating: null,
+                seedRating: null,
+            },
+        ]);
+    });
+
+    it("attaches the seed rating when the database has no override", () => {
+        const leaRatings = getPickRatingFile("lea")!;
+        const [cardId, seedRating] = Object.entries(leaRatings.ratings)[0];
+        const rows = buildScopeCardRatings(
+            "lea",
+            [{ cardId, name: "Seeded Card" }],
+            fakeDb({})
+        );
+        expect(rows[0].dbRating).toBeNull();
+        expect(rows[0].seedRating).toBe(seedRating);
+    });
+
+    it("attaches BOTH the database override and the underlying seed rating (editor shows override-vs-default)", () => {
+        const leaRatings = getPickRatingFile("lea")!;
+        const [cardId, seedRating] = Object.entries(leaRatings.ratings)[0];
+        const dbOverride = seedRating === 1 ? 2 : 1;
+        const rows = buildScopeCardRatings(
+            "lea",
+            [{ cardId, name: "Overridden Card" }],
+            fakeDb({ lea: { [cardId]: dbOverride } })
+        );
+        expect(rows[0].dbRating).toBe(dbOverride);
+        expect(rows[0].seedRating).toBe(seedRating);
+    });
+
+    it("normalizes scope casing before querying either layer", () => {
+        const rows = buildScopeCardRatings(
+            "LEA",
+            [{ cardId: "card-x", name: "Card X" }],
+            fakeDb({ lea: { "card-x": 3 } })
+        );
+        expect(rows[0].dbRating).toBe(3);
+    });
+
+    it("preserves a rating of exactly 0 from the database (not falsy/absent)", () => {
+        const rows = buildScopeCardRatings(
+            "lea",
+            [{ cardId: "never-play-this", name: "Filler" }],
+            fakeDb({ lea: { "never-play-this": 0 } })
+        );
+        expect(rows[0].dbRating).toBe(0);
+    });
+
+    it("preserves card order and does not drop/reorder entries", () => {
+        const cards = [
+            { cardId: "a", name: "Alpha" },
+            { cardId: "b", name: "Bravo" },
+            { cardId: "c", name: "Charlie" },
+        ];
+        const rows = buildScopeCardRatings("lea", cards, fakeDb({}));
+        expect(rows.map((r) => r.cardId)).toEqual(["a", "b", "c"]);
+    });
+});
+
+describe("listScopeCardRatings end-to-end shape (PRD #1296 Slice C, issue #1300) — regression: empty DB matches the seed-only path byte-for-byte", () => {
+    it("for every LEA scope card, an empty database annotation equals getPickRating('lea', cardId)", () => {
+        const cards = listScopeCards("lea");
+        const rows = buildScopeCardRatings("lea", cards, fakeDb({}));
+        for (const row of rows) {
+            expect(row.dbRating).toBeNull();
+            expect(row.seedRating).toBe(getPickRating("lea", row.cardId));
+        }
+    });
+
+    it("for every Vintage Cube scope card, an empty database annotation equals getPickRating(vintage-cube, cardId)", () => {
+        const cards = listScopeCards(CUBE_SOURCE_KEY);
+        const rows = buildScopeCardRatings(CUBE_SOURCE_KEY, cards, fakeDb({}));
+        for (const row of rows) {
+            expect(row.dbRating).toBeNull();
+            expect(row.seedRating).toBe(
+                getPickRating(CUBE_SOURCE_KEY, row.cardId)
+            );
+        }
     });
 });
