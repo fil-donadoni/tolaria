@@ -1085,7 +1085,9 @@ export type PlayerState = {
 
 export type StackItem = CardInstanceState & {
     castById: string;
-    /** Targets chosen during spell announcement (CR 601.2c). */
+    /** Targets chosen during spell announcement (CR 601.2c). Never a
+     *  `digToHand`-bind-only "hand-card" in practice (issue #1101) — see the
+     *  note on `SpellContext.targets` in `cards/types.ts`. */
     targets?: TargetSelection[];
     /** Value chosen for X at cast-time for spells with X in their cost
      *  (CR 107.3, 601.2b). Undefined for spells without X. Read on
@@ -9154,6 +9156,21 @@ export function buildSpellContext(
                 const owner = target.playerId;
                 if (owner === undefined) return 0;
                 const found = getPlayer(state, owner).graveyard.find(
+                    (c) => c.id === target.id
+                );
+                if (!found) return 0;
+                const cardId = (found.card as { id?: string }).id;
+                const def = cardId ? tryGetDefinition(cardId) : undefined;
+                return manaValue(def?.manaCost);
+            }
+            // CR 202.3 (issue #1101) — a hand-card target (Reviving Vapors'
+            // "gain life equal to that card's mana value", `digToHand`'s
+            // `bind` reading its own kept card). Same per-card lookup as the
+            // graveyard-card branch above, just scoped to the hand instead.
+            if (target.type === "hand-card") {
+                const owner = target.playerId;
+                if (owner === undefined) return 0;
+                const found = getPlayer(state, owner).hand.find(
                     (c) => c.id === target.id
                 );
                 if (!found) return 0;

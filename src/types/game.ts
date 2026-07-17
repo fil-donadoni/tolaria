@@ -1,6 +1,7 @@
 import type { Color } from "./cards";
 import type { Zone, CardAction } from "@convex/gre/types";
 import type { RestrictedMana, AttackManaTaxPayment } from "@convex/gre/state";
+import type { TargetSelection } from "@convex/cards/types";
 
 export type { AttackManaTaxPayment };
 import type { SacrificeSelection } from "@convex/gre/sacrificeChoice";
@@ -272,11 +273,7 @@ export interface Combat {
 
 export interface StackItem extends CardInstance {
     castById: string;
-    targets?: {
-        type: "permanent" | "player" | "spell" | "graveyard-card";
-        id: string;
-        playerId?: string;
-    }[];
+    targets?: TargetSelection[];
     /** If set, this stack item is a copy of a spell (CR 707.10 — Fork,
      *  storm copies). A spell copy has no distinct printed identity, so the
      *  preview shows a `Copy` badge rather than a second (original) face.

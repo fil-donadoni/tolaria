@@ -56,6 +56,7 @@ function targetLabel(state: GameState, t: TargetSelection): string {
             return playerLabel(state, t.id);
         case "permanent":
         case "graveyard-card":
+        case "hand-card":
             return instanceName(state, t.id);
         case "spell": {
             const item = state.stack.find((s) => s.id === t.id);

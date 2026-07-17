@@ -118,6 +118,26 @@ describe("LibraryOrderPicker", () => {
         expect(getByText("HAND")).toBeTruthy();
     });
 
+    // issue #1101 (Reviving Vapors) — `digToHand`'s `destination: "graveyard"`
+    // reuses distribute mode but the un-kept pile is the GRAVEYARD, not the
+    // library bottom. The chrome must follow `destination` here too (it used
+    // to be hardcoded to "BOTTOM" regardless of the prop).
+    it("renders HAND/GRAVEYARD chrome in distribute mode with destination graveyard", () => {
+        const { getByText, queryByText } = renderPicker(
+            <LibraryOrderPicker
+                lookedAt={looked}
+                destination="graveyard"
+                prompt="Reviving Vapors"
+                submitting={false}
+                distribute={{ keep: 1 }}
+                onConfirm={vi.fn()}
+            />
+        );
+        expect(getByText("GRAVEYARD")).toBeTruthy();
+        expect(getByText("HAND")).toBeTruthy();
+        expect(queryByText("BOTTOM")).toBeNull();
+    });
+
     it("distribute mode gates Done until exactly `keep` cards are in the HAND zone", () => {
         // Every card starts in the BOTTOM zone (hand is empty), so with keep = 1
         // the Done button is disabled and clicking it must not submit an illegal

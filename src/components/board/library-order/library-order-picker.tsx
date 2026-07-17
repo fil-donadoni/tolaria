@@ -114,12 +114,17 @@ export default function LibraryOrderPicker({
     // minimize/restore cycle; the Pending Choice (CR 608.2) stays active.
     const { isMinimized, minimize } = useMinimizedChoice();
 
+    // `distribute` mode's LEFT zone follows `destination` (issue #1101,
+    // Reviving Vapors): `library-bottom` (Impulse / Stock Up / Narset) reads
+    // BOTTOM, fused with the library fan like scry's own bottom leg;
+    // `graveyard` reads GRAVEYARD and detaches, mirroring Surveil's own
+    // graveyard leg in the non-distribute `chromeFor` branch below.
     const chrome = distribute
         ? {
-              leftLabel: "BOTTOM",
+              leftLabel: destination === "graveyard" ? "GRAVEYARD" : "BOTTOM",
               rightLabel: "HAND",
               hasSecond: true,
-              detached: false,
+              detached: destination === "graveyard",
           }
         : putBack
           ? {

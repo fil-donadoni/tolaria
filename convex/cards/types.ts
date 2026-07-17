@@ -517,13 +517,18 @@ export type CounterDestination = "graveyard" | "exile" | "hand" | "library-top";
 
 export interface TargetSelection {
     /** "permanent" = battlefield card, "player" = player, "spell" = stack
-     *  item, "graveyard-card" = card in a player's graveyard (CR 400.7). */
-    type: "permanent" | "player" | "spell" | "graveyard-card";
+     *  item, "graveyard-card" = card in a player's graveyard (CR 400.7),
+     *  "hand-card" = card in a player's hand (issue #1101 — `digToHand`'s
+     *  `bind` snapshots the KEPT card right after it moves library → hand;
+     *  it never becomes a permanent, so a later `manaValue`-of read resolves
+     *  it here instead of through the battlefield). */
+    type: "permanent" | "player" | "spell" | "graveyard-card" | "hand-card";
     id: string; // cardInstanceId, playerId, or stackItem.id
     /** Owner of the zone the target lives in. Required for non-battlefield
-     *  zone targets ("graveyard-card") since the same instance id is unique
-     *  per zone but the zone owner is what disambiguates which graveyard the
-     *  card sits in. Unused for permanent / player / spell targets. */
+     *  zone targets ("graveyard-card", "hand-card") since the same instance
+     *  id is unique per zone but the zone owner is what disambiguates which
+     *  graveyard/hand the card sits in. Unused for permanent / player /
+     *  spell targets. */
     playerId?: string;
 }
 
@@ -1296,7 +1301,14 @@ export interface SpellContext {
      *  issue #865) — legal only at trigger sites (the validator enforces the
      *  scope statically, so a spell/activated script can never read it). */
     triggerEvent?: GameEvent;
-    /** Chosen targets (validated at cast time). */
+    /** Chosen targets (validated at cast time). Always an ANNOUNCED target
+     *  (CR 601.2c) in practice — `selectTarget` / `getLegalTargets` /
+     *  `enumerateTargetTuples` never produce the "hand-card" member of
+     *  `TargetSelection.type` (issue #1101 — that kind only arises from a
+     *  `digToHand` `bind`'s internal object resolution, `resolveObjectRef`'s
+     *  hand-card fallback), so this stays the broader `TargetSelection[]`
+     *  rather than forking a second announced-only type across the whole
+     *  targeting plumbing. */
     targets: TargetSelection[];
     /** Ids of all players in the game. Used by "each player ~" spells like
      *  Timetwister and Wheel of Fortune. Order currently follows
@@ -1988,8 +2000,11 @@ export interface SpellContext {
      *  value from the stack item. For a graveyard-card target (issue #680 —
      *  Reanimate's "lose life equal to that card's mana value"), looks the
      *  card up in its owner's graveyard and returns its printed mana value.
-     *  Returns 0 for player / unknown targets. Used by Spell Blast ("counter
-     *  target spell with mana value X"). */
+     *  For a hand-card target (issue #1101 — Reviving Vapors' "gain life
+     *  equal to that card's mana value", the card `digToHand` just kept),
+     *  looks the card up in its owner's hand the same way. Returns 0 for
+     *  player / unknown targets. Used by Spell Blast ("counter target spell
+     *  with mana value X"). */
     getManaValue: (target: TargetSelection) => number;
     /** Printed mana cost of a target (CR 202.1), the full `ManaCost` shape
      *  (colored pips + generic) rather than `getManaValue`'s single reduced
@@ -7244,46 +7259,64 @@ export type EffectOp =
           player: EffectPlayerRef;
           count: EffectValue;
       }
-    /** CR 401.4 look (issue #984) — dig to hand: look at the top `look` cards of
-     *  a library, put `take` of them (default 1) into that player's hand, and
-     *  put the rest on the BOTTOM of the library. A thin declarative skin
-     *  composed of existing SpellContext primitives, one execution path (ADR
-     *  0045): `peekLibraryTop(look)` reveals the top cards, a single suspending
-     *  `look-top` `requestChoice` over exactly those looked-at ids drives the
-     *  kept-card pick (the projection exposes ONLY those cards face-up as
-     *  `libraryPeek`, not the whole library — the same shared top-N look path as
-     *  Stock Up), the kept cards move library→hand via `moveCardById`, and the
-     *  remaining looked-at cards are bottomed via `reorderLibraryTop`. Like
-     *  `choice` / `scryReorder` this Op SUSPENDS: the first execution raises the
-     *  `look-top` PendingChoice, the resumed execution reads the picks back and
-     *  finishes the moves. The bottom order of the un-kept cards is auto-resolved
-     *  in look order — Impulse's "in any order" is a formality with no strategic
-     *  value (the cards go face-down into the library, unknown; CR 401.4 lets the
-     *  owner arrange them but the arrangement is unobservable). `player` names
-     *  whose library (the resolving controller, an announced target slot, or a
-     *  forEach `$each`); `look` is how many top cards to look at; `take` is how
-     *  many to put into hand (default 1, clamped to the number looked at). No
-     *  `bind` — the pick is consumed internally, not read by a later Op.
-     *  Distinct from an exile-and-may-play "impulse draw" (#791): the chosen card
-     *  goes to HAND and the rest to the bottom, no exile / play window. */
+    /** CR 401.4 look (issue #984, extended #1101) — dig to hand: look at the
+     *  top `look` cards of a library, put `take` of them (default 1) into
+     *  that player's hand, and put the rest on `destination` (the library
+     *  BOTTOM by default, or the GRAVEYARD — Reviving Vapors, issue #1101).
+     *  A thin declarative skin composed of existing SpellContext primitives,
+     *  one execution path (ADR 0045): `peekLibraryTop(look)` reveals the top
+     *  cards, a single suspending `look-top` `requestChoice` over exactly
+     *  those looked-at ids drives the kept-card pick (the projection exposes
+     *  ONLY those cards face-up as `libraryPeek`, not the whole library — the
+     *  same shared top-N look path as Stock Up), the kept cards move
+     *  library→hand via `moveCardById`, and the remaining looked-at cards are
+     *  either bottomed via `reorderLibraryTop` (mirrors `scryReorder`'s
+     *  `library-bottom` leg) or moved to the graveyard one at a time via
+     *  `moveCardById` (mirrors `scryReorder`'s `graveyard` leg — the un-kept
+     *  cards run through the SAME graveyard-bound-redirect replacement path,
+     *  CR 614). Like `choice` / `scryReorder` this Op SUSPENDS: the first
+     *  execution raises the `look-top` PendingChoice, the resumed execution
+     *  reads the picks back and finishes the moves. For `destination:
+     *  "library-bottom"` (the default) the un-kept order is auto-resolved in
+     *  look order — Impulse's "in any order" is a formality with no strategic
+     *  value (the cards go face-down into the library, unknown; CR 401.4 lets
+     *  the owner arrange them but the arrangement is unobservable); a
+     *  graveyard destination has no such ordering stake (the graveyard is
+     *  already public) so the pick order there is cosmetic only. `player`
+     *  names whose library (the resolving controller, an announced target
+     *  slot, or a forEach `$each`); `look` is how many top cards to look at;
+     *  `take` is how many to put into hand (default 1, clamped to the number
+     *  looked at). */
     | {
           op: "digToHand";
           player: EffectPlayerRef;
           look: EffectValue;
           take?: EffectValue;
           /** Restricts which of the looked-at cards may be put into HAND — the
-           *  bottomed remainder is unfiltered (Narset, Parter of Veils: "you
-           *  MAY reveal a NONCREATURE, NONLAND card ... put the rest on the
-           *  bottom", `excludeType: ["Creature","Land"]`). When present, the
-           *  choice's hand-eligible set is the looked-at cards matching this
-           *  filter; a non-matching looked-at card is never a legal hand pick
-           *  and always goes to the bottom (issue #1266). */
+           *  bottomed/graveyarded remainder is unfiltered (Narset, Parter of
+           *  Veils: "you MAY reveal a NONCREATURE, NONLAND card ... put the
+           *  rest on the bottom", `excludeType: ["Creature","Land"]`). When
+           *  present, the choice's hand-eligible set is the looked-at cards
+           *  matching this filter; a non-matching looked-at card is never a
+           *  legal hand pick and always goes to `destination` (issue #1266). */
           filter?: EffectCardFilter;
           /** "You MAY" — the hand pick is optional (min 0, up to `take`), so a
            *  player who wants nothing (or has no filter match) keeps their hand
            *  as-is. Default false = EXACTLY `take` to hand (Impulse / Stock Up,
            *  the mandatory dig). */
           optional?: boolean;
+          /** Where the NON-kept looked-at cards go (issue #1101, mirrors
+           *  `scryReorder`'s discriminator of the same name). `"library-bottom"`
+           *  (the default, Impulse / Stock Up / Narset) sends them to the true
+           *  bottom, in the player's chosen order (or look order — see
+           *  `randomBottom`). `"graveyard"` (Reviving Vapors) sends them
+           *  straight to the graveyard instead, one `moveCardById` per card
+           *  (CR 614 graveyard-bound-redirect-eligible, same as `scryReorder`'s
+           *  Surveil leg); `randomBottom` and the bottom-order pick are then
+           *  moot (a graveyard has no meaningful order) and no `markKnown` is
+           *  granted (the graveyard is already a public zone, ADR 0026).
+           *  Omit for the library-bottom default. */
+          destination?: LibraryDestination;
           /** "Put the rest on the bottom ... in a RANDOM order" (Narset). The
            *  un-kept looked-at cards are bottomed WITHOUT a player-ordering pick
            *  and WITHOUT being marked known — CR 401.4's random order is
@@ -7291,12 +7324,31 @@ export type EffectOp =
            *  permutation carries no game information; the material part (no
            *  player choice of order, no knowledge granted) is what this honors.
            *  Default false = the player orders the bottom and keeps it known
-           *  (ADR 0026, the Impulse "in any order" path). */
+           *  (ADR 0026, the Impulse "in any order" path). Meaningless for
+           *  `destination: "graveyard"` (a public zone has nothing to hide). */
           randomBottom?: boolean;
           /** Optional prompt message shown on the look-distribute choice (e.g.
            *  Narset, Parter of Veils: "you may put a noncreature, nonland card
            *  into your hand"). Falls back to a generic prompt when absent. */
           prompt?: string;
+          /** Snapshot-binds the FIRST card put into hand (issue #1101,
+           *  mirrors `destroy`/`exile`'s object `bind` — a SNAPSHOT-family
+           *  binding, not a `choice` Op's picks list). Undefined/unbound when
+           *  nothing was kept (`optional: true` and the player declined, or
+           *  `take`/the filter left nothing eligible — CR 608.2b, the same
+           *  "binding never captured" shape every other bind carries). Read
+           *  back by a later Op through the ordinary `EffectObjectSelector`
+           *  bare-ref path (`{ ref: "$name" }`) — e.g. `manaValue: { of: {
+           *  ref: "$name" } }` sizing a `gainLife` Op (Reviving Vapors: "You
+           *  gain life equal to that card's mana value"). The bound object
+           *  resolves as a HAND card (`TargetSelection.type: "hand-card"`),
+           *  since the kept card lives in hand by the time this binds — it
+           *  never becomes a permanent, unlike `destroy`/`exile`'s targets.
+           *  When `take` keeps more than one card, only the FIRST is bound
+           *  (mirrors the existing "last one wins" multi-pick bind caveat on
+           *  other Ops — no shipped multi-keep digToHand card reads its
+           *  bind today). */
+          bind?: string;
       }
     /** CR 401.4 (issue #1046) — put N cards from a hand on top of a library,
      *  in the player's chosen order ("put N cards from your hand on top of

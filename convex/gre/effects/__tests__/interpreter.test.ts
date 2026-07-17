@@ -11375,6 +11375,282 @@ describe("Effect Script Op: digToHand filter/optional/randomBottom (issue #1266,
     });
 });
 
+// --- digToHand destination + bind (issue #1101, Reviving Vapors) ----------
+// `destination` sends the un-kept looked-at cards to the GRAVEYARD instead of
+// the library bottom (mirrors `scryReorder`'s own discriminator); `bind`
+// snapshot-binds the kept card so a later Op reads it back through the
+// ordinary `EffectObjectSelector` bare-ref path — `manaValue: { of: { ref } }`
+// sizing a `gainLife` Op is the Reviving Vapors shape this cluster exists for.
+const RV_MV3_ID = "test-effects-rv-mv3";
+registerTokenDefinition({
+    id: RV_MV3_ID,
+    name: RV_MV3_ID,
+    rarity: "common",
+    manaCost: { generic: 3 },
+    types: ["Sorcery"],
+});
+const RV_MV1_ID = "test-effects-rv-mv1";
+registerTokenDefinition({
+    id: RV_MV1_ID,
+    name: RV_MV1_ID,
+    rarity: "common",
+    manaCost: { U: 1 },
+    types: ["Instant"],
+});
+
+describe("Effect Script Op: digToHand destination + bind (issue #1101)", () => {
+    const mixedLib = (
+        owner: "p1" | "p2",
+        cards: [string, string][]
+    ): ReturnType<typeof makeInstance>[] =>
+        cards.map(([cid, defId]) =>
+            makeInstance(defId, {
+                id: cid,
+                controllerId: owner,
+                ownerId: owner,
+                zone: "library",
+            })
+        );
+
+    const submitKeep = (state: GameState, keep: string[]) => {
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: keep,
+        });
+    };
+
+    it("destination omitted: the default path stays library-bottom (unchanged from issue #984)", () => {
+        const id = registerScript("test-op-dig-dest-default", [
+            { op: "digToHand", player: "controller", look: 3, take: 1 },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: mixedLib("p1", [
+                        ["a", RV_MV1_ID],
+                        ["b", RV_MV1_ID],
+                        ["c", RV_MV1_ID],
+                        ["x", RV_MV1_ID],
+                    ]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        submitKeep(state, ["a"]);
+        expect(state.players[0].hand.map((c) => c.id)).toContain("a");
+        // The un-kept "b", "c" are bottomed (under the untouched "x"), not
+        // graveyarded.
+        expect(state.players[0].library.map((c) => c.id)).toEqual([
+            "x",
+            "b",
+            "c",
+        ]);
+        // Only the resolved sorcery itself lands in the graveyard (CR 608.2m)
+        // — "b" and "c" were bottomed, not graveyarded.
+        expect(state.players[0].graveyard.map((c) => c.id)).not.toEqual(
+            expect.arrayContaining(["b", "c"])
+        );
+    });
+
+    it("destination: graveyard sends the un-kept looked-at cards to the graveyard, not the library bottom", () => {
+        const id = registerScript("test-op-dig-dest-gy", [
+            {
+                op: "digToHand",
+                player: "controller",
+                look: 3,
+                take: 1,
+                destination: "graveyard",
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: mixedLib("p1", [
+                        ["a", RV_MV1_ID],
+                        ["b", RV_MV1_ID],
+                        ["c", RV_MV1_ID],
+                        ["x", RV_MV1_ID],
+                    ]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        expect(resolveTopOfStack(state)).toBeNull(); // suspends on the pick
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("look-distribute");
+        expect(head.destination).toBe("graveyard");
+
+        submitKeep(state, ["a"]);
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        expect(state.players[0].hand.map((c) => c.id)).toContain("a");
+        // "b", "c" are in the graveyard now, NOT bottomed under "x" (the
+        // resolved sorcery itself, CR 608.2m, is the 3rd graveyard member).
+        expect(state.players[0].graveyard.map((c) => c.id)).toEqual(
+            expect.arrayContaining(["b", "c"])
+        );
+        expect(state.players[0].library.map((c) => c.id)).toEqual(["x"]);
+    });
+
+    it("destination: graveyard skips markKnown (a graveyard is already public — ADR 0026)", () => {
+        const id = registerScript("test-op-dig-dest-gy-known", [
+            {
+                op: "digToHand",
+                player: "controller",
+                look: 2,
+                take: 1,
+                destination: "graveyard",
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: mixedLib("p1", [
+                        ["a", RV_MV1_ID],
+                        ["b", RV_MV1_ID],
+                    ]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        submitKeep(state, ["a"]);
+        const gyCard = state.players[0].graveyard.find((c) => c.id === "b")!;
+        expect(gyCard.knownTo ?? []).toHaveLength(0);
+    });
+
+    it("bind snapshots the kept card; a later Op reads it via manaValue: { of: { ref } } (Reviving Vapors' gainLife sizing)", () => {
+        const id = registerScript("test-op-dig-bind-manavalue", [
+            {
+                op: "digToHand",
+                player: "controller",
+                look: 3,
+                take: 1,
+                destination: "graveyard",
+                bind: "$kept",
+            },
+            {
+                op: "gainLife",
+                player: "controller",
+                amount: { manaValue: { of: { ref: "$kept" } } },
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: mixedLib("p1", [
+                        ["a", RV_MV3_ID], // mana value 3 — the one kept
+                        ["b", RV_MV1_ID],
+                        ["c", RV_MV1_ID],
+                    ]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state); // suspends on the dig pick
+        submitKeep(state, ["a"]);
+        // The digToHand resume finishes, THEN the trailing gainLife runs in the
+        // same resolution (no second suspension) — sized off the kept card's
+        // mana value (3), not a fixed amount.
+        expect(state.players[0].hand.map((c) => c.id)).toContain("a");
+        expect(state.players[0].life).toBe(23); // 20 + 3
+        expect(state.players[0].graveyard.map((c) => c.id)).toEqual(
+            expect.arrayContaining(["b", "c"])
+        );
+    });
+
+    it("bind: unbound when nothing was kept (optional decline) — the later Op's manaValue-of skips (CR 608.2b)", () => {
+        const id = registerScript("test-op-dig-bind-unkept", [
+            {
+                op: "digToHand",
+                player: "controller",
+                look: 2,
+                take: 1,
+                optional: true,
+                filter: { type: "Land" }, // nothing in the library matches
+                destination: "graveyard",
+                bind: "$kept",
+            },
+            {
+                op: "gainLife",
+                player: "controller",
+                amount: { manaValue: { of: { ref: "$kept" } } },
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: mixedLib("p1", [
+                        ["a", RV_MV3_ID],
+                        ["b", RV_MV1_ID],
+                    ]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        // No eligible card — no real choice, never suspends.
+        expect(resolveTopOfStack(state)).not.toBeNull();
+        expect(state.players[0].hand).toHaveLength(0);
+        // The unresolvable manaValue-of skips the gainLife entirely (CR 608.2b)
+        // rather than reading a stale/zero binding.
+        expect(state.players[0].life).toBe(20);
+        // Both looked-at cards (no eligible hand pick) went to the graveyard
+        // destination, alongside the resolved sorcery itself (CR 608.2m).
+        expect(state.players[0].graveyard.map((c) => c.id)).toEqual(
+            expect.arrayContaining(["a", "b"])
+        );
+    });
+
+    it("wire format: destination graveyard + bind survive projectPublicState (kept card in hand, life gained, others in graveyard)", () => {
+        const id = registerScript("test-op-dig-wire-rv", [
+            {
+                op: "digToHand",
+                player: "controller",
+                look: 3,
+                take: 1,
+                destination: "graveyard",
+                bind: "$kept",
+            },
+            {
+                op: "gainLife",
+                player: "controller",
+                amount: { manaValue: { of: { ref: "$kept" } } },
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: mixedLib("p1", [
+                        ["a", RV_MV3_ID],
+                        ["b", RV_MV1_ID],
+                        ["c", RV_MV1_ID],
+                    ]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state); // suspends
+        submitKeep(state, ["a"]);
+
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[0].hand.some((c) => c?.id === "a")).toBe(true);
+        expect(projected.players[0].life).toBe(23);
+        expect(projected.players[0].graveyard.map((c) => c.id)).toEqual(
+            expect.arrayContaining(["b", "c"])
+        );
+    });
+});
+
 describe("Effect Script Op: putBack (CR 401.4, issue #1046)", () => {
     const handOf = (owner: "p1" | "p2", ids: string[]) =>
         ids.map((cid) =>
