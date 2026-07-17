@@ -477,27 +477,27 @@ export default defineSchema({
     // `pickRatings.ts`'s `isValidRating`). A database row for `(scope,
     // cardId)` OVERRIDES that pair's seed-file value; an empty table drafts
     // byte-identically to the seed-only path (this issue's regression
-    // acceptance). Admin write mutations (`setCardRating`/`clearCardRating`)
-    // land in a later slice (PRD #1296 Slice B) — this slice only needs the
-    // table + the read path.
+    // acceptance). Admin write mutations (`setCardRating`/`clearCardRating`,
+    // PRD #1296 Slice B, issue #1298) live in
+    // `convex/limited/cardRatings.ts` alongside the read-path core.
     cardRatings: defineTable({
         scope: v.string(),
         cardId: v.string(),
         // Bound enforced at the WRITE boundary, not the schema type: the
-        // (later-slice) `setCardRating` mutation rejects a non-finite or
-        // out-of-`[PICK_RATING_MIN, PICK_RATING_MAX]` value via the shared
-        // `isValidRating` (`pickRatings.ts`) before ever inserting/patching a
-        // row — mirrors how `PickRatingFile.ratings`' bounds are enforced by
-        // `validatePickRatingFile`, not by a schema-level range on JSON. This
-        // slice never writes the table at all (read path only), so no caller
-        // can smuggle an out-of-range value in yet.
+        // `setCardRating` mutation (`convex/limited/cardRatings.ts`) rejects
+        // a non-finite or out-of-`[PICK_RATING_MIN, PICK_RATING_MAX]` value
+        // via the shared `isValidRating` (`pickRatings.ts`) before ever
+        // inserting/patching a row — mirrors how `PickRatingFile.ratings`'
+        // bounds are enforced by `validatePickRatingFile`, not by a
+        // schema-level range on JSON.
         rating: v.number(),
     })
         // Every rating for one scope — the shape the read path loads once
         // per distinct event scope (`resolveEventPickRating`'s caller).
         .index("by_scope", ["scope"])
-        // Point lookup / upsert target for the (later-slice) Admin write
-        // mutations — `(scope, cardId)` is this table's natural primary key.
+        // Point lookup / upsert target for the Admin write mutations
+        // (`setCardRating`/`clearCardRating`) — `(scope, cardId)` is this
+        // table's natural primary key.
         .index("by_scope_and_card", ["scope", "cardId"]),
     debugScenarios: defineTable({
         userId: v.id("users"),
