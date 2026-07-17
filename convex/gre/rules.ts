@@ -60,6 +60,7 @@ import {
     landPlayLockActive,
     normalizeManaCost,
     restrictedUnitAllowsSpell,
+    emitBecameTargetEvents,
 } from "./state";
 
 export {
@@ -1943,6 +1944,10 @@ export function raiseTriggerTargetSelection(state: GameState): boolean {
         ) {
             // Sole mandatory target auto-selects (no real choice). CR 603.3d.
             item.targets = [legal[0]];
+            // CR 603.2b (issue #1265) — even an auto-selected targeted trigger
+            // locks a target, so it fires "becomes the target of an ability"
+            // triggers (Leovold). Queued for the next event drain.
+            emitBecameTargetEvents(state, item.targets, item.controllerId);
             continue;
         }
 

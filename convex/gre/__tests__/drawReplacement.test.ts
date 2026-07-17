@@ -29,6 +29,7 @@ import { compactState, expandState } from "../serialize";
 import { projectPublicState } from "../../gameProjections";
 import { zursWeirding } from "../../cards/sets/ice/blue";
 import { enduringRenewal } from "../../cards/sets/ice/white";
+import { TREASURE_TOKEN } from "../../cards/sharedTokens";
 
 const bearsId = getCardByName("Balduvian Bears").id;
 const plainsId = getCardByName("Plains").id;
@@ -77,6 +78,7 @@ describe("draw-replacement outcomes → plan (CR 614, ADR 0061)", () => {
         revealedCardId: "top",
         chooserId: "p2",
         chooserCanAfford: () => true,
+        beneficiaryId: "p1",
     };
 
     it("prevent → no draw (Leovold, story 8)", () => {
@@ -93,6 +95,27 @@ describe("draw-replacement outcomes → plan (CR 614, ADR 0061)", () => {
         expect(
             drawPlanForOutcome({ kind: "modify-count", delta: -2 }, baseCtx)
         ).toEqual({ kind: "normal", count: 0 });
+    });
+
+    it("redirect-to-token → create-token plan for the beneficiary (Hullbreacher)", () => {
+        expect(
+            drawPlanForOutcome(
+                { kind: "redirect-to-token", token: TREASURE_TOKEN, count: 1 },
+                baseCtx
+            )
+        ).toEqual({
+            kind: "create-token",
+            beneficiaryId: "p1", // the replacement source's controller
+            token: TREASURE_TOKEN,
+            count: 1,
+        });
+        // Redirect ignores an empty library (the draw is replaced entirely).
+        expect(
+            drawPlanForOutcome(
+                { kind: "redirect-to-token", token: TREASURE_TOKEN, count: 1 },
+                { ...baseCtx, libraryEmpty: true }
+            )
+        ).toMatchObject({ kind: "create-token", count: 1 });
     });
 
     it("reveal-type-to-graveyard: creature top → bin, else normal (Enduring Renewal)", () => {
@@ -201,6 +224,39 @@ describe("commitDrawPlan (CR 614/704.5b, ADR 0061)", () => {
         const drew = commitDrawPlan(state, "p1", { kind: "prevent" });
         expect(drew).toBe(0);
         expect(state.players[0].hasDrawnFromEmpty).toBeFalsy();
+    });
+
+    it("create-token makes tokens for the beneficiary and draws nothing (Hullbreacher)", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: [
+                        makeInstance(plainsId, {
+                            id: "c1",
+                            ownerId: "p1",
+                            zone: "library",
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const drew = commitDrawPlan(state, "p1", {
+            kind: "create-token",
+            beneficiaryId: "p2",
+            token: TREASURE_TOKEN,
+            count: 1,
+        });
+        expect(drew).toBe(0);
+        // Drawing player drew nothing; library untouched; no empty-library loss.
+        expect(state.players[0].hand).toHaveLength(0);
+        expect(state.players[0].library).toHaveLength(1);
+        expect(state.players[0].hasDrawnFromEmpty).toBeFalsy();
+        // Beneficiary got a Treasure on the battlefield.
+        const treasures = state.players[1].battlefield.filter((c) =>
+            c.subtypes.includes("Treasure")
+        );
+        expect(treasures).toHaveLength(1);
     });
 });
 

@@ -63,6 +63,7 @@ import * as mh3 from "./sets/mh3";
 // Effect Script tracer bullet (ADR 0045, issue #800) — first DSL-only card
 // (Lava Spike), home set routed to earliest paper printing (ADR 0041).
 import * as chk from "./sets/chk";
+import * as cmr from "./sets/cmr";
 // Effect Script forEach construct (ADR 0045, issue #807) — Innocent Blood,
 // the first choice-inside-forEach DSL card.
 import * as ody from "./sets/ody";
@@ -400,6 +401,11 @@ const setModules: { code: string; exports: Record<string, unknown> }[] = [
     // cards yet; scaffolded so the stubs live under their earliest-print set.
     { code: "j25", exports: j25 },
     { code: "soi", exports: soi },
+    // Draw-replacement launch cards (issue #1265, PRD #779, ADR 0061) — home
+    // sets are each card's earliest paper printing (ADR 0041): Hullbreacher
+    // (Commander Legends). Leovold, Emissary of Trest is in the cn2 set
+    // (Conspiracy: Take the Crown), already registered above.
+    { code: "cmr", exports: cmr },
 ];
 
 const allCards: CardDefinition[] = setModules.flatMap((m) =>

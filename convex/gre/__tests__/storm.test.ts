@@ -95,8 +95,12 @@ describe("Storm — spells-cast-this-turn counter (CR 702.40a, S2)", () => {
         ]);
         emitSpellCastEvent(state, bolt1);
         expect(state.spellsCastThisTurn).toBe(1);
+        // A targeting spell now also emits a trailing BECAME_TARGET event
+        // (CR 603.2b, Leovold's foundation), so locate the SPELL_CAST
+        // explicitly rather than assuming it is the terminal pending event.
         const events1 = state.pendingEvents ?? [];
-        const evt1 = events1[events1.length - 1];
+        const casts1 = events1.filter((e) => e.type === "SPELL_CAST");
+        const evt1 = casts1[casts1.length - 1];
         expect(evt1).toMatchObject({ type: "SPELL_CAST", priorSpellCount: 0 });
 
         const bolt2 = pushSpell(state, lightningBolt.id, "p2", [
@@ -105,7 +109,8 @@ describe("Storm — spells-cast-this-turn counter (CR 702.40a, S2)", () => {
         emitSpellCastEvent(state, bolt2);
         expect(state.spellsCastThisTurn).toBe(2);
         const events2 = state.pendingEvents ?? [];
-        const evt2 = events2[events2.length - 1];
+        const casts2 = events2.filter((e) => e.type === "SPELL_CAST");
+        const evt2 = casts2[casts2.length - 1];
         expect(evt2).toMatchObject({ type: "SPELL_CAST", priorSpellCount: 1 });
     });
 
