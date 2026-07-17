@@ -3,8 +3,9 @@
 // print sheets, no rarity slots, and — deliberately — NO per-set completeness
 // gate (the ≥80% per-sheet Draftability floor, ADR 0059, does not apply). The
 // pool is the IMPLEMENTED SUBSET of the canonical Vintage Cube list: every
-// name in `data/cube/vintage-cube.json` (derived from the canonical worklist
-// `data/worklists/vintage-cube.txt`) that resolves to an implemented
+// name in `VINTAGE_CUBE_NAMES` (`convex/cubes/vintageCubeNames.ts`, the single
+// source of truth generated from `data/worklists/vintage-cube.txt`) that
+// resolves to an implemented
 // `CardDefinition` via the SAME registry seam the set path uses — so the cube
 // "just works" from day one with whatever cube cards are built, growing
 // automatically as more land.
@@ -16,7 +17,7 @@
 // WITH-REPLACEMENT rather than hard-blocking: honoring "no minimum — must work
 // from day one", a draft still runs at any pool size (the "small-pool top-up"
 // regime, surfaced by `cubeSampleRegime`).
-import cubeNames from "../../data/cube/vintage-cube.json";
+import { VINTAGE_CUBE_NAMES } from "../cubes/vintageCubeNames";
 import { tryGetCardByName } from "../cards";
 import { makeRng } from "../gre/rng";
 
@@ -38,11 +39,12 @@ export function isCubeSource(setCode: string): boolean {
     return setCode.toLowerCase() === CUBE_SOURCE_KEY;
 }
 
-/** The canonical Vintage Cube list as card NAMES (derived from
- *  `data/worklists/vintage-cube.txt`; a drift guard test keeps the two in
- *  sync). Names, not ids, because the worklist is the human-maintained source
- *  and a name resolves to whichever printing the engine has implemented. */
-export const CUBE_CARD_NAMES: readonly string[] = cubeNames as string[];
+/** The canonical Vintage Cube list as card NAMES — the single source of truth
+ *  `convex/cubes/vintageCubeNames.ts` (`VINTAGE_CUBE_NAMES`), generated from
+ *  `data/worklists/vintage-cube.txt`. Names, not ids, because the worklist is
+ *  the human-maintained source and a name resolves to whichever printing the
+ *  engine has implemented. */
+export const CUBE_CARD_NAMES: readonly string[] = VINTAGE_CUBE_NAMES;
 
 let cachedPool: readonly string[] | null = null;
 

@@ -67,6 +67,7 @@ import {
     isDraftableSet,
     listDraftableSets,
 } from "./limited/registry";
+import { isCubeSource } from "./limited/cube";
 
 /** `eventLogic.ts` stays Convex-decoupled: `LimitedEventSeat.userId` is a
  *  plain `string` (mirrors `players[].id`'s opaque-handle convention,
@@ -567,6 +568,19 @@ export const createLimitedEvent = mutation({
         // deduping just avoids redundant registry lookups for the homogeneous
         // case without changing which lists are accepted.
         for (const setCode of new Set(args.packSlots)) {
+            if (isCubeSource(setCode)) {
+                // The Vintage Cube is a curated POOL, Draft-only (ADR 0062 §4):
+                // it deliberately bypasses the per-set Draftability gate, but
+                // must be rejected server-side for Sealed — `generateSealedPools`
+                // has no cube path (defense-in-depth; the dialog already blocks
+                // it, but the mutation must not rely on the client).
+                if (args.type === "sealed") {
+                    throw new Error(
+                        "The Vintage Cube is Draft-only — it cannot be used for a Sealed event."
+                    );
+                }
+                continue;
+            }
             if (!isDraftableSet(setCode)) {
                 const config = getBoosterConfig(setCode);
                 if (!config) {
