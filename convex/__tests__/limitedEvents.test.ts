@@ -1821,6 +1821,7 @@ describe("checked-in Vintage Cube Pick Rating seed (PRD #1296 Slice D, issue #12
         );
 
         let sawAtLeastOneObviousBomb = false;
+        let sawRatingDivergence = false;
         for (const seat of dealt.seats) {
             const pack = seat.currentPack!;
             expect(pack.length).toBe(CUBE_PACK_SIZE);
@@ -1844,19 +1845,23 @@ describe("checked-in Vintage Cube Pick Rating seed (PRD #1296 Slice D, issue #12
             // And the heuristic-only pick (no rating layer) is NOT guaranteed
             // to agree — this is the "bots draft on real ratings instead of
             // the raw heuristic" acceptance criterion (issue #1299), not a
-            // vacuous truth. At least one bomb pack in this seeded draft
-            // diverges from the pure-heuristic pick.
+            // vacuous truth. At least one bomb pack in this seeded draft must
+            // diverge from the pure-heuristic pick. (The heuristic's own pick
+            // may itself coincidentally be a different bomb — the acceptance is
+            // that the RATED pick is always a bomb, above, and that ratings
+            // demonstrably move the pick off the heuristic favorite at least
+            // once, tracked here — not that the heuristic never lands on a
+            // bomb.)
             const heuristicOnlyPick = realBotChoosePickHeuristicOnly(
                 seat,
                 pack
             );
             if (heuristicOnlyPick !== ratedPick) {
-                expect(bombs.some((b) => b.pickId === heuristicOnlyPick)).toBe(
-                    false
-                );
+                sawRatingDivergence = true;
             }
         }
 
         expect(sawAtLeastOneObviousBomb).toBe(true);
+        expect(sawRatingDivergence).toBe(true);
     });
 });
