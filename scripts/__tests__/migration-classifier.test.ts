@@ -916,11 +916,20 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // −1 closure: total 686→685, FREE 437→436, AFK-ready 401→400, X-only
         // unchanged (14), Op-blocked unchanged (235). Partition:
         // 436+14+235=685.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(685);
+        //
+        // Then issue #1305 ships Barrowgoyf (m3c/black.ts) as a new
+        // `resolveSteps` closure — its dies/ETB graveyard-count trigger reads
+        // `event.amount`, which is inexpressible in the DSL (no numeric
+        // `EffectValue` member; `EVENT_FIELD_REGISTRY` is id-only), the same
+        // codified precedent class as Armadillo Cloak / Spirit Link / El-
+        // Hajjâj. +1 closure, Op-blocked (protocol, not FREE). Net: total
+        // 685→686, Op-blocked 235→236, FREE/AFK-ready/X-only unchanged
+        // (436/400/14). Partition: 436+14+236=686.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(686);
         expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(436);
         expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(400);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(235);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(236);
     });
 
     it("surfaces the demonstrated new-Op backlog (a covered primitive leaves it)", () => {
