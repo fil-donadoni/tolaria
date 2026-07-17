@@ -216,6 +216,10 @@ import * as ncc from "./sets/ncc";
 // Cube FREE residue: token makers (issue #1304). c21/stx already registered
 // above; arb is new (Thopter Foundry, a tracked stub blocked on #782).
 import * as arb from "./sets/arb";
+// Cube FREE (residue): ETB/dies/attack triggers (issue #1305, parent PRD
+// #620) — Torsten, Founder of Benalia's earliest paper printing is Dominaria
+// United Commander (dmc, ADR 0041).
+import * as dmc from "./sets/dmc";
 
 function isCardPrint(value: unknown): value is CardPrint {
     return (
@@ -420,6 +424,7 @@ const setModules: { code: string; exports: Record<string, unknown> }[] = [
     // Converter (New Capenna Commander).
     { code: "ncc", exports: ncc },
     { code: "arb", exports: arb },
+    { code: "dmc", exports: dmc },
 ];
 
 const allCards: CardDefinition[] = setModules.flatMap((m) =>
