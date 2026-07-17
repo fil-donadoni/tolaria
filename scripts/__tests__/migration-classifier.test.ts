@@ -879,11 +879,25 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // which isn't yet in the classifier's covered-Ops list. +1 closure,
         // Op-blocked (not FREE). Net: total 685→686, FREE/AFK-ready/X-only
         // unchanged (438/401/14), Op-blocked 233→234. Partition: 438+14+234=686.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(686);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(438);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(401);
+        //
+        // Then issue #791 (Currency Converter — ncc/colorless.ts) adds THREE
+        // resolve()/resolveSteps closures on this one new card: its
+        // "{2}, {T}: Draw a card, then discard a card" activated `resolveSteps`
+        // (draw / discard / requestChoice / getHandIds — all COVERED → FREE +
+        // AFK-ready, the card ships a per-card test); its "whenever you discard,
+        // you may exile that card from your graveyard" triggered `resolve`
+        // (requestMayPay / moveCardById / linkExileToSource — the per-source
+        // exile-linkage primitive `linkExileToSource` has no Op → Op-blocked);
+        // and its "{T}: put an exiled card into its owner's graveyard, then make
+        // a token" activated `resolve` (getCardsExiledWith + token creation — a
+        // COVERED path → FREE + AFK-ready). Net: total 686→689, FREE 438→440,
+        // AFK-ready 401→403, X-only unchanged (14), Op-blocked 234→235.
+        // Partition: 440+14+235=689.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(689);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(440);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(403);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(234);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(235);
     });
 
     it("surfaces the demonstrated new-Op backlog (a covered primitive leaves it)", () => {

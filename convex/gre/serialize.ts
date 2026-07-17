@@ -228,6 +228,12 @@ function compactCard(
     if (card.castFromExileWithoutPayingManaCost) {
         out.castFromExileWithoutPayingManaCost = true;
     }
+    // CR 111 (issue #791) — the per-source exile provenance link (Currency
+    // Converter's "exiled with this artifact") must survive a save/load so the
+    // retrieval ability still finds its linked cards after a round-trip.
+    if (card.exiledBySourceId) {
+        out.exiledBySourceId = card.exiledBySourceId;
+    }
     // CR 702.34 — an instance-level Flashback grant (Snapcaster Mage) on a
     // graveyard card must survive a save/load until it expires at cleanup.
     if (card.grantedFlashback) {
@@ -493,6 +499,9 @@ function expandCard(
     }
     if (compact.castFromExileWithoutPayingManaCost) {
         result.castFromExileWithoutPayingManaCost = true;
+    }
+    if (compact.exiledBySourceId) {
+        result.exiledBySourceId = compact.exiledBySourceId as string;
     }
     if (compact.grantedFlashback) {
         result.grantedFlashback =

@@ -809,6 +809,21 @@ export type CardInstanceState = {
      *  (`phases.ts`), and `applyPlayLandFromExile`. Persisted so the grant
      *  survives a DB round-trip. */
     castFromExileWithoutPayingManaCost?: boolean;
+    /** CR 111 / 400.7 provenance link (issue #791) — the battlefield permanent
+     *  instance id that exiled this card "with it", set when a card is exiled
+     *  by a specific source that later refers back to "the cards exiled with
+     *  this permanent" (Currency Converter — "Put a card exiled with this
+     *  artifact into its owner's graveyard"). The mirror of `createdBy` for
+     *  tokens: a card records which permanent linked it while it sits in exile,
+     *  so `getCardsExiledWith` can enumerate the linked set across any owner's
+     *  exile (the card stays in its OWNER's exile per CR 400.7, distinct from
+     *  the linking source's controller). Distinct from `castableFromExileBy`
+     *  (a play PERMISSION, CR 601.3e) and from `exileHeld` ExileReturnBundles
+     *  (an exile-AND-return arm on the source's LTB, ADR 0028) — this is a bare
+     *  retrievable tag with no play grant and no auto-return. Cleared when the
+     *  card leaves exile (`removeFromZone`). Persisted so the link survives a
+     *  DB round-trip; projected via `exiledByPermanentId` (Arena pinning). */
+    exiledBySourceId?: string;
     /** CR 702.34 — a Flashback cost granted to this card at the instance level
      *  (Snapcaster Mage: "target instant or sorcery card in your graveyard
      *  gains flashback until end of turn"). When set on a card in a graveyard,
@@ -11427,6 +11442,64 @@ export function buildSpellContext(
             }
             return undefined;
         },
+        // CR 111 (issue #791) — stamp the per-source exile provenance link on an
+        // already-exiled card. Scans every owner's exile (CR 400.7 — the card
+        // may sit in an opponent's exile), no-op if not found.
+        linkExileToSource(
+            cardInstanceId: string,
+            sourceInstanceId: string
+        ): void {
+            for (const p of state.players) {
+                const card = p.exile.find((c) => c.id === cardInstanceId);
+                if (card) {
+                    card.exiledBySourceId = sourceInstanceId;
+                    return;
+                }
+            }
+        },
+        // CR 111 (issue #791) — every exile card stamped with `sourceInstanceId`,
+        // across all owners' exile zones. Mirrors `getExileCards`'s characteristic
+        // snapshot, adding the exile `ownerId` so the caller can route the card
+        // back to its OWN owner's graveyard.
+        getCardsExiledWith(sourceInstanceId: string): Array<{
+            id: string;
+            ownerId: string;
+            name: string;
+            types: CardType[];
+            subtypes: string[];
+            manaValue: number;
+            colors: Color[];
+            counters: Record<string, number>;
+        }> {
+            const out: Array<{
+                id: string;
+                ownerId: string;
+                name: string;
+                types: CardType[];
+                subtypes: string[];
+                manaValue: number;
+                colors: Color[];
+                counters: Record<string, number>;
+            }> = [];
+            for (const p of state.players) {
+                for (const c of p.exile) {
+                    if (c.exiledBySourceId !== sourceInstanceId) continue;
+                    const cardId = (c.card as { id?: string }).id;
+                    const def = cardId ? tryGetDefinition(cardId) : undefined;
+                    out.push({
+                        id: c.id,
+                        ownerId: p.id,
+                        name: def?.name ?? "",
+                        types: def?.types ?? c.types,
+                        subtypes: def?.subtypes ?? c.subtypes,
+                        manaValue: manaValue(def?.manaCost),
+                        colors: getColorsFromCost(def?.manaCost),
+                        counters: c.counters ?? {},
+                    });
+                }
+            }
+            return out;
+        },
         // Revolt (CR 702.RV): true when a permanent the given player controlled
         // left the battlefield this turn. Set by removePermanentTo, reset at
         // turn start (advanceTurn).
@@ -12360,6 +12433,10 @@ export function removeFromZone(
     // CR 601.3e (issue #1156) — the free-cast waiver (Dauthi Voidwalker) rides
     // the SAME permission window as `castableFromExileBy`; consumed together.
     delete card.castFromExileWithoutPayingManaCost;
+    // CR 111 (issue #791) — the per-source exile provenance link is only
+    // meaningful while the card sits in exile; drop it once the card leaves so a
+    // later re-exile never re-reads a stale source.
+    delete card.exiledBySourceId;
     // CR 702.35d — a madness card cast from exile leaves the madness marker
     // behind (it is no longer a discarded-and-exiled card once it is on the
     // stack); clear it so a later bounce/exile never re-reads it.
