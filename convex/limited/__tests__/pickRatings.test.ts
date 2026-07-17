@@ -10,6 +10,7 @@ import {
     getPickRating,
     getPickRatingByCardId,
     getPickRatingFile,
+    isValidRating,
     PICK_RATING_MAX,
     PICK_RATING_MIN,
     validatePickRatingFile,
@@ -140,5 +141,30 @@ describe("validatePickRatingFile — negative cases (issue #1117 acceptance: 'sc
         const result = validatePickRatingFile(okFile, leaConfig);
         expect(result.valid).toBe(true);
         expect(result.errors).toEqual([]);
+    });
+});
+
+describe("isValidRating (issue #1297, PRD #1296): the single bounds-check authority shared by the seed-file guard AND the future setCardRating write path", () => {
+    it("accepts the bounds and every fractional value between them", () => {
+        expect(isValidRating(PICK_RATING_MIN)).toBe(true);
+        expect(isValidRating(PICK_RATING_MAX)).toBe(true);
+        expect(isValidRating(2.5)).toBe(true);
+    });
+
+    it("rejects out-of-bounds numbers", () => {
+        expect(isValidRating(PICK_RATING_MIN - 0.01)).toBe(false);
+        expect(isValidRating(PICK_RATING_MAX + 0.01)).toBe(false);
+    });
+
+    it("rejects non-finite numbers", () => {
+        expect(isValidRating(Number.NaN)).toBe(false);
+        expect(isValidRating(Number.POSITIVE_INFINITY)).toBe(false);
+        expect(isValidRating(Number.NEGATIVE_INFINITY)).toBe(false);
+    });
+
+    it("rejects a non-number value smuggled in by a hand edit / bad client payload", () => {
+        expect(isValidRating("3" as unknown)).toBe(false);
+        expect(isValidRating(null)).toBe(false);
+        expect(isValidRating(undefined)).toBe(false);
     });
 });

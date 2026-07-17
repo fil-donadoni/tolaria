@@ -43,8 +43,15 @@ import {
     type SeatTimerUpdate,
     type TimerConfig,
 } from "./limited/draftEngine";
-import { chooseBotPick, type GetCardEvalMeta } from "./limited/botDrafter";
-import { getPickRatingByCardId } from "./limited/pickRatings";
+import {
+    chooseBotPick,
+    type GetCardEvalMeta,
+    type GetPickRating,
+} from "./limited/botDrafter";
+import {
+    resolveEventPickRating,
+    type GetDbRating,
+} from "./limited/cardRatings";
 import {
     assignFreeSeat,
     buildEmptySeats,
@@ -260,23 +267,50 @@ const getCardEvalMeta: GetCardEvalMeta = (scryfallId) => {
 };
 
 /** Wires the Pick Heuristic (`convex/limited/botDrafter.ts`) AND the Pick
- *  Rating layer (`convex/limited/pickRatings.ts`, issue #1117, ADR
- *  0054/0055) into `runBotAutoPicks`'s injected `ChooseBotPick` shape — the
+ *  Rating layer into `runBotAutoPicks`'s injected `ChooseBotPick` shape — the
  *  only place this module's card-registry-backed `getCardEvalMeta` meets a
- *  bot seat's actual Pool. `getPickRatingByCardId` is registry-agnostic (it
- *  scans every checked-in Pick Rating file by cardId, not by which set this
- *  particular pack was drawn from — see that function's doc comment), so no
- *  set-code plumbing is needed here: a set with no checked-in ratings file
- *  simply never matches, and every lookup falls through to `null`, which
- *  `chooseBotPick` treats as "score via the Pick Heuristic alone" — the
- *  exact pre-Pick-Rating-layer behavior. */
-const botChoosePick: ChooseBotPick = (seat, pack) =>
-    chooseBotPick(
-        pack,
-        seat.pool ?? [],
-        getCardEvalMeta,
-        getPickRatingByCardId
+ *  bot seat's actual Pool. `getPickRating` is the LAYERED lookup built once
+ *  per mutation call by `loadEventPickRating` below (database override over
+ *  the checked-in seed file, `convex/limited/cardRatings.ts`'s
+ *  `resolveEventPickRating`, PRD #1296 Slice A, issue #1297) — replacing the
+ *  old registry-agnostic `pickRatings.ts#getPickRatingByCardId`. A `null`
+ *  from either layer falls through to "score via the Pick Heuristic alone",
+ *  exactly as before. */
+function makeBotChoosePick(getPickRating: GetPickRating): ChooseBotPick {
+    return (seat, pack) =>
+        chooseBotPick(pack, seat.pool ?? [], getCardEvalMeta, getPickRating);
+}
+
+/** Loads this event's Pick Rating layer (PRD #1296 Slice A, issue #1297):
+ *  every `cardRatings` row for each of the event's DISTINCT `packSlots`
+ *  scopes, folded into the layered `GetPickRating` via
+ *  `resolveEventPickRating`. The only place this module touches the
+ *  `cardRatings` table directly — every bot-pick call site below calls this
+ *  once per mutation invocation, then feeds the result into
+ *  `makeBotChoosePick`. Uses the `by_scope` index, so this is bounded per
+ *  scope (never a full-table scan) and cheap even for a multi-round Draft on
+ *  a single set (one distinct scope, queried once, not once per round). */
+async function loadEventPickRating(
+    ctx: QueryCtx | MutationCtx,
+    packSlots: readonly string[]
+): Promise<GetPickRating> {
+    const scopes = Array.from(
+        new Set(packSlots.map((scope) => scope.toLowerCase()))
     );
+    const dbRatings = new Map<string, number>();
+    for (const scope of scopes) {
+        const rows = await ctx.db
+            .query("cardRatings")
+            .withIndex("by_scope", (q) => q.eq("scope", scope))
+            .collect();
+        for (const row of rows) {
+            dbRatings.set(`${scope}::${row.cardId}`, row.rating);
+        }
+    }
+    const getDbRating: GetDbRating = (scope, cardId) =>
+        dbRatings.get(`${scope}::${cardId}`) ?? null;
+    return resolveEventPickRating(scopes, getDbRating);
+}
 
 /** Resolves a drawn card's Scryfall id to the printed characteristics
  *  Auto-Build needs (issue #1115, `convex/limited/autoBuild.ts`) — the same
@@ -686,6 +720,11 @@ export const startLimitedEvent = mutation({
             const seed = freshSeed();
             const now = Date.now();
             const timerConfig = buildTimerConfig(event.timerEnabled, now);
+            const getPickRating = await loadEventPickRating(
+                ctx,
+                event.packSlots
+            );
+            const botChoosePick = makeBotChoosePick(getPickRating);
             const dealt = startDraft(
                 seats,
                 event.packSlots,
@@ -903,6 +942,8 @@ export const submitPick = mutation({
         // (issue #1113) — resolve every such pending bot pick immediately so
         // the draft never stalls on a seat nobody drives (PRD #1107 story
         // 27). A no-op when no bot seat currently holds a pack.
+        const getPickRating = await loadEventPickRating(ctx, event.packSlots);
+        const botChoosePick = makeBotChoosePick(getPickRating);
         const afterBots = runBotAutoPicks(
             result.seats,
             result.draftRound,
@@ -971,6 +1012,8 @@ export const autoPickSeatTimeout = internalMutation({
             return null;
         }
 
+        const getPickRating = await loadEventPickRating(ctx, event.packSlots);
+        const botChoosePick = makeBotChoosePick(getPickRating);
         const pickId = resolveAutoPickTimeout(
             event.seats,
             args.seatIndex,
