@@ -2359,6 +2359,307 @@ describe("Effect Script Op: exile (CR 701.13)", () => {
     });
 });
 
+describe("Effect Script value grammar: isPermanentCard (CR 205/110.1, issue #1311)", () => {
+    // `.isPermanentCard` is a NEW ref property (SNAP_IS_PERMANENT_CARD) — a
+    // thin skin over SpellContext.isPermanentCard, captured at `bind` time
+    // (mirrors SNAP_MANA_VALUE's own pre-move capture, since the object may
+    // have already left its original zone by the time a later ref reads it)
+    // so an `if` predicate can read "was the exiled card a permanent card"
+    // (CR 205, 110.1). First user: Lion Sash's "Exile target card from a
+    // graveyard. If it was a permanent card, put a +1/+1 counter on this
+    // permanent" (issue #1311).
+
+    it("reads true for a permanent-card graveyard target (the guarded branch runs)", () => {
+        const id = registerScript("test-value-ispermanentcard-true", [
+            {
+                op: "moveZone",
+                target: { target: 0 },
+                to: "exile",
+                bind: "$exiled",
+            },
+            {
+                op: "if",
+                predicate: {
+                    left: { ref: "$exiled.isPermanentCard" },
+                    op: "eq",
+                    right: 1,
+                },
+                then: [{ op: "gainLife", player: "controller", amount: 3 }],
+            },
+        ]);
+        const dead = makeInstance(BEAR_ID, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id: "deadPermTrue",
+            zone: "graveyard",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { graveyard: [dead] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1", [
+            { type: "graveyard-card", id: "deadPermTrue", playerId: "p1" },
+        ]);
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(23); // 20 + 3
+        expect(state.players[0].exile.map((c) => c.id)).toContain(
+            "deadPermTrue"
+        );
+    });
+
+    it("reads false for a non-permanent-card graveyard target (the guarded branch is skipped)", () => {
+        const id = registerScript("test-value-ispermanentcard-false", [
+            {
+                op: "moveZone",
+                target: { target: 0 },
+                to: "exile",
+                bind: "$exiled",
+            },
+            {
+                op: "if",
+                predicate: {
+                    left: { ref: "$exiled.isPermanentCard" },
+                    op: "eq",
+                    right: 1,
+                },
+                then: [{ op: "gainLife", player: "controller", amount: 3 }],
+            },
+        ]);
+        const dead = makeInstance(BLACK_CARD_ID, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id: "deadPermFalse",
+            zone: "graveyard",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { graveyard: [dead] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1", [
+            { type: "graveyard-card", id: "deadPermFalse", playerId: "p1" },
+        ]);
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(20); // unchanged — an Instant isn't a permanent card
+    });
+
+    it("the permanent-card branch's outcome survives projection (wire format)", () => {
+        const id = registerScript("test-value-ispermanentcard-wire", [
+            {
+                op: "moveZone",
+                target: { target: 0 },
+                to: "exile",
+                bind: "$exiled",
+            },
+            {
+                op: "if",
+                predicate: {
+                    left: { ref: "$exiled.isPermanentCard" },
+                    op: "eq",
+                    right: 1,
+                },
+                then: [{ op: "gainLife", player: "controller", amount: 3 }],
+            },
+        ]);
+        const dead = makeInstance(BEAR_ID, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id: "deadPermWire",
+            zone: "graveyard",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { graveyard: [dead] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1", [
+            { type: "graveyard-card", id: "deadPermWire", playerId: "p1" },
+        ]);
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[0].life).toBe(23);
+    });
+});
+
+describe("Effect Script Op: attach / unattach (CR 701.3, ADR 0065, issue #1311)", () => {
+    // Reconfigure's two activated abilities (CR 702.151a) are a thin
+    // declarative skin over SpellContext.attachTo / detachFrom — the
+    // generalized (Aura OR Equipment) counterpart of `reattachAura`. A
+    // synthetic Equipment-shaped creature exercises both directions plus the
+    // CR 702.151b "isn't a creature while attached" type-remove effect.
+    const RECONFIG_ID = "test-op-reconfigure";
+    registerTokenDefinition({
+        id: RECONFIG_ID,
+        name: RECONFIG_ID,
+        rarity: "common",
+        manaCost: { generic: 1 },
+        types: ["Artifact", "Creature"],
+        subtypes: ["Equipment"],
+        power: 1,
+        toughness: 1,
+        staticEffects: [
+            {
+                kind: "type-remove",
+                applies: (target, source) =>
+                    target.id === source.id && !!source.attachedTo,
+                types: ["Creature"],
+            },
+        ],
+        activatedAbilities: [
+            {
+                id: "reconfig-attach",
+                oracleText: "test attach",
+                cost: {},
+                useStack: true,
+                targetRequirement: { type: "Creature", count: 1 },
+                effects: [{ op: "attach", target: { target: 0 } }],
+            },
+            {
+                id: "reconfig-unattach",
+                oracleText: "test unattach",
+                cost: {},
+                useStack: true,
+                effects: [{ op: "unattach" }],
+            },
+        ],
+    });
+
+    it("attach sets $source.attachedTo to the announced target and $source stops being a creature (CR 701.3a, 702.151b)", () => {
+        const equip = makeInstance(RECONFIG_ID, {
+            id: "equip1",
+            controllerId: "p1",
+        });
+        const bear = makeInstance(BEAR_ID, {
+            id: "bearAttach",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [equip, bear] }),
+                makePlayer("p2"),
+            ],
+        });
+        const src = state.players[0].battlefield[0];
+        state.stack.push({
+            ...src,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "reconfig-attach",
+            targets: [{ type: "permanent", id: "bearAttach" }],
+        });
+        resolveTopOfStack(state);
+        const found = state.players[0].battlefield.find(
+            (c) => c.id === "equip1"
+        )!;
+        expect(found.attachedTo).toBe("bearAttach");
+        expect(found.types).not.toContain("Creature");
+        expect(found.types).toContain("Artifact");
+    });
+
+    it("attach then unattach round-trips attachedTo and the Creature type (CR 701.3d, 702.151b)", () => {
+        const equip = makeInstance(RECONFIG_ID, {
+            id: "equip2",
+            controllerId: "p1",
+        });
+        const bear = makeInstance(BEAR_ID, {
+            id: "bearRound",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [equip, bear] }),
+                makePlayer("p2"),
+            ],
+        });
+        state.stack.push({
+            ...state.players[0].battlefield[0],
+            zone: "stack",
+            castById: "p1",
+            abilityId: "reconfig-attach",
+            targets: [{ type: "permanent", id: "bearRound" }],
+        });
+        resolveTopOfStack(state);
+        let found = state.players[0].battlefield.find(
+            (c) => c.id === "equip2"
+        )!;
+        expect(found.attachedTo).toBe("bearRound");
+        expect(found.types).not.toContain("Creature");
+
+        state.stack.push({
+            ...found,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "reconfig-unattach",
+            targets: [],
+        });
+        resolveTopOfStack(state);
+        found = state.players[0].battlefield.find((c) => c.id === "equip2")!;
+        expect(found.attachedTo).toBeUndefined();
+        expect(found.types).toContain("Creature");
+    });
+
+    it("unattach is a no-op when $source isn't attached (CR 608.2b)", () => {
+        const equip = makeInstance(RECONFIG_ID, {
+            id: "equip3",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [equip] }),
+                makePlayer("p2"),
+            ],
+        });
+        state.stack.push({
+            ...state.players[0].battlefield[0],
+            zone: "stack",
+            castById: "p1",
+            abilityId: "reconfig-unattach",
+            targets: [],
+        });
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+        const found = state.players[0].battlefield.find(
+            (c) => c.id === "equip3"
+        )!;
+        expect(found.attachedTo).toBeUndefined();
+        expect(found.types).toContain("Creature");
+    });
+
+    it("the attach outcome survives projection (wire format) — attachedTo and the stripped Creature type", () => {
+        const equip = makeInstance(RECONFIG_ID, {
+            id: "equip4",
+            controllerId: "p1",
+        });
+        const bear = makeInstance(BEAR_ID, {
+            id: "bearWire",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [equip, bear] }),
+                makePlayer("p2"),
+            ],
+        });
+        state.stack.push({
+            ...state.players[0].battlefield[0],
+            zone: "stack",
+            castById: "p1",
+            abilityId: "reconfig-attach",
+            targets: [{ type: "permanent", id: "bearWire" }],
+        });
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "equip4"
+        )!;
+        expect(slim.attachedTo).toBe("bearWire");
+        expect(slim.types).not.toContain("Creature");
+    });
+});
+
 describe("Effect Script Op: moveZone (CR 400.7, issue #839)", () => {
     // A permanent target → hand: the bounce half (returnToHand, CR 701.10).
     it("returns an announced battlefield permanent to its owner's hand", () => {
@@ -9814,7 +10115,10 @@ describe('Effect Script Op: forEach{set:"bound"} over a picks-family binding (is
     }
 
     it("untaps exactly the picked lands, leaving the unpicked one tapped", () => {
-        const id = registerScript("test-op-bound-picks-untap", UNTAP_PICKED_SCRIPT);
+        const id = registerScript(
+            "test-op-bound-picks-untap",
+            UNTAP_PICKED_SCRIPT
+        );
         const state = threeTappedLands();
         pushSpell(state, id, "p1");
         resolveTopOfStack(state);
@@ -9861,9 +10165,9 @@ describe('Effect Script Op: forEach{set:"bound"} over a picks-family binding (is
             choiceId: head.choiceId,
             cardInstanceIds: [],
         });
-        expect(
-            state.players[0].battlefield.every((c) => c.isTapped)
-        ).toBe(true);
+        expect(state.players[0].battlefield.every((c) => c.isTapped)).toBe(
+            true
+        );
     });
 });
 

@@ -7,8 +7,9 @@ import {
     refreshLandPlayLock,
     removePermanentTo,
     revertControlChange,
+    unapplySourceStaticEffects,
 } from "./state";
-import { isAura, isPlaneswalker } from "./constants";
+import { isAura, isCreature, isPlaneswalker } from "./constants";
 import {
     getEffectivePower,
     getEffectiveToughness,
@@ -170,6 +171,47 @@ export function checkAuraAttachmentSBA(state: GameState): boolean {
     // present), keeping read-time lookups consistent.
     for (const id of toDetach) {
         removePermanentTo(state, id, "graveyard");
+    }
+    return toDetach.length > 0;
+}
+
+/**
+ * CR 704.5n (ADR 0065's unified attachment model, issue #1311) — if an
+ * Equipment-kind attachment (an Equipment subtype permanent — today only a
+ * Reconfigure permanent while attached, CR 702.151b) is attached to an
+ * illegal permanent, it becomes unattached and REMAINS on the battlefield —
+ * unlike an Aura, which is put into its owner's graveyard (CR 704.5m,
+ * `checkAuraAttachmentSBA` above). Illegal means: the host has left the
+ * battlefield, or the host has stopped being a creature. Equipment legality
+ * is CONTROL-INDEPENDENT (CR 301.5c) — an Equipment can legally sit on a
+ * creature its controller doesn't control, so losing control of the host is
+ * NOT an illegal-attachment condition here.
+ *
+ * Scope: `attachedTo` is currently set by exactly two attachment kinds — an
+ * Aura (handled above) and an Equipment-subtype permanent (Reconfigure
+ * today; a future plain-Equip card, #776, reuses this SAME branch with no
+ * change). Gating on `subtypes.includes("Equipment")` keeps this SBA a no-op
+ * for any future THIRD attachment kind (e.g. Fortification) until it's
+ * explicitly added here.
+ */
+export function checkAttachmentSBA(state: GameState): boolean {
+    const toDetach: string[] = [];
+    for (const player of state.players) {
+        for (const card of player.battlefield) {
+            if (isAura(card)) continue; // handled by checkAuraAttachmentSBA
+            if (!card.attachedTo) continue;
+            if (!card.subtypes.includes("Equipment")) continue;
+            const host = findOnBattlefield(state, card.attachedTo);
+            if (!host || !isCreature(host)) {
+                toDetach.push(card.id);
+            }
+        }
+    }
+    for (const id of toDetach) {
+        const found = findOnBattlefield(state, id);
+        if (!found) continue;
+        unapplySourceStaticEffects(state, found);
+        found.attachedTo = undefined;
     }
     return toDetach.length > 0;
 }
@@ -673,6 +715,10 @@ export function checkStateBasedActions(state: GameState): void {
         refreshLandPlayLock(state);
         let acted = false;
         acted = checkAuraAttachmentSBA(state) || acted;
+        // CR 704.5n (ADR 0065, issue #1311) — the Equipment-flavored sibling
+        // of the Aura attachment SBA above: detach-in-place instead of
+        // graveyard-bound.
+        acted = checkAttachmentSBA(state) || acted;
         acted = checkConditionalControlChanges(state) || acted;
         // Idempotent bookkeeping (strips stale source-tapped buffs / untap
         // locks); no zone change or event, so it never gates the fixpoint. A

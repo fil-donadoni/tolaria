@@ -441,6 +441,24 @@ function analyseOp(op: EffectOp, req: Requirements): void {
                 req.skip ??= `object ref "${op.target.ref}" — target depends on a forEach iteration`;
             }
             return;
+        case "attach":
+            // CR 701.3a (ADR 0065, issue #1311) — Reconfigure's attach Op
+            // requires "target creature YOU control" (Lion Sash), unlike the
+            // generic-permanent targets `destroy`/`exile` model above; the
+            // canned generator's target placement (opponent's battlefield)
+            // can't satisfy a controller-scoped target requirement. Explicit
+            // skip — a genuinely NEW Op earns the full per-Op interpreter +
+            // card test regime instead (`.claude/rules/gre-development.md`).
+            req.skip ??= `Op "attach" targets a creature the CONTROLLER controls — not modelable by the generator's opponent-battlefield target placement`;
+            return;
+        case "unattach":
+            // CR 701.3d (ADR 0065, issue #1311) — no target, but its outcome
+            // (clearing $source's own attachedTo + restoring its Creature
+            // type) is only observable if a PRIOR attach already ran in the
+            // same script, which the generator doesn't sequence. Explicit
+            // skip alongside "attach" — same per-Op test regime applies.
+            req.skip ??= `Op "unattach" only has an observable outcome after a prior attach — covered by hand-written interpreter/card tests`;
+            return;
         case "choice":
             // A `choice` Op suspends resolution for a live player decision
             // (issue #805) — a canned scenario cannot submit picks, so the

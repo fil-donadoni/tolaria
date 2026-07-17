@@ -128,7 +128,7 @@ const KEYWORD_ACTIONS: MechanicRow[] = [
         cr: "701.3",
         status: "implemented",
         binding:
-            "Aura/Equipment attach on ETB (finalizeSpellResolution) + equip cost (SpellContext.reattachAura)",
+            "Aura attach on ETB (finalizeSpellResolution) + reattach (SpellContext.reattachAura); Reconfigure/Equipment attach-unattach (SpellContext.attachTo/detachFrom, ADR 0065, the 'attach'/'unattach' Effect Script Ops)",
     },
     // 701.4 Behold
     {
@@ -863,7 +863,8 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         cr: "702.21",
         status: "implemented",
         bindingPattern: /^ward /,
-        binding: "convex/cards/abilities/ward.ts wardAbility(cost, costLabel) factory",
+        binding:
+            "convex/cards/abilities/ward.ts wardAbility(cost, costLabel) factory",
         note: 'Issue #1312 — "ward <label>" static string is board-visible reminder data (matched by bindingPattern, e.g. "ward {2}", "ward—pay 2 life"), wardAbility({cost, costLabel}) in triggeredAbilities is the enforcing CR 702.21a triggered ability. Routes entirely through the existing targeted-triggered-ability foundation (CR 603.3d, issue #1193): event "BECAME_TARGET" (CR 603.2b, issue #1265, the same event Leovold reads) narrowed to `event.target.id === self.id` (this exact permanent, not just "you control it"); its own target ("that spell or ability") resolves via the new `spellTargetsSelfSource` dynamic requirement flag (rules.ts raiseTriggerTargetSelection — pins Mistfolk\'s `spellTargetsInstanceIds` filter to `StackItem.triggerSourceId` per-instance instead of a static id) combined with the new `spellStackKind: "any"` value (spells AND abilities both admitted — CR 702.21a says "spell or ability", unlike Stifle\'s ability-only "ability" or Mistfolk\'s spell-only default); the CR 603.3d single-legal-target rule then auto-selects it with no player choice in the overwhelming common case. Effects are the existing "counter unless pay" DSL shape (Miscalculation/Force Spike): mayPay(controllerOf target 0) + if(!paid) counter(target 0) — mayPay/if/counter are already interpreter-suite-exercised Ops, no new Op introduced. Documented divergence (tracked-by #1361, split from #1312): the rare case of TWO distinct spells/abilities simultaneously targeting the same warded permanent before either resolves falls back to a real player choice instead of forcing the one that actually caused THIS trigger (no event→stack-item id reference exists, ADR 0049) — narrow, never mis-targets, just doesn\'t force the automatic pick CR 702.21a implies in that overlap. No card ships the keyword yet (Kappa Cannoneer, cn nec/blue.ts, is separate — also needs Improvise, issue #917).',
     },
     // 702.22 Banding
@@ -1965,13 +1966,19 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         cr: "702.150",
         status: "planned",
     },
-    // 702.151 Reconfigure
+    // 702.151 Reconfigure (issue #1311) — two activated abilities (attach /
+    // unattach, CR 702.151a) routed through the "attach"/"unattach" Effect
+    // Script Ops (ADR 0065's unified attachment model), plus a `type-remove`
+    // static effect for CR 702.151b ("isn't a creature while attached").
+    // First card: Lion Sash (neo/white.ts).
     {
         id: "reconfigure",
         name: "Reconfigure",
         kind: "keyword-ability",
         cr: "702.151",
-        status: "planned",
+        status: "implemented",
+        binding:
+            "ActivatedAbility pair (attach/unattach Effect Script Ops) + StaticTypeRemove (CR 702.151b) + checkAttachmentSBA (CR 704.5n)",
     },
     // 702.152 Blitz
     {
@@ -2496,6 +2503,22 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         binding: "SpellContext.exile",
         mechanicId: "exile",
         note: "Effect Script Op for the CR 701 keyword action \"Exile\" — moves the target to its owner's exile zone (CR 406). Supports `bind` to snapshot the permanent's power/toughness/controller before it leaves (Swords to Plowshares reads the exiled creature's power, CR 608.2h).",
+    },
+    {
+        op: "attach",
+        status: "implemented",
+        cr: "701.3a",
+        binding: "SpellContext.attachTo",
+        mechanicId: "attach",
+        note: "Effect Script Op for the CR 701.3 keyword action \"Attach\" (the attach half) — moves $source onto the announced target permanent without leaving the battlefield (ADR 0065's unified attachment model, issue #1311). Reconfigure's first activated ability (CR 702.151a). Generalizes the Aura-only `reattachAura` primitive so a future plain-Equip card (#776) reuses the SAME Op.",
+    },
+    {
+        op: "unattach",
+        status: "implemented",
+        cr: "701.3d",
+        binding: "SpellContext.detachFrom",
+        mechanicId: "attach",
+        note: "Effect Script Op for the CR 701.3d keyword action \"Attach\" (the unattach half) — moves $source off whatever it's attached to, remaining on the battlefield (ADR 0065, issue #1311). Reconfigure's second activated ability (CR 702.151a). No target (the CR text names nothing to unattach TO).",
     },
     {
         op: "choice",

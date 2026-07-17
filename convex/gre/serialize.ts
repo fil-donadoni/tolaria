@@ -160,6 +160,9 @@ function compactCard(
     if (card.grantedTypes && card.grantedTypes.length > 0) {
         out.grantedTypes = card.grantedTypes;
     }
+    if (card.suppressedTypes && card.suppressedTypes.length > 0) {
+        out.suppressedTypes = card.suppressedTypes;
+    }
     if (card.grantedSubtypes && card.grantedSubtypes.length > 0) {
         out.grantedSubtypes = card.grantedSubtypes;
     }
@@ -428,6 +431,10 @@ function expandCard(
     if (compact.grantedTypes) {
         result.grantedTypes =
             compact.grantedTypes as CardInstanceState["grantedTypes"];
+    }
+    if (compact.suppressedTypes) {
+        result.suppressedTypes =
+            compact.suppressedTypes as CardInstanceState["suppressedTypes"];
     }
     if (compact.grantedSubtypes) {
         result.grantedSubtypes =
