@@ -26,6 +26,7 @@ import {
     drawCard,
     planDrawStep,
     commitDrawPlan,
+    becomeMonarch,
     payMayPayCost,
     emitCardDrawn,
     flushPendingEvents,
@@ -1218,6 +1219,21 @@ export function applyAllCombatDamage(
             );
             if (reduced <= 0) return;
             getPlayer(state, finalTarget.id).life -= reduced;
+            // CR 720.3 (issue #1199) — a creature dealing combat damage to the
+            // monarch steals the designation for its controller. `becomeMonarch`
+            // is idempotent ("unless that player is already the monarch"), so
+            // this is a no-op when the source's own controller IS the monarch
+            // (they damaged themselves — not achievable through normal combat
+            // — or the damaged player wasn't the monarch at all, guarded by the
+            // `state.monarchId === finalTarget.id` check). DIVERGENCE: modeled
+            // as an immediate hook here rather than a separate responantable
+            // triggered ability (the real CR 720.3 wording); out of scope — no
+            // card in the current pool interacts with intercepting this
+            // specific window, and it mirrors the sibling CR 720.4 end-step
+            // draw hook's simplification tier below.
+            if (state.monarchId === finalTarget.id) {
+                becomeMonarch(state, source.controllerId);
+            }
             // CR 119.3 — combat damage to a player causes life loss. Pushed
             // onto the same `events` batch that feeds `collectTriggers` below
             // so "whenever you lose life" triggers (Oath of Lim-Dûl) fire from
@@ -1896,6 +1912,28 @@ function performPhaseEntry(state: GameState): void {
         }
         case "END_STEP": {
             fireDelayedTriggers(state, "next-end-step");
+            // CR 720.4 (issue #1199) — "at the beginning of the monarch's end
+            // step, that player draws a card". Only fires when it is
+            // currently THAT player's end step (a non-monarch's end step is a
+            // no-op). Routed through the unified draw seam (CR 614, ADR
+            // 0061) exactly like the turn-based draw-step draw below, so a
+            // draw replacement (Zur's Weirding) still applies; passes
+            // `isTurnBasedDrawStepDraw: false` since this genuinely isn't the
+            // draw step. DIVERGENCE: modeled as an immediate turn-based
+            // action rather than a separate responantable triggered ability
+            // (the real CR 720.4 wording, "a triggered ability that all
+            // players can respond to"); out of scope — no card in the
+            // current pool interacts with intercepting this window, and it
+            // mirrors the sibling CR 720.3 combat-damage-steal hook's
+            // simplification tier above.
+            if (state.monarchId && state.monarchId === state.activePlayerId) {
+                const plan = planDrawStep(state, state.monarchId, 1, false);
+                if (plan.kind === "may-pay-bin") {
+                    enqueueDrawReplacementPay(state, state.monarchId, plan);
+                } else {
+                    commitDrawPlan(state, state.monarchId, plan);
+                }
+            }
             break;
         }
         case "CLEANUP":
@@ -2228,14 +2266,17 @@ export function finalizeCleanup(state: GameState): void {
     // scoped, so the whole class is purged at CLEANUP; the phase-boundary
     // timings are left untouched (they fire on a future step, not this turn).
     // Same bound applies to `this-turn-creature-blocks` (CR 603.7d, issue
-    // #884, Battle Cry): unlike `leaves-battlefield` it is REPEATING (never
-    // dequeued by firing, `triggers.ts`), so it is purged here unconditionally
-    // regardless of how many times — including zero — it fired this turn.
+    // #884, Battle Cry) and `this-turn-creature-deals-combat-damage-to-player`
+    // (CR 720.2, issue #1199, Forth Eorlingas!): unlike `leaves-battlefield`
+    // both are REPEATING (never dequeued by firing, `triggers.ts`), so they
+    // are purged here unconditionally regardless of how many times —
+    // including zero — they fired this turn.
     if (state.delayedTriggers?.length) {
         const kept = state.delayedTriggers.filter(
             (t) =>
                 t.timing !== "leaves-battlefield" &&
-                t.timing !== "this-turn-creature-blocks"
+                t.timing !== "this-turn-creature-blocks" &&
+                t.timing !== "this-turn-creature-deals-combat-damage-to-player"
         );
         state.delayedTriggers = kept.length > 0 ? kept : undefined;
     }

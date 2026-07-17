@@ -1213,6 +1213,11 @@ const DELAYED_TIMINGS = new Set([
     // Cry). Rejects both `targetPlayer` and `watch` (checked below), like the
     // phase-boundary timings — it is not scoped to a player nor one instance.
     "this-turn-creature-blocks",
+    // Repeating combat-damage-to-player watch (CR 720.2, issue #1199) — fires
+    // at most once per DAMAGE_DEALT-carrying event batch for the rest of the
+    // turn (Forth Eorlingas!). Rejects both `targetPlayer` and `watch`, same
+    // shape as "this-turn-creature-blocks".
+    "this-turn-creature-deals-combat-damage-to-player",
 ]);
 
 function isDelayedTiming(value: unknown): boolean {
@@ -1473,6 +1478,12 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
         required: {
             emblem: (v: unknown) => typeof v === "string" && v.length > 0,
         },
+        optional: { controller: isPlayerRef },
+    },
+    // CR 720.2 (issue #1199) — crown a player the monarch. `controller`
+    // (default "controller") names who is crowned.
+    becomeMonarch: {
+        required: {},
         optional: { controller: isPlayerRef },
     },
     // CR 613.1b (issue #848) — change control of a permanent (layer 2).

@@ -3156,6 +3156,12 @@
         "firstSet": "ecl"
     },
     {
+        "name": "Forth Eorlingas!",
+        "scryfallId": "06c053d3-028e-4961-93a5-5b7bb5a8601c",
+        "oracleId": "35807c14-4647-482f-9ba1-6d640fd5e8d8",
+        "firstSet": "ltc"
+    },
+    {
         "name": "Fortified Area",
         "scryfallId": "dc64f19c-5b2b-4697-b4dc-2be9c3790794",
         "oracleId": "cef37acf-ee97-48bf-a605-b17efcce5ce8",
@@ -6322,6 +6328,12 @@
         "scryfallId": "c91fca91-7296-422e-b251-d571b710ff71",
         "oracleId": "07159efc-c69f-4164-a8ca-9da641dbf702",
         "firstSet": "inv"
+    },
+    {
+        "name": "Palace Jailer",
+        "scryfallId": "78cef262-c753-4658-b3ec-fec8db47f944",
+        "oracleId": "180eda7c-fca2-403b-85cd-8ffebaf9f408",
+        "firstSet": "cn2"
     },
     {
         "name": "Pale Bears",

@@ -830,6 +830,17 @@ describe("game_state serialize round-trip", () => {
         expect(expanded.exileHeld).toEqual(state.exileHeld);
     });
 
+    it("preserves the Monarch designation across the round trip (CR 720, issue #1199)", () => {
+        const state = freshState();
+        state.monarchId = "p1";
+        state.monarchReturnWatch = [
+            { sourceId: "jailer-1", controllerId: "p1" },
+        ];
+        const expanded = expandState(compactState(state));
+        expect(expanded.monarchId).toBe("p1");
+        expect(expanded.monarchReturnWatch).toEqual(state.monarchReturnWatch);
+    });
+
     it("preserves combatBlockRestrictions across the round trip", () => {
         const state = freshState();
         state.combatBlockRestrictions = [
@@ -1102,6 +1113,10 @@ describe("schema drift guard", () => {
         state.drawLookReplacements = [{ playerId: "p1", x: 3 }];
         state.landManaReplacedToBlueThisTurn = ["p1"];
         state.abilityResolutionCounts = { "src-1:ability-1": 1 };
+        state.monarchId = "p1";
+        state.monarchReturnWatch = [
+            { sourceId: "jailer-1", controllerId: "p1" },
+        ];
 
         const stateKeys = new Set(Object.keys(state));
         const missing = [...stateKeys].filter((k) => !allKnown.has(k));

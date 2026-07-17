@@ -359,6 +359,37 @@ describe("board player life totals (#280)", () => {
         expect(wrapper!.className).toContain("-translate-x-1/2");
     });
 
+    it("shows the Monarch badge only for the player named by GameContext.monarchId (CR 720.1, issue #1199)", () => {
+        // p1 IS the monarch — badge renders on both boards.
+        const classic = renderClassic(makePlayer("p1"), {
+            playerId: "p2",
+            monarchId: "p1",
+        });
+        expect(classic.container.textContent).toContain("Monarch");
+        cleanup();
+
+        const spatial = renderSpatial(
+            makePlayer("p1"),
+            { playerId: "p2", monarchId: "p1" },
+            "top"
+        );
+        expect(spatial.container.textContent).toContain("Monarch");
+        cleanup();
+
+        // p2 is NOT the monarch (p1 is) — no badge for p2's nameplate.
+        const notMonarch = renderSpatial(
+            makePlayer("p2"),
+            { playerId: "p2", monarchId: "p1" },
+            "bottom"
+        );
+        expect(notMonarch.container.textContent).not.toContain("Monarch");
+        cleanup();
+
+        // No monarch at all — badge absent.
+        const none = renderSpatial(makePlayer("p1"), { playerId: "p2" }, "top");
+        expect(none.container.textContent).not.toContain("Monarch");
+    });
+
     it("shows a priority ring on the player who holds priority", () => {
         // p1 has priority (default ctx), viewer is p2. The priority ring is a
         // token-based box-shadow (teal `secondary-accent` for both seats),

@@ -1805,6 +1805,28 @@ export interface SpellContext {
      *  No-op if `sourceId` holds nothing. Called from the source's "leaves the
      *  battlefield or becomes untapped" triggers. */
     returnExiledForSource: (sourceId: string) => void;
+    /** CR 720.2 (issue #1199) — crowns `playerId` the monarch. Idempotent (a
+     *  player who is already the monarch becoming the monarch again is a
+     *  no-op) and self-reassigning (crowning someone new automatically
+     *  displaces whoever held the designation — CR 720.2 — no separate "stop
+     *  being monarch" call). Also the CR 720 release trigger for any Palace
+     *  Jailer-style watch armed by `exileUntilMonarchChanges` against a
+     *  DIFFERENT controller than the newly-crowned player ("an opponent
+     *  becomes the monarch"). */
+    becomeMonarch: (playerId: string) => void;
+    /** CR 720 (Palace Jailer, issue #1199) — exiles `targetId` (host-only,
+     *  CR 701.18, the O-Ring precedent: its Auras fall to the orphan-aura SBA
+     *  and Equipment detaches) and arms a watch that returns it the moment an
+     *  OPPONENT of the resolving ability's controller next becomes the
+     *  monarch (`becomeMonarch`). Unlike `exileWithAttachments`, the return
+     *  condition is the monarch designation changing hands, not this card's
+     *  own source leaving the battlefield — Palace Jailer leaving play does
+     *  NOT return the exiled creature (official ruling). No-op if the target
+     *  isn't on the battlefield. */
+    exileUntilMonarchChanges: (
+        targetId: string,
+        opts?: { returnTapped?: boolean }
+    ) => void;
     /** Randomizes the order of a player's library using the seeded PRNG
      *  (CR 701.20). Deterministic under replay. */
     shuffleLibrary: (playerId: string) => void;
@@ -3498,7 +3520,22 @@ export type DelayedTriggerTiming =
      *  "this turn" bound, CR 514.2, phases.ts's CLEANUP delayed-trigger sweep).
      *  Rejects `targetPlayer` / `watch` like the phase-boundary timings
      *  (validate.ts). */
-    | "this-turn-creature-blocks";
+    | "this-turn-creature-blocks"
+    /** CR 720.2 (Forth Eorlingas!, issue #1199) — a REPEATING, this-turn-
+     *  bounded, combat-damage watch: "Whenever one or more creatures you
+     *  control deal combat damage to one or more players this turn, you
+     *  become the monarch." Mirrors `this-turn-creature-blocks`'s shape
+     *  exactly (stays queued, purged only at CLEANUP) but collapses EVERY
+     *  matching `DAMAGE_DEALT` event within one `collectTriggers` batch into
+     *  AT MOST ONE firing per delayed-trigger instance per batch — the "one or
+     *  more creatures … one or more players" wording exists precisely to
+     *  prevent a single damage step's several simultaneous hits from
+     *  firing this ability more than once (official ruling: "this ability
+     *  still triggers only once" for simultaneous damage). A LATER, separate
+     *  damage step (an extra combat) fires it again — becoming monarch is
+     *  idempotent (CR 720.2) so a redundant firing is harmless. Rejects
+     *  `targetPlayer` / `watch` like `this-turn-creature-blocks`. */
+    | "this-turn-creature-deals-combat-damage-to-player";
 
 /** ADR 0048 — the inline body of an Effect-Script-scheduled delayed trigger
  *  (CR 603.7a): a pure-JSON Op list persisted ON the `DelayedTriggerInstance`
@@ -7280,6 +7317,17 @@ export type EffectOp =
      *  card def. `controller` (default "controller") is the emblem's owner
      *  (CR 114.3). Typically the body of a planeswalker's ultimate. */
     | { op: "emblem"; emblem: string; controller?: EffectPlayerRef }
+    /** CR 720.2 (issue #1199) — crowns a player the monarch. A thin
+     *  declarative skin over the single SpellContext primitive
+     *  `becomeMonarch`, one execution path (ADR 0045): `controller` names who
+     *  is crowned — the resolving controller (`"controller"`, the default and
+     *  vast majority — Forth Eorlingas!, Palace Jailer's own ETB) or an
+     *  announced target-slot / relative player. Idempotent (a player already
+     *  the monarch becoming the monarch again is a no-op, CR 720.2/720.3) and
+     *  self-reassigning (crowning someone new displaces whoever held it — a
+     *  single scalar, no explicit "stop being monarch" Op). Skipped when the
+     *  player ref cannot be resolved (CR 608.2b). */
+    | { op: "becomeMonarch"; controller?: EffectPlayerRef }
     /** CR 613.1b (issue #848) — change control of a permanent (layer 2). A thin
      *  declarative skin over the single SpellContext primitive `gainControl`,
      *  one execution path (ADR 0045). `target` names the permanent whose
