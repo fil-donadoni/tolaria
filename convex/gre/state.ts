@@ -20,6 +20,7 @@ import {
     type ManaCost as CardManaCost,
     type MayPayCost,
     type MovableZone,
+    PERMANENT_TYPES,
     type PermanentFilter,
     type PermanentView,
     type SpellCastEvent,
@@ -413,9 +414,14 @@ export type CardInstanceState = {
      *  triggers (Sengir Vampire) can inspect the victim post-death. Cleared
      *  at CLEANUP (CR 514.2). */
     damagedBySources?: string[];
-    /** Instance id of the permanent this card is attached to (CR 303.4b).
-     *  Set on auras when they ETB. Cleared by SBA 704.5m when the host
-     *  becomes illegal. Non-aura permanents leave this undefined. */
+    /** Instance id of the permanent this card is attached to (CR 303.4b,
+     *  701.3 — ADR 0065's unified attachment model). Set on auras when they
+     *  ETB (cleared by SBA 704.5m when the host becomes illegal — the Aura
+     *  goes to the graveyard); set by a Reconfigure permanent's `attach`
+     *  activated ability (CR 702.151, issue #1311; cleared in place by
+     *  `checkAttachmentSBA`, CR 704.5n, or by its own `unattach` ability —
+     *  the Equipment stays on the battlefield). A permanent with neither
+     *  capability leaves this undefined. */
     attachedTo?: string;
     /** Stack of control-changing effects currently applied to this permanent
      *  (CR 613.1b, layer 2). Each entry records the aura that imposed the
@@ -606,6 +612,13 @@ export type CardInstanceState = {
      *  effect; `unapplySourceStaticEffects` removes from `types[]` once the
      *  last origin entry is gone, provided the type wasn't printed. */
     grantedTypes?: { type: string; auraId: string }[];
+    /** Tracks card types REMOVED by `StaticTypeRemove` effects (layer 4
+     *  surrogate, subtractive counterpart of `grantedTypes`). One entry per
+     *  `(sourceId, type)` pair so unapplying one source only restores the
+     *  type when no other source still suppresses it, and only if the type
+     *  was originally printed. Used by Reconfigure's "isn't a creature while
+     *  attached" (CR 702.151b, issue #1311). */
+    suppressedTypes?: { type: string; sourceId: string }[];
     /** Layer 4 subtype replacements (CR 305.7). Each entry records one
      *  source's override. The engine also snapshots `printedSubtypes` before
      *  the first replacement so unapply can restore them. When multiple
@@ -4344,6 +4357,36 @@ export function applySourceStaticEffects(
                     // controlled since the start of its controller's most recent
                     // turn. (Setting it on `=== undefined` here was a bug — it
                     // re-sickened permanents controlled since a prior turn.)
+                } else if (effect.kind === "type-remove") {
+                    // Subtractive counterpart of type-add (CR 205, layer 4 —
+                    // Reconfigure's "isn't a creature while attached", CR
+                    // 702.151b, issue #1311). Only strips a type that's
+                    // actually present, and only records an origin entry when
+                    // it did — an unapply later must not "restore" a type
+                    // this source never removed.
+                    if (!effect.applies(target, source, STATIC_EFFECT_CTX)) {
+                        continue;
+                    }
+                    const suppressedOrigins = target.suppressedTypes ?? [];
+                    for (const type of effect.types) {
+                        const already = suppressedOrigins.some(
+                            (o) => o.sourceId === source.id && o.type === type
+                        );
+                        if (already) continue;
+                        if (target.types.includes(type)) {
+                            suppressedOrigins.push({
+                                type,
+                                sourceId: source.id,
+                            });
+                            target.types = target.types.filter(
+                                (t) => t !== type
+                            );
+                        }
+                    }
+                    target.suppressedTypes =
+                        suppressedOrigins.length > 0
+                            ? suppressedOrigins
+                            : undefined;
                 } else if (effect.kind === "color-grant") {
                     if (!effect.applies(target, source, STATIC_EFFECT_CTX)) {
                         continue;
@@ -4538,6 +4581,45 @@ export function unapplySourceStaticEffects(
                         if (stillGranted) continue;
                         if (printedTypes.includes(r.type)) continue;
                         target.types = target.types.filter((t) => t !== r.type);
+                    }
+                }
+            }
+            // Subtractive counterpart of the grantedTypes restore above
+            // (Reconfigure's "isn't a creature while attached", CR 702.151b,
+            // issue #1311): restore a type this source removed, but ONLY when
+            // no other source still suppresses it AND it was originally
+            // printed (a type this source added-then-removed on the SAME
+            // target — not a shape any shipped card produces — is not
+            // resurrected here, mirroring grantedTypes' own printed-only
+            // restore rule).
+            const suppressed = target.suppressedTypes;
+            if (suppressed && suppressed.length > 0) {
+                const removedBySource = suppressed.filter(
+                    (g) => g.sourceId === source.id
+                );
+                const stillSuppressed = suppressed.filter(
+                    (g) => g.sourceId !== source.id
+                );
+                target.suppressedTypes =
+                    stillSuppressed.length > 0 ? stillSuppressed : undefined;
+                if (removedBySource.length > 0) {
+                    const targetCardId = (target.card as { id?: string }).id;
+                    const def = targetCardId
+                        ? tryGetDefinition(targetCardId)
+                        : undefined;
+                    const printedTypes = (def?.types ?? []) as string[];
+                    for (const r of removedBySource) {
+                        const stillGone = stillSuppressed.some(
+                            (g) => g.type === r.type
+                        );
+                        if (stillGone) continue;
+                        if (!printedTypes.includes(r.type)) continue;
+                        if (!target.types.includes(r.type as CardType)) {
+                            target.types = [
+                                ...target.types,
+                                r.type as CardType,
+                            ];
+                        }
                     }
                 }
             }
@@ -11037,6 +11119,86 @@ export function buildSpellContext(
             aura.card.attachedTo = newHostId;
             applySourceStaticEffects(state, aura.card);
             return true;
+        },
+        // CR 701.3a/701.3c (ADR 0065, issue #1311) — generalizes `reattachAura`
+        // to ANY attachable permanent (Reconfigure's Equipment, or a future
+        // plain-Equip card, #776), not just Auras. Identical body: unapply the
+        // source's own grants (host grants AND any self-gated effect, e.g.
+        // Reconfigure's "isn't a creature while attached"), repoint
+        // `attachedTo`, re-apply against the new host. Works for a first
+        // attach too (no prior `attachedTo`; unapplying an empty grant set is
+        // a no-op).
+        attachTo(sourceInstanceId: string, newHostId: string): boolean {
+            const source = findOnBattlefield(state, sourceInstanceId);
+            const newHost = findOnBattlefield(state, newHostId);
+            if (!source || !newHost) return false;
+            unapplySourceStaticEffects(state, source.card);
+            source.card.attachedTo = newHostId;
+            applySourceStaticEffects(state, source.card);
+            return true;
+        },
+        // CR 701.3d (ADR 0065, issue #1311) — unattach `sourceInstanceId`,
+        // leaving it on the battlefield unattached (Reconfigure's second
+        // activated ability, CR 702.151a). An Aura instead goes to the
+        // graveyard via `checkAuraAttachmentSBA` (CR 704.5m) — this is the
+        // Equipment-flavored detach (CR 704.5n), not the Aura one. No-op if
+        // the source isn't on the battlefield or isn't currently attached.
+        detachFrom(sourceInstanceId: string): boolean {
+            const source = findOnBattlefield(state, sourceInstanceId);
+            if (!source || !source.card.attachedTo) return false;
+            unapplySourceStaticEffects(state, source.card);
+            source.card.attachedTo = undefined;
+            return true;
+        },
+        // CR 205 / 110.1 — true iff the referenced object's card types
+        // include at least one PERMANENT type. Mirrors getManaValue's
+        // per-target-shape dispatch (permanent / spell / graveyard-card /
+        // hand-card): a graveyard-card or hand-card target must still be
+        // found in its owner's zone array, so callers read it BEFORE the
+        // object moves (pair with a `bind` snapshot for a later ref). Used by
+        // "if it was a permanent card" templates (Lion Sash, issue #1311).
+        isPermanentCard(target: TargetSelection): boolean {
+            const isPermanentType = (types: readonly string[]): boolean =>
+                types.some((t) =>
+                    (PERMANENT_TYPES as readonly string[]).includes(t)
+                );
+            if (target.type === "permanent") {
+                const found = findOnBattlefield(state, target.id);
+                if (!found) return false;
+                const cardId = (found.card.card as { id?: string }).id;
+                const def = cardId ? tryGetDefinition(cardId) : undefined;
+                return isPermanentType(def?.types ?? []);
+            }
+            if (target.type === "spell") {
+                const stackItem = state.stack.find((s) => s.id === target.id);
+                if (!stackItem) return false;
+                const cardId = (stackItem.card as { id?: string }).id;
+                const def = cardId ? tryGetDefinition(cardId) : undefined;
+                return isPermanentType(def?.types ?? []);
+            }
+            if (target.type === "graveyard-card") {
+                const owner = target.playerId;
+                if (owner === undefined) return false;
+                const found = getPlayer(state, owner).graveyard.find(
+                    (c) => c.id === target.id
+                );
+                if (!found) return false;
+                const cardId = (found.card as { id?: string }).id;
+                const def = cardId ? tryGetDefinition(cardId) : undefined;
+                return isPermanentType(def?.types ?? []);
+            }
+            if (target.type === "hand-card") {
+                const owner = target.playerId;
+                if (owner === undefined) return false;
+                const found = getPlayer(state, owner).hand.find(
+                    (c) => c.id === target.id
+                );
+                if (!found) return false;
+                const cardId = (found.card as { id?: string }).id;
+                const def = cardId ? tryGetDefinition(cardId) : undefined;
+                return isPermanentType(def?.types ?? []);
+            }
+            return false;
         },
         // CR 701.20a: tap all lands controlled by playerId. Used by Mana Short
         // and Drain Power.

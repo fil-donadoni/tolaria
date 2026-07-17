@@ -135,6 +135,17 @@ const SNAP_CONTROLLER = 2;
 const SNAP_ID = 3;
 const SNAP_MANA_VALUE = 4;
 const SNAP_OWNER = 5;
+/** CR 205 / 110.1 (issue #1311) — "1" if the snapshotted object was a
+ *  permanent card (its types included at least one permanent type) at bind
+ *  time, else "0". Read via `.isPermanentCard` in a numeric ref (Lion Sash:
+ *  "Exile target card from a graveyard. If it was a permanent card, put a
+ *  +1/+1 counter on this permanent" — the "was" is exactly this last-known-
+ *  info snapshot, mirroring SNAP_MANA_VALUE's own pre-move capture). A
+ *  pre-#1311 snapshot has no slot here; the array read then yields
+ *  `undefined`, `Number(undefined)` is `NaN`, and a `eq 1` comparison is
+ *  false — treated as "not a permanent card", same fail-closed default every
+ *  other missing-slot read uses. */
+const SNAP_IS_PERMANENT_CARD = 6;
 
 /** A players-set `$each` binding (issue #807) is stored as the single-element
  *  `[playerId]` — distinguishable from a 4-slot object snapshot by the
@@ -313,6 +324,13 @@ function resolveValue(
         // equal to that card's mana value".
         if (parsed.property === "manaValue") {
             return Number(snap[SNAP_MANA_VALUE]);
+        }
+        // isPermanentCard (issue #1311) — CR 205/110.1, "1"/"0" captured at
+        // bind time (SNAP_IS_PERMANENT_CARD). A comparison predicate reads it
+        // as `{ left: { ref: "$name.isPermanentCard" }, op: "eq", right: 1 }`
+        // ("if it was a permanent card…", Lion Sash).
+        if (parsed.property === "isPermanentCard") {
+            return Number(snap[SNAP_IS_PERMANENT_CARD]);
         }
         return undefined;
     }
@@ -923,6 +941,11 @@ function bindSnapshot(
         (isPermanent
             ? ctx.getOwnerId(target.id)
             : (target.playerId ?? undefined)) ?? "",
+        // SNAP_IS_PERMANENT_CARD (issue #1311) — CR 205/110.1, read BEFORE
+        // the object moves (mirrors SNAP_MANA_VALUE's own pre-move capture;
+        // `isPermanentCard`'s graveyard-card/hand-card branches require the
+        // card still be findable in its owner's zone array).
+        ctx.isPermanentCard(target) ? "1" : "0",
     ]);
 }
 
@@ -1260,6 +1283,20 @@ export const OP_EXECUTORS: {
         if (!target) return;
         if (op.bind) bindSnapshot(ctx, op.bind, target);
         ctx.exile(target);
+    },
+    // CR 701.3a/701.3c (ADR 0065, issue #1311) — attach $source to the
+    // announced target permanent. Only a "permanent" TargetSelection is a
+    // legal attach host (the ability's targetRequirement already restricts
+    // to "Creature"); any other resolved kind is a no-op.
+    attach(ctx, op) {
+        const target = resolveObjectRef(ctx, op.target);
+        if (!target || target.type !== "permanent") return;
+        ctx.attachTo(ctx.sourceInstanceId, target.id);
+    },
+    // CR 701.3d (ADR 0065, issue #1311) — unattach $source from whatever
+    // it's currently attached to. No-op if it isn't attached.
+    unattach(ctx) {
+        ctx.detachFrom(ctx.sourceInstanceId);
     },
     // CR 400.7 (issue #839 / #677) — a plain zone change. A thin declarative
     // skin over the SpellContext zone-movement primitives, ONE execution path

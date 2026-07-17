@@ -3198,6 +3198,38 @@ export interface SpellContext {
      *  of their choice."). */
     reattachAura: (auraInstanceId: string, newHostId: string) => boolean;
 
+    /** CR 701.3a/701.3c (ADR 0065, issue #1311) — attach `sourceInstanceId`
+     *  to `newHostId` without it leaving the battlefield. Generalizes
+     *  `reattachAura` to any attachable permanent (Reconfigure's Equipment,
+     *  or a future plain-Equip card, #776) rather than just Auras: unapplies
+     *  the source's own static effects (grants to its old host, and any
+     *  self-gated effect like Reconfigure's "isn't a creature while
+     *  attached") then re-applies them against the new host. Works for a
+     *  FIRST attach too (the source's prior `attachedTo` may be undefined —
+     *  unapplying a no-op grant set is harmless). Returns false if either
+     *  permanent isn't on the battlefield. */
+    attachTo: (sourceInstanceId: string, newHostId: string) => boolean;
+
+    /** CR 701.3d (ADR 0065, issue #1311) — unattach `sourceInstanceId` from
+     *  whatever it's currently attached to, LEAVING it on the battlefield
+     *  unattached (Reconfigure's second activated ability, CR 702.151a — "…
+     *  Unattach this permanent"). An Aura instead goes to the graveyard via
+     *  `checkAuraAttachmentSBA` (CR 704.5m); callers on an Aura should not use
+     *  this. Returns false (no-op) if the source isn't on the battlefield or
+     *  isn't currently attached. */
+    detachFrom: (sourceInstanceId: string) => boolean;
+
+    /** CR 205 / 110.1 — true iff the referenced object's card types include
+     *  at least one PERMANENT type (Artifact/Battle/Creature/Enchantment/
+     *  Land/Planeswalker). Mirrors `getManaValue`'s per-target-shape dispatch
+     *  (permanent / spell / graveyard-card / hand-card); a graveyard-card or
+     *  hand-card target must still be found in its owner's zone array, so
+     *  read it BEFORE the object moves (pair with a `bind` snapshot for a
+     *  later ref, same idiom `getManaValue`'s SNAP_MANA_VALUE slot uses).
+     *  Used by "if it was a permanent card" templates (Lion Sash, issue
+     *  #1311, CR 300.1). */
+    isPermanentCard: (target: TargetSelection) => boolean;
+
     /** Taps all lands controlled by `playerId` (CR 701.20a). Used by Mana
      *  Short and Drain Power. No-op for lands already tapped. */
     tapAllLands: (playerId: string) => void;
@@ -4086,6 +4118,35 @@ export interface StaticTypeAdd {
     types: CardType[];
 }
 
+/** Continuous static ability that REMOVES card type(s) from a permanent
+ *  (CR 205, 611, 1.3 — layer 4 type-setting effects, the subtractive
+ *  counterpart of `StaticTypeAdd`). Mutates the affected permanent's `types`
+ *  array imperatively on apply (and restores on unapply) via a per-`(source,
+ *  type)` origin list, so unapplying one source only restores a type when no
+ *  other source still suppresses it, and a NON-printed type is never
+ *  restored. Used by Reconfigure (CR 702.151b — "Attaching an Equipment with
+ *  reconfigure to another creature causes the Equipment to stop being a
+ *  creature until it becomes unattached", issue #1311): a Reconfigure
+ *  permanent's own static ability removes its own "Creature" type while
+ *  `source.attachedTo` is set (`applies: (target, source) => target.id ===
+ *  source.id && !!source.attachedTo`, i.e. `EFFECT_AFFECTS_SELF` combined
+ *  with an attached check) — self-targeting, but the shape is general enough
+ *  for a future HOST-targeting type-loss effect too. Like `StaticTypeAdd`,
+ *  `applies` is read at apply time (attach/detach), not continuously
+ *  recomputed — sufficient for the shipped scope (no card revokes a
+ *  type-remove mid-attachment without also detaching). */
+export interface StaticTypeRemove {
+    kind: "type-remove";
+    /** Predicate: does this removal apply to `target` given `source`? */
+    applies: (
+        target: PermanentView,
+        source: PermanentView,
+        ctx: StaticEffectContext
+    ) => boolean;
+    /** Types to strip from the target while `applies` holds. */
+    types: CardType[];
+}
+
 /** Continuous "loses all abilities" static effect (CR 613.1f layer 6 —
  *  ability-removing effects). Suppresses ALL of the affected permanent's
  *  abilities: keyword abilities (stripped from `staticAbilities`, tracked via
@@ -4882,6 +4943,7 @@ export type StaticEffect =
     | StaticActivatedGrant
     | StaticTriggeredGrant
     | StaticTypeAdd
+    | StaticTypeRemove
     | StaticSubtypeSet
     | StaticSubtypeAdd
     | StaticSupertypeSet
@@ -4976,6 +5038,16 @@ export const EFFECT_AFFECTS_SELF: StaticKeywordGrant["applies"] = (
     target,
     source
 ) => target.id === source.id;
+
+/** CR 702.151b — "Attaching an Equipment with reconfigure to another
+ *  creature causes the Equipment to stop being a creature until it becomes
+ *  unattached." Canonical `applies` for a Reconfigure permanent's own
+ *  `type-remove` static effect: applies to ITSELF (`EFFECT_AFFECTS_SELF`),
+ *  gated on currently being attached. Shared so every Reconfigure card
+ *  composes the SAME predicate rather than re-deriving it inline (issue
+ *  #1311, Lion Sash — first user). */
+export const RECONFIGURE_LOSES_CREATURE_WHILE_ATTACHED: StaticTypeRemove["applies"] =
+    (target, source) => target.id === source.id && !!source.attachedTo;
 
 /** "This token can't be enchanted" (CR 303.4 — Tetravite tokens). A
  *  self-targeting `permanent-guard` with `cantBeEnchanted`, mirroring Guardian
@@ -7052,6 +7124,25 @@ export type EffectOp =
      *  (issue #1106) BEFORE it leaves the battlefield, so a later `ref` reads
      *  its last-known values (Swords to Plowshares, CR 608.2h). */
     | { op: "exile"; target: EffectObjectSelector; bind?: string }
+    /** CR 701.3a/701.3c (ADR 0065, issue #1311) — attach `$source` to the
+     *  announced target permanent, without `$source` leaving the
+     *  battlefield. A thin declarative skin over `SpellContext.attachTo`, one
+     *  execution path (ADR 0045). Reconfigure's first activated ability (CR
+     *  702.151a — "[Cost]: Attach this permanent to another target creature
+     *  you control"); a future plain-Equip card (#776) reuses the SAME Op —
+     *  Equip is just the ability shell (`sorcerySpeedOnly` + `targetRequirement`),
+     *  this Op is the CR 701.3 keyword action underneath it. No-op if the
+     *  target has left the battlefield (CR 608.2b). */
+    | { op: "attach"; target: EffectObjectSelector }
+    /** CR 701.3d (ADR 0065, issue #1311) — unattach `$source` from whatever
+     *  it's currently attached to, leaving it on the battlefield unattached.
+     *  A thin declarative skin over `SpellContext.detachFrom`, one execution
+     *  path (ADR 0045). Reconfigure's second activated ability (CR 702.151a
+     *  — "[Cost]: Unattach this permanent"); carries no target (CR 702.151a's
+     *  unattach ability targets nothing — legality that it's CURRENTLY
+     *  attached is enforced by the ability's `canActivate` gate, not by this
+     *  Op). No-op if `$source` isn't currently attached. */
+    | { op: "unattach" }
     /** CR 400.7 — move a card between zones (issue #839). A thin declarative
      *  skin over the SpellContext zone-movement primitives
      *  (`returnToHand` / `moveCardById` / `returnToBattlefield`), one execution

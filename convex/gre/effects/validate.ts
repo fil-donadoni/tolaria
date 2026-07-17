@@ -1374,6 +1374,16 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
         required: { target: isObjectSelector },
         optional: { bind: isBindingName },
     },
+    // CR 701.3a/701.3c (ADR 0065, issue #1311) — attach $source to the
+    // announced target permanent (Reconfigure's first activated ability).
+    attach: {
+        required: { target: isObjectSelector },
+    },
+    // CR 701.3d (ADR 0065, issue #1311) — unattach $source from whatever
+    // it's currently attached to (Reconfigure's second activated ability).
+    // No target field — legality of "currently attached" is enforced by the
+    // ability's own `canActivate` gate, not by this Op.
+    unattach: { required: {} },
     // CR 400.7 (issue #839) — a plain zone change. `target` is an object
     // selector (announced slot or a bare snapshot ref like `$source`); `to` is
     // the destination zone. The source zone is inferred from the object's kind,
@@ -1966,8 +1976,15 @@ export const SCHEMA_OP_NAMES: readonly string[] = Object.keys(OP_SCHEMAS);
 
 /** Property paths legal in a NUMERIC ref position (amount / count).
  *  `manaValue` (issue #680) reads a `moveZone` reanimation `bind`'s CR 202.3
- *  mana value (Reanimate). */
-const NUMBER_REF_PROPERTIES = new Set(["power", "toughness", "manaValue"]);
+ *  mana value (Reanimate). `isPermanentCard` (issue #1311) reads a snapshot's
+ *  "1"/"0" CR 205/110.1 flag captured at bind time (Lion Sash: "if it was a
+ *  permanent card…"). */
+const NUMBER_REF_PROPERTIES = new Set([
+    "power",
+    "toughness",
+    "manaValue",
+    "isPermanentCard",
+]);
 /** Property paths legal in a PLAYER ref position (a player selector). */
 // "owner" (issue #1106) — CR 108.3, the immutable owner captured alongside
 // controller in the same snapshot `bind` (Recoil: "return it to its owner's
