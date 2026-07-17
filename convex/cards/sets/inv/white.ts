@@ -596,10 +596,12 @@ export const razorfootGriffin: CardDefinition = {
 };
 
 // Restrain — "Prevent all combat damage that would be dealt by target
-// attacking creature this turn. Draw a card." protocol card: precedent
-// Warning (ice/white.ts) — no DSL Op wraps
+// attacking creature this turn. Draw a card." NOT DSL-migratable (ADR 0045):
+// precedent Warning (ice/white.ts) — no DSL Op wraps
 // `ctx.markAssignsNoCombatDamage` (a source-only "assigns no combat damage"
 // mark, distinct from the receiver-side `preventDamage` Op modes).
+// Planned-migratable (blocked on a source-only preventDamage Op mode).
+// tracked-by: #1283
 export const restrain: CardDefinition = {
     id: "f6b5c765-619c-4db9-b509-91892fb65e8f",
     rarity: "common",

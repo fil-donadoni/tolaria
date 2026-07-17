@@ -10,11 +10,16 @@ import type { CardDefinition, SpellContext } from "../../types";
 // resolves, so the graveyard shuffle doesn't sweep it; after resolution the
 // flashback rider exiles it (exileOnResolve).
 //
-// protocol card: a per-player "shuffle hand + graveyard into library, then draw
-// seven" has no DSL Op — the frozen grammar has neither a shuffle-library Op nor
-// a per-player forEach construct (forEach iterates a target set, not players).
-// Identical body to lea/2ed Timetwister's resolve() (composed SpellContext zone
-// primitives, no new primitive).
+// NOT DSL-migratable (ADR 0045), re-assessed for #1264: the earlier "no
+// shuffle-library Op / no per-player forEach" reasoning is stale — a
+// `libraryLook` shuffle Op and a `forEach { set: "players" }` selector both
+// exist now. The actual remaining gap: no Op moves a player's WHOLE hand or
+// graveyard to their library in one shot — `moveZone` only relocates a single
+// announced/forEach-selected OBJECT or a `choice`-picked card list, never an
+// entire zone. Planned-migratable (blocked on a bulk zone-to-zone move Op)
+// rather than a genuine protocol card. tracked-by: #1279. Identical body to
+// lea/2ed Timetwister's resolve() (composed SpellContext zone primitives, no
+// new primitive).
 export const echoOfEons: CardDefinition = {
     id: "ff590af2-2d6c-4f16-a9b8-1a6dab6e9ad5",
     rarity: "mythic",

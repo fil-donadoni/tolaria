@@ -55,6 +55,13 @@ function nextUpkeepDrawTrigger(): DelayedTriggerDef {
         id: NEXT_UPKEEP_DRAW_TRIGGER_ID,
         oracleText: "At the beginning of the next turn's upkeep, draw a card.",
         timing: "next-upkeep",
+        // NOT DSL-migratable (ADR 0045): a single fixed-count `draw` Op would
+        // trivially cover "draw a card", but `DelayedTriggerDef` (`convex/
+        // cards/types.ts`) only declares a `resolve` callback — no `effects`
+        // alternative exists on this site at all. Shared by every set using
+        // this next-upkeep cantrip pattern (e.g. `ice/colorless.ts`,
+        // `ice/green.ts`, `ice/white.ts`, `csp/colorless.ts`).
+        // Blocked on: `DelayedTriggerDef` support for `effects`. tracked-by: #1280
         resolve: (ctx) => {
             // CR 121.1 — the trigger's controller (the scheduling spell's
             // controller, or the activator on the tap-rider path) draws one
@@ -820,6 +827,11 @@ export const gravebind: CardDefinition = {
     manaCost: { B: 1 },
     types: ["Instant"],
     targetRequirement: { type: "Creature", count: 1 },
+    // NOT DSL-migratable (ADR 0045): "can't be regenerated this turn" as a
+    // standalone effect has no Op — `SpellContext.setTargetCantBeRegeneratedThisTurn`
+    // is only exposed as an option on `destroy`, not as its own primitive.
+    // Blocked on: a standalone regeneration-lock Op/value construct.
+    // tracked-by: #1283
     resolve: (ctx: SpellContext) => {
         const t = ctx.targets[0];
         if (t?.type === "permanent") {
@@ -1369,12 +1381,20 @@ export const krovikanFetish: CardDefinition = {
             oracleText:
                 "When this Aura enters, draw a card at the beginning of the next turn's upkeep.",
             scope: "self",
-            resolve: (ctx) => {
-                scheduleNextUpkeepDraw(ctx, krovikanFetish.id);
-            },
+            // Migrated resolve()→effects[] (ADR 0045, issue #1264): schedules
+            // the next-upkeep draw cantrip via the ADR 0048 `delayedTrigger`
+            // Op with an inline `draw` body.
+            effects: [
+                {
+                    op: "delayedTrigger",
+                    timing: "next-upkeep",
+                    oracleText:
+                        "Draw a card at the beginning of the next turn's upkeep.",
+                    effects: [{ op: "draw", player: "controller", count: 1 }],
+                },
+            ],
         }),
     ],
-    delayedTriggers: [nextUpkeepDrawTrigger()],
 };
 // Krovikan Vampire — "At the beginning of each end step, if a creature dealt
 // damage by this creature this turn died, put that card onto the battlefield
@@ -1660,27 +1680,28 @@ export const mindRavel: CardDefinition = {
     manaCost: { X: 2, B: 1 },
     types: ["Sorcery"],
     targetRequirement: { type: "player", count: 1 },
-    resolveSteps: [
-        (ctx: SpellContext) => {
-            const target = ctx.targets[0];
-            if (target?.type !== "player") return;
-            if (ctx.getHandSize(target.id) === 0) return;
-            const picks = ctx.requestChoice({
-                playerId: target.id,
-                choiceId: `mind-ravel-${ctx.sourceInstanceId}-${target.id}`,
-                kind: "discard-hand",
-                zone: "hand",
-                count: 1,
-                prompt: "Mind Ravel: discard a card.",
-            });
-            if (picks === undefined) return; // suspended on the discard choice
-            for (const id of picks) ctx.discardCard(target.id, id);
+    // Migrated resolve()→effects[] (ADR 0045, issue #1264): the target player
+    // discards one card of their own choosing (CR 701.8, `discard-hand`
+    // choice + `discard`), then the next-upkeep draw cantrip via the ADR 0048
+    // `delayedTrigger` Op with an inline `draw` body.
+    effects: [
+        {
+            op: "choice",
+            kind: "discard-hand",
+            player: { target: 0 },
+            zone: "hand",
+            count: { min: 0, max: 1 },
+            prompt: "Mind Ravel: discard a card.",
+            bind: "$picked",
         },
-        (ctx: SpellContext) => {
-            scheduleNextUpkeepDraw(ctx, mindRavel.id);
+        { op: "discard", player: { target: 0 }, cards: { ref: "$picked" } },
+        {
+            op: "delayedTrigger",
+            timing: "next-upkeep",
+            oracleText: "Draw a card at the beginning of the next turn's upkeep.",
+            effects: [{ op: "draw", player: "controller", count: 1 }],
         },
     ],
-    delayedTriggers: [nextUpkeepDrawTrigger()],
 };
 // Mind Warp — "Look at target player's hand and choose X cards from it. That
 // player discards those cards." (CR 702.x reveal-to-caster + CR 701.8 discard.)
@@ -2222,9 +2243,9 @@ export const oathOfLimDul: CardDefinition = {
             oracleText: "{B}{B}: Draw a card.",
             cost: { mana: { B: 2 } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.drawCards(ctx.controller, 1);
-            },
+            // Migrated resolve()→effects[] (ADR 0045, issue #1264): CR 121.1
+            // draw via the DSL `draw` Op.
+            effects: [{ op: "draw", player: "controller", count: 1 }],
         },
     ],
 };
@@ -2687,13 +2708,20 @@ export const touchOfDeath: CardDefinition = {
     manaCost: { X: 2, B: 1 },
     types: ["Sorcery"],
     targetRequirement: { type: ["player", "Planeswalker"], count: 1 },
-    resolve: (ctx: SpellContext) => {
-        const t = ctx.targets[0];
-        if (t) ctx.dealDamage(t, 1);
-        ctx.gainLife(ctx.controller, 1);
-        scheduleNextUpkeepDraw(ctx, touchOfDeath.id);
-    },
-    delayedTriggers: [nextUpkeepDrawTrigger()],
+    // Migrated resolve()→effects[] (ADR 0045, issue #1264): 1 damage to the
+    // announced target (CR 120.1), 1 life gain (CR 119.3), then the
+    // next-upkeep draw cantrip via the ADR 0048 `delayedTrigger` Op with an
+    // inline `draw` body.
+    effects: [
+        { op: "dealDamage", amount: 1, to: { target: 0 } },
+        { op: "gainLife", player: "controller", amount: 1 },
+        {
+            op: "delayedTrigger",
+            timing: "next-upkeep",
+            oracleText: "Draw a card at the beginning of the next turn's upkeep.",
+            effects: [{ op: "draw", player: "controller", count: 1 }],
+        },
+    ],
 };
 // Withering Wisps — end-step self-sacrifice when no creatures are on the
 // battlefield (CR 603.6a phase trigger), plus "{B}: deal 1 to each creature and

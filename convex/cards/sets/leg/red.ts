@@ -732,6 +732,14 @@ export const windsOfChange: CardDefinition = {
         "Each player shuffles the cards from their hand into their library, then draws that many cards.",
     manaCost: { R: 1 },
     types: ["Sorcery"],
+    // NOT DSL-migratable (ADR 0045): "shuffles the cards from their hand into
+    // their library" is a bulk whole-hand-zone move — the `moveZone` Op only
+    // moves an announced `target` object or a `choice` Op's picks (`cards`
+    // ref), never an entire zone with no selection. The SpellContext
+    // primitive (`ctx.moveZone(playerId, from, to)`) already supports this
+    // directly; only the Op wrapper is missing a bulk mode. Same gap as
+    // Timetwister (lea/blue.ts) and Echo of Eons (mh1/blue.ts). Blocked on: a
+    // bulk "whole-zone" `moveZone` Op mode (no target/cards). tracked-by: #1279
     resolve: (ctx: SpellContext) => {
         for (const pid of ctx.allPlayerIds) {
             const handSize = ctx.getHandSize(pid);

@@ -31,6 +31,12 @@ function nextUpkeepDrawTrigger(): DelayedTriggerDef {
         id: NEXT_UPKEEP_DRAW_TRIGGER_ID,
         oracleText: "Draw a card at the beginning of the next turn's upkeep.",
         timing: "next-upkeep",
+        // NOT DSL-migratable (ADR 0045): a single fixed-count `draw` Op would
+        // trivially cover "draw a card", but `DelayedTriggerDef`
+        // (`convex/cards/types.ts`) only declares a `resolve` callback — no
+        // `effects` alternative exists on this site at all. Shared by every
+        // set using this next-upkeep cantrip pattern (e.g. `ice/colorless.ts`).
+        // Blocked on: `DelayedTriggerDef` support for `effects`. tracked-by: #1280
         resolve: (ctx) => {
             ctx.drawCards(ctx.controller, 1);
         },

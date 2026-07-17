@@ -8294,13 +8294,22 @@ export function buildSpellContext(
             for (let i = 0; i < amount; i++) {
                 const plan = planDrawStep(state, playerId, amount, false);
                 if (plan.kind === "may-pay-bin") {
-                    // DIVERGENCE (ADR 0061): an INTERACTIVE draw replacement
-                    // (Zur's Weirding "any other player may pay 2 life") cannot
-                    // suspend inside this synchronous primitive, so the drawing
-                    // player draws WITHOUT offering the pay-choice. The DSL
-                    // `draw` Op is the suspend-capable path; the ~38
-                    // `resolve()`-closure callers of this primitive migrate onto
-                    // that Op in slice 2. tracked-by: #1250
+                    // By design (ADR 0061, issue #1264): this raw SYNCHRONOUS
+                    // primitive cannot suspend for an INTERACTIVE draw
+                    // replacement (Zur's Weirding "any other player may pay 2
+                    // life"), so a caller reaching this branch draws WITHOUT
+                    // offering the pay-choice. The DSL `draw` Op
+                    // (`convex/gre/effects/interpreter.ts`) is the
+                    // suspend-capable path every replacement-aware draw site
+                    // must use instead — the ~38 legacy `resolve()`-closure
+                    // callers of this primitive migrated onto that Op (#1264,
+                    // closing #1250); this primitive now exists ONLY for
+                    // internal non-interactive plumbing (the turn-based draw
+                    // step, engine-internal draws) and the narrow set of
+                    // still-`resolve()` cards tracked in
+                    // `convex/cards/__tests__/drawPrimitiveGuard.test.ts`'s
+                    // `DRAW_PRIMITIVE_ALLOWLIST`, which fails CI if a NEW
+                    // resolve()/resolveSteps closure calls this primitive.
                     commitDrawPlan(state, playerId, plan, false);
                     continue;
                 }

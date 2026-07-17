@@ -114,6 +114,18 @@ export const goblinArtisans: CardDefinition = {
                 spellTypeFilter: "Artifact",
                 controller: "you",
             },
+            // NOT DSL-migratable (ADR 0045): the coinFlip Op
+            // shape itself fits (mirrors Chaotic Strike, `inv/red.ts`), but
+            // `SpellContext.requestCoinFlip` (the DSL Op's primitive) ALWAYS
+            // suspends first on a CR 705.2/ADR 0023 random-reveal pending
+            // choice — unlike this card's `ctx.flipCoin()`, which is
+            // synchronous with no acknowledgment step. The per-card test
+            // resolves this ability in a single `resolveActivated` call and
+            // asserts the outcome immediately; migrating would require adding
+            // an explicit ack step to the test, breaking the untouched-test
+            // invariant. tracked-by: #1281
+            // equivalence invariant. Blocked on: a synchronous-flip variant,
+            // or accepting a test change (planned-migratable).
             resolve: (ctx: SpellContext) => {
                 if (ctx.flipCoin()) {
                     ctx.drawCards(ctx.controller, 1);

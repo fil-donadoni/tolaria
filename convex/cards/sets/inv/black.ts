@@ -215,10 +215,10 @@ export const andraditeLeech: CardDefinition = {
 // can't be regenerated. Draw a card." (CR 701.8 destroy, CR 701.15c
 // regeneration suppression, CR 121.1 draw.)
 //
-// protocol card: the DSL `destroy` Op has no `cantBeRegenerated` param —
-// `SpellContext.destroy`'s `opts.cantBeRegenerated` is imperative-only today
-// (see Crumble, atq/green.ts, for the identical pattern/comment). Composes
-// only the already-shipped `destroy` + `drawCards` primitives.
+// Migrated resolve()→effects[] (ADR 0045, issue #1264): the `destroy` Op's
+// `cantBeRegenerated` param (added since this card's original comment was
+// written) now covers the CR 701.15c clause, so the whole effect composes
+// from registered Ops.
 export const annihilate: CardDefinition = {
     id: "4a3bf039-ecf6-477e-997c-e32c55323c01", // INV 94
     rarity: "uncommon",
@@ -228,12 +228,10 @@ export const annihilate: CardDefinition = {
     manaCost: { X: 3, B: 2 },
     types: ["Instant"],
     targetRequirement: { type: "Creature", count: 1, excludeColors: "B" },
-    resolve: (ctx: SpellContext) => {
-        const target = ctx.targets[0];
-        if (target?.type !== "permanent") return;
-        ctx.destroy(target, { cantBeRegenerated: true });
-        ctx.drawCards(ctx.controller, 1);
-    },
+    effects: [
+        { op: "destroy", target: { target: 0 }, cantBeRegenerated: true },
+        { op: "draw", player: "controller", count: 1 },
+    ],
 };
 
 // Bog Initiate — {1}{B} 1/1. "{1}: Add {B}." (CR 605.3a mana ability.)

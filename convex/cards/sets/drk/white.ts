@@ -417,7 +417,8 @@ export const martyrsCry: CardDefinition = {
     types: ["Sorcery"],
     // NOT DSL-migratable (ADR 0045): "all white creatures" needs a colour
     // filter (EffectCardFilter is type/subtype only), and the per-controller
-    // draw count is a snapshot the value grammar can't express. Stays resolve().
+    // draw count is a snapshot the value grammar can't express. Stays
+    // resolve(). tracked-by: #1283
     resolve: (ctx: SpellContext) => {
         // Snapshot per-controller white creatures first (CR 608.2g — the count
         // is fixed by what is exiled, not by post-exile board state).
@@ -519,29 +520,33 @@ export const fasting: CardDefinition = {
             },
         }),
         // 2. "You may skip your draw step; if you do, gain 2 life" (CR 504/614).
+        // Migrated resolve()→effects[] (ADR 0045, issue #1264): `mayPay`
+        // (cost-free "you may") + `if` on its boolean outcome — declining
+        // takes the normal draw (CR 504.1) via the DSL `draw` Op, which emits
+        // CARD_DRAWN and fires the self-destruct trigger below exactly as
+        // the imperative version did.
         phaseTrigger({
             id: "fasting-draw-skip",
             oracleText:
                 "If you would begin your draw step, you may skip that step instead. If you do, you gain 2 life.",
             phase: "DRAW",
             scope: "your",
-            resolve: (ctx) => {
-                const skip = ctx.requestMayPay({
-                    playerId: ctx.controller,
-                    choiceId: `fasting-skip-${ctx.sourceInstanceId}`,
+            effects: [
+                {
+                    op: "mayPay",
+                    player: "controller",
+                    bind: "$skip",
                     prompt: "Skip your draw step to gain 2 life? (Fasting)",
-                });
-                if (skip === undefined) return; // suspended for the choice
-                if (skip) {
-                    // CR 119.3 — gain 2 life, no card drawn.
-                    ctx.gainLife(ctx.controller, 2);
-                } else {
-                    // Declined: take the normal draw step draw (CR 504.1). This
-                    // emits CARD_DRAWN, which fires the self-destruct trigger
-                    // below — exactly "if you draw a card, destroy this".
-                    ctx.drawCards(ctx.controller, 1);
-                }
-            },
+                },
+                {
+                    op: "if",
+                    predicate: { binding: "$skip" },
+                    then: [
+                        { op: "gainLife", player: "controller", amount: 2 },
+                    ],
+                    else: [{ op: "draw", player: "controller", count: 1 }],
+                },
+            ],
         }),
         // 3. "When you draw a card, destroy this enchantment" (CR 121.1).
         drawTrigger({

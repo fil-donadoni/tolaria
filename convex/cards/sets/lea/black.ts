@@ -686,6 +686,13 @@ export const lich: CardDefinition = {
                 if (event.kind !== "lifegain") return false;
                 return event.playerId === self.controllerId;
             },
+            // Out of scope for the #1264 draw-in-closure guard: this
+            // `ctx.drawCards` call lives in a REPLACEMENT EFFECT `replace`
+            // callback (CR 614), not a `resolve()`/`resolveSteps` closure —
+            // the DSL `draw` Op's suspend-capable seam is for spell/ability
+            // effect sites, not the synchronous replacement-apply path
+            // (ADR 0061 obsoletes #894's "choice inside a synchronous
+            // replacement" seam; this callback needs no interactive choice).
             replace: (event, ctx) => {
                 if (event.kind !== "lifegain") return { kind: "consumed" };
                 ctx.drawCards(event.playerId, event.amount);

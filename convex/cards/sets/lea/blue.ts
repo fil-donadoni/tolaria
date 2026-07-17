@@ -1188,6 +1188,12 @@ export const timetwister: CardDefinition = {
         "Each player shuffles their hand and graveyard into their library, then draws seven cards. (Then put Timetwister into its owner's graveyard.)",
     manaCost: { X: 2, U: 1 },
     types: ["Sorcery"],
+    // NOT DSL-migratable (ADR 0045): "shuffles their hand and graveyard into
+    // their library" is a BULK whole-zone move (every card in hand/graveyard,
+    // not an announced target or a `choice`-bound pick set); the `moveZone`
+    // Op only moves ONE object (a target slot / bound ref) or a
+    // `choice`-picked set out of a hidden zone, not "every card a player owns
+    // in zone X". Blocked on: a bulk whole-zone-move Op. tracked-by: #1279
     resolve: (ctx: SpellContext) => {
         ctx.forEachPlayer((pid) => {
             ctx.moveZone(pid, "hand", "library");
