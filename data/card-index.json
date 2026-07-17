@@ -1908,6 +1908,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Dark Confidant",
+        "scryfallId": "2520ab23-a068-4462-b261-2754409b4108",
+        "oracleId": "2068185c-1b50-47d0-aa3f-bf505d199428",
+        "firstSet": "fin"
+    },
+    {
         "name": "Dark Heart of the Wood",
         "scryfallId": "e3d3df64-1e90-4aef-86ae-0062aa23ff30",
         "oracleId": "c44f40da-867e-4237-b4b1-ed6feb1f37b7",
