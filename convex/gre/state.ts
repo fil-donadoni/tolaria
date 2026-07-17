@@ -5598,6 +5598,10 @@ export function removePermanentTo(
     // payload to identify the host they need to sacrifice.
     const lkiAttachedTo = initial.card.attachedTo;
     const lkiTypes: ReadonlyArray<CardType> = [...initial.card.types];
+    // CR 205.3 (issue #1191) — snapshot subtypes alongside types so a
+    // subtype-scoped LTB trigger ("whenever you sacrifice a Clue") can filter
+    // the departure without re-reading the registry.
+    const lkiSubtypes: ReadonlyArray<string> = [...initial.card.subtypes];
     const lkiCardId = (initial.card.card as { id?: string }).id;
     const lkiWasAura = isAura(initial.card);
     const lkiOwnerId = initial.card.ownerId;
@@ -5696,6 +5700,7 @@ export function removePermanentTo(
             ownerId: lkiOwnerId,
             cardId: lkiCardId,
             types: lkiTypes,
+            subtypes: lkiSubtypes,
             wasAura: lkiWasAura,
             attachedToBeforeLeave: lkiAttachedTo,
             toZone,
@@ -6832,6 +6837,18 @@ function tokenDefinitionId(spec: TokenSpec): string {
         // Empty when the token has no continuous effects (back-compat: a 9-
         // segment id without this trailing segment decodes as "no effects").
         (spec.staticEffects ?? []).map((e) => e.kind).join(","),
+        // 11th segment (index 10, issue #1191): the token's activated
+        // abilities (Investigate's Clue: "{2}, Sacrifice this token: Draw a
+        // card."), JSON-encoded (they are plain data — an `EffectTokenSpec`
+        // ability carries only `id`/`cost`/`oracleText`/`useStack`/`effects`,
+        // no closures) and URI-escaped so a `|` inside oracle text or an
+        // effect string can never be confused with the segment delimiter. A
+        // token WITH an activated ability gets a distinct definition from one
+        // without. Empty when the token has none (back-compat: a 10-segment
+        // id without this trailing segment decodes as "no abilities").
+        spec.activatedAbilities && spec.activatedAbilities.length > 0
+            ? encodeURIComponent(JSON.stringify(spec.activatedAbilities))
+            : "",
     ];
     return `token:${parts.join("|")}`;
 }
@@ -9046,6 +9063,16 @@ export function buildSpellContext(
                 // for the Tetravite "can't be enchanted" guard) observe them.
                 ...(spec.staticEffects && spec.staticEffects.length > 0
                     ? { staticEffects: [...spec.staticEffects] }
+                    : {}),
+                // CR 707.2 (issue #1191) — register the token's activated
+                // abilities on its synthesized definition exactly like a
+                // printed card's, so every existing activation code path
+                // (`activateAbility`, `getStackAbilities`) finds them via the
+                // normal `card.card.id` → registry lookup, with no
+                // denormalized copy on `CardInstanceState`.
+                ...(spec.activatedAbilities &&
+                spec.activatedAbilities.length > 0
+                    ? { activatedAbilities: [...spec.activatedAbilities] }
                     : {}),
             });
             for (let i = 0; i < count; i++) {

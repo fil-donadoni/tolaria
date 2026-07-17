@@ -101,4 +101,52 @@ describe("token CardDefinition lookup (regression — client lazy synthesis)", (
         const def = getDefinition(id);
         expect(def.imagePrintId).toBeUndefined();
     });
+
+    // CR 707.2 (issue #1191) — the client bundle's registry never saw the
+    // server-side `registerTokenDefinition` call for a Clue created in a
+    // DIFFERENT process (the exact scenario this whole file guards against:
+    // see the module header). `maybeSynthesizeToken` must decode the
+    // activated-ability segment (11th, index 10) back into a real
+    // `ActivatedAbility[]` so `getStackAbilities` — the client reducer that
+    // reads `getDefinition(card.card.id).activatedAbilities` — can surface
+    // "{2}, Sacrifice this token: Draw a card." This is the round-trip that
+    // previously blocked Investigate, Magda's Treasures (#778), Voldaren
+    // Epicure's Blood token and Sunfall's Incubate (#1210): a token could
+    // carry NO activated ability at all, encoded or otherwise.
+    it("11th segment is decoded as activatedAbilities (issue #1191)", () => {
+        const abilities = [
+            {
+                id: "sacrifice-draw",
+                oracleText: "{2}, Sacrifice this token: Draw a card.",
+                cost: { mana: { generic: 2 }, sacrifice: true },
+                useStack: true,
+                effects: [{ op: "draw", player: "controller", count: 1 }],
+            },
+        ];
+        const id = [
+            "token:Clue",
+            "Artifact",
+            "Clue",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            encodeURIComponent(JSON.stringify(abilities)),
+        ].join("|");
+        const def = getDefinition(id);
+        expect(def.name).toBe("Clue");
+        expect(def.types).toEqual(["Artifact"]);
+        expect(def.subtypes).toEqual(["Clue"]);
+        expect(def.activatedAbilities).toEqual(abilities);
+    });
+
+    it("missing/empty 11th segment leaves activatedAbilities undefined (back-compat with pre-#1191 10-segment ids)", () => {
+        const id =
+            "token:Wasp|Artifact,Creature|Insect||1|1||flying|09921372-126f-4c81-b6d8-ea50b1d0eb44|";
+        const def = getDefinition(id);
+        expect(def.activatedAbilities).toBeUndefined();
+    });
 });

@@ -277,6 +277,67 @@ function isStringArray(value: unknown, allowed?: Set<string>): boolean {
  *  deliberately NOT accepted (its predicates carry closures — a token needing
  *  continuous static effects stays a `resolve()` card). Unknown keys are
  *  rejected: the grammar is frozen (ADR 0045). */
+/** A token-scoped activated ability's JSON-pure `cost` (issue #1191): only the
+ *  three legs a token can plausibly need — `tap` (a manland-style token),
+ *  `mana` (a `ManaCost`), and `sacrifice` (the Clue/Treasure/Blood shape,
+ *  "Sacrifice THIS token"). Any other `ActivatedAbility.cost` leg (life,
+ *  loyalty, removeCounter, discard variants, …) is out of scope for a token
+ *  spec until a real card needs it — "generalize, don't add" (extend this set
+ *  when that happens, don't invent a parallel shape). */
+const TOKEN_ABILITY_COST_KEYS = new Set(["tap", "mana", "sacrifice"]);
+function isTokenAbilityCost(value: unknown): boolean {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+        return false;
+    }
+    const c = value as Record<string, unknown>;
+    if (!Object.keys(c).every((k) => TOKEN_ABILITY_COST_KEYS.has(k))) {
+        return false;
+    }
+    if ("tap" in c && typeof c.tap !== "boolean") return false;
+    if ("mana" in c && !isManaCost(c.mana)) return false;
+    if ("sacrifice" in c && typeof c.sacrifice !== "boolean") return false;
+    return true;
+}
+
+/** A token-scoped activated ability (issue #1191, `EffectTokenSpec.activatedAbilities`):
+ *  a RESTRICTED, JSON-pure subset of `ActivatedAbility` — `id` / `cost`
+ *  (tap/mana/sacrifice only) / `oracleText` / `useStack` / `effects`.
+ *  `resolve` / `effect` / any other `ActivatedAbility` field is rejected:
+ *  DSL-only, mirroring `EffectTokenSpec` itself omitting `staticEffects`
+ *  because closures can't survive JSON (ADR 0046). The ability's `effects[]`
+ *  SHAPE is checked here; its deep ref/purity validity is checked separately
+ *  by `validateEffectOpList`'s nested-`createToken` pass, in the ability's OWN
+ *  scope (fresh `$source`), not the outer script's. */
+function isTokenActivatedAbility(value: unknown): boolean {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+        return false;
+    }
+    const a = value as Record<string, unknown>;
+    const allowed = new Set([
+        "id",
+        "cost",
+        "oracleText",
+        "useStack",
+        "effects",
+    ]);
+    if (!Object.keys(a).every((k) => allowed.has(k))) return false;
+    if (typeof a.id !== "string" || a.id.length === 0) return false;
+    if (!isTokenAbilityCost(a.cost)) return false;
+    if (typeof a.oracleText !== "string" || a.oracleText.length === 0) {
+        return false;
+    }
+    if (typeof a.useStack !== "boolean") return false;
+    if ("effects" in a && !isOpList(a.effects)) return false;
+    return true;
+}
+
+/** The JSON-pure token spec of a `createToken` Op (issue #847, `EffectTokenSpec`).
+ *  Every printed characteristic a token enters with, all plain data — name +
+ *  a non-empty types array are required; subtypes / supertypes / P/T / colors /
+ *  keyword static abilities / token art / activated abilities are optional.
+ *  `staticEffects` is deliberately NOT accepted (its predicates carry
+ *  closures — a token needing continuous static effects stays a `resolve()`
+ *  card). Unknown keys are rejected: the grammar is frozen (ADR 0045). */
 function isEffectTokenSpec(value: unknown): boolean {
     if (typeof value !== "object" || value === null || Array.isArray(value)) {
         return false;
@@ -292,6 +353,7 @@ function isEffectTokenSpec(value: unknown): boolean {
         "colors",
         "staticAbilities",
         "imagePrintId",
+        "activatedAbilities",
     ]);
     if (!Object.keys(s).every((k) => allowed.has(k))) return false;
     if (typeof s.name !== "string" || s.name.length === 0) return false;
@@ -317,6 +379,15 @@ function isEffectTokenSpec(value: unknown): boolean {
         (typeof s.imagePrintId !== "string" || s.imagePrintId.length === 0)
     ) {
         return false;
+    }
+    if ("activatedAbilities" in s) {
+        if (
+            !Array.isArray(s.activatedAbilities) ||
+            s.activatedAbilities.length === 0 ||
+            !s.activatedAbilities.every(isTokenActivatedAbility)
+        ) {
+            return false;
+        }
     }
     return true;
 }
@@ -2296,7 +2367,13 @@ function checkOpListRefs(
             // `objects` (divideIntoPiles, ADR 0053) is walked below in the
             // OUTER scope like `select`; `chosenEffect` / `otherEffect`
             // (divideIntoPiles) are walked in their own CLONED scopes below,
-            // like `then`/`else`. `op` / `bind` never carry refs.
+            // like `then`/`else`. `op` / `bind` never carry refs. `token`
+            // (`createToken`, issue #1191) is SKIPPED entirely here: a token's
+            // `activatedAbilities[].effects` is an independently-scoped script
+            // (its own fresh `$source` = the token once created, no visibility
+            // into this outer scope's binds) — `validateEffectOpList`'s
+            // nested-`createToken` pass validates it in isolation instead, so
+            // walking it here would check refs against the WRONG scope.
             if (
                 k === "op" ||
                 k === "bind" ||
@@ -2313,7 +2390,8 @@ function checkOpListRefs(
                 k === "watch" ||
                 k === "objects" ||
                 k === "chosenEffect" ||
-                k === "otherEffect"
+                k === "otherEffect" ||
+                k === "token"
             ) {
                 continue;
             }
@@ -2771,6 +2849,28 @@ function validateOpSchema(
  *  carries the bindings the site provides for free (`$source` at ability
  *  sites, none at spell sites). Mutual-exclusivity (step 3) is the caller's
  *  job because the mutually-exclusive fields differ per site. */
+/** Deep-scans an arbitrary (already-parsed) Op subtree for every `createToken`
+ *  Op node, regardless of nesting depth (inside `if` branches, `forEach`
+ *  bodies, `modes`, …) — issue #1191. Used to reach a token spec's
+ *  `activatedAbilities[]`, which needs its OWN isolated validation pass (see
+ *  the call site below): unlike every other nested Op list in the grammar
+ *  (`if.then/else`, `forEach.effects`, `modes[].effects`), a token ability's
+ *  `effects[]` does NOT share the outer script's binding scope — it runs
+ *  later, at ability resolution, with a fresh `$source` (the token). */
+function findCreateTokenOps(
+    value: unknown,
+    out: Record<string, unknown>[]
+): void {
+    if (value === null || typeof value !== "object") return;
+    if (Array.isArray(value)) {
+        for (const v of value) findCreateTokenOps(v, out);
+        return;
+    }
+    const obj = value as Record<string, unknown>;
+    if (obj.op === "createToken") out.push(obj);
+    for (const v of Object.values(obj)) findCreateTokenOps(v, out);
+}
+
 function validateEffectOpList(
     effects: unknown,
     label: string,
@@ -2796,6 +2896,35 @@ function validateEffectOpList(
     // 4 — JSON purity (ADR 0046).
     const impurity = findImpurity(effects, `${label}: effects`);
     if (impurity) errors.push(impurity);
+
+    // 6 — a `createToken` Op's token may carry `activatedAbilities[]` (issue
+    // #1191, e.g. a Clue's "{2}, Sacrifice this token: Draw a card."). Each
+    // such ability's `effects[]` is validated here as its OWN independently-
+    // scoped script — fresh `ABILITY_BINDINGS` ($source only), no trigger
+    // event (a token ability is never a triggered ability) — exactly the same
+    // regime an ordinary card's activated ability gets via
+    // `validateAbilityEffectScript`, just reached through the token spec
+    // instead of `CardDefinition.activatedAbilities`.
+    const nestedCreateTokenOps: Record<string, unknown>[] = [];
+    findCreateTokenOps(effects, nestedCreateTokenOps);
+    nestedCreateTokenOps.forEach((op) => {
+        const token = op.token as Record<string, unknown> | undefined;
+        const abilities = token?.activatedAbilities;
+        if (!Array.isArray(abilities)) return;
+        abilities.forEach((raw, j) => {
+            const ability = raw as { id?: unknown; effects?: unknown };
+            const abilityLabel = `${label}: createToken token.activatedAbilities[${j}] (id=${String(ability.id)})`;
+            if (ability.effects !== undefined) {
+                validateEffectOpList(
+                    ability.effects,
+                    abilityLabel,
+                    ABILITY_BINDINGS,
+                    errors,
+                    undefined
+                );
+            }
+        });
+    });
 }
 
 /** Validates a card's SPELL-SITE Effect Script statically. Returns a list of

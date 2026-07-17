@@ -38,6 +38,7 @@ import {
 import type { CardInstance } from "~/types/game";
 import type { CardDefinition } from "@convex/cards/types";
 import { getDefinition } from "@convex/cards";
+import { CLUE_TOKEN_SPEC } from "@convex/cards/abilities/tokens/clueToken";
 import { dismember } from "@convex/cards/sets/nph/black";
 import { gitaxianProbe } from "@convex/cards/sets/nph/blue";
 import { dominate } from "@convex/cards/sets/nem";
@@ -354,6 +355,52 @@ describe("getStackAbilities", () => {
         });
 
         expect(getStackAbilities(card)).toHaveLength(0);
+    });
+
+    // CR 707.2 / 701.16 (issue #1191) — a Clue token's sac-draw ability must
+    // survive the FULL client reducer path: `getStackAbilities` reads
+    // `getDefinition(card.card.id).activatedAbilities`, and for a token the
+    // definition is never registered client-side directly — it is decoded on
+    // demand from the content-derived `token:` id (`maybeSynthesizeToken`,
+    // pinned by `convex/cards/__tests__/tokenRegistry.test.ts`). This is the
+    // mandatory SURFACE test through the reducer (§ Frontend wiring analysis):
+    // a hand-built `CardDefinition` would mask exactly the bug this proves
+    // fixed — Investigate/Magda's Treasures/Voldaren Epicure's Blood token
+    // were all previously blocked because a token could carry NO activated
+    // ability, encoded or otherwise.
+    it("surfaces a Clue token's sac-draw ability, decoded from its content-derived id", () => {
+        // Mirrors `tokenDefinitionId`'s encoding (`convex/gre/state.ts`) using
+        // the REAL shared `CLUE_TOKEN_SPEC` (not a hand-duplicated literal),
+        // so this test tracks the spec instead of drifting from it.
+        const clueId = [
+            "token:Clue",
+            "Artifact",
+            "Clue",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            encodeURIComponent(
+                JSON.stringify(CLUE_TOKEN_SPEC.activatedAbilities)
+            ),
+        ].join("|");
+        const card = makeCardInstance({
+            card: { id: clueId },
+            types: ["Artifact"],
+            subtypes: ["Clue"],
+            isTapped: false,
+        });
+
+        const abilities = getStackAbilities(card);
+
+        expect(abilities).toHaveLength(1);
+        expect(abilities[0].id).toBe("sacrifice-draw");
+        expect(abilities[0].oracleText).toBe(
+            "{2}, Sacrifice this token: Draw a card."
+        );
     });
 
     it("excludes a hand-only ability (Cycling) from a battlefield permanent's menu — Marauding Mako", () => {

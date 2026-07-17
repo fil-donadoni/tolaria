@@ -1,4 +1,5 @@
 import type {
+    ActivatedAbility,
     AiCombatHint,
     CardDefinition,
     CardPrint,
@@ -610,6 +611,11 @@ function maybeSynthesizeToken(cardId: string): CardDefinition | null {
         // tokens without continuous effects (back-compat with the pre-Tetravus
         // 9-segment ids, which have no trailing effects segment).
         staticEffectsRaw,
+        // CR 707.2 (issue #1191) — the token's activated abilities
+        // (Investigate's Clue), URI-escaped JSON (see `tokenDefinitionId`).
+        // Trailing 11th segment; empty / absent for tokens without activated
+        // abilities (back-compat with pre-#1191 10-segment ids).
+        activatedAbilitiesRaw,
     ] = parts;
     const types = typesRaw.split(",").filter(Boolean) as CardType[];
     const subtypes = subtypesRaw.split(",").filter(Boolean);
@@ -637,6 +643,16 @@ function maybeSynthesizeToken(cardId: string): CardDefinition | null {
     )
         ? [cantBeEnchantedSelfGuard()]
         : [];
+    // Rebuild activated abilities encoded in the id (issue #1191). These are
+    // plain data (a token's `EffectTokenSpec.activatedAbilities` are DSL-only
+    // — no closures), so unlike `staticEffects` above they round-trip through
+    // JSON directly with no named-factory reconstruction step.
+    const activatedAbilities: ActivatedAbility[] | undefined =
+        activatedAbilitiesRaw && activatedAbilitiesRaw.length > 0
+            ? (JSON.parse(
+                  decodeURIComponent(activatedAbilitiesRaw)
+              ) as ActivatedAbility[])
+            : undefined;
     const manaCost: ManaCost = {};
     for (const c of colors) manaCost[c] = (manaCost[c] ?? 0) + 1;
     const def: CardDefinition = {
@@ -654,6 +670,9 @@ function maybeSynthesizeToken(cardId: string): CardDefinition | null {
         ...(staticAbilities.length > 0 ? { staticAbilities } : {}),
         ...(imagePrintId ? { imagePrintId } : {}),
         ...(staticEffects.length > 0 ? { staticEffects } : {}),
+        ...(activatedAbilities && activatedAbilities.length > 0
+            ? { activatedAbilities }
+            : {}),
     };
     registry.set(cardId, def);
     return def;

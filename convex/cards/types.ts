@@ -1159,6 +1159,19 @@ export interface TokenSpec {
      *  `09921372-126f-4c81-b6d8-ea50b1d0eb44`). When omitted, the renderer
      *  falls back to an in-app placeholder showing the name / abilities / P/T. */
     imagePrintId?: string;
+    /** Activated abilities the token enters with (CR 707.2, issue #1191 —
+     *  Investigate's Clue: "{2}, Sacrifice this token: Draw a card."). Folded
+     *  onto the synthesized token `CardDefinition` exactly like a printed
+     *  card's `activatedAbilities[]`, so every existing activation code path
+     *  (`activateAbility`, `getStackAbilities`, wire projection) works
+     *  unchanged — ability lookup always goes through `card.card.id` →
+     *  the registry, never a denormalized copy on `CardInstanceState`. Folded
+     *  into the token's content-derived definition id (`tokenDefinitionId`) so
+     *  a token WITH an activated ability gets a distinct def from one without,
+     *  and decoded back client-side by `maybeSynthesizeToken` (issue #778 /
+     *  #1191 — the gap that blocked Magda's Treasures / Voldaren Epicure's
+     *  Blood token / Sunfall's Incubate). */
+    activatedAbilities?: ActivatedAbility[];
 }
 
 /** JSON-pure token specification for the `createToken` Effect Script Op
@@ -1190,6 +1203,20 @@ export interface EffectTokenSpec {
     staticAbilities?: string[];
     /** Optional Scryfall id of a printed token card for real token art. */
     imagePrintId?: string;
+    /** Activated abilities the token enters with (CR 707.2, issue #1191 —
+     *  Investigate's Clue: "{2}, Sacrifice this token: Draw a card."). A
+     *  RESTRICTED, JSON-pure subset of `ActivatedAbility`: only `id`, `cost`
+     *  (`tap` / `mana` / `sacrifice` — the JSON-pure cost legs; no closures),
+     *  `oracleText`, `useStack` and `effects` (an Effect Script, DSL-only —
+     *  `resolve/effect` are rejected) are accepted, enforced by
+     *  `isEffectTokenSpec` in `gre/effects/validate.ts`. Each ability's
+     *  `effects[]` is validated and ref-checked as its OWN independently-scoped
+     *  script (fresh `$source` = the token itself once created — see
+     *  `validateEffectOpList`'s nested-`createToken` pass), never against the
+     *  outer script's bindings. Structurally compatible with
+     *  `ActivatedAbility[]`, so the interpreter passes `token` straight to
+     *  `SpellContext.createToken` with no conversion (ADR 0045, ADR 0046). */
+    activatedAbilities?: ActivatedAbility[];
 }
 
 // --- Copy effects (CR 706, 707) ---
@@ -4960,6 +4987,13 @@ export interface PermanentLeftEvent {
     cardId?: string;
     /** Card types snapshotted at the moment of departure (CR 603.10). */
     types: ReadonlyArray<CardType>;
+    /** Card subtypes snapshotted at the moment of departure (CR 205.3, issue
+     *  #1191). Lets a subtype-scoped LTB trigger ("whenever you sacrifice a
+     *  Clue") filter without re-reading the registry — mirrors `types` above.
+     *  Optional so older serialized event fixtures without the field
+     *  deserialize as "no subtypes" (a `filter.subtypes` match then simply
+     *  fails, fail-closed). */
+    subtypes?: ReadonlyArray<string>;
     /** Whether the leaving permanent was an Aura (CR 303.4). */
     wasAura: boolean;
     /** Host id the leaving Aura was attached to (CR 303.4b). Read by
