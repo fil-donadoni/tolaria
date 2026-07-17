@@ -28,10 +28,7 @@ function stateWithModalOnStack(modeId: string) {
         zone: "battlefield",
     });
     const state = makeState({
-        players: [
-            makePlayer("p1", { battlefield: [lotus] }),
-            makePlayer("p2"),
-        ],
+        players: [makePlayer("p1", { battlefield: [lotus] }), makePlayer("p2")],
     });
     const item = pushSpell(state, visionCharm.id, "p1", [
         { type: "player", id: "p2" },

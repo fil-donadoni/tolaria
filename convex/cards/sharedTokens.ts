@@ -29,13 +29,7 @@ export const TREASURE_TOKEN: TokenSpec = {
             cost: { tap: true, sacrifice: true },
             useStack: false,
             effect: (ctx: ActivatedAbilityContext) => ctx.addMana({ W: 1 }),
-            manaChoices: [
-                { W: 1 },
-                { U: 1 },
-                { B: 1 },
-                { R: 1 },
-                { G: 1 },
-            ],
+            manaChoices: [{ W: 1 }, { U: 1 }, { B: 1 }, { R: 1 }, { G: 1 }],
         },
     ],
     // Real printed Treasure token art (tcmr, Commander Legends tokens).

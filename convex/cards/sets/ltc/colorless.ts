@@ -55,7 +55,11 @@ export const relicOfSauron: CardDefinition = {
                     prompt: "Choose a card to discard.",
                     bind: "$discard",
                 },
-                { op: "discard", player: "controller", cards: { ref: "$discard" } },
+                {
+                    op: "discard",
+                    player: "controller",
+                    cards: { ref: "$discard" },
+                },
             ],
         },
     ],

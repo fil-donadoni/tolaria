@@ -559,15 +559,17 @@ export function chooseResolution(choice: OwedChoice): string[] {
         case "order-top":
             return bestFirst(candidates).map((c) => c.id);
 
-        // Look-distribute (CR 401.4 — Impulse, Stock Up): look at the top N,
-        // put exactly `keep` (= min = max) into HAND and order the rest on the
-        // bottom. Minimal-legal default (ADR 0016) — take the `keep` best-valued
-        // cards to hand; the bot submits only the hand picks (empty
-        // `secondZoneIds`), so the engine auto-bottoms the rest in look order.
-        // Smart bottom-ordering is deferred.
+        // Look-distribute (CR 401.4 — Impulse, Stock Up, Narset): look at the
+        // top N, put up to `max` (= `keep`) into HAND and bottom the rest.
+        // `candidates` is already narrowed to the HAND-eligible subset
+        // (`eligibleIds`, Narset's "noncreature, nonland") in `buildOwedChoice`.
+        // Greedy value-max (ADR 0018) — take the best-valued eligible cards up to
+        // `max`; for an OPTIONAL dig (min 0) the bot still digs when a card is
+        // worth taking rather than declining. The bot submits only the hand
+        // picks (empty `secondZoneIds`), so the engine auto-bottoms the rest.
         case "look-distribute":
             return bestFirst(candidates)
-                .slice(0, min)
+                .slice(0, max)
                 .map((c) => c.id);
 
         // Aladdin's Lamp (CR 614): look at the top X, keep the single best

@@ -41,8 +41,7 @@ export const omnathLocusOfCreation: CardDefinition = {
     triggeredAbilities: [
         enteredTrigger({
             id: "omnath-locus-of-creation-etb",
-            oracleText:
-                "When Omnath, Locus of Creation enters, draw a card.",
+            oracleText: "When Omnath, Locus of Creation enters, draw a card.",
             scope: "self",
             effects: [{ op: "draw", player: "controller", count: 1 }],
         }),

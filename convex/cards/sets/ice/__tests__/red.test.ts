@@ -1583,13 +1583,13 @@ describe("Panic (target creature can't block + cantrip, CR 509.1b)", () => {
             players: [
                 makePlayer("p1", { library: library("p1", ["a"]) }),
                 makePlayer("p2", {
-                    battlefield: [vanilla("wall", 0, 4, { zone: "battlefield" })],
+                    battlefield: [
+                        vanilla("wall", 0, 4, { zone: "battlefield" }),
+                    ],
                 }),
             ],
         });
-        castCantrip(state, panic.id, "p1", [
-            { type: "permanent", id: "wall" },
-        ]);
+        castCantrip(state, panic.id, "p1", [{ type: "permanent", id: "wall" }]);
         expect(
             state.players[1].battlefield.find((c) => c.id === "wall")
                 ?.cantBlockThisTurn

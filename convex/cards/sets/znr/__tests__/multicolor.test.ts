@@ -40,7 +40,10 @@ function setup() {
         ownerId: "p1",
     });
     const state = makeState({
-        players: [makePlayer("p1", { battlefield: [omnath] }), makePlayer("p2")],
+        players: [
+            makePlayer("p1", { battlefield: [omnath] }),
+            makePlayer("p2"),
+        ],
     });
     return { state, omnath };
 }
@@ -86,7 +89,9 @@ describe("Omnath, Locus of Creation (CR 603.6a ETB / Landfall CAP #694 / issue #
 
     it("landfall, first resolution this turn: gains 4 life", () => {
         const { state } = setup();
-        state.stack.push(...collectTriggers(state, [landEntered("land1", "p1")]));
+        state.stack.push(
+            ...collectTriggers(state, [landEntered("land1", "p1")])
+        );
         resolveTopOfStack(state);
         expect(state.players[0].life).toBe(24); // 20 + 4
         expect(state.players[0].manaPool).toEqual({
@@ -101,9 +106,13 @@ describe("Omnath, Locus of Creation (CR 603.6a ETB / Landfall CAP #694 / issue #
 
     it("landfall, second resolution the same turn: adds {R}{G}{W}{U} instead", () => {
         const { state } = setup();
-        state.stack.push(...collectTriggers(state, [landEntered("land1", "p1")]));
+        state.stack.push(
+            ...collectTriggers(state, [landEntered("land1", "p1")])
+        );
         resolveTopOfStack(state);
-        state.stack.push(...collectTriggers(state, [landEntered("land2", "p1")]));
+        state.stack.push(
+            ...collectTriggers(state, [landEntered("land2", "p1")])
+        );
         resolveTopOfStack(state);
         expect(state.players[0].life).toBe(24); // unchanged since the first
         expect(state.players[0].manaPool).toEqual({
@@ -156,9 +165,13 @@ describe("Omnath, Locus of Creation (CR 603.6a ETB / Landfall CAP #694 / issue #
 
     it("survives the wire projection (life + mana pool after the escalating branches are server-computed)", () => {
         const { state } = setup();
-        state.stack.push(...collectTriggers(state, [landEntered("land1", "p1")]));
+        state.stack.push(
+            ...collectTriggers(state, [landEntered("land1", "p1")])
+        );
         resolveTopOfStack(state);
-        state.stack.push(...collectTriggers(state, [landEntered("land2", "p1")]));
+        state.stack.push(
+            ...collectTriggers(state, [landEntered("land2", "p1")])
+        );
         resolveTopOfStack(state);
         const projected = projectPublicState(state, 1, "p1");
         expect(projected.players[0].life).toBe(24);

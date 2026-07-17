@@ -57,8 +57,7 @@ export const scythecatCub: CardDefinition = {
                     zone: "battlefield",
                     filter: { types: "Creature" },
                     count: 1,
-                    prompt:
-                        "Landfall: put a +1/+1 counter on target creature you control.",
+                    prompt: "Landfall: put a +1/+1 counter on target creature you control.",
                 });
                 if (picks === undefined) return; // suspended for the choice
                 const id = picks[0];

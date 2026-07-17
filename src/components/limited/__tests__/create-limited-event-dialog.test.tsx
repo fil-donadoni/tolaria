@@ -253,6 +253,65 @@ describe("CreateLimitedEventDialog — Vintage Cube pool source (ADR 0062)", () 
     });
 });
 
+// Vintage Cube singleton seat cap (ADR 0062 rev): a cube deals one copy of
+// each card, so the seat control is clamped to what the implemented pool fills
+// singleton over 3 boosters — `⌊283 / 45⌋ = 6` — matching the server guard in
+// `createLimitedEvent`. Driven through the REAL dialog render + submitted
+// payload (a hand-built payload would mask the clamp).
+describe("CreateLimitedEventDialog — Vintage Cube seat cap (ADR 0062 rev)", () => {
+    const CUBE: DraftableSetInfo = {
+        setCode: "vintage-cube",
+        draftable: true,
+        missingCardCount: 0,
+        sheets: [],
+        isCube: true,
+        availableCardCount: 283,
+    };
+    const withCube = [DRAFTABLE_SETS[0], CUBE];
+
+    function selectCubeDraft() {
+        fireEvent.click(screen.getByRole("radio", { name: "Draft" }));
+        fireEvent.click(screen.getByRole("radio", { name: /Vintage Cube/ }));
+    }
+
+    it("clamps the Seats input max to the singleton capacity (6 at 283 cards)", () => {
+        renderDialog({ draftableSets: withCube });
+        selectCubeDraft();
+        const seats = screen.getByRole("spinbutton") as HTMLInputElement;
+        expect(seats.getAttribute("max")).toBe("6");
+        // The default 8 is clamped down to the cap in the displayed value.
+        expect(seats.value).toBe("6");
+    });
+
+    it("explains the cap under the Seats field while the cube is selected", () => {
+        renderDialog({ draftableSets: withCube });
+        selectCubeDraft();
+        expect(
+            screen.getByText(
+                /capped at 6 seats until the implemented pool grows/
+            )
+        ).toBeTruthy();
+    });
+
+    it("submits the clamped seat count (never an oversized cube table)", () => {
+        const onCreate = vi.fn();
+        renderDialog({ draftableSets: withCube, onCreate });
+        selectCubeDraft();
+        fireEvent.click(screen.getByText("Create Event"));
+        expect(onCreate).toHaveBeenCalledWith(
+            expect.objectContaining({ type: "draft", seatCount: 6 })
+        );
+    });
+
+    it("keeps the full 2–8 range for a non-cube Draft source", () => {
+        renderDialog({ draftableSets: withCube });
+        fireEvent.click(screen.getByRole("radio", { name: "Draft" }));
+        // LEA (non-cube) is selected by default — no cap.
+        const seats = screen.getByRole("spinbutton") as HTMLInputElement;
+        expect(seats.getAttribute("max")).toBe("8");
+    });
+});
+
 describe("CreateLimitedEventDialog — Seats bot hint (issue #1245)", () => {
     it("renders helper text under Seats explaining unfilled seats become bots", () => {
         renderDialog();

@@ -86,7 +86,10 @@ describe("Leovold, Emissary of Trest (CR 614 / 603.2b, ADR 0061 — issue #1265)
 
         it("does NOT prevent the controller's own draws", () => {
             const state = makeState({
-                players: [makePlayer("p1"), makePlayer("p2", { drawnThisTurn: ["a", "b"] })],
+                players: [
+                    makePlayer("p1"),
+                    makePlayer("p2", { drawnThisTurn: ["a", "b"] }),
+                ],
             });
             const event = buildDrawEvent(state, "p2", 1, false);
             expect(draw.applies(event, source, state as never)).toBe(false);
