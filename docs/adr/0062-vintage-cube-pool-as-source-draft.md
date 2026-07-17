@@ -47,19 +47,23 @@ recognized by a reserved Pack Source key `"vintage-cube"` (`CUBE_SOURCE_KEY`,
    Incompleteness "N missing" disable. A cube is curated, not a set to complete;
    applying a completion incentive to it would be a category error.
 
-3. **Singleton sampling, with graceful with-replacement top-up.** The pool is
+3. **Strict singleton sampling, table capped to fit the pool.** The pool is
    shuffled once from the raw **event seed** (`makeRng`, deterministic) and each
    round consumes a disjoint contiguous slice of that single shuffle (starting
    cursor `round × seats × 15`). As long as the whole draft
    (`seats × 15 × rounds`) fits within the pool, no index is revisited — every
-   card appears **at most once across the entire draft** (a real cube). When the
-   implemented pool is smaller than `seats × 15 × rounds`, the cursor wraps
-   (`% pool.length`): the shortfall is topped up **with-replacement** rather than
-   hard-blocking (`cubeSampleRegime` names which regime is active; the engine
-   `console.warn`s the "small-pool top-up" case). This honors "no minimum — must
-   work from day one": a draft runs at any pool size. At the default 8 seats,
-   `8 × 15 × 3 = 360 > 283`, so the cube currently runs in **top-up** mode; at
-   ≤6 seats (`≤270`) or 2 seats it is fully singleton.
+   card appears **at most once across the entire draft** (a real cube).
+   **Revision (one-copy-max is a hard invariant):** rather than dealing a card
+   twice when the table can't be filled singleton from the implemented pool,
+   the seat count is **capped at creation** — `createLimitedEvent` rejects a
+   cube config whose `seats > maxCubeSeats(poolSize, 15, rounds) =
+⌊poolSize / (15 × rounds)⌋`, and the create dialog clamps the seat control
+   to the same cap. At 283 implemented cards over 3 boosters that cap is
+   `⌊283 / 45⌋ = 6` seats; it lifts automatically toward the full 8-seat table
+   as the pool grows past 360. The with-replacement top-up in
+   `dealCubeRoundPacks` (surfaced by `cubeSampleRegime`) is retained only as
+   defense-in-depth for the pathological sub-pack pool a creatable event can no
+   longer reach.
 
 4. **Draft-only.** The pool-as-source path is wired into the draft engine
    (`generateRoundPacks`), not the Sealed pool generator. The create-event UI
@@ -79,10 +83,10 @@ pool projection all work with no cube-specific plumbing.
 - The cube is a second Pack Source **kind**, not a fake set. Future pools (a
   different cube, a jumpstart-style pool) can reuse the same `cube.ts` shape:
   a name list + `buildCubePool` + `dealCubeRoundPacks`.
-- Trade-off: below-full-table singleton at large seat counts depends on pool
-  growth. Until the implemented pool reaches 360, an 8-seat draft repeats some
-  cards (surfaced, never silent). This is the deliberate "works from day one"
-  choice over hard-blocking.
+- Trade-off: the full 8-seat table depends on pool growth. Until the
+  implemented pool reaches 360, the cube caps at 6 seats (3 boosters) — a
+  smaller table, never a repeated card. The one-copy-max invariant wins over
+  table size; the cap self-lifts as cube cards land.
 
 ## Alternatives considered
 
@@ -91,6 +95,13 @@ pool projection all work with no cube-specific plumbing.
   a common) — the opposite of a cube's singleton guarantee — and would still be
   subject to (or require special-casing out of) the ≥80% gate. A pool is a
   fundamentally different object; modeling it as a set sheet fights the grain.
-- **Hard-block until the implemented pool covers a full table.** Rejected: it
-  violates the explicit "no minimum — must work from day one" requirement. The
-  with-replacement top-up is the graceful fallback instead.
+- **Deal with-replacement at oversized tables (the original decision #3).**
+  Superseded: it produced duplicate cards in an 8-seat draft (283 < 360), which
+  breaks the defining property of a cube — one copy of each card. Capping the
+  seat count to what the pool fills singleton keeps the invariant exact while
+  still "working from day one" at any pool size (just a smaller table), so it is
+  strictly better than repeating cards.
+- **Hard-block the cube entirely until the pool covers a full 8-seat table.**
+  Rejected: it violates "no minimum — must work from day one". The seat cap is
+  the middle path — a 6-seat cube draft runs today, singleton, and grows to 8
+  automatically.

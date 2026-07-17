@@ -9,6 +9,7 @@ import {
     MAX_SEATS,
     MIN_SEATS,
 } from "@convex/limited/eventLogic";
+import { CUBE_PACK_SIZE, maxCubeSeats } from "@convex/limited/cube";
 import type { LimitedEventType } from "@convex/limited/eventTypes";
 import IncompletenessNotice from "./incompleteness-notice";
 import CubeAvailabilityNote from "./cube-availability-note";
@@ -91,6 +92,26 @@ export default function CreateLimitedEventDialog({
     const selectionUsable =
         selectedSetInfo !== undefined &&
         isSourceSelectable(selectedSetInfo, type);
+    // Vintage Cube singleton capacity cap (ADR 0062 rev): a cube deals one copy
+    // of each card, so the table can be no larger than the implemented pool
+    // fills singleton over the 3 boosters. Cap the seat control to match the
+    // server guard (`createLimitedEvent`) so an oversized table can't even be
+    // submitted. Non-cube sources keep the full 2–8 range.
+    const isCubeDraft = selectedSetInfo?.isCube === true && type === "draft";
+    const seatMax = isCubeDraft
+        ? Math.max(
+              MIN_SEATS,
+              Math.min(
+                  MAX_SEATS,
+                  maxCubeSeats(
+                      selectedSetInfo?.availableCardCount ?? 0,
+                      CUBE_PACK_SIZE,
+                      DRAFT_BOOSTER_COUNT
+                  )
+              )
+          )
+        : MAX_SEATS;
+    const effectiveSeatCount = Math.min(seatCount, seatMax);
     const canSubmit = !pending && selectionUsable;
 
     const handleSubmit = () => {
@@ -111,7 +132,7 @@ export default function CreateLimitedEventDialog({
                 : [resolvedSetCode];
         onCreate({
             type,
-            seatCount,
+            seatCount: effectiveSeatCount,
             packSlots,
             sealedBoosterCount,
             timerEnabled: type === "draft" && timerEnabled,
@@ -179,20 +200,20 @@ export default function CreateLimitedEventDialog({
 
                 <label className="flex flex-col gap-1 text-sm">
                     <span className="text-[10px] font-semibold uppercase tracking-wide text-text-muted">
-                        Seats ({MIN_SEATS}-{MAX_SEATS})
+                        Seats ({MIN_SEATS}-{seatMax})
                     </span>
                     <Input
                         type="number"
                         min={MIN_SEATS}
-                        max={MAX_SEATS}
-                        value={seatCount}
+                        max={seatMax}
+                        value={effectiveSeatCount}
                         disabled={pending}
                         onChange={(e) =>
                             setSeatCount(
                                 Math.max(
                                     MIN_SEATS,
                                     Math.min(
-                                        MAX_SEATS,
+                                        seatMax,
                                         Number(e.currentTarget.value) ||
                                             MIN_SEATS
                                     )
@@ -201,8 +222,9 @@ export default function CreateLimitedEventDialog({
                         }
                     />
                     <span className="text-xs text-text-muted">
-                        Unfilled seats become bots when the event starts — for a
-                        solo draft, set the full table (e.g. {MAX_SEATS}).
+                        {isCubeDraft && seatMax < MAX_SEATS
+                            ? `Vintage Cube deals one copy of each card, so the table is capped at ${seatMax} seats until the implemented pool grows.`
+                            : `Unfilled seats become bots when the event starts — for a solo draft, set the full table (e.g. ${seatMax}).`}
                     </span>
                 </label>
 

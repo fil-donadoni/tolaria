@@ -13,6 +13,7 @@ import {
     buildCubePool,
     cubePoolSize,
     cubeSampleRegime,
+    maxCubeSeats,
     shuffleCube,
     dealCubeRoundPacks,
 } from "../cube";
@@ -92,6 +93,31 @@ describe("cubeSampleRegime (ADR 0062)", () => {
         // 2 seats * 15 * 3 = 90 needed.
         expect(cubeSampleRegime(90, 2, 15, 3)).toBe("singleton");
         expect(cubeSampleRegime(89, 2, 15, 3)).toBe("top-up");
+    });
+});
+
+describe("maxCubeSeats (ADR 0062 rev: singleton capacity cap)", () => {
+    it("is floor(poolSize / (packSize * roundCount)) — the largest singleton table", () => {
+        // 283 implemented cards over 3 boosters of 15 → floor(283/45) = 6.
+        expect(maxCubeSeats(283, 15, 3)).toBe(6);
+        // At exactly 360 the full 8-seat table fits singleton.
+        expect(maxCubeSeats(360, 15, 3)).toBe(8);
+        // One card short of a boundary rounds down, never up (no repeat).
+        expect(maxCubeSeats(359, 15, 3)).toBe(7);
+        expect(maxCubeSeats(90, 15, 3)).toBe(2);
+        expect(maxCubeSeats(89, 15, 3)).toBe(1);
+    });
+
+    it("returns 0 for a degenerate packSize or roundCount (no division by zero)", () => {
+        expect(maxCubeSeats(283, 0, 3)).toBe(0);
+        expect(maxCubeSeats(283, 15, 0)).toBe(0);
+    });
+
+    it("agrees with cubeSampleRegime: a table at the cap is singleton, one above is top-up", () => {
+        const pool = 283;
+        const cap = maxCubeSeats(pool, 15, 3); // 6
+        expect(cubeSampleRegime(pool, cap, 15, 3)).toBe("singleton");
+        expect(cubeSampleRegime(pool, cap + 1, 15, 3)).toBe("top-up");
     });
 });
 

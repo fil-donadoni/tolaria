@@ -67,7 +67,12 @@ import {
     isDraftableSet,
     listDraftableSets,
 } from "./limited/registry";
-import { isCubeSource } from "./limited/cube";
+import {
+    isCubeSource,
+    cubePoolSize,
+    maxCubeSeats,
+    CUBE_PACK_SIZE,
+} from "./limited/cube";
 
 /** `eventLogic.ts` stays Convex-decoupled: `LimitedEventSeat.userId` is a
  *  plain `string` (mirrors `players[].id`'s opaque-handle convention,
@@ -577,6 +582,25 @@ export const createLimitedEvent = mutation({
                 if (args.type === "sealed") {
                     throw new Error(
                         "The Vintage Cube is Draft-only — it cannot be used for a Sealed event."
+                    );
+                }
+                // Singleton capacity cap (ADR 0062 rev, issue: cube one-copy-max).
+                // A cube is a POOL of singletons — every card exists once. Rather
+                // than dealing the same card twice when the table can't be filled
+                // from the implemented pool (the old with-replacement "top-up"),
+                // reject an oversized config at creation. `roundCount` is the
+                // pack count (`packSlots.length`, DRAFT_BOOSTER_COUNT copies of
+                // the cube key). The cap lifts automatically as cube cards land.
+                const roundCount = args.packSlots.length;
+                const poolSize = cubePoolSize();
+                const maxSeats = maxCubeSeats(
+                    poolSize,
+                    CUBE_PACK_SIZE,
+                    roundCount
+                );
+                if (args.seatCount > maxSeats) {
+                    throw new Error(
+                        `The Vintage Cube's implemented pool (${poolSize} cards) supports at most ${maxSeats} seats over ${roundCount} boosters without repeating a card. Reduce the seat count to ${maxSeats} or fewer.`
                     );
                 }
                 continue;

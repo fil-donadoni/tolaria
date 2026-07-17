@@ -13,7 +13,13 @@ import { assertDeckLegal, type GateDeck } from "../formats";
 import { manaValue } from "../gre/constants";
 import { makeRng } from "../gre/rng";
 import { computeEventCompletion } from "../limited/completion";
-import { CUBE_SOURCE_KEY, isCubeSource } from "../limited/cube";
+import {
+    CUBE_SOURCE_KEY,
+    CUBE_PACK_SIZE,
+    cubePoolSize,
+    isCubeSource,
+    maxCubeSeats,
+} from "../limited/cube";
 import {
     applyPick,
     resolveAutoPickTimeout,
@@ -1526,13 +1532,28 @@ describe("Limited Event Selected Card (ADR 0060, issue #1248): selectDraftPick's
  *  still go through the Draftability gate unchanged. */
 function assertPackSlotsAllowed(
     packSlots: string[],
-    type: "sealed" | "draft"
+    type: "sealed" | "draft",
+    seatCount: number
 ): void {
     for (const setCode of new Set(packSlots)) {
         if (isCubeSource(setCode)) {
             if (type === "sealed") {
                 throw new Error(
                     "The Vintage Cube is Draft-only — it cannot be used for a Sealed event."
+                );
+            }
+            // Singleton capacity cap (ADR 0062 rev) — reject an oversized table
+            // rather than deal a card twice. Uses the REAL `maxCubeSeats` /
+            // `cubePoolSize` the mutation calls, so only the throw comparison is
+            // mirrored, never the math.
+            const maxSeats = maxCubeSeats(
+                cubePoolSize(),
+                CUBE_PACK_SIZE,
+                packSlots.length
+            );
+            if (seatCount > maxSeats) {
+                throw new Error(
+                    `The Vintage Cube's implemented pool supports at most ${maxSeats} seats over ${packSlots.length} boosters without repeating a card.`
                 );
             }
             continue;
@@ -1544,9 +1565,11 @@ function assertPackSlotsAllowed(
 }
 
 describe("Limited Event: Vintage Cube gate (Draft-only, ADR 0062 §4)", () => {
+    const cubeSlots = [CUBE_SOURCE_KEY, CUBE_SOURCE_KEY, CUBE_SOURCE_KEY];
+
     it("rejects a Sealed event on the cube source (server-side, not just the dialog)", () => {
         expect(() =>
-            assertPackSlotsAllowed([CUBE_SOURCE_KEY], "sealed")
+            assertPackSlotsAllowed([CUBE_SOURCE_KEY], "sealed", 2)
         ).toThrow(/Draft-only/);
     });
 
@@ -1556,13 +1579,31 @@ describe("Limited Event: Vintage Cube gate (Draft-only, ADR 0062 §4)", () => {
         // for the curated pool.
         expect(isDraftableSet(CUBE_SOURCE_KEY)).toBe(true);
         expect(() =>
-            assertPackSlotsAllowed([CUBE_SOURCE_KEY, CUBE_SOURCE_KEY, CUBE_SOURCE_KEY], "draft")
+            assertPackSlotsAllowed(cubeSlots, "draft", 2)
         ).not.toThrow();
     });
 
     it("still rejects a genuinely non-Draftable real set (cube bypass is cube-specific)", () => {
         expect(() =>
-            assertPackSlotsAllowed(["definitely-not-a-set"], "draft")
+            assertPackSlotsAllowed(["definitely-not-a-set"], "draft", 2)
         ).toThrow(/not a Draftable Set/);
+    });
+
+    // ADR 0062 rev (one-copy-max is a hard invariant): a table that can't be
+    // filled singleton from the implemented pool is rejected at creation, not
+    // dealt with-replacement. Boundaries are derived from the LIVE pool so the
+    // test doesn't rot as cube cards are implemented (the cap self-lifts).
+    it("rejects a cube Draft whose seat count exceeds the singleton capacity", () => {
+        const cap = maxCubeSeats(cubePoolSize(), CUBE_PACK_SIZE, 3);
+        expect(() =>
+            assertPackSlotsAllowed(cubeSlots, "draft", cap + 1)
+        ).toThrow(/without repeating a card/);
+    });
+
+    it("accepts a cube Draft exactly at the singleton capacity", () => {
+        const cap = maxCubeSeats(cubePoolSize(), CUBE_PACK_SIZE, 3);
+        expect(() =>
+            assertPackSlotsAllowed(cubeSlots, "draft", cap)
+        ).not.toThrow();
     });
 });

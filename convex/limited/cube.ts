@@ -12,11 +12,13 @@
 //
 // Sampling (ADR 0062): the pool is shuffled once (seeded, deterministic) and
 // dealt as SINGLETON 15-card packs — each card appears at most once across the
-// entire draft — whenever the pool is large enough (≥ seats × 15 × rounds).
-// When it isn't (a still-small implemented pool), the shortfall is topped up
-// WITH-REPLACEMENT rather than hard-blocking: honoring "no minimum — must work
-// from day one", a draft still runs at any pool size (the "small-pool top-up"
-// regime, surfaced by `cubeSampleRegime`).
+// entire draft. "One copy per card, maximum" is a HARD invariant, so a table
+// that can't be filled singleton from the implemented pool is capped at
+// creation (`maxCubeSeats`, enforced by `createLimitedEvent`) rather than
+// dealt with-replacement — the cap lifts automatically as cube cards land.
+// The WITH-REPLACEMENT top-up in `dealCubeRoundPacks` (surfaced by
+// `cubeSampleRegime`) therefore only ever runs as defense-in-depth for the
+// pathological sub-pack pool a creatable event can no longer reach.
 import { VINTAGE_CUBE_NAMES } from "../cubes/vintageCubeNames";
 import { tryGetCardByName } from "../cards";
 import { makeRng } from "../gre/rng";
@@ -82,7 +84,10 @@ export function cubePoolSize(): number {
 /** Whether a full draft of `roundCount` rounds at `seatCount` seats can be
  *  dealt SINGLETON (every card at most once) from a pool of `poolSize`, or
  *  must fall back to the WITH-REPLACEMENT "top-up" regime (ADR 0062). A draft
- *  runs in either regime — this only names which one, for logging/surfacing. */
+ *  runs in either regime — this only names which one, for logging/surfacing.
+ *  With the creation-time capacity cap (`maxCubeSeats`, ADR 0062 rev), a
+ *  creatable event is always "singleton"; "top-up" now only names the
+ *  defensive sub-pack path (`dealCubeRoundPacks`). */
 export function cubeSampleRegime(
     poolSize: number,
     seatCount: number,
@@ -92,6 +97,24 @@ export function cubeSampleRegime(
     return poolSize >= seatCount * packSize * roundCount
         ? "singleton"
         : "top-up";
+}
+
+/** The largest seat count a SINGLETON cube draft of `roundCount` rounds can
+ *  serve from `poolSize` cards at `packSize` per pack —
+ *  `floor(poolSize / (packSize × roundCount))`. The cube caps the table here
+ *  (`createLimitedEvent`, ADR 0062 rev) rather than duplicating cards:
+ *  "one copy per card, maximum" is a hard invariant, so a config that would
+ *  overflow the implemented pool is rejected at creation instead of dealt
+ *  with-replacement. Grows automatically toward the full table as cube cards
+ *  are implemented (283 → 360 cards lifts the 3-round cap from 6 to 8 seats).
+ *  Returns 0 for a degenerate `packSize`/`roundCount` of 0. */
+export function maxCubeSeats(
+    poolSize: number,
+    packSize: number,
+    roundCount: number
+): number {
+    if (packSize <= 0 || roundCount <= 0) return 0;
+    return Math.floor(poolSize / (packSize * roundCount));
 }
 
 /** Seeded Fisher-Yates shuffle of a COPY of `pool` using `makeRng(seed)` — the
