@@ -2207,6 +2207,7 @@ export function tryAutoCommitPendingCast(
         .targets as StackItem["targets"] | undefined;
     const pendingChosenX = state.pendingCast.chosenX;
     const pendingKickerCount = state.pendingCast.kickerCount;
+    const pendingBuybackPaid = state.pendingCast.buybackPaid;
     const pendingChosenModeId = state.pendingCast.chosenModeId;
     const pendingTargetAmounts = state.pendingCast.targetAmounts;
     // CR 601.2b / 118.4 — pay the "pay X life" additional cost the instant the
@@ -2224,6 +2225,7 @@ export function tryAutoCommitPendingCast(
         ...(pendingTargets ? { targets: pendingTargets } : {}),
         ...(pendingChosenX !== undefined ? { chosenX: pendingChosenX } : {}),
         ...(pendingKickerCount ? { kickerCount: pendingKickerCount } : {}),
+        ...(pendingBuybackPaid ? { buybackPaid: true } : {}),
         ...(pendingTargetAmounts
             ? { targetAmounts: pendingTargetAmounts }
             : {}),
@@ -3536,6 +3538,40 @@ function foldKickerCost(
     }
 }
 
+/** CR 702.27 — validate a requested Buyback choice against a card and return
+ *  the canonical boolean (false = not paid). Throws when buyback is
+ *  requested for a card with no Buyback cost. Unlike Kicker (CR 702.33e
+ *  Multikicker), Buyback has no repeatable variant — CR 702.27a's "an
+ *  additional [cost]" is singular, paid at most once per cast. Exported for
+ *  the same reason `resolveKickerCount` is: `convex/gre/__tests__/
+ *  buyback.test.ts` drives the real cost/target commit path over the GRE
+ *  state (no convex-test harness for game.ts mutations, ADR 0001). */
+export function resolveBuybackChoice(
+    cardDef: CardDefinition,
+    requested: boolean | undefined
+): boolean {
+    if (!requested) return false;
+    if (!cardDef.buyback) throw new Error("This spell has no buyback");
+    return true;
+}
+
+/** CR 702.27a / 601.2f — fold the Buyback cost into a normalized mana-cost
+ *  record, mutating it in place, when `buybackPaid`. No-op when not paid or
+ *  the card has no Buyback cost. Applied to the total mana cost BEFORE cost
+ *  modifiers (CR 601.2f — an additional cost joins the total, then
+ *  increases/reductions apply), mirroring `foldKickerCost`. */
+function foldBuybackCost(
+    cost: Record<string, number>,
+    cardDef: CardDefinition,
+    buybackPaid: boolean
+): void {
+    if (!buybackPaid || !cardDef.buyback) return;
+    const per = normalizeManaCost(cardDef.buyback);
+    for (const [sym, amt] of Object.entries(per)) {
+        cost[sym] = (cost[sym] ?? 0) + amt;
+    }
+}
+
 /** CR 702.33 — the target requirement in force for a cast: the card's
  *  `kickedTargetRequirement` when the spell was kicked and one is declared
  *  (Bloodchief's Thirst, Tear Asunder), else the base `targetRequirement`. A
@@ -3613,6 +3649,9 @@ export function finalizeTargetSelection(
     // CR 702.33 — Kicker tally chosen at announcement, folded into the mana cost
     // paid at this commit and propagated to the resolving stack item.
     const kickerCount = pt.kickerCount ?? 0;
+    // CR 702.27a — Buyback choice made at announcement, folded into the mana
+    // cost paid at this commit and propagated to the resolving stack item.
+    const buybackPaid = pt.buybackPaid ?? false;
     const chosenModeId = pt.chosenModeId;
     const kind = pt.kind ?? "cast";
     const abilityId = pt.abilityId;
@@ -4053,6 +4092,9 @@ export function finalizeTargetSelection(
     // cast. Folded BEFORE cost modifiers so reductions/increases apply to the
     // total (CR 601.2f).
     foldKickerCost(manaCost, cardDef, kickerCount);
+    // CR 702.27a / 601.2f — mirrors the Kicker fold above for Buyback's
+    // additional cost.
+    foldBuybackCost(manaCost, cardDef, buybackPaid);
     applyCostModifiers(manaCost, getCostModifiers(state, cardInHand, "spell"));
     // CR 107.4f — resolve the Phyrexian pips ({B/P}, {U/P}) for this cast: the
     // pips paid with mana fold into the coloured mana cost (paid via the pool /
@@ -4194,6 +4236,7 @@ export function finalizeTargetSelection(
             chosenX,
             ...(payLife > 0 ? { payLife } : {}),
             ...(kickerCount > 0 ? { kickerCount } : {}),
+            ...(buybackPaid ? { buybackPaid: true } : {}),
             ...(chosenModeId ? { chosenModeId } : {}),
             ...(exilePicker ? { additionalCost: exilePicker } : {}),
             ...(castSac ? { sacrificeSelection: castSac } : {}),
@@ -4272,6 +4315,7 @@ export function finalizeTargetSelection(
             targets,
             ...(chosenX !== undefined ? { chosenX } : {}),
             ...(kickerCount > 0 ? { kickerCount } : {}),
+            ...(buybackPaid ? { buybackPaid: true } : {}),
             ...(divideAmounts ? { targetAmounts: divideAmounts } : {}),
             ...(chosenModeId ? { chosenModeId } : {}),
             ...(additionalSacrificeSnapshot
@@ -4299,6 +4343,7 @@ export function finalizeTargetSelection(
             keepPriority,
             chosenX,
             ...(kickerCount > 0 ? { kickerCount } : {}),
+            ...(buybackPaid ? { buybackPaid: true } : {}),
             ...(divideAmounts ? { targetAmounts: divideAmounts } : {}),
             ...(payLife > 0 ? { payLife } : {}),
             ...(chosenModeId ? { chosenModeId } : {}),
@@ -4556,6 +4601,11 @@ export const announceCast = mutation({
          *  as it is cast (0/omitted = don't kick). A single Kicker accepts 0 or
          *  1; a Multikicker (CR 702.33e) accepts any non-negative integer. */
         kickerCount: v.optional(v.number()),
+        /** CR 702.27 — whether to pay this spell's optional Buyback cost as it
+         *  is cast (false/omitted = don't pay it). When true, the spell
+         *  returns to its owner's hand instead of the graveyard as it
+         *  resolves. */
+        buyback: v.optional(v.boolean()),
         /** Mode chosen for modal spells (CR 700.2 / 700.2c). Required when
          *  the card defines `modes`. */
         chosenModeId: v.optional(v.string()),
@@ -4734,6 +4784,11 @@ export const announceCast = mutation({
         // a bad count, or a single kicker asked to be paid more than once.
         const kickerCount = resolveKickerCount(cardDef, args.kickerCount);
 
+        // CR 702.27 — validate and canonicalize the optional Buyback choice
+        // for this cast (false = not paid). Throws for a card with no Buyback
+        // cost.
+        const buybackPaid = resolveBuybackChoice(cardDef, args.buyback);
+
         // For modal spells, the chosen mode's targetRequirement drives target
         // selection (CR 700.2d). Falls back to the kicker-adjusted card-level
         // requirement for non-modal spells — a kicked spell with a
@@ -4846,6 +4901,7 @@ export const announceCast = mutation({
                 keepPriority: args.keepPriority,
                 chosenX,
                 ...(kickerCount > 0 ? { kickerCount } : {}),
+                ...(buybackPaid ? { buybackPaid: true } : {}),
                 // CR 107.4f — carry the caster's Phyrexian mana-vs-life choice
                 // through target selection so it is applied at cast commit
                 // (finalizeTargetSelection → resolvePhyrexianCastPayment).
@@ -4996,6 +5052,9 @@ export const announceCast = mutation({
         // CR 702.33a — fold the optional Kicker cost into the total (before cost
         // modifiers, CR 601.2f). No-op when the caster didn't kick.
         foldKickerCost(manaCost, cardDef, kickerCount);
+        // CR 702.27a — fold the optional Buyback cost into the total the same
+        // way. No-op when the caster didn't pay it.
+        foldBuybackCost(manaCost, cardDef, buybackPaid);
         applyCostModifiers(
             manaCost,
             getCostModifiers(state, cardInHand, "spell")
@@ -5159,6 +5218,7 @@ export const announceCast = mutation({
                 keepPriority: args.keepPriority,
                 chosenX,
                 ...(kickerCount > 0 ? { kickerCount } : {}),
+                ...(buybackPaid ? { buybackPaid: true } : {}),
                 // CR 107.4f — Phyrexian life rides to the deferred commit.
                 ...(phyrexianPayLife > 0 ? { payLife: phyrexianPayLife } : {}),
                 ...(args.chosenModeId
@@ -5227,6 +5287,7 @@ export const announceCast = mutation({
                 castById: args.playerId,
                 ...(chosenX !== undefined ? { chosenX } : {}),
                 ...(kickerCount > 0 ? { kickerCount } : {}),
+                ...(buybackPaid ? { buybackPaid: true } : {}),
                 ...(args.chosenModeId
                     ? { chosenModeId: args.chosenModeId }
                     : {}),
@@ -5254,6 +5315,7 @@ export const announceCast = mutation({
                 keepPriority: args.keepPriority,
                 chosenX,
                 ...(kickerCount > 0 ? { kickerCount } : {}),
+                ...(buybackPaid ? { buybackPaid: true } : {}),
                 // CR 107.4f — the Phyrexian life is paid at the deferred commit
                 // (finalizePendingCast reads `pendingCast.payLife`).
                 ...(phyrexianPayLife > 0 ? { payLife: phyrexianPayLife } : {}),

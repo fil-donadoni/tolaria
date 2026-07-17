@@ -1087,6 +1087,13 @@ export type StackItem = CardInstanceState & {
      *  SpellContext.getKickerCount() (and by `entersWith.counters` count
      *  `"kicker"`). Undefined for spells without a Kicker cost / cast unkicked. */
     kickerCount?: number;
+    /** CR 702.27a — whether this spell's Buyback cost was paid as it was cast
+     *  (absent/false = not paid). Snapshotted at cast commit from
+     *  `PendingCast.buybackPaid`; read at resolution by
+     *  `finalizeSpellResolution` (`convex/gre/state.ts`), which routes the
+     *  card to its owner's hand instead of the graveyard when set. Undefined
+     *  for spells without a Buyback cost / cast without paying it. */
+    buybackPaid?: boolean;
     /** Divide-as-you-choose split (CR 601.2d / 120.4). Maps a target key
      *  (`${type}:${id}`) to the amount of damage / counters the caster assigned
      *  to that target at announcement, each ≥ 1, summing to the spell's total.
@@ -1333,6 +1340,11 @@ export type PendingCast = {
      *  this count is propagated to the stack item at commit so resolution reads
      *  `SpellContext.getKickerCount()`. */
     kickerCount?: number;
+    /** CR 702.27a — whether the caster chose to pay this spell's Buyback cost
+     *  at announcement (absent/false = not paid). The buyback mana is folded
+     *  into `manaCost` alongside it; the flag is propagated to the stack item
+     *  at commit so `finalizeSpellResolution` routes the card to hand. */
+    buybackPaid?: boolean;
     /** Divide-as-you-choose split assigned at target selection (CR 601.2d).
      *  Carried through the deferred-payment commit (`commitSpellCast`) onto the
      *  stack item's `targetAmounts`. Keyed by `${type}:${id}`. Undefined for
@@ -1982,6 +1994,11 @@ export type PendingTarget = {
      *  so the kicked target set (`kickedTargetRequirement`) governs this
      *  selection and the tally reaches resolution. */
     kickerCount?: number;
+    /** CR 702.27a — whether the caster chose to pay this spell's Buyback cost
+     *  at announcement (absent/false = not paid). Propagated from announceCast
+     *  through `finalizeTargetSelection` → pendingCast → stack item so
+     *  resolution routes the card to hand instead of the graveyard. */
+    buybackPaid?: boolean;
     /** CR 107.4f — how many of this cast's Phyrexian pips ({C/P}) the caster
      *  chose to pay with LIFE (2 each), propagated from announceCast so the
      *  mana-vs-life split is applied at cast commit
@@ -3640,6 +3657,56 @@ export function shouldEnterTapped(
     );
 }
 
+/** CR 400.7-style hygiene for a spell that returns from the stack to its
+ *  owner's HAND instead of the graveyard (CR 702.27a — Buyback). Strips every
+ *  cast/announcement-time snapshot field the `StackItem` extension adds on
+ *  top of `CardInstanceState` — `buybackPaid`, `chosenX`, `targets`,
+ *  `chosenModeId`, `castById`, and the rest — so the hand card carries none
+ *  of them forward.
+ *
+ *  Without this, `finalizeSpellResolution`'s buyback branch used to push
+ *  `item` (still carrying `buybackPaid: true`) straight into `owner.hand`.
+ *  `announceCast`/`finalizeTargetSelection` (`convex/game.ts`) build a fresh
+ *  stack item on RECAST via `{ ...card, ... }`, conditionally overriding
+ *  `buybackPaid` only when the new cast itself pays buyback
+ *  (`...(buybackPaid ? { buybackPaid: true } : {})`) — when the new cast does
+ *  NOT pay buyback that spread is `{}` and does not clear the field, so the
+ *  stale `true` from the hand card silently survived onto the new stack item.
+ *  The spell then resolved back to hand again for free, defeating the CR
+ *  702.27 additional cost on every cast after the first. */
+function resetStackTransientState(item: StackItem): void {
+    delete (item as { castById?: string }).castById;
+    delete item.targets;
+    delete item.chosenX;
+    delete item.kickerCount;
+    delete item.buybackPaid;
+    delete item.targetAmounts;
+    delete item.chosenModeId;
+    delete item.additionalSacrificeSnapshot;
+    delete item.notedManaSpent;
+    delete item.abilityId;
+    delete item.grantedSourceCardId;
+    delete item.triggeredAbilityId;
+    delete item.triggerSourceId;
+    delete item.triggerEvent;
+    delete item.abilityResolutionRecorded;
+    delete item.madnessTrigger;
+    delete item.emblemSourceId;
+    delete item.stormSnapshot;
+    delete item.stormCopiesRemaining;
+    delete item.delayedTriggerId;
+    delete item.delayedPayload;
+    delete item.delayedEffects;
+    delete item.resolutionStep;
+    delete item.collectedChoices;
+    delete item.massRiderTargets;
+    delete item.isCopy;
+    delete item.exileOnResolve;
+    delete item.shuffleIntoLibraryOnResolve;
+    delete item.castFromGraveyard;
+    delete item.actingPlayerId;
+}
+
 /** Moves a stack item (a spell that failed to resolve/finished resolving as
  *  a non-permanent/was countered) into its owner's graveyard — CR 614
  *  (issue #1145) consulted first so a graveyard-bound replacement
@@ -3893,6 +3960,23 @@ function finalizeSpellResolution(
         if (item.exileOnResolve) {
             item.zone = "exile";
             owner.exile.push(item);
+            return;
+        }
+        // CR 702.27a — Buyback: if the caster paid the buyback cost as they
+        // cast this spell, it goes to its OWNER's hand instead of the
+        // graveyard as it resolves. Checked last among the redirects — a
+        // spell's own "exile/shuffle into library" self-instruction above
+        // still takes precedence (no shipped card combines Buyback with one
+        // of those, but the ordering documents the intended precedence).
+        if (item.buybackPaid) {
+            item.zone = "hand";
+            // Strip stack-only cast-time snapshots (buybackPaid included)
+            // BEFORE the object enters the hand — see
+            // `resetStackTransientState` for why: otherwise a later recast
+            // that doesn't pay buyback silently inherits the stale flag and
+            // returns to hand for free.
+            resetStackTransientState(item);
+            owner.hand.push(item);
             return;
         }
         sendStackItemToGraveyard(state, item);

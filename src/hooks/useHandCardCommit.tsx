@@ -19,6 +19,7 @@ import type { AlternativeCost } from "@convex/cards/types";
 type ModePickerState = {
     chosenX: number | undefined;
     kickerCount: number | undefined;
+    buyback: boolean | undefined;
     keepPriority: boolean | undefined;
     position: { x: number; y: number };
 };
@@ -26,6 +27,7 @@ type ModePickerState = {
 type AltCostPickerState = {
     chosenX: number | undefined;
     kickerCount: number | undefined;
+    buyback: boolean | undefined;
     keepPriority: boolean | undefined;
     position: { x: number; y: number };
     /** The alternative costs the caster can currently afford (CR 118.9) — the
@@ -40,19 +42,22 @@ type AltCostPickerState = {
 type PhyrexianPickerState = {
     chosenX: number | undefined;
     kickerCount: number | undefined;
+    buyback: boolean | undefined;
     keepPriority: boolean | undefined;
     position: { x: number; y: number };
     choices: PhyrexianSplitChoice[];
 };
 
-/** Cost-choice dialog state (CR 601.2b {X} + CR 702.33 Kicker). Opened before
- *  the mode / alt-cost pickers when the card needs a numeric X and/or a kicker
- *  decision; `position` is captured at click time so the downstream pickers can
- *  still anchor to the card after the dialog closes. */
+/** Cost-choice dialog state (CR 601.2b {X} + CR 702.33 Kicker + CR 702.27
+ *  Buyback). Opened before the mode / alt-cost pickers when the card needs a
+ *  numeric X and/or a kicker/buyback decision; `position` is captured at click
+ *  time so the downstream pickers can still anchor to the card after the
+ *  dialog closes. */
 type CostDialogState = {
     keepPriority: boolean | undefined;
     askX: boolean;
     kicker: { multi: boolean } | undefined;
+    buyback: boolean;
     position: { x: number; y: number };
 };
 
@@ -108,6 +113,7 @@ export function useHandCardCommit(cardInstance: CardInstance) {
         chosenModeId: string | undefined;
         alternativeCostId?: string | undefined;
         kickerCount?: number | undefined;
+        buyback?: boolean | undefined;
         /** CR 107.4f — how many `{C/P}` pips the caster chose to pay with life. */
         phyrexianLifePips?: number | undefined;
     }) {
@@ -121,6 +127,7 @@ export function useHandCardCommit(cardInstance: CardInstance) {
                 chosenModeId: args.chosenModeId,
                 alternativeCostId: args.alternativeCostId,
                 kickerCount: args.kickerCount,
+                buyback: args.buyback,
                 phyrexianLifePips: args.phyrexianLifePips,
             })
         ).catch(reportError);
@@ -135,16 +142,19 @@ export function useHandCardCommit(cardInstance: CardInstance) {
     function proceedAfterCost(params: {
         chosenX: number | undefined;
         kickerCount: number | undefined;
+        buyback: boolean | undefined;
         keepPriority: boolean | undefined;
         position: { x: number; y: number };
     }) {
-        const { chosenX, kickerCount, keepPriority, position } = params;
+        const { chosenX, kickerCount, buyback, keepPriority, position } =
+            params;
         const def = getDefinition(cardInstance.card.id);
         // CR 700.2 — modal spell: pick a mode before announcement.
         if (def.modes && def.modes.length > 0) {
             setModePickerState({
                 chosenX,
                 kickerCount,
+                buyback,
                 keepPriority,
                 position,
             });
@@ -179,6 +189,7 @@ export function useHandCardCommit(cardInstance: CardInstance) {
                 setAltCostPickerState({
                     chosenX,
                     kickerCount,
+                    buyback,
                     keepPriority,
                     position,
                     altCosts: affordableAlts,
@@ -197,6 +208,7 @@ export function useHandCardCommit(cardInstance: CardInstance) {
             setPhyrexianPickerState({
                 chosenX,
                 kickerCount,
+                buyback,
                 keepPriority,
                 position,
                 choices: phyrexianChoices,
@@ -208,6 +220,7 @@ export function useHandCardCommit(cardInstance: CardInstance) {
             keepPriority,
             chosenModeId: undefined,
             kickerCount,
+            buyback,
         });
     }
 
@@ -216,6 +229,8 @@ export function useHandCardCommit(cardInstance: CardInstance) {
         const def = getDefinition(cardInstance.card.id);
         // CR 107.3 / 601.2b: X in the mana cost is chosen before announcement.
         // CR 702.33: Kicker is an optional additional cost decided at cast time.
+        // CR 702.27: Buyback is likewise an optional additional cost decided at
+        // cast time.
         // Anchor on currentTarget (the handler-bound element) — more stable than
         // `e.target` which may be a nested child. Falls back to the pointer
         // coords if the rect is degenerate. Captured now so the downstream
@@ -233,16 +248,17 @@ export function useHandCardCommit(cardInstance: CardInstance) {
             rect && rect.width > 0 && rect.height > 0
                 ? { x: rect.right + 8, y: rect.top }
                 : { x: e.clientX + 8, y: e.clientY + 8 };
-        // A spell needing an X value and/or a kicker decision collects both in
-        // one in-game dialog (replacing the old native prompt/confirm) before
-        // the cast pipeline resumes.
-        if (hasX || def.kicker) {
+        // A spell needing an X value and/or a kicker/buyback decision collects
+        // all of them in one in-game dialog (replacing the old native
+        // prompt/confirm) before the cast pipeline resumes.
+        if (hasX || def.kicker || def.buyback) {
             setCostDialogState({
                 keepPriority,
                 askX: hasX,
                 kicker: def.kicker
                     ? { multi: def.kicker.multi === true }
                     : undefined,
+                buyback: def.buyback !== undefined,
                 position,
             });
             return;
@@ -250,6 +266,7 @@ export function useHandCardCommit(cardInstance: CardInstance) {
         proceedAfterCost({
             chosenX: undefined,
             kickerCount: undefined,
+            buyback: undefined,
             keepPriority,
             position,
         });
@@ -264,7 +281,7 @@ export function useHandCardCommit(cardInstance: CardInstance) {
                 variant="portal"
                 position={modePickerState.position}
                 onSelect={(modeId) => {
-                    const { chosenX, kickerCount, keepPriority } =
+                    const { chosenX, kickerCount, buyback, keepPriority } =
                         modePickerState;
                     setModePickerState(null);
                     commitAnnounceCast({
@@ -272,6 +289,7 @@ export function useHandCardCommit(cardInstance: CardInstance) {
                         keepPriority,
                         chosenModeId: modeId,
                         kickerCount,
+                        buyback,
                     });
                 }}
                 onCancel={() => setModePickerState(null)}
@@ -285,7 +303,7 @@ export function useHandCardCommit(cardInstance: CardInstance) {
                 cardName={def.name}
                 position={altCostPickerState.position}
                 onSelect={(altCostId) => {
-                    const { chosenX, kickerCount, keepPriority } =
+                    const { chosenX, kickerCount, buyback, keepPriority } =
                         altCostPickerState;
                     setAltCostPickerState(null);
                     commitAnnounceCast({
@@ -294,6 +312,7 @@ export function useHandCardCommit(cardInstance: CardInstance) {
                         chosenModeId: undefined,
                         alternativeCostId: altCostId,
                         kickerCount,
+                        buyback,
                     });
                 }}
                 onCancel={() => setAltCostPickerState(null)}
@@ -307,7 +326,7 @@ export function useHandCardCommit(cardInstance: CardInstance) {
                 cardName={def.name}
                 position={phyrexianPickerState.position}
                 onSelect={(lifePips) => {
-                    const { chosenX, kickerCount, keepPriority } =
+                    const { chosenX, kickerCount, buyback, keepPriority } =
                         phyrexianPickerState;
                     setPhyrexianPickerState(null);
                     commitAnnounceCast({
@@ -315,6 +334,7 @@ export function useHandCardCommit(cardInstance: CardInstance) {
                         keepPriority,
                         chosenModeId: undefined,
                         kickerCount,
+                        buyback,
                         phyrexianLifePips: lifePips,
                     });
                 }}
@@ -328,12 +348,14 @@ export function useHandCardCommit(cardInstance: CardInstance) {
             cardName={def.name}
             askX={costDialogState.askX}
             kicker={costDialogState.kicker}
-            onConfirm={({ chosenX, kickerCount }) => {
+            buyback={costDialogState.buyback}
+            onConfirm={({ chosenX, kickerCount, buyback }) => {
                 const { keepPriority, position } = costDialogState;
                 setCostDialogState(null);
                 proceedAfterCost({
                     chosenX,
                     kickerCount,
+                    buyback,
                     keepPriority,
                     position,
                 });
