@@ -55,7 +55,9 @@ function resolveLandfall(
     n: number,
     targetId: string
 ): void {
-    state.stack.push(...collectTriggers(state, [landEntered(`land${n}`, "p1")]));
+    state.stack.push(
+        ...collectTriggers(state, [landEntered(`land${n}`, "p1")])
+    );
     expect(resolveTopOfStack(state)).toBeNull(); // suspended for the target pick
     const pending = state.pendingChoices![0];
     expect(pending.kind).toBe("choose-permanents");

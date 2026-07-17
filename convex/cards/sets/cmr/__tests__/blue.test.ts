@@ -86,9 +86,9 @@ describe("Hullbreacher (CR 614 / 616.1, ADR 0061 — issue #1265)", () => {
     });
 
     describe("opponent effect draw → Treasure, opponent draws nothing", () => {
-        function stateWithHullbreacher(spellId: string): ReturnType<
-            typeof makeState
-        > {
+        function stateWithHullbreacher(
+            spellId: string
+        ): ReturnType<typeof makeState> {
             const top = makeInstance(bearsId, {
                 id: "p1-top",
                 ownerId: "p1",
@@ -122,9 +122,7 @@ describe("Hullbreacher (CR 614 / 616.1, ADR 0061 — issue #1265)", () => {
                 c.subtypes.includes("Treasure")
             );
             expect(treasures).toHaveLength(1);
-            const def = getDefinition(
-                (treasures[0].card as { id: string }).id
-            );
+            const def = getDefinition((treasures[0].card as { id: string }).id);
             expect(def.types).toContain("Artifact");
             // The Treasure ships with its sacrifice-for-mana ability (issue #778).
             expect(def.activatedAbilities?.[0]?.id).toBe("treasure-token-mana");
@@ -170,7 +168,10 @@ describe("Hullbreacher (CR 614 / 616.1, ADR 0061 — issue #1265)", () => {
             // "{T}, Sacrifice: Add one mana of any color" ability through the
             // real production entry point (`tapSourceIntoPayment` — the same path
             // Black Lotus's mana ability drives, CR 605.1a / 707.2).
-            const id = registerDrawSpell("test-hullbreacher-treasure-activate", 1);
+            const id = registerDrawSpell(
+                "test-hullbreacher-treasure-activate",
+                1
+            );
             const state = makeState({
                 players: [
                     makePlayer("p1", {
@@ -204,7 +205,9 @@ describe("Hullbreacher (CR 614 / 616.1, ADR 0061 — issue #1265)", () => {
             expect(p2.manaPool.W).toBe(0);
             expect(p2.manaPool.U).toBe(0);
             // CR 707.2 — the Treasure was sacrificed: it has left the battlefield.
-            expect(p2.battlefield.some((c) => c.id === treasure!.id)).toBe(false);
+            expect(p2.battlefield.some((c) => c.id === treasure!.id)).toBe(
+                false
+            );
         });
 
         it("a different color pick is honored (index 4 → {G})", () => {
@@ -234,7 +237,9 @@ describe("Hullbreacher (CR 614 / 616.1, ADR 0061 — issue #1265)", () => {
             )!;
             tapSourceIntoPayment(state, p2, treasure, 4, []);
             expect(p2.manaPool.G).toBe(1);
-            expect(p2.battlefield.some((c) => c.id === treasure.id)).toBe(false);
+            expect(p2.battlefield.some((c) => c.id === treasure.id)).toBe(
+                false
+            );
         });
     });
 

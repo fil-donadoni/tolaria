@@ -1698,7 +1698,8 @@ export const mindRavel: CardDefinition = {
         {
             op: "delayedTrigger",
             timing: "next-upkeep",
-            oracleText: "Draw a card at the beginning of the next turn's upkeep.",
+            oracleText:
+                "Draw a card at the beginning of the next turn's upkeep.",
             effects: [{ op: "draw", player: "controller", count: 1 }],
         },
     ],
@@ -2718,7 +2719,8 @@ export const touchOfDeath: CardDefinition = {
         {
             op: "delayedTrigger",
             timing: "next-upkeep",
-            oracleText: "Draw a card at the beginning of the next turn's upkeep.",
+            oracleText:
+                "Draw a card at the beginning of the next turn's upkeep.",
             effects: [{ op: "draw", player: "controller", count: 1 }],
         },
     ],

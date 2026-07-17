@@ -8,8 +8,6 @@ Se premo space 2 volte troppo velocemente su declare attackers ricevo un 500 e i
 
 Se ho una terra che aggiunge 2 mana (1 blu e uno verde) e casto un artefatto costo 1, non mi fa scegliere quale mana usare
 
-Versione Memory Jar
-
 Carte cubo da creare:
 Atraxa
 Sin

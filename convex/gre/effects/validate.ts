@@ -1607,7 +1607,16 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             player: isPlayerRef,
             look: isEffectValue,
         },
-        optional: { take: isEffectValue, prompt: isNonEmptyString },
+        // `filter` restricts the hand-eligible subset (Narset's "noncreature,
+        // nonland card"); `optional` makes the hand pick a "may" (min 0);
+        // `randomBottom` bottoms the rest unordered + unknown (issue #1266).
+        optional: {
+            take: isEffectValue,
+            prompt: isNonEmptyString,
+            filter: isCardFilter,
+            optional: isBoolean,
+            randomBottom: isBoolean,
+        },
     },
     // CR 401.4 (issue #1046) — put N cards from a hand on top of a library,
     // in the player's chosen order, through the suspending

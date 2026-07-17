@@ -11128,6 +11128,223 @@ describe("Effect Script Op: digToHand (CR 401.4, issue #984)", () => {
     });
 });
 
+// --- digToHand refinements: filter + optional + randomBottom (issue #1266,
+// Narset, Parter of Veils) --------------------------------------------------
+// Narset −2: look at the top four, you MAY put a NONCREATURE, NONLAND card into
+// your hand, and the rest go to the bottom in a RANDOM order. `filter` narrows
+// the hand-eligible subset; `optional` allows keeping 0; `randomBottom` bottoms
+// the rest without a player-ordering pick and without marking them known.
+const NC_INSTANT_ID = "test-effects-nc-instant";
+registerTokenDefinition({
+    id: NC_INSTANT_ID,
+    name: NC_INSTANT_ID,
+    rarity: "common",
+    manaCost: { U: 1 },
+    types: ["Instant"],
+});
+const NC_LAND_ID = "test-effects-nc-land";
+registerTokenDefinition({
+    id: NC_LAND_ID,
+    name: NC_LAND_ID,
+    rarity: "common",
+    types: ["Land"],
+    subtypes: ["Island"],
+});
+
+describe("Effect Script Op: digToHand filter/optional/randomBottom (issue #1266, Narset)", () => {
+    // A library from a list of [id, cardDefId] pairs (top-first), so a scenario
+    // can mix noncreature/creature/land cards in a known top-4 order.
+    const mixedLib = (
+        owner: "p1" | "p2",
+        cards: [string, string][]
+    ): ReturnType<typeof makeInstance>[] =>
+        cards.map(([cid, defId]) =>
+            makeInstance(defId, {
+                id: cid,
+                controllerId: owner,
+                ownerId: owner,
+                zone: "library",
+            })
+        );
+
+    const submitKeep = (state: GameState, keep: string[]) => {
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: keep,
+        });
+    };
+
+    const narsetDig: EffectOp = {
+        op: "digToHand",
+        player: "controller",
+        look: 4,
+        take: 1,
+        optional: true,
+        filter: { excludeType: ["Creature", "Land"] },
+        randomBottom: true,
+    };
+
+    it("filter restricts the hand-eligible set to noncreature/nonland; the filtered-out looked-at cards still bottom", () => {
+        const id = registerScript("test-op-dig-narset-filter", [narsetDig]);
+        // Top 4: instant, creature, land, instant; a 5th card sits below.
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: mixedLib("p1", [
+                        ["s1", NC_INSTANT_ID],
+                        ["cr1", BEAR_ID],
+                        ["ld1", NC_LAND_ID],
+                        ["s2", NC_INSTANT_ID],
+                        ["x", NC_INSTANT_ID],
+                    ]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        expect(resolveTopOfStack(state)).toBeNull(); // suspends on the pick
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("look-distribute");
+        // The full top-four window is shown ("look at the top four cards")...
+        expect(head.candidateIds).toEqual(["s1", "cr1", "ld1", "s2"]);
+        // ...but only the two noncreature/nonland cards are HAND-eligible — the
+        // creature and land can only be bottomed.
+        expect(head.eligibleIds).toEqual(["s1", "s2"]);
+        // "You may" — keeping 0 is legal.
+        expect(head.count).toEqual({ min: 0, max: 1 });
+
+        submitKeep(state, ["s1"]);
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        expect(state.players[0].hand.map((c) => c.id)).toContain("s1");
+        // The un-kept looked-at cards (incl. the filtered-out creature and land)
+        // bottom under the untouched fifth card "x".
+        expect(state.players[0].library.map((c) => c.id)).toEqual([
+            "x",
+            "cr1",
+            "ld1",
+            "s2",
+        ]);
+    });
+
+    it("randomBottom leaves the bottomed cards UNKNOWN to the controller (no markKnown)", () => {
+        const id = registerScript("test-op-dig-narset-unknown", [narsetDig]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: mixedLib("p1", [
+                        ["s1", NC_INSTANT_ID],
+                        ["cr1", BEAR_ID],
+                        ["ld1", NC_LAND_ID],
+                        ["s2", NC_INSTANT_ID],
+                    ]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        submitKeep(state, ["s1"]);
+        // The three un-kept looked-at cards are on the bottom, but random order
+        // is unobservable — none is marked known to p1 (contrast the default
+        // digToHand path, which marks its ordered bottom known, ADR 0026).
+        for (const cid of ["cr1", "ld1", "s2"]) {
+            const card = state.players[0].library.find((c) => c.id === cid)!;
+            expect(card.knownTo ?? []).not.toContain("p1");
+        }
+    });
+
+    it("optional: the player may decline (keep 0) — nothing enters hand, all four bottom", () => {
+        const id = registerScript("test-op-dig-narset-decline", [narsetDig]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: mixedLib("p1", [
+                        ["s1", NC_INSTANT_ID],
+                        ["s2", NC_INSTANT_ID],
+                        ["s3", NC_INSTANT_ID],
+                        ["s4", NC_INSTANT_ID],
+                    ]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.pendingChoices![0].count).toEqual({ min: 0, max: 1 });
+        submitKeep(state, []); // decline
+        expect(state.players[0].hand).toHaveLength(0);
+        expect(state.players[0].library.map((c) => c.id)).toEqual([
+            "s1",
+            "s2",
+            "s3",
+            "s4",
+        ]);
+    });
+
+    it("no eligible card in the top four → auto-resolves without a prompt, all bottom (CR 608.2b)", () => {
+        const id = registerScript("test-op-dig-narset-nomatch", [
+            narsetDig,
+            { op: "gainLife", player: "controller", amount: 5 },
+        ]);
+        // Top 4 are all creatures/lands — nothing is hand-eligible.
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: mixedLib("p1", [
+                        ["cr1", BEAR_ID],
+                        ["cr2", BEAR_ID],
+                        ["ld1", NC_LAND_ID],
+                        ["ld2", NC_LAND_ID],
+                    ]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        // No real choice — never suspends; the trailing Op runs.
+        expect(resolveTopOfStack(state)).not.toBeNull();
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        expect(state.players[0].hand).toHaveLength(0);
+        expect(state.players[0].life).toBe(25);
+        // The four looked-at cards are still in the library (bottomed, not gone).
+        expect(state.players[0].library).toHaveLength(4);
+    });
+
+    it("wire format: the chooser sees ALL four looked-at cards as libraryPeek; opponent sees nothing", () => {
+        const id = registerScript("test-op-dig-narset-wire", [narsetDig]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: mixedLib("p1", [
+                        ["s1", NC_INSTANT_ID],
+                        ["cr1", BEAR_ID],
+                        ["ld1", NC_LAND_ID],
+                        ["s2", NC_INSTANT_ID],
+                    ]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state); // suspends
+        const chooserView = projectPublicState(state, 1, "p1");
+        // All four looked-at cards are shown ("look at the top four"), not just
+        // the eligible ones.
+        expect(chooserView.players[0].libraryPeek?.map((c) => c.id)).toEqual([
+            "s1",
+            "cr1",
+            "ld1",
+            "s2",
+        ]);
+        const oppView = projectPublicState(state, 1, "p2");
+        expect(oppView.players[0].libraryPeek).toBeUndefined();
+    });
+});
+
 describe("Effect Script Op: putBack (CR 401.4, issue #1046)", () => {
     const handOf = (owner: "p1" | "p2", ids: string[]) =>
         ids.map((cid) =>

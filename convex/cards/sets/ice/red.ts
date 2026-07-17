@@ -771,7 +771,8 @@ export const flare: CardDefinition = {
         {
             op: "delayedTrigger",
             timing: "next-upkeep",
-            oracleText: "Draw a card at the beginning of the next turn's upkeep.",
+            oracleText:
+                "Draw a card at the beginning of the next turn's upkeep.",
             effects: [{ op: "draw", player: "controller", count: 1 }],
         },
     ],
@@ -1900,11 +1901,16 @@ export const panic: CardDefinition = {
     // the ADR 0053 `restrictCombat` Op, then the next-upkeep draw cantrip via
     // the ADR 0048 `delayedTrigger` Op with an inline `draw` body.
     effects: [
-        { op: "restrictCombat", restriction: "cant-block", target: { target: 0 } },
+        {
+            op: "restrictCombat",
+            restriction: "cant-block",
+            target: { target: 0 },
+        },
         {
             op: "delayedTrigger",
             timing: "next-upkeep",
-            oracleText: "Draw a card at the beginning of the next turn's upkeep.",
+            oracleText:
+                "Draw a card at the beginning of the next turn's upkeep.",
             effects: [{ op: "draw", player: "controller", count: 1 }],
         },
     ],

@@ -541,9 +541,7 @@ export const fasting: CardDefinition = {
                 {
                     op: "if",
                     predicate: { binding: "$skip" },
-                    then: [
-                        { op: "gainLife", player: "controller", amount: 2 },
-                    ],
+                    then: [{ op: "gainLife", player: "controller", amount: 2 }],
                     else: [{ op: "draw", player: "controller", count: 1 }],
                 },
             ],

@@ -986,6 +986,42 @@ function choiceCandidates(
     return { available: ids.length, candidateIds: ids };
 }
 
+/** Shared tail of `digToHand` (issue #984, extended #1266): put the un-kept
+ *  looked-at cards on the true bottom of the library. `pickSet` is the ids that
+ *  went to hand; the bottomed set is every looked-at id not in it (incl.
+ *  filter-ineligible cards). `chosenBottom`, when non-empty, is the player's
+ *  ordering from the unified picker (the ADR 0026 known path); otherwise the
+ *  cards fall in look order. `randomBottom` (Narset's "random order") suppresses
+ *  the `markKnown` — CR 401.4's random order is unobservable for face-down
+ *  library cards, so no knowledge is granted. */
+function bottomLookedAtCards(
+    ctx: SpellContext,
+    playerId: string,
+    topIds: string[],
+    pickSet: Set<string>,
+    randomBottom: boolean,
+    chosenBottom: string[] = []
+): void {
+    const restTop =
+        chosenBottom.length > 0
+            ? chosenBottom
+            : topIds.filter((id) => !pickSet.has(id));
+    if (restTop.length === 0) return;
+    // Everything currently in the library minus the un-kept looked-at cards,
+    // then the un-kept cards appended — a full reorder that lands the rest on
+    // the true bottom (CR 401.4).
+    const all = ctx.peekLibraryTop(playerId, Number.MAX_SAFE_INTEGER);
+    const restSet = new Set(restTop);
+    const below = all.filter((id) => !restSet.has(id));
+    ctx.reorderLibraryTop(playerId, [...below, ...restTop]);
+    if (!randomBottom) {
+        // ADR 0026 — the bottomed cards were looked at and placed by the
+        // controller, so they stay known until a shuffle. A random bottom
+        // (Narset) grants no such knowledge.
+        ctx.markKnown(playerId, restTop, playerId);
+    }
+}
+
 /** One executor per Op, keyed by Op name. Each executor is a thin adapter
  *  from the declarative Op shape onto exactly one SpellContext primitive —
  *  no game logic lives here (ADR 0045 "one execution path"). Kept in exact
@@ -1504,7 +1540,34 @@ export const OP_EXECUTORS: {
         if (topIds.length === 0) return; // empty library — no look, no suspend
         const take = op.take === undefined ? 1 : resolveValue(ctx, op.take);
         if (take === undefined || take <= 0) return;
-        const keep = Math.min(take, topIds.length);
+        const optional = op.optional === true;
+        const randomBottom = op.randomBottom === true;
+        // Hand-eligible subset: with a `filter` (Narset's "noncreature, nonland
+        // card") only the looked-at cards matching it may go to hand; the rest
+        // (incl. filtered-out cards) are always bottomed (issue #1266). The
+        // whole looked-at window is still SHOWN face-up ("look at the top four")
+        // — only the HAND pile is gated, via the `eligibleIds` allow-list, so
+        // `candidateIds` stays the full window and the peek reveals all of it.
+        let eligible: string[] | undefined;
+        if (op.filter) {
+            const filter = op.filter;
+            const byId = new Map(
+                ctx.getLibraryCards(playerId).map((c) => [c.id, c])
+            );
+            eligible = topIds.filter((id) => {
+                const c = byId.get(id);
+                return c !== undefined && matchesCardFilter(ctx, c, filter);
+            });
+        }
+        const keep = Math.min(take, (eligible ?? topIds).length);
+        // Nothing takeable (filter matched nothing, or take clamped to 0): no
+        // real choice — skip straight to bottoming the looked-at cards.
+        // Auto-resolve over a zero-branch pick rather than prompt an empty
+        // picker (the Arena UX default for choice-less resolutions).
+        if (keep === 0) {
+            bottomLookedAtCards(ctx, playerId, topIds, new Set(), randomBottom);
+            return;
+        }
         const picks = ctx.requestChoice({
             playerId,
             // A fixed choiceId is unique per Op position: the pipeline keys on
@@ -1513,41 +1576,39 @@ export const OP_EXECUTORS: {
             choiceId: "dig-to-hand",
             kind: "look-distribute",
             zone: "library",
+            // The FULL looked-at window is shown (candidateIds); `eligibleIds`
+            // (when a filter is present) restricts which of those may go to
+            // hand — the filtered-out cards can only be bottomed.
             candidateIds: topIds,
-            // Exactly `keep` cards go to hand; the picker partitions the rest to
-            // the ordered bottom (submit validates the partition).
-            count: { min: keep, max: keep },
+            eligibleIds: eligible,
+            // `optional` ("you may") allows keeping 0; otherwise EXACTLY `keep`.
+            // The picker partitions the rest to the ordered bottom (submit
+            // validates the partition) unless `randomBottom` discards the order.
+            count: { min: optional ? 0 : keep, max: keep },
             destination: "library-bottom",
             prompt:
                 op.prompt ??
                 "Choose which card(s) to put into your hand, then order the rest on the bottom of your library.",
         });
         if (picks === undefined) return "suspend"; // enqueued — wait
-        // Resume — the kept cards go to hand; the remaining looked-at cards are
-        // bottomed in the player's chosen order. A picked id that has since left
-        // the library is a no-op in `moveCardById` (CR 608.2b).
+        // Resume — the kept cards go to hand. A picked id that has since left the
+        // library is a no-op in `moveCardById` (CR 608.2b).
         for (const id of picks)
             ctx.moveCardById(playerId, id, "library", "hand");
         const pickSet = new Set(picks);
-        // The player's chosen bottom order (from the unified picker). Falls back
-        // to look order for an auto/bot path that submitted only the hand picks.
-        const chosenBottom = ctx.readOrderedSecond("dig-to-hand");
-        const restTop =
-            chosenBottom.length > 0
-                ? chosenBottom
-                : topIds.filter((id) => !pickSet.has(id));
-        if (restTop.length === 0) return;
-        // Everything currently in the library minus the un-kept looked-at cards,
-        // then the un-kept cards appended in the chosen order — a full reorder
-        // that lands the rest on the true bottom (CR 401.4).
-        const all = ctx.peekLibraryTop(playerId, Number.MAX_SAFE_INTEGER);
-        const restSet = new Set(restTop);
-        const below = all.filter((id) => !restSet.has(id));
-        ctx.reorderLibraryTop(playerId, [...below, ...restTop]);
-        // ADR 0026 — the bottomed cards were looked at and placed by the
-        // controller, so they stay known (face-up in the bottom-of-library
-        // view) until a shuffle clears the certainty.
-        ctx.markKnown(playerId, restTop, playerId);
+        // The un-kept looked-at cards (every looked-at id not taken, incl. the
+        // filtered-out ones) go to the bottom.
+        const chosenBottom = randomBottom
+            ? []
+            : ctx.readOrderedSecond("dig-to-hand");
+        bottomLookedAtCards(
+            ctx,
+            playerId,
+            topIds,
+            pickSet,
+            randomBottom,
+            chosenBottom
+        );
     },
     // CR 401.4 (issue #1046) — put N hand cards on top of the library, in the
     // player's chosen order. A thin declarative skin over the single

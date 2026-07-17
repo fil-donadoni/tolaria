@@ -2811,6 +2811,13 @@ export interface SpellContext {
          *  mana-value bound). Validated server-side at submit; the frontend
          *  gates clickability on it. */
         candidateIds?: string[];
+        /** `kind: "look-distribute"` only (issue #1266, Narset) — the subset of
+         *  the looked-at `candidateIds` that may go to HAND. The whole
+         *  `candidateIds` window is shown face-up ("look at the top four"), but a
+         *  card outside `eligibleIds` can only be placed on the BOTTOM (Narset's
+         *  "noncreature, nonland" filter). Omit = every looked-at card is
+         *  hand-eligible (Impulse, Stock Up). */
+        eligibleIds?: string[];
         /** The player ids the chooser may pick as a target (CR 115.1a).
          *  Two consumers:
          *   - `kind: "choose-damage-target"` (CR 115.4 "any target" includes
@@ -7241,7 +7248,28 @@ export type EffectOp =
           player: EffectPlayerRef;
           look: EffectValue;
           take?: EffectValue;
-          prompt?: string;
+          /** Restricts which of the looked-at cards may be put into HAND — the
+           *  bottomed remainder is unfiltered (Narset, Parter of Veils: "you
+           *  MAY reveal a NONCREATURE, NONLAND card ... put the rest on the
+           *  bottom", `excludeType: ["Creature","Land"]`). When present, the
+           *  choice's hand-eligible set is the looked-at cards matching this
+           *  filter; a non-matching looked-at card is never a legal hand pick
+           *  and always goes to the bottom (issue #1266). */
+          filter?: EffectCardFilter;
+          /** "You MAY" — the hand pick is optional (min 0, up to `take`), so a
+           *  player who wants nothing (or has no filter match) keeps their hand
+           *  as-is. Default false = EXACTLY `take` to hand (Impulse / Stock Up,
+           *  the mandatory dig). */
+          optional?: boolean;
+          /** "Put the rest on the bottom ... in a RANDOM order" (Narset). The
+           *  un-kept looked-at cards are bottomed WITHOUT a player-ordering pick
+           *  and WITHOUT being marked known — CR 401.4's random order is
+           *  unobservable for face-down library cards, so the physical
+           *  permutation carries no game information; the material part (no
+           *  player choice of order, no knowledge granted) is what this honors.
+           *  Default false = the player orders the bottom and keeps it known
+           *  (ADR 0026, the Impulse "in any order" path). */
+          randomBottom?: boolean;
       }
     /** CR 401.4 (issue #1046) — put N cards from a hand on top of a library,
      *  in the player's chosen order ("put N cards from your hand on top of

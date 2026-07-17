@@ -1752,6 +1752,15 @@ export type PendingChoice = {
      *  spent" — a mana-value bound, not a type/keyword filter). Undefined =
      *  no extra restriction. The frontend reads it to gate clickability. */
     candidateIds?: string[];
+    /** `look-distribute` only (issue #1266, Narset, Parter of Veils) — the
+     *  subset of the looked-at `candidateIds` that may go to HAND. The full
+     *  `candidateIds` window is still shown face-up ("look at the top four"),
+     *  but a card outside `eligibleIds` (e.g. a creature/land under Narset's
+     *  "noncreature, nonland" filter) can only be placed on the BOTTOM. The
+     *  backend rejects a hand pick outside it; the frontend picker locks such a
+     *  card out of the hand pile. Undefined = every looked-at card is
+     *  hand-eligible (Impulse, Stock Up — the unfiltered dig). */
+    eligibleIds?: string[];
     /** For `kind: "choose-damage-target"` only — the player ids that are legal
      *  damage targets (CR 115.4 — "any target" includes players). The chooser's
      *  submission carries either a damageable permanent id (from `candidateIds`)
@@ -10506,6 +10515,7 @@ export function buildSpellContext(
             }
             if (req.allControllers) entry.allControllers = true;
             if (req.candidateIds) entry.candidateIds = req.candidateIds;
+            if (req.eligibleIds) entry.eligibleIds = req.eligibleIds;
             if (req.candidatePlayerIds) {
                 entry.candidatePlayerIds = req.candidatePlayerIds;
             }

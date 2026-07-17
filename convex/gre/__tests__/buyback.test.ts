@@ -18,10 +18,7 @@
 // `kickerAltProbe`.
 
 import { describe, it, expect } from "vitest";
-import {
-    resolveBuybackChoice,
-    finalizeTargetSelection,
-} from "../../game";
+import { resolveBuybackChoice, finalizeTargetSelection } from "../../game";
 import { getPlayer, resolveTopOfStack, type PendingTarget } from "../state";
 import { compactState, expandState } from "../serialize";
 import {
@@ -199,9 +196,9 @@ describe("Buyback — recast after returning to hand does not leak (fixup, issue
         );
         resolveTopOfStack(state);
         const afterFirstCast = getPlayer(state, "p1");
-        expect(
-            afterFirstCast.hand.some((c) => c.id === "probeRecast")
-        ).toBe(true);
+        expect(afterFirstCast.hand.some((c) => c.id === "probeRecast")).toBe(
+            true
+        );
         // The hand card must NOT carry the stack-only buybackPaid snapshot
         // forward — this is the core assertion the fix guarantees.
         const handCard = afterFirstCast.hand.find(

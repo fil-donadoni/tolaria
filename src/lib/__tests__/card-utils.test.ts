@@ -2237,23 +2237,68 @@ describe("may-pay cost union helpers (CR 117.3a / 118.4 / 702.24, #638)", () => 
         // Insufficient energy (undefined / below the leg) → not affordable.
         expect(mayPayCanAfford(energyCost, {}, 20, 0)).toBe(false);
         expect(
-            mayPayCanAfford(energyCost, {}, 20, 0, undefined, undefined, undefined, 2)
+            mayPayCanAfford(
+                energyCost,
+                {},
+                20,
+                0,
+                undefined,
+                undefined,
+                undefined,
+                2
+            )
         ).toBe(false);
         // Energy meeting / exceeding the leg → affordable.
         expect(
-            mayPayCanAfford(energyCost, {}, 20, 0, undefined, undefined, undefined, 3)
+            mayPayCanAfford(
+                energyCost,
+                {},
+                20,
+                0,
+                undefined,
+                undefined,
+                undefined,
+                3
+            )
         ).toBe(true);
         expect(
-            mayPayCanAfford(energyCost, {}, 20, 0, undefined, undefined, undefined, 4)
+            mayPayCanAfford(
+                energyCost,
+                {},
+                20,
+                0,
+                undefined,
+                undefined,
+                undefined,
+                4
+            )
         ).toBe(true);
         // Mixed with another leg: all-or-nothing, energy insufficient still
         // fails even when mana is covered.
         const mix = { mana: { U: 1 }, energy: 2 };
         expect(
-            mayPayCanAfford(mix, { U: 1 }, 20, 0, undefined, undefined, undefined, 1)
+            mayPayCanAfford(
+                mix,
+                { U: 1 },
+                20,
+                0,
+                undefined,
+                undefined,
+                undefined,
+                1
+            )
         ).toBe(false);
         expect(
-            mayPayCanAfford(mix, { U: 1 }, 20, 0, undefined, undefined, undefined, 2)
+            mayPayCanAfford(
+                mix,
+                { U: 1 },
+                20,
+                0,
+                undefined,
+                undefined,
+                undefined,
+                2
+            )
         ).toBe(true);
     });
 

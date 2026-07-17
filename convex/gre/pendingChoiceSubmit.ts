@@ -716,6 +716,16 @@ export function applyPendingChoiceSubmit(
             if (head.candidateIds && !head.candidateIds.includes(id)) {
                 throw new Error("Card is not an eligible choice");
             }
+            // look-distribute HAND-pile gate (issue #1266, Narset): a
+            // looked-at card outside `eligibleIds` (the "noncreature, nonland"
+            // subset) may only be bottomed — never taken to hand.
+            if (
+                head.kind === "look-distribute" &&
+                head.eligibleIds &&
+                !head.eligibleIds.includes(id)
+            ) {
+                throw new Error("Card is not eligible to put into your hand");
+            }
         }
         if (head.kind === "order-top" || head.kind === "look-distribute") {
             // The second-zone cards (`secondZoneIds`) must also be looked-at
