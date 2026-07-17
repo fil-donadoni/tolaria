@@ -19,6 +19,7 @@ import {
     applyCostModifiers,
     getCostModifiers,
     normalizeManaCost,
+    processPendingActionTriggers,
     resolveTopOfStack,
 } from "../../../../gre/state";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
@@ -26,9 +27,11 @@ import { projectPublicState } from "../../../../gameProjections";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { resolveActivated, resolveTrigger } from "./helpers";
 import { getDefinition } from "../../../index";
+import { applyDrawCardOnTap, tapSourceIntoPayment } from "../../../../game";
 import {
     alloyGolem,
     archaeologicalDig,
+    chromaticSphere,
     juntuStakes,
     lotusGuardian,
     phyrexianAltar,
@@ -44,6 +47,7 @@ import { creepingTarPit } from "../../wwk/colorless";
 import { plains, swamp } from "../../lea/colorless";
 import { grizzlyBears } from "../../lea/green";
 import { spectralShield } from "../../ice/multicolor";
+import { sheoldredTheApocalypse } from "../../dmu/black";
 import { hasNonManaActivatedAbility } from "../../../abilities/static/untapRestriction";
 
 describe("Tsabo's Web (INV) — definition wiring", () => {
@@ -252,6 +256,161 @@ describe("Alloy Golem (ETB choose a color, is the chosen color; CR 105.2 / 613.1
             (c) => c.id === "golem1"
         )!;
         expect(slim.colorOverride).toEqual(["R"]);
+    });
+});
+
+// Chromatic Sphere's mana ability shares the `manaChoices` "any colour" shape
+// already exercised by Lotus Guardian / Phyrexian Lens / Chromatic Star
+// (tsp/colorless.ts) above, so the new surface here is purely the
+// `drawsCardOnTap` rider (issue #1093) — a `resolve()`-adjacent engine
+// behavior change (a new declarative rider on `ActivatedAbility`, wired at
+// FOUR call sites in convex/game.ts), so it gets the full GRE test regime
+// per `.claude/rules/gre-development.md`, not just the per-Op DSL sweep.
+describe("Chromatic Sphere ({1}, {T}, Sacrifice: add one mana of any color, draw a card — CR 605.1a / 121.1, issue #1093)", () => {
+    it("declares the mana ability with the drawsCardOnTap rider", () => {
+        expect(chromaticSphere.manaCost).toEqual({ X: 1 });
+        const mana = chromaticSphere.activatedAbilities!.find(
+            (a) => a.id === "chromatic-sphere-mana"
+        )!;
+        expect(mana.useStack).toBe(false);
+        expect(mana.manaChoices).toHaveLength(5);
+        expect(mana.cost).toMatchObject({
+            tap: true,
+            sacrifice: true,
+            mana: { X: 1 },
+        });
+        expect(mana.drawsCardOnTap).toBe(1);
+    });
+
+    // CR 605.1a / 601.2f — the payment-tap path is the REAL commit path this
+    // card actually goes through (its mana ability has a {1} cost, which only
+    // tapSourceIntoPayment/applyManaAbilityManaCost validates — same as
+    // Chromatic Star, tsp/colorless.ts). Backs BOTH tapForPayment and
+    // tapForActivationPayment (ADR: one shared helper, per game.ts's own
+    // doc comment).
+    it("payment-tap path (tapSourceIntoPayment): pays {1}, sacrifices the source, adds the chosen color, and draws exactly one card", () => {
+        const sphere = makeInstance(chromaticSphere.id, { id: "sphere" });
+        const lib = ["l0", "l1"].map((id) =>
+            makeInstance(grizzlyBears.id, {
+                id,
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "library",
+            })
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [sphere],
+                    library: lib,
+                    // Float a red to pay the {1} activation cost.
+                    manaPool: { W: 0, U: 0, B: 0, R: 1, G: 0, C: 0 },
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const p1 = state.players[0];
+
+        // Choice option index 1 = {U} (manaChoices[1]). Pays {1} from the
+        // floated red, adds {U}.
+        tapSourceIntoPayment(state, p1, sphere, 1, []);
+
+        expect(p1.manaPool.U).toBe(1);
+        expect(p1.manaPool.R).toBe(0);
+        // CR 603.6 / 700.4 — sacrificed to pay its own activation cost.
+        expect(p1.battlefield.some((c) => c.id === "sphere")).toBe(false);
+        expect(p1.graveyard.some((c) => c.id === "sphere")).toBe(true);
+        // CR 605.1a / 121.1 — the drawsCardOnTap rider draws exactly one card,
+        // even though the source was just sacrificed.
+        expect(p1.hand).toHaveLength(1);
+        expect(p1.library).toHaveLength(1);
+    });
+
+    it("the draw emits CARD_DRAWN so 'whenever you draw a card' triggers still see it (Sheoldred)", () => {
+        const sphere = makeInstance(chromaticSphere.id, { id: "sphere" });
+        const sheoldred = makeInstance(sheoldredTheApocalypse.id, {
+            id: "sheoldred",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const lib = [
+            makeInstance(grizzlyBears.id, {
+                id: "l0",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "library",
+            }),
+        ];
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [sphere, sheoldred],
+                    library: lib,
+                    manaPool: { W: 0, U: 0, B: 0, R: 1, G: 0, C: 0 },
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const p1 = state.players[0];
+
+        // Choice option index 0 = {W}.
+        tapSourceIntoPayment(state, p1, sphere, 0, []);
+        expect(p1.hand).toHaveLength(1);
+        // Not resolved yet — the trigger is still queued, not applied.
+        expect(p1.life).toBe(20);
+
+        // Drain the queued CARD_DRAWN event into a trigger pass and resolve
+        // Sheoldred's "whenever you draw a card, you gain 2 life."
+        processPendingActionTriggers(state);
+        expect(state.stack).toHaveLength(1);
+        resolveTopOfStack(state);
+        expect(p1.life).toBe(22);
+    });
+
+    // CR 605.1a — verifies the OTHER commit path this rider is wired into
+    // (`tapUntap`'s shared post-branch call site). There is no convex-test
+    // harness in this repo to drive the `tapUntap` mutation end-to-end (see
+    // untapRefundsLife.test.ts), so this calls the REAL `applyDrawCardOnTap`
+    // function directly — the same call `tapUntap` makes once
+    // `producedThisActivation` is set, covering both its choice and fixed
+    // branches with one shared site.
+    it("fires from the direct-tap call site too (tapUntap's shared post-branch, applyDrawCardOnTap)", () => {
+        const sphere = makeInstance(chromaticSphere.id, { id: "sphere" });
+        const lib = [
+            makeInstance(grizzlyBears.id, {
+                id: "l0",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "library",
+            }),
+        ];
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [sphere], library: lib }),
+                makePlayer("p2"),
+            ],
+        });
+        const p1 = state.players[0];
+        const ability = chromaticSphere.activatedAbilities!.find(
+            (a) => a.id === "chromatic-sphere-mana"
+        )!;
+
+        applyDrawCardOnTap(state, ability, p1.id);
+
+        expect(p1.hand).toHaveLength(1);
+        expect(p1.library).toHaveLength(0);
+    });
+
+    it("no-ops when the ability declares no drawsCardOnTap rider (Lotus Guardian)", () => {
+        const state = makeState();
+        const p1 = state.players[0];
+        const noRiderAbility = lotusGuardian.activatedAbilities!.find(
+            (a) => a.id === "lotus-guardian-mana"
+        );
+
+        applyDrawCardOnTap(state, noRiderAbility, p1.id);
+
+        expect(p1.hand).toHaveLength(0);
     });
 });
 
