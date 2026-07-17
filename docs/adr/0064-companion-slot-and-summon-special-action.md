@@ -47,7 +47,7 @@ a dedicated special action with its own lightweight mana-payment state.**
 
 - **Condition as a predicate closure, not a data descriptor.** Each companion's
   restriction is `(deck: CardDefinition[]) => boolean` in a `convex/gre/
-  companion.ts` engine module, with shared combinators (`everyPermanent(pred)`)
+companion.ts` engine module, with shared combinators (`everyPermanent(pred)`)
   factored as they repeat. The companion family's conditions are so
   heterogeneous (even/odd MV, one-card-type, shared creature types, deck-size
   +20, cost-symbol uniqueness) that a tagged-union descriptor would balloon to
