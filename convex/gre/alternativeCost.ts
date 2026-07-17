@@ -250,12 +250,14 @@ export function canPayAlternativeCost(
  *  in its own dedicated field, not `alternativeCosts[]`, so the caster's
  *  chosen alt cost can be IDENTIFIED as "the evoke one" by reference equality
  *  at cast commit — see the doc on `CardDefinition.evoke`), matched by its own
- *  `id` exactly like any array entry. */
+ *  `id` exactly like any array entry. CR 702.109 — same treatment for
+ *  `def.dash` (see `CardDefinition.dash`). */
 export function getAlternativeCost(
     def: CardDefinition | undefined,
     altCostId: string
 ): AlternativeCost | undefined {
     if (def?.evoke?.id === altCostId) return def.evoke;
+    if (def?.dash?.id === altCostId) return def.dash;
     return def?.alternativeCosts?.find((a) => a.id === altCostId);
 }
 
@@ -265,7 +267,13 @@ export function getAlternativeCost(
  *  alternative cost, CR 702.74a: "casting a spell for its evoke cost follows
  *  the rules for paying alternative costs in rules 601.2b and 601.2f–h"),
  *  gated by the SAME `canPayAlternativeCost` affordability check as every
- *  other alt cost. */
+ *  other alt cost. CR 702.109 — also offers `def.dash` (Dash's cast permission
+ *  is likewise CR 118.9 infra, 702.109a). NOTE: `canPayAlternativeCost` checks
+ *  only the condition/permanent/life/hand legs — Dash's `mana` leg is NOT
+ *  checked here (a dash cost is always "offered"; its mana affordability is
+ *  checked separately by `convex/gre/rules.ts`'s "cast" legality gate, the
+ *  same way the printed mana cost's affordability is checked independently of
+ *  which cast options the UI offers). */
 export function affordableAlternativeCosts(
     state: GameState,
     player: PlayerState,
@@ -277,6 +285,7 @@ export function affordableAlternativeCosts(
     const variants = [
         ...(def.alternativeCosts ?? []),
         ...(def.evoke ? [def.evoke] : []),
+        ...(def.dash ? [def.dash] : []),
     ];
     if (variants.length === 0) return [];
     return variants.filter((a) =>

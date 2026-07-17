@@ -3844,6 +3844,16 @@ export interface PermanentView {
      *  change between the ETB event firing and this trigger resolving, so no
      *  resolve-time re-check plumbing is needed. */
     evoked?: boolean;
+    /** CR 702.109a — true iff this permanent was cast for its Dash cost (set
+     *  on the stack item at cast commit when the chosen alternative cost ===
+     *  `CardDefinition.dash`; rides onto the entering permanent for free, the
+     *  `escaped`/`evoked` precedent). Read by the `dashTrigger` template's
+     *  `condition` ("if its dash cost was paid, it gains haste and is
+     *  returned to hand at the next end step") — a check-time (CR 603.4)
+     *  predicate, not an intervening-if: the flag cannot change between the
+     *  ETB event firing and this trigger resolving, so no resolve-time
+     *  re-check plumbing is needed. */
+    dashed?: boolean;
     /** CR 106.4 / 202.3 — per-colour mana spent to CAST this permanent,
      *  snapshotted from the originating stack item's `notedManaSpent`
      *  (`StackItem`, populated when `CardDefinition.noteManaSpent` is set) the
@@ -8162,6 +8172,24 @@ export interface AlternativeCost {
     /** Player-facing label for the cast-option picker (e.g. "Return two
      *  Islands"). */
     description: string;
+    /** MANA leg (CR 118.9 / 702.109a): a mana cost paid INSTEAD of the printed
+     *  one — unlike every other leg here (which give up a permanent/life/hand
+     *  card), this leg still spends mana, just a DIFFERENT amount. Absent for
+     *  every alt cost that fully replaces mana with a non-mana give-up (Gush,
+     *  Force of Will, Snuff Out — the shape every other field on this type was
+     *  originally designed for). Present for Dash (CR 702.109 — "Dash [cost]"
+     *  is "you may cast this creature for its dash cost rather than its mana
+     *  cost", a pure mana-for-mana swap with no permanent/life/hand leg of its
+     *  own): `convex/game.ts`'s cast-commit sites read `mana ?? {}` as the
+     *  cast's actual `manaCost` (was unconditionally zeroed before this field
+     *  existed) and route it through the SAME tap-lands payment machinery a
+     *  printed cost uses (`isManaCostCovered` / `payManaCostForSpell` /
+     *  `pendingCast.manaCost`) — an alt cost with a real mana leg parks for
+     *  payment exactly like an ordinary cast when the pool doesn't already
+     *  cover it. `convex/gre/rules.ts`'s "cast" legality gate mirrors this:
+     *  a card is castable when the PRINTED cost is affordable OR at least one
+     *  alt cost's mana leg (this field, `{}` for every zero-mana variant) is. */
+    mana?: ManaCost;
     /** PERMANENT leg (CR 118.9): how the matching permanents leave the
      *  battlefield — `"return"` bounces them to their owner's hand (CR 701.24),
      *  `"sacrifice"` moves them to the graveyard as a sacrifice (CR 701.16).
@@ -8537,6 +8565,30 @@ export interface CardDefinition {
      *  alt-cost hand-leg picker with zero new plumbing). By convention this
      *  card's `AlternativeCost.id` is `"evoke"`. */
     evoke?: AlternativeCost;
+    /** CR 702.109 — Dash. "Dash [cost]" represents TWO abilities (702.109a): a
+     *  static ability that functions while the card is in a caster's hand
+     *  ("you may cast this creature for its dash cost rather than paying its
+     *  mana cost") and a triggered ability that functions on the battlefield
+     *  ("when this creature enters, if its dash cost was paid, it gains haste
+     *  and it's returned to its owner's hand at the beginning of the next end
+     *  step"). This field carries only the FIRST half — reuses the
+     *  {@link AlternativeCost} shape verbatim, the SAME cost-system infra as
+     *  `alternativeCosts` / `evoke` (`convex/gre/alternativeCost.ts`'s
+     *  `getAlternativeCost` / `affordableAlternativeCosts` resolve this field
+     *  alongside them). Kept as its own dedicated field — like `evoke` — so a
+     *  card's chosen alt cost is IDENTIFIABLE as "the dash one" at cast commit
+     *  (compared by reference against this field), tagging the resulting stack
+     *  item `dashed: true` (`convex/game.ts`), which rides onto the entering
+     *  permanent for free (a stack item IS its `CardInstanceState`, the
+     *  `escaped`/`evoked` precedent). Unlike `evoke`, Dash's alt cost carries a
+     *  real MANA leg (`AlternativeCost.mana`, not a permanent/life/hand
+     *  give-up) — CR 702.109a is a mana-for-mana swap, not a mana-for-something
+     *  substitution. The SECOND half (haste + delayed return) is a real
+     *  `TriggeredAbility` a card adds to its own `triggeredAbilities[]` via the
+     *  `dashTrigger` template (`convex/cards/abilities/dash.ts`), gated on
+     *  `CardInstanceState.dashed`. By convention this card's
+     *  `AlternativeCost.id` is `"dash"`. */
+    dash?: AlternativeCost;
     /** CR 702.34 — Flashback. A static ability that functions while the card
      *  is in its owner's graveyard: "You may cast this card from your graveyard
      *  by paying [this cost] rather than its mana cost", and "If the flashback

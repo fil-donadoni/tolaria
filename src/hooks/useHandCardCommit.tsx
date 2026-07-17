@@ -172,12 +172,21 @@ export function useHandCardCommit(cardInstance: CardInstance) {
         // cost ("casting a spell for its evoke cost follows the rules for
         // paying alternative costs"); `def.evoke` lives in its own dedicated
         // field (not `alternativeCosts[]`, see the type doc), so the gate below
-        // checks both — `affordableAltCostsForCard` (delegating to the server's
+        // checks it too — `affordableAltCostsForCard` (delegating to the server's
         // `affordableAlternativeCosts`) already folds `def.evoke` into its
-        // result either way.
+        // result either way. CR 702.109a — Dash gets the SAME treatment via
+        // `def.dash` (its own dedicated field, mirroring `evoke`); unlike
+        // Evoke, Dash's alt cost still carries a real mana leg
+        // (`AlternativeCost.mana`), so picking it opens the normal cast-cost
+        // payment flow with a DIFFERENT `manaCost` rather than skipping
+        // payment entirely — `affordableAltCostsForCard` doesn't filter on
+        // that leg (mana affordability is checked downstream by the normal
+        // payment machinery, same as "Pay mana cost" itself is never
+        // affordability-filtered here).
         if (
             (def.alternativeCosts && def.alternativeCosts.length > 0) ||
-            def.evoke
+            def.evoke ||
+            def.dash
         ) {
             const affordableAlts = affordableAltCostsForCard(
                 cardInstance,

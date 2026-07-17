@@ -95,7 +95,13 @@ export default function AltCostPicker({
                             {alt.description}
                         </span>
                         <span className="text-xs text-text-disabled">
-                            Alternative cost — instead of paying mana
+                            {/* CR 702.109a — Dash still pays MANA, just a
+                                DIFFERENT amount (`alt.mana`), unlike every
+                                other alt cost here (Gush/evoke give up a
+                                permanent/life/hand card instead of mana). */}
+                            {alt.mana
+                                ? "Alternative cost — a different mana cost"
+                                : "Alternative cost — instead of paying mana"}
                         </span>
                     </button>
                 ))}

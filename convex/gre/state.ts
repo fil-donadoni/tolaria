@@ -880,6 +880,16 @@ export type CardInstanceState = {
      *  to decide whether the "sacrifice this when it enters" half of Evoke
      *  fires. See {@link PermanentView.evoked} for the full doc. */
     evoked?: boolean;
+    /** CR 702.109a — true iff this permanent was cast for its Dash cost. Set
+     *  on the stack item at cast commit (`convex/game.ts`, when the chosen
+     *  alternative cost === `CardDefinition.dash`) and rides onto the
+     *  resulting battlefield permanent for free (a stack item IS its
+     *  CardInstanceState, the `escaped`/`evoked` precedent). Read by the
+     *  `dashTrigger` template's `condition` (`convex/cards/abilities/dash.ts`)
+     *  to decide whether the "gains haste, returned to hand at the next end
+     *  step" half of Dash fires. See {@link PermanentView.dashed} for the
+     *  full doc. */
+    dashed?: boolean;
     /** CR 106.4 / 202.3 — per-colour mana spent to CAST this permanent,
      *  captured once at ETB (`resolveTopOfStack`) from the originating stack
      *  item's `notedManaSpent`. See {@link PermanentView.notedManaSpentOnCast}
@@ -1474,6 +1484,13 @@ export type PendingCast = {
      *  commit (`tryAutoCommitPendingCast`) can still tag the resulting stack
      *  item `evoked: true` once the picker resolves. */
     evoked?: boolean;
+    /** CR 702.109a — true iff the alternative cost chosen for this cast is the
+     *  card's Dash cost (`chosenAltCost === cardDef.dash` at announcement).
+     *  Carried through a parked cast (real mana payment, or a real non-mana
+     *  pick when Dash composes with another cost) so the deferred commit
+     *  (`tryAutoCommitPendingCast`) can still tag the resulting stack item
+     *  `dashed: true` once mana is covered / the pick resolves. */
+    dashed?: boolean;
 };
 
 /** Tracks an in-progress activated-ability payment (CR 602.1, 602.2b).
