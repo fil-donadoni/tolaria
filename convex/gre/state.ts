@@ -1981,8 +1981,9 @@ export type PendingTarget = {
     /** Restricts a stack-object target by object kind (CR 113 / 114.1).
      *  Propagated from TargetRequirement.spellStackKind. Used by Brown Ouphe
      *  ("counter target activated ability ...") and Stifle ("... activated or
-     *  triggered ability", `"ability"`). Ignored for non-spell types. */
-    spellStackKind?: "spell" | "activated-ability" | "ability";
+     *  triggered ability", `"ability"`), and Ward ("... spell or ability",
+     *  `"any"`, CR 702.21a). Ignored for non-spell types. */
+    spellStackKind?: "spell" | "activated-ability" | "ability" | "any";
     /** Restricts a stack-object target to objects whose source card types
      *  include at least one of these (CR 113.7a). Propagated from
      *  TargetRequirement.stackSourceTypeFilter. Used by Brown Ouphe

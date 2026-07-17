@@ -135,7 +135,7 @@ describe("Mechanics Registry (CR 701 keyword actions + CR 702 keyword abilities,
         }
     );
 
-    it.each(["landwalk", "protection", "rampage"] as const)(
+    it.each(["landwalk", "protection", "rampage", "ward"] as const)(
         "%s is implemented with a bindingPattern",
         (id) => {
             const row = MECHANICS_REGISTRY.find((r) => r.id === id);
@@ -150,17 +150,11 @@ describe("Mechanics Registry (CR 701 keyword actions + CR 702 keyword abilities,
     // fact, not silently marked implemented.
     // Haste graduated to `implemented` in issue #730 (combat honours it for
     // attack eligibility); hexproof in issue #958 (CR 702.11b targeting);
-    // shroud in issue #959 (permanent-guard staticEffect enforcement). `ward`
-    // was re-audited in issue #959 and confirmed to have zero engine wiring —
-    // it stays the one honestly-planned row here.
-    it.each(["ward"] as const)(
-        "%s is honestly marked planned (declared-but-unenforced gap)",
-        (id) => {
-            const row = MECHANICS_REGISTRY.find((r) => r.id === id);
-            expect(row, `no row for id "${id}"`).toBeDefined();
-            expect(row!.status).toBe("planned");
-        }
-    );
+    // shroud in issue #959 (permanent-guard staticEffect enforcement); ward
+    // in issue #1312 (BECAME_TARGET-driven counter-unless-pay). No row is
+    // currently held up here as an honestly-planned gap of this shape — the
+    // slot stays documented (rather than deleted) so the NEXT such graduation
+    // has a home to land in.
 
     it("parametrized bindingPatterns match the literal strings actually declared on cards", () => {
         const landwalk = MECHANICS_REGISTRY.find((r) => r.id === "landwalk")!;
@@ -491,11 +485,18 @@ describe("Self-verifying implementation status (issue #959)", () => {
         } as MechanicRow;
         expect(hasEngineEvidence(fake)).toBe(false);
 
-        // ward's REAL row (genuinely unwired) must not pass either — proving
-        // the probe would have caught the shroud-style drift, had ward been
-        // mismarked "implemented".
-        const ward = MECHANICS_REGISTRY.find((r) => r.id === "ward")!;
-        expect(hasEngineEvidence(ward)).toBe(false);
+        // behold's REAL row (genuinely unwired, no binding at all) must not
+        // pass either — proving the probe would have caught the shroud-style
+        // drift, had a genuinely-unwired mechanic been mismarked
+        // "implemented". (ward was this suite's long-standing example until
+        // issue #1312 wired it for real — swapped for another honest planned
+        // row rather than deleted, so this sanity check keeps a live negative
+        // example.)
+        const behold = MECHANICS_REGISTRY.find((r) => r.id === "behold")!;
+        expect(behold.status).toBe("planned");
+        expect(hasEngineEvidence({ ...behold, status: "implemented" })).toBe(
+            false
+        );
     });
 
     it("no card declares a `staticAbilities` keyword whose registry row is still `planned`", () => {

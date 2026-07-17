@@ -555,11 +555,14 @@ export function matchesSpellWouldDestroyLand(
  *     spell" targets a spell, never an ability (CR 701.5a); `"activated-ability"`
  *     keeps only activated abilities (Brown Ouphe — mana abilities never reach
  *     the stack, CR 605.3a); `"ability"` keeps any ability, activated or
- *     triggered (Stifle);
+ *     triggered (Stifle); `"any"` keeps BOTH spells and abilities (Ward,
+ *     CR 702.21a — "counter that spell or ability" needs no kind narrowing);
  *   - `stackSourceTypeFilter`: the object's source card `types` must include at
  *     least one listed type (Brown Ouphe: "from an artifact source");
- *   - `spellTargetsInstanceIds`: the spell must target one of these permanent
- *     instance ids (Mistfolk: "spell that targets this creature").
+ *   - `spellTargetsInstanceIds`: the object must target one of these permanent
+ *     instance ids (Mistfolk: "spell that targets this creature"; also reached
+ *     by an ability when `spellStackKind` admits abilities — Ward's reflexive
+ *     "counter that [spell or ability]").
  *  With every filter absent, any stack item qualifies. */
 export function matchesStackObjectFilter(
     item: {
@@ -569,7 +572,7 @@ export function matchesStackObjectFilter(
         delayedTriggerId?: string;
         targets?: { type: string; id: string }[];
     },
-    spellStackKind: "spell" | "activated-ability" | "ability" | undefined,
+    spellStackKind: "spell" | "activated-ability" | "ability" | "any" | undefined,
     stackSourceTypeFilter: string[] | undefined,
     spellTargetsInstanceIds: string[] | undefined
 ): boolean {
@@ -581,24 +584,29 @@ export function matchesStackObjectFilter(
     // on the stack are legal only when the requirement explicitly opts into an
     // ability kind: the default (omitted) AND "spell" both drop abilities;
     // "activated-ability" keeps only activated abilities; "ability" keeps any
-    // ability — activated OR triggered (Stifle).
-    const wantsAbilityKind =
-        spellStackKind === "activated-ability" || spellStackKind === "ability";
+    // ability — activated OR triggered (Stifle); "any" keeps both (Ward).
+    const acceptsSpell =
+        spellStackKind === undefined ||
+        spellStackKind === "spell" ||
+        spellStackKind === "any";
+    const acceptsAbility =
+        spellStackKind === "activated-ability" ||
+        spellStackKind === "ability" ||
+        spellStackKind === "any";
     if (isAbility) {
-        if (!wantsAbilityKind) return false;
+        if (!acceptsAbility) return false;
         // "activated-ability" narrows further to activated abilities.
         if (spellStackKind === "activated-ability" && !item.abilityId) {
             return false;
         }
-    } else if (wantsAbilityKind) {
-        return false; // an ability-kind target never accepts a spell
+    } else if (!acceptsSpell) {
+        return false; // an ability-only kind never accepts a spell
     }
     if (stackSourceTypeFilter && stackSourceTypeFilter.length > 0) {
         const types = item.types ?? [];
         if (!stackSourceTypeFilter.some((t) => types.includes(t))) return false;
     }
     if (spellTargetsInstanceIds && spellTargetsInstanceIds.length > 0) {
-        if (isAbility) return false;
         const targets = item.targets ?? [];
         if (
             !targets.some(

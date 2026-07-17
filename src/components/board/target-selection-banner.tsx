@@ -28,6 +28,10 @@ const TARGET_LABEL: Record<string, string> = {
 const STACK_KIND_LABEL: Record<string, string> = {
     ability: "an ability on the stack",
     "activated-ability": "an activated ability on the stack",
+    // CR 702.21a (Ward) — "spell or ability", the unnarrowed kind. In
+    // practice Ward's own target auto-resolves (spellTargetsSelfSource); this
+    // label only surfaces in the rare multi-legal-target fallback prompt.
+    any: "a spell or ability on the stack",
 };
 
 function formatTargetLabel(

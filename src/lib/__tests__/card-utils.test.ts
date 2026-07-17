@@ -1305,6 +1305,57 @@ describe("matchesStackObjectFilter (Brown Ouphe / Mistfolk — CR 113/114.1)", (
             )
         ).toBe(false);
     });
+
+    it("keeps BOTH a spell and an ability under 'any' (Ward, CR 702.21a)", () => {
+        const triggeredAbility = {
+            types: ["Creature"],
+            triggeredAbilityId: "etb-trigger",
+        };
+        expect(
+            matchesStackObjectFilter(artifactSpell, "any", undefined, undefined)
+        ).toBe(true);
+        expect(
+            matchesStackObjectFilter(creatureAbility, "any", undefined, undefined)
+        ).toBe(true);
+        expect(
+            matchesStackObjectFilter(
+                triggeredAbility,
+                "any",
+                undefined,
+                undefined
+            )
+        ).toBe(true);
+    });
+
+    it("'any' + spellTargetsInstanceIds also admits a matching ABILITY (Ward's reflexive self-target), unlike the spell-only Mistfolk default", () => {
+        const abilityAtWarded = {
+            types: ["Creature"],
+            triggeredAbilityId: "ward-trigger",
+            targets: [{ type: "permanent", id: "warded" }],
+        };
+        const abilityAtOther = {
+            ...abilityAtWarded,
+            targets: [{ type: "permanent", id: "other" }],
+        };
+        expect(
+            matchesStackObjectFilter(abilityAtWarded, "any", undefined, [
+                "warded",
+            ])
+        ).toBe(true);
+        expect(
+            matchesStackObjectFilter(abilityAtOther, "any", undefined, [
+                "warded",
+            ])
+        ).toBe(false);
+        // Spell-only default (no spellStackKind) keeps excluding abilities,
+        // even one that targets the pinned id — Mistfolk's existing contract
+        // is unchanged.
+        expect(
+            matchesStackObjectFilter(abilityAtWarded, undefined, undefined, [
+                "warded",
+            ])
+        ).toBe(false);
+    });
 });
 
 describe("matchesSpellTypeFilter", () => {

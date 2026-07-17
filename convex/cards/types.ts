@@ -443,11 +443,15 @@ export interface TargetRequirement {
      *  stack item carries an `abilityId`); used by Brown Ouphe ("Counter target
      *  activated ability from an artifact source"). `"ability"` keeps ANY
      *  ability — activated OR triggered (and delayed) — but no spells; used by
-     *  Stifle ("Counter target activated or triggered ability"). Abilities are
-     *  legal targets ONLY under an explicit ability kind. Mana abilities never
-     *  use the stack (CR 605.3a), so they are never a legal target regardless.
-     *  Ignored for non-spell target types. */
-    spellStackKind?: "spell" | "activated-ability" | "ability";
+     *  Stifle ("Counter target activated or triggered ability"). `"any"`
+     *  (CR 702.21a, Ward) keeps BOTH spells and abilities — "counter that
+     *  spell or ability" needs no kind narrowing at all, unlike every other
+     *  value here which excludes one side or the other. Abilities are legal
+     *  targets ONLY under an explicit ability-admitting kind (`"activated-
+     *  ability"` / `"ability"` / `"any"`). Mana abilities never use the stack
+     *  (CR 605.3a), so they are never a legal target regardless. Ignored for
+     *  non-spell target types. */
+    spellStackKind?: "spell" | "activated-ability" | "ability" | "any";
     /** Restricts a stack-object target (`type: "spell"`) to objects whose
      *  SOURCE card types include at least one of these (CR 113.7a). An
      *  activated ability on the stack carries the source permanent's card
@@ -455,13 +459,33 @@ export interface TargetRequirement {
      *  Brown Ouphe ("...from an artifact source"). Single string is shorthand
      *  for one type. Ignored for non-spell target types. */
     stackSourceTypeFilter?: CardType | CardType[];
-    /** Restricts a stack SPELL target (`type: "spell"`) to spells that target
-     *  at least one of these permanent instance ids (CR 114.1). Injected at
-     *  activation time via a dynamic `getTargetRequirement` with the source's
-     *  own id. Used by Mistfolk ("Counter target spell that targets this
-     *  creature"). Abilities on the stack never qualify. Ignored for non-spell
-     *  target types. */
+    /** Restricts a stack SPELL-OR-ABILITY target (`type: "spell"`) to objects
+     *  that target at least one of these permanent instance ids (CR 114.1).
+     *  Injected at activation time via a dynamic `getTargetRequirement` with
+     *  the source's own id. Used by Mistfolk ("Counter target spell that
+     *  targets this creature", spells only — the default `spellStackKind`).
+     *  Combined with `spellStackKind: "any"` (Ward, CR 702.21a) the same
+     *  filter also admits abilities: whichever kind gate `spellStackKind`
+     *  already applied governs which stack-item kinds reach this filter, so
+     *  it no longer hardcodes "abilities never qualify" itself. Ignored for
+     *  non-spell target types. */
     spellTargetsInstanceIds?: ReadonlyArray<string>;
+    /** Reflexive self-pin (CR 702.21a, Ward): when set on a TRIGGERED
+     *  ability's `targetRequirement`, `raiseTriggerTargetSelection`
+     *  (`gre/rules.ts`) dynamically populates `spellTargetsInstanceIds` with
+     *  the firing stack item's OWN source permanent id (`StackItem.
+     *  triggerSourceId` — the permanent carrying the triggered ability, set by
+     *  `buildTriggerItem`) rather than a static author-time list. This is what
+     *  lets "whenever THIS PERMANENT becomes the target of a spell or ability
+     *  an opponent controls, counter it" resolve its own target automatically
+     *  (no player choice, CR 603.3d single-legal-target auto-select) without a
+     *  parallel event→stack-item resolution mechanism: it reuses the Mistfolk
+     *  `spellTargetsInstanceIds` filter, just computed per-instance instead of
+     *  per-card. Only meaningful on a TriggeredAbility's requirement (a
+     *  spell/activated ability has no `triggerSourceId` to read); ignored
+     *  elsewhere. Pair with `spellStackKind: "any"` for CR 702.21a's "spell OR
+     *  ability" scope. */
+    spellTargetsSelfSource?: boolean;
 }
 
 /** "For as long as" condition on a conditional control change (CR 611.2b).

@@ -7007,12 +7007,18 @@ export const selectTarget = mutation({
             // targets a SPELL, never an ability (CR 701.5a): the default
             // (omitted) AND "spell" both reject abilities; "activated-ability"
             // keeps only activated abilities (Brown Ouphe); "ability" keeps any
-            // activated or triggered ability (Stifle) but rejects spells.
-            const wantsAbilityKind =
+            // activated or triggered ability (Stifle) but rejects spells; "any"
+            // (Ward, CR 702.21a) accepts either.
+            const acceptsSpellKind =
+                pt.spellStackKind === undefined ||
+                pt.spellStackKind === "spell" ||
+                pt.spellStackKind === "any";
+            const acceptsAbilityKind =
                 pt.spellStackKind === "activated-ability" ||
-                pt.spellStackKind === "ability";
+                pt.spellStackKind === "ability" ||
+                pt.spellStackKind === "any";
             if (spellIsAbility) {
-                if (!wantsAbilityKind) {
+                if (!acceptsAbilityKind) {
                     throw new Error("Target must be a spell");
                 }
                 if (
@@ -7021,7 +7027,7 @@ export const selectTarget = mutation({
                 ) {
                     throw new Error("Target must be an activated ability");
                 }
-            } else if (wantsAbilityKind) {
+            } else if (!acceptsSpellKind) {
                 throw new Error("Target must be an ability");
             }
             // CR 113.7a — restrict by source card types (Brown Ouphe: "from an
