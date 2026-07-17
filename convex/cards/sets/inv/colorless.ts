@@ -117,8 +117,6 @@ export const powerArmor: CardDefinition = {
 // sweep + `effectScriptSmoke` generator (per-Op regime, ADR 0045/0046),
 // except where noted per-card below (a new trigger-math shape and a
 // resolve()-justified ETB colour choice each get a dedicated test).
-//
-// Chromatic Sphere is deferred as a tracked stub — see its comment.
 // ─────────────────────────────────────────────────────────────────────────
 
 // Alloy Golem — {6} Artifact Creature — Golem 4/4. "As this creature enters,
@@ -179,45 +177,43 @@ export const alloyGolem: CardDefinition = {
 // a non-mana additional effect and still skip the stack, the Wall of Roots
 // precedent; here the additional effect is a draw.)
 //
-// DEFERRED (tracked-by: #1093) — NOT a card-shaped `resolve()` hack: the
-// engine's `useStack: false` mana-ability commit path (`convex/game.ts`
-// `tapUntap` / the shared payment-tap helper) invokes `ability.effect`
-// through a deliberately narrow `ActivatedAbilityContext` exposing ONLY
-// `addMana` (see the comment at the granted-ability mana-ability call site —
-// "a minimal context exposing only addMana"). There is no rider for "draw a
-// card on tap" in the existing rider family
-// (`dealsDamageToControllerOnTap` / `dealsDamageToControllerOnColoredTap` /
-// `putDepletionCounterOnTap` / `armsDelayedTriggerOnTap`), so this genuinely
-// isn't buildable with already-shipped capability. Chromatic STAR
-// (`tsp/colorless.ts`) is NOT a substitute template: Star's actual (later,
-// different) Oracle text splits the draw into a separate "leaves the
-// battlefield to a graveyard" trigger, which would incorrectly draw a card
-// if Sphere were destroyed by unrelated removal instead of sacrificed for
-// its own ability — a silent rules deviation, not a simplification. Issue
-// #1093 tracks adding a `drawsCardOnTap` rider (mirroring the existing rider
-// family) to unblock this card.
-//
-// export const chromaticSphere: CardDefinition = {
-//     id: "920cd17f-9274-443e-906f-c9904f0658d5",
-//     rarity: "uncommon",
-//     name: "Chromatic Sphere",
-//     oracleText:
-//         "{1}, {T}, Sacrifice this artifact: Add one mana of any color. Draw a card.",
-//     manaCost: { X: 1 },
-//     types: ["Artifact"],
-//     activatedAbilities: [
-//         {
-//             id: "chromatic-sphere-mana",
-//             oracleText:
-//                 "{1}, {T}, Sacrifice this artifact: Add one mana of any color. Draw a card.",
-//             cost: { mana: { X: 1 }, tap: true, sacrifice: true },
-//             useStack: false,
-//             effect: (ctx) => ctx.addMana({ W: 1 }),
-//             manaChoices: [{ W: 1 }, { U: 1 }, { B: 1 }, { R: 1 }, { G: 1 }],
-//             drawsCardOnTap: 1, // blocked on #1093
-//         },
-//     ],
-// };
+// Shipped via the `drawsCardOnTap` rider (issue #1093, mirroring the existing
+// tap-mana-ability rider family — `dealsDamageToControllerOnTap` /
+// `dealsDamageToControllerOnColoredTap` / `putDepletionCounterOnTap` /
+// `armsDelayedTriggerOnTap`): the engine's `useStack: false` mana-ability
+// commit path (`convex/game.ts` `tapUntap` / `tapSourceIntoPayment`, the
+// shared payment-tap helper backing `tapForPayment`/`tapForActivationPayment`)
+// invokes `ability.effect` through a deliberately narrow
+// `ActivatedAbilityContext` exposing ONLY `addMana`, so a non-mana additional
+// effect (the draw) is declared as a rider and applied by the shared engine
+// call sites instead of the ability's own `effect` closure. Chromatic STAR
+// (`tsp/colorless.ts`) is NOT the template here: Star's actual (later,
+// different) Oracle text splits its draw into a separate "leaves the
+// battlefield to a graveyard" trigger, which would incorrectly draw a card if
+// Sphere were destroyed by unrelated removal instead of sacrificed for its
+// own ability — `drawsCardOnTap` instead ties the draw only to activating
+// THIS ability, matching Sphere's actual text.
+export const chromaticSphere: CardDefinition = {
+    id: "920cd17f-9274-443e-906f-c9904f0658d5",
+    rarity: "uncommon",
+    name: "Chromatic Sphere",
+    oracleText:
+        "{1}, {T}, Sacrifice this artifact: Add one mana of any color. Draw a card.",
+    manaCost: { X: 1 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "chromatic-sphere-mana",
+            oracleText:
+                "{1}, {T}, Sacrifice this artifact: Add one mana of any color. Draw a card.",
+            cost: { mana: { X: 1 }, tap: true, sacrifice: true },
+            useStack: false,
+            effect: (ctx) => ctx.addMana({ W: 1 }),
+            manaChoices: [{ W: 1 }, { U: 1 }, { B: 1 }, { R: 1 }, { G: 1 }],
+            drawsCardOnTap: 1,
+        },
+    ],
+};
 
 // Juntu Stakes — {2} Artifact. "Creatures with power 1 or less don't untap
 // during their controllers' untap steps." (CR 502.1 untap-restriction, same

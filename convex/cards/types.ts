@@ -782,6 +782,29 @@ export interface ActivatedAbility {
      *  is untapped to refund unspent mana in the same priority window (CR
      *  106.4). No-op on untap. */
     putDepletionCounterOnTap?: boolean;
+    /** Rider on a TAP mana ability (CR 605.1a, CR 121.1, `useStack: false`):
+     *  the controller draws N cards as part of the SAME mana ability
+     *  resolving — Chromatic Sphere ("{1}, {T}, Sacrifice this artifact: Add
+     *  one mana of any color. Draw a card.") and Chromatic Star's mana half
+     *  are the precedent (CR 605.1a permits a mana ability to carry a non-mana
+     *  additional effect and still resolve without the stack — the Wall of
+     *  Roots shape). Unlike `dealsDamageToControllerOnTap` /
+     *  `putDepletionCounterOnTap`, this rider fires EVEN when the ability
+     *  sacrifices its own source (`cost.sacrifice === true`): the draw is a
+     *  player-level effect, not conditioned on the permanent still existing —
+     *  Chromatic Sphere's whole activation is sacrifice-for-mana-and-draw.
+     *  Routed through `drawCard` (`convex/gre/state.ts`) + `emitCardDrawn` so
+     *  "whenever you draw a card" triggers (Sheoldred, Underworld Dreams)
+     *  still see it, exactly like every other draw path — run BEFORE the
+     *  shared tap-mana-ability trigger flush (`processPendingActionTriggers`).
+     *  Deliberately NOT modeled as a separate leaves-the-battlefield trigger
+     *  (contrast Chromatic Star, `sets/tsp/colorless.ts`): Sphere's draw is
+     *  tied only to activating ITS OWN mana ability, not to dying by any
+     *  means — a removal spell must NOT draw a card for Sphere, so a Star-
+     *  style trigger would be a silent rules deviation (issue #1093). Shared
+     *  by both tap-for-mana paths (`tapUntap` priority tap +
+     *  `tapSourceIntoPayment` payment tap). */
+    drawsCardOnTap?: number;
     /** Mana abilities don't use the stack — they resolve immediately (CR 605.3a). */
     useStack: boolean;
     /** Noted-mana battery (CR 106.10). When true, the engine captures the TYPE
