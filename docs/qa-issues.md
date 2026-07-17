@@ -41,3 +41,7 @@ Lutri
 Grist
 Necromancy
 Fable of the mirror-breaker
+
+Enduring renewal non mostra l'intero oracle text in card-preview
+
+La seconda abilità di currency converter non mi mostra le carte esiliate con lei all'interno del dialog di scelta, non posso selezionare niente.

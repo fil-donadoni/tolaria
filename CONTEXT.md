@@ -184,6 +184,10 @@ _Avoid_: Maintenance cost (the obsolete pre-keyword wording)
 The counter **Cumulative Upkeep** accrues on a **Permanent** — one added each upkeep — whose running total is the multiplier on that turn's cumulative upkeep cost. A plain named counter, not a player resource like a **Poison Counter**.
 _Avoid_: Upkeep counter, age token
 
+**Delve**:
+A **Keyword** ability (CR 702.66) on a **Spell**: while paying its cost, its controller may exile any number of cards from their graveyard, each paying for {1} of the spell's generic cost. A chosen, variable payment made during casting — not a reduction of the printed cost, so the spell's **Mana Value** is unchanged. Colored pips are never delved. One of the **payWith** cast-cost family (the chosen-resource variant); contrast the passive **cost reduction** variant (a spell costing less "for each X"), which is applied automatically before payment.
+_Avoid_: Cost reduction (delve pays pips, it does not lower the cost)
+
 **Fading**:
 A **Keyword** ability (CR 702.32) on a **Permanent** that enters with a set number of **Fade Counters**: at the beginning of its **Controller**'s upkeep, remove a fade counter from it; if it cannot (none remain), sacrifice it. A fading permanent therefore survives one upkeep longer than a **Vanishing** one of the same number, because the sacrifice waits for the turn it finds _no_ counter to remove rather than the turn it removes the last. Fade counters are an ordinary resource: an ability elsewhere on the card may spend them faster (Parallax Wave, Parallax Tide), hastening the sacrifice.
 _Avoid_: Fade-out, decay
