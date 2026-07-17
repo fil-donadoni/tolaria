@@ -15,7 +15,9 @@
 // discovered dynamically. Add one line to `CHECKED_IN_PICK_RATINGS` below for
 // every new checked-in Pick Rating file.
 import leaRatingsJson from "../../data/pick-ratings/lea.json";
+import vintageCubeRatingsJson from "../../data/pick-ratings/vintage-cube.json";
 import { tryGetDefinition } from "../cards";
+import { CUBE_SOURCE_KEY, buildCubePool } from "./cube";
 import type { BoosterConfig } from "./boosterTypes";
 
 /** A single checked-in Pick Rating file (Draftmancer-style, 0-5 scale,
@@ -58,6 +60,7 @@ export function isValidRating(rating: unknown): rating is number {
 
 const CHECKED_IN_PICK_RATINGS: Record<string, PickRatingFile> = {
     lea: leaRatingsJson as PickRatingFile,
+    [CUBE_SOURCE_KEY]: vintageCubeRatingsJson as PickRatingFile,
 };
 
 /** Resolves a lowercase set code to its checked-in Pick Rating file, or
@@ -136,6 +139,39 @@ export function validatePickRatingFile(
         if (!validCardIds.has(cardId)) {
             errors.push(
                 `${file.setCode}: rated cardId "${cardId}" does not resolve to a card of the set`
+            );
+        }
+        if (!isValidRating(rating)) {
+            errors.push(
+                `${file.setCode}: rating for "${cardId}" (${rating}) is out of bounds [${PICK_RATING_MIN}, ${PICK_RATING_MAX}]`
+            );
+        }
+    }
+
+    return { valid: errors.length === 0, errors };
+}
+
+/** Validates a Pick Rating file against the Vintage Cube pool
+ *  (`cube.ts#buildCubePool`) instead of a set's Booster Config — the cube has
+ *  no print sheets (ADR 0062), so `validatePickRatingFile`'s sheet walk
+ *  doesn't apply. Same two checks, against the pool's card ids instead:
+ *
+ *  1. **Resolves to a cube card** — the cardId must be one of the currently
+ *     implemented cube pool's canonical card ids (issue #1299's "covers the
+ *     currently-implemented cube pool" acceptance).
+ *  2. **In-bounds** — identical `isValidRating` check as the set path.
+ *
+ *  Pure — no I/O — `buildCubePool` is memoized off the static card registry. */
+export function validateCubePickRatingFile(
+    file: PickRatingFile
+): PickRatingValidationResult {
+    const errors: string[] = [];
+    const validCardIds = new Set(buildCubePool());
+
+    for (const [cardId, rating] of Object.entries(file.ratings)) {
+        if (!validCardIds.has(cardId)) {
+            errors.push(
+                `${file.setCode}: rated cardId "${cardId}" does not resolve to a card of the implemented Vintage Cube pool`
             );
         }
         if (!isValidRating(rating)) {

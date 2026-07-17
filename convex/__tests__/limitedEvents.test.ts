@@ -37,7 +37,7 @@ import {
     resolveEventPickRating,
     type GetDbRating,
 } from "../limited/cardRatings";
-import { getPickRatingByCardId } from "../limited/pickRatings";
+import { getPickRating, getPickRatingByCardId } from "../limited/pickRatings";
 import {
     assignFreeSeat,
     buildEmptySeats,
@@ -1723,12 +1723,22 @@ describe("Limited Event Bot Pick Rating DB layer (PRD #1296 Slice A, ADR 0065, i
         const packSlots = ["lea", "lea"];
         const seed = 909090;
 
+        // `getPickRatingByCardId` is registry-agnostic BY DESIGN — its own
+        // doc comment: "if [a card id appearing in more than one checked-in
+        // file] ever changes, the first file found wins". PRD #1296 Slice D
+        // (issue #1299) makes that case real: `data/pick-ratings/vintage-
+        // cube.json` legitimately rates some of the SAME canonical card ids
+        // as `lea.json` (original dual lands, Power Nine — printed in LEA
+        // AND pooled into the cube), so `getPickRatingByCardId` now leaks a
+        // vintage-cube rating into a pure LEA draft and is no longer a
+        // faithful "lea draft, no DB" baseline. `getPickRating("lea", ...)`
+        // stays scoped to exactly the file this draft's `packSlots` name —
+        // what actually matters here: Slice A's DB-layering is a no-op vs.
+        // the LEA-scoped seed lookup when the database is empty, a
+        // guarantee no future additional checked-in file can perturb.
         const oldChoosePick: ChooseBotPick = (seat, pack) =>
-            chooseBotPick(
-                pack,
-                seat.pool ?? [],
-                getCardEvalMeta,
-                getPickRatingByCardId
+            chooseBotPick(pack, seat.pool ?? [], getCardEvalMeta, (cardId) =>
+                getPickRating("lea", cardId)
             );
         const newChoosePick = makeBotChoosePick(
             resolveEventPickRating(packSlots, fakeDb({}))
@@ -1761,5 +1771,92 @@ describe("Limited Event Bot Pick Rating DB layer (PRD #1296 Slice A, ADR 0065, i
         expect(oldResult.completed).toBe(true);
         expect(newResult.completed).toBe(true);
         expect(newResult.seats).toEqual(oldResult.seats);
+    });
+});
+
+describe("checked-in Vintage Cube Pick Rating seed (PRD #1296 Slice D, issue #1299): bots draft the cube on curated data, not the raw heuristic", () => {
+    // Same "REAL production lookup, no fake DB" wiring the LEA "scripted
+    // all-bot draft" test in `botDrafter.test.ts` uses — the point of this
+    // suite is proving the SHIPPED `data/pick-ratings/vintage-cube.json` seed
+    // (wired into `pickRatings.ts`'s `CHECKED_IN_PICK_RATINGS` under the
+    // reserved `CUBE_SOURCE_KEY`) is actually picked up by
+    // `resolveEventPickRating`/`getPickRatingByCardId` and changes real bot
+    // picks — not just that the file parses.
+    const realBotChoosePickRated: ChooseBotPick = (seat, pack) =>
+        chooseBotPick(
+            pack,
+            seat.pool ?? [],
+            getCardEvalMeta,
+            getPickRatingByCardId
+        );
+    const realBotChoosePickHeuristicOnly: ChooseBotPick = (seat, pack) =>
+        chooseBotPick(pack, seat.pool ?? [], getCardEvalMeta);
+
+    // Comfortably above `PICK_RATING_NEUTRAL` (2.5) so `PICK_RATING_DOMINANCE_
+    // WEIGHT` guarantees the curated rating overrides the Pick Heuristic —
+    // mirrors the LEA suite's own `OBVIOUS_BOMB_THRESHOLD`.
+    const OBVIOUS_BOMB_THRESHOLD = 4.5;
+
+    it("resolveEventPickRating, given the vintage-cube scope and an EMPTY database, surfaces the checked-in seed rating for a real cube card (Black Lotus)", () => {
+        const blackLotusId = "b0faa7f2-b547-42c4-a810-839da50dadfe";
+        const emptyDb: GetDbRating = () => null;
+        const getPickRating = resolveEventPickRating(
+            [CUBE_SOURCE_KEY],
+            emptyDb
+        );
+        expect(getPickRating(blackLotusId)).toBe(5);
+        expect(getPickRatingByCardId(blackLotusId)).toBe(5);
+    });
+
+    it("a scripted all-bot Vintage Cube draft: every pack containing a curated bomb (rating >= 4.5) is taken over the heuristic's own favorite", () => {
+        const cubeSlots = [CUBE_SOURCE_KEY, CUBE_SOURCE_KEY, CUBE_SOURCE_KEY];
+        const seed = 20260717;
+        const seats = fillBotSeats(buildEmptySeats(8));
+        const dealt = startDraft(
+            seats,
+            cubeSlots,
+            seed,
+            getRuntimeBoosterConfig,
+            resolveCardMeta
+        );
+
+        let sawAtLeastOneObviousBomb = false;
+        for (const seat of dealt.seats) {
+            const pack = seat.currentPack!;
+            expect(pack.length).toBe(CUBE_PACK_SIZE);
+
+            const bombs = pack
+                .map((c) => {
+                    const rating = getPickRatingByCardId(c.cardId);
+                    return rating !== null && rating >= OBVIOUS_BOMB_THRESHOLD
+                        ? { pickId: c.pickId, cardName: c.cardName }
+                        : null;
+                })
+                .filter(
+                    (b): b is { pickId: string; cardName: string } => b !== null
+                );
+            if (bombs.length === 0) continue;
+            sawAtLeastOneObviousBomb = true;
+
+            const ratedPick = realBotChoosePickRated(seat, pack);
+            expect(bombs.some((b) => b.pickId === ratedPick)).toBe(true);
+
+            // And the heuristic-only pick (no rating layer) is NOT guaranteed
+            // to agree — this is the "bots draft on real ratings instead of
+            // the raw heuristic" acceptance criterion (issue #1299), not a
+            // vacuous truth. At least one bomb pack in this seeded draft
+            // diverges from the pure-heuristic pick.
+            const heuristicOnlyPick = realBotChoosePickHeuristicOnly(
+                seat,
+                pack
+            );
+            if (heuristicOnlyPick !== ratedPick) {
+                expect(bombs.some((b) => b.pickId === heuristicOnlyPick)).toBe(
+                    false
+                );
+            }
+        }
+
+        expect(sawAtLeastOneObviousBomb).toBe(true);
     });
 });

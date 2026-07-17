@@ -6,6 +6,7 @@
 // own two checks against hand-built fixtures.
 import { describe, it, expect } from "vitest";
 import { getBoosterConfig } from "../registry";
+import { CUBE_SOURCE_KEY, buildCubePool } from "../cube";
 import {
     getPickRating,
     getPickRatingByCardId,
@@ -13,6 +14,7 @@ import {
     isValidRating,
     PICK_RATING_MAX,
     PICK_RATING_MIN,
+    validateCubePickRatingFile,
     validatePickRatingFile,
     type PickRatingFile,
 } from "../pickRatings";
@@ -55,6 +57,56 @@ describe("checked-in LEA Pick Rating file (issue #1117 acceptance: 'ratings file
         const shanodinDryadsId = "814cf35c-f1ad-4bf4-8c10-a5592c3b1be8";
         expect(leaRatings.ratings[shanodinDryadsId]).toBeUndefined();
         expect(getPickRating("lea", shanodinDryadsId)).toBeNull();
+    });
+});
+
+describe("checked-in Vintage Cube Pick Rating file (PRD #1296 Slice D, issue #1299): a first curated pass for the vintage-cube scope", () => {
+    const cubeRatings = getPickRatingFile(CUBE_SOURCE_KEY)!;
+
+    it("the Vintage Cube Pick Rating file is checked in under the reserved CUBE_SOURCE_KEY scope", () => {
+        expect(cubeRatings).not.toBeNull();
+        expect(cubeRatings.setCode).toBe(CUBE_SOURCE_KEY);
+    });
+
+    it("every rated entry resolves to a card of the currently-implemented cube pool, and every rating is in bounds", () => {
+        const result = validateCubePickRatingFile(cubeRatings);
+        expect(result.errors).toEqual([]);
+        expect(result.valid).toBe(true);
+    });
+
+    it("covers the currently-implemented cube pool (buildCubePool) — every pool card is rated", () => {
+        const pool = buildCubePool();
+        expect(pool.length).toBeGreaterThan(0);
+        for (const cardId of pool) {
+            expect(cubeRatings.ratings[cardId]).not.toBeUndefined();
+        }
+    });
+
+    it("ships with a non-trivial curated set of ratings (not an empty stub)", () => {
+        expect(Object.keys(cubeRatings.ratings).length).toBeGreaterThan(50);
+    });
+
+    it("Power Nine / format-warping bombs rate above filler (Black Lotus vs. a narrow situational card)", () => {
+        const blackLotusId = "b0faa7f2-b547-42c4-a810-839da50dadfe";
+        // Squee, Goblin Nabob — a combo-niche card curated low (1.5) in the
+        // seed file, both entries hand-verified present in the checked-in
+        // file at authoring time.
+        const squeeId = "4ba8325a-1203-4125-9111-94d9e2b1f14b";
+        const lotusRating = getPickRating(CUBE_SOURCE_KEY, blackLotusId);
+        const squeeRating = getPickRating(CUBE_SOURCE_KEY, squeeId);
+        expect(lotusRating).not.toBeNull();
+        expect(squeeRating).not.toBeNull();
+        expect(lotusRating!).toBeGreaterThan(squeeRating!);
+        expect(lotusRating).toBe(PICK_RATING_MAX);
+    });
+
+    it("a cube card not in the (currently implemented) pool falls back to `null` (unrated) via getPickRating", () => {
+        expect(getPickRating(CUBE_SOURCE_KEY, "not-a-cube-card-id")).toBeNull();
+    });
+
+    it("getPickRatingByCardId resolves a rated cube card by cardId alone, registry-agnostic like the LEA case", () => {
+        const blackLotusId = "b0faa7f2-b547-42c4-a810-839da50dadfe";
+        expect(getPickRatingByCardId(blackLotusId)).toBe(PICK_RATING_MAX);
     });
 });
 
