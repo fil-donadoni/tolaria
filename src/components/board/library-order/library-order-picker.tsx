@@ -88,9 +88,14 @@ export default function LibraryOrderPicker({
     prompt: string;
     submitting: boolean;
     /** `look-distribute` mode (Impulse / Stock Up): the RIGHT zone is the HAND
-     *  (exactly `keep` cards), the LEFT zone the ordered bottom. Omit for the
-     *  scry/surveil/ponder order-top modes. */
-    distribute?: { keep: number };
+     *  (up to `keep` cards), the LEFT zone the ordered bottom. Omit for the
+     *  scry/surveil/ponder order-top modes. `min` (default = `keep`) is the
+     *  floor: for an OPTIONAL "you may" dig (Narset, min 0) the player can
+     *  submit with fewer than `keep` in hand. `eligibleIds`, when present,
+     *  restricts which looked-at cards may enter the HAND zone (Narset's
+     *  "noncreature, nonland" filter) — a non-eligible card is bounced back to
+     *  the BOTTOM if dragged onto the hand side. */
+    distribute?: { keep: number; min?: number; eligibleIds?: string[] };
     /** `putBack` mode (Brainstorm, CR 401.4): the LEFT zone is the HAND (source
      *  pool), the RIGHT zone the TOP OF LIBRARY — pull EXACTLY `keep` cards onto
      *  the top and order them (right = topmost). The top zone is HARD-CAPPED at
@@ -134,6 +139,14 @@ export default function LibraryOrderPicker({
     const poolMode = distribute !== undefined || putBack !== undefined;
     const keep = distribute?.keep ?? putBack?.keep;
     const topCap = putBack ? putBack.keep : undefined;
+    // Optional-dig floor (Narset): the hand may hold as few as `min`. `putBack`
+    // and the mandatory dig keep the exact-`keep` requirement (min === keep).
+    const minKeep = distribute ? (distribute.min ?? distribute.keep) : keep;
+    // Hand-eligible allow-list (Narset's "noncreature, nonland"): a card outside
+    // it can never sit in the HAND (top) zone. Undefined = every card eligible.
+    // The array ref is stable across renders (from the projected choice), so the
+    // drop-resolution memo below keys on it directly and builds the Set inside.
+    const eligibleIds = distribute?.eligibleIds;
 
     const defById = useMemo(
         () => Object.fromEntries(lookedAt.map((c) => [c.instanceId, c.defId])),
@@ -220,6 +233,15 @@ export default function LibraryOrderPicker({
         ) {
             destZone = "second";
         }
+        // Hand-eligibility (Narset): a non-eligible card dragged onto the HAND
+        // (top) side is bounced back to the BOTTOM — it can only be bottomed.
+        if (
+            destZone === "top" &&
+            eligibleIds !== undefined &&
+            !eligibleIds.includes(drag.id)
+        ) {
+            destZone = "second";
+        }
         const destArr = destZone === "second" ? second0 : top0;
         const dropIndex = insertionIndex(
             hit,
@@ -265,7 +287,7 @@ export default function LibraryOrderPicker({
                 dropIndex: number;
             },
         };
-    }, [drag, top, second, hasSecond, detached, topCap]);
+    }, [drag, top, second, hasSecond, detached, topCap, eligibleIds]);
 
     // ---- Gesture (mirrors the hand's activation feel; no cast branch) ----
     const onPointerDown = useCallback(
@@ -352,11 +374,16 @@ export default function LibraryOrderPicker({
         if (press.current) commit();
     }, [commit]);
 
-    // `distribute` mode requires EXACTLY `keep` cards in the HAND (right) zone
-    // before Done is legal (the engine enforces count = keep; gating here avoids
-    // a rejected submit). order-top modes accept any split.
+    // `distribute` / `putBack` require the HAND (right) zone to hold between
+    // `minKeep` and `keep` cards before Done is legal (the engine enforces the
+    // same count; gating here avoids a rejected submit). A mandatory dig and
+    // `putBack` pin min === keep (exact); an optional dig (Narset) sets minKeep 0
+    // so the player may decline. order-top modes accept any split.
     const confirmDisabled =
-        submitting || (keep !== undefined ? top.length !== keep : false);
+        submitting ||
+        (keep !== undefined
+            ? top.length > keep || top.length < (minKeep ?? keep)
+            : false);
 
     const handleConfirm = () => {
         if (confirmDisabled) return;

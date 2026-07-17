@@ -7270,6 +7270,10 @@ export type EffectOp =
            *  Default false = the player orders the bottom and keeps it known
            *  (ADR 0026, the Impulse "in any order" path). */
           randomBottom?: boolean;
+          /** Optional prompt message shown on the look-distribute choice (e.g.
+           *  Narset, Parter of Veils: "you may put a noncreature, nonland card
+           *  into your hand"). Falls back to a generic prompt when absent. */
+          prompt?: string;
       }
     /** CR 401.4 (issue #1046) — put N cards from a hand on top of a library,
      *  in the player's chosen order ("put N cards from your hand on top of

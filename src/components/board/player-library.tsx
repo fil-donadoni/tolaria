@@ -246,16 +246,23 @@ export default function PlayerLibrary({
         }
     };
 
-    // `look-distribute` (Impulse / Stock Up) mounts the picker in HAND/BOTTOM
-    // mode: the choice's `count` is exactly `keep` (min === max), the number of
-    // cards that go to hand.
+    // `look-distribute` (Impulse / Stock Up / Narset) mounts the picker in
+    // HAND/BOTTOM mode. `keep` is the hand cap (count MAX); `min` is the floor
+    // (count MIN) — equal for the mandatory dig, 0 for Narset's optional "you
+    // may". `eligibleIds` restricts which looked-at cards may enter the hand
+    // (Narset's "noncreature, nonland"); undefined = every card eligible.
     const distribute =
         head?.kind === "look-distribute"
             ? {
                   keep:
                       typeof head.count === "number"
                           ? head.count
+                          : head.count.max,
+                  min:
+                      typeof head.count === "number"
+                          ? head.count
                           : head.count.min,
+                  eligibleIds: head.eligibleIds,
               }
             : undefined;
 

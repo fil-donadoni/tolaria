@@ -11230,6 +11230,29 @@ describe("Effect Script Op: digToHand filter/optional/randomBottom (issue #1266,
         ]);
     });
 
+    it("the submit validator rejects taking a non-eligible (creature/land) card to hand", () => {
+        const id = registerScript("test-op-dig-narset-reject", [narsetDig]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: mixedLib("p1", [
+                        ["s1", NC_INSTANT_ID],
+                        ["cr1", BEAR_ID],
+                        ["ld1", NC_LAND_ID],
+                        ["s2", NC_INSTANT_ID],
+                    ]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        // "cr1" is a creature — shown in the window but not hand-eligible.
+        expect(() => submitKeep(state, ["cr1"])).toThrow(
+            /not eligible to put into your hand/
+        );
+    });
+
     it("randomBottom leaves the bottomed cards UNKNOWN to the controller (no markKnown)", () => {
         const id = registerScript("test-op-dig-narset-unknown", [narsetDig]);
         const state = makeState({
@@ -11338,6 +11361,13 @@ describe("Effect Script Op: digToHand filter/optional/randomBottom (issue #1266,
             "s1",
             "cr1",
             "ld1",
+            "s2",
+        ]);
+        // The eligible-subset survives the projection so the client picker can
+        // lock the creature/land out of the HAND pile (the field player-library
+        // reads to build `distribute.eligibleIds`).
+        expect(chooserView.pendingChoices?.[0]?.eligibleIds).toEqual([
+            "s1",
             "s2",
         ]);
         const oppView = projectPublicState(state, 1, "p2");

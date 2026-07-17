@@ -31,11 +31,11 @@ precedent that moved Preset Decks into a DB, Admin-editable store (ADR 0033).
 
 New table `cardRatings`:
 
-| field    | type     | notes                                                        |
-| -------- | -------- | ------------------------------------------------------------ |
+| field    | type     | notes                                                                                                                 |
+| -------- | -------- | --------------------------------------------------------------------------------------------------------------------- |
 | `scope`  | `string` | pack-source identity: a set code (`"lea"`) or the cube key (`"vintage-cube"`). Lowercased, same space as `packSlots`. |
-| `cardId` | `string` | canonical `CardDefinition.id` (not a printing's scryfallId). |
-| `rating` | `number` | `PICK_RATING_MIN`..`PICK_RATING_MAX` (0–5, fractional allowed). |
+| `cardId` | `string` | canonical `CardDefinition.id` (not a printing's scryfallId).                                                          |
+| `rating` | `number` | `PICK_RATING_MIN`..`PICK_RATING_MAX` (0–5, fractional allowed).                                                       |
 
 Index `by_scope` (and `by_scope_card` for point upserts). One row per
 `(scope, cardId)`. **Per-format/cube scope was chosen over a single global

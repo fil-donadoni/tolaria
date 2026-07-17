@@ -139,6 +139,28 @@ describe("LibraryOrderPicker", () => {
         expect(onConfirm).not.toHaveBeenCalled();
     });
 
+    it("optional distribute (Narset, min 0) lets Done submit with an empty HAND", () => {
+        // Narset's −2 is a "you may": min 0, keep 1. Every card starts in the
+        // BOTTOM zone; with the optional floor the player may confirm taking
+        // nothing (submits an empty hand list).
+        const onConfirm = vi.fn();
+        const { getByText } = renderPicker(
+            <LibraryOrderPicker
+                lookedAt={looked}
+                destination="library-bottom"
+                prompt="Narset"
+                submitting={false}
+                distribute={{ keep: 1, min: 0 }}
+                onConfirm={onConfirm}
+            />
+        );
+        const done = getByText("Done") as HTMLButtonElement;
+        expect(done.disabled).toBe(false);
+        fireEvent.click(done);
+        // Empty hand → the second (bottom) list holds every looked-at card.
+        expect(onConfirm).toHaveBeenCalledWith([], ["a", "b", "c"]);
+    });
+
     // putBack mode (Brainstorm, CR 401.4): HAND (left, pool) / TOP OF LIBRARY
     // (right, exactly `keep` on top). Cards start in the HAND zone.
     it("renders HAND / TOP OF LIBRARY chrome in putBack mode", () => {

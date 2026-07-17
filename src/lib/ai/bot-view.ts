@@ -208,6 +208,14 @@ function readChoiceZone(
         const allow = new Set(head.candidateIds);
         cards = cards.filter((c) => allow.has(c.id));
     }
+    // look-distribute HAND-eligibility (issue #1266, Narset): only the
+    // `eligibleIds` subset may go to hand; the bot submits hand picks only (the
+    // rest auto-bottom), so narrowing the candidate pool keeps it from proposing
+    // an illegal pick (a creature/land the server would reject → freeze).
+    if (head.kind === "look-distribute" && head.eligibleIds) {
+        const eligible = new Set(head.eligibleIds);
+        cards = cards.filter((c) => eligible.has(c.id));
+    }
     return cards;
 }
 
