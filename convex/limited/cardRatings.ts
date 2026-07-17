@@ -21,7 +21,7 @@
 // the pure read-side core, kept in the SAME file because both halves share
 // the one `cardRatings` table and the one `(scope, cardId)` key discipline.
 import { v } from "convex/values";
-import { mutation, type MutationCtx } from "../_generated/server";
+import { mutation, query, type MutationCtx } from "../_generated/server";
 import { assertIsAdmin } from "../auth";
 import {
     getPickRating,
@@ -29,6 +29,9 @@ import {
     PICK_RATING_MIN,
     PICK_RATING_MAX,
 } from "./pickRatings";
+import { getBoosterConfig } from "./registry";
+import { buildCubePool, isCubeSource } from "./cube";
+import { tryGetDefinition } from "../cards";
 import type { GetPickRating } from "./botDrafter";
 
 /** Resolves ONE `(scope, cardId)` pair to its DATABASE rating, or `null` when
@@ -182,5 +185,133 @@ export const clearCardRating = mutation({
             await ctx.db.delete(existing._id);
         }
         return null;
+    },
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// Admin editor read query (PRD #1296 Slice C, issue #1300)
+// ─────────────────────────────────────────────────────────────────────────
+
+/** One card of a scope, as the editor lists it before any rating is
+ *  attached — `cardId` is the canonical `CardDefinition.id` (same id space
+ *  `resolveEventPickRating`/`setCardRating` key on), `name` is the display
+ *  name the editor renders/search-filters against. */
+export interface ScopeCard {
+    cardId: string;
+    name: string;
+}
+
+/** One card of a scope annotated with both rating layers, exactly the shape
+ *  PRD #1296's editor read query returns: `dbRating` (an explicit database
+ *  override, `null` when unset) and `seedRating` (the checked-in JSON
+ *  default, `null` when the scope/card has none) — so the editor can render
+ *  the EFFECTIVE value (`dbRating ?? seedRating`) while still showing
+ *  whether it's an override or a fallback. */
+export interface ScopeCardRating extends ScopeCard {
+    dbRating: number | null;
+    seedRating: number | null;
+}
+
+/** Enumerates the distinct cards of a scope — a Draftable Set's Booster
+ *  Config sheets, or the Vintage Cube pool (`cube.ts#buildCubePool`) for the
+ *  reserved `vintage-cube` scope (`isCubeSource`, the SAME special-case
+ *  `registry.ts#isDraftableSet` and `limitedEvents.ts` already make — no new
+ *  cube branch invented here). A set's sheets are keyed by a printing's
+ *  `scryfallId`; resolved to the canonical `CardDefinition.id`/`name` via
+ *  `tryGetDefinition` and deduped by id (mirrors `pickRatings.ts`'s
+ *  `validatePickRatingFile` sheet walk — the SAME "resolves to a card of the
+ *  set" enumeration, reused here for listing instead of validating). `scope`
+ *  is case-insensitive, matching every other scope lookup in this module.
+ *  Returns `[]` for a scope with no checked-in Booster Config — never throws,
+ *  so the editor query can render "no cards" instead of failing. Pure — no
+ *  `ctx` — so it is directly unit-testable. */
+export function listScopeCards(scope: string): ScopeCard[] {
+    if (isCubeSource(scope)) {
+        const cards: ScopeCard[] = [];
+        for (const cardId of buildCubePool()) {
+            const def = tryGetDefinition(cardId);
+            if (!def) continue;
+            cards.push({ cardId: def.id, name: def.name });
+        }
+        return cards;
+    }
+
+    const config = getBoosterConfig(scope);
+    if (!config) return [];
+
+    const seen = new Set<string>();
+    const cards: ScopeCard[] = [];
+    for (const sheet of Object.values(config.sheets)) {
+        for (const scryfallId of Object.keys(sheet.cards)) {
+            const def = tryGetDefinition(scryfallId);
+            if (!def) continue;
+            if (seen.has(def.id)) continue;
+            seen.add(def.id);
+            cards.push({ cardId: def.id, name: def.name });
+        }
+    }
+    return cards;
+}
+
+/** Annotates `cards` (a scope's enumerated card list, `listScopeCards`) with
+ *  both rating layers — the pure core of the `listScopeCardRatings` query,
+ *  split out so it is unit-testable with a plain in-memory `GetDbRating`
+ *  closure, no convex-test harness (same discipline as
+ *  `resolveEventPickRating` above). `scope` is normalized to lowercase HERE
+ *  (once), so `getDbRating` and the seed lookup both see the same casing —
+ *  callers must already have normalized `cards` to the SAME scope this
+ *  annotates. */
+export function buildScopeCardRatings(
+    scope: string,
+    cards: readonly ScopeCard[],
+    getDbRating: GetDbRating
+): ScopeCardRating[] {
+    const normalizedScope = scope.toLowerCase();
+    return cards.map((card) => ({
+        ...card,
+        dbRating: getDbRating(normalizedScope, card.cardId),
+        seedRating: getPickRating(normalizedScope, card.cardId),
+    }));
+}
+
+/** Admin-only editor read query (PRD #1296 Slice C, issue #1300): for a
+ *  chosen `scope` (a Draftable Set code, or the Vintage Cube's
+ *  `vintage-cube` key), returns every card of that scope with
+ *  `{ cardId, name, dbRating, seedRating }`, sorted by name for a stable
+ *  editor listing. `assertIsAdmin` runs FIRST, the same "gate before
+ *  anything else" convention as `setCardRating`/`clearCardRating`. Loads the
+ *  scope's `cardRatings` rows via the SAME `by_scope` index
+ *  `limitedEvents.ts#loadEventPickRating` already uses (bounded per scope,
+ *  never a full-table scan), then folds them into `buildScopeCardRatings`
+ *  exactly like the bot read path folds them into `resolveEventPickRating`
+ *  — the query and the bot read path share the one `(scope, cardId)` layering
+ *  discipline, just projected differently (per-card list vs. a single
+ *  lookup closure). */
+export const listScopeCardRatings = query({
+    args: { scope: v.string() },
+    returns: v.array(
+        v.object({
+            cardId: v.string(),
+            name: v.string(),
+            dbRating: v.union(v.number(), v.null()),
+            seedRating: v.union(v.number(), v.null()),
+        })
+    ),
+    handler: async (ctx, { scope }): Promise<ScopeCardRating[]> => {
+        await assertIsAdmin(ctx);
+        const normalizedScope = scope.toLowerCase();
+        const cards = listScopeCards(normalizedScope);
+
+        const rows = await ctx.db
+            .query("cardRatings")
+            .withIndex("by_scope", (q) => q.eq("scope", normalizedScope))
+            .collect();
+        const dbRatings = new Map(rows.map((row) => [row.cardId, row.rating]));
+        const getDbRating: GetDbRating = (_scope, cardId) =>
+            dbRatings.get(cardId) ?? null;
+
+        return buildScopeCardRatings(normalizedScope, cards, getDbRating).sort(
+            (a, b) => a.name.localeCompare(b.name)
+        );
     },
 });

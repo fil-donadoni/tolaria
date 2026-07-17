@@ -45,6 +45,7 @@ import DeckFormatFilter from "./deck-format-filter";
 import LobbyBackground from "./lobby-background";
 import ActiveGameNotice from "./active-game-notice";
 import BanlistAdminPanel from "./banlist-admin-panel";
+import PickRatingAdminPanel from "./pick-rating-admin-panel";
 
 function Lobby() {
     const navigate = useNavigate();
@@ -489,6 +490,7 @@ function Lobby() {
                 </div>
 
                 <BanlistAdminPanel />
+                <PickRatingAdminPanel />
 
                 <LobbyFooter />
             </div>
