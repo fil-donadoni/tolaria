@@ -1240,12 +1240,14 @@ export interface EffectTokenSpec {
     /** Optional Scryfall id of a printed token card for real token art. */
     imagePrintId?: string;
     /** Activated abilities the token enters with (CR 707.2, issue #1191 —
-     *  Investigate's Clue: "{2}, Sacrifice this token: Draw a card."). A
-     *  RESTRICTED, JSON-pure subset of `ActivatedAbility`: only `id`, `cost`
-     *  (`tap` / `mana` / `sacrifice` — the JSON-pure cost legs; no closures),
-     *  `oracleText`, `useStack` and `effects` (an Effect Script, DSL-only —
-     *  `resolve/effect` are rejected) are accepted, enforced by
-     *  `isEffectTokenSpec` in `gre/effects/validate.ts`. Each ability's
+     *  Investigate's Clue: "{2}, Sacrifice this token: Draw a card."; extended
+     *  #778 for Blood's "{1}, {T}, Discard a card, Sacrifice this token: Draw
+     *  a card."). A RESTRICTED, JSON-pure subset of `ActivatedAbility`: only
+     *  `id`, `cost` (`tap` / `mana` / `sacrifice` / `discardFilter` — the
+     *  JSON-pure cost legs; no closures), `oracleText`, `useStack` and
+     *  `effects` (an Effect Script, DSL-only — `resolve/effect` are rejected)
+     *  are accepted, enforced by `isEffectTokenSpec` in
+     *  `gre/effects/validate.ts`. Each ability's
      *  `effects[]` is validated and ref-checked as its OWN independently-scoped
      *  script (fresh `$source` = the token itself once created — see
      *  `validateEffectOpList`'s nested-`createToken` pass), never against the

@@ -277,14 +277,24 @@ function isStringArray(value: unknown, allowed?: Set<string>): boolean {
  *  deliberately NOT accepted (its predicates carry closures — a token needing
  *  continuous static effects stays a `resolve()` card). Unknown keys are
  *  rejected: the grammar is frozen (ADR 0045). */
-/** A token-scoped activated ability's JSON-pure `cost` (issue #1191): only the
- *  three legs a token can plausibly need — `tap` (a manland-style token),
- *  `mana` (a `ManaCost`), and `sacrifice` (the Clue/Treasure/Blood shape,
- *  "Sacrifice THIS token"). Any other `ActivatedAbility.cost` leg (life,
- *  loyalty, removeCounter, discard variants, …) is out of scope for a token
- *  spec until a real card needs it — "generalize, don't add" (extend this set
- *  when that happens, don't invent a parallel shape). */
-const TOKEN_ABILITY_COST_KEYS = new Set(["tap", "mana", "sacrifice"]);
+/** A token-scoped activated ability's JSON-pure `cost` (issue #1191, extended
+ *  #778): the legs a token can plausibly need — `tap` (a manland-style
+ *  token), `mana` (a `ManaCost`), `sacrifice` (the Clue/Treasure shape,
+ *  "Sacrifice THIS token"), and `discardFilter` (the Blood shape, "{1}, {T},
+ *  Discard a card, Sacrifice this token: Draw a card." — the SAME player-choice
+ *  discard cost `ActivatedAbility.cost.discardFilter` already carries for a
+ *  printed card's ability, e.g. Survival of the Fittest #901; a token ability
+ *  is structurally an `ActivatedAbility`, so no new shape is invented, just
+ *  the allow-list widened). Any other `ActivatedAbility.cost` leg (life,
+ *  loyalty, removeCounter, other discard variants, …) is out of scope for a
+ *  token spec until a real card needs it — "generalize, don't add" (extend
+ *  this set when that happens, don't invent a parallel shape). */
+const TOKEN_ABILITY_COST_KEYS = new Set([
+    "tap",
+    "mana",
+    "sacrifice",
+    "discardFilter",
+]);
 function isTokenAbilityCost(value: unknown): boolean {
     if (typeof value !== "object" || value === null || Array.isArray(value)) {
         return false;
@@ -296,6 +306,24 @@ function isTokenAbilityCost(value: unknown): boolean {
     if ("tap" in c && typeof c.tap !== "boolean") return false;
     if ("mana" in c && !isManaCost(c.mana)) return false;
     if ("sacrifice" in c && typeof c.sacrifice !== "boolean") return false;
+    if ("discardFilter" in c) {
+        const df = c.discardFilter;
+        if (typeof df !== "object" || df === null || Array.isArray(df)) {
+            return false;
+        }
+        const d = df as Record<string, unknown>;
+        if (!Object.keys(d).every((k) => k === "filter" || k === "count")) {
+            return false;
+        }
+        if (!isCardFilter(d.filter)) return false;
+        if (
+            typeof d.count !== "number" ||
+            !Number.isInteger(d.count) ||
+            d.count < 1
+        ) {
+            return false;
+        }
+    }
     return true;
 }
 

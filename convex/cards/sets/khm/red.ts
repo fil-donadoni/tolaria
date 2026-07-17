@@ -13,16 +13,19 @@
 // issue #677) is now SHIPPED: `EffectCardFilter.any` (types.ts / validate.ts
 // isCardFilter / interpreter.ts matchesCardFilter) expresses exactly
 // `{ any: [{ type: "Artifact" }, { subtype: "Dragon" }] }`.
-// STILL BLOCKED on a SEPARATE, already-tracked capability gap: Magda's kit is
-// built entirely around Treasure tokens (the tap trigger creates them; the
-// tutor cost sacrifices five of them), but `TokenSpec`/`EffectTokenSpec` have
-// no field for a token-scoped `activatedAbilities[]` — the same gap that
-// blocks vow's Voldaren Epicure (Blood token) as `tracked-by: #778`. Shipping
-// Magda's Treasure tokens without their own "{T}, Sacrifice: Add one mana of
-// any colour" ability would misrepresent the card (a permanently inert
-// Treasure) — same reasoning as the Blood token stub. "Never ship partial"
-// keeps the whole card as one unit until #778 lands.
-// tracked-by: #778 (was also #897 — filter disjunction now done, see above)
+// #778's blocker (token-scoped `activatedAbilities[]` on `TokenSpec`/
+// `EffectTokenSpec` — the same gap that blocked vow's Voldaren Epicure) is
+// now SHIPPED (issue #1191, extended by #778 for a `discardFilter` cost leg):
+// Magda's Treasure tokens (`TREASURE_TOKEN`, sharedTokens.ts) enter with their
+// real "{T}, Sacrifice: Add one mana of any colour" ability, no longer inert.
+// STILL BLOCKED on a SEPARATE, narrower gap: the tutor ability's cost is
+// "Sacrifice FIVE Treasures", but `ActivatedAbility.cost.sacrificeFilter` is a
+// bare `PermanentFilter` — sacrifice exactly ONE matching permanent as a
+// cost, no `count`. Unlike `discardFilter` (`{ filter, count }`, issue #901),
+// `sacrificeFilter` was never generalized past count=1. "Never ship partial"
+// keeps the whole card as one unit until that widening lands.
+// tracked-by: #1333 (was #778 — token-ability gap shipped; was also #897 —
+// filter disjunction shipped, see above)
 // export const magdaBrazenOutlaw: CardDefinition = {
 //     id: "079e6263-e54c-4899-a336-5315909b9322",
 //     name: "Magda, Brazen Outlaw",
