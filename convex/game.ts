@@ -133,7 +133,9 @@ import type {
 import {
     assertLegalAction,
     canCastFromGraveyardByPermission,
+    canCastPermanentFromGraveyardByPermission,
     canPlayLandsFromGraveyard,
+    markGraveyardPermanentCastUsed,
     getLegalTargets,
     getPendingTargetSourceColors,
     getPendingTargetSourceTypes,
@@ -1477,6 +1479,25 @@ function findGraveyardGrantCastable(
     return card.castableFromGraveyardBy === player.id ? card : undefined;
 }
 
+/** CR 702.139 (issue #1392, Lurrus of the Dream-Den) — the STATIC,
+ *  battlefield-derived graveyard-permanent-cast permission lookup. Returns
+ *  the card in `player`'s graveyard matching `instanceId` while
+ *  `canCastPermanentFromGraveyardByPermission` covers it, or undefined.
+ *  Never returns a card that already has Flashback/Escape/the broad
+ *  permission/a specific grant — `locateCastSource` checks those first, so
+ *  this is only ever reached for a card with none of them. */
+function findGraveyardPermanentPermissionCastable(
+    state: GameState,
+    player: PlayerState,
+    instanceId: string
+): CardInstanceState | undefined {
+    const card = player.graveyard.find((c) => c.id === instanceId);
+    if (!card) return undefined;
+    return canCastPermanentFromGraveyardByPermission(state, player, card)
+        ? card
+        : undefined;
+}
+
 /** The zone a cast originates from (CR 601.3e). Normally the hand; exile for
  *  Ice Cauldron's noted card; graveyard for a Flashback cast (CR 702.34). */
 type CastFromZone = "hand" | "exile" | "graveyard";
@@ -1486,14 +1507,24 @@ type CastFromZone = "hand" | "exile" | "graveyard";
  *  CR 702.138, or the BROAD graveyard-cast permission, CR 305.1-analog / 601,
  *  issue #1149). A single choke point so every cast-commit site derives the
  *  origin identically. The `card` is undefined when the id isn't castable
- *  from any zone (callers throw "Card not in hand"). Exported so the
- *  flashback integration test can drive the REAL cast-source resolution (no
- *  convex-test harness — issue #944). */
+ *  from any zone (callers throw "Card not in hand"). `viaGraveyardPermanentPermission`
+ *  is set true ONLY when the STATIC graveyard-permanent-cast permission
+ *  (Lurrus, issue #1392) is what supplied this cast — the ordered chain
+ *  below reaches that branch only when no higher-precedence mechanism
+ *  (Flashback/Escape/the broad permission/a specific grant) already claimed
+ *  the card, so the flag unambiguously identifies which permission to debit
+ *  its once-per-turn use against at commit (`markGraveyardPermanentCastUsed`).
+ *  Exported so the flashback integration test can drive the REAL cast-source
+ *  resolution (no convex-test harness — issue #944). */
 export function locateCastSource(
     state: GameState,
     player: PlayerState,
     instanceId: string
-): { card?: CardInstanceState; zone: CastFromZone } {
+): {
+    card?: CardInstanceState;
+    zone: CastFromZone;
+    viaGraveyardPermanentPermission?: true;
+} {
     const inHand = player.hand.find((c) => c.id === instanceId);
     if (inHand) return { card: inHand, zone: "hand" };
     const exile = findCastableExileCard(state, player.id, instanceId);
@@ -1517,6 +1548,22 @@ export function locateCastSource(
     // permission (those branches above already returned).
     const grantCast = findGraveyardGrantCastable(player, instanceId);
     if (grantCast) return { card: grantCast, zone: "graveyard" };
+    // CR 702.139 (issue #1392) — a card castable purely under Lurrus's
+    // STATIC, once-per-turn, permanent-cards-only permission, reached only
+    // when the card has none of Flashback/Escape/the broad permission/a
+    // specific grant (those branches above already returned).
+    const permanentPermissionCast = findGraveyardPermanentPermissionCastable(
+        state,
+        player,
+        instanceId
+    );
+    if (permanentPermissionCast) {
+        return {
+            card: permanentPermissionCast,
+            zone: "graveyard",
+            viaGraveyardPermanentPermission: true,
+        };
+    }
     return { zone: "hand" };
 }
 
@@ -2335,6 +2382,13 @@ export function tryAutoCommitPendingCast(
         }
     }
 
+    // CR 702.139 (issue #1392) — this cast is enabled EXCLUSIVELY by Lurrus's
+    // STATIC graveyard-permanent-cast permission (no higher-precedence
+    // mechanism claimed the card, `locateCastSource`'s ordered chain): debit
+    // its once-per-turn use now, at commit.
+    if (castSource.viaGraveyardPermanentPermission) {
+        markGraveyardPermanentCastUsed(state, playerId);
+    }
     // CR 601.3e / 702.34 — remove from the zone the card was actually cast from
     // (hand, exile for Ice Cauldron's noted card, or graveyard for Flashback).
     const castFromZone = castSource.zone;
@@ -4572,6 +4626,12 @@ export function finalizeTargetSelection(
         if (altHandChoice?.pickedCardIds) {
             payAlternativeCostHandChoice(state, playerId, altHandChoice);
         }
+        // CR 702.139 (issue #1392) — debit Lurrus's once-per-turn use now, at
+        // commit, when it EXCLUSIVELY enabled this cast (see the matching
+        // comment in `tryAutoCommitPendingCast`).
+        if (castSource.viaGraveyardPermanentPermission) {
+            markGraveyardPermanentCastUsed(state, playerId);
+        }
         // issue #1156 — a cross-player exile grant removes from the ACTUAL
         // exile owner, not the caster.
         const card = removeFromZone(
@@ -5591,6 +5651,12 @@ export const announceCast = mutation({
             // CR 107.4f — pay the Phyrexian pips chosen as life as the spell
             // moves to the stack (Phyrexian Metamorph's {U/P} for 2 life).
             if (phyrexianPayLife > 0) player.life -= phyrexianPayLife;
+            // CR 702.139 (issue #1392) — debit Lurrus's once-per-turn use
+            // now, at commit, when it EXCLUSIVELY enabled this cast (see the
+            // matching comment in `tryAutoCommitPendingCast`).
+            if (castSource.viaGraveyardPermanentPermission) {
+                markGraveyardPermanentCastUsed(state, args.playerId);
+            }
             // issue #1156 — a cross-player exile grant removes from the
             // ACTUAL exile owner, not the caster.
             const card = removeFromZone(
@@ -11606,6 +11672,18 @@ export const debugSetupScenario = mutation({
                 opp: v.optional(v.number()),
             })
         ),
+        /** CR 702.139c / ADR 0064 (issue #1392) — directly declare a
+         *  companion into `owner`'s slot, bypassing the normal sideboard/
+         *  maindeck auto-declare (`selectCompanion`, game init) that a
+         *  scenario's synthetic board never runs through. `used: true`
+         *  exercises the "already summoned" state; default `false`. */
+        companion: v.optional(
+            v.object({
+                name: v.string(),
+                owner: v.optional(v.union(v.literal("me"), v.literal("opp"))),
+                used: v.optional(v.boolean()),
+            })
+        ),
     },
     handler: async (ctx, args) => {
         // Admin-only debug board setup (CLAUDE.md privileged-mutation
@@ -11629,7 +11707,12 @@ export const debugSetupScenario = mutation({
         const p1 = state.players[0];
         const p2 = state.players[1];
 
-        // Clear battlefields, hands, graveyards, exile
+        // Clear battlefields, hands, graveyards, exile, and any companion slot
+        // the underlying deck's sideboard auto-declared at game init (CR
+        // 702.139c, ADR 0064) — a scenario is a deterministic full board
+        // reset, so a stale companion from whatever deck started this game
+        // must not leak through. `args.companion` (below) re-declares one
+        // explicitly when the scenario wants to exercise it.
         p1.battlefield = [];
         p2.battlefield = [];
         p1.hand = [];
@@ -11638,6 +11721,8 @@ export const debugSetupScenario = mutation({
         p2.graveyard = [];
         p1.exile = [];
         p2.exile = [];
+        p1.companion = undefined;
+        p2.companion = undefined;
 
         // Helper to create an instance from a card name
         function makeInstance(
@@ -11837,6 +11922,34 @@ export const debugSetupScenario = mutation({
                 p1.library.push(makeInstance(name, p1.id, "library"));
                 p2.library.push(makeInstance(name, p2.id, "library"));
             }
+        }
+
+        // CR 702.139c / ADR 0064 (issue #1392) — directly declare a companion
+        // into the requested slot. Mirrors `buildCompanionInstance`'s shape
+        // (game init) exactly, since the scenario's synthetic board never
+        // runs through `selectCompanion`/the sideboard.
+        if (args.companion) {
+            const companionOwner =
+                args.companion.owner === "opp" ? p2 : p1;
+            const def = getCardByName(args.companion.name);
+            companionOwner.companion = {
+                instance: {
+                    id: allocInstanceId(state),
+                    card: { id: def.id },
+                    types: def.types,
+                    subtypes: def.subtypes ?? [],
+                    power: def.power,
+                    toughness: def.toughness,
+                    staticAbilities: def.staticAbilities ?? [],
+                    controllerId: companionOwner.id,
+                    ownerId: companionOwner.id,
+                    // CR 702.139 — nominal tag only; the companion slot is
+                    // not a real zone (mirrors `buildCompanionInstance`).
+                    zone: "exile" as const,
+                    isTapped: false,
+                },
+                used: args.companion.used ?? false,
+            };
         }
 
         // Mark "me"'s last hand card as drawn this turn (Jandor's Ring's

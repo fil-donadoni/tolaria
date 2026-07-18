@@ -9353,6 +9353,21 @@ export interface CardDefinition {
      *  permission granted to a specific card (Serra Paragon, issue #1149),
      *  which is a per-instance `CardInstanceState` grant, not player-wide. */
     playsLandsFromGraveyard?: boolean;
+    /** CR 702.139 (issue #1392, Lurrus of the Dream-Den) — "Once during each
+     *  of your turns, you may cast a permanent spell with mana value N or
+     *  less from your graveyard." A STATIC, battlefield-derived permission —
+     *  mirrors `playsLandsFromGraveyard`'s shape (read live off the
+     *  battlefield, so it ends the instant the granting source leaves play,
+     *  no stale flag) — but scoped to PERMANENT cards only (never Land,
+     *  never Instant/Sorcery — CR 110.1/300.1, `CASTABLE_PERMANENT_TYPES`),
+     *  capped by `maxManaValue`, AND capped at one use per turn (tracked in
+     *  `GameState.graveyardPermanentCastUsedThisTurn`, cleared at CLEANUP —
+     *  `canCastPermanentFromGraveyardByPermission`, `gre/rules.ts`).
+     *  Distinct from the turn-scoped Op-granted permission
+     *  (`grantGraveyardPlay`/`graveyardPlayPermissionThisTurn`, Yawgmoth's
+     *  Will — CR 305.1-analog/601, issue #1149), which has no once-per-turn
+     *  cap, isn't source-bound, and covers ANY spell (not just permanents). */
+    castsPermanentsFromGraveyard?: { maxManaValue: number };
     /** While ANY permanent with this flag is on the battlefield, no player may
      *  play a land (CR 305.1 special action prohibition) AND a land that would
      *  enter the battlefield from any source is prevented from entering (CR 614
