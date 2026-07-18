@@ -53,9 +53,29 @@ const MOX_DEF = {
     ],
 };
 
+// CR 702.126 — a spell declaring Improvise, for the artifact-tap-affordance
+// tests below. Distinct id from PLAIN_DEF so `hasImprovise` only reads true
+// for a card actually pointed at this definition.
+const IMPROVISE_SPELL_DEF = {
+    id: "improvise-spell-def",
+    name: "Test Improvise Spell",
+    staticAbilities: ["improvise"],
+    staticEffects: [],
+};
+
 vi.mock("@convex/cards", () => ({
-    getDefinition: (id: string) => (id === "mox-def" ? MOX_DEF : PLAIN_DEF),
-    tryGetDefinition: (id: string) => (id === "mox-def" ? MOX_DEF : PLAIN_DEF),
+    getDefinition: (id: string) =>
+        id === "mox-def"
+            ? MOX_DEF
+            : id === "improvise-spell-def"
+              ? IMPROVISE_SPELL_DEF
+              : PLAIN_DEF,
+    tryGetDefinition: (id: string) =>
+        id === "mox-def"
+            ? MOX_DEF
+            : id === "improvise-spell-def"
+              ? IMPROVISE_SPELL_DEF
+              : PLAIN_DEF,
 }));
 
 function creature(overrides: Partial<CardInstance> = {}): CardInstance {
@@ -394,5 +414,170 @@ describe("useBattlefieldVisualState — choose-permanents (untap) selection ring
             "ring-2 ring-accent/40 rounded-sm"
         );
         bufferHolder.ids = [];
+    });
+});
+
+// CR 702.126 — Improvise (issue #1313). An untapped ARTIFACT with no mana
+// ability of its own is a legal alternate payment source for the generic
+// portion of a cast declaring the keyword, even though `hasManaAbility`
+// rejects it outright — that rejection is exactly what admits it into the
+// Improvise branch (`useBattlefieldVisualState.ts`).
+describe("useBattlefieldVisualState — Improvise artifact-tap affordance (CR 702.126, issue #1313)", () => {
+    function artifact(overrides: Partial<CardInstance> = {}): CardInstance {
+        return {
+            id: "art1",
+            card: { id: "plain-def" }, // no mana ability (PLAIN_DEF)
+            controllerId: "me",
+            ownerId: "me",
+            zone: "battlefield",
+            isTapped: false,
+            types: ["Artifact"],
+            subtypes: [],
+            staticAbilities: [],
+            ...overrides,
+        } as CardInstance;
+    }
+
+    function improviseSpellInHand(): CardInstance {
+        return {
+            id: "spell-1",
+            card: { id: "improvise-spell-def" },
+            controllerId: "me",
+            ownerId: "me",
+            zone: "hand",
+            isTapped: false,
+            types: ["Instant"],
+            subtypes: [],
+        } as CardInstance;
+    }
+
+    function nonImproviseSpellInHand(): CardInstance {
+        return {
+            id: "spell-1",
+            card: { id: "plain-def" },
+            controllerId: "me",
+            ownerId: "me",
+            zone: "hand",
+            isTapped: false,
+            types: ["Instant"],
+            subtypes: [],
+        } as CardInstance;
+    }
+
+    function payingCtx(
+        battlefield: CardInstance[],
+        pendingCastOverrides: Record<string, unknown> = {}
+    ) {
+        const spell = improviseSpellInHand();
+        const me: Player = {
+            ...makePlayer("me", battlefield),
+            hand: [spell],
+        };
+        const ctx = {
+            phase: "PRECOMBAT_MAIN",
+            combat: undefined,
+            pendingCast: {
+                playerId: "me",
+                cardInstanceId: "spell-1",
+                manaCost: { U: 1, X: 2 },
+                tappedLandIds: [],
+                improviseTappedArtifactIds: [],
+                ...pendingCastOverrides,
+            },
+        } as unknown as Partial<NonNullable<Ctx>>;
+        return { me, ctx };
+    }
+
+    it("an untapped artifact with generic cost remaining is clickable and interactive", () => {
+        const art = artifact();
+        const { me, ctx } = payingCtx([art]);
+        const { result } = renderVisualState(me, ctx);
+
+        expect(result.current.canInteract(art)).toBe(true);
+        expect(result.current.getVisualState(art).interactive).toBe(true);
+        expect(result.current.getVisualState(art).enabled).toBe(true);
+    });
+
+    it("an untapped artifact is NOT clickable once no generic cost remains", () => {
+        const art = artifact();
+        const { me, ctx } = payingCtx([art], { manaCost: { U: 1 } });
+        const { result } = renderVisualState(me, ctx);
+
+        expect(result.current.canInteract(art)).toBe(false);
+    });
+
+    it("a tapped artifact NOT tapped for Improvise is not clickable (can't be undone this way)", () => {
+        const art = artifact({ isTapped: true });
+        const { me, ctx } = payingCtx([art]);
+        const { result } = renderVisualState(me, ctx);
+
+        expect(result.current.canInteract(art)).toBe(false);
+    });
+
+    it("a tapped artifact that WAS tapped for Improvise this payment is clickable (undo)", () => {
+        const art = artifact({ id: "art1", isTapped: true });
+        const { me, ctx } = payingCtx([art], {
+            improviseTappedArtifactIds: ["art1"],
+        });
+        const { result } = renderVisualState(me, ctx);
+
+        expect(result.current.canInteract(art)).toBe(true);
+    });
+
+    it("a non-artifact permanent (no mana ability) is never offered via the Improvise branch", () => {
+        const notArtifact = artifact({ types: ["Creature"] });
+        const { me, ctx } = payingCtx([notArtifact]);
+        const { result } = renderVisualState(me, ctx);
+
+        expect(result.current.canInteract(notArtifact)).toBe(false);
+    });
+
+    it("no artifact is offered when the spell being cast does NOT declare improvise", () => {
+        const art = artifact();
+        const spell = nonImproviseSpellInHand();
+        const me: Player = { ...makePlayer("me", [art]), hand: [spell] };
+        const ctx = {
+            phase: "PRECOMBAT_MAIN",
+            combat: undefined,
+            pendingCast: {
+                playerId: "me",
+                cardInstanceId: "spell-1",
+                manaCost: { X: 2 },
+                tappedLandIds: [],
+            },
+        } as unknown as Partial<NonNullable<Ctx>>;
+        const { result } = renderVisualState(me, ctx);
+
+        expect(result.current.canInteract(art)).toBe(false);
+    });
+
+    it("an un-imprinted (currently unusable) mox is STILL offered as an Improvise tap — its mana ability isn't currently usable", () => {
+        const mox = moxCard(); // no imprint counter → hasManaAbility() is false
+        const { me, ctx } = payingCtx([mox]);
+        const { result } = renderVisualState(me, ctx);
+
+        expect(result.current.canInteract(mox)).toBe(true);
+    });
+
+    it("an imprinted mox (usable mana ability) routes through the mana branch, not Improvise — tapped-but-unrecorded reads not-clickable", () => {
+        const mox = moxCard({ counters: { "imprint-G": 1 }, isTapped: true });
+        // Tapped, but recorded in NEITHER tappedLandIds (mana branch) NOR
+        // improviseTappedArtifactIds (Improvise branch): if `hasManaAbility`
+        // were false here (routing it through Improvise) it would still be
+        // rejected too, since it's absent from improviseTappedArtifactIds —
+        // proving a mana-capable artifact never falls through to the
+        // Improvise undo path regardless of which list is checked.
+        const { me, ctx } = payingCtx([mox]);
+        const { result } = renderVisualState(me, ctx);
+
+        expect(result.current.canInteract(mox)).toBe(false);
+    });
+
+    it("an imprinted mox tapped and recorded as a mana source (tappedLandIds) reads clickable via the mana branch", () => {
+        const mox = moxCard({ counters: { "imprint-G": 1 }, isTapped: true });
+        const { me, ctx } = payingCtx([mox], { tappedLandIds: ["mox1"] });
+        const { result } = renderVisualState(me, ctx);
+
+        expect(result.current.canInteract(mox)).toBe(true);
     });
 });

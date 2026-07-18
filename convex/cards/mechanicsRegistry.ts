@@ -1772,7 +1772,9 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         name: "Improvise",
         kind: "keyword-ability",
         cr: "702.126",
-        status: "planned",
+        status: "implemented",
+        binding:
+            "Issue #1313 — \"improvise\" static staticAbilities string, generalizing the land-tap payment shape (`PendingCast.tappedLandIds` / `tapForPayment` / `untapForPayment`, game.ts) to artifacts instead of duplicating a parallel Convoke-style mechanism (Convoke itself, CR 702.51, is still `status: \"planned\"` — no existing tap-during-payment machinery to reuse beyond the land-mana one this generalizes). `PendingCast.improviseTappedArtifactIds` (gre/state.ts) tracks taps for rollback; `tapArtifactForImprovise`/`untapArtifactForImprovise` (game.ts) tap/untap an untapped controlled Artifact and directly adjust `pendingCast.manaCost.X` (the normalized generic requirement) by ±1 — the SAME field `applyCostModifiers`'s `reductionGeneric` clamp reduces, so `isManaCostCovered`/`tryAutoCommitPendingCast` need no Improvise-specific branch. `rollbackPendingCast` untaps on cancel/abandon. Client: `useBattlefieldVisualState`/`useBattlefieldInteraction` (src/hooks) offer the tap affordance on the caster's own untapped artifacts during an Improvise cast's payment step, routed through `hasImprovise`/`pendingCastRemainingGeneric` (src/lib/card-utils.ts) — the same view-reducer path the land-tap affordance already uses. Scope note: an artifact that ALSO has a mana ability keeps the existing tap-for-mana left-click as the default (unchanged precedent); Improvise is offered only on artifacts with no mana ability of their own, since the two payment modes on the same click target would need a picker UI the ticket didn't require.",
     },
     // 702.127 Aftermath
     {

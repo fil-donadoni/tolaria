@@ -1,4 +1,4 @@
-import type { CardInstance, ManaPool, Player } from "~/types/game";
+import type { CardInstance, ManaPool, PendingCast, Player } from "~/types/game";
 import type { CardType, Color, ManaCost } from "~/types/cards";
 import type { Phase } from "@convex/gre/types";
 import type {
@@ -46,6 +46,59 @@ export function isCreature(card: CardInstance): boolean {
  *  loyalty badge and mirrors the engine-side `isPlaneswalker`. */
 export function isPlaneswalker(card: CardInstance): boolean {
     return card.types?.includes("Planeswalker") ?? false;
+}
+
+/** CR 702.126 — true iff `card` declares the Improvise keyword. Used both to
+ *  identify the spell currently being cast (`pendingCastHasImprovise` below)
+ *  and, symmetrically, to exclude an Improvise-eligible artifact's OWN cast
+ *  from tapping itself (it isn't on the battlefield yet, so this never
+ *  actually fires — kept general rather than cast-source-specific). */
+export function hasImprovise(card: CardInstance): boolean {
+    return (
+        getDefinition(card.card.id).staticAbilities?.includes("improvise") ??
+        false
+    );
+}
+
+/** The `CardInstance` a `PendingCast` is paying for, searched across every
+ *  zone a cast can originate from (CR 601.3e / 702.34 — hand, an exile
+ *  permission like Ice Cauldron, or a graveyard cast like Flashback/Escape).
+ *  Mirrors the server's `locateCastSource` zone order; `me` is the viewer's
+ *  OWN player object, whose hand is never nulled on the wire. */
+export function pendingCastSourceCard(
+    pendingCast: PendingCast,
+    me: Player | undefined
+): CardInstance | undefined {
+    if (!me) return undefined;
+    const inHand = me.hand.find(
+        (c): c is CardInstance =>
+            c !== null && c.id === pendingCast.cardInstanceId
+    );
+    if (inHand) return inHand;
+    const inExile = me.exile.find((c) => c.id === pendingCast.cardInstanceId);
+    if (inExile) return inExile;
+    return me.graveyard.find((c) => c.id === pendingCast.cardInstanceId);
+}
+
+/** CR 702.126 — true iff the spell `pendingCast` is currently paying for
+ *  declares Improvise. Drives both the artifact-tap affordance
+ *  (`useBattlefieldVisualState`/`useBattlefieldInteraction`) and the
+ *  PaymentBanner subtitle. */
+export function pendingCastHasImprovise(
+    pendingCast: PendingCast,
+    me: Player | undefined
+): boolean {
+    const source = pendingCastSourceCard(pendingCast, me);
+    return !!source && hasImprovise(source);
+}
+
+/** CR 702.126a — generic mana still owed by `pendingCast` (0 once the whole
+ *  generic portion has been paid off, by mana or by Improvise taps). An
+ *  Improvise artifact tap is only ever legal while this is positive — mirrors
+ *  the server's `tapArtifactForImprovise` guard so the client's affordance
+ *  never offers a tap the mutation would reject. */
+export function pendingCastRemainingGeneric(pendingCast: PendingCast): number {
+    return pendingCast.manaCost.X ?? 0;
 }
 
 /** CR 302.1 — a creature with summoning sickness cannot pay the {T} or {Q}
@@ -572,7 +625,12 @@ export function matchesStackObjectFilter(
         delayedTriggerId?: string;
         targets?: { type: string; id: string }[];
     },
-    spellStackKind: "spell" | "activated-ability" | "ability" | "any" | undefined,
+    spellStackKind:
+        | "spell"
+        | "activated-ability"
+        | "ability"
+        | "any"
+        | undefined,
     stackSourceTypeFilter: string[] | undefined,
     spellTargetsInstanceIds: string[] | undefined
 ): boolean {

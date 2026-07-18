@@ -1491,6 +1491,16 @@ export type PendingCast = {
      *  (`tryAutoCommitPendingCast`) can still tag the resulting stack item
      *  `dashed: true` once mana is covered / the pick resolves. */
     dashed?: boolean;
+    /** CR 702.126 — Improvise: ids of untapped artifacts the caster has tapped
+     *  DURING this payment, each paying for {1} of the spell's GENERIC cost
+     *  (only reduces `manaCost.X`/generic, never a colored pip — CR 702.126a).
+     *  Tapping directly decrements `manaCost.X` (mirrors the `reductionGeneric`
+     *  cost-modifier clamp in `applyCostModifiers`) so `isManaCostCovered`
+     *  needs no special-casing; untapping (`untapArtifactForImprovise`) or a
+     *  cancelled/abandoned payment (`rollbackPendingCast`) restores it and
+     *  untaps the artifact. Mirrors `tappedLandIds`'s rollback-tracking shape,
+     *  kept as a separate list since these taps never add to the mana pool. */
+    improviseTappedArtifactIds?: string[];
 };
 
 /** Tracks an in-progress activated-ability payment (CR 602.1, 602.2b).
