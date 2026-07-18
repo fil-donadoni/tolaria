@@ -143,6 +143,13 @@ export const STATIC_EFFECT_CTX: StaticEffectContext = {
         }
         return total;
     },
+    getCounterCount(card: PermanentView, type: string): number {
+        // CR 122.1 — mirrors `SpellContext.getCounterCount` (state.ts) for
+        // static-effect predicates (issue #1318). `card.counters` is the
+        // live per-permanent map; a missing entry means zero counters of
+        // that type, not "unknown".
+        return card.counters?.[type] ?? 0;
+    },
 };
 
 /**

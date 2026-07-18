@@ -3,7 +3,9 @@ import {
     getEffectivePower,
     getEffectiveToughness,
     getStaticPTBuff,
+    STATIC_EFFECT_CTX,
 } from "../layers";
+import type { StaticKeywordGrant } from "../../cards/types";
 import {
     getPlayer,
     resolveTopOfStack,
@@ -755,6 +757,74 @@ describe("counter P/T contributions (CR 613.4d)", () => {
             (c) => c.id === "bear"
         )!;
         expect(getEffectiveToughness(projected, slim)).toBe(0);
+    });
+});
+
+describe("StaticEffectContext.getCounterCount (CR 122.1, issue #1318)", () => {
+    it("reads a permanent's counter count by type, 0 when absent", () => {
+        const bear = makeCard({ id: "bear", types: ["Creature"] });
+        expect(STATIC_EFFECT_CTX.getCounterCount(bear, "stun")).toBe(0);
+        bear.counters = { stun: 2, "+1/+1": 1 };
+        expect(STATIC_EFFECT_CTX.getCounterCount(bear, "stun")).toBe(2);
+        expect(STATIC_EFFECT_CTX.getCounterCount(bear, "+1/+1")).toBe(1);
+        expect(STATIC_EFFECT_CTX.getCounterCount(bear, "charge")).toBe(0);
+    });
+});
+
+describe("layer-6 keyword-grant conditioned on a counter (CR 611/613.1a, issue #1318)", () => {
+    // Proves a `staticEffects[]` entry of kind `keyword-grant` CAN gate its
+    // `applies` predicate on the target's live counter count via the new
+    // `ctx.getCounterCount`, beyond the pre-existing exact-name-match CR
+    // 122.1c auto-grant (`getKeywordCounterGrant` — "a lifelink counter
+    // grants lifelink"): here the counter TYPE ("stun") does not name the
+    // granted keyword ("vigilance") at all, a case #1194's engine-level rule
+    // cannot express and only a card-declared predicate can.
+    const grantVigilanceAtTwoStunCounters: StaticKeywordGrant = {
+        kind: "keyword-grant",
+        applies: (target, source, ctx) =>
+            target.id === source.id &&
+            ctx.getCounterCount(target, "stun") >= 2,
+        keyword: "vigilance",
+    };
+
+    it("applies() is false below the threshold and true at/above it, read live off the current counters", () => {
+        const bear = makeCard({ id: "bear", types: ["Creature"] });
+        expect(
+            grantVigilanceAtTwoStunCounters.applies(
+                bear,
+                bear,
+                STATIC_EFFECT_CTX
+            )
+        ).toBe(false);
+
+        bear.counters = { stun: 1 };
+        expect(
+            grantVigilanceAtTwoStunCounters.applies(
+                bear,
+                bear,
+                STATIC_EFFECT_CTX
+            )
+        ).toBe(false);
+
+        bear.counters = { stun: 2 };
+        expect(
+            grantVigilanceAtTwoStunCounters.applies(
+                bear,
+                bear,
+                STATIC_EFFECT_CTX
+            )
+        ).toBe(true);
+
+        // Live re-evaluation, not a one-time snapshot: dropping back below
+        // the threshold flips the predicate back off.
+        bear.counters = { stun: 1 };
+        expect(
+            grantVigilanceAtTwoStunCounters.applies(
+                bear,
+                bear,
+                STATIC_EFFECT_CTX
+            )
+        ).toBe(false);
     });
 });
 
