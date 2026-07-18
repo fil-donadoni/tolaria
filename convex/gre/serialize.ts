@@ -263,6 +263,12 @@ function compactCard(
     if (card.evoked) {
         out.evoked = card.evoked;
     }
+    // CR 702.109a — the Dash cast marker must survive a save/load between the
+    // cast committing and the "gains haste, returned to hand" trigger
+    // resolving.
+    if (card.dashed) {
+        out.dashed = card.dashed;
+    }
     // CR 106.4 / 202.3 — the persistent per-colour spent-mana record (issue
     // #900) must survive a save/load so a later ETB trigger's condition still
     // reads it correctly after a DB round-trip.
@@ -529,6 +535,10 @@ function expandCard(
     // CR 702.74a — restore the Evoke cast marker.
     if (compact.evoked) {
         result.evoked = compact.evoked as boolean;
+    }
+    // CR 702.109a — restore the Dash cast marker.
+    if (compact.dashed) {
+        result.dashed = compact.dashed as boolean;
     }
     // CR 106.4 / 202.3 — restore the persistent per-colour spent-mana record.
     if (compact.notedManaSpentOnCast) {

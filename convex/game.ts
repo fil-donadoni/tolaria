@@ -2287,6 +2287,11 @@ export function tryAutoCommitPendingCast(
         // marker through `PendingCast.evoked` (set at announcement) so it
         // still lands on the stack item once the picker completes.
         ...(state.pendingCast.evoked ? { evoked: true } : {}),
+        // CR 702.109a — a parked Dash cast (mana payment via `tapForPayment`,
+        // or a real non-mana pick composing with Dash) carries the marker
+        // through `PendingCast.dashed` (set at announcement) so it still
+        // lands on the stack item once mana is covered / the picker completes.
+        ...(state.pendingCast.dashed ? { dashed: true } : {}),
         ...graveyardCastStackFlags(state, spellCard, castFromZone),
     };
     state.stack.push(stackItem);
@@ -4126,6 +4131,13 @@ export function finalizeTargetSelection(
     // "sacrifice this when it enters" trigger (`evokeTrigger`) fires.
     const isEvokeCost =
         chosenAltCost !== undefined && chosenAltCost === cardDef.evoke;
+    // CR 702.109a — the chosen alt cost IS the card's Dash cost (compared by
+    // reference — `getAlternativeCost` resolves `def.dash` for its own id):
+    // the resulting stack item is tagged `dashed: true` below so the "gains
+    // haste, returned to hand at the next end step" trigger (`dashTrigger`)
+    // fires.
+    const isDashCost =
+        chosenAltCost !== undefined && chosenAltCost === cardDef.dash;
 
     // CR 702.34a — a Flashback cast pays the flashback cost from the graveyard
     // instead of the printed mana cost.
@@ -4133,10 +4145,14 @@ export function finalizeTargetSelection(
     const extraPer = cardDef.additionalGenericPerExtraTarget ?? 0;
     const additionalGeneric =
         extraPer > 0 ? Math.max(0, targets.length - 1) * extraPer : 0;
-    // An alternative cost zeroes the mana cost (CR 118.9) so the immediate
-    // commit branch fires and the land cost is paid there instead.
+    // CR 118.9 — an alternative cost REPLACES the printed mana cost with its
+    // own `mana` leg: `{}` (fully zeroed) for a pure non-mana give-up (Gush,
+    // evoke), Dash's own amount (CR 702.109a) for a dash cast. The generic
+    // mana-payment machinery below (pool-coverage check → immediate commit,
+    // else park for `tapForPayment`) is unaffected by WHICH leg produced this
+    // value — it always just pays `manaCost`.
     const manaCost = chosenAltCost
-        ? {}
+        ? normalizeManaCost(chosenAltCost.mana ?? {}, { chosenX })
         : rawCost
           ? normalizeManaCost(rawCost, { chosenX, additionalGeneric })
           : {};
@@ -4334,6 +4350,7 @@ export function finalizeTargetSelection(
                 ? { alternativeCostHandChoice: altHandChoice }
                 : {}),
             ...(isEvokeCost ? { evoked: true } : {}),
+            ...(isDashCost ? { dashed: true } : {}),
         };
         (state.pendingCast as Record<string, unknown>).targets = targets;
         return;
@@ -4412,6 +4429,7 @@ export function finalizeTargetSelection(
                 ? { notedManaSpent: immediateNotedManaSpent }
                 : {}),
             ...(isEvokeCost ? { evoked: true } : {}),
+            ...(isDashCost ? { dashed: true } : {}),
             ...graveyardCastStackFlags(state, card, castZone),
         };
         state.stack.push(stackItem);
@@ -4437,6 +4455,10 @@ export function finalizeTargetSelection(
             // Auto-resolved sacrifice (complete) rides along so the deferred
             // commit applies the chosen ids (CR 701.21a).
             ...(castSac ? { sacrificeSelection: castSac } : {}),
+            // CR 702.109a — a Dash cast whose mana isn't yet covered parks here
+            // like any ordinary cast; `tryAutoCommitPendingCast` reads this back
+            // off `pendingCast.dashed` once `tapForPayment` covers it.
+            ...(isDashCost ? { dashed: true } : {}),
         };
         // Targets ride along on pendingCast until payment completes.
         (state.pendingCast as Record<string, unknown>).targets = targets;
@@ -4786,6 +4808,11 @@ export const announceCast = mutation({
         // "sacrifice this when it enters" trigger fires.
         const isEvokeCost =
             chosenAltCost !== undefined && chosenAltCost === cardDef.evoke;
+        // CR 702.109a — the chosen alt cost IS the card's Dash cost. Tags the
+        // resulting stack item `dashed: true` at commit below so the "gains
+        // haste, returned to hand at the next end step" trigger fires.
+        const isDashCost =
+            chosenAltCost !== undefined && chosenAltCost === cardDef.dash;
 
         // Validate X is provided iff the cost contains a string X (CR 107.3).
         const hasX =
@@ -5034,8 +5061,15 @@ export const announceCast = mutation({
         // `SacrificeSelection` routed through the unified layer — it parks the
         // cast when the choice is real (more matching lands than the count) and
         // resumes via `selectSacrifice`, or auto-resolves + commits immediately
-        // when the choice is forced/fungible.
+        // when the choice is forced/fungible. CR 702.109a — Dash's alt cost
+        // carries a real MANA leg instead (`altManaCost`, `{}` for every other
+        // alt cost here): the immediate-commit branch below is reached only
+        // once that mana is ALSO covered, mirroring the printed-cost pool-
+        // coverage check the normal cast path uses below.
         if (chosenAltCost) {
+            const altManaCost = normalizeManaCost(chosenAltCost.mana ?? {}, {
+                chosenX,
+            });
             const altChoice = buildAlternativeCostChoice(
                 state,
                 args.playerId,
@@ -5053,15 +5087,28 @@ export const announceCast = mutation({
                 !isSacrificeSelectionComplete(altChoice);
             const parkHand =
                 altHandChoice !== undefined && !altHandChoice.pickedCardIds;
-            if (parkPerm || parkHand) {
-                // Park with a zeroed mana cost (the alt cost replaces mana): the
-                // commit gate in tryAutoCommitPendingCast fires once the pick is
-                // complete, applying the return / sacrifice / exile / discard
-                // (and life) through the same path.
+            const altManaCovered =
+                Object.keys(altManaCost).length === 0 ||
+                isManaCostCovered(
+                    spendablePoolForSpell(
+                        player,
+                        cardDef.types,
+                        args.cardInstanceId
+                    ),
+                    altManaCost,
+                    getManaSubstitutions(state, player.id)
+                );
+            if (parkPerm || parkHand || !altManaCovered) {
+                // Park with the alt cost's mana leg (zeroed for every existing
+                // zero-mana alt cost, Dash's own amount otherwise): the commit
+                // gate in tryAutoCommitPendingCast fires once mana is covered
+                // (via `tapForPayment`) AND the pick (if any) is complete,
+                // applying the return / sacrifice / exile / discard (and life)
+                // through the same path.
                 state.pendingCast = {
                     playerId: args.playerId,
                     cardInstanceId: args.cardInstanceId,
-                    manaCost: {},
+                    manaCost: altManaCost,
                     tappedLandIds: [],
                     keepPriority: args.keepPriority,
                     chosenX,
@@ -5074,6 +5121,7 @@ export const announceCast = mutation({
                         ? { alternativeCostHandChoice: altHandChoice }
                         : {}),
                     ...(isEvokeCost ? { evoked: true } : {}),
+                    ...(isDashCost ? { dashed: true } : {}),
                 };
                 await saveGameState(
                     ctx,
@@ -5084,7 +5132,18 @@ export const announceCast = mutation({
                 );
                 return;
             }
-            // Forced/fungible choice: apply it now and commit.
+            // Forced/fungible choice AND mana already covered: pay + apply +
+            // commit now.
+            if (Object.keys(altManaCost).length > 0) {
+                payManaCostForSpell(
+                    player,
+                    altManaCost,
+                    cardDef.types,
+                    getManaSubstitutions(state, player.id),
+                    args.cardInstanceId
+                );
+                commitLandsForCost(player, altManaCost);
+            }
             if (altChoice) sacrificeSnapshotFromSelection(altChoice, state);
             if (altHandChoice?.pickedCardIds) {
                 payAlternativeCostHandChoice(
@@ -5109,6 +5168,7 @@ export const announceCast = mutation({
                     ? { chosenModeId: args.chosenModeId }
                     : {}),
                 ...(isEvokeCost ? { evoked: true } : {}),
+                ...(isDashCost ? { dashed: true } : {}),
             };
             state.stack.push(stackItem);
             state.passCount = 0;

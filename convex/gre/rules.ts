@@ -390,10 +390,17 @@ export function getLegalActions(
             // "cast" is absent.
             castProhibitionReason(caster.id, card, state) === undefined &&
             // CR 118.9 — the mana cost is payable, OR the caster can afford an
-            // ALTERNATIVE cost (Gush/Thwart return Islands, Fireblast sacrifices
-            // Mountains) that replaces the mana cost entirely.
+            // ALTERNATIVE cost that replaces the mana cost entirely: a pure
+            // non-mana give-up (Gush/Thwart return Islands, Fireblast
+            // sacrifices Mountains — `alt.mana` absent, `?? {}` is always
+            // affordable) OR a DIFFERENT mana amount (CR 702.109 Dash — `.some`
+            // re-checks each offered variant's `mana` leg through the SAME
+            // solver the printed cost uses, so a dash-cost creature is castable
+            // even when its printed cost is not).
             (canPotentiallyPayCost(caster, card) ||
-                affordableAlternativeCosts(state, caster, card).length > 0) &&
+                affordableAlternativeCosts(state, caster, card).some((alt) =>
+                    canPotentiallyPayCost(caster, card, alt.mana ?? {})
+                )) &&
             hasEnoughLegalTargets(state, caster, card) &&
             hasPayableAdditionalCost(caster, card)
         ) {
