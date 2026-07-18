@@ -1985,7 +1985,9 @@ export const OP_EXECUTORS: {
                     ? { type: c.type, count: n }
                     : undefined;
             })
-            .filter((c): c is { type: string; count: number } => c !== undefined);
+            .filter(
+                (c): c is { type: string; count: number } => c !== undefined
+            );
         const token: TokenSpec = {
             ...restToken,
             ...(resolvedCounters && resolvedCounters.length > 0

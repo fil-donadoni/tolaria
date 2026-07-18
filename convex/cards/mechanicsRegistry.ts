@@ -348,7 +348,7 @@ const KEYWORD_ACTIONS: MechanicRow[] = [
         kind: "keyword-action",
         cr: "701.27",
         status: "implemented",
-        binding: "SpellContext.transform / EffectOp \"transform\"",
+        binding: 'SpellContext.transform / EffectOp "transform"',
         note: "Permanent-level transform machinery (CR 712 double-faced permanents, issue #1210, ADR 0067): a `backFace` spec on `CardDefinition`/`TokenSpec`, a `transformed`/`transformedFrom` face-flag pair on `CardInstanceState`, the pure `transformPermanent` mutator (`gre/transform.ts`, mirrors `faceDown.ts`'s definition-swap pattern), and the `transform` Effect Op. Scoped to a permanent ALREADY on the battlefield transforming in place (a paid activated-ability cost, e.g. the Incubator's \"{2}: Transform this artifact\"); a full two-sided-card CASTING model (choosing a face to cast, per-face mana cost, CR 711) is out of scope.",
     },
     // 701.28 Convert

@@ -7167,9 +7167,7 @@ describe("Effect Script Op: transform (CR 701.27 / 712, issue #1210, ADR 0067)",
         });
         pushSpell(state, id, "p1", [{ type: "permanent", id: "tb1" }]);
         expect(() => resolveTopOfStack(state)).not.toThrow();
-        const still = state.players[1].battlefield.find(
-            (c) => c.id === "tb1"
-        )!;
+        const still = state.players[1].battlefield.find((c) => c.id === "tb1")!;
         expect(still.transformed).toBeUndefined();
     });
 

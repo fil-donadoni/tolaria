@@ -38,7 +38,11 @@
  * the swapped `card.card.id` (no name/art) the moment a permanent transforms.
  */
 
-import { registerTokenDefinition, tokenDefinitionId, tryGetDefinition } from "../cards";
+import {
+    registerTokenDefinition,
+    tokenDefinitionId,
+    tryGetDefinition,
+} from "../cards";
 import type { CardBackFace, ManaCost, TokenSpec } from "../cards/types";
 import type { CardInstanceState } from "./state";
 

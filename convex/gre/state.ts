@@ -12634,7 +12634,8 @@ export function createTokenPermanents(
             const counters: Record<string, number> = {};
             for (const entry of entersWithCounters) {
                 if (entry.count <= 0) continue;
-                counters[entry.type] = (counters[entry.type] ?? 0) + entry.count;
+                counters[entry.type] =
+                    (counters[entry.type] ?? 0) + entry.count;
             }
             if (Object.keys(counters).length > 0) token.counters = counters;
         }
