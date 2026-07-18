@@ -47,3 +47,9 @@ Enduring renewal non mostra l'intero oracle text in card-preview
 La seconda abilità di currency converter non mi mostra le carte esiliate con lei all'interno del dialog di scelta, non posso selezionare niente.
 
 UI dei counters sulle carte da migliorare e adeguare alla grafica generale
+
+L'abilità di end step di sneak attack va sullo stack con l'immagine della carta intera, invece che con la full-art con sotto l'oracle text dell'abilità. Cerca tutti gli altri casi simili e risolvi alla radice.
+
+L'abilità di Dark Confidant non ha bisogno del box di spostamento della carta, deve andare in mano per forza. viene rivelata automaticamente, spostata in mano e il controllore perde i punti vita. niente scelte, niente box intermedi.
+
+L'abilità di attacco di Phelia non dovrebbe targettare prima di andare in pila?

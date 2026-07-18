@@ -222,6 +222,14 @@ _Avoid_: Time-out, fading (they are distinct keywords)
 **Time Counter**:
 The named counter **Vanishing** places on a **Permanent**; its removal to zero is the trigger condition for the vanishing sacrifice. A plain object counter, not a player resource like a **Poison Counter**.
 
+**Rebound**:
+A **Keyword** ability (CR 702.88) on an instant or sorcery: if the spell was **Cast** from its owner's hand it is exiled as it **Resolves** (instead of going to the graveyard), creating a **Delayed Triggered Ability** — "at the beginning of your next upkeep, you may cast this card from exile without paying its mana cost." The recast is optional; declining leaves the card in exile permanently (never the graveyard, CR 702.88c). Only the hand-cast rebounds — the exile recast is not from hand, so it resolves to the graveyard with no second rebound (CR 702.88d). The upkeep cast window reuses the **Madness** reflexive Cast/Decline shape.
+_Avoid_: Flashback (that recasts from the graveyard, rebound from exile), buyback, recur
+
+**Blink** (a.k.a. **Flicker**):
+An effect that exiles a **Permanent** and returns it to the **Battlefield** as a brand-new object — summoning sickness reset, counters and attachments lost, enters-the-battlefield triggers refired. **Blink** returns it _immediately_, in the same **Resolve** (Ephemerate, Cloudshift); **Flicker** returns it _later_, via a **Delayed Triggered Ability** at a set timing (next end step — Liberate, Flickerwisp). Same exile-then-return shape over different return timing; contrast **Bounce** (return to hand) and reanimation (graveyard→battlefield).
+_Avoid_: Bounce, reanimate, phase out
+
 **Text Change**:
 A continuous effect that rewrites a word in a card's text — a basic land type (Magical Hack) or a color word (Sleight of Mind) — lasting indefinitely until the object changes **Zone** (CR 612). Because the engine has no runtime text, a text change is modelled as a **Word Substitution** applied to structured data, not to prose.
 _Avoid_: Text edit, rename

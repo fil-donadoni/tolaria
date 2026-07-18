@@ -22,9 +22,9 @@ export default function CounterBadges({ card }: { card: CardInstance }) {
                     key={c.type}
                     className={`${TONE_CLASS[c.tone]} px-2 py-1 rounded-full text-sm font-bold text-white leading-none flex flex-col items-center gap-0.5 drop-shadow-[0_0_2px_rgba(0,0,0,0.9)]`}
                 >
-                    {/* <span>{c.short}</span> */}
+                    <span>{c.short}</span>
                     {c.count > 1 && (
-                        <span className="opacity-80">{c.count}</span>
+                        <span className="opacity-80">×{c.count}</span>
                     )}
                 </div>
             ))}
