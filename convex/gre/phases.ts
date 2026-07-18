@@ -2542,6 +2542,12 @@ function tickAllDurations(state: GameState): void {
     for (const p of state.players) {
         for (const card of p.battlefield) {
             if (!card.animation) continue;
+            // CR 611.2b — an animation with no stored `duration` is INDEFINITE
+            // (Earthbend N's "becomes a 0/0 creature ... that's still a land",
+            // issue #1317): it never auto-reverts at a phase boundary, only
+            // when the permanent itself leaves the battlefield (a fresh object,
+            // CR 400.7, drops `card.animation` entirely — see `state.ts`).
+            if (!card.animation.duration) continue;
             const next = tickDuration(card.animation.duration, view);
             if (next === null) {
                 revertAnimation(card);

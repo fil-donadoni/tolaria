@@ -1074,7 +1074,22 @@ export interface AnimateSpec {
      *  (CR 208.2, 611.1). Only types not already present are added, and the
      *  revert removes exactly those that were added. */
     additionalTypes?: CardType[];
-    duration: DurationSpec;
+    /** Keyword static abilities granted as part of becoming a creature
+     *  (Earthbend N's "becomes a 0/0 creature with haste", issue #1317). Applied
+     *  via the SAME no-duration channel as `SpellContext.grantStaticAbilityPermanent`
+     *  (CR 611.2c) — idempotent, and NOT spliced back out when a temporary
+     *  animation (`duration` set) reverts; only leaving the battlefield clears
+     *  a permanent's granted abilities. No card in scope combines a temporary
+     *  animation with a granted ability, so this asymmetry is unexercised but
+     *  documented. */
+    grantedAbilities?: string[];
+    /** Phase boundary at which the animation reverts (CR 611.2, Mishra's
+     *  Factory's "until end of turn"). OMITTED means the animation is
+     *  INDEFINITE (CR 611.2b) — it never auto-reverts at a phase boundary and
+     *  lasts for as long as the permanent stays this same object on the
+     *  battlefield (Earthbend N: "becomes a 0/0 creature ... that's still a
+     *  land", no duration clause in the reminder text). */
+    duration?: DurationSpec;
 }
 
 // --- Permanent filter (shared by sweeper primitives) ---
@@ -7411,6 +7426,33 @@ export type EffectOp =
           op: "addSubtype";
           target: EffectObjectSelector;
           subtype: string;
+      }
+    /** CR 208.2 / 611.1 (issue #1317) — turns a permanent into a creature with
+     *  the given base P/T, optionally adding a subtype / extra card types /
+     *  permanently-granted keyword abilities, for `duration` (a temporary
+     *  Mishra's-Factory-style animation) or INDEFINITELY when `duration` is
+     *  omitted (CR 611.2b — Earthbend N's "Target land you control becomes a
+     *  0/0 creature with haste that's still a land"). A thin declarative skin
+     *  over the SpellContext primitive `animateAsCreature`, one execution path
+     *  (ADR 0045). `target` is an announced target slot, the resolving source
+     *  (`$source`), or the current member of a `forEach` set (`{ ref:
+     *  "$each" }`). `power`/`toughness` are the animation's BASE stats (layer
+     *  7a) — a later +1/+1 counter (the `counters` Op) or static buff still
+     *  applies on top at read time (CR 613.4). Skipped when the target is gone
+     *  (CR 608.2b) or already animated by a DIFFERENT still-active `animate`
+     *  effect (the primitive's "one animation at a time" guard — `subtype` /
+     *  `additionalTypes` for the SECOND application no-op, but
+     *  `grantedAbilities` still apply, matching Earthbend N re-applied to an
+     *  already-earthbent land). */
+    | {
+          op: "animate";
+          target: EffectObjectSelector;
+          power: number;
+          toughness: number;
+          subtype?: string;
+          additionalTypes?: CardType[];
+          grantedAbilities?: string[];
+          duration?: DurationSpec;
       }
     /** CR 701.20 (issue #844) — shuffle a player's library. A thin declarative
      *  skin over the SpellContext primitive `shuffleLibrary`, one execution

@@ -480,7 +480,12 @@ export type CardInstanceState = {
          *  or already present). Exactly one occurrence is spliced out on
          *  expiry. */
         addedSubtype?: string;
-        duration: Duration;
+        /** Omitted for an INDEFINITE animation (CR 611.2b, `AnimateSpec.duration`
+         *  unset — Earthbend N): the phase-boundary purge (`tickAllDurations`,
+         *  phases.ts) skips any entry with no `duration`, so it never reverts on
+         *  its own; only the permanent leaving the battlefield (a fresh object,
+         *  CR 400.7) clears it. */
+        duration?: Duration;
     };
     /** Temporary P/T modifications scoped to a phase boundary (CR 611.1,
      *  611.2). Pushed by `addTemporaryPTBuff` ("until end of turn" /
@@ -9840,38 +9845,69 @@ export function buildSpellContext(
             const found = findOnBattlefield(state, target.id);
             if (!found) return;
             const card = found.card;
-            if (card.animation) return; // already animated — one at a time
-            const addedCreatureType = !card.types.includes("Creature");
-            // CR 208.2, 611.1: add only the types this animation grants that
-            // aren't already present, so the end-of-turn revert removes
-            // exactly what was added (e.g. Mishra's Factory gains "Artifact").
-            const addedTypes = (spec.additionalTypes ?? []).filter(
-                (t) => t !== "Creature" && !card.types.includes(t)
-            );
-            const addedSubtype =
-                spec.subtype !== undefined &&
-                !card.subtypes.includes(spec.subtype)
-                    ? spec.subtype
-                    : undefined;
-            card.animation = {
-                savedPower: card.power,
-                savedToughness: card.toughness,
-                addedCreatureType,
-                addedTypes: addedTypes.length > 0 ? addedTypes : undefined,
-                addedSubtype,
-                duration: resolveDuration(spec.duration, item.castById, state),
-            };
-            const newTypes = [...card.types];
-            if (addedCreatureType) {
-                newTypes.push("Creature");
+            if (!card.animation) {
+                // already animated — one at a time (type/P-T shape below is
+                // skipped on a SECOND application; `grantedAbilities` below
+                // still applies, matching Earthbend N re-applied to an
+                // already-earthbent land — see the `animate` Op doc comment).
+                const addedCreatureType = !card.types.includes("Creature");
+                // CR 208.2, 611.1: add only the types this animation grants
+                // that aren't already present, so the revert removes exactly
+                // what was added (e.g. Mishra's Factory gains "Artifact").
+                const addedTypes = (spec.additionalTypes ?? []).filter(
+                    (t) => t !== "Creature" && !card.types.includes(t)
+                );
+                const addedSubtype =
+                    spec.subtype !== undefined &&
+                    !card.subtypes.includes(spec.subtype)
+                        ? spec.subtype
+                        : undefined;
+                card.animation = {
+                    savedPower: card.power,
+                    savedToughness: card.toughness,
+                    addedCreatureType,
+                    addedTypes: addedTypes.length > 0 ? addedTypes : undefined,
+                    addedSubtype,
+                    // CR 611.2b — omitted `spec.duration` means an INDEFINITE
+                    // animation (Earthbend N): no `Duration` is stored, so the
+                    // phase-boundary purge (`tickAllDurations`) never reverts it.
+                    duration: spec.duration
+                        ? resolveDuration(spec.duration, item.castById, state)
+                        : undefined,
+                };
+                const newTypes = [...card.types];
+                if (addedCreatureType) {
+                    newTypes.push("Creature");
+                }
+                newTypes.push(...addedTypes);
+                card.types = newTypes;
+                if (addedSubtype !== undefined) {
+                    card.subtypes = [...card.subtypes, addedSubtype];
+                }
+                card.power = spec.power;
+                card.toughness = spec.toughness;
             }
-            newTypes.push(...addedTypes);
-            card.types = newTypes;
-            if (addedSubtype !== undefined) {
-                card.subtypes = [...card.subtypes, addedSubtype];
+            // CR 611.2c — keyword abilities an animate effect grants as part of
+            // "becomes a creature with [keyword]" (Earthbend N's haste) persist
+            // independent of the animation's own duration, mirroring
+            // `grantStaticAbilityPermanent`: idempotent, cleared only when the
+            // permanent leaves the battlefield. Applied unconditionally (even
+            // when `card.animation` was already set above) so a second
+            // earthbend-style application still (re)grants the keyword.
+            if (spec.grantedAbilities) {
+                for (const ability of spec.grantedAbilities) {
+                    if (!card.staticAbilities.includes(ability)) {
+                        card.staticAbilities = [
+                            ...card.staticAbilities,
+                            ability,
+                        ];
+                        card.grantedStaticAbilities = [
+                            ...(card.grantedStaticAbilities ?? []),
+                            { ability },
+                        ];
+                    }
+                }
             }
-            card.power = spec.power;
-            card.toughness = spec.toughness;
         },
         // CR 603.7a: queues a delayed triggered ability. On the template
         // path the resolve body lives on the scheduling card's def and is
