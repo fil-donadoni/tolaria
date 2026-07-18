@@ -322,6 +322,43 @@ export function getLegalActions(
         return actions;
     }
 
+    // CR 601.3e / 117.6-analog (issue #1344) — a NON-LAND card in the
+    // player's OWN graveyard tagged with a per-card cast grant (Malcolm,
+    // Alluring Scoundrel: "you may cast the discarded card without paying
+    // its mana cost") is castable from there — for FREE when
+    // `castFromGraveyardWithoutPayingManaCost` rides the grant, else for its
+    // normal printed cost (no shipped card uses the permission-only shape
+    // yet, but the branch mirrors `grantCastFromExile`'s dual usage for
+    // free). Distinct from the BROAD `isPermissionCast` branch above — this
+    // is a SPECIFIC-CARD grant (`grantCastFromGraveyard`), only reached when
+    // neither Flashback, Escape, nor the broad permission already claimed
+    // this card (those branches return first). Always same-player — a
+    // graveyard grant has no cross-player shape (`castZoneOwner`'s doc,
+    // `convex/game.ts`), so `casterId` (defaulting to `player.id`) is
+    // checked directly against the grant. This branch fully owns the "cast"
+    // decision for the granted card, exactly like the exile equivalent
+    // (`isFreeExileCast`) below.
+    const isGraveyardGrantCast =
+        !types.includes("Land") &&
+        player.graveyard.some((c) => c.id === card.id) &&
+        card.castableFromGraveyardBy === casterId;
+    if (isGraveyardGrantCast) {
+        const baseLegal = hasInstantSpeed(card) ? true : isSorceryTiming(state);
+        const costOverride = card.castFromGraveyardWithoutPayingManaCost
+            ? {}
+            : (getInstanceManaCost(card) ?? {});
+        if (
+            baseLegal &&
+            passesCastPhaseRestriction(state, card) &&
+            castProhibitionReason(caster.id, card, state) === undefined &&
+            canPotentiallyPayCost(caster, card, costOverride) &&
+            hasEnoughLegalTargets(state, caster, card)
+        ) {
+            actions.push("cast");
+        }
+        return actions;
+    }
+
     // CR 702.35d — a card in the player's OWN exile that was discarded via
     // Madness is castable from there for its madness cost. The madness cast
     // window is instant-speed (the reflexive trigger can resolve on any player's

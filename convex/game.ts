@@ -1413,6 +1413,26 @@ function findGraveyardPermissionCastable(
         : undefined;
 }
 
+/** Per-card cast-from-graveyard grant lookup (CR 601.3e / 117.6-analog,
+ *  issue #1344 — Malcolm, Alluring Scoundrel: "you may cast the discarded
+ *  card without paying its mana cost"). Returns the NON-LAND card in
+ *  `player`'s graveyard matching `instanceId` while it carries
+ *  `castableFromGraveyardBy === player.id`, or undefined. Distinct from
+ *  `findGraveyardPermissionCastable` above (the BROAD, turn-scoped
+ *  permission) — this is a SPECIFIC-CARD grant, always same-player (no
+ *  cross-player graveyard-cast primitive exists, `castZoneOwner`'s doc
+ *  below). Never returns a card that already has Flashback/Escape/the
+ *  broad permission — `locateCastSource` checks those first, so this is
+ *  only ever reached for a card with none of them. */
+function findGraveyardGrantCastable(
+    player: PlayerState,
+    instanceId: string
+): CardInstanceState | undefined {
+    const card = player.graveyard.find((c) => c.id === instanceId);
+    if (!card || card.types.includes("Land")) return undefined;
+    return card.castableFromGraveyardBy === player.id ? card : undefined;
+}
+
 /** The zone a cast originates from (CR 601.3e). Normally the hand; exile for
  *  Ice Cauldron's noted card; graveyard for a Flashback cast (CR 702.34). */
 type CastFromZone = "hand" | "exile" | "graveyard";
@@ -1447,6 +1467,12 @@ export function locateCastSource(
         instanceId
     );
     if (permissionCast) return { card: permissionCast, zone: "graveyard" };
+    // CR 601.3e / 117.6-analog (issue #1344) — a card castable purely under a
+    // SPECIFIC-CARD graveyard-cast grant (Malcolm, Alluring Scoundrel),
+    // reached only when the card has none of Flashback/Escape/the broad
+    // permission (those branches above already returned).
+    const grantCast = findGraveyardGrantCastable(player, instanceId);
+    if (grantCast) return { card: grantCast, zone: "graveyard" };
     return { zone: "hand" };
 }
 
@@ -1464,16 +1490,19 @@ export function flashbackStackFlags(zone: CastFromZone): {
         : {};
 }
 
-/** CR 702.34 / 702.138 / 305.1-analog — the stack-item flags a graveyard cast
- *  adds, choosing between Escape, Flashback, and the BROAD graveyard-cast
- *  permission by the card's live capability:
+/** CR 702.34 / 702.138 / 305.1-analog / 117.6-analog — the stack-item flags a
+ *  graveyard cast adds, choosing between Escape, Flashback, and every OTHER
+ *  graveyard-cast mechanism by the card's live capability:
  *   - Escape (CR 702.138e): `castFromGraveyard` + `escaped` — the resulting
  *     permanent escaped. NO `exileOnResolve` (the card resolves normally).
  *   - Flashback (CR 702.34a): `castFromGraveyard` + `exileOnResolve` — the card
  *     is exiled as it leaves the stack.
- *   - Permission cast (CR 305.1-analog / 601, issue #1149, Yawgmoth's Will):
+ *   - Permission cast (CR 305.1-analog / 601, issue #1149, Yawgmoth's Will)
+ *     OR a per-card grant (issue #1344, Malcolm, Alluring Scoundrel):
  *     `castFromGraveyard` only — the card resolves and lands in the graveyard
- *     normally, exactly like a hand cast, no exile / no `escaped`.
+ *     normally, exactly like a hand cast, no exile / no `escaped`. Both share
+ *     this same fallback branch — a granted card is never also Flashback/
+ *     Escape in practice, so no extra disambiguation is needed.
  *  A non-graveyard cast adds nothing. Exported for the escape integration test. */
 export function graveyardCastStackFlags(
     state: GameState,
@@ -1487,10 +1516,11 @@ export function graveyardCastStackFlags(
     if (hasFlashback(card)) {
         return flashbackStackFlags(zone);
     }
-    // CR 305.1-analog / 601 (issue #1149) — neither Escape nor Flashback: this
-    // is a plain cast under the BROAD graveyard-cast permission (Yawgmoth's
-    // Will). No exile-on-resolve, no `escaped` — the card resolves and lands
-    // in the graveyard exactly like any other spell (CR 608.2m).
+    // CR 305.1-analog / 601 (issue #1149) / 117.6-analog (issue #1344) —
+    // neither Escape nor Flashback: this is a plain cast under the BROAD
+    // graveyard-cast permission (Yawgmoth's Will) or a per-card grant
+    // (Malcolm). No exile-on-resolve, no `escaped` — the card resolves and
+    // lands in the graveyard exactly like any other spell (CR 608.2m).
     return { castFromGraveyard: true };
 }
 
@@ -1522,6 +1552,17 @@ export function castRawManaCost(
         return getMadnessCost(card) ?? {};
     }
     if (zone !== "graveyard") return getInstanceManaCost(card);
+    // CR 601.3e / 117.6-analog (issue #1344) — Malcolm, Alluring Scoundrel's
+    // "cast the discarded card without paying its mana cost" free-cast
+    // waiver: this specific graveyard-sourced card was granted a cost-free
+    // cast (`SpellContext.grantCastFromGraveyard`'s `withoutPayingManaCost`
+    // option). Checked BEFORE Escape/Flashback/the broad permission below —
+    // the free-cast waiver wins if a card somehow carried more than one
+    // marker, since "no cost is required" is stronger than any specific
+    // alternative cost (mirrors the exile branch's own precedence above).
+    if (card.castFromGraveyardWithoutPayingManaCost) {
+        return {};
+    }
     // CR 702.138a — an escape cast pays the escape mana cost; a card never has
     // both escape and flashback, so this preference is unambiguous.
     if (hasEscape(state, card)) return getEscapeManaCost(state, card);

@@ -237,6 +237,25 @@ function compactCard(
     if (card.exiledBySourceId) {
         out.exiledBySourceId = card.exiledBySourceId;
     }
+    // CR 601.3e / 117.6-analog (issue #1344) — Malcolm, Alluring Scoundrel's
+    // per-card cast-from-graveyard grant on a graveyard card, mirroring
+    // `castableFromExileBy` above.
+    if (card.castableFromGraveyardBy) {
+        out.castableFromGraveyardBy = card.castableFromGraveyardBy;
+    }
+    // CR 514.2 / 608.2g — the turn-scoped expiry marker for the graveyard
+    // grant's impulse window must survive a save/load so the cleanup
+    // revocation fires on the right turn.
+    if (card.castableFromGraveyardUntilTurn !== undefined) {
+        out.castableFromGraveyardUntilTurn =
+            card.castableFromGraveyardUntilTurn;
+    }
+    // CR 601.3e / 117.6-analog (issue #1344) — Malcolm's free-cast waiver
+    // rides `castableFromGraveyardBy`'s permission window and must survive a
+    // save/load the same way.
+    if (card.castFromGraveyardWithoutPayingManaCost) {
+        out.castFromGraveyardWithoutPayingManaCost = true;
+    }
     // CR 702.34 — an instance-level Flashback grant (Snapcaster Mage) on a
     // graveyard card must survive a save/load until it expires at cleanup.
     if (card.grantedFlashback) {
@@ -515,6 +534,17 @@ function expandCard(
     }
     if (compact.exiledBySourceId) {
         result.exiledBySourceId = compact.exiledBySourceId as string;
+    }
+    if (compact.castableFromGraveyardBy) {
+        result.castableFromGraveyardBy =
+            compact.castableFromGraveyardBy as string;
+    }
+    if (compact.castableFromGraveyardUntilTurn !== undefined) {
+        result.castableFromGraveyardUntilTurn =
+            compact.castableFromGraveyardUntilTurn as number;
+    }
+    if (compact.castFromGraveyardWithoutPayingManaCost) {
+        result.castFromGraveyardWithoutPayingManaCost = true;
     }
     if (compact.grantedFlashback) {
         result.grantedFlashback =

@@ -663,6 +663,12 @@ describe("game_state serialize round-trip", () => {
         // #698 (CR 702.35c) — the madness-exile marker on a discarded-and-exiled
         // card must survive a save/load so the cast window + cleanup sweep hold.
         lion.madnessExiled = true;
+        // issue #1344 (CR 601.3e / 117.6-analog) — Malcolm, Alluring
+        // Scoundrel's per-card cast-from-graveyard grant, mirroring the
+        // exile grant's three fields above.
+        lion.castableFromGraveyardBy = "p1";
+        lion.castableFromGraveyardUntilTurn = 9;
+        lion.castFromGraveyardWithoutPayingManaCost = true;
 
         const expanded = expandState(compactState(state));
         const got = expanded.players[1].battlefield[0];
@@ -761,6 +767,9 @@ describe("game_state serialize round-trip", () => {
         expect(got.castableFromExileUntilTurn).toBe(7);
         expect(got.castFromExileWithoutPayingManaCost).toBe(true);
         expect(got.madnessExiled).toBe(true);
+        expect(got.castableFromGraveyardBy).toBe("p1");
+        expect(got.castableFromGraveyardUntilTurn).toBe(9);
+        expect(got.castFromGraveyardWithoutPayingManaCost).toBe(true);
     });
 
     it("preserves phasedOut bundles across the round trip (CR 702.26)", () => {
