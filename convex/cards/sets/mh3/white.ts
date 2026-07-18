@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition } from "../../types";
+import type { CardDefinition, SpellContext } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 
 // Guide of Souls — {W} Creature — Human Cleric, 1/2 (MH3, issue #1194).
@@ -95,6 +95,151 @@ export const guideOfSouls: CardDefinition = {
                     ],
                 },
             ],
+        },
+    ],
+};
+
+const PHELIA_ID = "55707746-da6e-46e5-a5ca-7ac843fdc38e";
+
+// Phelia, Exuberant Shepherd — {1}{W} Legendary Creature — Dog, 2/2, Flash
+// (MH3, issue #1320, parent #917 — cube FREE +1/+1 counters). "Flash.
+// Whenever Phelia attacks, exile up to one other target nonland permanent.
+// At the beginning of the next end step, return that card to the
+// battlefield under its owner's control. If it entered under your control,
+// put a +1/+1 counter on Phelia."
+//
+// PROTOCOL (flicker idiom, precedent Flickerwisp eve/white.ts / Liberate
+// inv/white.ts): the DSL `moveZone` Op has no exile-zone branch
+// (`resolveObjectRef` is battlefield-scoped once a card is exiled — see
+// Flickerwisp's own audit note), so the attack trigger composes shipped
+// SpellContext primitives directly, reusing the SAME established idiom:
+// `requestChoice` substitutes for the "another target" pick (ADR 0002 —
+// TriggeredAbility has no dynamic `getTargetRequirement(source)` hook the
+// way ActivatedAbility does, so the candidate list is filtered to exclude
+// self/lands instead, mirroring Flickerwisp exactly), then `exile` +
+// `scheduleDelayedTrigger("next-end-step")` + a card-level `delayedTriggers[]`
+// entry that calls `returnToBattlefield(owner, id, "exile")` — the identical
+// schedule/fire pair Flickerwisp and Liberate already ship.
+//
+// NEW for this card (issue #1320 — the delayed-trigger controller/owner
+// branch): the delayed trigger's payload additionally captures the ATTACK
+// trigger's controller (`casterControllerId` — "you" in the oracle text,
+// i.e. Phelia's controller at the moment the ability triggered, CR 603.7a
+// fixes the delayed ability's controller at scheduling) and Phelia's own
+// battlefield instance id (`sourceId` — a delayed trigger's fired stack item
+// carries the CARD-DEFINITION id as `card.id`, not a specific permanent;
+// `buildDelayedTriggerStackItem` sets no `triggerSourceId`, so
+// `ctx.sourceInstanceId` inside THIS resolve() is the fired stack item's own
+// fresh id, not Phelia's board instance — the id must cross via payload).
+// At fire time, AFTER the return actually happens, resolve() reads the
+// returned permanent's POST-RETURN controller via `ctx.getController` and
+// compares it against the captured `casterControllerId`: since
+// `returnToBattlefield` places the card under its OWNER's control (no
+// controller override here), this is equivalent in practice to "did the
+// returned card's owner match Phelia's controller" — but reading the LIVE
+// post-return controller (rather than precomputing the comparison at exile
+// time) is the generalizable shape: a future card whose delayed-return step
+// passes an explicit `controllerId` override to `returnToBattlefield` (a
+// "steal" flicker) still branches correctly, because the check reads
+// control AFTER the return, not ownership captured before it.
+export const phelia: CardDefinition = {
+    id: PHELIA_ID,
+    name: "Phelia, Exuberant Shepherd",
+    rarity: "rare",
+    oracleText:
+        "Flash\nWhenever Phelia attacks, exile up to one other target nonland permanent. At the beginning of the next end step, return that card to the battlefield under its owner's control. If it entered under your control, put a +1/+1 counter on Phelia.",
+    manaCost: { X: 1, W: 1 },
+    types: ["Creature"],
+    subtypes: ["Dog"],
+    supertypes: ["Legendary"],
+    power: 2,
+    toughness: 2,
+    staticAbilities: ["flash"],
+    triggeredAbilities: [
+        {
+            id: "phelia-attack",
+            oracleText:
+                "Whenever Phelia attacks, exile up to one other target nonland permanent. At the beginning of the next end step, return that card to the battlefield under its owner's control. If it entered under your control, put a +1/+1 counter on Phelia.",
+            event: "ATTACKERS_DECLARED",
+            matches: (event, self) =>
+                event.type === "ATTACKERS_DECLARED" &&
+                event.attackerIds.includes(self.id),
+            resolve: (ctx: SpellContext) => {
+                // CR 603.3d choice substitute (ADR 0002, Flickerwisp
+                // precedent) — "another" excludes $source; "nonland"
+                // excludes Land-typed permanents. Any controller's
+                // battlefield is eligible ("target ... permanent", no
+                // controller restriction in the oracle text).
+                const candidateIds = ctx.allPlayerIds.flatMap((p) =>
+                    ctx.getBattlefieldIds(p, {
+                        excludeTypes: "Land",
+                        excludeInstanceIds: [ctx.sourceInstanceId],
+                    })
+                );
+                if (candidateIds.length === 0) return; // CR 608.2b — no legal target
+                const picks = ctx.requestChoice({
+                    playerId: ctx.controller,
+                    choiceId: `phelia-attack-${ctx.sourceInstanceId}`,
+                    kind: "choose-permanents",
+                    zone: "battlefield",
+                    allControllers: true,
+                    candidateIds,
+                    count: { min: 0, max: 1 },
+                    prompt: "Phelia: exile up to one other target nonland permanent.",
+                });
+                if (picks === undefined) return; // suspended for the choice
+                const targetId = picks[0];
+                if (!targetId) return; // declined — "up to one"
+                const ownerId = ctx.getOwnerId(targetId);
+                if (ownerId === undefined) return; // CR 608.2b — target left
+                ctx.exile({ type: "permanent", id: targetId });
+                ctx.scheduleDelayedTrigger(
+                    PHELIA_ID,
+                    "phelia-return",
+                    "next-end-step",
+                    {
+                        cardId: targetId,
+                        ownerId,
+                        casterControllerId: ctx.controller,
+                        sourceId: ctx.sourceInstanceId,
+                    }
+                );
+            },
+        },
+    ],
+    delayedTriggers: [
+        {
+            id: "phelia-return",
+            oracleText:
+                "Return that card to the battlefield under its owner's control at the beginning of the next end step. If it entered under your control, put a +1/+1 counter on Phelia.",
+            timing: "next-end-step",
+            resolve: (ctx, payload) => {
+                if (!payload.cardId || !payload.ownerId) return;
+                const entered = ctx.returnToBattlefield(
+                    payload.ownerId,
+                    payload.cardId,
+                    "exile"
+                );
+                if (!entered) return; // CR 608.2b — no longer in exile
+                if (!payload.casterControllerId || !payload.sourceId) return;
+                // Issue #1320 — the delayed-trigger controller/owner branch:
+                // compare the returned permanent's POST-RETURN controller
+                // against the captured caster (Phelia's controller when the
+                // ability triggered, CR 603.7a). Skips cleanly if Phelia
+                // herself has since left the battlefield (`addCounter` is a
+                // CR 608.2b no-op against a missing instance).
+                const controllerId = ctx.getController({
+                    type: "permanent",
+                    id: payload.cardId,
+                });
+                if (controllerId === payload.casterControllerId) {
+                    ctx.addCounter(
+                        { type: "permanent", id: payload.sourceId },
+                        "+1/+1",
+                        1
+                    );
+                }
+            },
         },
     ],
 };
