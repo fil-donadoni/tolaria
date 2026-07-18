@@ -6457,6 +6457,16 @@ export interface ReplacementStateView {
             subtypes: ReadonlyArray<string>;
             staticAbilities: ReadonlyArray<string>;
             isToken: boolean;
+            /** Effective colors (CR 202.2, layer 5 — issue #1083). Read
+             *  through `colorOverride`/granted colors exactly like
+             *  `STATIC_EFFECT_CTX.getColors`, so a `setColor`'d creature (or
+             *  one with a granted color) reads correctly here too. Lets a
+             *  damage-replacement predicate read the TARGET creature's color
+             *  by looking it up here (only the damage SOURCE's colors ride
+             *  `DamageReplacementEvent.sourceColors` directly) — Well-Laid
+             *  Plans' "prevent all damage... if they share a color" needs
+             *  both sides. */
+            colors: ReadonlyArray<Color>;
         }>;
         /** Per-player replacement preferences (CR "may" opt-ins). Read by
          *  Library of Leng's discard replacement to honor a player's
@@ -6714,6 +6724,21 @@ export interface EffectCardFilter {
      *  shipped card needs a battlefield-scoped color exclusion). */
     excludeColor?: Color | Color[];
     manaValueAtMost?: number | EffectXValue;
+    /** Exact mana-value match (CR 202.3, issue #1083) — a card matches only if
+     *  its mana value equals `manaValueEquals` precisely, not merely "at
+     *  most". Mirrors `manaValueAtMost`'s two shapes exactly (ADR 0045
+     *  "generalize, don't add" — a symmetric sibling field, not a new
+     *  primitive): a FIXED literal or a DYNAMIC `{ X: true }` (the chosen-cost
+     *  X, resolved via `ctx.getX()` at the same `resolveValue` site
+     *  `manaValueAtMost` already uses). Metathran Aerostat's "a creature card
+     *  with mana value X from your hand" is `manaValueEquals: { X: true }`
+     *  paired with `type: "Creature"` on a `choice(zone: "hand")` Op. An
+     *  unresolvable dynamic value fails the filter closed (CR 608.2b),
+     *  matching `manaValueAtMost`'s own fail-closed convention. AND with
+     *  every other field, including `manaValueAtMost` itself (an unlikely but
+     *  not-forbidden combination — the two are independent ceiling/exact
+     *  constraints). */
+    manaValueEquals?: number | EffectXValue;
     isToken?: boolean;
     excludeType?: CardType | CardType[];
     /** Match cards by exact printed name (CR 201.2 — "each other card named
@@ -7061,7 +7086,28 @@ export type EffectForEachSelector =
           /** Optional card filter (AND, CR 205). Omitted = all cards. */
           filter?: EffectCardFilter;
       }
-    | { set: "bound"; ref: string };
+    | { set: "bound"; ref: string }
+    /** Iterate the CURRENTLY-RESOLVING spell/ability's announced targets
+     *  (issue #1083) — the variable-N companion to a fixed-slot `target: N`
+     *  `EffectObjectSelector`. Closes the "X-multi-target" gap: a
+     *  `TargetRequirement.count: "X"` (Distorting Wake's "Return X target
+     *  nonland permanents") or a `{ min: 0 }` "any number of target creatures"
+     *  (Sway of Illusion) requirement announces a VARIABLE number of targets
+     *  into ONE requirement slot, all landing in `ctx.targets` — but
+     *  `EffectObjectSelector`'s `{ target: N }` only ever names ONE fixed
+     *  index. `{ set: "targets" }` iterates the WHOLE announced set instead:
+     *  every entry of `ctx.targets` whose kind is a permanent (CR 608.2b —
+     *  a non-permanent entry, unreachable for the shipped target types this
+     *  selector pairs with, is skipped rather than erroring). `$each` binds a
+     *  permanent snapshot exactly like the `permanents` set (object positions
+     *  take the bare `{ ref: "$each" }`). No `controller`/`filter` — the
+     *  member set is already exactly what `TargetRequirement`/target
+     *  legality picked at announcement (CR 601.2c), so a SECOND filter here
+     *  would be redundant; unlike `permanents` (a fresh battlefield SCAN),
+     *  this selector reads the targets already chosen. No fixed size — it
+     *  spans however many targets were actually announced (0 for a declined
+     *  "any number", up to X for a variable-count spell). */
+    | { set: "targets" };
 
 /** The declarative object-set selector for `divideIntoPiles` (ADR 0053, pile
  *  division). Deliberately its OWN small type rather than reusing
@@ -7603,6 +7649,60 @@ export type EffectOp =
           op: "addSubtype";
           target: EffectObjectSelector;
           subtype: string;
+      }
+    /** CR 613.1e (layer 5, issue #1083) — sets a target's color(s), replacing
+     *  all other color derivation. A thin declarative skin over the single
+     *  SpellContext primitive `setColorOverride`, one execution path (ADR
+     *  0045). `target` is an announced target slot (a permanent OR a spell —
+     *  "target spell or permanent becomes the color of your choice", Blind
+     *  Seer), the resolving source (`$source` — a self-color-change activated
+     *  ability, Rainbow Crow / Tidal Visionary / Metathran Transport), or the
+     *  current member of a `forEach` set (`{ ref: "$each" }` — Sway of
+     *  Illusion's "any number of target creatures", paired with the new
+     *  `forEach { set: "targets" }` selector). `colors` is the new color set
+     *  (CR 105.1 — the five colors; an empty array is legal, "becomes
+     *  colorless"). `duration` (issue #1065) is meaningful for a PERMANENT
+     *  target only — a temporary override that reverts to whatever
+     *  colorOverride the target carried before, at the given phase boundary
+     *  ("… until end of turn", every card in this batch); omitted is
+     *  indefinite (ignored for a spell target, which resolves/leaves the
+     *  stack well before any phase boundary). Skipped when the referenced
+     *  object is gone (CR 608.2b — `resolveObjectRef` returns undefined). A
+     *  "choose one of five colors, then set it" modal effect composes with
+     *  the pre-existing `optionChoice` Op — one mode per color, each a
+     *  single-Op `setColor` body — no new choice-kind construct needed (ADR
+     *  0045 "generalize, don't add"). */
+    | {
+          op: "setColor";
+          target: EffectObjectSelector;
+          colors: Color[];
+          duration?: DurationSpec;
+      }
+    /** CR 305.7 (layer 4, issue #1083) — replaces a target land's subtypes for
+     *  a limited duration. A thin declarative skin over the single
+     *  SpellContext primitive `setSubtypesUntil`, one execution path (ADR
+     *  0045). Distinct from `addSubtype` (which ADDS a subtype INDEFINITELY,
+     *  keeping the printed ones): this Op REPLACES the target's subtypes
+     *  outright, and always reverts at `duration` — the "target land becomes
+     *  a Swamp / the basic land type of your choice until end of turn /
+     *  until its controller's next untap step" template (Orcish Farmer /
+     *  Slimy Kavu precedent closures, Dream Thrush). `target` is an announced
+     *  target slot, the resolving source (`$source`), or a forEach `$each`;
+     *  `subtypes` is the full replacement subtype list (usually one basic
+     *  land type, `["Swamp"]`); `duration` is REQUIRED (mirrors the
+     *  primitive's own signature — this Op has no indefinite form, unlike
+     *  `addSubtype`; a permanent land-type change is the `entersWith`/
+     *  static-effect protocol, not this Op). A "choose the basic land type,
+     *  then set it" effect composes with the pre-existing `optionChoice` Op
+     *  exactly like `setColor` above — one mode per basic land type, each a
+     *  single-Op `setSubtype` body. Skipped when the referenced permanent is
+     *  gone (CR 608.2b) or a non-permanent target (the primitive itself
+     *  no-ops). */
+    | {
+          op: "setSubtype";
+          target: EffectObjectSelector;
+          subtypes: string[];
+          duration: DurationSpec;
       }
     /** CR 208.2 / 611.1 (issue #1317) — turns a permanent into a creature with
      *  the given base P/T, optionally adding a subtype / extra card types /

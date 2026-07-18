@@ -7,18 +7,31 @@
 // Collective Restraint and Worldly Counsel shipped as active defs with the
 // Domain capability cluster (#1066, below). Fact or Fiction is OWNED BY the
 // pile-division cluster (#1067) and stays a commented stub — not duplicated
-// as an active def. A further
-// 18 cards hit genuine engine/DSL capability gaps discovered while authoring
-// this tranche (colour-change Op, colour-census in a one-shot Effect Script,
-// targeted land-subtype change, text-change, X-multi-target Ops, a dynamic
-// mayPay cost, a permanent kicked-ETB ability grant, an exact mana-value hand
-// filter, a flash-for-more alternative cost + tap/untap toggle, countering an
-// ability, an hourglass-counter untap lock, a reveal-and-compare retarget
-// protocol, a per-permanent colour field on ReplacementStateView, and
-// creature-type protection) — each is a stop-and-issue case (not an invented
-// Op, not a `resolve()` paper-over) tracked by #1083.
+// as an active def. A further 19 cards hit genuine engine/DSL capability gaps
+// discovered while authoring this tranche, tracked by #1083. That issue's
+// slice shipped four new capabilities — the `setColor` Op (CR 613.1e), the
+// `setSubtype` Op (CR 305.7, the land-type-change twin of `addSubtype`), the
+// `manaValueEquals` exact-match filter field, and the `forEach { set:
+// "targets" }` selector (the "X-multi-target" gap closer) — plus a `colors`
+// field on `ReplacementStateView`'s battlefield snapshot, and unstubbed nine
+// of the nineteen cards below: Blind Seer, Distorting Wake, Dream Thrush,
+// Metathran Aerostat, Metathran Transport, Rainbow Crow, Sway of Illusion,
+// Tidal Visionary, Well-Laid Plans. The remaining ten (Barrin's Unmaking,
+// Breaking Wave, Crystal Spray, Essence Leak, Faerie Squadron, Mana Maze,
+// Psychic Battle, Shoreline Raider, Teferi's Response, Temporal Distortion)
+// hit gaps genuinely beyond this slice's scope (a colour-census one-shot
+// predicate, a text-changing Op, a dynamic mayPay cost, a permanent
+// kicked-ETB ability grant, a flash-for-more alt cost + tap/untap toggle,
+// countering an ability, an hourglass-counter untap lock, a
+// reveal-and-compare retarget protocol, and creature-type protection — the
+// last, Shoreline Raider, was never in #1083's own gap list; it hits an
+// unrelated CR 702.16k protection-from-creature-type engine gap) and stay
+// commented stubs, each still tagged `// tracked-by: #1083` — a
+// stop-and-issue case (not an invented Op, not a `resolve()` paper-over).
 import type {
     CardDefinition,
+    Color,
+    ManaCost,
     PermanentView,
     StaticEffectContext,
 } from "../../types";
@@ -27,8 +40,47 @@ import {
     BASIC_LAND_SUBTYPES,
     countDomain,
     EFFECT_AFFECTS_SELF,
+    PERMANENT_TYPES,
 } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
+import {
+    chooseColorEffects,
+    colorChoiceModes,
+} from "../../abilities/chooseColor";
+import { manaCostForCardId } from "../../manaCostLookup";
+
+/** Colors (CR 202.2, layer 5 colorOverride, issue #1083) of a battlefield
+ *  view permanent, for a `StaticBlockRestriction.predicate` — which gets
+ *  only `(self, opponent, state?)`, no `ctx: StaticEffectContext` (unlike a
+ *  continuous `StaticEffect.applies`). Mirrors `STATIC_EFFECT_CTX.getColors`
+ *  (`gre/layers.ts`) exactly — colorOverride wins outright, else derive from
+ *  mana cost, then fold in granted colors — but reimplemented locally rather
+ *  than imported: `gre/layers.ts` imports `tryGetDefinition` from the card
+ *  registry (`cards/index.ts`), which imports every set module including
+ *  this one — importing it back here would be an eval-time cycle. Uses the
+ *  cycle-free `manaCostForCardId` accessor instead (same precedent as
+ *  arn/white.ts's `permanentColors`). `perm` carries `colorOverride`/
+ *  `grantedColors` at runtime even though `PermanentView`'s declared type
+ *  doesn't list them — the combat validator passes the raw (fat)
+ *  `CardInstanceState`, just typed narrower. */
+function effectiveColors(perm: PermanentView): Color[] {
+    const raw = perm as unknown as {
+        colorOverride?: Color[];
+        card?: { id?: string; manaCost?: ManaCost };
+        grantedColors?: { color: string }[];
+    };
+    if (raw.colorOverride) return raw.colorOverride;
+    const cost =
+        raw.card?.manaCost ??
+        (raw.card?.id ? manaCostForCardId(raw.card.id) : undefined);
+    const base = cost
+        ? (["W", "U", "B", "R", "G"] as const).filter((c) => (cost[c] ?? 0) > 0)
+        : [];
+    if (!raw.grantedColors?.length) return [...base];
+    const all = new Set<Color>(base);
+    for (const g of raw.grantedColors) all.add(g.color as Color);
+    return [...all];
+}
 
 // Opt — {U} Instant. "Scry 1. Draw a card." (Modern Scryfall oracle text —
 // the printed Invasion text differs, ADR 0004.) Authored DSL-first as an
@@ -742,17 +794,41 @@ export const factOrFiction: CardDefinition = {
 //     types: ["Instant"],
 // };
 
-// Blind Seer — "{1}{U}: Target spell or permanent becomes the color of your
-// choice until end of turn." `SpellContext.setColorOverride` exists but the
-// `setColor` Op is still `planned` (EFFECT_OP_BACKLOG), not registered.
-// tracked-by: #1083
-// export const blindSeer: CardDefinition = {
-//     id: "5c54ec26-c7f1-4258-9cc9-1709987f293c",
-//     name: "Blind Seer",
-//     rarity: "rare",
-//     manaCost: { X: 2, U: 2 },
-//     types: ["Creature"],
-// };
+// Blind Seer — {2}{U}{U} Legendary Creature — Human Wizard, 3/3. "{1}{U}:
+// Target spell or permanent becomes the color of your choice until end of
+// turn." (CR 613.1e layer 5 — the `setColor` Op, shipped this slice #1083,
+// wraps `SpellContext.setColorOverride`; the "choose one of five colors"
+// half composes the pre-existing `optionChoice` Op via the shared
+// `chooseColorEffects` builder — no new choice-kind construct needed, ADR
+// 0045 "generalize, don't add".)
+export const blindSeer: CardDefinition = {
+    id: "5c54ec26-c7f1-4258-9cc9-1709987f293c",
+    name: "Blind Seer",
+    rarity: "rare",
+    oracleText:
+        "{1}{U}: Target spell or permanent becomes the color of your choice until end of turn.",
+    manaCost: { X: 2, U: 2 },
+    types: ["Creature"],
+    subtypes: ["Human", "Wizard"],
+    supertypes: ["Legendary"],
+    power: 3,
+    toughness: 3,
+    activatedAbilities: [
+        {
+            id: "blind-seer-color",
+            oracleText:
+                "{1}{U}: Target spell or permanent becomes the color of your choice until end of turn.",
+            cost: { mana: { X: 1, U: 1 } },
+            useStack: true,
+            targetRequirement: { type: "spell-or-permanent", count: 1 },
+            effects: chooseColorEffects(
+                { target: 0 },
+                { phase: "end-of-turn" },
+                "Choose a color (Blind Seer)."
+            ),
+        },
+    ],
+};
 
 // Breaking Wave — "You may cast this spell as though it had flash if you pay
 // {2} more. Simultaneously untap all tapped creatures and tap all untapped
@@ -781,33 +857,82 @@ export const factOrFiction: CardDefinition = {
 //     types: ["Instant"],
 // };
 
-// Distorting Wake — "Return X target nonland permanents to their owners'
-// hands." `TargetRequirement.count: "X"` is supported, but
-// `EffectTargetRef = { target: number }` is a single fixed slot and `forEach`
-// has no "iterate the announced targets" selector — a DSL script can't act on
-// a variable-N target set yet.
-// tracked-by: #1083
-// export const distortingWake: CardDefinition = {
-//     id: "cf48eec9-96be-4f53-9d9a-c6f02d44c995",
-//     name: "Distorting Wake",
-//     rarity: "rare",
-//     manaCost: { X: 0, U: 3 },
-//     types: ["Sorcery"],
-// };
+// Distorting Wake — {X}{U}{U}{U} Sorcery. "Return X target nonland
+// permanents to their owners' hands." (CR 601.2c variable-target-count
+// `count: "X"`; the new `forEach { set: "targets" }` selector, shipped this
+// slice #1083, iterates the whole announced target set — the "X-multi-
+// target" gap closer, `EffectObjectSelector`'s single fixed `{ target: N }`
+// slot's variable-N companion.)
+export const distortingWake: CardDefinition = {
+    id: "cf48eec9-96be-4f53-9d9a-c6f02d44c995",
+    name: "Distorting Wake",
+    rarity: "rare",
+    oracleText: "Return X target nonland permanents to their owners' hands.",
+    manaCost: { X: "X", U: 3 },
+    types: ["Sorcery"],
+    targetRequirement: {
+        type: [...PERMANENT_TYPES],
+        count: "X",
+        excludeTypes: "Land",
+    },
+    effects: [
+        {
+            op: "forEach",
+            select: { set: "targets" },
+            effects: [{ op: "moveZone", target: { ref: "$each" }, to: "hand" }],
+        },
+    ],
+};
 
-// Dream Thrush — "Flying. {T}: Target land becomes the basic land type of
-// your choice until end of turn." `SpellContext.setSubtypesUntil` exists
-// (Orcish Farmer precedent) but has no Op wrapper, and the sanctioned ETB
-// choice-storage protocol only covers a fixed SELF-source read, not a
-// targeted, duration-scoped change via an activated ability.
-// tracked-by: #1083
-// export const dreamThrush: CardDefinition = {
-//     id: "258217df-ae88-4d93-895a-3fd242baacd1",
-//     name: "Dream Thrush",
-//     rarity: "common",
-//     manaCost: { X: 1, U: 1 },
-//     types: ["Creature"],
-// };
+// Dream Thrush — {1}{U} Creature — Bird, 1/1. "Flying. {T}: Target land
+// becomes the basic land type of your choice until end of turn." (CR 702.9b
+// flying; CR 305.7 layer-4 land-type change via the new `setSubtype` Op,
+// shipped this slice #1083, a declarative skin over
+// `SpellContext.setSubtypesUntil` — the Orcish Farmer / Slimy Kavu precedent
+// closures composed as a DSL Op. The "choose the basic land type" half reuses
+// the pre-existing `optionChoice` Op, one mode per `BASIC_LAND_SUBTYPES`
+// entry, exactly like `chooseColorEffects`'s "choose a color" shape.)
+export const dreamThrush: CardDefinition = {
+    id: "258217df-ae88-4d93-895a-3fd242baacd1",
+    name: "Dream Thrush",
+    rarity: "common",
+    oracleText:
+        "Flying\n{T}: Target land becomes the basic land type of your choice until end of turn.",
+    manaCost: { X: 1, U: 1 },
+    types: ["Creature"],
+    subtypes: ["Bird"],
+    power: 1,
+    toughness: 1,
+    staticAbilities: ["flying"],
+    activatedAbilities: [
+        {
+            id: "dream-thrush-land-type",
+            oracleText:
+                "{T}: Target land becomes the basic land type of your choice until end of turn.",
+            cost: { tap: true },
+            useStack: true,
+            targetRequirement: { type: "Land", count: 1 },
+            effects: [
+                {
+                    op: "optionChoice",
+                    prompt: "Choose a basic land type (Dream Thrush).",
+                    modes: BASIC_LAND_SUBTYPES.map((subtype) => ({
+                        id: subtype,
+                        label: subtype,
+                        effects: [
+                            {
+                                op: "setSubtype" as const,
+                                target: { target: 0 },
+                                subtypes: [subtype],
+                                duration: { phase: "end-of-turn" as const },
+                            },
+                        ],
+                    })),
+                },
+            ],
+        },
+    ],
+};
 
 // Essence Leak — "Enchant permanent. As long as enchanted permanent is red or
 // green, it has 'At the beginning of your upkeep, sacrifice this permanent
@@ -851,35 +976,117 @@ export const factOrFiction: CardDefinition = {
 //     types: ["Enchantment"],
 // };
 
-// Metathran Aerostat — "Flying. {X}{U}: You may put a creature card with mana
-// value X from your hand onto the battlefield. If you do, return this
-// creature to its owner's hand." `EffectCardFilter` has `manaValueAtMost`
-// only, no exact `manaValueEquals` (unlike `TargetRequirement.mvFilter.equals`
-// for announced targets) — can't filter a hand-card choice to "mana value
-// exactly X".
-// tracked-by: #1083
-// export const metathranAerostat: CardDefinition = {
-//     id: "59f34850-fb6f-4ac5-8309-4d53d770e28c",
-//     name: "Metathran Aerostat",
-//     rarity: "rare",
-//     manaCost: { X: 2, U: 2 },
-//     types: ["Creature"],
-// };
+// Metathran Aerostat — {2}{U}{U} Creature — Metathran, 2/2. "Flying. {X}{U}:
+// You may put a creature card with mana value X from your hand onto the
+// battlefield. If you do, return this creature to its owner's hand." (CR
+// 702.9b flying; the new `manaValueEquals` filter field, shipped this slice
+// #1083, `manaValueAtMost`'s exact-match sibling, filters the hand-card
+// `choice` to "mana value exactly X"; `moveZone(cards, from: "hand", to:
+// "battlefield")` puts it into play; the trailing `if { picksNonEmpty }` gate
+// — the Krovikan Sorcerer "if you do" idiom — returns this creature to hand
+// only when a card was actually put onto the battlefield.)
+export const metathranAerostat: CardDefinition = {
+    id: "59f34850-fb6f-4ac5-8309-4d53d770e28c",
+    name: "Metathran Aerostat",
+    rarity: "rare",
+    oracleText:
+        "Flying\n{X}{U}: You may put a creature card with mana value X from your hand onto the battlefield. If you do, return this creature to its owner's hand.",
+    manaCost: { X: 2, U: 2 },
+    types: ["Creature"],
+    subtypes: ["Metathran"],
+    power: 2,
+    toughness: 2,
+    staticAbilities: ["flying"],
+    activatedAbilities: [
+        {
+            id: "metathran-aerostat-swap",
+            oracleText:
+                "{X}{U}: You may put a creature card with mana value X from your hand onto the battlefield. If you do, return this creature to its owner's hand.",
+            cost: { mana: { X: "X", U: 1 } },
+            useStack: true,
+            effects: [
+                {
+                    op: "choice",
+                    kind: "choose-hand-card",
+                    player: "controller",
+                    zone: "hand",
+                    filter: { type: "Creature", manaValueEquals: { X: true } },
+                    count: { min: 0, max: 1 },
+                    prompt:
+                        "Put a creature card with mana value X onto the battlefield? (Metathran Aerostat)",
+                    bind: "$metathranAerostatPick",
+                },
+                {
+                    op: "moveZone",
+                    cards: { ref: "$metathranAerostatPick" },
+                    player: "controller",
+                    from: "hand",
+                    to: "battlefield",
+                },
+                {
+                    op: "if",
+                    predicate: {
+                        picksNonEmpty: { ref: "$metathranAerostatPick" },
+                    },
+                    then: [
+                        { op: "moveZone", target: { ref: "$source" }, to: "hand" },
+                    ],
+                },
+            ],
+        },
+    ],
+};
 
-// Metathran Transport — "Flying. This creature can't be blocked by blue
-// creatures. {U}: Target creature becomes blue until end of turn." The
-// activated ability needs the same missing `setColor` Op as Blind Seer; since
-// every printed clause must be enforced, the whole card stays a stub rather
-// than shipping a partial (the flying + can't-be-blocked-by-blue clauses
-// alone are composable, but the card is all-or-nothing).
-// tracked-by: #1083
-// export const metathranTransport: CardDefinition = {
-//     id: "4fa9048d-1599-44a5-b4b2-45382c5b238d",
-//     name: "Metathran Transport",
-//     rarity: "uncommon",
-//     manaCost: { X: 1, U: 2 },
-//     types: ["Creature"],
-// };
+// Metathran Transport — {1}{U}{U} Creature — Metathran, 1/3. "Flying. This
+// creature can't be blocked by blue creatures. {U}: Target creature becomes
+// blue until end of turn." (CR 702.9b flying; CR 509.1b block restriction —
+// `effectiveColors` reads the candidate blocker's EFFECTIVE color, layer 5,
+// so a `setColor`'d creature is read correctly, matching the same `setColor`
+// Op — shipped this slice #1083 — the activated ability now uses; the
+// activated half is a FIXED "becomes blue", not a player choice, so it's a
+// bare `setColor` Op, not `chooseColorEffects`'s modal wrapper.)
+export const metathranTransport: CardDefinition = {
+    id: "4fa9048d-1599-44a5-b4b2-45382c5b238d",
+    name: "Metathran Transport",
+    rarity: "uncommon",
+    oracleText:
+        "Flying\nThis creature can't be blocked by blue creatures.\n{U}: Target creature becomes blue until end of turn.",
+    manaCost: { X: 1, U: 2 },
+    types: ["Creature"],
+    subtypes: ["Metathran"],
+    power: 1,
+    toughness: 3,
+    staticAbilities: ["flying"],
+    staticEffects: [
+        {
+            kind: "block-restriction",
+            id: "metathran-transport-no-blue",
+            side: "attacker" as const,
+            // CR 509.1b — can't be blocked by blue creatures.
+            predicate: (_self, opponent) =>
+                !effectiveColors(opponent).includes("U"),
+            oracleText:
+                "Metathran Transport can't be blocked by blue creatures.",
+        },
+    ],
+    activatedAbilities: [
+        {
+            id: "metathran-transport-color",
+            oracleText: "{U}: Target creature becomes blue until end of turn.",
+            cost: { mana: { U: 1 } },
+            useStack: true,
+            targetRequirement: { type: "Creature", count: 1 },
+            effects: [
+                {
+                    op: "setColor",
+                    target: { target: 0 },
+                    colors: ["U"],
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
+        },
+    ],
+};
 
 // Psychic Battle — "Whenever a player chooses one or more targets, each
 // player reveals the top card of their library. The player who reveals the
@@ -895,16 +1102,37 @@ export const factOrFiction: CardDefinition = {
 //     types: ["Enchantment"],
 // };
 
-// Rainbow Crow — "Flying. {1}: This creature becomes the color of your
-// choice until end of turn." Same missing `setColor` Op as Blind Seer.
-// tracked-by: #1083
-// export const rainbowCrow: CardDefinition = {
-//     id: "7e622ad2-473f-489e-b4cf-bbdcc44d0cde",
-//     name: "Rainbow Crow",
-//     rarity: "uncommon",
-//     manaCost: { X: 3, U: 1 },
-//     types: ["Creature"],
-// };
+// Rainbow Crow — {3}{U} Creature — Bird, 2/2. "Flying. {1}: This creature
+// becomes the color of your choice until end of turn." (CR 702.9b flying;
+// CR 613.1e via `chooseColorEffects` — same `setColor` Op as Blind Seer,
+// shipped this slice #1083 — targeting `$source` for a self-color-change.)
+export const rainbowCrow: CardDefinition = {
+    id: "7e622ad2-473f-489e-b4cf-bbdcc44d0cde",
+    name: "Rainbow Crow",
+    rarity: "uncommon",
+    oracleText:
+        "Flying\n{1}: This creature becomes the color of your choice until end of turn.",
+    manaCost: { X: 3, U: 1 },
+    types: ["Creature"],
+    subtypes: ["Bird"],
+    power: 2,
+    toughness: 2,
+    staticAbilities: ["flying"],
+    activatedAbilities: [
+        {
+            id: "rainbow-crow-color",
+            oracleText:
+                "{1}: This creature becomes the color of your choice until end of turn.",
+            cost: { mana: { X: 1 } },
+            useStack: true,
+            effects: chooseColorEffects(
+                { ref: "$source" },
+                { phase: "end-of-turn" },
+                "Choose a color (Rainbow Crow)."
+            ),
+        },
+    ],
+};
 
 // Shoreline Raider — "Protection from Kavu." `convex/gre/protection.ts` only
 // parses "protection from <color|colorless>" — creature-type protection
@@ -919,16 +1147,46 @@ export const factOrFiction: CardDefinition = {
 //     types: ["Creature"],
 // };
 
-// Sway of Illusion — "Any number of target creatures become the color of
-// your choice until end of turn. Draw a card." Same missing `setColor` Op.
-// tracked-by: #1083
-// export const swayOfIllusion: CardDefinition = {
-//     id: "ff65e386-9aec-4deb-a4ec-d9a97bd87645",
-//     name: "Sway of Illusion",
-//     rarity: "uncommon",
-//     manaCost: { X: 1, U: 1 },
-//     types: ["Instant"],
-// };
+// Sway of Illusion — {1}{U} Instant. "Any number of target creatures become
+// the color of your choice until end of turn. Draw a card." (CR 601.2c a
+// `{ min: 0 }` variable target count — "any number" — announces 0..N
+// targets into one requirement slot; the new `forEach { set: "targets" }`
+// selector, shipped this slice #1083 alongside Distorting Wake, iterates all
+// of them. "THE color of your choice" is singular — ONE choice shared by
+// every targeted creature, not a per-creature pick — so the `optionChoice`
+// wraps the `forEach` (one shared choice, applied to the whole set), unlike
+// `chooseColorEffects`'s single-target convenience wrapper.)
+export const swayOfIllusion: CardDefinition = {
+    id: "ff65e386-9aec-4deb-a4ec-d9a97bd87645",
+    name: "Sway of Illusion",
+    rarity: "uncommon",
+    oracleText:
+        "Any number of target creatures become the color of your choice until end of turn.\nDraw a card.",
+    manaCost: { X: 1, U: 1 },
+    types: ["Instant"],
+    targetRequirement: { type: "Creature", count: { min: 0 } },
+    effects: [
+        {
+            op: "optionChoice",
+            prompt: "Choose a color (Sway of Illusion).",
+            modes: colorChoiceModes((color) => [
+                {
+                    op: "forEach",
+                    select: { set: "targets" },
+                    effects: [
+                        {
+                            op: "setColor",
+                            target: { ref: "$each" },
+                            colors: [color],
+                            duration: { phase: "end-of-turn" },
+                        },
+                    ],
+                },
+            ]),
+        },
+        { op: "draw", player: "controller", count: 1 },
+    ],
+};
 
 // Teferi's Response — "Counter target spell or ability an opponent controls
 // that targets a land you control. If a permanent's ability is countered
@@ -959,27 +1217,83 @@ export const factOrFiction: CardDefinition = {
 //     types: ["Enchantment"],
 // };
 
-// Tidal Visionary — "{T}: Target creature becomes the color of your choice
-// until end of turn." Same missing `setColor` Op.
-// tracked-by: #1083
-// export const tidalVisionary: CardDefinition = {
-//     id: "a72a3051-7f46-4b6b-b4fb-0f170d9687ab",
-//     name: "Tidal Visionary",
-//     rarity: "common",
-//     manaCost: { U: 1 },
-//     types: ["Creature"],
-// };
+// Tidal Visionary — {U} Creature — Merfolk Wizard, 1/1. "{T}: Target
+// creature becomes the color of your choice until end of turn." (CR 613.1e
+// via `chooseColorEffects` — same `setColor` Op as Blind Seer, shipped this
+// slice #1083 — targeting an announced Creature slot.)
+export const tidalVisionary: CardDefinition = {
+    id: "a72a3051-7f46-4b6b-b4fb-0f170d9687ab",
+    name: "Tidal Visionary",
+    rarity: "common",
+    oracleText:
+        "{T}: Target creature becomes the color of your choice until end of turn.",
+    manaCost: { U: 1 },
+    types: ["Creature"],
+    subtypes: ["Merfolk", "Wizard"],
+    power: 1,
+    toughness: 1,
+    activatedAbilities: [
+        {
+            id: "tidal-visionary-color",
+            oracleText:
+                "{T}: Target creature becomes the color of your choice until end of turn.",
+            cost: { tap: true },
+            useStack: true,
+            targetRequirement: { type: "Creature", count: 1 },
+            effects: chooseColorEffects(
+                { target: 0 },
+                { phase: "end-of-turn" },
+                "Choose a color (Tidal Visionary)."
+            ),
+        },
+    ],
+};
 
-// Well-Laid Plans — "Prevent all damage that would be dealt to a creature by
-// another creature if they share a color." `ReplacementStateView`'s
-// battlefield snapshot exposes types/subtypes/staticAbilities but not colour,
-// so a damage-replacement predicate can't read the TARGET creature's colour
-// (only the damage SOURCE's colour rides the event).
-// tracked-by: #1083
-// export const wellLaidPlans: CardDefinition = {
-//     id: "5f2b3879-c962-5274-89a8-2f1da2b56a2e",
-//     name: "Well-Laid Plans",
-//     rarity: "rare",
-//     manaCost: { X: 2, U: 1 },
-//     types: ["Enchantment"],
-// };
+// Well-Laid Plans — {2}{U} Enchantment. "Prevent all damage that would be
+// dealt to a creature by another creature if they share a color." (CR 615
+// prevention via a `replacementEffects[]` `"damage"` entry — the Argothian
+// Pixies precedent shape. `ReplacementStateView.players[].battlefield[]` now
+// carries `colors` (issue #1083, this slice), so the predicate can read the
+// TARGET creature's color by id — only the damage SOURCE's color rode the
+// event before. NOTE — the stub's placeholder id
+// `5f2b3879-c962-5274-89a8-2f1da2b56a2e` does not resolve to any real
+// Scryfall object (verified); corrected to the real INV #88 print id below.)
+export const wellLaidPlans: CardDefinition = {
+    id: "1c55eb8f-925a-42c1-9e48-d7f99cab3b01",
+    name: "Well-Laid Plans",
+    rarity: "rare",
+    oracleText:
+        "Prevent all damage that would be dealt to a creature by another creature if they share a color.",
+    manaCost: { X: 2, U: 1 },
+    types: ["Enchantment"],
+    replacementEffects: [
+        {
+            id: "well-laid-plans-shared-color",
+            eventKind: "damage",
+            oracleText:
+                "Prevent all damage that would be dealt to a creature by another creature if they share a color.",
+            appliesTo: (event, _self, state) => {
+                if (event.kind !== "damage") return false;
+                // CR 208.2 — the damage SOURCE must be a creature ("by
+                // another creature"); a noncreature source never triggers
+                // this prevention regardless of color.
+                if (!event.sourceTypes.includes("Creature")) return false;
+                if (event.target.type !== "permanent") return false;
+                const targetCreature = state.players
+                    .flatMap((p) => p.battlefield)
+                    .find((c) => c.id === event.target.id);
+                if (!targetCreature?.types.includes("Creature")) return false;
+                // "another creature" — a creature never shares this
+                // prevention with itself (self-damage), though `sourceColors`
+                // vs. the SAME id's `colors` would trivially share a color
+                // anyway; explicit id check for CR 208.2 precision.
+                if (targetCreature.id === event.sourceInstanceId) return false;
+                return event.sourceColors.some((c) =>
+                    targetCreature.colors.includes(c)
+                );
+            },
+            // CR 615 — prevent all matching damage.
+            replace: () => ({ kind: "consumed" }),
+        },
+    ],
+};

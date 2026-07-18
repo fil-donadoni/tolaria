@@ -592,6 +592,13 @@ function matchesCardFilter(
         // (CR 608.2b), rather than silently admitting every card.
         if (ceiling === undefined || card.manaValue > ceiling) return false;
     }
+    // issue #1083 — exact mana-value match (Metathran Aerostat's "a creature
+    // card with mana value X"), the sibling of `manaValueAtMost` above. Same
+    // fail-closed convention for an unresolvable dynamic value.
+    if (filter.manaValueEquals !== undefined) {
+        const exact = resolveValue(ctx, filter.manaValueEquals);
+        if (exact === undefined || card.manaValue !== exact) return false;
+    }
     // issue #897 — OR ACROSS filter dimensions. Every other field above is
     // ANDed; `any` is the one disjunctive clause list this filter supports:
     // the card must match AT LEAST ONE of the clauses (Magda, Brazen
@@ -1606,6 +1613,26 @@ export const OP_EXECUTORS: {
         if (!target) return;
         ctx.addSubtype(target, op.subtype);
     },
+    // CR 613.1e layer 5 (issue #1083) — set a target's color(s), replacing all
+    // other derivation. A thin declarative skin over `setColorOverride`, ONE
+    // execution path (ADR 0045). Skipped when the referenced object is gone
+    // (CR 608.2b — `resolveObjectRef` returns undefined); the primitive itself
+    // ignores `duration` for a non-permanent (spell) target.
+    setColor(ctx, op) {
+        const target = resolveObjectRef(ctx, op.target);
+        if (!target) return;
+        ctx.setColorOverride(target, op.colors, op.duration);
+    },
+    // CR 305.7 layer 4 (issue #1083) — replace a target land's subtypes for a
+    // limited duration. A thin declarative skin over `setSubtypesUntil`, ONE
+    // execution path (ADR 0045). Skipped when the referenced permanent is
+    // gone (CR 608.2b — `resolveObjectRef` returns undefined); the primitive
+    // itself no-ops for a non-permanent target.
+    setSubtype(ctx, op) {
+        const target = resolveObjectRef(ctx, op.target);
+        if (!target) return;
+        ctx.setSubtypesUntil(target, op.subtypes, op.duration);
+    },
     // CR 208.2 / 611.1 (issue #1317) — turn a permanent into a creature with
     // the given base P/T, optional subtype/additionalTypes/grantedAbilities,
     // for `duration` or INDEFINITELY when `duration` is omitted (CR 611.2b —
@@ -2559,6 +2586,20 @@ function selectForEachMembers(
     // iteration entry by `execForEach`, so a member that has left is skipped
     // there (CR 608.2b). Absent binding (empty capture) → iterate nothing.
     if (select.set === "bound") return readBinding(ctx, select.ref) ?? [];
+    // `targets` (issue #1083) — iterate the currently-resolving spell/
+    // ability's WHOLE announced target set (Distorting Wake's "X target
+    // nonland permanents", Sway of Illusion's "any number of target
+    // creatures"), instead of one fixed `{ target: N }` slot. Only permanent
+    // entries are iterable (CR 608.2b — a non-permanent entry is unreachable
+    // for the shipped target types this selector pairs with, skipped rather
+    // than erroring); each member is snapshotted as a permanent by the
+    // generic (non-"players"/"graveyard") branch of `execForEach`'s per-member
+    // loop below, exactly like the `permanents` set.
+    if (select.set === "targets") {
+        return ctx.targets
+            .filter((t) => t.type === "permanent")
+            .map((t) => t.id);
+    }
     let owners: string[];
     if (select.controller !== undefined) {
         const pid = resolvePlayerRef(ctx, select.controller);

@@ -18,22 +18,31 @@
 
 import { describe, it, expect } from "vitest";
 import {
+    blindSeer,
     collectiveRestraint,
+    distortingWake,
     disrupt,
+    dreamThrush,
     empressGalina,
     exclude,
     factOrFiction,
     manipulateFate,
+    metathranAerostat,
+    metathranTransport,
     opt,
     prohibit,
+    rainbowCrow,
     repulse,
     sapphireLeech,
     shimmeringWings,
     skyWeaver,
+    swayOfIllusion,
+    tidalVisionary,
     travelersCloak,
     vodalianMerchant,
     vodalianSerpent,
     washOut,
+    wellLaidPlans,
     worldlyCounsel,
     zanamDjinn,
 } from "../blue";
@@ -46,7 +55,7 @@ import {
     makeState,
     pushSpell,
 } from "../../../__tests__/setup";
-import { resolveTopOfStack } from "../../../../gre/state";
+import { resolveTopOfStack, runDamageReplacement } from "../../../../gre/state";
 import { checkStateBasedActions } from "../../../../gre/sba";
 import {
     applyMayPaySubmit,
@@ -55,6 +64,7 @@ import {
 import {
     collectAttackManaTax,
     validateAttackerEligibility,
+    validateBlockerEligibility,
 } from "../../../../gre/combat";
 import {
     getEffectivePower,
@@ -67,7 +77,7 @@ import {
     tryCommitAttackManaTax,
     tapSourceIntoPayment,
 } from "../../../../game";
-import { resolveActivated, resolveTrigger } from "./helpers";
+import { resolveActivated, resolveTrigger, submitChoice } from "./helpers";
 
 const lib = (ids: string[]) =>
     ids.map((id) =>
@@ -1206,5 +1216,518 @@ describe("Fact or Fiction (CR 701.16 reveal, ADR 0053 pile division, issue #1067
             }
         ).known;
         expect(knownP2.map((k) => k.card.id).sort()).toEqual(["wf-1", "wf-2"]);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// Issue #1083 slice — the setColor / setSubtype / manaValueEquals /
+// forEach{set:"targets"} Op tests live in the interpreter's own per-Op suite
+// (convex/gre/effects/__tests__/interpreter.test.ts, the "new Op earns its
+// own permanent test" regime). The cards below get a light golden-path test
+// each — matching this file's own established convention for every
+// optionChoice/choice/forEach card in the free tranche — plus a full
+// hand-written GRE test for Metathran Transport / Well-Laid Plans, whose
+// `staticEffects[]` / `replacementEffects[]` shapes fall outside the DSL
+// smoke sweep entirely (the project's testing convention mandates a
+// hand-written test for those regardless of DSL status).
+// ─────────────────────────────────────────────────────────────────────────
+
+describe("Blind Seer (CR 613.1e setColor via optionChoice, issue #1083)", () => {
+    it("sets a target permanent's color to the chosen mode", () => {
+        const seer = makeInstance(blindSeer.id, {
+            id: "seer1",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "seerBear",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [seer] }),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        resolveActivated(state, seer, "blind-seer-color", [
+            { type: "permanent", id: "seerBear" },
+        ]);
+        submitChoice(state, ["B"]);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "seerBear")
+                ?.colorOverride
+        ).toEqual(["B"]);
+    });
+});
+
+describe("Rainbow Crow (CR 613.1e self setColor via optionChoice, issue #1083)", () => {
+    it("sets its own color to the chosen mode", () => {
+        const crow = makeInstance(rainbowCrow.id, {
+            id: "crow1",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [crow] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, crow, "rainbow-crow-color");
+        submitChoice(state, ["G"]);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "crow1")
+                ?.colorOverride
+        ).toEqual(["G"]);
+    });
+});
+
+describe("Tidal Visionary (CR 613.1e setColor via optionChoice, issue #1083)", () => {
+    it("sets a target creature's color to the chosen mode", () => {
+        const visionary = makeInstance(tidalVisionary.id, {
+            id: "visionary1",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "visionaryBear",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [visionary, bear] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, visionary, "tidal-visionary-color", [
+            { type: "permanent", id: "visionaryBear" },
+        ]);
+        submitChoice(state, ["W"]);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "visionaryBear")
+                ?.colorOverride
+        ).toEqual(["W"]);
+    });
+});
+
+describe("Metathran Transport (CR 509.1b block restriction + CR 613.1e setColor, issue #1083)", () => {
+    it("can't be blocked by blue creatures, but can by non-blue creatures", () => {
+        // `staticAbilities: []` overrides away the printed flying keyword —
+        // isolates the CR 509.1b color block-restriction under test from the
+        // UNRELATED CR 702.9b flying-blocker restriction (Metathran Transport
+        // is also a flier, which would independently reject a non-flying,
+        // non-reach blocker regardless of color).
+        const transport = makeInstance(metathranTransport.id, {
+            id: "transport1",
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+            staticAbilities: [],
+        });
+        const blueBlocker = makeInstance(vodalianSerpent.id, {
+            id: "blueBlocker",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const greenBlocker = makeInstance(grizzlyBears.id, {
+            id: "greenBlocker",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [transport] }),
+                makePlayer("p2", {
+                    battlefield: [blueBlocker, greenBlocker],
+                }),
+            ],
+        });
+        expect(
+            validateBlockerEligibility(
+                transport,
+                blueBlocker,
+                [blueBlocker, greenBlocker],
+                state
+            ).eligible
+        ).toBe(false);
+        expect(
+            validateBlockerEligibility(
+                transport,
+                greenBlocker,
+                [blueBlocker, greenBlocker],
+                state
+            ).eligible
+        ).toBe(true);
+    });
+
+    it("reads the EFFECTIVE color (layer 5) — a setColor'd creature becomes an illegal blocker", () => {
+        // Same `staticAbilities: []` isolation as above.
+        const transport = makeInstance(metathranTransport.id, {
+            id: "transport2",
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+            staticAbilities: [],
+        });
+        // A green creature is a legal blocker UNTIL Metathran Transport's own
+        // activated ability makes it blue.
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "recoloredBear",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [transport] }),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        expect(
+            validateBlockerEligibility(transport, bear, [bear], state)
+                .eligible
+        ).toBe(true);
+        resolveActivated(state, transport, "metathran-transport-color", [
+            { type: "permanent", id: "recoloredBear" },
+        ]);
+        const recolored = state.players[1].battlefield.find(
+            (c) => c.id === "recoloredBear"
+        )!;
+        expect(recolored.colorOverride).toEqual(["U"]);
+        expect(
+            validateBlockerEligibility(transport, recolored, [recolored], state)
+                .eligible
+        ).toBe(false);
+    });
+});
+
+describe("Dream Thrush (CR 305.7 setSubtype via optionChoice, issue #1083)", () => {
+    it("changes a target land's subtype to the chosen basic land type", () => {
+        const thrush = makeInstance(dreamThrush.id, {
+            id: "thrush1",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: false,
+        });
+        const targetLand = makeInstance(swamp.id, {
+            id: "thrushSwamp",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [thrush] }),
+                makePlayer("p2", { battlefield: [targetLand] }),
+            ],
+        });
+        resolveActivated(state, thrush, "dream-thrush-land-type", [
+            { type: "permanent", id: "thrushSwamp" },
+        ]);
+        submitChoice(state, ["Island"]);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "thrushSwamp")
+                ?.subtypes
+        ).toEqual(["Island"]);
+    });
+});
+
+describe("Metathran Aerostat (manaValueEquals + moveZone + picksNonEmpty, issue #1083)", () => {
+    it("puts a hand creature with mana value X onto the battlefield and returns itself to hand", () => {
+        const aerostat = makeInstance(metathranAerostat.id, {
+            id: "aerostat1",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: false,
+        });
+        const handCreature = makeInstance(grizzlyBears.id, {
+            id: "handBear",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [aerostat],
+                    hand: [handCreature],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const item = state.players[0].battlefield[0];
+        state.stack.push({
+            ...item,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "metathran-aerostat-swap",
+            targets: [],
+            chosenX: 2, // Grizzly Bears is mana value 2 ({X:1,G:1} = 1+1).
+        });
+        resolveTopOfStack(state);
+        submitChoice(state, ["handBear"]);
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "handBear")
+        ).toBe(true);
+        // "If you do, return this creature to its owner's hand."
+        expect(state.players[0].hand.some((c) => c.id === "aerostat1")).toBe(
+            true
+        );
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "aerostat1")
+        ).toBe(false);
+    });
+
+    it("declining the swap leaves both permanents in place", () => {
+        const aerostat = makeInstance(metathranAerostat.id, {
+            id: "aerostat2",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: false,
+        });
+        const handCreature = makeInstance(grizzlyBears.id, {
+            id: "handBearDecline",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [aerostat],
+                    hand: [handCreature],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const item = state.players[0].battlefield[0];
+        state.stack.push({
+            ...item,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "metathran-aerostat-swap",
+            targets: [],
+            chosenX: 2,
+        });
+        resolveTopOfStack(state);
+        submitChoice(state, []);
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "aerostat2")
+        ).toBe(true);
+        expect(state.players[0].hand.some((c) => c.id === "handBearDecline")).toBe(
+            true
+        );
+    });
+});
+
+describe("Distorting Wake (X-multi-target forEach bounce, issue #1083)", () => {
+    it("returns every announced target permanent to its owner's hand", () => {
+        const bear1 = makeInstance(grizzlyBears.id, {
+            id: "wakeBear1",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const bear2 = makeInstance(grizzlyBears.id, {
+            id: "wakeBear2",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear1, bear2] }),
+            ],
+        });
+        const item = pushSpell(state, distortingWake.id, "p1", [
+            { type: "permanent", id: "wakeBear1" },
+            { type: "permanent", id: "wakeBear2" },
+        ]);
+        item.chosenX = 2;
+        resolveTopOfStack(state);
+        expect(state.players[1].battlefield).toHaveLength(0);
+        expect(state.players[1].hand.map((c) => c.id).sort()).toEqual([
+            "wakeBear1",
+            "wakeBear2",
+        ]);
+    });
+});
+
+describe("Sway of Illusion (shared setColor via forEach{set:targets} + draw, issue #1083)", () => {
+    it("sets EVERY targeted creature to the SAME chosen color, then draws a card", () => {
+        const bear1 = makeInstance(grizzlyBears.id, {
+            id: "swayTestBear1",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const bear2 = makeInstance(grizzlyBears.id, {
+            id: "swayTestBear2",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const libCard = makeInstance(opt.id, {
+            id: "swayLib1",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "library",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [bear1, bear2],
+                    library: [libCard],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, swayOfIllusion.id, "p1", [
+            { type: "permanent", id: "swayTestBear1" },
+            { type: "permanent", id: "swayTestBear2" },
+        ]);
+        resolveTopOfStack(state);
+        submitChoice(state, ["R"]);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "swayTestBear1")
+                ?.colorOverride
+        ).toEqual(["R"]);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "swayTestBear2")
+                ?.colorOverride
+        ).toEqual(["R"]);
+        expect(state.players[0].hand.map((c) => c.id)).toContain("swayLib1");
+    });
+
+    it("casting it targeting zero creatures still draws a card (issue-linked ruling)", () => {
+        const libCard = makeInstance(opt.id, {
+            id: "swayLib2",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "library",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: [libCard] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, swayOfIllusion.id, "p1", []);
+        resolveTopOfStack(state);
+        // Even with zero targets, the color choice is still prompted (the
+        // engine doesn't know in advance the forEach body will be empty) —
+        // then the forEach runs zero iterations and the draw still happens.
+        submitChoice(state, ["R"]);
+        expect(state.players[0].hand.map((c) => c.id)).toContain("swayLib2");
+    });
+});
+
+describe("Well-Laid Plans (CR 615 shared-color damage prevention, issue #1083)", () => {
+    it("prevents damage between two creatures that share a color", () => {
+        const plansEnchantment = makeInstance(wellLaidPlans.id, {
+            id: "plans1",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const blueSource = makeInstance(vodalianSerpent.id, {
+            id: "plansBlueSource",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const blueTarget = makeInstance(vodalianMerchant.id, {
+            id: "plansBlueTarget",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [plansEnchantment, blueSource],
+                }),
+                makePlayer("p2", { battlefield: [blueTarget] }),
+            ],
+        });
+        const res = runDamageReplacement(
+            state,
+            "plansBlueSource",
+            "p1",
+            { type: "permanent", id: "plansBlueTarget" },
+            3,
+            false
+        );
+        expect(res).toBeNull(); // prevented (consumed)
+    });
+
+    it("does NOT prevent damage between creatures of different colors", () => {
+        const plansEnchantment = makeInstance(wellLaidPlans.id, {
+            id: "plans2",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const blueSource = makeInstance(vodalianSerpent.id, {
+            id: "plansDiffBlue",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const greenTarget = makeInstance(grizzlyBears.id, {
+            id: "plansDiffGreen",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [plansEnchantment, blueSource],
+                }),
+                makePlayer("p2", { battlefield: [greenTarget] }),
+            ],
+        });
+        const res = runDamageReplacement(
+            state,
+            "plansDiffBlue",
+            "p1",
+            { type: "permanent", id: "plansDiffGreen" },
+            3,
+            false
+        );
+        expect(res).not.toBeNull();
+        expect(res?.amount).toBe(3);
+    });
+
+    it("does NOT prevent same-color damage from a NONCREATURE source (CR 208.2 'by another creature')", () => {
+        const plansEnchantment = makeInstance(wellLaidPlans.id, {
+            id: "plans3",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        // A blue, NONCREATURE permanent source (Collective Restraint is an
+        // Enchantment) — shares blue with the target, but is never "another
+        // creature" (CR 208.2), so the source-type gate fails and damage
+        // proceeds unprevented.
+        const noncreatureSource = makeInstance(collectiveRestraint.id, {
+            id: "plansNoncreatureSource",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const blueTarget = makeInstance(vodalianMerchant.id, {
+            id: "plansNoncreatureTarget",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [plansEnchantment, noncreatureSource],
+                }),
+                makePlayer("p2", { battlefield: [blueTarget] }),
+            ],
+        });
+        const res = runDamageReplacement(
+            state,
+            "plansNoncreatureSource",
+            "p1",
+            { type: "permanent", id: "plansNoncreatureTarget" },
+            3,
+            false
+        );
+        expect(res).not.toBeNull();
+        expect(res?.amount).toBe(3);
     });
 });
