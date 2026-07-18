@@ -103,6 +103,8 @@ export function describeMove(move: Move, state: GameState): string {
             return "decline madness cast (to graveyard)";
         case "play-land":
             return `play ${instanceName(state, move.cardInstanceId)}`;
+        case "summon-companion":
+            return "summon companion";
         case "cast-spell": {
             const name = instanceName(state, move.cardInstanceId);
             const x = move.chosenX !== undefined ? ` (X=${move.chosenX})` : "";

@@ -15,6 +15,7 @@ import {
     getLegalActions,
     phyrexianLifePipOptions,
 } from "./gre/rules";
+import { canSummonCompanion } from "./gre/companion";
 import { hasFlashback } from "./gre/flashback";
 import { hasEscape } from "./gre/escape";
 import {
@@ -89,6 +90,22 @@ export type SlimGraveyardCard = SlimCardInstance & {
         | "graveyard-grant";
 };
 
+/** Companion slot (CR 702.139, ADR 0064) projected to the wire: `instance`
+ *  slimmed like every other card, `used` carried verbatim, revealed to BOTH
+ *  players (CR 702.139c — the wire-format equivalent of "carried unchanged
+ *  through the projection, never hidden like a hand/library card"). */
+export type SlimCompanionSlot = {
+    instance: SlimCardInstance;
+    used: boolean;
+    /** CR 116.2 / 702.139f — true iff the `summon-companion` special action
+     *  is legal for the VIEWER right now (`canSummonCompanion`, gre/
+     *  companion.ts). Present ONLY on the viewer's own player — mirrors
+     *  every other viewer-scoped affordance field (`SlimHandCard.
+     *  legalActions`, etc.); the opponent's companion is visible but never
+     *  carries an affordance for someone else's special action. */
+    canSummon?: boolean;
+};
+
 /** ADR 0026 / PRD #338 — one viewer-known library card, projected sparsely.
  *  `index` is the position from the top of the library (0 = top). */
 export type KnownLibraryCard = { index: number; card: SlimCardInstance };
@@ -129,6 +146,7 @@ export type PublicPlayer = Omit<
     | "exile"
     | "battlefield"
     | "grantedAbilities"
+    | "companion"
 > & {
     hand: (SlimHandCard | null)[];
     library: PublicLibrary;
@@ -139,6 +157,7 @@ export type PublicPlayer = Omit<
     exile: SlimExileCard[];
     battlefield: SlimCardInstance[];
     grantedAbilities?: PublicGrantedAbility[];
+    companion?: SlimCompanionSlot;
 };
 
 /** PlayerState in the full debug projection (everything visible, card defs slimmed). */
@@ -150,6 +169,7 @@ export type FullPlayer = Omit<
     | "exile"
     | "battlefield"
     | "grantedAbilities"
+    | "companion"
 > & {
     hand: SlimHandCard[];
     library: SlimCardInstance[];
@@ -170,6 +190,7 @@ export type FullPlayer = Omit<
     exile: SlimExileCard[];
     battlefield: SlimCardInstance[];
     grantedAbilities?: PublicGrantedAbility[];
+    companion?: SlimCompanionSlot;
 };
 
 /** CR 702.26 — a phased-out bundle projected to the wire: host + attachments
@@ -764,6 +785,20 @@ export function projectPublicState(
             libraryPeek,
             revealedHand,
             grantedAbilities: hydrateGrantedAbilities(player.grantedAbilities),
+            // CR 702.139c (ADR 0064) — the companion slot is revealed to BOTH
+            // players; only the viewer's own slot carries the `canSummon`
+            // affordance (mirrors every other viewer-scoped legality field).
+            companion: player.companion
+                ? {
+                      instance: slimCard(player.companion.instance),
+                      used: player.companion.used,
+                      ...(player.id === viewerId
+                          ? {
+                                canSummon: canSummonCompanion(state, player),
+                            }
+                          : {}),
+                  }
+                : undefined,
         };
         if (player.id === viewerId) {
             return {
@@ -940,6 +975,16 @@ export function projectFullState(
             }),
             battlefield: player.battlefield.map(slimCard),
             grantedAbilities: hydrateGrantedAbilities(player.grantedAbilities),
+            // CR 702.139c (ADR 0064) — full debug view has no single viewer,
+            // so every player's own companion carries its `canSummon`
+            // affordance (mirrors the graveyard/exile treatment above).
+            companion: player.companion
+                ? {
+                      instance: slimCard(player.companion.instance),
+                      used: player.companion.used,
+                      canSummon: canSummonCompanion(state, player),
+                  }
+                : undefined,
         })
     );
 

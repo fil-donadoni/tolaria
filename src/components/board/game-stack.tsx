@@ -11,6 +11,7 @@ import {
     matchesSpellExcludeTypeFilter,
     matchesSpellCreaturePtFilter,
     matchesSpellSingleTargetingController,
+    matchesSpellController,
     matchesSpellWouldDestroyLand,
     matchesStackObjectFilter,
     wantsSpellTarget,
@@ -29,7 +30,8 @@ type GameStackProps = {
 };
 
 export default function GameStack({ stack }: GameStackProps) {
-    const { gameId, playerId, pendingTarget, allPlayers } = useGameContext();
+    const { gameId, playerId, pendingTarget, allPlayers, activePlayerId } =
+        useGameContext();
     const selectTarget = useMutation(api.game.selectTarget);
     const { offset, dragHandlers } = useDraggable();
     // Arrow hover-highlight (combat-read): a stack item dims when a relationship
@@ -122,6 +124,12 @@ export default function GameStack({ stack }: GameStackProps) {
                                 item,
                                 pendingTarget?.spellSingleTargetingController,
                                 playerId
+                            ) &&
+                            matchesSpellController(
+                                item,
+                                pendingTarget?.controller,
+                                playerId,
+                                activePlayerId
                             ) &&
                             matchesSpellWouldDestroyLand(
                                 item,

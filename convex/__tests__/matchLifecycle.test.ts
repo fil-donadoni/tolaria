@@ -285,10 +285,18 @@ describe("buildNextGameSeats (Bo3 next-Game build, PRD #387)", () => {
         ]);
         // defensive copy — the new Game owns its own arrays
         expect(seats[0].deck.cards).not.toBe(m.players[0].deck.maindeck);
-        // the per-Game seat snapshot holds ONLY the maindeck — the sideboard
-        // lives on the Match copy and never reaches the `games` row (PRD #387,
-        // matches the `games` table schema which has no `sideboard` field).
-        expect(seats[0].deck).not.toHaveProperty("sideboard");
+        // CR 702.139c (ADR 0064, issue #1391) — the seat ALSO carries the
+        // Match's current sideboard (a defensive copy), so
+        // `buildInitialGameState` can auto-declare a Companion at game init
+        // and a Bo3 rematch re-scans post-sideboard. Distinct from the
+        // immutable per-Game `games` row snapshot (PRD #387, `toGamePlayers`
+        // in game.ts), which still carries ONLY the maindeck and never the
+        // sideboard — this seat is consumed by `buildInitialGameState` and
+        // never itself persisted onto the `games` document.
+        expect(seats[0].deck.sideboard).toEqual([
+            { cardId: "s1", cardName: "Side 1" },
+        ]);
+        expect(seats[0].deck.sideboard).not.toBe(m.players[0].deck.sideboard);
     });
 });
 

@@ -287,6 +287,15 @@ export type NextGameSeat = {
         name: string;
         format: string;
         cards: DeckCard[];
+        /** CR 702.139c (ADR 0064) — the Match deck's current SIDEBOARD,
+         *  carried through so `buildInitialGameState` can auto-declare a
+         *  Companion at game init (`selectCompanion`, gre/companion.ts).
+         *  Re-scanned per Bo3 Game — this seat is rebuilt from the Match
+         *  copy after every sideboarding submission, so a companion
+         *  swapped in/out changes legality for the next Game. Distinct
+         *  from the per-Game `games` row snapshot (PRD #387), which never
+         *  carries the sideboard. */
+        sideboard: DeckCard[];
     };
 };
 
@@ -313,6 +322,11 @@ export function buildNextGameSeats(match: {
             // sideboard stays on the Match copy only; the per-Game snapshot
             // (`games` row) holds the immutable starting maindeck (PRD #387).
             cards: p.deck.maindeck.map((c) => ({ ...c })),
+            // CR 702.139c (ADR 0064) — also a defensive copy. Carried on the
+            // SEAT (not the immutable `games` row snapshot) purely to feed
+            // `buildInitialGameState`'s companion auto-declare; never
+            // persisted onto the Game document itself.
+            sideboard: p.deck.sideboard.map((c) => ({ ...c })),
         },
     }));
 }

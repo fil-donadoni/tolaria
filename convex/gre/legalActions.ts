@@ -72,6 +72,7 @@ export type PriorityMove = Extract<
             | "pass"
             | "mulligan"
             | "play-land"
+            | "summon-companion"
             | "cast-spell"
             | "activate-ability"
             | "declare-attackers";
@@ -574,6 +575,7 @@ const PRIORITY_MOVE_KINDS: ReadonlySet<Move["kind"]> = new Set([
     "pass",
     "mulligan",
     "play-land",
+    "summon-companion",
     "cast-spell",
     "activate-ability",
     "declare-attackers",

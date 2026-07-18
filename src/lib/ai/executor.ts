@@ -6,6 +6,7 @@
 //
 // Each Move kind maps to a fixed, ordered call sequence:
 //   play-land        → playCard
+//   summon-companion → summonCompanion (CR 116.2 / 702.139f, ADR 0064)
 //   cast-spell       → announceCast → selectTarget* [→ confirmTargets] → tapForPayment*
 //   activate-ability → activateAbility → selectTarget* [→ confirmTargets] → tapForActivationPayment*
 //   declare-attackers→ toggleAttacker* → confirmAttackers
@@ -30,6 +31,10 @@ type GP = { gameId: Id<"games">; playerId: string };
  *  public mutations in `convex/game.ts` — the bot uses no private surface. */
 export type MoveMutations = {
     playCard: (a: GP & { cardInstanceId: string }) => Promise<unknown>;
+    /** CR 116.2 / 702.139f (ADR 0064) — the `summon-companion` special
+     *  action. No card id (the source is the player's companion slot, not a
+     *  hand card); the {3} is solved and applied server-side in one call. */
+    summonCompanion: (a: GP) => Promise<unknown>;
     announceCast: (
         a: GP & {
             cardInstanceId: string;
@@ -194,6 +199,10 @@ export async function executeMove(
                 ...base,
                 cardInstanceId: move.cardInstanceId,
             });
+            return;
+
+        case "summon-companion":
+            await mutations.summonCompanion(base);
             return;
 
         case "cast-spell": {

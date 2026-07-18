@@ -5,11 +5,15 @@ import type { TargetSelection } from "@convex/cards/types";
 
 export type { AttackManaTaxPayment };
 import type { SacrificeSelection } from "@convex/gre/sacrificeChoice";
-import type { PublicGrantedAbility } from "@convex/gameProjections";
+import type {
+    PublicGrantedAbility,
+    SlimCompanionSlot,
+} from "@convex/gameProjections";
 
 // Re-export from convex (single source of truth)
 export type { Zone, CardAction };
 export type GrantedAbility = PublicGrantedAbility;
+export type CompanionSlot = SlimCompanionSlot;
 
 /** ADR 0026 / PRD #338 — one viewer-known library card and its top-relative
  *  position (0 = top). */
@@ -79,6 +83,11 @@ export interface Player {
      *  Absent means zero. Rides the public projection via the `...player`
      *  spread, like `poisonCounters` (issue #697). */
     energyCounters?: number;
+    /** Companion (CR 702.139, ADR 0064) — revealed to BOTH players; only the
+     *  slot's own controller's view carries `canSummon` (mirrors every other
+     *  viewer-scoped affordance field, e.g. `CardInstance.legalActions`).
+     *  Absent when this player declared no companion. */
+    companion?: CompanionSlot;
 }
 
 /** Mana pool carried by the player. All six color slots may be missing from the server payload. */

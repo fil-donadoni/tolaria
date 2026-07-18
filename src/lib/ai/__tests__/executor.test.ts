@@ -14,6 +14,7 @@ const GP = { gameId: GAME, playerId: BOT };
 function fakeMutations() {
     const m: Record<keyof MoveMutations, ReturnType<typeof vi.fn>> = {
         playCard: vi.fn().mockResolvedValue(null),
+        summonCompanion: vi.fn().mockResolvedValue(null),
         announceCast: vi.fn().mockResolvedValue(null),
         selectTarget: vi.fn().mockResolvedValue(null),
         confirmTargets: vi.fn().mockResolvedValue(null),
@@ -132,6 +133,11 @@ describe("executeMove (issue #110)", () => {
             ...GP,
             cardInstanceId: "land1",
         });
+    });
+
+    it("summon-companion → summonCompanion on the bot seat, no card id (#1391)", async () => {
+        const m = await run({ kind: "summon-companion" });
+        expect(m.summonCompanion).toHaveBeenCalledWith(GP);
     });
 
     it("cast-spell → announce, select each target, then tap each land in order", async () => {
