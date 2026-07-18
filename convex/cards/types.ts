@@ -5709,6 +5709,15 @@ export interface BecameTargetEvent {
      *  "an opponent controls" filter is `sourceControllerId !==
      *  self.controllerId`. */
     sourceControllerId: string;
+    /** Stack-item id of the SPECIFIC spell/ability that performed this
+     *  targeting (CR 603.2b) — the `StackItem.id` whose `.targets` were just
+     *  locked, distinct from `sourceControllerId` (that object's controller).
+     *  Lets a reflexive "counter that spell or ability" trigger (Ward, CR
+     *  702.21a/e) pin its own target to the EXACT object that caused THIS
+     *  trigger instance (`gre/rules.ts` `raiseTriggerTargetSelection`), rather
+     *  than to any stack object that merely also targets the same permanent —
+     *  the fix for issue #1361's two-simultaneous-targeters edge. */
+    sourceInstanceId: string;
 }
 
 /** Token-creation meta-trigger event (issue #1345, CR 111 / 707.2) — emitted

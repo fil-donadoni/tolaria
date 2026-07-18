@@ -132,6 +132,7 @@ describe("wardAbility factory shape (CR 702.21a)", () => {
             target: { type: "permanent", id: "warded1" },
             targetControllerId: "p2",
             sourceControllerId: "p1",
+            sourceInstanceId: "spell1",
         };
         expect(ward.matches(event, self)).toBe(true);
     });
@@ -142,6 +143,7 @@ describe("wardAbility factory shape (CR 702.21a)", () => {
             target: { type: "permanent", id: "warded1" },
             targetControllerId: "p2",
             sourceControllerId: "p2",
+            sourceInstanceId: "spell1",
         };
         expect(ward.matches(event, self)).toBe(false);
     });
@@ -152,6 +154,7 @@ describe("wardAbility factory shape (CR 702.21a)", () => {
             target: { type: "permanent", id: "some-other-creature" },
             targetControllerId: "p2",
             sourceControllerId: "p1",
+            sourceInstanceId: "spell1",
         };
         expect(ward.matches(event, self)).toBe(false);
     });
@@ -162,6 +165,7 @@ describe("wardAbility factory shape (CR 702.21a)", () => {
             target: { type: "player", id: "p2" },
             targetControllerId: "p2",
             sourceControllerId: "p1",
+            sourceInstanceId: "spell1",
         };
         expect(ward.matches(event, self)).toBe(false);
     });
@@ -219,7 +223,7 @@ describe("raiseTriggerTargetSelection: spellTargetsSelfSource dynamic pin (CR 70
         const spell = pushSpell(state, REMOVAL_ID, "p1", [
             { type: "permanent", id: wardedInstId },
         ]);
-        emitBecameTargetEvents(state, spell.targets, "p1");
+        emitBecameTargetEvents(state, spell.targets, "p1", spell.id);
         processPendingActionTriggers(state);
         expect(state.stack).toHaveLength(2);
         const top = state.stack[state.stack.length - 1];
@@ -232,11 +236,66 @@ describe("raiseTriggerTargetSelection: spellTargetsSelfSource dynamic pin (CR 70
         const spell = pushSpell(state, REMOVAL_ID, "p1", [
             { type: "permanent", id: wardedInstId },
         ]);
-        emitBecameTargetEvents(state, spell.targets, "p1");
+        emitBecameTargetEvents(state, spell.targets, "p1", spell.id);
         processPendingActionTriggers(state);
         // No ward trigger fired — the removal spell is still alone on top.
         expect(state.stack).toHaveLength(1);
         expect(state.stack[0].id).toBe(spell.id);
+    });
+});
+
+describe("raiseTriggerTargetSelection: two simultaneous targeters pin the EXACT triggering object (CR 702.21e, issue #1361)", () => {
+    it("each ward trigger instance counters the SPECIFIC spell that caused it — no player choice, even with 2 legal 'targets this permanent' candidates", () => {
+        const { state, wardedInstId } = wardedState();
+        // Two DISTINCT opponent-controlled removal spells target the SAME
+        // warded permanent before either resolves — the CR 702.21e edge: a
+        // "targets this permanent" filter alone can't tell which one caused
+        // which ward instance (both are legal under that filter).
+        const spellA = pushSpell(state, REMOVAL_ID, "p1", [
+            { type: "permanent", id: wardedInstId },
+        ]);
+        const spellB = pushSpell(state, REMOVAL_ID, "p1", [
+            { type: "permanent", id: wardedInstId },
+        ]);
+        // Both BECAME_TARGET events land in ONE batch — genuinely simultaneous
+        // from the engine's point of view (one collectTriggers scan sees both).
+        emitBecameTargetEvents(state, spellA.targets, "p1", spellA.id);
+        emitBecameTargetEvents(state, spellB.targets, "p1", spellB.id);
+        processPendingActionTriggers(state);
+
+        // CR 603.3d single-legal-target auto-select fires for BOTH ward
+        // instances — no player choice raised, despite 2 stack objects
+        // matching the broad "targets this permanent" filter. Pre-fix, the
+        // first-processed ward instance found 2 legal candidates and raised a
+        // real `pendingTarget` choice instead (the bug this test pins).
+        expect(state.pendingTarget).toBeUndefined();
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+
+        expect(state.stack).toHaveLength(4); // spellA, spellB, wardTrigA, wardTrigB
+        const wardTriggers = state.stack.filter(
+            (s) => s.triggeredAbilityId === "ward"
+        );
+        expect(wardTriggers).toHaveLength(2);
+
+        // Each ward trigger's own target is EXACTLY the spell whose
+        // BECAME_TARGET event fired IT (via `triggerEvent.sourceInstanceId`),
+        // never the other simultaneous targeter — CR 702.21e's "counter THAT
+        // spell or ability", forced deterministically.
+        const targetBySourceInstance = new Map(
+            wardTriggers.map((t) => {
+                const ev = t.triggerEvent;
+                if (ev?.type !== "BECAME_TARGET") {
+                    throw new Error("expected a BECAME_TARGET trigger event");
+                }
+                return [ev.sourceInstanceId, t.targets];
+            })
+        );
+        expect(targetBySourceInstance.get(spellA.id)).toEqual([
+            { type: "spell", id: spellA.id },
+        ]);
+        expect(targetBySourceInstance.get(spellB.id)).toEqual([
+            { type: "spell", id: spellB.id },
+        ]);
     });
 });
 
@@ -248,7 +307,7 @@ describe("Ward e2e — counter-unless-pay resolution (CR 702.21a)", () => {
         const spell = pushSpell(state, REMOVAL_ID, "p1", [
             { type: "permanent", id: wardedInstId },
         ]);
-        emitBecameTargetEvents(state, spell.targets, "p1");
+        emitBecameTargetEvents(state, spell.targets, "p1", spell.id);
         processPendingActionTriggers(state);
         expect(resolveTopOfStack(state)).toBeNull(); // suspended on may-pay
         expect(state.pendingChoices?.[0]?.kind).toBe("may-pay");
@@ -275,7 +334,7 @@ describe("Ward e2e — counter-unless-pay resolution (CR 702.21a)", () => {
         const spell = pushSpell(state, REMOVAL_ID, "p1", [
             { type: "permanent", id: wardedInstId },
         ]);
-        emitBecameTargetEvents(state, spell.targets, "p1");
+        emitBecameTargetEvents(state, spell.targets, "p1", spell.id);
         processPendingActionTriggers(state);
         resolveTopOfStack(state); // suspends on may-pay
         applyMayPaySubmit(state, { playerId: "p1", accept: true });
@@ -300,7 +359,7 @@ describe("wire format (S5) — the ward may-pay choice survives projectPublicSta
         const spell = pushSpell(state, REMOVAL_ID, "p1", [
             { type: "permanent", id: wardedInstId },
         ]);
-        emitBecameTargetEvents(state, spell.targets, "p1");
+        emitBecameTargetEvents(state, spell.targets, "p1", spell.id);
         processPendingActionTriggers(state);
         resolveTopOfStack(state);
         const projected = projectPublicState(state, 1, "p1");
