@@ -503,6 +503,24 @@ describe("game_state serialize round-trip", () => {
         expect(got.knownTo).toEqual(["p1"]);
     });
 
+    // Issue #791 / #1319 (CR 111 / 610.3) — the per-source exile provenance
+    // link (Currency Converter's "exiled with this artifact", generalized as
+    // the linked-exile tracking foundation) must survive a save/load so a
+    // future retrieval ability still finds its linked cards after a reload.
+    it("preserves exiledBySourceId on an exiled card across the round trip", () => {
+        const state = freshState();
+        const exiled = makeInstance(lightningBolt.id, {
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "exile",
+        });
+        exiled.exiledBySourceId = "some-permanent-id";
+        state.players[0].exile.push(exiled);
+        const expanded = expandState(compactState(state));
+        const got = expanded.players[0].exile.find((c) => c.id === exiled.id)!;
+        expect(got.exiledBySourceId).toBe("some-permanent-id");
+    });
+
     it("keeps the compact library entry a 2-tuple when knownTo is empty", () => {
         const state = freshState();
         const compact = compactState(state);

@@ -5123,6 +5123,7 @@ export type GameEventType =
     | "LIFE_LOST"
     | "LIFE_GAINED"
     | "COUNTER_REMOVED"
+    | "COUNTER_ADDED"
     | "BECAME_TARGET";
 
 /** Damage event emitted whenever a source inflicts damage on a target
@@ -5591,6 +5592,38 @@ export interface CounterRemovedEvent {
     remaining: number;
 }
 
+/** Counter-placement meta-trigger event (issue #1319, CR 122.1) — emitted
+ *  whenever one or more counters of any kind are ADDED to a permanent via
+ *  `SpellContext.addCounter`. Distinct from the counter merely EXISTING
+ *  (e.g. a static "has a +1/+1 counter on it" check): this fires once per
+ *  placement occurrence, mirroring `CounterRemovedEvent`'s shape and choke
+ *  point so future "whenever a +1/+1 counter is put on ~" cards (Emperor of
+ *  Bones' counter-synergy cousins, Agatha's Cauldron — #917) can listen for
+ *  it generically, for ANY counter type, not just +1/+1 — a card-specific
+ *  filter narrows `counterType` itself. `types`/`subtypes` snapshot the
+ *  permanent's characteristics at emit time (CR 603.10 last-known-info
+ *  style, mirroring `PermanentTappedEvent`) so a scope+filter trigger
+ *  factory can gate on them without a live battlefield re-scan. */
+export interface CounterAddedEvent {
+    type: "COUNTER_ADDED";
+    /** Instance id of the permanent the counters were added to. */
+    instanceId: string;
+    /** Controller of that permanent at the moment of placement. */
+    controllerId: string;
+    /** Kind of counter added (e.g. "+1/+1", "charge", "time"). */
+    counterType: string;
+    /** How many counters were actually added (always >= 1 — a zero-or-fewer
+     *  request never emits, matching `addCounter`'s early return). */
+    added: number;
+    /** How many counters of `counterType` the permanent has after the
+     *  placement (>= `added`). */
+    total: number;
+    /** Card types of the permanent, snapshotted at emit time. */
+    types: ReadonlyArray<CardType>;
+    /** Card subtypes of the permanent, snapshotted at emit time. */
+    subtypes: ReadonlyArray<string>;
+}
+
 /** Target-declaration event (CR 603.2b / 115.5) emitted once PER TARGET when a
  *  spell or ability's targets are locked onto its stack object — at cast
  *  (`emitSpellCastEvent`), at activated-ability commit, and at targeted-trigger
@@ -5634,6 +5667,7 @@ export type GameEvent =
     | LifeLostEvent
     | LifeGainedEvent
     | CounterRemovedEvent
+    | CounterAddedEvent
     | BecameTargetEvent;
 
 /** Read-only window over the live `GameState` exposed to `matches()` for
