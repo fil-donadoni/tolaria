@@ -1925,7 +1925,17 @@ export const OP_EXECUTORS: {
         if (controllerId === undefined) return;
         const count = op.count === undefined ? 1 : resolveValue(ctx, op.count);
         if (count === undefined || count <= 0) return;
-        ctx.createToken(op.token, controllerId, count);
+        const ids = ctx.createToken(op.token, controllerId, count);
+        // issue #1202 — snapshot the LAST created token so a follow-up Op
+        // (Cori-Steel Cutter's optional `attach`) can act on the specific
+        // just-created permanent. Mirrors `destroy`/`exile`/`moveZone`'s own
+        // `bind` (same snapshot-family binding, `bindSnapshot`).
+        if (op.bind && ids.length > 0) {
+            bindSnapshot(ctx, op.bind, {
+                type: "permanent",
+                id: ids[ids.length - 1],
+            });
+        }
     },
     // CR 114 (issue #1221) — create a command-zone emblem owned by the resolved
     // controller (default the ability's controller). The granted abilities live

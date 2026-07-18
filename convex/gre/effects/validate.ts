@@ -1634,7 +1634,7 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             token: isEffectTokenSpec,
             controller: isPlayerRef,
         },
-        optional: { count: isEffectValue },
+        optional: { count: isEffectValue, bind: isBindingName },
     },
     // CR 114 (issue #1221) — create a command-zone emblem. `emblem` is a
     // non-empty registry key (the closure-bearing definition lives in

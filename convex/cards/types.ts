@@ -7881,12 +7881,26 @@ export type EffectOp =
      *  skin; it stays a `planned` backlog Op (`createTokenCopy`). A token that
      *  needs continuous `staticEffects` (Tetravite's "can't be enchanted", a
      *  predicate closure) is likewise not JSON-expressible and stays resolve().
-     *  `token.staticEffects` is intentionally absent from `EffectTokenSpec`. */
+     *  `token.staticEffects` is intentionally absent from `EffectTokenSpec`.
+     *  `bind` (issue #1202, mirrors `destroy`/`exile`/`moveZone`'s own `bind`
+     *  field, ADR 0045 "generalize, don't add") snapshots the LAST created
+     *  token (`bindSnapshot`, the same snapshot-family binding those Ops
+     *  already produce) so a follow-up Op in the SAME script can act on the
+     *  specific just-created permanent — Cori-Steel Cutter's "create a 1/1
+     *  white Monk creature token with prowess. You may attach this Equipment
+     *  to it": the created Monk has no announced-target form (CR 601.2b, it
+     *  didn't exist before this Op ran), so `{ op: "attach", target: { ref:
+     *  "$monk" } }` reads the snapshot instead. For `count` > 1 the binding
+     *  is overwritten to the LAST token created (mirrors `moveZone`'s own
+     *  multi-pick note) — every current caller creates exactly one token per
+     *  `createToken` Op. A non-positive/unresolved count binds nothing (no
+     *  token was created, CR 608.2b — the follow-up Op skips). */
     | {
           op: "createToken";
           token: EffectTokenSpec;
           controller: EffectPlayerRef;
           count?: EffectValue;
+          bind?: string;
       }
     /** CR 114 (issue #1221) — create an emblem in the command zone. A thin
      *  declarative skin over the single SpellContext primitive `createEmblem`,
