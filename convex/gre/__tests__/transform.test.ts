@@ -8,6 +8,7 @@
 import { describe, it, expect } from "vitest";
 import { transformPermanent } from "../transform";
 import { registerTokenDefinition, tryGetDefinition } from "../../cards";
+import { getCardColors } from "../../cards/colors";
 import { getEffectivePower, getEffectiveToughness } from "../layers";
 import { projectPublicState } from "../../gameProjections";
 import {
@@ -40,6 +41,32 @@ registerTokenDefinition({
     rarity: "common",
     manaCost: {},
     types: ["Artifact"],
+});
+
+// A front face whose back face is COLORED (CR 712.2 — a back face's color is
+// fixed by its own printed characteristics). Regression coverage for the
+// color-drop bug: `registerBackFaceDefinition` used to hardcode `manaCost:
+// {}` on the synthesized back-face definition, so a colored back face
+// registered as colorless server-side (`getCardColors` derives color from
+// `manaCost`) even though the client's `maybeSynthesizeToken` rebuilds color
+// from the encoded token id — a server/client divergence.
+const COLORED_BACK_FRONT_ID = "test-transform-colored-back-front";
+registerTokenDefinition({
+    id: COLORED_BACK_FRONT_ID,
+    name: "Test Werewolf",
+    rarity: "common",
+    manaCost: { B: 1 },
+    types: ["Creature"],
+    subtypes: ["Human"],
+    backFace: {
+        name: "Test Werewolf Back",
+        types: ["Creature"],
+        subtypes: ["Werewolf"],
+        power: 3,
+        toughness: 3,
+        colors: ["B"],
+        staticAbilities: [],
+    },
 });
 
 describe("transformPermanent (CR 712, ADR 0067)", () => {
@@ -158,6 +185,23 @@ describe("transformPermanent (CR 712, ADR 0067)", () => {
         expect((a.card as { id: string }).id).toBe(
             (b.card as { id: string }).id
         );
+    });
+
+    it("a COLORED back face registers with the correct server-side color (CR 712.2, color-drop regression)", () => {
+        const card = makeInstance(COLORED_BACK_FRONT_ID, {
+            id: "t8",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        transformPermanent(card);
+        const backId = (card.card as { id: string }).id;
+        const backDef = tryGetDefinition(backId);
+        expect(backDef).not.toBeNull();
+        // Server derives color from `manaCost` via `getCardColors` — the
+        // exact path the engine uses (layers, `hasColor`, etc.). A hardcoded
+        // `manaCost: {}` on the synthesized definition would make this
+        // return `[]` instead of `["B"]`.
+        expect(getCardColors(backDef!)).toEqual(["B"]);
     });
 });
 

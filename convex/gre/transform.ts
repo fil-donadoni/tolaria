@@ -39,7 +39,7 @@
  */
 
 import { registerTokenDefinition, tokenDefinitionId, tryGetDefinition } from "../cards";
-import type { CardBackFace, TokenSpec } from "../cards/types";
+import type { CardBackFace, ManaCost, TokenSpec } from "../cards/types";
 import type { CardInstanceState } from "./state";
 
 /** Reshapes a `CardBackFace` into the `TokenSpec` shape `tokenDefinitionId`
@@ -68,6 +68,17 @@ function backFaceAsTokenSpec(backFace: CardBackFace): TokenSpec {
 function registerBackFaceDefinition(backFace: CardBackFace): string {
     const spec = backFaceAsTokenSpec(backFace);
     const id = tokenDefinitionId(spec);
+    // Server-side color (`getCardColors`) is derived from `manaCost`, not
+    // from `spec.colors` directly — mirrors `createTokenPermanents`
+    // (`gre/state.ts`), which builds a one-pip-per-color `manaCost` from
+    // `spec.colors` for the exact same reason. Without this, a COLORED back
+    // face (e.g. a black werewolf) registers as colorless server-side while
+    // the client's `maybeSynthesizeToken` rebuilds color from the encoded
+    // id — a server/client color divergence (issue #1210 review).
+    const manaCost: ManaCost = {};
+    for (const c of spec.colors ?? []) {
+        manaCost[c] = (manaCost[c] ?? 0) + 1;
+    }
     registerTokenDefinition({
         id,
         name: spec.name,
@@ -75,7 +86,7 @@ function registerBackFaceDefinition(backFace: CardBackFace): string {
         // face is not itself a printed object, so a nominal "common"
         // satisfies the required field (mirrors token synthesis).
         rarity: "common",
-        manaCost: {},
+        manaCost,
         types: [...spec.types],
         ...(spec.subtypes ? { subtypes: [...spec.subtypes] } : {}),
         ...(spec.supertypes ? { supertypes: [...spec.supertypes] } : {}),
