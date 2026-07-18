@@ -55,7 +55,7 @@ describe("Badgermole Cub — definition", () => {
     it("pins mana cost, stats, subtype, and both triggered abilities", () => {
         expect(badgermoleCub.manaCost).toEqual({ X: 1, G: 1 });
         expect(badgermoleCub.types).toEqual(["Creature"]);
-        expect(badgermoleCub.subtypes).toEqual(["Badger Mole"]);
+        expect(badgermoleCub.subtypes).toEqual(["Badger", "Mole"]);
         expect(badgermoleCub.power).toBe(2);
         expect(badgermoleCub.toughness).toBe(2);
         expect(badgermoleCub.triggeredAbilities).toHaveLength(2);

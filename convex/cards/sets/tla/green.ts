@@ -53,7 +53,7 @@ export const badgermoleCub: CardDefinition = {
         "When this creature enters, earthbend 1. (Target land you control becomes a 0/0 creature with haste that's still a land. Put a +1/+1 counter on it. When it dies or is exiled, return it to the battlefield tapped.)\nWhenever you tap a creature for mana, add an additional {G}.",
     manaCost: { X: 1, G: 1 },
     types: ["Creature"],
-    subtypes: ["Badger Mole"],
+    subtypes: ["Badger", "Mole"],
     power: 2,
     toughness: 2,
     triggeredAbilities: [
