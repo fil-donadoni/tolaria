@@ -468,10 +468,15 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             req.skip ??= `Op "choice" suspends for player input — covered by the card's own suspension/resume tests`;
             return;
         case "discard":
-            // `discard` consumes a `choice` Op's picks binding; without the
-            // choice's submitted picks the outcome is undefined in a canned
-            // scenario — same skip rationale as `choice`.
-            req.skip ??= `Op "discard" consumes a choice binding — covered by the card's own suspension/resume tests`;
+            // `discard` either consumes a `choice` Op's picks binding (without
+            // the choice's submitted picks the outcome is undefined in a
+            // canned scenario — same skip rationale as `choice`) or (issue
+            // #1279, `cards` omitted) discards the WHOLE hand — the generator
+            // doesn't seed a specific hand to assert an emptied-hand /
+            // populated-graveyard delta against, so both shapes are skipped;
+            // execution coverage is the card's own per-card test (Wheel of
+            // Fortune, Anje's Ravager).
+            req.skip ??= `Op "discard" consumes a choice binding or discards the whole hand — covered by the card's own suspension/resume or per-card test`;
             return;
         case "grantCastFromExile":
             // `grantCastFromExile` (issue #1156, Dauthi Voidwalker) consumes
@@ -549,10 +554,14 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // permanent target it DID seed lives on the opponent's
             // battlefield, whereas the Op's outcome (bounce to hand,
             // reanimate, exile-from-graveyard) depends on which zone the object
-            // starts in. Rather than mis-assert, report an explicit skip;
-            // execution coverage is the card's own per-card test (the migrated
-            // resolve()-cards keep their full behavioural tests).
-            req.skip ??= `Op "moveZone" changes zones on an object whose source zone the canned generator does not model — covered by the card's own per-card test`;
+            // starts in. The whole-zone bulk shape (issue #1279 — no `target`/
+            // `cards`) has the same problem: the generator doesn't seed a
+            // specific hand/graveyard to assert a moved-everything delta
+            // against. Rather than mis-assert, report an explicit skip for
+            // every shape; execution coverage is the card's own per-card test
+            // (the migrated resolve()-cards keep their full behavioural
+            // tests — Timetwister, Echo of Eons).
+            req.skip ??= `Op "moveZone" changes zones on an object/zone the canned generator does not model — covered by the card's own per-card test`;
             return;
         case "pump":
             // `pump` (issue #840) adds a temporary P/T buff (CR 613.4c). The

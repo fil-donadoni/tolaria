@@ -307,7 +307,9 @@ function evalPredicate(ctx: SpellContext, pred: EffectPredicate): boolean {
         const graveyardCards = ctx.getGraveyardCards(playerId);
         return picks.some((id) => {
             const card = graveyardCards.find((c) => c.id === id);
-            return card !== undefined && matchesCardFilter(ctx, card, pred.filter);
+            return (
+                card !== undefined && matchesCardFilter(ctx, card, pred.filter)
+            );
         });
     }
     const left = resolveValue(ctx, pred.left);
@@ -1410,6 +1412,17 @@ export const OP_EXECUTORS: {
             }
             return;
         }
+        // CR 400.7 (issue #1279) — the THIRD shape: a bulk whole-zone move.
+        // Discriminated from the `target`-shape below by the absence of
+        // `target` (this shape carries `player`/`from` instead). A thin
+        // declarative skin over `ctx.moveZone`, which already moves the
+        // ENTIRE zone with no card selector.
+        if (!("target" in op)) {
+            const playerId = resolvePlayerRef(ctx, op.player);
+            if (playerId === undefined) return;
+            ctx.moveZone(playerId, op.from, op.to);
+            return;
+        }
         let target = resolveObjectRef(ctx, op.target);
         // Graveyard-source recovery (CR 400.7): `resolveObjectRef` is
         // battlefield-scoped, so a ref to a card sitting in a graveyard resolves
@@ -2018,12 +2031,21 @@ export const OP_EXECUTORS: {
         });
         if (picks === undefined) return "suspend"; // enqueued — wait
     },
-    // CR 701.9 — discard the cards a `choice` Op picked. Routes through
-    // `discardCard` so the Library of Leng replacement and CARD_DISCARDED
-    // triggers (Necropotence-style) apply exactly as for imperative cards.
+    // CR 701.9 — discard cards. Routes through `discardCard` so the Library
+    // of Leng replacement and CARD_DISCARDED triggers (Necropotence-style,
+    // madness eligibility CR 702.35c) apply exactly as for imperative cards.
+    // Without `cards` (issue #1279) — the bulk whole-hand shape: every card
+    // currently in hand, iterated over a snapshot of ids so discarding
+    // doesn't perturb the hand array mid-loop.
     discard(ctx, op) {
         const playerId = resolvePlayerRef(ctx, op.player);
         if (playerId === undefined) return;
+        if (op.cards === undefined) {
+            for (const id of ctx.getHandIds(playerId)) {
+                ctx.discardCard(playerId, id);
+            }
+            return;
+        }
         const ids = resolvePicks(ctx, op.cards);
         if (!ids) return; // binding never captured — CR 608.2b, skip
         for (const id of ids) ctx.discardCard(playerId, id);

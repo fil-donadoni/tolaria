@@ -1188,20 +1188,39 @@ export const timetwister: CardDefinition = {
         "Each player shuffles their hand and graveyard into their library, then draws seven cards. (Then put Timetwister into its owner's graveyard.)",
     manaCost: { X: 2, U: 1 },
     types: ["Sorcery"],
-    // NOT DSL-migratable (ADR 0045): "shuffles their hand and graveyard into
-    // their library" is a BULK whole-zone move (every card in hand/graveyard,
-    // not an announced target or a `choice`-bound pick set); the `moveZone`
-    // Op only moves ONE object (a target slot / bound ref) or a
-    // `choice`-picked set out of a hidden zone, not "every card a player owns
-    // in zone X". Blocked on: a bulk whole-zone-move Op. tracked-by: #1279
-    resolve: (ctx: SpellContext) => {
-        ctx.forEachPlayer((pid) => {
-            ctx.moveZone(pid, "hand", "library");
-            ctx.moveZone(pid, "graveyard", "library");
-            ctx.shuffleLibrary(pid);
-            ctx.drawCards(pid, 7);
-        });
-    },
+    // Migrated resolve()→effects[] (ADR 0045, issue #1279): "shuffles their
+    // hand and graveyard into their library" is now the `moveZone` Op's THIRD
+    // (whole-zone bulk) shape — every card in `from` moves to `to` with no
+    // selection, a thin skin over `ctx.moveZone`. Wrapped in a
+    // `forEach { set: "players" }` (CR 101.4 APNAP — order is immaterial
+    // here, every player's move/shuffle/draw is independent) mirroring the
+    // original `ctx.forEachPlayer` loop exactly.
+    effects: [
+        {
+            op: "forEach",
+            select: { set: "players" },
+            effects: [
+                {
+                    op: "moveZone",
+                    player: { ref: "$each" },
+                    from: "hand",
+                    to: "library",
+                },
+                {
+                    op: "moveZone",
+                    player: { ref: "$each" },
+                    from: "graveyard",
+                    to: "library",
+                },
+                {
+                    op: "libraryLook",
+                    action: "shuffle",
+                    player: { ref: "$each" },
+                },
+                { op: "draw", player: { ref: "$each" }, count: 7 },
+            ],
+        },
+    ],
 };
 
 // CR 701.20: oracle reads "you may tap or untap target ~". Modal-spell

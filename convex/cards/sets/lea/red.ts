@@ -1352,19 +1352,19 @@ export const wheelOfFortune: CardDefinition = {
     oracleText: "Each player discards their hand, then draws seven cards.",
     manaCost: { X: 2, R: 1 },
     types: ["Sorcery"],
-    // NOT DSL-migratable (ADR 0045): "discards their hand" is a BULK
-    // whole-hand discard (every card currently in hand, not a `choice`-bound
-    // pick set); the `discard` Op only discards a bound `EffectRef` pick set
-    // from an earlier `choice`, not "every card in hand" unconditionally.
-    // Blocked on: a bulk "discard entire hand" Op mode. tracked-by: #1279
-    resolve: (ctx: SpellContext) => {
-        ctx.forEachPlayer((pid) => {
-            for (const cardId of ctx.getHandIds(pid)) {
-                ctx.discardCard(pid, cardId);
-            }
-            ctx.drawCards(pid, 7);
-        });
-    },
+    // Migrated resolve()→effects[] (ADR 0045, issue #1279): "discards their
+    // hand" is now the `discard` Op's bulk whole-hand shape (`cards` omitted)
+    // — every card currently in hand, no selection.
+    effects: [
+        {
+            op: "forEach",
+            select: { set: "players" },
+            effects: [
+                { op: "discard", player: { ref: "$each" } },
+                { op: "draw", player: { ref: "$each" }, count: 7 },
+            ],
+        },
+    ],
 };
 
 // Disintegrate — {X}{R} Sorcery. "Disintegrate deals X damage to any target.

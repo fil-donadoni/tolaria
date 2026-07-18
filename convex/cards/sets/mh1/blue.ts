@@ -1,5 +1,5 @@
 // mh1 — blue cards (ADR 0043 colour split).
-import type { CardDefinition, SpellContext } from "../../types";
+import type { CardDefinition } from "../../types";
 
 // Echo of Eons — {4}{U}{U} Sorcery. "Each player shuffles their hand and
 // graveyard into their library, then draws seven cards." with Flashback {2}{U}
@@ -10,16 +10,12 @@ import type { CardDefinition, SpellContext } from "../../types";
 // resolves, so the graveyard shuffle doesn't sweep it; after resolution the
 // flashback rider exiles it (exileOnResolve).
 //
-// NOT DSL-migratable (ADR 0045), re-assessed for #1264: the earlier "no
-// shuffle-library Op / no per-player forEach" reasoning is stale — a
-// `libraryLook` shuffle Op and a `forEach { set: "players" }` selector both
-// exist now. The actual remaining gap: no Op moves a player's WHOLE hand or
-// graveyard to their library in one shot — `moveZone` only relocates a single
-// announced/forEach-selected OBJECT or a `choice`-picked card list, never an
-// entire zone. Planned-migratable (blocked on a bulk zone-to-zone move Op)
-// rather than a genuine protocol card. tracked-by: #1279. Identical body to
-// lea/2ed Timetwister's resolve() (composed SpellContext zone primitives, no
-// new primitive).
+// Migrated resolve()→effects[] (ADR 0045, issue #1279): the `moveZone` Op's
+// THIRD (whole-zone bulk) shape now moves a player's ENTIRE hand/graveyard to
+// their library with no selection, a thin skin over `ctx.moveZone`. Identical
+// body to lea/2ed Timetwister's migrated `effects[]` (same composed Ops, no
+// new primitive) — `flashback` is an orthogonal cost-shape field, unaffected
+// by the resolve()→effects[] migration.
 export const echoOfEons: CardDefinition = {
     id: "ff590af2-2d6c-4f16-a9b8-1a6dab6e9ad5",
     rarity: "mythic",
@@ -29,14 +25,32 @@ export const echoOfEons: CardDefinition = {
     manaCost: { X: 4, U: 2 },
     types: ["Sorcery"],
     flashback: { X: 2, U: 1 },
-    resolve: (ctx: SpellContext) => {
-        ctx.forEachPlayer((pid) => {
-            ctx.moveZone(pid, "hand", "library");
-            ctx.moveZone(pid, "graveyard", "library");
-            ctx.shuffleLibrary(pid);
-            ctx.drawCards(pid, 7);
-        });
-    },
+    effects: [
+        {
+            op: "forEach",
+            select: { set: "players" },
+            effects: [
+                {
+                    op: "moveZone",
+                    player: { ref: "$each" },
+                    from: "hand",
+                    to: "library",
+                },
+                {
+                    op: "moveZone",
+                    player: { ref: "$each" },
+                    from: "graveyard",
+                    to: "library",
+                },
+                {
+                    op: "libraryLook",
+                    action: "shuffle",
+                    player: { ref: "$each" },
+                },
+                { op: "draw", player: { ref: "$each" }, count: 7 },
+            ],
+        },
+    ],
 };
 
 // Force of Negation — {1}{U}{U} Instant. "If it's not your turn, you may exile a

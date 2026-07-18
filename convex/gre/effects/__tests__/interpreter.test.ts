@@ -3893,6 +3893,276 @@ describe("Effect Script Op: moveZone — cards/player shape (CR 400.7, issue #67
     });
 });
 
+// issue #1279 — the THIRD moveZone shape: a bulk whole-zone move (no
+// `target`, no `cards`). The permanent test for the new shape (per
+// gre-development.md's "a card introducing a new Op/construct-usage earns it
+// a permanent test") — every card currently in `from` moves to `to` with no
+// per-card selection, a thin skin over `SpellContext.moveZone`. Unblocks
+// Timetwister / Echo of Eons's "shuffles their hand and graveyard into their
+// library" and Wheel of Fortune-adjacent hand-exile idioms.
+describe("Effect Script Op: moveZone — whole-zone bulk shape (CR 400.7, issue #1279)", () => {
+    const handOf = (owner: "p1" | "p2", ids: string[]) =>
+        ids.map((cid) =>
+            makeInstance(BEAR_ID, {
+                id: cid,
+                controllerId: owner,
+                ownerId: owner,
+            })
+        );
+    const graveyardOf = (owner: "p1" | "p2", ids: string[]) =>
+        ids.map((cid) =>
+            makeInstance(BEAR_ID, {
+                id: cid,
+                controllerId: owner,
+                ownerId: owner,
+                zone: "graveyard",
+            })
+        );
+
+    it("moves every hand/graveyard card into the library with no selection, then shuffle+draw (Timetwister composition)", () => {
+        const id = registerScript("test-op-movezone-bulk-timetwister", [
+            {
+                op: "forEach",
+                select: { set: "players" },
+                effects: [
+                    {
+                        op: "moveZone",
+                        player: { ref: "$each" },
+                        from: "hand",
+                        to: "library",
+                    },
+                    {
+                        op: "moveZone",
+                        player: { ref: "$each" },
+                        from: "graveyard",
+                        to: "library",
+                    },
+                    {
+                        op: "libraryLook",
+                        action: "shuffle",
+                        player: { ref: "$each" },
+                    },
+                    { op: "draw", player: { ref: "$each" }, count: 3 },
+                ],
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: handOf("p1", ["h1", "h2"]),
+                    graveyard: graveyardOf("p1", ["g1"]),
+                    library: handOf("p1", ["l1", "l2", "l3", "l4"]).map(
+                        (c) => ({
+                            ...c,
+                            zone: "library" as const,
+                        })
+                    ),
+                }),
+                makePlayer("p2", {
+                    hand: handOf("p2", ["h3"]),
+                    library: handOf("p2", ["l5", "l6", "l7"]).map((c) => ({
+                        ...c,
+                        zone: "library" as const,
+                    })),
+                }),
+            ],
+        });
+        const stackItem = pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        // Both players' hands and graveyards are swept — nothing left behind
+        // except the resolved sorcery itself, which lands in ITS caster's
+        // graveyard normally (CR 608.2h — it was on the stack, not in a hand/
+        // graveyard the bulk move swept, throughout resolution).
+        expect(state.players[0].hand).toHaveLength(3); // drew 3 fresh
+        expect(state.players[0].graveyard.map((c) => c.id)).toEqual([
+            stackItem.id,
+        ]);
+        expect(state.players[0].hand.map((c) => c.id)).not.toEqual(
+            expect.arrayContaining(["h1", "h2"])
+        );
+        expect(state.players[1].hand).toHaveLength(3); // clamped to library size (3)
+        // Every original card (hand + graveyard + library) ends up shuffled
+        // back into the library minus what got redrawn.
+        expect(
+            state.players[0].library.length + state.players[0].hand.length
+        ).toBe(7); // 2 hand + 1 graveyard + 4 library, none lost
+        expect(state.stack).toHaveLength(0);
+    });
+
+    it("moves the whole hand to exile with no selection — the equivalent whole-hand exile mode (issue #1279)", () => {
+        const id = registerScript("test-op-movezone-bulk-exile-hand", [
+            {
+                op: "moveZone",
+                player: "controller",
+                from: "hand",
+                to: "exile",
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { hand: handOf("p1", ["eh1", "eh2", "eh3"]) }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].hand).toHaveLength(0);
+        expect(state.players[0].exile.map((c) => c.id).sort()).toEqual([
+            "eh1",
+            "eh2",
+            "eh3",
+        ]);
+    });
+
+    it("is a no-op when `from === to` — the underlying primitive's own guard", () => {
+        const id = registerScript("test-op-movezone-bulk-samezone", [
+            {
+                op: "moveZone",
+                player: "controller",
+                from: "hand",
+                to: "hand",
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { hand: handOf("p1", ["same1"]) }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].hand.map((c) => c.id)).toEqual(["same1"]);
+    });
+
+    it("the whole-hand exile survives projection (wire format)", () => {
+        const id = registerScript("test-op-movezone-bulk-wire", [
+            {
+                op: "moveZone",
+                player: "controller",
+                from: "hand",
+                to: "exile",
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { hand: handOf("p1", ["w1", "w2"]) }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[0].hand).toHaveLength(0);
+        expect(projected.players[0].exile.map((c) => c.id).sort()).toEqual([
+            "w1",
+            "w2",
+        ]);
+    });
+});
+
+// issue #1279 — the bulk whole-hand `discard` shape (`cards` omitted). The
+// permanent test for the new shape: every card currently in hand is
+// discarded with no selection, through the same `discardCard` choke point
+// (Library of Leng replacement, CARD_DISCARDED triggers, madness eligibility)
+// the picks-based shape already uses. Unblocks Wheel of Fortune / Anje's
+// Ravager's "discards their hand".
+describe("Effect Script Op: discard — bulk whole-hand shape (CR 701.9, issue #1279)", () => {
+    const handOf = (owner: "p1" | "p2", ids: string[]) =>
+        ids.map((cid) =>
+            makeInstance(BEAR_ID, {
+                id: cid,
+                controllerId: owner,
+                ownerId: owner,
+            })
+        );
+
+    it("discards every card in hand with no selection, then draws (Wheel of Fortune composition)", () => {
+        const id = registerScript("test-op-discard-bulk-wheel", [
+            {
+                op: "forEach",
+                select: { set: "players" },
+                effects: [
+                    { op: "discard", player: { ref: "$each" } },
+                    { op: "draw", player: { ref: "$each" }, count: 2 },
+                ],
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: handOf("p1", ["d1", "d2"]),
+                    library: handOf("p1", ["l1", "l2"]).map((c) => ({
+                        ...c,
+                        zone: "library" as const,
+                    })),
+                }),
+                makePlayer("p2", {
+                    hand: handOf("p2", ["d3"]),
+                    library: handOf("p2", ["l3", "l4"]).map((c) => ({
+                        ...c,
+                        zone: "library" as const,
+                    })),
+                }),
+            ],
+        });
+        const stackItem = pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        // p1's graveyard holds the two discarded cards PLUS the resolved
+        // sorcery itself (its caster's own graveyard, landing there normally
+        // after resolution completes — CR 608.2h).
+        expect(state.players[0].graveyard.map((c) => c.id).sort()).toEqual(
+            ["d1", "d2", stackItem.id].sort()
+        );
+        expect(state.players[1].graveyard.map((c) => c.id)).toEqual(["d3"]);
+        expect(state.players[0].hand.map((c) => c.id).sort()).toEqual([
+            "l1",
+            "l2",
+        ]);
+        expect(state.players[1].hand.map((c) => c.id).sort()).toEqual([
+            "l3",
+            "l4",
+        ]);
+        expect(state.stack).toHaveLength(0);
+    });
+
+    it("is a no-op loop on an empty hand (CR 608.2b — nothing to discard)", () => {
+        const id = registerScript("test-op-discard-bulk-empty", [
+            { op: "discard", player: "controller" },
+        ]);
+        const state = makeState({
+            players: [makePlayer("p1", { hand: [] }), makePlayer("p2")],
+        });
+        const stackItem = pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].hand).toHaveLength(0);
+        // Only the resolved sorcery itself lands in the graveyard — the
+        // empty-hand discard loop had nothing to discard.
+        expect(state.players[0].graveyard.map((c) => c.id)).toEqual([
+            stackItem.id,
+        ]);
+        expect(state.stack).toHaveLength(0);
+    });
+
+    it("the bulk discard survives projection (wire format)", () => {
+        const id = registerScript("test-op-discard-bulk-wire", [
+            { op: "discard", player: "controller" },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { hand: handOf("p1", ["dw1", "dw2"]) }),
+                makePlayer("p2"),
+            ],
+        });
+        const stackItem = pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[0].hand).toHaveLength(0);
+        expect(projected.players[0].graveyard.map((c) => c.id).sort()).toEqual(
+            ["dw1", "dw2", stackItem.id].sort()
+        );
+    });
+});
+
 // issue #1125 — the tutor-to-top template: choice(search-library) →
 // libraryLook(shuffle) → moveZone(cards, from: "library", to: "library-top").
 // The permanent test for the new destination (per gre-development.md's "a
@@ -8890,9 +9160,9 @@ describe("Effect Script construct: if (ADR 0045, CR 608.2c, issue #806)", () => 
                 (c) => c.id === "connive1"
             )!;
             expect(slim.counters?.["+1/+1"]).toBe(1);
-            expect(
-                projected.players[0].graveyard.map((c) => c.id)
-            ).toContain("h1");
+            expect(projected.players[0].graveyard.map((c) => c.id)).toContain(
+                "h1"
+            );
         });
 
         it("discarding a LAND card puts NO counter on the source", () => {
