@@ -1059,6 +1059,19 @@ export type PlayerState = {
     /** Number of lands played by this player during the current turn
      *  (CR 305.2 / 117.2c). Reset to 0 at the start of each turn. */
     landsPlayedThisTurn?: number;
+    /** Number of spells THIS PLAYER has cast during the current turn (CR
+     *  601.2i), the per-player counterpart of the GLOBAL `GameState.
+     *  spellsCastThisTurn` Storm counter (ADR 0052) — mirrors
+     *  `landsPlayedThisTurn`'s shape (issue #1343). Incremented inside
+     *  `emitSpellCastEvent`, which also snapshots the value BEFORE
+     *  incrementing onto `SpellCastEvent.casterSpellCountThisTurn`; reset to 0
+     *  at the start of each turn (`advanceTurn`, alongside
+     *  `landsPlayedThisTurn`). Needed because the global counter can't
+     *  distinguish "P1's 1st spell + P2's 1st spell = 2 total" from "P1's 2nd
+     *  spell" — connive's "whenever a player casts their SECOND spell each
+     *  turn" (CR 701.50, Ledger Shredder) needs the per-caster tally, not the
+     *  table-wide one. */
+    spellsCastThisTurn?: number;
     /** Instance id of the last card this player drew during the current turn
      *  (the card most recently moved from library to hand by a draw). Set by
      *  `drawCard`, cleared at the start of each turn (`advanceTurn`). Used as
@@ -6335,9 +6348,14 @@ export function exileUntilMonarchChanges(
  *  goes through, so it doubles as the per-turn spell counter: reads
  *  `spellsCastThisTurn` BEFORE incrementing (the tally of spells cast
  *  strictly before this one), carries it on the emitted event as
- *  `priorSpellCount`, then increments. A spell COPY (`cloneSpellOntoStack`)
+ *  `priorSpellCount`, then increments. Also the choke point for the
+ *  PER-PLAYER counterpart (issue #1343, connive/CR 701.50): reads the
+ *  caster's own `PlayerState.spellsCastThisTurn` BEFORE incrementing,
+ *  carries it as `casterSpellCountThisTurn`, then increments it too — same
+ *  "read then increment" shape as Storm's global tally, just scoped to the
+ *  caster instead of the table. A spell COPY (`cloneSpellOntoStack`)
  *  is put onto the stack directly and never calls this function, so copies
- *  never inflate the count (CR 707.10 — a copy isn't cast). Also runs the
+ *  never inflate either count (CR 707.10 — a copy isn't cast). Also runs the
  *  cast-trigger collection pass (`collectCastTriggers`) so a keyword-
  *  synthesized cast trigger (today only storm) goes on the stack above this
  *  spell in the same atomic step the spell itself is announced. */
@@ -6352,6 +6370,14 @@ export function emitSpellCastEvent(state: GameState, item: StackItem): void {
     const colors = def?.manaCost ? getColorsFromCost(def.manaCost) : [];
     const priorSpellCount = state.spellsCastThisTurn ?? 0;
     state.spellsCastThisTurn = priorSpellCount + 1;
+    // Per-player spell-cast tally (issue #1343) — the caster's own prior
+    // count before this cast, mirroring `priorSpellCount`'s "read before
+    // increment" convention but scoped to `caster` instead of the whole
+    // table (CR 601.2i). Powers "a player's Nth spell" conditions (connive,
+    // Ledger Shredder) via `nthSpellThisTurn`
+    // (cards/abilities/triggers/spellCastTrigger.ts).
+    const casterSpellCountThisTurn = caster?.spellsCastThisTurn ?? 0;
+    if (caster) caster.spellsCastThisTurn = casterSpellCountThisTurn + 1;
     const event: SpellCastEvent = {
         type: "SPELL_CAST",
         casterId: item.castById,
@@ -6361,6 +6387,7 @@ export function emitSpellCastEvent(state: GameState, item: StackItem): void {
         spellSubtypes: item.subtypes,
         spellColors: colors,
         priorSpellCount,
+        casterSpellCountThisTurn,
     };
     state.pendingEvents = [...(state.pendingEvents ?? []), event];
     // CR 603.2b (issue #1265) — a cast spell's chosen targets are locked onto

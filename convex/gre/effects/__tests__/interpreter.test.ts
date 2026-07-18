@@ -44,6 +44,7 @@ import {
 } from "../../../cards/emblems";
 import type { GameEvent } from "../../../cards/types";
 import { backupTrigger } from "../../../cards/abilities/triggers/backupTrigger";
+import { spellCastTrigger } from "../../../cards/abilities/triggers/spellCastTrigger";
 
 /** Registers a synthetic DSL-only sorcery under a stable test id. Uses the
  *  registry's injection seam (`registerTokenDefinition` — idempotent
@@ -8741,6 +8742,206 @@ describe("Effect Script construct: if (ADR 0045, CR 608.2c, issue #806)", () => 
             expect(state.players[0].hand).toHaveLength(0);
             expect(state.players[0].library.map((c) => c.id)).toEqual(["lib0"]);
             expect(state.stack).toHaveLength(0);
+        });
+    });
+
+    // picksMatchFilter (issue #1343) — true iff at least one picked card,
+    // resolved via `player`'s graveyard (CR 701.9 — every discard lands
+    // there), matches an `EffectCardFilter`. Connive's "if you discarded a
+    // NONLAND card, put a +1/+1 counter on this creature" gate (CR 701.50,
+    // Ledger Shredder). Exercised here through a synthetic permanent so a
+    // `counters` Op can target `$source` (a resolving SPELL/sorcery has no
+    // battlefield presence to put a counter on) — this is the construct's OWN
+    // permanent test: any later card reusing `picksMatchFilter` inherits this
+    // coverage free.
+    describe("picksMatchFilter predicate (issue #1343, CR 701.50 connive)", () => {
+        const CONNIVE_PROBE_ID = "test-effects-connive-probe";
+        const CONNIVE_TRIGGER_ID = "connive-probe-trigger";
+        registerTokenDefinition({
+            id: CONNIVE_PROBE_ID,
+            name: CONNIVE_PROBE_ID,
+            rarity: "common",
+            manaCost: { X: 1, U: 1 },
+            types: ["Creature"],
+            subtypes: ["Bird"],
+            power: 1,
+            toughness: 3,
+            staticAbilities: ["flying"],
+            triggeredAbilities: [
+                spellCastTrigger({
+                    id: CONNIVE_TRIGGER_ID,
+                    oracleText: "test connive trigger",
+                    scope: "any",
+                    effects: [
+                        { op: "draw", player: "controller", count: 1 },
+                        {
+                            op: "choice",
+                            kind: "choose-hand-card",
+                            player: "controller",
+                            zone: "hand",
+                            count: 1,
+                            prompt: "Connive: discard a card.",
+                            bind: "$connived",
+                        },
+                        {
+                            op: "discard",
+                            player: "controller",
+                            cards: { ref: "$connived" },
+                        },
+                        {
+                            op: "if",
+                            predicate: {
+                                picksMatchFilter: { ref: "$connived" },
+                                player: "controller",
+                                filter: { excludeType: "Land" },
+                            },
+                            then: [
+                                {
+                                    op: "counters",
+                                    action: "add",
+                                    counter: "+1/+1",
+                                    target: { ref: "$source" },
+                                    count: 1,
+                                },
+                            ],
+                        },
+                    ],
+                }),
+            ],
+        });
+
+        function conniveTriggerOnStack(
+            state: GameState,
+            source: CardInstanceState
+        ): StackItem {
+            const trig: StackItem = {
+                ...source,
+                id: "connive-trig",
+                zone: "stack",
+                castById: source.controllerId,
+                triggeredAbilityId: CONNIVE_TRIGGER_ID,
+                triggerSourceId: source.id,
+                triggerEvent: {
+                    type: "SPELL_CAST",
+                    casterId: source.controllerId,
+                    spellInstanceId: "x",
+                    spellCardId: "x",
+                    spellTypes: [],
+                    spellSubtypes: [],
+                    spellColors: [],
+                } as StackItem["triggerEvent"],
+                targets: undefined,
+            };
+            state.stack.push(trig);
+            return trig;
+        }
+
+        it("discarding a NONLAND card puts a +1/+1 counter on the source — wire format", () => {
+            const source = makeInstance(CONNIVE_PROBE_ID, {
+                id: "connive1",
+                controllerId: "p1",
+                ownerId: "p1",
+            });
+            const hand = [
+                makeInstance(BEAR_ID, {
+                    id: "h1",
+                    controllerId: "p1",
+                    ownerId: "p1",
+                    zone: "hand",
+                }),
+            ];
+            const lib = [
+                makeInstance(BEAR_ID, {
+                    id: "lib0",
+                    controllerId: "p1",
+                    ownerId: "p1",
+                    zone: "library",
+                }),
+            ];
+            const state = makeState({
+                players: [
+                    makePlayer("p1", {
+                        hand,
+                        library: lib,
+                        battlefield: [source],
+                    }),
+                    makePlayer("p2"),
+                ],
+            });
+            conniveTriggerOnStack(state, source);
+            // Draw resolves immediately, then suspends on the discard choice.
+            expect(resolveTopOfStack(state)).toBeNull();
+            const head = state.pendingChoices![0];
+            applyPendingChoiceSubmit(state, {
+                playerId: "p1",
+                stackItemId: head.stackItemId,
+                step: head.step,
+                choiceId: head.choiceId,
+                cardInstanceIds: ["h1"],
+            });
+            const after = state.players[0].battlefield.find(
+                (c) => c.id === "connive1"
+            )!;
+            expect(after.counters?.["+1/+1"]).toBe(1);
+            expect(state.players[0].graveyard.map((c) => c.id)).toContain("h1");
+            // Wire — the counter and graveyard contents are board-visible.
+            const projected = projectPublicState(state, 1, "p1");
+            const slim = projected.players[0].battlefield.find(
+                (c) => c.id === "connive1"
+            )!;
+            expect(slim.counters?.["+1/+1"]).toBe(1);
+            expect(
+                projected.players[0].graveyard.map((c) => c.id)
+            ).toContain("h1");
+        });
+
+        it("discarding a LAND card puts NO counter on the source", () => {
+            const source = makeInstance(CONNIVE_PROBE_ID, {
+                id: "connive2",
+                controllerId: "p1",
+                ownerId: "p1",
+            });
+            const hand = [
+                makeInstance(LAND_ID, {
+                    id: "h2",
+                    controllerId: "p1",
+                    ownerId: "p1",
+                    zone: "hand",
+                }),
+            ];
+            const lib = [
+                makeInstance(BEAR_ID, {
+                    id: "lib1",
+                    controllerId: "p1",
+                    ownerId: "p1",
+                    zone: "library",
+                }),
+            ];
+            const state = makeState({
+                players: [
+                    makePlayer("p1", {
+                        hand,
+                        library: lib,
+                        battlefield: [source],
+                    }),
+                    makePlayer("p2"),
+                ],
+            });
+            conniveTriggerOnStack(state, source);
+            expect(resolveTopOfStack(state)).toBeNull();
+            const head = state.pendingChoices![0];
+            applyPendingChoiceSubmit(state, {
+                playerId: "p1",
+                stackItemId: head.stackItemId,
+                step: head.step,
+                choiceId: head.choiceId,
+                cardInstanceIds: ["h2"],
+            });
+            const after = state.players[0].battlefield.find(
+                (c) => c.id === "connive2"
+            )!;
+            expect(after.counters?.["+1/+1"] ?? 0).toBe(0);
+            expect(state.players[0].graveyard.map((c) => c.id)).toContain("h2");
         });
     });
 

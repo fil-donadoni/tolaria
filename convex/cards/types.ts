@@ -5332,6 +5332,19 @@ export interface SpellCastEvent {
      *  storm stay valid — the real production emitter (`emitSpellCastEvent`,
      *  gre/state.ts) always sets it. */
     priorSpellCount?: number;
+    /** Per-player counterpart of `priorSpellCount` (issue #1343): tally of
+     *  spells cast by THIS EVENT'S CASTER (not any player) BEFORE this one,
+     *  this turn (`PlayerState.spellsCastThisTurn` read prior to increment).
+     *  Storm's `priorSpellCount` is a GLOBAL tally and cannot tell "P1's 1st +
+     *  P2's 1st spell = 2 total" apart from "P1's 2nd spell" — a rules
+     *  violation if used for a per-caster condition like connive's "whenever
+     *  a player casts their second spell each turn" (CR 701.50, Ledger
+     *  Shredder). `nthSpellThisTurn` (`cards/abilities/triggers/
+     *  spellCastTrigger.ts`) is the reusable `spellCastTrigger.condition`
+     *  built on top of this field. Optional for the same reason
+     *  `priorSpellCount` is — pre-existing hand-built fixtures stay valid;
+     *  the real emitter always sets it. */
+    casterSpellCountThisTurn?: number;
 }
 
 /** Tap event emitted whenever a permanent transitions from untapped to
@@ -8205,6 +8218,20 @@ export type EffectOp =
  *    "self-target vs. other-target" shape any future keyword sharing Backup's
  *    "put a counter on target X; if that's ANOTHER X, do more" phrasing would
  *    also need.
+ *  - a PICKS-MATCH-FILTER test (issue #1343) — reads whether at least one
+ *    card in a `choice` Op's picks binding matches an `EffectCardFilter`,
+ *    resolved via `player`'s graveyard (CR 701.9 — a discard always lands
+ *    there, so this predicate is meaningful once the matching `discard` Op
+ *    has run). This is connive's "if you discarded a NONLAND card" gate (CR
+ *    701.50, Ledger Shredder): `{ picksMatchFilter: { ref: "$discarded" },
+ *    player: "controller", filter: { excludeType: "Land" } }`. A picked id
+ *    no longer resolvable in `player`'s graveyard (a replacement redirected
+ *    it elsewhere, or the binding was never captured — CR 608.2b) counts as
+ *    no match for that id rather than aborting the whole predicate.
+ *    `picksNonEmpty`'s narrower cousin: "was anything picked" vs. "does what
+ *    was picked match a card shape" — reuses the SAME `matchesCardFilter`
+ *    reader the `choice`/`count` constructs already share, no new filter
+ *    grammar.
  *
  *  Growing the predicate vocabulary (a new comparison operator, a new binding
  *  kind) is cheap; adding a NON-enumerated form (a raw expression) requires
@@ -8213,7 +8240,8 @@ export type EffectPredicate =
     | EffectBindingPredicate
     | EffectComparisonPredicate
     | EffectPicksNonEmptyPredicate
-    | EffectTargetIsAnotherPredicate;
+    | EffectTargetIsAnotherPredicate
+    | EffectPicksMatchFilterPredicate;
 
 /** Boolean-binding predicate: true iff the named boolean binding is true
  *  (`{ binding }`) or false (`{ not: { binding } }`). The binding MUST be a
@@ -8258,6 +8286,24 @@ export interface EffectPicksNonEmptyPredicate {
  *  …" gate: `{ targetIsAnother: { target: 0 } }`. */
 export interface EffectTargetIsAnotherPredicate {
     targetIsAnother: EffectTargetRef;
+}
+
+/** Picks-match-filter predicate (issue #1343): true iff `player`'s graveyard
+ *  (CR 701.9 — the destination of every discard) currently contains at least
+ *  one card whose instance id is in the named `choice` Op's picks binding AND
+ *  matches `filter`. `picksMatchFilter` is a bare picks ref (`EffectRef` — the
+ *  same picks-binding family `discard`/`sacrifice`/`picksNonEmpty` already
+ *  read); `player` is normally `"controller"` (the discarding player — CR
+ *  701.9's discard always lands in the discarder's OWN graveyard). Reads
+ *  `false` for an uncaptured binding, a `player` ref that cannot be resolved,
+ *  or a picked id no longer present in that graveyard (a redirect, or the
+ *  binding never captured — CR 608.2b) — the effect does as much as it can
+ *  rather than aborting. Meaningful only AFTER the picks' matching `discard`
+ *  Op has run (connive, CR 701.50: "if you discarded a nonland card"). */
+export interface EffectPicksMatchFilterPredicate {
+    picksMatchFilter: EffectRef;
+    player: EffectPlayerRef;
+    filter: EffectCardFilter;
 }
 
 // `EffectChoiceKind` must stay a subset of the engine's `ZonePickKind` — the

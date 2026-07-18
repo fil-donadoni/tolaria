@@ -1091,6 +1091,23 @@ function isPredicate(value: unknown): boolean {
     if (keys.length === 1 && keys[0] === "targetIsAnother") {
         return isTargetRef(obj.targetIsAnother);
     }
+    // picksMatchFilter form (issue #1343) — a `choice` Op's picks binding
+    // (bare picks ref, same shape as `picksNonEmpty`), plus `player` (whose
+    // graveyard to resolve the picks against) and `filter` (the card shape
+    // to test). Binding EXISTENCE and family are checked by the ordered ref
+    // pass, like every other predicate form.
+    if (
+        keys.length === 3 &&
+        keys.includes("picksMatchFilter") &&
+        keys.includes("player") &&
+        keys.includes("filter")
+    ) {
+        return (
+            isBareRef(obj.picksMatchFilter) &&
+            isPlayerRef(obj.player) &&
+            isCardFilter(obj.filter)
+        );
+    }
     // Comparison form.
     if (keys.length !== 3) return false;
     return (
@@ -2218,6 +2235,20 @@ function collectPredicateRefUses(predicate: unknown, out: RefUse[]): void {
     // to resolve (a target slot's existence isn't binding-tracked, mirroring
     // every other Op's `{ target: n }` object selector).
     if (typeof p.targetIsAnother === "object" && p.targetIsAnother !== null) {
+        return;
+    }
+    // picksMatchFilter (issue #1343) — names a picks binding (same family as
+    // picksNonEmpty), plus a player-position ref on `player`.
+    if (
+        typeof p.picksMatchFilter === "object" &&
+        p.picksMatchFilter !== null &&
+        typeof (p.picksMatchFilter as { ref?: unknown }).ref === "string"
+    ) {
+        out.push({
+            ref: (p.picksMatchFilter as { ref: string }).ref,
+            kind: "picks",
+        });
+        collectRefUses(p.player, "player", out);
         return;
     }
     // Comparison: numeric refs on either side.
