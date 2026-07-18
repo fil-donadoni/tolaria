@@ -5518,7 +5518,7 @@ describe("Effect Script Op: setColor (CR 613.1e, layer 5, issue #1083)", () => {
     // the new `forEach { set: "targets" }` selector (issue #1083) — the
     // variable-N "any number of target creatures" companion to a fixed
     // `{ target: N }` slot.
-    it("applies to every member of a forEach { set: \"targets\" } selector", () => {
+    it('applies to every member of a forEach { set: "targets" } selector', () => {
         const id = registerScript("test-op-setcolor-foreach-targets", [
             {
                 op: "forEach",
@@ -5567,7 +5567,7 @@ describe("Effect Script Op: setColor (CR 613.1e, layer 5, issue #1083)", () => {
     // "Any number" declined down to zero (Sway of Illusion's "you may cast
     // this and choose to target zero creatures") — the forEach set is empty
     // and the Op runs zero iterations without error.
-    it("is a no-op over an empty forEach { set: \"targets\" } (any-number decline)", () => {
+    it('is a no-op over an empty forEach { set: "targets" } (any-number decline)', () => {
         const id = registerScript("test-op-setcolor-foreach-targets-empty", [
             {
                 op: "forEach",

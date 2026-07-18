@@ -1012,8 +1012,7 @@ export const metathranAerostat: CardDefinition = {
                     zone: "hand",
                     filter: { type: "Creature", manaValueEquals: { X: true } },
                     count: { min: 0, max: 1 },
-                    prompt:
-                        "Put a creature card with mana value X onto the battlefield? (Metathran Aerostat)",
+                    prompt: "Put a creature card with mana value X onto the battlefield? (Metathran Aerostat)",
                     bind: "$metathranAerostatPick",
                 },
                 {
@@ -1029,7 +1028,11 @@ export const metathranAerostat: CardDefinition = {
                         picksNonEmpty: { ref: "$metathranAerostatPick" },
                     },
                     then: [
-                        { op: "moveZone", target: { ref: "$source" }, to: "hand" },
+                        {
+                            op: "moveZone",
+                            target: { ref: "$source" },
+                            to: "hand",
+                        },
                     ],
                 },
             ],

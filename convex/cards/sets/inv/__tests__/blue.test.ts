@@ -1385,8 +1385,7 @@ describe("Metathran Transport (CR 509.1b block restriction + CR 613.1e setColor,
             ],
         });
         expect(
-            validateBlockerEligibility(transport, bear, [bear], state)
-                .eligible
+            validateBlockerEligibility(transport, bear, [bear], state).eligible
         ).toBe(true);
         resolveActivated(state, transport, "metathran-transport-color", [
             { type: "permanent", id: "recoloredBear" },
@@ -1514,9 +1513,9 @@ describe("Metathran Aerostat (manaValueEquals + moveZone + picksNonEmpty, issue 
         expect(
             state.players[0].battlefield.some((c) => c.id === "aerostat2")
         ).toBe(true);
-        expect(state.players[0].hand.some((c) => c.id === "handBearDecline")).toBe(
-            true
-        );
+        expect(
+            state.players[0].hand.some((c) => c.id === "handBearDecline")
+        ).toBe(true);
     });
 });
 
