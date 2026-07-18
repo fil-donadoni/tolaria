@@ -763,13 +763,19 @@ function isMoveZone(value: unknown): boolean {
     );
 }
 
-/** The hidden/public source zone a `moveZone` Op's `cards`-shape (issue #677,
- *  #680) may name — the zones a `choice` Op can raise a picks binding from
- *  that this shape knows how to move out of. `"graveyard"` (issue #680) is
- *  the self-selection pick, distinct from an announced target (Exhume,
- *  Titania). */
-function isMoveZoneFrom(value: unknown): boolean {
-    return value === "library" || value === "hand" || value === "graveyard";
+/** The shared `from` field checker for BOTH `moveZone` non-`target` shapes
+ *  (issue #677, #680, #1279) — the four plain zones `MovableZone` covers
+ *  (`SpellContext.moveZone`/`moveCardById`'s own zone type). The `cards`-
+ *  shape additionally excludes `"exile"` at the `check()` level (issue #677/
+ *  #680's zones a `choice` Op can raise a picks binding from never include
+ *  exile); the whole-zone bulk shape (issue #1279) accepts all four. */
+function isMovableZone(value: unknown): boolean {
+    return (
+        value === "library" ||
+        value === "hand" ||
+        value === "graveyard" ||
+        value === "exile"
+    );
 }
 
 function isBoolean(value: unknown): boolean {
@@ -1427,14 +1433,19 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     // graveyard-pick effect, consuming a `choice(zone: "library" | "hand" |
     // "graveyard")` Op's picks (a hidden zone has no announced-target form,
     // CR 601.2b; a graveyard pick is a self-selection, not a spell target).
-    // Exactly one of `target` / `cards` is required; `player`/`from` are
-    // required with `cards` and invalid with `target`. `tapped` (optional) is
-    // valid only alongside `cards` AND `to: "battlefield"` (Fabled Passage's
-    // forced-tapped fetch). `bind` (issue #1151, closing #1120 gap 3) is
-    // likewise valid alongside `cards` only with `to: "battlefield"` — it
-    // snapshots the permanent that just entered, unblocking a follow-up Op
-    // (haste grant, delayed-sacrifice capture) on a hand-sourced permanent
-    // (Sneak Attack, Cauldron Dance's hand-side clause).
+    // `tapped` (optional) is valid only alongside `cards` AND
+    // `to: "battlefield"` (Fabled Passage's forced-tapped fetch). `bind`
+    // (issue #1151, closing #1120 gap 3) is likewise valid alongside `cards`
+    // only with `to: "battlefield"` — it snapshots the permanent that just
+    // entered, unblocking a follow-up Op (haste grant, delayed-sacrifice
+    // capture) on a hand-sourced permanent (Sneak Attack, Cauldron Dance's
+    // hand-side clause).
+    // THIRD SHAPE (issue #1279) — a bulk WHOLE-ZONE move: `player` + `from`,
+    // no `target` and no `cards`. Every card in `from` moves to `to`, no
+    // selection (Timetwister / Echo of Eons's "shuffles their hand and
+    // graveyard into their library"). Exactly one of `target` / `cards` /
+    // whole-zone (neither `target` nor `cards`) applies; `player`/`from` are
+    // required with EITHER `cards` or whole-zone, and invalid with `target`.
     moveZone: {
         required: { to: isMoveZone },
         optional: {
@@ -1443,15 +1454,18 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             controller: isPlayerRef,
             cards: isBarePicksRef,
             player: isPlayerRef,
-            from: isMoveZoneFrom,
+            from: isMovableZone,
             tapped: isBoolean,
         },
         check: (entry) => {
             const hasTarget = "target" in entry;
             const hasCards = "cards" in entry;
+            const hasBulk = !hasTarget && !hasCards;
             const errors: string[] = [];
-            if (hasTarget === hasCards) {
-                errors.push('exactly one of "target" or "cards" is required');
+            if (hasTarget && hasCards) {
+                errors.push(
+                    'at most one of "target" or "cards" may be present (omit both for the whole-zone bulk mode, issue #1279)'
+                );
             }
             if (hasCards) {
                 if (!("player" in entry)) {
@@ -1459,6 +1473,11 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
                 }
                 if (!("from" in entry)) {
                     errors.push('field "from" is required with "cards"');
+                }
+                if (entry.from === "exile") {
+                    errors.push(
+                        'field "from" does not accept "exile" with "cards" — only "library" / "hand" / "graveyard"'
+                    );
                 }
                 // issue #1151 (closing #1120 gap 3) — `bind` snapshots the
                 // permanent that just entered the battlefield, so it only
@@ -1479,6 +1498,46 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
                 }
                 if ("from" in entry) {
                     errors.push('field "from" is not valid with "target"');
+                }
+            }
+            // issue #1279 — the whole-zone bulk shape: required `player`/
+            // `from`, and none of the single-object fields (`bind`,
+            // `controller`, `tapped`) make sense with no single object to
+            // act on. Restricted to the four PLAIN zones on both `from`/`to`
+            // — no `to: "battlefield"` (that reanimation path is the
+            // existing `forEach { set: "graveyard" }` + `simultaneous`
+            // idiom) and no `to: "library-top"` (meaningless with no pick
+            // list to order).
+            if (hasBulk) {
+                if (!("player" in entry)) {
+                    errors.push(
+                        'field "player" is required for the whole-zone bulk mode (no "target"/"cards")'
+                    );
+                }
+                if (!("from" in entry)) {
+                    errors.push(
+                        'field "from" is required for the whole-zone bulk mode (no "target"/"cards")'
+                    );
+                }
+                if ("bind" in entry) {
+                    errors.push(
+                        'field "bind" is not valid for the whole-zone bulk mode — there is no single object to snapshot'
+                    );
+                }
+                if ("controller" in entry) {
+                    errors.push(
+                        'field "controller" is not valid for the whole-zone bulk mode'
+                    );
+                }
+                if ("tapped" in entry) {
+                    errors.push(
+                        'field "tapped" is not valid for the whole-zone bulk mode'
+                    );
+                }
+                if (entry.to === "battlefield" || entry.to === "library-top") {
+                    errors.push(
+                        `to: "${entry.to}" is not valid for the whole-zone bulk mode — only "library" / "hand" / "graveyard" / "exile"`
+                    );
                 }
             }
             if ("controller" in entry && entry.to !== "battlefield") {
@@ -1841,9 +1900,12 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
         },
         optional: { filter: isCardFilter, zoneOwnerId: isPlayerRef },
     },
-    // CR 701.9 (issue #805) — discard the cards a `choice` Op picked.
+    // CR 701.9 (issue #805) — discard the cards a `choice` Op picked, OR
+    // (issue #1279, `cards` omitted) the bulk whole-hand shape — every card
+    // currently in `player`'s hand.
     discard: {
-        required: { player: isPlayerRef, cards: isBarePicksRef },
+        required: { player: isPlayerRef },
+        optional: { cards: isBarePicksRef },
     },
     // CR 701.5a (issue #806) — counter the target spell. `destination`
     // (issue #683) redirects a COUNTERED SPELL to exile/library-top/hand

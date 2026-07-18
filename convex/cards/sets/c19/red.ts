@@ -1,5 +1,5 @@
 // c19 — red cards (ADR 0043 colour split).
-import type { CardDefinition, SpellContext } from "../../types";
+import type { CardDefinition } from "../../types";
 
 // Anje's Ravager — {2}{R} Creature — Vampire Berserker, 3/3. "This creature
 // attacks each combat if able.\nWhenever this creature attacks, discard your
@@ -35,22 +35,16 @@ export const anjesRavager: CardDefinition = {
             matches: (event, self) =>
                 event.type === "ATTACKERS_DECLARED" &&
                 event.attackerIds.includes(self.id),
-            // NOT DSL-migratable (ADR 0045): "discard your hand" has no
-            // Effect Script Op — the `discard` Op requires an explicit picks
-            // binding (a `choice` Op's fixed-count selection), and there is
-            // no whole-hand selector. This matches the shipped Wheel of
-            // Fortune / Windfall resolve() pattern (`lea/red.ts`).
-            // `ctx.discardCard` routes through `discardToGraveyard`, so a
+            // Migrated resolve()→effects[] (ADR 0045, issue #1279): "discard
+            // your hand" is now the `discard` Op's bulk whole-hand shape
+            // (`cards` omitted) — every card currently in hand, no selection.
+            // Still routes through `discardCard`/`discardToGraveyard`, so a
             // discarded card with madness is itself exiled + made castable
-            // (CR 702.35c), not just binned. Blocked on: a whole-hand discard
-            // selector Op (planned-migratable). tracked-by: #1279
-            resolve: (ctx: SpellContext) => {
-                const controller = ctx.controller;
-                for (const cardId of ctx.getHandIds(controller)) {
-                    ctx.discardCard(controller, cardId);
-                }
-                ctx.drawCards(controller, 3);
-            },
+            // (CR 702.35c), exactly as the old resolve() body.
+            effects: [
+                { op: "discard", player: "controller" },
+                { op: "draw", player: "controller", count: 3 },
+            ],
         },
     ],
 };

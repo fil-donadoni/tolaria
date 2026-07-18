@@ -7370,6 +7370,38 @@ export type EffectOp =
           tapped?: boolean;
           bind?: string;
       }
+    /** CR 400.7 (issue #1279) — the THIRD `moveZone` shape: a bulk WHOLE-ZONE
+     *  move. Every card currently in `from` moves to `to` — no announced
+     *  `target`, no `choice`-picked `cards`, no per-card selection at all
+     *  ("shuffles their hand and graveyard into their library", Timetwister /
+     *  Echo of Eons; "shuffles the cards from their hand into their library",
+     *  Winds of Change). A thin declarative skin over the SpellContext
+     *  primitive `ctx.moveZone(playerId, from, to)`, which ALREADY takes no
+     *  card selector (it always moves the entire zone) — this shape is the
+     *  direct Op wrapper that primitive was always missing (ADR 0045
+     *  "generalize, don't add": the primitive already existed, only the DSL
+     *  skin was absent). Discriminated from the other two shapes by carrying
+     *  neither `target` nor `cards`; `player`/`from` are both required
+     *  (mirroring the `cards`-shape's own `player`/`from` fields, since a
+     *  whole-zone move is equally a `player`-scoped, `from`-sourced
+     *  operation). Restricted to the four PLAIN zones (`MovableZone` —
+     *  library/hand/graveyard/exile) on BOTH `from` and `to`: unlike the
+     *  `cards`-shape, there is no `to: "battlefield"` reanimation branch (a
+     *  bulk graveyard→battlefield sweep is the existing `forEach { set:
+     *  "graveyard" }` + `simultaneous` idiom, not this shape) and no `to:
+     *  "library-top"` (that destination's ordering guarantee is meaningless
+     *  without a specific pick list to place in order). No `bind` — there is
+     *  no single object to snapshot when moving an entire zone; no `tapped`/
+     *  `controller` for the same reason (both are meaningful only for a
+     *  card entering the battlefield, which this shape never does). Skipped
+     *  when `player` cannot be resolved (CR 608.2b); a `from === to` no-op is
+     *  handled by the underlying primitive itself. */
+    | {
+          op: "moveZone";
+          player: EffectPlayerRef;
+          from: MovableZone;
+          to: MovableZone;
+      }
     /** CR 613.4c (layer 7c, issue #840) — a temporary P/T modification that
      *  expires at a phase boundary. A thin declarative skin over the
      *  SpellContext primitive `addTemporaryPTBuff`, one execution path
@@ -7953,13 +7985,21 @@ export type EffectOp =
            *  binding. */
           bind: string;
       }
-    /** CR 701.9 — `player` discards the cards a `choice` Op picked. `cards`
-     *  is a bare picks ref (`{ ref: "$picked" }`); each picked card still in
-     *  the player's hand is discarded through `SpellContext.discardCard`
-     *  (Library of Leng replacement + CARD_DISCARDED triggers apply exactly
-     *  as for imperative cards). Skipped when the binding was never captured
-     *  (the choice found no candidates — CR 608.2b). */
-    | { op: "discard"; player: EffectPlayerRef; cards: EffectRef }
+    /** CR 701.9 — `player` discards cards. TWO shapes share this Op name
+     *  (ADR 0045, issue #1279's bulk generalization of the original
+     *  picks-only shape): with `cards` (a bare picks ref, `{ ref: "$picked"
+     *  }`), each picked card still in the player's hand is discarded —
+     *  Mind Rot, Innocent Blood's "each player discards a card" template.
+     *  WITHOUT `cards` (issue #1279) — every card currently in the player's
+     *  hand is discarded, no selection ("discards their hand", Wheel of
+     *  Fortune / Windfall / Anje's Ravager's attack trigger). Both shapes
+     *  discard each card through `SpellContext.discardCard` (Library of Leng
+     *  replacement + CARD_DISCARDED triggers apply exactly as for imperative
+     *  cards, including madness eligibility, CR 702.35c). The `cards` shape
+     *  is skipped when the binding was never captured (the choice found no
+     *  candidates — CR 608.2b); the whole-hand shape skips only when `player`
+     *  cannot be resolved (an empty hand is simply a no-op loop). */
+    | { op: "discard"; player: EffectPlayerRef; cards?: EffectRef }
     /** CR 117.3a / 118.4 — an optional "you may pay {cost}" decision offered to
      *  a player (issue #806), OR a bare cost-free "you may …" decision (issue
      *  #680 — `cost` omitted). Maps 1:1 onto `SpellContext.requestMayPay`,

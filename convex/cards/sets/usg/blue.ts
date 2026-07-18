@@ -121,13 +121,16 @@ export const showAndTell: CardDefinition = {
 // Time Spiral. Each player shuffles their hand and graveyard into their
 // library, then draws seven cards. You untap up to six lands."
 //
-// NOT DSL-migratable (ADR 0045): the middle clause is the EXACT Timetwister
-// shape (lea/blue.ts's `timetwister`) — a BULK whole-zone move (every card in
-// a player's hand/graveyard, not an announced target or a `choice`-bound pick
-// set); the `moveZone` Op only moves ONE object or a `choice`-picked set out
-// of a hidden zone, not "every card a player owns in zone X". Blocked on: a
-// bulk whole-zone-move Op, the SAME already-open gap Timetwister is tracked
-// against. tracked-by: #1279
+// NOT DSL-migratable (ADR 0045): the middle clause WAS the EXACT Timetwister
+// shape (lea/blue.ts's `timetwister`, now migrated to `effects[]` on
+// `moveZone`'s bulk whole-zone shape, issue #1279 — CLOSED), but Time Spiral
+// itself stays `resolveSteps`, blocked on the OTHER two clauses riding the
+// same body: "Exile Time Spiral" (a self-redirect, `exileSelf()`, no Op skin)
+// and "untap up to six lands" (a ranged 0..6 cross-battlefield pick), neither
+// of which has been re-assessed against the current Op vocabulary — left
+// unmigrated here to stay in scope for #1279 (whole-zone-move only).
+// tracked-by: #1279 (closed — informational only, the remaining blockers
+// above are untracked; flag a fresh issue before attempting migration)
 //
 // Two more clauses ride the same `resolveSteps` body (CR 608.2) rather than a
 // bare `resolve`, since the seven-card draws are IRREVERSIBLE and must run

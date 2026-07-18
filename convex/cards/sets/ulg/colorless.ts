@@ -47,15 +47,18 @@ export const grimMonolith: CardDefinition = {
 //
 // PROTOCOL (`resolve()` — no Op vocabulary gap, a genuine per-player linked-
 // state capability the frozen Effect Script grammar doesn't carry, ADR 0045):
-// (1) a WHOLE-ZONE "exile every hand card" has no Op — `moveZone`'s cards-ref
-// shape only moves cards a `choice` Op already picked, and there is no
-// "select the entire hand" set selector; (2) `exileFaceDown` (ADR 0026) is a
-// per-card imperative primitive with no Op skin; (3) most importantly, the
-// `delayedTrigger` Op's `capture` map resolves ONCE at scheduling (a flat
-// map), but this card needs a DIFFERENT list of exiled ids PER PLAYER,
-// re-associated with that same player at fire time — the list-valued capture
-// grammar (issue #866) has no per-`forEach`-member capture shape. The
-// template `resolve()` path composes only already-shipped primitives
+// (1) [CLOSED by #1279] a WHOLE-ZONE "exile every hand card" now HAS an Op —
+// `moveZone`'s bulk whole-zone shape (no target/cards, issue #1279) moves an
+// entire hand with no selection — but that alone doesn't unblock this card:
+// this is a FACE-DOWN exile (`exileFaceDown`, ADR 0026), which the whole-zone
+// shape doesn't do (it's a plain CR 400.7 move, no face-down marker); (2)
+// `exileFaceDown` is a per-card imperative primitive with no Op skin; (3)
+// most importantly, the `delayedTrigger` Op's `capture` map resolves ONCE at
+// scheduling (a flat map), but this card needs a DIFFERENT list of exiled ids
+// PER PLAYER, re-associated with that same player at fire time — the
+// list-valued capture grammar (issue #866) has no per-`forEach`-member
+// capture shape. The template `resolve()` path composes only already-shipped
+// primitives
 // (`getHandIds`, `exileFaceDown`, `drawCards`, `moveZone`, `moveCardById`,
 // `scheduleDelayedTrigger`) with a plain comma-joined-ids payload encoding —
 // the legacy template payload is scalar-only (`Record<string, string>`, see

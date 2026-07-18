@@ -980,11 +980,44 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // (Op-blocked→FREE, AFK-ready): total 690→691, FREE 438→445,
         // AFK-ready 402→408, X-only unchanged (14), Op-blocked 238→232.
         // Partition: 445+14+232=691.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(691);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(445);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(408);
+        //
+        // Then issue #1279 ships the `moveZone` Op's bulk whole-zone shape
+        // (no target/cards) and the `discard` Op's bulk whole-hand shape
+        // (cards omitted), and migrates FOUR of the long-standing #1279-
+        // tracked-by closures away from `resolve()`: Timetwister
+        // (lea/blue.ts), Echo of Eons (mh1/blue.ts), Wheel of Fortune
+        // (lea/red.ts), and Anje's Ravager's attack-trigger (c19/red.ts) —
+        // all four compose ONLY the new bulk shapes + already-covered
+        // primitives (`libraryLook` shuffle, `draw`), no new primitive.
+        // Winds of Change (leg/red.ts) and Memory Jar (ulg/colorless.ts) stay
+        // resolve() — Winds of Change needs a dynamic count-of-cards-moved
+        // ("draws THAT MANY") the bulk shape doesn't carry (tracked-by
+        // #1388, a narrower follow-up gap); Memory Jar needs face-down exile
+        // + a per-player delayed-trigger capture shape, genuinely more than
+        // whole-zone move (protocol card, unchanged reasons 2/3 of its own
+        // comment). -4 closures (all four leave the census entirely, since a
+        // migrated card's effect is `effects[]` data, not a `resolve()`
+        // closure the classifier scans). Of the four, THREE were genuinely
+        // Op-blocked pre-migration (Timetwister, Echo of Eons, Wheel of
+        // Fortune — all three called `ctx.moveZone`/`ctx.discardCard` in the
+        // bulk-loop shape the classifier's static primitive scan correctly
+        // flagged as needing the new Op); Anje's Ravager's attack-trigger
+        // closure was already counted FREE+AFK-ready pre-migration (its
+        // individual primitives — `getHandIds`, `discardCard`, `drawCards` —
+        // were ALL already "covered" primitives; the classifier's primitive-
+        // presence scan doesn't detect the whole-hand LOOP usage pattern as
+        // blocking, only the Op-vocabulary gap the *other* three closures hit
+        // more directly). Net: total 691→687 (-4), FREE 445→444 (-1, the
+        // already-FREE Anje's Ravager closure leaving), AFK-ready 408→407
+        // (-1, same closure — it shipped with a per-card test), need-test
+        // unchanged (37 = 444−407 = 445−408), X-only unchanged (14),
+        // Op-blocked 232→229 (-3, the three genuinely-blocked closures).
+        // Partition: 444+14+229=687.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(687);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(444);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(407);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(232);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(229);
     });
 
     it("surfaces the demonstrated new-Op backlog (a covered primitive leaves it)", () => {

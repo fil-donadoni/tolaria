@@ -20,9 +20,9 @@
 //
 // (Separately, BOTH ability clauses have their own real gaps worth noting
 // for whoever revisits this card once #782 lands: the ETB's "discard your
-// hand" has no whole-hand bulk-discard Op, tracked-by #1279 — the Wheel of
-// Fortune / Anje's Ravager shape, `resolve()`-with-justification is the
-// accepted pattern there; and the static ability's "and has menace" half
+// hand" gap is now CLOSED — #1279 shipped the `discard` Op's bulk whole-hand
+// shape, the Wheel of Fortune / Anje's Ravager shape those cards migrated to
+// `effects[]` on; and the static ability's "and has menace" half
 // needs a live-recomputed conditional keyword grant — `StaticKeywordGrant`
 // mutation-syncs only on battlefield enter/leave, never on a hand-size
 // change alone — tracked-by #1379 (which also covers the small

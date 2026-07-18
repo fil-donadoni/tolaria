@@ -732,14 +732,15 @@ export const windsOfChange: CardDefinition = {
         "Each player shuffles the cards from their hand into their library, then draws that many cards.",
     manaCost: { R: 1 },
     types: ["Sorcery"],
-    // NOT DSL-migratable (ADR 0045): "shuffles the cards from their hand into
-    // their library" is a bulk whole-hand-zone move — the `moveZone` Op only
-    // moves an announced `target` object or a `choice` Op's picks (`cards`
-    // ref), never an entire zone with no selection. The SpellContext
-    // primitive (`ctx.moveZone(playerId, from, to)`) already supports this
-    // directly; only the Op wrapper is missing a bulk mode. Same gap as
-    // Timetwister (lea/blue.ts) and Echo of Eons (mh1/blue.ts). Blocked on: a
-    // bulk "whole-zone" `moveZone` Op mode (no target/cards). tracked-by: #1279
+    // NOT DSL-migratable (ADR 0045): the whole-hand-zone move gap #1279
+    // tracked is now CLOSED (`moveZone`'s bulk whole-zone shape, no
+    // target/cards) — Timetwister / Echo of Eons / Wheel of Fortune / Anje's
+    // Ravager all migrated on it. Winds of Change stays resolve() on a
+    // DIFFERENT, narrower gap that shape doesn't close: "then draws THAT MANY
+    // cards" needs each player's hand size captured BEFORE the shuffle (the
+    // whole-zone move carries no count-of-cards-moved bind, and the `count`
+    // construct doesn't support `zone: "hand"`). Blocked on: a dynamic
+    // count-of-cards-moved / hand-size-count capability. tracked-by: #1388
     resolve: (ctx: SpellContext) => {
         for (const pid of ctx.allPlayerIds) {
             const handSize = ctx.getHandSize(pid);
