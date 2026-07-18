@@ -472,7 +472,11 @@ function toPermanentFilter(
         excludeSupertypes: filter.excludeSupertype,
         colors: filter.color,
         isToken: filter.isToken,
-        name: filter.name,
+        // issue #1085 — `PermanentFilter.name` has no dynamic-ref form (no
+        // shipped card needs a battlefield-scoped bound-name filter yet, the
+        // same asymmetry `excludeColor` notes above); only a FIXED literal
+        // name passes through, mirroring every other string-only field here.
+        name: typeof filter.name === "string" ? filter.name : undefined,
         // issue #897 — propagate the OR-across-fields clause list onto
         // `PermanentFilter.any` (`convex/cards/filters.ts`), recursing through
         // this same mapping for each clause. Without this, a filter carrying
@@ -527,9 +531,17 @@ function matchesCardFilter(
         if (have < (filter.hasCounter.min ?? 1)) return false;
     }
     // CR 201.2 — exact printed-name match ("each other card named Accumulated
-    // Knowledge", issue #985). Fail-closed when the card shape carries no name.
-    if (filter.name !== undefined && card.name !== filter.name) {
-        return false;
+    // Knowledge", issue #985): a FIXED literal, or (issue #1085) a bare
+    // `{ ref: "$binding" }` naming a `nameCard` Op's chosen-name binding
+    // (Desperate Research's "put all of them with THAT name into your
+    // hand"). Fail-closed when the card shape carries no name, OR when the
+    // ref names an uncaptured binding (the naming Op was skipped, CR 608.2b).
+    if (filter.name !== undefined) {
+        const wanted =
+            typeof filter.name === "string"
+                ? filter.name
+                : readBinding(ctx, filter.name.ref)?.[0];
+        if (wanted === undefined || card.name !== wanted) return false;
     }
     const types = asFilterArray(filter.type);
     const excludeTypes = asFilterArray(filter.excludeType);
@@ -2079,6 +2091,67 @@ export const OP_EXECUTORS: {
         const ids = ctx.getHandIds(playerId);
         if (ids.length === 0) return; // CR 608.2b — nothing to reveal
         ctx.markKnownToAll(playerId, ids);
+    },
+    // CR 201.3 / 202.3 (issue #1085) — "chooses a card name" as part of
+    // resolution. A thin adapter over `SpellContext.requestNameCard`, one
+    // execution path (ADR 0045): SUSPENDS like `choice`/`mayPay` — the
+    // binding name doubles as the choiceId (unique within the script,
+    // validator-enforced), so the stored chosen name IS the NAME-family
+    // binding a later `EffectCardFilter.name` bare ref reads back.
+    nameCard(ctx, op) {
+        const playerId = resolvePlayerRef(ctx, op.player);
+        if (playerId === undefined) return; // CR 608.2b — chooser gone, skip
+        const named = ctx.requestNameCard({
+            playerId,
+            choiceId: op.bind,
+            prompt: op.prompt,
+            excludeBasicLand: op.excludeBasicLand,
+        });
+        if (named === undefined) return "suspend"; // enqueued — wait
+    },
+    // CR 701.20a reveal / CR 401.4 look (issue #1085) — deterministic
+    // sibling of `digToHand`: reveal the top `look` cards to EVERY player,
+    // put every matching card into hand with NO player choice (the filter
+    // alone decides), and send the rest to `destination`. One execution
+    // path, no suspension (the choice-driven half of this shape is
+    // `digToHand`'s job).
+    digMatchingToHand(ctx, op) {
+        const playerId = resolvePlayerRef(ctx, op.player);
+        if (playerId === undefined) return; // CR 608.2b — player gone, skip
+        const look = resolveValue(ctx, op.look);
+        if (look === undefined || look <= 0) return;
+        const topIds = ctx.peekLibraryTop(playerId, look);
+        if (topIds.length === 0) return; // empty library — no-op (CR 608.2b)
+        // CR 701.20a — reveal the WHOLE looked-at window to every player
+        // BEFORE splitting it (distinct from digToHand's private look: there
+        // is no chooser-only Pending Choice here to gate visibility on).
+        ctx.markKnownToAll(playerId, topIds);
+        const byId = new Map(
+            ctx.getLibraryCards(playerId).map((c) => [c.id, c])
+        );
+        const matches: string[] = [];
+        const rest: string[] = [];
+        for (const id of topIds) {
+            const c = byId.get(id);
+            if (c !== undefined && matchesCardFilter(ctx, c, op.filter)) {
+                matches.push(id);
+            } else {
+                rest.push(id);
+            }
+        }
+        for (const id of matches) ctx.moveCardById(playerId, id, "library", "hand");
+        for (const id of rest) ctx.moveCardById(playerId, id, "library", op.destination);
+        // `bind` (optional) — snapshot the FIRST card put into hand, mirrors
+        // `digToHand`'s own bind (the card already sits in hand at this
+        // point — no last-known-info need, `resolveObjectRef`'s hand-lookup
+        // fallback re-reads it live).
+        if (op.bind && matches.length > 0) {
+            bindSnapshot(ctx, op.bind, {
+                type: "hand-card",
+                id: matches[0],
+                playerId,
+            });
+        }
     },
     // CR 608.2 / 101.4 (issue #805) — mid-resolution player choice through
     // the existing Pending Choice pipeline. First execution enqueues the
