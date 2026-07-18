@@ -473,8 +473,13 @@ function projectGraveyardCard(
     // battlefield-derived, once-per-turn permission covers it
     // (`canCastPermanentFromGraveyardByPermission`) — re-derived live every
     // projection, so the affordance disappears the instant the granting
-    // source leaves play OR the permission is used up this turn, no stale
-    // flag. Only reached when the card has none of Flashback, Escape, the
+    // source leaves play, OR the permission is used up this turn, OR it
+    // isn't `player`'s turn (CR 702.139a "Once during each of YOUR TURNS" —
+    // enforced INSIDE `canCastPermanentFromGraveyardByPermission` itself via
+    // `state.activePlayerId === player.id`, so this call site and the
+    // `gre/rules.ts` legality branch always agree, including for a FLASH
+    // permanent that would otherwise read as castable on the opponent's
+    // turn). Only reached when the card has none of Flashback, Escape, the
     // broad permission, or a per-card grant (those branches above return
     // first). Distinct `castKind` from `"graveyard-permission"` (both
     // currently render the same "Cast" affordance, `graveyard-flashback-

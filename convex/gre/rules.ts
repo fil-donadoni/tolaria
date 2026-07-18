@@ -160,12 +160,27 @@ export function canCastFromGraveyardByPermission(
  *  battlefield every call (mirrors `canPlayLandsFromGraveyard`), so the
  *  permission ends the instant the granting source leaves play — no stale
  *  flag. Distinct from `canCastFromGraveyardByPermission` above (the BROAD,
- *  turn-scoped, Op-granted, any-spell, uncapped Yawgmoth's Will permission). */
+ *  turn-scoped, Op-granted, any-spell, uncapped Yawgmoth's Will permission).
+ *
+ *  CR 702.139a's Oracle text is "Once during each of YOUR TURNS" — the
+ *  permission only exists while `player` is the active player
+ *  (`state.activePlayerId === player.id`). Without this gate, a FLASH
+ *  permanent (MV ≤ the grant's cap) in the graveyard would be castable on
+ *  the OPPONENT's turn too, because the flash/sorcery-timing check in the
+ *  cast branches (`gre/rules.ts`'s `isPermanentPermissionCast`,
+ *  `gameProjections.ts`'s affordance) short-circuits to instant-speed
+ *  legality and never itself asks whose turn it is. This function is the
+ *  SINGLE shared source both call sites read, so gating it here fixes
+ *  legality and the wire affordance together — no duplicated own-turn check
+ *  at either call site. */
 export function canCastPermanentFromGraveyardByPermission(
     state: GameState,
     player: PlayerState,
     card: CardInstanceState
 ): boolean {
+    if (state.activePlayerId !== player.id) {
+        return false;
+    }
     if (
         !(CASTABLE_PERMANENT_TYPES as readonly CardType[]).some((t) =>
             card.types.includes(t)
@@ -428,7 +443,11 @@ export function getLegalActions(
     // mechanism prefers the higher-precedence one, sparing Lurrus's scarce
     // once-per-turn use. Distinct from `isPermissionCast` above: source-bound
     // (ends when the granting permanent leaves play), permanent-cards-only,
-    // and capped at one use per turn.
+    // and capped at one use per turn. `canCastPermanentFromGraveyardByPermission`
+    // itself gates on `state.activePlayerId === player.id` (CR 702.139a "Once
+    // during each of YOUR TURNS") — the `baseLegal` check below is ONLY the
+    // within-your-turn flash-vs-sorcery-timing split (CR 702.139a's "using its
+    // normal timing permissions"), never a substitute for the own-turn gate.
     const isPermanentPermissionCast =
         player.graveyard.some((c) => c.id === card.id) &&
         canCastPermanentFromGraveyardByPermission(state, player, card);

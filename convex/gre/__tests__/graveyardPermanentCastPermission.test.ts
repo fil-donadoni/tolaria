@@ -246,6 +246,151 @@ describe("Static graveyard-permanent-cast permission (CR 702.139, issue #1392 �
         });
     });
 
+    describe("your-turn restriction (CR 702.139a, flash edge — issue #1392 review fixup)", () => {
+        // Oracle text: "Once during each of YOUR TURNS, you may cast a
+        // permanent spell with mana value 2 or less from your graveyard
+        // (using its normal timing permissions)." A non-flash permanent's
+        // own-turn restriction already falls out of `isSorceryTiming`
+        // (main phase + empty stack + priority player === active player,
+        // combined with the "only the priority player acts" gate above it) —
+        // but a FLASH permanent's `hasInstantSpeed` short-circuit bypasses
+        // that timing check entirely, so before this fix it was castable on
+        // the OPPONENT's turn too. Synthesize a flash creature the same way
+        // `autoTapDemands.test.ts` does: a Savannah Lions (MV 1) instance
+        // with the `flash` keyword granted via `staticAbilities` override —
+        // `hasInstantSpeed` keys off `card.staticAbilities`, not a real
+        // printed Flash card.
+        function flashLionInGraveyard(id = "gy-flash-lions") {
+            return makeInstance(savannahLions.id, {
+                id,
+                zone: "graveyard",
+                controllerId: "p1",
+                ownerId: "p1",
+                staticAbilities: ["flash"],
+            });
+        }
+
+        it("canCastPermanentFromGraveyardByPermission is false for a flash MV<=2 permanent on the OPPONENT's turn", () => {
+            const gyFlashLions = flashLionInGraveyard();
+            const state = makeState({
+                players: [
+                    withLurrusOnBattlefield({ graveyard: [gyFlashLions] }),
+                    makePlayer("p2"),
+                ],
+                activePlayerId: "p2",
+                priorityPlayerId: "p1",
+            });
+            expect(
+                canCastPermanentFromGraveyardByPermission(
+                    state,
+                    getPlayer(state, "p1"),
+                    gyFlashLions
+                )
+            ).toBe(false);
+        });
+
+        // NOTE: no direct `getLegalActions(...).not.toContain("cast")`
+        // assertion here for the opponent's-turn case. `getLegalActions`'s
+        // final "Cast is for all non-land cards" fallback (the plain
+        // hand-cast branch, correctly turn-agnostic for a flash card cast
+        // from HAND) doesn't itself gate on `card.zone` — every graveyard
+        // cast branch above it (Flashback/Escape/broad-permission/grant/
+        // Lurrus) OWNS the "cast" decision by returning early ONLY when its
+        // own eligibility flag is true, so a graveyard card that fails every
+        // eligibility flag still falls through to that hand-shaped fallback
+        // when called directly (bypassing the zone-eligibility pre-check
+        // every real caller applies — `locateCastSource` in `game.ts`,
+        // `projectGraveyardCard` in `gameProjections.ts` — before ever
+        // invoking `getLegalActions` on a graveyard card). That is a
+        // separate, pre-existing gap unrelated to Lurrus's own-turn
+        // restriction and out of scope for this fixup; the eligibility
+        // predicate test above and the wire-projection test below already
+        // cover the real CR 702.139a divergence end-to-end (both are the
+        // actual production call shape: `projectGraveyardCard` only invokes
+        // `getLegalActions` once `canCastPermanentFromGraveyardByPermission`
+        // is already true).
+
+        it("the wire affordance does NOT tag a flash MV<=2 permanent on the OPPONENT's turn", () => {
+            const gyFlashLions = flashLionInGraveyard();
+            const state = makeState({
+                players: [
+                    withLurrusOnBattlefield({
+                        graveyard: [gyFlashLions],
+                        manaPool: { W: 1 },
+                    }),
+                    makePlayer("p2"),
+                ],
+                activePlayerId: "p2",
+                priorityPlayerId: "p1",
+            });
+            const projected = projectPublicState(state, 1, "p1");
+            const slim = projected.players[0].graveyard.find(
+                (c) => c.id === "gy-flash-lions"
+            )!;
+            expect(slim.legalActions).toBeUndefined();
+            expect(slim.castKind).toBeUndefined();
+        });
+
+        it("canCastPermanentFromGraveyardByPermission is true for the SAME flash MV<=2 permanent on YOUR OWN turn", () => {
+            const gyFlashLions = flashLionInGraveyard();
+            const state = makeState({
+                players: [
+                    withLurrusOnBattlefield({ graveyard: [gyFlashLions] }),
+                    makePlayer("p2"),
+                ],
+                activePlayerId: "p1",
+                priorityPlayerId: "p1",
+            });
+            expect(
+                canCastPermanentFromGraveyardByPermission(
+                    state,
+                    getPlayer(state, "p1"),
+                    gyFlashLions
+                )
+            ).toBe(true);
+        });
+
+        it('offers "cast" for a flash MV<=2 permanent on YOUR OWN turn, even outside sorcery timing (mid-combat, not a main phase)', () => {
+            const gyFlashLions = flashLionInGraveyard();
+            const state = makeState({
+                players: [
+                    withLurrusOnBattlefield({
+                        graveyard: [gyFlashLions],
+                        manaPool: { W: 1 },
+                    }),
+                    makePlayer("p2"),
+                ],
+                activePlayerId: "p1",
+                priorityPlayerId: "p1",
+                phase: "DECLARE_ATTACKERS",
+            });
+            expect(
+                getLegalActions(state, getPlayer(state, "p1"), gyFlashLions)
+            ).toContain("cast");
+        });
+
+        it("the wire affordance tags the SAME flash MV<=2 permanent on YOUR OWN turn", () => {
+            const gyFlashLions = flashLionInGraveyard();
+            const state = makeState({
+                players: [
+                    withLurrusOnBattlefield({
+                        graveyard: [gyFlashLions],
+                        manaPool: { W: 1 },
+                    }),
+                    makePlayer("p2"),
+                ],
+                activePlayerId: "p1",
+                priorityPlayerId: "p1",
+            });
+            const projected = projectPublicState(state, 1, "p1");
+            const slim = projected.players[0].graveyard.find(
+                (c) => c.id === "gy-flash-lions"
+            )!;
+            expect(slim.legalActions).toBeDefined();
+            expect(slim.castKind).toBe("graveyard-permanent-permission");
+        });
+    });
+
     describe("markGraveyardPermanentCastUsed", () => {
         it("records the player id, idempotently", () => {
             const state = makeState();
