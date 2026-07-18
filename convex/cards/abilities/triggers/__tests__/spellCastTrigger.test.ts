@@ -10,7 +10,7 @@ import type {
     SpellCastEvent,
     SpellContext,
 } from "../../../types";
-import { spellCastTrigger } from "../spellCastTrigger";
+import { nthSpellThisTurn, spellCastTrigger } from "../spellCastTrigger";
 
 function makeSelf(overrides: Partial<PermanentView> = {}): PermanentView {
     return {
@@ -135,6 +135,89 @@ describe("spellCastTrigger — condition gate (CR 603.4)", () => {
         });
         expect(trig.matches(makeEvent(), makeSelf())).toBe(false);
         expect(called).toBe(1);
+    });
+});
+
+describe("nthSpellThisTurn (issue #1343, CR 601.2i) — per-player 'Nth spell' condition", () => {
+    it("N=2 fires exactly on the caster's second spell (prior count 1), not the first or third", () => {
+        const condition = nthSpellThisTurn(2);
+        const self = makeSelf();
+        // First spell: casterSpellCountThisTurn = 0 (prior count) -> no fire.
+        expect(condition(makeEvent({ casterSpellCountThisTurn: 0 }), self)).toBe(
+            false
+        );
+        // Second spell: casterSpellCountThisTurn = 1 -> fires.
+        expect(condition(makeEvent({ casterSpellCountThisTurn: 1 }), self)).toBe(
+            true
+        );
+        // Third spell: casterSpellCountThisTurn = 2 -> does NOT fire (CR
+        // 701.50's "second spell" is exact, not "2nd or later").
+        expect(condition(makeEvent({ casterSpellCountThisTurn: 2 }), self)).toBe(
+            false
+        );
+    });
+
+    it("N=1 fires on the caster's first spell (prior count 0) — the general 'Nth spell' template", () => {
+        const condition = nthSpellThisTurn(1);
+        const self = makeSelf();
+        expect(condition(makeEvent({ casterSpellCountThisTurn: 0 }), self)).toBe(
+            true
+        );
+        expect(condition(makeEvent({ casterSpellCountThisTurn: 1 }), self)).toBe(
+            false
+        );
+    });
+
+    it("an event with no casterSpellCountThisTurn reads as the caster's first spell (fallback convention)", () => {
+        // Mirrors `priorSpellCount`'s own fallback — a pre-#1343 hand-built
+        // fixture that never set the field.
+        expect(nthSpellThisTurn(1)(makeEvent(), makeSelf())).toBe(true);
+        expect(nthSpellThisTurn(2)(makeEvent(), makeSelf())).toBe(false);
+    });
+
+    it("composes with scope: 'any' as a spellCastTrigger.condition (Ledger Shredder's exact template)", () => {
+        let resolved = 0;
+        const trig = spellCastTrigger({
+            id: "t",
+            oracleText: "x",
+            scope: "any",
+            condition: nthSpellThisTurn(2),
+            resolve: () => {
+                resolved++;
+            },
+        });
+        const self = makeSelf({ controllerId: "p1" });
+        // P1's first spell and P2's first spell (2 spells total, but each is
+        // individually a FIRST spell for its own caster) must NOT fire —
+        // the per-player distinction the global Storm counter can't make.
+        expect(
+            trig.matches(
+                makeEvent({ casterId: "p1", casterSpellCountThisTurn: 0 }),
+                self
+            )
+        ).toBe(false);
+        expect(
+            trig.matches(
+                makeEvent({ casterId: "p2", casterSpellCountThisTurn: 0 }),
+                self
+            )
+        ).toBe(false);
+        // P1's SECOND spell fires, regardless of which player controls the
+        // source permanent (scope: "any" — "a player casts their second
+        // spell", CR 701.50).
+        expect(
+            trig.matches(
+                makeEvent({ casterId: "p1", casterSpellCountThisTurn: 1 }),
+                self
+            )
+        ).toBe(true);
+        expect(
+            trig.matches(
+                makeEvent({ casterId: "p2", casterSpellCountThisTurn: 1 }),
+                self
+            )
+        ).toBe(true);
+        void resolved;
     });
 });
 

@@ -5136,6 +5136,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Ledger Shredder",
+        "scryfallId": "7ea4b5bc-18a4-45db-a56a-ab3f8bd2fb0d",
+        "oracleId": "e9117015-1050-44dd-a46b-e7ffe2085fae",
+        "firstSet": "snc"
+    },
+    {
         "name": "Legions of Lim-Dûl",
         "scryfallId": "75b67eb2-b60e-46b4-9d48-11c284957bec",
         "oracleId": "70b69803-1870-4441-954b-dba5b433fcb2",

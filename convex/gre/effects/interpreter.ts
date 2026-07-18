@@ -294,6 +294,22 @@ function evalPredicate(ctx: SpellContext, pred: EffectPredicate): boolean {
         if (!target || target.type !== "permanent") return false;
         return target.id !== ctx.sourceInstanceId;
     }
+    // picksMatchFilter (issue #1343) — true iff at least one picked card,
+    // resolved via `player`'s graveyard (CR 701.9 — every discard lands
+    // there), matches `filter`. Connive's "if you discarded a nonland card"
+    // gate (CR 701.50, Ledger Shredder). Reuses the SAME `matchesCardFilter`
+    // reader `choice`/`count` already share — no new filter grammar.
+    if ("picksMatchFilter" in pred) {
+        const picks = resolvePicks(ctx, pred.picksMatchFilter);
+        if (!picks || picks.length === 0) return false;
+        const playerId = resolvePlayerRef(ctx, pred.player);
+        if (!playerId) return false;
+        const graveyardCards = ctx.getGraveyardCards(playerId);
+        return picks.some((id) => {
+            const card = graveyardCards.find((c) => c.id === id);
+            return card !== undefined && matchesCardFilter(ctx, card, pred.filter);
+        });
+    }
     const left = resolveValue(ctx, pred.left);
     const right = resolveValue(ctx, pred.right);
     if (left === undefined || right === undefined) return false;

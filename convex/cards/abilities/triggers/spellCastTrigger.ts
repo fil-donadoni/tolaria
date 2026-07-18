@@ -94,6 +94,27 @@ export interface SpellCastTriggerArgs {
     effects?: EffectOp[];
 }
 
+/** Reusable "this is exactly the caster's Nth spell this turn" trigger
+ *  condition (issue #1343, CR 601.2i). Reads
+ *  `SpellCastEvent.casterSpellCountThisTurn` — the caster's own tally of
+ *  spells cast STRICTLY BEFORE this one this turn, the per-player
+ *  counterpart of Storm's global `priorSpellCount` (ADR 0052). For the
+ *  caster's Nth spell the prior count is exactly N-1, so `nthSpellThisTurn(2)`
+ *  is connive's "whenever a player casts their SECOND spell each turn" (CR
+ *  701.50, Ledger Shredder); `nthSpellThisTurn(1)` is "their first spell",
+ *  and so on for any future cube resident sharing the template (Nashi-style
+ *  effects). An undefined field (a pre-#1343 hand-built test fixture, or an
+ *  emitter that predates it) reads as the caster's FIRST spell (count 0),
+ *  mirroring `priorSpellCount`'s own fallback convention. Pass the result to
+ *  `spellCastTrigger`'s `condition` — combine with `scope: "any"` for
+ *  connive's "a PLAYER casts their second spell" (any caster, not just this
+ *  permanent's controller). */
+export function nthSpellThisTurn(
+    n: number
+): NonNullable<SpellCastTriggerArgs["condition"]> {
+    return (event) => (event.casterSpellCountThisTurn ?? 0) === n - 1;
+}
+
 function castInScope(
     event: SpellCastEvent,
     self: PermanentView,
