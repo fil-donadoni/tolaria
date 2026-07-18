@@ -1989,16 +1989,45 @@ export function raiseTriggerTargetSelection(state: GameState): boolean {
             sourceSubtypes,
             false
         );
+
+        // CR 702.21e (issue #1361) — when TWO+ spells/abilities simultaneously
+        // target the same warded permanent, `legal` above (filtered only by
+        // "targets THIS permanent") holds every one of them: ambiguous, no
+        // single-legal-target auto-select. But THIS trigger instance already
+        // knows exactly which one caused it — `item.triggerEvent` is the
+        // BECAME_TARGET event that fired it (`buildTriggerItem`), and that
+        // event now carries `sourceInstanceId`, the causing stack item's OWN
+        // id (issue #1361, `emitBecameTargetEvents`). Narrow `legal` down to
+        // that exact object when it's present among the candidates — it always
+        // is, since it is what caused this very trigger — so ward forces the
+        // precise triggering object instead of falling back to a player
+        // choice. Left broad (defensive fallback, never expected to trigger)
+        // when the causing event is absent or the pin misses.
+        let effectiveLegal = legal;
+        if (req.spellTargetsSelfSource) {
+            const causingEvent = item.triggerEvent;
+            const pinnedInstanceId =
+                causingEvent?.type === "BECAME_TARGET"
+                    ? causingEvent.sourceInstanceId
+                    : undefined;
+            if (pinnedInstanceId) {
+                const pinned = legal.filter(
+                    (t) => t.type === "spell" && t.id === pinnedInstanceId
+                );
+                if (pinned.length > 0) effectiveLegal = pinned;
+            }
+        }
+
         const { min, max } = triggerTargetMinMax(req.count);
 
-        if (legal.length < min) {
+        if (effectiveLegal.length < min) {
             // CR 603.3c — required target(s), none legal: remove from the stack.
             if (min > 0) {
                 state.stack.splice(i, 1);
                 continue;
             }
         }
-        if (min === 0 && legal.length === 0) {
+        if (min === 0 && effectiveLegal.length === 0) {
             // "Up to" with nothing legal — stays on the stack, no target.
             item.targets = [];
             continue;
@@ -2006,15 +2035,20 @@ export function raiseTriggerTargetSelection(state: GameState): boolean {
         if (
             min === 1 &&
             max === 1 &&
-            legal.length === 1 &&
+            effectiveLegal.length === 1 &&
             !req.divideAsChosen
         ) {
             // Sole mandatory target auto-selects (no real choice). CR 603.3d.
-            item.targets = [legal[0]];
+            item.targets = [effectiveLegal[0]];
             // CR 603.2b (issue #1265) — even an auto-selected targeted trigger
             // locks a target, so it fires "becomes the target of an ability"
             // triggers (Leovold). Queued for the next event drain.
-            emitBecameTargetEvents(state, item.targets, item.controllerId);
+            emitBecameTargetEvents(
+                state,
+                item.targets,
+                item.controllerId,
+                item.id
+            );
             continue;
         }
 

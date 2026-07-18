@@ -1999,7 +1999,7 @@ export function tryAutoCommitPendingActivation(
     // CR 603.2b (issue #1265) — a DEFERRED-payment targeted ability locks its
     // targets as it finally reaches the stack; fire "becomes the target of an
     // ability" triggers (Leovold) alongside the tap-trigger flush below.
-    emitBecameTargetEvents(state, pa.targets, playerId);
+    emitBecameTargetEvents(state, pa.targets, playerId, stackItem.id);
     // CR 603.2 — flush PERMANENT_TAPPED events queued during payment so
     // mana-tap triggers (Manabarbs / Mana Flare / Wild Growth) land on top
     // of the freshly-pushed activated ability.
@@ -3816,7 +3816,7 @@ export function finalizeTargetSelection(
             // CR 603.2b / 603.3d (issue #1265) — a targeted trigger's targets
             // are locked at announcement; fire "becomes the target of an
             // ability" triggers (Leovold) for this trigger's controller.
-            emitBecameTargetEvents(state, targets, trig.controllerId);
+            emitBecameTargetEvents(state, targets, trig.controllerId, trig.id);
         }
         if (raiseTriggerTargetSelection(state)) return;
         state.priorityPlayerId = state.activePlayerId;
@@ -4153,7 +4153,7 @@ export function finalizeTargetSelection(
         // CR 603.2b (issue #1265) — the ability's targets are locked onto its
         // stack item; fire "becomes the target of an ability" triggers
         // (Leovold) alongside the ABILITY_ACTIVATED flush below.
-        emitBecameTargetEvents(state, targets, playerId);
+        emitBecameTargetEvents(state, targets, playerId, stackItem.id);
         // CR 603.3 — flush ABILITY_ACTIVATED queued by recordActivation so the
         // "non-tap ability activated" punisher lands on top of the freshly
         // pushed ability (resolves first). No-op for {T} abilities.

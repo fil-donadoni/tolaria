@@ -6432,7 +6432,7 @@ export function emitSpellCastEvent(state: GameState, item: StackItem): void {
     // its stack item here, so this doubles as the target-declaration choke for
     // "whenever ~ becomes the target of a spell" triggers (Leovold). A
     // non-targeted spell carries no `targets` → no-op.
-    emitBecameTargetEvents(state, item.targets, item.castById);
+    emitBecameTargetEvents(state, item.targets, item.castById, item.id);
     collectCastTriggers(state, item, event);
 }
 
@@ -6445,11 +6445,19 @@ export function emitSpellCastEvent(state: GameState, item: StackItem): void {
  *  or a permanent you control" with one comparison and the opponent filter
  *  without a battlefield scan. `"spell"` / `"graveyard-card"` targets are
  *  skipped — they are neither a player nor a permanent under anyone's control.
- *  No-op for an absent/empty target list (a non-targeted spell or ability). */
+ *  No-op for an absent/empty target list (a non-targeted spell or ability).
+ *
+ *  `sourceInstanceId` (issue #1361) is the stack-item id of the spell/ability
+ *  whose targets are being locked — carried onto each emitted event so a
+ *  reflexive "counter that spell or ability" trigger (Ward, CR 702.21a/e) can
+ *  pin its own target to the EXACT causing object instead of any object that
+ *  merely also targets the same permanent (the two-simultaneous-targeters
+ *  fix, `gre/rules.ts` `raiseTriggerTargetSelection`). */
 export function emitBecameTargetEvents(
     state: GameState,
     targets: readonly TargetSelection[] | undefined,
-    sourceControllerId: string
+    sourceControllerId: string,
+    sourceInstanceId: string
 ): void {
     if (!targets || targets.length === 0) return;
     const events: BecameTargetEvent[] = [];
@@ -6475,6 +6483,7 @@ export function emitBecameTargetEvents(
             target,
             targetControllerId,
             sourceControllerId,
+            sourceInstanceId,
         });
     }
     if (events.length > 0) {
