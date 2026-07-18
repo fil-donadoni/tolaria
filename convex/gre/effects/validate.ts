@@ -1397,6 +1397,18 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             withoutPayingManaCost: isBoolean,
         },
     },
+    // CR 601.3e / 117.6-analog (issue #1344) — grant cast permission (+
+    // optional cost waiver) for the graveyard card a preceding Op bound.
+    // `card` is a bare picks ref; `player` names the grantee;
+    // `window`/`withoutPayingManaCost` are optional.
+    grantCastFromGraveyard: {
+        required: { card: isBarePicksRef, player: isPlayerRef },
+        optional: {
+            window: (v: unknown) =>
+                v === "this-turn" || v === "while-in-graveyard",
+            withoutPayingManaCost: isBoolean,
+        },
+    },
     // CR 106.1 (issue #850) — add mana to a player's mana pool. `mana` is the
     // JSON-pure per-colour amount map (WUBRGC, positive integers); `player`
     // (optional) names whose pool (default the resolving controller).

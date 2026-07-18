@@ -2024,6 +2024,42 @@ export interface SpellContext {
         window?: "this-turn" | "while-exiled",
         opts?: { withoutPayingManaCost?: boolean }
     ) => void;
+    /** Play-from-graveyard grant for a SPECIFIC card (CR 601.3e /
+     *  117.6-analog, issue #1344 — Malcolm, Alluring Scoundrel: "you may
+     *  cast the discarded card without paying its mana cost"). The
+     *  graveyard-zone twin of {@link grantCastFromExile} — same "grant a
+     *  specific card cast permission, optional cost waiver" shape,
+     *  generalized to a second zone rather than a new card-shaped primitive
+     *  (ADR 0045 primitive reuse). Always SAME-PLAYER: no `zoneOwnerId`
+     *  parameter, since no cross-player graveyard-cast primitive exists in
+     *  this engine (`castZoneOwner`'s doc, `convex/game.ts`). Flags the card
+     *  `cardInstanceId` — found in `playerId`'s OWN graveyard — as castable
+     *  from there by `playerId`. No-op if the id isn't in that player's
+     *  graveyard OR is a LAND (CR 116.2a — a land is PLAYED, never CAST, so a
+     *  cast permission is inherently meaningless for one; also the explicit
+     *  Malcolm ruling — "You may not play land cards discarded with
+     *  Malcolm's last ability").
+     *
+     *  `window` (CR 514.2 / 608.2g) declares the expiry, mirroring
+     *  `grantCastFromExile`'s own:
+     *    - "while-in-graveyard" (default): open-ended — persists as long as
+     *      the card stays in the graveyard.
+     *    - "this-turn": an impulse window, revoked at the CLEANUP step of
+     *      the turn it was granted, while the card stays in the graveyard.
+     *
+     *  `opts.withoutPayingManaCost` (CR 601.3e / 117.6-analog, issue #1344)
+     *  — ALSO waives the card's mana cost entirely, stamping {@link
+     *  CardInstanceState.castFromGraveyardWithoutPayingManaCost} alongside
+     *  the permission flag. Omitted/false grants permission only (the card
+     *  is still cast for its normal printed mana cost) — no shipped card
+     *  uses that shape yet, but it mirrors the exile primitive's dual usage
+     *  for free. */
+    grantCastFromGraveyard: (
+        cardInstanceId: string,
+        playerId: string,
+        window?: "this-turn" | "while-in-graveyard",
+        opts?: { withoutPayingManaCost?: boolean }
+    ) => void;
     /** Value chosen for X at cast-time (CR 107.3, 601.2b). 0 if the spell
      *  has no X in its cost. Read by spells like Fireball on resolution. */
     getX: () => number;
@@ -7207,6 +7243,47 @@ export type EffectOp =
           card: EffectRef;
           player: EffectPlayerRef;
           window?: "this-turn" | "while-exiled";
+          withoutPayingManaCost?: boolean;
+      }
+    /** CR 601.3e / 117.6-analog (issue #1344) — grant `player` permission to
+     *  cast the GRAVEYARD card a preceding Op bound (typically the
+     *  just-discarded card from a `choice(kind: "choose-hand-card")` +
+     *  `discard` pair, a bare picks ref, `card`), optionally ALSO waiving
+     *  its mana cost. A thin declarative skin over
+     *  `SpellContext.grantCastFromGraveyard`, one execution path (ADR 0045)
+     *  — the graveyard-sourced twin of `grantCastFromExile` (issue #1156),
+     *  generalizing the SAME per-card grant shape to a second zone rather
+     *  than adding a card-shaped primitive (Malcolm, Alluring Scoundrel: "If
+     *  there are four or more chorus counters on Malcolm, you may cast the
+     *  discarded card without paying its mana cost"). Always SAME-PLAYER
+     *  (`player`'s own graveyard) — no `zoneOwnerId`, since no cross-player
+     *  graveyard-cast primitive exists (`castZoneOwner`'s doc,
+     *  `convex/game.ts`). `window` mirrors the exile primitive's own
+     *  turn-scoping (`"this-turn"` / `"while-in-graveyard"`, default
+     *  `"while-in-graveyard"`).
+     *
+     *  DIVERGENCE (issue #1344, out of scope): Malcolm's Oracle ruling
+     *  requires the free cast to happen immediately, as part of the
+     *  triggered ability's own resolution ("you can't wait to cast the
+     *  spell later in the turn," ignoring the discarded card's own timing
+     *  restrictions). This Op instead grants an ordinary `"this-turn"`
+     *  impulse cast window — the SAME simplification every other
+     *  impulse-cast card in this engine already relies on (Expressive
+     *  Iteration, Headliner Scarlett via `grantCastFromExile`), none of
+     *  which need the stricter "during resolution, ignore timing"
+     *  behaviour their own Oracle text doesn't ask for. A forced-inline,
+     *  timing-restriction-ignoring cast is a distinct engine capability
+     *  with no other consumer yet — out of scope for this issue.
+     *
+     *  `withoutPayingManaCost` (default false) waives the mana cost
+     *  entirely. Skipped when `player` can't be resolved, the picks binding
+     *  was never captured, or the picked card is no longer in that
+     *  player's graveyard (CR 608.2b). */
+    | {
+          op: "grantCastFromGraveyard";
+          card: EffectRef;
+          player: EffectPlayerRef;
+          window?: "this-turn" | "while-in-graveyard";
           withoutPayingManaCost?: boolean;
       }
     /** CR 106.1 (issue #850) — add mana to a player's mana pool (a one-shot

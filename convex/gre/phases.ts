@@ -2249,6 +2249,26 @@ export function finalizeCleanup(state: GameState): void {
         }
     }
 
+    // CR 514.2 / 608.2g (issue #1344) — a turn-scoped, per-card graveyard-
+    // cast grant (Malcolm, Alluring Scoundrel) expires at the cleanup step,
+    // mirroring the exile impulse-window sweep above. The card stays in the
+    // graveyard but is no longer castable from there. Open-ended grants (no
+    // `castableFromGraveyardUntilTurn`) are untouched — no shipped card uses
+    // that shape yet, but the sweep already handles it correctly by symmetry
+    // with the exile primitive.
+    for (const p of state.players) {
+        for (const card of p.graveyard) {
+            if (
+                card.castableFromGraveyardUntilTurn !== undefined &&
+                state.turn >= card.castableFromGraveyardUntilTurn
+            ) {
+                delete card.castableFromGraveyardBy;
+                delete card.castableFromGraveyardUntilTurn;
+                delete card.castFromGraveyardWithoutPayingManaCost;
+            }
+        }
+    }
+
     // CR 702.34 / 514.2 — an instance-level Flashback grant (Snapcaster Mage:
     // "gains flashback until end of turn") expires at the cleanup step. The
     // granted card stays in the graveyard but is no longer castable from there.

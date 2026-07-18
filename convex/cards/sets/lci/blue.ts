@@ -3,6 +3,8 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
+import type { CardDefinition, GameEvent, PermanentView } from "../../types";
+
 // TODO(issue #679 stub — Tishana's Tidebinder). The core "counter target
 // activated OR triggered ability" engine gap is now CLOSED: Stifle (scg/blue)
 // ships the `spellStackKind: "ability"` stack-object kind (keeps any ability,
@@ -23,27 +25,121 @@
 //     toughness: 2,
 // };
 
-// tracked-by: #1344 (residue of #1302, parent PRD #620) — Malcolm, Alluring
-// Scoundrel. "Flash. Flying. Whenever Malcolm deals combat damage to a
-// player, put a chorus counter on it. Draw a card, then discard a card. If
-// there are four or more chorus counters on Malcolm, you may cast the
-// discarded card without paying its mana cost." The combat-damage trigger
-// (counters + draw + choice(discard) + discard) is Op-expressible today, but
-// the threshold-gated "cast the discarded card for free" clause has no
-// primitive: `grantCastFromExile` is exile-zone only, and `grantGraveyardPlay`
-// is a player-wide permission with no per-card targeting and no mana-cost
-// waiver. Needs a `grantCastFromGraveyard` Op (or a `zone` discriminator on
-// `grantCastFromExile`) — see #1344. Left as a tracked stub pending that Op.
-// export const malcolmAlluringScoundrel: CardDefinition = {
-//     id: "19d6834d-afa3-4747-a62d-0654f4d9729f",
-//     name: "Malcolm, Alluring Scoundrel",
-//     rarity: "rare",
-//     manaCost: { X: 1, U: 1 },
-//     types: ["Creature"],
-//     supertypes: ["Legendary"],
-//     subtypes: ["Siren", "Pirate"],
-//     power: 2,
-//     toughness: 1,
-// };
-
-export {};
+// Malcolm, Alluring Scoundrel — {1}{U} Legendary Creature — Siren Pirate,
+// 2/1 (LCI, residue of #1302, parent PRD #620, issue #1344). "Flash. Flying.
+// Whenever Malcolm deals combat damage to a player, put a chorus counter on
+// it. Draw a card, then discard a card. If there are four or more chorus
+// counters on Malcolm, you may cast the discarded card without paying its
+// mana cost." DSL-first (ADR 0045) — no `resolve()`.
+//
+// TRIGGER HALF (CR 603.2 damage trigger): `event: "DAMAGE_DEALT"` +
+// `matches` mirrors the shipped Barrowgoyf/Nethergoyf "deals combat damage
+// to a player" template (m3c/black.ts) — combat damage from THIS creature to
+// a player. The body is a flat Op sequence, no `resolveSteps` needed (unlike
+// Barrowgoyf, nothing here reads `event.amount` — CR 122.6 `counters` and
+// CR 121.1 `draw`/discard are all fixed-count):
+//   1. `counters` — put a chorus counter on $source (CR 122.1).
+//   2. `draw` — draw a card (CR 121.1).
+//   3. `choice(kind: "choose-hand-card")` + `discard` — "then discard a
+//      card" (CR 701.9), the SAME choice+discard idiom Krovikan Sorcerer
+//      uses (ice/blue.ts). Binds the discarded card's instance id as
+//      `$discarded` for the threshold clause below — the id is stable
+//      across the discard (a zone move, not a new instance).
+//   4. `if` gated on the chorus-counter READ (`{ counters: { of: {ref:
+//      "$source"}, type: "chorus" } }`, CR 122.6, issue #1015) `>= 4`:
+//      `grantCastFromGraveyard` grants a free cast of the JUST-discarded
+//      card (issue #1344's new Op — the graveyard-sourced twin of
+//      `grantCastFromExile`, issue #1156). Skips harmlessly when `$discarded`
+//      was never captured (an empty hand at discard time, CR 608.2b) or when
+//      the picked card is a LAND — `getLegalActions`'s graveyard-grant
+//      branch excludes lands unconditionally (CR ruling: "You may not play
+//      land cards discarded with Malcolm, Alluring Scoundrel's last
+//      ability"), so a land grant is silently inert, matching the ruling
+//      with no extra code.
+//
+// DIVERGENCE (issue #1344, out of scope): per the official ruling ("If you
+// cast a spell using Malcolm's last ability, you do so as part of the
+// resolution of the ability. You can't wait to cast the spell later in the
+// turn. Timing permissions based on the card's type are ignored"), the free
+// cast should happen INLINE, forced, during the trigger's own resolution,
+// ignoring the discarded card's normal timing restrictions. This engine has
+// no forced-inline-cast machinery; `grantCastFromGraveyard`'s `"this-turn"`
+// window instead grants an ordinary impulse cast option usable any time that
+// turn through normal priority (sorcery-speed timing still applies to a
+// sorcery-speed discard) — the SAME simplification every other impulse-cast
+// card here already relies on (Expressive Iteration, Headliner Scarlett via
+// `grantCastFromExile`). A forced-inline, timing-ignoring cast is a distinct
+// engine capability with no other consumer yet.
+export const malcolmAlluringScoundrel: CardDefinition = {
+    id: "19d6834d-afa3-4747-a62d-0654f4d9729f",
+    name: "Malcolm, Alluring Scoundrel",
+    rarity: "rare",
+    oracleText:
+        "Flash\nFlying\nWhenever Malcolm deals combat damage to a player, put a chorus counter on it. Draw a card, then discard a card. If there are four or more chorus counters on Malcolm, you may cast the discarded card without paying its mana cost.",
+    manaCost: { X: 1, U: 1 },
+    types: ["Creature"],
+    supertypes: ["Legendary"],
+    subtypes: ["Siren", "Pirate"],
+    power: 2,
+    toughness: 1,
+    staticAbilities: ["flash", "flying"],
+    triggeredAbilities: [
+        {
+            id: "malcolm-chorus",
+            oracleText:
+                "Whenever Malcolm deals combat damage to a player, put a chorus counter on it. Draw a card, then discard a card. If there are four or more chorus counters on Malcolm, you may cast the discarded card without paying its mana cost.",
+            event: "DAMAGE_DEALT",
+            matches: (event: GameEvent, self: PermanentView): boolean =>
+                event.type === "DAMAGE_DEALT" &&
+                event.sourceInstanceId === self.id &&
+                event.isCombat === true &&
+                event.target.type === "player",
+            effects: [
+                {
+                    op: "counters",
+                    action: "add",
+                    counter: "chorus",
+                    target: { ref: "$source" },
+                    count: 1,
+                },
+                { op: "draw", player: "controller", count: 1 },
+                {
+                    op: "choice",
+                    kind: "choose-hand-card",
+                    player: "controller",
+                    zone: "hand",
+                    count: 1,
+                    prompt: "Discard a card (Malcolm, Alluring Scoundrel).",
+                    bind: "$discarded",
+                },
+                {
+                    op: "discard",
+                    player: "controller",
+                    cards: { ref: "$discarded" },
+                },
+                {
+                    op: "if",
+                    predicate: {
+                        left: {
+                            counters: {
+                                of: { ref: "$source" },
+                                type: "chorus",
+                            },
+                        },
+                        op: "ge",
+                        right: 4,
+                    },
+                    then: [
+                        {
+                            op: "grantCastFromGraveyard",
+                            card: { ref: "$discarded" },
+                            player: "controller",
+                            window: "this-turn",
+                            withoutPayingManaCost: true,
+                        },
+                    ],
+                },
+            ],
+        },
+    ],
+};
