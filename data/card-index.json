@@ -996,6 +996,12 @@
         "firstSet": "inv"
     },
     {
+        "name": "Bloodtithe Harvester",
+        "scryfallId": "f0192cf7-3391-4720-b9c8-72dec5dde01e",
+        "oracleId": "419a8ab2-cff6-4811-a559-8791c9bb3d8e",
+        "firstSet": "vow"
+    },
+    {
         "name": "Blooming Marsh",
         "scryfallId": "90da33d4-fe9c-42fe-b326-2fe337dc3ecd",
         "oracleId": "66fa2326-1b5d-41fb-b919-83bf9f383577",
