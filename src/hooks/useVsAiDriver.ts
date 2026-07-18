@@ -53,6 +53,7 @@ export function useVsAiDriver(
 
     const mutations: MoveMutations = {
         playCard: useMutation(api.game.playCard),
+        summonCompanion: useMutation(api.game.summonCompanion),
         announceCast: useMutation(api.game.announceCast),
         selectTarget: useMutation(api.game.selectTarget),
         confirmTargets: useMutation(api.game.confirmTargets),

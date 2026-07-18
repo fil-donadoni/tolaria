@@ -1664,6 +1664,24 @@ export function getLegalTargets(
             } else if (!acceptsSpell) {
                 continue; // an ability-only kind never accepts a spell
             }
+            // CR 109.3 / 114.1 (Lutri, the Spellchaser — "target instant or
+            // sorcery spell YOU CONTROL"): the `controller` relationship
+            // filter, already honored for graveyard/battlefield/player
+            // targets, extends to spell/ability stack objects too — a stack
+            // item's "controller" is its caster (`castById`). Shares the
+            // exact same predicate `selectTarget` (game.ts) validates the
+            // chosen target against, so the offered and accepted sets can't
+            // diverge.
+            if (
+                !matchesBattlefieldController(
+                    item.castById,
+                    casterId,
+                    state.activePlayerId,
+                    requirement.controller
+                )
+            ) {
+                continue;
+            }
             // CR 113.7a — restrict by the object's source card types (Brown
             // Ouphe: "from an artifact source"). The ability stack item carries
             // the source permanent's live `types`.

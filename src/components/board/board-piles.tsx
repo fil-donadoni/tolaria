@@ -2,6 +2,7 @@ import type { Player } from "~/types/game";
 import PlayerGraveyard from "./player-graveyard";
 import PlayerLibrary from "./player-library";
 import PlayerExile from "./player-exile";
+import PlayerCompanion from "./player-companion";
 
 type BoardPilesProps = {
     /** Opponent first, viewer second (same ordering as the rest of Board). */
@@ -36,6 +37,7 @@ export default function BoardPiles({ orderedPlayers }: BoardPilesProps) {
                     <PlayerGraveyard player={opponent} />
                     <PlayerLibrary player={opponent} />
                     <PlayerExile player={opponent} />
+                    <PlayerCompanion player={opponent} />
                 </div>
             )}
 
@@ -47,6 +49,7 @@ export default function BoardPiles({ orderedPlayers }: BoardPilesProps) {
                     <PlayerGraveyard player={me} />
                     <PlayerLibrary player={me} />
                     <PlayerExile player={me} />
+                    <PlayerCompanion player={me} />
                 </div>
             )}
         </>

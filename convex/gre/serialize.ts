@@ -676,6 +676,13 @@ type CompactPlayer = {
     poisonCounters?: number;
     energyCounters?: number;
     permanentYouControlledLeftThisTurn?: boolean;
+    /** Companion slot (CR 702.139, ADR 0064). `instance` is a fat
+     *  `CardInstanceState` outside every real zone array, so it needs the
+     *  SAME `compactCard`/`expandCard` coalescing as a hand/battlefield card
+     *  (`card` slims to `{ id }`, types/subtypes/staticAbilities coalesce
+     *  against the definition). `used` rides alongside, uncompacted (a plain
+     *  boolean). */
+    companion?: { instance: CompactCard; used: boolean };
 };
 
 function compactPlayer(player: PlayerState): CompactPlayer {
@@ -735,6 +742,14 @@ function compactPlayer(player: PlayerState): CompactPlayer {
     // Revolt (CR 702.RV) — persisted so the flag survives a save/load round-trip.
     if (player.permanentYouControlledLeftThisTurn) {
         out.permanentYouControlledLeftThisTurn = true;
+    }
+    if (player.companion) {
+        out.companion = {
+            instance: compactCard(player.companion.instance, {
+                ownerId: player.id,
+            }),
+            used: player.companion.used,
+        };
     }
     return out;
 }
@@ -796,6 +811,22 @@ function expandPlayer(player: CompactPlayer): PlayerState {
     if (player.energyCounters) result.energyCounters = player.energyCounters;
     if (player.permanentYouControlledLeftThisTurn) {
         result.permanentYouControlledLeftThisTurn = true;
+    }
+    if (player.companion) {
+        result.companion = {
+            // CR 702.139 (ADR 0064) — the companion slot is NOT a real zone;
+            // `zone` is a nominal tag only (`CardInstanceState` requires one).
+            // "exile" is the closest existing zone semantically ("outside the
+            // game", never battlefield/hand/library/graveyard/stack) — no
+            // zone-enumerating code ever reads `player.exile` to find it, since
+            // the instance lives on the dedicated `player.companion` field, not
+            // in any zone array.
+            instance: expandCard(player.companion.instance, {
+                ownerId: player.id,
+                zone: "exile",
+            }),
+            used: player.companion.used,
+        };
     }
     return result;
 }
@@ -997,6 +1028,11 @@ function expandStackItem(compact: CompactCard): StackItem {
 export const PERSISTED_OPTIONAL_KEYS = [
     "pendingCast",
     "pendingActivation",
+    // CR 116.2 / 702.139f (ADR 0064) — the {3} companion-summon payment.
+    // Plain scalars (playerId/manaCost/tappedLandIds), no fat card refs, so
+    // it round-trips via the generic optional-key loop with no per-field
+    // compaction, exactly like pendingCast/pendingActivation.
+    "pendingCompanionPay",
     "pendingTarget",
     "pendingChoices",
     // CR 603.3b / ADR 0058 — the off-stack simultaneous-trigger batch held while

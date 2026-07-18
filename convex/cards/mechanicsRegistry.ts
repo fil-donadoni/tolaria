@@ -1886,7 +1886,9 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         name: "Companion",
         kind: "keyword-ability",
         cr: "702.139",
-        status: "planned",
+        status: "implemented",
+        binding: "convex/gre/companion.ts",
+        note: 'Deckbuild-condition / special-action capability (engine infra, NOT an Effect Script Op — ADR 0064): `convex/gre/companion.ts` (`selectCompanion` scans the Sideboard for a Companion-keyword card whose per-card condition closure the Maindeck satisfies; `canSummonCompanion` gates the CR 116.2 special action) + `PlayerState.companion` (the per-player slot: `{ instance, used }`, NOT a general "outside the game" zone) + `GameState.pendingCompanionPay` (the {3} payment, mirrors `pendingCast` but dedicated — no target/mode/stack item). Auto-declared at game init (`buildPlayerState`/`buildCompanionInstance`, game.ts) from the Match deck\'s sideboard snapshot (threaded through `NextGameSeat.deck.sideboard`, matches.ts, so a Bo3 Game re-scans post-sideboard). The `summonCompanion` mutation (game.ts) solves the {3} via the shared auto-tap solver (`solveSmartAutoTap`) and moves the companion straight to hand — no stack item. Projected to BOTH players (CR 702.139c) via `SlimCompanionSlot` (gameProjections.ts), with `canSummon` carried only to the slot\'s own controller. UI: a companion-slot chip + "Companion {3}" summon button in the pile cluster, gated through the wire projection. Bot: `summon-companion` is a `Move` (moves.ts/legalActions.ts), realised via `executor.ts`\'s `summonCompanion` mutation call — rides the existing ISMCTS search rather than a bespoke heuristic (evaluate.ts already scores hand-card value, so summoning into hand is naturally incentivized once legal). Used by Lutri, the Spellchaser (singleton condition); Lurrus of the Dream-Den (#1392, permanent-MV≤2 condition) builds on this framework.',
     },
     // 702.140 Mutate
     {

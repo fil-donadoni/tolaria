@@ -9,6 +9,7 @@ import {
     matchesSpellExcludeTypeFilter,
     matchesSpellCreaturePtFilter,
     matchesSpellSingleTargetingController,
+    matchesSpellController,
     matchesSpellWouldDestroyLand,
     matchesStackObjectFilter,
     wantsSpellTarget,
@@ -1594,6 +1595,54 @@ describe("matchesSpellSingleTargetingController", () => {
                 undefined,
                 "p1"
             )
+        ).toBe(true);
+    });
+});
+
+// Lutri, the Spellchaser (#1391): "copy target instant or sorcery spell YOU
+// CONTROL" — frontend clickability gate extending `controller` (CR 109.3 /
+// 114.1) onto spell/ability stack targets, mirroring the server's
+// `matchesBattlefieldController` predicate.
+describe("matchesSpellController", () => {
+    it("matches a spell the activating player cast, under 'you'", () => {
+        expect(
+            matchesSpellController({ castById: "p1" }, "you", "p1", "p1")
+        ).toBe(true);
+    });
+
+    it("rejects an opponent's spell under 'you'", () => {
+        expect(
+            matchesSpellController({ castById: "p2" }, "you", "p1", "p1")
+        ).toBe(false);
+    });
+
+    it("matches an opponent's spell under 'opponent'", () => {
+        expect(
+            matchesSpellController({ castById: "p2" }, "opponent", "p1", "p1")
+        ).toBe(true);
+    });
+
+    it("rejects the activator's own spell under 'opponent'", () => {
+        expect(
+            matchesSpellController({ castById: "p1" }, "opponent", "p1", "p1")
+        ).toBe(false);
+    });
+
+    it("matches only the active player's spell under 'active'", () => {
+        expect(
+            matchesSpellController({ castById: "p2" }, "active", "p1", "p2")
+        ).toBe(true);
+        expect(
+            matchesSpellController({ castById: "p1" }, "active", "p1", "p2")
+        ).toBe(false);
+    });
+
+    it("matches anything under 'any' or no filter", () => {
+        expect(
+            matchesSpellController({ castById: "p2" }, "any", "p1", "p1")
+        ).toBe(true);
+        expect(
+            matchesSpellController({ castById: "p2" }, undefined, "p1", "p1")
         ).toBe(true);
     });
 });

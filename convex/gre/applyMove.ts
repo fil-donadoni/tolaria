@@ -48,6 +48,9 @@ import { cloneGameState } from "./clone";
 import { enumerateMoves, type Move } from "./moves";
 import { evaluate } from "./evaluate";
 import { tryGetDefinition } from "../cards";
+import { getManaSubstitutions } from "./state";
+import { buildAutoTapSources, solveSmartAutoTap } from "./autoTap";
+import { COMPANION_SUMMON_COST } from "./companion";
 
 /** CR 614.12 / ADR 0051 — drain every pending stackless `land-entry-tapped`
  *  pay-choice (a shock land played OR put onto the battlefield by an effect)
@@ -212,6 +215,38 @@ export function applyMoveForSearch(
             // CR 614.12 / ADR 0051 — a shock land suspends entry on a
             // `land-entry-tapped` pending choice. Search must not stall on it.
             autoFinalizeLandEntryChoices(next);
+            return next;
+        }
+
+        case "summon-companion": {
+            // CR 116.2 / 702.139f — the companion summon special action.
+            // Coarse mana model matching this file's own `play-land`/
+            // `cast-spell` leaves (see header): taps a representative source
+            // set for the {3} without draining the pool coin-exact — legality
+            // (including affordability) was already established by
+            // `canSummonCompanion` at enumeration time (moves.ts), so this
+            // leaf only needs to move the position forward for evaluation.
+            const companion = player.companion;
+            if (companion && !companion.used) {
+                const subs = getManaSubstitutions(next, playerId);
+                const sources = buildAutoTapSources(player.battlefield);
+                const plan = solveSmartAutoTap(
+                    player.manaPool,
+                    COMPANION_SUMMON_COST,
+                    subs,
+                    sources
+                );
+                if (plan) {
+                    for (const step of plan) {
+                        const src = player.battlefield.find(
+                            (c) => c.id === step.cardId
+                        );
+                        if (src) src.isTapped = true;
+                    }
+                }
+                player.hand.push({ ...companion.instance, zone: "hand" });
+                companion.used = true;
+            }
             return next;
         }
 

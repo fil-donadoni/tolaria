@@ -329,8 +329,12 @@ export interface TargetRequirement {
      *  caster controls; "opponent" = opponent controls; "any" = either).
      *  Default "any". Honored for graveyard targets (Regrowth), for
      *  battlefield-permanent targets (Simulacrum: "target creature you
-     *  control"), and for PLAYER targets (CR 115 — "target opponent", Word of
-     *  Command; "you" keeps only the caster). Ignored for spell targets.
+     *  control"), for PLAYER targets (CR 115 — "target opponent", Word of
+     *  Command; "you" keeps only the caster), and for SPELL/ability stack
+     *  targets (CR 109.3 / 114.1 — a stack item's "controller" is its caster;
+     *  Lutri, the Spellchaser: "target instant or sorcery spell YOU
+     *  CONTROL"), all through the shared `matchesBattlefieldController`
+     *  predicate.
      *
      *  `"active"` restricts to permanents controlled by the ACTIVE player
      *  (CR 102.1) — independent of who is choosing. Used by "target creature
@@ -5273,6 +5277,19 @@ export interface PermanentEnteredEvent {
     controllerId: string;
     cardId?: string;
     types: ReadonlyArray<CardType>;
+    /** CR 601.2i — true only when this permanent entered by resolving as a
+     *  CAST spell (`finalizeSpellResolution`). Every non-cast zone change onto
+     *  the battlefield (reanimation, tutor-to-battlefield, hand-cheat, a land
+     *  played, token creation) leaves this false/undefined. Mirrors
+     *  `EntersBattlefieldReplacementEvent.wasCast` (issue #1148, Containment
+     *  Priest) — an ETB-TRIGGER-facing counterpart of the same fact, needed by
+     *  an "if you cast it" trigger condition (CR 603.4 — Lutri, the
+     *  Spellchaser's "When Lutri enters, if you cast it, ..."). Optional/
+     *  absent (rather than a hard `boolean`) so every existing
+     *  `emitPermanentEntered` call site that has no reason to think about
+     *  casting stays untouched — only the true cast-resolution chokepoint
+     *  passes `true`. */
+    wasCast?: boolean;
 }
 
 /** Leave-the-battlefield event emitted whenever a permanent transitions

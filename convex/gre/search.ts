@@ -81,6 +81,9 @@ import { makeRng } from "./rng";
 import { hasCastableInstantHint } from "./heldInteraction";
 import { isCreature, hasManaAbility } from "./constants";
 import { tryGetDefinition } from "../cards";
+import { getManaSubstitutions } from "./state";
+import { buildAutoTapSources, solveSmartAutoTap } from "./autoTap";
+import { COMPANION_SUMMON_COST } from "./companion";
 
 /** Search budget: stop at `iterations` tree iterations, or once `timeMs` of
  *  wall-clock has elapsed (whichever comes first). At least one must be set —
@@ -400,6 +403,38 @@ export function applyMoveInSearch(
             processPendingActionTriggers(state);
             // A special action resets the pass cycle (CR 117.3c) and keeps
             // priority with the actor, who may keep acting.
+            state.passCount = 0;
+            checkStateBasedActions(state);
+            return;
+        }
+
+        case "summon-companion": {
+            // CR 116.2 / 702.139f — the companion summon special action. Coarse
+            // mana model (see file header): taps a representative source set
+            // for the {3} without draining the pool coin-exact. No stack item
+            // (CR 116.2a), so — like `play-land` — this is a special action
+            // that resets the pass cycle and keeps priority with the actor.
+            const companion = player.companion;
+            if (companion && !companion.used) {
+                const subs = getManaSubstitutions(state, playerId);
+                const sources = buildAutoTapSources(player.battlefield);
+                const plan = solveSmartAutoTap(
+                    player.manaPool,
+                    COMPANION_SUMMON_COST,
+                    subs,
+                    sources
+                );
+                if (plan) {
+                    for (const step of plan) {
+                        const src = player.battlefield.find(
+                            (c) => c.id === step.cardId
+                        );
+                        if (src) src.isTapped = true;
+                    }
+                }
+                player.hand.push({ ...companion.instance, zone: "hand" });
+                companion.used = true;
+            }
             state.passCount = 0;
             checkStateBasedActions(state);
             return;

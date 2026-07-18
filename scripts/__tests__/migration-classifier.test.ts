@@ -1039,11 +1039,23 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // 444→455 (+11), AFK-ready 407→415 (+8), need-test 37→40 (+3),
         // X-only unchanged (14), Op-blocked 229→218 (-11).
         // Partition: 455+14+218=687.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(687);
+        //
+        // Then issue #1391 (Companion framework) adds Lutri, the
+        // Spellchaser's ETB trigger — a genuinely Op-blocked resolve()
+        // closure: `copyStackItem`/`requestCopyRetarget` (CR 707.10
+        // copy-a-spell) are `SpellContext`-only primitives with NO Effect
+        // Script Op wrapper anywhere in the registry (the same architectural
+        // gap Fork, lea/red.ts, has always had — copying a spell on the
+        // stack is resolve()-only by design, not a card-shaped oversight).
+        // This lands on top of the #1083 INV baseline above (455/415/218),
+        // not the earlier pre-#1083 one. Net: total 687→688 (+1),
+        // FREE/AFK-ready/X-only unchanged, Op-blocked 218→219 (+1, the new
+        // closure). Partition: 455+14+219=688.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(688);
         expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(455);
         expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(415);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(218);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(219);
     });
 
     it("surfaces the demonstrated new-Op backlog (a covered primitive leaves it)", () => {
