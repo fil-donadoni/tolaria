@@ -4548,6 +4548,12 @@
         "firstSet": "lea"
     },
     {
+        "name": "Iron-Shield Elf",
+        "scryfallId": "9e0140b2-0185-4adb-b365-2611ce89a0e2",
+        "oracleId": "1c77b4da-b580-4ce9-b127-76de674f5694",
+        "firstSet": "ecl"
+    },
+    {
         "name": "Ironclaw Orcs",
         "scryfallId": "d56421a8-34ae-4033-943f-c59a7bf2b6f9",
         "oracleId": "c645a616-0d7d-416c-b5f3-057b3a1666a0",
@@ -10216,6 +10222,12 @@
         "scryfallId": "8fc66fbf-f411-4607-aece-7c35d9a07c80",
         "oracleId": "079b1f07-6910-491b-83ba-5ec41260f32d",
         "firstSet": "inv"
+    },
+    {
+        "name": "Worldspine Wurm",
+        "scryfallId": "543d55cb-3a6b-4620-af25-10ae74ed32c4",
+        "oracleId": "254f87cc-e0c2-484d-b5e8-1ea8c366990c",
+        "firstSet": "rtr"
     },
     {
         "name": "Worms of the Earth",
