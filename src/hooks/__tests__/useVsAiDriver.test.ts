@@ -23,6 +23,7 @@ vi.mock("@convex/_generated/api", () => ({
         game: {
             getPublicState: "getPublicState",
             playCard: "playCard",
+            summonCompanion: "summonCompanion",
             announceCast: "announceCast",
             selectTarget: "selectTarget",
             confirmTargets: "confirmTargets",

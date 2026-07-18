@@ -5381,6 +5381,418 @@ describe("Effect Script Op: addSubtype (CR 613.1d, layer 4, issue #1194)", () =>
     });
 });
 
+describe("Effect Script Op: setColor (CR 613.1e, layer 5, issue #1083)", () => {
+    // Sets colorOverride on an announced target and MUST survive the
+    // projection (the client renders a color-override overlay off the
+    // slimmed wire state — `board-battlefield-card.tsx`'s `colorOverride`
+    // read, pre-existing frontend wiring shared with the resolve()-based
+    // lace cards).
+    it("sets colorOverride on an announced target and survives the projection (wire format)", () => {
+        const id = registerScript("test-op-setcolor-target", [
+            {
+                op: "setColor",
+                target: { target: 0 },
+                colors: ["R"],
+                duration: { phase: "end-of-turn" },
+            },
+        ]);
+        const bear = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "bearSetColor",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "bearSetColor" }]);
+        resolveTopOfStack(state);
+        const granted = state.players[1].battlefield.find(
+            (c) => c.id === "bearSetColor"
+        )!;
+        expect(granted.colorOverride).toEqual(["R"]);
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[1].battlefield.find(
+            (c) => c.id === "bearSetColor"
+        )!;
+        expect(
+            (slim as unknown as { colorOverride?: string[] }).colorOverride
+        ).toEqual(["R"]);
+    });
+
+    // `duration` reverts the override at the declared phase boundary (CR
+    // 611.2 / 514.2, issue #1065's duration-scoped setColorOverride).
+    it("reverts colorOverride at the cleanup step (CR 611.2 / 514.2)", () => {
+        const id = registerScript("test-op-setcolor-expire", [
+            {
+                op: "setColor",
+                target: { target: 0 },
+                colors: ["G"],
+                duration: { phase: "end-of-turn" },
+            },
+        ]);
+        const bear = makeInstance(BEAR_ID, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id: "bearSetColorExpire",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bear] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1", [
+            { type: "permanent", id: "bearSetColorExpire" },
+        ]);
+        resolveTopOfStack(state);
+        const granted = state.players[0].battlefield.find(
+            (c) => c.id === "bearSetColorExpire"
+        )!;
+        expect(granted.colorOverride).toEqual(["G"]);
+        state.phase = "CLEANUP";
+        finalizeCleanup(state);
+        expect(granted.colorOverride ?? []).toEqual([]);
+    });
+
+    // A self-color-change via the implicit `$source` binding — Rainbow
+    // Crow / Tidal Visionary / Metathran Transport's activated-ability shape.
+    it("sets the source permanent's own color via the implicit $source binding", () => {
+        const SELF_COLOR_ID = "test-op-setcolor-source";
+        registerTokenDefinition({
+            id: SELF_COLOR_ID,
+            name: SELF_COLOR_ID,
+            rarity: "common",
+            manaCost: { generic: 1 },
+            types: ["Creature"],
+            power: 1,
+            toughness: 1,
+            activatedAbilities: [
+                {
+                    id: "self-color",
+                    oracleText:
+                        "{1}: This creature becomes blue until end of turn.",
+                    cost: { mana: { generic: 1 } },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "setColor",
+                            target: { ref: "$source" },
+                            colors: ["U"],
+                            duration: { phase: "end-of-turn" },
+                        },
+                    ],
+                },
+            ],
+        });
+        const src = makeInstance(SELF_COLOR_ID, {
+            id: "selfColor1",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [src] }),
+                makePlayer("p2"),
+            ],
+        });
+        const inst = state.players[0].battlefield[0];
+        state.stack.push({
+            ...inst,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "self-color",
+            targets: [],
+        });
+        resolveTopOfStack(state);
+        const self = state.players[0].battlefield.find(
+            (c) => c.id === "selfColor1"
+        )!;
+        expect(self.colorOverride).toEqual(["U"]);
+    });
+
+    // Sway of Illusion's shape: ONE color choice applied to EVERY member of
+    // the new `forEach { set: "targets" }` selector (issue #1083) — the
+    // variable-N "any number of target creatures" companion to a fixed
+    // `{ target: N }` slot.
+    it('applies to every member of a forEach { set: "targets" } selector', () => {
+        const id = registerScript("test-op-setcolor-foreach-targets", [
+            {
+                op: "forEach",
+                select: { set: "targets" },
+                effects: [
+                    {
+                        op: "setColor",
+                        target: { ref: "$each" },
+                        colors: ["B"],
+                        duration: { phase: "end-of-turn" },
+                    },
+                ],
+            },
+        ]);
+        const bear1 = makeInstance(BEAR_ID, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id: "swayBear1",
+        });
+        const bear2 = makeInstance(BEAR_ID, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id: "swayBear2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bear1, bear2] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1", [
+            { type: "permanent", id: "swayBear1" },
+            { type: "permanent", id: "swayBear2" },
+        ]);
+        resolveTopOfStack(state);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "swayBear1")!
+                .colorOverride
+        ).toEqual(["B"]);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "swayBear2")!
+                .colorOverride
+        ).toEqual(["B"]);
+    });
+
+    // "Any number" declined down to zero (Sway of Illusion's "you may cast
+    // this and choose to target zero creatures") — the forEach set is empty
+    // and the Op runs zero iterations without error.
+    it('is a no-op over an empty forEach { set: "targets" } (any-number decline)', () => {
+        const id = registerScript("test-op-setcolor-foreach-targets-empty", [
+            {
+                op: "forEach",
+                select: { set: "targets" },
+                effects: [
+                    {
+                        op: "setColor",
+                        target: { ref: "$each" },
+                        colors: ["B"],
+                        duration: { phase: "end-of-turn" },
+                    },
+                ],
+            },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1", []);
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+    });
+
+    it("is a no-op when the announced target is missing (CR 608.2b)", () => {
+        const id = registerScript("test-op-setcolor-missing", [
+            {
+                op: "setColor",
+                target: { target: 0 },
+                colors: ["W"],
+                duration: { phase: "end-of-turn" },
+            },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1", []);
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+    });
+});
+
+describe("Effect Script Op: setSubtype (CR 305.7, layer 4, issue #1083)", () => {
+    // Replaces a target land's subtypes for a duration — Dream Thrush's
+    // "target land becomes the basic land type of your choice until end of
+    // turn". Wire format matters — the client reads a land's mana-producing
+    // subtype off the slimmed wire state.
+    it("replaces a target land's subtypes and survives the projection (wire format)", () => {
+        const id = registerScript("test-op-setsubtype-target", [
+            {
+                op: "setSubtype",
+                target: { target: 0 },
+                subtypes: ["Island"],
+                duration: { phase: "end-of-turn" },
+            },
+        ]);
+        const swamp = makeInstance(SWAMP_ID, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "swampSetSubtype",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [swamp] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [
+            { type: "permanent", id: "swampSetSubtype" },
+        ]);
+        resolveTopOfStack(state);
+        const changed = state.players[1].battlefield.find(
+            (c) => c.id === "swampSetSubtype"
+        )!;
+        expect(changed.subtypes).toEqual(["Island"]);
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[1].battlefield.find(
+            (c) => c.id === "swampSetSubtype"
+        )!;
+        expect(slim.subtypes).toEqual(["Island"]);
+    });
+
+    // `duration` reverts to the captured printed subtypes at the phase
+    // boundary (CR 305.7 / 611.2 — mirrors `setSubtypesUntil`'s own
+    // Orcish Farmer / Slimy Kavu behavior).
+    it("reverts to the printed subtypes at the cleanup step (CR 305.7 / 611.2)", () => {
+        const id = registerScript("test-op-setsubtype-expire", [
+            {
+                op: "setSubtype",
+                target: { target: 0 },
+                subtypes: ["Forest"],
+                duration: { phase: "end-of-turn" },
+            },
+        ]);
+        const swamp = makeInstance(SWAMP_ID, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id: "swampSetSubtypeExpire",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [swamp] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1", [
+            { type: "permanent", id: "swampSetSubtypeExpire" },
+        ]);
+        resolveTopOfStack(state);
+        const changed = state.players[0].battlefield.find(
+            (c) => c.id === "swampSetSubtypeExpire"
+        )!;
+        expect(changed.subtypes).toEqual(["Forest"]);
+        state.phase = "CLEANUP";
+        finalizeCleanup(state);
+        expect(changed.subtypes).toEqual(["Swamp"]);
+    });
+
+    it("is a no-op when the announced target is missing (CR 608.2b)", () => {
+        const id = registerScript("test-op-setsubtype-missing", [
+            {
+                op: "setSubtype",
+                target: { target: 0 },
+                subtypes: ["Island"],
+                duration: { phase: "end-of-turn" },
+            },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1", []);
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+    });
+});
+
+describe("EffectCardFilter.manaValueEquals (issue #1083)", () => {
+    // Metathran Aerostat's "a creature card with mana value X from your
+    // hand" — the DYNAMIC exact match, resolved via `ctx.getX()` at
+    // resolution (the same `resolveValue` path `manaValueAtMost` uses).
+    // Mirrors the pre-existing `manaValueAtMost: { X: true }` test above.
+    it("filters a hand-card choice to cards with mana value EXACTLY X (dynamic)", () => {
+        const CREATURE_MV3_ID = "test-effects-mv-equals-creature3";
+        registerTokenDefinition({
+            id: CREATURE_MV3_ID,
+            name: CREATURE_MV3_ID,
+            rarity: "common",
+            manaCost: { X: 3 },
+            types: ["Creature"],
+        });
+        const CREATURE_MV2_ID = "test-effects-mv-equals-creature2";
+        registerTokenDefinition({
+            id: CREATURE_MV2_ID,
+            name: CREATURE_MV2_ID,
+            rarity: "common",
+            manaCost: { X: 2 },
+            types: ["Creature"],
+        });
+        const id = registerScript("test-op-choice-manavalue-equals", [
+            {
+                op: "choice",
+                kind: "choose-hand-card",
+                player: "controller",
+                zone: "hand",
+                filter: { type: "Creature", manaValueEquals: { X: true } },
+                count: { min: 0, max: 1 },
+                prompt: "Put a creature card with mana value X onto the battlefield.",
+                bind: "$picked",
+            },
+            {
+                op: "moveZone",
+                cards: { ref: "$picked" },
+                player: "controller",
+                from: "hand",
+                to: "battlefield",
+            },
+        ]);
+        const match = makeInstance(CREATURE_MV3_ID, {
+            id: "mvEqualsMatch",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const nonMatch = makeInstance(CREATURE_MV2_ID, {
+            id: "mvEqualsNonMatch",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { hand: [match, nonMatch] }),
+                makePlayer("p2"),
+            ],
+        });
+        const item = pushSpell(state, id, "p1");
+        item.chosenX = 3;
+        resolveTopOfStack(state);
+        // A mana value of 2 does NOT satisfy "exactly 3" — unlike
+        // `manaValueAtMost`, the ceiling variant, only the exact match
+        // candidate is offered.
+        expect(state.pendingChoices![0].candidateIds).toEqual([
+            "mvEqualsMatch",
+        ]);
+    });
+
+    it("filters candidates to an exact FIXED mana value (non-dynamic)", () => {
+        const id = registerScript("test-op-choice-manavalue-equals-fixed", [
+            {
+                op: "choice",
+                kind: "choose-hand-card",
+                player: "controller",
+                zone: "hand",
+                filter: { manaValueEquals: 2 },
+                count: { min: 0, max: 1 },
+                prompt: "Choose a card with mana value exactly 2.",
+                bind: "$picked",
+            },
+        ]);
+        const mv2 = makeInstance(BEAR_ID, {
+            id: "mvEqualsFixedBear",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [makePlayer("p1", { hand: [mv2] }), makePlayer("p2")],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.pendingChoices![0].candidateIds).toEqual([
+            "mvEqualsFixedBear",
+        ]);
+    });
+});
+
 describe("Effect Script Op: animate (CR 208.2 / 611.1, issue #1317)", () => {
     // A LAND (not the BEAR_ID creature fixture) becomes a creature — the
     // canonical Earthbend N shape (Badgermole Cub, tla/green.ts): base 0/0,

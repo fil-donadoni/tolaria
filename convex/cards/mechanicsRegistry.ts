@@ -867,7 +867,7 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         bindingPattern: /^ward /,
         binding:
             "convex/cards/abilities/ward.ts wardAbility(cost, costLabel) factory",
-        note: 'Issue #1312 — "ward <label>" static string is board-visible reminder data (matched by bindingPattern, e.g. "ward {2}", "ward—pay 2 life"), wardAbility({cost, costLabel}) in triggeredAbilities is the enforcing CR 702.21a triggered ability. Routes entirely through the existing targeted-triggered-ability foundation (CR 603.3d, issue #1193): event "BECAME_TARGET" (CR 603.2b, issue #1265, the same event Leovold reads) narrowed to `event.target.id === self.id` (this exact permanent, not just "you control it"); its own target ("that spell or ability") resolves via the new `spellTargetsSelfSource` dynamic requirement flag (rules.ts raiseTriggerTargetSelection — pins Mistfolk\'s `spellTargetsInstanceIds` filter to `StackItem.triggerSourceId` per-instance instead of a static id) combined with the new `spellStackKind: "any"` value (spells AND abilities both admitted — CR 702.21a says "spell or ability", unlike Stifle\'s ability-only "ability" or Mistfolk\'s spell-only default); the CR 603.3d single-legal-target rule then auto-selects it with no player choice in the overwhelming common case. Effects are the existing "counter unless pay" DSL shape (Miscalculation/Force Spike): mayPay(controllerOf target 0) + if(!paid) counter(target 0) — mayPay/if/counter are already interpreter-suite-exercised Ops, no new Op introduced. Documented divergence (tracked-by #1361, split from #1312): the rare case of TWO distinct spells/abilities simultaneously targeting the same warded permanent before either resolves falls back to a real player choice instead of forcing the one that actually caused THIS trigger (no event→stack-item id reference exists, ADR 0049) — narrow, never mis-targets, just doesn\'t force the automatic pick CR 702.21a implies in that overlap. No card ships the keyword yet (Kappa Cannoneer, cn nec/blue.ts, is separate — also needs Improvise, issue #917).',
+        note: 'Issue #1312 — "ward <label>" static string is board-visible reminder data (matched by bindingPattern, e.g. "ward {2}", "ward—pay 2 life"), wardAbility({cost, costLabel}) in triggeredAbilities is the enforcing CR 702.21a triggered ability. Routes entirely through the existing targeted-triggered-ability foundation (CR 603.3d, issue #1193): event "BECAME_TARGET" (CR 603.2b, issue #1265, the same event Leovold reads) narrowed to `event.target.id === self.id` (this exact permanent, not just "you control it"); its own target ("that spell or ability") resolves via the new `spellTargetsSelfSource` dynamic requirement flag (rules.ts raiseTriggerTargetSelection — pins Mistfolk\'s `spellTargetsInstanceIds` filter to `StackItem.triggerSourceId` per-instance instead of a static id) combined with the new `spellStackKind: "any"` value (spells AND abilities both admitted — CR 702.21a says "spell or ability", unlike Stifle\'s ability-only "ability" or Mistfolk\'s spell-only default); the CR 603.3d single-legal-target rule then auto-selects it with no player choice in the overwhelming common case. Effects are the existing "counter unless pay" DSL shape (Miscalculation/Force Spike): mayPay(controllerOf target 0) + if(!paid) counter(target 0) — mayPay/if/counter are already interpreter-suite-exercised Ops, no new Op introduced. Issue #1361 (resolved, was a documented divergence): the rare case of TWO distinct spells/abilities simultaneously targeting the same warded permanent no longer falls back to a player choice — `BecameTargetEvent.sourceInstanceId` (the causing stack item\'s own id, threaded through `emitBecameTargetEvents`) lets `raiseTriggerTargetSelection` narrow each ward trigger\'s legal-target set to the EXACT object that caused it (CR 702.21e), forcing the correct counter target deterministically. No card ships the keyword yet (Kappa Cannoneer, cn nec/blue.ts, is separate — also needs Improvise, issue #917).',
     },
     // 702.22 Banding
     {
@@ -1886,7 +1886,9 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         name: "Companion",
         kind: "keyword-ability",
         cr: "702.139",
-        status: "planned",
+        status: "implemented",
+        binding: "convex/gre/companion.ts",
+        note: 'Deckbuild-condition / special-action capability (engine infra, NOT an Effect Script Op — ADR 0064): `convex/gre/companion.ts` (`selectCompanion` scans the Sideboard for a Companion-keyword card whose per-card condition closure the Maindeck satisfies; `canSummonCompanion` gates the CR 116.2 special action) + `PlayerState.companion` (the per-player slot: `{ instance, used }`, NOT a general "outside the game" zone) + `GameState.pendingCompanionPay` (the {3} payment, mirrors `pendingCast` but dedicated — no target/mode/stack item). Auto-declared at game init (`buildPlayerState`/`buildCompanionInstance`, game.ts) from the Match deck\'s sideboard snapshot (threaded through `NextGameSeat.deck.sideboard`, matches.ts, so a Bo3 Game re-scans post-sideboard). The `summonCompanion` mutation (game.ts) solves the {3} via the shared auto-tap solver (`solveSmartAutoTap`) and moves the companion straight to hand — no stack item. Projected to BOTH players (CR 702.139c) via `SlimCompanionSlot` (gameProjections.ts), with `canSummon` carried only to the slot\'s own controller. UI: a companion-slot chip + "Companion {3}" summon button in the pile cluster, gated through the wire projection. Bot: `summon-companion` is a `Move` (moves.ts/legalActions.ts), realised via `executor.ts`\'s `summonCompanion` mutation call — rides the existing ISMCTS search rather than a bespoke heuristic (evaluate.ts already scores hand-card value, so summoning into hand is naturally incentivized once legal). Used by Lutri, the Spellchaser (singleton condition); Lurrus of the Dream-Den (#1392, permanent-MV≤2 condition) builds on this framework.',
     },
     // 702.140 Mutate
     {
@@ -2679,6 +2681,20 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         note: 'Adds a creature/land/etc. subtype to a target permanent INDEFINITELY, in addition to its other types (layer 4, CR 613.1d, issue #1194 — Guide of Souls: "It becomes an Angel in addition to its other types"). A thin declarative skin over one SpellContext primitive, one execution path (ADR 0045). Distinct from the aura-style `subtype-add` STATIC EFFECT (`StaticEffect.kind === "subtype-add"`, tied to a live source via `applies`/`auraId`, unapplied when the source leaves play): this Op\'s effect is generated by a RESOLVING ability (CR 611.2c), so it does NOT depend on its source (Guide of Souls) remaining on the battlefield — the target stays an Angel even after Guide of Souls dies. Writes the SAME `grantedSubtypesAdd` instance markers the static effect uses, keyed to the `"indefinite"` sentinel source id, mirroring `SpellContext.setSupertype`\'s indefinite CR 205.4a pattern exactly (Arcum\'s Weathervane) — no new storage shape. `target` is an announced slot, the resolving source (`$source`), or a forEach `$each`; `subtype` is the single subtype string added. No-op for a non-permanent target or one that has left the battlefield (CR 608.2b).',
     },
     {
+        op: "setColor",
+        status: "implemented",
+        cr: "613.1e",
+        binding: "SpellContext.setColorOverride",
+        note: 'Sets a target\'s color(s), replacing all other color derivation (layer 5, CR 613.1e, issue #1083). A thin declarative skin over the SpellContext primitive `setColorOverride`, one execution path (ADR 0045). `target` is an announced slot (a permanent or a spell — "target spell or permanent becomes the color of your choice", Blind Seer), the resolving source (`$source` — a self-color-change activated ability, Rainbow Crow / Tidal Visionary / Metathran Transport), or a forEach `$each` (Sway of Illusion\'s "any number of target creatures", paired with the new `forEach { set: "targets" }` selector below). `duration` (issue #1065) is meaningful for a permanent target only — an "until end of turn" reversion; omitted is indefinite (Dream Coat / Shyft-style, ignored for a spell target). A "choose one of five colors, then set it" modal effect composes with the pre-existing `optionChoice` Op (one mode per color, each a single-Op `setColor` body) — no new choice-kind construct needed (ADR 0045 "generalize, don\'t add"). Was `EFFECT_OP_BACKLOG`\'s `setColor` reservation (CR 613.1e, ~7 blocked closures) — promoted here.',
+    },
+    {
+        op: "setSubtype",
+        status: "implemented",
+        cr: "305.7",
+        binding: "SpellContext.setSubtypesUntil",
+        note: 'Replaces a target land\'s subtypes for a limited duration (layer 4, CR 305.7, issue #1083). A thin declarative skin over the SpellContext primitive `setSubtypesUntil`, one execution path (ADR 0045). Distinct from `addSubtype` above (which ADDS a subtype INDEFINITELY, keeping the printed ones): this Op REPLACES the target\'s subtypes outright and always reverts at `duration` (REQUIRED — no indefinite form) — the "target land becomes a Swamp / the basic land type of your choice until end of turn" template (Orcish Farmer / Slimy Kavu precedent `resolve()` closures now composable as a DSL Op; Dream Thrush\'s "{T}: Target land becomes the basic land type of your choice until end of turn" pairs it with `optionChoice`, one mode per basic land type). Was never reserved under its own name in `EFFECT_OP_BACKLOG` — the gap was discovered and closed directly (issue #1083).',
+    },
+    {
         op: "animate",
         status: "implemented",
         cr: "208.2 / 611.1",
@@ -2962,12 +2978,14 @@ export const EFFECT_OP_BACKLOG: EffectOpRow[] = [
     // Spellseeker, Stoneforge Mystic, Brightglass Gearhulk, Expedition Map).
     // A private single-knower "look" (Word of Command) and a library-top
     // reveal (Caustic Bronco-class) are NOT folded — see the registry note.
-    {
-        op: "setColor",
-        status: "planned",
-        cr: "613.1e",
-        note: "Colour-changing effect (layer 5, CR 613.1e). Folds SpellContext.setColorOverride (~7 blocked closures). Long-tail.",
-    },
+    // `setColor` SHIPPED (issue #1083) — SpellContext.setColorOverride is now
+    // COVERED live via EFFECT_OP_REGISTRY with status "implemented". Unblocks
+    // Blind Seer / Rainbow Crow / Tidal Visionary / Metathran Transport / Sway
+    // of Illusion (INV) via a "choose one of five colors" `optionChoice` +
+    // one-mode-per-color `setColor` composition (no new choice-kind Op
+    // needed). `setSubtype` (land-type-change twin, `setSubtypesUntil`) SHIPPED
+    // alongside it in the same slice — see the EFFECT_OP_REGISTRY row; it was
+    // never reserved in this backlog under its own name (Dream Thrush).
     {
         op: "lockUntap",
         status: "planned",

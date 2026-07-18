@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { projectFullState, projectPublicState } from "../gameProjections";
 import { computeSoloViewerId } from "../soloViewer";
 import { drawCard, exileFaceDownCard, removeFromZone } from "../gre/state";
-import { FACE_DOWN_CARD_ID } from "../cards";
+import { FACE_DOWN_CARD_ID, getCardByName } from "../cards";
 import type { CardInstanceState, GameState, PlayerState } from "../gre/state";
 
 function makeCard(
@@ -1075,5 +1075,100 @@ describe("pile-division library exposure (ADR 0053, CR 401.4)", () => {
         const result = projectPublicState(stateWithPick(), 1, "p2");
         const owner = result.players.find((p) => p.id === "p1")!;
         expect(owner.libraryPeek).toBeUndefined();
+    });
+});
+
+describe("companion slot wire projection (CR 702.139c, ADR 0064, issue #1391)", () => {
+    const MOUNTAIN = getCardByName("Mountain").id;
+
+    function stateWithCompanion(
+        overrides: Partial<PlayerState> = {}
+    ): GameState {
+        const p1 = makePlayer("p1", {
+            battlefield: [
+                makeCard("p1-land-1", {
+                    zone: "battlefield",
+                    types: ["Land"],
+                    card: { id: MOUNTAIN },
+                }),
+                makeCard("p1-land-2", {
+                    zone: "battlefield",
+                    types: ["Land"],
+                    card: { id: MOUNTAIN },
+                }),
+                makeCard("p1-land-3", {
+                    zone: "battlefield",
+                    types: ["Land"],
+                    card: { id: MOUNTAIN },
+                }),
+            ],
+            companion: {
+                instance: makeCard("p1-companion", { zone: "library" }),
+                used: false,
+            },
+            ...overrides,
+        });
+        const p2 = makePlayer("p2");
+        return makeState({
+            players: [p1, p2],
+            phase: "PRECOMBAT_MAIN" as GameState["phase"],
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            stack: [],
+        });
+    }
+
+    // SURFACE assertion driven THROUGH projectPublicState (the reducer) —
+    // a hand-built view would mask a dropped field (gre-development.md
+    // "Frontend wiring analysis").
+    it("reveals the companion slot to BOTH players (CR 702.139c)", () => {
+        const state = stateWithCompanion();
+        for (const viewerId of ["p1", "p2"]) {
+            const projected = projectPublicState(state, 1, viewerId);
+            const owner = projected.players.find((p) => p.id === "p1")!;
+            expect(owner.companion?.instance.id).toBe("p1-companion");
+            expect(owner.companion?.used).toBe(false);
+        }
+    });
+
+    it("carries the canSummon affordance ONLY to the companion's own controller", () => {
+        const state = stateWithCompanion();
+        const ownView = projectPublicState(state, 1, "p1");
+        const opponentView = projectPublicState(state, 1, "p2");
+        expect(
+            ownView.players.find((p) => p.id === "p1")!.companion?.canSummon
+        ).toBe(true);
+        expect(
+            opponentView.players.find((p) => p.id === "p1")!.companion
+                ?.canSummon
+        ).toBeUndefined();
+    });
+
+    it("canSummon reads false once the companion has been used", () => {
+        const state = stateWithCompanion({
+            companion: {
+                instance: makeCard("p1-companion", { zone: "library" }),
+                used: true,
+            },
+        });
+        const projected = projectPublicState(state, 1, "p1");
+        const owner = projected.players.find((p) => p.id === "p1")!;
+        expect(owner.companion?.used).toBe(true);
+        expect(owner.companion?.canSummon).toBe(false);
+    });
+
+    it("carries the companion slot through the full debug projection too", () => {
+        const state = stateWithCompanion();
+        const projected = projectFullState(state, 1);
+        const owner = projected.players.find((p) => p.id === "p1")!;
+        expect(owner.companion?.instance.id).toBe("p1-companion");
+        expect(owner.companion?.canSummon).toBe(true);
+    });
+
+    it("omits the companion field entirely when the slot is empty", () => {
+        const state = stateWithCompanion({ companion: undefined });
+        const projected = projectPublicState(state, 1, "p1");
+        const owner = projected.players.find((p) => p.id === "p1")!;
+        expect(owner.companion).toBeUndefined();
     });
 });

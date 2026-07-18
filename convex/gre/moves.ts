@@ -48,6 +48,7 @@ import {
 import { getInstanceManaCost, tryGetDefinition } from "../cards";
 import { matchesPermanentFilter } from "../cards/filters";
 import { liveSupertypesOf, countSnowLands } from "./snow";
+import { canSummonCompanion } from "./companion";
 import { substituteColorFilter } from "./textChanges";
 
 /** One land tap the executor must perform to fund a cast/activation. */
@@ -140,6 +141,16 @@ export type Move =
           choiceId: string;
       }
     | { kind: "play-land"; cardInstanceId: string }
+    | {
+          /** CR 116.2 / 702.139f (ADR 0064) — the `summon-companion` special
+           *  action. No card id (the source is `player.companion`, not a hand
+           *  card) and no tap plan: the fixed generic {3} is solved and
+           *  applied server-side in one shot by the shared auto-tap solver
+           *  (`canSummonCompanion`/`summonCompanion`, gre/companion.ts /
+           *  game.ts) — there's no colored-pip choice for the executor to
+           *  replay. */
+          kind: "summon-companion";
+      }
     | {
           kind: "cast-spell";
           cardInstanceId: string;
@@ -960,12 +971,20 @@ export function enumerateMoves(state: GameState, playerId: string): Move[] {
         state.pendingCast ||
         state.pendingTarget ||
         state.pendingActivation ||
+        state.pendingCompanionPay ||
         (state.pendingChoices && state.pendingChoices.length > 0)
     ) {
         return [];
     }
 
     const moves: Move[] = [{ kind: "pass" }];
+    // CR 116.2 / 702.139f (ADR 0064) — the companion summon special action.
+    // Single source of truth for legality, shared with the human mutation
+    // (`summonCompanion`, game.ts) and the legal-actions surface
+    // (legalActions.ts, via this enumerator).
+    if (canSummonCompanion(state, player)) {
+        moves.push({ kind: "summon-companion" });
+    }
     for (const card of player.hand) {
         const actions = getLegalActions(state, player, card);
         if (actions.includes("play")) {

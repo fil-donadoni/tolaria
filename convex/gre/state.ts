@@ -1175,6 +1175,24 @@ export type PlayerState = {
      *  Reset to false at the start of each turn (`advanceTurn`). Read by
      *  cards with the Revolt ability word (Fatal Push). */
     permanentYouControlledLeftThisTurn?: boolean;
+    /** Companion (CR 702.139, ADR 0064) — a SINGLE per-player slot, NOT a
+     *  general "outside the game" zone. Auto-declared at game init
+     *  (`buildPlayerState`, game.ts) by scanning the player's SIDEBOARD
+     *  snapshot for a Companion-keyword card whose `CardDefinition.companion`
+     *  condition the MAINDECK satisfies (`selectCompanion`, gre/companion.ts).
+     *  `instance` is revealed to both players (CR 702.139c) — carried
+     *  unchanged through `projectPublicState`/`projectFullState`, never
+     *  hidden like a hand/library card. `used` is the once-per-game spent
+     *  flag (CR 702.139f), set true by the `summon-companion` special action
+     *  (`summonCompanion` mutation, game.ts) once its {3} cost is paid; a
+     *  spent or condition-failed companion shows no summon affordance.
+     *  Code that enumerates GameState zones (`ZONE_TO_FIELD` and friends)
+     *  must NOT treat this as one — the instance never lives in a real
+     *  zone array (`hand`/`library`/etc.) until summoned into `hand`. */
+    companion?: {
+        instance: CardInstanceState;
+        used: boolean;
+    };
 };
 
 export type StackItem = CardInstanceState & {
@@ -1681,6 +1699,23 @@ export type PendingActivation = {
      *  the manaPool delta (which colours paid the cost) and writes it onto the
      *  resulting stack item as `notedManaSpent`. */
     noteManaSpent?: boolean;
+};
+
+/** Tracks the {3} payment for the `summon-companion` special action (CR
+ *  116.2 / 702.139f, ADR 0064). Deliberately minimal next to `PendingCast`/
+ *  `PendingActivation`: the companion summon has no card being cast/
+ *  activated, no target, no mode, no additional cost leg — just a fixed
+ *  generic cost against `player.companion`. See the `GameState.
+ *  pendingCompanionPay` doc for why this is a dedicated state. */
+export type PendingCompanionPay = {
+    playerId: string;
+    /** Always `{ X: 3 }` (CR 702.139f's fixed {3}) — kept as a normalized
+     *  `Record<string, number>` cost, mirroring `PendingCast.manaCost`, so it
+     *  can be handed straight to `solveSmartAutoTap`/`payManaCost`. */
+    manaCost: Record<string, number>;
+    /** Land ids tapped during this payment, for rollback/audit — mirrors
+     *  `PendingCast.tappedLandIds`. */
+    tappedLandIds: string[];
 };
 
 /** Choice family taxonomy (definitions in `gre/types.ts` to avoid an import
@@ -2284,6 +2319,23 @@ export type GameState = {
     /** Active activated-ability payment in progress (CR 602.1). Mutually
      *  exclusive with pendingCast. */
     pendingActivation?: PendingActivation;
+    /** CR 116.2 / 702.139f (ADR 0064) — the {3} payment for the
+     *  `summon-companion` special action, in progress. A DEDICATED state
+     *  rather than an overload of `pendingCast`: the companion summon has no
+     *  target, mode, or resulting stack item, so forcing it through
+     *  `pendingCast` would mean a special-case "no-stack, deliver-to-hand"
+     *  flag threaded through every `pendingCast` consumer (SBA, projection,
+     *  cancel, triggers). Reuses the shared auto-tap SOLVER
+     *  (`solveSmartAutoTap`) without polluting the cast rail. In practice the
+     *  `summonCompanion` mutation (game.ts) solves and applies the whole {3}
+     *  payment SYNCHRONOUSLY in one call (a fixed generic-only cost has no
+     *  player choice to suspend on), so this field is set and cleared within
+     *  a single mutation and is never observed mid-flight by another action —
+     *  it exists as a first-class optional `GameState` key (serialized like
+     *  `pendingCast`) for architectural symmetry and to leave room for a
+     *  future manual-tap UI on the same rail. Mutually exclusive with
+     *  `pendingCast`/`pendingActivation`. */
+    pendingCompanionPay?: PendingCompanionPay;
     /** Active target selection in progress (CR 601.2c). */
     pendingTarget?: PendingTarget;
     /** Mid-resolution choices awaiting player input (CR 608.2, 101.4). FIFO:
@@ -4110,8 +4162,10 @@ function finalizeSpellResolution(
         }
         // CR 603.6 — ETB notification for self-ETB triggers ("when ~ enters
         // the battlefield, ..."). Drained by `processPendingActionTriggers`
-        // after this resolve completes.
-        emitPermanentEntered(state, item);
+        // after this resolve completes. `wasCast: true` — this IS the
+        // cast-resolution chokepoint (CR 601.2i), read by an "if you cast it"
+        // trigger condition (Lutri, the Spellchaser).
+        emitPermanentEntered(state, item, true);
     } else {
         // CR 707.10 / 112.5 — a copy of an instant/sorcery spell is not a real
         // card: once it finishes resolving it simply ceases to exist instead
@@ -4212,7 +4266,19 @@ export function canLandEnterBattlefield(
  *  matcher can filter without a registry lookup. */
 export function emitPermanentEntered(
     state: GameState,
-    card: { id: string; controllerId: string; types: CardType[]; card: unknown }
+    card: {
+        id: string;
+        controllerId: string;
+        types: CardType[];
+        card: unknown;
+    },
+    /** CR 601.2i — true ONLY at the cast-resolution chokepoint
+     *  (`finalizeSpellResolution`). Every other call site (reanimation,
+     *  tutor-to-battlefield, hand-cheat, a land played, token creation)
+     *  passes nothing, matching the field's own "cast-resolution only" doc.
+     *  Read by an "if you cast it" trigger condition (Lutri, the Spellchaser,
+     *  CR 603.4). */
+    wasCast?: boolean
 ): void {
     const cardId = (card.card as { id?: string }).id;
     // Arboria (CR 508.1c) — putting a NONTOKEN permanent onto the battlefield
@@ -4232,6 +4298,7 @@ export function emitPermanentEntered(
             controllerId: card.controllerId,
             cardId,
             types: [...card.types],
+            ...(wasCast ? { wasCast: true } : {}),
         },
     ];
 }
@@ -6432,7 +6499,7 @@ export function emitSpellCastEvent(state: GameState, item: StackItem): void {
     // its stack item here, so this doubles as the target-declaration choke for
     // "whenever ~ becomes the target of a spell" triggers (Leovold). A
     // non-targeted spell carries no `targets` → no-op.
-    emitBecameTargetEvents(state, item.targets, item.castById);
+    emitBecameTargetEvents(state, item.targets, item.castById, item.id);
     collectCastTriggers(state, item, event);
 }
 
@@ -6445,11 +6512,19 @@ export function emitSpellCastEvent(state: GameState, item: StackItem): void {
  *  or a permanent you control" with one comparison and the opponent filter
  *  without a battlefield scan. `"spell"` / `"graveyard-card"` targets are
  *  skipped — they are neither a player nor a permanent under anyone's control.
- *  No-op for an absent/empty target list (a non-targeted spell or ability). */
+ *  No-op for an absent/empty target list (a non-targeted spell or ability).
+ *
+ *  `sourceInstanceId` (issue #1361) is the stack-item id of the spell/ability
+ *  whose targets are being locked — carried onto each emitted event so a
+ *  reflexive "counter that spell or ability" trigger (Ward, CR 702.21a/e) can
+ *  pin its own target to the EXACT causing object instead of any object that
+ *  merely also targets the same permanent (the two-simultaneous-targeters
+ *  fix, `gre/rules.ts` `raiseTriggerTargetSelection`). */
 export function emitBecameTargetEvents(
     state: GameState,
     targets: readonly TargetSelection[] | undefined,
-    sourceControllerId: string
+    sourceControllerId: string,
+    sourceInstanceId: string
 ): void {
     if (!targets || targets.length === 0) return;
     const events: BecameTargetEvent[] = [];
@@ -6475,6 +6550,7 @@ export function emitBecameTargetEvents(
             target,
             targetControllerId,
             sourceControllerId,
+            sourceInstanceId,
         });
     }
     if (events.length > 0) {

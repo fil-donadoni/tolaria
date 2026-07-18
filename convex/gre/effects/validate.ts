@@ -209,6 +209,13 @@ function isCardFilter(value: unknown): boolean {
                 isXValue(v)
             );
         }
+        // issue #1083 — exact mana-value match, `manaValueAtMost`'s sibling.
+        if (k === "manaValueEquals") {
+            return (
+                (typeof v === "number" && Number.isInteger(v) && v >= 0) ||
+                isXValue(v)
+            );
+        }
         if (k === "isToken") {
             return typeof v === "boolean";
         }
@@ -1226,6 +1233,12 @@ function isForEachSelector(value: unknown): boolean {
         if ("filter" in s && !isCardFilter(s.filter)) return false;
         return true;
     }
+    // `targets` (issue #1083) — iterate the whole announced target set. No
+    // extra fields: exactly `{ set: "targets" }` (no controller/filter — the
+    // member set is already exactly what the TargetRequirement picked).
+    if (s.set === "targets") {
+        return Object.keys(s).length === 1;
+    }
     if (s.set !== "permanents") return false;
     const allowed = new Set(["set", "zone", "controller", "filter"]);
     if (!Object.keys(s).every((k) => allowed.has(k))) return false;
@@ -1725,6 +1738,29 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
         required: {
             target: isObjectSelector,
             subtype: isNonEmptyString,
+        },
+    },
+    // CR 613.1e layer 5 (issue #1083) — set a target's color(s). `target` is
+    // an object selector (announced slot, `$source`, or a forEach `$each`);
+    // `colors` is the new color set (empty array = colorless — legal);
+    // `duration` is optional (meaningful for a permanent target only, ignored
+    // for a spell — indefinite when omitted).
+    setColor: {
+        required: {
+            target: isObjectSelector,
+            colors: (v) => isStringArray(v, TOKEN_COLORS),
+        },
+        optional: { duration: isDurationSpec },
+    },
+    // CR 305.7 layer 4 (issue #1083) — replace a target land's subtypes for a
+    // limited duration. `target` is an object selector; `subtypes` is the
+    // full replacement subtype list; `duration` is REQUIRED (this Op has no
+    // indefinite form, unlike `addSubtype`).
+    setSubtype: {
+        required: {
+            target: isObjectSelector,
+            subtypes: (v) => isStringArray(v),
+            duration: isDurationSpec,
         },
     },
     // CR 208.2 / 611.1 (issue #1317) — turn a permanent into a creature.

@@ -1013,11 +1013,49 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // unchanged (37 = 444−407 = 445−408), X-only unchanged (14),
         // Op-blocked 232→229 (-3, the three genuinely-blocked closures).
         // Partition: 444+14+229=687.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(687);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(444);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(407);
+        //
+        // Then issue #1083 ships the `setColor` Op (CR 613.1e layer 5,
+        // wrapping the EXISTING `SpellContext.setColorOverride` primitive,
+        // promoted from `EFFECT_OP_BACKLOG` to `EFFECT_OP_REGISTRY`) and the
+        // `setSubtype` Op (CR 305.7 layer 4, wrapping `SpellContext.setSubtypesUntil`)
+        // alongside 9 newly-unstubbed INV cards (inv/blue.ts) that compose the
+        // new Ops as `effects[]` DATA — not `resolve()` closures the classifier
+        // scans, so they add ZERO new closures to the census. What changes the
+        // count is `setColorOverride`/`setSubtypesUntil` newly joining the
+        // "Covered Ops" primitive set: every PRE-EXISTING `resolve()` closure
+        // elsewhere in the catalogue that already called one of these two
+        // primitives directly reclassifies from Op-blocked to FREE, e.g.
+        // Alloy Golem (inv/colorless.ts), Kavu Chameleon (inv/green.ts), Shyft
+        // (ice/blue.ts), Personal Incarnation (lea/white.ts), Sea Kings'
+        // Blessing (leg/blue.ts), Sylvan Paradise (leg/green.ts), Alchor's Tomb
+        // (leg/colorless.ts), Orcish Farmer (ice/red.ts) and Vision Charm
+        // (vis/blue.ts) — all AFK-ready (already ship per-card tests); Dwarven
+        // Song (leg/red.ts) and Touch of Darkness (leg/black.ts) land
+        // "need test first" because their existing coverage lives in the
+        // WRONG per-colour test file (leg/white.test.ts, not the parallel
+        // leg/red.test.ts / leg/black.test.ts the classifier's heuristic
+        // requires); Slimy Kavu (inv/red.ts) has no test at all yet. Total
+        // closures unchanged (687, no closures added or removed). Net: FREE
+        // 444→455 (+11), AFK-ready 407→415 (+8), need-test 37→40 (+3),
+        // X-only unchanged (14), Op-blocked 229→218 (-11).
+        // Partition: 455+14+218=687.
+        //
+        // Then issue #1391 (Companion framework) adds Lutri, the
+        // Spellchaser's ETB trigger — a genuinely Op-blocked resolve()
+        // closure: `copyStackItem`/`requestCopyRetarget` (CR 707.10
+        // copy-a-spell) are `SpellContext`-only primitives with NO Effect
+        // Script Op wrapper anywhere in the registry (the same architectural
+        // gap Fork, lea/red.ts, has always had — copying a spell on the
+        // stack is resolve()-only by design, not a card-shaped oversight).
+        // This lands on top of the #1083 INV baseline above (455/415/218),
+        // not the earlier pre-#1083 one. Net: total 687→688 (+1),
+        // FREE/AFK-ready/X-only unchanged, Op-blocked 218→219 (+1, the new
+        // closure). Partition: 455+14+219=688.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(688);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(455);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(415);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(229);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(219);
     });
 
     it("surfaces the demonstrated new-Op backlog (a covered primitive leaves it)", () => {

@@ -669,6 +669,29 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             }
             recordSlot(req, op.target.target, "permanent");
             return;
+        case "setColor":
+            // `setColor` (issue #1083) sets colorOverride (CR 613.1e layer
+            // 5). Every shipped INV card composes it inside a suspending
+            // `optionChoice` ("choose a color, then set it") or a `forEach {
+            // set: "targets" }` — both constructs already skip wholesale
+            // before descending into their body (see the `optionChoice` /
+            // `forEach` cases above), so this arm is never reached by the
+            // current catalogue; kept for exhaustiveness against a future
+            // card composing it bare. Explicit skip — the Op is new (per-Op
+            // regime, `.claude/rules/gre-development.md`) and earns its own
+            // hand-written interpreter + wire-format test instead of relying
+            // on the canned smoke sweep.
+            req.skip ??= `Op "setColor" is new — covered by the Op's own interpreter + wire-format tests`;
+            return;
+        case "setSubtype":
+            // `setSubtype` (issue #1083) replaces a target land's subtypes
+            // for a duration (CR 305.7 layer 4). Same rationale as
+            // `setColor` immediately above — every shipped caller (Dream
+            // Thrush) composes it inside a suspending `optionChoice`, which
+            // already skips before descending. Explicit skip — the Op is new
+            // and earns its own hand-written interpreter + wire-format test.
+            req.skip ??= `Op "setSubtype" is new — covered by the Op's own interpreter + wire-format tests`;
+            return;
         case "forEach":
             // The forEach construct (issue #807) iterates a runtime-selected
             // set; the generator cannot predict per-member outcomes (and a
@@ -1732,6 +1755,23 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     // hand-written card test (tmp/__tests__/blue.test.ts) are the
     // behavioural guarantor.
     extraTurn() {
+        return null;
+    },
+    // `setColor` (CR 613.1e layer 5, issue #1083) — never reached: `analyseOp`
+    // skips every script with a setColor Op (every shipped INV caller composes
+    // it inside a suspending `optionChoice`/`forEach`, both of which already
+    // skip wholesale before descending into their body). Kept for the 1:1
+    // coverage guard; the Op's own interpreter + wire-format tests are the
+    // behavioural guarantor.
+    setColor() {
+        return null;
+    },
+    // `setSubtype` (CR 305.7 layer 4, issue #1083) — never reached: `analyseOp`
+    // skips every script with a setSubtype Op (the shipped caller, Dream
+    // Thrush, composes it inside a suspending `optionChoice`, which already
+    // skips before descending). Kept for the 1:1 coverage guard; the Op's own
+    // interpreter + wire-format tests are the behavioural guarantor.
+    setSubtype() {
         return null;
     },
 };

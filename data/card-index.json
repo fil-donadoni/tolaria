@@ -966,6 +966,12 @@
         "firstSet": "mbs"
     },
     {
+        "name": "Blind Seer",
+        "scryfallId": "5c54ec26-c7f1-4258-9cc9-1709987f293c",
+        "oracleId": "f905b72d-734a-44e8-b118-c8de889994a9",
+        "firstSet": "inv"
+    },
+    {
         "name": "Blinking Spirit",
         "scryfallId": "14fc0683-9cfa-4439-a533-8773e7747ec4",
         "oracleId": "a26f6958-9bc8-46f8-8ca7-7f55098e1291",
@@ -2196,6 +2202,12 @@
         "firstSet": "lea"
     },
     {
+        "name": "Distorting Wake",
+        "scryfallId": "cf48eec9-96be-4f53-9d9a-c6f02d44c995",
+        "oracleId": "e5387fc7-c3b3-4933-bffa-580ad793c7ab",
+        "firstSet": "inv"
+    },
+    {
         "name": "Divine Intervention",
         "scryfallId": "9eae0ba1-1383-4505-b4e7-4f17dd8f20c5",
         "oracleId": "0158a440-6573-4f12-958b-a5f0cf190d5b",
@@ -2266,6 +2278,12 @@
         "scryfallId": "ea3830c5-cc66-453e-9e53-0636e00ee0ee",
         "oracleId": "0669172d-396b-4f5a-9703-129c5c849b55",
         "firstSet": "lea"
+    },
+    {
+        "name": "Dream Thrush",
+        "scryfallId": "258217df-ae88-4d93-895a-3fd242baacd1",
+        "oracleId": "111f3f1c-4387-4e61-8bff-6ebe3b7b9d9f",
+        "firstSet": "inv"
     },
     {
         "name": "Dreams of the Dead",
@@ -5418,6 +5436,12 @@
         "firstSet": "mkm"
     },
     {
+        "name": "Lutri, the Spellchaser",
+        "scryfallId": "fb1189c9-7842-466e-8238-1e02677d8494",
+        "oracleId": "158a6225-a246-4fd6-aa57-0df8067b4383",
+        "firstSet": "iko"
+    },
+    {
         "name": "Maddening Wind",
         "scryfallId": "5277656c-70f5-4660-bd58-7d9261d53fb5",
         "oracleId": "c9798915-3f9e-466b-bbd6-f4e126bdb67d",
@@ -5698,6 +5722,18 @@
         "scryfallId": "fbc6cfc3-b232-40bf-bc0c-4618f6f5c9a5",
         "oracleId": "7140d726-0136-43af-84b5-85005a66a186",
         "firstSet": "arn"
+    },
+    {
+        "name": "Metathran Aerostat",
+        "scryfallId": "59f34850-fb6f-4ac5-8309-4d53d770e28c",
+        "oracleId": "093daf01-d83b-4d49-a6b3-ec9a799b9582",
+        "firstSet": "inv"
+    },
+    {
+        "name": "Metathran Transport",
+        "scryfallId": "4fa9048d-1599-44a5-b4b2-45382c5b238d",
+        "oracleId": "6ab1bd6f-866b-4665-bd8b-627aafafb94d",
+        "firstSet": "inv"
     },
     {
         "name": "Meteor Shower",
@@ -7048,6 +7084,12 @@
         "scryfallId": "907a3396-706b-4ca2-9973-bca758986032",
         "oracleId": "1d9b8859-14e3-4bbe-ad92-916b25a37b31",
         "firstSet": "fem"
+    },
+    {
+        "name": "Rainbow Crow",
+        "scryfallId": "7e622ad2-473f-489e-b4cf-bbdcc44d0cde",
+        "oracleId": "79bf98c8-1169-477d-838e-2ebc0fa396dc",
+        "firstSet": "inv"
     },
     {
         "name": "Rainbow Vale",
@@ -8742,6 +8784,12 @@
         "firstSet": "lea"
     },
     {
+        "name": "Sway of Illusion",
+        "scryfallId": "ff65e386-9aec-4deb-a4ec-d9a97bd87645",
+        "oracleId": "9a7e2298-8855-43a7-8cb1-4b31e4058c3f",
+        "firstSet": "inv"
+    },
+    {
         "name": "Swords to Plowshares",
         "scryfallId": "386ea9eb-abc1-4862-aa2d-8fb808d79490",
         "oracleId": "b1544f21-7e98-461b-aed5-e748b0168c52",
@@ -9130,6 +9178,12 @@
         "scryfallId": "b2192c7b-ef6f-4ff6-9017-b1a125340517",
         "oracleId": "b1393388-b8b3-4c54-a086-f5e6d9908972",
         "firstSet": "fem"
+    },
+    {
+        "name": "Tidal Visionary",
+        "scryfallId": "a72a3051-7f46-4b6b-b4fb-0f170d9687ab",
+        "oracleId": "8fc72080-8d4d-427d-ae30-065bc8ee9a28",
+        "firstSet": "inv"
     },
     {
         "name": "Timber Wolves",
@@ -10102,6 +10156,12 @@
         "scryfallId": "37c7890a-86dc-4a97-a7ce-1436fa22d0c0",
         "oracleId": "5aa12aff-db3c-4be5-822b-3afdf536b33e",
         "firstSet": "lea"
+    },
+    {
+        "name": "Well-Laid Plans",
+        "scryfallId": "1c55eb8f-925a-42c1-9e48-d7f99cab3b01",
+        "oracleId": "50343947-d127-4479-9c1b-8f5040a97afb",
+        "firstSet": "inv"
     },
     {
         "name": "Whalebone Glider",

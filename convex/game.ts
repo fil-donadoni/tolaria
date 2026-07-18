@@ -64,6 +64,11 @@ import {
 } from "./gre/state";
 import { applyCopy } from "./gre/copy";
 import {
+    selectCompanion,
+    canSummonCompanion,
+    COMPANION_SUMMON_COST,
+} from "./gre/companion";
+import {
     type SacrificeSelection,
     type SacrificeRequirement,
     buildSacrificeRequirements,
@@ -187,6 +192,7 @@ import {
 import type { Phase } from "./gre/types";
 import {
     DAMAGEABLE_PERMANENT_TYPES,
+    MANA_COLORS,
     applyLandManaReplacement,
     getActivatedManaAbility,
     getActivatedManaColor,
@@ -260,7 +266,7 @@ export const STARTING_HAND_SIZE = 7;
 const ACTIVE_GAME_MESSAGE =
     "You already have an active game. Finish or leave it before starting another.";
 
-type DeckInput = {
+export type DeckInput = {
     id: string;
     name: string;
     format: string;
@@ -268,12 +274,45 @@ type DeckInput = {
     sideboard?: { cardId: string; cardName: string }[];
 };
 
-type PlayerInput = {
+export type PlayerInput = {
     id: string;
     name: string;
     bgColor: string;
     deck: DeckInput;
 };
+
+/** CR 702.139c (ADR 0064) — instantiates `player`'s auto-declared companion
+ *  (`selectCompanion`, gre/companion.ts) into a fresh `CardInstanceState`,
+ *  mirroring how a library card is instantiated above: same field shape, a
+ *  real allocated instance id (so it can later move into `hand` and be cast
+ *  normally), just no starting zone array to sit in — the instance lives on
+ *  `PlayerState.companion` instead. Returns `undefined` when the sideboard
+ *  carries no qualifying companion. */
+function buildCompanionInstance(
+    player: PlayerInput,
+    counter: { nextInstanceId?: number }
+): CardInstanceState | undefined {
+    const def = selectCompanion(
+        (player.deck.sideboard ?? []).map((c) => c.cardId),
+        player.deck.cards.map((c) => c.cardId)
+    );
+    if (!def) return undefined;
+    return {
+        id: allocInstanceId(counter),
+        card: { id: def.id },
+        types: def.types,
+        subtypes: def.subtypes ?? [],
+        power: def.power,
+        toughness: def.toughness,
+        staticAbilities: def.staticAbilities ?? [],
+        controllerId: player.id,
+        ownerId: player.id,
+        // CR 702.139 — nominal tag only; the companion slot is not a real
+        // zone (see the `PlayerState.companion` / serialize.ts doc).
+        zone: "exile" as const,
+        isTapped: false,
+    };
+}
 
 function buildPlayerState(
     player: PlayerInput,
@@ -296,6 +335,8 @@ function buildPlayerState(
         };
     });
 
+    const companionInstance = buildCompanionInstance(player, counter);
+
     return {
         id: player.id,
         name: player.name,
@@ -307,6 +348,9 @@ function buildPlayerState(
         exile: [],
         battlefield: [],
         manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
+        ...(companionInstance
+            ? { companion: { instance: companionInstance, used: false } }
+            : {}),
     };
 }
 
@@ -314,7 +358,7 @@ function buildPlayerState(
  *  opening hands, and enters the mulligan phase (CR 103.5). Shared by every
  *  create/join path (and, later, the Bo3 next-Game build) so the init is
  *  identical everywhere. `activePlayerId` defaults to the first player. */
-function buildInitialGameState(
+export function buildInitialGameState(
     players: PlayerInput[],
     activePlayerId?: string
 ): GameState {
@@ -1999,7 +2043,7 @@ export function tryAutoCommitPendingActivation(
     // CR 603.2b (issue #1265) — a DEFERRED-payment targeted ability locks its
     // targets as it finally reaches the stack; fire "becomes the target of an
     // ability" triggers (Leovold) alongside the tap-trigger flush below.
-    emitBecameTargetEvents(state, pa.targets, playerId);
+    emitBecameTargetEvents(state, pa.targets, playerId, stackItem.id);
     // CR 603.2 — flush PERMANENT_TAPPED events queued during payment so
     // mana-tap triggers (Manabarbs / Mana Flare / Wild Growth) land on top
     // of the freshly-pushed activated ability.
@@ -3299,6 +3343,85 @@ export const playCard = mutation({
     },
 });
 
+/** CR 116.2 / 702.139f (ADR 0064) — the `summon-companion` special action:
+ *  once per game, at sorcery timing, pay {3} (auto-tapped) to move the
+ *  declared companion from its slot into hand — no stack item. Legality is
+ *  the single `canSummonCompanion` predicate (gre/companion.ts), shared with
+ *  the Bot's move enumerator (moves.ts) so the human and Bot paths can never
+ *  disagree. The {3} payment is solved and applied SYNCHRONOUSLY in this one
+ *  call (`pendingCompanionPay` exists for architectural symmetry with
+ *  `pendingCast`/`pendingActivation`, not because this cost ever needs a
+ *  second round-trip — see its doc on `GameState`), mirroring the
+ *  `castChosenSpell` (Word of Command) auto-tap-and-commit shape. */
+export const summonCompanion = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+    },
+    handler: async (ctx, args) => {
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
+
+        const state = structuredClone(gameState.state) as GameState;
+        assertGameNotOver(state);
+        assertExpectedInput(state, {
+            playerId: args.playerId,
+            expect: "priority",
+        });
+        assertNoPendingChoices(state);
+        const player = getPlayer(state, args.playerId);
+
+        if (!canSummonCompanion(state, player)) {
+            throw new Error("Can't summon your companion right now");
+        }
+
+        const subs = getManaSubstitutions(state, player.id);
+        const sources = buildAutoTapSources(player.battlefield);
+        const plan = solveSmartAutoTap(
+            player.manaPool,
+            COMPANION_SUMMON_COST,
+            subs,
+            sources
+        );
+        if (plan === null) {
+            throw new Error("Can't afford the companion's {3} summon cost");
+        }
+
+        state.pendingCompanionPay = {
+            playerId: player.id,
+            manaCost: COMPANION_SUMMON_COST,
+            tappedLandIds: plan.map((step) => step.cardId),
+        };
+
+        // Tap the planned lands and add their mana (CR 605.1a), mirroring
+        // `castChosenSpell`'s auto-tap-and-commit sequence.
+        const tappedIds = new Set(plan.map((step) => step.cardId));
+        for (const src of player.battlefield) {
+            if (tappedIds.has(src.id)) src.isTapped = true;
+        }
+        const produced = manaFromPlan(sources, plan);
+        for (const color of MANA_COLORS) {
+            const v2 = produced[color];
+            if (v2) player.manaPool[color] = (player.manaPool[color] ?? 0) + v2;
+        }
+        // CR 702.139f — pay the flat {3}, no card/restricted-mana eligibility
+        // (a special action, not a spell cast — restricted mana never applies).
+        payManaCostForSpell(player, COMPANION_SUMMON_COST, [], subs);
+        commitLandsForCost(player, COMPANION_SUMMON_COST);
+
+        // Move the companion into hand (no stack item, CR 116.2a) and mark it
+        // spent. The slot's `instance` is left in place (a historical record —
+        // `used: true` alone gates any further summon).
+        const companion = player.companion!;
+        player.hand.push({ ...companion.instance, zone: "hand" });
+        companion.used = true;
+        state.pendingCompanionPay = undefined;
+
+        const nextSeq = gameState.seq + 1;
+        await saveGameState(ctx, args.gameId, nextSeq, state, gameState);
+    },
+});
+
 /** Resolves an activated ability id on a battlefield card. Returns the
  *  template and, when the ability was granted to this permanent by another
  *  card (CR 113.1, e.g. Zombie Master's "{B}: Regenerate ~" grant), the
@@ -3816,7 +3939,7 @@ export function finalizeTargetSelection(
             // CR 603.2b / 603.3d (issue #1265) — a targeted trigger's targets
             // are locked at announcement; fire "becomes the target of an
             // ability" triggers (Leovold) for this trigger's controller.
-            emitBecameTargetEvents(state, targets, trig.controllerId);
+            emitBecameTargetEvents(state, targets, trig.controllerId, trig.id);
         }
         if (raiseTriggerTargetSelection(state)) return;
         state.priorityPlayerId = state.activePlayerId;
@@ -4153,7 +4276,7 @@ export function finalizeTargetSelection(
         // CR 603.2b (issue #1265) — the ability's targets are locked onto its
         // stack item; fire "becomes the target of an ability" triggers
         // (Leovold) alongside the ABILITY_ACTIVATED flush below.
-        emitBecameTargetEvents(state, targets, playerId);
+        emitBecameTargetEvents(state, targets, playerId, stackItem.id);
         // CR 603.3 — flush ABILITY_ACTIVATED queued by recordActivation so the
         // "non-tap ability activated" punisher lands on top of the freshly
         // pushed ability (resolves first). No-op for {T} abilities.
@@ -7329,6 +7452,28 @@ export const selectTarget = mutation({
                 }
             } else if (!acceptsSpellKind) {
                 throw new Error("Target must be an ability");
+            }
+            // CR 109.3 / 114.1 (Lutri, the Spellchaser — "target instant or
+            // sorcery spell YOU CONTROL"): enforce the controller-relationship
+            // filter for spell/ability stack targets too, mirroring the
+            // permanent branch's anti-spoof check. A stack item's
+            // "controller" is its caster (`castById`). Shares the same
+            // `matchesBattlefieldController` predicate `getLegalTargets` uses.
+            if (
+                !matchesBattlefieldController(
+                    spell.castById,
+                    args.playerId,
+                    state.activePlayerId,
+                    pt.controller
+                )
+            ) {
+                throw new Error(
+                    pt.controller === "you"
+                        ? "Must target a spell you control"
+                        : pt.controller === "opponent"
+                          ? "Must target a spell an opponent controls"
+                          : "Must target a spell the active player controls"
+                );
             }
             // CR 113.7a — restrict by source card types (Brown Ouphe: "from an
             // artifact source").

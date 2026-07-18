@@ -78,6 +78,46 @@ describe("game_state serialize round-trip", () => {
         });
     });
 
+    // CR 702.139 (ADR 0064) — the companion slot round-trips: `instance` is
+    // compacted/expanded exactly like every other card, `used` survives
+    // verbatim.
+    it("preserves a player's companion slot (issue #1391)", () => {
+        const state = freshState();
+        state.players[0].companion = {
+            instance: makeInstance(savannahLions.id, {
+                controllerId: "p1",
+                ownerId: "p1",
+            }),
+            used: false,
+        };
+        const expanded = expandState(compactState(state));
+        const companion = expanded.players[0].companion;
+        expect(companion).toBeDefined();
+        expect(companion?.used).toBe(false);
+        expect((companion?.instance.card as { id?: string }).id).toBe(
+            savannahLions.id
+        );
+        expect(companion?.instance.types).toEqual(["Creature"]);
+    });
+
+    // CR 116.2 / 702.139f (ADR 0064) — the in-progress {3} companion-summon
+    // payment (a plain-scalar sibling of pendingCast/pendingActivation)
+    // round-trips via the generic optional-key loop.
+    it("preserves a parked pendingCompanionPay (issue #1391)", () => {
+        const state = freshState();
+        state.pendingCompanionPay = {
+            playerId: "p1",
+            manaCost: { X: 3 },
+            tappedLandIds: ["land-1", "land-2", "land-3"],
+        };
+        const expanded = expandState(compactState(state));
+        expect(expanded.pendingCompanionPay).toEqual({
+            playerId: "p1",
+            manaCost: { X: 3 },
+            tappedLandIds: ["land-1", "land-2", "land-3"],
+        });
+    });
+
     // CR 303.4f — an Aura held off every zone while its controller owes a
     // `choose-aura-host` pick must survive the DB round-trip, so a save/load
     // mid-choice reloads the staged Aura (a stable save point can fall here).
@@ -1007,6 +1047,18 @@ describe("schema drift guard", () => {
             tappedLandIds: [],
             tapSource: true,
             sacrificeSource: false,
+        };
+        state.pendingCompanionPay = {
+            playerId: "p1",
+            manaCost: { X: 3 },
+            tappedLandIds: [],
+        };
+        state.players[0].companion = {
+            instance: makeInstance(savannahLions.id, {
+                controllerId: "p1",
+                ownerId: "p1",
+            }),
+            used: false,
         };
         state.pendingTarget = {
             playerId: "p1",

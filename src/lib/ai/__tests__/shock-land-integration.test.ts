@@ -35,6 +35,7 @@ function engineMutations(state: GameState): MoveMutations {
             const p = state.players.find((x) => x.id === playerId)!;
             applyPlayLand(state, p, cardInstanceId);
         },
+        summonCompanion: reject,
         announceCast: reject,
         selectTarget: reject,
         confirmTargets: reject,

@@ -562,6 +562,34 @@ export function matchesSpellSingleTargetingController(
     return targets[0].type === "player" && targets[0].id === activatingPlayerId;
 }
 
+/** True if a stack item is a legal target under the `controller` filter
+ *  extended to spell/ability stack objects (CR 109.3 / 114.1 — Lutri, the
+ *  Spellchaser's "target instant or sorcery spell YOU CONTROL"). A stack
+ *  item's "controller" is its caster (`castById`). Mirrors the server's
+ *  `matchesBattlefieldController` (`gre/rules.ts`), reimplemented here
+ *  because the frontend never imports GRE engine modules. With no filter (or
+ *  `"any"`), any stack item qualifies. */
+export function matchesSpellController(
+    item: { castById?: string },
+    controller: "you" | "opponent" | "any" | "active" | undefined,
+    activatingPlayerId: string,
+    activePlayerId: string
+): boolean {
+    switch (controller ?? "any") {
+        case "you":
+            return item.castById === activatingPlayerId;
+        case "opponent":
+            return (
+                item.castById !== undefined &&
+                item.castById !== activatingPlayerId
+            );
+        case "active":
+            return item.castById === activePlayerId;
+        case "any":
+            return true;
+    }
+}
+
 /** True if a stack item is a legal target for Equinox's
  *  `spellWouldDestroyLandYouControl` requirement (CR 114.1 + 701.7): a spell
  *  (not an ability) that would destroy a land `playerId` controls — either a

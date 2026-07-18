@@ -41,17 +41,21 @@
 //     (`mayPay`, `if`, `counter`) is already covered by the interpreter test
 //     suite — the per-Op regime applies, no new Op introduced.
 //
-// Divergence (documented, not silently dropped): CR 702.21a's "counter that
-// spell or ability" is resolved via the FILTER-based instance pin above
-// rather than a literal event→stack-item reference (no such object family
-// exists in the event-field registry, ADR 0049). In the pathological case of
-// TWO distinct spells/abilities simultaneously targeting the same warded
-// permanent before either resolves, the filter yields two legal candidates
-// and — instead of forcing the exact triggering one — falls back to a real
-// player choice (the CR 603.3d multi-legal-target path). This never
-// mis-fires (it only ever offers a stack item that genuinely targets the
-// warded permanent), it just doesn't force a choice CR 702.21a treats as
-// automatic in that narrow multi-target overlap. tracked-by: #1361 (split from #1312).
+// Two-simultaneous-targeters edge (CR 702.21e, issue #1361, resolved — was a
+// documented divergence when split from #1312): the FILTER-based instance
+// pin above (`spellTargetsSelfSource` → `spellTargetsInstanceIds: [self.id]`)
+// alone can't distinguish WHICH of two spells/abilities simultaneously
+// targeting the same warded permanent caused a GIVEN ward trigger instance —
+// both are legal candidates under a "targets this permanent" filter. Fixed by
+// threading the causing object's OWN stack-item id through the BECAME_TARGET
+// event that fires each ward trigger (`BecameTargetEvent.sourceInstanceId`,
+// set by `emitBecameTargetEvents`) and having
+// `raiseTriggerTargetSelection` (`gre/rules.ts`) narrow its legal-target set
+// to that exact id when present — so each ward instance forces the precise
+// object that caused it, per CR 702.21e, with no player choice even when two
+// (or more) targeters overlap. The broad `triggerSourceId`-based filter
+// remains as a defensive fallback for the (never expected) case where the
+// causing event carries no `sourceInstanceId`.
 
 import type { MayPayCost, TriggeredAbility } from "../types";
 
