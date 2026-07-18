@@ -5139,7 +5139,8 @@ export type GameEventType =
     | "LIFE_GAINED"
     | "COUNTER_REMOVED"
     | "COUNTER_ADDED"
-    | "BECAME_TARGET";
+    | "BECAME_TARGET"
+    | "TOKENS_CREATED";
 
 /** Damage event emitted whenever a source inflicts damage on a target
  *  (CR 120.3). Used by "whenever ~ deals damage" triggers. The
@@ -5661,6 +5662,39 @@ export interface BecameTargetEvent {
     sourceControllerId: string;
 }
 
+/** Token-creation meta-trigger event (issue #1345, CR 111 / 707.2) — emitted
+ *  ONCE per `createTokenPermanents` call, i.e. once per "create N tokens"
+ *  occurrence, NOT once per individual token. This is a deliberately
+ *  NARROWER purpose-built event than a generic `PERMANENT_ENTERED` fan-out
+ *  (tokens don't emit `PERMANENT_ENTERED` at all today — every
+ *  `emitPermanentEntered` call site is a spell-resolution/search/playLand
+ *  path, none of them token creation) — see #1345's design note. The
+ *  natural batching (one call already creates `count` copies of the SAME
+ *  `TokenSpec`) matches the real-card wording precisely: Staff of the
+ *  Storyteller's "whenever you create one or more creature tokens" fires
+ *  ONCE per resolution that creates tokens, regardless of how many. A
+ *  `tokenCreatedTrigger`-scoped ability filters by controller relation
+ *  (scope) and by the snapshotted `types`/`subtypes` (a creature-token
+ *  filter), mirroring `CounterAddedEvent`'s last-known-info snapshot style
+ *  so no live battlefield re-scan is needed. */
+export interface TokensCreatedEvent {
+    type: "TOKENS_CREATED";
+    /** Controller of the newly created tokens (CR 111.2 — token owner is its
+     *  creator; controller matches at creation). This is the "you" in
+     *  "whenever YOU create ..." — the beneficiary player, not necessarily the
+     *  trigger source's controller (relevant for a control-changed source). */
+    controllerId: string;
+    /** How many tokens this SINGLE call created (>= 1 — the batching count;
+     *  `createTokenPermanents` never emits for a zero/negative count). */
+    count: number;
+    /** Card types of the created tokens, snapshotted at emit time. All tokens
+     *  from one call share the same `TokenSpec`, hence the same types. */
+    types: ReadonlyArray<CardType>;
+    /** Card subtypes of the created tokens (CR 205.3), snapshotted at emit
+     *  time. Mirrors `types`. */
+    subtypes: ReadonlyArray<string>;
+}
+
 export type GameEvent =
     | DamageDealtEvent
     | PhaseBeginEvent
@@ -5683,7 +5717,8 @@ export type GameEvent =
     | LifeGainedEvent
     | CounterRemovedEvent
     | CounterAddedEvent
-    | BecameTargetEvent;
+    | BecameTargetEvent
+    | TokensCreatedEvent;
 
 /** Read-only window over the live `GameState` exposed to `matches()` for
  *  state triggers (CR 603.8). Kept narrow on purpose so card definitions can

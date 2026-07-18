@@ -331,7 +331,7 @@ const setModules: { code: string; exports: Record<string, unknown> }[] = [
     { code: "roe", exports: roe },
     { code: "lci", exports: lci },
     // Vintage Cube residue tranche (issue #1302, parent PRD #620) — new home
-    // set, currently stub-only (Staff of the Storyteller, tracked-by #1345).
+    // set (Staff of the Storyteller, shipped by #1345).
     { code: "soc", exports: soc },
     { code: "akh", exports: akh },
     { code: "aer", exports: aer },

@@ -12368,6 +12368,28 @@ export function createTokenPermanents(
         applySourceStaticEffects(state, token);
         ids.push(id);
     }
+    // Issue #1345 (CR 111 / 707.2) — emit ONE TOKENS_CREATED event for this
+    // WHOLE call, not one per token. This is the naturally-batched choke
+    // point "whenever you create one or more creature tokens" triggers
+    // (Staff of the Storyteller) key off — see `tokenCreatedTrigger`. A
+    // purpose-built event (NOT a generic PERMANENT_ENTERED fan-out): tokens
+    // don't emit PERMANENT_ENTERED at all today, and folding them in would
+    // need a full ETB-trigger blast-radius audit out of scope here (#1345's
+    // design note). Emitted regardless of the CR 614 replacement destination
+    // any individual copy ended up in (exile included) — the tokens were
+    // still CREATED (CR 111.1); `count` mirrors the requested batch size.
+    if (count > 0) {
+        state.pendingEvents = [
+            ...(state.pendingEvents ?? []),
+            {
+                type: "TOKENS_CREATED",
+                controllerId,
+                count,
+                types: [...spec.types],
+                subtypes: spec.subtypes ? [...spec.subtypes] : [],
+            },
+        ];
+    }
     return ids;
 }
 
