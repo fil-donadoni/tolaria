@@ -1387,7 +1387,9 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         name: "Wither",
         kind: "keyword-ability",
         cr: "702.80",
-        status: "planned",
+        status: "implemented",
+        binding: "wither",
+        note: "markInfectWitherDamage (gre/state.ts) at every damage sink — combat (applyOneCombatDamage, phases.ts) and non-combat (SpellContext.dealDamage) — diverts damage to a CREATURE into -1/-1 counters (addCounterToCard) instead of marked damage. Creature-only half of CR 702.90/infect's shared permanent-branch change; a 0-toughness death from the counters is the existing getEffectiveToughness<=0 SBA (sba.ts), not a new lethal-damage path.",
     },
     // 702.81 Retrace
     {
@@ -1474,7 +1476,9 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         name: "Infect",
         kind: "keyword-ability",
         cr: "702.90",
-        status: "planned",
+        status: "implemented",
+        binding: "infect",
+        note: "markInfectWitherDamage (creature half, shared with wither) + markInfectPoisonDamage (player half — PlayerState.poisonCounters) in gre/state.ts, wired at every damage sink — combat (applyOneCombatDamage, phases.ts) and non-combat (SpellContext.dealDamage). CR 702.90c: still 'damage' for every other purpose (deathtouch, lifelink, damage-dealt tallies), so those callers are unaffected — only the life-loss/damage-marking step is diverted. 10-poison loss is the existing SBA (sba.ts).",
     },
     // 702.91 Battle Cry
     {
