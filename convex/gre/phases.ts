@@ -20,6 +20,8 @@ import {
     bumpArtifactDamageToPlayer,
     bumpDamageDealtToPlayer,
     markDeathtouchDamage,
+    markInfectWitherDamage,
+    markInfectPoisonDamage,
     recordSourceDamagedOpponent,
     consumePreventionIfAny,
     destroyWithReplacements,
@@ -1218,7 +1220,20 @@ export function applyAllCombatDamage(
                 reduced
             );
             if (reduced <= 0) return;
-            getPlayer(state, finalTarget.id).life -= reduced;
+            // CR 702.90a — infect deals combat damage to a player as poison
+            // counters instead of life loss (CR 702.90c: still "damage" for
+            // every other purpose — monarch-steal, tallies, DAMAGE_DEALT,
+            // lifelink below are all unaffected; only life loss / its
+            // LIFE_LOST trigger are skipped).
+            const infected = markInfectPoisonDamage(
+                state,
+                finalTarget.id,
+                desc.staticAbilities,
+                reduced
+            );
+            if (!infected) {
+                getPlayer(state, finalTarget.id).life -= reduced;
+            }
             // CR 720.3 (issue #1199) — a creature dealing combat damage to the
             // monarch steals the designation for its controller. `becomeMonarch`
             // is idempotent ("unless that player is already the monarch"), so
@@ -1237,13 +1252,16 @@ export function applyAllCombatDamage(
             // CR 119.3 — combat damage to a player causes life loss. Pushed
             // onto the same `events` batch that feeds `collectTriggers` below
             // so "whenever you lose life" triggers (Oath of Lim-Dûl) fire from
-            // combat damage too.
-            events.push({
-                type: "LIFE_LOST",
-                playerId: finalTarget.id,
-                amount: reduced,
-                fromDamage: true,
-            });
+            // combat damage too. Skipped for infect damage above — no life was
+            // actually lost, so this trigger correctly does not fire.
+            if (!infected) {
+                events.push({
+                    type: "LIFE_LOST",
+                    playerId: finalTarget.id,
+                    amount: reduced,
+                    fromDamage: true,
+                });
+            }
             bumpDamageDealtToPlayer(state, finalTarget.id, reduced);
             // CR 120.3 — flag the source if it hit an opponent (Whirling
             // Dervish's end-step growth condition).
@@ -1304,13 +1322,27 @@ export function applyAllCombatDamage(
             // deliberately kept OUT of the `damageReceived` toughness lethal
             // scan below.
             const targetIsPlaneswalker = isPlaneswalker(targetCard);
+            const desc = describeDamageSource(state, source.id);
             if (targetIsPlaneswalker) {
                 removeLoyaltyForDamage(targetCard, reduced);
-            } else {
+            } else if (
+                // CR 702.90a/b — infect/wither: combat damage from a source
+                // with either keyword becomes -1/-1 counters instead of
+                // marked damage. Diverted straight onto the permanent (NOT
+                // through `damageReceived`, which is the post-loop marked-
+                // damage accumulator, CR 510.4 simultaneous combat damage) —
+                // two simultaneous attackers hitting the same blocker, one
+                // with infect and one without, must resolve independently.
+                !markInfectWitherDamage(
+                    state,
+                    targetCard,
+                    desc.staticAbilities,
+                    reduced
+                )
+            ) {
                 damageReceived[finalTarget.id] =
                     (damageReceived[finalTarget.id] ?? 0) + reduced;
             }
-            const desc = describeDamageSource(state, source.id);
             events.push({
                 type: "DAMAGE_DEALT",
                 sourceInstanceId: source.id,

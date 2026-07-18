@@ -6747,6 +6747,98 @@ export function markDeathtouchDamage(
     recipient.dealtDeathtouchDamage = true;
 }
 
+/** CR 122.1 — put `count` counters of `type` on `card`. The shared low-level
+ *  mutator behind `SpellContext.addCounter` (target-resolving) AND the
+ *  infect/wither damage-form choke points below, which already hold the
+ *  `CardInstanceState` and have no `TargetSelection` to resolve. Grants the
+ *  counter type's matching keyword on the 0 → present transition (CR
+ *  122.1c / 613.4d, issue #1194) and emits COUNTER_ADDED (issue #1319) so
+ *  "whenever one or more counters are put on ~" triggers fire regardless of
+ *  which caller added them. */
+export function addCounterToCard(
+    state: GameState,
+    card: CardInstanceState,
+    type: string,
+    count: number
+): void {
+    if (count <= 0) return;
+    const wasZero = (card.counters?.[type] ?? 0) === 0;
+    const next = { ...(card.counters ?? {}) };
+    next[type] = (next[type] ?? 0) + count;
+    card.counters = next;
+    if (wasZero) applyKeywordCounterGrant(card, type);
+    state.pendingEvents = [
+        ...(state.pendingEvents ?? []),
+        {
+            type: "COUNTER_ADDED",
+            instanceId: card.id,
+            controllerId: card.controllerId,
+            counterType: type,
+            added: count,
+            total: next[type],
+            types: [...card.types],
+            subtypes: [...card.subtypes],
+        },
+    ];
+}
+
+/** CR 702.90a/b — Infect (creature half) and Wither: a source with either
+ *  keyword deals damage to a CREATURE in the form of `-1/-1` counters
+ *  instead of marking it. Modeled on the `markDeathtouchDamage` precedent
+ *  directly above — fed the source's EFFECTIVE static-ability set (reflects
+ *  granted/stripped infect/wither), covers BOTH combat (`applyOneCombatDamage`,
+ *  `phases.ts`) and non-combat (`SpellContext.dealDamage`) damage sinks.
+ *  `amount` is the actual damage dealt (post-replacement, post-prevention).
+ *  Returns true when the damage was diverted to counters — the caller MUST
+ *  skip its normal damage-marking path in that case (the -1/-1 counters
+ *  already fold into effective toughness via the layer-7d system, and a
+ *  0-toughness creature dies via the existing `getEffectiveToughness <= 0`
+ *  SBA, CR 704.5f — no lethal-damage-marked check applies here). CR 702.90c —
+ *  the damage is still "damage" for every OTHER purpose (deathtouch,
+ *  lifelink, damage-triggered abilities): those callers are unaffected by
+ *  this diversion and keep reading `amount`/`reduced` as before. Meaningless
+ *  against a planeswalker (no toughness) — callers gate this out for the
+ *  planeswalker branch themselves, mirroring `markDeathtouchDamage`. */
+export function markInfectWitherDamage(
+    state: GameState,
+    recipient: CardInstanceState,
+    sourceStaticAbilities: ReadonlyArray<string>,
+    amount: number
+): boolean {
+    if (amount <= 0) return false;
+    if (
+        !sourceStaticAbilities.includes("infect") &&
+        !sourceStaticAbilities.includes("wither")
+    ) {
+        return false;
+    }
+    addCounterToCard(state, recipient, "-1/-1", amount);
+    return true;
+}
+
+/** CR 702.90a — Infect (player half): a source with infect deals damage to a
+ *  PLAYER in the form of poison counters (CR 122.1, `PlayerState.poisonCounters`)
+ *  instead of life loss. Wither does NOT change player damage (CR 702.90b is
+ *  creature-only) — only "infect" gates this half. CR 704.5c (lose the game
+ *  at ten or more poison counters) is the existing SBA in `sba.ts`, not here.
+ *  Returns true when the damage was diverted to poison — the caller MUST
+ *  skip its normal life-loss / LIFE_LOST-emission path (no life was actually
+ *  lost, so "whenever you lose life" triggers correctly do NOT fire), but
+ *  keeps every OTHER damage-dealt bookkeeping (DAMAGE_DEALT event, lifelink,
+ *  monarch-steal, damage-dealt-to-player tallies) — CR 702.90c, still damage. */
+export function markInfectPoisonDamage(
+    state: GameState,
+    playerId: string,
+    sourceStaticAbilities: ReadonlyArray<string>,
+    amount: number
+): boolean {
+    if (amount <= 0) return false;
+    if (!sourceStaticAbilities.includes("infect")) return false;
+    const player = getPlayer(state, playerId);
+    player.poisonCounters = (player.poisonCounters ?? 0) + amount;
+    return true;
+}
+
 /** Emits a PERMANENT_TAPPED event for a permanent that just transitioned from
  *  untapped to tapped (CR 701.20a). `forMana: true` marks the canonical
  *  "tapped for mana" condition (CR 605) read by Manabarbs / Mana Flare /
@@ -7897,9 +7989,21 @@ export function buildSpellContext(
                           reduced
                       );
                 if (reduced <= 0) return;
-                getPlayer(state, target.id).life -= reduced;
-                // CR 119.3 — damage dealt to a player causes life loss.
-                emitLifeLost(state, target.id, reduced, true);
+                // CR 702.90a — infect deals damage to a player as poison
+                // counters instead of life loss (CR 702.90c: still "damage"
+                // for every other purpose, so bookkeeping below is unaffected —
+                // only life loss / its trigger are skipped).
+                const infected = markInfectPoisonDamage(
+                    state,
+                    target.id,
+                    desc.staticAbilities,
+                    reduced
+                );
+                if (!infected) {
+                    getPlayer(state, target.id).life -= reduced;
+                    // CR 119.3 — damage dealt to a player causes life loss.
+                    emitLifeLost(state, target.id, reduced, true);
+                }
                 bumpDamageDealtToPlayer(state, target.id, reduced);
                 // CR 120.3 (artifact-narrowed) — Reverse Polarity tally.
                 bumpArtifactDamageToPlayer(
@@ -7958,9 +8062,17 @@ export function buildSpellContext(
                 // the 0-loyalty death is the separate SBA (`checkZeroLoyaltySBA`),
                 // not the lethal-toughness path below.
                 const pw = isPlaneswalker(found.card);
+                const desc = describeDamageSource(state, item.id);
                 if (pw) {
                     removeLoyaltyForDamage(found.card, reduced);
-                } else {
+                } else if (
+                    !markInfectWitherDamage(
+                        state,
+                        found.card,
+                        desc.staticAbilities,
+                        reduced
+                    )
+                ) {
                     // CR 120.3: damage is marked on the creature and accumulates
                     // until CLEANUP (CR 514.2). Lethal damage (CR 704.5g) is
                     // applied inline using the post-accumulation marked total
@@ -7972,7 +8084,6 @@ export function buildSpellContext(
                     ...(found.card.damagedBySources ?? []),
                     item.id,
                 ];
-                const desc = describeDamageSource(state, item.id);
                 state.pendingEvents = [
                     ...(state.pendingEvents ?? []),
                     {
@@ -8396,39 +8507,12 @@ export function buildSpellContext(
             if (target.type !== "permanent") return;
             const found = findOnBattlefield(state, target.id);
             if (!found) return;
-            const wasZero = (found.card.counters?.[type] ?? 0) === 0;
-            const next = { ...(found.card.counters ?? {}) };
-            next[type] = (next[type] ?? 0) + count;
-            found.card.counters = next;
-            // CR 122.1c / 613.4d (issue #1194) — a counter whose TYPE
-            // case-insensitively names an implemented keyword ability GRANTS
-            // that keyword (a "flying" counter grants flying) for as long as
-            // at least one counter of the type remains. Grant exactly once,
-            // when the type transitions 0 → present, mirroring every other
-            // keyword-grant channel's mutation-sync discipline
-            // (`grantStaticAbility` et al. push straight onto
-            // `staticAbilities`, read everywhere combat/rules code already
-            // checks it — no new read-time layer needed).
-            if (wasZero) applyKeywordCounterGrant(found.card, type);
-            // Issue #1319 (CR 122.1) — emit a COUNTER_ADDED event so "whenever
-            // one or more counters are put on ~" meta-triggers (foundation for
-            // Emperor of Bones / Agatha's Cauldron, #917) can fire. Mirrors
-            // COUNTER_REMOVED's choke point and drain path: queued into
-            // `pendingEvents`, drained by `processPendingActionTriggers` after
-            // the current resolution completes.
-            state.pendingEvents = [
-                ...(state.pendingEvents ?? []),
-                {
-                    type: "COUNTER_ADDED",
-                    instanceId: found.card.id,
-                    controllerId: found.card.controllerId,
-                    counterType: type,
-                    added: count,
-                    total: next[type],
-                    types: [...found.card.types],
-                    subtypes: [...found.card.subtypes],
-                },
-            ];
+            // CR 122.1c / 613.4d (issue #1194) keyword-grant-on-first-counter
+            // + issue #1319 COUNTER_ADDED emission both live in the shared
+            // `addCounterToCard` mutator (also the infect/wither -1/-1
+            // choke point, CR 702.90) — one execution path for "put a
+            // counter on a permanent" regardless of caller.
+            addCounterToCard(state, found.card, type, count);
         },
         // CR 700.2c — re-write a permanent's stored modal colour post-ETB. The
         // "choose a color" half of a re-choosable modal permanent (Chromatic
