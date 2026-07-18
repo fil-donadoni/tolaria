@@ -100,3 +100,61 @@ export const lutri: CardDefinition = {
         }),
     ],
 };
+
+// Lurrus of the Dream-Den — Companion framework (issue #1392, ADR 0064).
+// "Companion — Each permanent card in your starting deck has mana value 2 or
+// less. Lifelink. Once during each of your turns, you may cast a permanent
+// spell with mana value 2 or less from your graveyard." (CR 702.139
+// Companion, CR 702.15 Lifelink, CR 702.139/305.1-analog the STATIC
+// graveyard-permanent-cast permission below.) Its companion condition is
+// `permanentManaValueAtMost2` (`gre/companion.ts`, built on the shared
+// `everyPermanent` combinator) — the SAME predicate module `selectCompanion`
+// reads at game init to auto-declare it into the slot when the controller's
+// Maindeck qualifies.
+//
+// DIVERGENCE (tracked-by: #782): Lurrus's printed cost is {1}{W/B}{W/B} — TWO
+// HYBRID W/B pips. `ManaCost` (cards/types.ts) has no hybrid-pip
+// representation at all — the exact gap that stubs Deathrite Shaman
+// (rtr/multicolor.ts) and narrows Lutri (`lutri` above, same file).
+// Declared here as the closest faithful NON-hybrid narrowing — {1}{W}{B}
+// (`generic: 1, W: 1, B: 1`) — which never permits an illegal cast, only
+// forbids some legal ones a hybrid-flexible deck (e.g. mono-white or
+// mono-black heavy) could otherwise make. This keeps the Companion FRAMEWORK
+// and Lurrus's own graveyard-cast permission fully exercisable end-to-end
+// through a real, castable card while the underlying hybrid-mana capability
+// remains its own tracked gap, consistent with the existing #782 precedent.
+//
+// The graveyard-cast ability ("Once during each of your turns, you may cast
+// a permanent spell with mana value 2 or less from your graveyard") is a
+// STATIC, battlefield-derived permission — `castsPermanentsFromGraveyard:
+// { maxManaValue: 2 }`, read live off the battlefield by
+// `canCastPermanentFromGraveyardByPermission` (gre/rules.ts), mirroring how
+// Icetill Explorer's `playsLandsFromGraveyard: true` is a bare declarative
+// field, not an activated/triggered ability or an Effect Script Op. Lifelink
+// is a standard implemented keyword (Mechanics Registry, CR 702.15).
+export const lurrus: CardDefinition = {
+    // Kept as a literal (not imported from `gre/companion.ts`'s `LURRUS_ID`):
+    // same import-cycle rationale as `lutri` above (multicolor.ts →
+    // gre/companion.ts → cards/index.ts → multicolor.ts). `gre/companion.ts`'s
+    // `LURRUS_ID` const is this exact same literal; kept in sync by
+    // `convex/cards/__tests__/mechanicsRegistry.test.ts`'s catalogue sweep
+    // plus this file's own card test.
+    id: "5ad36fb2-c44e-4085-ba0d-54277841ad3a",
+    rarity: "rare",
+    name: "Lurrus of the Dream-Den",
+    oracleText:
+        "Companion — Each permanent card in your starting deck has mana value 2 or less. (If this card is your chosen companion, you may put it into your hand from outside the game for {3} as a sorcery.)\nLifelink\nOnce during each of your turns, you may cast a permanent spell with mana value 2 or less from your graveyard.",
+    manaCost: { generic: 1, W: 1, B: 1 },
+    types: ["Creature"],
+    // CR 205.4a — type line is "Legendary Creature — Cat Nightmare"
+    // (Scryfall); the legend rule (CR 704.5j) only applies via this
+    // supertype.
+    supertypes: ["Legendary"],
+    subtypes: ["Cat", "Nightmare"],
+    power: 3,
+    toughness: 2,
+    // CR 702.139a / 702.15 — Companion and Lifelink are both Mechanics
+    // Registry keyword rows with `status: "implemented"` (Guard A).
+    staticAbilities: ["companion", "lifelink"],
+    castsPermanentsFromGraveyard: { maxManaValue: 2 },
+};

@@ -2756,6 +2756,17 @@ function tickAllDurations(state: GameState): void {
     if (view.phase === "CLEANUP" && state.graveyardPlayPermissionThisTurn) {
         state.graveyardPlayPermissionThisTurn = undefined;
     }
+    // CR 702.139 / 514.2 (issue #1392, Lurrus of the Dream-Den) — the
+    // once-per-turn usage tracking for the STATIC graveyard-permanent-cast
+    // permission expires at end of turn, same CLEANUP-only boundary as the
+    // BROAD permission above (correct for "once during each of YOUR turns":
+    // see the doc comment on `GameState.graveyardPermanentCastUsedThisTurn`).
+    if (
+        view.phase === "CLEANUP" &&
+        state.graveyardPermanentCastUsedThisTurn
+    ) {
+        state.graveyardPermanentCastUsedThisTurn = undefined;
+    }
     // ICE Gaze of Pain — the "until end of turn" floating rider expires.
     if (state.gazeOfPainActiveThisTurn) {
         state.gazeOfPainActiveThisTurn = undefined;
