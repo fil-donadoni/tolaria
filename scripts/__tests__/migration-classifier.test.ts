@@ -946,9 +946,23 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // Jar/Wheel of Fortune already sit in). Net: total 687→688,
         // Op-blocked 237→238, FREE/AFK-ready/X-only unchanged (436/400/14).
         // Partition: 436+14+238=688.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(688);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(436);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(400);
+        //
+        // Then issue #1320 ships Phelia, Exuberant Shepherd (mh3/white.ts)
+        // with TWO new `resolve()` closures — an attack-trigger `resolve()`
+        // (the SAME sanctioned Flickerwisp/Liberate flicker-idiom protocol:
+        // `requestChoice` "another target" substitute + `exile` +
+        // `scheduleDelayedTrigger`, all already-covered primitives) and its
+        // paired `delayedTriggers[]` `resolve()` (`returnToBattlefield` +
+        // the new controller/owner branch read via `getController` +
+        // `addCounter`, also already-covered primitives). Both closures
+        // classify FREE (every primitive they call is already in the
+        // covered set) and both ship with a per-card test (AFK-ready). +2
+        // closures, +2 FREE, +2 AFK-ready. Net: total 688→690, FREE
+        // 436→438, AFK-ready 400→402, X-only/Op-blocked unchanged (14/238).
+        // Partition: 438+14+238=690.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(690);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(438);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(402);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
         expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(238);
     });

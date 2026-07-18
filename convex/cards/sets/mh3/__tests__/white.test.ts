@@ -7,11 +7,17 @@ import type {
     StackItem,
 } from "../../../../gre/state";
 import { resolveTopOfStack } from "../../../../gre/state";
-import { applyMayPaySubmit } from "../../../../gre/pendingChoiceSubmit";
+import {
+    applyMayPaySubmit,
+    applyPendingChoiceSubmit,
+} from "../../../../gre/pendingChoiceSubmit";
 import { collectTriggers } from "../../../../gre/triggers";
 import { raiseTriggerTargetSelection } from "../../../../gre/rules";
+import { fireDelayedTriggers } from "../../../../gre/phases";
 import { projectPublicState } from "../../../../gameProjections";
-import { guideOfSouls } from "../white";
+import { guideOfSouls, phelia } from "../white";
+import { balduvianBears } from "../../ice/green";
+import { forest } from "../../lea/colorless";
 
 // Guide of Souls — {W} 1/2 Human Cleric (MH3, issue #1194). "Whenever another
 // creature you control enters, you gain 1 life and get {E}. Whenever you
@@ -276,5 +282,319 @@ describe("Guide of Souls — attack trigger (CR 603.3d target + mayPay {E}{E}{E}
         expect(
             state.stack.find((s) => s.id === "guide-attack-trig")
         ).toBeUndefined();
+    });
+});
+
+// Phelia, Exuberant Shepherd — {1}{W} 2/2 Legendary Dog, Flash (MH3, issue
+// #1320, parent #917). "Whenever Phelia attacks, exile up to one other
+// target nonland permanent. At the beginning of the next end step, return
+// that card to the battlefield under its owner's control. If it entered
+// under your control, put a +1/+1 counter on Phelia." Protocol card
+// (Flickerwisp/Liberate flicker idiom) — first card to exercise the
+// delayed-trigger CONTROLLER-vs-OWNER branch (issue #1320): the fired
+// delayed trigger reads the returned permanent's post-return controller and
+// compares it against the captured caster, adding a +1/+1 counter on Phelia
+// only when they match.
+
+/** Puts Phelia's attack trigger on the stack, mirroring Guide of Souls'
+ *  `attackTriggerOnStack` helper (ATTACKERS_DECLARED, CR 508.1). Phelia's
+ *  ability carries no `targetRequirement` (protocol resolve() picks its
+ *  "another target" via `requestChoice`, ADR 0002), so no
+ *  `raiseTriggerTargetSelection` call is needed before resolving. */
+function pheliaAttackTriggerOnStack(
+    state: GameState,
+    source: CardInstanceState
+): StackItem {
+    const trig: StackItem = {
+        ...source,
+        id: "phelia-attack-trig",
+        zone: "stack",
+        castById: source.controllerId,
+        triggeredAbilityId: "phelia-attack",
+        triggerSourceId: source.id,
+        triggerEvent: {
+            type: "ATTACKERS_DECLARED",
+            attackingPlayerId: source.controllerId,
+            attackerIds: [source.id],
+        } as StackItem["triggerEvent"],
+        targets: undefined,
+    };
+    state.stack.push(trig);
+    return trig;
+}
+
+describe("Phelia, Exuberant Shepherd — definition", () => {
+    it("pins mana cost, stats, supertype, and Flash", () => {
+        expect(phelia.manaCost).toEqual({ X: 1, W: 1 });
+        expect(phelia.types).toEqual(["Creature"]);
+        expect(phelia.subtypes).toEqual(["Dog"]);
+        expect(phelia.supertypes).toEqual(["Legendary"]);
+        expect(phelia.power).toBe(2);
+        expect(phelia.toughness).toBe(2);
+        expect(phelia.staticAbilities).toEqual(["flash"]);
+        expect(phelia.triggeredAbilities?.[0]?.id).toBe("phelia-attack");
+        expect(phelia.delayedTriggers?.[0]?.id).toBe("phelia-return");
+    });
+});
+
+describe("Phelia — attack trigger (CR 603.6a exile + CR 603.7a delayed return)", () => {
+    it("exiles the chosen OTHER nonland permanent and schedules a next-end-step return", () => {
+        const p = makeInstance(phelia.id, {
+            id: "phelia1",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const target = makeInstance(balduvianBears.id, {
+            id: "target1",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [p] }),
+                makePlayer("p2", { battlefield: [target] }),
+            ],
+        });
+        pheliaAttackTriggerOnStack(state, p);
+        expect(resolveTopOfStack(state)).toBeNull(); // suspended on choice
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("choose-permanents");
+        applyPendingChoiceSubmit(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["target1"],
+        });
+
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "target1")
+        ).toBeUndefined();
+        expect(state.players[1].exile.map((c) => c.id)).toContain("target1");
+        expect(state.delayedTriggers?.length).toBe(1);
+        expect(state.delayedTriggers?.[0]?.payload).toMatchObject({
+            cardId: "target1",
+            ownerId: "p2",
+            casterControllerId: "p1",
+            sourceId: "phelia1",
+        });
+    });
+
+    it("excludes lands from the candidate set (nonland-only)", () => {
+        const p = makeInstance(phelia.id, {
+            id: "phelia2",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const land = makeInstance(forest.id, {
+            id: "land1",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [p, land] }),
+                makePlayer("p2"),
+            ],
+        });
+        pheliaAttackTriggerOnStack(state, p);
+        // No legal nonland candidate exists (only Phelia herself and a land)
+        // — CR 608.2b: the trigger resolves as a no-op, no choice raised.
+        expect(resolveTopOfStack(state)).not.toBeNull();
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        expect(state.delayedTriggers ?? []).toHaveLength(0);
+    });
+
+    it("does nothing when the controller declines (up to one)", () => {
+        const p = makeInstance(phelia.id, {
+            id: "phelia3",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const target = makeInstance(balduvianBears.id, {
+            id: "target3",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [p] }),
+                makePlayer("p2", { battlefield: [target] }),
+            ],
+        });
+        pheliaAttackTriggerOnStack(state, p);
+        resolveTopOfStack(state);
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: [],
+        });
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "target3")
+        ).toBeDefined();
+        expect(state.delayedTriggers ?? []).toHaveLength(0);
+    });
+});
+
+describe("Phelia — delayed-trigger controller/owner branch (issue #1320)", () => {
+    function exileAndScheduleReturn(
+        state: GameState,
+        p: CardInstanceState,
+        targetId: string
+    ) {
+        pheliaAttackTriggerOnStack(state, p);
+        resolveTopOfStack(state);
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: [targetId],
+        });
+    }
+
+    it("puts a +1/+1 counter on Phelia when the returned permanent enters under YOUR control (owner === Phelia's controller)", () => {
+        const p = makeInstance(phelia.id, {
+            id: "pheliaA",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        // A permanent Phelia's controller (p1) both owns AND controls —
+        // returns under p1's control, matching the caster.
+        const own = makeInstance(balduvianBears.id, {
+            id: "own1",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [p, own] }),
+                makePlayer("p2"),
+            ],
+        });
+        exileAndScheduleReturn(state, p, "own1");
+        fireDelayedTriggers(state, "next-end-step");
+        while (state.stack.length > 0) resolveTopOfStack(state);
+
+        const returned = state.players[0].battlefield.find(
+            (c) => c.id === "own1"
+        );
+        expect(returned).toBeDefined();
+        expect(returned?.controllerId).toBe("p1");
+        const pheliaAfter = state.players[0].battlefield.find(
+            (c) => c.id === "pheliaA"
+        )!;
+        expect(pheliaAfter.counters).toEqual({ "+1/+1": 1 });
+
+        // Wire format — the counter is board-visible.
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "pheliaA"
+        )!;
+        expect(slim.counters).toEqual({ "+1/+1": 1 });
+    });
+
+    it("does NOT put a counter when the returned permanent enters under its OWNER's control, not yours (opponent's permanent)", () => {
+        const p = makeInstance(phelia.id, {
+            id: "pheliaB",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const theirs = makeInstance(balduvianBears.id, {
+            id: "theirs1",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [p] }),
+                makePlayer("p2", { battlefield: [theirs] }),
+            ],
+        });
+        exileAndScheduleReturn(state, p, "theirs1");
+        fireDelayedTriggers(state, "next-end-step");
+        while (state.stack.length > 0) resolveTopOfStack(state);
+
+        const returned = state.players[1].battlefield.find(
+            (c) => c.id === "theirs1"
+        );
+        expect(returned).toBeDefined();
+        expect(returned?.controllerId).toBe("p2");
+        const pheliaAfter = state.players[0].battlefield.find(
+            (c) => c.id === "pheliaB"
+        )!;
+        expect(pheliaAfter.counters).toBeUndefined();
+    });
+
+    it("does NOT put a counter when the exiled permanent's controller differs from its owner — it returns under the OWNER, not the previous (Phelia's) controller", () => {
+        const p = makeInstance(phelia.id, {
+            id: "pheliaC",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        // Owned by p2, but currently CONTROLLED by p1 (Phelia's controller,
+        // e.g. a stolen permanent) at the moment it's exiled. CR 800.4a — a
+        // returned object enters under its OWNER's control, so it comes
+        // back to p2, not p1, even though p1 controlled it going in.
+        const stolen = makeInstance(balduvianBears.id, {
+            id: "stolen1",
+            controllerId: "p1",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [p, stolen] }),
+                makePlayer("p2"),
+            ],
+        });
+        exileAndScheduleReturn(state, p, "stolen1");
+        fireDelayedTriggers(state, "next-end-step");
+        while (state.stack.length > 0) resolveTopOfStack(state);
+
+        const returned = state.players[1].battlefield.find(
+            (c) => c.id === "stolen1"
+        );
+        expect(returned).toBeDefined();
+        expect(returned?.controllerId).toBe("p2"); // back to its OWNER
+        const pheliaAfter = state.players[0].battlefield.find(
+            (c) => c.id === "pheliaC"
+        )!;
+        expect(pheliaAfter.counters).toBeUndefined();
+    });
+
+    it("skips the counter placement cleanly when Phelia herself has left the battlefield before the trigger fires", () => {
+        const p = makeInstance(phelia.id, {
+            id: "pheliaD",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const own = makeInstance(balduvianBears.id, {
+            id: "own2",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [p, own] }),
+                makePlayer("p2"),
+            ],
+        });
+        exileAndScheduleReturn(state, p, "own2");
+        // Phelia leaves the battlefield before the delayed trigger fires.
+        state.players[0].battlefield = state.players[0].battlefield.filter(
+            (c) => c.id !== "pheliaD"
+        );
+        expect(() => {
+            fireDelayedTriggers(state, "next-end-step");
+            while (state.stack.length > 0) resolveTopOfStack(state);
+        }).not.toThrow();
+        const returned = state.players[0].battlefield.find(
+            (c) => c.id === "own2"
+        );
+        expect(returned).toBeDefined();
     });
 });

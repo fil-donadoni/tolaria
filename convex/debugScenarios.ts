@@ -677,6 +677,34 @@ const NEW_CUBE_SCENARIOS: { label: string; spec: ScenarioSpec }[] = [
             landCount: 6,
         },
     },
+    {
+        // Phelia, Exuberant Shepherd — delayed-trigger controller/owner
+        // branch (CR 603.7a, issue #1320, split from #917). "Whenever Phelia
+        // attacks, exile up to one other target nonland permanent. At the
+        // beginning of the next end step, return that card to the
+        // battlefield under its owner's control. If it entered under your
+        // control, put a +1/+1 counter on Phelia." Golden path: move to
+        // combat, declare Phelia attacking, exile YOUR OWN Grizzly Bears —
+        // it returns under YOUR control at the next end step, so Phelia gets
+        // a +1/+1 counter. Edge case: on a later attack, exile the
+        // opponent's Grizzly Bears instead — it returns under the
+        // OPPONENT's control (its owner), so no counter is added even
+        // though you (Phelia's controller) chose the target.
+        label: "Phelia — attack, exile own permanent → returns under your control → +1/+1 counter",
+        spec: {
+            cards: [
+                {
+                    name: "Phelia, Exuberant Shepherd",
+                    owner: "me",
+                    zone: "battlefield",
+                },
+                { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            landCount: 2,
+        },
+    },
 ];
 
 /**
