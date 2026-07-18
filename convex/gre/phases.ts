@@ -20,7 +20,8 @@ import {
     bumpArtifactDamageToPlayer,
     bumpDamageDealtToPlayer,
     markDeathtouchDamage,
-    markInfectWitherDamage,
+    hasInfectOrWither,
+    addCounterToCard,
     markInfectPoisonDamage,
     recordSourceDamagedOpponent,
     consumePreventionIfAny,
@@ -1156,6 +1157,18 @@ export function applyAllCombatDamage(
 
     // Track damage received: cardId → total damage
     const damageReceived: Record<string, number> = {};
+    // CR 702.90a/b + CR 510.4 — infect/wither combat damage is diverted to
+    // -1/-1 counters instead of marked damage, but that diversion must NOT
+    // mutate P/T mid-step: two blocked creatures deal damage simultaneously,
+    // each based on power AT THE START of the damage step (CR 510.4). If an
+    // infect attacker's counters landed on its blocker before the blocker's
+    // own damage was computed (attacker loop runs to completion before the
+    // blocker loop), the blocker would compute its outgoing damage off an
+    // already-shrunk power — wrong. So pending -1/-1 counters are accumulated
+    // here (cardId → total counters) during both loops and applied in ONE
+    // post-loop flush, alongside `damageReceived`, only after every attacker
+    // and blocker has read `getCardPower` for this step.
+    const pendingInfectWitherCounters: Record<string, number> = {};
     const events: GameEvent[] = [];
 
     // Helper: apply one combat damage event from `source` through the full
@@ -1325,21 +1338,22 @@ export function applyAllCombatDamage(
             const desc = describeDamageSource(state, source.id);
             if (targetIsPlaneswalker) {
                 removeLoyaltyForDamage(targetCard, reduced);
-            } else if (
+            } else if (hasInfectOrWither(desc.staticAbilities)) {
                 // CR 702.90a/b — infect/wither: combat damage from a source
                 // with either keyword becomes -1/-1 counters instead of
-                // marked damage. Diverted straight onto the permanent (NOT
-                // through `damageReceived`, which is the post-loop marked-
-                // damage accumulator, CR 510.4 simultaneous combat damage) —
-                // two simultaneous attackers hitting the same blocker, one
-                // with infect and one without, must resolve independently.
-                !markInfectWitherDamage(
-                    state,
-                    targetCard,
-                    desc.staticAbilities,
-                    reduced
-                )
-            ) {
+                // marked damage. Accumulated here (NOT applied via
+                // `addCounterToCard` inline) and flushed in ONE post-loop
+                // pass alongside `damageReceived` below — CR 510.4 requires
+                // ALL combat damage this step to be simultaneous, each
+                // creature's outgoing damage computed from power at the
+                // START of the step. Applying the -1/-1 counters inline here
+                // would shrink a blocker's power mid-step, before the
+                // blocker loop (which runs after the attacker loop) reads
+                // its own `getCardPower` — undercounting its return damage.
+                pendingInfectWitherCounters[finalTarget.id] =
+                    (pendingInfectWitherCounters[finalTarget.id] ?? 0) +
+                    reduced;
+            } else {
                 damageReceived[finalTarget.id] =
                     (damageReceived[finalTarget.id] ?? 0) + reduced;
             }
@@ -1590,6 +1604,24 @@ export function applyAllCombatDamage(
                 );
             }
         }
+    }
+
+    // CR 510.4 — flush the deferred infect/wither -1/-1 counters now that
+    // BOTH the attacker and blocker loops above have finished reading power
+    // for this step. Every creature's outgoing damage was already computed
+    // from its power at the START of the step (`applyOneCombatDamage` never
+    // re-reads power mid-loop), so applying the counters here — after both
+    // loops, before the marked-damage/lethal scan below — cannot retroactively
+    // shrink a blocker (or attacker) that already dealt its own damage. This
+    // mirrors the `damageReceived` deferral for normal marked damage.
+    for (const [cardId, counters] of Object.entries(
+        pendingInfectWitherCounters
+    )) {
+        const card =
+            activePlayer.battlefield.find((c) => c.id === cardId) ??
+            defender.battlefield.find((c) => c.id === cardId);
+        if (!card) continue;
+        addCounterToCard(state, card, "-1/-1", counters);
     }
 
     // CR 120.3: record which sources dealt damage to each victim this turn.

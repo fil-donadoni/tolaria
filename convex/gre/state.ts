@@ -6806,14 +6806,26 @@ export function markInfectWitherDamage(
     amount: number
 ): boolean {
     if (amount <= 0) return false;
-    if (
-        !sourceStaticAbilities.includes("infect") &&
-        !sourceStaticAbilities.includes("wither")
-    ) {
-        return false;
-    }
+    if (!hasInfectOrWither(sourceStaticAbilities)) return false;
     addCounterToCard(state, recipient, "-1/-1", amount);
     return true;
+}
+
+/** CR 702.90a/b — pure predicate: does this EFFECTIVE static-ability set carry
+ *  infect or wither? Split out from `markInfectWitherDamage` so a caller that
+ *  needs CR 510.4 combat simultaneity (`applyAllCombatDamage`, `phases.ts`)
+ *  can classify a damage instance as "goes to a -1/-1 counter" WITHOUT
+ *  mutating the recipient inline — it defers the actual `addCounterToCard`
+ *  call until after every attacker/blocker has read its start-of-step power,
+ *  then applies all pending counters in one post-loop flush (mirrors the
+ *  existing `damageReceived` deferral for normal marked damage). */
+export function hasInfectOrWither(
+    sourceStaticAbilities: ReadonlyArray<string>
+): boolean {
+    return (
+        sourceStaticAbilities.includes("infect") ||
+        sourceStaticAbilities.includes("wither")
+    );
 }
 
 /** CR 702.90a — Infect (player half): a source with infect deals damage to a

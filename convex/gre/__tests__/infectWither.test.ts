@@ -261,6 +261,116 @@ describe("infect/wither combat damage to a creature (CR 702.90a/b)", () => {
     });
 });
 
+describe("infect/wither combat damage simultaneity (CR 510.4, issue #1201 regression)", () => {
+    // Review found a bug in the original combat-damage branch: it called
+    // `markInfectWitherDamage` (which mutates -1/-1 counters onto the
+    // recipient IMMEDIATELY) from inside the attacker loop, which runs to
+    // completion before the blocker loop starts. An infect/wither attacker's
+    // counters therefore shrank the blocker's power BEFORE the blocker loop
+    // read `getCardPower` to compute its own outgoing damage — undercounting
+    // (or, as below, zeroing out) the blocker's return damage. CR 510.4: all
+    // combat damage this step is dealt SIMULTANEOUSLY, each creature's
+    // amount based on power AT THE START of the step. The fix defers the
+    // -1/-1 counter application to a post-loop flush, mirroring the existing
+    // `damageReceived` deferral for normal marked damage.
+    it("a 3/3 infect attacker blocked by a 3/3 vanilla blocker: both deal full start-of-step power simultaneously and both die", () => {
+        const toxic = creature("toxic", 3, 3, { staticAbilities: ["infect"] });
+        const vanilla = creature("vanilla", 3, 3, {
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = combatState([toxic], [vanilla], {
+            attackerIds: ["toxic"],
+            blockerAssignments: { vanilla: ["toxic"] },
+            blockedAttackerIds: ["toxic"],
+        });
+
+        applyAllCombatDamage(state, { toxic: { vanilla: 3 } });
+
+        // The attacker's own lethal-marked-damage check runs INSIDE
+        // `applyAllCombatDamage` (normal `damageReceived` creatures that hit
+        // toughness are destroyed before the function returns), so by the
+        // time we inspect state the attacker — if it took its full 3 marked
+        // damage — is already in the graveyard. BUGGY behavior would have
+        // `blockerPower` read as 0 (shrunk by the attacker's -1/-1 counters
+        // before the blocker loop ran), so the attacker would take NO
+        // damage and still be alive on the battlefield.
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "toxic")
+        ).toBe(false);
+        const toxicCard = state.players[0].graveyard.find(
+            (c) => c.id === "toxic"
+        )!;
+        expect(toxicCard).toBeDefined();
+        expect(toxicCard.damageMarked).toBe(3);
+
+        // The attacker's infect damage still landed as -1/-1 counters on the
+        // blocker — just deferred to after both loops. The blocker is not
+        // part of `applyAllCombatDamage`'s own marked-damage lethal scan (its
+        // damage is -1/-1 counters, not marked damage), so it's still on the
+        // battlefield here, pending the effective-toughness SBA below.
+        const vanillaCard = state.players[1].battlefield.find(
+            (c) => c.id === "vanilla"
+        )!;
+        expect(vanillaCard).toBeDefined();
+        expect(vanillaCard.counters).toEqual({ "-1/-1": 3 });
+        expect(vanillaCard.damageMarked ?? 0).toBe(0);
+
+        checkStateBasedActions(state);
+
+        // The blocker now dies too: 3 -1/-1 counters on a 3/3 -> effective
+        // toughness 0 (CR 704.5f).
+        expect(
+            state.players[1].battlefield.some((c) => c.id === "vanilla")
+        ).toBe(false);
+        expect(
+            state.players[1].graveyard.some((c) => c.id === "vanilla")
+        ).toBe(true);
+    });
+
+    it("wither variant: a 3/3 wither attacker blocked by a 3/3 vanilla blocker — same simultaneity", () => {
+        const witherer = creature("witherer", 3, 3, {
+            staticAbilities: ["wither"],
+        });
+        const vanilla = creature("vanilla2", 3, 3, {
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = combatState([witherer], [vanilla], {
+            attackerIds: ["witherer"],
+            blockerAssignments: { vanilla2: ["witherer"] },
+            blockedAttackerIds: ["witherer"],
+        });
+
+        applyAllCombatDamage(state, { witherer: { vanilla2: 3 } });
+
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "witherer")
+        ).toBe(false);
+        const withererCard = state.players[0].graveyard.find(
+            (c) => c.id === "witherer"
+        )!;
+        expect(withererCard).toBeDefined();
+        expect(withererCard.damageMarked).toBe(3);
+
+        const vanillaCard = state.players[1].battlefield.find(
+            (c) => c.id === "vanilla2"
+        )!;
+        expect(vanillaCard).toBeDefined();
+        expect(vanillaCard.counters).toEqual({ "-1/-1": 3 });
+        expect(vanillaCard.damageMarked ?? 0).toBe(0);
+
+        checkStateBasedActions(state);
+
+        expect(
+            state.players[1].battlefield.some((c) => c.id === "vanilla2")
+        ).toBe(false);
+        expect(
+            state.players[1].graveyard.some((c) => c.id === "vanilla2")
+        ).toBe(true);
+    });
+});
+
 describe("infect/wither still 'damage' for other purposes (CR 702.90c)", () => {
     it("infect + lifelink: the source's controller still gains life even though the opponent takes poison, not life loss", () => {
         const toxic = creature("toxic", 3, 3, {
