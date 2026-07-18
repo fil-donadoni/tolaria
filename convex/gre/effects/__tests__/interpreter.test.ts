@@ -6345,6 +6345,153 @@ describe("Effect Script Op: createToken with token.activatedAbilities (CR 707.2,
     });
 });
 
+// CR 111 / 701.3 (issue #1202) — `createToken`'s `bind` field snapshots the
+// just-created token so a follow-up Op (`attach`) can act on it directly,
+// with NO announced-target form: the token didn't exist before this Op ran
+// (CR 601.2b). New capability of the EXISTING `createToken` Op (mirrors
+// `destroy`/`exile`/`moveZone`'s own `bind`, "generalize, don't add"), not a
+// new Op — Cori-Steel Cutter's "create a 1/1 white Monk creature token with
+// prowess. You may attach this Equipment to it." (tdm/red.ts).
+describe("Effect Script Op: createToken bind + attach (CR 111 / 701.3, issue #1202)", () => {
+    const EQUIP_ID = "test-op-createtoken-bind-equip";
+    registerTokenDefinition({
+        id: EQUIP_ID,
+        name: EQUIP_ID,
+        rarity: "common",
+        manaCost: { generic: 1, R: 1 },
+        types: ["Artifact"],
+        subtypes: ["Equipment"],
+        activatedAbilities: [
+            {
+                id: "make-monk-and-maybe-attach",
+                oracleText:
+                    "Create a 1/1 white Monk creature token with prowess. You may attach this Equipment to it.",
+                cost: {},
+                useStack: true,
+                effects: [
+                    {
+                        op: "createToken",
+                        token: {
+                            name: "Monk",
+                            types: ["Creature"],
+                            subtypes: ["Monk"],
+                            power: 1,
+                            toughness: 1,
+                            colors: ["W"],
+                            staticAbilities: ["prowess"],
+                        },
+                        controller: "controller",
+                        bind: "$monk",
+                    },
+                    {
+                        op: "mayPay",
+                        player: "controller",
+                        bind: "$attachIt",
+                        prompt: "Attach to the Monk token?",
+                    },
+                    {
+                        op: "if",
+                        predicate: { binding: "$attachIt" },
+                        then: [{ op: "attach", target: { ref: "$monk" } }],
+                    },
+                ],
+            },
+        ],
+    });
+
+    function activate(state: GameState, sourceId: string): void {
+        const src = state.players[0].battlefield.find(
+            (c) => c.id === sourceId
+        )!;
+        state.stack.push({
+            ...src,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "make-monk-and-maybe-attach",
+            targets: [],
+        });
+    }
+
+    it("binds the just-created token so `attach` reads it via `{ ref }` (accepted)", () => {
+        const equip = makeInstance(EQUIP_ID, {
+            id: "bindEquip1",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [equip] }),
+                makePlayer("p2"),
+            ],
+        });
+        activate(state, "bindEquip1");
+        expect(resolveTopOfStack(state)).toBeNull(); // suspended on may-pay
+        applyMayPaySubmit(state, { playerId: "p1", accept: true });
+
+        const monk = state.players[0].battlefield.find(
+            (c) => c.isToken && c.subtypes?.includes("Monk")
+        )!;
+        expect(monk).toBeDefined();
+        const foundEquip = state.players[0].battlefield.find(
+            (c) => c.id === "bindEquip1"
+        )!;
+        expect(foundEquip.attachedTo).toBe(monk.id);
+    });
+
+    it("does NOT attach when the may-pay decision is declined (CR 608.2b optional action)", () => {
+        const equip = makeInstance(EQUIP_ID, {
+            id: "bindEquip2",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [equip] }),
+                makePlayer("p2"),
+            ],
+        });
+        activate(state, "bindEquip2");
+        resolveTopOfStack(state);
+        applyMayPaySubmit(state, { playerId: "p1", accept: false });
+
+        const monk = state.players[0].battlefield.find(
+            (c) => c.isToken && c.subtypes?.includes("Monk")
+        )!;
+        expect(monk).toBeDefined(); // the token is still created either way
+        const foundEquip = state.players[0].battlefield.find(
+            (c) => c.id === "bindEquip2"
+        )!;
+        expect(foundEquip.attachedTo).toBeUndefined();
+    });
+
+    it("the bound attach outcome survives projection (wire format)", () => {
+        const equip = makeInstance(EQUIP_ID, {
+            id: "bindEquip3",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [equip] }),
+                makePlayer("p2"),
+            ],
+        });
+        activate(state, "bindEquip3");
+        resolveTopOfStack(state);
+        applyMayPaySubmit(state, { playerId: "p1", accept: true });
+
+        const monk = state.players[0].battlefield.find(
+            (c) => c.isToken && c.subtypes?.includes("Monk")
+        )!;
+        const projected = projectPublicState(state, 1, "p1");
+        const slimEquip = projected.players[0].battlefield.find(
+            (c) => c.id === "bindEquip3"
+        )!;
+        expect(slimEquip.attachedTo).toBe(monk.id);
+        const slimMonk = projected.players[0].battlefield.find(
+            (c) => c.id === monk.id
+        )!;
+        expect(slimMonk.staticAbilities).toContain("prowess");
+    });
+});
+
 describe("Effect Script Op: gainControl (CR 613.1b, layer 2, issue #848)", () => {
     // Indefinite reassignment (Ghazbán Ogre / Chaos Lord shape): no `duration`
     // → no condition, control never reverts on its own (CR 613.1b).

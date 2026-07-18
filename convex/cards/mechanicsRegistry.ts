@@ -1387,7 +1387,9 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         name: "Wither",
         kind: "keyword-ability",
         cr: "702.80",
-        status: "planned",
+        status: "implemented",
+        binding: "wither",
+        note: "markInfectWitherDamage (gre/state.ts) at every damage sink — combat (applyOneCombatDamage, phases.ts) and non-combat (SpellContext.dealDamage) — diverts damage to a CREATURE into -1/-1 counters (addCounterToCard) instead of marked damage. Creature-only half of CR 702.90/infect's shared permanent-branch change; a 0-toughness death from the counters is the existing getEffectiveToughness<=0 SBA (sba.ts), not a new lethal-damage path.",
     },
     // 702.81 Retrace
     {
@@ -1474,7 +1476,9 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         name: "Infect",
         kind: "keyword-ability",
         cr: "702.90",
-        status: "planned",
+        status: "implemented",
+        binding: "infect",
+        note: "markInfectWitherDamage (creature half, shared with wither) + markInfectPoisonDamage (player half — PlayerState.poisonCounters) in gre/state.ts, wired at every damage sink — combat (applyOneCombatDamage, phases.ts) and non-combat (SpellContext.dealDamage). CR 702.90c: still 'damage' for every other purpose (deathtouch, lifelink, damage-dealt tallies), so those callers are unaffected — only the life-loss/damage-marking step is diverted. 10-poison loss is the existing SBA (sba.ts).",
     },
     // 702.91 Battle Cry
     {
@@ -2561,7 +2565,7 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         cr: "701.3a",
         binding: "SpellContext.attachTo",
         mechanicId: "attach",
-        note: "Effect Script Op for the CR 701.3 keyword action \"Attach\" (the attach half) — moves $source onto the announced target permanent without leaving the battlefield (ADR 0065's unified attachment model, issue #1311). Reconfigure's first activated ability (CR 702.151a). Generalizes the Aura-only `reattachAura` primitive so a future plain-Equip card (#776) reuses the SAME Op.",
+        note: "Effect Script Op for the CR 701.3 keyword action \"Attach\" (the attach half) — moves $source onto the announced target permanent without leaving the battlefield (ADR 0065's unified attachment model, issue #1311). Reconfigure's first activated ability (CR 702.151a). Generalizes the Aura-only `reattachAura` primitive so a plain-Equip ability reuses the SAME Op (Lion Sash's Equip {2}), including a TARGET that is a `createToken` `bind` snapshot rather than an announced slot — Cori-Steel Cutter's (issue #1202) \"create a token... you may attach this Equipment to it\", the object-selector position accepting either transparently.",
     },
     {
         op: "unattach",
@@ -2748,7 +2752,7 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         cr: "701.7",
         mechanicId: "create",
         binding: "SpellContext.createToken",
-        note: "Create token permanents (CR 111 / 701.7 keyword action \"Create\", issue #847). A thin declarative skin over the single SpellContext primitive `createToken`, one execution path (ADR 0045): `token` is the JSON-pure token spec (EffectTokenSpec — name + card types required; subtypes, supertypes, P/T, colors, keyword static abilities and token art optional), `controller` names who gets the tokens (the resolving controller — The Hive's Wasp, Master of the Hunt's Wolves, the Saproling / Thrull / Goblin token engines; an announced target-slot player; or a forEach `$each` for a per-player creation), and `count` is an optional EffectValue (default 1; a literal / ref / count for a count-scaled creation, e.g. Goblin Warrens' three Goblins). A non-positive count creates nothing (CR 707.1). SCOPE (issue #847): only the plain spec-driven `createToken` primitive is folded — the JSON-pure spec that carries no closure. `createTokenCopyOf` (create a token that's a COPY of a target creature — Dance of Many) reads a runtime source creature and drives the copy machinery, so it is NOT a pure declarative skin; it stays a `planned` backlog Op (`createTokenCopy` below). A token needing continuous `staticEffects` (Tetravite's \"can't be enchanted\", a predicate closure) is likewise not JSON-expressible — `EffectTokenSpec` omits `staticEffects`, so such a token stays resolve(). No `createdBy` provenance is stamped — provenance-linked token engines (Tetravus, Tawnos's Wand) are multi-Op choice-scoped cards that stay resolve() this wave.",
+        note: "Create token permanents (CR 111 / 701.7 keyword action \"Create\", issue #847). A thin declarative skin over the single SpellContext primitive `createToken`, one execution path (ADR 0045): `token` is the JSON-pure token spec (EffectTokenSpec — name + card types required; subtypes, supertypes, P/T, colors, keyword static abilities and token art optional), `controller` names who gets the tokens (the resolving controller — The Hive's Wasp, Master of the Hunt's Wolves, the Saproling / Thrull / Goblin token engines; an announced target-slot player; or a forEach `$each` for a per-player creation), and `count` is an optional EffectValue (default 1; a literal / ref / count for a count-scaled creation, e.g. Goblin Warrens' three Goblins). A non-positive count creates nothing (CR 707.1). SCOPE (issue #847): only the plain spec-driven `createToken` primitive is folded — the JSON-pure spec that carries no closure. `createTokenCopyOf` (create a token that's a COPY of a target creature — Dance of Many) reads a runtime source creature and drives the copy machinery, so it is NOT a pure declarative skin; it stays a `planned` backlog Op (`createTokenCopy` below). A token needing continuous `staticEffects` (Tetravite's \"can't be enchanted\", a predicate closure) is likewise not JSON-expressible — `EffectTokenSpec` omits `staticEffects`, so such a token stays resolve(). No `createdBy` provenance is stamped — provenance-linked token engines (Tetravus, Tawnos's Wand) are multi-Op choice-scoped cards that stay resolve() this wave. `bind` (issue #1202) snapshots the LAST created token — mirrors `destroy`/`exile`/`moveZone`'s own `bind` field, same snapshot-family binding — so a follow-up Op in the same script can act on the just-created permanent with no announced-target form (Cori-Steel Cutter: \"create a 1/1 white Monk creature token with prowess. You may attach this Equipment to it\").",
     },
     {
         op: "emblem",

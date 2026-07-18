@@ -960,6 +960,12 @@
         "firstSet": "leg"
     },
     {
+        "name": "Blightsteel Colossus",
+        "scryfallId": "7928bb14-7631-4830-a756-26d1ea832ba2",
+        "oracleId": "e80772e2-8623-4094-81a2-70828b2b151c",
+        "firstSet": "mbs"
+    },
+    {
         "name": "Blinking Spirit",
         "scryfallId": "14fc0683-9cfa-4439-a533-8773e7747ec4",
         "oracleId": "a26f6958-9bc8-46f8-8ca7-7f55098e1291",
@@ -1708,6 +1714,12 @@
         "scryfallId": "6c6df9db-0a46-40a5-ae9d-59f47dae9056",
         "oracleId": "aa2970c8-f2ea-4e06-8b8f-ec89af0012a0",
         "firstSet": "atq"
+    },
+    {
+        "name": "Cori-Steel Cutter",
+        "scryfallId": "490eb213-9ae2-4b45-abec-6f1dfc83792a",
+        "oracleId": "46b1a169-bc32-47bf-b379-fa0c3d13878f",
+        "firstSet": "tdm"
     },
     {
         "name": "Cosmic Horror",
