@@ -925,11 +925,21 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // Hajjâj. +1 closure, Op-blocked (protocol, not FREE). Net: total
         // 685→686, Op-blocked 235→236, FREE/AFK-ready/X-only unchanged
         // (436/400/14). Partition: 436+14+236=686.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(686);
+        //
+        // Then issue #1306 ships Multiversal Passage (spm/colorless.ts) with
+        // a new `enteredTrigger` `resolve()` closure — the SAME sanctioned
+        // on-entry instance-scoped choice-storage protocol Illusionary
+        // Terrain already established (`setChosenSubtypes`, no Effect Script
+        // Op persists an instance-scoped choice). +1 closure, Op-blocked
+        // (protocol, not FREE — the New-Op backlog's `setChosenSubtypes`
+        // bucket picks up its third caller). Net: total 686→687, Op-blocked
+        // 236→237, FREE/AFK-ready/X-only unchanged (436/400/14). Partition:
+        // 436+14+237=687.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(687);
         expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(436);
         expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(400);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(236);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(237);
     });
 
     it("surfaces the demonstrated new-Op backlog (a covered primitive leaves it)", () => {

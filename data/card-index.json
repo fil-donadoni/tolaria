@@ -5952,6 +5952,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Multiversal Passage",
+        "scryfallId": "f5fb426a-5618-4dd4-9c51-0cc847be8c1d",
+        "oracleId": "17770eeb-ecbf-4510-af2d-acececfbe146",
+        "firstSet": "spm"
+    },
+    {
         "name": "Murk Dwellers",
         "scryfallId": "a213450f-02f4-4c08-8da8-891ebfa8e237",
         "oracleId": "00358a89-2058-448b-a2fd-389f639ba2da",
@@ -8368,6 +8374,12 @@
         "scryfallId": "6d4c853e-2231-4af2-bcb0-1781c18ec3be",
         "oracleId": "2cc8c24f-cca8-462c-a5ad-1f8662e69a8a",
         "firstSet": "drk"
+    },
+    {
+        "name": "Starting Town",
+        "scryfallId": "fc7d1912-7e27-49ef-bd98-375d975a42b0",
+        "oracleId": "d04e0975-f401-41b8-a9db-9bcf9cbbce66",
+        "firstSet": "fin"
     },
     {
         "name": "Stasis",

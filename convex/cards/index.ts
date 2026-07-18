@@ -220,6 +220,10 @@ import * as arb from "./sets/arb";
 // #620) — Torsten, Founder of Benalia's earliest paper printing is Dominaria
 // United Commander (dmc, ADR 0041).
 import * as dmc from "./sets/dmc";
+// Cube FREE (residue): mana/ramp/artifacts (issue #1306, parent PRD #620) —
+// new home set, currently stub-only (Skullclamp's earliest paper printing is
+// Darksteel, dst, ADR 0041; tracked-by #1350).
+import * as dst from "./sets/dst";
 
 function isCardPrint(value: unknown): value is CardPrint {
     return (
@@ -425,6 +429,9 @@ const setModules: { code: string; exports: Record<string, unknown> }[] = [
     { code: "ncc", exports: ncc },
     { code: "arb", exports: arb },
     { code: "dmc", exports: dmc },
+    // Cube FREE (residue): mana/ramp/artifacts (issue #1306) — new home set,
+    // currently stub-only (Skullclamp, tracked-by #1350).
+    { code: "dst", exports: dst },
 ];
 
 const allCards: CardDefinition[] = setModules.flatMap((m) =>
