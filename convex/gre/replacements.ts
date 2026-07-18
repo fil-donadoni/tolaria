@@ -40,6 +40,7 @@ import type {
 import { tryGetDefinition } from "../cards";
 import { getColorsFromCost } from "../cards/colors";
 import { turnFaceUp } from "./faceDown";
+import { STATIC_EFFECT_CTX } from "./layers";
 import type { CardInstanceState, DamageRedirection, GameState } from "./state";
 import {
     bumpDamageDealtToPlayer,
@@ -108,6 +109,11 @@ function buildStateView(state: GameState): ReplacementStateView {
                 subtypes: c.subtypes,
                 staticAbilities: c.staticAbilities,
                 isToken: c.isToken === true,
+                // CR 202.2 / 613.1e layer 5 (issue #1083) — the same effective
+                // color reader static-effect predicates use, so a replacement
+                // predicate can read a TARGET creature's color (Well-Laid
+                // Plans), not just the damage source's (already on the event).
+                colors: STATIC_EFFECT_CTX.getColors(c),
             })),
             preferences: state.playerPreferences?.[p.id],
         })),
