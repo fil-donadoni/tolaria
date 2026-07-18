@@ -55,7 +55,9 @@ import {
 } from "../../cards/sets/lea";
 import { lurrus } from "../../cards/sets/iko/multicolor";
 
-function withLurrusOnBattlefield(overrides: Parameters<typeof makePlayer>[1] = {}) {
+function withLurrusOnBattlefield(
+    overrides: Parameters<typeof makePlayer>[1] = {}
+) {
     const onBattlefield = makeInstance(lurrus.id, {
         controllerId: "p1",
         ownerId: "p1",

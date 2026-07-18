@@ -180,7 +180,8 @@ export function canCastPermanentFromGraveyardByPermission(
     for (const perm of player.battlefield) {
         const permCardId = (perm.card as { id?: string }).id;
         if (!permCardId) continue;
-        const grant = tryGetDefinition(permCardId)?.castsPermanentsFromGraveyard;
+        const grant =
+            tryGetDefinition(permCardId)?.castsPermanentsFromGraveyard;
         if (grant && mv <= grant.maxManaValue) return true;
     }
     return false;

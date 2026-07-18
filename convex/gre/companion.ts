@@ -61,8 +61,7 @@ export function everyPermanent(
     return (deck) =>
         deck.every(
             (def) =>
-                !def.types.some((t) => permanentTypes.includes(t)) ||
-                pred(def)
+                !def.types.some((t) => permanentTypes.includes(t)) || pred(def)
         );
 }
 

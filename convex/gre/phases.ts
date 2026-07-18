@@ -2761,10 +2761,7 @@ function tickAllDurations(state: GameState): void {
     // permission expires at end of turn, same CLEANUP-only boundary as the
     // BROAD permission above (correct for "once during each of YOUR turns":
     // see the doc comment on `GameState.graveyardPermanentCastUsedThisTurn`).
-    if (
-        view.phase === "CLEANUP" &&
-        state.graveyardPermanentCastUsedThisTurn
-    ) {
+    if (view.phase === "CLEANUP" && state.graveyardPermanentCastUsedThisTurn) {
         state.graveyardPermanentCastUsedThisTurn = undefined;
     }
     // ICE Gaze of Pain — the "until end of turn" floating rider expires.

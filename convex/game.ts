@@ -11929,8 +11929,7 @@ export const debugSetupScenario = mutation({
         // (game init) exactly, since the scenario's synthetic board never
         // runs through `selectCompanion`/the sideboard.
         if (args.companion) {
-            const companionOwner =
-                args.companion.owner === "opp" ? p2 : p1;
+            const companionOwner = args.companion.owner === "opp" ? p2 : p1;
             const def = getCardByName(args.companion.name);
             companionOwner.companion = {
                 instance: {

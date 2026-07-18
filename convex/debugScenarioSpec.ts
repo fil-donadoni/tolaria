@@ -295,8 +295,11 @@ export function normalizeScenarioSpec(raw: unknown): ScenarioSpec {
     if (isRecord(raw.companion)) {
         const name = pickString(raw.companion.name);
         if (name !== undefined) {
-            const companion: { name: string; owner?: "me" | "opp"; used?: boolean } =
-                { name };
+            const companion: {
+                name: string;
+                owner?: "me" | "opp";
+                used?: boolean;
+            } = { name };
             const owner = pickString(raw.companion.owner);
             if (owner === "me" || owner === "opp") companion.owner = owner;
             set(companion, "used", pickBoolean(raw.companion.used));
