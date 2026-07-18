@@ -8406,6 +8406,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Staff of the Storyteller",
+        "scryfallId": "67083aca-b077-4b12-8218-876e22476f85",
+        "oracleId": "0c4e2c90-c17b-42cc-b4d7-cf75970fbe90",
+        "firstSet": "soc"
+    },
+    {
         "name": "Staff of Zegon",
         "scryfallId": "a6bf858d-bba9-4a16-9045-55384b1de633",
         "oracleId": "52c53132-146a-4912-8e0f-1d4d9937fff3",
