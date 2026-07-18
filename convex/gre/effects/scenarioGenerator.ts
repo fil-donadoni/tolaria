@@ -627,6 +627,19 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             }
             recordSlot(req, op.target.target, "permanent");
             return;
+        case "animate":
+            // `animate` (issue #1317) turns a permanent into a creature (CR
+            // 208.2 / 611.1) — potentially changing its BASIC eligibility as a
+            // combat/permanent object (types, P/T, granted keywords) in a way
+            // the canned generator's target-seeding (which assumes a stable
+            // permanent "kind" for the whole scenario) does not model, and the
+            // canonical caller (Earthbend N, Badgermole Cub) targets a LAND,
+            // not the generator's default creature filler. Explicit skip — the
+            // Op is new (per-Op regime, `.claude/rules/gre-development.md`)
+            // and earns its own hand-written interpreter + wire-format test
+            // instead of relying on the canned smoke sweep.
+            req.skip ??= `Op "animate" changes a permanent's basic kind (CR 208.2/611.1) — covered by the Op's own interpreter + wire-format tests`;
+            return;
         case "addSubtype":
             // `addSubtype` (issue #1194) adds a subtype to a permanent
             // INDEFINITELY (CR 613.1d layer 4). The generator can assert an
@@ -1435,6 +1448,16 @@ const OP_ASSERTORS: Record<string, Assertor> = {
                 };
             },
         };
+    },
+    // `animate` (issue #1317, CR 208.2 / 611.1) — never reached: `analyseOp`
+    // skips every script with an `animate` Op (a new Op, per-Op regime; the
+    // canonical caller targets a LAND, not the generator's creature filler,
+    // and asserting a "becomes a creature" shape change doesn't fit the
+    // generator's fixed-permanent-kind assumption). Kept for the 1:1 coverage
+    // guard; covered by the Op's own hand-written interpreter + wire-format
+    // tests instead.
+    animate() {
+        return null;
     },
     // `addSubtype` (issue #1194, CR 613.1d layer 4) — an add on an announced
     // permanent slot is observable as the subtype appearing in the target's

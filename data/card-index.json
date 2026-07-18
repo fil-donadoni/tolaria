@@ -624,6 +624,12 @@
         "firstSet": "lea"
     },
     {
+        "name": "Badgermole Cub",
+        "scryfallId": "340c5799-4964-44dd-8c48-8f3f3aba5211",
+        "oracleId": "2b0afb89-0944-4861-b9c3-e909e2ac215e",
+        "firstSet": "tla"
+    },
+    {
         "name": "Badlands",
         "scryfallId": "717f6d10-9144-4ade-9ac6-a481cc66b875",
         "oracleId": "13ff3222-91cb-4796-a34e-899ed817694c",

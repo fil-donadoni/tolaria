@@ -3,20 +3,102 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-// TODO(tracked-by: tolaria#917) — Badgermole Cub: keyword **Earthbend** is
-// entirely absent from mechanicsRegistry.ts (a new Avatar-set keyword, not a
-// CR 702 census entry); "add an additional {G} when you tap a creature for
-// mana" is an untracked mana-doubling replacement class. Stop-and-issue per
-// gre-development.md rather than an invented mechanism name.
-// export const badgermoleCub: CardDefinition = {
-//     id: "340c5799-4964-44dd-8c48-8f3f3aba5211",
-//     name: "Badgermole Cub",
-//     rarity: "mythic",
-//     manaCost: { X: 1, G: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Badger", "Mole"],
-//     power: 2,
-//     toughness: 2,
-// };
+import type { CardDefinition, SpellContext } from "../../types";
+import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
+import { tappedTrigger } from "../../abilities/triggers/tappedTrigger";
 
-export {};
+// Badgermole Cub (issue #1317, closes #917's Earthbend/mana-doubling stub).
+// Oracle (Scryfall, tla #167): "When this creature enters, earthbend 1.
+// (Target land you control becomes a 0/0 creature with haste that's still a
+// land. Put a +1/+1 counter on it. When it dies or is exiled, return it to
+// the battlefield tapped.)\nWhenever you tap a creature for mana, add an
+// additional {G}."
+//
+// Earthbend N is censused in mechanicsRegistry.ts (`SET_KEYWORDS`, id
+// "earthbend") — a new TLA-set keyword-action, not a CR 701/702 entry.
+// Decomposes into the `animate` Op (issue #1317, CR 208.2/611.1 — 0/0 base,
+// subtype "Elemental", `grantedAbilities: ["haste"]`, no `duration` = CR
+// 611.2b indefinite) + the pre-existing `counters` Op ("+1/+1" × N) on a
+// `targetRequirement: { type: "Land", count: 1, controller: "you" }` ETB
+// trigger (CR 603.3d, issue #1193 — the target is chosen when the trigger is
+// put on the stack). No new Op for the keyword itself (primitive-reuse
+// mandate).
+//
+// DEFERRED (tracked-by: #1362) — the reminder text's third sentence, "When it
+// dies or is exiled, return it to the battlefield tapped.", is not built
+// here: it needs an INDEFINITE instance-leave-watch delayed trigger (CR
+// 603.7a), but the engine's only leave-watch timing (`"leaves-battlefield"`,
+// `gre/triggers.ts`) is explicitly THIS-TURN-scoped (purged at CLEANUP,
+// `gre/phases.ts`) — the exact gap `sets/lci/black.ts` (Deep-Cavern Bat)
+// already stopped-and-issued as #1362 (Guard B,
+// gre-development.md § documented-divergence-needs-issue). The golden path
+// (animate + counters) is faithful; the land simply stays a normal
+// 0/0-plus-counters creature-land if it's later killed or exiled, instead of
+// springing back tapped.
+//
+// The mana-doubling clause ("Whenever you tap a creature for mana, add an
+// additional {G}") reuses the pre-existing Wild-Growth-style triggered-mana-
+// ability machinery (`tappedTrigger` + `manaBonusForPotential`,
+// `gre/tapManaBonus.ts`) — every prior user scopes the bonus to a LAND; here
+// `filter: { types: "Creature" }` + `scope: "yours"` scopes it to any
+// creature the controller taps for mana instead. NOT DSL-migratable (ADR
+// 0045): `tappedTrigger` hardcodes its `resolve` and exposes no `effects[]`
+// site (same documented limitation as every other `tappedTrigger` card in the
+// catalogue, e.g. Wild Growth, lea/green.ts).
+export const badgermoleCub: CardDefinition = {
+    id: "340c5799-4964-44dd-8c48-8f3f3aba5211",
+    name: "Badgermole Cub",
+    rarity: "mythic",
+    oracleText:
+        "When this creature enters, earthbend 1. (Target land you control becomes a 0/0 creature with haste that's still a land. Put a +1/+1 counter on it. When it dies or is exiled, return it to the battlefield tapped.)\nWhenever you tap a creature for mana, add an additional {G}.",
+    manaCost: { X: 1, G: 1 },
+    types: ["Creature"],
+    subtypes: ["Badger Mole"],
+    power: 2,
+    toughness: 2,
+    triggeredAbilities: [
+        enteredTrigger({
+            id: "badgermole-cub-earthbend",
+            oracleText:
+                "When this creature enters, earthbend 1. (Target land you control becomes a 0/0 creature with haste that's still a land. Put a +1/+1 counter on it.)",
+            scope: "self",
+            targetRequirement: { type: "Land", count: 1, controller: "you" },
+            effects: [
+                {
+                    op: "animate",
+                    target: { target: 0 },
+                    power: 0,
+                    toughness: 0,
+                    subtype: "Elemental",
+                    grantedAbilities: ["haste"],
+                },
+                {
+                    op: "counters",
+                    action: "add",
+                    counter: "+1/+1",
+                    count: 1,
+                    target: { target: 0 },
+                },
+            ],
+        }),
+        tappedTrigger({
+            id: "badgermole-cub-mana-doubler",
+            oracleText:
+                "Whenever you tap a creature for mana, add an additional {G}.",
+            scope: "yours",
+            filter: { types: "Creature" },
+            forMana: true,
+            manaAbility: true, // CR 605.1b / 605.4 — resolves without the stack
+            // CR 605.4 — teach the predictive potential-mana models
+            // (castability gate + auto-tap solver) that any creature the
+            // controller taps for mana yields an extra {G}.
+            manaBonusForPotential: {
+                appliesTo: { filter: { types: "Creature" } },
+                amount: { kind: "fixed", mana: { G: 1 } },
+            },
+            resolve: (ctx: SpellContext) => {
+                ctx.addMana({ G: 1 });
+            },
+        }),
+    ],
+};

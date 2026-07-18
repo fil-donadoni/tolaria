@@ -1553,6 +1553,23 @@ export const OP_EXECUTORS: {
         if (!target) return;
         ctx.addSubtype(target, op.subtype);
     },
+    // CR 208.2 / 611.1 (issue #1317) — turn a permanent into a creature with
+    // the given base P/T, optional subtype/additionalTypes/grantedAbilities,
+    // for `duration` or INDEFINITELY when `duration` is omitted (CR 611.2b —
+    // Earthbend N). A thin declarative skin over `animateAsCreature`, ONE
+    // execution path (ADR 0045). Skipped when the target is gone (CR 608.2b).
+    animate(ctx, op) {
+        const target = resolveObjectRef(ctx, op.target);
+        if (!target) return;
+        ctx.animateAsCreature(target, {
+            power: op.power,
+            toughness: op.toughness,
+            subtype: op.subtype,
+            additionalTypes: op.additionalTypes,
+            grantedAbilities: op.grantedAbilities,
+            duration: op.duration,
+        });
+    },
     // CR 701.20 (issue #844) — shuffle a player's library. A thin declarative
     // skin over `shuffleLibrary`, ONE execution path (ADR 0045): the seeded
     // PRNG reorder that also clears persistent knowledge (ADR 0026). Skipped

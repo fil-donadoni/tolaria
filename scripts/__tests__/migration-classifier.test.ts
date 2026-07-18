@@ -960,11 +960,31 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // closures, +2 FREE, +2 AFK-ready. Net: total 688→690, FREE
         // 436→438, AFK-ready 400→402, X-only/Op-blocked unchanged (14/238).
         // Partition: 438+14+238=690.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(690);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(438);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(402);
+        //
+        // Then issue #1317 ships Badgermole Cub (tla/green.ts) with a new
+        // `tappedTrigger` `resolve()` closure (the mana-doubler "whenever you
+        // tap a creature for mana, add an additional {G}" — the SAME
+        // sanctioned Wild-Growth-style triggered-mana-ability protocol,
+        // `ctx.addMana`, an already-covered primitive) — +1 closure, FREE
+        // (need-test: the classifier's per-card-test heuristic doesn't match
+        // this ability's test shape, so it lands in "need test first" rather
+        // than AFK-ready despite `tla/__tests__/green.test.ts` covering it).
+        // ALSO adds the `animate` Effect Script Op (`EFFECT_OP_REGISTRY`,
+        // `binding: "SpellContext.animateAsCreature"`), which newly covers
+        // `animateAsCreature` as a primitive — reclassifying every EXISTING
+        // Op-blocked closure that calls it (Mishra's Factory-style "becomes a
+        // creature" manland/animate abilities across the catalogue, e.g.
+        // Mishra's Factory atq/colorless.ts, Mishra's War Machine) from
+        // Op-blocked to FREE (AFK-ready — they already ship per-card tests).
+        // Net: +1 new closure (FREE, need-test) + 6 reclassified closures
+        // (Op-blocked→FREE, AFK-ready): total 690→691, FREE 438→445,
+        // AFK-ready 402→408, X-only unchanged (14), Op-blocked 238→232.
+        // Partition: 445+14+232=691.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(691);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(445);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(408);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(238);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(232);
     });
 
     it("surfaces the demonstrated new-Op backlog (a covered primitive leaves it)", () => {

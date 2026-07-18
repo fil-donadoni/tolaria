@@ -5110,6 +5110,129 @@ describe("Effect Script Op: addSubtype (CR 613.1d, layer 4, issue #1194)", () =>
     });
 });
 
+describe("Effect Script Op: animate (CR 208.2 / 611.1, issue #1317)", () => {
+    // A LAND (not the BEAR_ID creature fixture) becomes a creature — the
+    // canonical Earthbend N shape (Badgermole Cub, tla/green.ts): base 0/0,
+    // subtype "Elemental", haste granted, no `duration` (CR 611.2b —
+    // indefinite). Effective P/T is asserted AFTER a follow-up `counters` Op
+    // (issue #841, already-exercised) puts a +1/+1 counter on it, mirroring
+    // the real card's two-Op composition and proving the layer 7c counter
+    // contribution stacks on the animate Op's base 7a P/T (CR 613.4).
+    it("turns a land into a 0/0-plus-counter creature with haste, still a land, indefinitely — and survives the projection (wire format)", () => {
+        const id = registerScript("test-op-animate-earthbend", [
+            {
+                op: "animate",
+                target: { target: 0 },
+                power: 0,
+                toughness: 0,
+                subtype: "Elemental",
+                grantedAbilities: ["haste"],
+            },
+            {
+                op: "counters",
+                action: "add",
+                counter: "+1/+1",
+                count: 1,
+                target: { target: 0 },
+            },
+        ]);
+        const land = makeInstance(BEAR_ID, {
+            id: "earthbentLand",
+            controllerId: "p1",
+            ownerId: "p1",
+            types: ["Land"],
+            subtypes: ["Forest"],
+            power: undefined,
+            toughness: undefined,
+            staticAbilities: [],
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [land] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1", [
+            { type: "permanent", id: "earthbentLand" },
+        ]);
+        resolveTopOfStack(state);
+        const animated = state.players[0].battlefield.find(
+            (c) => c.id === "earthbentLand"
+        )!;
+        // CR 208.2 — "still a land": Creature is ADDED, Land is kept.
+        expect(animated.types).toContain("Creature");
+        expect(animated.types).toContain("Land");
+        expect(animated.subtypes).toContain("Elemental");
+        expect(animated.subtypes).toContain("Forest"); // printed subtype kept
+        expect(animated.staticAbilities).toContain("haste");
+        expect(animated.counters?.["+1/+1"]).toBe(1);
+        // 7a base (0/0) + 7c counter (+1/+1) = 1/1 (CR 613.4).
+        expect(getEffectivePower(state, animated)).toBe(1);
+        expect(getEffectiveToughness(state, animated)).toBe(1);
+
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "earthbentLand"
+        )!;
+        expect(slim.types).toContain("Creature");
+        expect(slim.types).toContain("Land");
+        expect(slim.subtypes).toContain("Elemental");
+        expect(slim.staticAbilities).toContain("haste");
+        expect(getEffectivePower(projected, slim)).toBe(1);
+        expect(getEffectiveToughness(projected, slim)).toBe(1);
+    });
+
+    // CR 611.2b — no `duration` means the animation is INDEFINITE: it must
+    // NOT revert at a CLEANUP phase boundary, unlike a Mishra's-Factory-style
+    // temporary animation.
+    it("does not revert at a phase boundary when duration is omitted (indefinite, CR 611.2b)", () => {
+        const id = registerScript("test-op-animate-indefinite", [
+            { op: "animate", target: { target: 0 }, power: 0, toughness: 0 },
+        ]);
+        const land = makeInstance(BEAR_ID, {
+            id: "earthbentIndefinite",
+            controllerId: "p1",
+            ownerId: "p1",
+            types: ["Land"],
+            subtypes: [],
+            power: undefined,
+            toughness: undefined,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [land] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1", [
+            { type: "permanent", id: "earthbentIndefinite" },
+        ]);
+        // Put a +1/+1 counter directly (bypassing the script) so a 0/0 base
+        // doesn't die to the toughness-0 SBA before CLEANUP is reached.
+        resolveTopOfStack(state);
+        const before = state.players[0].battlefield.find(
+            (c) => c.id === "earthbentIndefinite"
+        )!;
+        before.counters = { "+1/+1": 1 };
+        state.phase = "CLEANUP";
+        finalizeCleanup(state);
+        const after = state.players[0].battlefield.find(
+            (c) => c.id === "earthbentIndefinite"
+        )!;
+        expect(after.types).toContain("Creature");
+        expect(after.animation).toBeDefined();
+    });
+
+    it("is a no-op when the announced target is missing (CR 608.2b)", () => {
+        const id = registerScript("test-op-animate-missing", [
+            { op: "animate", target: { target: 0 }, power: 0, toughness: 0 },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1", []);
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+    });
+});
+
 describe("Effect Script Op: libraryLook (CR 701.20, issue #844)", () => {
     // A library of N distinct-id cards, each carrying persistent knowledge so a
     // shuffle's knowledge-clearing (ADR 0026) is observable — that clearing is

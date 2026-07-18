@@ -54,6 +54,15 @@ function isPositiveInt(value: unknown): boolean {
     return typeof value === "number" && Number.isInteger(value) && value > 0;
 }
 
+/** A base P/T value for the `animate` Op (issue #1317) — unlike CR 107.1's
+ *  positive-int-literal rule for `EffectValue` AMOUNTS, a creature's base
+ *  power/toughness is a plain characteristic and 0 is legal (Earthbend N's
+ *  "becomes a 0/0 creature"). Still a non-negative integer — no card in scope
+ *  animates to a negative base P/T. */
+function isNonNegativeInt(value: unknown): boolean {
+    return typeof value === "number" && Number.isInteger(value) && value >= 0;
+}
+
 /** A `choice` Op's `count` (issue #677): a plain positive-int literal (an
  *  EXACT pick count) or a `{ min, max }` range (an OPTIONAL pick count — "you
  *  may search…", "up to two…"). `min` is a non-negative int, `max` a
@@ -1628,6 +1637,25 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
         required: {
             target: isObjectSelector,
             subtype: isNonEmptyString,
+        },
+    },
+    // CR 208.2 / 611.1 (issue #1317) — turn a permanent into a creature.
+    // `target` is an object selector; `power`/`toughness` are the animation's
+    // base P/T (0 is legal — a characteristic, not a CR 107.1 amount);
+    // `subtype`/`additionalTypes`/`grantedAbilities` are optional; `duration`
+    // is OPTIONAL — omitted means an INDEFINITE animation (CR 611.2b,
+    // Earthbend N), present means a temporary one (Mishra's Factory).
+    animate: {
+        required: {
+            target: isObjectSelector,
+            power: isNonNegativeInt,
+            toughness: isNonNegativeInt,
+        },
+        optional: {
+            subtype: isNonEmptyString,
+            additionalTypes: (v) => isStringArray(v, TOKEN_CARD_TYPES),
+            grantedAbilities: (v) => isStringArray(v),
+            duration: isDurationSpec,
         },
     },
     // CR 701.20 (issue #844) — shuffle a player's library. `action` is
