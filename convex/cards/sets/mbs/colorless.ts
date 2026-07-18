@@ -50,8 +50,7 @@ function blightsteelColossusShuffleFromGraveyard(): TriggeredAbility {
         id: "blightsteel-colossus-shuffle",
         oracleText:
             "If Blightsteel Colossus would be put into a graveyard from anywhere, reveal Blightsteel Colossus and shuffle it into its owner's library instead.",
-        event: "CREATURE_DIED",
-        events: ["CARD_DISCARDED", "CARD_MILLED"],
+        event: ["CREATURE_DIED", "CARD_DISCARDED", "CARD_MILLED"],
         // CR 603.6e — functions from the graveyard: the graveyard trigger
         // scan (`collectTriggers`) matches every card CURRENTLY SITTING in a
         // graveyard against every event in the batch — the only path that

@@ -60,7 +60,10 @@ describe("Moonshadow (CR 702.111 menace; CR 122.1 counters; CR 603.2 graveyard-f
         const removeCounter = moonshadow.triggeredAbilities!.find(
             (a) => a.id === "moonshadow-remove-counter"
         )!;
-        expect(removeCounter.event).toEqual(["PERMANENT_LEFT", "CARD_DISCARDED"]);
+        expect(removeCounter.event).toEqual([
+            "PERMANENT_LEFT",
+            "CARD_DISCARDED",
+        ]);
     });
 
     it("enters the battlefield with six -1/-1 counters", () => {

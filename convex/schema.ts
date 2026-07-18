@@ -500,7 +500,13 @@ export default defineSchema({
         // table's natural primary key.
         .index("by_scope_and_card", ["scope", "cardId"]),
     debugScenarios: defineTable({
-        userId: v.id("users"),
+        // Authorship provenance for interactively-saved rows only (set by
+        // `saveDebugScenario` from the current admin). OPTIONAL because scenarios
+        // are a SHARED admin tool — `listDebugScenarios` shows every row to every
+        // admin regardless of owner — so the golden seed rows
+        // (`seedPresetScenarios` / `seedNewMechanicScenarios`) are ownerless: they
+        // belong to the pool, not to whichever admin happened to run the seed.
+        userId: v.optional(v.id("users")),
         label: v.string(),
         // The resolved spec, same shape `debugSetupScenario` accepts (minus
         // `gameId`). Stored as `v.any()` on PURPOSE so the load path is TOLERANT

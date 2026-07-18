@@ -295,9 +295,9 @@ describe("infect/wither combat damage simultaneity (CR 510.4, issue #1201 regres
         // `blockerPower` read as 0 (shrunk by the attacker's -1/-1 counters
         // before the blocker loop ran), so the attacker would take NO
         // damage and still be alive on the battlefield.
-        expect(
-            state.players[0].battlefield.some((c) => c.id === "toxic")
-        ).toBe(false);
+        expect(state.players[0].battlefield.some((c) => c.id === "toxic")).toBe(
+            false
+        );
         const toxicCard = state.players[0].graveyard.find(
             (c) => c.id === "toxic"
         )!;
@@ -323,9 +323,9 @@ describe("infect/wither combat damage simultaneity (CR 510.4, issue #1201 regres
         expect(
             state.players[1].battlefield.some((c) => c.id === "vanilla")
         ).toBe(false);
-        expect(
-            state.players[1].graveyard.some((c) => c.id === "vanilla")
-        ).toBe(true);
+        expect(state.players[1].graveyard.some((c) => c.id === "vanilla")).toBe(
+            true
+        );
     });
 
     it("wither variant: a 3/3 wither attacker blocked by a 3/3 vanilla blocker — same simultaneity", () => {

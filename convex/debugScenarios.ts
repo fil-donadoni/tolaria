@@ -350,23 +350,21 @@ const MIGRATED_PRESET_SCENARIOS: { label: string; spec: ScenarioSpec }[] = [
 
 /**
  * One-shot migration (issue #770, ADR 0044): insert the frozen
- * `MIGRATED_PRESET_SCENARIOS` as `debugScenarios` rows owned by `userId`,
- * flagged `golden` (curated, keep). Idempotent by label — a label already
- * present for that user is skipped, so re-running (e.g. against a second admin)
- * never duplicates rows. `internalMutation`: no `assertIsAdmin` call, since it
- * is reachable only via the Convex dashboard / `npx convex run` with deploy
- * access, never from a client. Run once per admin who wants the historical
- * presets available in their panel, e.g.:
- * `npx convex run debugScenarios:seedPresetScenarios '{"userId":"<id>"}'`
+ * `MIGRATED_PRESET_SCENARIOS` as ownerless `golden` `debugScenarios` rows
+ * (curated, keep). Idempotent by label — a label already present in the pool is
+ * skipped, so re-running never duplicates rows. Scenarios are shared across all
+ * admins, so no `userId` arg is needed. `internalMutation`: no `assertIsAdmin`
+ * call, since it is reachable only via the Convex dashboard / `npx convex run`
+ * with deploy access, never from a client. Run once after deploy:
+ * `npx convex run debugScenarios:seedPresetScenarios`
  */
 export const seedPresetScenarios = internalMutation({
-    args: { userId: v.id("users") },
+    args: {},
     returns: v.object({ inserted: v.number(), skipped: v.number() }),
-    handler: async (ctx, args) => {
-        const existing = await ctx.db
-            .query("debugScenarios")
-            .withIndex("by_user", (q) => q.eq("userId", args.userId))
-            .collect();
+    handler: async (ctx) => {
+        // Ownerless golden seed, deduped pool-wide by label — see
+        // `seedNewMechanicScenarios`.
+        const existing = await ctx.db.query("debugScenarios").take(1000);
         const existingLabels = new Set(existing.map((row) => row.label));
 
         let inserted = 0;
@@ -377,7 +375,6 @@ export const seedPresetScenarios = internalMutation({
                 continue;
             }
             await ctx.db.insert("debugScenarios", {
-                userId: args.userId,
                 label: preset.label,
                 spec: preset.spec,
                 golden: true,
@@ -1960,21 +1957,23 @@ const NEW_MECHANIC_SCENARIOS: { label: string; spec: ScenarioSpec }[] = [
 ];
 
 /**
- * Seed the `NEW_MECHANIC_SCENARIOS` as golden `debugScenarios` rows owned by
- * `userId`. Idempotent by label — mirrors `seedPresetScenarios`. Re-run after
- * every deploy that appends new scenarios; the label skip makes it safe to
- * re-run any time. `internalMutation`: reachable only via the Convex
- * dashboard / `npx convex run` with deploy access, never from a client.
- * `npx convex run debugScenarios:seedNewMechanicScenarios '{"userId":"<id>"}'`
+ * Seed the `NEW_MECHANIC_SCENARIOS` as ownerless golden `debugScenarios` rows.
+ * Idempotent by label — mirrors `seedPresetScenarios`. Re-run after every deploy
+ * that appends new scenarios; the label skip makes it safe to re-run any time.
+ * Scenarios are shared across all admins, so no `userId` arg is needed.
+ * `internalMutation`: reachable only via the Convex dashboard / `npx convex run`
+ * with deploy access, never from a client.
+ * `npx convex run debugScenarios:seedNewMechanicScenarios`
  */
 export const seedNewMechanicScenarios = internalMutation({
-    args: { userId: v.id("users") },
+    args: {},
     returns: v.object({ inserted: v.number(), skipped: v.number() }),
-    handler: async (ctx, args) => {
-        const existing = await ctx.db
-            .query("debugScenarios")
-            .withIndex("by_user", (q) => q.eq("userId", args.userId))
-            .collect();
+    handler: async (ctx) => {
+        // Dedup against the WHOLE shared pool by label — golden seeds are
+        // ownerless (any admin sees them), so idempotency is pool-wide, not
+        // per-user. Bounded scan: the table is kept small by
+        // `cleanupEphemeralScenarios`.
+        const existing = await ctx.db.query("debugScenarios").take(1000);
         const existingLabels = new Set(existing.map((row) => row.label));
 
         // Same loadability guard as the write path — reject before insert if any
@@ -1996,7 +1995,6 @@ export const seedNewMechanicScenarios = internalMutation({
                 );
             }
             await ctx.db.insert("debugScenarios", {
-                userId: args.userId,
                 label: preset.label,
                 spec: preset.spec,
                 golden: true,

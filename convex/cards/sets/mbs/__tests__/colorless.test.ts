@@ -60,8 +60,11 @@ describe("Blightsteel Colossus (CR 702.19 trample, 702.90 infect, 702.12b indest
         expect(blightsteelColossus.triggeredAbilities).toHaveLength(1);
         const shuffle = blightsteelColossus.triggeredAbilities![0];
         expect(shuffle.zone).toBe("graveyard");
-        expect(shuffle.event).toBe("CREATURE_DIED");
-        expect(shuffle.events).toEqual(["CARD_DISCARDED", "CARD_MILLED"]);
+        expect(shuffle.event).toEqual([
+            "CREATURE_DIED",
+            "CARD_DISCARDED",
+            "CARD_MILLED",
+        ]);
     });
 
     it("dies on the battlefield: shuffles itself into its owner's library instead of the graveyard", () => {
