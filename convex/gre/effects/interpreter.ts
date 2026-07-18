@@ -282,6 +282,18 @@ function evalPredicate(ctx: SpellContext, pred: EffectPredicate): boolean {
         const picks = resolvePicks(ctx, pred.picksNonEmpty);
         return picks !== undefined && picks.length > 0;
     }
+    // targetIsAnother (issue #1315, CR 702.165a) — object-identity comparison:
+    // true iff the named target slot resolves to a PERMANENT whose instance id
+    // differs from the resolving ability's source. A missing slot, a
+    // non-permanent target (shouldn't occur for a creature-typed
+    // targetRequirement, but CR 608.2b covers it defensively), or the target
+    // BEING the source all read false — Backup's grant half only fires on a
+    // genuinely different creature.
+    if ("targetIsAnother" in pred) {
+        const target = resolveTargetRef(ctx, pred.targetIsAnother);
+        if (!target || target.type !== "permanent") return false;
+        return target.id !== ctx.sourceInstanceId;
+    }
     const left = resolveValue(ctx, pred.left);
     const right = resolveValue(ctx, pred.right);
     if (left === undefined || right === undefined) return false;
