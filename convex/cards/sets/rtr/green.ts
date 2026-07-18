@@ -37,11 +37,13 @@ const WORLDSPINE_WURM_ID = "543d55cb-3a6b-4620-af25-10ae74ed32c4";
 //    engine's OTHER trigger-collection path — `zone: "graveyard"` — scans
 //    every card CURRENTLY SITTING in a graveyard against every event in the
 //    batch (Nether Shadow's precedent), which is exactly the right shape
-//    for a "from anywhere" self-trigger: three ability entries, one per
-//    zone-change event the engine emits (CREATURE_DIED / CARD_DISCARDED /
-//    CARD_MILLED), each `zone: "graveyard"` + matched on the specific
-//    instance id, sharing the same shuffle-into-library body. This covers
-//    battlefield, hand, and library origins — CR 701.17 mill is implemented
+//    for a "from anywhere" self-trigger: ONE ability entry listening on all
+//    three zone-change events the engine emits (`event: "CREATURE_DIED"` +
+//    `events: ["CARD_DISCARDED", "CARD_MILLED"]`, the multi-event field —
+//    CR 603.2), `zone: "graveyard"` + matched on the specific instance id
+//    per firing event. One Oracle line, shown once on the stack / inspector
+//    instead of three near-duplicates. This covers battlefield, hand, and
+//    library origins — CR 701.17 mill is implemented
 //    (mechanicsRegistry.ts `mill` — status "implemented"), so CARD_MILLED is
 //    included, unlike the older Moonshadow precedent (ecl/black.ts) which
 //    predates mill shipping. NOT covered: a spell countered on the stack
@@ -94,15 +96,17 @@ function worldspineWurmDiesCreateTokens(): TriggeredAbility {
     };
 }
 
-function worldspineWurmShuffleFromGraveyard(
-    id: string,
-    oracleEvent: "CREATURE_DIED" | "CARD_DISCARDED" | "CARD_MILLED"
-): TriggeredAbility {
+function worldspineWurmShuffleFromGraveyard(): TriggeredAbility {
     return {
-        id,
+        id: "worldspine-wurm-shuffle",
         oracleText:
             "When Worldspine Wurm is put into a graveyard from anywhere, shuffle it into its owner's library.",
-        event: oracleEvent,
+        // "From anywhere" = one Oracle line spanning three engine events
+        // (battlefield death / discard / mill). ONE ability listening on all
+        // three (`event` + `events[]`), so the line is shown once — not three
+        // near-duplicate entries (CR 603.2).
+        event: "CREATURE_DIED",
+        events: ["CARD_DISCARDED", "CARD_MILLED"],
         // CR 603.6e — functions from the graveyard: scanned by
         // `collectTriggers`'s graveyard pass (every card currently sitting in
         // a graveyard, matched against every event in the batch), which is
@@ -151,17 +155,6 @@ export const worldspineWurm: CardDefinition = {
     staticAbilities: ["trample"],
     triggeredAbilities: [
         worldspineWurmDiesCreateTokens(),
-        worldspineWurmShuffleFromGraveyard(
-            "worldspine-wurm-shuffle-dies",
-            "CREATURE_DIED"
-        ),
-        worldspineWurmShuffleFromGraveyard(
-            "worldspine-wurm-shuffle-discard",
-            "CARD_DISCARDED"
-        ),
-        worldspineWurmShuffleFromGraveyard(
-            "worldspine-wurm-shuffle-mill",
-            "CARD_MILLED"
-        ),
+        worldspineWurmShuffleFromGraveyard(),
     ],
 };

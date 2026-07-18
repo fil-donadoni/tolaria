@@ -19,7 +19,12 @@
 
 import { describe, it, expect } from "vitest";
 import { buildSpellContext, getPlayer, type GameState } from "../state";
-import { makeInstance, makePlayer, makeState, pushSpell } from "../../cards/__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+    pushSpell,
+} from "../../cards/__tests__/setup";
 import { grizzlyBears } from "../../cards/sets/lea/green";
 import { compactState, expandState } from "../serialize";
 
@@ -41,10 +46,7 @@ describe("linked-exile tracking (CR 610.3 / issue #791, generalized #1319)", () 
             zone: "exile",
         });
         const state = makeState({
-            players: [
-                makePlayer("p1", { exile: [exiled] }),
-                makePlayer("p2"),
-            ],
+            players: [makePlayer("p1", { exile: [exiled] }), makePlayer("p2")],
         });
         const ctx = ctxFor(state);
 
@@ -67,10 +69,7 @@ describe("linked-exile tracking (CR 610.3 / issue #791, generalized #1319)", () 
             zone: "exile",
         });
         const state = makeState({
-            players: [
-                makePlayer("p1"),
-                makePlayer("p2", { exile: [exiled] }),
-            ],
+            players: [makePlayer("p1"), makePlayer("p2", { exile: [exiled] })],
         });
         const ctx = ctxFor(state);
         ctx.linkExileToSource("bear-p2-exile", "src");
@@ -88,10 +87,7 @@ describe("linked-exile tracking (CR 610.3 / issue #791, generalized #1319)", () 
             zone: "exile",
         });
         const state = makeState({
-            players: [
-                makePlayer("p1", { exile: [exiled] }),
-                makePlayer("p2"),
-            ],
+            players: [makePlayer("p1", { exile: [exiled] }), makePlayer("p2")],
         });
         const ctx = ctxFor(state);
         ctx.linkExileToSource("bear-other-link", "source-a");
@@ -108,10 +104,7 @@ describe("linked-exile tracking (CR 610.3 / issue #791, generalized #1319)", () 
             zone: "exile",
         });
         const state = makeState({
-            players: [
-                makePlayer("p1", { exile: [exiled] }),
-                makePlayer("p2"),
-            ],
+            players: [makePlayer("p1", { exile: [exiled] }), makePlayer("p2")],
         });
         const ctx = ctxFor(state);
         ctx.linkExileToSource("bear-to-return", "reanimator-id");
@@ -144,10 +137,7 @@ describe("linked-exile tracking (CR 610.3 / issue #791, generalized #1319)", () 
             zone: "exile",
         });
         const state = makeState({
-            players: [
-                makePlayer("p1", { exile: [exiled] }),
-                makePlayer("p2"),
-            ],
+            players: [makePlayer("p1", { exile: [exiled] }), makePlayer("p2")],
         });
         const ctx = ctxFor(state);
         ctx.linkExileToSource("bear-stale-1", "old-source");
@@ -214,10 +204,7 @@ describe("linked-exile tracking (CR 610.3 / issue #791, generalized #1319)", () 
         });
         exiled.exiledBySourceId = "persisted-source-id";
         const state = makeState({
-            players: [
-                makePlayer("p1", { exile: [exiled] }),
-                makePlayer("p2"),
-            ],
+            players: [makePlayer("p1", { exile: [exiled] }), makePlayer("p2")],
         });
 
         const roundTripped = expandState(compactState(state));

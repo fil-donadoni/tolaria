@@ -272,11 +272,7 @@ describe("clearCardRating — admin gate + idempotent delete (PRD #1296 Slice B,
     }
 
     // Models ctx.db.delete keyed by the same `by_scope_and_card` lookup.
-    function clear(
-        rows: readonly Row[],
-        scope: string,
-        cardId: string
-    ): Row[] {
+    function clear(rows: readonly Row[], scope: string, cardId: string): Row[] {
         const normalizedScope = scope.toLowerCase();
         return rows.filter(
             (r) => !(r.scope === normalizedScope && r.cardId === cardId)

@@ -42,18 +42,24 @@ function drainStack(state: ReturnType<typeof makeState>): void {
 }
 
 describe("Worldspine Wurm (CR 702.19 trample, CR 603.2 dies-trigger, CR 400.7/701.24 graveyard-from-anywhere shuffle)", () => {
-    it("definitional: 15/15 trample with three triggered abilities", () => {
+    it("definitional: 15/15 trample with two triggered abilities", () => {
         expect(worldspineWurm.manaCost).toEqual({ X: 8, G: 3 });
         expect(worldspineWurm.power).toBe(15);
         expect(worldspineWurm.toughness).toBe(15);
         expect(worldspineWurm.staticAbilities).toContain("trample");
-        expect(worldspineWurm.triggeredAbilities).toHaveLength(4);
+        expect(worldspineWurm.triggeredAbilities).toHaveLength(2);
         const zones = worldspineWurm.triggeredAbilities!.map((a) => a.zone);
         // The token-creation dies-trigger is the plain battlefield scan (no
-        // `zone`); the three "from anywhere" shuffle triggers all opt into
-        // the graveyard scan (CR 603.6e).
-        expect(zones.filter((z) => z === "graveyard")).toHaveLength(3);
+        // `zone`); the single "from anywhere" shuffle trigger opts into the
+        // graveyard scan (CR 603.6e) and listens on all three zone-change
+        // events via `event` + `events[]` (CR 603.2).
+        expect(zones.filter((z) => z === "graveyard")).toHaveLength(1);
         expect(zones.filter((z) => z === undefined)).toHaveLength(1);
+        const shuffle = worldspineWurm.triggeredAbilities!.find(
+            (a) => a.zone === "graveyard"
+        )!;
+        expect(shuffle.event).toBe("CREATURE_DIED");
+        expect(shuffle.events).toEqual(["CARD_DISCARDED", "CARD_MILLED"]);
     });
 
     describe("dies on the battlefield: both triggers fire off the SAME event", () => {

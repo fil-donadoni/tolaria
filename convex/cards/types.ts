@@ -5828,6 +5828,16 @@ export interface TriggeredAbility {
     oracleText: string;
     /** Which event kind can fire this ability. Used to index-filter before matches(). */
     event: GameEventType;
+    /** Additional event kinds that ALSO fire this ability, beyond `event` (CR
+     *  603.2). A single Oracle sentence whose condition spans several engine
+     *  events — "put into a graveyard from anywhere" = battlefield death
+     *  (CREATURE_DIED) + discard (CARD_DISCARDED) + mill (CARD_MILLED) — is
+     *  ONE ability, not N near-duplicate entries. When set, the trigger scan
+     *  matches an event whose `type` equals `event` OR any member of `events`;
+     *  `matches()` still discriminates per firing event. Keeps the Oracle line
+     *  shown once on the stack / in the inspector. Omit for the common
+     *  single-event case. */
+    events?: GameEventType[];
     /** CR 603.3d (issue #1193) — a triggered ability's targets are chosen when
      *  it is PUT ON THE STACK (unlike a spell/activated ability, which chooses
      *  targets before it reaches the stack). When set, `placeTriggersOnStack`

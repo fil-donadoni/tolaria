@@ -89,9 +89,7 @@ describe("PickRatingEditor — renders the real query projection (PRD #1296 Slic
                 onClear={vi.fn()}
             />
         );
-        expect(
-            screen.getByText("Unrated (Pick Heuristic only)")
-        ).toBeTruthy();
+        expect(screen.getByText("Unrated (Pick Heuristic only)")).toBeTruthy();
     });
 
     it("shows a card's DATABASE OVERRIDE distinctly from its seed default, and enables Clear", () => {
@@ -103,7 +101,11 @@ describe("PickRatingEditor — renders the real query projection (PRD #1296 Slic
         expect(row.seedRating).toBe(seeded.seedRating);
 
         render(
-            <PickRatingEditor cards={[row]} onSave={vi.fn()} onClear={vi.fn()} />
+            <PickRatingEditor
+                cards={[row]}
+                onSave={vi.fn()}
+                onClear={vi.fn()}
+            />
         );
         expect(screen.getByText(`Override: ${override}`)).toBeTruthy();
         expect(
@@ -114,7 +116,11 @@ describe("PickRatingEditor — renders the real query projection (PRD #1296 Slic
     it("filters the card list by name via the search box", () => {
         const cards = leaCards().slice(0, 25);
         render(
-            <PickRatingEditor cards={cards} onSave={vi.fn()} onClear={vi.fn()} />
+            <PickRatingEditor
+                cards={cards}
+                onSave={vi.fn()}
+                onClear={vi.fn()}
+            />
         );
         const target = cards[0];
         fireEvent.change(screen.getByLabelText("Search cards"), {
@@ -202,7 +208,11 @@ describe("PickRatingEditor — inline edit submits setCardRating (PRD #1296 Slic
         const onClear = vi.fn().mockResolvedValue(undefined);
 
         render(
-            <PickRatingEditor cards={[row]} onSave={vi.fn()} onClear={onClear} />
+            <PickRatingEditor
+                cards={[row]}
+                onSave={vi.fn()}
+                onClear={onClear}
+            />
         );
         fireEvent.click(screen.getByText("Clear"));
         expect(onClear).toHaveBeenCalledWith(row.cardId);

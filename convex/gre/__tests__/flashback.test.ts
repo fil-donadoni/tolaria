@@ -628,9 +628,9 @@ describe("Flashback capability (CR 702.34)", () => {
                     selected: [{ type: "player", id: "p2" }],
                 };
 
-                expect(() =>
-                    finalizeTargetSelection(state, pt, "p1")
-                ).toThrow(/No matching card in your hand/);
+                expect(() => finalizeTargetSelection(state, pt, "p1")).toThrow(
+                    /No matching card in your hand/
+                );
             });
 
             it("pays the exile-from-hand cost and resolves the targeted flashback cast end to end", () => {
@@ -668,12 +668,8 @@ describe("Flashback capability (CR 702.34)", () => {
                 // exile-from-hand cost card end up in exile.
                 const p1After = getPlayer(state, "p1");
                 expect(p1After.exile.some((c) => c.id === fb.id)).toBe(true);
-                expect(p1After.exile.some((c) => c.id === blue.id)).toBe(
-                    true
-                );
-                expect(p1After.hand.some((c) => c.id === blue.id)).toBe(
-                    false
-                );
+                expect(p1After.exile.some((c) => c.id === blue.id)).toBe(true);
+                expect(p1After.hand.some((c) => c.id === blue.id)).toBe(false);
             });
         });
 

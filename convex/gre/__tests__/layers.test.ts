@@ -782,8 +782,7 @@ describe("layer-6 keyword-grant conditioned on a counter (CR 611/613.1a, issue #
     const grantVigilanceAtTwoStunCounters: StaticKeywordGrant = {
         kind: "keyword-grant",
         applies: (target, source, ctx) =>
-            target.id === source.id &&
-            ctx.getCounterCount(target, "stun") >= 2,
+            target.id === source.id && ctx.getCounterCount(target, "stun") >= 2,
         keyword: "vigilance",
     };
 

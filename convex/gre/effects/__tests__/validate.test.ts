@@ -1845,9 +1845,7 @@ describe('validateEffectScript — forEach{set:"bound"} accepts a PICKS binding 
                     {
                         op: "forEach",
                         select: { set: "bound", ref: "$paid" },
-                        effects: [
-                            { op: "destroy", target: { ref: "$each" } },
-                        ],
+                        effects: [{ op: "destroy", target: { ref: "$each" } }],
                     } as never,
                 ],
             })

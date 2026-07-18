@@ -14,8 +14,10 @@
 import type {
     EmblemInstance,
     GameEvent,
+    GameEventType,
     PermanentView,
     StateCheckEvent,
+    TriggeredAbility,
 } from "../cards/types";
 import { tryGetDefinition } from "../cards";
 import { tryGetEmblemDefinition } from "../cards/emblems";
@@ -160,6 +162,17 @@ function buildEmblemTriggerItem(
     };
 }
 
+/** True if `type` is one of the event kinds `ability` fires on — its primary
+ *  `event` or any member of its optional `events[]` (a single Oracle line
+ *  spanning several engine events, e.g. "put into a graveyard from anywhere").
+ *  CR 603.2. */
+export function triggerHandlesEventType(
+    ability: TriggeredAbility,
+    type: GameEventType
+): boolean {
+    return ability.event === type || (ability.events?.includes(type) ?? false);
+}
+
 /** Scans all battlefield permanents for triggered abilities matching `events`.
  *  Returns new StackItems in the order they should be placed on the stack.
  *
@@ -251,7 +264,7 @@ export function collectTriggers(
                 // fires once per matching event, as before.
                 let firedThisBatch = false;
                 for (const event of events) {
-                    if (event.type !== ability.event) continue;
+                    if (!triggerHandlesEventType(ability, event.type)) continue;
                     if (ability.oncePerEventBatch && firedThisBatch) continue;
                     if (!ability.matches(event, permanent, state)) continue;
                     firedThisBatch = true;
@@ -276,7 +289,7 @@ export function collectTriggers(
             for (const ability of abilities) {
                 if (ability.zone !== "graveyard") continue;
                 for (const event of events) {
-                    if (event.type !== ability.event) continue;
+                    if (!triggerHandlesEventType(ability, event.type)) continue;
                     if (!ability.matches(event, card, state)) continue;
                     out.push(buildTriggerItem(state, card, ability.id, event));
                 }
@@ -298,7 +311,7 @@ export function collectTriggers(
         for (const ability of abilities) {
             let firedThisBatch = false;
             for (const event of events) {
-                if (event.type !== ability.event) continue;
+                if (!triggerHandlesEventType(ability, event.type)) continue;
                 if (ability.oncePerEventBatch && firedThisBatch) continue;
                 if (!ability.matches(event, self, state)) continue;
                 firedThisBatch = true;

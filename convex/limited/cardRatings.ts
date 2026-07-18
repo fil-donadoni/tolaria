@@ -117,11 +117,7 @@ export function buildCardRatingRow(
  *  both `setCardRating` (to decide patch vs. insert) and `clearCardRating`
  *  (to decide whether there's anything to delete). `scope` must already be
  *  normalized (lowercased) by the caller. */
-async function loadCardRating(
-    ctx: MutationCtx,
-    scope: string,
-    cardId: string
-) {
+async function loadCardRating(ctx: MutationCtx, scope: string, cardId: string) {
     return ctx.db
         .query("cardRatings")
         .withIndex("by_scope_and_card", (q) =>

@@ -97,7 +97,10 @@ export function counterAddedTrigger(
         if (
             !matchesPermanentScope(
                 args.scope,
-                { instanceId: event.instanceId, controllerId: event.controllerId },
+                {
+                    instanceId: event.instanceId,
+                    controllerId: event.controllerId,
+                },
                 self
             )
         ) {

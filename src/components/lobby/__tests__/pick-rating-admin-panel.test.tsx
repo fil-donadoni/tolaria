@@ -32,11 +32,26 @@ const DRAFTABLE_SETS = [
 
 const SCOPE_CARDS: Record<
     string,
-    { cardId: string; name: string; dbRating: number | null; seedRating: number | null }[]
+    {
+        cardId: string;
+        name: string;
+        dbRating: number | null;
+        seedRating: number | null;
+    }[]
 > = {
     lea: [
-        { cardId: "black-lotus", name: "Black Lotus", dbRating: null, seedRating: 5 },
-        { cardId: "circle-of-protection-red", name: "Circle of Protection: Red", dbRating: 1, seedRating: 1 },
+        {
+            cardId: "black-lotus",
+            name: "Black Lotus",
+            dbRating: null,
+            seedRating: 5,
+        },
+        {
+            cardId: "circle-of-protection-red",
+            name: "Circle of Protection: Red",
+            dbRating: 1,
+            seedRating: 1,
+        },
     ],
     "vintage-cube": [
         { cardId: "sol-ring", name: "Sol Ring", dbRating: null, seedRating: 5 },
@@ -119,7 +134,9 @@ describe("PickRatingAdminPanel (PRD #1296 Slice C, issue #1300)", () => {
     it("lists only DRAFTABLE scopes (LEA + Vintage Cube, not the below-floor ICE)", () => {
         render(<PickRatingAdminPanel />);
         expect(screen.getByRole("radio", { name: "LEA" })).toBeTruthy();
-        expect(screen.getByRole("radio", { name: "Vintage Cube" })).toBeTruthy();
+        expect(
+            screen.getByRole("radio", { name: "Vintage Cube" })
+        ).toBeTruthy();
         expect(screen.queryByRole("radio", { name: "ICE" })).toBeNull();
     });
 
@@ -144,7 +161,9 @@ describe("PickRatingAdminPanel (PRD #1296 Slice C, issue #1300)", () => {
         const input = screen.getByLabelText("Rating for Black Lotus");
         fireEvent.change(input, { target: { value: "4" } });
         fireEvent.click(
-            screen.getAllByText("Save")[0].closest("button")! /* Black Lotus row */
+            screen
+                .getAllByText("Save")[0]
+                .closest("button")! /* Black Lotus row */
         );
 
         await waitFor(() =>

@@ -16,11 +16,7 @@ import { describe, it, expect } from "vitest";
 import { ledgerShredder } from "../blue";
 import { grizzlyBears } from "../../lea/green";
 import { island } from "../../lea/colorless";
-import {
-    makeInstance,
-    makePlayer,
-    makeState,
-} from "../../../__tests__/setup";
+import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { projectPublicState } from "../../../../gameProjections";
@@ -151,9 +147,7 @@ describe("Ledger Shredder (CR 701.50 connive, CR 601.2i, issue #1343)", () => {
             choiceId: head.choiceId,
             cardInstanceIds: ["h1"],
         });
-        const after = state.players[0].battlefield.find(
-            (c) => c.id === "ls1"
-        )!;
+        const after = state.players[0].battlefield.find((c) => c.id === "ls1")!;
         expect(after.counters?.["+1/+1"]).toBe(1);
         expect(state.players[0].graveyard.map((c) => c.id)).toContain("h1");
         expect(state.players[0].hand.map((c) => c.id)).toEqual(["lib0"]);
@@ -164,12 +158,8 @@ describe("Ledger Shredder (CR 701.50 connive, CR 601.2i, issue #1343)", () => {
             (c) => c.id === "ls1"
         )!;
         expect(slim.counters?.["+1/+1"]).toBe(1);
-        expect(projected.players[0].graveyard.map((c) => c.id)).toContain(
-            "h1"
-        );
-        expect(projected.players[0].hand.map((c) => c?.id)).toEqual([
-            "lib0",
-        ]);
+        expect(projected.players[0].graveyard.map((c) => c.id)).toContain("h1");
+        expect(projected.players[0].hand.map((c) => c?.id)).toEqual(["lib0"]);
     });
 
     it("discarding a LAND card connives WITHOUT a +1/+1 counter (CR 701.50a)", () => {
@@ -231,9 +221,7 @@ describe("Ledger Shredder (CR 701.50 connive, CR 601.2i, issue #1343)", () => {
             choiceId: head.choiceId,
             cardInstanceIds: ["h2"],
         });
-        const after = state.players[0].battlefield.find(
-            (c) => c.id === "ls2"
-        )!;
+        const after = state.players[0].battlefield.find((c) => c.id === "ls2")!;
         expect(after.counters?.["+1/+1"] ?? 0).toBe(0);
         expect(state.players[0].graveyard.map((c) => c.id)).toContain("h2");
     });

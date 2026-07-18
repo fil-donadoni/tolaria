@@ -143,29 +143,29 @@ describe("nthSpellThisTurn (issue #1343, CR 601.2i) — per-player 'Nth spell' c
         const condition = nthSpellThisTurn(2);
         const self = makeSelf();
         // First spell: casterSpellCountThisTurn = 0 (prior count) -> no fire.
-        expect(condition(makeEvent({ casterSpellCountThisTurn: 0 }), self)).toBe(
-            false
-        );
+        expect(
+            condition(makeEvent({ casterSpellCountThisTurn: 0 }), self)
+        ).toBe(false);
         // Second spell: casterSpellCountThisTurn = 1 -> fires.
-        expect(condition(makeEvent({ casterSpellCountThisTurn: 1 }), self)).toBe(
-            true
-        );
+        expect(
+            condition(makeEvent({ casterSpellCountThisTurn: 1 }), self)
+        ).toBe(true);
         // Third spell: casterSpellCountThisTurn = 2 -> does NOT fire (CR
         // 701.50's "second spell" is exact, not "2nd or later").
-        expect(condition(makeEvent({ casterSpellCountThisTurn: 2 }), self)).toBe(
-            false
-        );
+        expect(
+            condition(makeEvent({ casterSpellCountThisTurn: 2 }), self)
+        ).toBe(false);
     });
 
     it("N=1 fires on the caster's first spell (prior count 0) — the general 'Nth spell' template", () => {
         const condition = nthSpellThisTurn(1);
         const self = makeSelf();
-        expect(condition(makeEvent({ casterSpellCountThisTurn: 0 }), self)).toBe(
-            true
-        );
-        expect(condition(makeEvent({ casterSpellCountThisTurn: 1 }), self)).toBe(
-            false
-        );
+        expect(
+            condition(makeEvent({ casterSpellCountThisTurn: 0 }), self)
+        ).toBe(true);
+        expect(
+            condition(makeEvent({ casterSpellCountThisTurn: 1 }), self)
+        ).toBe(false);
     });
 
     it("an event with no casterSpellCountThisTurn reads as the caster's first spell (fallback convention)", () => {
