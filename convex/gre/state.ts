@@ -6860,6 +6860,15 @@ function resetBattlefieldTransientState(card: CardInstanceState): void {
     // CR 612.7 — a text-changing effect ends when the object changes zones
     // (it becomes a new object). Same lifecycle as colorOverride above.
     delete card.textChanges;
+    // CR 111 / 400.7 (issue #791/#1319) — the per-source exile provenance
+    // link is only meaningful while the card sits in exile. This helper is
+    // the shared chokepoint for every reanimation-style entry
+    // (`returnToBattlefield`, `putFromLibraryOntoBattlefield`,
+    // `putFromHandOntoBattlefield`, `returnGraveyardSetToBattlefield`) — some
+    // of which originate FROM exile — so drop the link here too (a no-op
+    // when it wasn't set) rather than duplicating the clear at every call
+    // site. Mirrors the cast-from-exile clear in `removeFromZone`.
+    delete card.exiledBySourceId;
 }
 
 /** Phase 1 of reanimation (issue #1094, CR 400.7): clears battlefield-only
@@ -8331,6 +8340,25 @@ export function buildSpellContext(
             // `staticAbilities`, read everywhere combat/rules code already
             // checks it — no new read-time layer needed).
             if (wasZero) applyKeywordCounterGrant(found.card, type);
+            // Issue #1319 (CR 122.1) — emit a COUNTER_ADDED event so "whenever
+            // one or more counters are put on ~" meta-triggers (foundation for
+            // Emperor of Bones / Agatha's Cauldron, #917) can fire. Mirrors
+            // COUNTER_REMOVED's choke point and drain path: queued into
+            // `pendingEvents`, drained by `processPendingActionTriggers` after
+            // the current resolution completes.
+            state.pendingEvents = [
+                ...(state.pendingEvents ?? []),
+                {
+                    type: "COUNTER_ADDED",
+                    instanceId: found.card.id,
+                    controllerId: found.card.controllerId,
+                    counterType: type,
+                    added: count,
+                    total: next[type],
+                    types: [...found.card.types],
+                    subtypes: [...found.card.subtypes],
+                },
+            ];
         },
         // CR 700.2c — re-write a permanent's stored modal colour post-ETB. The
         // "choose a color" half of a re-choosable modal permanent (Chromatic
@@ -12534,6 +12562,16 @@ export function moveCard(
     // later return to a hidden zone is hidden again unless freshly re-granted.
     // Stale `knownTo` never resurrects.
     if (PUBLIC_ZONES.has(to)) delete card.knownTo;
+    // CR 111 / 400.7 (issue #791/#1319) — the per-source exile provenance link
+    // is only meaningful while the card sits in exile. `removeFromZone`
+    // already clears it on the cast-from-exile path; mirror that here for
+    // every OTHER exile departure this general zone-mover drives (return to
+    // hand/library/graveyard via `SpellContext.moveZone`/`moveCardById`) so a
+    // later re-exile of the same instance id never silently inherits a stale
+    // source link. (The battlefield-entry path — `returnToBattlefield` and
+    // friends — clears it separately via `resetBattlefieldTransientState`,
+    // since those don't route through this function.)
+    if (from === "exile") delete card.exiledBySourceId;
 
     const targetZone = player[toField] as CardInstanceState[];
     targetZone.push(card);
