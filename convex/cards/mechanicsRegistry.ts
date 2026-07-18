@@ -504,7 +504,9 @@ const KEYWORD_ACTIONS: MechanicRow[] = [
         name: "Adapt",
         kind: "keyword-action",
         cr: "701.46",
-        status: "planned",
+        status: "implemented",
+        binding: "convex/cards/abilities/adapt.ts adaptAbility",
+        note: 'CR 701.46a — "Adapt N" means "If this creature has no +1/+1 counters on it, put N +1/+1 counters on it." Typically the effect of a printed activated ability ("{cost}: Adapt N."), so it never appears as a bare `staticAbilities[]` grant string (unlike a CR 702 keyword ability) — the row exists purely as the CR 701 census entry and the name authority for the `adaptAbility` factory. No new Op (primitive reuse, ADR 0045 § primitive reuse): decomposes into the ALREADY-exercised `if` structural construct\'s comparison predicate (`{ counters: { of: $source, type: "+1/+1" } } lt 1` — a literal `0` is not a legal EffectValue per CR 107.1\'s positive-int literal rule, so "fewer than one" stands in for "zero"; issue #1015\'s counters value grammar) gating the ALREADY-exercised `counters` Op (`action: "add"`, issue #841) — one execution path, zero card-shaped logic. Per-Op test regime applies (`.claude/rules/gre-development.md`): a card whose activated ability is built with `adaptAbility` needs no hand-written interpreter/wire test.',
     },
     // 701.47 Amass
     {
