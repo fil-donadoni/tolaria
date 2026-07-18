@@ -2012,6 +2012,17 @@ function rollbackPendingCast(state: GameState): void {
             }
         }
     }
+    // CR 702.126 — Improvise: undo every artifact tapped toward this cast's
+    // generic cost. Unlike land taps, these never touched the mana pool, so
+    // there's nothing to refund — just untap and drop the queued tap event.
+    // `manaCost` itself is discarded below with the whole pendingCast, so the
+    // generic reduction it carried needs no separate restoration.
+    for (const cardId of state.pendingCast.improviseTappedArtifactIds ?? []) {
+        discardPermanentTappedEvent(state, cardId);
+        const card = player.battlefield.find((c) => c.id === cardId);
+        if (!card) continue;
+        card.isTapped = false;
+    }
     state.pendingCast = undefined;
 }
 
@@ -5725,6 +5736,194 @@ export const untapForPayment = mutation({
         card.isTapped = false;
         discardPermanentTappedEvent(state, card.id);
         state.pendingCast.tappedLandIds.splice(idx, 1);
+
+        await saveGameState(
+            ctx,
+            args.gameId,
+            gameState.seq + 1,
+            state,
+            gameState
+        );
+    },
+});
+
+/** Resolves the `CardDefinition` of the card a `PendingCast` is casting —
+ *  shared lookup for the two Improvise mutations below (mirrors the inline
+ *  lookup `tryAutoCommitPendingCast` already does for the same purpose). */
+function castDefinitionForPendingCast(
+    state: GameState,
+    player: PlayerState,
+    pc: PendingCast
+): CardDefinition | undefined {
+    const castSource = locateCastSource(state, player, pc.cardInstanceId);
+    const castCard = castSource.card;
+    return castCard
+        ? (tryGetDefinition((castCard.card as { id: string }).id) ?? undefined)
+        : undefined;
+}
+
+/** Tap an untapped ARTIFACT `card` toward the generic portion of `pc`'s cost
+ *  (CR 702.126 — Improvise). Full validate+mutate, called by BOTH the
+ *  `tapArtifactForImprovise` mutation below and the integration tests
+ *  directly (mirrors `tapSourceIntoPayment`'s shape) — a test exercising this
+ *  function IS the mutation's real behavior, not a hand-mirrored replica.
+ *
+ *  Unlike a mana-source tap, this does NOT add to the mana pool — it directly
+ *  reduces `pc.manaCost.X` (the normalized generic cost, CR 702.126a "rather
+ *  than pay that mana"), the same field the `reductionGeneric` cost-modifier
+ *  clamp in `applyCostModifiers` reduces. `isManaCostCovered` /
+ *  `tryAutoCommitPendingCast` need no Improvise-specific branch as a result —
+ *  they just see a smaller generic requirement. */
+export function tapArtifactIntoImprovisePayment(
+    state: GameState,
+    player: PlayerState,
+    card: CardInstanceState,
+    pc: PendingCast
+): void {
+    // CR 702.126a — Improvise applies only to a spell that declares the
+    // keyword; the guard test (mechanicsRegistry.test.ts, Guard A) already
+    // ensures every shipped card naming it is backed by this binding.
+    const castDef = castDefinitionForPendingCast(state, player, pc);
+    if (!castDef?.staticAbilities?.includes("improvise")) {
+        throw new Error("This spell does not have improvise");
+    }
+
+    // CR 702.126a — "for each generic mana in this spell's total cost": an
+    // Improvise tap can only ever offset GENERIC mana, never a colored pip,
+    // so there must be generic cost left to redirect.
+    const remainingGeneric = pc.manaCost.X ?? 0;
+    if (remainingGeneric <= 0) {
+        throw new Error("No generic cost remains to pay with Improvise");
+    }
+
+    // CR 702.126b — only an untapped artifact the caster controls is a legal
+    // source; not necessarily a MANA-producing artifact (that distinction is
+    // what makes Improvise different from just tapping a mana rock — it's
+    // the artifact TYPE that qualifies it, not a mana ability). Summoning
+    // sickness (CR 302.6) doesn't gate this: tapping for Improvise isn't
+    // activating a {T} ability, the same principle Convoke (CR 702.51a)
+    // applies to creatures.
+    if (!card.types.includes("Artifact")) {
+        throw new Error("Improvise can only tap an artifact");
+    }
+    if (card.isTapped) throw new Error("Card already tapped");
+
+    card.isTapped = true;
+    emitPermanentTapped(state, card, false);
+    pc.improviseTappedArtifactIds = [
+        ...(pc.improviseTappedArtifactIds ?? []),
+        card.id,
+    ];
+    const reduced = remainingGeneric - 1;
+    if (reduced > 0) pc.manaCost.X = reduced;
+    else delete pc.manaCost.X;
+}
+
+/** Undo a tap `tapArtifactIntoImprovisePayment` made during THIS payment
+ *  (CR 702.126). Mirrors `untapForPayment`: restores the {1} of generic cost
+ *  the tap had covered and drops the queued tap event so no "becomes tapped"
+ *  trigger fires for a tap backed out of before committing. */
+export function untapArtifactFromImprovisePayment(
+    state: GameState,
+    card: CardInstanceState,
+    pc: PendingCast
+): void {
+    const idx = (pc.improviseTappedArtifactIds ?? []).indexOf(card.id);
+    if (idx === -1) {
+        throw new Error(
+            "This artifact was not tapped for Improvise during this cast"
+        );
+    }
+    card.isTapped = false;
+    discardPermanentTappedEvent(state, card.id);
+    pc.improviseTappedArtifactIds!.splice(idx, 1);
+    pc.manaCost.X = (pc.manaCost.X ?? 0) + 1;
+}
+
+/** Tap an untapped artifact to pay for {1} of the generic portion of the
+ *  spell currently being cast (CR 702.126 — Improvise). Thin ctx/db wrapper
+ *  around `tapArtifactIntoImprovisePayment` — see that function for the real
+ *  logic. Each tap is immediate and freely reversible
+ *  (`untapArtifactForImprovise`) until the cast commits or is
+ *  cancelled/abandoned (`rollbackPendingCast`), mirroring the land-tap
+ *  payment flow (`tapForPayment`/`untapForPayment`). */
+export const tapArtifactForImprovise = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+        cardInstanceId: v.string(),
+    },
+    handler: async (ctx, args) => {
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
+
+        const state = structuredClone(gameState.state) as GameState;
+        assertGameNotOver(state);
+        assertExpectedInput(state, {
+            playerId: args.playerId,
+            expect: "priority",
+        });
+
+        const pc = state.pendingCast;
+        if (!pc) throw new Error("No spell being cast");
+        if (pc.playerId !== args.playerId) {
+            throw new Error("Not your pending cast");
+        }
+
+        const player = getPlayer(state, args.playerId);
+        const card = player.battlefield.find(
+            (c) => c.id === args.cardInstanceId
+        );
+        if (!card) throw new Error("Card not on battlefield");
+
+        tapArtifactIntoImprovisePayment(state, player, card, pc);
+
+        // Check if cost is now covered → auto-commit
+        tryAutoCommitPendingCast(state, args.playerId);
+        await saveGameState(
+            ctx,
+            args.gameId,
+            gameState.seq + 1,
+            state,
+            gameState
+        );
+    },
+});
+
+/** Untap an artifact tapped for Improvise during this payment (undo). Thin
+ *  ctx/db wrapper around `untapArtifactFromImprovisePayment`. */
+export const untapArtifactForImprovise = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+        cardInstanceId: v.string(),
+    },
+    handler: async (ctx, args) => {
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
+
+        const state = structuredClone(gameState.state) as GameState;
+        assertGameNotOver(state);
+        assertExpectedInput(state, {
+            playerId: args.playerId,
+            expect: "priority",
+        });
+
+        const pc = state.pendingCast;
+        if (!pc) throw new Error("No spell being cast");
+        if (pc.playerId !== args.playerId) {
+            throw new Error("Not your pending cast");
+        }
+
+        const player = getPlayer(state, args.playerId);
+        const card = player.battlefield.find(
+            (c) => c.id === args.cardInstanceId
+        );
+        if (!card) {
+            throw new Error("Cannot undo: source left the battlefield");
+        }
+
+        untapArtifactFromImprovisePayment(state, card, pc);
 
         await saveGameState(
             ctx,

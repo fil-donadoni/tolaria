@@ -21,6 +21,8 @@ import {
     matchesTargetRequirement,
     matchesTargetController,
     isTapLockedBySummoningSickness,
+    hasManaAbility,
+    pendingCastHasImprovise,
 } from "~/lib/card-utils";
 import { isUntargetableByPending } from "~/lib/targeting";
 import { activeSacrificeSelection } from "~/lib/sacrifice-selection";
@@ -93,6 +95,15 @@ export function useBattlefieldInteraction(player: Player) {
     const tapUntap = useMutation(api.game.tapUntap);
     const tapForPayment = useMutation(api.game.tapForPayment);
     const untapForPayment = useMutation(api.game.untapForPayment);
+    // CR 702.126 — Improvise: tap/untap an untapped artifact toward the
+    // generic portion of a cast's cost, alongside (not instead of) the mana
+    // taps above.
+    const tapArtifactForImprovise = useMutation(
+        api.game.tapArtifactForImprovise
+    );
+    const untapArtifactForImprovise = useMutation(
+        api.game.untapArtifactForImprovise
+    );
     const tapForActivationPayment = useMutation(
         api.game.tapForActivationPayment
     );
@@ -169,6 +180,12 @@ export function useBattlefieldInteraction(player: Player) {
         combat.pendingAttackManaTax.playerId === playerId;
 
     const isInPayment = isPayingCast || isPayingActivation || isPayingAttackTax;
+
+    // CR 602.5b — same viewer-visible board snapshot `useBattlefieldVisualState`
+    // feeds `hasManaAbility` as `manaGateView`, reused here so the Improvise
+    // routing branch below (`handleClick`) agrees with the `canInteract` gate
+    // that decided the click was legal in the first place.
+    const manaGateView = buildTriggerStateView(allPlayers, activePlayerId);
 
     // A mana-choice picker opened to pay a cast/activation cost is anchored to
     // that payment. If the payment ends by another route — the player presses
@@ -463,6 +480,31 @@ export function useBattlefieldInteraction(player: Player) {
                     gameId,
                     playerId,
                     attackerId: card.id,
+                })
+            );
+            return;
+        }
+
+        // CR 702.126 — Improvise: a mana-ability-less artifact reaching this
+        // point (canInteract already gated it — useBattlefieldVisualState's
+        // matching branch) pays the cast's generic cost by tapping, not by
+        // adding mana. Routes to the dedicated pair instead of the mana-tap
+        // mutations below, which reject a card with no mana ability outright.
+        if (
+            isInPayment &&
+            isPayingCast &&
+            pendingCast &&
+            !hasManaAbility(card, manaGateView) &&
+            (card.types?.includes("Artifact") ?? false) &&
+            pendingCastHasImprovise(pendingCast, player)
+        ) {
+            guardMutation(
+                (card.isTapped
+                    ? untapArtifactForImprovise
+                    : tapArtifactForImprovise)({
+                    gameId,
+                    playerId,
+                    cardInstanceId: card.id,
                 })
             );
             return;

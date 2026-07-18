@@ -24,6 +24,9 @@ const tapForPayment = vi.fn<MutFn>(() => Promise.resolve());
 const untapForPayment = vi.fn<MutFn>(() => Promise.resolve());
 const tapForActivationPayment = vi.fn<MutFn>(() => Promise.resolve());
 const untapForActivationPayment = vi.fn<MutFn>(() => Promise.resolve());
+// CR 702.126 — Improvise (issue #1313).
+const tapArtifactForImprovise = vi.fn<MutFn>(() => Promise.resolve());
+const untapArtifactForImprovise = vi.fn<MutFn>(() => Promise.resolve());
 const noop = vi.fn<MutFn>(() => Promise.resolve());
 
 const MUTATIONS: Record<string, ReturnType<typeof vi.fn>> = {
@@ -32,6 +35,8 @@ const MUTATIONS: Record<string, ReturnType<typeof vi.fn>> = {
     untapForPayment,
     tapForActivationPayment,
     untapForActivationPayment,
+    tapArtifactForImprovise,
+    untapArtifactForImprovise,
 };
 
 vi.mock("convex/react", () => ({
@@ -48,6 +53,8 @@ vi.mock("@convex/_generated/api", () => {
         "untapForPayment",
         "tapForActivationPayment",
         "untapForActivationPayment",
+        "tapArtifactForImprovise",
+        "untapArtifactForImprovise",
         "tapForAttackTax",
         "untapForAttackTax",
         "toggleAttacker",
@@ -82,11 +89,27 @@ const CHOICE_DEF = {
         },
     ],
 };
+// CR 702.126 — a spell declaring Improvise, for the artifact-tap routing
+// test below (issue #1313).
+const IMPROVISE_SPELL_DEF = {
+    id: "improvise-spell-def",
+    name: "Test Improvise Spell",
+    staticAbilities: ["improvise"],
+    activatedAbilities: [],
+};
 vi.mock("@convex/cards", () => ({
     getDefinition: (id: string) =>
-        id === "choice-def" ? CHOICE_DEF : LAND_DEF,
+        id === "choice-def"
+            ? CHOICE_DEF
+            : id === "improvise-spell-def"
+              ? IMPROVISE_SPELL_DEF
+              : LAND_DEF,
     tryGetDefinition: (id: string) =>
-        id === "choice-def" ? CHOICE_DEF : LAND_DEF,
+        id === "choice-def"
+            ? CHOICE_DEF
+            : id === "improvise-spell-def"
+              ? IMPROVISE_SPELL_DEF
+              : LAND_DEF,
 }));
 
 // The buffer is only used by the choice path (not exercised here).
@@ -147,6 +170,32 @@ function manaChoiceSource(id: string): CardInstance {
         // A mana-choice artifact (Birds is a creature but summoning sickness
         // would block its tap; use a non-creature so the source is tappable).
         types: ["Artifact"],
+    } as CardInstance;
+}
+
+// CR 702.126 — a plain artifact with no mana ability of its own (LAND_DEF has
+// no activatedAbilities), the shape Improvise cares about tapping.
+function artifactNoMana(id: string): CardInstance {
+    return {
+        id,
+        card: { id: "land-def" },
+        controllerId: "me",
+        ownerId: "me",
+        zone: "battlefield",
+        isTapped: false,
+        types: ["Artifact"],
+    } as CardInstance;
+}
+
+function improviseSpellInHand(): CardInstance {
+    return {
+        id: "spell-1",
+        card: { id: "improvise-spell-def" },
+        controllerId: "me",
+        ownerId: "me",
+        zone: "hand",
+        isTapped: false,
+        types: ["Instant"],
     } as CardInstance;
 }
 
@@ -314,5 +363,105 @@ describe("board battlefield tap/pay parity with the classic board (#272)", () =>
         // includes the ErrorToast; the rejected mutation surfaces its inner
         // message as the toast title.
         expect(await findByText("It's not your turn")).toBeTruthy();
+    });
+});
+
+// CR 702.126 — Improvise (issue #1313). A mana-ability-less artifact tapped
+// during a cast whose spell declares Improvise routes to the dedicated
+// tapArtifactForImprovise/untapArtifactForImprovise mutations instead of the
+// mana-tap pair — this is the full reducer → click → mutation-dispatch path
+// (useBattlefieldVisualState's canInteract gate + useBattlefieldInteraction's
+// handleClick routing), exercised through the real BoardBattlefield component
+// rather than a hand-built view.
+describe("board battlefield Improvise artifact-tap routing (CR 702.126, issue #1313)", () => {
+    function payingContext(
+        pendingCastOverrides: Record<string, unknown> = {}
+    ): Partial<React.ContextType<typeof GameContext>> {
+        return {
+            pendingCast: {
+                playerId: "me",
+                cardInstanceId: "spell-1",
+                manaCost: { X: 2 },
+                tappedLandIds: [],
+                improviseTappedArtifactIds: [],
+                ...pendingCastOverrides,
+            } as never,
+        };
+    }
+
+    it("taps a mana-ability-less artifact via tapArtifactForImprovise, not tapForPayment", () => {
+        const me: Player = {
+            ...makePlayer([artifactNoMana("art1")]),
+            hand: [improviseSpellInHand()],
+        };
+
+        const { container } = renderSpatial(me, payingContext());
+        fireEvent.click(
+            container.querySelector('[data-arrow-anchor-permanent="art1"]')!
+        );
+
+        expect(tapArtifactForImprovise).toHaveBeenCalledTimes(1);
+        expect(tapArtifactForImprovise.mock.calls[0][0]).toMatchObject({
+            gameId: "game-id",
+            playerId: "me",
+            cardInstanceId: "art1",
+        });
+        expect(tapForPayment).not.toHaveBeenCalled();
+    });
+
+    it("untaps an Improvise-tapped artifact via untapArtifactForImprovise", () => {
+        const tapped = { ...artifactNoMana("art1"), isTapped: true };
+        const me: Player = {
+            ...makePlayer([tapped]),
+            hand: [improviseSpellInHand()],
+        };
+
+        const { container } = renderSpatial(
+            me,
+            payingContext({ improviseTappedArtifactIds: ["art1"] })
+        );
+        fireEvent.click(
+            container.querySelector('[data-arrow-anchor-permanent="art1"]')!
+        );
+
+        expect(untapArtifactForImprovise).toHaveBeenCalledTimes(1);
+        expect(untapArtifactForImprovise.mock.calls[0][0]).toMatchObject({
+            gameId: "game-id",
+            playerId: "me",
+            cardInstanceId: "art1",
+        });
+        expect(untapForPayment).not.toHaveBeenCalled();
+    });
+
+    it("does not route through Improvise once no generic cost remains", () => {
+        const me: Player = {
+            ...makePlayer([artifactNoMana("art1")]),
+            hand: [improviseSpellInHand()],
+        };
+
+        const { container } = renderSpatial(
+            me,
+            payingContext({ manaCost: {} })
+        );
+        fireEvent.click(
+            container.querySelector('[data-arrow-anchor-permanent="art1"]')!
+        );
+
+        expect(tapArtifactForImprovise).not.toHaveBeenCalled();
+    });
+
+    it("an ordinary mana source during the SAME Improvise cast still routes to tapForPayment", () => {
+        const me: Player = {
+            ...makePlayer([land("forest1")]),
+            hand: [improviseSpellInHand()],
+        };
+
+        const { container } = renderSpatial(me, payingContext());
+        fireEvent.click(
+            container.querySelector('[data-arrow-anchor-permanent="forest1"]')!
+        );
+
+        expect(tapForPayment).toHaveBeenCalledTimes(1);
+        expect(tapArtifactForImprovise).not.toHaveBeenCalled();
     });
 });

@@ -14,7 +14,10 @@ import { describe, it, expect } from "vitest";
 import { isAdminUser } from "../auth";
 import { tryGetCardByName } from "../cards";
 import type { Doc } from "../_generated/dataModel";
-import { MIGRATED_PRESET_SCENARIOS } from "../debugScenarios";
+import {
+    MIGRATED_PRESET_SCENARIOS,
+    NEW_CUBE_SCENARIOS,
+} from "../debugScenarios";
 import {
     collectUnresolvedCardNames,
     normalizeScenarioSpec,
@@ -369,5 +372,51 @@ describe("MIGRATED_PRESET_SCENARIOS — PRESET_SCENARIOS → DB migration (issue
         ]);
         expect(spec.phase).toBe("PRECOMBAT_MAIN");
         expect(spec.landCount).toBe(4);
+    });
+});
+
+describe("NEW_CUBE_SCENARIOS — post-#770 scenario batch (seedNewCubeScenarios)", () => {
+    it("is non-empty and every label is unique (the idempotency key `seedNewCubeScenarios` skips on)", () => {
+        expect(NEW_CUBE_SCENARIOS.length).toBeGreaterThan(0);
+        const labels = NEW_CUBE_SCENARIOS.map((s) => s.label);
+        expect(new Set(labels).size).toBe(labels.length);
+    });
+
+    it("every spec loads with only resolvable card names (would not corrupt a board)", () => {
+        for (const preset of NEW_CUBE_SCENARIOS) {
+            expect(collectUnresolvedCardNames(preset.spec, resolves)).toEqual(
+                []
+            );
+        }
+    });
+
+    it("every spec round-trips through the tolerant load unchanged (matches the debugScenarios row shape)", () => {
+        for (const preset of NEW_CUBE_SCENARIOS) {
+            expect(normalizeScenarioSpec(preset.spec)).toEqual(preset.spec);
+        }
+    });
+
+    // CR 702.126 — Improvise (issue #1313). Metallic Rebuke + 2 untapped
+    // Millstones so the debug panel can exercise tapArtifactForImprovise
+    // end to end: cast Metallic Rebuke, tap the Millstones for the {2}
+    // generic, an Island for the {U}, counter the opponent's Grizzly Bears.
+    it("carries the Improvise scenario (CR 702.126, issue #1313)", () => {
+        const improvise = NEW_CUBE_SCENARIOS.find((s) =>
+            s.label.startsWith("Improvise")
+        );
+        expect(improvise).toBeDefined();
+        const spec = improvise!.spec;
+        expect(spec.cards).toEqual([
+            { name: "Metallic Rebuke", owner: "me", zone: "hand" },
+            {
+                name: "Millstone",
+                owner: "me",
+                zone: "battlefield",
+                count: 2,
+            },
+            { name: "Grizzly Bears", owner: "opp", zone: "hand" },
+        ]);
+        expect(spec.phase).toBe("PRECOMBAT_MAIN");
+        expect(spec.landCount).toBe(2);
     });
 });

@@ -626,6 +626,31 @@ const NEW_CUBE_SCENARIOS: { label: string; spec: ScenarioSpec }[] = [
             landCount: 3,
         },
     },
+    {
+        // Improvise (CR 702.126, issue #1313). Metallic Rebuke ({2}{U}
+        // Instant, "Improvise. Counter target spell unless its controller
+        // pays {3}.") is the first card shipping the keyword now that
+        // mechanicsRegistry.ts flips it to `status: "implemented"`. Golden
+        // path: opp casts Grizzly Bears; me responds by casting Metallic
+        // Rebuke, tapping the two untapped Millstones to pay the {2} generic
+        // (game.ts tapArtifactForImprovise) and an Island for the {U},
+        // countering the Bears unless opp pays {3}.
+        label: "Improvise — Metallic Rebuke taps 2 Millstones to pay {2} of its cost",
+        spec: {
+            cards: [
+                { name: "Metallic Rebuke", owner: "me", zone: "hand" },
+                {
+                    name: "Millstone",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 2,
+                },
+                { name: "Grizzly Bears", owner: "opp", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            landCount: 2,
+        },
+    },
 ];
 
 /**

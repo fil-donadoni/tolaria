@@ -5634,6 +5634,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Metallic Rebuke",
+        "scryfallId": "f712ac26-dca4-459b-84c1-010597007f60",
+        "oracleId": "c4920e95-a6fc-4373-a0d6-244f51851364",
+        "firstSet": "aer"
+    },
+    {
         "name": "Metamorphosis",
         "scryfallId": "fbc6cfc3-b232-40bf-bc0c-4618f6f5c9a5",
         "oracleId": "7140d726-0136-43af-84b5-85005a66a186",

@@ -18,6 +18,8 @@ import {
     getActivatedManaColor,
     getManaChoices,
     buildTriggerStateView,
+    pendingCastHasImprovise,
+    pendingCastRemainingGeneric,
 } from "~/lib/card-utils";
 import { isUntargetableByPending } from "~/lib/targeting";
 import {
@@ -373,6 +375,31 @@ export function useBattlefieldVisualState(player: Player) {
 
         if (isBlockerTarget && card.isAttacking) return true;
 
+        // CR 702.126 — Improvise: while paying for a spell that declares the
+        // keyword, an untapped ARTIFACT the caster controls is a legal
+        // alternate payment source for its generic cost even though it has no
+        // mana ability of its own (that's the whole point — it isn't tapped
+        // FOR mana). Checked before the mana-ability gate below, which would
+        // otherwise reject exactly this card. An artifact that ALSO has a
+        // mana ability keeps the existing tap-for-mana click as the default
+        // (mechanicsRegistry.ts's "improvise" binding note records the scope
+        // call) — this branch only ever admits a mana-ability-less artifact.
+        if (
+            isMe &&
+            isPayingCast &&
+            pendingCast &&
+            !hasManaAbility(card, manaGateView) &&
+            (card.types?.includes("Artifact") ?? false) &&
+            pendingCastHasImprovise(pendingCast, player)
+        ) {
+            const tappedForImprovise =
+                pendingCast.improviseTappedArtifactIds?.includes(card.id) ??
+                false;
+            return card.isTapped
+                ? tappedForImprovise
+                : pendingCastRemainingGeneric(pendingCast) > 0;
+        }
+
         if (!isMe || !hasManaAbility(card, manaGateView)) return false;
         // CR 302.1 — creatures with summoning sickness can't pay {T}, so
         // their mana ability isn't activatable. Untapping (refunding floating
@@ -434,12 +461,23 @@ export function useBattlefieldVisualState(player: Player) {
 
         const isAttackTargetPw = isAttackTargetBoard && isPlaneswalker(card);
 
+        // CR 702.126 — mirrors the `canInteract` Improvise branch above so a
+        // mana-ability-less artifact reads as interactive during an Improvise
+        // cast's payment, the same way a mana source does.
+        const isImproviseArtifact =
+            isPayingCast &&
+            !!pendingCast &&
+            !manaSource &&
+            (card.types?.includes("Artifact") ?? false) &&
+            pendingCastHasImprovise(pendingCast, player);
+
         const interactive = isSelectingChoice
             ? isValidChoice
             : isSelectingTarget
               ? !!isValidTarget
               : (isMe &&
                     (manaSource ||
+                        isImproviseArtifact ||
                         (isSelectingAttackers && creature) ||
                         (isSelectingBlockers && creature))) ||
                 (isBlockerTarget && !!card.isAttacking) ||

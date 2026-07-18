@@ -33,9 +33,13 @@ import {
     normalizeMayPayCost,
     manaCostToString,
     phyrexianSplitChoices,
+    hasImprovise,
+    pendingCastSourceCard,
+    pendingCastHasImprovise,
+    pendingCastRemainingGeneric,
     type DisplayAbilities,
 } from "../card-utils";
-import type { CardInstance } from "~/types/game";
+import type { CardInstance, PendingCast, Player } from "~/types/game";
 import type { CardDefinition } from "@convex/cards/types";
 import { getDefinition } from "@convex/cards";
 import { CLUE_TOKEN_SPEC } from "@convex/cards/abilities/tokens/clueToken";
@@ -46,6 +50,8 @@ import { fellwarStone, deepWater, gaeasTouch } from "@convex/cards/sets/drk";
 import { powerArmor } from "@convex/cards/sets/inv";
 import { dauthiVoidwalker } from "@convex/cards/sets/mh2/black";
 import { viviOrnitier } from "@convex/cards/sets/fin";
+import { metallicRebuke } from "@convex/cards/sets/aer/blue";
+import { millstone } from "@convex/cards/sets/atq/colorless";
 import {
     redManaBattery,
     greatWall,
@@ -1315,7 +1321,12 @@ describe("matchesStackObjectFilter (Brown Ouphe / Mistfolk — CR 113/114.1)", (
             matchesStackObjectFilter(artifactSpell, "any", undefined, undefined)
         ).toBe(true);
         expect(
-            matchesStackObjectFilter(creatureAbility, "any", undefined, undefined)
+            matchesStackObjectFilter(
+                creatureAbility,
+                "any",
+                undefined,
+                undefined
+            )
         ).toBe(true);
         expect(
             matchesStackObjectFilter(
@@ -2644,5 +2655,116 @@ describe("getHandStackAbilities (CR 113.6 / 702.29a — Cycling, #689)", () => {
         expect(
             getHandStackAbilities(triome, "PRECOMBAT_MAIN", lockedView)
         ).toHaveLength(0);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// CR 702.126 — Improvise (issue #1313)
+// ---------------------------------------------------------------------------
+
+function makeImprovisePlayer(overrides: Partial<Player> = {}): Player {
+    return {
+        id: "p1",
+        name: "P1",
+        bgColor: "#000",
+        life: 20,
+        hand: [],
+        library: [],
+        graveyard: [],
+        exile: [],
+        battlefield: [],
+        manaPool: {},
+        ...overrides,
+    };
+}
+
+describe("hasImprovise", () => {
+    it("is true for Metallic Rebuke (declares the keyword)", () => {
+        const card = makeCardInstance({
+            card: { id: metallicRebuke.id },
+            types: ["Instant"],
+        });
+        expect(hasImprovise(card)).toBe(true);
+    });
+
+    it("is false for a card without the keyword", () => {
+        const card = makeCardInstance({
+            card: { id: MERFOLK_ID },
+            types: ["Creature"],
+        });
+        expect(hasImprovise(card)).toBe(false);
+    });
+});
+
+describe("pendingCastSourceCard / pendingCastHasImprovise / pendingCastRemainingGeneric", () => {
+    const pendingCast: PendingCast = {
+        playerId: "p1",
+        cardInstanceId: "spell-1",
+        manaCost: { U: 1, X: 2 },
+        tappedLandIds: [],
+    };
+
+    it("finds the cast source in the caster's own hand", () => {
+        const spell = makeCardInstance({
+            id: "spell-1",
+            card: { id: metallicRebuke.id },
+            types: ["Instant"],
+            zone: "hand",
+        });
+        const me = makeImprovisePlayer({ hand: [spell] });
+        expect(pendingCastSourceCard(pendingCast, me)).toBe(spell);
+        expect(pendingCastHasImprovise(pendingCast, me)).toBe(true);
+    });
+
+    it("falls back to exile, then graveyard, when not in hand (Ice Cauldron / Flashback casts)", () => {
+        const spell = makeCardInstance({
+            id: "spell-1",
+            card: { id: metallicRebuke.id },
+            types: ["Instant"],
+            zone: "exile",
+        });
+        const meExile = makeImprovisePlayer({ exile: [spell] });
+        expect(pendingCastSourceCard(pendingCast, meExile)).toBe(spell);
+
+        const meGraveyard = makeImprovisePlayer({
+            graveyard: [{ ...spell, zone: "graveyard" }],
+        });
+        expect(pendingCastSourceCard(pendingCast, meGraveyard)).toBeDefined();
+    });
+
+    it("returns false/undefined when the caster has no such card in any zone", () => {
+        const me = makeImprovisePlayer();
+        expect(pendingCastSourceCard(pendingCast, me)).toBeUndefined();
+        expect(pendingCastHasImprovise(pendingCast, me)).toBe(false);
+        expect(pendingCastHasImprovise(pendingCast, undefined)).toBe(false);
+    });
+
+    it("is false for a spell that does not declare improvise", () => {
+        const spell = makeCardInstance({
+            id: "spell-1",
+            card: { id: MERFOLK_ID },
+            types: ["Creature"],
+            zone: "hand",
+        });
+        const me = makeImprovisePlayer({ hand: [spell] });
+        expect(pendingCastHasImprovise(pendingCast, me)).toBe(false);
+    });
+
+    it("reads the remaining generic cost straight off manaCost.X", () => {
+        expect(pendingCastRemainingGeneric(pendingCast)).toBe(2);
+        expect(
+            pendingCastRemainingGeneric({ ...pendingCast, manaCost: { U: 1 } })
+        ).toBe(0);
+    });
+});
+
+describe("Millstone fixture sanity (Improvise payment tests use it as a plain artifact)", () => {
+    it("is an Artifact with no mana ability", () => {
+        const card = makeCardInstance({
+            card: { id: millstone.id },
+            types: ["Artifact"],
+        });
+        expect(hasManaAbility(card)).toBe(false);
+        expect(card.types?.includes("Artifact")).toBe(true);
     });
 });
