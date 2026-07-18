@@ -14461,3 +14461,201 @@ describe("Effect Script choice kind: choose-exile-card + Op: grantCastFromExile 
         ).toBeUndefined();
     });
 });
+
+describe("Effect Script choice kind: choose-hand-card + Op: grantCastFromGraveyard (CR 601.3e / 117.6-analog, issue #1344)", () => {
+    it("discards the chosen hand card, then grants graveyard cast permission + the free-cast waiver (Malcolm shape, same-player, 'this-turn' window)", () => {
+        const handCard = makeInstance(BEAR_ID, {
+            id: "hand1",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const id = registerScript("test-op-grant-cast-from-graveyard", [
+            {
+                op: "choice",
+                kind: "choose-hand-card",
+                player: "controller",
+                zone: "hand",
+                count: 1,
+                prompt: "Discard a card.",
+                bind: "$picked",
+            },
+            {
+                op: "discard",
+                player: "controller",
+                cards: { ref: "$picked" },
+            },
+            {
+                op: "grantCastFromGraveyard",
+                card: { ref: "$picked" },
+                player: "controller",
+                window: "this-turn",
+                withoutPayingManaCost: true,
+            },
+        ]);
+        const state = makeState({
+            players: [makePlayer("p1", { hand: [handCard] }), makePlayer("p2")],
+        });
+        pushSpell(state, id, "p1");
+        expect(resolveTopOfStack(state)).toBeNull(); // suspended on the choice
+
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("choose-hand-card");
+        expect(head.zone).toBe("hand");
+        expect(head.playerId).toBe("p1");
+
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["hand1"],
+        });
+        expect(state.stack).toHaveLength(0);
+        expect(state.pendingChoices).toBeUndefined();
+
+        // The discarded card landed in the OWN graveyard (CR 701.9) and
+        // carries the per-card grant.
+        expect(state.players[0].hand).toHaveLength(0);
+        const granted = state.players[0].graveyard.find(
+            (c) => c.id === "hand1"
+        )!;
+        expect(granted).toBeDefined();
+        expect(granted.castableFromGraveyardBy).toBe("p1");
+        expect(granted.castableFromGraveyardUntilTurn).toBe(state.turn);
+        expect(granted.castFromGraveyardWithoutPayingManaCost).toBe(true);
+
+        // Wire format: the caster's own projected graveyard card carries the
+        // grant's `legalActions` + `castKind`; the opponent's view of the
+        // SAME card carries neither (the grant is the caster's alone —
+        // there IS no opponent's graveyard copy since this is same-player,
+        // but the projection is per-viewer regardless).
+        const projected = projectPublicState(state, 1, "p1");
+        const projGranted = projected.players[0].graveyard.find(
+            (c) => c.id === "hand1"
+        )!;
+        expect(projGranted.legalActions).toContain("cast");
+        expect(projGranted.castKind).toBe("graveyard-grant");
+    });
+
+    it("degrades to a full no-op when the chooser's hand is empty (CR 608.2b) — the choice never suspends and the grant binding stays uncaptured", () => {
+        const id = registerScript("test-op-grant-cast-from-graveyard-empty", [
+            {
+                op: "choice",
+                kind: "choose-hand-card",
+                player: "controller",
+                zone: "hand",
+                count: 1,
+                prompt: "Discard a card.",
+                bind: "$picked",
+            },
+            {
+                op: "discard",
+                player: "controller",
+                cards: { ref: "$picked" },
+            },
+            {
+                op: "grantCastFromGraveyard",
+                card: { ref: "$picked" },
+                player: "controller",
+                withoutPayingManaCost: true,
+            },
+        ]);
+        const state = makeState({
+            players: [makePlayer("p1", { hand: [] }), makePlayer("p2")],
+        });
+        pushSpell(state, id, "p1");
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+        // No suspension — a 0-candidate fixed-count choice clamps to a no-op
+        // (CR 608.2b) rather than raising an unanswerable PendingChoice.
+        expect(state.pendingChoices).toBeUndefined();
+        expect(state.stack).toHaveLength(0);
+        // The resolved sorcery itself lands in the graveyard (CR 608.2m) —
+        // no OTHER card (there was nothing to discard) carries a grant.
+        expect(state.players[0].graveyard).toHaveLength(1);
+        expect(
+            state.players[0].graveyard.every(
+                (c) => c.castableFromGraveyardBy === undefined
+            )
+        ).toBe(true);
+    });
+
+    it("is a no-op when the grantee player cannot be resolved (CR 608.2b)", () => {
+        const gyCard = makeInstance(BEAR_ID, {
+            id: "gy1",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const id = registerScript(
+            "test-op-grant-cast-from-graveyard-no-player",
+            [
+                {
+                    op: "grantCastFromGraveyard",
+                    card: { ref: "$nope" },
+                    player: "opponent",
+                },
+            ]
+        );
+        // A SINGLE-player state — "opponent" (CR 102.2's "the one player who
+        // isn't the controller") has no candidate to resolve to.
+        const state = makeState({
+            players: [makePlayer("p1", { graveyard: [gyCard] })],
+        });
+        pushSpell(state, id, "p1");
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+        expect(
+            state.players[0].graveyard.find((c) => c.id === "gy1")!
+                .castableFromGraveyardBy
+        ).toBeUndefined();
+    });
+
+    it("defaults to an OPEN-ENDED grant ('while-in-graveyard') when `window` is omitted — no expiry marker stamped", () => {
+        const gyCard = makeInstance(BEAR_ID, {
+            id: "gy2",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const id = registerScript(
+            "test-op-grant-cast-from-graveyard-open-ended",
+            [
+                {
+                    op: "choice",
+                    kind: "choose-graveyard-card",
+                    player: "controller",
+                    zone: "graveyard",
+                    count: 1,
+                    prompt: "Choose a graveyard card.",
+                    bind: "$picked",
+                },
+                {
+                    op: "grantCastFromGraveyard",
+                    card: { ref: "$picked" },
+                    player: "controller",
+                },
+            ]
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", { graveyard: [gyCard] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        expect(resolveTopOfStack(state)).toBeNull(); // suspended on the choice
+
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["gy2"],
+        });
+        const granted = state.players[0].graveyard.find((c) => c.id === "gy2")!;
+        expect(granted.castableFromGraveyardBy).toBe("p1");
+        expect(granted.castableFromGraveyardUntilTurn).toBeUndefined();
+        expect(granted.castFromGraveyardWithoutPayingManaCost).toBeUndefined();
+    });
+});

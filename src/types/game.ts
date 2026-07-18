@@ -181,11 +181,18 @@ export interface CardInstance {
      *  Each entry adds to effective P/T at read time. */
     temporaryPTMods?: ReadonlyArray<{ power: number; toughness: number }>;
     legalActions?: CardAction[];
-    /** CR 702.34 / 702.138 / 305.1-analog — which graveyard-cast keyword
-     *  surfaced this card's cast affordance, so the graveyard button labels
-     *  "Flashback" / "Escape" / "Cast". Present only on the viewer's own
-     *  graveyard cards alongside `legalActions`. */
-    castKind?: "flashback" | "escape" | "graveyard-permission";
+    /** CR 702.34 / 702.138 / 305.1-analog / 117.6-analog — which
+     *  graveyard-cast mechanism surfaced this card's cast affordance, so the
+     *  graveyard button labels "Flashback" / "Escape" / "Cast". Present only
+     *  on the viewer's own graveyard cards alongside `legalActions`.
+     *  `"graveyard-grant"` (issue #1344) is a SPECIFIC-CARD grant (Malcolm,
+     *  Alluring Scoundrel), distinct from the BROAD `"graveyard-permission"`
+     *  (Yawgmoth's Will) — both currently render the same "Cast" label. */
+    castKind?:
+        | "flashback"
+        | "escape"
+        | "graveyard-permission"
+        | "graveyard-grant";
     /** ADR 0026 — derived eye-icon flag on the viewer's OWN hand cards: true
      *  when at least one opponent currently knows this card's identity. Only
      *  present on own-hand projected cards; raw `knownTo` never reaches the

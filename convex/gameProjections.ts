@@ -66,21 +66,27 @@ export type SlimExileCard = SlimCardInstance & {
 /** Graveyard card in projected state: slim, plus `legalActions` when the viewer
  *  may cast it from the graveyard via Flashback (CR 702.34), escape (CR
  *  702.138), the BROAD turn-scoped graveyard-cast permission (CR 305.1-analog
- *  / 601, Yawgmoth's Will, issue #1149), or play it as a LAND under an
- *  unconditional play-lands-from-graveyard permission (CR 305.1-analog,
- *  Icetill Explorer #1190, or the same BROAD #1149 permission when its zones
- *  cover "land"). Present only on the viewer's own graveyard cards; drives the
- *  Flashback / Escape / Cast / Play affordance's enabled state, exactly like
- *  {@link SlimExileCard.legalActions} for an exile cast. */
+ *  / 601, Yawgmoth's Will, issue #1149), a SPECIFIC-CARD graveyard-cast grant
+ *  (CR 601.3e / 117.6-analog, Malcolm, Alluring Scoundrel, issue #1344), or
+ *  play it as a LAND under an unconditional play-lands-from-graveyard
+ *  permission (CR 305.1-analog, Icetill Explorer #1190, or the same BROAD
+ *  #1149 permission when its zones cover "land"). Present only on the
+ *  viewer's own graveyard cards; drives the Flashback / Escape / Cast / Play
+ *  affordance's enabled state, exactly like {@link SlimExileCard.legalActions}
+ *  for an exile cast. */
 export type SlimGraveyardCard = SlimCardInstance & {
     legalActions?: CardAction[];
-    /** CR 702.34 / 702.138 / 305.1-analog — which graveyard-cast keyword
-     *  surfaced this card's affordance, so the UI labels the button
-     *  "Flashback" / "Escape" / "Cast". Present only alongside `legalActions`
-     *  for a CAST affordance — a land tagged under a play-from-graveyard
-     *  permission carries `legalActions` with NO `castKind` (it's a "play",
-     *  not a keyword cast). */
-    castKind?: "flashback" | "escape" | "graveyard-permission";
+    /** CR 702.34 / 702.138 / 305.1-analog / 117.6-analog — which
+     *  graveyard-cast mechanism surfaced this card's affordance, so the UI
+     *  labels the button "Flashback" / "Escape" / "Cast". Present only
+     *  alongside `legalActions` for a CAST affordance — a land tagged under
+     *  a play-from-graveyard permission carries `legalActions` with NO
+     *  `castKind` (it's a "play", not a keyword cast). */
+    castKind?:
+        | "flashback"
+        | "escape"
+        | "graveyard-permission"
+        | "graveyard-grant";
 };
 
 /** ADR 0026 / PRD #338 — one viewer-known library card, projected sparsely.
@@ -423,6 +429,20 @@ function projectGraveyardCard(
             ...slim,
             legalActions: legalActionsFor(),
             castKind: "graveyard-permission",
+        };
+    }
+    // CR 601.3e / 117.6-analog (issue #1344) — a NON-LAND card sitting in the
+    // viewer's own graveyard tagged with a per-card cast grant (Malcolm,
+    // Alluring Scoundrel — `castableFromGraveyardBy`), reached only when the
+    // card has neither Flashback, Escape, nor the broad permission above
+    // (those branches return first). Distinct `castKind` from
+    // `"graveyard-permission"` so the client could label it differently
+    // later, though both currently render the same "Cast" affordance.
+    if (isOwnGraveyard && card.castableFromGraveyardBy === player.id) {
+        return {
+            ...slim,
+            legalActions: legalActionsFor(),
+            castKind: "graveyard-grant",
         };
     }
     // CR 305.1-analog — a LAND sitting in the viewer's own graveyard while

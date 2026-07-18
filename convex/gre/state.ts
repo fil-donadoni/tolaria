@@ -827,6 +827,44 @@ export type CardInstanceState = {
      *  (`phases.ts`), and `applyPlayLandFromExile`. Persisted so the grant
      *  survives a DB round-trip. */
     castFromExileWithoutPayingManaCost?: boolean;
+    /** Cast-from-graveyard permission for a SPECIFIC card (CR 601.3e /
+     *  117.6-analog, issue #1344 — Malcolm, Alluring Scoundrel: "you may cast
+     *  the discarded card without paying its mana cost"). The graveyard-zone
+     *  twin of {@link castableFromExileBy}. Distinct from the BROAD,
+     *  player-wide `grantGraveyardPlay` permission
+     *  (`state.graveyardPlayPermissionThisTurn`, `canCastFromGraveyardByPermission`)
+     *  — this is a PER-CARD grant. Always scoped to the grantee's OWN
+     *  graveyard: no cross-player shape exists for a graveyard cast (CR
+     *  305.1-analog / 601 — every graveyard-cast mechanism in this engine is
+     *  same-player, `castZoneOwner`'s doc in `convex/game.ts`). When set on a
+     *  card in the graveyard, the named player may CAST it from there as if
+     *  it were in their hand (never PLAY — a land discarded this way carries
+     *  no affordance, CR ruling: "You may not play land cards discarded with
+     *  Malcolm's last ability"). Cleared when the card leaves the graveyard.
+     *  Persisted so the permission survives a DB round-trip. */
+    castableFromGraveyardBy?: string;
+    /** Turn-scoped expiry marker for {@link castableFromGraveyardBy} (CR
+     *  514.2 / 608.2g), mirroring {@link castableFromExileUntilTurn}'s
+     *  exile-zone twin. Set when the grant is an impulse "this turn" window
+     *  (Malcolm, Alluring Scoundrel — see the card's own doc comment,
+     *  `convex/cards/sets/lci/blue.ts`, for the documented simplification
+     *  vs. the stricter Oracle ruling) and revoked at the CLEANUP step of a
+     *  turn whose number is `>=` this value, while the card stays in the
+     *  graveyard. ABSENT means an open-ended grant (parity with the exile
+     *  primitive's "while-exiled" default; no shipped card needs this shape
+     *  yet). */
+    castableFromGraveyardUntilTurn?: number;
+    /** CR 601.3e / 117.6-analog (issue #1344) — a cost waiver riding {@link
+     *  castableFromGraveyardBy}: when both are set, the named player may
+     *  cast this card WITHOUT PAYING ITS MANA COST (Malcolm's "without
+     *  paying its mana cost"). Mirrors {@link castFromExileWithoutPayingManaCost}
+     *  exactly. Consulted at the ONE place a cast's mana cost is computed
+     *  (`castRawManaCost`, `convex/game.ts`) and by `getLegalActions`'s
+     *  graveyard-grant affordability branch (`gre/rules.ts`). Cleared
+     *  wherever `castableFromGraveyardBy` is cleared — `removeFromZone`, and
+     *  the CLEANUP turn-scoped expiry loop (`phases.ts`). Persisted so the
+     *  grant survives a DB round-trip. */
+    castFromGraveyardWithoutPayingManaCost?: boolean;
     /** CR 111 / 400.7 provenance link (issue #791) — the battlefield permanent
      *  instance id that exiled this card "with it", set when a card is exiled
      *  by a specific source that later refers back to "the cards exiled with
@@ -9288,6 +9326,59 @@ export function buildSpellContext(
                 delete card.castFromExileWithoutPayingManaCost;
             }
         },
+        grantCastFromGraveyard(
+            cardInstanceId: string,
+            playerId: string,
+            window: "this-turn" | "while-in-graveyard" = "while-in-graveyard",
+            opts?: {
+                /** CR 601.3e / 117.6-analog (issue #1344) — also waive the
+                 *  card's mana cost entirely (Malcolm, Alluring Scoundrel:
+                 *  "you may cast the discarded card without paying its mana
+                 *  cost"), stamping {@link
+                 *  CardInstanceState.castFromGraveyardWithoutPayingManaCost}
+                 *  alongside `castableFromGraveyardBy`. */
+                withoutPayingManaCost?: boolean;
+            }
+        ): void {
+            // CR 601.3e / 117.6-analog (issue #1344) — mark a card in
+            // `playerId`'s OWN graveyard as castable from there by
+            // `playerId`. Always SAME-PLAYER — no `zoneOwnerId` parameter,
+            // unlike `grantCastFromExile`: no cross-player graveyard-cast
+            // primitive exists in this engine (`castZoneOwner`'s doc,
+            // `convex/game.ts`). No-op for an id not in that player's
+            // graveyard.
+            //
+            // CR 116.2a — a LAND is PLAYED, never CAST; a "cast" permission is
+            // inherently meaningless for one (also the explicit Malcolm
+            // ruling: "You may not play land cards discarded with Malcolm,
+            // Alluring Scoundrel's last ability"). No-op for a land — general
+            // to the primitive, not special-cased per card, mirroring how the
+            // exile primitive's land-play companion (`applyPlayLandFromExile`)
+            // is a SEPARATE mechanism this Op deliberately doesn't grow.
+            //
+            // CR 514.2 / 608.2g — `window` picks the expiry semantics, same
+            // shape as the exile primitive:
+            //   - "while-in-graveyard" (default): open-ended, persists as
+            //     long as the card stays in the graveyard.
+            //   - "this-turn": an impulse window (Malcolm — see the card's
+            //     own doc comment for the documented divergence from the
+            //     stricter Oracle ruling). Stamps the current turn number so
+            //     the CLEANUP step revokes it at end of turn.
+            const owner = getPlayer(state, playerId);
+            const card = owner.graveyard.find((c) => c.id === cardInstanceId);
+            if (!card || card.types.includes("Land")) return;
+            card.castableFromGraveyardBy = playerId;
+            if (window === "this-turn") {
+                card.castableFromGraveyardUntilTurn = state.turn;
+            } else {
+                delete card.castableFromGraveyardUntilTurn;
+            }
+            if (opts?.withoutPayingManaCost) {
+                card.castFromGraveyardWithoutPayingManaCost = true;
+            } else {
+                delete card.castFromGraveyardWithoutPayingManaCost;
+            }
+        },
         getX(): number {
             return item.chosenX ?? 0;
         },
@@ -12761,6 +12852,13 @@ export function removeFromZone(
     // CR 601.3e (issue #1156) — the free-cast waiver (Dauthi Voidwalker) rides
     // the SAME permission window as `castableFromExileBy`; consumed together.
     delete card.castFromExileWithoutPayingManaCost;
+    // CR 601.3e / 117.6-analog (issue #1344) — the per-card cast-from-
+    // graveyard grant (Malcolm, Alluring Scoundrel) is consumed once the card
+    // leaves the graveyard for the stack; clear the stale flags and expiry
+    // marker, mirroring the exile grant's cleanup above.
+    delete card.castableFromGraveyardBy;
+    delete card.castableFromGraveyardUntilTurn;
+    delete card.castFromGraveyardWithoutPayingManaCost;
     // CR 111 (issue #791) — the per-source exile provenance link is only
     // meaningful while the card sits in exile; drop it once the card leaves so a
     // later re-exile never re-reads a stale source.
