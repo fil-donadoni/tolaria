@@ -38,8 +38,8 @@ const WORLDSPINE_WURM_ID = "543d55cb-3a6b-4620-af25-10ae74ed32c4";
 //    every card CURRENTLY SITTING in a graveyard against every event in the
 //    batch (Nether Shadow's precedent), which is exactly the right shape
 //    for a "from anywhere" self-trigger: ONE ability entry listening on all
-//    three zone-change events the engine emits (`event: "CREATURE_DIED"` +
-//    `events: ["CARD_DISCARDED", "CARD_MILLED"]`, the multi-event field —
+//    three zone-change events the engine emits (`event: ["CREATURE_DIED",
+//    "CARD_DISCARDED", "CARD_MILLED"]`, the array-`event` multi-event form —
 //    CR 603.2), `zone: "graveyard"` + matched on the specific instance id
 //    per firing event. One Oracle line, shown once on the stack / inspector
 //    instead of three near-duplicates. This covers battlefield, hand, and
@@ -103,10 +103,9 @@ function worldspineWurmShuffleFromGraveyard(): TriggeredAbility {
             "When Worldspine Wurm is put into a graveyard from anywhere, shuffle it into its owner's library.",
         // "From anywhere" = one Oracle line spanning three engine events
         // (battlefield death / discard / mill). ONE ability listening on all
-        // three (`event` + `events[]`), so the line is shown once — not three
+        // three via an array `event`, so the line is shown once — not three
         // near-duplicate entries (CR 603.2).
-        event: "CREATURE_DIED",
-        events: ["CARD_DISCARDED", "CARD_MILLED"],
+        event: ["CREATURE_DIED", "CARD_DISCARDED", "CARD_MILLED"],
         // CR 603.6e — functions from the graveyard: scanned by
         // `collectTriggers`'s graveyard pass (every card currently sitting in
         // a graveyard, matched against every event in the batch), which is

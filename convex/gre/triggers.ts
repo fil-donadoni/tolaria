@@ -162,15 +162,17 @@ function buildEmblemTriggerItem(
     };
 }
 
-/** True if `type` is one of the event kinds `ability` fires on — its primary
- *  `event` or any member of its optional `events[]` (a single Oracle line
- *  spanning several engine events, e.g. "put into a graveyard from anywhere").
- *  CR 603.2. */
+/** True if `type` is one of the event kinds `ability` fires on — a scalar
+ *  `event` compared directly, an array `event` (a single Oracle line spanning
+ *  several engine events, e.g. "put into a graveyard from anywhere") tested for
+ *  membership. CR 603.2. */
 export function triggerHandlesEventType(
     ability: TriggeredAbility,
     type: GameEventType
 ): boolean {
-    return ability.event === type || (ability.events?.includes(type) ?? false);
+    return Array.isArray(ability.event)
+        ? ability.event.includes(type)
+        : ability.event === type;
 }
 
 /** Scans all battlefield permanents for triggered abilities matching `events`.

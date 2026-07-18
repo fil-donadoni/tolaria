@@ -5862,18 +5862,19 @@ export interface TriggeredAbility {
     id: string;
     /** Oracle text shown on the stack and in context menus. */
     oracleText: string;
-    /** Which event kind can fire this ability. Used to index-filter before matches(). */
-    event: GameEventType;
-    /** Additional event kinds that ALSO fire this ability, beyond `event` (CR
-     *  603.2). A single Oracle sentence whose condition spans several engine
-     *  events — "put into a graveyard from anywhere" = battlefield death
-     *  (CREATURE_DIED) + discard (CARD_DISCARDED) + mill (CARD_MILLED) — is
-     *  ONE ability, not N near-duplicate entries. When set, the trigger scan
-     *  matches an event whose `type` equals `event` OR any member of `events`;
-     *  `matches()` still discriminates per firing event. Keeps the Oracle line
-     *  shown once on the stack / in the inspector. Omit for the common
-     *  single-event case. */
-    events?: GameEventType[];
+    /** Which event kind(s) can fire this ability — used to index-filter before
+     *  `matches()`. A scalar for the common single-event case; an ARRAY when a
+     *  single Oracle sentence spans several engine events (CR 603.2), e.g.
+     *  "put into a graveyard from anywhere" = battlefield death (CREATURE_DIED)
+     *  + discard (CARD_DISCARDED) + mill (CARD_MILLED). The trigger scan
+     *  (`triggerHandlesEventType`, gre/triggers.ts) matches an event whose
+     *  `type` equals the scalar or is a member of the array; `matches()` still
+     *  discriminates per firing event. One ability = one Oracle line, shown
+     *  once on the stack / in the inspector — never N near-duplicate entries.
+     *  An Effect Script cannot read the firing event, so an array-`event`
+     *  ability whose effect must inspect `$event` (ADR 0049) stays scalar +
+     *  imperative. */
+    event: GameEventType | GameEventType[];
     /** CR 603.3d (issue #1193) — a triggered ability's targets are chosen when
      *  it is PUT ON THE STACK (unlike a spell/activated ability, which chooses
      *  targets before it reaches the stack). When set, `placeTriggersOnStack`

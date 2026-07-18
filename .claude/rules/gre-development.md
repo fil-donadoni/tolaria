@@ -261,3 +261,17 @@ When adding/modifying cards in `convex/cards/sets/`:
   Use `resolve()` only for a protocol-like card, with a recorded
   justification (see `DSL-first authoring` above); if a needed Op doesn't
   exist yet, flag it / open an issue rather than reaching for `resolve()`
+- **One Oracle line = ONE `TriggeredAbility` (multi-event standard).** When a
+  single Oracle sentence fires on several distinct engine events — "put into a
+  graveyard from anywhere" = `CREATURE_DIED` + `CARD_DISCARDED` + `CARD_MILLED`
+  — do NOT emit one near-duplicate `TriggeredAbility` per event. Declare ONE
+  ability and pass an ARRAY to `event: GameEventType[]` (CR 603.2); its
+  `matches(event, self)` discriminates per firing event. The engine's trigger
+  scan (`triggerHandlesEventType`, `gre/triggers.ts`) matches an event whose
+  `type` is a member of the array. Duplicate entries render the same Oracle
+  line N times on the stack / in the inspector — a UI bug. A catalogue-wide
+  guard (`convex/cards/__tests__/triggerDedup.test.ts`) fails CI on any card
+  with two same-`oracleText` triggers differing only by `event`. Worldspine
+  Wurm (`rtr/green.ts`) is the reference shape. (An array-`event` ability
+  cannot read `$event` in an Effect Script — a trigger whose effect must
+  inspect the firing event stays scalar `event` + imperative `resolve`.)

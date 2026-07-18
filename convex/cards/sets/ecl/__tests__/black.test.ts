@@ -48,12 +48,19 @@ describe("Moonshadow (CR 702.111 menace; CR 122.1 counters; CR 603.2 graveyard-f
         return { state, shadow, other };
     }
 
-    it("shape: 7/7 for {B} with menace and three triggered abilities declared", () => {
+    it("shape: 7/7 for {B} with menace and two triggered abilities declared", () => {
         expect(moonshadow.manaCost).toEqual({ B: 1 });
         expect(moonshadow.power).toBe(7);
         expect(moonshadow.toughness).toBe(7);
         expect(moonshadow.staticAbilities).toContain("menace");
-        expect(moonshadow.triggeredAbilities).toHaveLength(3);
+        // The enters-with-counters trigger + ONE "put into graveyard from
+        // anywhere" trigger listening on both PERMANENT_LEFT and CARD_DISCARDED
+        // via an array `event` (CR 603.2) — not two near-duplicate entries.
+        expect(moonshadow.triggeredAbilities).toHaveLength(2);
+        const removeCounter = moonshadow.triggeredAbilities!.find(
+            (a) => a.id === "moonshadow-remove-counter"
+        )!;
+        expect(removeCounter.event).toEqual(["PERMANENT_LEFT", "CARD_DISCARDED"]);
     });
 
     it("enters the battlefield with six -1/-1 counters", () => {

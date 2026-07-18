@@ -37,7 +37,15 @@ function abilitySites(card: CardDefinition): {
     ].map((ability) => ({
         ability,
         label,
-        triggerEventType: (ability as { event?: string }).event,
+        // A single-event trigger pins one event type for `$event.<field>`
+        // static validation (ADR 0049); an array-`event` (multi-event, CR
+        // 603.2) has no single firing type — leave it undefined, which is
+        // sound since an Effect Script cannot read `$event` anyway.
+        triggerEventType: Array.isArray(
+            (ability as { event?: string | string[] }).event
+        )
+            ? undefined
+            : (ability as { event?: string }).event,
     }));
     return [...activated, ...triggered];
 }

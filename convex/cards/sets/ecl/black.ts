@@ -34,15 +34,19 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 // zero counters on the creature is a safe no-op — CR-equivalent to gating
 // the trigger itself.
 //
-// "One or more" batching (CR 603.3b, issue #928 fix): both trigger halves
-// below set `oncePerEventBatch: true` so N simultaneous PERMANENT_LEFT (or
-// CARD_DISCARDED) events from a single action — a board wipe killing several
-// permanents at once, say — remove exactly ONE counter, not N. The two
-// halves dedupe independently PER EVENT TYPE; a single action producing both
-// a permanent death AND a discard in the exact same batch would still fire
-// twice (once per half) rather than once overall. No card in the catalogue
-// currently produces that combined batch, so it's a documented residual gap,
-// not a live bug.
+// "Put into your graveyard from anywhere" = ONE Oracle line spanning two
+// engine events (CR 603.2), so it is ONE `TriggeredAbility` with an array
+// `event: ["PERMANENT_LEFT", "CARD_DISCARDED"]` (the multi-event standard,
+// gre-development.md) — its `matches` discriminates per firing event. Shown
+// once on the stack / inspector, not as two near-duplicate lines.
+//
+// "One or more" batching (CR 603.3b, issue #928 fix): `oncePerEventBatch:
+// true` collapses N simultaneous zone-change events from a single action — a
+// board wipe killing several permanents at once, say — into exactly ONE
+// counter removal, not N. Now that both event kinds live on ONE ability, the
+// dedupe is per-batch OVERALL: a single action that both discards a permanent
+// card AND kills a permanent in the same batch fires exactly once (the older
+// two-halves-dedupe-per-type residual gap is closed by the merge).
 function moonshadowEntersWithCounters(): TriggeredAbility {
     return enteredTrigger({
         id: "moonshadow-enters-with-counters",
@@ -60,62 +64,48 @@ function moonshadowEntersWithCounters(): TriggeredAbility {
     });
 }
 
-function moonshadowRemoveCounterOnDeath(): TriggeredAbility {
+function moonshadowRemoveCounter(): TriggeredAbility {
     return {
-        id: "moonshadow-remove-counter-on-left",
+        id: "moonshadow-remove-counter",
         oracleText:
             "Whenever one or more permanent cards are put into your graveyard from anywhere while this creature has a -1/-1 counter on it, remove a -1/-1 counter from this creature.",
-        event: "PERMANENT_LEFT",
-        matches: (event, self) =>
-            event.type === "PERMANENT_LEFT" &&
-            event.toZone === "graveyard" &&
-            event.ownerId === self.controllerId,
-        // CR 603.3b — "one or more permanent cards" collapses N simultaneous
-        // PERMANENT_LEFT events in the same batch (e.g. a board wipe killing
-        // several permanents at once) into ONE trigger, not N (issue #928).
-        oncePerEventBatch: true,
-        effects: [
-            {
-                op: "counters",
-                action: "remove",
-                counter: "-1/-1",
-                target: { ref: "$source" },
-                count: 1,
-            },
-        ],
-    };
-}
-
-function moonshadowRemoveCounterOnDiscard(): TriggeredAbility {
-    return {
-        id: "moonshadow-remove-counter-on-discard",
-        oracleText:
-            "Whenever one or more permanent cards are put into your graveyard from anywhere while this creature has a -1/-1 counter on it, remove a -1/-1 counter from this creature.",
-        event: "CARD_DISCARDED",
+        // "From anywhere" across the two zone-change sources the engine's event
+        // vocabulary covers: PERMANENT_LEFT (battlefield → graveyard) and
+        // CARD_DISCARDED (hand → graveyard). CR 603.2.
+        event: ["PERMANENT_LEFT", "CARD_DISCARDED"],
         matches: (event, self, state) => {
-            if (event.type !== "CARD_DISCARDED") return false;
-            if (event.playerId !== self.controllerId) return false;
-            // The discarded card is only a "permanent card" if its types
-            // (snapshotted in the discarder's graveyard) include a permanent
-            // type (CR 205, CR 110.1). Look it up in the graveyard state
-            // view — CARD_DISCARDED fires after the card lands there.
-            const player = state?.players.find((p) => p.id === event.playerId);
-            const gyCard = player?.graveyard?.find(
-                (c) => c.id === event.cardInstanceId
-            );
-            if (gyCard === undefined) return false;
-            return gyCard.types.some((t) =>
-                PERMANENT_TYPES.includes(t as (typeof PERMANENT_TYPES)[number])
-            );
+            if (event.type === "PERMANENT_LEFT") {
+                return (
+                    event.toZone === "graveyard" &&
+                    event.ownerId === self.controllerId
+                );
+            }
+            if (event.type === "CARD_DISCARDED") {
+                if (event.playerId !== self.controllerId) return false;
+                // The discarded card is only a "permanent card" if its types
+                // (snapshotted in the discarder's graveyard) include a
+                // permanent type (CR 205, CR 110.1). Look it up in the
+                // graveyard state view — CARD_DISCARDED fires after the card
+                // lands there.
+                const player = state?.players.find(
+                    (p) => p.id === event.playerId
+                );
+                const gyCard = player?.graveyard?.find(
+                    (c) => c.id === event.cardInstanceId
+                );
+                if (gyCard === undefined) return false;
+                return gyCard.types.some((t) =>
+                    PERMANENT_TYPES.includes(
+                        t as (typeof PERMANENT_TYPES)[number]
+                    )
+                );
+            }
+            return false;
         },
-        // CR 603.3b — collapses N simultaneous CARD_DISCARDED events in the
-        // same batch (e.g. discarding a full hand to Hymn to Tourach-style
-        // effects) into ONE trigger, not N (issue #928). Note this dedupes
-        // PER EVENT TYPE: a single action that both discards a permanent card
-        // AND causes a permanent to die in the exact same batch would still
-        // fire this ability once per type (2 total) rather than once overall
-        // — no card in the current catalogue produces that combined batch, so
-        // it's an untested residual gap rather than a live bug.
+        // CR 603.3b — "one or more permanent cards" collapses N simultaneous
+        // matching events in the same batch (a board wipe, or discarding a full
+        // hand) into ONE counter removal, not N (issue #928). One ability over
+        // both event kinds → the dedupe is per-batch overall.
         oncePerEventBatch: true,
         effects: [
             {
@@ -143,8 +133,7 @@ export const moonshadow: CardDefinition = {
     staticAbilities: ["menace"],
     triggeredAbilities: [
         moonshadowEntersWithCounters(),
-        moonshadowRemoveCounterOnDeath(),
-        moonshadowRemoveCounterOnDiscard(),
+        moonshadowRemoveCounter(),
     ],
 };
 

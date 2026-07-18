@@ -52,14 +52,17 @@ describe("Worldspine Wurm (CR 702.19 trample, CR 603.2 dies-trigger, CR 400.7/70
         // The token-creation dies-trigger is the plain battlefield scan (no
         // `zone`); the single "from anywhere" shuffle trigger opts into the
         // graveyard scan (CR 603.6e) and listens on all three zone-change
-        // events via `event` + `events[]` (CR 603.2).
+        // events via an array `event` (CR 603.2).
         expect(zones.filter((z) => z === "graveyard")).toHaveLength(1);
         expect(zones.filter((z) => z === undefined)).toHaveLength(1);
         const shuffle = worldspineWurm.triggeredAbilities!.find(
             (a) => a.zone === "graveyard"
         )!;
-        expect(shuffle.event).toBe("CREATURE_DIED");
-        expect(shuffle.events).toEqual(["CARD_DISCARDED", "CARD_MILLED"]);
+        expect(shuffle.event).toEqual([
+            "CREATURE_DIED",
+            "CARD_DISCARDED",
+            "CARD_MILLED",
+        ]);
     });
 
     describe("dies on the battlefield: both triggers fire off the SAME event", () => {
