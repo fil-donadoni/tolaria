@@ -651,6 +651,32 @@ const NEW_CUBE_SCENARIOS: { label: string; spec: ScenarioSpec }[] = [
             landCount: 2,
         },
     },
+    {
+        // Adapt N (CR 701.46, issue #1316, split from #917). Skitter Eel
+        // ({3}{U} 3/3, "{2}{U}: Adapt 2.") is the prover card now that
+        // mechanicsRegistry.ts flips Adapt to `status: "implemented"` — a
+        // pure adapt user with no other ability, built with the
+        // `adaptAbility` factory (convex/cards/abilities/adapt.ts). Two
+        // copies exercise both halves of the CR 701.46a gate: the fresh eel
+        // (no +1/+1 counters) gets two put on it when activated; the eel
+        // that already carries one +1/+1 counter is a no-op ("if this
+        // creature has NO +1/+1 counters" — one is not none). 6 Islands
+        // cover activating both.
+        label: "Adapt 2 — Skitter Eel with and without an existing +1/+1 counter",
+        spec: {
+            cards: [
+                { name: "Skitter Eel", owner: "me", zone: "battlefield" },
+                {
+                    name: "Skitter Eel",
+                    owner: "me",
+                    zone: "battlefield",
+                    counters: { "+1/+1": 1 },
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            landCount: 6,
+        },
+    },
 ];
 
 /**

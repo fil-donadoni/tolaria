@@ -160,6 +160,10 @@ import * as tmt from "./sets/tmt";
 import * as tor from "./sets/tor";
 import * as nec from "./sets/nec";
 import * as c21 from "./sets/c21";
+// Adapt N (CR 701.46, issue #1316, split from #917 within the #681
+// tranche) — new home set (Ravnica Allegiance, earliest paper printing,
+// ADR 0041) for Skitter Eel, the prover card.
+import * as rna from "./sets/rna";
 // Cube FREE: ETB / dies / attack triggers (issue #679). tla/znr shared with
 // the #681 tranche above — imported once.
 import * as eve from "./sets/eve";
@@ -377,6 +381,7 @@ const setModules: { code: string; exports: Record<string, unknown> }[] = [
     { code: "tor", exports: tor },
     { code: "nec", exports: nec },
     { code: "c21", exports: c21 },
+    { code: "rna", exports: rna },
     // Cube FREE: ETB / dies / attack triggers (issue #679). tla/znr shared
     // with the #681 tranche above — registered once.
     { code: "eve", exports: eve },
