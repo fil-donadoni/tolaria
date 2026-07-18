@@ -41,16 +41,18 @@ export const horizonCanopy: CardDefinition = {
 // Coalition Relic — "{T}: Add one mana of any color.\n{T}: Put a charge
 // counter on this artifact.\nAt the beginning of your first main phase,
 // remove all charge counters from this artifact. Add one mana of any color
-// for each charge counter removed this way." STOP-AND-ISSUE (tracked-by:
-// #675): the first mana ability alone is trivial (the established any-colour
-// `manaChoices` shape), but the phase-trigger effect needs to add N
-// independently-coloured mana instances (one choice per counter removed) —
-// there is no `EffectChoiceKind` for "pick a mana colour" (the existing
-// `choice` Op kinds are all permanent/card/hand selectors) and no
-// SpellContext primitive for a repeated colour pick outside the established
-// `manaChoices`/`getManaChoices` ACTIVATION-time machinery, which doesn't
-// apply to a triggered ability's resolution. Left as a tracked stub pending
-// a "choose N colours" primitive.
+// for each charge counter removed this way." STOP-AND-ISSUE (re-audited
+// under the #1306 residue tranche, parent PRD #620): the first mana ability
+// alone is trivial (the established any-colour `manaChoices` shape — see
+// Starting Town, `fin/colorless.ts`, shipped the same tranche), but the
+// phase-trigger effect needs to add N independently-coloured mana instances
+// (one choice per counter removed) — there is no `EffectChoiceKind` for
+// "pick a mana colour" (the existing `choice` Op kinds are all
+// permanent/card/hand selectors) and no SpellContext primitive for a
+// repeated colour pick outside the established `manaChoices`/
+// `getManaChoices` ACTIVATION-time machinery, which doesn't apply to a
+// triggered ability's resolution. Left as a tracked stub pending a "choose N
+// colours" primitive. tracked-by: #1368
 // export const coalitionRelic: CardDefinition = {
 //     id: "7a7c98b0-d64d-4d0a-b284-1187a8e7095e",
 //     name: "Coalition Relic",
