@@ -1199,6 +1199,74 @@ export interface DynamicMayPayManaCost {
     reducedBy: number;
 }
 
+// --- Transform / double-faced permanents (CR 712, issue #1210, ADR 0067) ---
+
+/** The BACK face of a double-faced permanent (CR 712) — a printed
+ *  characteristic set entirely distinct from the front, unlike face-down
+ *  morph (CR 707.4, `CardInstanceState.faceDown`), which hides a single REAL
+ *  identity behind a generic 2/2. Declared on `CardDefinition.backFace` (a
+ *  printed DFC) or `TokenSpec.backFace` (a double-faced token, e.g. the
+ *  Incubator — CR 701.53 Incubate creates a front-face artifact token whose
+ *  own "{2}: Transform this artifact" ability flips it to this back face).
+ *  Consulted by `transformPermanent` (`gre/transform.ts`), which registers a
+ *  synthesized `CardDefinition` from this spec exactly like a token's own
+ *  front-face synthesis (`registerTokenDefinition`) — so every existing
+ *  def-derived reader (layers, combat, activated-ability discovery) sees the
+ *  new face automatically once the instance's `card.card.id` is swapped.
+ *  Transform is always PUBLIC information (CR 712.1a) — no per-viewer
+ *  hiding, unlike `faceDown`. Scoped to what CR 712 needs for a permanent
+ *  ALREADY on the battlefield to transform in place; a full two-sided-card
+ *  CASTING model (choosing a face to cast, a distinct mana cost per face,
+ *  CR 711) is out of scope. */
+export interface CardBackFace {
+    /** Display name of the back face. */
+    name: string;
+    /** Card types the back face presents (CR 712.2). */
+    types: CardType[];
+    /** Optional creature subtypes of the back face. */
+    subtypes?: string[];
+    /** Optional supertypes of the back face. */
+    supertypes?: CardSupertype[];
+    /** Power for a creature back face. */
+    power?: number;
+    /** Toughness for a creature back face. */
+    toughness?: number;
+    /** Colors of the back face (CR 712.2 — a back face's color is fixed by
+     *  its own printed characteristics, independent of the front). */
+    colors?: Color[];
+    /** Static (keyword) abilities the back face has. */
+    staticAbilities?: string[];
+    /** Continuous static effects the back face has (CR 611). */
+    staticEffects?: StaticEffect[];
+    /** Activated abilities the back face has (e.g. a transform-back ability
+     *  on a card that flips both directions). */
+    activatedAbilities?: ActivatedAbility[];
+    /** Printed Oracle text of the back face (display/reference only). */
+    oracleText?: string;
+    /** Optional Scryfall id for the back face's own art. */
+    imagePrintId?: string;
+}
+
+/** JSON-pure subset of {@link CardBackFace} for the `createToken` Effect
+ *  Script Op's `EffectTokenSpec.backFace` (ADR 0045/0046) — every field a
+ *  double-faced TOKEN's back needs, minus `activatedAbilities`/
+ *  `staticEffects` (closures aren't JSON-expressible; a token whose back
+ *  face needs either stays a `resolve()` card). Structurally a subtype of
+ *  `CardBackFace`, so the interpreter passes it straight through to
+ *  `SpellContext.createToken` with no conversion. */
+export interface EffectCardBackFace {
+    name: string;
+    types: CardType[];
+    subtypes?: string[];
+    supertypes?: CardSupertype[];
+    power?: number;
+    toughness?: number;
+    colors?: Color[];
+    staticAbilities?: string[];
+    oracleText?: string;
+    imagePrintId?: string;
+}
+
 // --- Token specification (CR 111, 707.1) ---
 
 /** Structural definition of a token permanent created at resolution time
@@ -1251,6 +1319,24 @@ export interface TokenSpec {
      *  #1191 — the gap that blocked Magda's Treasures / Voldaren Epicure's
      *  Blood token / Sunfall's Incubate). */
     activatedAbilities?: ActivatedAbility[];
+    /** Counters this token enters the battlefield WITH (CR 111.9/122.1 —
+     *  "create an Incubator token ... with N +1/+1 counters on it", CR
+     *  701.53 Incubate; issue #1210/#924). SAME name/shape as
+     *  `CardDefinition.entersWith.counters` (reused rather than invented,
+     *  "generalize don't add") minus the `"X"`/`"kicker"` dynamic-count
+     *  sentinels — a `resolve()` card computes any dynamic amount itself
+     *  before building the spec. The JSON-pure DSL counterpart is
+     *  `EffectTokenSpec.entersWith`, whose `count` accepts a full
+     *  `EffectValue` resolved by the `createToken` Op executor. Stamped onto
+     *  each created copy's `CardInstanceState.counters` before the CR 614
+     *  ETB chokepoint runs, mirroring `finalizeSpellResolution`'s own
+     *  `entersWith.counters` application for a non-token permanent. */
+    entersWith?: { counters?: { type: string; count: number }[] };
+    /** This token's BACK face (CR 712, issue #1210/#924 — the Incubator's
+     *  "{2}: Transform this artifact" flips it to a Construct creature
+     *  token). See {@link CardBackFace} for the full contract. Undefined for
+     *  the overwhelming majority of (single-faced) tokens. */
+    backFace?: CardBackFace;
 }
 
 /** JSON-pure token specification for the `createToken` Effect Script Op
@@ -1298,6 +1384,21 @@ export interface EffectTokenSpec {
      *  `ActivatedAbility[]`, so the interpreter passes `token` straight to
      *  `SpellContext.createToken` with no conversion (ADR 0045, ADR 0046). */
     activatedAbilities?: ActivatedAbility[];
+    /** Counters this token enters the battlefield WITH (CR 111.9/122.1,
+     *  issue #1210/#924 — Incubate N: "create an Incubator token ... with N
+     *  +1/+1 counters on it", N possibly dynamic — "the number of creatures
+     *  exiled this way"). SAME name/shape as `TokenSpec.entersWith` (JSON-pure
+     *  DSL counterpart) except `count` is a full `EffectValue` — a literal, a
+     *  bound ref, or a `count` construct — resolved by the
+     *  `createToken` Op executor into a plain number before the spec reaches
+     *  `SpellContext.createToken`. A counter whose count doesn't resolve
+     *  (uncaptured binding) or resolves to ≤0 is dropped (CR 122's "put N
+     *  counters" with N ≤ 0 is a no-op). */
+    entersWith?: { counters?: { type: string; count: EffectValue }[] };
+    /** This token's BACK face (CR 712, issue #1210/#924). JSON-pure subset —
+     *  see {@link EffectCardBackFace}. Undefined for the overwhelming
+     *  majority of (single-faced) tokens. */
+    backFace?: EffectCardBackFace;
 }
 
 // --- Copy effects (CR 706, 707) ---
@@ -1737,6 +1838,17 @@ export interface SpellContext {
      *  Used by Twiddle's untap mode and similar "untap target permanent"
      *  effects. */
     untap: (target: TargetSelection) => void;
+    /** Transforms a permanent (CR 701.27 / 712, issue #1210, ADR 0067) — flips
+     *  it to its back face if currently showing front, or back to front if
+     *  already transformed (CR 712.8a — the SAME primitive flips either
+     *  direction). A thin entry point over the pure `transformPermanent`
+     *  mutator (`gre/transform.ts`), mirroring how `tap`/`untap` wrap
+     *  `tapPermanent`/`untapPermanent`. No-ops if the target left the
+     *  battlefield (CR 608.2b) or its current-face definition declares no
+     *  `backFace` — nothing to flip to/from. Used by a double-faced
+     *  permanent's own "{cost}: Transform this" activated ability (the
+     *  Incubator token, CR 701.53). */
+    transform: (target: TargetSelection) => void;
     /** Changes control of a target permanent to `newControllerId` (CR 613.1b,
      *  layer 2). Routes through the shared control-change machinery: the host
      *  moves into the new controller's battlefield array, summoning sickness is
@@ -7989,6 +8101,28 @@ export type EffectOp =
           op: "regenerate";
           target: EffectObjectSelector;
       }
+    /** CR 701.27 / 712 (issue #1210, ADR 0067) — transform a permanent
+     *  between its front and back printed characteristic sets. A thin
+     *  declarative skin over the single SpellContext primitive `transform`,
+     *  one execution path (ADR 0045). CR 712.8a — the SAME toggle flips
+     *  EITHER direction: front → back if the permanent is currently showing
+     *  its front, back → front if it's already transformed — so a card never
+     *  needs two different Ops for "transform" vs "transform back". `target`
+     *  is an object selector: almost always the implicit `$source`
+     *  (`{ ref: "$source" }` — "{2}: Transform this artifact", the Incubator
+     *  token shape, CR 701.53), but an announced target slot or a `forEach`
+     *  `$each` member is accepted for generality. Skipped when the target is
+     *  gone (CR 608.2b — the resolver returns undefined); the primitive
+     *  itself also no-ops when the permanent's CURRENT face declares no
+     *  `backFace` (`CardDefinition.backFace` / `TokenSpec.backFace`) —
+     *  nothing to flip to/from. Scoped to a permanent ALREADY on the
+     *  battlefield transforming in place; a full two-sided-card CASTING
+     *  model (choosing a face to cast, per-face mana cost, CR 711) is out of
+     *  scope. */
+    | {
+          op: "transform";
+          target: EffectObjectSelector;
+      }
     /** CR 111 / 701.7 (issue #847) — create one or more token permanents. A
      *  thin declarative skin over the single SpellContext primitive
      *  `createToken`, one execution path (ADR 0045). `token` is the JSON-pure
@@ -8893,6 +9027,24 @@ export interface CardDefinition {
     /** Continuous static effects (CR 611). Applied at stat-read time by the layer system. */
     staticEffects?: StaticEffect[];
     activatedAbilities?: ActivatedAbility[];
+    /** This permanent's BACK face (CR 712 double-faced permanents, issue
+     *  #1210/#924). A permanent showing its back face
+     *  (`CardInstanceState.transformed`) reads its types/subtypes/power/
+     *  toughness/staticAbilities/activatedAbilities from a `CardDefinition`
+     *  synthesized from this spec (`gre/transform.ts`, mirroring how a
+     *  token's OWN characteristics are synthesized by
+     *  `registerTokenDefinition`); the "transform" Effect Op / keyword
+     *  action (CR 701.27) is the only way to flip. Distinct from
+     *  `faceDown`/`faceDownOf` (CR 707.4 morph — a hidden identity that
+     *  turns up to its OWN characteristics): transform swaps between two
+     *  DISTINCT, always-PUBLIC (CR 712.1a) printed characteristic sets, so
+     *  there is no per-viewer hiding at the projection boundary (unlike
+     *  `faceDown`). Scoped to what CR 712 needs for a permanent ALREADY on
+     *  the battlefield to transform in place (ADR 0067) — a full two-sided
+     *  CASTING model (choosing a face to cast, a distinct mana cost per
+     *  face, CR 711) is out of scope; only `TokenSpec.backFace`
+     *  (double-faced tokens, e.g. the Incubator) is wired end-to-end today. */
+    backFace?: CardBackFace;
     /** Activated-ability templates GRANTED to other permanents by a
      *  StaticActivatedGrant on this card's `staticEffects` (CR 113.1, 611).
      *  Kept separate from `activatedAbilities` so the source itself does not

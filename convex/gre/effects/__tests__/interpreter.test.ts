@@ -6904,6 +6904,323 @@ describe("Effect Script Op: createToken bind + attach (CR 111 / 701.3, issue #12
     });
 });
 
+// CR 111.9 / 122.1 (issue #1210) — a `createToken` token spec may carry
+// `entersWith.counters` (counters the token is created WITH). New capability
+// of the EXISTING `createToken` Op, not a new Op — mirrors
+// `CardDefinition.entersWith.counters` (a non-token permanent's own ETB
+// counters) reused rather than invented.
+describe("Effect Script Op: createToken with token.entersWith (CR 111.9 / 122.1, issue #1210)", () => {
+    it("stamps a literal count of counters onto the created token", () => {
+        const id = registerScript("test-op-token-enterswith-literal", [
+            {
+                op: "createToken",
+                token: {
+                    name: "Incubator",
+                    types: ["Artifact"],
+                    entersWith: { counters: [{ type: "+1/+1", count: 3 }] },
+                },
+                controller: "controller",
+            },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1", []);
+        resolveTopOfStack(state);
+        const token = state.players[0].battlefield.find((c) => c.isToken)!;
+        expect(token.counters).toEqual({ "+1/+1": 3 });
+    });
+
+    // The Incubate-N shape's dynamism (CR 701.53 — "with N +1/+1 counters",
+    // N possibly computed rather than fixed): the counter count is a `count`
+    // construct (CR 122 counting), not a literal — resolved by the
+    // `createToken` Op executor before the spec reaches
+    // `SpellContext.createToken`, exactly like every other Op's
+    // `EffectValue` field.
+    it("resolves a dynamic (count construct) counter count", () => {
+        const id = registerScript("test-op-token-enterswith-dynamic", [
+            {
+                op: "createToken",
+                token: {
+                    name: "Incubator",
+                    types: ["Artifact"],
+                    entersWith: {
+                        counters: [
+                            {
+                                type: "+1/+1",
+                                count: {
+                                    count: {
+                                        zone: "graveyard",
+                                        controller: "controller",
+                                    },
+                                },
+                            },
+                        ],
+                    },
+                },
+                controller: "controller",
+            },
+        ]);
+        const gy1 = makeInstance(BEAR_ID, {
+            id: "gybear1",
+            controllerId: "p1",
+            zone: "graveyard",
+        });
+        const gy2 = makeInstance(BEAR_ID, {
+            id: "gybear2",
+            controllerId: "p1",
+            zone: "graveyard",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { graveyard: [gy1, gy2] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1", []);
+        resolveTopOfStack(state);
+        const token = state.players[0].battlefield.find((c) => c.isToken)!;
+        expect(token.counters).toEqual({ "+1/+1": 2 });
+    });
+
+    // CR 122's "put N counters" with N ≤ 0 is a no-op — an unresolved or
+    // non-positive count is dropped, not stamped as 0.
+    it("drops a counter entry whose count resolves to 0", () => {
+        const id = registerScript("test-op-token-enterswith-zero", [
+            {
+                op: "createToken",
+                token: {
+                    name: "Incubator",
+                    types: ["Artifact"],
+                    entersWith: { counters: [{ type: "+1/+1", count: 0 }] },
+                },
+                controller: "controller",
+            },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1", []);
+        resolveTopOfStack(state);
+        const token = state.players[0].battlefield.find((c) => c.isToken)!;
+        expect(token.counters).toBeUndefined();
+    });
+
+    // Wire format (GRE testing convention): the counters live on
+    // `CardInstanceState.counters`, a field the projection carries verbatim —
+    // must survive `projectPublicState` so the client renders the token with
+    // its counters.
+    it("the stamped counters survive projection (wire format)", () => {
+        const id = registerScript("test-op-token-enterswith-wire", [
+            {
+                op: "createToken",
+                token: {
+                    name: "Incubator",
+                    types: ["Artifact"],
+                    entersWith: { counters: [{ type: "+1/+1", count: 2 }] },
+                },
+                controller: "controller",
+            },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1", []);
+        resolveTopOfStack(state);
+        const token = state.players[0].battlefield.find((c) => c.isToken)!;
+
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === token.id
+        )!;
+        expect(slim.counters).toEqual({ "+1/+1": 2 });
+    });
+});
+
+// CR 701.27 / 712 (issue #1210, ADR 0067) — transform a permanent between its
+// front/back printed characteristic sets. The Incubator token shape (CR
+// 701.53 Incubate): a front-face artifact token with "{2}: Transform this
+// artifact" whose back face is a Construct creature token.
+describe("Effect Script Op: transform (CR 701.27 / 712, issue #1210, ADR 0067)", () => {
+    const INCUBATOR_ID = "test-op-transform-incubator";
+    registerTokenDefinition({
+        id: INCUBATOR_ID,
+        name: "Incubator",
+        rarity: "common",
+        manaCost: {},
+        types: ["Artifact"],
+        activatedAbilities: [
+            {
+                id: "incubator-transform",
+                oracleText: "{2}: Transform this artifact.",
+                cost: { mana: { generic: 2 } },
+                useStack: true,
+                effects: [{ op: "transform", target: { ref: "$source" } }],
+            },
+        ],
+        backFace: {
+            name: "Construct",
+            types: ["Artifact", "Creature"],
+            subtypes: ["Construct"],
+            power: 0,
+            toughness: 0,
+            staticAbilities: [],
+        },
+    });
+
+    function activateTransform(state: GameState, sourceId: string): void {
+        const src = state.players[0].battlefield.find(
+            (c) => c.id === sourceId
+        )!;
+        state.stack.push({
+            ...src,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "incubator-transform",
+            targets: [],
+        });
+    }
+
+    it("flips the permanent to its back face via the implicit $source binding", () => {
+        const incubator = makeInstance(INCUBATOR_ID, {
+            id: "incu1",
+            controllerId: "p1",
+            ownerId: "p1",
+            counters: { "+1/+1": 2 },
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [incubator] }),
+                makePlayer("p2"),
+            ],
+        });
+        activateTransform(state, "incu1");
+        resolveTopOfStack(state);
+
+        const flipped = state.players[0].battlefield.find(
+            (c) => c.id === "incu1"
+        )!;
+        expect(flipped.transformed).toBe(true);
+        expect(flipped.transformedFrom).toBe(INCUBATOR_ID);
+        expect(flipped.types).toEqual(["Artifact", "Creature"]);
+        expect(flipped.subtypes).toEqual(["Construct"]);
+        expect(flipped.power).toBe(0);
+        expect(flipped.toughness).toBe(0);
+        // CR 122 — counters put on the permanent BEFORE transforming carry
+        // over across the flip (transform doesn't remove them); the layer
+        // system reads the base 0/0 + the 2 +1/+1 counters as 2/2.
+        expect(flipped.counters).toEqual({ "+1/+1": 2 });
+        expect(getEffectivePower(state, flipped)).toBe(2);
+        expect(getEffectiveToughness(state, flipped)).toBe(2);
+        // The front-face activated ability ("{2}: Transform") no longer
+        // reads off the definition once the id has swapped to the back face.
+        const backDef = getDefinition((flipped.card as { id: string }).id);
+        expect(backDef.activatedAbilities ?? []).toHaveLength(0);
+    });
+
+    // A second transform flips back to front (CR 712.8a — the SAME Op/
+    // primitive toggles either direction). Driven by two SEPARATE targeted
+    // `transform` Ops (not the Incubator's own one-way ability, which the
+    // back Construct face doesn't carry — most printed transform-back
+    // permanents declare their OWN back-face ability for that) to isolate the
+    // toggle behavior of the primitive itself.
+    it("flips back to front on a second transform (CR 712.8a toggle)", () => {
+        const id = registerScript("test-op-transform-toggle", [
+            { op: "transform", target: { target: 0 } },
+        ]);
+        const incubator = makeInstance(INCUBATOR_ID, {
+            id: "incu2",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [incubator] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "incu2" }]);
+        resolveTopOfStack(state);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "incu2")!
+                .transformed
+        ).toBe(true);
+
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "incu2" }]);
+        resolveTopOfStack(state);
+
+        const back = state.players[0].battlefield.find(
+            (c) => c.id === "incu2"
+        )!;
+        expect(back.transformed).toBeUndefined();
+        expect(back.transformedFrom).toBeUndefined();
+        expect((back.card as { id: string }).id).toBe(INCUBATOR_ID);
+        expect(back.types).toEqual(["Artifact"]);
+    });
+
+    // A permanent whose current face declares no `backFace` — nothing to
+    // flip to. No-op, not a throw (CR 608.2b-style "does as much as it can").
+    it("is a no-op when the permanent's current face has no backFace", () => {
+        const id = registerScript("test-op-transform-none", [
+            { op: "transform", target: { target: 0 } },
+        ]);
+        const bear = makeInstance(BEAR_ID, { controllerId: "p2", id: "tb1" });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "tb1" }]);
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+        const still = state.players[1].battlefield.find(
+            (c) => c.id === "tb1"
+        )!;
+        expect(still.transformed).toBeUndefined();
+    });
+
+    // CR 608.2b — an announced target missing at resolution resolves to no
+    // object, so the Op is skipped without throwing.
+    it("is skipped when the target is gone (CR 608.2b)", () => {
+        const id = registerScript("test-op-transform-missing", [
+            { op: "transform", target: { target: 0 } },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1", []);
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+    });
+
+    // Wire format (GRE testing convention): transform is ALWAYS PUBLIC
+    // information (CR 712.1a) — unlike faceDown, there is no per-viewer
+    // hiding, so the swapped face must project identically to both players.
+    it("the transformed face survives projection identically for both players (wire format)", () => {
+        const incubator = makeInstance(INCUBATOR_ID, {
+            id: "incu3",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [incubator] }),
+                makePlayer("p2"),
+            ],
+        });
+        activateTransform(state, "incu3");
+        resolveTopOfStack(state);
+        const flipped = state.players[0].battlefield.find(
+            (c) => c.id === "incu3"
+        )!;
+
+        for (const viewerId of ["p1", "p2"]) {
+            const projected = projectPublicState(state, 1, viewerId);
+            const slim = projected.players[0].battlefield.find(
+                (c) => c.id === "incu3"
+            )!;
+            expect(slim).toBeDefined();
+            expect(slim.transformed).toBe(true);
+            expect(slim.types).toEqual(["Artifact", "Creature"]);
+            expect(slim.subtypes).toEqual(["Construct"]);
+            expect(slim.power).toBe(0);
+            expect(slim.toughness).toBe(0);
+            expect(slim.card.id).toBe(flipped.card.id);
+        }
+    });
+});
+
 describe("Effect Script Op: gainControl (CR 613.1b, layer 2, issue #848)", () => {
     // Indefinite reassignment (Ghazbán Ogre / Chaos Lord shape): no `duration`
     // → no condition, control never reverts on its own (CR 613.1b).
