@@ -302,6 +302,14 @@ const DRAW_PRIMITIVE_ALLOWLIST: readonly AllowlistEntry[] = [
         classification: "protocol",
     },
     {
+        file: "usg/blue.ts",
+        count: 1,
+        cards: "Time Spiral",
+        reason: 'the SAME Timetwister-shape gap as lea/blue.ts: "shuffles hand and graveyard into library" is a bulk whole-zone move -- moveZone only moves an announced target or a choice-picked set, never an entire zone.',
+        classification: "planned-migratable",
+        issue: 1279,
+    },
+    {
         file: "voc/blue.ts",
         count: 1,
         cards: "Occult Epiphany",

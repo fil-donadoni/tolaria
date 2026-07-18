@@ -1,6 +1,6 @@
 // usg — blue cards (ADR 0043 colour split).
 
-import type { CardDefinition } from "../../types";
+import type { CardDefinition, SpellContext } from "../../types";
 
 // Annul — {U} Instant. "Counter target artifact or enchantment spell."
 // (CR 701.5a counter; CR 114.1 spell targeting.) A conditional Counterspell
@@ -64,6 +64,124 @@ export const hibernation: CardDefinition = {
                 filter: { color: "G" },
             },
             effects: [{ op: "moveZone", target: { ref: "$each" }, to: "hand" }],
+        },
+    ],
+};
+
+// Show and Tell — {2}{U} Sorcery (Cube FREE residue, issue #1308). "Each
+// player may put an artifact, creature, enchantment, or land card from their
+// hand onto the battlefield." A per-player OPTIONAL hand-to-battlefield put —
+// the Sneak Attack `moveZone.cards` shape (usg/red.ts's `sneakAttack`),
+// scoped to EVERY player instead of just the controller: a `forEach { set:
+// "players" }` (CR 101.4 APNAP order, the Innocent Blood shape,
+// ody/black.ts) whose body raises a `choose-hand-card` choice with
+// `count: { min: 0, max: 1 }` ("may put ... a card", CR 608.2b — a 0-count
+// pick is a legal decline) restricted to the four named card types (`type`
+// is an OR-within-field array, issue #677), then moves the pick from hand to
+// the battlefield via the SAME `moveZone` shape Sneak Attack uses (no `bind`
+// needed here — nothing acts on the entered permanent afterward).
+export const showAndTell: CardDefinition = {
+    id: "4b851c17-55ed-4671-b471-dc7b34944432", // USG 96
+    rarity: "rare",
+    name: "Show and Tell",
+    oracleText:
+        "Each player may put an artifact, creature, enchantment, or land card from their hand onto the battlefield.",
+    manaCost: { X: 2, U: 1 },
+    types: ["Sorcery"],
+    effects: [
+        {
+            op: "forEach",
+            select: { set: "players" },
+            effects: [
+                {
+                    op: "choice",
+                    kind: "choose-hand-card",
+                    player: { ref: "$each" },
+                    zone: "hand",
+                    filter: {
+                        type: ["Artifact", "Creature", "Enchantment", "Land"],
+                    },
+                    count: { min: 0, max: 1 },
+                    prompt: "Show and Tell: put an artifact, creature, enchantment, or land card from your hand onto the battlefield (or none).",
+                    bind: "$picked",
+                },
+                {
+                    op: "moveZone",
+                    cards: { ref: "$picked" },
+                    player: { ref: "$each" },
+                    from: "hand",
+                    to: "battlefield",
+                },
+            ],
+        },
+    ],
+};
+
+// Time Spiral — {4}{U}{U} Sorcery (Cube FREE residue, issue #1308). "Exile
+// Time Spiral. Each player shuffles their hand and graveyard into their
+// library, then draws seven cards. You untap up to six lands."
+//
+// NOT DSL-migratable (ADR 0045): the middle clause is the EXACT Timetwister
+// shape (lea/blue.ts's `timetwister`) — a BULK whole-zone move (every card in
+// a player's hand/graveyard, not an announced target or a `choice`-bound pick
+// set); the `moveZone` Op only moves ONE object or a `choice`-picked set out
+// of a hidden zone, not "every card a player owns in zone X". Blocked on: a
+// bulk whole-zone-move Op, the SAME already-open gap Timetwister is tracked
+// against. tracked-by: #1279
+//
+// Two more clauses ride the same `resolveSteps` body (CR 608.2) rather than a
+// bare `resolve`, since the seven-card draws are IRREVERSIBLE and must run
+// exactly once before the untap step's choice can suspend (the Bazaar of
+// Baghdad re-draw class of bug, Sylvan Library precedent, leg/green.ts):
+//   • "Exile Time Spiral" (CR 608.2m self-redirect) uses the existing
+//     `SpellContext.exileSelf()` primitive (Recall's shape, lea/blue.ts) —
+//     step 0, alongside the Timetwister shuffle, both irreversible and
+//     choice-free.
+//   • "You untap up to six lands" — no "you control" restriction printed, so
+//     the candidate pool is every land on either player's battlefield
+//     (`allControllers: true`, the Farrel's Mantle `choose-permanents`
+//     shape, fem/white.ts); a ranged 0..6 pick, then `ctx.untap` each pick —
+//     step 1, suspends on the choice and resumes without re-running step 0.
+export const timeSpiral: CardDefinition = {
+    id: "f3d62dbd-63db-4ac9-950f-9852627f23f2", // USG 103
+    rarity: "rare",
+    name: "Time Spiral",
+    oracleText:
+        "Exile Time Spiral. Each player shuffles their hand and graveyard into their library, then draws seven cards. You untap up to six lands.",
+    manaCost: { X: 4, U: 2 },
+    types: ["Sorcery"],
+    resolveSteps: [
+        // Step 0 — exile self + the Timetwister-shape shuffle for every
+        // player. Isolated so a step-1 suspension never re-runs it.
+        (ctx: SpellContext) => {
+            ctx.exileSelf();
+            ctx.forEachPlayer((pid) => {
+                ctx.moveZone(pid, "hand", "library");
+                ctx.moveZone(pid, "graveyard", "library");
+                ctx.shuffleLibrary(pid);
+                ctx.drawCards(pid, 7);
+            });
+        },
+        // Step 1 — "You untap up to six lands."
+        (ctx: SpellContext) => {
+            const candidates = ctx.allPlayerIds.flatMap((p) =>
+                ctx.getBattlefieldIds(p, { types: "Land" })
+            );
+            if (candidates.length === 0) return;
+            const picks = ctx.requestChoice({
+                playerId: ctx.controller,
+                choiceId: `time-spiral-untap-${ctx.sourceInstanceId}`,
+                kind: "choose-permanents",
+                zone: "battlefield",
+                allControllers: true,
+                candidateIds: candidates,
+                count: { min: 0, max: 6 },
+                prompt: "Time Spiral: untap up to six lands.",
+            });
+            if (picks === undefined) return; // suspended
+            for (const id of picks) {
+                ctx.untap({ type: "permanent", id });
+            }
         },
     ],
 };

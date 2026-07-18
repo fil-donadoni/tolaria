@@ -1698,6 +1698,12 @@
         "firstSet": "lea"
     },
     {
+        "name": "Coveted Jewel",
+        "scryfallId": "f83ed433-fae3-4fa5-acad-bb8a5b535ce3",
+        "oracleId": "98492d7d-3b9e-4ae1-ac45-1b508d6d2670",
+        "firstSet": "c18"
+    },
+    {
         "name": "Craw Giant",
         "scryfallId": "707dadf0-735f-445d-9240-e49660913314",
         "oracleId": "152b621e-4c18-438c-9999-77e2685fda79",
@@ -7890,6 +7896,12 @@
         "firstSet": "inv"
     },
     {
+        "name": "Show and Tell",
+        "scryfallId": "4b851c17-55ed-4671-b471-dc7b34944432",
+        "oracleId": "b83a3ba0-249e-4c39-bbf0-cb005413f7d2",
+        "firstSet": "usg"
+    },
+    {
         "name": "Shyft",
         "scryfallId": "99a60c33-b641-42c4-870d-95d07bc975dc",
         "oracleId": "40c3007a-be6c-4400-9139-12b9ca098ac4",
@@ -9076,6 +9088,12 @@
         "scryfallId": "092ec691-4729-46d3-a4e2-0cfc5df42a31",
         "oracleId": "29062094-594d-4557-9496-11a15d7e3bb0",
         "firstSet": "ice"
+    },
+    {
+        "name": "Time Spiral",
+        "scryfallId": "f3d62dbd-63db-4ac9-950f-9852627f23f2",
+        "oracleId": "cac55e46-b730-4569-b92c-a4b5922fc20c",
+        "firstSet": "usg"
     },
     {
         "name": "Time Vault",

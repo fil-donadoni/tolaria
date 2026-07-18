@@ -935,11 +935,22 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // bucket picks up its third caller). Net: total 686→687, Op-blocked
         // 236→237, FREE/AFK-ready/X-only unchanged (436/400/14). Partition:
         // 436+14+237=687.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(687);
+        //
+        // Then issue #1308 ships Time Spiral (usg/blue.ts) with a new
+        // `resolveSteps` closure — the SAME already-tracked Timetwister-shape
+        // bulk whole-zone-move gap (lea/blue.ts's own `resolve()` closure,
+        // tracked-by #1279) plus a self-exile (`ctx.exileSelf()`) and a
+        // ranged battlefield untap choice, none of which is FREE-migratable
+        // today. +1 closure, Op-blocked (not FREE — same #1279 bucket
+        // Timetwister/Anje's Ravager/Echo of Eons/Winds of Change/Memory
+        // Jar/Wheel of Fortune already sit in). Net: total 687→688,
+        // Op-blocked 237→238, FREE/AFK-ready/X-only unchanged (436/400/14).
+        // Partition: 436+14+238=688.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(688);
         expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(436);
         expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(400);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(237);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(238);
     });
 
     it("surfaces the demonstrated new-Op backlog (a covered primitive leaves it)", () => {
