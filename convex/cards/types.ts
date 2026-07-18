@@ -3951,6 +3951,18 @@ export interface StaticEffectContext {
      *  Akron Legionnaire's "Except for creatures named Akron Legionnaire ...".
      *  Returns `""` when the card id is unknown. */
     getName: (card: PermanentView) => string;
+    /** Number of counters of `type` on `card` (CR 122.1), read from
+     *  `PermanentView.counters`. Returns 0 when the card carries no counters
+     *  of that type. Mirrors `SpellContext.getCounterCount` (the DSL/spell
+     *  side) so a static-effect `applies`/`condition` predicate can be
+     *  conditioned on a permanent's counters too — e.g. a layer-6
+     *  `keyword-grant` gated on "as long as this has a stun counter on it"
+     *  (issue #1318). Evaluated whenever the owning predicate is: at
+     *  layer-application time (ETB / a new matching permanent entering,
+     *  `applySourceStaticEffects` / `applyExistingGrantsTo`) for
+     *  `keyword-grant`, and at every read for the continuously-recomputed
+     *  `pt-buff` / `pt-cda` kinds. */
+    getCounterCount: (card: PermanentView, type: string) => number;
 }
 
 export interface StaticPTBuff {

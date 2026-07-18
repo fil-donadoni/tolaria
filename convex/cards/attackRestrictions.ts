@@ -74,6 +74,9 @@ export const ATTACK_RESTRICTION_CTX: StaticEffectContext = {
         const def = cardId ? tryGetDefinition(cardId) : undefined;
         return def?.name ?? "";
     },
+    getCounterCount(card: PermanentView, type: string): number {
+        return card.counters?.[type] ?? 0;
+    },
 };
 
 /** Minimal board view the scan needs — each player's battlefield as

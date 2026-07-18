@@ -3994,9 +3994,8 @@ function finalizeSpellResolution(
         // so effective P/T reads include them immediately (Clockwork Beast).
         const etbCounters = cardDef?.entersWith?.counters;
         if (etbCounters && etbCounters.length > 0) {
-            const counters: Record<string, number> = {
-                ...(item.counters ?? {}),
-            };
+            const before = item.counters ?? {};
+            const counters: Record<string, number> = { ...before };
             for (const entry of etbCounters) {
                 const n =
                     entry.count === "X"
@@ -4010,7 +4009,23 @@ function finalizeSpellResolution(
                 if (n <= 0) continue;
                 counters[entry.type] = (counters[entry.type] ?? 0) + n;
             }
-            if (Object.keys(counters).length > 0) item.counters = counters;
+            if (Object.keys(counters).length > 0) {
+                item.counters = counters;
+                // CR 122.1c / 613.4d (issue #1194, closing an ETB gap for
+                // issue #1318) — an ETB counter whose TYPE names an
+                // implemented keyword ability grants that keyword the same
+                // way `SpellContext.addCounter` does for a resolving effect
+                // (Arwen, Mortal Queen: "Arwen enters with an indestructible
+                // counter on it" must grant indestructible immediately, not
+                // just when a LATER `addCounter` call happens to touch the
+                // same type). Only fires on the 0 → present transition, one
+                // grant per type, mirroring `addCounter`'s `wasZero` guard.
+                for (const type of Object.keys(counters)) {
+                    if ((before[type] ?? 0) === 0 && counters[type] > 0) {
+                        applyKeywordCounterGrant(item, type);
+                    }
+                }
+            }
         }
         // CR 306.5b — a planeswalker enters with a number of loyalty counters
         // equal to its printed starting loyalty (`CardDefinition.loyalty`).
@@ -12693,6 +12708,15 @@ export function payRemoveCounterCost(
     if (remaining === 0) delete next[cost.type];
     else next[cost.type] = remaining;
     card.counters = Object.keys(next).length > 0 ? next : undefined;
+    // CR 122.1c / 613.4d (issue #1194, closing a cost-payment gap for issue
+    // #1318) — paying a `removeCounter` cost is a second bypass of
+    // `SpellContext.removeCounter`'s keyword-counter-grant sync: if this was
+    // the source's last counter of a keyword-named type, the granted keyword
+    // must be spliced back out here too (Arwen, Mortal Queen pays "Remove an
+    // indestructible counter from Arwen" as her OWN activation cost, not via
+    // `removeCounter`/`SpellContext`, so without this call she would keep
+    // indestructible after her last indestructible counter is spent).
+    if (remaining === 0) unapplyKeywordCounterGrant(card, cost.type);
 }
 
 /** True iff `player` can pay a "discard the last card you drew this turn"
