@@ -148,25 +148,49 @@ export const moonshadow: CardDefinition = {
     ],
 };
 
-// TODO(issue #684 stub — Iron-Shield Elf's activation cost is "Discard a
-// card" (the activating player's OWN choice of card, not a fixed/random
-// one). ActivatedAbility.cost (cards/types.ts) has no such primitive:
-// `discardLastDrawn` only discards a specific tracked card (Jandor's Ring)
-// and `discardAtRandom` discards randomly-chosen cards (Coral Helm) — there
-// is no "discard N cards, chooser: the activating player" cost shape.
-// Modelling the discard as an `effects[]` op instead of a cost would let the
-// ability resolve (for free) even with an empty hand, which isn't
-// rules-accurate (CR 602.1 costs must be payable to activate) — not a valid
-// workaround. Stop-and-issue: this is a genuine activation-cost gap, not a
-// keyword/Op naming issue, so it isn't papered over with resolve(). Tracked
-// stub.
-// export const ironShieldElf: CardDefinition = {
-//     id: "9e0140b2-0185-4adb-b365-2611ce89a0e2",
-//     name: "Iron-Shield Elf",
-//     rarity: "uncommon",
-//     manaCost: { X: 1, B: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Elf", "Warrior"],
-//     power: 3,
-//     toughness: 1,
-// };
+// Iron-Shield Elf — {1}{B} Creature — Elf Warrior, 3/1 (issue #1307 residue
+// re-audit, 2026-07-18; originally stubbed under issue #684). "Discard a
+// card: This creature gains indestructible until end of turn. Tap it." (CR
+// 702.12 indestructible, CR 701.26 tap, CR 602.1/118.3 discard cost.)
+//
+// UNBLOCKED since the original #684 stub: `ActivatedAbility.cost.discardFilter`
+// (`{ filter, count }`, issue #901) now models "discard a CHOSEN card" as a
+// real, player-choice activation cost — the exact "discard N cards, chooser:
+// the activating player" shape the #684 stub note said didn't exist yet. A
+// match-all filter (`{}`) is the same "discard a card" idiom Arc Mage
+// (nem/red.ts) already uses. `Tap it` is the ability's SECOND effect (not an
+// activation cost — the ability itself isn't `{T}:`-gated, so it stays
+// activatable while already tapped, and taps itself as a resolved effect via
+// `tapUntap`), composed after the `grantAbility` indestructible grant — both
+// Ops are already interpreter-exercised (per-Op regime, ADR 0046), no
+// hand-written test required.
+export const ironShieldElf: CardDefinition = {
+    id: "9e0140b2-0185-4adb-b365-2611ce89a0e2",
+    name: "Iron-Shield Elf",
+    rarity: "uncommon",
+    oracleText:
+        "Discard a card: This creature gains indestructible until end of turn. Tap it.",
+    manaCost: { X: 1, B: 1 },
+    types: ["Creature"],
+    subtypes: ["Elf", "Warrior"],
+    power: 3,
+    toughness: 1,
+    activatedAbilities: [
+        {
+            id: "iron-shield-elf-discard",
+            oracleText:
+                "Discard a card: This creature gains indestructible until end of turn. Tap it.",
+            cost: { discardFilter: { filter: {}, count: 1 } },
+            useStack: true,
+            effects: [
+                {
+                    op: "grantAbility",
+                    ability: "indestructible",
+                    target: { ref: "$source" },
+                    duration: { phase: "end-of-turn" },
+                },
+                { op: "tapUntap", action: "tap", target: { ref: "$source" } },
+            ],
+        },
+    ],
+};
