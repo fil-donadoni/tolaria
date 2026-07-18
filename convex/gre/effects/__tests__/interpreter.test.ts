@@ -17,7 +17,7 @@ import {
     pushSpell,
 } from "../../../cards/__tests__/setup";
 import { resolveTopOfStack, removePermanentTo } from "../../state";
-import type { GameState, StackItem } from "../../state";
+import type { CardInstanceState, GameState, StackItem } from "../../state";
 import {
     applyMayPaySubmit,
     applyPendingChoiceSubmit,
@@ -43,6 +43,7 @@ import {
     SORIN_LORD_OF_INNISTRAD_EMBLEM_ID,
 } from "../../../cards/emblems";
 import type { GameEvent } from "../../../cards/types";
+import { backupTrigger } from "../../../cards/abilities/triggers/backupTrigger";
 
 /** Registers a synthetic DSL-only sorcery under a stable test id. Uses the
  *  registry's injection seam (`registerTokenDefinition` — idempotent
@@ -8617,6 +8618,120 @@ describe("Effect Script construct: if (ADR 0045, CR 608.2c, issue #806)", () => 
             expect(state.players[0].hand).toHaveLength(0);
             expect(state.players[0].library.map((c) => c.id)).toEqual(["lib0"]);
             expect(state.stack).toHaveLength(0);
+        });
+    });
+
+    // targetIsAnother (issue #1315, CR 702.165a) — object-identity comparison:
+    // true iff the announced target slot resolves to a PERMANENT other than
+    // the resolving ability's source. This is Backup's own predicate ("if
+    // that's ANOTHER creature, it gains …") — exercised here through the real
+    // production factory (`backupTrigger`) rather than a hand-rolled script,
+    // the same "reuse the production seam" precedent `dashTrigger` follows in
+    // dash.test.ts. This is the construct's OWN permanent test: any later
+    // card reusing `targetIsAnother` inherits this coverage free.
+    describe("targetIsAnother predicate (issue #1315, CR 702.165a)", () => {
+        const BACKUP_PROBE_ID = "test-effects-backup-probe";
+        registerTokenDefinition({
+            id: BACKUP_PROBE_ID,
+            name: BACKUP_PROBE_ID,
+            rarity: "common",
+            manaCost: { X: 2, G: 1 },
+            types: ["Creature"],
+            subtypes: ["Bear"],
+            power: 2,
+            toughness: 2,
+            staticAbilities: ["backup 1", "trample"],
+            triggeredAbilities: [backupTrigger(1, ["trample"])],
+        });
+
+        function backupEtbOnStack(
+            state: GameState,
+            source: CardInstanceState,
+            targets: StackItem["targets"]
+        ): StackItem {
+            const trig: StackItem = {
+                ...source,
+                id: "backup-trig",
+                zone: "stack",
+                castById: source.controllerId,
+                triggeredAbilityId: "backup-1",
+                triggerSourceId: source.id,
+                triggerEvent: {
+                    type: "PERMANENT_ENTERED",
+                    instanceId: source.id,
+                    controllerId: source.controllerId,
+                    types: ["Creature"],
+                } as StackItem["triggerEvent"],
+                targets,
+            };
+            state.stack.push(trig);
+            return trig;
+        }
+
+        it("false on a SELF target: puts the counter, grants nothing", () => {
+            const source = makeInstance(BACKUP_PROBE_ID, {
+                id: "backupSelf",
+                controllerId: "p1",
+                ownerId: "p1",
+            });
+            const state = makeState({
+                players: [
+                    makePlayer("p1", { battlefield: [source] }),
+                    makePlayer("p2"),
+                ],
+            });
+            backupEtbOnStack(state, source, [
+                { type: "permanent", id: "backupSelf" },
+            ]);
+            resolveTopOfStack(state);
+            const after = state.players[0].battlefield.find(
+                (c) => c.id === "backupSelf"
+            )!;
+            // CR 702.165a — "put N +1/+1 counters on target creature" always
+            // happens, self-target included.
+            expect(after.counters?.["+1/+1"]).toBe(1);
+            // CR 702.165a — "If that's ANOTHER creature" — false on self, so
+            // no grant: `trample` was already printed, but not RE-granted.
+            expect(after.grantedStaticAbilities ?? []).toHaveLength(0);
+        });
+
+        it("true on an OTHER target: puts the counter AND grants the source's listed ability until end of turn", () => {
+            const source = makeInstance(BACKUP_PROBE_ID, {
+                id: "backupSrc",
+                controllerId: "p1",
+                ownerId: "p1",
+            });
+            const bear = makeInstance(BEAR_ID, {
+                id: "backupOther",
+                controllerId: "p1",
+                ownerId: "p1",
+            });
+            const state = makeState({
+                players: [
+                    makePlayer("p1", { battlefield: [source, bear] }),
+                    makePlayer("p2"),
+                ],
+            });
+            backupEtbOnStack(state, source, [
+                { type: "permanent", id: "backupOther" },
+            ]);
+            resolveTopOfStack(state);
+            const granted = state.players[0].battlefield.find(
+                (c) => c.id === "backupOther"
+            )!;
+            expect(granted.counters?.["+1/+1"]).toBe(1);
+            // CR 702.165a — the target gains the source's printed ability
+            // (trample) until end of turn — it did not have it printed.
+            expect(granted.staticAbilities).toContain("trample");
+            expect(granted.grantedStaticAbilities).toHaveLength(1);
+            // Wire format — a granted keyword + a counter are both
+            // board-visible; neither may be stripped on the way to the client.
+            const projected = projectPublicState(state, 1, "p1");
+            const slim = projected.players[0].battlefield.find(
+                (c) => c.id === "backupOther"
+            )!;
+            expect(slim.staticAbilities).toContain("trample");
+            expect(slim.counters?.["+1/+1"]).toBe(1);
         });
     });
 });

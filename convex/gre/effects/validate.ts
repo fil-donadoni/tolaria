@@ -1076,6 +1076,12 @@ function isPredicate(value: unknown): boolean {
             /^\$[A-Za-z][A-Za-z0-9]*$/.test((p as { ref: string }).ref)
         );
     }
+    // targetIsAnother form (issue #1315, CR 702.165a) — a single key holding
+    // an announced-target-slot ref (`isTargetRef`, the same `{ target: n }`
+    // shape a `dealDamage`/`destroy` object selector uses).
+    if (keys.length === 1 && keys[0] === "targetIsAnother") {
+        return isTargetRef(obj.targetIsAnother);
+    }
     // Comparison form.
     if (keys.length !== 3) return false;
     return (
@@ -2177,6 +2183,13 @@ function collectPredicateRefUses(predicate: unknown, out: RefUse[]): void {
             ref: (p.picksNonEmpty as { ref: string }).ref,
             kind: "picks",
         });
+        return;
+    }
+    // targetIsAnother (issue #1315) — an announced target slot (`{ target: n }`),
+    // never a `$binding` string, so there is nothing for the ordered ref pass
+    // to resolve (a target slot's existence isn't binding-tracked, mirroring
+    // every other Op's `{ target: n }` object selector).
+    if (typeof p.targetIsAnother === "object" && p.targetIsAnother !== null) {
         return;
     }
     // Comparison: numeric refs on either side.

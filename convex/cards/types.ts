@@ -8072,6 +8072,16 @@ export type EffectOp =
  *    predicate rather than a boolean binding, since `choice` has no
  *    mayPay-style yes/no outcome of its own. Krovikan Sorcerer / Mesmeric
  *    Trance: `{ picksNonEmpty: { ref: "$discarded" } }`.
+ *  - a TARGET-IS-ANOTHER test (issue #1315, CR 702.165a) — true iff the
+ *    named announced target slot resolves to a permanent OTHER than the
+ *    currently-resolving ability's source (`ctx.sourceInstanceId`). This is
+ *    Backup's "if that's another creature" gate: `{ targetIsAnother: { target: 0 } }`.
+ *    An object-identity comparison rather than a numeric one — deliberately
+ *    narrow (identity only, no property comparison) so it stays inside the
+ *    frozen predicate grammar's spirit (ADR 0045) while covering the general
+ *    "self-target vs. other-target" shape any future keyword sharing Backup's
+ *    "put a counter on target X; if that's ANOTHER X, do more" phrasing would
+ *    also need.
  *
  *  Growing the predicate vocabulary (a new comparison operator, a new binding
  *  kind) is cheap; adding a NON-enumerated form (a raw expression) requires
@@ -8079,7 +8089,8 @@ export type EffectOp =
 export type EffectPredicate =
     | EffectBindingPredicate
     | EffectComparisonPredicate
-    | EffectPicksNonEmptyPredicate;
+    | EffectPicksNonEmptyPredicate
+    | EffectTargetIsAnotherPredicate;
 
 /** Boolean-binding predicate: true iff the named boolean binding is true
  *  (`{ binding }`) or false (`{ not: { binding } }`). The binding MUST be a
@@ -8112,6 +8123,18 @@ export interface EffectComparisonPredicate {
  *  player declined) alike — both mean "nothing was picked". */
 export interface EffectPicksNonEmptyPredicate {
     picksNonEmpty: EffectRef;
+}
+
+/** Target-is-another predicate (issue #1315, CR 702.165a): true iff the
+ *  announced target slot named by `targetIsAnother` resolves to a permanent
+ *  whose instance id differs from `ctx.sourceInstanceId`. Reads `false` when
+ *  the slot is missing, resolves to a non-permanent, or IS the source (CR
+ *  608.2b — a target that left the battlefield is neither "another creature"
+ *  nor the source, so the grant half of a Backup-shaped ability correctly
+ *  does not fire either way). Backup's "if that's another creature, it gains
+ *  …" gate: `{ targetIsAnother: { target: 0 } }`. */
+export interface EffectTargetIsAnotherPredicate {
+    targetIsAnother: EffectTargetRef;
 }
 
 // `EffectChoiceKind` must stay a subset of the engine's `ZonePickKind` — the

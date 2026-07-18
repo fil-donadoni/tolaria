@@ -5,9 +5,14 @@
 // Guardian Scalelord — {4}{W} Creature. "Backup 1. Flying. Whenever this
 // creature attacks, return target nonland permanent card with mana value X or
 // less from your graveyard to the battlefield, where X is this creature's
-// power." Blocked: keyword **Backup** (CR 702.165) is `status: "planned"` —
-// already tracked by #917 (Death-Greeter's Champion needs the same keyword).
-// tracked-by: #917
+// power." Backup (CR 702.165) shipped in #1315 — no longer the blocker.
+// Still blocked: the attack trigger's "mana value X or less, where X is this
+// creature's power" restriction needs a dynamic power-based cap on
+// `EffectCardFilter.manaValueAtMost`, which today only accepts a literal or
+// the spell's own `{X}` (Green Sun's Zenith) — never a source-power
+// reference. Stop-and-issue per gre-development.md rather than papering over
+// the gap with `resolve()`.
+// tracked-by: #1378
 // export const guardianScalelord: CardDefinition = {
 //     id: "94716d24-e8c6-4cd2-a3ac-20cdb929bfd4",
 //     name: "Guardian Scalelord",
