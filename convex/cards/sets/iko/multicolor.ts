@@ -46,7 +46,11 @@ export const lutri: CardDefinition = {
         "Companion — Each nonland card in your starting deck has a different name. (If this card is your chosen companion, you may put it into your hand from outside the game for {3} as a sorcery.)\nFlash\nWhen Lutri enters, if you cast it, copy target instant or sorcery spell you control. You may choose new targets for the copy.",
     manaCost: { generic: 1, U: 1, R: 1 },
     types: ["Creature"],
-    subtypes: ["Otter", "Elemental"],
+    // CR 205.4a — type line is "Legendary Creature — Elemental Otter"
+    // (Scryfall); the legend rule (CR 704.5j) only applies via this
+    // supertype.
+    supertypes: ["Legendary"],
+    subtypes: ["Elemental", "Otter"],
     power: 3,
     toughness: 2,
     // CR 702.139a / 702.8 — Companion is a Mechanics Registry keyword row

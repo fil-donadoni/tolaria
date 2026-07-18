@@ -25,6 +25,11 @@ describe("Lutri, the Spellchaser (Companion, Flash, CR 603.6a copy-on-cast ETB)"
     it("pins the definition (companion + flash keywords, targeted spell-you-control ETB)", () => {
         expect(lutri.staticAbilities).toEqual(["companion", "flash"]);
         expect(lutri.types).toEqual(["Creature"]);
+        // CR 205.4a — type line is "Legendary Creature — Elemental Otter"
+        // (Scryfall); regression pin for the missing-supertype bug (legend
+        // rule, CR 704.5j, never applied without this).
+        expect(lutri.supertypes).toEqual(["Legendary"]);
+        expect(lutri.subtypes).toEqual(["Elemental", "Otter"]);
         expect(lutri.power).toBe(3);
         expect(lutri.toughness).toBe(2);
         // DIVERGENCE (tracked-by #782): the real printed cost is the hybrid
