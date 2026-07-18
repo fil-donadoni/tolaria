@@ -396,19 +396,21 @@ export const seedPresetScenarios = internalMutation({
 // without spinning up a Convex test harness.
 export { MIGRATED_PRESET_SCENARIOS };
 
-// ---- New-mechanic scenarios (Cube / Storm / DSL batch, 2026-07-14 → 15) ------
+// ---- New-mechanic scenarios — the ONGOING agent-authored append point --------
 
 /**
- * Golden manual-test scenarios for the cards & mechanics shipped in the
- * 2026-07-14/15 batch that the frozen `MIGRATED_PRESET_SCENARIOS` list does not
- * cover (Storm, Brainstorm put-back Op, Recoil owner-discard, negative-X, mana
- * from effective power, Evoke, self-shuffle/mv-ceiling search, discard-cost
- * search, discard-leg mayPay, Cube-FREE utility). Authored straight into the DB
- * per ADR 0044 — a scenario added after the #770 migration is a `debugScenarios`
- * row, never appended to the frozen list above. Seed with:
- * `npx convex run debugScenarios:seedNewCubeScenarios '{"userId":"<id>"}'`
+ * Golden manual-test scenarios for cards & mechanics shipped after the #770
+ * migration. **This is the ongoing, append-only registration point** for every
+ * new card/mechanic scenario: an agent (`/process-gh-issues`) or human author
+ * appends one `{ label, spec }` here rather than the frozen
+ * `MIGRATED_PRESET_SCENARIOS` list above. It is code-tracked on purpose — a
+ * headless subagent has no Debug panel and cannot run `saveDebugScenario`, so
+ * the code path is the only automatable one (CLAUDE.md § Development cycle
+ * step 7). The merge-train absorbs the trivial append-conflict, same as any
+ * other append-only registration point. Seed the rows into the DB with:
+ * `npx convex run debugScenarios:seedNewMechanicScenarios '{"userId":"<id>"}'`
  */
-const NEW_CUBE_SCENARIOS: { label: string; spec: ScenarioSpec }[] = [
+const NEW_MECHANIC_SCENARIOS: { label: string; spec: ScenarioSpec }[] = [
     {
         // Storm (CR 702.40, issue #1042). Cast the two free Gitaxian Probes and
         // the Brainstorm FIRST to raise the spells-cast-this-turn count, THEN
@@ -708,13 +710,14 @@ const NEW_CUBE_SCENARIOS: { label: string; spec: ScenarioSpec }[] = [
 ];
 
 /**
- * Seed the `NEW_CUBE_SCENARIOS` as golden `debugScenarios` rows owned by
- * `userId` (issue-batch 2026-07-14/15). Idempotent by label — mirrors
- * `seedPresetScenarios`. `internalMutation`: reachable only via the Convex
+ * Seed the `NEW_MECHANIC_SCENARIOS` as golden `debugScenarios` rows owned by
+ * `userId`. Idempotent by label — mirrors `seedPresetScenarios`. Re-run after
+ * every deploy that appends new scenarios; the label skip makes it safe to
+ * re-run any time. `internalMutation`: reachable only via the Convex
  * dashboard / `npx convex run` with deploy access, never from a client.
- * `npx convex run debugScenarios:seedNewCubeScenarios '{"userId":"<id>"}'`
+ * `npx convex run debugScenarios:seedNewMechanicScenarios '{"userId":"<id>"}'`
  */
-export const seedNewCubeScenarios = internalMutation({
+export const seedNewMechanicScenarios = internalMutation({
     args: { userId: v.id("users") },
     returns: v.object({ inserted: v.number(), skipped: v.number() }),
     handler: async (ctx, args) => {
@@ -728,7 +731,7 @@ export const seedNewCubeScenarios = internalMutation({
         // referenced card name doesn't resolve in the catalogue (ADR 0044).
         let inserted = 0;
         let skipped = 0;
-        for (const preset of NEW_CUBE_SCENARIOS) {
+        for (const preset of NEW_MECHANIC_SCENARIOS) {
             if (existingLabels.has(preset.label)) {
                 skipped++;
                 continue;
@@ -757,4 +760,4 @@ export const seedNewCubeScenarios = internalMutation({
 });
 
 // Exported for tests only — same loadability proof as the migration list.
-export { NEW_CUBE_SCENARIOS };
+export { NEW_MECHANIC_SCENARIOS };

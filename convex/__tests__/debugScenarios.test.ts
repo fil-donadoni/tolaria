@@ -16,7 +16,7 @@ import { tryGetCardByName } from "../cards";
 import type { Doc } from "../_generated/dataModel";
 import {
     MIGRATED_PRESET_SCENARIOS,
-    NEW_CUBE_SCENARIOS,
+    NEW_MECHANIC_SCENARIOS,
 } from "../debugScenarios";
 import {
     collectUnresolvedCardNames,
@@ -375,15 +375,15 @@ describe("MIGRATED_PRESET_SCENARIOS — PRESET_SCENARIOS → DB migration (issue
     });
 });
 
-describe("NEW_CUBE_SCENARIOS — post-#770 scenario batch (seedNewCubeScenarios)", () => {
-    it("is non-empty and every label is unique (the idempotency key `seedNewCubeScenarios` skips on)", () => {
-        expect(NEW_CUBE_SCENARIOS.length).toBeGreaterThan(0);
-        const labels = NEW_CUBE_SCENARIOS.map((s) => s.label);
+describe("NEW_MECHANIC_SCENARIOS — post-#770 scenario batch (seedNewMechanicScenarios)", () => {
+    it("is non-empty and every label is unique (the idempotency key `seedNewMechanicScenarios` skips on)", () => {
+        expect(NEW_MECHANIC_SCENARIOS.length).toBeGreaterThan(0);
+        const labels = NEW_MECHANIC_SCENARIOS.map((s) => s.label);
         expect(new Set(labels).size).toBe(labels.length);
     });
 
     it("every spec loads with only resolvable card names (would not corrupt a board)", () => {
-        for (const preset of NEW_CUBE_SCENARIOS) {
+        for (const preset of NEW_MECHANIC_SCENARIOS) {
             expect(collectUnresolvedCardNames(preset.spec, resolves)).toEqual(
                 []
             );
@@ -391,7 +391,7 @@ describe("NEW_CUBE_SCENARIOS — post-#770 scenario batch (seedNewCubeScenarios)
     });
 
     it("every spec round-trips through the tolerant load unchanged (matches the debugScenarios row shape)", () => {
-        for (const preset of NEW_CUBE_SCENARIOS) {
+        for (const preset of NEW_MECHANIC_SCENARIOS) {
             expect(normalizeScenarioSpec(preset.spec)).toEqual(preset.spec);
         }
     });
@@ -401,7 +401,7 @@ describe("NEW_CUBE_SCENARIOS — post-#770 scenario batch (seedNewCubeScenarios)
     // end to end: cast Metallic Rebuke, tap the Millstones for the {2}
     // generic, an Island for the {U}, counter the opponent's Grizzly Bears.
     it("carries the Improvise scenario (CR 702.126, issue #1313)", () => {
-        const improvise = NEW_CUBE_SCENARIOS.find((s) =>
+        const improvise = NEW_MECHANIC_SCENARIOS.find((s) =>
             s.label.startsWith("Improvise")
         );
         expect(improvise).toBeDefined();
