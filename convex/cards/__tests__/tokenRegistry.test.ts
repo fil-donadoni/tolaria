@@ -149,4 +149,47 @@ describe("token CardDefinition lookup (regression — client lazy synthesis)", (
         const def = getDefinition(id);
         expect(def.activatedAbilities).toBeUndefined();
     });
+
+    // CR 712 (issue #1210) — `gre/transform.ts` registers a synthesized
+    // back-face definition through THIS SAME `tokenDefinitionId` codec (not a
+    // bespoke id format), so a transformed permanent's new `card.card.id`
+    // decodes on a client that never saw the server-side registration call —
+    // the exact scenario this file guards against (see the module header).
+    // Without this, a transformed permanent would render with no name/art
+    // client-side the moment it flips.
+    it("12th segment is decoded as backFace (issue #1210, CR 712)", () => {
+        const backFace = {
+            name: "Construct",
+            types: ["Artifact", "Creature"],
+            subtypes: ["Construct"],
+            power: 0,
+            toughness: 0,
+            staticAbilities: [],
+        };
+        const id = [
+            "token:Incubator",
+            "Artifact",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            encodeURIComponent(JSON.stringify(backFace)),
+        ].join("|");
+        const def = getDefinition(id);
+        expect(def.name).toBe("Incubator");
+        expect(def.types).toEqual(["Artifact"]);
+        expect(def.backFace).toEqual(backFace);
+    });
+
+    it("missing/empty 12th segment leaves backFace undefined (back-compat with pre-#1210 11-segment ids)", () => {
+        const id =
+            "token:Wasp|Artifact,Creature|Insect||1|1||flying|09921372-126f-4c81-b6d8-ea50b1d0eb44||";
+        const def = getDefinition(id);
+        expect(def.backFace).toBeUndefined();
+    });
 });

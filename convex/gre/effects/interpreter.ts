@@ -90,6 +90,7 @@ import type {
     PermanentFilter,
     SpellContext,
     TargetSelection,
+    TokenSpec,
 } from "../../cards/types";
 import type { LibraryDestination } from "../types";
 import { getEventFieldRow } from "../../cards/mechanicsRegistry";
@@ -1937,6 +1938,18 @@ export const OP_EXECUTORS: {
         if (!target) return;
         ctx.applyRegenerationShield(target);
     },
+    // CR 701.27 / 712 (issue #1210, ADR 0067) — transform a permanent. A thin
+    // declarative skin over the single SpellContext primitive `transform`,
+    // ONE execution path (ADR 0045). CR 712.8a — the SAME toggle flips
+    // either direction (front → back / back → front), so a card never needs
+    // two Ops. Skipped when the target is gone (CR 608.2b —
+    // `resolveObjectRef` returns undefined); the primitive itself also
+    // no-ops when the permanent's current face declares no `backFace`.
+    transform(ctx, op) {
+        const target = resolveObjectRef(ctx, op.target);
+        if (!target) return;
+        ctx.transform(target);
+    },
     // CR 111 / 701.7 (issue #847) — create token permanents. A thin declarative
     // skin over the single SpellContext primitive `createToken`, ONE execution
     // path (ADR 0045): the JSON-pure `token` spec is passed verbatim, the tokens
@@ -1952,7 +1965,36 @@ export const OP_EXECUTORS: {
         if (controllerId === undefined) return;
         const count = op.count === undefined ? 1 : resolveValue(ctx, op.count);
         if (count === undefined || count <= 0) return;
-        const ids = ctx.createToken(op.token, controllerId, count);
+        // CR 111.9 / 122.1 (issue #1210) — resolve any dynamic
+        // `entersWith.counters` amount (an `EffectValue` — a literal, a bound
+        // ref, a `count` construct, …) into a plain number before handing the
+        // spec to `ctx.createToken` (`TokenSpec.entersWith.counters[].count`
+        // is already-resolved, matching every other Op's "resolve values
+        // through the interpreter, hand primitives plain data" convention).
+        // Destructured OUT of the spread (not overwritten in place) so the
+        // resulting object's `entersWith` field carries the resolved
+        // (number-typed) shape, not the source `EffectValue`-typed one. A
+        // counter that doesn't resolve (uncaptured binding) or resolves to
+        // ≤0 is dropped — CR 122's "put N counters" with N ≤ 0 is a no-op,
+        // mirroring the `counters` Op itself.
+        const { entersWith: rawEntersWith, ...restToken } = op.token;
+        const resolvedCounters = rawEntersWith?.counters
+            ?.map((c) => {
+                const n = resolveValue(ctx, c.count);
+                return n !== undefined && n > 0
+                    ? { type: c.type, count: n }
+                    : undefined;
+            })
+            .filter(
+                (c): c is { type: string; count: number } => c !== undefined
+            );
+        const token: TokenSpec = {
+            ...restToken,
+            ...(resolvedCounters && resolvedCounters.length > 0
+                ? { entersWith: { counters: resolvedCounters } }
+                : {}),
+        };
+        const ids = ctx.createToken(token, controllerId, count);
         // issue #1202 — snapshot the LAST created token so a follow-up Op
         // (Cori-Steel Cutter's optional `attach`) can act on the specific
         // just-created permanent. Mirrors `destroy`/`exile`/`moveZone`'s own

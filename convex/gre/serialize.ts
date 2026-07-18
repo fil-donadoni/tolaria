@@ -207,6 +207,11 @@ function compactCard(
     if (card.pileLabel) out.pileLabel = card.pileLabel;
     if (card.faceDown) out.faceDown = true;
     if (card.faceDownOf) out.faceDownOf = card.faceDownOf;
+    // CR 712 / ADR 0067 (issue #1210) — transform face flag + the front
+    // face's own definition id, so a later flip back can restore it. Public
+    // to both players (unlike faceDown/faceDownOf), no per-viewer stripping.
+    if (card.transformed) out.transformed = true;
+    if (card.transformedFrom) out.transformedFrom = card.transformedFrom;
     if (card.createdBy) out.createdBy = card.createdBy;
     // CR 603.10 — Dance of Many copy-token leave-linkage anchor.
     if (card.linkedTokenId) out.linkedTokenId = card.linkedTokenId;
@@ -514,6 +519,10 @@ function expandCard(
     if (compact.pileLabel) result.pileLabel = compact.pileLabel as string;
     if (compact.faceDown) result.faceDown = true;
     if (compact.faceDownOf) result.faceDownOf = compact.faceDownOf as string;
+    if (compact.transformed) result.transformed = true;
+    if (compact.transformedFrom) {
+        result.transformedFrom = compact.transformedFrom as string;
+    }
     if (compact.createdBy) result.createdBy = compact.createdBy as string;
     if (compact.linkedTokenId) {
         result.linkedTokenId = compact.linkedTokenId as string;

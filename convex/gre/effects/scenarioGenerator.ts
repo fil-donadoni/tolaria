@@ -746,6 +746,17 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // regime).
             req.skip ??= `Op "regenerate" registers a dormant regeneration shield (no same-resolution destroy event) — covered by the Op's interpreter tests`;
             return;
+        case "transform":
+            // CR 701.27 / 712 (issue #1210) — flips a permanent between its
+            // front/back printed characteristic sets. The canned generator's
+            // assertion vocabulary is numeric (damage/life/counts); a
+            // characteristic swap (name/types/P-T/abilities all changing at
+            // once, off a `backFace` spec the generator has no notion of) has
+            // no same-resolution outcome it can assert generically. Explicit
+            // skip — covered by the Op's own interpreter tests (per-Op
+            // regime).
+            req.skip ??= `Op "transform" swaps a permanent's printed characteristic set (front/back) — covered by the Op's interpreter tests`;
+            return;
         case "createToken":
             // createToken (issue #847) creates token permanents on the
             // controller's battlefield — a deterministic same-resolution
@@ -1608,6 +1619,14 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     // assert). Kept for the 1:1 coverage guard; shield registration and
     // consumption are covered by the Op's own interpreter tests.
     regenerate() {
+        return null;
+    },
+    // `transform` (CR 701.27 / 712, issue #1210) — never reached: `analyseOp`
+    // skips every script with a transform Op (a characteristic-set swap has
+    // no same-resolution outcome the canned scenario's numeric assertion
+    // vocabulary models). Kept for the 1:1 coverage guard; the front/back
+    // definition swap is covered by the Op's own interpreter tests.
+    transform() {
         return null;
     },
     // `gainControl` (CR 613.1b, issue #848) — never reached: `analyseOp` skips

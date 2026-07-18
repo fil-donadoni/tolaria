@@ -709,6 +709,11 @@ describe("game_state serialize round-trip", () => {
         lion.castableFromGraveyardBy = "p1";
         lion.castableFromGraveyardUntilTurn = 9;
         lion.castFromGraveyardWithoutPayingManaCost = true;
+        // CR 712 / ADR 0067 (issue #1210) — transform face flag + the front
+        // face's own definition id must survive a mid-game save/load so a
+        // later flip back restores the right definition.
+        lion.transformed = true;
+        lion.transformedFrom = "front-def-id";
 
         const expanded = expandState(compactState(state));
         const got = expanded.players[1].battlefield[0];
@@ -810,6 +815,8 @@ describe("game_state serialize round-trip", () => {
         expect(got.castableFromGraveyardBy).toBe("p1");
         expect(got.castableFromGraveyardUntilTurn).toBe(9);
         expect(got.castFromGraveyardWithoutPayingManaCost).toBe(true);
+        expect(got.transformed).toBe(true);
+        expect(got.transformedFrom).toBe("front-def-id");
     });
 
     it("preserves phasedOut bundles across the round trip (CR 702.26)", () => {

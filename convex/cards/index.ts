@@ -1,6 +1,7 @@
 import type {
     ActivatedAbility,
     AiCombatHint,
+    CardBackFace,
     CardDefinition,
     CardPrint,
     CardSupertype,
@@ -9,6 +10,7 @@ import type {
     ManaCost,
     Rarity,
     StaticEffect,
+    TokenSpec,
 } from "./types";
 import { cantBeEnchantedSelfGuard } from "./types";
 // CR 114 (issue #1221) — side-effect import so the emblem registry
@@ -547,6 +549,78 @@ export const registerTokenDefinition = (def: CardDefinition): void => {
     registry.set(def.id, def);
 };
 
+/** Content-derived id for a synthesized token CardDefinition (CR 707.1). Two
+ *  `createToken` calls with the same spec shape share one definition entry
+ *  (and thus one image / one frontend lookup); two specs that differ on any
+ *  field get two distinct ids. Stable across replays. The optional 9th
+ *  segment is an `imagePrintId` (Scryfall UUID of a printed token) so the
+ *  client lazy-synthesizer (`maybeSynthesizeToken`, below — the DECODE
+ *  counterpart of this ENCODE) can recover the same image link without a
+ *  separate registration call. Co-located with `maybeSynthesizeToken` (not
+ *  `gre/state.ts`, where `createTokenPermanents` calls it) because it's the
+ *  encode half of one shared codec — the id format both directions must
+ *  agree on, including a synthesized BACK-face definition (`gre/transform.ts`
+ *  reuses this SAME function, issue #1210) so the client's existing decoder
+ *  picks up a transformed permanent's new face for free, no second codec. */
+export function tokenDefinitionId(spec: TokenSpec): string {
+    const parts = [
+        spec.name,
+        spec.types.join(","),
+        (spec.subtypes ?? []).join(","),
+        (spec.supertypes ?? []).join(","),
+        spec.power ?? "",
+        spec.toughness ?? "",
+        (spec.colors ?? []).join(""),
+        (spec.staticAbilities ?? []).join(","),
+        // 9th segment (index 8): the printed-token Scryfall id, kept in place so
+        // existing decoders that read `parts[8]` as the image print id are
+        // unaffected.
+        spec.imagePrintId ?? "",
+        // 10th segment (index 9): CR 611 static-effect kinds present on the
+        // token (Tetravite's "can't be enchanted" guard). A token carrying a
+        // static effect is a distinct definition shape, so its presence must
+        // feed the content hash — keyed by the effect kinds (the guard
+        // predicates are closures and can't be serialized, but the kind set
+        // uniquely distinguishes the token shapes in the current catalog).
+        // Empty when the token has no continuous effects (back-compat: a 9-
+        // segment id without this trailing segment decodes as "no effects").
+        (spec.staticEffects ?? []).map((e) => e.kind).join(","),
+        // 11th segment (index 10, issues #1191 + #778): the token's activated
+        // abilities (Investigate's Clue: "{2}, Sacrifice this token: Draw a
+        // card."; a functional Treasure's sacrifice-for-mana ability),
+        // JSON-encoded (they are plain data — an `EffectTokenSpec` ability
+        // carries only `id`/`cost`/`oracleText`/`useStack`/`effects`, no
+        // closures) and URI-escaped so a `|` inside oracle text or an effect
+        // string can never be confused with the segment delimiter. A token
+        // WITH an activated ability gets a distinct definition from one
+        // without (and from one with different abilities — the full JSON
+        // subsumes an id-only key). Empty when the token has none (back-compat:
+        // a 10-segment id without this trailing segment decodes as "no
+        // abilities").
+        spec.activatedAbilities && spec.activatedAbilities.length > 0
+            ? encodeURIComponent(JSON.stringify(spec.activatedAbilities))
+            : "",
+        // 12th segment (index 11, issue #1210, CR 712) — the token's BACK
+        // face (a double-faced token, e.g. the Incubator, OR a synthesized
+        // back-face "token" itself — `gre/transform.ts` builds a TokenSpec
+        // from `CardBackFace` and reuses this same function, so a
+        // transformed permanent's id decodes through the SAME client-side
+        // path as any other token; a back face is never itself given a
+        // further `backFace`, so this segment is always empty for one).
+        // JSON-encoded + URI-escaped like `activatedAbilities` above; a token
+        // WITH a back face gets a distinct definition from one without (and
+        // from one with a DIFFERENT back face). `entersWith.counters` is
+        // deliberately NOT folded in here — it stamps counters onto each
+        // created INSTANCE, not a characteristic of the shared definition,
+        // so two specs differing only in entersWith counts still share one
+        // definition (and thus one image / one frontend lookup). Empty when
+        // the token has no back face (back-compat: an 11-segment id without
+        // this trailing segment decodes as "no back face").
+        spec.backFace ? encodeURIComponent(JSON.stringify(spec.backFace)) : "",
+    ];
+    return `token:${parts.join("|")}`;
+}
+
 /** Sentinel definition id for a face-down permanent (CR 708.2): a 2/2
  *  colourless nameless vanilla creature with no abilities. A face-down
  *  instance's `card.id` is swapped to this id (the real id is retained in
@@ -655,6 +729,12 @@ function maybeSynthesizeToken(cardId: string): CardDefinition | null {
         // Trailing 11th segment; empty / absent for tokens without activated
         // abilities (back-compat with pre-#1191 10-segment ids).
         activatedAbilitiesRaw,
+        // CR 712 (issue #1210) — the token's BACK face (a double-faced
+        // token, e.g. the Incubator), URI-escaped JSON (see
+        // `tokenDefinitionId`). Trailing 12th segment; empty / absent for
+        // tokens without a back face (back-compat with pre-#1210
+        // 11-segment ids).
+        backFaceRaw,
     ] = parts;
     const types = typesRaw.split(",").filter(Boolean) as CardType[];
     const subtypes = subtypesRaw.split(",").filter(Boolean);
@@ -692,6 +772,13 @@ function maybeSynthesizeToken(cardId: string): CardDefinition | null {
                   decodeURIComponent(activatedAbilitiesRaw)
               ) as ActivatedAbility[])
             : undefined;
+    // Rebuild the token's back face encoded in the id (CR 712, issue #1210).
+    // Plain data (no closures), so it round-trips through JSON directly like
+    // `activatedAbilities` above.
+    const backFace: CardBackFace | undefined =
+        backFaceRaw && backFaceRaw.length > 0
+            ? (JSON.parse(decodeURIComponent(backFaceRaw)) as CardBackFace)
+            : undefined;
     const manaCost: ManaCost = {};
     for (const c of colors) manaCost[c] = (manaCost[c] ?? 0) + 1;
     const def: CardDefinition = {
@@ -712,6 +799,7 @@ function maybeSynthesizeToken(cardId: string): CardDefinition | null {
         ...(activatedAbilities && activatedAbilities.length > 0
             ? { activatedAbilities }
             : {}),
+        ...(backFace ? { backFace } : {}),
     };
     registry.set(cardId, def);
     return def;

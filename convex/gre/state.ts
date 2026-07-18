@@ -36,12 +36,14 @@ import {
 } from "../cards/types";
 import {
     registerTokenDefinition,
+    tokenDefinitionId,
     tryGetDefinition,
     isPrintedInSet as isCardPrintedInSet,
 } from "../cards";
 import { getEmblemDefinition, tryGetEmblemDefinition } from "../cards/emblems";
 import { getKeywordCounterGrant } from "../cards/mechanicsRegistry";
 import { turnFaceDown } from "./faceDown";
+import { transformPermanent } from "./transform";
 import { applyIndefiniteSupertypeMutation, liveSupertypesOf } from "./snow";
 import {
     buildAutoTapSources,
@@ -668,6 +670,24 @@ export type CardInstanceState = {
      *  from non-controllers by `projectPublicState`; the controller's view
      *  restores `card.id` to this value. Restored on turn-up. */
     faceDownOf?: string;
+    /** True while this permanent is showing its BACK face (CR 712, ADR 0067,
+     *  issue #1210) — has been transformed an odd number of times. Distinct
+     *  from `faceDown`/`faceDownOf` (CR 707.4 morph: a HIDDEN identity that
+     *  turns up to its OWN characteristics) — transform swaps between two
+     *  DISTINCT, always-PUBLIC (CR 712.1a) printed characteristic sets, so
+     *  (unlike `faceDown`) there is no per-viewer hiding in
+     *  `gameProjections.ts`. Set by `transformPermanent` (`gre/transform.ts`),
+     *  mirroring `faceDown.ts`'s definition-swap pattern: `card.card.id` and
+     *  the mutable characteristic fields (`types`/`subtypes`/`power`/
+     *  `toughness`/`staticAbilities`) are overwritten in place from the
+     *  registered back-face `CardDefinition`, so every existing reader
+     *  (layers, combat, activated-ability discovery) observes the swap. */
+    transformed?: boolean;
+    /** The FRONT face's own definition id, captured by `transformPermanent`
+     *  when first transforming to the back face, so a later flip back (CR
+     *  712.8a) can restore it. Public to both players (unlike `faceDownOf`,
+     *  no hiding is needed). Only meaningful while `transformed` is true. */
+    transformedFrom?: string;
     /** Transient combat pile label (Raging River, CR 509.2 variant —
      *  ADR 0012). Set when a divider assigns this creature to the "left" or
      *  "right" pile; consumed by `validateBlockerEligibility` against the
@@ -7504,55 +7524,6 @@ function normalizeDestroyAllFilter(
     return filter;
 }
 
-/** Content-derived id for a synthesized token CardDefinition (CR 707.1).
- *  Two `createToken` calls with the same spec shape share one definition
- *  entry (and thus one image / one frontend lookup); two specs that differ
- *  on any field get two distinct ids. Stable across replays. The optional
- *  9th segment is an `imagePrintId` (Scryfall UUID of a printed token) so
- *  the client lazy-synthesizer can recover the same image link without a
- *  separate registration call. */
-function tokenDefinitionId(spec: TokenSpec): string {
-    const parts = [
-        spec.name,
-        spec.types.join(","),
-        (spec.subtypes ?? []).join(","),
-        (spec.supertypes ?? []).join(","),
-        spec.power ?? "",
-        spec.toughness ?? "",
-        (spec.colors ?? []).join(""),
-        (spec.staticAbilities ?? []).join(","),
-        // 9th segment (index 8): the printed-token Scryfall id, kept in place so
-        // existing decoders that read `parts[8]` as the image print id are
-        // unaffected.
-        spec.imagePrintId ?? "",
-        // 10th segment (index 9): CR 611 static-effect kinds present on the
-        // token (Tetravite's "can't be enchanted" guard). A token carrying a
-        // static effect is a distinct definition shape, so its presence must
-        // feed the content hash — keyed by the effect kinds (the guard
-        // predicates are closures and can't be serialized, but the kind set
-        // uniquely distinguishes the token shapes in the current catalog).
-        // Empty when the token has no continuous effects (back-compat: a 9-
-        // segment id without this trailing segment decodes as "no effects").
-        (spec.staticEffects ?? []).map((e) => e.kind).join(","),
-        // 11th segment (index 10, issues #1191 + #778): the token's activated
-        // abilities (Investigate's Clue: "{2}, Sacrifice this token: Draw a
-        // card."; a functional Treasure's sacrifice-for-mana ability),
-        // JSON-encoded (they are plain data — an `EffectTokenSpec` ability
-        // carries only `id`/`cost`/`oracleText`/`useStack`/`effects`, no
-        // closures) and URI-escaped so a `|` inside oracle text or an effect
-        // string can never be confused with the segment delimiter. A token
-        // WITH an activated ability gets a distinct definition from one
-        // without (and from one with different abilities — the full JSON
-        // subsumes an id-only key). Empty when the token has none (back-compat:
-        // a 10-segment id without this trailing segment decodes as "no
-        // abilities").
-        spec.activatedAbilities && spec.activatedAbilities.length > 0
-            ? encodeURIComponent(JSON.stringify(spec.activatedAbilities))
-            : "",
-    ];
-    return `token:${parts.join("|")}`;
-}
-
 /** Shared clone-onto-stack helper for spell-copy primitives (CR 707.10/707.12).
  *  `original` is the spell being copied; `creator` is the resolving stack item
  *  whose effect creates the copy (Fork's spell, or the resolving spell itself
@@ -8983,6 +8954,19 @@ export function buildSpellContext(
             // CR 701.20b — emit "becomes untapped" on the transition so
             // untap-watching triggers (Tawnos's Coffin) fire (ADR 0028).
             untapPermanent(state, found.card);
+        },
+        // CR 701.27 / 712 (issue #1210, ADR 0067) — transform: flip to the
+        // back face if currently showing front, or back to front if already
+        // transformed (CR 712.8a — the same primitive flips either
+        // direction). No-ops if the target left the battlefield (CR 608.2b)
+        // or its current face declares no `backFace` — see
+        // `transformPermanent` (`gre/transform.ts`) for the definition-swap.
+        transform(target: TargetSelection): void {
+            if (target.type === "player")
+                throw new Error("Cannot transform a player");
+            const found = findOnBattlefield(state, target.id);
+            if (!found) return;
+            transformPermanent(found.card);
         },
         // CR 613.1b (layer 2): gain control of a permanent. The control change
         // is sourced by the resolving permanent (`item.id`) so it reverts when
@@ -12604,6 +12588,12 @@ export function createTokenPermanents(
         ...(spec.staticEffects && spec.staticEffects.length > 0
             ? { staticEffects: [...spec.staticEffects] }
             : {}),
+        // CR 712 (issue #1210, ADR 0067) — a double-faced token's back face
+        // (the Incubator's "{2}: Transform this artifact" → a Construct
+        // creature token). `transformPermanent` (`gre/transform.ts`) reads
+        // this straight off the token's own synthesized definition, exactly
+        // like a printed card's `CardDefinition.backFace`.
+        ...(spec.backFace ? { backFace: spec.backFace } : {}),
     });
     for (let i = 0; i < count; i++) {
         state.nextTokenSeq = (state.nextTokenSeq ?? 0) + 1;
@@ -12632,6 +12622,23 @@ export function createTokenPermanents(
             // (Tetravus exiles its own Tetravites to recover +1/+1 counters).
             ...(createdBy ? { createdBy } : {}),
         };
+        // CR 111.9 / 122.1 (issue #1210) — a token can enter WITH counters
+        // already on it (Incubate N: "create an Incubator token ... with N
+        // +1/+1 counters on it", CR 701.53). Stamped directly onto the
+        // instance before the CR 614 ETB chokepoint runs, mirroring how a
+        // non-token permanent's own `CardDefinition.entersWith.counters` is
+        // applied in `finalizeSpellResolution` (issue #841) — same
+        // name/shape, reused rather than invented ("generalize don't add").
+        const entersWithCounters = spec.entersWith?.counters;
+        if (entersWithCounters && entersWithCounters.length > 0) {
+            const counters: Record<string, number> = {};
+            for (const entry of entersWithCounters) {
+                if (entry.count <= 0) continue;
+                counters[entry.type] =
+                    (counters[entry.type] ?? 0) + entry.count;
+            }
+            if (Object.keys(counters).length > 0) token.counters = counters;
+        }
         // CR 614 (issue #1148) — enters-the-battlefield replacement chokepoint.
         const enterDestination = enterBattlefieldDestinationFor(
             state,

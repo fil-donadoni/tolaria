@@ -384,6 +384,92 @@ function isTokenActivatedAbility(value: unknown): boolean {
     return true;
 }
 
+/** `EffectTokenSpec.entersWith` (CR 111.9/122.1, issue #1210) — counters a
+ *  token enters WITH. A non-empty `counters` array of `{ type, count }`,
+ *  `count` a full `EffectValue` (resolved by the `createToken` Op executor
+ *  at token-creation time — the JSON-purity check here only needs to confirm
+ *  it's a well-formed EffectValue, not that it resolves to anything in
+ *  particular). Unknown keys rejected (ADR 0045). */
+function isEntersWithSpec(value: unknown): boolean {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+        return false;
+    }
+    const s = value as Record<string, unknown>;
+    if (!Object.keys(s).every((k) => k === "counters")) return false;
+    if (!("counters" in s)) return true;
+    if (!Array.isArray(s.counters) || s.counters.length === 0) return false;
+    return s.counters.every((c) => {
+        if (typeof c !== "object" || c === null || Array.isArray(c)) {
+            return false;
+        }
+        const entry = c as Record<string, unknown>;
+        if (!Object.keys(entry).every((k) => k === "type" || k === "count")) {
+            return false;
+        }
+        if (typeof entry.type !== "string" || entry.type.length === 0) {
+            return false;
+        }
+        return isEffectValue(entry.count);
+    });
+}
+
+/** `EffectTokenSpec.backFace` (CR 712, issue #1210, ADR 0067) — the JSON-pure
+ *  subset of a double-faced token's back face (`EffectCardBackFace`): the
+ *  SAME printed-characteristic fields `isEffectTokenSpec` itself accepts,
+ *  minus `activatedAbilities` (closures aren't JSON-expressible; a token
+ *  whose back face needs an activated ability stays a `resolve()` card).
+ *  Unknown keys rejected (ADR 0045). */
+function isEffectCardBackFace(value: unknown): boolean {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+        return false;
+    }
+    const s = value as Record<string, unknown>;
+    const allowed = new Set([
+        "name",
+        "types",
+        "subtypes",
+        "supertypes",
+        "power",
+        "toughness",
+        "colors",
+        "staticAbilities",
+        "oracleText",
+        "imagePrintId",
+    ]);
+    if (!Object.keys(s).every((k) => allowed.has(k))) return false;
+    if (typeof s.name !== "string" || s.name.length === 0) return false;
+    if (
+        !Array.isArray(s.types) ||
+        s.types.length === 0 ||
+        !isStringArray(s.types, TOKEN_CARD_TYPES)
+    ) {
+        return false;
+    }
+    if ("subtypes" in s && !isStringArray(s.subtypes)) return false;
+    if ("supertypes" in s && !isStringArray(s.supertypes, TOKEN_SUPERTYPES)) {
+        return false;
+    }
+    if ("power" in s && !Number.isInteger(s.power)) return false;
+    if ("toughness" in s && !Number.isInteger(s.toughness)) return false;
+    if ("colors" in s && !isStringArray(s.colors, TOKEN_COLORS)) return false;
+    if ("staticAbilities" in s && !isStringArray(s.staticAbilities)) {
+        return false;
+    }
+    if (
+        "oracleText" in s &&
+        (typeof s.oracleText !== "string" || s.oracleText.length === 0)
+    ) {
+        return false;
+    }
+    if (
+        "imagePrintId" in s &&
+        (typeof s.imagePrintId !== "string" || s.imagePrintId.length === 0)
+    ) {
+        return false;
+    }
+    return true;
+}
+
 /** The JSON-pure token spec of a `createToken` Op (issue #847, `EffectTokenSpec`).
  *  Every printed characteristic a token enters with, all plain data — name +
  *  a non-empty types array are required; subtypes / supertypes / P/T / colors /
@@ -407,6 +493,8 @@ function isEffectTokenSpec(value: unknown): boolean {
         "staticAbilities",
         "imagePrintId",
         "activatedAbilities",
+        "entersWith",
+        "backFace",
     ]);
     if (!Object.keys(s).every((k) => allowed.has(k))) return false;
     if (typeof s.name !== "string" || s.name.length === 0) return false;
@@ -442,6 +530,8 @@ function isEffectTokenSpec(value: unknown): boolean {
             return false;
         }
     }
+    if ("entersWith" in s && !isEntersWithSpec(s.entersWith)) return false;
+    if ("backFace" in s && !isEffectCardBackFace(s.backFace)) return false;
     return true;
 }
 
@@ -1636,6 +1726,16 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             target: isObjectSelector,
         },
     },
+    // CR 701.27 / 712 (issue #1210) — transform a permanent. `target` is an
+    // object selector (announced slot, `$source`, or a forEach `$each`). No
+    // other fields — CR 712.8a's toggle (front→back / back→front) is
+    // determined at RESOLUTION time by the permanent's own `transformed`
+    // flag, not declared on the Op.
+    transform: {
+        required: {
+            target: isObjectSelector,
+        },
+    },
     // CR 111 / 701.7 (issue #847) — create token permanents. `token` is the
     // JSON-pure token spec (EffectTokenSpec — name + types required, the rest
     // optional; staticEffects deliberately excluded, not JSON-expressible);
@@ -2689,12 +2789,20 @@ function checkOpListRefs(
             // OUTER scope like `select`; `chosenEffect` / `otherEffect`
             // (divideIntoPiles) are walked in their own CLONED scopes below,
             // like `then`/`else`. `op` / `bind` never carry refs. `token`
-            // (`createToken`, issue #1191) is SKIPPED entirely here: a token's
+            // (`createToken`, issue #1191) is MOSTLY skipped here: a token's
             // `activatedAbilities[].effects` is an independently-scoped script
             // (its own fresh `$source` = the token once created, no visibility
             // into this outer scope's binds) — `validateEffectOpList`'s
             // nested-`createToken` pass validates it in isolation instead, so
-            // walking it here would check refs against the WRONG scope.
+            // walking it here would check refs against the WRONG scope. The
+            // ONE exception (issue #1210) is `token.entersWith.counters[].count`
+            // — evaluated in THIS outer scope at token-creation time (same
+            // scope `count`/`controller` already resolve in, e.g. Sunfall's
+            // "Incubate X, where X is the number of creatures exiled this
+            // way" binds X from an earlier Op in the SAME script), so it is
+            // walked explicitly below rather than through the generic
+            // recursion (which would otherwise also descend into
+            // `activatedAbilities`).
             if (
                 k === "op" ||
                 k === "bind" ||
@@ -2711,9 +2819,15 @@ function checkOpListRefs(
                 k === "watch" ||
                 k === "objects" ||
                 k === "chosenEffect" ||
-                k === "otherEffect" ||
-                k === "token"
+                k === "otherEffect"
             ) {
+                continue;
+            }
+            if (k === "token") {
+                const token = v as { entersWith?: unknown } | null;
+                if (token && typeof token === "object") {
+                    collectRefUses(token.entersWith, "entersWith", uses);
+                }
                 continue;
             }
             collectRefUses(v, k, uses);

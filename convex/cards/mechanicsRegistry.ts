@@ -347,7 +347,9 @@ const KEYWORD_ACTIONS: MechanicRow[] = [
         name: "Transform",
         kind: "keyword-action",
         cr: "701.27",
-        status: "planned",
+        status: "implemented",
+        binding: 'SpellContext.transform / EffectOp "transform"',
+        note: "Permanent-level transform machinery (CR 712 double-faced permanents, issue #1210, ADR 0067): a `backFace` spec on `CardDefinition`/`TokenSpec`, a `transformed`/`transformedFrom` face-flag pair on `CardInstanceState`, the pure `transformPermanent` mutator (`gre/transform.ts`, mirrors `faceDown.ts`'s definition-swap pattern), and the `transform` Effect Op. Scoped to a permanent ALREADY on the battlefield transforming in place (a paid activated-ability cost, e.g. the Incubator's \"{2}: Transform this artifact\"); a full two-sided-card CASTING model (choosing a face to cast, per-face mana cost, CR 711) is out of scope.",
     },
     // 701.28 Convert
     {
@@ -566,7 +568,7 @@ const KEYWORD_ACTIONS: MechanicRow[] = [
         kind: "keyword-action",
         cr: "701.53",
         status: "planned",
-        note: "Blocked on two engine gaps, confirmed in #924: (1) no transform/DFC machinery for permanents (only faceDown/faceDownOf morph state exists, a different mechanic — CR 712 needs distinct front/back characteristic sets); (2) EffectTokenSpec/TokenSpec have no counters-at-creation or token-scoped activatedAbilities field. Tracked-by #1210. Blocks Sunfall (convex/cards/sets/mom/white.ts, stub id 32e29c7d-ed4b-4eff-b3c2-d99e5b63ef8d).",
+        note: "Both engine gaps confirmed in #924 are now CLOSED by #1210: (1) permanent-level transform/DFC machinery (CardDefinition.backFace / TokenSpec.backFace, the transformed/transformedFrom face flag, transformPermanent, the `transform` Effect Op — CR 712, ADR 0067); (2) TokenSpec/EffectTokenSpec.entersWith.counters for dynamic counters-at-creation (token-scoped activatedAbilities already shipped, issue #778/#1191). Still `planned`: Incubate N itself as a keyword action (create-token-with-backFace-and-counters composition) and the Incubator token definition are not yet wired to a card — left for #924. Blocks Sunfall (convex/cards/sets/mom/white.ts, stub id 32e29c7d-ed4b-4eff-b3c2-d99e5b63ef8d).",
     },
     // 701.54 The Ring Tempts You
     {
@@ -2761,6 +2763,14 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         mechanicId: "regenerate",
         binding: "SpellContext.applyRegenerationShield",
         note: 'Stack a regeneration shield on a permanent (CR 701.15 / 701.19, issue #846). A thin declarative skin over the single SpellContext primitive `applyRegenerationShield`, one execution path (ADR 0045): `target` names the permanent to shield — an announced target slot (`{ target: N }` — Death Ward / Niall Silvain / Horror of Horrors "Regenerate target creature"), the resolving source (`$source` — a self-regenerate activated ability: Drudge Skeletons, Sedge Troll, Clay Statue, Zombie Master-granted regen), or a forEach `$each` (a regenerate-each rider). One shield per Op; it is consumed by the next destroy event on that permanent this turn (the shield replaces the destroy with "remove all marked damage, tap, remove from combat", CR 614.5 / 701.15a) and expires unused at CLEANUP (CR 514.2). No amount / duration — a permanent has a shield or it doesn\'t; multiple shields stack via repeated resolutions. The primitive no-ops on a non-permanent selection and off the battlefield (CR 608.2b — the Op is skipped when `resolveObjectRef` returns undefined). Subsumes the applyRegenerationShield closures the migration classifier folds here (~30 blocked closures at ship time). The continuous "if this would be destroyed, regenerate it" REPLACEMENT (`auto-regenerate`, state.ts regenerateOrDestroy — a static shield-granting effect, not a one-shot) is a distinct mechanic NOT folded here.',
+    },
+    {
+        op: "transform",
+        status: "implemented",
+        cr: "701.27",
+        mechanicId: "transform",
+        binding: "SpellContext.transform",
+        note: 'Transform a permanent (CR 701.27 keyword action / CR 712 double-faced permanents, issue #1210, ADR 0067). A thin declarative skin over the single SpellContext primitive `transform`, one execution path (ADR 0045): `target` names the permanent to flip — almost always the resolving source (`$source` — "{2}: Transform this artifact", the Incubator token shape, CR 701.53 Incubate), but an announced target slot or a forEach `$each` member is accepted for generality. CR 712.8a — the SAME toggle flips EITHER direction: front → back if the permanent is currently showing its front, back → front if it\'s already transformed, so a card never needs two Ops. The primitive (`gre/transform.ts`) mirrors the `faceDown.ts` definition-swap pattern: it registers (or reuses) a synthesized back-face `CardDefinition` from `CardDefinition.backFace` / `TokenSpec.backFace`, swaps the instance\'s `card.card.id` to it, and overwrites the mutable characteristic fields (types/subtypes/power/toughness/staticAbilities) in place — so every existing reader (layers, combat, activated-ability discovery, SBA creature-ness checks) observes the new face automatically, no new "effective card" seam needed. Unlike face-down morph (CR 707.4), transform is always PUBLIC information (CR 712.1a) — no per-viewer hiding at the projection boundary. No-ops when the target is gone (CR 608.2b) or its current face declares no `backFace` — nothing to flip to/from. SCOPE: only a permanent ALREADY on the battlefield transforming in place is modelled; a full two-sided-card CASTING model (choosing which face to cast, a distinct mana cost per face, CR 711) is out of scope.',
     },
     {
         op: "createToken",
