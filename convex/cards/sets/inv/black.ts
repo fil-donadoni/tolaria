@@ -34,7 +34,7 @@
 //           inspect the firing event's or blocker's live characteristics
 //           (color, mana value) stays imperative by design (see the Op
 //           registry's own `reveal`/`moveZone` notes).
-//   • 5 cards are commented stubs, tagged `tracked-by:` — none duplicated
+//   • 4 cards are commented stubs, tagged `tracked-by:` — none duplicated
 //     from the Domain (#1066) / pile-division (#1067) / can't-be-countered
 //     (#1065) capability clusters (none of those land on black):
 //       - Exotic Curse shipped below as an active def with the Domain
@@ -43,9 +43,14 @@
 //         Phyrexian Infiltrator (the set's one exchange-control card,
 //         issue #1068) similarly ships below, outside this 38-card tally,
 //         once the control-exchange capability landed (no longer a stub).
-//       - Defiling Tears, Desperate Research, Tsabo's Decree, Twilight's Call
-//         → tracked-by #1085 (setColor / nameCard / choose-a-creature-type /
-//         pay-more-for-flash gaps surfaced by this tranche).
+//       - Desperate Research shipped below (issue #1085 — the `nameCard` +
+//         `digMatchingToHand` Ops it surfaced are now implemented).
+//       - Defiling Tears, Tsabo's Decree, Twilight's Call → tracked-by #1405
+//         (residual gaps surfaced while closing #1085: a temporary granted
+//         costed activated ability, a "choose a creature type" capability
+//         stacked with #1120's hand-sweep gap, and a pay-more-for-flash
+//         cast-timing rider, respectively — setColor itself, #1085's own
+//         Op, shipped and is no longer these cards' blocker).
 //       - Yawgmoth's Agenda → tracked-by #686 (graveyard-cast permission +
 //         replacement capability, already an open issue before this tranche).
 // ═════════════════════════════════════════════════════════════════════════════
@@ -347,11 +352,17 @@ export const cursedFlesh: CardDefinition = {
     ],
 };
 
-// STOP-AND-ISSUE (tracked-by: #1085) — Defiling Tears: "Until end of turn,
+// STOP-AND-ISSUE (tracked-by: #1405) — Defiling Tears: "Until end of turn,
 // target creature becomes black, gets +1/-1, and gains '{B}: Regenerate this
-// creature.'" Needs the `setColor` Op, `status: "planned"` in
-// EFFECT_OP_BACKLOG (mechanicsRegistry.ts) — folds SpellContext.setColorOverride,
-// not yet wired to the interpreter/validator. Not invented; left a stub.
+// creature.'" The color-change blocker this stub originally cited (`setColor`)
+// SHIPPED (issue #1083) and the +1/-1 pump is already composable (`pump` Op),
+// but a SECOND, distinct gap remains: granting a NEW, COSTED activated
+// ability ("{B}: Regenerate this creature.") to a target permanent
+// temporarily (until end of turn) has no home — `grantAbility` only grants a
+// free-form KEYWORD string, and `grantTemplates`/`StaticActivatedGrant` is a
+// permanent's own always-on continuous grant, not a one-shot spell effect
+// with an end-of-turn expiry. Not invented; left a stub — see #1405 for the
+// full design note.
 // export const defilingTears: CardDefinition = {
 //     id: "db7cba29-9472-4874-bd54-37edf70645b2", // INV 99
 //     name: "Defiling Tears",
@@ -361,19 +372,42 @@ export const cursedFlesh: CardDefinition = {
 //     targetRequirement: { type: "Creature", count: 1 },
 // };
 
-// STOP-AND-ISSUE (tracked-by: #1085) — Desperate Research: "Choose a card
-// name other than a basic land card name. Reveal the top seven cards of your
-// library and put all of them with that name into your hand. Exile the
-// rest." Needs the `nameCard` Op, also `status: "planned"` in
-// EFFECT_OP_BACKLOG — folds SpellContext.requestNameCard. Not invented; left
-// a stub.
-// export const desperateResearch: CardDefinition = {
-//     id: "6a42ac7e-4a27-488c-a2e7-338b18103b02", // INV 100
-//     name: "Desperate Research",
-//     rarity: "rare",
-//     manaCost: { X: 1, B: 1 },
-//     types: ["Sorcery"],
-// };
+// Desperate Research — {1}{B} Sorcery (CR 201.3 "chooses a card name" +
+// 701.20a reveal + 401.4 look/split). "Choose a card name other than a basic
+// land card name. Reveal the top seven cards of your library and put all of
+// them with that name into your hand. Exile the rest." Two Ops (issue #1085,
+// the `nameCard` / `digMatchingToHand` gaps this card surfaced, now shipped):
+// `nameCard` suspends for the open name choice (`excludeBasicLand` enforces
+// the CR 201.3 restriction at submit time); `digMatchingToHand` then reveals
+// the top 7 and splits them on the chosen name — every match to hand, the
+// rest exiled — reading the name back via a bare `{ ref }` into
+// `EffectCardFilter.name` (Desperate Research is the shape both Ops were
+// designed for).
+export const desperateResearch: CardDefinition = {
+    id: "6a42ac7e-4a27-488c-a2e7-338b18103b02", // INV 100
+    name: "Desperate Research",
+    rarity: "rare",
+    oracleText:
+        "Choose a card name other than a basic land card name. Reveal the top seven cards of your library and put all of them with that name into your hand. Exile the rest.",
+    manaCost: { X: 1, B: 1 },
+    types: ["Sorcery"],
+    effects: [
+        {
+            op: "nameCard",
+            player: "controller",
+            prompt: "Choose a card name other than a basic land card name.",
+            bind: "$named",
+            excludeBasicLand: true,
+        },
+        {
+            op: "digMatchingToHand",
+            player: "controller",
+            look: 7,
+            filter: { name: { ref: "$named" } },
+            destination: "exile",
+        },
+    ],
+};
 
 // Devouring Strossus — {5}{B}{B}{B} 9/9. "Flying, trample. At the beginning
 // of your upkeep, sacrifice a creature. Sacrifice a creature: Regenerate
@@ -1235,13 +1269,16 @@ export const tsabosAssassin: CardDefinition = {
     ],
 };
 
-// STOP-AND-ISSUE (tracked-by: #1085) — Tsabo's Decree: "Choose a creature
+// STOP-AND-ISSUE (tracked-by: #1405) — Tsabo's Decree: "Choose a creature
 // type. Target player reveals their hand and discards all creature cards of
 // that type. Then destroy all creatures of that type that player controls.
-// They can't be regenerated." Needs a "choose a creature type" capability
-// that doesn't exist anywhere in the registry or engine — distinct from
-// `nameCard` (which names a printed CARD, not an abstract creature type).
-// Not invented; left a stub.
+// They can't be regenerated." TWO stacked gaps: (1) a "choose a creature
+// type" capability that doesn't exist anywhere in the registry or engine —
+// distinct from `nameCard` (which names a printed CARD, not an abstract
+// creature type); (2) the mandatory hand-side bulk discard ("discards ALL
+// creature cards of that type", no player choice) is the SAME root cause
+// already tracked by #1120 (no hand-zone bulk discard-by-filter capability) —
+// shipping (1) alone would not unblock this card. Not invented; left a stub.
 // export const tsabosDecree: CardDefinition = {
 //     id: "0c1a0ebd-1add-49e6-b5e6-5b26abb1de88", // INV 129
 //     name: "Tsabo's Decree",
@@ -1251,14 +1288,16 @@ export const tsabosAssassin: CardDefinition = {
 //     targetRequirement: { type: "player", count: 1 },
 // };
 
-// STOP-AND-ISSUE (tracked-by: #1085) — Twilight's Call: "You may cast this
+// STOP-AND-ISSUE (tracked-by: #1405) — Twilight's Call: "You may cast this
 // spell as though it had flash if you pay {2} more to cast it. Each player
 // returns all creature cards from their graveyard to the battlefield." The
 // mass-reanimation clause is free (a `forEach` over players + `moveZone`),
 // but the "pay {N} more to cast with flash" cast-timing rider has no home:
 // `AlternativeCost` REPLACES the mana cost (Force of Will-style), it doesn't
 // ADD to it, and there's no existing "conditional flash for extra mana"
-// capability. Not invented; left a stub.
+// capability — real cast-legality engine surgery (timing check + cost
+// computation + cast-commit UI), not a single-file Op addition. Not
+// invented; left a stub.
 // export const twilightsCall: CardDefinition = {
 //     id: "3c97c8a5-33b3-4f7f-a224-bb4df7b4bcc0", // INV 130
 //     name: "Twilight's Call",

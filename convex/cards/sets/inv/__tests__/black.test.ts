@@ -26,6 +26,7 @@ import {
     cremate,
     cryptAngel,
     cursedFlesh,
+    desperateResearch,
     devouringStrossus,
     doOrDie,
     dredge,
@@ -54,7 +55,7 @@ import {
     urborgSkeleton,
 } from "../black";
 import { getCardByName } from "../../../index";
-import { plains, island, savannahLions } from "../../lea";
+import { plains, island, savannahLions, grizzlyBears, hillGiant } from "../../lea";
 import {
     makeInstance,
     makePlayer,
@@ -62,7 +63,10 @@ import {
     pushSpell,
 } from "../../../__tests__/setup";
 import { resolveTopOfStack, getCostModifiers } from "../../../../gre/state";
-import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
+import {
+    applyNameCardSubmit,
+    applyPendingChoiceSubmit,
+} from "../../../../gre/pendingChoiceSubmit";
 import { raiseTriggerTargetSelection } from "../../../../gre/rules";
 import { finalizeTargetSelection } from "../../../../game";
 import {
@@ -1244,5 +1248,108 @@ describe("Phyrexian Infiltrator ({2}{U}{U}: exchange control indefinitely, CR 70
         expect(state.players[0].graveyard.some((c) => c.id === "inf4")).toBe(
             true
         );
+    });
+});
+
+// Desperate Research (CR 201.3 / 701.20a / 401.4, issue #1085) — the
+// `nameCard` + `digMatchingToHand` Ops this card surfaced are new, so the
+// auto-generated canned-scenario smoke test skips it (nameCard suspends for
+// a live open-ended name choice, digMatchingToHand depends on a filter
+// match against library contents) — a hand-written test is the signal-of-
+// intent here (per the DSL testing regime's own escape hatch).
+describe("Desperate Research ({1}{B} Sorcery — choose a card name, reveal 7, split on the name, CR 201.3 / 701.20a)", () => {
+    it("definition: {1}{B} Sorcery with the two-Op nameCard→digMatchingToHand script", () => {
+        expect(desperateResearch.manaCost).toEqual({ X: 1, B: 1 });
+        expect(desperateResearch.types).toEqual(["Sorcery"]);
+        expect(desperateResearch.effects).toHaveLength(2);
+    });
+
+    const libOf = (owner: "p1" | "p2", cardIds: string[]) =>
+        cardIds.map((cardId, i) =>
+            makeInstance(cardId, {
+                id: `desperate-research-${owner}-${i}`,
+                controllerId: owner,
+                ownerId: owner,
+                zone: "library",
+            })
+        );
+
+    it("suspends on the name choice, then splits the top 7 on the chosen name — matches to hand, the rest exiled", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: libOf("p1", [
+                        grizzlyBears.id,
+                        hillGiant.id,
+                        grizzlyBears.id,
+                        hillGiant.id,
+                        grizzlyBears.id,
+                        hillGiant.id,
+                        hillGiant.id,
+                    ]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, desperateResearch.id, "p1");
+        expect(resolveTopOfStack(state)).toBeNull(); // suspended on nameCard
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("name-card");
+        expect(head.playerId).toBe("p1");
+
+        applyNameCardSubmit(state, {
+            playerId: "p1",
+            cardName: "Grizzly Bears",
+        });
+
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        expect(
+            state.players[0].hand.every((c) => c.card.id === grizzlyBears.id)
+        ).toBe(true);
+        expect(state.players[0].hand).toHaveLength(3);
+        expect(state.players[0].exile).toHaveLength(4);
+        expect(state.players[0].library).toHaveLength(0);
+    });
+
+    it("rejects a basic land name (CR 201.3 'other than a basic land card name') — the chooser must resubmit", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: libOf("p1", [grizzlyBears.id, hillGiant.id]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, desperateResearch.id, "p1");
+        resolveTopOfStack(state);
+        expect(() =>
+            applyNameCardSubmit(state, { playerId: "p1", cardName: "Forest" })
+        ).toThrow(/basic land/i);
+        expect(state.pendingChoices).toHaveLength(1);
+    });
+
+    it("wire format: the suspended name choice and the post-resolution hand/exile counts cross the projection", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: libOf("p1", [grizzlyBears.id, hillGiant.id]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, desperateResearch.id, "p1");
+        resolveTopOfStack(state);
+        const projectedSuspended = projectPublicState(state, 1, "p1");
+        expect(projectedSuspended.pendingChoices?.[0]?.kind).toBe(
+            "name-card"
+        );
+
+        applyNameCardSubmit(state, {
+            playerId: "p1",
+            cardName: "Grizzly Bears",
+        });
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[0].hand).toHaveLength(1);
+        expect(projected.players[0].exile).toHaveLength(1);
     });
 });

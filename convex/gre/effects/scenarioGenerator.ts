@@ -878,6 +878,27 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // `choice` / `scryReorder` / `digToHand` skips).
             req.skip ??= `Op "putBack" suspends for a live hand pick (CR 401.4) — covered by the Op's interpreter tests`;
             return;
+        case "nameCard":
+            // CR 201.3 / 202.3 (issue #1085) — a `nameCard` Op suspends
+            // resolution for a live open-ended name choice — a canned
+            // scenario cannot submit a name, so the script is reported as an
+            // explicit skip; execution coverage comes from the Op's own
+            // interpreter tests (mirrors the suspending `choice` / `mayPay`
+            // skips).
+            req.skip ??= `Op "nameCard" suspends for a live card-name choice (CR 201.3) — covered by the Op's interpreter tests`;
+            return;
+        case "digMatchingToHand":
+            // CR 701.20a / 401.4 (issue #1085) — a filter-driven library
+            // reveal-and-split. In every shipped card it follows a
+            // `nameCard` Op and filters on that Op's chosen-name binding
+            // (Desperate Research), which already forces a skip on its own;
+            // the generator also has no minimal-filler-library model that
+            // guarantees a deterministic filter match/no-match split (mirrors
+            // the `mill` skip rationale — "moves top-of-library cards
+            // somewhere, not modelable against the generator's filler
+            // library"). Explicit skip for exhaustiveness.
+            req.skip ??= `Op "digMatchingToHand" depends on a filter match against library contents — covered by the Op's interpreter tests`;
+            return;
         default: {
             // Exhaustiveness guard: a registered Op with no analyser branch is
             // a skip, not a silent pass.
@@ -1791,6 +1812,24 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     // skips before descending). Kept for the 1:1 coverage guard; the Op's own
     // interpreter + wire-format tests are the behavioural guarantor.
     setSubtype() {
+        return null;
+    },
+    // `nameCard` (CR 201.3 / 202.3, issue #1085) — never reached: `analyseOp`
+    // skips every script with a nameCard Op (it suspends for a live
+    // open-ended name choice, which the canned generator cannot submit).
+    // Kept for the 1:1 coverage guard; the Op's own interpreter tests are
+    // the behavioural guarantor.
+    nameCard() {
+        return null;
+    },
+    // `digMatchingToHand` (CR 701.20a / 401.4, issue #1085) — never reached:
+    // `analyseOp` skips every script with this Op (its outcome depends on a
+    // filter match against library contents the canned generator's filler
+    // library doesn't model deterministically; every shipped caller also
+    // pairs it with a `nameCard` Op that already skips wholesale). Kept for
+    // the 1:1 coverage guard; the Op's own interpreter tests are the
+    // behavioural guarantor.
+    digMatchingToHand() {
         return null;
     },
 };

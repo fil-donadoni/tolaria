@@ -2852,6 +2852,20 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         binding: "SpellContext.setCantAttackThisTurn / setCantBlockThisTurn",
         note: 'Grant a turn-scoped "can\'t attack" (CR 508.1a) or "can\'t block" (CR 509.1b) restriction to a permanent (ADR 0053, pile division — Fight or Flight\'s unchosen attacking pile, Stand or Fall\'s unchosen blocking pile). A thin declarative skin over the two existing SpellContext primitives, one execution path (ADR 0045) — the same restriction-grant reuse `tapUntap` already established for tap/untap. Cleared at CLEANUP (CR 514.2) like every other "this turn" combat flag.',
     },
+    {
+        op: "nameCard",
+        status: "implemented",
+        cr: "201.3",
+        binding: "SpellContext.requestNameCard",
+        note: 'Names a card as part of resolution (CR 201.3 / 202.3, issue #1085 — Desperate Research: "Choose a card name other than a basic land card name"). A thin declarative skin over the single SpellContext primitive `requestNameCard`, one execution path (ADR 0045): SUSPENDS like `choice` / `mayPay` — the binding name doubles as the choiceId, so the stored chosen name IS the picks-family binding (a single-element string array, the identical runtime shape a `choice` Op\'s picks use) a later `EffectCardFilter.name` bare ref reads back. `player` names the chooser; `bind` is REQUIRED (a name choice nothing reads back is meaningless); `excludeBasicLand` (CR 201.3\'s "other than a basic land card name") is checked at SUBMIT time (`applyNameCardSubmit`) — the chooser is asked again on an illegal name, exactly like every other rejection in that pipeline. Was `EFFECT_OP_BACKLOG`\'s `nameCard` reservation (CR 201.3, ~3 blocked closures) — promoted here.',
+    },
+    {
+        op: "digMatchingToHand",
+        status: "implemented",
+        cr: "701.20a",
+        binding: "SpellContext.peekLibraryTop / markKnownToAll / getLibraryCards / moveCardById",
+        note: 'CR 701.20a reveal / CR 401.4 look (issue #1085 — Desperate Research: "Reveal the top seven cards of your library and put all of them with that name into your hand. Exile the rest."). Deterministic sibling of `digToHand`: reveals the top `look` cards of `player`\'s library to EVERY player (unlike `digToHand`\'s private per-chooser look), puts EVERY looked-at card matching `filter` into hand with NO player choice (the filter alone decides — CR 608.2b, zero matches is a no-op for the hand leg), and sends every non-matching looked-at card to `destination` ("exile" — Desperate Research; "graveyard" — a Surveil-shaped future card). A thin declarative composition over four existing SpellContext primitives, one execution path (ADR 0045); `filter` is REQUIRED (a filter-less "look N, keep all" dig is already `digToHand`\'s job with `take` = `look`). `bind` (optional) snapshots the FIRST card put into hand, mirrors `digToHand`\'s own `bind`. No new SpellContext primitive — pure composition, per the "generalize, don\'t add" primitive-reuse rule.',
+    },
 ];
 
 /** Demand-driven Op backlog (PRD #826, playbook #809). Every row is a
@@ -2996,17 +3010,17 @@ export const EFFECT_OP_BACKLOG: EffectOpRow[] = [
     // needed). `setSubtype` (land-type-change twin, `setSubtypesUntil`) SHIPPED
     // alongside it in the same slice — see the EFFECT_OP_REGISTRY row; it was
     // never reserved in this backlog under its own name (Dream Thrush).
+    // `nameCard` SHIPPED (issue #1085) — SpellContext.requestNameCard is now
+    // COVERED live via EFFECT_OP_REGISTRY with status "implemented". Unblocks
+    // Desperate Research (INV) paired with the new `digMatchingToHand` Op
+    // (also shipped in the same slice, never reserved here under its own
+    // name — a filter-driven reveal-and-split composition, not a new
+    // SpellContext primitive).
     {
         op: "lockUntap",
         status: "planned",
         cr: "502.3",
         note: 'Untap-step restriction ("doesn\'t untap while …", CR 502.3). Folds SpellContext.lockUntapWhileSourceTapped / skipNextUntap (~9 blocked closures). Long-tail.',
-    },
-    {
-        op: "nameCard",
-        status: "planned",
-        cr: "201.3",
-        note: "Name a card as part of resolution (CR 201.3). Folds SpellContext.requestNameCard (~3 blocked closures). Long-tail.",
     },
     // `sacrificeObject` (issue #1151) CLOSED — removed from this backlog, not
     // promoted to EFFECT_OP_REGISTRY as a separate Op. Its design sketch
