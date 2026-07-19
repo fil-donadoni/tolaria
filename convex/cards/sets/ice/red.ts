@@ -1820,10 +1820,25 @@ export const orcishLumberjack: CardDefinition = {
 // blocked, you may gain control of target land defending player controls for as
 // long as you control this creature. If you do, this creature assigns no combat
 // damage this turn." Fires off `ATTACKER_UNBLOCKED` (the Murk Dwellers shape).
-// The optional "target land" is picked via `requestChoice` (min 0 = decline);
-// control is taken with a `controller-controls-source` condition (CR 611.2b — the
-// shipped "for as long as you control this" control change), and the unblocked
-// Squatters is marked to assign no combat damage (`markAssignsNoCombatDamage`).
+//
+// CR 603.3d — "target land defending player controls" is a REAL target chosen
+// when the trigger is PUT ON THE STACK (issue #1193 machinery,
+// `raiseTriggerTargetSelection` in gre/rules.ts), NOT a resolution-time
+// `requestChoice`. That makes it subject to hexproof / protection / ward and
+// fires "becomes the target of an ability" triggers, which the old
+// choice-as-target workaround silently skipped. In a 2-player / solo game the
+// "defending player" is the attacker controller's sole opponent, so
+// `controller: "opponent"` = "defending player controls"; `type: "Land"`;
+// `count: 1` is a single mandatory target (auto-selected when exactly one is
+// legal per CR 603.3d, removed from the stack per CR 603.3c when none is legal).
+//
+// The "you may" is a SEPARATE resolution-time decision (CR 117.3a), distinct
+// from the targeting — kept as a cost-less `requestMayPay` (the Verduran
+// Enchantress "may draw a card" shape). Accepting takes control with a
+// `controller-controls-source` condition (CR 611.2b — the shipped "for as long
+// as you control this" control change) and, "if you do", marks the unblocked
+// Squatters to assign no combat damage this turn (`markAssignsNoCombatDamage`);
+// declining keeps combat damage.
 const ORCISH_SQUATTERS_ID = "f3ee7bd5-612b-4916-a914-1294805b8f64";
 export const orcishSquatters: CardDefinition = {
     id: ORCISH_SQUATTERS_ID,
@@ -1842,31 +1857,35 @@ export const orcishSquatters: CardDefinition = {
             oracleText:
                 "Whenever this creature attacks and isn't blocked, you may gain control of target land defending player controls for as long as you control this creature. If you do, this creature assigns no combat damage this turn.",
             event: "ATTACKER_UNBLOCKED",
+            // CR 603.3d — the target land is chosen when the trigger is put on
+            // the stack (see card note above), not at resolution.
+            targetRequirement: {
+                type: "Land",
+                count: 1,
+                controller: "opponent",
+            },
             matches: (event, self) =>
                 event.type === "ATTACKER_UNBLOCKED" &&
                 event.attackerId === self.id,
             resolve: (ctx) => {
-                const defender = ctx.allPlayerIds.find(
-                    (pid) => pid !== ctx.controller
-                );
-                if (!defender) return;
-                // CR 117.3a — "you may": choose 0 (decline) or 1 land the
-                // defending player controls.
-                const picked = ctx.requestChoice({
+                // CR 603.3d — the target land was announced when the trigger
+                // went on the stack; read it off `ctx.targets[0]`. Gone / left
+                // the battlefield → no-op (CR 608.2b).
+                const target = ctx.targets[0];
+                if (target?.type !== "permanent") return;
+                // CR 117.3a — "you may gain control": a cost-less yes/no at
+                // resolution, distinct from the targeting above. Declining
+                // keeps combat damage; accepting gains control and, "if you
+                // do", makes Squatters assign no combat damage this turn.
+                const gain = ctx.requestMayPay({
                     playerId: ctx.controller,
-                    choiceId: `orcish-squatters-land-${ctx.sourceInstanceId}`,
-                    kind: "choose-permanents",
-                    zone: "battlefield",
-                    zoneOwnerId: defender,
-                    filter: { types: "Land" },
-                    count: { min: 0, max: 1 },
-                    prompt: "Gain control of a land the defending player controls? (Orcish Squatters)",
+                    choiceId: `orcish-squatters-may-${ctx.sourceInstanceId}`,
+                    prompt: "Gain control of the target land? (Orcish Squatters — if you do, it assigns no combat damage this turn)",
                 });
-                if (picked === undefined) return; // suspended for the choice
-                const landId = picked[0];
-                if (!landId) return; // declined
+                if (gain === undefined) return; // suspended for the decision
+                if (!gain) return; // declined — combat damage proceeds
                 ctx.gainControl(
-                    { type: "permanent", id: landId },
+                    { type: "permanent", id: target.id },
                     ctx.controller,
                     {
                         kind: "controller-controls-source",

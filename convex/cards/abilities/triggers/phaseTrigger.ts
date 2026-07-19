@@ -26,6 +26,7 @@ import type {
     PermanentView,
     PhaseBeginEvent,
     SpellContext,
+    TargetRequirement,
     TriggerStateView,
     TriggeredAbility,
 } from "../../types";
@@ -44,6 +45,14 @@ export interface PhaseTriggerArgs {
      *  battlefield; set `"graveyard"` for upkeep triggers that fire while the
      *  card sits in the graveyard (Nether Shadow). */
     zone?: "graveyard";
+    /** CR 603.3d (issue #1193) — announcement-time target requirement for a
+     *  TARGETED phase trigger (Reya Dawnbringer's "you may return target
+     *  creature card from your graveyard to the battlefield"). Forwarded
+     *  verbatim onto the built `TriggeredAbility`; the engine locks the
+     *  target(s) as the trigger goes on the stack (`raiseTriggerTargetSelection`,
+     *  gre/rules.ts). The `effects` body reads the announced slot via
+     *  `{ target: 0 }` / `ctx.targets`. */
+    targetRequirement?: TargetRequirement;
     /** Whose step counts — drives both the trigger filter and the
      *  `scopedPlayerId` passed to `resolve`. See `TriggerScope`. */
     scope: TriggerScope;
@@ -115,6 +124,9 @@ export function phaseTrigger(args: PhaseTriggerArgs): TriggeredAbility {
         oracleText: args.oracleText,
         event: "PHASE_BEGIN",
         ...(args.zone ? { zone: args.zone } : {}),
+        ...(args.targetRequirement
+            ? { targetRequirement: args.targetRequirement }
+            : {}),
         matches: (event, self, state) => {
             if (event.type !== "PHASE_BEGIN") return false;
             if (event.phase !== args.phase) return false;

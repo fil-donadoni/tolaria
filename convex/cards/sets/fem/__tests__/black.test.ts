@@ -67,6 +67,7 @@ import {
     pushSpell,
 } from "../../../__tests__/setup";
 import { applyMayPaySubmit } from "../../../../gre/pendingChoiceSubmit";
+import { raiseTriggerTargetSelection } from "../../../../gre/rules";
 import {
     resolveTrigger,
     UPKEEP,
@@ -887,10 +888,18 @@ describe("Mindstab Thrull — unblocked sac → discard three (CR 509.1h, 603.3d
 
 // ---------------------------------------------------------------------------
 // Necrite — attacks-unblocked optional self-sac → destroy a defender creature,
-// can't be regenerated (CR 509.1h, 603.3d, 701.7).
+// can't be regenerated (CR 603.3d, 509.1h, 701.7).
+//
+// CR 603.3d — "destroy TARGET creature defending player controls" is a real
+// target chosen when the trigger is put on the stack (`targetRequirement` +
+// `raiseTriggerTargetSelection`, issue #1193), NOT a resolution-time pick. The
+// "you may sacrifice it. If you do" clause stays at resolution as a
+// `requestMayPay` optional cost (CR 701.7a) — cleanly separate from the target
+// choice (unlike Mindstab Thrull, whose "defending player discards" is NOT
+// targeted, Necrite's clause genuinely targets, so it earns a targetRequirement).
 // ---------------------------------------------------------------------------
 
-describe("Necrite — unblocked sac → destroy a defender's creature (CR 509.1h, 701.7)", () => {
+describe("Necrite — unblocked sac → destroy a defender's creature (CR 603.3d, 701.7)", () => {
     const UNBLOCKED = (attackerId: string): StackItem["triggerEvent"] =>
         ({
             type: "ATTACKER_UNBLOCKED" as const,
@@ -898,7 +907,34 @@ describe("Necrite — unblocked sac → destroy a defender's creature (CR 509.1h
             attackerControllerId: "p1",
         }) as StackItem["triggerEvent"];
 
-    it("picking a creature sacrifices Necrite and destroys the picked creature", () => {
+    /** Puts Necrite's attack-unblocked trigger on the stack with its target
+     *  slot UNSET, so `raiseTriggerTargetSelection` (CR 603.3d) chooses the
+     *  target at stack placement — mirroring Phelia's mh3 helper. */
+    function necriteTriggerOnStack(
+        state: GameState,
+        source: CardInstanceState
+    ): StackItem {
+        state.stack.push({
+            ...source,
+            zone: "stack",
+            castById: source.controllerId,
+            triggeredAbilityId: "necrite-unblocked",
+            triggerSourceId: source.id,
+            triggerEvent: UNBLOCKED(source.id),
+            // targets intentionally omitted — the target machinery fills it.
+        });
+        return state.stack[state.stack.length - 1];
+    }
+
+    it("declares the CR 603.3d target requirement: a creature the defending player controls", () => {
+        expect(necrite.triggeredAbilities?.[0]?.targetRequirement).toEqual({
+            type: "Creature",
+            count: 1,
+            controller: "opponent",
+        });
+    });
+
+    it("sole legal target auto-selects at stack placement (no PendingTarget); accepting the sac destroys it", () => {
         const necr = makeInstance(necrite.id, {
             id: "necrite",
             controllerId: "p1",
@@ -915,15 +951,94 @@ describe("Necrite — unblocked sac → destroy a defender's creature (CR 509.1h
                 makePlayer("p2", { battlefield: [victim] }),
             ],
         });
-        resolveTrigger(state, necr, "necrite-unblocked", UNBLOCKED("necrite"));
-        // The choose-permanents (0..1) pick routes to the controller.
-        answerPendingChoices(state);
+        const trig = necriteTriggerOnStack(state, necr);
+        // Mandatory single legal target → auto-selected, no choice raised.
+        expect(raiseTriggerTargetSelection(state)).toBe(false);
+        expect(trig.targets).toEqual([{ type: "permanent", id: "victim" }]);
+        expect(state.pendingTarget).toBeUndefined();
+        // Resolution suspends on the "you may sacrifice it" mayPay; accept it.
+        resolveTopOfStack(state);
+        applyMayPaySubmit(state, { playerId: "p1", accept: true });
         expect(
             state.players[0].battlefield.find((c) => c.id === "necrite")
         ).toBeUndefined();
         expect(
             state.players[1].battlefield.find((c) => c.id === "victim")
         ).toBeUndefined();
+    });
+
+    it("multiple legal targets raise a PendingTarget; finalize then resolve destroys the chosen creature", () => {
+        const necr = makeInstance(necrite.id, {
+            id: "necrite",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const bear2 = makeInstance(grizzlyBears.id, {
+            id: "bear2",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [necr] }),
+                makePlayer("p2", { battlefield: [bear, bear2] }),
+            ],
+        });
+        necriteTriggerOnStack(state, necr);
+        // Two legal targets → a real choice is owed.
+        expect(raiseTriggerTargetSelection(state)).toBe(true);
+        state.pendingTarget!.selected = [{ type: "permanent", id: "bear2" }];
+        finalizeTargetSelection(
+            state,
+            state.pendingTarget!,
+            state.pendingTarget!.playerId
+        );
+        resolveTopOfStack(state);
+        applyMayPaySubmit(state, { playerId: "p1", accept: true });
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "necrite")
+        ).toBeUndefined();
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "bear2")
+        ).toBeUndefined();
+        // The unchosen creature is untouched.
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "bear")
+        ).toBeDefined();
+    });
+
+    it("declining the sacrifice leaves Necrite and the target creature untouched", () => {
+        const necr = makeInstance(necrite.id, {
+            id: "necrite",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const victim = makeInstance(grizzlyBears.id, {
+            id: "victim",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [necr] }),
+                makePlayer("p2", { battlefield: [victim] }),
+            ],
+        });
+        necriteTriggerOnStack(state, necr);
+        expect(raiseTriggerTargetSelection(state)).toBe(false);
+        resolveTopOfStack(state);
+        applyMayPaySubmit(state, { playerId: "p1", accept: false });
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "necrite")
+        ).toBeDefined();
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "victim")
+        ).toBeDefined();
     });
 });
 

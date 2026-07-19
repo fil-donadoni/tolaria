@@ -2,15 +2,23 @@
 // `import * as afr from "./sets/afr"` resolves through afr/index.ts.
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
+import { PERMANENT_TYPES } from "../../types";
 import type { CardDefinition, SpellContext } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { leftTrigger } from "../../abilities/triggers/leftTrigger";
 
 // Portable Hole — O-Ring-style exile-until-leaves (Banishing Light precedent,
 // jou/white.ts), scoped to a nonland permanent an opponent controls with mana
-// value 2 or less. `TriggeredAbility` carries no `targetRequirement`, so the
-// ETB's target pick is a mid-resolution `choose-permanents` choice over the
-// opponent's battlefield, manually filtered by mana value (CR 603.6a / 208.1).
+// value 2 or less.
+//
+// TARGETING (CR 603.3d): "exile target nonland permanent an opponent controls
+// with mana value 2 or less" is a REAL target chosen when the ETB trigger is
+// put on the stack — declared as a `targetRequirement` on the TriggeredAbility
+// (issue #1193 machinery, `raiseTriggerTargetSelection` in gre/rules.ts), NOT
+// a resolution-time `requestChoice`. That makes it subject to hexproof /
+// protection / ward and fires "becomes the target of an ability" triggers,
+// which the old choice-as-target workaround silently skipped. The resolve()
+// then only reads the announced target (`ctx.targets[0]`) and exiles it.
 const portableHoleHoldsSomething = (
     _event: unknown,
     self: { id: string },
@@ -31,30 +39,25 @@ export const portableHole: CardDefinition = {
             oracleText:
                 "When this artifact enters, exile target nonland permanent an opponent controls with mana value 2 or less until this artifact leaves the battlefield.",
             scope: "self",
+            // CR 603.3d — "exile target nonland permanent an opponent controls
+            // with mana value 2 or less": a real target chosen when the trigger
+            // is put on the stack (not a resolution-time choice), so it is
+            // subject to hexproof / protection / ward and fires "becomes the
+            // target" triggers. `type: PERMANENT_TYPES minus Land` = "nonland
+            // permanent"; `controller: "opponent"` = "an opponent controls";
+            // `mvFilter: { max: 2 }` = "mana value 2 or less"; `count: 1` = the
+            // single mandatory target.
+            targetRequirement: {
+                type: [...PERMANENT_TYPES],
+                count: 1,
+                excludeTypes: "Land",
+                controller: "opponent",
+                mvFilter: { max: 2 },
+            },
             resolve: (ctx: SpellContext) => {
-                const opponentId = ctx.allPlayerIds.find(
-                    (p) => p !== ctx.controller
-                );
-                if (!opponentId) return;
-                const candidates = ctx
-                    .getBattlefieldIds(opponentId, { excludeTypes: "Land" })
-                    .filter(
-                        (id) => ctx.getManaValue({ type: "permanent", id }) <= 2
-                    );
-                if (candidates.length === 0) return;
-                const picks = ctx.requestChoice({
-                    playerId: ctx.controller,
-                    choiceId: `portable-hole-${ctx.sourceInstanceId}`,
-                    kind: "choose-permanents",
-                    zone: "battlefield",
-                    zoneOwnerId: opponentId,
-                    candidateIds: candidates,
-                    count: 1,
-                    prompt: "Portable Hole: choose a nonland permanent an opponent controls with mana value 2 or less to exile.",
-                });
-                if (picks === undefined) return; // suspended for the choice
-                const targetId = picks[0];
-                if (!targetId) return;
+                const target = ctx.targets[0];
+                if (!target) return; // CR 608.2b — no legal target / target left
+                const targetId = target.id;
                 ctx.exileWithAttachments(targetId, {
                     sourceId: ctx.sourceInstanceId,
                     returnTapped: false,

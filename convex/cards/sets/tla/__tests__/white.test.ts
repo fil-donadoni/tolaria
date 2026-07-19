@@ -4,6 +4,7 @@
 import { describe, it, expect } from "vitest";
 import { aangsIceberg } from "../white";
 import { balduvianBears } from "../../ice/green";
+import { snowCoveredForest } from "../../ice/colorless";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import {
     removePermanentTo,
@@ -11,6 +12,9 @@ import {
     resolveTopOfStack,
 } from "../../../../gre/state";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
+import { raiseTriggerTargetSelection } from "../../../../gre/rules";
+import { finalizeTargetSelection } from "../../../../game";
+import { PERMANENT_TYPES } from "../../../types";
 import { checkStateBasedActions } from "../../../../gre/sba";
 import { projectPublicState } from "../../../../gameProjections";
 import type { GameState, StackItem } from "../../../../gre/state";
@@ -24,20 +28,41 @@ function etbEvent(instanceId: string): StackItem["triggerEvent"] {
     } as StackItem["triggerEvent"];
 }
 
+/** Puts Aang's Iceberg's ETB trigger on the stack WITHOUT resolving it. The
+ *  trigger now carries a `targetRequirement`, so the CR 603.3d target choice
+ *  is driven through `chooseIcebergTarget` before `resolveTopOfStack`. */
 function pushEtbTrigger(
     state: GameState,
     iceberg: ReturnType<typeof makeInstance>
-) {
-    state.stack.push({
+): StackItem {
+    const trig: StackItem = {
         ...iceberg,
         zone: "stack",
         castById: "p1",
         triggeredAbilityId: "aangs-iceberg-exile",
         triggerSourceId: iceberg.id,
         triggerEvent: etbEvent(iceberg.id),
-        targets: [],
-    });
-    resolveTopOfStack(state);
+        targets: undefined,
+    };
+    state.stack.push(trig);
+    return trig;
+}
+
+/** Drives the CR 603.3d target choice through the real machinery:
+ *  `raiseTriggerTargetSelection` raises the `kind:"trigger"` PendingTarget
+ *  (count 0..1), then `finalizeTargetSelection` writes the chosen target
+ *  (or the empty "decline" set) onto the on-stack trigger. */
+function chooseIcebergTarget(state: GameState, targetId: string | null) {
+    const raised = raiseTriggerTargetSelection(state);
+    expect(raised).toBe(true);
+    state.pendingTarget!.selected = targetId
+        ? [{ type: "permanent", id: targetId }]
+        : [];
+    finalizeTargetSelection(
+        state,
+        state.pendingTarget!,
+        state.pendingTarget!.playerId
+    );
 }
 
 function resolveActivated(
@@ -73,7 +98,18 @@ describe("Aang's Iceberg (CR 603.6a exile-until-leaves + CR 701.42-style scry)",
         expect(aangsIceberg.staticAbilities).toEqual(["flash"]);
     });
 
-    it("ETB exiles up to one chosen nonland permanent (CR 603.6a)", () => {
+    it("declares the CR 603.3d target requirement: up to one other nonland permanent", () => {
+        expect(aangsIceberg.triggeredAbilities?.[0]?.targetRequirement).toEqual(
+            {
+                type: [...PERMANENT_TYPES],
+                count: { min: 0, max: 1 },
+                excludeTypes: "Land",
+                excludeSource: true,
+            }
+        );
+    });
+
+    it("ETB exiles up to one chosen nonland permanent (CR 603.6a, target locked at stack placement per CR 603.3d)", () => {
         const iceberg = makeInstance(aangsIceberg.id, {
             id: "iceberg",
             controllerId: "p1",
@@ -91,13 +127,69 @@ describe("Aang's Iceberg (CR 603.6a exile-until-leaves + CR 701.42-style scry)",
             ],
         });
         pushEtbTrigger(state, iceberg);
-        submitChoice(state, ["target"]);
+        chooseIcebergTarget(state, "target");
+        resolveTopOfStack(state);
         expect(
             state.players[1].battlefield.find((c) => c.id === "target")
         ).toBeUndefined();
         expect(state.players[1].exile.map((c) => c.id)).toContain("target");
         const bundle = state.exileHeld?.find((b) => b.sourceId === "iceberg");
         expect(bundle?.hostId).toBe("target");
+    });
+
+    it("declines the 'up to one' target — no exile, no bundle (CR 603.3d)", () => {
+        const iceberg = makeInstance(aangsIceberg.id, {
+            id: "iceberg",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const target = makeInstance(balduvianBears.id, {
+            id: "target",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [iceberg] }),
+                makePlayer("p2", { battlefield: [target] }),
+            ],
+        });
+        pushEtbTrigger(state, iceberg);
+        chooseIcebergTarget(state, null);
+        resolveTopOfStack(state);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "target")
+        ).toBeDefined();
+        expect(state.exileHeld ?? []).toHaveLength(0);
+    });
+
+    it("excludes lands and Aang's Iceberg itself — no legal target, resolves as a no-op (CR 603.3c)", () => {
+        const iceberg = makeInstance(aangsIceberg.id, {
+            id: "iceberg",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const land = makeInstance(snowCoveredForest.id, {
+            id: "land",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [iceberg] }),
+                makePlayer("p2", { battlefield: [land] }),
+            ],
+        });
+        const trig = pushEtbTrigger(state, iceberg);
+        // Only Aang's Iceberg itself (excluded by `excludeSource`) and a land
+        // (excluded by `excludeTypes`) exist — no legal nonland permanent. CR
+        // 603.3d "up to one" with none legal: the engine locks an empty target
+        // set, no PendingTarget is raised, and the trigger resolves as a no-op.
+        expect(raiseTriggerTargetSelection(state)).toBe(false);
+        expect(trig.targets).toEqual([]);
+        expect(resolveTopOfStack(state)).not.toBeNull();
+        expect(state.pendingTarget).toBeUndefined();
+        expect(state.exileHeld ?? []).toHaveLength(0);
     });
 
     it("returns the exiled permanent when Aang's Iceberg leaves (CR 603.7a)", () => {
@@ -118,7 +210,8 @@ describe("Aang's Iceberg (CR 603.6a exile-until-leaves + CR 701.42-style scry)",
             ],
         });
         pushEtbTrigger(state, iceberg);
-        submitChoice(state, ["target"]);
+        chooseIcebergTarget(state, "target");
+        resolveTopOfStack(state);
 
         removePermanentTo(state, "iceberg", "graveyard");
         processPendingActionTriggers(state);
@@ -195,7 +288,8 @@ describe("Aang's Iceberg (CR 603.6a exile-until-leaves + CR 701.42-style scry)",
             ],
         });
         pushEtbTrigger(state, iceberg);
-        submitChoice(state, ["target"]);
+        chooseIcebergTarget(state, "target");
+        resolveTopOfStack(state);
         for (const viewer of ["p1", "p2"] as const) {
             const projected = projectPublicState(state, 1, viewer);
             const exiledCard = projected.players[1].exile.find(

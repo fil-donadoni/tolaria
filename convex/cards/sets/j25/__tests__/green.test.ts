@@ -1,7 +1,10 @@
 // J25 (Foundations Jumpstart) — green card behavior tests (ADR 0043 colour
-// split). Scythecat Cub's Landfall targeting is a `resolve()` card (protocol
-// note in `sets/j25/green.ts` — no trigger-level `targetRequirement`, tracked
-// as tolaria#917), so it earns a hand-written test per
+// split). Scythecat Cub's Landfall targeting is now a REAL announcement-time
+// target (CR 603.3d, issue #1193): a `targetRequirement` on the
+// TriggeredAbility, driven by `raiseTriggerTargetSelection` +
+// `finalizeTargetSelection`, not a resolution-time `requestChoice`. The
+// resolution-count-gated doubling stays an imperative `resolve()` reading the
+// announced `ctx.targets[0]`, so the card earns a hand-written test per
 // `.claude/rules/gre-development.md`.
 
 import { describe, it, expect } from "vitest";
@@ -9,7 +12,8 @@ import { scythecatCub } from "../green";
 import { swamp, grizzlyBears } from "../../lea";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { collectTriggers } from "../../../../gre/triggers";
-import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
+import { raiseTriggerTargetSelection } from "../../../../gre/rules";
+import { finalizeTargetSelection } from "../../../../game";
 import {
     getEffectivePower,
     getEffectiveToughness,
@@ -48,8 +52,11 @@ function setup() {
     return { state, cub, bear };
 }
 
-/** Resolves one landfall trigger to completion, submitting the mandatory
- *  target-creature pick (Bristly Bill / Luminarch Aspirant pattern). */
+/** Puts one landfall trigger on the stack and drives its CR 603.3d target
+ *  choice through the real machinery. With 2+ legal creatures
+ *  `raiseTriggerTargetSelection` raises a `kind:"trigger"` PendingTarget which
+ *  we finalize with the chosen target; with exactly one legal target it
+ *  auto-selects (returns false) and we assert the locked slot. */
 function resolveLandfall(
     state: ReturnType<typeof setup>["state"],
     n: number,
@@ -58,16 +65,17 @@ function resolveLandfall(
     state.stack.push(
         ...collectTriggers(state, [landEntered(`land${n}`, "p1")])
     );
-    expect(resolveTopOfStack(state)).toBeNull(); // suspended for the target pick
-    const pending = state.pendingChoices![0];
-    expect(pending.kind).toBe("choose-permanents");
-    applyPendingChoiceSubmit(state, {
-        playerId: "p1",
-        stackItemId: pending.stackItemId,
-        step: pending.step,
-        choiceId: pending.choiceId,
-        cardInstanceIds: [targetId],
-    });
+    const raised = raiseTriggerTargetSelection(state);
+    if (raised) {
+        const pt = state.pendingTarget!;
+        pt.selected = [{ type: "permanent", id: targetId }];
+        finalizeTargetSelection(state, pt, pt.playerId);
+    } else {
+        // Sole mandatory target auto-selected (CR 603.3d).
+        const trig = state.stack[state.stack.length - 1];
+        expect(trig.targets).toEqual([{ type: "permanent", id: targetId }]);
+    }
+    expect(resolveTopOfStack(state)).not.toBeNull();
 }
 
 describe("Scythecat Cub (CR 603.6a Landfall / 122 counters, issue #1189)", () => {
@@ -77,6 +85,43 @@ describe("Scythecat Cub (CR 603.6a Landfall / 122 counters, issue #1189)", () =>
         expect(scythecatCub.toughness).toBe(2);
         expect(scythecatCub.staticAbilities).toContain("trample");
         expect(scythecatCub.triggeredAbilities).toHaveLength(1);
+    });
+
+    it("declares the CR 603.3d target requirement: target creature you control", () => {
+        expect(scythecatCub.triggeredAbilities?.[0]?.targetRequirement).toEqual(
+            {
+                type: "Creature",
+                count: 1,
+                controller: "you",
+            }
+        );
+    });
+
+    it("mandatory single target auto-selects when exactly one creature is legal (CR 603.3d)", () => {
+        // Only the Cub itself is on the battlefield → the sole legal "creature
+        // you control" is auto-selected; no PendingTarget is raised.
+        const cub = makeInstance(scythecatCub.id, {
+            id: "cub",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [cub] }),
+                makePlayer("p2"),
+            ],
+        });
+        state.stack.push(
+            ...collectTriggers(state, [landEntered("land1", "p1")])
+        );
+        expect(raiseTriggerTargetSelection(state)).toBe(false);
+        const trig = state.stack[state.stack.length - 1];
+        expect(trig.targets).toEqual([{ type: "permanent", id: "cub" }]);
+        expect(resolveTopOfStack(state)).not.toBeNull();
+        const cubLive = state.players[0].battlefield.find(
+            (c) => c.id === "cub"
+        )!;
+        expect(cubLive.counters?.["+1/+1"]).toBe(1);
     });
 
     it("landfall, first resolution this turn: puts ONE +1/+1 counter on the chosen creature", () => {

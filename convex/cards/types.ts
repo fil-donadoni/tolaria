@@ -490,6 +490,18 @@ export interface TargetRequirement {
      *  elsewhere. Pair with `spellStackKind: "any"` for CR 702.21a's "spell OR
      *  ability" scope. */
     spellTargetsSelfSource?: boolean;
+    /** Reflexive self-EXCLUDE (the inverse of `spellTargetsSelfSource`): when
+     *  set on a TRIGGERED ability's `targetRequirement`,
+     *  `raiseTriggerTargetSelection` (`gre/rules.ts`) appends the firing stack
+     *  item's OWN source permanent id (`StackItem.triggerSourceId`) to
+     *  `excludeInstanceIds`, so "exile ANOTHER target permanent" / "up to one
+     *  OTHER target creature" cannot pick the source permanent itself
+     *  (CR 603.3d target choice at stack placement). Author-time
+     *  `excludeInstanceIds` are preserved and merged. Only meaningful on a
+     *  TriggeredAbility's requirement (a spell/activated ability expresses
+     *  "another" via a dynamic `getTargetRequirement(source)` instead, and has
+     *  no `triggerSourceId` to read); ignored elsewhere. */
+    excludeSource?: boolean;
 }
 
 /** "For as long as" condition on a conditional control change (CR 611.2b).

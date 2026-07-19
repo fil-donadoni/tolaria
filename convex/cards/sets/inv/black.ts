@@ -762,19 +762,23 @@ export const phyrexianBattleflies: CardDefinition = {
 
 // Phyrexian Delver — {3}{B}{B} 3/2. "When this creature enters, return
 // target creature card from your graveyard to the battlefield. You lose
-// life equal to that card's mana value." (CR 603.6a ETB, CR 400.7
-// reanimation, CR 202.3 mana value, CR 119.3b life loss.)
+// life equal to that card's mana value." (CR 603.6a ETB, CR 603.3d
+// announcement-time target, CR 400.7 reanimation, CR 202.3 mana value,
+// CR 119.3b life loss.)
 //
-// protocol card: `TriggeredAbility` has no `targetRequirement` (ADR 0002), so
-// the "target" clause needs the choice-as-target substitute — but unlike
-// Crypt Angel above, the mana-value snapshot needed for the life-loss clause
-// has no DSL path: a `choice` Op's `bind` is a bare picks array (no
-// `ref.manaValue` snapshot the way an ANNOUNCED target's `moveZone.bind`
-// provides — see Reanimate, tmp/black.ts, for the announced-target version
-// of this exact "lose life equal to mana value" template). Composes only
-// already-shipped SpellContext primitives: `requestChoice` (the same
-// primitive the DSL `choice` Op wraps), `getManaValue`, `returnToBattlefield`,
-// `loseLife`.
+// CR 603.3d — "target creature card from your graveyard" is a REAL target
+// chosen when the ETB trigger is put on the stack (a `targetRequirement` on
+// the TriggeredAbility, issue #1193 machinery `raiseTriggerTargetSelection`
+// in gre/rules.ts), NOT a resolution-time `requestChoice`. `zone:
+// "graveyard"` + `controller: "you"` scopes it to the CONTROLLER's own
+// graveyard — modern Oracle says "your graveyard", not "a graveyard".
+//
+// Still resolve() (not fully DSL): the life-loss-equal-to-mana-value clause
+// needs an MV snapshot of the announced graveyard card, which the DSL has no
+// path for (a target `bind` is a bare id, no `ref.manaValue` — see Reanimate,
+// tmp/black.ts, and Soul Exchange, fem/black.ts, the announced-graveyard-
+// target reanimation precedent this now mirrors). Composes already-shipped
+// SpellContext primitives: `getManaValue`, `returnToBattlefield`, `loseLife`.
 export const phyrexianDelver: CardDefinition = {
     id: "e66d87a5-7b67-4ec5-b5e2-518d67123118", // INV 115
     rarity: "rare",
@@ -792,31 +796,33 @@ export const phyrexianDelver: CardDefinition = {
             oracleText:
                 "When this creature enters, return target creature card from your graveyard to the battlefield. You lose life equal to that card's mana value.",
             scope: "self",
+            // CR 603.3d — target chosen at stack placement (not resolution).
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                zone: "graveyard",
+                controller: "you",
+            },
             resolve: (ctx) => {
-                const controller = ctx.controller;
-                const picks = ctx.requestChoice({
-                    playerId: controller,
-                    choiceId: `phyrexian-delver-${ctx.sourceInstanceId}`,
-                    kind: "choose-graveyard-card",
-                    zone: "graveyard",
-                    filter: { types: "Creature" },
-                    count: 1,
-                    prompt: "Return a creature card from your graveyard to the battlefield.",
-                });
-                if (picks === undefined) return; // suspended
-                const id = picks[0];
-                if (!id) return; // nothing to return, CR 608.2b
+                const target = ctx.targets[0];
+                if (!target || target.type !== "graveyard-card") return;
+                const { id, playerId } = target;
+                if (!playerId) return;
+                // CR 202.3 — snapshot the reanimation target's mana value while
+                // it is still in the graveyard, before `returnToBattlefield`
+                // moves it (the returned permanent's MV could differ).
                 const mv = ctx.getManaValue({
                     type: "graveyard-card",
                     id,
-                    playerId: controller,
+                    playerId,
                 });
                 const moved = ctx.returnToBattlefield(
-                    controller,
+                    playerId,
                     id,
                     "graveyard"
                 );
-                if (moved) ctx.loseLife(controller, mv);
+                // CR 119.3b — "You lose life": the Delver's controller.
+                if (moved) ctx.loseLife(ctx.controller, mv);
             },
         }),
     ],

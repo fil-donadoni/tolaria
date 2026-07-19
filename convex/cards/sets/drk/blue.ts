@@ -734,14 +734,24 @@ export const waterWurm: CardDefinition = {
 //
 // Implementation (CR 707.2 copy + CR 603.10 leave-linkage + CR 603.6a upkeep):
 //
-//   • ETB trigger (`enteredTrigger` scope:self) — the controller chooses a
-//     nontoken creature (`requestChoice` filter `{ types: "Creature",
-//     isToken: false }`, the same choose-a-creature path Clone uses; CR 707.2
-//     copies copiable values only). `createTokenCopyOf` is the token-recipient
-//     form of the clone path: it makes a fresh token and runs `applyCopy` on it
-//     (the SAME `applyCopy` `becomeCopyOf` uses), stamping `createdBy` so the
-//     enchantment can find its token, and storing the reverse `linkedTokenId`
-//     on the enchantment so it can identify the token after it leaves play.
+//   • ETB trigger (`enteredTrigger` scope:self) — "create a token that's a copy
+//     of target nontoken creature". Per CR 603.3d the target is chosen when the
+//     trigger is PUT ON THE STACK, so it is declared as a `targetRequirement`
+//     (issue #1193 machinery, `raiseTriggerTargetSelection` in gre/rules.ts) and
+//     the resolve reads the locked slot via `ctx.targets[0]` — NOT a
+//     resolution-time `requestChoice`. This makes the copy target subject to
+//     hexproof / protection / ward and fires "becomes the target" triggers, which
+//     the old choice-as-target workaround silently skipped. `createTokenCopyOf`
+//     is the token-recipient form of the clone path: it makes a fresh token and
+//     runs `applyCopy` on it (the SAME `applyCopy` `becomeCopyOf` uses; CR 707.2
+//     copies copiable values only), stamping `createdBy` so the enchantment can
+//     find its token, and storing the reverse `linkedTokenId` on the enchantment
+//     so it can identify the token after it leaves play.
+//     DIVERGENCE (out of scope): the oracle restricts the target to a NONTOKEN
+//     creature (CR 111.5), but `TargetRequirement` has no token filter field, so
+//     the declarative requirement is `{ type: "Creature", count: 1 }` and a token
+//     creature is (incorrectly) a legal copy target. Enforcing "nontoken" at
+//     target-selection time is out of scope for the current target machinery.
 //
 //   • Enchantment-leaves → exile token (`leftTrigger` scope:self) — the token
 //     is still on the battlefield at this point, so it is located by
@@ -779,30 +789,26 @@ export const danceOfMany: CardDefinition = {
             oracleText:
                 "When this enchantment enters, create a token that's a copy of target nontoken creature.",
             scope: "self",
+            // CR 603.3d (issue #1193) — "target nontoken creature" is a REAL
+            // target chosen when the trigger is put on the stack, declared as a
+            // `targetRequirement` and locked by `raiseTriggerTargetSelection`
+            // (gre/rules.ts), NOT a resolution-time `requestChoice`. See the
+            // DIVERGENCE note above: the "nontoken" clause is not expressible as
+            // a `TargetRequirement` (no token filter field).
+            targetRequirement: { type: "Creature", count: 1 },
             // NOT DSL-migratable (ADR 0045): Dance of Many creates a copy token
             // (createToken Op, still `planned`), exiles/sacrifices specific
             // permanents, and pays an upkeep tax — none expressible with the
             // current Op vocabulary; all are factory-built triggers with no
             // `effects[]` site. Stays resolve().
             resolve: (ctx: SpellContext) => {
-                // CR 707.2 — choose a nontoken creature to copy. Mirrors the
-                // Clone copy-target picker; `isToken: false` enforces the
-                // "nontoken" clause (CR 111.5).
-                const picks = ctx.requestChoice({
-                    playerId: ctx.controller,
-                    choiceId: `dance-of-many-${ctx.sourceInstanceId}`,
-                    kind: "choose-permanents",
-                    zone: "battlefield",
-                    allControllers: true,
-                    filter: { types: "Creature", isToken: false },
-                    count: 1,
-                    prompt: "Dance of Many: choose a nontoken creature to copy.",
-                });
-                if (picks === undefined) return; // suspended for the choice
-                const targetId = picks[0];
-                if (!targetId) return; // no legal creature → no token
+                // CR 707.2 — copy the chosen creature's copiable values onto a
+                // fresh token. The target was locked at stack placement
+                // (CR 603.3d); read it from `ctx.targets[0]`.
+                const target = ctx.targets[0];
+                if (!target) return; // CR 608.2b — no legal target → no token
                 ctx.createTokenCopyOf(
-                    targetId,
+                    target.id,
                     ctx.controller,
                     ctx.sourceInstanceId
                 );

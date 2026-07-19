@@ -1,9 +1,5 @@
 // mh2 — white cards (ADR 0043 colour split).
-import type {
-    CardDefinition,
-    SpellContext,
-    TargetSelection,
-} from "../../types";
+import type { CardDefinition, SpellContext } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { evokeTrigger } from "../../abilities/evoke";
 
@@ -26,15 +22,19 @@ import { evokeTrigger } from "../../abilities/evoke";
 // power. Evoke—Exile a white card from your hand." CR 702.74 Evoke: the alt
 // cast is a pure HAND leg (`evoke`, reusing `AlternativeCost`'s `handCost`
 // shape — no new plumbing), and the sacrifice-on-ETB half is `evokeTrigger`
-// (convex/cards/abilities/evoke.ts). The ETB "exile up to one OTHER target
-// creature" picks across BOTH battlefields — like Loran of the Third Path
-// (bro/white.ts), the DSL `choice` Op's battlefield candidates are limited to
-// the chooser's own permanents (interpreter `choiceCandidates`), so this stays
-// `resolve()` (justification: cross-controller battlefield choice, same gap
-// Loran already documents; not a new Op — `ctx.requestChoice({allControllers})`
-// already exists and is already used this way). `excludeInstanceIds` keeps
-// Solitude itself off the candidate list ("other"). Life gain reads the
-// target's power BEFORE exile (CR 613 last-known information).
+// (convex/cards/abilities/evoke.ts).
+//
+// TARGETING (CR 603.3d, issue #1193): "exile up to one OTHER target creature"
+// is a REAL target chosen when the ETB trigger is put on the stack — declared
+// as a `targetRequirement` on the TriggeredAbility (`raiseTriggerTargetSelection`
+// in gre/rules.ts), NOT a resolution-time `requestChoice`. That makes it subject
+// to hexproof / protection / ward and fires "becomes the target of an ability"
+// triggers, which the old choice-as-target workaround silently skipped.
+// `type: "Creature"` picks across BOTH battlefields ("target creature", no
+// controller restriction); `excludeSource` drops Solitude itself ("other");
+// `count 0..1` = "up to one". The resolve() then reads the announced slot via
+// `ctx.targets[0]`; life gain reads the target's power BEFORE exile (CR 613
+// last-known information).
 export const solitude: CardDefinition = {
     id: "47a6234f-309f-4e03-9263-66da48b57153",
     rarity: "mythic",
@@ -61,29 +61,22 @@ export const solitude: CardDefinition = {
             oracleText:
                 "When this creature enters, exile up to one other target creature. That creature's controller gains life equal to its power.",
             scope: "self",
-            // protocol: cross-controller battlefield choice — see module comment.
+            // CR 603.3d — "up to one OTHER target creature": a real target
+            // chosen when the trigger is put on the stack (see module comment).
+            // `excludeSource` drops Solitude herself ("other"); `count 0..1` =
+            // "up to one". Any controller's creature is eligible.
+            targetRequirement: {
+                type: "Creature",
+                count: { min: 0, max: 1 },
+                excludeSource: true,
+            },
             resolve: (ctx: SpellContext) => {
-                const picks = ctx.requestChoice({
-                    playerId: ctx.controller,
-                    choiceId: `solitude-etb-${ctx.sourceInstanceId}`,
-                    kind: "choose-permanents",
-                    zone: "battlefield",
-                    filter: {
-                        types: ["Creature"],
-                        excludeInstanceIds: [ctx.sourceInstanceId],
-                    },
-                    allControllers: true,
-                    count: { min: 0, max: 1 },
-                    prompt: "Exile up to one other target creature (or none).",
-                });
-                if (picks === undefined) return; // suspended on the choice
-                for (const id of picks) {
-                    const target: TargetSelection = { type: "permanent", id };
-                    const power = ctx.getPower(target);
-                    const controllerId = ctx.getController(target);
-                    ctx.exile(target);
-                    ctx.gainLife(controllerId, Math.max(0, power));
-                }
+                const target = ctx.targets[0];
+                if (!target) return; // "up to one": none chosen / CR 608.2b none legal
+                const power = ctx.getPower(target);
+                const controllerId = ctx.getController(target);
+                ctx.exile(target);
+                ctx.gainLife(controllerId, Math.max(0, power));
             },
         }),
         evokeTrigger("Solitude"),

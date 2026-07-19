@@ -9,7 +9,10 @@ import {
     type StackItem,
     resolveTopOfStack,
 } from "../../../../gre/state";
+import type { TargetSelection } from "../../../types";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
+import { raiseTriggerTargetSelection } from "../../../../gre/rules";
+import { finalizeTargetSelection } from "../../../../game";
 import {
     getEffectivePower,
     getEffectiveToughness,
@@ -30,21 +33,42 @@ function resolveActivated(
     resolveTopOfStack(state);
 }
 
-function resolveTrigger(
+/** Puts a triggered ability on the stack WITHOUT resolving it, so the CR
+ *  603.3d target choice can be driven before resolution. `triggerSourceId`
+ *  pins the source permanent the way `buildTriggerItem` does (needed by
+ *  `raiseTriggerTargetSelection`). */
+function pushTrigger(
     state: GameState,
     source: CardInstanceState,
     triggeredAbilityId: string,
     triggerEvent: StackItem["triggerEvent"]
-): void {
-    state.stack.push({
+): StackItem {
+    const trig = {
         ...source,
         zone: "stack",
         castById: source.controllerId,
         triggeredAbilityId,
         triggerSourceId: source.id,
         triggerEvent,
-    } as StackItem);
-    resolveTopOfStack(state);
+        targets: undefined,
+    } as StackItem;
+    state.stack.push(trig);
+    return trig;
+}
+
+/** Drives the CR 603.3d "any target" choice through the real machinery
+ *  (mirrors Phelia's `choosePheliaTarget`): `raiseTriggerTargetSelection`
+ *  raises the `kind:"trigger"` PendingTarget, then `finalizeTargetSelection`
+ *  writes the chosen target onto the on-stack trigger. */
+function choosePhlageTarget(state: GameState, target: TargetSelection) {
+    const raised = raiseTriggerTargetSelection(state);
+    expect(raised).toBe(true);
+    state.pendingTarget!.selected = [target];
+    finalizeTargetSelection(
+        state,
+        state.pendingTarget!,
+        state.pendingTarget!.playerId
+    );
 }
 
 function answer(state: GameState, ids: string[]) {
@@ -148,13 +172,27 @@ describe("Psychic Frog ({U}{B} 1/2 Frog; CR 510.4 / 122.1 / 611.1b)", () => {
 // resolvePhlageValue is a resolve() closure (protocol card, ADR 0045): its
 // "3 damage to any target" is a choose-damage-target Pending Choice owed to
 // the controller (CR 115.4), with an unconditional 3 life gain on top.
-describe("Phlage, Titan of Fire's Fury (enters/attacks value: 3 damage any target + gain 3 life, CR 115.4 / 702.138)", () => {
+// Both of Phlage's value triggers ("When Phlage enters" and "Whenever Phlage
+// attacks", each "it deals 3 damage to any target and you gain 3 life") pick
+// their "any target" (CR 115.4) when the trigger is PUT ON THE STACK via a
+// `targetRequirement`, not at resolution (CR 603.3d, issue #1193). The target
+// is therefore subject to hexproof/protection/ward and fires "becomes the
+// target of an ability" triggers — the old resolution-time `requestChoice`
+// (choose-damage-target Pending Choice) silently skipped that.
+describe("Phlage, Titan of Fire's Fury (enters/attacks value: 3 damage any target + gain 3 life, CR 603.3d / 115.4 / 702.138)", () => {
     const enterEvent = (instanceId: string): StackItem["triggerEvent"] =>
         ({
             type: "PERMANENT_ENTERED",
             instanceId,
             controllerId: "p1",
             types: ["Creature"],
+        }) as StackItem["triggerEvent"];
+
+    const attackEvent = (attackerId: string): StackItem["triggerEvent"] =>
+        ({
+            type: "ATTACKERS_DECLARED",
+            attackingPlayerId: "p1",
+            attackerIds: [attackerId],
         }) as StackItem["triggerEvent"];
 
     const phlageOnBattlefield = (id: string, controllerId: string) =>
@@ -165,7 +203,15 @@ describe("Phlage, Titan of Fire's Fury (enters/attacks value: 3 damage any targe
             zone: "battlefield",
         });
 
-    it("deals 3 damage to the chosen player and the controller gains 3 life", () => {
+    it("declares the CR 603.3d 'any target' requirement on both value triggers", () => {
+        const triggers = phlageTitanOfFiresFury.triggeredAbilities!;
+        const enters = triggers.find((t) => t.id === "phlage-enters-value")!;
+        const attacks = triggers.find((t) => t.id === "phlage-attacks-value")!;
+        expect(enters.targetRequirement).toEqual({ type: "any", count: 1 });
+        expect(attacks.targetRequirement).toEqual({ type: "any", count: 1 });
+    });
+
+    it("enters trigger: 3 damage to the chosen player, controller gains 3 life", () => {
         const phlage = phlageOnBattlefield("phlage", "p1");
         const state = makeState({
             players: [
@@ -174,25 +220,38 @@ describe("Phlage, Titan of Fire's Fury (enters/attacks value: 3 damage any targe
             ],
         });
 
-        resolveTrigger(
-            state,
-            phlage,
-            "phlage-enters-value",
-            enterEvent("phlage")
-        );
+        pushTrigger(state, phlage, "phlage-enters-value", enterEvent("phlage"));
 
-        // Resolution suspends for the controller's any-target pick; the
-        // unconditional life gain must not have fired yet (CR 601.2c pattern).
-        const head = state.pendingChoices![0];
-        expect(head.kind).toBe("choose-damage-target");
-        expect(head.playerId).toBe("p1");
+        // CR 603.3d — the target is chosen when the trigger goes on the stack,
+        // BEFORE resolution: no life has been gained yet.
         expect(state.players[0].life).toBe(20);
-
-        answer(state, ["p2"]);
+        choosePhlageTarget(state, { type: "player", id: "p2" });
+        expect(resolveTopOfStack(state)).not.toBeNull();
 
         expect(state.players[1].life).toBe(17); // 3 damage to the opponent
         expect(state.players[0].life).toBe(23); // controller gained 3
-        expect(state.pendingChoices ?? []).toEqual([]);
+    });
+
+    it("attack trigger: 3 damage to the chosen player, controller gains 3 life", () => {
+        const phlage = phlageOnBattlefield("phlage", "p1");
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [phlage] }),
+                makePlayer("p2"),
+            ],
+        });
+
+        pushTrigger(
+            state,
+            phlage,
+            "phlage-attacks-value",
+            attackEvent("phlage")
+        );
+        choosePhlageTarget(state, { type: "player", id: "p2" });
+        expect(resolveTopOfStack(state)).not.toBeNull();
+
+        expect(state.players[1].life).toBe(17);
+        expect(state.players[0].life).toBe(23);
     });
 
     it("wire format: 3 damage on the chosen permanent and the life gain survive projection", () => {
@@ -205,13 +264,10 @@ describe("Phlage, Titan of Fire's Fury (enters/attacks value: 3 damage any targe
             ],
         });
 
-        resolveTrigger(
-            state,
-            phlage,
-            "phlage-enters-value",
-            enterEvent("phlage")
-        );
-        answer(state, ["p2-body"]); // controller pings the opponent's creature
+        pushTrigger(state, phlage, "phlage-enters-value", enterEvent("phlage"));
+        // controller pings the opponent's creature (permanent target ref)
+        choosePhlageTarget(state, { type: "permanent", id: "p2-body" });
+        resolveTopOfStack(state);
 
         // GRE: 3 damage marked on the target, controller gained 3 life.
         expect(

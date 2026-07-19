@@ -67,7 +67,11 @@ import {
 } from "../../../../gre/pendingChoiceSubmit";
 import { isGuardedAgainst } from "../../../../gre/permanentGuard";
 import { advancePhase } from "../../../../gre/phases";
-import { getLegalTargets } from "../../../../gre/rules";
+import {
+    getLegalTargets,
+    raiseTriggerTargetSelection,
+} from "../../../../gre/rules";
+import { finalizeTargetSelection } from "../../../../game";
 import { checkStateBasedActions } from "../../../../gre/sba";
 import {
     resolveTopOfStack,
@@ -1223,7 +1227,7 @@ describe("Rasputin Dreamweaver (dream counters: enters with 7, mana / prevent re
     });
 });
 
-describe("Halfdane (upkeep: copy target creature's P/T until next upkeep, CR 613.4b / 500.2)", () => {
+describe("Halfdane (upkeep: copy target creature's P/T until next upkeep, CR 613.4b / 500.2 / 603.3d)", () => {
     it("is a {1}{W}{U}{B} 3/3 Legendary Shapeshifter with an upkeep trigger", () => {
         expect(halfdane.manaCost).toEqual({ X: 1, W: 1, U: 1, B: 1 });
         expect(halfdane.power).toBe(3);
@@ -1233,7 +1237,18 @@ describe("Halfdane (upkeep: copy target creature's P/T until next upkeep, CR 613
         expect(halfdane.triggeredAbilities?.[0]?.event).toBe("PHASE_BEGIN");
     });
 
-    function setup() {
+    it("declares the CR 603.3d target requirement: one creature other than Halfdane", () => {
+        // Mandatory single target (no "may" in the modern Oracle text) — the
+        // "other than Halfdane" self-exclusion rides `excludeSource`, resolved
+        // against the on-stack trigger's `triggerSourceId` (CR 603.3d).
+        expect(halfdane.triggeredAbilities?.[0]?.targetRequirement).toEqual({
+            type: "Creature",
+            count: 1,
+            excludeSource: true,
+        });
+    });
+
+    function setup(extraP2Creatures: string[] = []) {
         const hd = makeInstance(halfdane.id, {
             id: "hd",
             controllerId: "p1",
@@ -1245,36 +1260,129 @@ describe("Halfdane (upkeep: copy target creature's P/T until next upkeep, CR 613
             controllerId: "p2",
             ownerId: "p2",
         });
+        const others = extraP2Creatures.map((id) =>
+            makeInstance(grizzlyBears.id, {
+                id,
+                controllerId: "p2",
+                ownerId: "p2",
+            })
+        );
         const state = makeState({
             phase: "UPKEEP",
             activePlayerId: "p1",
             players: [
                 makePlayer("p1", { battlefield: [hd] }),
-                makePlayer("p2", { battlefield: [bear] }),
+                makePlayer("p2", { battlefield: [bear, ...others] }),
             ],
         });
         return { state, hd };
     }
 
-    it("offers every creature other than Halfdane, then copies the chosen creature's P/T", () => {
+    /** Puts Halfdane's upkeep trigger on the stack (PHASE_BEGIN upkeep, CR
+     *  603.6a) WITHOUT resolving and WITHOUT a target slot, so
+     *  `raiseTriggerTargetSelection` can drive the CR 603.3d target choice.
+     *  Mirrors the `resolveTrigger` shim but leaves `targets` unset (a set
+     *  `targets` makes `raiseTriggerTargetSelection` skip the item). */
+    function pushHalfdaneTrigger(
+        state: GameState,
+        hd: CardInstanceState
+    ): StackItem {
+        const trig: StackItem = {
+            ...hd,
+            zone: "stack",
+            castById: hd.controllerId,
+            triggeredAbilityId: "halfdane-copy-pt",
+            triggerSourceId: hd.id,
+            triggerEvent: upkeepEvent487("p1"),
+        };
+        state.stack.push(trig);
+        return trig;
+    }
+
+    /** Drives the trigger to resolution through the real CR 603.3d machinery:
+     *  push (no target) → `raiseTriggerTargetSelection`. With a SOLE legal
+     *  creature the engine auto-selects it (returns false, no PendingTarget);
+     *  with two+ it raises the `kind:"trigger"` PendingTarget and
+     *  `finalizeTargetSelection` writes the chosen creature onto the on-stack
+     *  trigger. Then resolve. */
+    function resolveHalfdaneCopy(
+        state: GameState,
+        hd: CardInstanceState,
+        targetId: string
+    ): void {
+        pushHalfdaneTrigger(state, hd);
+        if (raiseTriggerTargetSelection(state)) {
+            state.pendingTarget!.selected = [
+                { type: "permanent", id: targetId },
+            ];
+            finalizeTargetSelection(
+                state,
+                state.pendingTarget!,
+                state.pendingTarget!.playerId
+            );
+        }
+        resolveTopOfStack(state);
+    }
+
+    it("auto-selects the sole legal creature (CR 603.3d) and copies its P/T", () => {
         const { state, hd } = setup();
-        resolveTrigger(state, hd, "halfdane-copy-pt", upkeepEvent487("p1"));
-        const head = state.pendingChoices?.[0];
-        // CR 603.3d — the choice spans every battlefield (allControllers) and
-        // the filter excludes Halfdane itself ("a creature other than ~").
-        expect(head?.allControllers).toBe(true);
-        expect(head?.filter?.types).toBe("Creature");
-        expect(head?.filter?.excludeInstanceIds).toEqual(["hd"]);
-        answerChoice(state, ["bear"]);
+        const trig = pushHalfdaneTrigger(state, hd);
+        // Only the opponent's bear is legal (Halfdane self-excluded) — a lone
+        // mandatory target auto-selects, no PendingTarget is raised.
+        expect(raiseTriggerTargetSelection(state)).toBe(false);
+        expect(trig.targets).toEqual([{ type: "permanent", id: "bear" }]);
+        resolveTopOfStack(state);
         // Halfdane becomes 2/2 (the bear's P/T).
         expect(getEffectivePower(state, hd)).toBe(2);
         expect(getEffectiveToughness(state, hd)).toBe(2);
     });
 
+    it("raises a real target choice with 2+ creatures, then copies the chosen one's P/T (CR 603.3d)", () => {
+        const { state, hd } = setup(["bear2"]);
+        pushHalfdaneTrigger(state, hd);
+        // Two legal creatures (both excluding Halfdane) — a real choice is
+        // owed, so the trigger PendingTarget is raised.
+        expect(raiseTriggerTargetSelection(state)).toBe(true);
+        expect(state.pendingTarget?.kind).toBe("trigger");
+        expect(state.pendingTarget?.playerId).toBe("p1");
+        state.pendingTarget!.selected = [{ type: "permanent", id: "bear" }];
+        finalizeTargetSelection(
+            state,
+            state.pendingTarget!,
+            state.pendingTarget!.playerId
+        );
+        resolveTopOfStack(state);
+        expect(getEffectivePower(state, hd)).toBe(2);
+        expect(getEffectiveToughness(state, hd)).toBe(2);
+    });
+
+    it("is removed from the stack when no creature other than Halfdane exists (mandatory target, CR 603.3c)", () => {
+        const hd = makeInstance(halfdane.id, {
+            id: "hd",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            phase: "UPKEEP",
+            activePlayerId: "p1",
+            players: [
+                makePlayer("p1", { battlefield: [hd] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushHalfdaneTrigger(state, hd);
+        // Halfdane is the only creature and is self-excluded — a MANDATORY
+        // target with none legal is removed from the stack (CR 603.3c).
+        expect(raiseTriggerTargetSelection(state)).toBe(false);
+        expect(state.stack).toHaveLength(0);
+        expect(state.pendingTarget).toBeUndefined();
+        expect(hd.temporaryPTSet).toBeUndefined();
+        expect(getEffectivePower(state, hd)).toBe(3);
+    });
+
     it("reverts to printed 3/3 at the controller's next upkeep (CR 500.2)", () => {
         const { state, hd } = setup();
-        resolveTrigger(state, hd, "halfdane-copy-pt", upkeepEvent487("p1"));
-        answerChoice(state, ["bear"]);
+        resolveHalfdaneCopy(state, hd, "bear");
         expect(getEffectivePower(state, hd)).toBe(2);
         // Run to p1's NEXT upkeep — the "until your next upkeep" set expires as
         // the boundary is crossed, before the trigger would re-fire.
@@ -1292,8 +1400,7 @@ describe("Halfdane (upkeep: copy target creature's P/T until next upkeep, CR 613
 
     it("does NOT revert at the opponent's upkeep (player-scoped duration)", () => {
         const { state, hd } = setup();
-        resolveTrigger(state, hd, "halfdane-copy-pt", upkeepEvent487("p1"));
-        answerChoice(state, ["bear"]);
+        resolveHalfdaneCopy(state, hd, "bear");
         for (let i = 0; i < 40; i++) {
             advancePhase(state);
             if (state.phase === "UPKEEP" && state.activePlayerId === "p2") {
@@ -1308,8 +1415,7 @@ describe("Halfdane (upkeep: copy target creature's P/T until next upkeep, CR 613
 
     it("a +1/+1 counter (7c) stacks on the copied 7b base P/T (CR 613.4)", () => {
         const { state, hd } = setup();
-        resolveTrigger(state, hd, "halfdane-copy-pt", upkeepEvent487("p1"));
-        answerChoice(state, ["bear"]);
+        resolveHalfdaneCopy(state, hd, "bear");
         expect(getEffectivePower(state, hd)).toBe(2);
         hd.counters = { "+1/+1": 1 };
         // Set base 2/2 (7b) + counter (7c) = 3/3.
@@ -1319,8 +1425,7 @@ describe("Halfdane (upkeep: copy target creature's P/T until next upkeep, CR 613
 
     it("wire format: the copied base P/T survives projectPublicState", () => {
         const { state, hd } = setup();
-        resolveTrigger(state, hd, "halfdane-copy-pt", upkeepEvent487("p1"));
-        answerChoice(state, ["bear"]);
+        resolveHalfdaneCopy(state, hd, "bear");
         expect(getEffectivePower(state, hd)).toBe(2);
         const projected = projectPublicState(state, 1, "p1");
         const slim = projected.players[0].battlefield.find(

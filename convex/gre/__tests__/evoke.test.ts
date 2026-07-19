@@ -29,8 +29,9 @@ import {
     getAlternativeCost,
     affordableAlternativeCosts,
 } from "../alternativeCost";
-import { tryAutoCommitPendingCast } from "../../game";
+import { tryAutoCommitPendingCast, finalizeTargetSelection } from "../../game";
 import { collectTriggers } from "../triggers";
+import { raiseTriggerTargetSelection } from "../rules";
 import { compactState, expandState } from "../serialize";
 import { projectPublicState } from "../../gameProjections";
 import {
@@ -251,18 +252,20 @@ describe("Evoke — CR 702.74a sacrifice-on-ETB", () => {
 });
 
 // Solitude is a resolve() card with a VISIBLE ETB effect (exile a creature,
-// grant its controller life). The card-testing convention makes a GRE outcome
-// test mandatory: this drives the ETB through the REAL trigger path
-// (collectTriggers → resolveTopOfStack, suspend on the choose-permanents
-// choice → commit → resume) and asserts the exile, the last-known-information
-// power read (life gained equals the target's power read BEFORE exile), and
-// the CR 109.2 "up to one OTHER" self-exclusion (Solitude itself is off the
-// candidate filter, so it survives its own ETB).
-describe("Solitude ETB (CR 603.6a — exile up to one other creature, LKI life gain)", () => {
-    /** Puts a resolved Solitude on p1's battlefield alongside p2's Serra Angel
-     *  (power 4), fires Solitude's ETB, and resolves up to the choose-permanents
-     *  suspension. Returns the parked state (pendingChoices populated). */
-    function setupSolitudeEtb(): GameState {
+// grant its controller life). Since issue #1193 the "up to one other target
+// creature" is a REAL target chosen when the ETB trigger is PUT ON THE STACK
+// (CR 603.3d), declared as a `targetRequirement` with `excludeSource` — not a
+// resolution-time choice. This drives the ETB through the REAL trigger path
+// (collectTriggers → raiseTriggerTargetSelection → finalizeTargetSelection →
+// resolveTopOfStack) and asserts the exile, the last-known-information power
+// read (life gained equals the target's power read BEFORE exile), and the
+// CR 603.3d "other" self-exclusion (Solitude itself is off the candidate set,
+// so it survives its own ETB).
+describe("Solitude ETB (CR 603.3d — exile up to one other creature, LKI life gain)", () => {
+    /** Puts a resolved Solitude on p1's battlefield (optionally alongside p2's
+     *  Serra Angel, power 4) and fires Solitude's ETB onto the stack, leaving
+     *  its target slot un-set (the trigger-target machinery locks it next). */
+    function setupSolitudeEtb(withSerra = true): GameState {
         const solitudePermanent = makeInstance(solitude.id, {
             id: "solitude",
             controllerId: "p1",
@@ -278,10 +281,12 @@ describe("Solitude ETB (CR 603.6a — exile up to one other creature, LKI life g
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [solitudePermanent] }),
-                makePlayer("p2", { battlefield: [serra] }),
+                makePlayer("p2", {
+                    battlefield: withSerra ? [serra] : [],
+                }),
             ],
         });
-        // Fire Solitude's self-ETB and put it on the stack.
+        // Fire Solitude's self-ETB and put it on the stack (targets un-set).
         const triggers = collectTriggers(state, [
             {
                 type: "PERMANENT_ENTERED",
@@ -292,41 +297,47 @@ describe("Solitude ETB (CR 603.6a — exile up to one other creature, LKI life g
             },
         ]).filter((t) => t.triggeredAbilityId === "solitude-etb");
         state.stack.push(...triggers);
-        // First resolve suspends on the requestChoice (returns null).
-        resolveTopOfStack(state);
         return state;
     }
 
-    /** Stores picks into the head pending choice's collectedChoices and shifts
-     *  the queue (mirrors selectResolutionChoice / commitHeadChoice). */
-    function commitHeadChoice(state: GameState, picks: string[]): void {
-        const queue = state.pendingChoices ?? [];
-        const head = queue[0];
-        const item = state.stack.find(
-            (s) => s.id === head.stackItemId
-        ) as StackItem;
-        item.collectedChoices = {
-            ...(item.collectedChoices ?? {}),
-            [`${head.step}:${head.choiceId}`]: picks,
-        };
-        state.pendingChoices = queue.length > 1 ? queue.slice(1) : undefined;
+    /** Drives the CR 603.3d target choice: raise the kind:"trigger" PendingTarget
+     *  then finalize the chosen (or empty) target set onto the on-stack trigger. */
+    function chooseSolitudeTarget(state: GameState, id: string | null): void {
+        const raised = raiseTriggerTargetSelection(state);
+        expect(raised).toBe(true);
+        state.pendingTarget!.selected = id ? [{ type: "permanent", id }] : [];
+        finalizeTargetSelection(
+            state,
+            state.pendingTarget!,
+            state.pendingTarget!.playerId
+        );
     }
 
-    it("suspends on a choose-permanents choice whose filter EXCLUDES Solitude itself (CR 109.2 'other')", () => {
+    it("raises a kind:'trigger' target on the controller (CR 603.3d)", () => {
         const state = setupSolitudeEtb();
-        const head = state.pendingChoices?.[0];
-        expect(head).toBeDefined();
-        expect(head!.kind).toBe("choose-permanents");
-        expect(head!.zone).toBe("battlefield");
-        // "up to one OTHER" — Solitude's own id is on the exclude list, so it
-        // can never be picked as its own ETB target.
-        expect(head!.filter?.excludeInstanceIds).toContain("solitude");
+        expect(raiseTriggerTargetSelection(state)).toBe(true);
+        expect(state.pendingTarget?.kind).toBe("trigger");
+        expect(state.pendingTarget?.playerId).toBe("p1");
+        expect(state.pendingTarget?.targetType).toBe("Creature");
+    });
+
+    it("with no OTHER creature, the up-to-one trigger locks an empty target and resolves as a no-op (CR 603.3d 'other' self-exclusion)", () => {
+        const state = setupSolitudeEtb(false); // only Solitude on the board
+        // None legal (Solitude excludes itself), min 0 → no prompt, empty lock.
+        expect(raiseTriggerTargetSelection(state)).toBe(false);
+        const trig = state.stack.find(
+            (s) => s.triggeredAbilityId === "solitude-etb"
+        )!;
+        expect(trig.targets).toEqual([]);
+        resolveTopOfStack(state);
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "solitude")
+        ).toBe(true);
     });
 
     it("exiles the chosen creature and its controller gains life equal to its power read BEFORE exile (LKI)", () => {
         const state = setupSolitudeEtb();
-        // p2's Serra Angel (power 4) is chosen.
-        commitHeadChoice(state, ["serra"]);
+        chooseSolitudeTarget(state, "serra"); // p2's Serra Angel (power 4)
         resolveTopOfStack(state);
 
         // (a) The target is exiled from the battlefield.
@@ -347,7 +358,7 @@ describe("Solitude ETB (CR 603.6a — exile up to one other creature, LKI life g
 
     it("'up to one' — choosing zero targets is legal and exiles nothing", () => {
         const state = setupSolitudeEtb();
-        commitHeadChoice(state, []);
+        chooseSolitudeTarget(state, null);
         resolveTopOfStack(state);
         // Serra survives, nobody gains life.
         expect(state.players[1].battlefield.some((c) => c.id === "serra")).toBe(

@@ -86,6 +86,20 @@ import { diedTrigger } from "../../abilities/triggers/diedTrigger";
 // — no targeted-trigger machinery (which would default the chooser to The
 // Abyss's controller) is needed. If the active player controls no nonartifact
 // creature the ability does nothing (CR 603.2c — no legal choice).
+//
+// DIVERGENCE — out of scope for the CR 603.3d targeted-trigger conversion
+// (branch fix/targeted-triggers-cr-603-3d): this is a genuine chooser≠controller
+// trigger the declarative `targetRequirement` machinery CANNOT express, so the
+// resolve()+requestChoice is kept deliberately (not overlooked by the sweep). A
+// TriggeredAbility's `targetRequirement` always parks its PendingTarget on — and
+// hands priority to — the ABILITY'S CONTROLLER: `raiseTriggerTargetSelection`
+// (gre/rules.ts) sets both `pendingTarget.playerId` and `priorityPlayerId` to
+// `item.controllerId`, and neither TargetRequirement nor PendingTarget carries a
+// chooser≠controller field. The Oracle's "that player … of their choice" makes
+// the ACTIVE player the chooser, who may not be The Abyss's controller — a
+// declarative targetRequirement would target the active player's creature but
+// let the WRONG player pick it. `requestChoice` parked on `scopedPlayerId` (the
+// active player) is the only faithful expression.
 export const theAbyss: CardDefinition = {
     id: "86a27d68-3e58-4ade-976d-36381beed451",
     rarity: "rare",

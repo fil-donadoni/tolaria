@@ -8,12 +8,15 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 // Loran of the Third Path — {2}{W} Legendary Creature 2/1 with vigilance.
 // "When Loran enters, destroy up to one target artifact or enchantment.
 //  {T}: You and target opponent each draw a card."
-// CR 603.6a ETB triggered ability; the "up to one target" is chosen at
-// resolution via a `choose-permanents` requestChoice over both battlefields
-// (CR 115 — a triggered ability picks its target when it would go on the stack;
-// modelled here as a resolve-time pick, matching the engine idiom for targeted
-// triggers). The {T} ability draws for the controller and the chosen opponent
-// (CR 605 activated ability, CR 121.1 draw).
+// CR 603.6a ETB triggered ability whose "up to one target artifact or
+// enchantment" is a REAL target chosen when the trigger is put on the stack
+// (CR 603.3d, issue #1193) — declared as a `targetRequirement` on the
+// TriggeredAbility and locked by `raiseTriggerTargetSelection` (gre/rules.ts),
+// NOT a resolution-time `requestChoice`. That makes it subject to hexproof /
+// protection / ward and fires "becomes the target of an ability" triggers,
+// which the old choice-as-target workaround silently skipped. The {T} ability
+// draws for the controller and the chosen opponent (CR 605 activated ability,
+// CR 121.1 draw).
 export const loranOfTheThirdPath: CardDefinition = {
     id: "59faa45d-868b-4bc7-934c-0e077642e129",
     rarity: "rare",
@@ -33,27 +36,21 @@ export const loranOfTheThirdPath: CardDefinition = {
             oracleText:
                 "When Loran enters, destroy up to one target artifact or enchantment.",
             scope: "self",
-            // NOT DSL-migratable (ADR 0045): "up to one target artifact or
-            // enchantment" picks across BOTH battlefields (allControllers),
-            // but the `choice` Op's battlefield candidates are limited to the
-            // chooser's own permanents (interpreter `choiceCandidates`).
-            // Planned-migratable: blocked on a cross-controller candidate set
-            // for the `choice` Op's battlefield zone.
+            // CR 603.3d — "up to one target artifact or enchantment": a real
+            // target chosen when the trigger is put on the stack (not a
+            // resolution-time choice), so it is subject to hexproof /
+            // protection / ward and fires "becomes the target" triggers.
+            // `type: ["Artifact","Enchantment"]` is the OR type filter; any
+            // controller's permanent is eligible (no controller restriction in
+            // the text); `count 0..1` = "up to one".
+            targetRequirement: {
+                type: ["Artifact", "Enchantment"],
+                count: { min: 0, max: 1 },
+            },
             resolve: (ctx: SpellContext) => {
-                const picks = ctx.requestChoice({
-                    playerId: ctx.controller,
-                    choiceId: `loran-etb-${ctx.sourceInstanceId}`,
-                    kind: "choose-permanents",
-                    zone: "battlefield",
-                    filter: { types: ["Artifact", "Enchantment"] },
-                    allControllers: true,
-                    count: { min: 0, max: 1 },
-                    prompt: "Destroy up to one target artifact or enchantment (or none).",
-                });
-                if (picks === undefined) return; // suspended on the choice
-                for (const id of picks) {
-                    ctx.destroy({ type: "permanent", id });
-                }
+                const target = ctx.targets[0];
+                if (!target) return; // "up to one": none chosen / CR 608.2b none legal
+                ctx.destroy({ type: "permanent", id: target.id });
             },
         }),
     ],

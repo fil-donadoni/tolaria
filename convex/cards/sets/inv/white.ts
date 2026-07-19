@@ -670,11 +670,19 @@ export const rewardsOfDiversity: CardDefinition = {
 // ─────────────────────────────────────────────────────────────────────────
 
 // Reya Dawnbringer — "Flying. At the beginning of your upkeep, you may
-// return target creature card from your graveyard to the battlefield." The
-// "target" is a triggered-ability choice-as-target substitute (ADR 0002
-// precedent, Titania), not a real announced target — `choice(zone:
-// "graveyard", count: {min:0,max:1})` + `moveZone` (precedent: 5dn/green.ts
-// "You may return target card from your graveyard to your hand").
+// return target creature card from your graveyard to the battlefield."
+//
+// TARGETING (CR 603.3d, issue #1193): "target creature card from your
+// graveyard" is a REAL target chosen when the upkeep trigger is put on the
+// stack — declared as a `targetRequirement` on the TriggeredAbility
+// (`raiseTriggerTargetSelection`, gre/rules.ts), NOT a resolution-time
+// `choice`. `count: {min:0,max:1}` encodes the "you may" (up-to-one, decline
+// = empty target set); `zone: "graveyard"` + `controller: "you"` scopes the
+// candidates to the controller's own graveyard creature cards (Soul Exchange
+// idiom, fem/black.ts). The Effect Script then reads the announced slot
+// (`{ target: 0 }`) and reanimates via `moveZone` — the target-shape's
+// `graveyard-card` → `battlefield` branch (issue #680), no `from` needed
+// (inferred from the target kind).
 export const reyaDawnbringer: CardDefinition = {
     id: "e1e0e72b-e65e-4578-b610-9f529daa32d7",
     rarity: "rare",
@@ -695,22 +703,21 @@ export const reyaDawnbringer: CardDefinition = {
                 "At the beginning of your upkeep, you may return target creature card from your graveyard to the battlefield.",
             phase: "UPKEEP",
             scope: "your",
+            // CR 603.3d — "you may return TARGET creature card from your
+            // graveyard": a real announced target chosen at stack placement.
+            // `count: {min:0,max:1}` = the "you may" up-to-one (empty set =
+            // decline); `zone: "graveyard"` + `controller: "you"` scopes to the
+            // controller's own graveyard.
+            targetRequirement: {
+                type: "Creature",
+                count: { min: 0, max: 1 },
+                zone: "graveyard",
+                controller: "you",
+            },
             effects: [
                 {
-                    op: "choice",
-                    kind: "choose-graveyard-card",
-                    player: "controller",
-                    zone: "graveyard",
-                    filter: { type: "Creature" },
-                    count: { min: 0, max: 1 },
-                    prompt: "Reya Dawnbringer: return target creature card from your graveyard to the battlefield.",
-                    bind: "$reanimated",
-                },
-                {
                     op: "moveZone",
-                    cards: { ref: "$reanimated" },
-                    player: "controller",
-                    from: "graveyard",
+                    target: { target: 0 },
                     to: "battlefield",
                 },
             ],

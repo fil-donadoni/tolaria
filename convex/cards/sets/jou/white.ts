@@ -1,3 +1,4 @@
+import { PERMANENT_TYPES } from "../../types";
 import type { CardDefinition, SpellContext } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { leftTrigger } from "../../abilities/triggers/leftTrigger";
@@ -28,41 +29,32 @@ export const banishingLight: CardDefinition = {
     manaCost: { X: 2, W: 1 },
     types: ["Enchantment"],
     triggeredAbilities: [
-        // CR 603.6a — ETB trigger. `TriggeredAbility` carries no
-        // `targetRequirement`, so the "target nonland permanent an opponent
-        // controls" pick is modeled as a `choose-permanents` resolution choice
-        // over the opponent's battlefield (Erhnam Djinn / Oubliette precedent):
-        // the candidate set is computed live, and protection/hexproof are not
-        // re-checked — acceptable for the current pool, no new target type.
+        // CR 603.6a — ETB trigger. CR 603.3d — "exile target nonland permanent
+        // an opponent controls" is a REAL target chosen when the trigger is put
+        // on the stack (issue #1193 machinery, `raiseTriggerTargetSelection` in
+        // gre/rules.ts), NOT a resolution-time `requestChoice`. That makes it
+        // subject to hexproof / protection / ward and fires "becomes the target
+        // of an ability" triggers, which the old choice-as-target workaround
+        // silently skipped. `type: PERMANENT_TYPES minus Land` = "nonland
+        // permanent" (the Boomerang idiom); `controller: "opponent"` scopes the
+        // candidate set to the opponent's battlefield; `count 1` = one
+        // mandatory target. The resolve() then reads the announced target and
+        // performs the host-only exile.
         enteredTrigger({
             id: "banishing-light-exile",
             oracleText:
                 "When this enchantment enters, exile target nonland permanent an opponent controls until this enchantment leaves the battlefield.",
             scope: "self",
+            targetRequirement: {
+                type: [...PERMANENT_TYPES],
+                count: 1,
+                excludeTypes: "Land",
+                controller: "opponent",
+            },
             resolve: (ctx: SpellContext) => {
-                const opponentId = ctx.allPlayerIds.find(
-                    (p) => p !== ctx.controller
-                );
-                if (!opponentId) return;
-                // Nonland permanents the opponent controls (CR 603.3d). No
-                // legal pick → the trigger does nothing (it still resolved).
-                const candidates = ctx.getBattlefieldIds(opponentId, {
-                    excludeTypes: "Land",
-                });
-                if (candidates.length === 0) return;
-                const picks = ctx.requestChoice({
-                    playerId: ctx.controller,
-                    choiceId: `banishing-light-${ctx.sourceInstanceId}`,
-                    kind: "choose-permanents",
-                    zone: "battlefield",
-                    zoneOwnerId: opponentId,
-                    candidateIds: candidates,
-                    count: 1,
-                    prompt: "Banishing Light: choose a nonland permanent an opponent controls to exile.",
-                });
-                if (picks === undefined) return; // suspended for the choice
-                const targetId = picks[0];
-                if (!targetId) return;
+                const target = ctx.targets[0];
+                if (!target) return; // CR 608.2b — no legal target / target left
+                const targetId = target.id;
                 // CR 701.18 — host-only exile (auras die, equipment detaches);
                 // ADR 0028 arms the return keyed to this card.
                 ctx.exileWithAttachments(targetId, {

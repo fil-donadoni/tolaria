@@ -26,45 +26,37 @@ export const snapcasterMage: CardDefinition = {
             oracleText:
                 "When this creature enters, target instant or sorcery card in your graveyard gains flashback until end of turn. The flashback cost is equal to its mana cost.",
             scope: "self",
-            // protocol clause: grants the flashback KEYWORD-CAST permission to a
-            // card in a graveyard until end of turn (CR 702.34) — a keyword grant
-            // to a NON-battlefield card, which the battlefield-oriented layer
-            // system (`grantAbility` Op) cannot express, so there is no Op for
-            // it (invented Op forbidden). The "target instant/sorcery in your
-            // graveyard" pick uses the engine's established triggered-choice
-            // convention (`requestChoice` / `choose-graveyard-card`, as in
-            // Regrowth-style triggers), not an announcement-time target.
+            // CR 603.3d — "target instant or sorcery card in your graveyard" is a
+            // REAL target chosen when the ETB trigger is put on the stack (not a
+            // resolution-time `requestChoice`), declared as a `targetRequirement`
+            // on the TriggeredAbility (issue #1193 machinery,
+            // `raiseTriggerTargetSelection` in gre/rules.ts). `zone: "graveyard"`
+            // + `controller: "you"` filters to instant/sorcery cards in the
+            // controller's own graveyard (CR 400.7); `count: 1` is the single
+            // mandatory target (auto-selected when only one is legal, CR 603.3c
+            // no-op when none).
+            targetRequirement: {
+                type: ["Instant", "Sorcery"],
+                count: 1,
+                zone: "graveyard",
+                controller: "you",
+            },
+            // The resolve only grants flashback: the flashback KEYWORD-CAST
+            // permission (CR 702.34) is stamped on a NON-battlefield card until
+            // end of turn — a keyword grant the battlefield-oriented layer system
+            // (`grantAbility` Op) cannot express, so this stays imperative
+            // (no Op exists; inventing one is forbidden).
             resolve: (ctx: SpellContext) => {
-                const candidates = ctx
-                    .getGraveyardCards(ctx.controller)
-                    .filter(
-                        (c) =>
-                            c.types.includes("Instant") ||
-                            c.types.includes("Sorcery")
-                    )
-                    .map((c) => c.id);
-                // CR 603.3c — no legal instant/sorcery card: the ability does
-                // nothing (no card to give flashback to).
-                if (candidates.length === 0) return;
-                const picks = ctx.requestChoice({
-                    playerId: ctx.controller,
-                    choiceId: `snapcaster-flashback-${ctx.sourceInstanceId}`,
-                    kind: "choose-graveyard-card",
-                    zone: "graveyard",
-                    filter: { types: ["Instant", "Sorcery"] },
-                    candidateIds: candidates,
-                    count: 1,
-                    prompt: "Give an instant or sorcery card in your graveyard flashback until end of turn (its flashback cost equals its mana cost).",
-                });
-                if (picks === undefined) return; // suspended on the choice
-                const id = picks[0];
-                if (!id) return;
+                // CR 603.3d — the announced target is a graveyard-card slot; the
+                // engine already locked it as the trigger went on the stack.
+                const target = ctx.targets[0];
+                if (!target || target.type !== "graveyard-card") return;
                 // CR 702.34 — grant flashback with cost = the card's mana cost
                 // (grantFlashback defaults to the card's own printed cost).
                 ctx.grantFlashback({
                     type: "graveyard-card",
-                    id,
-                    playerId: ctx.controller,
+                    id: target.id,
+                    playerId: target.playerId ?? ctx.controller,
                 });
             },
         }),

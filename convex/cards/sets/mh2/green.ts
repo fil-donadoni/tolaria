@@ -45,13 +45,17 @@ export const ignobleHierarch: CardDefinition = {
 // shape) and the sacrifice-on-ETB half is `evokeTrigger` — Solitude/Grief
 // precedent (mh2/white.ts, mh2/black.ts).
 //
-// The ETB "up to one target PLAYER" is a trigger-time player target. A
-// `TriggeredAbility` carries no announcement-time `targetRequirement` (ADR
-// 0002), so the player is chosen mid-resolution via the `choose-player`
-// requestChoice kind (candidates = every player, `count: { min: 0, max: 1 }`
-// for "up to one"). `putGraveyardOnBottomOfLibrary` performs the CR-faithful
-// "bottom of library in a random order" bulk move (seeded PRNG, knowledge
-// cleared — ADR 0026).
+// TARGETING (CR 603.3d, issue #1193): "up to one target player" is a REAL
+// target chosen when the ETB trigger is put on the stack — declared as a
+// `targetRequirement` on the TriggeredAbility (`raiseTriggerTargetSelection`
+// in gre/rules.ts), NOT a resolution-time `requestChoice`. That makes it
+// subject to redirect/"becomes the target" triggers and locks the player
+// before resolution, matching the printed "target player" wording. `type:
+// "player"` with `count { min: 0, max: 1 }` = "up to one target player" (any
+// player eligible — no controller restriction in the text). The resolve()
+// then reads the announced slot via `ctx.targets[0]` and hands its player id
+// to `putGraveyardOnBottomOfLibrary`, the CR-faithful "bottom of library in a
+// random order" bulk move (seeded PRNG, knowledge cleared — ADR 0026).
 export const endurance: CardDefinition = {
     id: "eb0e0404-4846-4891-acfa-bd0951ecf9c6",
     rarity: "mythic",
@@ -78,23 +82,15 @@ export const endurance: CardDefinition = {
             oracleText:
                 "When this creature enters, up to one target player puts all the cards from their graveyard on the bottom of their library in a random order.",
             scope: "self",
-            // Trigger-time player target — CR 115.1a, chosen mid-resolution
-            // (a TriggeredAbility has no announcement-time targetRequirement,
-            // ADR 0002). "Up to one" → count { min: 0, max: 1 }; an empty pick
-            // is "none" and the effect does nothing.
+            // CR 603.3d — "up to one target player": a real target locked when
+            // the trigger goes on the stack (not a resolution-time choice).
+            // `count { min: 0, max: 1 }` = "up to one"; every player is a legal
+            // target (no controller restriction in the oracle text).
+            targetRequirement: { type: "player", count: { min: 0, max: 1 } },
             resolve: (ctx: SpellContext) => {
-                const picks = ctx.requestChoice({
-                    playerId: ctx.controller,
-                    choiceId: `endurance-etb-${ctx.sourceInstanceId}`,
-                    kind: "choose-player",
-                    zone: "graveyard",
-                    candidatePlayerIds: [...ctx.allPlayerIds],
-                    count: { min: 0, max: 1 },
-                    prompt: "Choose up to one player: they put their graveyard on the bottom of their library in a random order.",
-                });
-                if (picks === undefined) return; // suspended on the choice
-                if (picks.length === 0) return; // chose no player
-                ctx.putGraveyardOnBottomOfLibrary(picks[0]);
+                const target = ctx.targets[0];
+                if (!target) return; // "up to one": none chosen / CR 608.2b none legal
+                ctx.putGraveyardOnBottomOfLibrary(target.id);
             },
         }),
         evokeTrigger("Endurance"),

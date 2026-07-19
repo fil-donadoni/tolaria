@@ -36,9 +36,14 @@ import {
     getEffectivePower,
     getEffectiveToughness,
 } from "../../../../gre/layers";
-import { getLegalTargets } from "../../../../gre/rules";
+import {
+    getLegalTargets,
+    raiseTriggerTargetSelection,
+} from "../../../../gre/rules";
+import { finalizeTargetSelection } from "../../../../game";
 import {
     applyControlChange,
+    type CardInstanceState,
     destroyWithReplacements,
     type GameState,
     phaseInBundle,
@@ -323,6 +328,41 @@ describe("Oubliette (phasing CR 702.26)", () => {
         return { state, oubl, creature, aura };
     }
 
+    /** Puts Oubliette's ETB trigger on the stack with its target slot
+     *  UN-set (`targets: undefined`) and `triggerSourceId` pinned to the
+     *  source enchantment, mirroring Phelia's `pheliaAttackTriggerOnStack`.
+     *  `raiseTriggerTargetSelection` then locks or asks for the CR 603.3d
+     *  target before `resolveTopOfStack` runs the phase-out. */
+    function oublietteTriggerOnStack(
+        state: GameState,
+        source: CardInstanceState
+    ): StackItem {
+        const trig: StackItem = {
+            ...source,
+            id: "oubliette-trig",
+            zone: "stack",
+            castById: source.controllerId,
+            triggeredAbilityId: "oubliette-phase-out",
+            triggerSourceId: source.id,
+            triggerEvent: {
+                type: "PERMANENT_ENTERED",
+                instanceId: source.id,
+                controllerId: source.controllerId,
+                types: ["Enchantment"],
+            } as StackItem["triggerEvent"],
+            targets: undefined,
+        };
+        state.stack.push(trig);
+        return trig;
+    }
+
+    it("declares the CR 603.3d target requirement: target creature", () => {
+        expect(oubliette.triggeredAbilities?.[0]?.targetRequirement).toEqual({
+            type: "Creature",
+            count: 1,
+        });
+    });
+
     it("phases out the creature with its Aura, silently (no events, no graveyard)", () => {
         const { state } = setup();
         state.pendingEvents = undefined;
@@ -395,21 +435,17 @@ describe("Oubliette (phasing CR 702.26)", () => {
         expect(phaseInBundle(state, bundleId)).toBe(false); // already gone
     });
 
-    it("ETB trigger phases out the chosen creature (full path)", () => {
-        const { state } = setup();
-        resolveTrigger(
-            state,
-            state.players[0].battlefield[0],
-            "oubliette-phase-out",
-            {
-                type: "PERMANENT_ENTERED",
-                instanceId: "oubl",
-                controllerId: "p1",
-                types: ["Enchantment"],
-            } as StackItem["triggerEvent"]
-        );
-        // requestChoice suspended the trigger — answer it with the bear.
-        answerChoice(state, ["bear"]);
+    it("ETB trigger auto-locks the sole legal creature and phases it out (CR 603.3d, full path)", () => {
+        const { state, oubl } = setup();
+        const trig = oublietteTriggerOnStack(state, oubl);
+        // Only the bear is a legal creature target — a sole mandatory target
+        // auto-selects, so no PendingTarget is raised (returns false) and the
+        // engine locks `trig.targets` to the bear.
+        expect(raiseTriggerTargetSelection(state)).toBe(false);
+        expect(trig.targets).toEqual([{ type: "permanent", id: "bear" }]);
+        expect(state.pendingTarget).toBeUndefined();
+
+        resolveTopOfStack(state);
         expect(
             state.players[1].battlefield.find((c) => c.id === "bear")
         ).toBeUndefined();
@@ -418,6 +454,37 @@ describe("Oubliette (phasing CR 702.26)", () => {
             kind: "source-leaves",
             sourceId: "oubl",
         });
+    });
+
+    it("with 2+ legal creatures, raises a PendingTarget and phases out the chosen one (CR 603.3d)", () => {
+        const { state, oubl } = setup();
+        // A second creature (p1's own) makes the target a real choice.
+        const other = makeInstance(grizzlyBears.id, {
+            id: "other",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        state.players[0].battlefield.push(other);
+
+        oublietteTriggerOnStack(state, oubl);
+        expect(raiseTriggerTargetSelection(state)).toBe(true);
+        expect(state.pendingTarget?.kind).toBe("trigger");
+        state.pendingTarget!.selected = [{ type: "permanent", id: "bear" }];
+        finalizeTargetSelection(
+            state,
+            state.pendingTarget!,
+            state.pendingTarget!.playerId
+        );
+
+        resolveTopOfStack(state);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "bear")
+        ).toBeUndefined();
+        expect(state.phasedOut).toHaveLength(1);
+        // The unchosen creature is untouched.
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "other")
+        ).toBeDefined();
     });
 });
 

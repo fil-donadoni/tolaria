@@ -449,40 +449,40 @@ export const necrite: CardDefinition = {
             oracleText:
                 "Whenever this creature attacks and isn't blocked, you may sacrifice it. If you do, destroy target creature defending player controls. It can't be regenerated.",
             event: "ATTACKER_UNBLOCKED",
+            // CR 603.3d — "destroy TARGET creature defending player controls" is
+            // a real target chosen when this trigger is put on the stack (via
+            // `raiseTriggerTargetSelection`, gre/rules.ts, issue #1193), NOT a
+            // resolution-time pick. Declaring it as a `targetRequirement` makes
+            // it subject to hexproof / protection / ward and fires "becomes the
+            // target" triggers, which the old resolve()+requestChoice workaround
+            // silently skipped. In 2-player/solo the "defending player" (CR
+            // 506.2, attacker controller's opponent) is exactly `controller:
+            // "opponent"` relative to the ability's controller.
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                controller: "opponent",
+            },
             matches: (event, self) =>
                 event.type === "ATTACKER_UNBLOCKED" &&
                 event.attackerId === self.id,
-            resolve: (ctx, event) => {
-                if (event.type !== "ATTACKER_UNBLOCKED") return;
-                const controllerId = event.attackerControllerId;
-                // CR 506.2 — defending player = attacker controller's opponent.
-                const defenderId = ctx.allPlayerIds.find(
-                    (p) => p !== controllerId
-                );
-                if (!defenderId) return;
-                const candidates = ctx.getBattlefieldIds(defenderId, {
-                    types: "Creature",
-                });
-                if (candidates.length === 0) return;
-                // CR 603.3d — "you may sacrifice it. If you do, destroy target
-                // creature": picking a creature implies the sacrifice; declining
-                // (empty pick) leaves the Thrull on the battlefield.
-                const picks = ctx.requestChoice({
-                    playerId: controllerId,
+            resolve: (ctx) => {
+                // Target is already announced (ctx.targets[0]). resolve() only
+                // runs the "you may sacrifice it. If you do" clause: sacrifice is
+                // an optional cost paid at resolution (CR 701.7a), separate from
+                // the stack-placement target choice above.
+                const target = ctx.targets[0];
+                if (!target) return; // CR 608.2b — target left before resolution
+                const sac = ctx.requestMayPay({
+                    playerId: ctx.controller,
                     choiceId: `necrite-${ctx.sourceInstanceId}`,
-                    kind: "choose-permanents",
-                    zone: "battlefield",
-                    zoneOwnerId: defenderId,
-                    candidateIds: candidates,
-                    count: { min: 0, max: 1 },
-                    prompt: "Sacrifice Necrite to destroy a creature the defending player controls? (pick one, or decline)",
+                    prompt: "Sacrifice Necrite to destroy the target creature?",
                 });
-                if (picks === undefined) return; // suspended
-                const targetId = picks[0];
-                if (!targetId) return; // declined
+                if (sac === undefined) return; // suspended for the may decision
+                if (!sac) return; // declined — Necrite stays, nothing destroyed
                 ctx.sacrifice(ctx.sourceInstanceId);
                 ctx.destroy(
-                    { type: "permanent", id: targetId },
+                    { type: "permanent", id: target.id },
                     { cantBeRegenerated: true }
                 );
             },

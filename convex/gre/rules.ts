@@ -2083,10 +2083,23 @@ export function raiseTriggerTargetSelection(state: GameState): boolean {
         // "counter that spell or ability" resolves to whatever is CURRENTLY
         // on the stack targeting this permanent — reusing the Mistfolk
         // instance filter rather than a parallel event→stack-item mechanism.
-        const effectiveReq: TargetRequirement =
+        let effectiveReq: TargetRequirement =
             req.spellTargetsSelfSource && item.triggerSourceId
                 ? { ...req, spellTargetsInstanceIds: [item.triggerSourceId] }
                 : req;
+        // Reflexive self-EXCLUDE (inverse of `spellTargetsSelfSource`) — an
+        // "exile ANOTHER target permanent" / "up to one OTHER target ~" trigger
+        // cannot pick its own source permanent. Merge the source id into any
+        // author-time `excludeInstanceIds` (CR 603.3d).
+        if (effectiveReq.excludeSource && item.triggerSourceId) {
+            effectiveReq = {
+                ...effectiveReq,
+                excludeInstanceIds: [
+                    ...(effectiveReq.excludeInstanceIds ?? []),
+                    item.triggerSourceId,
+                ],
+            };
+        }
 
         // A triggered ability's source characteristics come from the on-stack
         // trigger item (a `...self` snapshot of the source), read the same way

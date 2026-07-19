@@ -11,6 +11,7 @@ import type {
     PermanentView,
     SpellContext,
 } from "../../types";
+import { PERMANENT_TYPES } from "../../types";
 import type { Phase } from "../../../gre/types";
 import { countSnowLands } from "../../snowReads";
 import { cumulativeUpkeepTrigger } from "../../abilities/cumulativeUpkeep";
@@ -690,11 +691,19 @@ export const goblinLyre: CardDefinition = {
 // Talisman cycle (Hematite/Lapis Lazuli/Malachite/Nacre/Onyx) — "Whenever a
 // player casts a [color] spell, you may pay {3}. If you do, untap target
 // permanent." (CR 603.2 cast trigger via `spellCastTrigger` + SpellFilter color
-// gate; CR 117.3a optional `requestMayPay`; CR 701.20b untap.) The untap target
-// is chosen mid-resolution from EVERY battlefield via `requestChoice` (a TANTO
-// trigger that doesn't pre-target — the modern oracle lets it untap any
-// permanent). All five share `makeTalisman`; only the matched color and ids
-// differ.
+// gate; CR 117.3a optional `requestMayPay`; CR 701.20b untap.)
+//
+// CR 603.3d (issue #1193) — "untap target permanent" is a REAL target chosen
+// when the trigger is PUT ON THE STACK, declared as a `targetRequirement` on
+// the TriggeredAbility (engine: `raiseTriggerTargetSelection` in gre/rules.ts),
+// NOT a resolution-time `requestChoice`. That makes it subject to hexproof /
+// protection / ward and fires "becomes the target of an ability" triggers,
+// which the old choice-as-target workaround silently skipped. The optional {3}
+// is still paid at resolution (CR 117.3a); only on payment is the announced
+// target untapped. The factory returns a plain `TriggeredAbility`, so the
+// `targetRequirement` is spread onto it here (the trigger factories carry no
+// targetRequirement param of their own). All five share `makeTalisman`; only
+// the matched color and ids differ.
 function makeTalisman(args: {
     id: string;
     name: string;
@@ -702,45 +711,47 @@ function makeTalisman(args: {
     colorWord: string;
 }): CardDefinition {
     const slug = args.name.toLowerCase().replace(/[^a-z]+/g, "-");
+    const oracleText = `Whenever a player casts a ${args.colorWord} spell, you may pay {3}. If you do, untap target permanent.`;
     return {
         id: args.id,
         name: args.name,
         rarity: "uncommon",
-        oracleText: `Whenever a player casts a ${args.colorWord} spell, you may pay {3}. If you do, untap target permanent.`,
+        oracleText,
         manaCost: { X: 2 },
         types: ["Artifact"],
         triggeredAbilities: [
-            spellCastTrigger({
-                id: `${slug}-untap`,
-                oracleText: `Whenever a player casts a ${args.colorWord} spell, you may pay {3}. If you do, untap target permanent.`,
-                scope: "any",
-                filter: { colors: args.color },
-                resolve: (ctx) => {
-                    const me = ctx.controller;
-                    const accept = ctx.requestMayPay({
-                        playerId: me,
-                        choiceId: `${slug}-pay`,
-                        cost: { X: 3 },
-                        prompt: `Pay {3} to untap target permanent with ${args.name}?`,
-                    });
-                    if (accept === undefined) return; // suspended
-                    if (!accept) return;
-                    const picked = ctx.requestChoice({
-                        playerId: me,
-                        choiceId: `${slug}-target`,
-                        kind: "choose-permanents",
-                        zone: "battlefield",
-                        allControllers: true,
-                        count: 1,
-                        prompt: "Untap target permanent.",
-                    });
-                    if (picked === undefined) return; // suspended
-                    const targetId = picked[0];
-                    if (targetId) {
-                        ctx.untap({ type: "permanent", id: targetId });
-                    }
+            {
+                ...spellCastTrigger({
+                    id: `${slug}-untap`,
+                    oracleText,
+                    scope: "any",
+                    filter: { colors: args.color },
+                    resolve: (ctx) => {
+                        // CR 603.3d — target chosen at stack placement; read
+                        // it here rather than picking one. "Up to one" folds
+                        // the "you may [pay {3}]" optionality into target
+                        // selection, so no target chosen = declined outright.
+                        const target = ctx.targets[0];
+                        if (target?.type !== "permanent") return;
+                        const accept = ctx.requestMayPay({
+                            playerId: ctx.controller,
+                            choiceId: `${slug}-pay`,
+                            cost: { X: 3 },
+                            prompt: `Pay {3} to untap the target permanent with ${args.name}?`,
+                        });
+                        if (accept === undefined) return; // suspended
+                        if (!accept) return; // declined the {3}
+                        ctx.untap(target); // CR 701.20b
+                    },
+                }),
+                // CR 603.3d — "untap target permanent": any controller's
+                // permanent is eligible (no controller clause). `count 0..1`
+                // ("up to one") folds in the "you may" optionality.
+                targetRequirement: {
+                    type: [...PERMANENT_TYPES],
+                    count: { min: 0, max: 1 },
                 },
-            }),
+            },
         ],
     };
 }
@@ -1433,9 +1444,20 @@ export const snowFortress: CardDefinition = {
 // Soldevi Golem — a 5/3 Golem that doesn't untap normally; instead, at your
 // upkeep you may untap a tapped opponent creature to untap it too (CR 702 —
 // "doesn't untap" via the `does-not-untap` keyword; CR 603.6a phase trigger;
-// CR 117.3a optional `requestMayPay`; CR 701.20b untap). The mid-resolution
-// target is a tapped creature an opponent controls, picked via `requestChoice`
-// (candidateIds = opponents' tapped creatures); untapping it also untaps Golem.
+// CR 117.3a optional `requestMayPay`; CR 701.20b untap).
+//
+// CR 603.3d (issue #1193) — "target tapped creature an opponent controls" is a
+// REAL target chosen when the trigger is PUT ON THE STACK, declared as a
+// `targetRequirement` (subject to hexproof / protection / ward), NOT a
+// resolution-time `requestChoice`. It is a mandatory single target: CR 603.3c
+// keeps the trigger off the stack entirely when no opponent tapped creature
+// exists, so a locked target is always present at resolution. The "you may"
+// (optional untap) stays a resolution-time `requestMayPay` gate; on accept the
+// engine untaps BOTH the target and this creature ("If you do, untap this
+// creature"). Kept as `resolve()` (not the Effect Script DSL): the two-object
+// untap gated behind an optional yes/no has no single Op skin. The factory
+// returns a plain `TriggeredAbility`, so the `targetRequirement` is spread onto
+// it here (the trigger factories carry no targetRequirement param of their own).
 export const soldeviGolem: CardDefinition = {
     id: "64d35e88-81d3-4a54-aa79-190615abc616",
     name: "Soldevi Golem",
@@ -1449,53 +1471,39 @@ export const soldeviGolem: CardDefinition = {
     toughness: 3,
     staticAbilities: ["does-not-untap"],
     triggeredAbilities: [
-        phaseTrigger({
-            id: "soldevi-golem-upkeep",
-            oracleText:
-                "At the beginning of your upkeep, you may untap target tapped creature an opponent controls. If you do, untap this creature.",
-            phase: "UPKEEP",
-            scope: "your",
-            // NOT DSL-migratable (ADR 0045): "you may untap target tapped
-            // creature an OPPONENT controls" needs a mid-resolution choice over
-            // the opponent's tapped creatures — but the `choice` Op's
-            // battlefield candidates are limited to the chooser's own permanents
-            // (no cross-controller candidate set, no tap-state filter).
-            // Blocked on: a cross-controller + tap-state candidate set for choice.
-            resolve: (ctx, _event, scopedPlayerId) => {
-                const opponents = ctx.allPlayerIds.filter(
-                    (pid) => pid !== scopedPlayerId
-                );
-                const candidates = opponents.flatMap((pid) =>
-                    ctx.getBattlefieldIds(pid, {
-                        types: "Creature",
-                        tapped: true,
-                    })
-                );
-                if (candidates.length === 0) return; // nothing to untap
-                const accept = ctx.requestMayPay({
-                    playerId: scopedPlayerId,
-                    choiceId: "soldevi-golem-may",
-                    prompt: "Untap a tapped creature an opponent controls (and untap Soldevi Golem)?",
-                });
-                if (accept === undefined) return; // suspended
-                if (!accept) return;
-                const picked = ctx.requestChoice({
-                    playerId: scopedPlayerId,
-                    choiceId: "soldevi-golem-target",
-                    kind: "choose-permanents",
-                    zone: "battlefield",
-                    allControllers: true,
-                    candidateIds: candidates,
-                    count: 1,
-                    prompt: "Untap target tapped creature an opponent controls.",
-                });
-                if (picked === undefined) return; // suspended
-                const targetId = picked[0];
-                if (!targetId) return;
-                ctx.untap({ type: "permanent", id: targetId });
-                ctx.untap({ type: "permanent", id: ctx.sourceInstanceId });
+        {
+            ...phaseTrigger({
+                id: "soldevi-golem-upkeep",
+                oracleText:
+                    "At the beginning of your upkeep, you may untap target tapped creature an opponent controls. If you do, untap this creature.",
+                phase: "UPKEEP",
+                scope: "your",
+                resolve: (ctx, _event, scopedPlayerId) => {
+                    // CR 603.3d — target chosen at stack placement; read it
+                    // here rather than picking one.
+                    const target = ctx.targets[0];
+                    if (target?.type !== "permanent") return;
+                    const accept = ctx.requestMayPay({
+                        playerId: scopedPlayerId,
+                        choiceId: "soldevi-golem-may",
+                        prompt: "Untap the target tapped creature an opponent controls (and untap Soldevi Golem)?",
+                    });
+                    if (accept === undefined) return; // suspended
+                    if (!accept) return;
+                    ctx.untap(target); // CR 701.20b — the target creature…
+                    ctx.untap({ type: "permanent", id: ctx.sourceInstanceId }); // …and Soldevi Golem
+                },
+            }),
+            // CR 603.3d — "target tapped creature an opponent controls":
+            // mandatory single target (CR 603.3c gates the trigger off the
+            // stack when no opponent tapped creature exists).
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                tappedFilter: "tapped",
+                controller: "opponent",
             },
-        }),
+        },
     ],
 };
 // Soldevi Simulacrum — {4} Artifact Creature 2/4 with cumulative upkeep {1}

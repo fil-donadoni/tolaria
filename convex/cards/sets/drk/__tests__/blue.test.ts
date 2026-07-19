@@ -46,7 +46,11 @@ import {
 } from "../../../../gre/layers";
 import { applyMayPaySubmit } from "../../../../gre/pendingChoiceSubmit";
 import { finalizeCleanup } from "../../../../gre/phases";
-import { getLegalTargets } from "../../../../gre/rules";
+import {
+    getLegalTargets,
+    raiseTriggerTargetSelection,
+} from "../../../../gre/rules";
+import { finalizeTargetSelection } from "../../../../game";
 import {
     type CardInstanceState,
     type GameState,
@@ -797,16 +801,45 @@ function danceSetup(copyTargetId: string) {
     return { state, dance, target };
 }
 
-/** Run Dance's ETB trigger and choose `pickId` as the creature to copy.
+/** Push Dance's ETB trigger onto the stack WITHOUT resolving, so the CR 603.3d
+ *  copy target can be locked through the real machinery
+ *  (`raiseTriggerTargetSelection` → `finalizeTargetSelection`). Mirrors the
+ *  `resolveTrigger` helper's push but stops short of `resolveTopOfStack`, and
+ *  leaves `targets` unset (the target slot the target pass fills). Keeps
+ *  `triggerSourceId` so scope/source resolution works. Returns the on-stack
+ *  trigger item. */
+function pushDanceEtb(state: GameState, dance: CardInstanceState): StackItem {
+    state.stack.push({
+        ...dance,
+        zone: "stack",
+        castById: dance.controllerId,
+        triggeredAbilityId: "dance-of-many-etb",
+        triggerSourceId: dance.id,
+        triggerEvent: ENTERED(dance),
+    });
+    return state.stack[state.stack.length - 1];
+}
+
+/** Drives Dance's ETB target choice through the real CR 603.3d machinery, then
+ *  resolves. When `pickId` is the sole legal creature the target auto-locks
+ *  (`raiseTriggerTargetSelection` returns false); with 2+ candidates a real
+ *  choice is owed, driven via `pendingTarget.selected` + `finalizeTargetSelection`.
  *  Returns the freshly created copy-token instance. */
 function fireEtbAndCopy(
     state: GameState,
     dance: CardInstanceState,
     pickId: string
 ): CardInstanceState {
-    resolveTrigger(state, dance, "dance-of-many-etb", ENTERED(dance));
-    // The ETB suspends on the choose-a-creature pick; answer it.
-    answerChoice(state, [pickId]);
+    pushDanceEtb(state, dance);
+    if (raiseTriggerTargetSelection(state)) {
+        state.pendingTarget!.selected = [{ type: "permanent", id: pickId }];
+        finalizeTargetSelection(
+            state,
+            state.pendingTarget!,
+            state.pendingTarget!.playerId
+        );
+    }
+    resolveTopOfStack(state);
     const token = state.players[0].battlefield.find((c) => c.isToken);
     if (!token) throw new Error("no copy-token created");
     return token;
@@ -827,6 +860,17 @@ describe("Dance of Many — definition (modern Scryfall oracle, ADR 0004)", () =
             "dance-of-many-sacrifice-self",
             "dance-of-many-upkeep",
         ]);
+    });
+
+    it("declares the CR 603.3d target requirement on its ETB: one creature", () => {
+        const etb = danceOfMany.triggeredAbilities?.find(
+            (a) => a.id === "dance-of-many-etb"
+        );
+        // "create a token that's a copy of target nontoken creature" — the
+        // target is chosen at stack placement (CR 603.3d), not resolution.
+        // DIVERGENCE: TargetRequirement has no token filter, so the "nontoken"
+        // clause is dropped (out of scope for the current target machinery).
+        expect(etb?.targetRequirement).toEqual({ type: "Creature", count: 1 });
     });
 
     it("is registered by id and name", () => {
@@ -860,25 +904,44 @@ describe("Dance of Many — ETB token copy (CR 707.2)", () => {
         expect(getEffectiveToughness(state, token)).toBe(2);
     });
 
-    it("only offers nontoken creatures as copy targets (isToken: false filter)", () => {
+    it("auto-locks the sole legal creature — no choice raised (CR 603.3d)", () => {
         const { state, dance } = danceSetup(getCardByName("Serra Angel").id);
-        // Add a pre-existing token; it must NOT be a legal copy choice.
-        const stray = makeInstance(getCardByName("Serra Angel").id, {
-            id: "stray-token",
-            controllerId: "p1",
-            ownerId: "p1",
-            isToken: true,
+        const trig = pushDanceEtb(state, dance);
+        // Only one creature on the battlefield: a mandatory single target with
+        // exactly one candidate auto-selects; no PendingTarget is raised.
+        expect(raiseTriggerTargetSelection(state)).toBe(false);
+        expect(trig.targets).toEqual([{ type: "permanent", id: "orig" }]);
+        expect(state.pendingTarget).toBeUndefined();
+    });
+
+    it("raises a target choice when 2+ creatures are legal (CR 603.3d)", () => {
+        const { state, dance } = danceSetup(getCardByName("Serra Angel").id);
+        // A second creature makes the copy target a real choice.
+        const second = makeInstance(getCardByName("Grizzly Bears").id, {
+            id: "bears",
+            controllerId: "p2",
+            ownerId: "p2",
         });
-        state.players[0].battlefield.push(stray);
-        resolveTrigger(state, dance, "dance-of-many-etb", ENTERED(dance));
-        const head = state.pendingChoices?.[0];
-        expect(head?.kind).toBe("choose-permanents");
-        // Eligibility is carried by the choice filter (CR 111.5 nontoken).
-        expect(head?.filter).toMatchObject({
-            types: "Creature",
-            isToken: false,
-        });
-        expect(head?.allControllers).toBe(true);
+        state.players[1].battlefield.push(second);
+        const trig = pushDanceEtb(state, dance);
+        // Two legal candidates → a real choice is owed.
+        expect(raiseTriggerTargetSelection(state)).toBe(true);
+        expect(state.pendingTarget?.kind).toBe("trigger");
+        // The controller picks the opponent's creature; finalize locks it onto
+        // the on-stack trigger, then it resolves into a copy token.
+        state.pendingTarget!.selected = [{ type: "permanent", id: "bears" }];
+        finalizeTargetSelection(
+            state,
+            state.pendingTarget!,
+            state.pendingTarget!.playerId
+        );
+        expect(trig.targets).toEqual([{ type: "permanent", id: "bears" }]);
+        resolveTopOfStack(state);
+        const token = state.players[0].battlefield.find((c) => c.isToken);
+        expect(token).toBeDefined();
+        // Copied Grizzly Bears' copiable P/T (CR 707.2).
+        expect(getEffectivePower(state, token!)).toBe(2);
+        expect(getEffectiveToughness(state, token!)).toBe(2);
     });
 });
 

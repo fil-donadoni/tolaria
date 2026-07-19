@@ -1354,39 +1354,35 @@ export const vesuvanDoppelganger: CardDefinition = {
                 phase: "UPKEEP",
                 scope: "your",
                 resolve: (ctx) => {
-                    let candidates = 0;
-                    for (const pid of ctx.allPlayerIds) {
-                        candidates += ctx.getBattlefieldIds(pid, {
-                            types: "Creature",
-                        }).length;
-                    }
-                    if (candidates === 0) return;
+                    // CR 603.3d — "target creature" is a REAL target chosen
+                    // when the trigger is put on the stack (declared as the
+                    // `targetRequirement` below, driven by
+                    // `raiseTriggerTargetSelection` in gre/rules.ts), NOT a
+                    // resolution-time `requestChoice`. The retained ability's
+                    // target is thus subject to hexproof / protection / ward
+                    // and fires "becomes the target" triggers. The "you may"
+                    // stays a resolution-time choice (`requestMayPay`).
+                    const target = ctx.targets[0];
+                    if (!target) return; // CR 608.2b — target left / illegal
                     const accept = ctx.requestMayPay({
                         playerId: ctx.controller,
                         choiceId: `vesuvan-recopy-may-${ctx.sourceInstanceId}`,
-                        prompt: "Have Vesuvan Doppelganger become a copy of another creature?",
+                        prompt: "Have Vesuvan Doppelganger become a copy of the target creature?",
                     });
                     if (accept === undefined) return;
                     if (!accept) return;
-                    const picks = ctx.requestChoice({
-                        playerId: ctx.controller,
-                        choiceId: `vesuvan-recopy-${ctx.sourceInstanceId}`,
-                        kind: "choose-permanents",
-                        zone: "battlefield",
-                        allControllers: true,
-                        filter: { types: "Creature" },
-                        count: 1,
-                        prompt: "Choose a creature for Vesuvan Doppelganger to copy.",
+                    ctx.becomeCopyOf(target.id, {
+                        copyColor: false,
+                        ownColors: VESUVAN_OWN_COLORS,
                     });
-                    if (picks === undefined) return;
-                    if (picks.length === 1) {
-                        ctx.becomeCopyOf(picks[0], {
-                            copyColor: false,
-                            ownColors: VESUVAN_OWN_COLORS,
-                        });
-                    }
                 },
             }),
+            // CR 603.3d — "become a copy of target creature": the target is
+            // chosen when the trigger is put on the stack (issue #1193
+            // machinery), not at resolution. Oracle reads plain "target
+            // creature" (not "another"), so Vesuvan may target itself — no
+            // `excludeSource`.
+            targetRequirement: { type: "Creature", count: 1 },
             retainedThroughCopy: true,
         },
     ],

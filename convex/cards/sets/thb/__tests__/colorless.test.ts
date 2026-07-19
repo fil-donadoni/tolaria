@@ -9,6 +9,8 @@ import {
     type StackItem,
     resolveTopOfStack,
 } from "../../../../gre/state";
+import { raiseTriggerTargetSelection } from "../../../../gre/rules";
+import { finalizeTargetSelection } from "../../../../game";
 import { projectPublicState } from "../../../../gameProjections";
 
 const FOREST = getCardByName("Forest").id;
@@ -27,7 +29,11 @@ function resolveActivated(
     resolveTopOfStack(state);
 }
 
-function resolveTrigger(
+/** Puts the ETB trigger on the stack WITHOUT resolving it — the caller drives
+ *  the CR 603.3d target selection (raiseTriggerTargetSelection →
+ *  finalizeTargetSelection) before resolving. `triggerSourceId` mirrors
+ *  `buildTriggerItem` so the engine can resolve the ability's requirement. */
+function pushTrigger(
     state: GameState,
     source: CardInstanceState,
     triggeredAbilityId: string,
@@ -41,19 +47,6 @@ function resolveTrigger(
         triggerSourceId: source.id,
         triggerEvent,
     } as StackItem);
-    resolveTopOfStack(state);
-}
-
-function answerChoice(state: GameState, picks: string[]): void {
-    const head = state.pendingChoices?.[0];
-    if (!head) throw new Error("no pending choice to answer");
-    const item = state.stack.find((s) => s.id === head.stackItemId)!;
-    item.collectedChoices = {
-        ...(item.collectedChoices ?? {}),
-        [`${head.step}:${head.choiceId}`]: picks,
-    };
-    state.pendingChoices = undefined;
-    resolveTopOfStack(state);
 }
 
 function gyCard(id: string, owner: string): CardInstanceState {
@@ -80,25 +73,53 @@ describe("Soul-Guide Lantern (graveyard hate + sac-draw, CR 406 / 605)", () => {
         });
     });
 
-    it("ETB exiles a chosen card from an opponent's graveyard", () => {
+    it("declares the CR 603.3d graveyard target requirement on the ETB trigger", () => {
+        expect(
+            soulGuideLantern.triggeredAbilities?.[0]?.targetRequirement
+        ).toEqual({
+            type: "card",
+            count: 1,
+            zone: "graveyard",
+            controller: "any",
+        });
+    });
+
+    it("ETB exiles the CR 603.3d target chosen from an opponent's graveyard", () => {
         const lantern = makeInstance(soulGuideLantern.id, {
             id: "lantern",
             controllerId: "p1",
             ownerId: "p1",
         });
+        // Two legal graveyard cards across both bins → a REAL choice is owed
+        // (a sole legal target would auto-select without raising a picker).
         const state = makeState({
             players: [
-                makePlayer("p1", { battlefield: [lantern] }),
+                makePlayer("p1", {
+                    battlefield: [lantern],
+                    graveyard: [gyCard("myGy", "p1")],
+                }),
                 makePlayer("p2", { graveyard: [gyCard("gy1", "p2")] }),
             ],
         });
-        resolveTrigger(state, lantern, "soul-guide-lantern-etb-exile", {
+        pushTrigger(state, lantern, "soul-guide-lantern-etb-exile", {
             type: "PERMANENT_ENTERED",
             instanceId: "lantern",
             controllerId: "p1",
             types: ["Artifact"],
         } as StackItem["triggerEvent"]);
-        answerChoice(state, ["gy1"]);
+
+        // CR 603.3d — the target is chosen when the trigger goes on the stack.
+        expect(raiseTriggerTargetSelection(state)).toBe(true);
+        state.pendingTarget!.selected = [
+            { type: "graveyard-card", id: "gy1", playerId: "p2" },
+        ];
+        finalizeTargetSelection(
+            state,
+            state.pendingTarget!,
+            state.pendingTarget!.playerId
+        );
+
+        resolveTopOfStack(state);
         expect(state.players[1].graveyard.length).toBe(0);
         expect(state.players[1].exile.map((c) => c.id)).toContain("gy1");
     });

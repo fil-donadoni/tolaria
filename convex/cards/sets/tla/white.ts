@@ -3,6 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
+import { PERMANENT_TYPES } from "../../types";
 import type { CardDefinition, SpellContext } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { leftTrigger } from "../../abilities/triggers/leftTrigger";
@@ -13,11 +14,16 @@ import { leftTrigger } from "../../abilities/triggers/leftTrigger";
 // battlefield. Waterbend {3}: Sacrifice this enchantment. If you do, scry 2."
 //
 // O-Ring idiom (precedent: Portable Hole, afr/white.ts; Banishing Light,
-// jou/white.ts) — `TriggeredAbility` carries no `targetRequirement`, so the
-// ETB's pick is a mid-resolution `choose-permanents` choice, and the leave
-// trigger drives the return via the shipped exile-and-return bundle
-// (`exileWithAttachments` / `returnExiledForSource`, host-only since Aang's
-// Iceberg's own ability doesn't carry attachments along).
+// jou/white.ts). TARGETING (CR 603.3d, issue #1193): "up to one other target
+// nonland permanent" is a REAL target chosen when the ETB trigger is put on
+// the stack — declared as a `targetRequirement` on the TriggeredAbility
+// (`raiseTriggerTargetSelection` in gre/rules.ts), NOT a resolution-time
+// `requestChoice`. That makes it subject to hexproof / protection / ward and
+// fires "becomes the target of an ability" triggers, which the old
+// choice-as-target workaround silently skipped. The leave trigger drives the
+// return via the shipped exile-and-return bundle (`exileWithAttachments` /
+// `returnExiledForSource`, host-only since Aang's Iceberg's own ability
+// doesn't carry attachments along).
 //
 // SIMPLIFICATION (flagged, CR 702.155-style alternate-cost mechanic):
 // "Waterbend {3}" — tapping artifacts/creatures to help pay part of a cost —
@@ -48,27 +54,24 @@ export const aangsIceberg: CardDefinition = {
             oracleText:
                 "When this enchantment enters, exile up to one other target nonland permanent until this enchantment leaves the battlefield.",
             scope: "self",
+            // CR 603.3d — "up to one OTHER target nonland permanent": a real
+            // target chosen when the trigger is put on the stack (not a
+            // resolution-time choice), so it is subject to hexproof /
+            // protection / ward and fires "becomes the target" triggers.
+            // `type: PERMANENT_TYPES minus Land` = "nonland permanent" (the
+            // Boomerang idiom, ons/blue.ts); `excludeSource` drops Aang's
+            // Iceberg itself ("other"); `count 0..1` = "up to one". Any
+            // controller's permanent is eligible (no controller restriction).
+            targetRequirement: {
+                type: [...PERMANENT_TYPES],
+                count: { min: 0, max: 1 },
+                excludeTypes: "Land",
+                excludeSource: true,
+            },
             resolve: (ctx: SpellContext) => {
-                const candidateIds = ctx.allPlayerIds
-                    .flatMap((p) =>
-                        ctx.getBattlefieldIds(p, { excludeTypes: "Land" })
-                    )
-                    .filter((id) => id !== ctx.sourceInstanceId);
-                if (candidateIds.length === 0) return;
-                const picks = ctx.requestChoice({
-                    playerId: ctx.controller,
-                    choiceId: `aangs-iceberg-${ctx.sourceInstanceId}`,
-                    kind: "choose-permanents",
-                    zone: "battlefield",
-                    allControllers: true,
-                    candidateIds,
-                    count: { min: 0, max: 1 },
-                    prompt: "Aang's Iceberg: exile up to one other target nonland permanent (or none).",
-                });
-                if (picks === undefined) return; // suspended for the choice
-                const targetId = picks[0];
-                if (!targetId) return;
-                ctx.exileWithAttachments(targetId, {
+                const target = ctx.targets[0];
+                if (!target) return; // "up to one": none chosen / CR 608.2b none legal
+                ctx.exileWithAttachments(target.id, {
                     sourceId: ctx.sourceInstanceId,
                     returnTapped: false,
                     includeAttachments: false,

@@ -13,15 +13,23 @@ import type { CardDefinition, SpellContext } from "../../types";
 // layer system, precedent: Argothian Pixies, atq/green.ts — already-shipped
 // continuous-effect machinery, not a DSL Op).
 //
-// PROTOCOL (attack-trigger ability-strip + base-P/T set — no Op skin):
+// TARGETING (CR 603.3d): "up to one target artifact, creature, or planeswalker
+// an opponent controls" is a REAL target chosen when the attack trigger is put
+// on the stack — declared as a `targetRequirement` on the TriggeredAbility
+// (issue #1193 machinery, `raiseTriggerTargetSelection` in gre/rules.ts), NOT a
+// resolution-time `requestChoice`. That makes it subject to hexproof /
+// protection / ward and fires "becomes the target of an ability" triggers,
+// which the old choice-as-target workaround silently skipped. `controller:
+// "opponent"` enforces "an opponent controls"; `count 0..1` = "up to one".
+//
+// PROTOCOL (attack-trigger ability-strip + base-P/T set — no Op skin): the
+// resolve() then only applies the announced target's effect.
 // `removeStaticAbilities` (predicate closure) and `setBasePT` (a computed
 // value locked at resolution) are both documented "stays resolve() by
 // design" primitives in the Mechanics Registry (no JSON-expressible form).
-// `TriggeredAbility` carries no `targetRequirement`, so the "up to one
-// target" pick is a mid-resolution `choose-permanents` choice (idiom: Loran
-// of the Third Path, bro/white.ts). "Until your next turn" maps to the
-// `{ phase: "untap", player: "controller" }` DurationSpec (precedent: Orcish
-// Farmer's "until its controller's next untap step").
+// "Until your next turn" maps to the `{ phase: "untap", player: "controller" }`
+// DurationSpec (precedent: Orcish Farmer's "until its controller's next untap
+// step").
 export const azureBeastbinder: CardDefinition = {
     id: "211af1bf-910b-41a5-b928-f378188d1871",
     name: "Azure Beastbinder",
@@ -51,42 +59,42 @@ export const azureBeastbinder: CardDefinition = {
             oracleText:
                 "Whenever this creature attacks, up to one target artifact, creature, or planeswalker an opponent controls loses all abilities until your next turn. If it's a creature, it also has base power and toughness 2/2 until your next turn.",
             event: "ATTACKERS_DECLARED",
+            // CR 603.3d — "up to one target artifact, creature, or planeswalker
+            // an opponent controls": a real target chosen when the trigger is
+            // put on the stack (not a resolution-time choice), so it is subject
+            // to hexproof / protection / ward and fires "becomes the target"
+            // triggers. `controller: "opponent"` = "an opponent controls";
+            // `count 0..1` = "up to one".
+            targetRequirement: {
+                type: ["Artifact", "Creature", "Planeswalker"],
+                count: { min: 0, max: 1 },
+                controller: "opponent",
+            },
             matches: (event, self) =>
                 event.type === "ATTACKERS_DECLARED" &&
                 event.attackerIds.includes(self.id),
             resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (!target) return; // "up to one": none chosen / CR 608.2b none legal
+                const targetId = target.id;
                 const opponentId = ctx.allPlayerIds.find(
                     (p) => p !== ctx.controller
                 );
-                if (!opponentId) return;
-                const candidateIds = ctx.getBattlefieldIds(opponentId, {
-                    types: ["Artifact", "Creature", "Planeswalker"],
-                });
-                if (candidateIds.length === 0) return;
-                const creatureIds = new Set(
-                    ctx.getBattlefieldIds(opponentId, { types: "Creature" })
-                );
-                const picks = ctx.requestChoice({
-                    playerId: ctx.controller,
-                    choiceId: `azure-beastbinder-${ctx.sourceInstanceId}`,
-                    kind: "choose-permanents",
-                    zone: "battlefield",
-                    zoneOwnerId: opponentId,
-                    candidateIds,
-                    count: { min: 0, max: 1 },
-                    prompt: "Azure Beastbinder: up to one target artifact, creature, or planeswalker an opponent controls (or none).",
-                });
-                if (picks === undefined) return; // suspended for the choice
-                const targetId = picks[0];
-                if (!targetId) return;
-                const target = { type: "permanent" as const, id: targetId };
+                const isCreatureTarget = opponentId
+                    ? new Set(
+                          ctx.getBattlefieldIds(opponentId, {
+                              types: "Creature",
+                          })
+                      ).has(targetId)
+                    : false;
+                const permanent = { type: "permanent" as const, id: targetId };
                 const duration = {
                     phase: "untap" as const,
                     player: "controller" as const,
                 };
-                ctx.removeStaticAbilities(target, () => true, duration);
-                if (creatureIds.has(targetId)) {
-                    ctx.setBasePT(target, 2, 2, duration);
+                ctx.removeStaticAbilities(permanent, () => true, duration);
+                if (isCreatureTarget) {
+                    ctx.setBasePT(permanent, 2, 2, duration);
                 }
             },
         },

@@ -63,6 +63,8 @@ import {
 } from "../../../__tests__/setup";
 import { resolveTopOfStack, getCostModifiers } from "../../../../gre/state";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
+import { raiseTriggerTargetSelection } from "../../../../gre/rules";
+import { finalizeTargetSelection } from "../../../../game";
 import {
     getEffectivePower,
     getEffectiveToughness,
@@ -444,45 +446,17 @@ describe("Spreading Plague (ETB → destroy other same-color creatures, can't re
     });
 });
 
-describe("Phyrexian Delver (ETB → reanimate + lose life equal to MV; CR 603.6a / 400.7 / 202.3 / 119.3b)", () => {
-    /** Answers the head pending choice by writing directly into the stack
-     *  item's `collectedChoices` (mirrors the Fasting harness,
-     *  drk/__tests__/white.test.ts) so `resolve()`'s `ctx.requestChoice`
-     *  resumes on the next `resolveTopOfStack` call instead of re-suspending. */
-    function commitHead(state: GameState, picks: string[]) {
-        const queue = state.pendingChoices ?? [];
-        const head = queue[0];
-        const stackItem = state.stack.find((s) => s.id === head.stackItemId)!;
-        stackItem.collectedChoices = {
-            ...(stackItem.collectedChoices ?? {}),
-            [`${head.step}:${head.choiceId}`]: picks,
-        };
-        queue.shift();
-        state.pendingChoices = queue.length > 0 ? queue : undefined;
-    }
-
-    it("returns the chosen graveyard creature to the battlefield under its controller and loses life equal to its mana value", () => {
-        const delver = makeInstance(phyrexianDelver.id, {
-            id: "delver",
-            controllerId: "p1",
-            ownerId: "p1",
-        });
-        // Elvish Archers — {1}{G}, mana value 2 (CR 202.3).
-        const gyCreature = makeInstance(getCardByName("Elvish Archers").id, {
-            id: "gy-creature",
-            controllerId: "p1",
-            ownerId: "p1",
-            zone: "graveyard",
-        });
-        const state = makeState({
-            players: [
-                makePlayer("p1", {
-                    battlefield: [delver],
-                    graveyard: [gyCreature],
-                }),
-                makePlayer("p2", {}),
-            ],
-        });
+describe("Phyrexian Delver (ETB → reanimate + lose life equal to MV; CR 603.6a / 603.3d / 400.7 / 202.3 / 119.3b)", () => {
+    /** Puts Phyrexian Delver's ETB trigger on the stack with its target slot
+     *  UNSET (`targets` intentionally left `undefined`) so
+     *  `raiseTriggerTargetSelection` (CR 603.3d) treats it as a targeted
+     *  trigger owed an announcement-time choice — the target is no longer a
+     *  resolution-time `requestChoice`. `triggerSourceId` pins the source
+     *  permanent (also the `spellTargetsSelfSource`/`excludeSource` anchor). */
+    function delverEtbOnStack(
+        state: GameState,
+        delver: ReturnType<typeof makeInstance>
+    ) {
         state.stack.push({
             ...delver,
             zone: "stack",
@@ -495,19 +469,92 @@ describe("Phyrexian Delver (ETB → reanimate + lose life equal to MV; CR 603.6a
                 controllerId: "p1",
                 types: ["Creature"],
             },
-            targets: [],
         });
-        resolveTopOfStack(state); // suspends on the choose-graveyard-card pick
-        expect(state.pendingChoices).toHaveLength(1);
-        commitHead(state, ["gy-creature"]);
-        resolveTopOfStack(state); // resumes and completes
+    }
+
+    /** Drives the CR 603.3d target choice through the real machinery:
+     *  `raiseTriggerTargetSelection` raises the `kind:"trigger"` PendingTarget,
+     *  then `finalizeTargetSelection` writes the chosen graveyard-card target
+     *  onto the on-stack trigger before it resolves. */
+    function chooseDelverTarget(
+        state: GameState,
+        id: string,
+        playerId: string
+    ) {
+        const raised = raiseTriggerTargetSelection(state);
+        expect(raised).toBe(true);
+        state.pendingTarget!.selected = [
+            { type: "graveyard-card", id, playerId },
+        ];
+        finalizeTargetSelection(
+            state,
+            state.pendingTarget!,
+            state.pendingTarget!.playerId
+        );
+    }
+
+    it("declares the CR 603.3d target requirement: a creature card in your own graveyard", () => {
+        expect(
+            phyrexianDelver.triggeredAbilities?.[0]?.targetRequirement
+        ).toEqual({
+            type: "Creature",
+            count: 1,
+            zone: "graveyard",
+            controller: "you",
+        });
+    });
+
+    it("returns the chosen graveyard creature to the battlefield and loses life equal to THAT card's mana value", () => {
+        const delver = makeInstance(phyrexianDelver.id, {
+            id: "delver",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        // Elvish Archers — {1}{G}, mana value 2 (CR 202.3) — the chosen card.
+        const gyCreature = makeInstance(getCardByName("Elvish Archers").id, {
+            id: "gy-creature",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        // Benalish Hero — {W}, mana value 1 — a second legal target, so a REAL
+        // choice is owed (a lone legal target would auto-select, CR 603.3d).
+        const decoy = makeInstance(getCardByName("Benalish Hero").id, {
+            id: "gy-decoy",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [delver],
+                    graveyard: [gyCreature, decoy],
+                }),
+                makePlayer("p2", {}),
+            ],
+        });
+        delverEtbOnStack(state, delver);
+        chooseDelverTarget(state, "gy-creature", "p1");
+        expect(resolveTopOfStack(state)).not.toBeNull();
+
         const p1 = state.players[0];
         expect(p1.battlefield.some((c) => c.id === "gy-creature")).toBe(true);
         expect(p1.graveyard.some((c) => c.id === "gy-creature")).toBe(false);
+        // The decoy stays in the graveyard — only the announced target moved.
+        expect(p1.graveyard.some((c) => c.id === "gy-decoy")).toBe(true);
         expect(p1.life).toBe(18); // 20 - Elvish Archers' mana value (2)
+
+        // Wire format: the reanimated creature + life total survive the
+        // projection the client actually reads.
+        const projected = projectPublicState(state, 1, "p1");
+        expect(
+            projected.players[0].battlefield.some((c) => c.id === "gy-creature")
+        ).toBe(true);
+        expect(projected.players[0].life).toBe(18);
     });
 
-    it("does nothing (no life loss) when the graveyard has no creature to return (CR 608.2b)", () => {
+    it("removes the trigger with no life loss when your graveyard has no creature to return (CR 603.3c)", () => {
         const delver = makeInstance(phyrexianDelver.id, {
             id: "delver",
             controllerId: "p1",
@@ -519,23 +566,13 @@ describe("Phyrexian Delver (ETB → reanimate + lose life equal to MV; CR 603.6a
                 makePlayer("p2", {}),
             ],
         });
-        state.stack.push({
-            ...delver,
-            zone: "stack",
-            castById: delver.controllerId,
-            triggeredAbilityId: "phyrexian-delver-etb",
-            triggerSourceId: delver.id,
-            triggerEvent: {
-                type: "PERMANENT_ENTERED",
-                instanceId: delver.id,
-                controllerId: "p1",
-                types: ["Creature"],
-            },
-            targets: [],
-        });
-        resolveTopOfStack(state); // suspends on the choose-graveyard-card pick
-        commitHead(state, []); // no legal creature to pick
-        resolveTopOfStack(state);
+        delverEtbOnStack(state, delver);
+        // No legal creature in the controller's graveyard — the mandatory
+        // single-target trigger is removed from the stack (CR 603.3c); no
+        // PendingTarget is raised.
+        expect(raiseTriggerTargetSelection(state)).toBe(false);
+        expect(state.stack).toHaveLength(0);
+        expect(state.pendingTarget).toBeUndefined();
         expect(state.players[0].life).toBe(20);
     });
 });
