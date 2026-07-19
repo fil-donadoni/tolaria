@@ -12,23 +12,24 @@ import { landfallTrigger } from "../../abilities/triggers/landfallTrigger";
 // rules meaning), modelled by the shared `landfallTrigger` factory (a
 // `PERMANENT_ENTERED` trigger gated to Lands you control, CR 603.6a / 109.2).
 //
-// The landfall effect ("put a +1/+1 counter on TARGET creature" — any
-// creature on EITHER battlefield) uses an imperative `resolve` with
-// `requestChoice({ allControllers: true })` because the engine has **no
-// announcement-time target selection for triggered abilities** (CR 603.3d):
-// `TriggeredAbility` carries no `targetRequirement` field, triggers enter the
-// stack with `targets: undefined` (`gre/triggers.ts`), and nothing populates a
-// trigger's targets from a requirement. So a targeted trigger cannot be
-// authored as `targetRequirement` + `{ target: 0 }` DSL today — the whole
-// class (Loran of the Third Path ETB `sets/bro/white.ts`, Aura Shards
-// `sets/inv/multicolor.ts`) uses this exact `resolve` + `requestChoice`
-// pattern. The DSL `choice` Op is ALSO insufficient here: its candidate set is
-// limited to the CHOOSER's own permanents (interpreter `choiceCandidates`), so
-// it cannot offer the opponent's creatures that "target creature" allows.
-// Tracked for a proper DSL migration once announcement-time targeted triggers
-// ship: **#1193**. Not a protocol card; the effect (add counter) is trivially
-// DSL — only the cross-controller targeting forces `resolve`
-// (`.claude/rules/gre-development.md` § DSL-first authoring).
+// The landfall effect ("put a +1/+1 counter on TARGET creature" — any creature
+// on EITHER battlefield) declares a real `targetRequirement` on the
+// TriggeredAbility, so its target is chosen when the trigger is PUT ON THE
+// STACK (CR 603.3d, issue #1193 machinery: `raiseTriggerTargetSelection` in
+// `gre/rules.ts` populates the on-stack trigger's `targets`), NOT at resolution
+// via a `requestChoice`. That makes the counter subject to hexproof /
+// protection / ward and fires "becomes the target of an ability" triggers,
+// which the old choice-as-target workaround silently skipped. `type:
+// "Creature"` with no controller restriction matches "target creature" on
+// either battlefield; `count: 1` is a mandatory single target (auto-selected
+// when exactly one creature is legal). The `resolve` then only reads the
+// announced target (`ctx.targets[0]`) and adds the counter — the `addCounter`
+// primitive keeps this on `resolve` rather than pure DSL, but the targeting is
+// now engine-native.
+//
+// (NOTE: the `landfallTrigger` factory does not yet forward `targetRequirement`
+// the way its `enteredTrigger` base already does, so it is spread onto the
+// returned ability here.)
 //
 // The activated ability ("Double the number of +1/+1 counters on each creature
 // you control") IS pure DSL: a `forEach` over your creatures adding, per
@@ -48,26 +49,28 @@ export const bristlyBillSpineSower: CardDefinition = {
     power: 2,
     toughness: 2,
     triggeredAbilities: [
-        landfallTrigger({
-            id: "bristly-bill-landfall",
-            oracleText:
-                "Landfall — Whenever a land you control enters, put a +1/+1 counter on target creature.",
-            resolve: (ctx) => {
-                const picks = ctx.requestChoice({
-                    playerId: ctx.controller,
-                    choiceId: `bristly-bill-landfall-${ctx.sourceInstanceId}`,
-                    kind: "choose-permanents",
-                    zone: "battlefield",
-                    filter: { types: "Creature" },
-                    allControllers: true,
-                    count: 1,
-                    prompt: "Landfall: put a +1/+1 counter on target creature.",
-                });
-                if (picks === undefined) return; // suspended for the choice
-                const id = picks[0];
-                if (id) ctx.addCounter({ type: "permanent", id }, "+1/+1", 1);
-            },
-        }),
+        {
+            ...landfallTrigger({
+                id: "bristly-bill-landfall",
+                oracleText:
+                    "Landfall — Whenever a land you control enters, put a +1/+1 counter on target creature.",
+                resolve: (ctx) => {
+                    // CR 603.3d — the target was chosen when the trigger went on
+                    // the stack (`raiseTriggerTargetSelection`); read it here.
+                    const target = ctx.targets[0];
+                    if (!target) return; // CR 608.2b — target left / illegal
+                    ctx.addCounter(
+                        { type: "permanent", id: target.id },
+                        "+1/+1",
+                        1
+                    );
+                },
+            }),
+            // CR 603.3d — "target creature": a real target chosen at stack
+            // placement (any creature on either battlefield, no controller
+            // restriction), `count: 1` mandatory single.
+            targetRequirement: { type: "Creature", count: 1 },
+        },
     ],
     activatedAbilities: [
         {

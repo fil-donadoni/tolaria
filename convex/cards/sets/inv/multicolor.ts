@@ -1186,16 +1186,15 @@ export const shivanZombie: CardDefinition = {
 // 4 damage to target creature. Activate only as a sorcery." (CR 603.6a
 // upkeep trigger; CR 701.16 sacrifice cost; CR 120.1 damage.)
 //
-// protocol card (upkeep trigger only): `TriggeredAbility` has no
-// `targetRequirement` (ADR 0002) and no `EffectChoiceKind` member picks a
-// PLAYER (only cards/permanents) — the established architecture-limit
-// precedent this same set's `black.ts` already documents and uses `resolve()`
-// for (Annihilate/Phyrexian Reaper/Spreading Plague/Tsabo's Assassin), NOT an
-// invented capability. "Target player" is a genuine choice between either
-// player (not a fixed relative ref like "opponent"), so it's built with the
-// same `requestOptionChoice` generic-picker idiom Shapeshifter (`atq/
-// colorless.ts`) already uses for an open-ended decision. The second
-// (sacrifice-for-damage) ability is fully DSL — no gap.
+// CR 603.3d — "target player" is a REAL target chosen when the upkeep
+// trigger is put on the stack, declared as a `targetRequirement` on the
+// TriggeredAbility (issue #1193 machinery, `raiseTriggerTargetSelection` in
+// gre/rules.ts), NOT a resolution-time `requestOptionChoice` player pick.
+// The old choice-as-target workaround chose the player at resolution, which
+// bypassed the target-legality checks and "becomes the target" triggers the
+// stack-placement target is subject to. The resolve() then only reads the
+// announced player slot (`ctx.targets[0]`). The second (sacrifice-for-
+// damage) ability is fully DSL — no gap.
 export const smolderingTar: CardDefinition = {
     id: "fcdc55c0-c8ac-49d5-969b-9bf0ee8e696c",
     rarity: "uncommon",
@@ -1210,22 +1209,18 @@ export const smolderingTar: CardDefinition = {
             oracleText:
                 "At the beginning of your upkeep, target player loses 1 life.",
             event: "PHASE_BEGIN",
+            // CR 603.3d — "target player" chosen when the trigger is put on
+            // the stack (issue #1193, `raiseTriggerTargetSelection`), not a
+            // resolution-time pick. `ctx.targets[0]` is the announced player.
+            targetRequirement: { type: "player", count: 1 },
             matches: (event, self) =>
                 event.type === "PHASE_BEGIN" &&
                 event.phase === "UPKEEP" &&
                 event.activePlayerId === self.controllerId,
             resolve: (ctx: SpellContext) => {
-                const choice = ctx.requestOptionChoice({
-                    playerId: ctx.controller,
-                    choiceId: `smoldering-tar-target-${ctx.sourceInstanceId}`,
-                    options: ctx.allPlayerIds.map((id) => ({
-                        id,
-                        label: id === ctx.controller ? "You" : "Opponent",
-                    })),
-                    prompt: "Choose target player to lose 1 life (Smoldering Tar).",
-                });
-                if (choice === undefined) return; // suspended
-                ctx.loseLife(choice, 1);
+                const target = ctx.targets[0];
+                if (!target) return; // CR 608.2b — target became illegal
+                ctx.loseLife(target.id, 1);
             },
         },
     ],
@@ -2090,18 +2085,16 @@ export const auraMutation: CardDefinition = {
 // ETB trigger, scope "yours" + `filter: { types: "Creature" }" via
 // `enteredTrigger`; CR 701.8 destroy.)
 //
-// resolve() justification (ADR 0045 DSL-first, precedent-twin): the "may
-// destroy target artifact or enchantment" clause is the EXACT Loran of the
-// Third Path shape (`bro/white.ts`) — a `requestChoice({ kind:
-// "choose-permanents", allControllers: true, filter: { types: ["Artifact",
-// "Enchantment"] }, count: { min: 0, max: 1 } })` (the `min: 0` IS the
-// "may"), then `destroy` on the pick. NOT DSL-migratable (documented
-// catalogue-wide, Loran's own comment): the `choice` Op's battlefield
-// candidates are limited to the chooser's OWN permanents
-// (interpreter `choiceCandidates`) — there is no cross-controller
-// (`allControllers`) candidate set for the DSL `choice` Op, only for the
-// imperative `requestChoice`. Real composition gap, not an invented
-// shortcut.
+// CR 603.3d — "target artifact or enchantment" is a REAL target chosen when
+// the ETB trigger is put on the stack, declared as a `targetRequirement` on
+// the trigger (issue #1193 machinery, `raiseTriggerTargetSelection` in
+// gre/rules.ts), NOT a resolution-time `requestChoice`. `count: { min: 0,
+// max: 1 }` IS the "may" (the caster may lock zero or one target as the
+// trigger goes on the stack). Choosing at stack placement makes it subject to
+// hexproof/shroud/protection and fires "becomes the target of an ability"
+// triggers, which the old choice-as-target workaround silently skipped. The
+// resolve() then only reads the announced slot (`ctx.targets[0]`) and
+// destroys it.
 export const auraShards: CardDefinition = {
     id: "df4039ef-af72-4267-ade9-fdb7c921279e",
     rarity: "uncommon",
@@ -2117,21 +2110,15 @@ export const auraShards: CardDefinition = {
                 "Whenever a creature you control enters, you may destroy target artifact or enchantment.",
             scope: "yours",
             filter: { types: "Creature" },
+            // CR 603.3d — announcement-time target; `count 0..1` = the "may".
+            targetRequirement: {
+                type: ["Artifact", "Enchantment"],
+                count: { min: 0, max: 1 },
+            },
             resolve: (ctx) => {
-                const picks = ctx.requestChoice({
-                    playerId: ctx.controller,
-                    choiceId: `aura-shards-${ctx.sourceInstanceId}`,
-                    kind: "choose-permanents",
-                    zone: "battlefield",
-                    filter: { types: ["Artifact", "Enchantment"] },
-                    allControllers: true,
-                    count: { min: 0, max: 1 },
-                    prompt: "Aura Shards: destroy target artifact or enchantment (or none)?",
-                });
-                if (picks === undefined) return; // suspended for the choice
-                for (const id of picks) {
-                    ctx.destroy({ type: "permanent", id });
-                }
+                const target = ctx.targets[0];
+                if (!target) return; // "may": none chosen / CR 608.2b none legal
+                ctx.destroy({ type: "permanent", id: target.id });
             },
         }),
     ],

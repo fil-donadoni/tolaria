@@ -19,6 +19,7 @@ import {
     harshJudgment,
     liberate,
     restrain,
+    reyaDawnbringer,
     ruhamDjinn,
     shackles,
     strengthOfUnity,
@@ -45,9 +46,13 @@ import {
     getCostModifiers,
     normalizeManaCost,
     resolveTopOfStack,
+    type CardInstanceState,
     type GameState,
+    type StackItem,
 } from "../../../../gre/state";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
+import { raiseTriggerTargetSelection } from "../../../../gre/rules";
+import { finalizeTargetSelection } from "../../../../game";
 import { validateAttackerEligibility } from "../../../../gre/combat";
 import {
     getEffectivePower,
@@ -619,6 +624,137 @@ describe("Liberate (CR 603.7a exile + next-end-step return, flicker idiom)", () 
         ).toBeDefined();
         expect(
             state.players[0].exile.find((c) => c.id === "mine")
+        ).toBeUndefined();
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Reya Dawnbringer — CR 603.3d targeted upkeep trigger (issue #1193): "you may
+// return target creature card from your graveyard to the battlefield". The
+// target is announced when the trigger goes on the stack (real
+// `targetRequirement` + `raiseTriggerTargetSelection`), not a resolution-time
+// choice — up-to-one, `zone: "graveyard"`, `controller: "you"`.
+// ---------------------------------------------------------------------------
+
+/** Puts Reya's upkeep trigger on the stack (PHASE_BEGIN / UPKEEP, CR 603.6a).
+ *  Leaves `targets` unset so `raiseTriggerTargetSelection` picks it up. */
+function reyaUpkeepTriggerOnStack(
+    state: GameState,
+    source: CardInstanceState
+): StackItem {
+    const trig: StackItem = {
+        ...source,
+        id: "reya-upkeep-trig",
+        zone: "stack",
+        castById: source.controllerId,
+        triggeredAbilityId: "reya-dawnbringer-upkeep",
+        triggerSourceId: source.id,
+        triggerEvent: {
+            type: "PHASE_BEGIN",
+            phase: "UPKEEP",
+            activePlayerId: source.controllerId,
+        } as StackItem["triggerEvent"],
+        targets: undefined,
+    };
+    state.stack.push(trig);
+    return trig;
+}
+
+/** Drives the CR 603.3d graveyard-target choice through the real machinery:
+ *  `raiseTriggerTargetSelection` raises the `kind:"trigger"` PendingTarget
+ *  (count 0..1), then `finalizeTargetSelection` writes the chosen
+ *  graveyard-card (or the empty "decline" set) onto the on-stack trigger. */
+function chooseReyaTarget(
+    state: GameState,
+    target: { id: string; playerId: string } | null
+) {
+    const raised = raiseTriggerTargetSelection(state);
+    expect(raised).toBe(true);
+    state.pendingTarget!.selected = target
+        ? [{ type: "graveyard-card", id: target.id, playerId: target.playerId }]
+        : [];
+    finalizeTargetSelection(
+        state,
+        state.pendingTarget!,
+        state.pendingTarget!.playerId
+    );
+}
+
+describe("Reya Dawnbringer (CR 603.3d targeted upkeep reanimation, issue #1193)", () => {
+    it("declares the CR 603.3d target requirement: up to one graveyard creature you control", () => {
+        expect(
+            reyaDawnbringer.triggeredAbilities?.[0]?.targetRequirement
+        ).toEqual({
+            type: "Creature",
+            count: { min: 0, max: 1 },
+            zone: "graveyard",
+            controller: "you",
+        });
+    });
+
+    it("returns the targeted graveyard creature to the battlefield", () => {
+        const reya = makeInstance(reyaDawnbringer.id, {
+            id: "reya",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const deadCreature = makeInstance(savannahLions.id, {
+            id: "dead-lion",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [reya],
+                    graveyard: [deadCreature],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        reyaUpkeepTriggerOnStack(state, reya);
+        chooseReyaTarget(state, { id: "dead-lion", playerId: "p1" });
+        expect(resolveTopOfStack(state)).not.toBeNull();
+
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "dead-lion")
+        ).toBeDefined();
+        expect(
+            state.players[0].graveyard.find((c) => c.id === "dead-lion")
+        ).toBeUndefined();
+    });
+
+    it("declines (up-to-one, empty target set) — the creature stays in the graveyard", () => {
+        const reya = makeInstance(reyaDawnbringer.id, {
+            id: "reya",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const deadCreature = makeInstance(savannahLions.id, {
+            id: "dead-lion",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [reya],
+                    graveyard: [deadCreature],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        reyaUpkeepTriggerOnStack(state, reya);
+        chooseReyaTarget(state, null);
+        resolveTopOfStack(state);
+
+        expect(
+            state.players[0].graveyard.find((c) => c.id === "dead-lion")
+        ).toBeDefined();
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "dead-lion")
         ).toBeUndefined();
     });
 });

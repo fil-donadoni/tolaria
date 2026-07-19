@@ -93,7 +93,11 @@ import {
     applyMayPaySubmit,
     applyRandomRevealAck,
 } from "../../../../gre/pendingChoiceSubmit";
-import { getLegalActions } from "../../../../gre/rules";
+import {
+    getLegalActions,
+    raiseTriggerTargetSelection,
+} from "../../../../gre/rules";
+import { finalizeTargetSelection } from "../../../../game";
 import { applyMeleeUnblockedRider } from "../../../../gre/banding";
 import { castProhibitionReason } from "../../../castRestrictions";
 import {
@@ -1418,8 +1422,50 @@ describe("Mudslide — non-flying untap-lock + per-upkeep pay-{2}-to-untap (CR 6
     });
 });
 
-describe("Orcish Squatters — unblocked attack steals a land (CR 509.1h / 611.2b)", () => {
-    it("gains control of a chosen defender land and assigns no combat damage", () => {
+// CR 603.3d — Orcish Squatters' "you may gain control of target land defending
+// player controls" is a REAL target chosen when the trigger is PUT ON THE STACK
+// (`targetRequirement` + `raiseTriggerTargetSelection`), not a resolution-time
+// choice. The "you may" is a separate resolution-time `requestMayPay` decision.
+describe("Orcish Squatters — unblocked attack steals a land (CR 603.3d / 611.2b)", () => {
+    /** Puts Orcish Squatters' ATTACKER_UNBLOCKED trigger on the stack with an
+     *  UN-SET target slot (`targets: undefined`) and `triggerSourceId` pinned,
+     *  so `raiseTriggerTargetSelection` treats it as owing a target choice
+     *  (mirrors mh3's `pheliaAttackTriggerOnStack`). */
+    function squattersTriggerOnStack(
+        state: GameState,
+        source: CardInstanceState
+    ): StackItem {
+        const trig: StackItem = {
+            ...source,
+            id: "orcish-squatters-trig",
+            zone: "stack",
+            castById: source.controllerId,
+            triggeredAbilityId: "orcish-squatters-steal-land",
+            triggerSourceId: source.id,
+            triggerEvent: {
+                type: "ATTACKER_UNBLOCKED",
+                attackerId: source.id,
+                attackerControllerId: source.controllerId,
+                attackerTypes: ["Creature"],
+                attackerSubtypes: ["Orc"],
+            } as StackItem["triggerEvent"],
+            targets: undefined,
+        };
+        state.stack.push(trig);
+        return trig;
+    }
+
+    it("declares the CR 603.3d target requirement: a single land an opponent controls", () => {
+        expect(
+            orcishSquatters.triggeredAbilities?.[0]?.targetRequirement
+        ).toEqual({
+            type: "Land",
+            count: 1,
+            controller: "opponent",
+        });
+    });
+
+    it("auto-selects the sole legal defender land (CR 603.3d), then the 'you may' gains control and assigns no combat damage", () => {
         const squatters = makeInstance(orcishSquatters.id, {
             id: "sq",
             controllerId: "p1",
@@ -1438,18 +1484,15 @@ describe("Orcish Squatters — unblocked attack steals a land (CR 509.1h / 611.2
             ],
             activePlayerId: "p1",
         });
-        const event = {
-            type: "ATTACKER_UNBLOCKED" as const,
-            attackerId: "sq",
-            attackerControllerId: "p1",
-            attackerTypes: ["Creature"],
-            attackerSubtypes: ["Orc"],
-        } as StackItem["triggerEvent"];
-        resolveTrigger(state, squatters, "orcish-squatters-steal-land", event);
-        // Suspends on the optional land choice; pick the land.
-        const head = state.pendingChoices?.[0];
-        expect(head?.kind).toBe("choose-permanents");
-        submitChoice(state, ["land"]);
+        const trig = squattersTriggerOnStack(state, squatters);
+        // Exactly one legal target → auto-locked at stack placement, no choice
+        // owed (CR 603.3d). raiseTriggerTargetSelection reports no pending pick.
+        expect(raiseTriggerTargetSelection(state)).toBe(false);
+        expect(trig.targets).toEqual([{ type: "permanent", id: "land" }]);
+        // Resolution suspends on the "you may" decision; accept it.
+        expect(resolveTopOfStack(state)).toBeNull();
+        expect(state.pendingChoices?.[0]?.kind).toBe("may-pay");
+        applyMayPaySubmit(state, { playerId: "p1", accept: true });
         const stolen =
             state.players[0].battlefield.find((c) => c.id === "land") ??
             state.players[1].battlefield.find((c) => c.id === "land")!;
@@ -1457,7 +1500,56 @@ describe("Orcish Squatters — unblocked attack steals a land (CR 509.1h / 611.2
         expect(state.assignsNoCombatDamageThisTurn ?? []).toContain("sq");
     });
 
-    it("declining the choice keeps the land with its owner", () => {
+    it("raises a player choice when 2+ defender lands are legal (CR 603.3d), then steals the chosen one", () => {
+        const squatters = makeInstance(orcishSquatters.id, {
+            id: "sq",
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+        });
+        const land1 = makeInstance(getCardByName("Mountain").id, {
+            id: "land1",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const land2 = makeInstance(getCardByName("Mountain").id, {
+            id: "land2",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [squatters] }),
+                makePlayer("p2", { battlefield: [land1, land2] }),
+            ],
+            activePlayerId: "p1",
+        });
+        squattersTriggerOnStack(state, squatters);
+        // 2+ legal targets → a real choice is owed.
+        expect(raiseTriggerTargetSelection(state)).toBe(true);
+        expect(state.pendingTarget?.kind).toBe("trigger");
+        state.pendingTarget!.selected = [{ type: "permanent", id: "land1" }];
+        finalizeTargetSelection(
+            state,
+            state.pendingTarget!,
+            state.pendingTarget!.playerId
+        );
+        // Now resolve; accept the "you may".
+        expect(resolveTopOfStack(state)).toBeNull();
+        expect(state.pendingChoices?.[0]?.kind).toBe("may-pay");
+        applyMayPaySubmit(state, { playerId: "p1", accept: true });
+        const stolen =
+            state.players[0].battlefield.find((c) => c.id === "land1") ??
+            state.players[1].battlefield.find((c) => c.id === "land1")!;
+        expect(stolen.controllerId).toBe("p1");
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "land2")!
+                .controllerId
+        ).toBe("p2");
+        expect(state.assignsNoCombatDamageThisTurn ?? []).toContain("sq");
+    });
+
+    it("declining the 'you may' keeps the land with its owner and combat damage intact", () => {
         const squatters = makeInstance(orcishSquatters.id, {
             id: "sq",
             controllerId: "p1",
@@ -1476,19 +1568,15 @@ describe("Orcish Squatters — unblocked attack steals a land (CR 509.1h / 611.2
             ],
             activePlayerId: "p1",
         });
-        const event = {
-            type: "ATTACKER_UNBLOCKED" as const,
-            attackerId: "sq",
-            attackerControllerId: "p1",
-            attackerTypes: ["Creature"],
-            attackerSubtypes: ["Orc"],
-        } as StackItem["triggerEvent"];
-        resolveTrigger(state, squatters, "orcish-squatters-steal-land", event);
-        submitChoice(state, []); // decline
+        squattersTriggerOnStack(state, squatters);
+        expect(raiseTriggerTargetSelection(state)).toBe(false);
+        expect(resolveTopOfStack(state)).toBeNull();
+        applyMayPaySubmit(state, { playerId: "p1", accept: false });
         expect(
             state.players[1].battlefield.find((c) => c.id === "land")!
                 .controllerId
         ).toBe("p2");
+        expect(state.assignsNoCombatDamageThisTurn ?? []).not.toContain("sq");
     });
 });
 

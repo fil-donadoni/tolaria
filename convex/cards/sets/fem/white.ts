@@ -87,39 +87,40 @@ export const farrelsMantle: CardDefinition = {
             oracleText:
                 "Whenever enchanted creature attacks and isn't blocked, its controller may have it deal damage equal to its power plus 2 to another target creature. If that player does, the attacking creature assigns no combat damage this turn.",
             event: "ATTACKER_UNBLOCKED",
+            // CR 603.3d — "another target creature" is a REAL target chosen when
+            // the trigger is put on the stack (via `raiseTriggerTargetSelection`,
+            // issue #1193), NOT a resolution-time `requestChoice`. This makes it
+            // subject to hexproof / protection / ward and fires "becomes the
+            // target of an ability" triggers, which the old choice-as-target
+            // workaround silently skipped.
+            //
+            // DIVERGENCE (tracked-by: #1193): the Oracle "ANOTHER target
+            // creature" must exclude the ENCHANTED (attacking) creature — but
+            // the source of this trigger is the AURA permanent, not the
+            // enchanted creature. `targetRequirement.excludeSource` only
+            // excludes the trigger's own source (`triggerSourceId` = the Aura,
+            // which isn't a creature and is already outside the "Creature"
+            // candidate set), so it cannot express "other than the enchanted
+            // creature". The enchanted creature therefore remains a legal
+            // target here; a dedicated exclude-attacker facet is out of scope
+            // for the #1193 tracer and needs a follow-up capability.
+            targetRequirement: { type: "Creature", count: 1 },
             matches: (event, self) =>
                 event.type === "ATTACKER_UNBLOCKED" &&
                 self.attachedTo !== undefined &&
                 event.attackerId === self.attachedTo,
             resolve: (ctx, event) => {
                 if (event.type !== "ATTACKER_UNBLOCKED") return;
-                const attackerId = event.attackerId;
-                const attacker = { type: "permanent" as const, id: attackerId };
-                const controllerId = ctx.getController(attacker);
-                if (controllerId === undefined) return;
-                // CR 603.3d — "another target creature": every creature except
-                // the attacking creature itself.
-                const candidates = ctx.allPlayerIds
-                    .flatMap((p) =>
-                        ctx.getBattlefieldIds(p, { types: "Creature" })
-                    )
-                    .filter((id) => id !== attackerId);
-                if (candidates.length === 0) return;
-                const picks = ctx.requestChoice({
-                    playerId: controllerId,
-                    choiceId: `farrels-mantle-${ctx.sourceInstanceId}`,
-                    kind: "choose-permanents",
-                    zone: "battlefield",
-                    allControllers: true,
-                    candidateIds: candidates,
-                    count: { min: 0, max: 1 },
-                    prompt: "Farrel's Mantle: deal damage to another target creature? (decline to assign normal combat damage)",
-                });
-                if (picks === undefined) return; // suspended
-                const targetId = picks[0];
-                if (!targetId) return; // declined — combat damage assigned normally
+                // Target chosen at stack placement (CR 603.3d) — read the
+                // locked target, don't request a resolution-time choice.
+                const target = ctx.targets[0];
+                if (!target) return; // no legal target locked (CR 608.2b)
+                const attacker = {
+                    type: "permanent" as const,
+                    id: event.attackerId,
+                };
                 const power = ctx.getPower(attacker) ?? 0;
-                ctx.dealDamage({ type: "permanent", id: targetId }, power + 2);
+                ctx.dealDamage({ type: "permanent", id: target.id }, power + 2);
                 // CR 510.1c — "the attacking creature assigns no combat damage
                 // this turn."
                 ctx.markAssignsNoCombatDamage(attacker);
@@ -145,6 +146,14 @@ export const farrelsZealot: CardDefinition = {
             oracleText:
                 "Whenever this creature attacks and isn't blocked, you may have it deal 3 damage to target creature. If you do, this creature assigns no combat damage this turn.",
             event: "ATTACKER_UNBLOCKED",
+            // CR 603.3d — "target creature" is a REAL target chosen when the
+            // trigger is put on the stack (via `raiseTriggerTargetSelection`,
+            // issue #1193), NOT a resolution-time `requestChoice`. This makes it
+            // subject to hexproof / protection / ward and fires "becomes the
+            // target of an ability" triggers. No `excludeSource`: the Oracle
+            // says plain "target creature" (no "another"), so Farrel's Zealot
+            // is itself a legal target.
+            targetRequirement: { type: "Creature", count: 1 },
             matches: (event, self) =>
                 event.type === "ATTACKER_UNBLOCKED" &&
                 event.attackerId === self.id,
@@ -153,24 +162,11 @@ export const farrelsZealot: CardDefinition = {
                     type: "permanent" as const,
                     id: ctx.sourceInstanceId,
                 };
-                const candidates = ctx.allPlayerIds.flatMap((p) =>
-                    ctx.getBattlefieldIds(p, { types: "Creature" })
-                );
-                if (candidates.length === 0) return;
-                const picks = ctx.requestChoice({
-                    playerId: ctx.controller,
-                    choiceId: `farrels-zealot-${ctx.sourceInstanceId}`,
-                    kind: "choose-permanents",
-                    zone: "battlefield",
-                    allControllers: true,
-                    candidateIds: candidates,
-                    count: { min: 0, max: 1 },
-                    prompt: "Farrel's Zealot: deal 3 damage to target creature? (decline to assign normal combat damage)",
-                });
-                if (picks === undefined) return; // suspended
-                const targetId = picks[0];
-                if (!targetId) return; // declined
-                ctx.dealDamage({ type: "permanent", id: targetId }, 3);
+                // Target chosen at stack placement (CR 603.3d) — read the
+                // locked target, don't request a resolution-time choice.
+                const target = ctx.targets[0];
+                if (!target) return; // no legal target locked (CR 608.2b)
+                ctx.dealDamage({ type: "permanent", id: target.id }, 3);
                 ctx.markAssignsNoCombatDamage(self);
             },
         },

@@ -7,7 +7,7 @@
 // Coalition Victory's compound win predicate (both clauses required).
 
 import { describe, it, expect } from "vitest";
-import type { CardDefinition, CardType } from "../../../types";
+import type { CardDefinition, CardType, TargetSelection } from "../../../types";
 import {
     orderedMigration,
     coalitionVictory,
@@ -84,8 +84,11 @@ import {
 import {
     resolveTopOfStack,
     applySourceStaticEffects,
+    type GameState,
     type StackItem,
 } from "../../../../gre/state";
+import { raiseTriggerTargetSelection } from "../../../../gre/rules";
+import { finalizeTargetSelection } from "../../../../game";
 import {
     plains,
     island,
@@ -117,6 +120,29 @@ import { effectiveTriggeredAbilities } from "../../../../gre/copy";
 import { collectTriggers } from "../../../../gre/triggers";
 import { applyMayPaySubmit } from "../../../../gre/pendingChoiceSubmit";
 import { resolveActivated, resolveTrigger, submitChoice } from "./helpers";
+
+/** Drives a CR 603.3d trigger target choice through the real machinery (issue
+ *  #1193): raise the `kind:"trigger"` PendingTarget on the top-of-stack
+ *  trigger, write the chosen selection (or `[]` to decline an "up to"
+ *  requirement), then finalize it onto the trigger before resolution. Returns
+ *  whether a real choice was raised — `false` when the engine auto-locked the
+ *  target set (sole mandatory target, or "up to one" with none legal), in
+ *  which case the trigger's `targets` are already written. */
+function driveTriggerTarget(
+    state: GameState,
+    selected: TargetSelection[]
+): boolean {
+    const raised = raiseTriggerTargetSelection(state);
+    if (raised) {
+        state.pendingTarget!.selected = selected;
+        finalizeTargetSelection(
+            state,
+            state.pendingTarget!,
+            state.pendingTarget!.playerId
+        );
+    }
+    return raised;
+}
 
 describe("Ordered Migration (CR 111 / 701.7 token creation, Domain, issue #1066)", () => {
     it("creates one 1/1 blue flying Bird per basic land type controlled", () => {
@@ -1151,7 +1177,14 @@ describe("Smoldering Tar (CR 603.6a upkeep target-player drain + 701.16 sacrific
         ]);
     });
 
-    it("upkeep trigger: choosing the opponent makes them lose 1 life", () => {
+    it("declares a CR 603.3d target-player requirement on the upkeep trigger", () => {
+        const upkeep = smolderingTar.triggeredAbilities!.find(
+            (a) => a.id === "smoldering-tar-upkeep"
+        )!;
+        expect(upkeep.targetRequirement).toEqual({ type: "player", count: 1 });
+    });
+
+    it("upkeep trigger: the chosen target player loses 1 life (CR 603.3d — target at stack placement)", () => {
         const tar = makeInstance(smolderingTar.id, {
             id: "tar",
             controllerId: "p1",
@@ -1173,14 +1206,50 @@ describe("Smoldering Tar (CR 603.6a upkeep target-player drain + 701.16 sacrific
                 phase: "UPKEEP",
                 activePlayerId: "p1",
             } as never,
-            targets: [],
+            // Un-set slot so `raiseTriggerTargetSelection` treats it as a
+            // target candidate (CR 603.3d).
+            targets: undefined,
         });
-        expect(resolveTopOfStack(state)).toBeNull(); // suspends on the player pick
-        const head = state.pendingChoices![0];
-        expect(head.kind).toBe("option-pick");
-        submitChoice(state, ["p2"]);
+        // "target player" (count 1) — both players are legal, so a real
+        // choice is owed at stack placement (not a resolution-time pick).
+        expect(driveTriggerTarget(state, [{ type: "player", id: "p2" }])).toBe(
+            true
+        );
+        resolveTopOfStack(state);
         expect(state.players[1].life).toBe(19);
         expect(state.players[0].life).toBe(20);
+    });
+
+    it("upkeep trigger: the controller may target themselves (open choice, either player)", () => {
+        const tar = makeInstance(smolderingTar.id, {
+            id: "tar",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [tar] }),
+                makePlayer("p2"),
+            ],
+        });
+        state.stack.push({
+            ...tar,
+            zone: "stack",
+            castById: "p1",
+            triggeredAbilityId: "smoldering-tar-upkeep",
+            triggerSourceId: tar.id,
+            triggerEvent: {
+                type: "PHASE_BEGIN",
+                phase: "UPKEEP",
+                activePlayerId: "p1",
+            } as never,
+            targets: undefined,
+        });
+        expect(driveTriggerTarget(state, [{ type: "player", id: "p1" }])).toBe(
+            true
+        );
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(19);
+        expect(state.players[1].life).toBe(20);
     });
 
     it("Sacrifice: deals 4 damage to target creature", () => {
@@ -1887,7 +1956,34 @@ describe("Aura Shards (CR 603.6a creature-you-control ETB + resolve() may-destro
         ).toBe(false);
     });
 
-    it("may destroy a target artifact or enchantment across either battlefield", () => {
+    it("declares a CR 603.3d up-to-one target artifact/enchantment requirement", () => {
+        expect(auraShards.triggeredAbilities![0].targetRequirement).toEqual({
+            type: ["Artifact", "Enchantment"],
+            count: { min: 0, max: 1 },
+        });
+    });
+
+    /** Puts the ETB trigger on the stack with an un-set target slot (CR
+     *  603.3d) so `driveTriggerTarget` can raise the announcement-time
+     *  choice. */
+    function pushShardsTrigger(state: GameState, shardsId: string) {
+        state.stack.push({
+            ...state.players[0].battlefield.find((c) => c.id === shardsId)!,
+            zone: "stack",
+            castById: "p1",
+            triggeredAbilityId: "aura-shards-destroy",
+            triggerSourceId: shardsId,
+            triggerEvent: {
+                type: "PERMANENT_ENTERED",
+                instanceId: "creature",
+                controllerId: "p1",
+                types: ["Creature"],
+            } as never,
+            targets: undefined,
+        });
+    }
+
+    it("may destroy a target artifact or enchantment across either battlefield (CR 603.3d — target at stack placement)", () => {
         const shards = makeInstance(auraShards.id, {
             id: "shards",
             controllerId: "p1",
@@ -1904,20 +2000,74 @@ describe("Aura Shards (CR 603.6a creature-you-control ETB + resolve() may-destro
                 makePlayer("p2", { battlefield: [oppArtifact] }),
             ],
         });
-        resolveTrigger(state, shards, "aura-shards-destroy", {
-            type: "PERMANENT_ENTERED",
-            instanceId: "creature",
-            controllerId: "p1",
-            types: ["Creature"],
-        } as never);
-        expect(state.pendingChoices?.[0]?.kind).toBe("choose-permanents");
-        submitChoice(state, ["opp-artifact"]);
+        pushShardsTrigger(state, "shards");
+        // "Up to one" — a real choice is always owed even with a single legal
+        // target (the caster may still decline), so the machinery raises.
+        expect(
+            driveTriggerTarget(state, [
+                { type: "permanent", id: "opp-artifact" },
+            ])
+        ).toBe(true);
+        resolveTopOfStack(state);
         expect(
             state.players[1].battlefield.some((c) => c.id === "opp-artifact")
         ).toBe(false);
         expect(
             state.players[1].graveyard.some((c) => c.id === "opp-artifact")
         ).toBe(true);
+    });
+
+    it("declining the 'may' (empty target set) destroys nothing", () => {
+        const shards = makeInstance(auraShards.id, {
+            id: "shards",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const oppArtifact = makeInstance(icyManipulator.id, {
+            id: "opp-artifact",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [shards] }),
+                makePlayer("p2", { battlefield: [oppArtifact] }),
+            ],
+        });
+        pushShardsTrigger(state, "shards");
+        expect(driveTriggerTarget(state, [])).toBe(true);
+        resolveTopOfStack(state);
+        expect(
+            state.players[1].battlefield.some((c) => c.id === "opp-artifact")
+        ).toBe(true);
+    });
+
+    it("Aura Shards is itself a legal target (no `excludeSource`) — it can destroy itself", () => {
+        // Aura Shards is an Enchantment, so with no other artifact/enchantment
+        // in play it is its own sole legal target (CR 603.3d — the text has no
+        // "another" clause). A real choice is still owed ("up to one").
+        const shards = makeInstance(auraShards.id, {
+            id: "shards",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [shards] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushShardsTrigger(state, "shards");
+        expect(
+            driveTriggerTarget(state, [{ type: "permanent", id: "shards" }])
+        ).toBe(true);
+        resolveTopOfStack(state);
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "shards")
+        ).toBe(false);
+        expect(state.players[0].graveyard.some((c) => c.id === "shards")).toBe(
+            true
+        );
     });
 });
 

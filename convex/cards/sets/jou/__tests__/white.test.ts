@@ -11,15 +11,19 @@ import { banishingLight } from "..";
 import { grizzlyBears, flight } from "../../lea";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { getDefinition, getCardByName } from "../../..";
+import { PERMANENT_TYPES } from "../../../types";
 import { projectPublicState } from "../../../../gameProjections";
 import {
     removePermanentTo,
     processPendingActionTriggers,
     resolveTopOfStack,
+    type CardInstanceState,
+    type GameState,
     type StackItem,
 } from "../../../../gre/state";
 import { checkStateBasedActions } from "../../../../gre/sba";
-import { resolveTrigger, submitChoice } from "./helpers";
+import { raiseTriggerTargetSelection } from "../../../../gre/rules";
+import { finalizeTargetSelection } from "../../../../game";
 
 const ETB_EVENT: StackItem["triggerEvent"] = {
     type: "PERMANENT_ENTERED",
@@ -63,6 +67,45 @@ function setup() {
     return { state, bl };
 }
 
+/** Puts Banishing Light's ETB exile trigger on the stack WITHOUT resolving it
+ *  (mirrors the engine right after a trigger is put on the stack, before target
+ *  selection). Carries `targets: undefined` so `raiseTriggerTargetSelection`
+ *  treats it as a candidate; `triggerSourceId` keeps `ctx.sourceInstanceId` =
+ *  "bl" so the exile bundle is keyed to the enchantment. */
+function exileTriggerOnStack(
+    state: GameState,
+    source: CardInstanceState
+): StackItem {
+    const trig: StackItem = {
+        ...source,
+        id: "bl-etb-trig",
+        zone: "stack",
+        castById: source.controllerId,
+        triggeredAbilityId: "banishing-light-exile",
+        triggerSourceId: source.id,
+        triggerEvent: ETB_EVENT,
+        targets: undefined,
+    };
+    state.stack.push(trig);
+    return trig;
+}
+
+/** Drives the CR 603.3d target choice through the real machinery:
+ *  `raiseTriggerTargetSelection` raises the `kind:"trigger"` PendingTarget,
+ *  then `finalizeTargetSelection` writes the chosen target onto the on-stack
+ *  trigger. Asserts a real choice was owed (2+ legal targets). */
+function chooseExileTarget(state: GameState, targetId: string): void {
+    const raised = raiseTriggerTargetSelection(state);
+    expect(raised).toBe(true);
+    expect(state.pendingTarget!.kind).toBe("trigger");
+    state.pendingTarget!.selected = [{ type: "permanent", id: targetId }];
+    finalizeTargetSelection(
+        state,
+        state.pendingTarget!,
+        state.pendingTarget!.playerId
+    );
+}
+
 describe("Banishing Light (JOU — exile-until-leaves, CR 603.6a/603.7a)", () => {
     it("is a {2}{W} Enchantment with the modern oracle text", () => {
         expect(banishingLight.manaCost).toEqual({ X: 2, W: 1 });
@@ -78,10 +121,24 @@ describe("Banishing Light (JOU — exile-until-leaves, CR 603.6a/603.7a)", () =>
         expect(getCardByName("Banishing Light")).toBe(banishingLight);
     });
 
+    it("declares the CR 603.3d target requirement: one nonland permanent an opponent controls", () => {
+        expect(
+            banishingLight.triggeredAbilities?.[0]?.targetRequirement
+        ).toEqual({
+            type: [...PERMANENT_TYPES],
+            count: 1,
+            excludeTypes: "Land",
+            controller: "opponent",
+        });
+    });
+
     it("ETB exiles ONLY the chosen permanent: its Aura dies (SBA), nothing else is held (CR 701.18/704.5n)", () => {
         const { state, bl } = setup();
-        resolveTrigger(state, bl, "banishing-light-exile", ETB_EVENT);
-        submitChoice(state, ["bear"]); // resume the choose-permanents pick
+        // CR 603.3d — the target (bear vs. its Aura, two legal opponent
+        // permanents) is chosen when the trigger goes on the stack.
+        exileTriggerOnStack(state, bl);
+        chooseExileTarget(state, "bear");
+        expect(resolveTopOfStack(state)).not.toBeNull();
         checkStateBasedActions(state); // orphan-aura SBA sweeps the Flight
 
         // The creature left the battlefield for its owner's exile...
@@ -101,8 +158,9 @@ describe("Banishing Light (JOU — exile-until-leaves, CR 603.6a/603.7a)", () =>
 
     it("returns ONLY the host (untapped) when Banishing Light leaves; the Aura stays dead (CR 603.7a)", () => {
         const { state, bl } = setup();
-        resolveTrigger(state, bl, "banishing-light-exile", ETB_EVENT);
-        submitChoice(state, ["bear"]);
+        exileTriggerOnStack(state, bl);
+        chooseExileTarget(state, "bear");
+        resolveTopOfStack(state);
         checkStateBasedActions(state);
 
         // Banishing Light leaves → its return trigger lands and resolves.
@@ -128,8 +186,9 @@ describe("Banishing Light (JOU — exile-until-leaves, CR 603.6a/603.7a)", () =>
 
     it("wire: the exiled permanent is pinned to Banishing Light via exiledByPermanentId, for both viewers", () => {
         const { state, bl } = setup();
-        resolveTrigger(state, bl, "banishing-light-exile", ETB_EVENT);
-        submitChoice(state, ["bear"]);
+        exileTriggerOnStack(state, bl);
+        chooseExileTarget(state, "bear");
+        resolveTopOfStack(state);
         checkStateBasedActions(state);
 
         // The generic exile-pin link (buildExileAssociation derives it from the
@@ -144,5 +203,43 @@ describe("Banishing Light (JOU — exile-until-leaves, CR 603.6a/603.7a)", () =>
             expect(exiledBear.exiledByPermanentId).toBe("bl");
         }
         void bl;
+    });
+
+    it("auto-selects the sole legal target: no PendingTarget raised (CR 603.3d)", () => {
+        // Only ONE nonland permanent an opponent controls (the bear, no Aura,
+        // plus a land that `excludeTypes: 'Land'` filters out). CR 603.3d — a
+        // mandatory single target with exactly one legal choice locks itself as
+        // the trigger goes on the stack, no player choice raised.
+        const bl = makeInstance(banishingLight.id, {
+            id: "bl",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bl] }),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+        });
+        const trig = exileTriggerOnStack(state, bl);
+        expect(raiseTriggerTargetSelection(state)).toBe(false);
+        expect(trig.targets).toEqual([{ type: "permanent", id: "bear" }]);
+        expect(state.pendingTarget).toBeUndefined();
+
+        expect(resolveTopOfStack(state)).not.toBeNull();
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "bear")
+        ).toBeUndefined();
+        expect(state.players[1].exile.map((c) => c.id)).toContain("bear");
+        const bundle = state.exileHeld?.find((b) => b.sourceId === "bl");
+        expect(bundle).toBeDefined();
+        expect(bundle!.hostId).toBe("bear");
     });
 });

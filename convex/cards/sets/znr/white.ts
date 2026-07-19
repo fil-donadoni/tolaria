@@ -10,20 +10,16 @@ import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 // +1/+1 counter on target creature you control." (CR 603.6a combat-begin
 // trigger via `phaseTrigger`; CR 122 counter placement.)
 //
-// protocol: `TriggeredAbility` has no `targetRequirement` field — CR 603.3d
-// announce-time targeting is not modeled for triggered abilities in this
-// engine, and the Effect Script grammar has no bridge from a `choice` Op's
-// "picks" binding into an object-position Op (`counters`/`pump`/`dealDamage`/
-// ...): `forEach { set: "bound" }` only accepts a delayedTrigger LIST capture
-// (ADR 0049) and a bare object ref only accepts a "snapshot" family binding
-// (see `convex/gre/effects/validate.ts`). Every existing "target creature"
-// triggered ability in this pool (Oubliette, Tourach's Chant in
-// `sets/arn/black.ts` / `sets/fem/black.ts`) resolves this the SAME way —
-// a resolution-time `choose-permanents` pick via `resolve()`, not a true
-// announced target. This is the established project-wide simplification for
-// the shape, not an invented one-off; the underlying structural gap (no
-// trigger-level targetRequirement / no choice→object-position bridge) is
-// tracked as a capability follow-up in tolaria#917.
+// TARGETING (CR 603.3d, issue #1193): "target creature you control" is a REAL
+// target chosen when the trigger is put on the stack — declared as a
+// `targetRequirement` on the TriggeredAbility (engine:
+// `raiseTriggerTargetSelection` in gre/rules.ts), NOT a resolution-time
+// `requestChoice`. That makes it subject to hexproof / protection / ward and
+// fires "becomes the target of an ability" triggers, which the old
+// choice-as-target workaround silently skipped. `phaseTrigger` supplies the
+// step/scope/matches plumbing; the `targetRequirement` is merged onto the
+// returned ability. The `resolve()` then only reads the announced target
+// (`ctx.targets[0]`) and places the +1/+1 counter.
 export const luminarchAspirant: CardDefinition = {
     id: "fe964e7e-e2c5-4263-889d-0a531eb51442",
     name: "Luminarch Aspirant",
@@ -36,33 +32,34 @@ export const luminarchAspirant: CardDefinition = {
     power: 1,
     toughness: 1,
     triggeredAbilities: [
-        phaseTrigger({
-            id: "luminarch-aspirant-counter",
-            oracleText:
-                "At the beginning of combat on your turn, put a +1/+1 counter on target creature you control.",
-            phase: "BEGINNING_OF_COMBAT",
-            scope: "your",
-            resolve: (ctx, _event, scopedPlayerId) => {
-                const candidates = ctx.getBattlefieldIds(scopedPlayerId, {
-                    types: "Creature",
-                });
-                if (candidates.length === 0) return;
-                const picks = ctx.requestChoice({
-                    playerId: scopedPlayerId,
-                    choiceId: `luminarch-aspirant-${ctx.sourceInstanceId}`,
-                    kind: "choose-permanents",
-                    zone: "battlefield",
-                    zoneOwnerId: scopedPlayerId,
-                    filter: { types: "Creature" },
-                    count: 1,
-                    prompt: "Put a +1/+1 counter on target creature you control.",
-                });
-                if (picks === undefined) return; // suspended for the choice
-                const targetId = picks[0];
-                if (!targetId) return;
-                ctx.addCounter({ type: "permanent", id: targetId }, "+1/+1", 1);
+        {
+            // `phaseTrigger` (CR 603.6a) supplies the PHASE_BEGIN narrowing,
+            // `scope: "your"` filter, and matches plumbing; the CR 603.3d
+            // `targetRequirement` is merged on below (PhaseTriggerArgs has no
+            // target field). "target creature you control" =
+            // `{ type: "Creature", count: 1, controller: "you" }`.
+            ...phaseTrigger({
+                id: "luminarch-aspirant-counter",
+                oracleText:
+                    "At the beginning of combat on your turn, put a +1/+1 counter on target creature you control.",
+                phase: "BEGINNING_OF_COMBAT",
+                scope: "your",
+                resolve: (ctx) => {
+                    const target = ctx.targets[0];
+                    if (!target) return; // CR 608.2b — target left / none legal
+                    ctx.addCounter(
+                        { type: "permanent", id: target.id },
+                        "+1/+1",
+                        1
+                    );
+                },
+            }),
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                controller: "you",
             },
-        }),
+        },
     ],
 };
 

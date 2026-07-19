@@ -7,12 +7,11 @@ import type {
     StackItem,
 } from "../../../../gre/state";
 import { resolveTopOfStack } from "../../../../gre/state";
-import {
-    applyMayPaySubmit,
-    applyPendingChoiceSubmit,
-} from "../../../../gre/pendingChoiceSubmit";
+import { applyMayPaySubmit } from "../../../../gre/pendingChoiceSubmit";
 import { collectTriggers } from "../../../../gre/triggers";
 import { raiseTriggerTargetSelection } from "../../../../gre/rules";
+import { finalizeTargetSelection } from "../../../../game";
+import { PERMANENT_TYPES } from "../../../types";
 import { fireDelayedTriggers } from "../../../../gre/phases";
 import { projectPublicState } from "../../../../gameProjections";
 import { guideOfSouls, phelia } from "../white";
@@ -289,18 +288,19 @@ describe("Guide of Souls — attack trigger (CR 603.3d target + mayPay {E}{E}{E}
 // #1320, parent #917). "Whenever Phelia attacks, exile up to one other
 // target nonland permanent. At the beginning of the next end step, return
 // that card to the battlefield under its owner's control. If it entered
-// under your control, put a +1/+1 counter on Phelia." Protocol card
-// (Flickerwisp/Liberate flicker idiom) — first card to exercise the
-// delayed-trigger CONTROLLER-vs-OWNER branch (issue #1320): the fired
+// under your control, put a +1/+1 counter on Phelia." First card to exercise
+// the delayed-trigger CONTROLLER-vs-OWNER branch (issue #1320): the fired
 // delayed trigger reads the returned permanent's post-return controller and
 // compares it against the captured caster, adding a +1/+1 counter on Phelia
-// only when they match.
+// only when they match. The attack trigger's "up to one other target nonland
+// permanent" is a REAL target chosen at stack placement (CR 603.3d,
+// `targetRequirement` + `raiseTriggerTargetSelection`), not a
+// resolution-time choice.
 
 /** Puts Phelia's attack trigger on the stack, mirroring Guide of Souls'
- *  `attackTriggerOnStack` helper (ATTACKERS_DECLARED, CR 508.1). Phelia's
- *  ability carries no `targetRequirement` (protocol resolve() picks its
- *  "another target" via `requestChoice`, ADR 0002), so no
- *  `raiseTriggerTargetSelection` call is needed before resolving. */
+ *  `attackTriggerOnStack` helper (ATTACKERS_DECLARED, CR 508.1). The trigger
+ *  now carries a `targetRequirement`, so `raiseTriggerTargetSelection` runs
+ *  before resolving (see `choosePheliaTarget`). */
 function pheliaAttackTriggerOnStack(
     state: GameState,
     source: CardInstanceState
@@ -323,6 +323,23 @@ function pheliaAttackTriggerOnStack(
     return trig;
 }
 
+/** Drives the CR 603.3d target choice through the real machinery:
+ *  `raiseTriggerTargetSelection` raises the `kind:"trigger"` PendingTarget
+ *  (count 0..1), then `finalizeTargetSelection` writes the chosen target
+ *  (or the empty "decline" set) onto the on-stack trigger. */
+function choosePheliaTarget(state: GameState, targetId: string | null) {
+    const raised = raiseTriggerTargetSelection(state);
+    expect(raised).toBe(true);
+    state.pendingTarget!.selected = targetId
+        ? [{ type: "permanent", id: targetId }]
+        : [];
+    finalizeTargetSelection(
+        state,
+        state.pendingTarget!,
+        state.pendingTarget!.playerId
+    );
+}
+
 describe("Phelia, Exuberant Shepherd — definition", () => {
     it("pins mana cost, stats, supertype, and Flash", () => {
         expect(phelia.manaCost).toEqual({ X: 1, W: 1 });
@@ -334,6 +351,15 @@ describe("Phelia, Exuberant Shepherd — definition", () => {
         expect(phelia.staticAbilities).toEqual(["flash"]);
         expect(phelia.triggeredAbilities?.[0]?.id).toBe("phelia-attack");
         expect(phelia.delayedTriggers?.[0]?.id).toBe("phelia-return");
+    });
+
+    it("declares the CR 603.3d target requirement: up to one other nonland permanent", () => {
+        expect(phelia.triggeredAbilities?.[0]?.targetRequirement).toEqual({
+            type: [...PERMANENT_TYPES],
+            count: { min: 0, max: 1 },
+            excludeTypes: "Land",
+            excludeSource: true,
+        });
     });
 });
 
@@ -356,16 +382,8 @@ describe("Phelia — attack trigger (CR 603.6a exile + CR 603.7a delayed return)
             ],
         });
         pheliaAttackTriggerOnStack(state, p);
-        expect(resolveTopOfStack(state)).toBeNull(); // suspended on choice
-        const head = state.pendingChoices![0];
-        expect(head.kind).toBe("choose-permanents");
-        applyPendingChoiceSubmit(state, {
-            playerId: head.playerId,
-            stackItemId: head.stackItemId,
-            step: head.step,
-            choiceId: head.choiceId,
-            cardInstanceIds: ["target1"],
-        });
+        choosePheliaTarget(state, "target1");
+        expect(resolveTopOfStack(state)).not.toBeNull();
 
         expect(
             state.players[1].battlefield.find((c) => c.id === "target1")
@@ -380,7 +398,7 @@ describe("Phelia — attack trigger (CR 603.6a exile + CR 603.7a delayed return)
         });
     });
 
-    it("excludes lands from the candidate set (nonland-only)", () => {
+    it("excludes lands and Phelia herself — no legal target, resolves as a no-op (CR 603.3c)", () => {
         const p = makeInstance(phelia.id, {
             id: "phelia2",
             controllerId: "p1",
@@ -397,11 +415,15 @@ describe("Phelia — attack trigger (CR 603.6a exile + CR 603.7a delayed return)
                 makePlayer("p2"),
             ],
         });
-        pheliaAttackTriggerOnStack(state, p);
-        // No legal nonland candidate exists (only Phelia herself and a land)
-        // — CR 608.2b: the trigger resolves as a no-op, no choice raised.
+        const trig = pheliaAttackTriggerOnStack(state, p);
+        // No legal nonland candidate exists (only Phelia herself — excluded by
+        // `excludeSource` — and a land, excluded by `excludeTypes`). CR 603.3d
+        // "up to one" with none legal: the engine locks an empty target set,
+        // no PendingTarget is raised, and the trigger resolves as a no-op.
+        expect(raiseTriggerTargetSelection(state)).toBe(false);
+        expect(trig.targets).toEqual([]);
         expect(resolveTopOfStack(state)).not.toBeNull();
-        expect(state.pendingChoices ?? []).toHaveLength(0);
+        expect(state.pendingTarget).toBeUndefined();
         expect(state.delayedTriggers ?? []).toHaveLength(0);
     });
 
@@ -423,15 +445,8 @@ describe("Phelia — attack trigger (CR 603.6a exile + CR 603.7a delayed return)
             ],
         });
         pheliaAttackTriggerOnStack(state, p);
+        choosePheliaTarget(state, null);
         resolveTopOfStack(state);
-        const head = state.pendingChoices![0];
-        applyPendingChoiceSubmit(state, {
-            playerId: head.playerId,
-            stackItemId: head.stackItemId,
-            step: head.step,
-            choiceId: head.choiceId,
-            cardInstanceIds: [],
-        });
         expect(
             state.players[1].battlefield.find((c) => c.id === "target3")
         ).toBeDefined();
@@ -446,15 +461,8 @@ describe("Phelia — delayed-trigger controller/owner branch (issue #1320)", () 
         targetId: string
     ) {
         pheliaAttackTriggerOnStack(state, p);
+        choosePheliaTarget(state, targetId);
         resolveTopOfStack(state);
-        const head = state.pendingChoices![0];
-        applyPendingChoiceSubmit(state, {
-            playerId: head.playerId,
-            stackItemId: head.stackItemId,
-            step: head.step,
-            choiceId: head.choiceId,
-            cardInstanceIds: [targetId],
-        });
     }
 
     it("puts a +1/+1 counter on Phelia when the returned permanent enters under YOUR control (owner === Phelia's controller)", () => {

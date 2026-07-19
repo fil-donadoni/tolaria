@@ -1149,14 +1149,20 @@ export const rasputinDreamweaver: CardDefinition = {
 // upkeep, change Halfdane's base power and toughness to the power and toughness
 // of target creature other than Halfdane until your next upkeep."
 //
-// The "target creature other than Halfdane" is modelled as a resolution-time
-// choice (`requestChoice` over every battlefield, excluding the source) — the
-// same simplification the codebase already uses for trigger-time targets that
-// the trigger-target machinery doesn't yet plumb (cf. The Abyss). The copied
-// P/T is the target's EFFECTIVE power/toughness (`getPower`/`getToughness`),
-// snapshotted and locked at resolution (CR 611.2). The set is scoped to the
-// controller's next upkeep (CR 500.2), reverting Halfdane to 3/3 before the
-// re-fire.
+// TARGETING (CR 603.3d): "target creature other than Halfdane" is a REAL
+// target chosen when the upkeep trigger is put on the stack — declared as a
+// `targetRequirement` on the TriggeredAbility (issue #1193 machinery,
+// `raiseTriggerTargetSelection` in gre/rules.ts), NOT a resolution-time
+// `requestChoice`. That makes it subject to hexproof / protection / ward and
+// fires "becomes the target of an ability" triggers, which the old
+// choice-as-target workaround silently skipped. `excludeSource` drops Halfdane
+// herself ("other than ~"). The modern Oracle wording carries no "may", so the
+// single target is MANDATORY (`count: 1`); with no legal creature other than
+// Halfdane the trigger is removed from the stack (CR 603.3c) and never
+// resolves. The copied P/T is the target's EFFECTIVE power/toughness
+// (`getPower`/`getToughness`), snapshotted and locked at resolution (CR 611.2).
+// The set is scoped to the controller's next upkeep (CR 500.2), reverting
+// Halfdane to 3/3 before the re-fire.
 export const halfdane: CardDefinition = {
     id: "2e939761-3542-4044-9038-d1d30c6a38fc",
     rarity: "rare",
@@ -1170,41 +1176,41 @@ export const halfdane: CardDefinition = {
     power: 3,
     toughness: 3,
     triggeredAbilities: [
-        phaseTrigger({
-            id: "halfdane-copy-pt",
-            oracleText:
-                "At the beginning of your upkeep, change Halfdane's base power and toughness to the power and toughness of target creature other than Halfdane until your next upkeep.",
-            phase: "UPKEEP",
-            scope: "your",
-            resolve: (ctx) => {
-                const self = ctx.sourceInstanceId;
-                const chosen = ctx.requestChoice({
-                    playerId: ctx.controller,
-                    choiceId: "halfdane-copy-pt",
-                    kind: "choose-permanents",
-                    zone: "battlefield",
-                    allControllers: true,
-                    filter: {
-                        types: "Creature",
-                        excludeInstanceIds: [self],
-                    },
-                    count: 1,
-                    prompt: "Choose a creature other than Halfdane (Halfdane copies its power and toughness).",
-                });
-                if (chosen === undefined) return; // suspended on the choice
-                const id = chosen[0];
-                if (!id) return; // CR 603.2c — no legal creature; do nothing
-                const target: TargetSelection = { type: "permanent", id };
-                // CR 611.2 — snapshot the target's effective P/T now and lock it.
-                const power = ctx.getPower(target);
-                const toughness = ctx.getToughness(target);
-                ctx.setBasePT(
-                    { type: "permanent", id: self },
-                    power,
-                    toughness,
-                    { phase: "upkeep", player: "controller" }
-                );
+        {
+            ...phaseTrigger({
+                id: "halfdane-copy-pt",
+                oracleText:
+                    "At the beginning of your upkeep, change Halfdane's base power and toughness to the power and toughness of target creature other than Halfdane until your next upkeep.",
+                phase: "UPKEEP",
+                scope: "your",
+                resolve: (ctx) => {
+                    const self = ctx.sourceInstanceId;
+                    // CR 603.3d — the target was chosen when the trigger was put
+                    // on the stack (`targetRequirement` below); read it back
+                    // instead of raising a resolution-time choice.
+                    const target = ctx.targets[0];
+                    if (!target) return; // CR 608.2b — target left / no legal target
+                    // CR 611.2 — snapshot the target's effective P/T now and lock it.
+                    const power = ctx.getPower(target);
+                    const toughness = ctx.getToughness(target);
+                    ctx.setBasePT(
+                        { type: "permanent", id: self },
+                        power,
+                        toughness,
+                        { phase: "upkeep", player: "controller" }
+                    );
+                },
+            }),
+            // CR 603.3d — "target creature other than Halfdane" chosen at stack
+            // placement (issue #1193, `raiseTriggerTargetSelection`), subject to
+            // hexproof / protection / ward. `excludeSource` self-excludes
+            // Halfdane ("other than ~"); `count: 1` is a MANDATORY single target
+            // (no "may" in the modern Oracle text).
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                excludeSource: true,
             },
-        }),
+        },
     ],
 };

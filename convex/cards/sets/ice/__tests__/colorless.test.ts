@@ -139,12 +139,17 @@ import {
     applyMayPaySubmit,
     applyRandomRevealAck,
 } from "../../../../gre/pendingChoiceSubmit";
-import { getLegalTargets, getLegalActions } from "../../../../gre/rules";
+import {
+    getLegalTargets,
+    getLegalActions,
+    raiseTriggerTargetSelection,
+} from "../../../../gre/rules";
 import {
     tapSourceIntoPayment,
     tryAutoCommitPendingActivation,
     tryAutoCommitPendingCast,
     buildPendingActivation,
+    finalizeTargetSelection,
 } from "../../../../game";
 import {
     buildAutoTapSources,
@@ -163,6 +168,7 @@ import type {
 } from "../../../../gre/state";
 import type { StackItem } from "../../../../gre/state";
 import type { CardType, ManaCost } from "../../../types";
+import { PERMANENT_TYPES } from "../../../types";
 import {
     resolveActivated,
     submitChoice,
@@ -1043,8 +1049,54 @@ describe("Talisman cycle (SPELL_CAST may-pay untap, CR 603.2 / 615 / 701.20b)", 
         }
     });
 
-    it("paying {3} untaps the chosen permanent; declining untaps nothing", () => {
-        const tal = makeInstance(hematiteTalisman.id, {
+    it("declares the CR 603.3d target requirement: up to one permanent (any controller)", () => {
+        for (const { card } of cycle) {
+            expect(card.triggeredAbilities![0].targetRequirement).toEqual({
+                type: [...PERMANENT_TYPES],
+                count: { min: 0, max: 1 },
+            });
+        }
+    });
+
+    // CR 603.3d — the "untap target permanent" target is chosen when the
+    // trigger is PUT ON THE STACK, not at resolution. `pushUntapTrigger`
+    // leaves `targets` undefined (the engine's `raiseTriggerTargetSelection`
+    // owns the slot); `chooseUntapTarget` drives the announcement-time pick
+    // through the real machinery (up-to-one, so `[]` declines).
+    function pushUntapTrigger(
+        state: GameState,
+        source: CardInstanceState,
+        abilityId: string
+    ): StackItem {
+        const trig: StackItem = {
+            ...source,
+            zone: "stack",
+            castById: source.controllerId,
+            triggeredAbilityId: abilityId,
+            triggerSourceId: source.id,
+            triggerEvent: {
+                type: "SPELL_CAST",
+                casterId: "p2",
+            } as StackItem["triggerEvent"],
+        };
+        state.stack.push(trig);
+        return trig;
+    }
+    function chooseUntapTarget(state: GameState, targetId: string | null) {
+        const raised = raiseTriggerTargetSelection(state);
+        expect(raised).toBe(true);
+        state.pendingTarget!.selected = targetId
+            ? [{ type: "permanent", id: targetId }]
+            : [];
+        finalizeTargetSelection(
+            state,
+            state.pendingTarget!,
+            state.pendingTarget!.playerId
+        );
+    }
+
+    function talismanBoard(cardId: string) {
+        const tal = makeInstance(cardId, {
             id: "tal",
             controllerId: "p1",
             ownerId: "p1",
@@ -1061,25 +1113,21 @@ describe("Talisman cycle (SPELL_CAST may-pay untap, CR 603.2 / 615 / 701.20b)", 
                 makePlayer("p2"),
             ],
         });
-        // A red spell was cast by p2; fire the trigger.
-        resolveTrigger(state, tal, "hematite-talisman-untap", {
-            type: "SPELL_CAST",
-            casterId: "p2",
-        } as StackItem["triggerEvent"]);
-        // Suspends on the may-pay; fund and accept.
+        return { state, tal };
+    }
+
+    it("target chosen at stack placement, then paying {3} untaps it (CR 603.3d)", () => {
+        const { state, tal } = talismanBoard(hematiteTalisman.id);
+        pushUntapTrigger(state, tal, "hematite-talisman-untap");
+        // Target the tapped permanent at announcement (up-to-one → real choice).
+        chooseUntapTarget(state, "tappedc");
+        // Resolution: suspends on the optional {3}; fund and accept.
+        resolveTopOfStack(state);
+        expect(state.pendingChoices![0].kind).toBe("may-pay");
         state.players[0].manaPool = { C: 3 };
         applyMayPaySubmit(state, {
             playerId: state.pendingChoices![0].playerId,
             accept: true,
-        });
-        // Now suspended on the choose-permanents target pick.
-        expect(state.pendingChoices![0].kind).toBe("choose-permanents");
-        applyPendingChoiceSubmit(state, {
-            playerId: state.pendingChoices![0].playerId,
-            stackItemId: state.pendingChoices![0].stackItemId,
-            step: state.pendingChoices![0].step,
-            choiceId: state.pendingChoices![0].choiceId,
-            cardInstanceIds: ["tappedc"],
         });
         const after = state.players[0].battlefield.find(
             (c) => c.id === "tappedc"
@@ -1087,32 +1135,29 @@ describe("Talisman cycle (SPELL_CAST may-pay untap, CR 603.2 / 615 / 701.20b)", 
         expect(after.isTapped).toBe(false);
     });
 
-    it("declining the may-pay leaves the permanent tapped", () => {
-        const tal = makeInstance(onyxTalisman.id, {
-            id: "tal",
-            controllerId: "p1",
-            ownerId: "p1",
-        });
-        const tappedPerm = makeInstance(balduvianBears.id, {
-            id: "tappedc",
-            controllerId: "p1",
-            ownerId: "p1",
-            isTapped: true,
-        });
-        const state = makeState({
-            players: [
-                makePlayer("p1", { battlefield: [tal, tappedPerm] }),
-                makePlayer("p2"),
-            ],
-        });
-        resolveTrigger(state, tal, "onyx-talisman-untap", {
-            type: "SPELL_CAST",
-            casterId: "p2",
-        } as StackItem["triggerEvent"]);
+    it("declining the {3} at resolution leaves the announced target tapped", () => {
+        const { state, tal } = talismanBoard(onyxTalisman.id);
+        pushUntapTrigger(state, tal, "onyx-talisman-untap");
+        chooseUntapTarget(state, "tappedc");
+        resolveTopOfStack(state);
         applyMayPaySubmit(state, {
             playerId: state.pendingChoices![0].playerId,
             accept: false,
         });
+        const after = state.players[0].battlefield.find(
+            (c) => c.id === "tappedc"
+        )!;
+        expect(after.isTapped).toBe(true);
+    });
+
+    it("declining the target (up-to-one → none) resolves as a no-op — no may-pay", () => {
+        const { state, tal } = talismanBoard(hematiteTalisman.id);
+        pushUntapTrigger(state, tal, "hematite-talisman-untap");
+        // Choose no target — the ability's "you may" declined at announcement.
+        chooseUntapTarget(state, null);
+        resolveTopOfStack(state);
+        // No {3} may-pay is offered when nothing was targeted.
+        expect(state.pendingChoices ?? []).toHaveLength(0);
         const after = state.players[0].battlefield.find(
             (c) => c.id === "tappedc"
         )!;
@@ -1441,47 +1486,84 @@ describe("Runed Arch ({X},{T},Sac: X unblockable, CR 107.3 / 509.1b)", () => {
     });
 });
 
-describe("Soldevi Golem (does-not-untap + upkeep untap, CR 702 / 701.20b)", () => {
-    it("optionally untaps a tapped opponent creature and itself", () => {
-        expect(soldeviGolem.staticAbilities).toContain("does-not-untap");
+describe("Soldevi Golem (does-not-untap + upkeep untap, CR 702 / 603.3d / 701.20b)", () => {
+    // CR 603.3d — the "target tapped creature an opponent controls" is chosen
+    // when the upkeep trigger is put on the stack. `pushGolemTrigger` leaves
+    // `targets` undefined so `raiseTriggerTargetSelection` owns the slot; a
+    // mandatory single target auto-locks when exactly one is legal (returns
+    // false), or raises a real PendingTarget when several are (returns true).
+    function pushGolemTrigger(
+        state: GameState,
+        golem: CardInstanceState
+    ): StackItem {
+        const trig: StackItem = {
+            ...golem,
+            zone: "stack",
+            castById: golem.controllerId,
+            triggeredAbilityId: "soldevi-golem-upkeep",
+            triggerSourceId: golem.id,
+            triggerEvent: {
+                type: "PHASE_BEGIN",
+                phase: "UPKEEP",
+                activePlayerId: "p1",
+            } as StackItem["triggerEvent"],
+        };
+        state.stack.push(trig);
+        return trig;
+    }
+    function golemBoard(oppTapped: string[]) {
         const golem = makeInstance(soldeviGolem.id, {
             id: "golem",
             controllerId: "p1",
             ownerId: "p1",
             isTapped: true,
         });
-        const oppCreature = vanilla("oppc", 2, 2, {
-            id: "oppc",
-            controllerId: "p2",
-            ownerId: "p2",
-            isTapped: true,
-        });
+        const oppCreatures = oppTapped.map((id) =>
+            vanilla(id, 2, 2, {
+                id,
+                controllerId: "p2",
+                ownerId: "p2",
+                isTapped: true,
+            })
+        );
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [golem] }),
-                makePlayer("p2", { battlefield: [oppCreature] }),
+                makePlayer("p2", { battlefield: oppCreatures }),
             ],
             activePlayerId: "p1",
         });
-        resolveTrigger(state, golem, "soldevi-golem-upkeep", {
-            type: "PHASE_BEGIN",
-            phase: "UPKEEP",
-            activePlayerId: "p1",
-        } as StackItem["triggerEvent"]);
-        // Suspends on the may-pay; accept.
+        return { state, golem };
+    }
+
+    it("declares the CR 603.3d mandatory target: a tapped creature an opponent controls", () => {
+        expect(soldeviGolem.staticAbilities).toContain("does-not-untap");
+        expect(soldeviGolem.triggeredAbilities![0].targetRequirement).toEqual({
+            type: "Creature",
+            count: 1,
+            tappedFilter: "tapped",
+            controller: "opponent",
+        });
+    });
+
+    it("sole legal target auto-locks (no choice); accepting untaps it and Golem", () => {
+        const { state, golem } = golemBoard(["oppc"]);
+        const trig = pushGolemTrigger(state, golem);
+        // CR 603.3d — exactly one legal target: the engine auto-selects it and
+        // raises no PendingTarget.
+        expect(raiseTriggerTargetSelection(state)).toBe(false);
+        expect(trig.targets).toHaveLength(1);
+        expect(trig.targets![0]).toMatchObject({
+            type: "permanent",
+            id: "oppc",
+        });
+        expect(state.pendingTarget).toBeUndefined();
+        // Resolution: the "you may" gate; accept untaps BOTH (CR 701.20b).
+        resolveTopOfStack(state);
+        expect(state.pendingChoices![0].kind).toBe("may-pay");
         applyMayPaySubmit(state, {
             playerId: state.pendingChoices![0].playerId,
             accept: true,
-        });
-        // Then the target pick.
-        const head = state.pendingChoices![0];
-        expect(head.kind).toBe("choose-permanents");
-        applyPendingChoiceSubmit(state, {
-            playerId: head.playerId,
-            stackItemId: head.stackItemId,
-            step: head.step,
-            choiceId: head.choiceId,
-            cardInstanceIds: ["oppc"],
         });
         expect(
             state.players[1].battlefield.find((c) => c.id === "oppc")!.isTapped
@@ -1489,6 +1571,62 @@ describe("Soldevi Golem (does-not-untap + upkeep untap, CR 702 / 701.20b)", () =
         expect(
             state.players[0].battlefield.find((c) => c.id === "golem")!.isTapped
         ).toBe(false);
+    });
+
+    it("multiple legal targets raise a real choice at announcement (CR 603.3d)", () => {
+        const { state, golem } = golemBoard(["oppc", "oppc2"]);
+        pushGolemTrigger(state, golem);
+        expect(raiseTriggerTargetSelection(state)).toBe(true);
+        expect(state.pendingTarget!.kind).toBe("trigger");
+        state.pendingTarget!.selected = [{ type: "permanent", id: "oppc2" }];
+        finalizeTargetSelection(
+            state,
+            state.pendingTarget!,
+            state.pendingTarget!.playerId
+        );
+        resolveTopOfStack(state);
+        applyMayPaySubmit(state, {
+            playerId: state.pendingChoices![0].playerId,
+            accept: true,
+        });
+        // Only the chosen creature (and Golem) untap; the other stays tapped.
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "oppc2")!.isTapped
+        ).toBe(false);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "oppc")!.isTapped
+        ).toBe(true);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "golem")!.isTapped
+        ).toBe(false);
+    });
+
+    it("declining the 'you may' at resolution leaves both tapped", () => {
+        const { state, golem } = golemBoard(["oppc"]);
+        pushGolemTrigger(state, golem);
+        raiseTriggerTargetSelection(state); // auto-locks oppc
+        resolveTopOfStack(state);
+        applyMayPaySubmit(state, {
+            playerId: state.pendingChoices![0].playerId,
+            accept: false,
+        });
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "oppc")!.isTapped
+        ).toBe(true);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "golem")!.isTapped
+        ).toBe(true);
+    });
+
+    it("no opponent tapped creature → CR 603.3c drops the trigger from the stack", () => {
+        const { state, golem } = golemBoard([]);
+        pushGolemTrigger(state, golem);
+        // Mandatory target, none legal: the trigger never resolves.
+        expect(raiseTriggerTargetSelection(state)).toBe(false);
+        expect(state.stack).toHaveLength(0);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "golem")!.isTapped
+        ).toBe(true);
     });
 });
 

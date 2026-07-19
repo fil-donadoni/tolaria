@@ -7,11 +7,16 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 
 // Soul-Guide Lantern — {1} Artifact. Graveyard hate plus a sacrifice-cantrip
 // (CR 603.6a self-ETB trigger exiles one graveyard card; CR 605 two activated
-// sacrifice abilities — the mass-exile and the card-draw). The ETB chooses one
-// card from a single graveyard, opponents preferred (the "target card from a
-// graveyard" choice is modelled per-graveyard rather than across both bins at
-// once — faithful to the dominant graveyard-hate use; CR 115.4 free choice of
-// which bin is the only simplification).
+// sacrifice abilities — the mass-exile and the card-draw).
+//
+// CR 603.3d (issue #1193) — "exile target card from a graveyard" is a REAL
+// target chosen when the ETB trigger is put on the stack, NOT a resolution-time
+// choice. Declared as a `targetRequirement` on the TriggeredAbility (engine:
+// `raiseTriggerTargetSelection`, gre/rules.ts); the interpreter locks the
+// target across BOTH graveyards as the trigger goes on the stack, so the pick
+// is subject to hexproof / protection / becomes-target triggers instead of the
+// old resolve()+requestChoice per-graveyard workaround. `type: "card"` = any
+// card type; `zone: "graveyard"` + `controller: "any"` = either player's bin.
 export const soulGuideLantern: CardDefinition = {
     id: "7c850b94-75c9-4457-8b5e-1193352d6fcb",
     name: "Soul-Guide Lantern",
@@ -26,31 +31,17 @@ export const soulGuideLantern: CardDefinition = {
             oracleText:
                 "When this artifact enters, exile target card from a graveyard.",
             scope: "self",
+            // CR 603.3d — target chosen when the trigger goes on the stack.
+            targetRequirement: {
+                type: "card",
+                count: 1,
+                zone: "graveyard",
+                controller: "any",
+            },
             resolve: (ctx: SpellContext) => {
-                const opponents = ctx.allPlayerIds.filter(
-                    (p) => p !== ctx.controller
-                );
-                const ownerOrder = [...opponents, ctx.controller];
-                const owner = ownerOrder.find(
-                    (p) => ctx.getGraveyardCards(p).length > 0
-                );
-                if (owner === undefined) return; // no legal target → no effect
-                const candidateIds = ctx
-                    .getGraveyardCards(owner)
-                    .map((c) => c.id);
-                const picks = ctx.requestChoice({
-                    playerId: ctx.controller,
-                    choiceId: `soul-guide-lantern-etb-${ctx.sourceInstanceId}`,
-                    kind: "choose-graveyard-card",
-                    zone: "graveyard",
-                    zoneOwnerId: owner,
-                    candidateIds,
-                    count: 1,
-                    prompt: "Exile target card from a graveyard.",
-                });
-                if (picks === undefined) return; // suspended on the choice
-                for (const id of picks)
-                    ctx.moveCardById(owner, id, "graveyard", "exile");
+                const t = ctx.targets[0];
+                if (t?.type !== "graveyard-card" || !t.playerId) return; // CR 608.2b — target gone / no legal target
+                ctx.moveCardById(t.playerId, t.id, "graveyard", "exile");
             },
         }),
     ],

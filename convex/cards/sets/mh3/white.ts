@@ -3,6 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
+import { PERMANENT_TYPES } from "../../types";
 import type { CardDefinition, SpellContext } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 
@@ -108,18 +109,18 @@ const PHELIA_ID = "55707746-da6e-46e5-a5ca-7ac843fdc38e";
 // battlefield under its owner's control. If it entered under your control,
 // put a +1/+1 counter on Phelia."
 //
-// PROTOCOL (flicker idiom, precedent Flickerwisp eve/white.ts / Liberate
-// inv/white.ts): the DSL `moveZone` Op has no exile-zone branch
-// (`resolveObjectRef` is battlefield-scoped once a card is exiled — see
-// Flickerwisp's own audit note), so the attack trigger composes shipped
-// SpellContext primitives directly, reusing the SAME established idiom:
-// `requestChoice` substitutes for the "another target" pick (ADR 0002 —
-// TriggeredAbility has no dynamic `getTargetRequirement(source)` hook the
-// way ActivatedAbility does, so the candidate list is filtered to exclude
-// self/lands instead, mirroring Flickerwisp exactly), then `exile` +
+// TARGETING (CR 603.3d): "up to one other target nonland permanent" is a REAL
+// target chosen when the attack trigger is put on the stack — declared as a
+// `targetRequirement` on the TriggeredAbility (issue #1193 machinery,
+// `raiseTriggerTargetSelection` in gre/rules.ts), NOT a resolution-time
+// `requestChoice`. That makes it subject to hexproof / protection / ward and
+// fires "becomes the target of an ability" triggers, which the old
+// choice-as-target workaround silently skipped. The resolve() then only
+// composes the flicker: `exile` the announced target +
 // `scheduleDelayedTrigger("next-end-step")` + a card-level `delayedTriggers[]`
-// entry that calls `returnToBattlefield(owner, id, "exile")` — the identical
-// schedule/fire pair Flickerwisp and Liberate already ship.
+// entry that calls `returnToBattlefield(owner, id, "exile")` — the DSL
+// `moveZone` Op still has no exile-zone branch, so the return leg stays an
+// imperative resolve (the schedule/fire pair Flickerwisp and Liberate ship).
 //
 // NEW for this card (issue #1320 — the delayed-trigger controller/owner
 // branch): the delayed trigger's payload additionally captures the ATTACK
@@ -161,35 +162,27 @@ export const phelia: CardDefinition = {
             oracleText:
                 "Whenever Phelia attacks, exile up to one other target nonland permanent. At the beginning of the next end step, return that card to the battlefield under its owner's control. If it entered under your control, put a +1/+1 counter on Phelia.",
             event: "ATTACKERS_DECLARED",
+            // CR 603.3d — "up to one OTHER target nonland permanent": a real
+            // target chosen when the trigger is put on the stack (not a
+            // resolution-time choice), so it is subject to hexproof /
+            // protection / ward and fires "becomes the target" triggers.
+            // `type: PERMANENT_TYPES minus Land` = "nonland permanent" (the
+            // Boomerang idiom, ons/blue.ts); `excludeSource` drops Phelia
+            // herself ("other"); `count 0..1` = "up to one". Any controller's
+            // permanent is eligible (no controller restriction in the text).
+            targetRequirement: {
+                type: [...PERMANENT_TYPES],
+                count: { min: 0, max: 1 },
+                excludeTypes: "Land",
+                excludeSource: true,
+            },
             matches: (event, self) =>
                 event.type === "ATTACKERS_DECLARED" &&
                 event.attackerIds.includes(self.id),
             resolve: (ctx: SpellContext) => {
-                // CR 603.3d choice substitute (ADR 0002, Flickerwisp
-                // precedent) — "another" excludes $source; "nonland"
-                // excludes Land-typed permanents. Any controller's
-                // battlefield is eligible ("target ... permanent", no
-                // controller restriction in the oracle text).
-                const candidateIds = ctx.allPlayerIds.flatMap((p) =>
-                    ctx.getBattlefieldIds(p, {
-                        excludeTypes: "Land",
-                        excludeInstanceIds: [ctx.sourceInstanceId],
-                    })
-                );
-                if (candidateIds.length === 0) return; // CR 608.2b — no legal target
-                const picks = ctx.requestChoice({
-                    playerId: ctx.controller,
-                    choiceId: `phelia-attack-${ctx.sourceInstanceId}`,
-                    kind: "choose-permanents",
-                    zone: "battlefield",
-                    allControllers: true,
-                    candidateIds,
-                    count: { min: 0, max: 1 },
-                    prompt: "Phelia: exile up to one other target nonland permanent.",
-                });
-                if (picks === undefined) return; // suspended for the choice
-                const targetId = picks[0];
-                if (!targetId) return; // declined — "up to one"
+                const target = ctx.targets[0];
+                if (!target) return; // "up to one": none chosen / CR 608.2b none legal
+                const targetId = target.id;
                 const ownerId = ctx.getOwnerId(targetId);
                 if (ownerId === undefined) return; // CR 608.2b — target left
                 ctx.exile({ type: "permanent", id: targetId });

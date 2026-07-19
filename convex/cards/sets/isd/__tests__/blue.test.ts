@@ -1,23 +1,79 @@
 // ISD (Innistrad) — blue behavior tests (ADR 0043 colour split).
 //
-// Snapcaster Mage's ETB grants Flashback (CR 702.34) to a chosen instant/sorcery
-// in the controller's graveyard, with cost = its mana cost. The grant is an
-// instance-level flashback (`grantedFlashback`) that expires at cleanup. This
-// test drives the real trigger + choice + grant path (resolveTopOfStack suspends
-// on the choice, applyPendingChoiceSubmit resumes it) and re-checks the outcome
-// through projectPublicState — the granted card must arrive on the wire tagged
-// with the Flashback cast affordance.
+// Snapcaster Mage's ETB grants Flashback (CR 702.34) to a TARGET instant/sorcery
+// in the controller's graveyard, with cost = its mana cost. Per CR 603.3d the
+// target is chosen when the trigger is put on the stack (a real
+// `targetRequirement` + `raiseTriggerTargetSelection`), NOT a resolution-time
+// choice — so it is subject to hexproof / protection / graveyard-hate and fires
+// "becomes the target of an ability" triggers, which the old choice-as-target
+// workaround silently skipped. The grant is an instance-level flashback
+// (`grantedFlashback`) that expires at cleanup. This test drives the real
+// target machinery (`raiseTriggerTargetSelection` → `finalizeTargetSelection`
+// writes the announced target onto the on-stack trigger → `resolveTopOfStack`)
+// and re-checks the outcome through projectPublicState — the granted card must
+// arrive on the wire tagged with the Flashback cast affordance.
 import { describe, it, expect } from "vitest";
 import { snapcasterMage } from "../blue";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { resolveTopOfStack, getPlayer } from "../../../../gre/state";
-import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
+import { raiseTriggerTargetSelection } from "../../../../gre/rules";
+import { finalizeTargetSelection } from "../../../../game";
 import { getFlashbackCost } from "../../../../gre/flashback";
 import { projectPublicState } from "../../../../gameProjections";
 import { firebolt } from "../../ody/red";
 import { grizzlyBears } from "../../lea";
+import type {
+    GameState,
+    StackItem,
+    CardInstanceState,
+} from "../../../../gre/state";
 
-describe("Snapcaster Mage (ETB grants flashback, CR 702.34)", () => {
+/** Puts Snapcaster Mage's self-ETB trigger on the stack (CR 603.6a), mirroring
+ *  collectTriggers + buildTriggerItem. `targets: undefined` (the target slot is
+ *  UN-set) so `raiseTriggerTargetSelection` picks it up as a candidate — the
+ *  CR 603.3d target is chosen from the stack, not preset. */
+function snapEtbTriggerOnStack(
+    state: GameState,
+    source: CardInstanceState
+): StackItem {
+    const trig: StackItem = {
+        ...source,
+        id: "trig-snap-etb",
+        zone: "stack",
+        castById: source.controllerId,
+        triggeredAbilityId: "snapcaster-mage-etb-flashback",
+        triggerSourceId: source.id,
+        triggerEvent: {
+            type: "PERMANENT_ENTERED",
+            instanceId: source.id,
+            controllerId: source.controllerId,
+            types: source.types,
+        } as StackItem["triggerEvent"],
+        targets: undefined,
+    };
+    state.stack.push(trig);
+    return trig;
+}
+
+/** Drives the CR 603.3d target choice through the real machinery:
+ *  `raiseTriggerTargetSelection` raises the `kind:"trigger"` PendingTarget,
+ *  then `finalizeTargetSelection` writes the chosen graveyard-card target onto
+ *  the on-stack trigger. */
+function chooseSnapTarget(state: GameState, cardId: string, playerId: string) {
+    const raised = raiseTriggerTargetSelection(state);
+    expect(raised).toBe(true);
+    expect(state.pendingTarget!.kind).toBe("trigger");
+    state.pendingTarget!.selected = [
+        { type: "graveyard-card", id: cardId, playerId },
+    ];
+    finalizeTargetSelection(
+        state,
+        state.pendingTarget!,
+        state.pendingTarget!.playerId
+    );
+}
+
+describe("Snapcaster Mage (ETB grants flashback, CR 702.34 / CR 603.3d target)", () => {
     it("is a {1}{U} 2/1 Human Wizard with flash", () => {
         expect(snapcasterMage.manaCost).toEqual({ X: 1, U: 1 });
         expect(snapcasterMage.power).toBe(2);
@@ -26,17 +82,35 @@ describe("Snapcaster Mage (ETB grants flashback, CR 702.34)", () => {
         expect(snapcasterMage.staticAbilities).toContain("flash");
     });
 
-    it("grants the chosen instant/sorcery flashback = its mana cost, tagged on the wire", () => {
+    it("declares the CR 603.3d target requirement: instant/sorcery card in your graveyard", () => {
+        expect(
+            snapcasterMage.triggeredAbilities?.[0]?.targetRequirement
+        ).toEqual({
+            type: ["Instant", "Sorcery"],
+            count: 1,
+            zone: "graveyard",
+            controller: "you",
+        });
+    });
+
+    it("grants the CHOSEN instant/sorcery flashback = its mana cost, tagged on the wire", () => {
         const snap = makeInstance(snapcasterMage.id, {
             id: "snap",
             zone: "battlefield",
             controllerId: "p1",
             ownerId: "p1",
         });
-        // A sorcery (grantable) and a creature (not an instant/sorcery) in the
-        // controller's graveyard.
-        const fb = makeInstance(firebolt.id, {
+        // TWO sorceries (both grantable) and a creature (not an instant/sorcery)
+        // in the controller's graveyard — two legal targets force a REAL choice,
+        // so `raiseTriggerTargetSelection` returns true and raises a PendingTarget.
+        const fb1 = makeInstance(firebolt.id, {
             id: "gy-firebolt",
+            zone: "graveyard",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const fb2 = makeInstance(firebolt.id, {
+            id: "gy-firebolt-2",
             zone: "graveyard",
             controllerId: "p1",
             ownerId: "p1",
@@ -51,7 +125,7 @@ describe("Snapcaster Mage (ETB grants flashback, CR 702.34)", () => {
             players: [
                 makePlayer("p1", {
                     battlefield: [snap],
-                    graveyard: [fb, bear],
+                    graveyard: [fb1, fb2, bear],
                     // Enough to flash Firebolt back at its own mana cost ({R}).
                     manaPool: { W: 0, U: 0, B: 0, R: 3, G: 0, C: 0 },
                 }),
@@ -59,33 +133,16 @@ describe("Snapcaster Mage (ETB grants flashback, CR 702.34)", () => {
             ],
         });
 
-        // Fire the self-ETB trigger (mirrors collectTriggers + buildTriggerItem).
-        state.stack.push({
-            ...snap,
-            id: "trig-snap-etb",
-            zone: "stack",
-            castById: "p1",
-            triggeredAbilityId: "snapcaster-mage-etb-flashback",
-            triggerSourceId: "snap",
-            triggerEvent: {
-                type: "PERMANENT_ENTERED",
-                instanceId: "snap",
-                controllerId: "p1",
-                types: snap.types,
-            },
-            targets: [],
-        });
+        snapEtbTriggerOnStack(state, snap);
 
-        const first = resolveTopOfStack(state);
-        expect(first).toBeNull(); // suspended on the choose-graveyard-card choice
-        const head = state.pendingChoices![0];
-        applyPendingChoiceSubmit(state, {
-            playerId: head.playerId,
-            stackItemId: head.stackItemId,
-            step: head.step,
-            choiceId: head.choiceId,
-            cardInstanceIds: ["gy-firebolt"],
-        });
+        // CR 603.3d — the target is chosen from the stack, before resolution.
+        chooseSnapTarget(state, "gy-firebolt", "p1");
+        // The announced target is locked onto the on-stack trigger.
+        expect(state.stack[0].targets).toEqual([
+            { type: "graveyard-card", id: "gy-firebolt", playerId: "p1" },
+        ]);
+
+        expect(resolveTopOfStack(state)).not.toBeNull();
 
         // CR 702.34 — Firebolt now has flashback = its own mana cost ({R}).
         const grantedFirebolt = getPlayer(state, "p1").graveyard.find(
@@ -93,6 +150,12 @@ describe("Snapcaster Mage (ETB grants flashback, CR 702.34)", () => {
         )!;
         expect(grantedFirebolt.grantedFlashback).toEqual({ R: 1 });
         expect(getFlashbackCost(grantedFirebolt)).toEqual({ R: 1 });
+        // The un-chosen copy is untouched.
+        expect(
+            getPlayer(state, "p1").graveyard.find(
+                (c) => c.id === "gy-firebolt-2"
+            )!.grantedFlashback
+        ).toBeUndefined();
 
         // Frontend wiring — the granted card crosses the wire with the cast
         // affordance ("cast"), since its flashback ({R}) is now affordable.
@@ -103,7 +166,7 @@ describe("Snapcaster Mage (ETB grants flashback, CR 702.34)", () => {
         expect(projFirebolt.legalActions).toEqual(["cast"]);
     });
 
-    it("does nothing when the graveyard has no instant or sorcery", () => {
+    it("removes the trigger with no legal target (CR 603.3c — no instant/sorcery in graveyard)", () => {
         const snap = makeInstance(snapcasterMage.id, {
             id: "snap2",
             zone: "battlefield",
@@ -122,25 +185,12 @@ describe("Snapcaster Mage (ETB grants flashback, CR 702.34)", () => {
                 makePlayer("p2"),
             ],
         });
-        state.stack.push({
-            ...snap,
-            id: "trig-snap-etb-2",
-            zone: "stack",
-            castById: "p1",
-            triggeredAbilityId: "snapcaster-mage-etb-flashback",
-            triggerSourceId: "snap2",
-            triggerEvent: {
-                type: "PERMANENT_ENTERED",
-                instanceId: "snap2",
-                controllerId: "p1",
-                types: snap.types,
-            },
-            targets: [],
-        });
-        // Resolves fully with no choice (no legal card to grant).
-        const result = resolveTopOfStack(state);
-        expect(result).not.toBeNull();
-        expect(state.pendingChoices ?? []).toHaveLength(0);
+        snapEtbTriggerOnStack(state, snap);
+        // CR 603.3c — a mandatory (count 1) target with none legal: the engine
+        // removes the trigger from the stack; no PendingTarget is raised.
+        expect(raiseTriggerTargetSelection(state)).toBe(false);
+        expect(state.stack).toHaveLength(0);
+        expect(state.pendingTarget).toBeUndefined();
         expect(
             getPlayer(state, "p1").graveyard[0].grantedFlashback
         ).toBeUndefined();

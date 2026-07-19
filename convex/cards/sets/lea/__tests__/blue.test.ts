@@ -90,7 +90,12 @@ import {
     STATIC_EFFECT_CTX,
 } from "../../../../gre/layers";
 import { getBasicLandMana } from "../../../../gre/constants";
-import { getLegalTargets, getProtectedColors } from "../../../../gre/rules";
+import {
+    getLegalTargets,
+    getProtectedColors,
+    raiseTriggerTargetSelection,
+} from "../../../../gre/rules";
+import { finalizeTargetSelection } from "../../../../game";
 import { projectPublicState } from "../../../../gameProjections";
 import { substituteColorFilter } from "../../../../gre/textChanges";
 import { checkStateBasedActions } from "../../../../gre/sba";
@@ -3554,7 +3559,18 @@ describe("Vesuvan Doppelganger (copy w/ colour + ability exceptions, CR 707.9d)"
         ).toBe(true);
     });
 
-    it("upkeep re-copy switches to a new target, still blue, still retains the ability", () => {
+    it("declares the CR 603.3d target requirement on the retained upkeep re-copy: target creature", () => {
+        const recopy = vesuvanDoppelganger.triggeredAbilities?.find(
+            (a) => a.id === "vesuvan-doppelganger-recopy"
+        );
+        expect(recopy?.targetRequirement).toEqual({
+            type: "Creature",
+            count: 1,
+        });
+        expect(recopy?.retainedThroughCopy).toBe(true);
+    });
+
+    it("upkeep re-copy switches to a new target via CR 603.3d target machinery, still blue, still retains the ability", () => {
         const state = vesuvanCopyOf(SERRA, "serra");
         const bears = makeInstance(BEARS, {
             id: "bears",
@@ -3563,23 +3579,28 @@ describe("Vesuvan Doppelganger (copy w/ colour + ability exceptions, CR 707.9d)"
         });
         state.players[1].battlefield.push(bears);
 
+        // The retained upkeep trigger goes on the stack.
         state.stack.push(...collectTriggers(state, [UPKEEP_P1]));
         const trigItem = state.stack[state.stack.length - 1];
-        // may-pay yes
+
+        // CR 603.3d — the "target creature" is chosen when the trigger is put
+        // on the stack (a real choice among serra/bears/vd1 → returns true),
+        // then locked onto the on-stack trigger by finalizeTargetSelection.
+        expect(raiseTriggerTargetSelection(state)).toBe(true);
+        state.pendingTarget!.selected = [{ type: "permanent", id: "bears" }];
+        finalizeTargetSelection(
+            state,
+            state.pendingTarget!,
+            state.pendingTarget!.playerId
+        );
+
+        // Resolution: the "you may" is still a resolution-time may-pay.
         expect(resolveTopOfStack(state)).toBeNull();
-        let head = state.pendingChoices![0];
+        const head = state.pendingChoices![0];
         expect(head.kind).toBe("may-pay");
         trigItem.collectedChoices = {
+            ...(trigItem.collectedChoices ?? {}),
             [`${head.step}:${head.choiceId}`]: ["yes"],
-        };
-        state.pendingChoices = undefined;
-        // choose-permanents → Grizzly Bears
-        expect(resolveTopOfStack(state)).toBeNull();
-        head = state.pendingChoices![0];
-        expect(head.kind).toBe("choose-permanents");
-        trigItem.collectedChoices = {
-            ...trigItem.collectedChoices,
-            [`${head.step}:${head.choiceId}`]: ["bears"],
         };
         state.pendingChoices = undefined;
         resolveTopOfStack(state);

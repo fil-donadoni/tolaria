@@ -8979,11 +8979,20 @@ export function buildSpellContext(
         ): void {
             if (target.type !== "permanent") return;
             if (!findOnBattlefield(state, target.id)) return;
+            // The control-change SOURCE must be the source PERMANENT, not the
+            // resolving stack item. For a triggered ability the stack item's
+            // `id` is a fresh ephemeral id (`allocInstanceId`, gone once the
+            // trigger leaves the stack), so a `controller-controls-source`
+            // condition ("for as long as you control ~", CR 611.2b — Orcish
+            // Squatters) would revert the instant the trigger resolved. Use
+            // `triggerSourceId ?? item.id` (the same resolution the context's
+            // `sourceInstanceId` uses): the source permanent for a trigger, the
+            // stack item itself for a spell/activated ability.
             applyControlChange(
                 state,
                 target.id,
                 newControllerId,
-                item.id,
+                item.triggerSourceId ?? item.id,
                 condition
             );
         },
@@ -9005,7 +9014,7 @@ export function buildSpellContext(
                 state,
                 target.id,
                 newControllerId,
-                item.id,
+                item.triggerSourceId ?? item.id,
                 undefined,
                 {
                     duration: { phase: "end-of-turn" },

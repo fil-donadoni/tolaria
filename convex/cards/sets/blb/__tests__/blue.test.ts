@@ -6,7 +6,8 @@ import { azureBeastbinder } from "../blue";
 import { balduvianBears } from "../../ice/green";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { resolveTopOfStack } from "../../../../gre/state";
-import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
+import { raiseTriggerTargetSelection } from "../../../../gre/rules";
+import { finalizeTargetSelection } from "../../../../game";
 import {
     getEffectivePower,
     getEffectiveToughness,
@@ -36,20 +37,24 @@ function pushAttackTrigger(
         triggeredAbilityId: "azure-beastbinder-attack",
         triggerSourceId: beastbinder.id,
         triggerEvent: attackEvent(beastbinder.id),
-        targets: [],
     });
-    resolveTopOfStack(state);
 }
 
-function submitChoice(state: GameState, cardInstanceIds: string[]) {
-    const head = state.pendingChoices![0];
-    applyPendingChoiceSubmit(state, {
-        playerId: head.playerId,
-        stackItemId: head.stackItemId,
-        step: head.step,
-        choiceId: head.choiceId,
-        cardInstanceIds,
-    });
+/** Drives the CR 603.3d target choice through the real machinery:
+ *  `raiseTriggerTargetSelection` raises the `kind:"trigger"` PendingTarget
+ *  (count 0..1), then `finalizeTargetSelection` writes the chosen target (or
+ *  the empty "decline" set) onto the on-stack trigger. */
+function chooseTarget(state: GameState, targetId: string | null) {
+    const raised = raiseTriggerTargetSelection(state);
+    expect(raised).toBe(true);
+    state.pendingTarget!.selected = targetId
+        ? [{ type: "permanent", id: targetId }]
+        : [];
+    finalizeTargetSelection(
+        state,
+        state.pendingTarget!,
+        state.pendingTarget!.playerId
+    );
 }
 
 describe("Azure Beastbinder (CR 509.1b block restriction + 508.1 attack trigger)", () => {
@@ -58,6 +63,16 @@ describe("Azure Beastbinder (CR 509.1b block restriction + 508.1 attack trigger)
         expect(azureBeastbinder.power).toBe(1);
         expect(azureBeastbinder.toughness).toBe(3);
         expect(azureBeastbinder.staticAbilities).toEqual(["vigilance"]);
+    });
+
+    it("declares the CR 603.3d target requirement: up to one opponent-controlled artifact/creature/planeswalker", () => {
+        expect(
+            azureBeastbinder.triggeredAbilities?.[0]?.targetRequirement
+        ).toEqual({
+            type: ["Artifact", "Creature", "Planeswalker"],
+            count: { min: 0, max: 1 },
+            controller: "opponent",
+        });
     });
 
     it("can't be blocked by creatures with power 2 or greater (CR 509.1b)", () => {
@@ -137,7 +152,8 @@ describe("Azure Beastbinder (CR 509.1b block restriction + 508.1 attack trigger)
             },
         });
         pushAttackTrigger(state, beastbinder);
-        submitChoice(state, ["target"]);
+        chooseTarget(state, "target");
+        expect(resolveTopOfStack(state)).not.toBeNull();
         expect(target.staticAbilities).toEqual([]);
         expect(getEffectivePower(state, target)).toBe(2);
         expect(getEffectiveToughness(state, target)).toBe(2);
@@ -169,7 +185,8 @@ describe("Azure Beastbinder (CR 509.1b block restriction + 508.1 attack trigger)
             },
         });
         pushAttackTrigger(state, beastbinder);
-        submitChoice(state, []);
+        chooseTarget(state, null);
+        expect(resolveTopOfStack(state)).not.toBeNull();
         expect(target.staticAbilities).toEqual(["flying"]);
     });
 
@@ -199,7 +216,8 @@ describe("Azure Beastbinder (CR 509.1b block restriction + 508.1 attack trigger)
             },
         });
         pushAttackTrigger(state, beastbinder);
-        submitChoice(state, ["target"]);
+        chooseTarget(state, "target");
+        expect(resolveTopOfStack(state)).not.toBeNull();
         const projected = projectPublicState(state, 1, "p2");
         const slimTarget = projected.players[1].battlefield.find(
             (c) => c.id === "target"

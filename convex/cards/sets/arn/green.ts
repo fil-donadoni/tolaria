@@ -42,12 +42,23 @@ export const wyluliWolf: CardDefinition = {
 
 // Erhnam Djinn — "At the beginning of your upkeep, target non-Wall creature an
 // opponent controls gains forestwalk until your next upkeep." (CR 603.6a upkeep
-// trigger, CR 702.13 forestwalk evasion, CR 611.1b layer-6 keyword grant.) The
-// target is chosen imperatively in the resolve body (triggered abilities model
-// targeting via `requestChoice`, not a `targetRequirement`). The grant duration
-// `{ phase: "upkeep", player: "controller" }` is "until your next upkeep" — the
-// same DurationSpec Xenic Poltergeist uses — scoped to Erhnam's controller, so
-// the keyword falls off as that player's next upkeep begins.
+// trigger, CR 702.13 forestwalk evasion, CR 611.1b layer-6 keyword grant.)
+//
+// CR 603.3d — "target non-Wall creature an opponent controls" is a REAL target
+// chosen when the trigger is PUT ON THE STACK (issue #1193 machinery,
+// `raiseTriggerTargetSelection` in gre/rules.ts), NOT a resolution-time
+// `requestChoice`. That makes it subject to hexproof / protection / ward and
+// fires "becomes the target of an ability" triggers, which the old
+// choice-as-target workaround silently skipped. Declared as a
+// `targetRequirement` on the TriggeredAbility: `controller: "opponent"`
+// = "an opponent controls", `excludeSubtypes: "Wall"` = "non-Wall",
+// `count: 1` = a single mandatory target (auto-selected when exactly one is
+// legal per CR 603.3d; removed from the stack per CR 603.3c when none is
+// legal). The resolve body reads the announced `ctx.targets[0]` and grants
+// forestwalk. The grant duration `{ phase: "upkeep", player: "controller" }`
+// is "until your next upkeep" — the same DurationSpec Xenic Poltergeist uses —
+// scoped to Erhnam's controller, so the keyword falls off as that player's
+// next upkeep begins.
 export const erhnamDjinn: CardDefinition = {
     id: "42bc0c3f-0a52-4bdc-83da-6484bf3102f3",
     rarity: "rare",
@@ -60,55 +71,39 @@ export const erhnamDjinn: CardDefinition = {
     power: 4,
     toughness: 5,
     triggeredAbilities: [
-        phaseTrigger({
-            id: "erhnam-djinn-forestwalk",
-            oracleText:
-                "At the beginning of your upkeep, target non-Wall creature an opponent controls gains forestwalk until your next upkeep.",
-            phase: "UPKEEP",
-            scope: "your",
-            // NOT DSL-migratable (ADR 0045): the target is chosen from the
-            // OPPONENT's battlefield filtered to non-Wall creatures, then
-            // granted forestwalk. The `choice` Op's filter is inclusion-only
-            // (no subtype EXCLUSION for "non-Wall") and applies to the
-            // chooser's own battlefield picks, not an opponent-owned zone.
-            // Blocked on: choice candidate-filter expressiveness (opponent-zone
-            // pick + subtype exclusion); grantStaticAbility itself is covered
-            // by grantAbility (#843).
-            resolve: (ctx, _event, scopedPlayerId) => {
-                const opponentId = ctx.allPlayerIds.find(
-                    (p) => p !== scopedPlayerId
-                );
-                if (!opponentId) return;
-                // Non-Wall creatures the opponent controls are the legal
-                // targets (CR 603.3d). No legal target → the trigger does
-                // nothing (it still went on the stack, CR 603.3b).
-                const candidates = ctx
-                    .getBattlefieldIds(opponentId, { types: "Creature" })
-                    .filter(
-                        (id) =>
-                            !ctx.hasSubtype({ type: "permanent", id }, "Wall")
-                    );
-                if (candidates.length === 0) return;
-                const picks = ctx.requestChoice({
-                    playerId: scopedPlayerId,
-                    choiceId: `erhnam-djinn-${ctx.sourceInstanceId}`,
-                    kind: "choose-permanents",
-                    zone: "battlefield",
-                    zoneOwnerId: opponentId,
-                    candidateIds: candidates,
-                    count: 1,
-                    prompt: "Erhnam Djinn: choose a non-Wall creature an opponent controls.",
-                });
-                if (picks === undefined) return; // suspended
-                const targetId = picks[0];
-                if (!targetId) return;
-                ctx.grantStaticAbility(
-                    { type: "permanent", id: targetId },
-                    "forestwalk",
-                    { phase: "upkeep", player: "controller" }
-                );
+        {
+            ...phaseTrigger({
+                id: "erhnam-djinn-forestwalk",
+                oracleText:
+                    "At the beginning of your upkeep, target non-Wall creature an opponent controls gains forestwalk until your next upkeep.",
+                phase: "UPKEEP",
+                scope: "your",
+                resolve: (ctx) => {
+                    // CR 603.3d — the target was chosen when the trigger went on
+                    // the stack; read it off `ctx.targets[0]`, no
+                    // resolution-time choice. Absent/left the battlefield →
+                    // no-op (CR 608.2b).
+                    const target = ctx.targets[0];
+                    if (target?.type !== "permanent") return;
+                    ctx.grantStaticAbility(target, "forestwalk", {
+                        phase: "upkeep",
+                        player: "controller",
+                    });
+                },
+            }),
+            // CR 603.3d — "target non-Wall creature an opponent controls":
+            // a real target locked at stack placement (issue #1193), subject to
+            // hexproof / protection / ward. `controller: "opponent"` filters to
+            // creatures an opponent of the ability's controller controls;
+            // `excludeSubtypes: "Wall"` drops Walls; `count: 1` is a single
+            // mandatory target.
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                controller: "opponent",
+                excludeSubtypes: "Wall",
             },
-        }),
+        },
     ],
 };
 

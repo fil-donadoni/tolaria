@@ -23,7 +23,12 @@ import {
     orderOfLeitbur,
 } from "..";
 import { resolveTopOfStack } from "../../../../gre/state";
-import type { GameState } from "../../../../gre/state";
+import type {
+    CardInstanceState,
+    GameState,
+    StackItem,
+} from "../../../../gre/state";
+import { raiseTriggerTargetSelection } from "../../../../gre/rules";
 import { getEffectivePower, STATIC_EFFECT_CTX } from "../../../../gre/layers";
 import { projectPublicState } from "../../../../gameProjections";
 import {
@@ -409,6 +414,245 @@ describe("assigns no combat damage this turn (CR 510.1c)", () => {
 });
 
 // ===========================================================================
+// CR 603.3d — announcement-time targets on the Farrel unblocked-attack
+// triggers (issue #1193). Both cards used to pick their damage target at
+// RESOLUTION via `requestChoice`; they now declare a `targetRequirement` on
+// the triggered ability, so the target is chosen when the trigger is put on
+// the stack (`raiseTriggerTargetSelection` → `finalizeTargetSelection`) and
+// is subject to hexproof / protection / ward. NOTE: `count: 1` (mandatory)
+// drops the Oracle "you may"/"its controller may" decline option — the
+// conversion follows the #1193 tracer's mandatory-single target shape.
+// ===========================================================================
+
+/** Drives the CR 603.3d target choice through the real machinery, mirroring
+ *  MH3's `choosePheliaTarget`: raise the `kind:"trigger"` PendingTarget, write
+ *  the chosen target onto it, then finalize it onto the on-stack trigger. */
+function chooseTriggerTarget(state: GameState, targetId: string) {
+    const raised = raiseTriggerTargetSelection(state);
+    expect(raised).toBe(true);
+    state.pendingTarget!.selected = [{ type: "permanent", id: targetId }];
+    finalizeTargetSelection(
+        state,
+        state.pendingTarget!,
+        state.pendingTarget!.playerId
+    );
+}
+
+/** Puts Farrel's Zealot's unblocked-attack trigger on the stack. The trigger's
+ *  source is the Zealot itself (`triggerSourceId`), the attacker in the
+ *  ATTACKER_UNBLOCKED event. `targets: undefined` leaves the slot open for
+ *  `raiseTriggerTargetSelection`. */
+function zealotTriggerOnStack(
+    state: GameState,
+    zealot: CardInstanceState
+): StackItem {
+    const trig: StackItem = {
+        ...zealot,
+        id: "zealot-trig",
+        zone: "stack",
+        castById: zealot.controllerId,
+        triggeredAbilityId: "farrels-zealot-unblocked",
+        triggerSourceId: zealot.id,
+        triggerEvent: {
+            type: "ATTACKER_UNBLOCKED",
+            attackerId: zealot.id,
+            attackerControllerId: zealot.controllerId,
+            attackerTypes: ["Creature"],
+            attackerSubtypes: ["Human"],
+        } as StackItem["triggerEvent"],
+        targets: undefined,
+    };
+    state.stack.push(trig);
+    return trig;
+}
+
+/** Puts Farrel's Mantle's unblocked-attack trigger on the stack. The trigger's
+ *  source is the AURA permanent (`triggerSourceId`); the attacker (enchanted
+ *  creature) rides on the ATTACKER_UNBLOCKED event, which the resolve reads for
+ *  power + the "assigns no combat damage" mark. */
+function mantleTriggerOnStack(
+    state: GameState,
+    aura: CardInstanceState,
+    attackerId: string
+): StackItem {
+    const trig: StackItem = {
+        ...aura,
+        id: "mantle-trig",
+        zone: "stack",
+        castById: aura.controllerId,
+        triggeredAbilityId: "farrels-mantle-unblocked",
+        triggerSourceId: aura.id,
+        triggerEvent: {
+            type: "ATTACKER_UNBLOCKED",
+            attackerId,
+            attackerControllerId: aura.controllerId,
+            attackerTypes: ["Creature"],
+            attackerSubtypes: [],
+        } as StackItem["triggerEvent"],
+        targets: undefined,
+    };
+    state.stack.push(trig);
+    return trig;
+}
+
+describe("Farrel's Zealot — CR 603.3d targeted unblocked-attack trigger", () => {
+    it("declares the announcement-time target requirement (target creature)", () => {
+        expect(farrelsZealot.power).toBe(2);
+        expect(farrelsZealot.toughness).toBe(2);
+        expect(farrelsZealot.manaCost).toEqual({ X: 1, W: 2 });
+        expect(farrelsZealot.triggeredAbilities?.[0].event).toBe(
+            "ATTACKER_UNBLOCKED"
+        );
+        expect(farrelsZealot.triggeredAbilities?.[0].targetRequirement).toEqual(
+            { type: "Creature", count: 1 }
+        );
+    });
+
+    it("mandatory single legal target auto-locks without raising a choice", () => {
+        // Zealot attacking, opponent has no creatures: the only legal "target
+        // creature" is the Zealot itself (plain "target creature", no "another"
+        // exclusion). A count-1 requirement with exactly one legal target locks
+        // it automatically — no PendingTarget is raised.
+        const zealot = makeInstance(farrelsZealot.id, {
+            id: "zealot",
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [zealot] }),
+                makePlayer("p2"),
+            ],
+        });
+        const trig = zealotTriggerOnStack(state, zealot);
+        expect(raiseTriggerTargetSelection(state)).toBe(false);
+        expect(trig.targets).toEqual([{ type: "permanent", id: "zealot" }]);
+        expect(state.pendingTarget).toBeUndefined();
+    });
+
+    it("2+ legal targets: picks one, deals 3 damage, marks no combat damage", () => {
+        const zealot = makeInstance(farrelsZealot.id, {
+            id: "zealot",
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+        });
+        // A high-toughness survivor so the 3 damage is observable as
+        // `damageMarked` (a 2/2 would be destroyed by SBA on resolve).
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p2",
+            ownerId: "p2",
+            toughness: 10,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [zealot] }),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        zealotTriggerOnStack(state, zealot);
+        // Two legal creatures (Zealot + Bear) — the engine raises the choice.
+        chooseTriggerTarget(state, "bear");
+        expect(resolveTopOfStack(state)).not.toBeNull();
+
+        const target = state.players[1].battlefield.find(
+            (c) => c.id === "bear"
+        );
+        expect(target?.damageMarked ?? 0).toBe(3);
+        expect(state.assignsNoCombatDamageThisTurn).toContain("zealot");
+    });
+});
+
+describe("Farrel's Mantle — CR 603.3d targeted unblocked-attack trigger", () => {
+    it("is a {2}{W} Aura carrying an announcement-time target on its trigger", () => {
+        expect(farrelsMantle.types).toEqual(["Enchantment"]);
+        expect(farrelsMantle.subtypes).toEqual(["Aura"]);
+        expect(farrelsMantle.manaCost).toEqual({ X: 2, W: 1 });
+        // The card-level `targetRequirement` is the Aura's "Enchant creature"
+        // cast target — distinct from the trigger's damage target below.
+        expect(farrelsMantle.targetRequirement).toEqual({
+            type: "Creature",
+            count: 1,
+        });
+        expect(farrelsMantle.triggeredAbilities?.[0].event).toBe(
+            "ATTACKER_UNBLOCKED"
+        );
+        expect(farrelsMantle.triggeredAbilities?.[0].targetRequirement).toEqual(
+            { type: "Creature", count: 1 }
+        );
+    });
+
+    it("deals power+2 to the chosen creature and marks the attacker (CR 510.1c)", () => {
+        // Enchanted 2/2 attacker; the Aura hangs on it; a second creature is
+        // the target. Damage = attacker power (2) + 2 = 4.
+        const attacker = makeInstance(grizzlyBears.id, {
+            id: "attacker",
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+        });
+        const mantle = makeInstance(farrelsMantle.id, {
+            id: "mantle",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "attacker",
+        });
+        // High-toughness survivor so power+2 = 4 is observable as damageMarked.
+        const victim = makeInstance(grizzlyBears.id, {
+            id: "victim",
+            controllerId: "p2",
+            ownerId: "p2",
+            toughness: 10,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [attacker, mantle] }),
+                makePlayer("p2", { battlefield: [victim] }),
+            ],
+        });
+        mantleTriggerOnStack(state, mantle, "attacker");
+        // Legal creatures: attacker + victim → the engine raises the choice.
+        chooseTriggerTarget(state, "victim");
+        expect(resolveTopOfStack(state)).not.toBeNull();
+
+        const t = state.players[1].battlefield.find((c) => c.id === "victim");
+        expect(t?.damageMarked ?? 0).toBe(4);
+        expect(state.assignsNoCombatDamageThisTurn).toContain("attacker");
+    });
+
+    it("DIVERGENCE (tracked-by #1193): the enchanted creature is still a legal target — excludeSource excludes the Aura, not the attacker", () => {
+        // "another target creature" should exclude the ENCHANTED creature, but
+        // the trigger's source is the Aura (not a creature). No requirement
+        // facet excludes the attacker, so the engine offers it as a legal
+        // target: with only the attacker on board, a mandatory single target
+        // auto-locks onto the enchanted creature itself (the divergence).
+        const attacker = makeInstance(grizzlyBears.id, {
+            id: "attacker",
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+        });
+        const mantle = makeInstance(farrelsMantle.id, {
+            id: "mantle",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "attacker",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [attacker, mantle] }),
+                makePlayer("p2"),
+            ],
+        });
+        const trig = mantleTriggerOnStack(state, mantle, "attacker");
+        expect(raiseTriggerTargetSelection(state)).toBe(false);
+        expect(trig.targets).toEqual([{ type: "permanent", id: "attacker" }]);
+    });
+});
+
+// ===========================================================================
 // Reuse-only white cards — spell / ability outcomes (CR-cited per card).
 // ===========================================================================
 
@@ -523,24 +767,6 @@ describe("Combat Medic — prevention shield (CR 615)", () => {
 // ===========================================================================
 
 describe("FEM white reuse cards — canonical shapes", () => {
-    it("Farrel's Mantle is a {2}{W} Aura with an unblocked-attack trigger", () => {
-        expect(farrelsMantle.types).toEqual(["Enchantment"]);
-        expect(farrelsMantle.subtypes).toEqual(["Aura"]);
-        expect(farrelsMantle.manaCost).toEqual({ X: 2, W: 1 });
-        expect(farrelsMantle.triggeredAbilities?.[0].event).toBe(
-            "ATTACKER_UNBLOCKED"
-        );
-    });
-
-    it("Farrel's Zealot is a {1}{W}{W} 2/2 with an unblocked-attack trigger", () => {
-        expect(farrelsZealot.power).toBe(2);
-        expect(farrelsZealot.toughness).toBe(2);
-        expect(farrelsZealot.manaCost).toEqual({ X: 1, W: 2 });
-        expect(farrelsZealot.triggeredAbilities?.[0].event).toBe(
-            "ATTACKER_UNBLOCKED"
-        );
-    });
-
     it("Heroism is a {2}{W} Enchantment with a sacrifice-a-white-creature cost", () => {
         expect(heroism.types).toEqual(["Enchantment"]);
         expect(heroism.manaCost).toEqual({ X: 2, W: 1 });

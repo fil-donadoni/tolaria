@@ -281,10 +281,16 @@ export const sorceressQueen: CardDefinition = {
 // Oubliette — modern Oracle uses phasing, not exile (ADR 0004). The ETB
 // trigger phases a chosen creature (with its Auras/Equipment) out of existence
 // until Oubliette leaves; `removePermanentTo`'s source-leaves hook phases it
-// back in tapped. Target choice is a `choose-permanents` resolution pick over
-// every battlefield (CR 702.26 deviation: modeled as a choice, not a true
-// target, so protection/hexproof aren't re-checked — acceptable for the
-// current pool; no new TargetRequirement.type introduced).
+// back in tapped.
+//
+// TARGETING (CR 603.3d, issue #1193): "target creature" is a REAL target
+// chosen when the ETB trigger is put on the stack — declared as a
+// `targetRequirement` on the TriggeredAbility (`raiseTriggerTargetSelection`
+// in gre/rules.ts), NOT a resolution-time `requestChoice`. That makes it
+// subject to hexproof / protection / ward and fires "becomes the target of an
+// ability" triggers, which the old choice-as-target workaround silently
+// skipped. The resolve() reads the announced target via `ctx.targets[0]` and
+// keeps the phase-out (with Auras/Equipment) + source-leaves return legs.
 export const oubliette: CardDefinition = {
     id: "30d1450f-2909-410e-9920-731278fa74de",
     rarity: "common",
@@ -299,21 +305,15 @@ export const oubliette: CardDefinition = {
             oracleText:
                 "When this enchantment enters, target creature phases out until this enchantment leaves the battlefield. Tap that creature as it phases in this way.",
             scope: "self",
+            // CR 603.3d — "target creature" chosen when the trigger goes on the
+            // stack (subject to hexproof / protection / ward), not a
+            // resolution-time choice. The engine locks the target via
+            // `raiseTriggerTargetSelection`; resolve reads `ctx.targets[0]`.
+            targetRequirement: { type: "Creature", count: 1 },
             resolve: (ctx) => {
-                const picks = ctx.requestChoice({
-                    playerId: ctx.controller,
-                    choiceId: `oubliette-${ctx.sourceInstanceId}`,
-                    kind: "choose-permanents",
-                    zone: "battlefield",
-                    allControllers: true,
-                    filter: { types: "Creature" },
-                    count: 1,
-                    prompt: "Oubliette: choose a creature to phase out.",
-                });
-                if (picks === undefined) return; // suspended for the choice
-                const creatureId = picks[0];
-                if (!creatureId) return;
-                ctx.phaseOut(creatureId, {
+                const target = ctx.targets[0];
+                if (target?.type !== "permanent") return; // CR 608.2b — target left
+                ctx.phaseOut(target.id, {
                     returnOn: {
                         kind: "source-leaves",
                         sourceId: ctx.sourceInstanceId,

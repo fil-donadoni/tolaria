@@ -1,22 +1,32 @@
 // Per-card tests for mh2/green.ts.
 //
-// Endurance's ETB uses the `choose-player` requestChoice kind (CR 115.1a — a
-// trigger-time "up to one target player") plus the `putGraveyardOnBottomOfLibrary`
-// primitive. Both are new engine surface introduced with this card (#1207), so
-// per `.claude/rules/gre-development.md` it earns a hand-written test at the GRE
-// resolution path, the real submit path, and the wire projection.
+// Endurance's ETB is a CR 603.3d targeted trigger: "up to one target player"
+// is a real target chosen when the ability is put on the stack, declared as a
+// `targetRequirement: { type: "player", count: { min: 0, max: 1 } }` and
+// driven through `raiseTriggerTargetSelection` + `finalizeTargetSelection`
+// (issue #1193), NOT a resolution-time `requestChoice`. The effect leg still
+// uses the `putGraveyardOnBottomOfLibrary` primitive (#1207), so this card
+// earns a hand-written test at the GRE target path, the real finalize path,
+// and the wire projection.
 import { describe, it, expect } from "vitest";
 import { endurance } from "../green";
 import { swamp, forest, grizzlyBears } from "../../lea";
-import { resolveTopOfStack, type GameState } from "../../../../gre/state";
+import {
+    resolveTopOfStack,
+    type GameState,
+    type PendingTarget,
+} from "../../../../gre/state";
 import { collectTriggers } from "../../../../gre/triggers";
-import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
+import { raiseTriggerTargetSelection } from "../../../../gre/rules";
+import { finalizeTargetSelection } from "../../../../game";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { projectPublicState } from "../../../../gameProjections";
 
-// Put Endurance on p1's battlefield, fire its ETB, and resolve the trigger so a
-// `choose-player` choice is owed to p1. `p2`'s graveyard holds `gyCount` cards
-// and library holds `libCount` cards; returns the state + the owed choice.
+// Put Endurance on p1's battlefield and fire its ETB so the trigger sits on the
+// stack with an un-set target slot (`triggerSourceId` pinned by
+// `collectTriggers`). `p2`'s graveyard holds `gyCount` cards and library holds
+// `libCount` cards. Nothing is resolved yet — the CR 603.3d target is chosen
+// via `chooseEndurancePlayer` before `resolveTopOfStack`.
 function setupEndurance(opts: { gyCount: number; libCount: number }): {
     state: GameState;
 } {
@@ -60,11 +70,27 @@ function setupEndurance(opts: { gyCount: number; libCount: number }): {
     const etb = triggers.find((t) => t.triggeredAbilityId === "endurance-etb");
     expect(etb).toBeDefined();
     state.stack.push(etb!);
-    expect(resolveTopOfStack(state)).toBeNull();
     return { state };
 }
 
-describe("Endurance (CR 115.1a trigger-time player target; #1207)", () => {
+/** Drives the CR 603.3d target choice through the real machinery:
+ *  `raiseTriggerTargetSelection` raises the `kind:"trigger"` PendingTarget
+ *  (count 0..1), then `finalizeTargetSelection` writes the chosen player
+ *  target (or the empty "decline" set) onto the on-stack trigger. Returns the
+ *  PendingTarget as raised so callers can assert on it. */
+function chooseEndurancePlayer(
+    state: GameState,
+    playerId: string | null
+): PendingTarget {
+    const raised = raiseTriggerTargetSelection(state);
+    expect(raised).toBe(true);
+    const pt = state.pendingTarget!;
+    pt.selected = playerId ? [{ type: "player", id: playerId }] : [];
+    finalizeTargetSelection(state, pt, pt.playerId);
+    return pt;
+}
+
+describe("Endurance (CR 603.3d trigger-time player target; #1193, #1207)", () => {
     it("pins the definition: flash + reach, evoke a green card, 3/4", () => {
         expect(endurance.power).toBe(3);
         expect(endurance.toughness).toBe(4);
@@ -75,28 +101,29 @@ describe("Endurance (CR 115.1a trigger-time player target; #1207)", () => {
         });
     });
 
-    it("owes a `choose-player` choice to the controller, every player a candidate", () => {
+    it("declares the CR 603.3d target requirement: up to one target player", () => {
+        expect(endurance.triggeredAbilities?.[0]?.targetRequirement).toEqual({
+            type: "player",
+            count: { min: 0, max: 1 },
+        });
+    });
+
+    it("raises a trigger PendingTarget owed to the controller, every player eligible", () => {
         const { state } = setupEndurance({ gyCount: 3, libCount: 2 });
-        const head = state.pendingChoices?.[0];
-        expect(head).toBeDefined();
-        expect(head!.kind).toBe("choose-player");
-        expect(head!.playerId).toBe("p1");
-        expect(head!.candidatePlayerIds).toEqual(["p1", "p2"]);
+        const raised = raiseTriggerTargetSelection(state);
+        expect(raised).toBe(true);
+        const pt = state.pendingTarget!;
+        expect(pt.kind).toBe("trigger");
+        expect(pt.playerId).toBe("p1");
         // "Up to one" — a zero pick is legal.
-        expect(head!.count).toEqual({ min: 0, max: 1 });
+        expect(pt.count).toEqual({ min: 0, max: 1 });
     });
 
     it("chosen player's graveyard goes to the BOTTOM of their library; top order preserved", () => {
         const { state } = setupEndurance({ gyCount: 3, libCount: 2 });
-        const head = state.pendingChoices![0];
         const gyIds = state.players[1].graveyard.map((c) => c.id);
-        applyPendingChoiceSubmit(state, {
-            playerId: "p1",
-            stackItemId: head.stackItemId,
-            step: head.step,
-            choiceId: head.choiceId,
-            cardInstanceIds: ["p2"],
-        });
+        chooseEndurancePlayer(state, "p2");
+        expect(resolveTopOfStack(state)).not.toBeNull();
         const p2 = state.players[1];
         expect(p2.graveyard).toEqual([]);
         expect(p2.library).toHaveLength(5);
@@ -110,22 +137,16 @@ describe("Endurance (CR 115.1a trigger-time player target; #1207)", () => {
         expect(new Set(p2.library.slice(2).map((c) => c.id))).toEqual(
             new Set(gyIds)
         );
-        expect(state.pendingChoices ?? []).toEqual([]);
+        expect(state.pendingTarget).toBeUndefined();
     });
 
-    it("choosing no player (empty submission) is a no-op", () => {
+    it("declining the target (empty selection) is a no-op", () => {
         const { state } = setupEndurance({ gyCount: 3, libCount: 2 });
-        const head = state.pendingChoices![0];
-        applyPendingChoiceSubmit(state, {
-            playerId: "p1",
-            stackItemId: head.stackItemId,
-            step: head.step,
-            choiceId: head.choiceId,
-            cardInstanceIds: [],
-        });
+        chooseEndurancePlayer(state, null);
+        expect(resolveTopOfStack(state)).not.toBeNull();
         expect(state.players[1].graveyard).toHaveLength(3);
         expect(state.players[1].library).toHaveLength(2);
-        expect(state.pendingChoices ?? []).toEqual([]);
+        expect(state.pendingTarget).toBeUndefined();
     });
 
     it("the controller may target their OWN graveyard", () => {
@@ -162,43 +183,16 @@ describe("Endurance (CR 115.1a trigger-time player target; #1207)", () => {
             (t) => t.triggeredAbilityId === "endurance-etb"
         )!;
         state.stack.push(etb);
+        chooseEndurancePlayer(state, "p1");
         resolveTopOfStack(state);
-        const head = state.pendingChoices![0];
-        applyPendingChoiceSubmit(state, {
-            playerId: "p1",
-            stackItemId: head.stackItemId,
-            step: head.step,
-            choiceId: head.choiceId,
-            cardInstanceIds: ["p1"],
-        });
         expect(state.players[0].graveyard).toEqual([]);
         expect(state.players[0].library.map((c) => c.id)).toContain("p1-gy-0");
     });
 
-    it("rejects an illegal player id", () => {
-        const { state } = setupEndurance({ gyCount: 1, libCount: 1 });
-        const head = state.pendingChoices![0];
-        expect(() =>
-            applyPendingChoiceSubmit(state, {
-                playerId: "p1",
-                stackItemId: head.stackItemId,
-                step: head.step,
-                choiceId: head.choiceId,
-                cardInstanceIds: ["not-a-player"],
-            })
-        ).toThrow(/legal player/);
-    });
-
     it("wire format — the bottomed graveyard survives the public projection", () => {
         const { state } = setupEndurance({ gyCount: 3, libCount: 2 });
-        const head = state.pendingChoices![0];
-        applyPendingChoiceSubmit(state, {
-            playerId: "p1",
-            stackItemId: head.stackItemId,
-            step: head.step,
-            choiceId: head.choiceId,
-            cardInstanceIds: ["p2"],
-        });
+        chooseEndurancePlayer(state, "p2");
+        resolveTopOfStack(state);
         // Project for p1 viewing (p2 is the opponent). The opponent's library is
         // slimmed to a count and the graveyard is public — both must reflect the
         // move.

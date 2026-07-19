@@ -9,7 +9,8 @@ import {
     type CardInstanceState,
     type StackItem,
 } from "../../../../gre/state";
-import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
+import { raiseTriggerTargetSelection } from "../../../../gre/rules";
+import { finalizeTargetSelection } from "../../../../game";
 import { ornithopter } from "../../atq";
 
 function resolveActivated(
@@ -28,17 +29,67 @@ function resolveActivated(
     resolveTopOfStack(state);
 }
 
+/** Puts Loran's ETB trigger on the stack with an UN-set target slot
+ *  (`targets: undefined`), mirroring `buildTriggerItem` for a targeted
+ *  trigger — `raiseTriggerTargetSelection` only picks up a trigger whose
+ *  `targets` are unset, and reads `triggerSourceId` to resolve source
+ *  characteristics. */
+function loranEtbTriggerOnStack(
+    state: GameState,
+    source: CardInstanceState
+): StackItem {
+    const trig: StackItem = {
+        ...source,
+        id: "trig-loran-etb",
+        zone: "stack",
+        castById: source.controllerId,
+        triggeredAbilityId: "loran-etb-destroy",
+        triggerSourceId: source.id,
+        triggerEvent: {
+            type: "PERMANENT_ENTERED",
+            instanceId: source.id,
+            controllerId: source.controllerId,
+            types: source.types,
+        } as StackItem["triggerEvent"],
+        targets: undefined,
+    };
+    state.stack.push(trig);
+    return trig;
+}
+
+/** Drives the CR 603.3d target choice through the real machinery:
+ *  `raiseTriggerTargetSelection` raises the `kind:"trigger"` PendingTarget
+ *  (count 0..1), then `finalizeTargetSelection` writes the chosen target
+ *  (or the empty "decline" set) onto the on-stack trigger. */
+function chooseLoranTarget(state: GameState, targetId: string | null) {
+    const raised = raiseTriggerTargetSelection(state);
+    expect(raised).toBe(true);
+    state.pendingTarget!.selected = targetId
+        ? [{ type: "permanent", id: targetId }]
+        : [];
+    finalizeTargetSelection(
+        state,
+        state.pendingTarget!,
+        state.pendingTarget!.playerId
+    );
+}
+
 describe("Loran of the Third Path (CR 603.6a ETB, CR 605 tap-draw)", () => {
     it("is a 2/1 Legendary with vigilance, an ETB trigger, and an opponent-targeted draw", () => {
         expect(loranOfTheThirdPath.power).toBe(2);
         expect(loranOfTheThirdPath.toughness).toBe(1);
         expect(loranOfTheThirdPath.supertypes).toContain("Legendary");
         expect(loranOfTheThirdPath.staticAbilities).toContain("vigilance");
-        expect(
-            loranOfTheThirdPath.triggeredAbilities!.some(
-                (t) => t.id === "loran-etb-destroy"
-            )
-        ).toBe(true);
+        const etb = loranOfTheThirdPath.triggeredAbilities!.find(
+            (t) => t.id === "loran-etb-destroy"
+        )!;
+        expect(etb).toBeDefined();
+        // CR 603.3d — the "up to one target artifact or enchantment" is a real
+        // announcement-time target requirement, not a resolution-time choice.
+        expect(etb.targetRequirement).toEqual({
+            type: ["Artifact", "Enchantment"],
+            count: { min: 0, max: 1 },
+        });
         const draw = loranOfTheThirdPath.activatedAbilities!.find(
             (a) => a.id === "loran-draw"
         )!;
@@ -81,7 +132,7 @@ describe("Loran of the Third Path (CR 603.6a ETB, CR 605 tap-draw)", () => {
         expect(state.players[1].hand.map((c) => c.id)).toEqual(["p2top"]);
     });
 
-    it("the ETB trigger destroys a chosen artifact (CR 603.6a, up to one target)", () => {
+    it("the ETB trigger destroys the chosen artifact (CR 603.3d target chosen at stack placement)", () => {
         const loran = makeInstance(loranOfTheThirdPath.id, {
             id: "loran",
             controllerId: "p1",
@@ -100,37 +151,41 @@ describe("Loran of the Third Path (CR 603.6a ETB, CR 605 tap-draw)", () => {
                 makePlayer("p2", { battlefield: [factory] }),
             ],
         });
-        // Fire the self ETB trigger (mirrors collectTriggers + buildTriggerItem).
-        state.stack.push({
-            ...loran,
-            id: "trig-loran-etb",
-            zone: "stack",
-            castById: "p1",
-            triggeredAbilityId: "loran-etb-destroy",
-            triggerSourceId: "loran",
-            triggerEvent: {
-                type: "PERMANENT_ENTERED",
-                instanceId: "loran",
-                controllerId: "p1",
-                types: loran.types,
-            },
-            targets: [],
-        });
-        const first = resolveTopOfStack(state);
-        expect(first).toBeNull(); // suspended on the choose-permanents choice
-        const head = state.pendingChoices![0];
-        applyPendingChoiceSubmit(state, {
-            playerId: head.playerId,
-            stackItemId: head.stackItemId,
-            step: head.step,
-            choiceId: head.choiceId,
-            cardInstanceIds: ["factory"],
-        });
+        loranEtbTriggerOnStack(state, loran);
+        chooseLoranTarget(state, "factory");
+        expect(resolveTopOfStack(state)).not.toBeNull();
         expect(
             state.players[1].battlefield.some((c) => c.id === "factory")
         ).toBe(false);
         expect(state.players[1].graveyard.some((c) => c.id === "factory")).toBe(
             true
         );
+    });
+
+    it("the ETB trigger may decline (up to one) — nothing destroyed", () => {
+        const loran = makeInstance(loranOfTheThirdPath.id, {
+            id: "loran",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        const factory = makeInstance(ornithopter.id, {
+            id: "factory",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [loran] }),
+                makePlayer("p2", { battlefield: [factory] }),
+            ],
+        });
+        loranEtbTriggerOnStack(state, loran);
+        chooseLoranTarget(state, null);
+        expect(resolveTopOfStack(state)).not.toBeNull();
+        expect(
+            state.players[1].battlefield.some((c) => c.id === "factory")
+        ).toBe(true);
     });
 });

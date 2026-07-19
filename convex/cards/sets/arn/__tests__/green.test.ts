@@ -29,6 +29,8 @@ import {
     pushSpell,
 } from "../../../__tests__/setup";
 import { projectPublicState } from "../../../../gameProjections";
+import { raiseTriggerTargetSelection } from "../../../../gre/rules";
+import { finalizeTargetSelection } from "../../../../game";
 import { validateBlockerEligibility } from "../../../../gre/combat";
 import {
     getEffectivePower,
@@ -161,18 +163,64 @@ describe("Erhnam Djinn (upkeep: target non-Wall creature gains forestwalk)", () 
         return { state, erhnam, bear, wall, blocker };
     }
 
-    it("offers only non-Wall opponent creatures, then grants forestwalk until your next upkeep", () => {
-        const { state, erhnam } = setup();
-        resolveTrigger(
-            state,
-            erhnam,
-            "erhnam-djinn-forestwalk",
-            upkeepEvent("p1")
-        );
-        // CR 603.3d — the Wall is excluded from the candidate targets.
-        expect(state.pendingChoices?.[0]?.candidateIds).toEqual(["bear"]);
+    /** Puts Erhnam's upkeep trigger on the stack with its target slot UNSET
+     *  (targets: undefined), the shape `raiseTriggerTargetSelection` scans for
+     *  (CR 603.3d, issue #1193). Mirrors Phelia's `pheliaAttackTriggerOnStack`
+     *  reference helper (mh3/white.test.ts). */
+    function erhnamTriggerOnStack(
+        state: GameState,
+        source: CardInstanceState
+    ): StackItem {
+        const trig: StackItem = {
+            ...source,
+            id: "erhnam-trig",
+            zone: "stack",
+            castById: source.controllerId,
+            triggeredAbilityId: "erhnam-djinn-forestwalk",
+            triggerSourceId: source.id,
+            triggerEvent: upkeepEvent(source.controllerId),
+            targets: undefined,
+        };
+        state.stack.push(trig);
+        return trig;
+    }
 
-        answerChoice(state, ["bear"]);
+    /** Drives the trigger to resolution through the real target machinery:
+     *  `raiseTriggerTargetSelection` either auto-selects the sole legal target
+     *  (returns false) or raises a `kind:"trigger"` PendingTarget the caller
+     *  finalizes with `targetId`. Then `resolveTopOfStack` runs the grant. */
+    function fireErhnam(
+        state: GameState,
+        source: CardInstanceState,
+        targetId?: string
+    ): StackItem {
+        const trig = erhnamTriggerOnStack(state, source);
+        const raised = raiseTriggerTargetSelection(state);
+        if (raised) {
+            state.pendingTarget!.selected = [
+                { type: "permanent", id: targetId! },
+            ];
+            finalizeTargetSelection(
+                state,
+                state.pendingTarget!,
+                state.pendingTarget!.playerId
+            );
+        }
+        resolveTopOfStack(state);
+        return trig;
+    }
+
+    it("auto-selects the sole legal non-Wall opponent creature (CR 603.3d) and grants forestwalk until your next upkeep", () => {
+        const { state, erhnam } = setup();
+        const trig = erhnamTriggerOnStack(state, erhnam);
+        // Sole mandatory target (only p2's non-Wall "bear" is legal — the Wall
+        // is excluded by `excludeSubtypes`, p1's own creatures by
+        // `controller: "opponent"`): auto-selected, no PendingTarget raised.
+        expect(raiseTriggerTargetSelection(state)).toBe(false);
+        expect(trig.targets).toEqual([{ type: "permanent", id: "bear" }]);
+        expect(state.pendingTarget).toBeUndefined();
+
+        resolveTopOfStack(state);
         const target = state.players[1].battlefield.find(
             (c) => c.id === "bear"
         )!;
@@ -184,15 +232,69 @@ describe("Erhnam Djinn (upkeep: target non-Wall creature gains forestwalk)", () 
         });
     });
 
+    it("raises a target choice when two+ non-Wall opponent creatures are legal (CR 603.3d)", () => {
+        const { state, erhnam } = setup();
+        const bear2 = makeInstance(serendibEfreet.id, {
+            id: "bear2",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        state.players[1].battlefield.push(bear2);
+        const trig = erhnamTriggerOnStack(state, erhnam);
+        // Two legal targets → a real choice: PendingTarget raised on the
+        // controller (p1), not auto-selected.
+        expect(raiseTriggerTargetSelection(state)).toBe(true);
+        expect(state.pendingTarget?.playerId).toBe("p1");
+        expect(state.pendingTarget?.kind).toBe("trigger");
+
+        state.pendingTarget!.selected = [{ type: "permanent", id: "bear2" }];
+        finalizeTargetSelection(
+            state,
+            state.pendingTarget!,
+            state.pendingTarget!.playerId
+        );
+        expect(trig.targets).toEqual([{ type: "permanent", id: "bear2" }]);
+
+        resolveTopOfStack(state);
+        // Only the chosen creature gains forestwalk.
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "bear2")
+                ?.staticAbilities
+        ).toContain("forestwalk");
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "bear")
+                ?.staticAbilities
+        ).not.toContain("forestwalk");
+    });
+
+    it("removes the trigger from the stack when no non-Wall opponent creature is legal (CR 603.3c)", () => {
+        const erhnam = makeInstance(erhnamDjinn.id, {
+            id: "erhnam",
+            controllerId: "p1",
+        });
+        const wall = makeInstance(serendibEfreet.id, {
+            id: "wall",
+            controllerId: "p2",
+            ownerId: "p2",
+            subtypes: ["Wall"],
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [erhnam] }),
+                makePlayer("p2", { battlefield: [wall] }),
+            ],
+        });
+        erhnamTriggerOnStack(state, erhnam);
+        // Required single target, none legal (only a Wall on the opponent's
+        // side) → the trigger is removed from the stack and does nothing.
+        expect(raiseTriggerTargetSelection(state)).toBe(false);
+        expect(state.stack).toHaveLength(0);
+        expect(state.pendingTarget).toBeUndefined();
+    });
+
     it("makes the target unblockable while the defender controls a Forest (CR 702.13b)", () => {
         const { state, erhnam, blocker } = setup();
-        resolveTrigger(
-            state,
-            erhnam,
-            "erhnam-djinn-forestwalk",
-            upkeepEvent("p1")
-        );
-        answerChoice(state, ["bear"]);
+        fireErhnam(state, erhnam, "bear");
         const attacker = state.players[1].battlefield.find(
             (c) => c.id === "bear"
         )!;
@@ -221,13 +323,7 @@ describe("Erhnam Djinn (upkeep: target non-Wall creature gains forestwalk)", () 
 
     it("forestwalk survives the wire projection (visible static ability)", () => {
         const { state, erhnam } = setup();
-        resolveTrigger(
-            state,
-            erhnam,
-            "erhnam-djinn-forestwalk",
-            upkeepEvent("p1")
-        );
-        answerChoice(state, ["bear"]);
+        fireErhnam(state, erhnam, "bear");
         const projected = projectPublicState(state, 1, "p1");
         const slim = projected.players[1].battlefield.find(
             (c) => c.id === "bear"

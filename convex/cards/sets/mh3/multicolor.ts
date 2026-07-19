@@ -3,13 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type {
-    CardDefinition,
-    EffectOp,
-    SpellContext,
-    TargetSelection,
-} from "../../types";
-import { DAMAGEABLE_PERMANENT_TYPES } from "../../types";
+import type { CardDefinition, EffectOp, SpellContext } from "../../types";
 import { damageDealtTrigger } from "../../abilities/triggers/damageDealtTrigger";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 
@@ -141,43 +135,22 @@ const phlageSacrificeUnlessEscaped: EffectOp[] = [
 ];
 
 // Phlage's recurring value (fires on both enter and attack): it deals 3 damage
-// to any target and you gain 3 life. NOT DSL-migratable (ADR 0045): "any
-// target" chosen mid-resolution by a triggered ability is a
-// `choose-damage-target` Pending Choice over players + damageable permanents
-// (CR 115.4), a targeting mechanism outside the scriptable `EffectChoiceKind`
-// subset — the same protocol-shaped reason Cuombajj Witches / Firebrand stay
-// resolve(). The escape cost/permission is still engine infra; only THIS
-// targeted damage clause is imperative.
+// to any target and you gain 3 life.
+//
+// TARGETING (CR 603.3d, CR 115.4 "any target"): the target is chosen when the
+// trigger is put on the stack — declared as `targetRequirement: { type: "any",
+// count: 1 }` on each TriggeredAbility (issue #1193 machinery,
+// `raiseTriggerTargetSelection` in gre/rules.ts) — NOT a resolution-time
+// `requestChoice`. That makes the damage subject to hexproof / protection /
+// ward and fires "becomes the target of an ability" triggers, which the old
+// choice-as-target workaround silently skipped. `type: "any"` legally targets
+// any damageable permanent OR a player (CR 115.4); `ctx.targets[0]` is a
+// `{ type: "permanent" | "player", id }` ref that `ctx.dealDamage` already
+// handles for both branches. Kept as resolve() (not DSL) only because the plain
+// damage + unconditional life-gain body reads the announced target slot.
 function resolvePhlageValue(ctx: SpellContext): void {
-    // Request the target FIRST so a suspend/resume never double-applies the
-    // unconditional life gain (CR 601.2c pattern, mirrors Cuombajj Witches).
-    const permanentCandidates = ctx.allPlayerIds.flatMap((pid) =>
-        ctx.getBattlefieldIds(pid, { types: [...DAMAGEABLE_PERMANENT_TYPES] })
-    );
-    const playerCandidates = [...ctx.allPlayerIds];
-    let target: TargetSelection | undefined;
-    if (permanentCandidates.length > 0 || playerCandidates.length > 0) {
-        const picked = ctx.requestChoice({
-            playerId: ctx.controller,
-            choiceId: `phlage-${ctx.sourceInstanceId}`,
-            kind: "choose-damage-target",
-            zone: "battlefield",
-            allControllers: true,
-            filter: { types: [...DAMAGEABLE_PERMANENT_TYPES] },
-            candidateIds: permanentCandidates,
-            candidatePlayerIds: playerCandidates,
-            count: 1,
-            prompt: "Phlage deals 3 damage to any target.",
-        });
-        if (picked === undefined) return; // suspend: awaiting the pick
-        const id = picked[0];
-        if (id) {
-            target = playerCandidates.includes(id)
-                ? { type: "player", id }
-                : { type: "permanent", id };
-        }
-    }
-    if (target) ctx.dealDamage(target, 3);
+    const target = ctx.targets[0];
+    if (target) ctx.dealDamage(target, 3); // CR 608.2b — no-op if it left
     ctx.gainLife(ctx.controller, 3);
 }
 
@@ -210,6 +183,10 @@ export const phlageTitanOfFiresFury: CardDefinition = {
             oracleText:
                 "Whenever Phlage enters, it deals 3 damage to any target and you gain 3 life.",
             scope: "self",
+            // CR 603.3d / 115.4 — "any target" chosen when the trigger goes on
+            // the stack (subject to hexproof/protection/ward), not at
+            // resolution. count 1 = a single required target.
+            targetRequirement: { type: "any", count: 1 },
             resolve: resolvePhlageValue,
         }),
         {
@@ -217,6 +194,10 @@ export const phlageTitanOfFiresFury: CardDefinition = {
             oracleText:
                 "Whenever Phlage attacks, it deals 3 damage to any target and you gain 3 life.",
             event: "ATTACKERS_DECLARED",
+            // CR 603.3d / 115.4 — "any target" chosen when the trigger goes on
+            // the stack (subject to hexproof/protection/ward), not at
+            // resolution. count 1 = a single required target.
+            targetRequirement: { type: "any", count: 1 },
             matches: (event, self) =>
                 event.type === "ATTACKERS_DECLARED" &&
                 event.attackerIds.includes(self.id),
