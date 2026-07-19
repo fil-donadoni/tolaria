@@ -427,6 +427,42 @@ describe("Phelia — attack trigger (CR 603.6a exile + CR 603.7a delayed return)
         expect(state.delayedTriggers ?? []).toHaveLength(0);
     });
 
+    it("when a real choice IS owed, the raised PendingTarget carries the exclusion filters (CR 109.1 / 601.2c) so the interactive choice can't offer/accept a land or Phelia herself", () => {
+        // A legal nonland opponent creature exists alongside Phelia and a land,
+        // so `raiseTriggerTargetSelection` raises an interactive PendingTarget
+        // (real choice, count 0..1) rather than auto-resolving. The bug: the
+        // raised choice dropped `excludeInstanceIds` (self) + `excludeTypes`
+        // (nonland), so the client rendered — and `selectTarget` accepted —
+        // Phelia/a land. Assert both filters now ride on the PendingTarget
+        // (they plumb BOTH the client clickability mirror and the server gate).
+        const p = makeInstance(phelia.id, {
+            id: "pheliaX",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const land = makeInstance(forest.id, {
+            id: "landX",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const legal = makeInstance(balduvianBears.id, {
+            id: "legalX",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [p, land] }),
+                makePlayer("p2", { battlefield: [legal] }),
+            ],
+        });
+        pheliaAttackTriggerOnStack(state, p);
+        expect(raiseTriggerTargetSelection(state)).toBe(true);
+        expect(state.pendingTarget).toBeDefined();
+        expect(state.pendingTarget!.excludeInstanceIds).toContain("pheliaX");
+        expect(state.pendingTarget!.excludeTypes).toContain("Land");
+    });
+
     it("does nothing when the controller declines (up to one)", () => {
         const p = makeInstance(phelia.id, {
             id: "phelia3",

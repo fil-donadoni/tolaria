@@ -1343,6 +1343,141 @@ export function spellWouldDestroyLandControlledBy(
     return false;
 }
 
+/** Filter fields shared by TargetRequirement and PendingTarget that constrain a
+ *  PERMANENT target by its OWN (source-independent) characteristics. Source-
+ *  dependent gates — controller relationship (matchesBattlefieldController),
+ *  protection-from-color (isProtectedFromColors) and continuous permanent-guard
+ *  / hexproof / shroud (isGuardedAgainst) — are NOT here: they need the source's
+ *  colors / card-kind / controller and are enforced separately at both sites.
+ *  `mvFilter` is assumed already X-resolved by the caller (resolveMvFilter). */
+export interface IntrinsicPermanentTargetFilters {
+    subtypeFilter?: string | string[];
+    supertypeFilter?: string | string[];
+    excludeSubtypes?: string | string[];
+    excludeSupertypes?: string | string[];
+    excludeTypes?: CardType | CardType[];
+    excludeColors?: Color | Color[];
+    colorFilter?: Color;
+    colorFilterAny?: ReadonlyArray<Color>;
+    tappedFilter?: "tapped" | "untapped";
+    combatRoleFilter?: "attacking" | "blocking" | ("attacking" | "blocking")[];
+    requireAbility?: string;
+    excludeAbility?: string;
+    excludeInstanceIds?: ReadonlyArray<string>;
+    powerFilter?: { min?: number; max?: number };
+    toughnessFilter?: { min?: number; max?: number };
+    mvFilter?: { min?: number; max?: number; equals?: number };
+}
+
+/** THE single authority on whether a permanent passes a target requirement's
+ *  intrinsic filters (CR 109.1 / 115 / 202 / 205 / 613 / 701.20). Returns
+ *  `null` when the permanent is a legal target, else a short human-readable
+ *  reason. BOTH `getLegalTargets` (the offered set) and the `selectTarget`
+ *  mutation (the accepted set — the authoritative anti-spoof gate) route every
+ *  permanent candidate through this, so the two sets can never diverge. This
+ *  closes the Phelia bug class: a filter honored by one site but silently
+ *  dropped by the other (letting the client offer — and the server accept — a
+ *  permanent the offered set excluded). Adding a new intrinsic filter here
+ *  wires it into both sites at once; it still has to be carried across the
+ *  async choice by `pendingTargetFiltersFromRequirement`. */
+export function intrinsicPermanentTargetViolation(
+    state: GameState,
+    card: CardInstanceState,
+    f: IntrinsicPermanentTargetFilters
+): string | null {
+    const arr = <T>(v: T | T[] | undefined): T[] | undefined =>
+        v === undefined ? undefined : Array.isArray(v) ? v : [v];
+    // CR 205.3 — subtype filter ("target Mountains"): at least one present.
+    const subtypeFilter = arr(f.subtypeFilter);
+    if (subtypeFilter && !subtypeFilter.some((s) => card.subtypes.includes(s)))
+        return `Target must be ${subtypeFilter.join(" or ")}`;
+    // CR 205.4a — live supertype filter ("target snow lands"): ALL present.
+    const supertypeFilter = arr(f.supertypeFilter);
+    if (
+        supertypeFilter &&
+        !supertypeFilter.every((s) => hasSupertypeLive(card, s))
+    )
+        return `Target must be ${supertypeFilter.join(" and ")}`;
+    // CR 205.4a — negative supertype filter ("target nonbasic land").
+    const excludeSupertypes = arr(f.excludeSupertypes);
+    if (
+        excludeSupertypes &&
+        excludeSupertypes.some((s) => hasSupertypeLive(card, s))
+    )
+        return `Target must not be ${excludeSupertypes.join(" or ")}`;
+    // CR 109.1 — type-exclude filter ("nonland permanent", "nonartifact").
+    const excludeTypes = arr(f.excludeTypes);
+    if (excludeTypes && excludeTypes.some((t) => card.types.includes(t)))
+        return `Target must not be ${excludeTypes.join(" or ")}`;
+    // CR 202.2 — color-exclude filter (Terror's "nonblack").
+    const excludeColors = arr(f.excludeColors);
+    if (excludeColors && excludeColors.some((c) => hasColor(card, c)))
+        return `Target must not be ${excludeColors.join(" or ")}`;
+    // CR 205.3 — subtype-exclude filter (Nettling Imp's "non-Wall").
+    const excludeSubtypes = arr(f.excludeSubtypes);
+    if (
+        excludeSubtypes &&
+        excludeSubtypes.some((s) => card.subtypes.includes(s))
+    )
+        return `Target must not be ${excludeSubtypes.join(" or ")}`;
+    // CR 202.2 — positive color filter (Circle of Protection).
+    if (f.colorFilter && !hasColor(card, f.colorFilter))
+        return `Target must be ${f.colorFilter}`;
+    // CR 202.2 — OR-over-colors filter ("a black or red source").
+    if (f.colorFilterAny && !f.colorFilterAny.some((c) => hasColor(card, c)))
+        return `Target must be ${f.colorFilterAny.join(" or ")}`;
+    // CR 701.20 — tap-state filter ("target tapped/untapped ~").
+    if (f.tappedFilter === "tapped" && !card.isTapped)
+        return "Target must be tapped";
+    if (f.tappedFilter === "untapped" && card.isTapped)
+        return "Target must be untapped";
+    // CR 508.1 / 509.1 — combat-role filter ("target attacking/blocking ~").
+    if (f.combatRoleFilter) {
+        const roles = arr(f.combatRoleFilter)!;
+        const ok = roles.some(
+            (r) =>
+                (r === "attacking" && card.isAttacking) ||
+                (r === "blocking" && card.isBlocking)
+        );
+        if (!ok) return `Target must be ${roles.join(" or ")}`;
+    }
+    // CR 702 — positive keyword filter ("target creature with flying").
+    if (f.requireAbility && !card.staticAbilities.includes(f.requireAbility))
+        return `Target must have ${f.requireAbility}`;
+    // CR 702 — negative keyword filter ("target creature without flying").
+    if (f.excludeAbility && card.staticAbilities.includes(f.excludeAbility))
+        return `Target must not have ${f.excludeAbility}`;
+    // CR 601.2c — "other than ~" / reflexive self-exclude (Phelia, Sorceress
+    // Queen). Carries the source id resolved from `excludeSource`.
+    if (f.excludeInstanceIds?.includes(card.id))
+        return "Can't target that permanent";
+    // CR 613 layer 7c — effective power / toughness bounds.
+    if (f.powerFilter) {
+        const power = getEffectivePower(state, card);
+        if (f.powerFilter.min !== undefined && power < f.powerFilter.min)
+            return `Target must have power ≥ ${f.powerFilter.min}`;
+        if (f.powerFilter.max !== undefined && power > f.powerFilter.max)
+            return `Target must have power ≤ ${f.powerFilter.max}`;
+    }
+    if (f.toughnessFilter) {
+        const toughness = getEffectiveToughness(state, card);
+        if (
+            f.toughnessFilter.min !== undefined &&
+            toughness < f.toughnessFilter.min
+        )
+            return `Target must have toughness ≥ ${f.toughnessFilter.min}`;
+        if (
+            f.toughnessFilter.max !== undefined &&
+            toughness > f.toughnessFilter.max
+        )
+            return `Target must have toughness ≤ ${f.toughnessFilter.max}`;
+    }
+    // CR 202.3 — mana-value filter (already X-resolved by the caller).
+    if (f.mvFilter && !matchesMvFilter(f.mvFilter, mvOfPermanent(card)))
+        return "Target does not match the required mana value";
+    return null;
+}
+
 export function getLegalTargets(
     state: GameState,
     requirement: TargetRequirement,
@@ -1452,11 +1587,6 @@ export function getLegalTargets(
     // legal iff it is at least one of these colors. Players (colorless) are
     // excluded when set, same as the single-color `colorFilter`.
     const colorFilterAny = requirement.colorFilterAny;
-    const matchesColorFilterAny = (
-        card: Parameters<typeof hasColor>[0]
-    ): boolean =>
-        colorFilterAny === undefined ||
-        colorFilterAny.some((c) => hasColor(card, c));
     const tappedFilter = requirement.tappedFilter;
     const combatRoleFilter = requirement.combatRoleFilter;
     const powerFilter = requirement.powerFilter;
@@ -1526,127 +1656,32 @@ export function getLegalTargets(
                 );
                 if (!matchesAny && !wantsSpellOrPermanent && !matchesExplicit)
                     continue;
-                // CR 205.3: subtype filter for "target Mountains"-style
-                // spells. At least one declared subtype must be present on
-                // the permanent (basic Mountain, dual lands like Plateau, ...).
+                // CR 109.1 / 115 / 202 / 205 / 613 / 701.20 — every intrinsic
+                // (source-independent) filter, routed through the SINGLE shared
+                // authority `intrinsicPermanentTargetViolation`. The selectTarget
+                // mutation runs the SAME function against the submitted target,
+                // so the offered set and the accepted set can't diverge (the
+                // Phelia bug class). Source-DEPENDENT gates (protection / guard /
+                // controller) stay below — they need the source's colors/kind.
                 if (
-                    subtypeFilter &&
-                    !subtypeFilter.some((s) => card.subtypes.includes(s))
-                ) {
-                    continue;
-                }
-                // CR 205.4a: live supertype filter for "target snow lands"
-                // (Avalanche). Honors Melting / Arcum's Weathervane mutations.
-                if (
-                    supertypeFilter &&
-                    !supertypeFilter.every((s) => hasSupertypeLive(card, s))
-                ) {
-                    continue;
-                }
-                // CR 205.4a: negative supertype filter for "target nonbasic
-                // land" (Wasteland) — the mirror of supertypeFilter above.
-                if (
-                    excludeSupertypes &&
-                    excludeSupertypes.some((s) => hasSupertypeLive(card, s))
-                ) {
-                    continue;
-                }
-                // CR 205 / 202.2: exclude types and colors (Terror's
-                // "nonartifact, nonblack" filter).
-                if (
-                    excludeTypes &&
-                    excludeTypes.some((t) => card.types.includes(t as never))
-                ) {
-                    continue;
-                }
-                if (
-                    excludeColors &&
-                    excludeColors.some((c) => hasColor(card, c))
-                ) {
-                    continue;
-                }
-                // CR 205.3: exclude subtypes (Nettling Imp's "non-Wall").
-                if (
-                    excludeSubtypes &&
-                    excludeSubtypes.some((s) => card.subtypes.includes(s))
-                ) {
-                    continue;
-                }
-                // CR 202.2: filter by color for "source of color X" choices.
-                if (colorFilter && !hasColor(card, colorFilter)) continue;
-                // CR 202.2: OR-over-colors filter ("a black or red source").
-                if (!matchesColorFilterAny(card)) continue;
-                // CR 701.20: tap-state filter for "target tapped/untapped ~".
-                if (tappedFilter === "tapped" && !card.isTapped) continue;
-                if (tappedFilter === "untapped" && card.isTapped) continue;
-                // CR 508.1 / 509.1: combat-role filter for "target attacking
-                // creature", "target blocking creature", or an array form
-                // matching either role ("attacking or blocking", D'Avenant
-                // Archer).
-                if (combatRoleFilter) {
-                    const roles = Array.isArray(combatRoleFilter)
-                        ? combatRoleFilter
-                        : [combatRoleFilter];
-                    const matchesRole = roles.some(
-                        (r) =>
-                            (r === "attacking" && card.isAttacking) ||
-                            (r === "blocking" && card.isBlocking)
-                    );
-                    if (!matchesRole) continue;
-                }
-                // CR 702: keyword filter for "target creature with flying"
-                // (Island of Wak-Wak).
-                if (
-                    requirement.requireAbility &&
-                    !card.staticAbilities.includes(requirement.requireAbility)
-                ) {
-                    continue;
-                }
-                // CR 702: negative keyword filter for "target creature without
-                // flying" (Flood). Mirror of requireAbility.
-                if (
-                    requirement.excludeAbility &&
-                    card.staticAbilities.includes(requirement.excludeAbility)
-                ) {
-                    continue;
-                }
-                // "target creature other than ~" — exclude specific instances
-                // (Sorceress Queen injects its own id via getTargetRequirement).
-                if (requirement.excludeInstanceIds?.includes(card.id)) continue;
-                // CR 613 layer 7c: power filter reads effective power so
-                // current buffs/debuffs are honored at target selection.
-                if (powerFilter) {
-                    const power = getEffectivePower(state, card);
-                    if (
-                        powerFilter.min !== undefined &&
-                        power < powerFilter.min
-                    )
-                        continue;
-                    if (
-                        powerFilter.max !== undefined &&
-                        power > powerFilter.max
-                    )
-                        continue;
-                }
-                // CR 613 layer 7c: toughness filter reads effective toughness.
-                if (toughnessFilter) {
-                    const toughness = getEffectiveToughness(state, card);
-                    if (
-                        toughnessFilter.min !== undefined &&
-                        toughness < toughnessFilter.min
-                    )
-                        continue;
-                    if (
-                        toughnessFilter.max !== undefined &&
-                        toughness > toughnessFilter.max
-                    )
-                        continue;
-                }
-                // CR 202.3: mvFilter narrows by printed mana value (X = 0
-                // for permanents — see resolveMvFilter / mvOfPermanent).
-                if (
-                    mvFilter &&
-                    !matchesMvFilter(mvFilter, mvOfPermanent(card))
+                    intrinsicPermanentTargetViolation(state, card, {
+                        subtypeFilter,
+                        supertypeFilter,
+                        excludeSupertypes,
+                        excludeTypes,
+                        excludeColors,
+                        excludeSubtypes,
+                        colorFilter,
+                        colorFilterAny,
+                        tappedFilter,
+                        combatRoleFilter,
+                        requireAbility: requirement.requireAbility,
+                        excludeAbility: requirement.excludeAbility,
+                        excludeInstanceIds: requirement.excludeInstanceIds,
+                        powerFilter,
+                        toughnessFilter,
+                        mvFilter,
+                    })
                 ) {
                     continue;
                 }
@@ -2010,6 +2045,22 @@ export function pendingTargetFiltersFromRequirement(
     if (exSub) out.excludeSubtypes = exSub;
     const exSup = toArr(req.excludeSupertypes);
     if (exSup) out.excludeSupertypes = exSup;
+    // CR 109.1 / 601.2c — the interactive-choice mirror of the getLegalTargets
+    // filters: "nonland permanent" (excludeTypes) and "other than ~" /
+    // reflexive `excludeSource` self-exclude (excludeInstanceIds). Without
+    // these on the PendingTarget the raised choice diverges from the offered
+    // set — the client renders excluded permanents clickable and selectTarget
+    // accepts them (Phelia could exile herself / a land).
+    const exTypes = toArr(req.excludeTypes);
+    if (exTypes) out.excludeTypes = exTypes as CardType[];
+    if (req.excludeInstanceIds && req.excludeInstanceIds.length > 0)
+        out.excludeInstanceIds = [...req.excludeInstanceIds];
+    const exColors = toArr(req.excludeColors);
+    if (exColors) out.excludeColors = exColors as Color[];
+    if (req.tappedFilter) out.tappedFilter = req.tappedFilter;
+    if (req.combatRoleFilter) out.combatRoleFilter = req.combatRoleFilter;
+    if (req.requireAbility) out.requireAbility = req.requireAbility;
+    if (req.excludeAbility) out.excludeAbility = req.excludeAbility;
     if (req.powerFilter) out.powerFilter = req.powerFilter;
     if (req.toughnessFilter) out.toughnessFilter = req.toughnessFilter;
     const mv = resolveMvFilter(req.mvFilter, chosenX);

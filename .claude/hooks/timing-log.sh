@@ -21,6 +21,13 @@ jq -c \
         model: (.tool_input.model // null),
         cmd: ((.tool_input.command // null) | if . then .[0:160] else null end),
         bg: (.tool_input.run_in_background // null),
-        tokens: (.tool_response.totalTokens // .tool_response.usage.output_tokens // null)
+        tokens: (.tool_response.totalTokens // .tool_response.usage.output_tokens // null),
+        out_tokens: (.tool_response.usage.output_tokens // null),
+        in_tokens: (.tool_response.usage.input_tokens // null),
+        cache_read: (.tool_response.usage.cache_read_input_tokens // null),
+        cache_write: (.tool_response.usage.cache_creation_input_tokens // null),
+        resolved_model: (.tool_response.resolvedModel // null),
+        dur_ms: (.tool_response.totalDurationMs // null),
+        tool_uses: (.tool_response.totalToolUseCount // null)
     }' >>"$dir/tool-events.jsonl" 2>/dev/null
 exit 0

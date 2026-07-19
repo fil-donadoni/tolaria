@@ -19,6 +19,7 @@ import {
     buildTriggerStateView,
     wantsPermanentTarget,
     matchesTargetRequirement,
+    matchesTargetExclusions,
     matchesTargetController,
     isTapLockedBySummoningSickness,
     hasManaAbility,
@@ -389,6 +390,7 @@ export function useBattlefieldInteraction(player: Player) {
             // is inert here; the stepper owns assignment.
             pendingTarget.divideTotal === undefined &&
             matchesTargetRequirement(card, pendingTarget.targetType) &&
+            matchesTargetExclusions(card, pendingTarget) &&
             // CR 109.3 / 102.1 — don't fire selectTarget for a wrong-controller
             // permanent; `useBattlefieldVisualState` already dims it, so firing
             // the doomed mutation just surfaces an error toast (#904). Mirror

@@ -11,6 +11,7 @@ import {
     hasManaAbility,
     matchesPermanentFilter,
     matchesTargetRequirement,
+    matchesTargetExclusions,
     matchesTargetController,
     wantsPermanentTarget,
     isTapLockedBySummoningSickness,
@@ -289,7 +290,8 @@ export function useBattlefieldVisualState(player: Player) {
         if (isSelectingTarget) {
             if (
                 !pendingTarget ||
-                !matchesTargetRequirement(card, pendingTarget.targetType)
+                !matchesTargetRequirement(card, pendingTarget.targetType) ||
+                !matchesTargetExclusions(card, pendingTarget)
             ) {
                 return false;
             }
@@ -434,6 +436,7 @@ export function useBattlefieldVisualState(player: Player) {
             isSelectingTarget &&
             pendingTarget &&
             matchesTargetRequirement(card, pendingTarget.targetType) &&
+            matchesTargetExclusions(card, pendingTarget) &&
             matchesTargetController(
                 card.controllerId,
                 pendingTarget.playerId,

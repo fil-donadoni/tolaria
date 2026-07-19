@@ -2100,6 +2100,36 @@ export type PendingTarget = {
      *  TargetRequirement.excludeSupertypes — the negative of supertypeFilter
      *  above. Used by "target nonbasic land" (Wasteland). */
     excludeSupertypes?: string[];
+    /** If set, EXCLUDES legal permanent targets whose card types include ANY of
+     *  these (CR 109.1). Propagated from TargetRequirement.excludeTypes — the
+     *  interactive-choice mirror of the `getLegalTargets` filter, so the
+     *  offered set and the accepted set can't diverge. Used by "nonland
+     *  permanent" (Phelia's `type: PERMANENT_TYPES` + `excludeTypes: "Land"`). */
+    excludeTypes?: CardType[];
+    /** If set, EXCLUDES specific permanent instances by id (CR 601.2c "other
+     *  than ~"). Propagated from TargetRequirement.excludeInstanceIds — carries
+     *  the reflexive self-exclude resolved from `excludeSource` for a triggered
+     *  ability (Phelia's own source id), so "up to one OTHER target permanent"
+     *  can't pick its own source in the interactive choice. */
+    excludeInstanceIds?: string[];
+    /** If set, EXCLUDES permanents of any of these colors (CR 202.2, Terror's
+     *  "nonblack"). Propagated from TargetRequirement.excludeColors. */
+    excludeColors?: Color[];
+    /** If set, restricts to tapped / untapped permanents (CR 701.20).
+     *  Propagated from TargetRequirement.tappedFilter. */
+    tappedFilter?: "tapped" | "untapped";
+    /** If set, restricts to permanents in the named combat role(s) (CR 508.1 /
+     *  509.1, "target attacking/blocking creature"). Propagated from
+     *  TargetRequirement.combatRoleFilter. */
+    combatRoleFilter?: "attacking" | "blocking" | ("attacking" | "blocking")[];
+    /** If set, restricts to permanents that HAVE this keyword ability (CR 702,
+     *  "target creature with flying"). Propagated from
+     *  TargetRequirement.requireAbility. */
+    requireAbility?: string;
+    /** If set, EXCLUDES permanents that have this keyword ability (CR 702,
+     *  "target creature without flying"). Propagated from
+     *  TargetRequirement.excludeAbility. */
+    excludeAbility?: string;
     /** Mana value range (CR 202.3). Propagated from TargetRequirement.mvFilter
      *  after resolving any `"X"` placeholders against the announced chosenX.
      *  Used by Spell Blast ("counter target spell with mana value X"). */

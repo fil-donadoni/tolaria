@@ -106,6 +106,141 @@ scripts/backfill-card-index.ts`, ~1 request per new card). Full reset+refetch
   them); labels remain the override for hard issues (`model:opus`/`model:fable`
   on architecture-setting work only, per `project-model-routing-labels`).
 
+## Session 2026-07-19 — telemetry read + 3 levers applied
+
+Ran the report over the accumulated log: **55.669 events, 113 sessions, 499
+Agent calls, 88 Skill calls.**
+
+### What the data said
+
+- **Model routing leak, quantified.** Of 499 subagent spawns, 137 passed no
+  explicit `model` (logged `null`). But `null` ≠ leak: `cavecrew-*` pin their
+  model in frontmatter (haiku), so 26 of those are safe. **True leak = 111**
+  read-only/mechanical agents that inherit the session tier: `general-purpose`
+  61, `Explore` 30, `fork` 18 (fork _always_ inherits parent — not
+  controllable), +2. Wall-time by model: opus 3883s/n=186, sonnet 2635s/n=171,
+  inherited 526s/n=130.
+- **Token attribution was blind.** Only 6 of 55k events carried `tokens` — the
+  hook's `.tool_response.totalTokens` path is correct but the harness only
+  started emitting the field recently. Inspecting a live transcript, the Agent
+  `toolUseResult` actually exposes `resolvedModel, totalTokens, totalDurationMs,
+totalToolUseCount, usage` — `resolvedModel` is the ground truth that ends the
+  "is `null` a leak?" guessing entirely.
+- **"Whole-codebase context" is a myth.** The codebase is not auto-loaded.
+  Always-on scaffold ≈ **14.7k tok** (CLAUDE.md + 3 rule files + MEMORY.md
+  index), and it is prompt-**cached** → ~free per turn after the first. The 70
+  memory files (36.8k) load only on recall. The real token sink is (a)
+  expensive tier on read-only subagents and (b) linear main-context growth over
+  a long session (every tool result stays resident until `/clear`/compaction).
+
+### Levers applied
+
+1. **Lever 4 — telemetry now measures reality.** `timing-log.sh` captures
+   `resolved_model`, `out_tokens`, `dur_ms`, `tool_uses`.
+   `agent-timing-report.ts` prefers `resolvedModel`, prints `[inherited]`, and
+   flags `⚠ model LEAK` when a read-only agent (`Explore`/`general-purpose`)
+   with no explicit model resolved onto an opus/fable tier. Legacy events show
+   `?(pre-resolvedModel)`.
+2. **Lever 1 — model routing.** `cavecrew-builder.md` pinned `model: sonnet`
+   (was inheriting; `investigator`/`reviewer` already haiku). New CLAUDE.md
+   rule "Subagent model routing (cost)": spawn `Explore`/`general-purpose`
+   read-only work with `model: sonnet`, reserve the session tier for hard
+   reasoning.
+3. **Lever 3 — scaffold trim (low ROI, confirmed).** Collapsed the CLAUDE.md
+   Chrome section (28 lines) that fully duplicated the auto-loaded
+   `chrome-debug.md` rule → pointer. Net CLAUDE.md −49 tok after adding the
+   routing rule. **Did NOT touch `gre-development.md`**: normative, CI-guard-
+   referenced, path-specific, and cached — risk > marginal benefit.
+
+### Real remaining win (behavioral, not mechanical)
+
+Levers 1+4 attack model tier + measurement. The bigger lever left is **main-
+context discipline**: delegate reads/mapping to subagents (their file dumps
+stay in the subagent; only the compressed report returns) and `/clear` between
+unrelated tasks. This is the linear-growth sink, not the cached scaffold.
+Re-run the report after a few real skill runs and confirm zero `⚠ LEAK` rows.
+
+### Quality-vs-cost mitigation (applied)
+
+Over-routing sonnet is safe for **correctness** (opus reviewer + full merge-train
+gate + catalogue guards `validateEffectScript`/mechanicsRegistry/triggerDedup/
+serialize-drift are all model-independent and block red at the train). The
+residual exposure is **design** — a diff-review is weak at catching a wrong
+abstraction from a cheaper implementer. Mitigation: `/to-tickets` now stamps a
+`model:*` label by a complexity heuristic **at creation** (where design context
+is freshest), surfaced in its quiz for user veto:
+
+- `model:opus` — new Op / primitive / cross-layer interaction / pattern later
+  tickets copy. `model:fable` — architecture-setting only (rare). No label ⇒
+  Sonnet default (DSL reuse, localized fix, refactor, tests). Human-decision
+  cases → HITL / `needs-design`, not a model label.
+- Verified: labels `model:sonnet|opus|fable` + `needs-design` exist on the
+  tracker; `/process-gh-issues` §156/§282 routes implement + fixup + conflict
+  handbacks by the label, defaulting to Sonnet when absent.
+
+Not applied: reviewer-driven escalation (opus reviewer flags a design concern →
+forced `model:opus` handback) — option (b), deferred as redundant now that (a)
+puts the tier decision at creation.
+
+## Reframe from the built-in usage report (past days)
+
+Claude Code's own usage analytics reshaped the priority: **79% of usage =
+`general-purpose` subagents; Explore 1%, fork 1%; 64% of usage at >150k
+context; 96% subagent-heavy.** Cross-checked against our log: general-purpose =
+84% of spawns, requested-model split opus 186 (mostly the fixed reviewer) /
+sonnet 174 (implementers) / null 61 (mostly non-implement). **The tier is
+already ~right** — the leak we chased (Explore/fork) is 1–2% and negligible.
+The real cost driver is **context length × volume** of long-running
+general-purpose implement subagents, expensive even when cached.
+
+Implication: sonnet routing (Lever 1) was a small win. The bigger lever is
+**context discipline**, which our changes barely touched. Actions:
+
+- **Telemetry now captures context size** (`in_tokens` + `cache_read` +
+  `cache_write` → `context`, report flags `ctx=NNk⚠` above 150k and totals the
+  band). This reproduces the report's key metric per-subagent — the scorecard
+  for whether context actually drops.
+- **Reviewer stays opus for all PRs** — considered tying review tier to the
+  issue's `model:*` and rejected: the strong-reviewer-over-cheap-implementer
+  asymmetry is the exact safety net that makes sonnet-implement safe; cheapening
+  review for sonnet issues removes the guard where it's most needed.
+- **Real levers (context, not tier):** keep implement slices small enough to
+  finish under ~150k (to-tickets already mandates "single fresh context
+  window" slices — enforce it); hand subagents less context; prefer
+  `cavecrew-*` (haiku + compressed output) for read-only over general-purpose;
+  spawn fewer, more deliberately.
+
+### Reviewer = "Cassazione": correctness/rules, NOT design — and mostly irreducible
+
+The §3b reviewer prompt mandate (process-gh-issues §164) reports **only** (a)
+real bugs, (b) CR-correctness violations, (c) codified project-rule violations
+(primitive reuse, type sourcing, one-component-per-file, test quality, missing
+mandatory coverage) — `no scope creep`, so it does **not** re-judge design or
+architecture. Design is decided upstream (the issue/PRD + `model:opus` routing
+at creation). So on a Sonnet-implemented card the reviewer's value is the
+**correctness backstop — exactly where a cheap implementer needs it most.**
+
+**Retracted (was proposed above): a DSL-reuse light lane skipping review.** It
+was justified by "DSL-reuse cards have no design space" — wrong premise: the
+reviewer isn't a design check anyway. Skipping review for Sonnet cards removes
+the correctness net precisely where it earns its keep. The existing `migration`
+light lane (§168) is safe only because a hand-written behavioural test kept
+byte-for-byte green is a **machine proof** of equivalence; the DSL-reuse smoke
+test is **auto-generated from the card's own declared outcomes**, so it proves
+the card matches its declaration, not that the declaration is correct — no
+equivalent proof, so DSL-reuse does not qualify.
+
+Consequence: the opus reviewer is now the per-issue cost **floor** and is
+largely **irreducible** — it is the price of running cheap implementers safely.
+Only safe reduction left: **trim the reviewer's context** (§164 hands it "diff +
+surrounding context"; keep the surrounding lean). Tier stays opus. Net per-issue
+saving remains positive because implement (the larger task) went to Sonnet; the
+reviewer is the insurance that makes that shift safe, not a cost to cut.
+
+**Success measure:** this report is the pre-change **baseline**, not a verdict.
+Re-pull it after a week of real runs and compare (1) general-purpose token
+share, (2) % usage >150k, (3) `resolved_model` distribution (zero `⚠ LEAK`).
+
 ## Uncommitted files (as of 2026-07-11)
 
 `.claude/settings.json`, `.claude/hooks/timing-log.sh`,

@@ -9,6 +9,8 @@ import {
 } from "../state";
 import {
     getLegalTargets,
+    intrinsicPermanentTargetViolation,
+    pendingTargetFiltersFromRequirement,
     getPendingTargetSourceSubtypes,
     matchesBattlefieldController,
     spellMatchesCreaturePtFilter,
@@ -440,6 +442,252 @@ describe("permanent-controller filter — selectTarget authority (CR 109.3 / 102
             const ids = getLegalTargets(state, req, [], "p2").map((t) => t.id);
             expect(ids).toEqual(["own"]); // p1 is active
         });
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Target exclusion filters — excludeTypes ("nonland permanent") and
+// excludeInstanceIds (reflexive self / "other than ~"). Phelia, Exuberant
+// Shepherd: "exile up to one OTHER target nonland permanent". These narrow the
+// OFFERED set here; the accepted set (`selectTarget`, game.ts) mirrors the same
+// `pt.excludeTypes` / `pt.excludeInstanceIds` gates, and the raised
+// PendingTarget carries both (pendingTargetFiltersFromRequirement) so the two
+// can't diverge. Regression: the filters were dropped from the interactive
+// PendingTarget, letting Phelia exile herself / a land (CR 109.1 / 601.2c).
+// ---------------------------------------------------------------------------
+
+describe("target exclusion filters (CR 109.1 / 601.2c, Phelia)", () => {
+    const PHELIA = makeCard({
+        id: "phelia",
+        types: ["Creature"],
+        controllerId: "p1",
+    });
+    const LAND_PERM = makeCard({
+        id: "land",
+        types: ["Land"],
+        controllerId: "p1",
+    });
+    const OTHER = makeCard({
+        id: "other",
+        types: ["Creature"],
+        controllerId: "p2",
+    });
+    const state = makeGameState({
+        players: [
+            makePlayer({ id: "p1", battlefield: [PHELIA, LAND_PERM] }),
+            makePlayer({ id: "p2", battlefield: [OTHER] }),
+        ],
+    });
+
+    it("excludeTypes: 'Land' drops the land from the offered set (nonland permanent)", () => {
+        const req: TargetRequirement = {
+            type: ["Creature", "Land"],
+            count: { min: 0, max: 1 },
+            excludeTypes: "Land",
+        };
+        const ids = getLegalTargets(state, req, [], "p1").map((t) => t.id);
+        expect(ids).not.toContain("land");
+        expect(ids).toEqual(expect.arrayContaining(["phelia", "other"]));
+    });
+
+    it("excludeInstanceIds drops the named permanent (reflexive self / 'other')", () => {
+        const req: TargetRequirement = {
+            type: ["Creature", "Land"],
+            count: { min: 0, max: 1 },
+            excludeInstanceIds: ["phelia"],
+        };
+        const ids = getLegalTargets(state, req, [], "p1").map((t) => t.id);
+        expect(ids).not.toContain("phelia");
+    });
+
+    it("both together = 'up to one other nonland permanent' (Phelia): only the opponent's creature", () => {
+        const req: TargetRequirement = {
+            type: ["Creature", "Land"],
+            count: { min: 0, max: 1 },
+            excludeTypes: "Land",
+            excludeInstanceIds: ["phelia"],
+        };
+        const ids = getLegalTargets(state, req, [], "p1").map((t) => t.id);
+        expect(ids).toEqual(["other"]);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Single-authority intrinsic filter gate (Phelia bug class, CR 109.1 / 115 /
+// 202 / 205 / 613 / 701.20). `intrinsicPermanentTargetViolation` is the ONE
+// function both getLegalTargets (offered set) and selectTarget (accepted set)
+// run per permanent, so offered == accepted by construction. These guard the
+// five filters that were previously honored ONLY by getLegalTargets and
+// silently dropped by the interactive PendingTarget + selectTarget (like
+// Phelia's excludeTypes/excludeInstanceIds), plus a carry-completeness guard
+// that fails if a filter is added to the shared gate but not propagated onto
+// the PendingTarget by pendingTargetFiltersFromRequirement.
+// ---------------------------------------------------------------------------
+
+describe("intrinsicPermanentTargetViolation — shared offered/accepted gate", () => {
+    const st = makeGameState();
+
+    it("tappedFilter: rejects an untapped permanent for 'target tapped ~', allows a tapped one", () => {
+        const untapped = makeCard({ types: ["Creature"], isTapped: false });
+        const tapped = makeCard({ types: ["Creature"], isTapped: true });
+        expect(
+            intrinsicPermanentTargetViolation(st, untapped, {
+                tappedFilter: "tapped",
+            })
+        ).not.toBeNull();
+        expect(
+            intrinsicPermanentTargetViolation(st, tapped, {
+                tappedFilter: "tapped",
+            })
+        ).toBeNull();
+    });
+
+    it("combatRoleFilter: rejects a non-attacking creature for 'target attacking ~'", () => {
+        const idle = makeCard({ types: ["Creature"] });
+        const attacking = makeCard({ types: ["Creature"] });
+        attacking.isAttacking = true;
+        expect(
+            intrinsicPermanentTargetViolation(st, idle, {
+                combatRoleFilter: "attacking",
+            })
+        ).not.toBeNull();
+        expect(
+            intrinsicPermanentTargetViolation(st, attacking, {
+                combatRoleFilter: "attacking",
+            })
+        ).toBeNull();
+    });
+
+    it("requireAbility: rejects a creature without the keyword, allows one with it", () => {
+        const noFly = makeCard({ types: ["Creature"], staticAbilities: [] });
+        const flyer = makeCard({
+            types: ["Creature"],
+            staticAbilities: ["flying"],
+        });
+        expect(
+            intrinsicPermanentTargetViolation(st, noFly, {
+                requireAbility: "flying",
+            })
+        ).not.toBeNull();
+        expect(
+            intrinsicPermanentTargetViolation(st, flyer, {
+                requireAbility: "flying",
+            })
+        ).toBeNull();
+    });
+
+    it("excludeAbility: rejects a creature WITH the keyword ('without flying')", () => {
+        const flyer = makeCard({
+            types: ["Creature"],
+            staticAbilities: ["flying"],
+        });
+        const grounded = makeCard({ types: ["Creature"], staticAbilities: [] });
+        expect(
+            intrinsicPermanentTargetViolation(st, flyer, {
+                excludeAbility: "flying",
+            })
+        ).not.toBeNull();
+        expect(
+            intrinsicPermanentTargetViolation(st, grounded, {
+                excludeAbility: "flying",
+            })
+        ).toBeNull();
+    });
+
+    it("excludeColors: rejects a black creature for 'nonblack' (Terror)", () => {
+        const black = makeCard({
+            types: ["Creature"],
+            card: { id: "b", manaCost: { B: 1 } },
+        });
+        const white = makeCard({
+            types: ["Creature"],
+            card: { id: "w", manaCost: { W: 1 } },
+        });
+        expect(
+            intrinsicPermanentTargetViolation(st, black, {
+                excludeColors: ["B"],
+            })
+        ).not.toBeNull();
+        expect(
+            intrinsicPermanentTargetViolation(st, white, {
+                excludeColors: ["B"],
+            })
+        ).toBeNull();
+    });
+
+    // Carry-completeness anti-drift guard: a requirement that sets every
+    // intrinsic filter must round-trip ALL of them onto the PendingTarget via
+    // pendingTargetFiltersFromRequirement. If a new filter is added to the
+    // shared gate but not propagated here, the interactive choice silently
+    // loses it (the exact Phelia regression) — this fails the moment that
+    // happens.
+    it("pendingTargetFiltersFromRequirement carries every intrinsic filter onto the PendingTarget", () => {
+        const req: TargetRequirement = {
+            type: "Creature",
+            count: 1,
+            subtypeFilter: "Goblin",
+            supertypeFilter: "Legendary",
+            excludeSubtypes: "Wall",
+            excludeSupertypes: "Basic",
+            excludeTypes: "Land",
+            excludeColors: "B",
+            colorFilter: "R",
+            colorFilterAny: ["R", "G"],
+            tappedFilter: "tapped",
+            combatRoleFilter: "attacking",
+            requireAbility: "flying",
+            excludeAbility: "defender",
+            excludeInstanceIds: ["x"],
+            powerFilter: { min: 2 },
+            toughnessFilter: { max: 4 },
+            mvFilter: { equals: 3 },
+        };
+        const pt = pendingTargetFiltersFromRequirement(req, undefined);
+        expect(pt.subtypeFilter).toEqual(["Goblin"]);
+        expect(pt.supertypeFilter).toEqual(["Legendary"]);
+        expect(pt.excludeSubtypes).toEqual(["Wall"]);
+        expect(pt.excludeSupertypes).toEqual(["Basic"]);
+        expect(pt.excludeTypes).toEqual(["Land"]);
+        expect(pt.excludeColors).toEqual(["B"]);
+        expect(pt.colorFilter).toBe("R");
+        expect(pt.colorFilterAny).toEqual(["R", "G"]);
+        expect(pt.tappedFilter).toBe("tapped");
+        expect(pt.combatRoleFilter).toBe("attacking");
+        expect(pt.requireAbility).toBe("flying");
+        expect(pt.excludeAbility).toBe("defender");
+        expect(pt.excludeInstanceIds).toEqual(["x"]);
+        expect(pt.powerFilter).toEqual({ min: 2 });
+        expect(pt.toughnessFilter).toEqual({ max: 4 });
+        expect(pt.mvFilter).toEqual({ equals: 3 });
+    });
+
+    // getLegalTargets end-to-end: the offered set runs the SAME shared gate,
+    // so a tapped/combat-role filter narrows it identically.
+    it("getLegalTargets offered set honors the shared gate (tapped + attacking)", () => {
+        const tapped = makeCard({
+            id: "tap",
+            types: ["Creature"],
+            isTapped: true,
+            controllerId: "p1",
+        });
+        const untapped = makeCard({
+            id: "untap",
+            types: ["Creature"],
+            controllerId: "p1",
+        });
+        const state = makeGameState({
+            players: [
+                makePlayer({ id: "p1", battlefield: [tapped, untapped] }),
+                makePlayer({ id: "p2" }),
+            ],
+        });
+        const req: TargetRequirement = {
+            type: "Creature",
+            count: 1,
+            tappedFilter: "tapped",
+        };
+        const ids = getLegalTargets(state, req, [], "p1").map((t) => t.id);
+        expect(ids).toEqual(["tap"]);
     });
 });
 

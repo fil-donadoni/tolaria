@@ -23,6 +23,13 @@ interface Event {
     cmd: string | null;
     bg: boolean | null;
     tokens: number | null;
+    out_tokens?: number | null;
+    in_tokens?: number | null;
+    cache_read?: number | null;
+    cache_write?: number | null;
+    resolved_model?: string | null;
+    dur_ms?: number | null;
+    tool_uses?: number | null;
 }
 
 interface Span {
@@ -35,11 +42,19 @@ interface Span {
         | "subagent"
         | "skill"
         | "bash";
-    model: string | null;
+    model: string | null; // explicit override passed to Agent (null = none)
+    resolvedModel: string | null; // model the subagent ACTUALLY ran on (from post)
+    agentType: string | null;
     tokens: number | null;
+    context: number | null; // peak input context = in + cache_read + cache_write
     start: number;
     seconds: number | null; // null = no matching post (crashed / still running / bg)
 }
+
+// read-only / mechanical agent types that should never inherit the session tier
+const READONLY_TYPES = new Set(["Explore", "general-purpose"]);
+const EXPENSIVE = /opus|fable/i;
+const BIG_CONTEXT = 150_000; // usage report flags sessions/subagents above this
 
 const file = join(process.cwd(), ".claude/telemetry/tool-events.jsonl");
 if (!existsSync(file)) {
@@ -100,7 +115,10 @@ for (const e of events) {
             label: label(e),
             kind: classify(e),
             model: e.model,
+            resolvedModel: null,
+            agentType: e.agent_type,
             tokens: null,
+            context: null,
             start: e.ts,
             seconds: null,
         };
@@ -117,6 +135,10 @@ for (const e of events) {
         if (span) {
             span.seconds = e.ts - span.start;
             span.tokens = e.tokens;
+            span.resolvedModel = e.resolved_model ?? null;
+            const ctx =
+                (e.in_tokens ?? 0) + (e.cache_read ?? 0) + (e.cache_write ?? 0);
+            span.context = ctx > 0 ? ctx : null;
         }
     }
 }
@@ -171,10 +193,36 @@ for (const sid of ids.slice(-last)) {
     }
     const agents = spans.filter((s) => s.kind === "subagent");
     if (agents.length) {
-        console.log(`  -- subagents --`);
-        for (const a of agents)
+        // leak = read-only agent, no explicit model, actually ran on an expensive tier
+        const isLeak = (a: Span) =>
+            a.model === null &&
+            READONLY_TYPES.has(a.agentType ?? "") &&
+            !!a.resolvedModel &&
+            EXPENSIVE.test(a.resolvedModel);
+        const leaks = agents.filter(isLeak);
+        console.log(
+            `  -- subagents ${leaks.length ? `(⚠ ${leaks.length} model LEAK — read-only on expensive tier)` : ""}--`
+        );
+        for (const a of agents) {
+            // prefer the resolved model (ground truth); fall back to requested/label
+            const shown =
+                a.resolvedModel ??
+                a.model ??
+                (a.seconds === null ? "?(running/bg)" : "?(pre-resolvedModel)");
+            const reqNote =
+                a.model === null && a.resolvedModel ? " [inherited]" : "";
+            const ctxNote =
+                a.context !== null
+                    ? ` ctx=${Math.round(a.context / 1000)}k${a.context > BIG_CONTEXT ? "⚠" : ""}`
+                    : "";
             console.log(
-                `    ${fmt(a.seconds).padStart(7)}  model=${(a.model ?? "INHERITED(session!)").padEnd(22)}${a.tokens ? ` ${a.tokens}tok` : ""}  ${a.label}`
+                `    ${fmt(a.seconds).padStart(7)}  ${isLeak(a) ? "⚠ " : "  "}model=${(shown + reqNote).padEnd(30)}${a.tokens ? ` ${a.tokens}tok` : ""}${ctxNote}  ${a.label}`
+            );
+        }
+        const big = agents.filter((a) => (a.context ?? 0) > BIG_CONTEXT);
+        if (big.length)
+            console.log(
+                `    → ${big.length}/${agents.length} subagents ran >${BIG_CONTEXT / 1000}k context (the expensive-even-when-cached band)`
             );
     }
     const skills = spans.filter((s) => s.kind === "skill");

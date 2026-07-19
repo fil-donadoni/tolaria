@@ -137,6 +137,7 @@ import {
     canPlayLandsFromGraveyard,
     markGraveyardPermanentCastUsed,
     getLegalTargets,
+    intrinsicPermanentTargetViolation,
     getPendingTargetSourceColors,
     getPendingTargetSourceTypes,
     getPendingTargetSourceSubtypes,
@@ -156,11 +157,7 @@ import {
     phyrexianManaAdditions,
     phyrexianPipCount,
 } from "./gre/phyrexian";
-import {
-    STATIC_EFFECT_CTX,
-    getEffectivePower,
-    getEffectiveToughness,
-} from "./gre/layers";
+import { STATIC_EFFECT_CTX, getEffectivePower } from "./gre/layers";
 import { projectFullState, projectPublicState } from "./gameProjections";
 import {
     canPayAlternativeCost,
@@ -170,7 +167,7 @@ import {
     validateAlternativeHandCostPicks,
     handCardMatchesFilter,
 } from "./gre/alternativeCost";
-import { hasSupertypeLive, liveSupertypesOf, countSnowLands } from "./gre/snow";
+import { liveSupertypesOf, countSnowLands } from "./gre/snow";
 import { computeSoloViewerId } from "./soloViewer";
 import { compactState, expandState } from "./gre/serialize";
 import { assertExpectedInput, refreshExpectedInput } from "./gre/expectedInput";
@@ -7248,7 +7245,7 @@ export const selectTarget = mutation({
             // matchesBattlefieldController predicate getLegalTargets uses, so
             // the offered and accepted target sets can't diverge. Guards
             // Simulacrum ("you"), Nettling Imp ("opponent") and Arcum's
-            // Whistle ("active").
+            // Whistle ("active"). Source/chooser-dependent, so it stays here.
             if (
                 !matchesBattlefieldController(
                     matchedCard.controllerId,
@@ -7266,132 +7263,40 @@ export const selectTarget = mutation({
                           : "Must target a permanent the active player controls"
                 );
             }
-            // CR 205.3: subtype-restricted choice (e.g. "target Mountains").
-            if (pt.subtypeFilter && pt.subtypeFilter.length > 0) {
-                const matchedSubtype = pt.subtypeFilter.some((s) =>
-                    matchedCard!.subtypes.includes(s)
-                );
-                if (!matchedSubtype) {
-                    throw new Error(
-                        `Target must be ${pt.subtypeFilter.join(" or ")}`
-                    );
+            // CR 109.1 / 115 / 202 / 205 / 613 / 701.20 — every INTRINSIC
+            // (source-independent) filter, routed through the SINGLE shared
+            // authority `intrinsicPermanentTargetViolation`, the EXACT function
+            // getLegalTargets runs per candidate. Accepted set == offered set
+            // by construction (subtype/supertype/type-exclude/color/tapped/
+            // combat-role/keyword/exclude-instance/power/toughness/mv), closing
+            // the Phelia bug class (a filter honored by one site, dropped by the
+            // other). A new intrinsic filter added to that function is enforced
+            // at both sites at once — no field-by-field drift possible here.
+            const intrinsicViolation = intrinsicPermanentTargetViolation(
+                state,
+                matchedCard,
+                {
+                    subtypeFilter: pt.subtypeFilter,
+                    supertypeFilter: pt.supertypeFilter,
+                    excludeSubtypes: pt.excludeSubtypes,
+                    excludeSupertypes: pt.excludeSupertypes,
+                    excludeTypes: pt.excludeTypes,
+                    excludeColors: pt.excludeColors,
+                    colorFilter: pt.colorFilter as Color | undefined,
+                    colorFilterAny: pt.colorFilterAny as
+                        | readonly Color[]
+                        | undefined,
+                    tappedFilter: pt.tappedFilter,
+                    combatRoleFilter: pt.combatRoleFilter,
+                    requireAbility: pt.requireAbility,
+                    excludeAbility: pt.excludeAbility,
+                    excludeInstanceIds: pt.excludeInstanceIds,
+                    powerFilter: pt.powerFilter,
+                    toughnessFilter: pt.toughnessFilter,
+                    mvFilter: pt.mvFilter,
                 }
-            }
-            // CR 205.4a: live supertype-restricted choice (Avalanche — "target
-            // snow lands"). Honors Melting / Arcum's Weathervane mutations.
-            if (pt.supertypeFilter && pt.supertypeFilter.length > 0) {
-                const matchedSupertype = pt.supertypeFilter.every((s) =>
-                    hasSupertypeLive(matchedCard!, s)
-                );
-                if (!matchedSupertype) {
-                    throw new Error(
-                        `Target must be ${pt.supertypeFilter.join(" and ")}`
-                    );
-                }
-            }
-            // CR 202.2: color-restricted choice (e.g. Circle of Protection).
-            if (
-                pt.colorFilter &&
-                !hasColor(matchedCard, pt.colorFilter as Color)
-            ) {
-                throw new Error(`Target must be ${pt.colorFilter}`);
-            }
-            // CR 202.2: OR-over-colors choice ("a black or red source" —
-            // Greater Realm of Preservation). Legal iff at least one color.
-            if (
-                pt.colorFilterAny &&
-                !pt.colorFilterAny.some((c) =>
-                    hasColor(matchedCard, c as Color)
-                )
-            ) {
-                throw new Error(
-                    `Target must be ${pt.colorFilterAny.join(" or ")}`
-                );
-            }
-            // CR 613 layer 7c: power-bounded target (Dwarven Warriors).
-            if (pt.powerFilter) {
-                const power = getEffectivePower(state, matchedCard);
-                if (
-                    pt.powerFilter.min !== undefined &&
-                    power < pt.powerFilter.min
-                ) {
-                    throw new Error(
-                        `Target must have power ≥ ${pt.powerFilter.min}`
-                    );
-                }
-                if (
-                    pt.powerFilter.max !== undefined &&
-                    power > pt.powerFilter.max
-                ) {
-                    throw new Error(
-                        `Target must have power ≤ ${pt.powerFilter.max}`
-                    );
-                }
-            }
-            // CR 613 layer 7c: toughness-bounded target (Stone Giant).
-            if (pt.toughnessFilter) {
-                const toughness = getEffectiveToughness(state, matchedCard);
-                if (
-                    pt.toughnessFilter.min !== undefined &&
-                    toughness < pt.toughnessFilter.min
-                ) {
-                    throw new Error(
-                        `Target must have toughness ≥ ${pt.toughnessFilter.min}`
-                    );
-                }
-                if (
-                    pt.toughnessFilter.max !== undefined &&
-                    toughness > pt.toughnessFilter.max
-                ) {
-                    throw new Error(
-                        `Target must have toughness ≤ ${pt.toughnessFilter.max}`
-                    );
-                }
-            }
-            // CR 205.3: exclude subtypes (Nettling Imp's "non-Wall").
-            if (pt.excludeSubtypes && pt.excludeSubtypes.length > 0) {
-                if (
-                    pt.excludeSubtypes.some((s) =>
-                        matchedCard!.subtypes.includes(s)
-                    )
-                ) {
-                    throw new Error(
-                        `Target must not be ${pt.excludeSubtypes.join(" or ")}`
-                    );
-                }
-            }
-            // CR 205.4a: negative live supertype filter (Wasteland — "target
-            // nonbasic land"). Mirror of the positive supertypeFilter check.
-            if (pt.excludeSupertypes && pt.excludeSupertypes.length > 0) {
-                if (
-                    pt.excludeSupertypes.some((s) =>
-                        hasSupertypeLive(matchedCard!, s)
-                    )
-                ) {
-                    throw new Error(
-                        `Target must not be ${pt.excludeSupertypes.join(" or ")}`
-                    );
-                }
-            }
-            // CR 202.3: mvFilter narrows by mana value (X already resolved
-            // upstream in resolveMvFilter).
-            if (pt.mvFilter) {
-                const cardId = (matchedCard.card as { id?: string }).id;
-                const def = cardId ? tryGetDefinition(cardId) : undefined;
-                const mv =
-                    def && def.manaCost
-                        ? Object.entries(def.manaCost).reduce<number>(
-                              (acc, [, v]) =>
-                                  acc + (typeof v === "number" ? v : 0),
-                              0
-                          )
-                        : 0;
-                if (!matchesMvFilter(pt.mvFilter, mv)) {
-                    throw new Error(
-                        "Target does not match the required mana value"
-                    );
-                }
-            }
+            );
+            if (intrinsicViolation) throw new Error(intrinsicViolation);
             // CR 702.16b: a permanent with protection from [color] can't be
             // targeted by a spell/ability whose source has that color.
             const sourceColors = getPendingTargetSourceColors(

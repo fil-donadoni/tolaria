@@ -8,7 +8,7 @@ argument-hint: "<set-code>"
 
 Orchestrate implementing a whole MTG set, from `/new-set <code>` to a published
 umbrella PRD + dependency-ordered cluster issues. This skill **sequences three
-existing global skills** — `grill-with-docs` → `to-prd` → `to-issues` — and
+existing global skills** — `grill-with-docs` → `to-prd` → `to-tickets` — and
 injects the set context and the conventions we have already settled, so the
 user never re-explains them.
 
@@ -157,7 +157,7 @@ turn, recommended answer stated each time):
   design point (ADR 0045) is a catalogue-wide expectation, not a per-cluster
   cap, but a cluster that's mostly `resolve()` deserves a second look in the
   grill, not a rubber stamp. Record the accepted budget in the PRD so
-  `to-issues` / the cluster PR can point back to it instead of re-litigating
+  `to-tickets` / the cluster PR can point back to it instead of re-litigating
   each `resolve()` justification from scratch.
 
 `grill-with-docs` updates `CONTEXT.md` inline as terms resolve and may create
@@ -196,12 +196,12 @@ data/json/<CODE_UPPER>.json` → the colour-split `convex/cards/sets/<code>/`
   during Phase 0 triage that need a `planned` row added before rollout.
 - **The Phase 0 scope manifest** (per-card bucket partition + the
   `done+staged+free+capability+OOS == total` tally) goes in the PRD body as the
-  tracked rollout contract — `to-issues` reconciles against it, Phase 4 closes
+  tracked rollout contract — `to-tickets` reconciles against it, Phase 4 closes
   against it.
 
-## Phase 3 — Cut the issues (`to-issues`)
+## Phase 3 — Cut the issues (`to-tickets`)
 
-Invoke **`to-issues`** with the umbrella PRD issue number. It splits into
+Invoke **`to-tickets`** with the umbrella PRD issue number. It splits into
 **tracer-bullet vertical slices**, each end-to-end through all layers, demoable,
 tagged HITL/AFK (prefer AFK), published in dependency order (blockers first).
 
@@ -315,7 +315,7 @@ Per `.claude/rules/gre-development.md`:
 
 ## Reference
 
-- Skills sequenced: `~/.claude/skills/{grill-with-docs,to-prd,to-issues}/SKILL.md`
+- Skills sequenced: `~/.claude/skills/{grill-with-docs,to-prd,to-tickets}/SKILL.md`
 - ADR 0041 (worklist/import), ADR 0014 (prints vs defs), ADR 0010 (ante/subgame)
 - Import: `scripts/{json-to-cards.mjs,backfill-card-index.ts,check-card-index.ts}`
 - Exemplar PRDs: DRK #409 (free tranche + clusters), FEM #566 (thematic),

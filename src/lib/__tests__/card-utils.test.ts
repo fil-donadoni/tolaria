@@ -4,6 +4,7 @@ import {
     wantsPlayerTarget,
     matchesPermanentFilter,
     matchesTargetRequirement,
+    matchesTargetExclusions,
     matchesTargetController,
     matchesSpellTypeFilter,
     matchesSpellExcludeTypeFilter,
@@ -273,6 +274,45 @@ describe("matchesTargetRequirement", () => {
         expect(
             matchesTargetRequirement(land, dominate.targetRequirement!.type)
         ).toBe(false);
+    });
+});
+
+describe("matchesTargetExclusions (CR 109.1 / 601.2c, Phelia)", () => {
+    it("excludes a permanent whose id is in excludeInstanceIds (reflexive self / 'other than ~')", () => {
+        const phelia = makeCardInstance({ id: "phelia1", types: ["Creature"] });
+        expect(
+            matchesTargetExclusions(phelia, {
+                excludeInstanceIds: ["phelia1"],
+            })
+        ).toBe(false);
+    });
+
+    it("allows a permanent whose id is NOT excluded", () => {
+        const other = makeCardInstance({ id: "other1", types: ["Creature"] });
+        expect(
+            matchesTargetExclusions(other, {
+                excludeInstanceIds: ["phelia1"],
+            })
+        ).toBe(true);
+    });
+
+    it("excludes a land under excludeTypes: ['Land'] ('nonland permanent')", () => {
+        const land = makeCardInstance({ id: "land1", types: ["Land"] });
+        expect(matchesTargetExclusions(land, { excludeTypes: ["Land"] })).toBe(
+            false
+        );
+    });
+
+    it("allows a nonland permanent under excludeTypes: ['Land']", () => {
+        const creature = makeCardInstance({ id: "c1", types: ["Creature"] });
+        expect(
+            matchesTargetExclusions(creature, { excludeTypes: ["Land"] })
+        ).toBe(true);
+    });
+
+    it("allows any permanent when no exclusions are present", () => {
+        const land = makeCardInstance({ id: "land1", types: ["Land"] });
+        expect(matchesTargetExclusions(land, {})).toBe(true);
     });
 });
 

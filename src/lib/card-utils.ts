@@ -467,6 +467,30 @@ export function matchesTargetController(
     }
 }
 
+/** CR 109.1 / 601.2c — client mirror of the server's target-exclusion gates
+ *  (`selectTarget` in convex/game.ts): `excludeTypes` ("nonland permanent") and
+ *  `excludeInstanceIds` ("other than ~" / a triggered ability's reflexive
+ *  self-exclude, e.g. Phelia). Keeps an excluded permanent from reading as
+ *  clickable; the server remains the authority and rejects it regardless.
+ *  Returns `true` when the card is NOT excluded. */
+export function matchesTargetExclusions(
+    card: CardInstance,
+    exclusions: {
+        excludeTypes?: string[];
+        excludeInstanceIds?: string[];
+    }
+): boolean {
+    if (exclusions.excludeInstanceIds?.includes(card.id)) return false;
+    const cardTypes = card.types ?? [];
+    if (
+        exclusions.excludeTypes &&
+        exclusions.excludeTypes.some((t) => cardTypes.includes(t))
+    ) {
+        return false;
+    }
+    return true;
+}
+
 /** True if the target requirement can target a spell on the stack (CR 114.1):
  *  the `"spell"` or `"spell-or-permanent"` types. */
 export function wantsSpellTarget(

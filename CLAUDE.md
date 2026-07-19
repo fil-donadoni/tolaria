@@ -162,33 +162,13 @@ Mana abilities have `useStack: false` (resolve immediately). SBAs are global gam
 
 Claude operates **autonomously**: implements, tests, and validates code end-to-end. The user defines features and high-level strategy — Claude executes the full development cycle including writing code, tests, and running quality gates. Ask the user for confirmation only on significant architectural decisions or when the CR leaves ambiguity that affects game behavior.
 
+### Subagent model routing (cost)
+
+A subagent spawned with no explicit `model` inherits the session tier (often Opus/Fable — the most expensive). Read-only or mechanical delegation does not need that tier. **Pass `model: sonnet` when spawning `Explore` or `general-purpose` for read-only work** (locate/map/survey/research); reserve the inherited session tier for subagents doing genuinely hard implementation or reasoning. `cavecrew-*` agents already pin their own model in frontmatter — never override them. `fork` always inherits the parent by design (not controllable). Telemetry `resolved_model` (see `docs/agents/skill-timing-optimization.md`) is the ground truth for auditing leaks.
+
 ## Chrome Browser Debug (via claude-in-chrome MCP)
 
-**On-demand only.** Do not launch Chrome to verify new cards or gameplay features by default — vitest + wire format tests + preset scenarios are the standard verification. Use Chrome only when the user explicitly asks ("test in Chrome", "open the browser", "verify in the UI", etc.).
-
-When the user does request a browser check:
-
-**Always debug in solo mode.** A solo game is a single-user match where one
-user controls both players and the viewer auto-follows priority. This removes
-the need for a second tab and lets you reach a playable board in two MCP
-round-trips. See `.claude/rules/chrome-debug.md` for the full setup batch and
-storage-key reference.
-
-Quick reference (full details in the rule file):
-
-1. `tabs_context_mcp(createIfEmpty: true)` — get or create a tab
-2. Pre-populate `tolaria:selectedDeckId` + `tolaria:playerName` via
-   `javascript_tool`, then `navigate` to `http://localhost:5173` — this skips
-   deck selection and name input
-3. `find` + click `New Solo Game` (or `Restart Solo` from the Debug panel if
-   already in a game)
-4. Use `find(query)` + click by `ref` instead of guessing coordinates
-5. `read_console_messages(onlyErrors: true)` after any state-changing action
-6. `computer(action: screenshot)` for visual verification, `zoom` for small UI
-7. Skip `wait` unless waiting for async navigation — check state directly
-
-Do **not** open a second tab to simulate an opponent: solo mode replaces that
-workflow.
+**On-demand only.** Do not launch Chrome to verify new cards or gameplay features by default — vitest + wire format tests + preset scenarios are the standard verification. Use Chrome only when the user explicitly asks ("test in Chrome", "open the browser", "verify in the UI", etc.). When they do: **always debug in solo mode** (one user, two seats, viewer auto-follows priority — no second tab). Full setup batch, storage keys, and the step-by-step quick reference live in `.claude/rules/chrome-debug.md` (auto-loaded) — do not duplicate them here.
 
 ## Automated Development Workflow
 

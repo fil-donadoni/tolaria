@@ -4,6 +4,7 @@ import { useGameContext } from "~/hooks/useGameContext";
 import {
     matchesTargetController,
     matchesTargetRequirement,
+    matchesTargetExclusions,
     wantsPlayerTarget,
 } from "~/lib/card-utils";
 import { isPlayerUntargetableByPending } from "~/lib/targeting";
@@ -50,6 +51,7 @@ export function useDivideTargets(): DivideTargetItem[] {
         for (const card of p.battlefield) {
             if (
                 matchesTargetRequirement(card, pendingTarget.targetType) &&
+                matchesTargetExclusions(card, pendingTarget) &&
                 matchesTargetController(
                     card.controllerId,
                     pendingTarget.playerId,
