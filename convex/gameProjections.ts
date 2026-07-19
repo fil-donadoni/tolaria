@@ -11,6 +11,7 @@ import type { CardAction } from "./gre/types";
 import type { ActivatedAbility, ManaCost } from "./cards/types";
 import {
     canCastFromGraveyardByPermission,
+    canCastPermanentFromGraveyardByPermission,
     canPlayLandsFromGraveyard,
     getLegalActions,
     phyrexianLifePipOptions,
@@ -87,7 +88,8 @@ export type SlimGraveyardCard = SlimCardInstance & {
         | "flashback"
         | "escape"
         | "graveyard-permission"
-        | "graveyard-grant";
+        | "graveyard-grant"
+        | "graveyard-permanent-permission";
 };
 
 /** Companion slot (CR 702.139, ADR 0064) projected to the wire: `instance`
@@ -464,6 +466,32 @@ function projectGraveyardCard(
             ...slim,
             legalActions: legalActionsFor(),
             castKind: "graveyard-grant",
+        };
+    }
+    // CR 702.139 (issue #1392, Lurrus of the Dream-Den) — a PERMANENT card
+    // sitting in the viewer's own graveyard while a STATIC,
+    // battlefield-derived, once-per-turn permission covers it
+    // (`canCastPermanentFromGraveyardByPermission`) — re-derived live every
+    // projection, so the affordance disappears the instant the granting
+    // source leaves play, OR the permission is used up this turn, OR it
+    // isn't `player`'s turn (CR 702.139a "Once during each of YOUR TURNS" —
+    // enforced INSIDE `canCastPermanentFromGraveyardByPermission` itself via
+    // `state.activePlayerId === player.id`, so this call site and the
+    // `gre/rules.ts` legality branch always agree, including for a FLASH
+    // permanent that would otherwise read as castable on the opponent's
+    // turn). Only reached when the card has none of Flashback, Escape, the
+    // broad permission, or a per-card grant (those branches above return
+    // first). Distinct `castKind` from `"graveyard-permission"` (both
+    // currently render the same "Cast" affordance, `graveyard-flashback-
+    // button.tsx`) so the client could label it differently later.
+    if (
+        isOwnGraveyard &&
+        canCastPermanentFromGraveyardByPermission(state, player, card)
+    ) {
+        return {
+            ...slim,
+            legalActions: legalActionsFor(),
+            castKind: "graveyard-permanent-permission",
         };
     }
     // CR 305.1-analog — a LAND sitting in the viewer's own graveyard while

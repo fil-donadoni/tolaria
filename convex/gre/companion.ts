@@ -13,12 +13,14 @@
 // not a general "outside the game" zone (ADR 0064) — code that enumerates
 // GameState zones must not treat it as one.
 
-import type { CardDefinition } from "../cards/types";
+import type { CardDefinition, CardType } from "../cards/types";
+import { PERMANENT_TYPES } from "../cards/types";
 import { tryGetDefinition } from "../cards";
 import type { GameState, PlayerState } from "./state";
 import { getManaSubstitutions } from "./state";
 import { isSorceryTiming } from "./phases";
 import { buildAutoTapSources, solveSmartAutoTap } from "./autoTap";
+import { manaValue } from "./constants";
 
 /** CR 702.139a — a companion's deck-construction condition: true when `deck`
  *  (the player's maindeck, resolved to full `CardDefinition`s) satisfies it.
@@ -43,6 +45,36 @@ export const singleton: CompanionCondition = (deck) => {
     return true;
 };
 
+/** Shared combinator (ADR 0064) for a companion condition of the shape
+ *  "every PERMANENT card in your starting deck satisfies `pred`" — Lurrus,
+ *  the Dream-Den's "every permanent card has mana value 2 or less" (CR
+ *  702.139a). Non-permanent cards (instants, sorceries) are EXEMPT — only
+ *  cards typed as a CR 300.1 permanent type (`PERMANENT_TYPES`, incl. Land)
+ *  are constrained, mirroring how `singleton` above exempts lands from its
+ *  own uniqueness check. Factored out (rather than inlined once) since a
+ *  second companion (Zirda, still a stub — "every permanent card has an
+ *  activated ability") needs the exact same shape. */
+export function everyPermanent(
+    pred: (def: CardDefinition) => boolean
+): CompanionCondition {
+    const permanentTypes: readonly CardType[] = PERMANENT_TYPES;
+    return (deck) =>
+        deck.every(
+            (def) =>
+                !def.types.some((t) => permanentTypes.includes(t)) || pred(def)
+        );
+}
+
+/** CR 702.139a — Lurrus of the Dream-Den's condition: "Each permanent card in
+ *  your starting deck has mana value 2 or less." Built on `everyPermanent`
+ *  above; the per-card mana value read via `manaValue` (constants.ts) — the
+ *  same helper the graveyard-cast permission itself uses
+ *  (`canCastPermanentFromGraveyardByPermission`, gre/rules.ts) to keep the
+ *  deckbuild condition and the battlefield ability's cap textually aligned. */
+export const permanentManaValueAtMost2: CompanionCondition = everyPermanent(
+    (def) => manaValue(def.manaCost) <= 2
+);
+
 /** Lutri, the Spellchaser's card id (IKO). NOT imported by the card
  *  definition (`convex/cards/sets/iko/multicolor.ts`) — that would form a
  *  real import CYCLE (multicolor.ts → this module → `../cards` registry →
@@ -56,14 +88,24 @@ export const singleton: CompanionCondition = (deck) => {
  *  would show up there as Lutri failing to auto-declare. */
 export const LUTRI_ID = "fb1189c9-7842-466e-8238-1e02677d8494";
 
+/** Lurrus of the Dream-Den's card id (IKO). Same anti-cycle rationale as
+ *  `LUTRI_ID` above — NOT imported by the card definition
+ *  (`convex/cards/sets/iko/multicolor.ts`); the card file keeps its own
+ *  literal copy of this SAME id, cross-referenced and kept in sync by
+ *  `companion.test.ts`'s `selectCompanion` tests (round-tripping the real
+ *  `lurrus` `CardDefinition` through the sideboard→slot selector) plus the
+ *  Mechanics Registry catalogue sweep. */
+export const LURRUS_ID = "5ad36fb2-c44e-4085-ba0d-54277841ad3a";
+
 /** Per-card companion condition lookup (CR 702.139a), keyed by
  *  `CardDefinition.id`. Kept separate from the Mechanics Registry — which
  *  only tracks the `companion` KEYWORD name (CR 702) — because the condition
  *  is card-specific deckbuild logic, not part of the keyword's own binding
- *  (ADR 0064). Grows by one entry per shipped companion (Lurrus next,
- *  #1392; Zirda stays a stub pending activated-ability cost reduction). */
+ *  (ADR 0064). Grows by one entry per shipped companion (Zirda stays a stub
+ *  pending activated-ability cost reduction). */
 const COMPANION_CONDITIONS: Record<string, CompanionCondition> = {
     [LUTRI_ID]: singleton,
+    [LURRUS_ID]: permanentManaValueAtMost2,
 };
 
 /** CR 702.139c — the sideboard -> slot selector: scans `sideboardCardIds`

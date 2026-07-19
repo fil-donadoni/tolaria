@@ -16,10 +16,14 @@ import {
     resolveTopOfStack,
     processPendingActionTriggers,
 } from "../../../../gre/state";
-import { lutri } from "../multicolor";
-import { lightningBolt, stoneRain } from "../../lea";
+import { lutri, lurrus } from "../multicolor";
+import { lightningBolt, savannahLions, stoneRain } from "../../lea";
 import { projectPublicState } from "../../../../gameProjections";
 import type { GameState } from "../../../../gre/state";
+import {
+    canCastPermanentFromGraveyardByPermission,
+    getLegalActions,
+} from "../../../../gre/rules";
 
 describe("Lutri, the Spellchaser (Companion, Flash, CR 603.6a copy-on-cast ETB)", () => {
     it("pins the definition (companion + flash keywords, targeted spell-you-control ETB)", () => {
@@ -156,5 +160,55 @@ describe("Lutri, the Spellchaser (Companion, Flash, CR 603.6a copy-on-cast ETB)"
                 projected.stack.some((s) => s.id === copy.id && s.isCopy)
             ).toBe(true);
         }
+    });
+});
+
+describe("Lurrus of the Dream-Den (Companion, Lifelink, static graveyard-permanent-cast permission, issue #1392)", () => {
+    it("pins the definition (companion + lifelink keywords, castsPermanentsFromGraveyard cap)", () => {
+        expect(lurrus.staticAbilities).toEqual(["companion", "lifelink"]);
+        expect(lurrus.types).toEqual(["Creature"]);
+        // CR 205.4a — type line is "Legendary Creature — Cat Nightmare"
+        // (Scryfall); regression pin for the missing-supertype bug (legend
+        // rule, CR 704.5j, never applied without this).
+        expect(lurrus.supertypes).toEqual(["Legendary"]);
+        expect(lurrus.subtypes).toEqual(["Cat", "Nightmare"]);
+        expect(lurrus.power).toBe(3);
+        expect(lurrus.toughness).toBe(2);
+        // DIVERGENCE (tracked-by #782): the real printed cost is the hybrid
+        // {1}{W/B}{W/B}; declared as the closest non-hybrid narrowing.
+        expect(lurrus.manaCost).toEqual({ generic: 1, W: 1, B: 1 });
+        expect(lurrus.castsPermanentsFromGraveyard).toEqual({
+            maxManaValue: 2,
+        });
+    });
+
+    it("while on the battlefield, grants the once-per-turn graveyard-permanent-cast permission (CR 702.139) — full GRE + wire coverage lives in gre/__tests__/graveyardPermanentCastPermission.test.ts", () => {
+        const lurrusOnBattlefield = makeInstance(lurrus.id, {
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        // Savannah Lions is MV 1, at or under Lurrus's cap of 2.
+        const gyLions = makeInstance(savannahLions.id, {
+            id: "gy-lions",
+            zone: "graveyard",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [lurrusOnBattlefield],
+                    graveyard: [gyLions],
+                    manaPool: { W: 1 },
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const p1 = state.players[0];
+        expect(
+            canCastPermanentFromGraveyardByPermission(state, p1, gyLions)
+        ).toBe(true);
+        expect(getLegalActions(state, p1, gyLions)).toContain("cast");
     });
 });

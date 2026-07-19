@@ -58,6 +58,17 @@ export const scenarioSpecValidator = v.object({
             opp: v.optional(v.number()),
         })
     ),
+    // CR 702.139c / ADR 0064 (issue #1392) — directly declare a companion
+    // into a slot, bypassing the sideboard/maindeck auto-declare a
+    // scenario's synthetic board never runs through. Mirrors
+    // `debugSetupScenario`'s matching arg (`convex/game.ts`).
+    companion: v.optional(
+        v.object({
+            name: v.string(),
+            owner: v.optional(v.union(v.literal("me"), v.literal("opp"))),
+            used: v.optional(v.boolean()),
+        })
+    ),
 });
 
 export type ScenarioCard = {
@@ -87,6 +98,7 @@ export type ScenarioSpec = {
     markLastDrawn?: boolean;
     rngSeed?: number;
     poison?: { me?: number; opp?: number };
+    companion?: { name: string; owner?: "me" | "opp"; used?: boolean };
 };
 
 // ---- Battlefield counter resolution ----------------------------------------
@@ -280,6 +292,20 @@ export function normalizeScenarioSpec(raw: unknown): ScenarioSpec {
         set(poison, "opp", pickNumber(raw.poison.opp));
         spec.poison = poison;
     }
+    if (isRecord(raw.companion)) {
+        const name = pickString(raw.companion.name);
+        if (name !== undefined) {
+            const companion: {
+                name: string;
+                owner?: "me" | "opp";
+                used?: boolean;
+            } = { name };
+            const owner = pickString(raw.companion.owner);
+            if (owner === "me" || owner === "opp") companion.owner = owner;
+            set(companion, "used", pickBoolean(raw.companion.used));
+            spec.companion = companion;
+        }
+    }
     return spec;
 }
 
@@ -304,6 +330,9 @@ export function collectUnresolvedCardNames(
         if (card.copyOf && !resolves(card.copyOf)) {
             unresolved.add(card.copyOf);
         }
+    }
+    if (spec.companion && !resolves(spec.companion.name)) {
+        unresolved.add(spec.companion.name);
     }
     return [...unresolved];
 }

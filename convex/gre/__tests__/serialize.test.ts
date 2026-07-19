@@ -1780,6 +1780,14 @@ describe("optional field round-trip smoke tests", () => {
         );
     });
 
+    it("graveyardPermanentCastUsedThisTurn (issue #1392 — Lurrus of the Dream-Den)", () => {
+        const state = freshState();
+        state.graveyardPermanentCastUsedThisTurn = ["p1", "p2"];
+        expect(roundTrip(state).graveyardPermanentCastUsedThisTurn).toEqual(
+            state.graveyardPermanentCastUsedThisTurn
+        );
+    });
+
     it("combatDamageImmunity", () => {
         const state = freshState();
         state.combatDamageImmunity = [

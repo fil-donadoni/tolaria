@@ -15,6 +15,7 @@ import type { CardAction } from "./types";
 import { findTriggeredAbility } from "./copy";
 import { isSorceryTiming } from "./phases";
 import {
+    CASTABLE_PERMANENT_TYPES,
     DAMAGEABLE_PERMANENT_TYPES,
     LAND_DROPS_PER_TURN,
     LAND_SUBTYPE_MANA,
@@ -146,6 +147,79 @@ export function canCastFromGraveyardByPermission(
     const cardId = (card.card as { id?: string }).id;
     const def = cardId ? tryGetDefinition(cardId) : undefined;
     return manaValue(def?.manaCost) <= permission.maxManaValue;
+}
+
+/** CR 702.139 (issue #1392, Lurrus of the Dream-Den) — true iff `player`
+ *  currently holds a STATIC, battlefield-derived permission to cast `card` —
+ *  a PERMANENT card (never Land, never Instant/Sorcery, CR 110.1/300.1) —
+ *  from their own graveyard: some permanent on `player`'s battlefield
+ *  declares `CardDefinition.castsPermanentsFromGraveyard` with a
+ *  `maxManaValue` at or above `card`'s printed mana value, AND `player`
+ *  hasn't already used such a permission this turn
+ *  (`state.graveyardPermanentCastUsedThisTurn`). Read live from the
+ *  battlefield every call (mirrors `canPlayLandsFromGraveyard`), so the
+ *  permission ends the instant the granting source leaves play — no stale
+ *  flag. Distinct from `canCastFromGraveyardByPermission` above (the BROAD,
+ *  turn-scoped, Op-granted, any-spell, uncapped Yawgmoth's Will permission).
+ *
+ *  CR 702.139a's Oracle text is "Once during each of YOUR TURNS" — the
+ *  permission only exists while `player` is the active player
+ *  (`state.activePlayerId === player.id`). Without this gate, a FLASH
+ *  permanent (MV ≤ the grant's cap) in the graveyard would be castable on
+ *  the OPPONENT's turn too, because the flash/sorcery-timing check in the
+ *  cast branches (`gre/rules.ts`'s `isPermanentPermissionCast`,
+ *  `gameProjections.ts`'s affordance) short-circuits to instant-speed
+ *  legality and never itself asks whose turn it is. This function is the
+ *  SINGLE shared source both call sites read, so gating it here fixes
+ *  legality and the wire affordance together — no duplicated own-turn check
+ *  at either call site. */
+export function canCastPermanentFromGraveyardByPermission(
+    state: GameState,
+    player: PlayerState,
+    card: CardInstanceState
+): boolean {
+    if (state.activePlayerId !== player.id) {
+        return false;
+    }
+    if (
+        !(CASTABLE_PERMANENT_TYPES as readonly CardType[]).some((t) =>
+            card.types.includes(t)
+        )
+    ) {
+        return false;
+    }
+    if (state.graveyardPermanentCastUsedThisTurn?.includes(player.id)) {
+        return false;
+    }
+    const mv = manaValue(getInstanceManaCost(card));
+    for (const perm of player.battlefield) {
+        const permCardId = (perm.card as { id?: string }).id;
+        if (!permCardId) continue;
+        const grant =
+            tryGetDefinition(permCardId)?.castsPermanentsFromGraveyard;
+        if (grant && mv <= grant.maxManaValue) return true;
+    }
+    return false;
+}
+
+/** Marks `playerId` as having used a STATIC graveyard-permanent-cast
+ *  permission (Lurrus, issue #1392) this turn — the once-per-turn
+ *  consumption side of `canCastPermanentFromGraveyardByPermission`. Called
+ *  ONCE, at cast commit, by every commit site that can push a graveyard cast
+ *  onto the stack (`convex/game.ts`: `tryAutoCommitPendingCast`,
+ *  `finalizeTargetSelection`, `announceCast`'s immediate-commit branch) —
+ *  never at mere legality-check time (`getLegalActions`/`locateCastSource`
+ *  are read-only). Idempotent (a player id is never pushed twice). */
+export function markGraveyardPermanentCastUsed(
+    state: GameState,
+    playerId: string
+): void {
+    if (!state.graveyardPermanentCastUsedThisTurn) {
+        state.graveyardPermanentCastUsedThisTurn = [];
+    }
+    if (!state.graveyardPermanentCastUsedThisTurn.includes(playerId)) {
+        state.graveyardPermanentCastUsedThisTurn.push(playerId);
+    }
 }
 
 const ALL_HAND_ACTIONS: CardAction[] = [
@@ -353,6 +427,42 @@ export function getLegalActions(
             castProhibitionReason(caster.id, card, state) === undefined &&
             canPotentiallyPayCost(caster, card, costOverride) &&
             hasEnoughLegalTargets(state, caster, card)
+        ) {
+            actions.push("cast");
+        }
+        return actions;
+    }
+
+    // CR 702.139 (issue #1392, Lurrus of the Dream-Den) — a PERMANENT card in
+    // the player's OWN graveyard, while the player holds a STATIC,
+    // battlefield-derived, once-per-turn permission covering it
+    // (`canCastPermanentFromGraveyardByPermission`), is castable from there
+    // for its normal printed mana cost. Only reached when the card has none
+    // of Flashback, Escape, the BROAD permission, or a per-card grant (those
+    // branches above return first) — a card that qualifies for more than one
+    // mechanism prefers the higher-precedence one, sparing Lurrus's scarce
+    // once-per-turn use. Distinct from `isPermissionCast` above: source-bound
+    // (ends when the granting permanent leaves play), permanent-cards-only,
+    // and capped at one use per turn. `canCastPermanentFromGraveyardByPermission`
+    // itself gates on `state.activePlayerId === player.id` (CR 702.139a "Once
+    // during each of YOUR TURNS") — the `baseLegal` check below is ONLY the
+    // within-your-turn flash-vs-sorcery-timing split (CR 702.139a's "using its
+    // normal timing permissions"), never a substitute for the own-turn gate.
+    const isPermanentPermissionCast =
+        player.graveyard.some((c) => c.id === card.id) &&
+        canCastPermanentFromGraveyardByPermission(state, player, card);
+    if (isPermanentPermissionCast) {
+        const baseLegal = hasInstantSpeed(card) ? true : isSorceryTiming(state);
+        if (
+            baseLegal &&
+            passesCastPhaseRestriction(state, card) &&
+            castProhibitionReason(player.id, card, state) === undefined &&
+            canPotentiallyPayCost(
+                player,
+                card,
+                getInstanceManaCost(card) ?? {}
+            ) &&
+            hasEnoughLegalTargets(state, player, card)
         ) {
             actions.push("cast");
         }

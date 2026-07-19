@@ -1954,6 +1954,37 @@ const NEW_MECHANIC_SCENARIOS: { label: string; spec: ScenarioSpec }[] = [
             landCount: 4,
         },
     },
+    {
+        // Companion framework — Lurrus of the Dream-Den (issue #1392, ADR
+        // 0064). ONE Lurrus already on the battlefield exercises its STATIC,
+        // once-per-turn graveyard-permanent-cast permission immediately
+        // (`castsPermanentsFromGraveyard`): Savannah Lions (MV 1) sits in the
+        // graveyard, castable for its normal {W} cost via the "Cast" button.
+        // A SECOND Lurrus sits in the (non-battlefield) companion slot,
+        // unused, so the {3} "Companion" summon special action is also
+        // one-click reachable — summoning it to hand doesn't itself trigger
+        // the legend rule (only casting a second copy onto the battlefield
+        // would). Golden path: click Savannah Lions' graveyard "Cast" button
+        // (pays {W}) OR click "Companion {3}" to summon the slot's Lurrus.
+        label: "Lurrus — battlefield graveyard-permanent-cast permission + companion summon",
+        spec: {
+            cards: [
+                {
+                    name: "Lurrus of the Dream-Den",
+                    owner: "me",
+                    zone: "battlefield",
+                },
+                { name: "Savannah Lions", owner: "me", zone: "graveyard" },
+            ],
+            companion: {
+                name: "Lurrus of the Dream-Den",
+                owner: "me",
+                used: false,
+            },
+            phase: "PRECOMBAT_MAIN",
+            landCount: 6,
+        },
+    },
 ];
 
 /**

@@ -2744,6 +2744,21 @@ export type GameState = {
         zones: Array<"land" | "spell">;
         maxManaValue?: number;
     }[];
+    /** CR 702.139 (issue #1392, Lurrus of the Dream-Den) — per-player
+     *  once-per-turn usage tracking for the STATIC, battlefield-derived
+     *  graveyard-permanent-cast permission (`CardDefinition
+     *  .castsPermanentsFromGraveyard`). Contains the ids of players who have
+     *  already used such a permission this turn — checked by
+     *  `canCastPermanentFromGraveyardByPermission` (`gre/rules.ts`), set by
+     *  `markGraveyardPermanentCastUsed` at cast commit. Cleared
+     *  unconditionally at CLEANUP (CR 514.2), same boundary as
+     *  `graveyardPlayPermissionThisTurn` above — correct for "once during
+     *  each of YOUR turns" because casting a permanent without flash already
+     *  requires sorcery timing (the controller's own turn), so a global
+     *  every-turn-boundary reset is behaviorally identical to a
+     *  controller-turn-scoped one (mirrors `activationsThisTurn`'s same
+     *  reasoning, CR 602.5). */
+    graveyardPermanentCastUsedThisTurn?: string[];
     /** Turn-scoped all-unblocked combat-damage redirects (CR 614.6 — Kjeldoran
      *  Royal Guard). Each entry redirects ALL combat damage that unblocked
      *  attackers would deal to `playerId` onto the permanent `toPermanentId`

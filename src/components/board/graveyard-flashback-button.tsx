@@ -41,9 +41,13 @@ export default function GraveyardFlashbackButton({
     // SPECIFIC-CARD grant (Malcolm, Alluring Scoundrel) renders identically —
     // "Cast", gated purely by `legalActions` (which is already free when the
     // grant waives the mana cost, `castRawManaCost`'s graveyard-grant branch).
+    // CR 702.139 (issue #1392) — Lurrus's STATIC, once-per-turn,
+    // permanent-cards-only permission also pays the normal printed mana
+    // cost and renders identically.
     const isPermissionCast =
         card.castKind === "graveyard-permission" ||
-        card.castKind === "graveyard-grant";
+        card.castKind === "graveyard-grant" ||
+        card.castKind === "graveyard-permanent-permission";
     const label = isEscape ? "Escape" : isPermissionCast ? "Cast" : "Flashback";
     const disabledTitle = isEscape
         ? "Can't escape yet — not your main phase, or you can't pay the escape cost (mana, or exile enough other cards from your graveyard)."

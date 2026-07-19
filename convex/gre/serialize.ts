@@ -1105,6 +1105,7 @@ export const PERSISTED_OPTIONAL_KEYS = [
     "destroyReplacementShields",
     "graveyardBoundRedirectThisTurn",
     "graveyardPlayPermissionThisTurn",
+    "graveyardPermanentCastUsedThisTurn",
     "combatDamageImmunity",
     "damageTriggeredLifegain",
     "phasedOut",
