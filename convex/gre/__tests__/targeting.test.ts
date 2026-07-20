@@ -22,6 +22,7 @@ import {
     checkSpellTargetFilters,
     checkPlayerTargetFilters,
     checkCardTargetFilters,
+    REGISTRY,
     type TargetFilterCtx,
 } from "../targetFilters";
 import type {
@@ -2140,6 +2141,68 @@ describe("checkCardTargetFilters — shared offered/accepted gate (ADR 0068, iss
                 })
             ).toBe("Target does not match the required mana value");
         });
+    });
+});
+
+// ---------------------------------------------------------------------------
+// T4 keystone (ADR 0068, issue #1411): `REGISTRY` in `targetFilters.ts` is now
+// declared `satisfies Record<FilterKey, FilterDescriptor<unknown>>`, so tsc
+// already refuses to compile if any non-structural `TargetRequirement` field
+// lacks an entry. This is a RUNTIME belt-and-suspenders companion (PRD #1407
+// Testing Decisions): a stray `as FilterDescriptor<unknown>` / `as any` cast
+// anywhere in the object literal could defeat `satisfies`'s structural check
+// while still "compiling", so this test independently walks every actually
+// registered key and asserts each descriptor is well-formed — a `lower`
+// function plus at least one `checks` predicate — without relying on the
+// type system at all.
+// ---------------------------------------------------------------------------
+
+describe("target-filter registry — FilterKey exhaustiveness keystone (ADR 0068, issue #1411)", () => {
+    it("REGISTRY is non-empty and covers every filter migrated by T1-T3", () => {
+        const keys = Object.keys(REGISTRY);
+        // 17 permanent + 8 spell-only + 1 player-only (T1 + T2 + T3) — see
+        // PERMANENT_FILTER_KEYS / SPELL_ONLY_FILTER_KEYS / PLAYER_ONLY_FILTER_KEYS
+        // in targetFilters.ts. Card-kind reuses `controller`/`mvFilter`, both
+        // already counted under the permanent set — no additional keys.
+        expect(keys.length).toBe(26);
+    });
+
+    it("every registered filter has a `lower` function and at least one `checks` predicate", () => {
+        const keys = Object.keys(REGISTRY) as Array<keyof typeof REGISTRY>;
+        for (const key of keys) {
+            const descriptor = REGISTRY[key];
+            expect(descriptor, `REGISTRY.${key}`).toBeDefined();
+            expect(typeof descriptor.lower, `REGISTRY.${key}.lower`).toBe(
+                "function"
+            );
+            const checkEntries = Object.entries(descriptor.checks);
+            expect(
+                checkEntries.length,
+                `REGISTRY.${key}.checks must declare at least one TargetKind`
+            ).toBeGreaterThan(0);
+            for (const [kind, check] of checkEntries) {
+                expect(typeof check, `REGISTRY.${key}.checks.${kind}`).toBe(
+                    "function"
+                );
+            }
+        }
+    });
+
+    it("does not register any StructuralKey field (type/count/zone/divideAsChosen/excludeSource/spellTargetsSelfSource)", () => {
+        const keys = new Set(Object.keys(REGISTRY));
+        for (const structural of [
+            "type",
+            "count",
+            "zone",
+            "divideAsChosen",
+            "excludeSource",
+            "spellTargetsSelfSource",
+        ]) {
+            expect(
+                keys.has(structural),
+                `REGISTRY should not have "${structural}"`
+            ).toBe(false);
+        }
     });
 });
 
