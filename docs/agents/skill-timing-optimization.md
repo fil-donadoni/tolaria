@@ -232,10 +232,18 @@ equivalent proof, so DSL-reuse does not qualify.
 
 Consequence: the opus reviewer is now the per-issue cost **floor** and is
 largely **irreducible** — it is the price of running cheap implementers safely.
-Only safe reduction left: **trim the reviewer's context** (§164 hands it "diff +
-surrounding context"; keep the surrounding lean). Tier stays opus. Net per-issue
-saving remains positive because implement (the larger task) went to Sonnet; the
-reviewer is the insurance that makes that shift safe, not a cost to cut.
+Tier stays opus. Net per-issue saving remains positive because implement (the
+larger task) went to Sonnet; the reviewer is the insurance that makes that shift
+safe, not a cost to cut.
+
+**Do NOT trim the reviewer's context (user decision, 2026-07-20).** An earlier
+note here proposed shrinking what the reviewer reads to save cost — rejected.
+Priority is a non-myopic reviewer over a cheap one: §164 now **mandates** the
+reviewer actively pull whatever context a judgment needs (grep the primitive to
+reuse, open callers/callees, read the CR rule, follow types, walk the reducer,
+read the required test) and forbids approving/blocking on assumption when the
+answer is one search away. A shallow backstop is worse than none. The reviewer's
+cost is accepted as the price of correctness; context is spent, not saved, here.
 
 **Success measure:** this report is the pre-change **baseline**, not a verdict.
 Re-pull it after a week of real runs and compare (1) general-purpose token
