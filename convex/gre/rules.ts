@@ -1739,13 +1739,26 @@ export function pendingTargetFiltersFromRequirement(
     // "lower once, check everywhere": a filter's carry can no longer drift
     // from its offered/accepted semantics because there is only one
     // implementation of `lower` to call. `lowerSpellFilters` also lowers
-    // `controller` / `colorFilter` / `mvFilter` (cross-kind, already
-    // produced by `lowerPermanentFilters`) — spread second, same values, no
-    // conflict.
+    // `controller` / `colorFilter` / `colorFilterAny` / `mvFilter`
+    // (cross-kind, already produced by `lowerPermanentFilters`) — spread
+    // second, same values, no conflict.
     const out: Partial<PendingTarget> = {
         ...(lowerPermanentFilters(req, chosenX) as Partial<PendingTarget>),
-        ...(lowerSpellFilters(req, chosenX) as Partial<PendingTarget>),
     };
+    // Fixup (T2 review, issue #1409): `lowerSpellFilters` always resolves
+    // `spellStackKind` to its explicit default `"spell"` (never
+    // `undefined` — see the descriptor's doc comment), so spreading it
+    // unconditionally used to stamp `spellStackKind: "spell"` onto EVERY
+    // `PendingTarget`, including permanent/player-only requirements that
+    // never target a spell. Only carry the spell-lowered fields when the
+    // requirement actually admits a spell target.
+    const reqTypes = Array.isArray(req.type) ? req.type : [req.type];
+    if (reqTypes.includes("spell") || reqTypes.includes("spell-or-permanent")) {
+        Object.assign(
+            out,
+            lowerSpellFilters(req, chosenX) as Partial<PendingTarget>
+        );
+    }
     if (req.playerAttackedThisTurn) out.playerAttackedThisTurn = true;
     if (req.zone) out.zone = req.zone;
     return out;

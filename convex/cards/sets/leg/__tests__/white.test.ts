@@ -109,6 +109,11 @@ import {
     type GameState,
     type StackItem,
 } from "../../../../gre/state";
+import {
+    checkSpellTargetFilters,
+    lowerSpellFilters,
+    type TargetFilterCtx,
+} from "../../../../gre/targetFilters";
 import { type Phase } from "../../../../gre/types";
 import {
     makeInstance,
@@ -2660,6 +2665,38 @@ describe("Greater Realm of Preservation (CR 615.1, 615.6 / 202.2)", () => {
         expect(ids).toContain("red-src");
         expect(ids).not.toContain("green-src");
         expect(legal.filter((t) => t.type === "player")).toEqual([]);
+    });
+
+    // Fixup (T2 review, issue #1409): `colorFilterAny`'s `spell` check was
+    // dropped when the SPELL kind was migrated onto the target-filter
+    // registry, silently loosening this ability's "black or red source" gate
+    // so `selectTarget`'s accept side stopped enforcing it against a SPELL
+    // candidate — the getLegalTargets test above only ever fed PERMANENT
+    // candidates. This feeds a SPELL candidate through `checkSpellTargetFilters`,
+    // the SAME shared registry check `selectTarget`'s spell branch (game.ts)
+    // calls to accept/reject a chosen target (CR 202.2).
+    it("accept gate (checkSpellTargetFilters) accepts a black/red spell source, rejects a green one", () => {
+        const state = setupRealmOnBattlefield();
+        const ability = greaterRealmOfPreservation.activatedAbilities![0];
+        const values = lowerSpellFilters(ability.targetRequirement!, undefined);
+        const ctx: TargetFilterCtx = {
+            state,
+            sourceColors: [],
+            sourceTypes: [],
+            sourceSubtypes: [],
+            chooserId: "p1",
+            activePlayerId: "p1",
+        };
+        const redSpell: StackItem = {
+            ...makeInstance(lightningBolt.id, { id: "red-spell-src" }),
+            castById: "p2",
+        };
+        const greenSpell: StackItem = {
+            ...makeInstance(grizzlyBears.id, { id: "green-spell-src" }),
+            castById: "p2",
+        };
+        expect(checkSpellTargetFilters(ctx, redSpell, values)).toBeNull();
+        expect(checkSpellTargetFilters(ctx, greenSpell, values)).not.toBeNull();
     });
 
     it("registers an end-of-turn prevention effect keyed on the chosen red source when the ability resolves", () => {

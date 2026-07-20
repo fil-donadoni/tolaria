@@ -440,6 +440,16 @@ const colorFilterAnyDescriptor = defineFilter<ReadonlyArray<Color>>({
             value.some((c) => hasColor(card, c))
                 ? null
                 : `Target must be ${value.join(" or ")}`,
+        // CR 202.2 — a spell/ability on the stack also has colors (its cast
+        // colors, or a copy's colorOverride — CR 707.10); the same
+        // OR-over-colors predicate applies. Fixup of T2 (ADR 0068 / issue
+        // #1409): this `spell` check was dropped when the spell kind was
+        // added, silently loosening Greater Realm of Preservation's "black
+        // or red source" gate to accept a spell of any color.
+        spell: (item, value) =>
+            value.some((c) => hasColor(item, c))
+                ? null
+                : `Target must be ${value.join(" or ")}`,
     },
 });
 
@@ -575,9 +585,9 @@ const mvFilterDescriptor = defineFilter<{
 // One entry per filter previously validated inline, independently, by BOTH
 // `getLegalTargets`'s spell loop AND `selectTarget`'s spell branch (game.ts)
 // — the spell-flavored half of the Phelia bug class. `controller` /
-// `colorFilter` / `mvFilter` above already grew a `spell` check (they're
-// cross-kind); these are the remaining filters that only ever apply to
-// `type: "spell"` targets.
+// `colorFilter` / `colorFilterAny` / `mvFilter` above already grew a `spell`
+// check (they're cross-kind); these are the remaining filters that only ever
+// apply to `type: "spell"` targets.
 
 // CR 113 / 114.1 — stack-object KIND filter ("target ability", Ward's
 // "spell or ability" — CR 702.21a). The omitted default means SPELLS ONLY
@@ -634,9 +644,7 @@ const stackSourceTypeFilterDescriptor = defineFilter<CardType[]>({
 // already governed by `spellStackKind` above, so this filter no longer
 // excludes abilities itself (Ward's "any" kind + this filter must admit
 // both) — matches `getLegalTargets`'s pre-T2 behavior.
-const spellTargetsInstanceIdsDescriptor = defineFilter<
-    ReadonlyArray<string>
->({
+const spellTargetsInstanceIdsDescriptor = defineFilter<ReadonlyArray<string>>({
     lower: (req) =>
         req.spellTargetsInstanceIds && req.spellTargetsInstanceIds.length > 0
             ? [...req.spellTargetsInstanceIds]
@@ -724,8 +732,7 @@ const spellSingleTargetingControllerDescriptor = defineFilter<boolean>({
 // CR 114.1 + 701.7 — Equinox's granted counter ability: the chosen spell
 // must be one that would destroy a land the activating player controls.
 const spellWouldDestroyLandYouControlDescriptor = defineFilter<boolean>({
-    lower: (req) =>
-        req.spellWouldDestroyLandYouControl ? true : undefined,
+    lower: (req) => (req.spellWouldDestroyLandYouControl ? true : undefined),
     checks: {
         spell: (item, _value, ctx) =>
             ctx.chooserId !== undefined &&
@@ -764,8 +771,9 @@ export const PERMANENT_FILTER_KEYS = [
 export type PermanentFilterKey = (typeof PERMANENT_FILTER_KEYS)[number];
 
 /** The spell-ONLY filter keys T2 adds (issue #1409) — `controller` /
- *  `colorFilter` / `mvFilter` are cross-kind and already registered above by
- *  `PERMANENT_FILTER_KEYS`; these are exclusively `type: "spell"` filters. */
+ *  `colorFilter` / `colorFilterAny` / `mvFilter` are cross-kind and already
+ *  registered above by `PERMANENT_FILTER_KEYS`; these are exclusively
+ *  `type: "spell"` filters. */
 export const SPELL_ONLY_FILTER_KEYS = [
     "spellStackKind",
     "stackSourceTypeFilter",
@@ -894,8 +902,9 @@ export function lowerPermanentFilters(
 // ─── T2 spell-kind gate (ADR 0068 / issue #1409) ────────────────────────────
 
 /** The full ordered set of filter keys a `type: "spell"` candidate is
- *  checked against — `controller` / `colorFilter` / `mvFilter` (cross-kind,
- *  registered by `PERMANENT_FILTER_KEYS`) PLUS every spell-only key. Order
+ *  checked against — `controller` / `colorFilter` / `colorFilterAny` /
+ *  `mvFilter` (cross-kind, registered by `PERMANENT_FILTER_KEYS`) PLUS every
+ *  spell-only key. Order
  *  matches the pre-refactor `getLegalTargets` spell loop exactly (kind gate
  *  first, then controller, then the rest) so first-violation messages stay
  *  stable. NOT `keyof Omit<TargetRequirement, StructuralKey>` yet — T4's
@@ -906,6 +915,7 @@ export const SPELL_FILTER_KEYS = [
     "stackSourceTypeFilter",
     "spellTargetsInstanceIds",
     "colorFilter",
+    "colorFilterAny",
     "mvFilter",
     "spellTypeFilter",
     "spellExcludeTypeFilter",
@@ -925,6 +935,7 @@ export type SpellFilterValues = Partial<{
     stackSourceTypeFilter: CardType[];
     spellTargetsInstanceIds: ReadonlyArray<string>;
     colorFilter: Color;
+    colorFilterAny: ReadonlyArray<Color>;
     mvFilter: { min?: number; max?: number; equals?: number };
     spellTypeFilter: CardType[];
     spellExcludeTypeFilter: CardType[];

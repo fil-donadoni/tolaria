@@ -7404,6 +7404,9 @@ export const selectTarget = mutation({
                     stackSourceTypeFilter: pt.stackSourceTypeFilter,
                     spellTargetsInstanceIds: pt.spellTargetsInstanceIds,
                     colorFilter: pt.colorFilter as Color | undefined,
+                    colorFilterAny: pt.colorFilterAny as
+                        | readonly Color[]
+                        | undefined,
                     mvFilter: pt.mvFilter,
                     spellTypeFilter: pt.spellTypeFilter,
                     spellExcludeTypeFilter: pt.spellExcludeTypeFilter,

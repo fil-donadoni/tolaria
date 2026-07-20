@@ -1614,7 +1614,9 @@ describe("checkSpellTargetFilters — shared offered/accepted gate (ADR 0068, is
             })
         ).not.toBeNull();
         expect(
-            checkSpellTargetFilters(baseCtx, aSpell, { spellStackKind: "spell" })
+            checkSpellTargetFilters(baseCtx, aSpell, {
+                spellStackKind: "spell",
+            })
         ).toBeNull();
     });
 
@@ -1718,6 +1720,24 @@ describe("checkSpellTargetFilters — shared offered/accepted gate (ADR 0068, is
         ).toBeNull();
         expect(
             checkSpellTargetFilters(baseCtx, white, { colorFilter: "R" })
+        ).not.toBeNull();
+    });
+
+    // Fixup (T2 review, issue #1409): `colorFilterAny`'s `spell` check was
+    // dropped when the spell kind was added, silently loosening Greater
+    // Realm of Preservation's "black or red source" gate. Regression guard.
+    it("colorFilterAny: accepts a spell matching any listed color, rejects one matching none (CR 202.2, Greater Realm of Preservation)", () => {
+        const black = spellItem({ card: { id: "b", manaCost: { B: 1 } } });
+        const white = spellItem({ card: { id: "w2", manaCost: { W: 1 } } });
+        expect(
+            checkSpellTargetFilters(baseCtx, black, {
+                colorFilterAny: ["B", "R"],
+            })
+        ).toBeNull();
+        expect(
+            checkSpellTargetFilters(baseCtx, white, {
+                colorFilterAny: ["B", "R"],
+            })
         ).not.toBeNull();
     });
 
@@ -1870,6 +1890,7 @@ describe("pendingTargetFiltersFromRequirement — spell filter carry-completenes
             stackSourceTypeFilter: "Artifact",
             spellTargetsInstanceIds: ["src1"],
             colorFilter: "R",
+            colorFilterAny: ["B", "R"],
             mvFilter: { equals: 3 },
             spellTypeFilter: "Instant",
             spellExcludeTypeFilter: "Creature",
@@ -1883,6 +1904,7 @@ describe("pendingTargetFiltersFromRequirement — spell filter carry-completenes
         expect(pt.stackSourceTypeFilter).toEqual(["Artifact"]);
         expect(pt.spellTargetsInstanceIds).toEqual(["src1"]);
         expect(pt.colorFilter).toBe("R");
+        expect(pt.colorFilterAny).toEqual(["B", "R"]);
         expect(pt.mvFilter).toEqual({ equals: 3 });
         expect(pt.spellTypeFilter).toEqual(["Instant"]);
         expect(pt.spellExcludeTypeFilter).toEqual(["Creature"]);
@@ -1893,6 +1915,34 @@ describe("pendingTargetFiltersFromRequirement — spell filter carry-completenes
 
     it("spellStackKind defaults to 'spell' when omitted (always-active filter, never skipped — CR 701.5a)", () => {
         const req: TargetRequirement = { type: "spell", count: 1 };
+        const pt = pendingTargetFiltersFromRequirement(req, undefined);
+        expect(pt.spellStackKind).toBe("spell");
+    });
+
+    // Fixup (T2 review, issue #1409): `lowerSpellFilters` always resolves
+    // `spellStackKind` to its explicit default "spell" (never `undefined`),
+    // so an earlier version of this function spread it unconditionally and
+    // stamped `spellStackKind: "spell"` onto EVERY PendingTarget, including
+    // permanent/player-only requirements that never target a spell. Only a
+    // requirement whose `type` actually admits a spell target should carry
+    // any spell-only filter field.
+    it("does NOT carry spell-only filters (spellStackKind) for a permanent-only requirement", () => {
+        const req: TargetRequirement = { type: "Creature", count: 1 };
+        const pt = pendingTargetFiltersFromRequirement(req, undefined);
+        expect(pt.spellStackKind).toBeUndefined();
+    });
+
+    it("does NOT carry spell-only filters (spellStackKind) for a player-only requirement", () => {
+        const req: TargetRequirement = { type: "player", count: 1 };
+        const pt = pendingTargetFiltersFromRequirement(req, undefined);
+        expect(pt.spellStackKind).toBeUndefined();
+    });
+
+    it("DOES carry spell-only filters for a 'spell-or-permanent' requirement (CR 114)", () => {
+        const req: TargetRequirement = {
+            type: "spell-or-permanent",
+            count: 1,
+        };
         const pt = pendingTargetFiltersFromRequirement(req, undefined);
         expect(pt.spellStackKind).toBe("spell");
     });
