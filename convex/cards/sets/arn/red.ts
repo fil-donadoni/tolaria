@@ -9,7 +9,6 @@
 import type { CardDefinition, TargetSelection } from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { untapRestriction } from "../../abilities/static/untapRestriction";
-import { diedTrigger } from "../../abilities/triggers/diedTrigger";
 import { tokenPrintIdFor } from "../../tokenPrintLookup";
 
 export const birdMaiden: CardDefinition = {
@@ -66,55 +65,60 @@ export const rukhEgg: CardDefinition = {
     subtypes: ["Bird", "Egg"],
     power: 0,
     toughness: 3,
-    // NOT DSL-migratable (ADR 0045): the createToken Op (#847) covers the Bird
-    // token, and the delayedTrigger Op (#838) covers the scheduling — but the
-    // scheduling lives inside a `diedTrigger` FACTORY, which owns its `resolve`
-    // closure and exposes no `effects[]` site (same block as the enteredTrigger
-    // factory, #843). Converting to an inline `delayedTrigger` Op would require
-    // a hand-rolled death-trigger (bypassing the factory). Stays resolve() until
-    // the trigger factories accept an `effects[]` body.
+    // Migrated resolve()→effects[] (ADR 0045, playbook: effect-script-
+    // migration.md). The `diedTrigger` factory has no `effects[]` site
+    // (its `resolve` is the only body it exposes), so this is authored as a
+    // raw `TriggeredAbility` — the SAME shape as Nafs Asp (`arn/green.ts`)
+    // and Third Path Iconoclast (`bro/multicolor.ts`) — with an inline
+    // `matches` that reproduces `diedTrigger({ scope: "self" })`'s own check
+    // (`event.creatureInstanceId === self.id`, CR 700.4/603.2 death trigger).
+    // The `delayedTrigger` Op (issue #838, ADR 0048) covers the
+    // "at the beginning of the next end step" scheduling; its nested body's
+    // `createToken` Op (issue #847) covers the Bird token. No `capture`
+    // needed for the controller: at fire time `ctx.controller` already IS
+    // the scheduling player — the dying creature's LKI controller, carried
+    // onto the death-trigger's own StackItem (`buildTriggerItem`,
+    // `gre/triggers.ts`) and forwarded onto the `DelayedTriggerInstance` as
+    // `controller: item.castById` (`scheduleDelayedTrigger`, `gre/state.ts`)
+    // — the exact no-capture shape Forth Eorlingas! (`ltc/multicolor.ts`)
+    // documents for the same reason.
     triggeredAbilities: [
-        diedTrigger({
+        {
             id: "rukh-egg-death",
             oracleText:
                 "When Rukh Egg dies, create a 4/4 red Bird creature token with flying at the beginning of the next end step.",
-            scope: "self",
-            resolve: (ctx) => {
-                ctx.scheduleDelayedTrigger(
-                    rukhEgg.id,
-                    "rukh-egg-token",
-                    "next-end-step",
-                    { controller: ctx.controller }
-                );
-            },
-        }),
-    ],
-    delayedTriggers: [
-        {
-            id: "rukh-egg-token",
-            oracleText:
-                "At the beginning of the next end step, create a 4/4 red Bird creature token with flying.",
-            timing: "next-end-step",
-            resolve: (ctx, payload) => {
-                ctx.createToken(
-                    {
-                        name: "Bird",
-                        types: ["Creature"],
-                        subtypes: ["Bird"],
-                        power: 4,
-                        toughness: 4,
-                        colors: ["R"],
-                        staticAbilities: ["flying"],
-                        // Printed token is named "Rukh" (Scryfall), while our
-                        // spec keeps the current Oracle wording's "Bird" name
-                        // — look up by card id alone (single-token card, CR
-                        // 707.1) rather than by a name that wouldn't match.
-                        imagePrintId: tokenPrintIdFor(RUKH_EGG_ID),
-                    },
-                    payload.controller,
-                    1
-                );
-            },
+            event: "CREATURE_DIED",
+            matches: (event, self) =>
+                event.type === "CREATURE_DIED" &&
+                event.creatureInstanceId === self.id,
+            effects: [
+                {
+                    op: "delayedTrigger",
+                    timing: "next-end-step",
+                    oracleText:
+                        "At the beginning of the next end step, create a 4/4 red Bird creature token with flying.",
+                    effects: [
+                        {
+                            op: "createToken",
+                            token: {
+                                name: "Bird",
+                                types: ["Creature"],
+                                subtypes: ["Bird"],
+                                power: 4,
+                                toughness: 4,
+                                colors: ["R"],
+                                staticAbilities: ["flying"],
+                                // Printed token is named "Rukh" (Scryfall), while our
+                                // spec keeps the current Oracle wording's "Bird" name
+                                // — look up by card id alone (single-token card, CR
+                                // 707.1) rather than by a name that wouldn't match.
+                                imagePrintId: tokenPrintIdFor(RUKH_EGG_ID),
+                            },
+                            controller: "controller",
+                        },
+                    ],
+                },
+            ],
         },
     ],
 };
@@ -303,11 +307,15 @@ export const magneticMountain: CardDefinition = {
                 "At the beginning of each player's upkeep, that player may choose any number of tapped blue creatures they control and pay {4} for each creature chosen this way. If the player does, untap those creatures.",
             phase: "UPKEEP",
             scope: "each",
-            // NOT DSL-migratable (ADR 0045): an `each`-scoped phaseTrigger
-            // (scoped player ≠ controller, so `effects` is disallowed) whose
+            // NOT DSL-migratable (ADR 0045): the `each`-scope block is closed
+            // (issue #1066 — `phaseTrigger` now accepts `effects` under
+            // `scope: "each"` via `{ ref: "$event.activePlayerId" }`), but the
             // pay cost is {4} × (chosen creatures) — a runtime-arithmetic mana
-            // cost the EffectValue grammar cannot express.
-            // Blocked on: non-"your" trigger effects + an arithmetic-cost mayPay.
+            // cost the `EffectValue` grammar still cannot express (no "amount
+            // times a runtime count of prior picks" construct; `mayPay`'s cost
+            // is a static `MayPayCost` or a single-object `DynamicMayPayManaCost`,
+            // never a picks-count-scaled one).
+            // Blocked on: an arithmetic/picks-count-scaled mayPay cost.
             resolve: (ctx, _event, scopedPlayerId) => {
                 const eligible = ctx.getBattlefieldIds(scopedPlayerId, {
                     types: "Creature",
