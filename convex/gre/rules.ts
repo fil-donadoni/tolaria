@@ -24,7 +24,6 @@ import {
     abilitiesSuppressed,
     getManaTapOptionsDetailed,
     hasInstantSpeed,
-    isLand,
     isTapLockedBySummoningSickness,
     manaValue,
 } from "./constants";
@@ -59,12 +58,12 @@ import {
     emitBecameTargetEvents,
 } from "./state";
 import {
-    hasColor,
-    matchesMvFilter,
     resolveMvFilter,
     matchesBattlefieldController,
     checkPermanentTargetFilters,
     lowerPermanentFilters,
+    checkSpellTargetFilters,
+    lowerSpellFilters,
     type TargetFilterCtx,
     type PermanentFilterValues,
 } from "./targetFilters";
@@ -76,10 +75,10 @@ export {
     parseProtectionFromColor,
 } from "./protection";
 
-// ADR 0068 (PRD #1407, issue #1408) — the low-level color/mv/controller
-// predicates the target-filter registry checks depend on now live in
-// `targetFilters.ts` (no dependency on this module, keeping the import graph
-// acyclic). Re-exported here so existing callers (`game.ts`,
+// ADR 0068 (PRD #1407, issues #1408 / #1409) — the low-level color/mv/
+// controller/spell predicates the target-filter registry checks depend on
+// now live in `targetFilters.ts` (no dependency on this module, keeping the
+// import graph acyclic). Re-exported here so existing callers (`game.ts`,
 // `combatRegistry.ts`, tests) keep importing them from `./rules` unchanged.
 export {
     hasColor,
@@ -87,8 +86,13 @@ export {
     resolveMvFilter,
     matchesBattlefieldController,
     checkPermanentTargetFilters,
+    checkSpellTargetFilters,
+    spellMatchesExcludeTypeFilter,
+    spellMatchesCreaturePtFilter,
+    spellWouldDestroyLandControlledBy,
     type TargetFilterCtx,
     type PermanentFilterValues,
+    type SpellFilterValues,
 } from "./targetFilters";
 
 /** Reads extra land drops granted by permanents on the player's battlefield
@@ -1178,14 +1182,11 @@ function passesCastPhaseRestriction(
 }
 
 // `hasColor`, `resolveMvFilter`, `matchesMvFilter`, `matchesBattlefieldController`
-// moved to `./targetFilters` (ADR 0068 / issue #1408) — imported above and
-// re-exported for backward compatibility with existing callers.
-
-function mvOfStackItem(item: { card: unknown; chosenX?: number }): number {
-    const cardId = (item.card as { id?: string }).id;
-    const def = cardId ? tryGetDefinition(cardId) : undefined;
-    return manaValue(def?.manaCost) + (item.chosenX ?? 0);
-}
+// (ADR 0068 / issue #1408, T1) and `mvOfStackItem`,
+// `spellMatchesExcludeTypeFilter`, `spellMatchesCreaturePtFilter`,
+// `spellWouldDestroyLandControlledBy` (ADR 0068 / issue #1409, T2) moved to
+// `./targetFilters` — imported above and re-exported for backward
+// compatibility with existing callers.
 
 /** Returns all legal targets for a spell/ability with the given target
  *  requirement. `sourceColors` are the colors of the casting spell or the
@@ -1195,96 +1196,6 @@ function mvOfStackItem(item: { card: unknown; chosenX?: number }): number {
  *  resolved relative to the chooser. `chosenX` is required when the
  *  requirement carries a `mvFilter` whose bounds use the `"X"` placeholder
  *  (CR 107.3 / 202.3, e.g. Spell Blast). */
-/** CR 114.1 — Spell Pierce's "target noncreature spell": true when `item` is
- *  a legal spell target under `excludeTypes` (an ability never qualifies; an
- *  actual spell must match NONE of the given card types). An
- *  undefined/empty filter always passes. Shared by `getLegalTargets`'s spell
- *  loop and `selectTarget`'s server-side validation (game.ts) — one
- *  predicate, two call sites (issue #683). */
-export function spellMatchesExcludeTypeFilter(
-    item: GameState["stack"][number],
-    excludeTypes: ReadonlyArray<CardType> | undefined
-): boolean {
-    if (!excludeTypes || excludeTypes.length === 0) return true;
-    if (item.abilityId || item.triggeredAbilityId || item.delayedTriggerId) {
-        return false;
-    }
-    return !excludeTypes.some((t) => item.types.includes(t));
-}
-
-/** CR 114.1 + 208.2 — Stern Scolding's "target creature spell with power or
- *  toughness N or less": true when `item` is a legal spell target under
- *  `filter` (an ability never qualifies; the spell must be a creature spell
- *  whose power OR toughness, as printed on the card, is at most the given
- *  number). An undefined filter always passes. Shared by `getLegalTargets`'s
- *  spell loop and `selectTarget`'s server-side validation (issue #683). */
-export function spellMatchesCreaturePtFilter(
-    item: GameState["stack"][number],
-    filter: { maxPowerOrToughness: number } | undefined
-): boolean {
-    if (!filter) return true;
-    if (item.abilityId || item.triggeredAbilityId || item.delayedTriggerId) {
-        return false;
-    }
-    if (!item.types.includes("Creature")) return false;
-    const max = filter.maxPowerOrToughness;
-    const powerOk = item.power !== undefined && item.power <= max;
-    const toughnessOk = item.toughness !== undefined && item.toughness <= max;
-    return powerOk || toughnessOk;
-}
-
-/** CR 114.1 + 701.7 — would the spell `item` on the stack destroy a land that
- *  `playerId` controls? Inspects the spell DECLARATIVELY (never runs its
- *  imperative `resolve()`): a single-target `effect: "destroy-target"` whose
- *  chosen permanent target is a land controlled by `playerId`, or a mass
- *  land-destruction spell flagged `destroysAllLands` while `playerId` controls
- *  at least one land. Abilities on the stack are not spells and never qualify.
- *  Reusable predicate (not Equinox-specific) — drives the
- *  `spellWouldDestroyLandYouControl` spell-target filter. Per the Legends
- *  rulings, only DIRECT destruction counts (damage-to-animated-land,
- *  sacrifice, and random/indirect destruction are excluded by construction —
- *  they aren't `destroy-target`/`destroysAllLands`). */
-export function spellWouldDestroyLandControlledBy(
-    state: GameState,
-    item: GameState["stack"][number],
-    playerId: string
-): boolean {
-    // An activated/triggered/delayed ability on the stack is not a spell.
-    if (item.abilityId || item.triggeredAbilityId || item.delayedTriggerId) {
-        return false;
-    }
-    const cardId = (item.card as { id?: string }).id;
-    const def = cardId ? tryGetDefinition(cardId) : undefined;
-    if (!def) return false;
-
-    const controlsALand = state.players
-        .find((p) => p.id === playerId)
-        ?.battlefield.some((c) => isLand(c) && c.controllerId === playerId);
-
-    // Mass land destruction (Armageddon): destroys every land in play, so it
-    // destroys the activator's land iff they control any land at all.
-    if (def.destroysAllLands) return !!controlsALand;
-
-    // Single-target "Destroy target land" (Stone Rain / Sinkhole / Ice Storm):
-    // qualifies iff one of the chosen targets is a land this player controls.
-    // Both declarative authoring modes qualify: the `effect: "destroy-target"`
-    // shorthand and an Effect Script carrying a `destroy` Op (ADR 0045).
-    if (
-        def.effect === "destroy-target" ||
-        def.effects?.some((op) => op.op === "destroy")
-    ) {
-        for (const t of item.targets ?? []) {
-            if (t.type !== "permanent") continue;
-            for (const p of state.players) {
-                const perm = p.battlefield.find((c) => c.id === t.id);
-                if (perm && isLand(perm) && perm.controllerId === playerId) {
-                    return true;
-                }
-            }
-        }
-    }
-    return false;
-}
 
 /** Filter fields shared by TargetRequirement and PendingTarget that constrain a
  *  PERMANENT target by its OWN (source-independent) characteristics. Source-
@@ -1665,151 +1576,31 @@ export function getLegalTargets(
         }
     }
 
-    // CR 114.1: any spell or ability currently on the stack is a legal target.
+    // CR 114.1: any spell or ability currently on the stack is a legal target
     // (The casting spell itself isn't on the stack yet during target selection.)
+    // CR 113 / 114.1 / 202.2 / 202.3 / 208.2 / 601.2c / 701.7 / 702 — every
+    // spell-kind filter (spellStackKind, controller, stackSourceTypeFilter,
+    // spellTargetsInstanceIds, colorFilter, mvFilter, spellTypeFilter,
+    // spellExcludeTypeFilter, spellCreaturePtFilter,
+    // spellSingleTargetingController, spellWouldDestroyLandYouControl),
+    // routed through the SINGLE shared authority — the target-filter registry
+    // (ADR 0068 / issue #1409, T2). The selectTarget mutation runs the SAME
+    // `checkSpellTargetFilters` against the submitted target, so the offered
+    // set and the accepted set can't diverge (the spell-flavored half of the
+    // Phelia bug class).
     if (wantsSpell) {
-        const spellTypes = requirement.spellTypeFilter
-            ? Array.isArray(requirement.spellTypeFilter)
-                ? requirement.spellTypeFilter
-                : [requirement.spellTypeFilter]
-            : undefined;
-        const stackKind = requirement.spellStackKind;
-        const stackSourceTypes = requirement.stackSourceTypeFilter
-            ? Array.isArray(requirement.stackSourceTypeFilter)
-                ? requirement.stackSourceTypeFilter
-                : [requirement.stackSourceTypeFilter]
-            : undefined;
-        const spellTargetsIds = requirement.spellTargetsInstanceIds;
-        const spellExcludeTypes = requirement.spellExcludeTypeFilter
-            ? Array.isArray(requirement.spellExcludeTypeFilter)
-                ? requirement.spellExcludeTypeFilter
-                : [requirement.spellExcludeTypeFilter]
-            : undefined;
-        const spellCreaturePtFilter = requirement.spellCreaturePtFilter;
+        const spellValues = lowerSpellFilters(requirement, chosenX);
+        const spellFilterCtx: TargetFilterCtx = {
+            state,
+            sourceColors,
+            sourceTypes,
+            sourceSubtypes,
+            chooserId: casterId,
+            activePlayerId: state.activePlayerId,
+            sourceIsSpell,
+        };
         for (const item of state.stack) {
-            const isAbilityItem =
-                !!item.abilityId ||
-                !!item.triggeredAbilityId ||
-                !!item.delayedTriggerId;
-            // CR 113 / 114.1 — restrict by stack-object kind. A "target spell"
-            // targets a SPELL, never an ability (CR 701.5a): abilities on the
-            // stack are legal ONLY when the requirement explicitly opts into an
-            // ability kind. The default (omitted) AND "spell" both drop
-            // abilities; "activated-ability" keeps only activated abilities
-            // (Brown Ouphe); "ability" keeps any ability — activated OR
-            // triggered (Stifle); "any" (Ward, CR 702.21a) keeps BOTH spells
-            // and abilities — "counter that spell or ability" needs no kind
-            // narrowing. Mana abilities never reach the stack (CR 605.3a), so
-            // they are never targetable regardless.
-            const acceptsSpell =
-                stackKind === undefined ||
-                stackKind === "spell" ||
-                stackKind === "any";
-            const acceptsAbility =
-                stackKind === "activated-ability" ||
-                stackKind === "ability" ||
-                stackKind === "any";
-            if (isAbilityItem) {
-                if (!acceptsAbility) continue;
-                // "activated-ability" narrows further to activated abilities.
-                if (stackKind === "activated-ability" && !item.abilityId) {
-                    continue;
-                }
-            } else if (!acceptsSpell) {
-                continue; // an ability-only kind never accepts a spell
-            }
-            // CR 109.3 / 114.1 (Lutri, the Spellchaser — "target instant or
-            // sorcery spell YOU CONTROL"): the `controller` relationship
-            // filter, already honored for graveyard/battlefield/player
-            // targets, extends to spell/ability stack objects too — a stack
-            // item's "controller" is its caster (`castById`). Shares the
-            // exact same predicate `selectTarget` (game.ts) validates the
-            // chosen target against, so the offered and accepted sets can't
-            // diverge.
-            if (
-                !matchesBattlefieldController(
-                    item.castById,
-                    casterId,
-                    state.activePlayerId,
-                    requirement.controller
-                )
-            ) {
-                continue;
-            }
-            // CR 113.7a — restrict by the object's source card types (Brown
-            // Ouphe: "from an artifact source"). The ability stack item carries
-            // the source permanent's live `types`.
-            if (
-                stackSourceTypes &&
-                !stackSourceTypes.some((t) => item.types.includes(t))
-            ) {
-                continue;
-            }
-            // CR 114.1 — Mistfolk: the object must target one of the given
-            // permanent instance ids (its own source). Spells-only by default
-            // (Mistfolk); with `spellStackKind: "any"` (Ward) an ability also
-            // qualifies — the kind gate above already governs which kinds
-            // reach here, so this filter no longer excludes abilities itself.
-            if (spellTargetsIds) {
-                const tgts = item.targets ?? [];
-                if (
-                    !tgts.some(
-                        (t) =>
-                            t.type === "permanent" &&
-                            spellTargetsIds.includes(t.id)
-                    )
-                ) {
-                    continue;
-                }
-            }
-            if (colorFilter && !hasColor(item, colorFilter)) continue;
-            if (mvFilter && !matchesMvFilter(mvFilter, mvOfStackItem(item))) {
-                continue;
-            }
-            // CR 114.1 + spellTypeFilter (Fork: "instant or sorcery spell"):
-            // an ability on the stack isn't a spell, and a spell must match
-            // the requested card type(s).
-            if (spellTypes) {
-                const isAbility =
-                    !!item.abilityId ||
-                    !!item.triggeredAbilityId ||
-                    !!item.delayedTriggerId;
-                if (isAbility) continue;
-                if (!spellTypes.some((t) => item.types.includes(t))) continue;
-            }
-            // CR 114.1 + spellExcludeTypeFilter (Spell Pierce: "target
-            // noncreature spell").
-            if (!spellMatchesExcludeTypeFilter(item, spellExcludeTypes)) {
-                continue;
-            }
-            // CR 114.1 + 208.2 — Stern Scolding ("target creature spell with
-            // power or toughness 2 or less").
-            if (!spellMatchesCreaturePtFilter(item, spellCreaturePtFilter)) {
-                continue;
-            }
-            // CR 114.6 / 115.10 — Reflecting Mirror: only spells that have
-            // EXACTLY ONE target whose single target IS the activating player
-            // are legal. (An ability on the stack is never a legal target here:
-            // the requirement is "target spell".)
-            if (requirement.spellSingleTargetingController) {
-                const isAbility =
-                    !!item.abilityId ||
-                    !!item.triggeredAbilityId ||
-                    !!item.delayedTriggerId;
-                if (isAbility) continue;
-                const tgts = item.targets ?? [];
-                if (tgts.length !== 1) continue;
-                if (tgts[0].type !== "player" || tgts[0].id !== casterId) {
-                    continue;
-                }
-            }
-            // CR 114.1 + 701.7 — Equinox: only spells that would destroy a land
-            // the activating player controls are legal.
-            if (
-                requirement.spellWouldDestroyLandYouControl &&
-                (casterId === undefined ||
-                    !spellWouldDestroyLandControlledBy(state, item, casterId))
-            ) {
+            if (checkSpellTargetFilters(spellFilterCtx, item, spellValues)) {
                 continue;
             }
             targets.push({ type: "spell", id: item.id });
@@ -1941,39 +1732,22 @@ export function pendingTargetFiltersFromRequirement(
     req: TargetRequirement,
     chosenX: number | undefined
 ): Partial<PendingTarget> {
-    const toArr = (v: string | string[] | undefined): string[] | undefined =>
-        v === undefined ? undefined : Array.isArray(v) ? v : [v];
-    // ADR 0068 / issue #1408 (T1) — every PERMANENT-kind filter (plus
-    // `controller`) is now lowered through the registry's `lower()`, the
-    // SAME resolution `getLegalTargets` and `selectTarget` run against. This
-    // is the "lower once" half of "lower once, check everywhere": a filter's
-    // carry can no longer drift from its offered/accepted semantics because
-    // there is only one implementation of `lower` to call.
+    // ADR 0068 — every PERMANENT-kind filter (plus `controller`, issue
+    // #1408 T1) AND every SPELL-kind filter (issue #1409 T2) is now lowered
+    // through the registry's `lower()`, the SAME resolution `getLegalTargets`
+    // and `selectTarget` run against. This is the "lower once" half of
+    // "lower once, check everywhere": a filter's carry can no longer drift
+    // from its offered/accepted semantics because there is only one
+    // implementation of `lower` to call. `lowerSpellFilters` also lowers
+    // `controller` / `colorFilter` / `mvFilter` (cross-kind, already
+    // produced by `lowerPermanentFilters`) — spread second, same values, no
+    // conflict.
     const out: Partial<PendingTarget> = {
         ...(lowerPermanentFilters(req, chosenX) as Partial<PendingTarget>),
+        ...(lowerSpellFilters(req, chosenX) as Partial<PendingTarget>),
     };
-    const spellType = toArr(req.spellTypeFilter);
-    if (spellType) out.spellTypeFilter = spellType as CardType[];
-    const spellExcludeType = toArr(req.spellExcludeTypeFilter);
-    if (spellExcludeType)
-        out.spellExcludeTypeFilter = spellExcludeType as CardType[];
-    if (req.spellCreaturePtFilter)
-        out.spellCreaturePtFilter = req.spellCreaturePtFilter;
-    if (req.spellSingleTargetingController)
-        out.spellSingleTargetingController = true;
-    if (req.spellWouldDestroyLandYouControl)
-        out.spellWouldDestroyLandYouControl = true;
-    if (req.spellStackKind) out.spellStackKind = req.spellStackKind;
-    const stackSrc = toArr(req.stackSourceTypeFilter);
-    if (stackSrc) out.stackSourceTypeFilter = stackSrc as CardType[];
-    if (req.spellTargetsInstanceIds)
-        out.spellTargetsInstanceIds = [...req.spellTargetsInstanceIds];
     if (req.playerAttackedThisTurn) out.playerAttackedThisTurn = true;
     if (req.zone) out.zone = req.zone;
-    // `controller` is lowered by `lowerPermanentFilters` above (ADR 0068) —
-    // it's requirement-generic (permanent/player/spell branches all read the
-    // same `PendingTarget.controller`), not permanent-only, so it rides along
-    // with the permanent filter carry rather than needing its own line here.
     return out;
 }
 

@@ -19,6 +19,7 @@ import {
 import { isGuardedAgainst, playerHasShroud } from "../permanentGuard";
 import {
     checkPermanentTargetFilters,
+    checkSpellTargetFilters,
     type TargetFilterCtx,
 } from "../targetFilters";
 import type {
@@ -1572,6 +1573,328 @@ describe("backend: selectTarget spell-filter predicates (issue #683)", () => {
         expect(
             spellMatchesCreaturePtFilter(big, { maxPowerOrToughness: 2 })
         ).toBe(false);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// checkSpellTargetFilters — single shared spell-kind gate (ADR 0068, T2,
+// issue #1409). THE authority both getLegalTargets (offered set) and
+// selectTarget (accepted set, game.ts) run per stack-item candidate; a
+// filter that passes here is legal at BOTH sites by construction — closing
+// the spell-flavored half of the Phelia bug class (T1 closed the permanent
+// half via checkPermanentTargetFilters / intrinsicPermanentTargetViolation).
+// ---------------------------------------------------------------------------
+
+describe("checkSpellTargetFilters — shared offered/accepted gate (ADR 0068, issue #1409)", () => {
+    const baseCtx: TargetFilterCtx = {
+        state: makeGameState(),
+        sourceColors: [],
+        sourceTypes: [],
+        sourceSubtypes: [],
+        chooserId: "p1",
+        activePlayerId: "p1",
+    };
+
+    const spellItem = (overrides: Partial<StackItem> = {}): StackItem => ({
+        ...makeCard({ id: "spell1", types: ["Instant"] }),
+        castById: "p1",
+        ...overrides,
+    });
+
+    it("spellStackKind: 'spell' (the lowered default for an omitted requirement, CR 701.5a) rejects an ability, accepts a spell", () => {
+        const anAbility = spellItem({ abilityId: "some-ability" });
+        const aSpell = spellItem();
+        // `lowerSpellFilters` resolves an omitted requirement to the explicit
+        // "spell" default (never `undefined`, see `lowerSpellFilters` doc) —
+        // `checkSpellTargetFilters` is always called with already-lowered
+        // values, so this is the value it actually receives in real usage.
+        expect(
+            checkSpellTargetFilters(baseCtx, anAbility, {
+                spellStackKind: "spell",
+            })
+        ).not.toBeNull();
+        expect(
+            checkSpellTargetFilters(baseCtx, aSpell, { spellStackKind: "spell" })
+        ).toBeNull();
+    });
+
+    it("spellStackKind: 'activated-ability' accepts only an activated ability", () => {
+        const activated = spellItem({ abilityId: "ability-1" });
+        const triggered = spellItem({ triggeredAbilityId: "trigger-1" });
+        expect(
+            checkSpellTargetFilters(baseCtx, activated, {
+                spellStackKind: "activated-ability",
+            })
+        ).toBeNull();
+        expect(
+            checkSpellTargetFilters(baseCtx, triggered, {
+                spellStackKind: "activated-ability",
+            })
+        ).not.toBeNull();
+    });
+
+    it("spellStackKind: 'any' (Ward, CR 702.21a) accepts a spell, an activated ability, AND a triggered ability", () => {
+        const aSpell = spellItem();
+        const activated = spellItem({ abilityId: "ability-1" });
+        const triggered = spellItem({ triggeredAbilityId: "trigger-1" });
+        for (const candidate of [aSpell, activated, triggered]) {
+            expect(
+                checkSpellTargetFilters(baseCtx, candidate, {
+                    spellStackKind: "any",
+                })
+            ).toBeNull();
+        }
+    });
+
+    it("controller: 'you' rejects an opponent's spell, accepts your own (CR 109.3 / 114.1, Lutri)", () => {
+        const own = spellItem({ castById: "p1" });
+        const opp = spellItem({ castById: "p2" });
+        expect(
+            checkSpellTargetFilters(baseCtx, own, { controller: "you" })
+        ).toBeNull();
+        expect(
+            checkSpellTargetFilters(baseCtx, opp, { controller: "you" })
+        ).not.toBeNull();
+    });
+
+    it("stackSourceTypeFilter: rejects a source whose card types don't match, accepts one that does (CR 113.7a)", () => {
+        const fromArtifact = spellItem({
+            types: ["Artifact"],
+            abilityId: "a1",
+        });
+        const fromCreature = spellItem({
+            types: ["Creature"],
+            abilityId: "a1",
+        });
+        expect(
+            checkSpellTargetFilters(baseCtx, fromArtifact, {
+                stackSourceTypeFilter: ["Artifact"],
+            })
+        ).toBeNull();
+        expect(
+            checkSpellTargetFilters(baseCtx, fromCreature, {
+                stackSourceTypeFilter: ["Artifact"],
+            })
+        ).not.toBeNull();
+    });
+
+    it("spellTargetsInstanceIds: rejects a spell not targeting the given permanent, accepts one that does (CR 114.1, Mistfolk)", () => {
+        const targetingIt = spellItem({
+            targets: [{ type: "permanent", id: "mist" }],
+        });
+        const targetingOther = spellItem({
+            targets: [{ type: "permanent", id: "other" }],
+        });
+        expect(
+            checkSpellTargetFilters(baseCtx, targetingIt, {
+                spellTargetsInstanceIds: ["mist"],
+            })
+        ).toBeNull();
+        expect(
+            checkSpellTargetFilters(baseCtx, targetingOther, {
+                spellTargetsInstanceIds: ["mist"],
+            })
+        ).not.toBeNull();
+    });
+
+    it("spellTargetsInstanceIds admits an ABILITY when spellStackKind: 'any' (Ward, CR 702.21a — the kind gate alone governs kind eligibility)", () => {
+        const abilityTargetingIt = spellItem({
+            abilityId: "ward",
+            targets: [{ type: "permanent", id: "warded" }],
+        });
+        expect(
+            checkSpellTargetFilters(baseCtx, abilityTargetingIt, {
+                spellStackKind: "any",
+                spellTargetsInstanceIds: ["warded"],
+            })
+        ).toBeNull();
+    });
+
+    it("colorFilter: rejects a spell of the wrong color, accepts a matching one (CR 202.2)", () => {
+        const red = spellItem({ card: { id: "r", manaCost: { R: 1 } } });
+        const white = spellItem({ card: { id: "w", manaCost: { W: 1 } } });
+        expect(
+            checkSpellTargetFilters(baseCtx, red, { colorFilter: "R" })
+        ).toBeNull();
+        expect(
+            checkSpellTargetFilters(baseCtx, white, { colorFilter: "R" })
+        ).not.toBeNull();
+    });
+
+    it("mvFilter: rejects a spell outside the mana-value bound, accepts one matching it (CR 202.3, Spell Blast)", () => {
+        // Mirrors the permanent-kind mvFilter test's convention above: the
+        // fixture doesn't register a mana cost for these ids, so
+        // `mvOfStackItem` (which resolves mv via `tryGetDefinition`, same as
+        // `mvOfPermanent`) reports 0 for both — assert the "equals" bound
+        // accepts mv 0 and rejects a nonzero requirement instead.
+        const cheap = spellItem({ card: { id: "test-cheap-instant" } });
+        const expensive = spellItem({ card: { id: "test-expensive-instant" } });
+        expect(
+            checkSpellTargetFilters(baseCtx, cheap, { mvFilter: { equals: 0 } })
+        ).toBeNull();
+        expect(
+            checkSpellTargetFilters(baseCtx, expensive, {
+                mvFilter: { equals: 1 },
+            })
+        ).not.toBeNull();
+    });
+
+    it("spellTypeFilter: rejects an out-of-type spell and any ability, accepts a matching spell (CR 114.1, Fork)", () => {
+        const instant = spellItem({ types: ["Instant"] });
+        const creatureSpell = spellItem({ types: ["Creature"] });
+        const ability = spellItem({ types: ["Instant"], abilityId: "a1" });
+        expect(
+            checkSpellTargetFilters(baseCtx, instant, {
+                spellTypeFilter: ["Instant", "Sorcery"],
+            })
+        ).toBeNull();
+        expect(
+            checkSpellTargetFilters(baseCtx, creatureSpell, {
+                spellTypeFilter: ["Instant", "Sorcery"],
+            })
+        ).not.toBeNull();
+        expect(
+            checkSpellTargetFilters(baseCtx, ability, {
+                spellTypeFilter: ["Instant", "Sorcery"],
+            })
+        ).not.toBeNull();
+    });
+
+    it("spellExcludeTypeFilter: rejects a creature spell, accepts a noncreature spell (CR 114.1, Spell Pierce)", () => {
+        const bear = spellItem({ types: ["Creature"] });
+        const bolt = spellItem({ types: ["Instant"] });
+        expect(
+            checkSpellTargetFilters(baseCtx, bear, {
+                spellExcludeTypeFilter: ["Creature"],
+            })
+        ).not.toBeNull();
+        expect(
+            checkSpellTargetFilters(baseCtx, bolt, {
+                spellExcludeTypeFilter: ["Creature"],
+            })
+        ).toBeNull();
+    });
+
+    it("spellCreaturePtFilter: rejects a big creature spell, accepts a small one (CR 114.1 + 208.2, Stern Scolding)", () => {
+        const small = spellItem({
+            types: ["Creature"],
+            power: 1,
+            toughness: 1,
+        });
+        const big = spellItem({ types: ["Creature"], power: 6, toughness: 6 });
+        expect(
+            checkSpellTargetFilters(baseCtx, small, {
+                spellCreaturePtFilter: { maxPowerOrToughness: 2 },
+            })
+        ).toBeNull();
+        expect(
+            checkSpellTargetFilters(baseCtx, big, {
+                spellCreaturePtFilter: { maxPowerOrToughness: 2 },
+            })
+        ).not.toBeNull();
+    });
+
+    it("spellSingleTargetingController: rejects a spell not solely targeting the chooser, accepts one that does (CR 114.6 / 115.10, Reflecting Mirror)", () => {
+        const targetsChooser = spellItem({
+            targets: [{ type: "player", id: "p1" }],
+        });
+        const targetsOther = spellItem({
+            targets: [{ type: "player", id: "p2" }],
+        });
+        expect(
+            checkSpellTargetFilters(baseCtx, targetsChooser, {
+                spellSingleTargetingController: true,
+            })
+        ).toBeNull();
+        expect(
+            checkSpellTargetFilters(baseCtx, targetsOther, {
+                spellSingleTargetingController: true,
+            })
+        ).not.toBeNull();
+    });
+
+    it("spellWouldDestroyLandYouControl: rejects a spell that would not destroy the chooser's land, accepts one that would (CR 114.1 + 701.7, Equinox)", () => {
+        const land = makeCard({
+            id: "land1",
+            types: ["Land"],
+            controllerId: "p1",
+        });
+        const state = makeGameState({
+            players: [
+                makePlayer({ id: "p1", battlefield: [land] }),
+                makePlayer({ id: "p2" }),
+            ],
+        });
+        const ctx: TargetFilterCtx = { ...baseCtx, state };
+        registerTokenDefinition({
+            id: "stone-rain-t2",
+            name: "stone-rain-t2",
+            rarity: "common",
+            manaCost: { R: 1 },
+            types: ["Sorcery"],
+            effect: "destroy-target",
+        });
+        const destroysLand = spellItem({
+            card: { id: "stone-rain-t2" },
+            targets: [{ type: "permanent", id: "land1" }],
+        });
+        const harmless = spellItem({ types: ["Instant"] });
+        expect(
+            checkSpellTargetFilters(ctx, destroysLand, {
+                spellWouldDestroyLandYouControl: true,
+            })
+        ).toBeNull();
+        expect(
+            checkSpellTargetFilters(ctx, harmless, {
+                spellWouldDestroyLandYouControl: true,
+            })
+        ).not.toBeNull();
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Carry-completeness — every spell filter must round-trip onto the
+// PendingTarget via pendingTargetFiltersFromRequirement (ADR 0068, T2). If a
+// filter is added to checkSpellTargetFilters but not propagated here, the
+// interactive choice silently loses it (the spell-flavored Phelia
+// regression) — this fails the moment that happens.
+// ---------------------------------------------------------------------------
+
+describe("pendingTargetFiltersFromRequirement — spell filter carry-completeness (issue #1409)", () => {
+    it("carries every spell filter onto the PendingTarget", () => {
+        const req: TargetRequirement = {
+            type: "spell",
+            count: 1,
+            spellStackKind: "any",
+            controller: "you",
+            stackSourceTypeFilter: "Artifact",
+            spellTargetsInstanceIds: ["src1"],
+            colorFilter: "R",
+            mvFilter: { equals: 3 },
+            spellTypeFilter: "Instant",
+            spellExcludeTypeFilter: "Creature",
+            spellCreaturePtFilter: { maxPowerOrToughness: 2 },
+            spellSingleTargetingController: true,
+            spellWouldDestroyLandYouControl: true,
+        };
+        const pt = pendingTargetFiltersFromRequirement(req, undefined);
+        expect(pt.spellStackKind).toBe("any");
+        expect(pt.controller).toBe("you");
+        expect(pt.stackSourceTypeFilter).toEqual(["Artifact"]);
+        expect(pt.spellTargetsInstanceIds).toEqual(["src1"]);
+        expect(pt.colorFilter).toBe("R");
+        expect(pt.mvFilter).toEqual({ equals: 3 });
+        expect(pt.spellTypeFilter).toEqual(["Instant"]);
+        expect(pt.spellExcludeTypeFilter).toEqual(["Creature"]);
+        expect(pt.spellCreaturePtFilter).toEqual({ maxPowerOrToughness: 2 });
+        expect(pt.spellSingleTargetingController).toBe(true);
+        expect(pt.spellWouldDestroyLandYouControl).toBe(true);
+    });
+
+    it("spellStackKind defaults to 'spell' when omitted (always-active filter, never skipped — CR 701.5a)", () => {
+        const req: TargetRequirement = { type: "spell", count: 1 };
+        const pt = pendingTargetFiltersFromRequirement(req, undefined);
+        expect(pt.spellStackKind).toBe("spell");
     });
 });
 

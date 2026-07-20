@@ -1,37 +1,44 @@
 /** Target-filter registry — the single compile-bound authority for target
- *  legality (ADR 0068, PRD #1407). This is slice **T1** (issue #1408):
- *  registry scaffold + the PERMANENT kind only, folding in the existing
- *  `intrinsicPermanentTargetViolation` shared predicate. Spell/player/card
- *  kinds land in T2/T3; the `FilterKey = keyof Omit<TargetRequirement,
- *  StructuralKey>` compile-time forcing function arms in T4 — this module
- *  intentionally keys the registry by an explicit permanent-filter list for
- *  now (`PERMANENT_FILTER_KEYS`), not by `keyof Omit<...>`, so it compiles
- *  standalone before every kind has an entry.
+ *  legality (ADR 0068, PRD #1407). **T1** (issue #1408) shipped the registry
+ *  scaffold + the PERMANENT kind, folding in the existing
+ *  `intrinsicPermanentTargetViolation` shared predicate. **T2** (issue
+ *  #1409, this slice) adds the SPELL kind: every filter previously validated
+ *  inline, independently, by both `getLegalTargets`'s spell loop and
+ *  `selectTarget`'s spell branch now routes through one `checks.spell` per
+ *  descriptor. Player/card kinds land in T3; the `FilterKey = keyof
+ *  Omit<TargetRequirement, StructuralKey>` compile-time forcing function
+ *  arms in T4 — this module intentionally keys the registry by explicit
+ *  per-kind key lists for now (`PERMANENT_FILTER_KEYS`, `SPELL_FILTER_KEYS`),
+ *  not by `keyof Omit<...>`, so it compiles standalone before every kind has
+ *  an entry.
  *
  *  **Lower once, check everywhere** (the whole point): `lower` resolves a
  *  `TargetRequirement` field to its `PendingTarget` carry value (X-resolution,
  *  `string | string[]` normalization) — that value IS the corresponding
  *  `PendingTarget` field. `getLegalTargets` lowers then runs `checks.permanent`
- *  per candidate; `selectTarget` (`game.ts`) runs the SAME check against the
- *  already-lowered `PendingTarget`. Offered set == accepted set by
- *  construction — there is no second implementation of any filter to drift
- *  (the Phelia bug class, `78c0279c`).
+ *  / `checks.spell` per candidate; `selectTarget` (`game.ts`) runs the SAME
+ *  check against the already-lowered `PendingTarget`. Offered set == accepted
+ *  set by construction — there is no second implementation of any filter to
+ *  drift (the Phelia bug class, `78c0279c`, and its spell-flavored twin
+ *  closed by T2).
  *
  *  This module has NO dependency on `./rules` — `rules.ts` and `game.ts`
  *  import from here instead, so the dependency direction stays acyclic. The
  *  handful of low-level predicates the checks need (`hasColor`,
- *  `matchesMvFilter`, `resolveMvFilter`, `matchesBattlefieldController`) moved
+ *  `matchesMvFilter`, `resolveMvFilter`, `matchesBattlefieldController`,
+ *  `mvOfStackItem`, `spellMatchesExcludeTypeFilter`,
+ *  `spellMatchesCreaturePtFilter`, `spellWouldDestroyLandControlledBy`) moved
  *  here from `rules.ts`; `rules.ts` re-exports them for backward
  *  compatibility with existing callers/imports. */
 import type { CardType, Color, TargetRequirement } from "../cards/types";
-import type { CardInstanceState, GameState } from "./state";
+import type { CardInstanceState, GameState, StackItem } from "./state";
 import {
     STATIC_EFFECT_CTX,
     getEffectivePower,
     getEffectiveToughness,
 } from "./layers";
 import { hasSupertypeLive } from "./snow";
-import { manaValue } from "./constants";
+import { isLand, manaValue } from "./constants";
 import { tryGetDefinition } from "../cards";
 
 // ─── Shared low-level predicates (moved from rules.ts) ──────────────────────
@@ -84,6 +91,118 @@ export function matchesMvFilter(
     if (filter.min !== undefined && mv < filter.min) return false;
     if (filter.max !== undefined && mv > filter.max) return false;
     return true;
+}
+
+/** Computes mana value for a stack item (spell or ability), X-inclusive
+ *  (CR 202.3b — once on the stack, X is the chosen value, not 0). Used by
+ *  TargetRequirement.mvFilter for `type: "spell"` targets. Moved from
+ *  `rules.ts` (ADR 0068 / issue #1409, T2) so the spell mv computation lives
+ *  alongside every other spell-target predicate; `rules.ts` no longer needs
+ *  its own copy. */
+export function mvOfStackItem(item: {
+    card: unknown;
+    chosenX?: number;
+}): number {
+    const cardId = (item.card as { id?: string }).id;
+    const def = cardId ? tryGetDefinition(cardId) : undefined;
+    return manaValue(def?.manaCost) + (item.chosenX ?? 0);
+}
+
+/** CR 114.1 — Spell Pierce's "target noncreature spell": true when `item` is
+ *  a legal spell target under `excludeTypes` (an ability never qualifies; an
+ *  actual spell must match NONE of the given card types). An
+ *  undefined/empty filter always passes. Shared by `getLegalTargets`'s spell
+ *  loop and `selectTarget`'s server-side validation (game.ts) — one
+ *  predicate, two call sites (issue #683). Moved from `rules.ts` (ADR 0068 /
+ *  issue #1409, T2) to become the `spellExcludeTypeFilter` registry check;
+ *  `rules.ts` re-exports it for backward compatibility. */
+export function spellMatchesExcludeTypeFilter(
+    item: StackItem,
+    excludeTypes: ReadonlyArray<CardType> | undefined
+): boolean {
+    if (!excludeTypes || excludeTypes.length === 0) return true;
+    if (item.abilityId || item.triggeredAbilityId || item.delayedTriggerId) {
+        return false;
+    }
+    return !excludeTypes.some((t) => item.types.includes(t));
+}
+
+/** CR 114.1 + 208.2 — Stern Scolding's "target creature spell with power or
+ *  toughness N or less": true when `item` is a legal spell target under
+ *  `filter` (an ability never qualifies; the spell must be a creature spell
+ *  whose power OR toughness, as printed on the card, is at most the given
+ *  number). An undefined filter always passes. Shared by `getLegalTargets`'s
+ *  spell loop and `selectTarget`'s server-side validation (issue #683).
+ *  Moved from `rules.ts` (ADR 0068 / issue #1409, T2) to become the
+ *  `spellCreaturePtFilter` registry check; `rules.ts` re-exports it. */
+export function spellMatchesCreaturePtFilter(
+    item: StackItem,
+    filter: { maxPowerOrToughness: number } | undefined
+): boolean {
+    if (!filter) return true;
+    if (item.abilityId || item.triggeredAbilityId || item.delayedTriggerId) {
+        return false;
+    }
+    if (!item.types.includes("Creature")) return false;
+    const max = filter.maxPowerOrToughness;
+    const powerOk = item.power !== undefined && item.power <= max;
+    const toughnessOk = item.toughness !== undefined && item.toughness <= max;
+    return powerOk || toughnessOk;
+}
+
+/** CR 114.1 + 701.7 — would the spell `item` on the stack destroy a land that
+ *  `playerId` controls? Inspects the spell DECLARATIVELY (never runs its
+ *  imperative `resolve()`): a single-target `effect: "destroy-target"` whose
+ *  chosen permanent target is a land controlled by `playerId`, or a mass
+ *  land-destruction spell flagged `destroysAllLands` while `playerId` controls
+ *  at least one land. Abilities on the stack are not spells and never qualify.
+ *  Reusable predicate (not Equinox-specific) — drives the
+ *  `spellWouldDestroyLandYouControl` spell-target filter. Per the Legends
+ *  rulings, only DIRECT destruction counts (damage-to-animated-land,
+ *  sacrifice, and random/indirect destruction are excluded by construction —
+ *  they aren't `destroy-target`/`destroysAllLands`). Moved from `rules.ts`
+ *  (ADR 0068 / issue #1409, T2); `rules.ts` re-exports it for backward
+ *  compatibility. */
+export function spellWouldDestroyLandControlledBy(
+    state: GameState,
+    item: StackItem,
+    playerId: string
+): boolean {
+    // An activated/triggered/delayed ability on the stack is not a spell.
+    if (item.abilityId || item.triggeredAbilityId || item.delayedTriggerId) {
+        return false;
+    }
+    const cardId = (item.card as { id?: string }).id;
+    const def = cardId ? tryGetDefinition(cardId) : undefined;
+    if (!def) return false;
+
+    const controlsALand = state.players
+        .find((p) => p.id === playerId)
+        ?.battlefield.some((c) => isLand(c) && c.controllerId === playerId);
+
+    // Mass land destruction (Armageddon): destroys every land in play, so it
+    // destroys the activator's land iff they control any land at all.
+    if (def.destroysAllLands) return !!controlsALand;
+
+    // Single-target "Destroy target land" (Stone Rain / Sinkhole / Ice Storm):
+    // qualifies iff one of the chosen targets is a land this player controls.
+    // Both declarative authoring modes qualify: the `effect: "destroy-target"`
+    // shorthand and an Effect Script carrying a `destroy` Op (ADR 0045).
+    if (
+        def.effect === "destroy-target" ||
+        def.effects?.some((op) => op.op === "destroy")
+    ) {
+        for (const t of item.targets ?? []) {
+            if (t.type !== "permanent") continue;
+            for (const p of state.players) {
+                const perm = p.battlefield.find((c) => c.id === t.id);
+                if (perm && isLand(perm) && perm.controllerId === playerId) {
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
 }
 
 /** CR 109.3 / 102.1 — the single authority on a battlefield/permanent target's
@@ -157,7 +276,7 @@ export interface FilterDescriptor<V> {
             ctx: TargetFilterCtx
         ) => string | null;
         spell: (
-            candidate: unknown,
+            candidate: StackItem,
             value: V,
             ctx: TargetFilterCtx
         ) => string | null;
@@ -207,6 +326,28 @@ const controllerFilter = defineFilter<TargetRequirement["controller"]>({
                 : value === "opponent"
                   ? "Must target a permanent an opponent controls"
                   : "Must target a permanent the active player controls";
+        },
+        // CR 109.3 / 114.1 (Lutri, the Spellchaser — "target instant or
+        // sorcery spell YOU CONTROL"): a stack item's "controller" is its
+        // caster (`castById`). T2 (ADR 0068 / issue #1409) folds the spell
+        // branch onto the SAME `matchesBattlefieldController` predicate the
+        // permanent branch uses, so offered == accepted for spells too.
+        spell: (item, value, ctx) => {
+            if (
+                matchesBattlefieldController(
+                    item.castById,
+                    ctx.chooserId,
+                    ctx.activePlayerId,
+                    value
+                )
+            ) {
+                return null;
+            }
+            return value === "you"
+                ? "Must target a spell you control"
+                : value === "opponent"
+                  ? "Must target a spell an opponent controls"
+                  : "Must target a spell the active player controls";
         },
     },
 });
@@ -283,6 +424,11 @@ const colorFilterDescriptor = defineFilter<Color>({
     checks: {
         permanent: (card, value) =>
             hasColor(card, value) ? null : `Target must be ${value}`,
+        // CR 202.2 — a spell/ability on the stack also has colors (its cast
+        // colors, or a copy's colorOverride — CR 707.10); the same predicate
+        // applies. T2 (ADR 0068 / issue #1409).
+        spell: (item, value) =>
+            hasColor(item, value) ? null : `Target must be ${value}`,
     },
 });
 
@@ -415,6 +561,177 @@ const mvFilterDescriptor = defineFilter<{
             matchesMvFilter(value, mvOfPermanent(card))
                 ? null
                 : "Target does not match the required mana value",
+        // CR 202.3 — Spell Blast ("counter target spell with mana value X").
+        // T2 (ADR 0068 / issue #1409): a stack item's mv is X-inclusive
+        // (CR 202.3b), unlike a permanent's (X-cost permanents report 0).
+        spell: (item, value) =>
+            matchesMvFilter(value, mvOfStackItem(item))
+                ? null
+                : "Target does not match the required mana value",
+    },
+});
+
+// ─── T2 spell-only filter descriptors (ADR 0068 / issue #1409) ─────────────
+// One entry per filter previously validated inline, independently, by BOTH
+// `getLegalTargets`'s spell loop AND `selectTarget`'s spell branch (game.ts)
+// — the spell-flavored half of the Phelia bug class. `controller` /
+// `colorFilter` / `mvFilter` above already grew a `spell` check (they're
+// cross-kind); these are the remaining filters that only ever apply to
+// `type: "spell"` targets.
+
+// CR 113 / 114.1 — stack-object KIND filter ("target ability", Ward's
+// "spell or ability" — CR 702.21a). The omitted default means SPELLS ONLY
+// (CR 701.5a: a "target spell" never targets an ability), so `lower`
+// resolves the omitted case to its explicit default `"spell"` — the filter
+// stays ALWAYS ACTIVE (never `undefined`, never skipped by the registry's
+// loop semantics), matching the pre-refactor implicit default exactly.
+const spellStackKindDescriptor = defineFilter<
+    "spell" | "activated-ability" | "ability" | "any"
+>({
+    lower: (req) => req.spellStackKind ?? "spell",
+    checks: {
+        spell: (item, value) => {
+            const isAbilityItem =
+                !!item.abilityId ||
+                !!item.triggeredAbilityId ||
+                !!item.delayedTriggerId;
+            const acceptsSpell = value === "spell" || value === "any";
+            const acceptsAbility =
+                value === "activated-ability" ||
+                value === "ability" ||
+                value === "any";
+            if (isAbilityItem) {
+                if (!acceptsAbility) return "Target must be a spell";
+                if (value === "activated-ability" && !item.abilityId) {
+                    return "Target must be an activated ability";
+                }
+                return null;
+            }
+            return acceptsSpell ? null : "Target must be an ability";
+        },
+    },
+});
+
+// CR 113.7a — Brown Ouphe's "from an artifact source": the stack item's
+// SOURCE card types must include at least one of these.
+const stackSourceTypeFilterDescriptor = defineFilter<CardType[]>({
+    lower: (req) => {
+        const v = arr(req.stackSourceTypeFilter);
+        return v && v.length > 0 ? v : undefined;
+    },
+    checks: {
+        spell: (item, value) =>
+            value.some((t) => item.types.includes(t))
+                ? null
+                : "Target's source is not of the required type",
+    },
+});
+
+// CR 114.1 — Mistfolk's "targets this creature" / Ward's reflexive self-pin
+// (`spellTargetsSelfSource`, resolved to this by `raiseTriggerTargetSelection`
+// before the requirement reaches here): the object must target one of the
+// given permanent instance ids. Kind eligibility (spell vs ability) is
+// already governed by `spellStackKind` above, so this filter no longer
+// excludes abilities itself (Ward's "any" kind + this filter must admit
+// both) — matches `getLegalTargets`'s pre-T2 behavior.
+const spellTargetsInstanceIdsDescriptor = defineFilter<
+    ReadonlyArray<string>
+>({
+    lower: (req) =>
+        req.spellTargetsInstanceIds && req.spellTargetsInstanceIds.length > 0
+            ? [...req.spellTargetsInstanceIds]
+            : undefined,
+    checks: {
+        spell: (item, value) => {
+            const tgts = item.targets ?? [];
+            return tgts.some(
+                (t) => t.type === "permanent" && value.includes(t.id)
+            )
+                ? null
+                : "Target spell does not target the required permanent";
+        },
+    },
+});
+
+// CR 114.1 — Fork's "target instant or sorcery spell": an ability on the
+// stack is never a spell, and an actual spell must match one of the given
+// card types.
+const spellTypeFilterDescriptor = defineFilter<CardType[]>({
+    lower: (req) => arr(req.spellTypeFilter),
+    checks: {
+        spell: (item, value) => {
+            const isAbility =
+                !!item.abilityId ||
+                !!item.triggeredAbilityId ||
+                !!item.delayedTriggerId;
+            if (isAbility || !value.some((t) => item.types.includes(t))) {
+                return "Target is not a spell of the required type";
+            }
+            return null;
+        },
+    },
+});
+
+// CR 114.1 — Spell Pierce's "target noncreature spell". Reuses the shared
+// predicate (issue #683).
+const spellExcludeTypeFilterDescriptor = defineFilter<CardType[]>({
+    lower: (req) => arr(req.spellExcludeTypeFilter),
+    checks: {
+        spell: (item, value) =>
+            spellMatchesExcludeTypeFilter(item, value)
+                ? null
+                : "Target is not a spell of the required type",
+    },
+});
+
+// CR 114.1 + 208.2 — Stern Scolding's "target creature spell with power or
+// toughness N or less". Reuses the shared predicate (issue #683).
+const spellCreaturePtFilterDescriptor = defineFilter<{
+    maxPowerOrToughness: number;
+}>({
+    lower: (req) => req.spellCreaturePtFilter,
+    checks: {
+        spell: (item, value) =>
+            spellMatchesCreaturePtFilter(item, value)
+                ? null
+                : "Target is not a spell of the required type",
+    },
+});
+
+// CR 114.6 / 115.10 — Reflecting Mirror: the chosen spell must have EXACTLY
+// ONE target, and that target must be the activating player (the chooser).
+const spellSingleTargetingControllerDescriptor = defineFilter<boolean>({
+    lower: (req) => (req.spellSingleTargetingController ? true : undefined),
+    checks: {
+        spell: (item, _value, ctx) => {
+            const isAbility =
+                !!item.abilityId ||
+                !!item.triggeredAbilityId ||
+                !!item.delayedTriggerId;
+            const tgts = item.targets ?? [];
+            const ok =
+                !isAbility &&
+                tgts.length === 1 &&
+                tgts[0].type === "player" &&
+                tgts[0].id === ctx.chooserId;
+            return ok
+                ? null
+                : "Target spell must have a single target that is you";
+        },
+    },
+});
+
+// CR 114.1 + 701.7 — Equinox's granted counter ability: the chosen spell
+// must be one that would destroy a land the activating player controls.
+const spellWouldDestroyLandYouControlDescriptor = defineFilter<boolean>({
+    lower: (req) =>
+        req.spellWouldDestroyLandYouControl ? true : undefined,
+    checks: {
+        spell: (item, _value, ctx) =>
+            ctx.chooserId !== undefined &&
+            spellWouldDestroyLandControlledBy(ctx.state, item, ctx.chooserId)
+                ? null
+                : "Target spell would not destroy a land you control",
     },
 });
 
@@ -446,12 +763,31 @@ export const PERMANENT_FILTER_KEYS = [
 
 export type PermanentFilterKey = (typeof PERMANENT_FILTER_KEYS)[number];
 
-/** The registry. Loosely typed (`FilterDescriptor<unknown>`) in T1 by design
- *  — see the module doc comment and issue #1408. Each descriptor above is
- *  authored with its own precise `V` via `defineFilter`; only the aggregate
- *  map relaxes to `unknown` so a heterogeneous-by-key map can exist before
- *  the T4 `satisfies Record<FilterKey, …>` keystone. */
-export const REGISTRY: Record<PermanentFilterKey, FilterDescriptor<unknown>> = {
+/** The spell-ONLY filter keys T2 adds (issue #1409) — `controller` /
+ *  `colorFilter` / `mvFilter` are cross-kind and already registered above by
+ *  `PERMANENT_FILTER_KEYS`; these are exclusively `type: "spell"` filters. */
+export const SPELL_ONLY_FILTER_KEYS = [
+    "spellStackKind",
+    "stackSourceTypeFilter",
+    "spellTargetsInstanceIds",
+    "spellTypeFilter",
+    "spellExcludeTypeFilter",
+    "spellCreaturePtFilter",
+    "spellSingleTargetingController",
+    "spellWouldDestroyLandYouControl",
+] as const;
+
+export type SpellOnlyFilterKey = (typeof SPELL_ONLY_FILTER_KEYS)[number];
+
+/** The registry. Loosely typed (`FilterDescriptor<unknown>`) in T1/T2 by
+ *  design — see the module doc comment and issues #1408 / #1409. Each
+ *  descriptor above is authored with its own precise `V` via `defineFilter`;
+ *  only the aggregate map relaxes to `unknown` so a heterogeneous-by-key map
+ *  can exist before the T4 `satisfies Record<FilterKey, …>` keystone. */
+export const REGISTRY: Record<
+    PermanentFilterKey | SpellOnlyFilterKey,
+    FilterDescriptor<unknown>
+> = {
     controller: controllerFilter as FilterDescriptor<unknown>,
     subtypeFilter: subtypeFilterDescriptor as FilterDescriptor<unknown>,
     supertypeFilter: supertypeFilterDescriptor as FilterDescriptor<unknown>,
@@ -470,6 +806,20 @@ export const REGISTRY: Record<PermanentFilterKey, FilterDescriptor<unknown>> = {
     powerFilter: powerFilterDescriptor as FilterDescriptor<unknown>,
     toughnessFilter: toughnessFilterDescriptor as FilterDescriptor<unknown>,
     mvFilter: mvFilterDescriptor as FilterDescriptor<unknown>,
+    spellStackKind: spellStackKindDescriptor as FilterDescriptor<unknown>,
+    stackSourceTypeFilter:
+        stackSourceTypeFilterDescriptor as FilterDescriptor<unknown>,
+    spellTargetsInstanceIds:
+        spellTargetsInstanceIdsDescriptor as FilterDescriptor<unknown>,
+    spellTypeFilter: spellTypeFilterDescriptor as FilterDescriptor<unknown>,
+    spellExcludeTypeFilter:
+        spellExcludeTypeFilterDescriptor as FilterDescriptor<unknown>,
+    spellCreaturePtFilter:
+        spellCreaturePtFilterDescriptor as FilterDescriptor<unknown>,
+    spellSingleTargetingController:
+        spellSingleTargetingControllerDescriptor as FilterDescriptor<unknown>,
+    spellWouldDestroyLandYouControl:
+        spellWouldDestroyLandYouControlDescriptor as FilterDescriptor<unknown>,
 };
 
 /** The requirement-derived filter VALUES for the permanent kind — the
@@ -539,4 +889,98 @@ export function lowerPermanentFilters(
         if (value !== undefined) out[key] = value;
     }
     return out as PermanentFilterValues;
+}
+
+// ─── T2 spell-kind gate (ADR 0068 / issue #1409) ────────────────────────────
+
+/** The full ordered set of filter keys a `type: "spell"` candidate is
+ *  checked against — `controller` / `colorFilter` / `mvFilter` (cross-kind,
+ *  registered by `PERMANENT_FILTER_KEYS`) PLUS every spell-only key. Order
+ *  matches the pre-refactor `getLegalTargets` spell loop exactly (kind gate
+ *  first, then controller, then the rest) so first-violation messages stay
+ *  stable. NOT `keyof Omit<TargetRequirement, StructuralKey>` yet — T4's
+ *  keystone (ADR 0068). */
+export const SPELL_FILTER_KEYS = [
+    "spellStackKind",
+    "controller",
+    "stackSourceTypeFilter",
+    "spellTargetsInstanceIds",
+    "colorFilter",
+    "mvFilter",
+    "spellTypeFilter",
+    "spellExcludeTypeFilter",
+    "spellCreaturePtFilter",
+    "spellSingleTargetingController",
+    "spellWouldDestroyLandYouControl",
+] as const;
+
+export type SpellFilterKey = (typeof SPELL_FILTER_KEYS)[number];
+
+/** The requirement-derived filter VALUES for the spell kind — the `lower()`
+ *  output shape, and exactly what both `getLegalTargets` and `selectTarget`
+ *  pass into `checkSpellTargetFilters`. */
+export type SpellFilterValues = Partial<{
+    spellStackKind: "spell" | "activated-ability" | "ability" | "any";
+    controller: TargetRequirement["controller"];
+    stackSourceTypeFilter: CardType[];
+    spellTargetsInstanceIds: ReadonlyArray<string>;
+    colorFilter: Color;
+    mvFilter: { min?: number; max?: number; equals?: number };
+    spellTypeFilter: CardType[];
+    spellExcludeTypeFilter: CardType[];
+    spellCreaturePtFilter: { maxPowerOrToughness: number };
+    spellSingleTargetingController: boolean;
+    spellWouldDestroyLandYouControl: boolean;
+}>;
+
+/** Runs every SET filter in `values` against `candidate` (a stack item)
+ *  through the registry's `spell` check, in `SPELL_FILTER_KEYS` order.
+ *  Returns the first violation message, or `null` when the candidate is
+ *  legal. THE single authority both `getLegalTargets` (offered set) and
+ *  `selectTarget` (accepted set, anti-spoof) call for `type: "spell"`
+ *  targets — the two can never diverge (ADR 0068 / issue #1409, T2), closing
+ *  the spell-flavored half of the Phelia bug class (stackSourceTypeFilter /
+ *  spellTargetsInstanceIds / spellTypeFilter / spellExcludeTypeFilter /
+ *  spellCreaturePtFilter / spellSingleTargetingController /
+ *  spellWouldDestroyLandYouControl / spellStackKind were previously
+ *  duplicated inline at both sites). */
+export function checkSpellTargetFilters(
+    ctx: TargetFilterCtx,
+    candidate: StackItem,
+    values: SpellFilterValues
+): string | null {
+    for (const key of SPELL_FILTER_KEYS) {
+        const value = values[key];
+        if (value === undefined) continue;
+        const check = REGISTRY[key].checks.spell;
+        if (!check) {
+            // Loop semantics (ADR 0068): a filter set but whose kind has no
+            // check excludes the candidate. Unreachable — every key in
+            // SPELL_FILTER_KEYS declares a `spell` check — kept for symmetry
+            // with the general registry contract.
+            return "Target does not match the required filter";
+        }
+        const violation = check(candidate, value, ctx);
+        if (violation) return violation;
+    }
+    return null;
+}
+
+/** Runs every spell filter's `lower()` against `req`/`chosenX` and returns
+ *  the subset with a defined value — the carry step
+ *  (`pendingTargetFiltersFromRequirement`'s spell-filter half). Each key's
+ *  output IS the corresponding `PendingTarget` field, by construction. Note
+ *  `spellStackKind` is NEVER `undefined` in the output — its `lower()`
+ *  resolves the omitted case to the explicit default `"spell"` so the filter
+ *  stays always-active (see the descriptor's doc comment). */
+export function lowerSpellFilters(
+    req: TargetRequirement,
+    chosenX: number | undefined
+): SpellFilterValues {
+    const out: Record<string, unknown> = {};
+    for (const key of SPELL_FILTER_KEYS) {
+        const value = REGISTRY[key].lower(req, chosenX);
+        if (value !== undefined) out[key] = value;
+    }
+    return out as SpellFilterValues;
 }
