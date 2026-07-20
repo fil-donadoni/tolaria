@@ -1,5 +1,3 @@
-Migliorare UI sideboard con /prototype. Card previews, possibilità di avere >60 carte nella main, miglioramento cta spostamento, visualizzazione a pile
-
 Non so se sia un problema di UI o di fasi di gioco, ma mi chiede di scartare per hand size quando c'è scritto untap dell'avversario invece che nella mia cleanup
 
 Flash of Insight non risulta castabile con flashback
@@ -53,12 +51,6 @@ Il bot cerca di tappare per mana un everflowing chalice senza counters e continu
 
 Earthbend: manca la parte di abilità che ritorna le terre animate in gioco quando muoiono. Non è scritto nell'oracle text della card-preview e non avviene nel gameplay.
 
-UI scelta Satyr Wayfinder non deve mostrare la library: deve solo selezionare una carta in una pila di 4, filtrata secondo le sue regole, e alla selezione la manda in mano. non serve la ui tipo Scry.
-
-UI scelta di Narset, parter of veils deve separare la mano dal top della library, ora è visivamente confuso dove si mette la carta che si trascina a destra.
-
-nelle pile di permanenti uguali sul board, l'indicatore xN deve comparire solo da 5 in su e deve avere del margin top per non creare confusione sovrapponendosi a carte del livello superiore
-
 manca il token golem di sandtorm salvager e lo spirit di staff of the storyteller e la beast di garruk wildspeaker. verifica quali altri token mancano, importali e fai in modo che non vengano più create carte con token mancanti
 
 staff of the storyteller non è stata implementata nella sua prima edizione ma in una ristampa. correggi, trova altri casi simili e fai in modo che non ricapiti.
@@ -66,8 +58,6 @@ staff of the storyteller non è stata implementata nella sua prima edizione ma i
 la triggered ability di forth eorlingas in pila non mostra card-preview con oracle dell'abilita', ma la carta intera. correggi, trova casi simili e fai in modo che non ricapiti.
 
 Metallic rebuke non risulta castabile se ho 2 terre stappate e degli artefatti stappati. nel conteggio di castabilità non vengono considerati gli artefatti tappabili, quando una carta ha improvise.
-
-Phelia deve esiliare mostrando la carta sotto di lei, come farebbe banishing light o simile. Anche Dauthi voidwalker. Per voidwalker la UI non permette nemmeno di selezionare le carte in esilio con il void counter, quando lo sacrifichi. bug.
 
 Bug quando provo ad attivare l'abilità di Harvester of misery:
 installHook.js:1 [CONVEX M(game:selectTarget)] [Request ID: 6efb7360d6a7c912] Server Error
