@@ -64,6 +64,10 @@ import {
     lowerPermanentFilters,
     checkSpellTargetFilters,
     lowerSpellFilters,
+    checkPlayerTargetFilters,
+    lowerPlayerFilters,
+    checkCardTargetFilters,
+    lowerCardFilters,
     type TargetFilterCtx,
     type PermanentFilterValues,
 } from "./targetFilters";
@@ -75,8 +79,8 @@ export {
     parseProtectionFromColor,
 } from "./protection";
 
-// ADR 0068 (PRD #1407, issues #1408 / #1409) — the low-level color/mv/
-// controller/spell predicates the target-filter registry checks depend on
+// ADR 0068 (PRD #1407, issues #1408 / #1409 / #1410) — the low-level color/
+// mv/controller/spell predicates the target-filter registry checks depend on
 // now live in `targetFilters.ts` (no dependency on this module, keeping the
 // import graph acyclic). Re-exported here so existing callers (`game.ts`,
 // `combatRegistry.ts`, tests) keep importing them from `./rules` unchanged.
@@ -87,12 +91,16 @@ export {
     matchesBattlefieldController,
     checkPermanentTargetFilters,
     checkSpellTargetFilters,
+    checkPlayerTargetFilters,
+    checkCardTargetFilters,
     spellMatchesExcludeTypeFilter,
     spellMatchesCreaturePtFilter,
     spellWouldDestroyLandControlledBy,
     type TargetFilterCtx,
     type PermanentFilterValues,
     type SpellFilterValues,
+    type PlayerFilterValues,
+    type CardFilterValues,
 } from "./targetFilters";
 
 /** Reads extra land drops granted by permanents on the player's battlefield
@@ -1302,38 +1310,35 @@ export function getLegalTargets(
 
     // CR 400.7 / 109.2: graveyard-zone target (Regrowth, etc.). Handled in a
     // dedicated branch — graveyard cards aren't permanents, so battlefield
-    // filters (color/protection/tap-state) don't apply.
+    // filters (color/protection/tap-state) don't apply. CR 109.3 / 102.1 /
+    // 202.3 — the CARD-kind filters (`controller` — the graveyard's OWNER,
+    // not `card.controllerId` — and `mvFilter`), routed through the SINGLE
+    // shared authority — the target-filter registry (ADR 0068 / issue
+    // #1410, T3). The `selectTarget` mutation runs the SAME
+    // `checkCardTargetFilters` against the submitted target, so the offered
+    // set and the accepted set can't diverge — the card-flavored half of the
+    // Phelia bug class (this also fixes a real latent gap: the pre-T3
+    // `selectTarget` graveyard-card branch never implemented
+    // `controller: "active"` at all). The CardType filter itself (`type` /
+    // `cardTypes` below) is STRUCTURAL (ADR 0068's `StructuralKey`), not a
+    // registry filter.
     if (requirement.zone === "graveyard") {
-        const controllerFilter = requirement.controller ?? "any";
         const wantsAnyCard = reqTypes.includes("card");
         const cardTypes = reqTypes.filter(
             (t) =>
                 t !== "player" && t !== "any" && t !== "spell" && t !== "card"
         );
-        // CR 202.3 — a mana-value bound (Sevinne's Reclamation: "mana value 3 or
-        // less") applies to graveyard cards too; a graveyard card's MV is read
-        // from its printed cost (CR 108.1). Honored alongside the type filter.
-        const graveyardMvFilter = resolveMvFilter(
-            requirement.mvFilter,
-            chosenX
-        );
+        const cardValues = lowerCardFilters(requirement, chosenX);
+        const cardFilterCtx: TargetFilterCtx = {
+            state,
+            sourceColors,
+            sourceTypes,
+            sourceSubtypes,
+            chooserId: casterId,
+            activePlayerId: state.activePlayerId,
+            sourceIsSpell,
+        };
         for (const player of state.players) {
-            if (controllerFilter === "you" && player.id !== casterId) continue;
-            if (
-                controllerFilter === "opponent" &&
-                (casterId === undefined || player.id === casterId)
-            ) {
-                continue;
-            }
-            // CR 102.1 — "active" restricts to the active player (exhaustive
-            // handling of the controller union; no current card uses
-            // graveyard + active).
-            if (
-                controllerFilter === "active" &&
-                player.id !== state.activePlayerId
-            ) {
-                continue;
-            }
             for (const card of player.graveyard) {
                 if (
                     !wantsAnyCard &&
@@ -1341,26 +1346,8 @@ export function getLegalTargets(
                 ) {
                     continue;
                 }
-                if (graveyardMvFilter) {
-                    const mv = manaValue(getInstanceManaCost(card));
-                    if (
-                        graveyardMvFilter.min !== undefined &&
-                        mv < graveyardMvFilter.min
-                    ) {
-                        continue;
-                    }
-                    if (
-                        graveyardMvFilter.max !== undefined &&
-                        mv > graveyardMvFilter.max
-                    ) {
-                        continue;
-                    }
-                    if (
-                        graveyardMvFilter.equals !== undefined &&
-                        mv !== graveyardMvFilter.equals
-                    ) {
-                        continue;
-                    }
+                if (checkCardTargetFilters(cardFilterCtx, card, cardValues)) {
+                    continue;
                 }
                 targets.push({
                     type: "graveyard-card",
@@ -1531,39 +1518,31 @@ export function getLegalTargets(
     }
 
     // Players have no color, so colorFilter / colorFilterAny excludes them.
+    // CR 109.3 / 102.1 / 506.2 — every PLAYER-kind filter (`controller` —
+    // Word of Command's "target opponent" — and `playerAttackedThisTurn` —
+    // Fire and Brimstone), routed through the SINGLE shared authority — the
+    // target-filter registry (ADR 0068 / issue #1410, T3). The `selectTarget`
+    // mutation runs the SAME `checkPlayerTargetFilters` against the
+    // submitted target, so the offered set and the accepted set can't
+    // diverge — the player-flavored half of the Phelia bug class.
     if (
         (wantsAny || reqTypes.includes("player")) &&
         !colorFilter &&
         !colorFilterAny
     ) {
-        const playerControllerFilter = requirement.controller ?? "any";
+        const playerValues = lowerPlayerFilters(requirement, chosenX);
+        const playerFilterCtx: TargetFilterCtx = {
+            state,
+            sourceColors,
+            sourceTypes,
+            sourceSubtypes,
+            chooserId: casterId,
+            activePlayerId: state.activePlayerId,
+            sourceIsSpell,
+        };
         for (const player of state.players) {
-            // CR 506.2 — "target player who attacked this turn": a player
-            // attacked iff they control a creature flagged as having attacked.
             if (
-                requirement.playerAttackedThisTurn &&
-                !player.battlefield.some((c) => c.hasAttackedThisTurn)
-            ) {
-                continue;
-            }
-            // CR 115 — "target opponent" / "target player you control":
-            // restrict the eligible players by relationship to the caster.
-            // "you" keeps only the caster; "opponent" excludes the caster (and
-            // requires a known caster). Word of Command — "target opponent".
-            if (playerControllerFilter === "you" && player.id !== casterId) {
-                continue;
-            }
-            if (
-                playerControllerFilter === "opponent" &&
-                (casterId === undefined || player.id === casterId)
-            ) {
-                continue;
-            }
-            // CR 102.1 — "active" restricts to the active player (exhaustive
-            // handling; no current card uses player + active).
-            if (
-                playerControllerFilter === "active" &&
-                player.id !== state.activePlayerId
+                checkPlayerTargetFilters(playerFilterCtx, player, playerValues)
             ) {
                 continue;
             }
@@ -1571,6 +1550,7 @@ export function getLegalTargets(
             // player "can't be the target of spells or abilities". Unlike
             // hexproof/Guardian-Beast-style permanent guards, shroud has no
             // source-controller exception, so no `actionSource` is threaded.
+            // Always-on gate (ADR 0068) — stays outside the registry.
             if (playerHasShroud(state, player.id)) continue;
             targets.push({ type: "player", id: player.id });
         }
@@ -1733,15 +1713,16 @@ export function pendingTargetFiltersFromRequirement(
     chosenX: number | undefined
 ): Partial<PendingTarget> {
     // ADR 0068 — every PERMANENT-kind filter (plus `controller`, issue
-    // #1408 T1) AND every SPELL-kind filter (issue #1409 T2) is now lowered
-    // through the registry's `lower()`, the SAME resolution `getLegalTargets`
-    // and `selectTarget` run against. This is the "lower once" half of
-    // "lower once, check everywhere": a filter's carry can no longer drift
-    // from its offered/accepted semantics because there is only one
-    // implementation of `lower` to call. `lowerSpellFilters` also lowers
-    // `controller` / `colorFilter` / `colorFilterAny` / `mvFilter`
-    // (cross-kind, already produced by `lowerPermanentFilters`) — spread
-    // second, same values, no conflict.
+    // #1408 T1), every SPELL-kind filter (issue #1409 T2), and every
+    // PLAYER/CARD-kind filter (issue #1410 T3) is now lowered through the
+    // registry's `lower()`, the SAME resolution `getLegalTargets` and
+    // `selectTarget` run against. This is the "lower once" half of "lower
+    // once, check everywhere": a filter's carry can no longer drift from its
+    // offered/accepted semantics because there is only one implementation of
+    // `lower` to call. `lowerSpellFilters` / `lowerPlayerFilters` /
+    // `lowerCardFilters` also lower the cross-kind fields (`controller` /
+    // `colorFilter` / `colorFilterAny` / `mvFilter`, already produced by
+    // `lowerPermanentFilters`) — spread again, same values, no conflict.
     const out: Partial<PendingTarget> = {
         ...(lowerPermanentFilters(req, chosenX) as Partial<PendingTarget>),
     };
@@ -1759,7 +1740,26 @@ export function pendingTargetFiltersFromRequirement(
             lowerSpellFilters(req, chosenX) as Partial<PendingTarget>
         );
     }
-    if (req.playerAttackedThisTurn) out.playerAttackedThisTurn = true;
+    // T3 (issue #1410): analogous guard for the PLAYER-only lowered field
+    // (`playerAttackedThisTurn`) — only carried when the requirement
+    // actually admits a player target ("player" or "any", CR 115.4).
+    if (reqTypes.includes("player") || reqTypes.includes("any")) {
+        Object.assign(
+            out,
+            lowerPlayerFilters(req, chosenX) as Partial<PendingTarget>
+        );
+    }
+    // T3 (issue #1410): the CARD-kind lowered fields (`controller` /
+    // `mvFilter` — both already carried above; kept for the registry's
+    // "single lower call per kind" shape) only apply to a graveyard-zone
+    // requirement (CR 400.7 — the only zone a `TargetRequirement` currently
+    // supports besides the battlefield default).
+    if (req.zone === "graveyard") {
+        Object.assign(
+            out,
+            lowerCardFilters(req, chosenX) as Partial<PendingTarget>
+        );
+    }
     if (req.zone) out.zone = req.zone;
     return out;
 }

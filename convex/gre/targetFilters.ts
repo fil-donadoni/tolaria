@@ -2,15 +2,24 @@
  *  legality (ADR 0068, PRD #1407). **T1** (issue #1408) shipped the registry
  *  scaffold + the PERMANENT kind, folding in the existing
  *  `intrinsicPermanentTargetViolation` shared predicate. **T2** (issue
- *  #1409, this slice) adds the SPELL kind: every filter previously validated
+ *  #1409) added the SPELL kind: every filter previously validated
  *  inline, independently, by both `getLegalTargets`'s spell loop and
  *  `selectTarget`'s spell branch now routes through one `checks.spell` per
- *  descriptor. Player/card kinds land in T3; the `FilterKey = keyof
+ *  descriptor. **T3** (issue #1410, this slice) adds the PLAYER kind
+ *  (`controller` — seat relationship — and `playerAttackedThisTurn`, CR
+ *  506.2) and the CARD kind (graveyard-card targets: `controller` — the
+ *  graveyard's OWNER, not a card's own `controllerId`, which is not
+ *  reliably reset off the battlefield — and `mvFilter`). Migrating the
+ *  graveyard-card `controller` check also fixes a real latent divergence:
+ *  `getLegalTargets`'s graveyard branch already honored `controller:
+ *  "active"`, but `selectTarget`'s graveyard-card branch never implemented
+ *  that case at all — exactly the Phelia bug class this registry exists to
+ *  close, now closed for the last kind. The `FilterKey = keyof
  *  Omit<TargetRequirement, StructuralKey>` compile-time forcing function
  *  arms in T4 — this module intentionally keys the registry by explicit
- *  per-kind key lists for now (`PERMANENT_FILTER_KEYS`, `SPELL_FILTER_KEYS`),
- *  not by `keyof Omit<...>`, so it compiles standalone before every kind has
- *  an entry.
+ *  per-kind key lists for now (`PERMANENT_FILTER_KEYS`, `SPELL_FILTER_KEYS`,
+ *  `PLAYER_FILTER_KEYS`, `CARD_FILTER_KEYS`), not by `keyof Omit<...>`, so it
+ *  compiles standalone before every kind has an entry.
  *
  *  **Lower once, check everywhere** (the whole point): `lower` resolves a
  *  `TargetRequirement` field to its `PendingTarget` carry value (X-resolution,
@@ -31,7 +40,12 @@
  *  here from `rules.ts`; `rules.ts` re-exports them for backward
  *  compatibility with existing callers/imports. */
 import type { CardType, Color, TargetRequirement } from "../cards/types";
-import type { CardInstanceState, GameState, StackItem } from "./state";
+import type {
+    CardInstanceState,
+    GameState,
+    PlayerState,
+    StackItem,
+} from "./state";
 import {
     STATIC_EFFECT_CTX,
     getEffectivePower,
@@ -39,7 +53,7 @@ import {
 } from "./layers";
 import { hasSupertypeLive } from "./snow";
 import { isLand, manaValue } from "./constants";
-import { tryGetDefinition } from "../cards";
+import { getInstanceManaCost, tryGetDefinition } from "../cards";
 
 // ─── Shared low-level predicates (moved from rules.ts) ──────────────────────
 
@@ -78,6 +92,16 @@ function mvOfPermanent(card: CardInstanceState): number {
     const cardId = (card.card as { id?: string }).id;
     const def = cardId ? tryGetDefinition(cardId) : undefined;
     return manaValue(def?.manaCost);
+}
+
+/** Computes mana value for a graveyard (or hand) card target lookup (CR
+ *  202.3, Sevinne's Reclamation's "mana value 3 or less"). Unlike
+ *  `mvOfPermanent`, reads through `getInstanceManaCost` (embedded-override
+ *  aware) rather than the definition directly — the exact computation
+ *  `getLegalTargets`'s pre-T3 graveyard branch used, preserved verbatim
+ *  (ADR 0068 / issue #1410, T3). */
+function mvOfCard(card: CardInstanceState): number {
+    return manaValue(getInstanceManaCost(card));
 }
 
 /** Tests a resolved mvFilter against a target's mana value. Empty filter
@@ -281,12 +305,18 @@ export interface FilterDescriptor<V> {
             ctx: TargetFilterCtx
         ) => string | null;
         player: (
-            candidate: unknown,
+            candidate: PlayerState,
             value: V,
             ctx: TargetFilterCtx
         ) => string | null;
+        // A "card" candidate is a graveyard/hand `CardInstanceState` — the
+        // SAME shape a permanent uses, just living in a non-battlefield
+        // zone (CR 109.2). `ownerId` (not `controllerId`, which is not
+        // reliably reset once an object leaves the battlefield — CR 108.4 /
+        // 110.2 controls the new-object rule) is what determines whose zone
+        // array it sits in, and is what the `controller` check reads.
         card: (
-            candidate: unknown,
+            candidate: CardInstanceState,
             value: V,
             ctx: TargetFilterCtx
         ) => string | null;
@@ -348,6 +378,55 @@ const controllerFilter = defineFilter<TargetRequirement["controller"]>({
                 : value === "opponent"
                   ? "Must target a spell an opponent controls"
                   : "Must target a spell the active player controls";
+        },
+        // CR 115 (Word of Command's "target opponent") — a PLAYER candidate
+        // IS the "controller" (there's no separate controller/owner split
+        // for a player). T3 (ADR 0068 / issue #1410) folds the player branch
+        // onto the SAME shared predicate.
+        player: (player, value, ctx) => {
+            if (
+                matchesBattlefieldController(
+                    player.id,
+                    ctx.chooserId,
+                    ctx.activePlayerId,
+                    value
+                )
+            ) {
+                return null;
+            }
+            return value === "you"
+                ? "Must target yourself"
+                : value === "opponent"
+                  ? "Must target an opponent"
+                  : "Must target the active player";
+        },
+        // CR 109.3 / 400.7 (Regrowth-style "target card in a graveyard"): a
+        // graveyard card's controller-relationship filter is checked against
+        // the GRAVEYARD'S OWNER (`ownerId` — whose zone array it sits in),
+        // NOT the card's own `controllerId`, which is not reliably reset
+        // once an object leaves the battlefield (CR 108.4 / 110.2 — only
+        // battlefield/stack objects have a controller distinct from their
+        // owner). T3 (ADR 0068 / issue #1410) folds the graveyard-card
+        // branch onto the SAME shared predicate — this also fixes a real
+        // latent divergence: `selectTarget`'s graveyard-card branch never
+        // implemented `controller: "active"` at all, while `getLegalTargets`
+        // already did.
+        card: (card, value, ctx) => {
+            if (
+                matchesBattlefieldController(
+                    card.ownerId,
+                    ctx.chooserId,
+                    ctx.activePlayerId,
+                    value
+                )
+            ) {
+                return null;
+            }
+            return value === "you"
+                ? "Must target a card in your graveyard"
+                : value === "opponent"
+                  ? "Must target a card in opponent's graveyard"
+                  : "Must target a card the active player owns";
         },
     },
 });
@@ -578,6 +657,26 @@ const mvFilterDescriptor = defineFilter<{
             matchesMvFilter(value, mvOfStackItem(item))
                 ? null
                 : "Target does not match the required mana value",
+        // CR 202.3 — Sevinne's Reclamation's "mana value 3 or less" applies
+        // to graveyard-card targets too. T3 (ADR 0068 / issue #1410): reads
+        // the instance-override-aware mana cost (`mvOfCard`), the exact
+        // computation the pre-T3 graveyard branch used.
+        card: (card, value) =>
+            matchesMvFilter(value, mvOfCard(card))
+                ? null
+                : "Target does not match the required mana value",
+    },
+});
+
+// CR 506.2 — "target player who attacked this turn" (Fire and Brimstone): the
+// player must control a creature flagged as having attacked this turn.
+const playerAttackedThisTurnDescriptor = defineFilter<boolean>({
+    lower: (req) => (req.playerAttackedThisTurn ? true : undefined),
+    checks: {
+        player: (player) =>
+            player.battlefield.some((c) => c.hasAttackedThisTurn)
+                ? null
+                : "Target player did not attack this turn",
     },
 });
 
@@ -787,13 +886,20 @@ export const SPELL_ONLY_FILTER_KEYS = [
 
 export type SpellOnlyFilterKey = (typeof SPELL_ONLY_FILTER_KEYS)[number];
 
-/** The registry. Loosely typed (`FilterDescriptor<unknown>`) in T1/T2 by
- *  design — see the module doc comment and issues #1408 / #1409. Each
+/** The player-ONLY filter key T3 adds (issue #1410) — `controller` is
+ *  cross-kind and already registered above by `PERMANENT_FILTER_KEYS`; this
+ *  is the sole filter exclusive to `type: "player"` targets. */
+export const PLAYER_ONLY_FILTER_KEYS = ["playerAttackedThisTurn"] as const;
+
+export type PlayerOnlyFilterKey = (typeof PLAYER_ONLY_FILTER_KEYS)[number];
+
+/** The registry. Loosely typed (`FilterDescriptor<unknown>`) in T1-T3 by
+ *  design — see the module doc comment and issues #1408 / #1409 / #1410. Each
  *  descriptor above is authored with its own precise `V` via `defineFilter`;
  *  only the aggregate map relaxes to `unknown` so a heterogeneous-by-key map
  *  can exist before the T4 `satisfies Record<FilterKey, …>` keystone. */
 export const REGISTRY: Record<
-    PermanentFilterKey | SpellOnlyFilterKey,
+    PermanentFilterKey | SpellOnlyFilterKey | PlayerOnlyFilterKey,
     FilterDescriptor<unknown>
 > = {
     controller: controllerFilter as FilterDescriptor<unknown>,
@@ -828,6 +934,8 @@ export const REGISTRY: Record<
         spellSingleTargetingControllerDescriptor as FilterDescriptor<unknown>,
     spellWouldDestroyLandYouControl:
         spellWouldDestroyLandYouControlDescriptor as FilterDescriptor<unknown>,
+    playerAttackedThisTurn:
+        playerAttackedThisTurnDescriptor as FilterDescriptor<unknown>,
 };
 
 /** The requirement-derived filter VALUES for the permanent kind — the
@@ -994,4 +1102,146 @@ export function lowerSpellFilters(
         if (value !== undefined) out[key] = value;
     }
     return out as SpellFilterValues;
+}
+
+// ─── T3 player-kind gate (ADR 0068 / issue #1410) ───────────────────────────
+
+/** The full ordered set of filter keys a `type: "player"` candidate is
+ *  checked against — `controller` (cross-kind, registered by
+ *  `PERMANENT_FILTER_KEYS`) PLUS the player-only key. `controller` first so
+ *  a controller violation surfaces before `playerAttackedThisTurn`, matching
+ *  the pre-refactor `getLegalTargets`/`selectTarget` check order. NOT
+ *  `keyof Omit<TargetRequirement, StructuralKey>` yet — T4's keystone
+ *  (ADR 0068). */
+export const PLAYER_FILTER_KEYS = [
+    "controller",
+    "playerAttackedThisTurn",
+] as const;
+
+export type PlayerFilterKey = (typeof PLAYER_FILTER_KEYS)[number];
+
+/** The requirement-derived filter VALUES for the player kind — the
+ *  `lower()` output shape, and exactly what both `getLegalTargets` and
+ *  `selectTarget` pass into `checkPlayerTargetFilters`. */
+export type PlayerFilterValues = Partial<{
+    controller: TargetRequirement["controller"];
+    playerAttackedThisTurn: boolean;
+}>;
+
+/** Runs every SET filter in `values` against `candidate` (a player) through
+ *  the registry's `player` check, in `PLAYER_FILTER_KEYS` order. Returns the
+ *  first violation message, or `null` when the candidate is legal. THE
+ *  single authority both `getLegalTargets` (offered set) and `selectTarget`
+ *  (accepted set, anti-spoof) call for `type: "player"` targets — the two
+ *  can never diverge (ADR 0068 / issue #1410, T3). Always-on gates
+ *  (`playerHasShroud`) stay outside the registry (ADR 0068) — called
+ *  separately at both sites, unchanged. */
+export function checkPlayerTargetFilters(
+    ctx: TargetFilterCtx,
+    candidate: PlayerState,
+    values: PlayerFilterValues
+): string | null {
+    for (const key of PLAYER_FILTER_KEYS) {
+        const value = values[key];
+        if (value === undefined) continue;
+        const check = REGISTRY[key].checks.player;
+        if (!check) {
+            // Loop semantics (ADR 0068): a filter set but whose kind has no
+            // check excludes the candidate. Unreachable — every key in
+            // PLAYER_FILTER_KEYS declares a `player` check — kept for
+            // symmetry with the general registry contract.
+            return "Target does not match the required filter";
+        }
+        const violation = check(candidate, value, ctx);
+        if (violation) return violation;
+    }
+    return null;
+}
+
+/** Runs every player filter's `lower()` against `req`/`chosenX` and returns
+ *  the subset with a defined value — the carry step
+ *  (`pendingTargetFiltersFromRequirement`'s player-filter half). Each key's
+ *  output IS the corresponding `PendingTarget` field, by construction. */
+export function lowerPlayerFilters(
+    req: TargetRequirement,
+    chosenX: number | undefined
+): PlayerFilterValues {
+    const out: Record<string, unknown> = {};
+    for (const key of PLAYER_FILTER_KEYS) {
+        const value = REGISTRY[key].lower(req, chosenX);
+        if (value !== undefined) out[key] = value;
+    }
+    return out as PlayerFilterValues;
+}
+
+// ─── T3 card-kind gate (ADR 0068 / issue #1410) ─────────────────────────────
+// "card" candidates are graveyard (and, if a future card ever needs it, hand)
+// targets (CR 109.2 / 400.7 — Regrowth-style recursion). Both filter keys
+// here are cross-kind (`controller`, `mvFilter`), already registered by
+// `PERMANENT_FILTER_KEYS` — there is no card-ONLY filter today (the CardType
+// filter graveyard targets use is the requirement's own STRUCTURAL `type`
+// field, not a registry filter — see the ADR's `StructuralKey` list).
+
+/** The full ordered set of filter keys a `type: "card"`-zone (graveyard)
+ *  candidate is checked against. `controller` first, matching the
+ *  pre-refactor check order (owner-relationship, then mana value). NOT
+ *  `keyof Omit<TargetRequirement, StructuralKey>` yet — T4's keystone
+ *  (ADR 0068). */
+export const CARD_FILTER_KEYS = ["controller", "mvFilter"] as const;
+
+export type CardFilterKey = (typeof CARD_FILTER_KEYS)[number];
+
+/** The requirement-derived filter VALUES for the card kind — the `lower()`
+ *  output shape, and exactly what both `getLegalTargets` and `selectTarget`
+ *  pass into `checkCardTargetFilters`. */
+export type CardFilterValues = Partial<{
+    controller: TargetRequirement["controller"];
+    mvFilter: { min?: number; max?: number; equals?: number };
+}>;
+
+/** Runs every SET filter in `values` against `candidate` (a graveyard card)
+ *  through the registry's `card` check, in `CARD_FILTER_KEYS` order. Returns
+ *  the first violation message, or `null` when the candidate is legal. THE
+ *  single authority both `getLegalTargets` (offered set) and `selectTarget`
+ *  (accepted set, anti-spoof) call for graveyard-card targets — the two can
+ *  never diverge (ADR 0068 / issue #1410, T3). This closes a real latent
+ *  divergence: `selectTarget`'s pre-T3 graveyard-card branch never
+ *  implemented `controller: "active"` at all, unlike `getLegalTargets` —
+ *  now there is only one implementation to run at both sites. */
+export function checkCardTargetFilters(
+    ctx: TargetFilterCtx,
+    candidate: CardInstanceState,
+    values: CardFilterValues
+): string | null {
+    for (const key of CARD_FILTER_KEYS) {
+        const value = values[key];
+        if (value === undefined) continue;
+        const check = REGISTRY[key].checks.card;
+        if (!check) {
+            // Loop semantics (ADR 0068): a filter set but whose kind has no
+            // check excludes the candidate. Unreachable — every key in
+            // CARD_FILTER_KEYS declares a `card` check — kept for symmetry
+            // with the general registry contract.
+            return "Target does not match the required filter";
+        }
+        const violation = check(candidate, value, ctx);
+        if (violation) return violation;
+    }
+    return null;
+}
+
+/** Runs every card filter's `lower()` against `req`/`chosenX` and returns the
+ *  subset with a defined value — the carry step
+ *  (`pendingTargetFiltersFromRequirement`'s card-filter half). Each key's
+ *  output IS the corresponding `PendingTarget` field, by construction. */
+export function lowerCardFilters(
+    req: TargetRequirement,
+    chosenX: number | undefined
+): CardFilterValues {
+    const out: Record<string, unknown> = {};
+    for (const key of CARD_FILTER_KEYS) {
+        const value = REGISTRY[key].lower(req, chosenX);
+        if (value !== undefined) out[key] = value;
+    }
+    return out as CardFilterValues;
 }

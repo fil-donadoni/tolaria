@@ -20,6 +20,8 @@ import { isGuardedAgainst, playerHasShroud } from "../permanentGuard";
 import {
     checkPermanentTargetFilters,
     checkSpellTargetFilters,
+    checkPlayerTargetFilters,
+    checkCardTargetFilters,
     type TargetFilterCtx,
 } from "../targetFilters";
 import type {
@@ -1945,6 +1947,382 @@ describe("pendingTargetFiltersFromRequirement — spell filter carry-completenes
         };
         const pt = pendingTargetFiltersFromRequirement(req, undefined);
         expect(pt.spellStackKind).toBe("spell");
+    });
+});
+
+// ---------------------------------------------------------------------------
+// checkPlayerTargetFilters — single shared player-kind gate (ADR 0068, T3,
+// issue #1410). THE authority both getLegalTargets (offered set) and
+// selectTarget (accepted set, game.ts) run per player candidate; a filter
+// that passes here is legal at BOTH sites by construction — closing the
+// player-flavored half of the Phelia bug class (T1 closed the permanent half,
+// T2 the spell half).
+// ---------------------------------------------------------------------------
+
+describe("checkPlayerTargetFilters — shared offered/accepted gate (ADR 0068, issue #1410)", () => {
+    const baseCtx: TargetFilterCtx = {
+        state: makeGameState(),
+        sourceColors: [],
+        sourceTypes: [],
+        sourceSubtypes: [],
+        chooserId: "p1",
+        activePlayerId: "p1",
+    };
+
+    describe("controller (CR 109.3 / 102.1 — Word of Command's 'target opponent')", () => {
+        it("'you' accepts the chooser, rejects an opponent", () => {
+            const me = makePlayer({ id: "p1" });
+            const opp = makePlayer({ id: "p2" });
+            expect(
+                checkPlayerTargetFilters(baseCtx, me, { controller: "you" })
+            ).toBeNull();
+            expect(
+                checkPlayerTargetFilters(baseCtx, opp, { controller: "you" })
+            ).toBe("Must target yourself");
+        });
+
+        it("'opponent' accepts an opponent, rejects the chooser", () => {
+            const me = makePlayer({ id: "p1" });
+            const opp = makePlayer({ id: "p2" });
+            expect(
+                checkPlayerTargetFilters(baseCtx, opp, {
+                    controller: "opponent",
+                })
+            ).toBeNull();
+            expect(
+                checkPlayerTargetFilters(baseCtx, me, {
+                    controller: "opponent",
+                })
+            ).toBe("Must target an opponent");
+        });
+
+        it("'active' accepts the active player regardless of chooser", () => {
+            const ctx = { ...baseCtx, chooserId: "p2", activePlayerId: "p1" };
+            const activePlayer = makePlayer({ id: "p1" });
+            const other = makePlayer({ id: "p2" });
+            expect(
+                checkPlayerTargetFilters(ctx, activePlayer, {
+                    controller: "active",
+                })
+            ).toBeNull();
+            expect(
+                checkPlayerTargetFilters(ctx, other, { controller: "active" })
+            ).toBe("Must target the active player");
+        });
+    });
+
+    describe("playerAttackedThisTurn (CR 506.2, Fire and Brimstone)", () => {
+        it("accepts a player who attacked, rejects one who didn't", () => {
+            const attacker = makeCard({ id: "atk", card: CREATURE });
+            attacker.hasAttackedThisTurn = true;
+            const attacked = makePlayer({ id: "p1", battlefield: [attacker] });
+            const notAttacked = makePlayer({ id: "p2" });
+            expect(
+                checkPlayerTargetFilters(baseCtx, attacked, {
+                    playerAttackedThisTurn: true,
+                })
+            ).toBeNull();
+            expect(
+                checkPlayerTargetFilters(baseCtx, notAttacked, {
+                    playerAttackedThisTurn: true,
+                })
+            ).toBe("Target player did not attack this turn");
+        });
+    });
+});
+
+// ---------------------------------------------------------------------------
+// checkCardTargetFilters — single shared card-kind gate (ADR 0068, T3, issue
+// #1410). THE authority both getLegalTargets (offered set) and selectTarget
+// (accepted set, game.ts) run per graveyard-card candidate. Closes the
+// card-flavored half of the Phelia bug class AND a real latent gap:
+// selectTarget's pre-T3 graveyard-card branch never implemented `controller:
+// "active"` at all, while getLegalTargets already did.
+// ---------------------------------------------------------------------------
+
+describe("checkCardTargetFilters — shared offered/accepted gate (ADR 0068, issue #1410)", () => {
+    const baseCtx: TargetFilterCtx = {
+        state: makeGameState(),
+        sourceColors: [],
+        sourceTypes: [],
+        sourceSubtypes: [],
+        chooserId: "p1",
+        activePlayerId: "p1",
+    };
+
+    const gyCard = (
+        ownerId: string,
+        overrides: Partial<CardInstanceState> = {}
+    ) =>
+        makeCard({
+            id: `gy-${ownerId}`,
+            card: CREATURE,
+            zone: "graveyard",
+            controllerId: ownerId,
+            ownerId,
+            ...overrides,
+        });
+
+    describe("controller (CR 109.3 / 400.7 — Regrowth-style graveyard recursion)", () => {
+        it("'you' accepts a card in the chooser's own graveyard, rejects an opponent's", () => {
+            const mine = gyCard("p1");
+            const theirs = gyCard("p2");
+            expect(
+                checkCardTargetFilters(baseCtx, mine, { controller: "you" })
+            ).toBeNull();
+            expect(
+                checkCardTargetFilters(baseCtx, theirs, { controller: "you" })
+            ).toBe("Must target a card in your graveyard");
+        });
+
+        it("'opponent' accepts a card in an opponent's graveyard, rejects the chooser's own", () => {
+            const mine = gyCard("p1");
+            const theirs = gyCard("p2");
+            expect(
+                checkCardTargetFilters(baseCtx, theirs, {
+                    controller: "opponent",
+                })
+            ).toBeNull();
+            expect(
+                checkCardTargetFilters(baseCtx, mine, {
+                    controller: "opponent",
+                })
+            ).toBe("Must target a card in opponent's graveyard");
+        });
+
+        it("'active' accepts a card in the active player's graveyard regardless of chooser (fixes a latent gap: selectTarget never implemented this case before T3)", () => {
+            const ctx = { ...baseCtx, chooserId: "p2", activePlayerId: "p1" };
+            const activeOwners = gyCard("p1");
+            const otherOwners = gyCard("p2");
+            expect(
+                checkCardTargetFilters(ctx, activeOwners, {
+                    controller: "active",
+                })
+            ).toBeNull();
+            expect(
+                checkCardTargetFilters(ctx, otherOwners, {
+                    controller: "active",
+                })
+            ).toBe("Must target a card the active player owns");
+        });
+
+        // `card.controllerId` is NOT reliably reset once an object leaves the
+        // battlefield (CR 108.4 / 110.2) — the check must read `ownerId`
+        // (whose graveyard array it sits in), not `controllerId`.
+        it("reads ownerId, not a stale controllerId, for the graveyard-owner relationship", () => {
+            const stale = gyCard("p1", { controllerId: "p2" });
+            expect(
+                checkCardTargetFilters(baseCtx, stale, { controller: "you" })
+            ).toBeNull();
+        });
+    });
+
+    describe("mvFilter (CR 202.3, Sevinne's Reclamation's 'mana value 3 or less')", () => {
+        it("accepts a card within bounds, rejects one outside them", () => {
+            const cheap = makeCard({
+                id: "cheap",
+                card: { id: "test-cheap", manaCost: { generic: 1 } },
+                zone: "graveyard",
+            });
+            const expensive = makeCard({
+                id: "expensive",
+                card: { id: "test-expensive", manaCost: { generic: 5 } },
+                zone: "graveyard",
+            });
+            expect(
+                checkCardTargetFilters(baseCtx, cheap, {
+                    mvFilter: { max: 3 },
+                })
+            ).toBeNull();
+            expect(
+                checkCardTargetFilters(baseCtx, expensive, {
+                    mvFilter: { max: 3 },
+                })
+            ).toBe("Target does not match the required mana value");
+        });
+    });
+});
+
+// ---------------------------------------------------------------------------
+// getLegalTargets: player/graveyard-card parity (ADR 0068, T3, issue #1410).
+// Regression coverage for the exact gap closed by this slice: `getLegalTargets`
+// already honored `controller: "active"` for both player and graveyard-card
+// targets; `selectTarget` (game.ts) never implemented it for either. Now both
+// route through the SAME registry check, so the offered set (asserted here)
+// and the accepted set (asserted via checkPlayerTargetFilters /
+// checkCardTargetFilters above, since there's no convex-test harness, ADR
+// 0001) can never diverge again.
+// ---------------------------------------------------------------------------
+
+describe("getLegalTargets: player controller 'active' (CR 102.1, T3 parity)", () => {
+    it("offers only the active player's player-target regardless of chooser", () => {
+        const state = makeGameState();
+        const req: TargetRequirement = {
+            type: "player",
+            count: 1,
+            controller: "active",
+        };
+        // Chooser p2, active player p1 (default makeGameState activePlayerId).
+        const targets = getLegalTargets(state, req, [], "p2");
+        expect(targets).toEqual([{ type: "player", id: "p1" }]);
+    });
+});
+
+describe("getLegalTargets: graveyard-card zone targeting (CR 400.7 / 109.2, T3 parity)", () => {
+    function graveyardState() {
+        const mine = makeCard({
+            id: "gy-mine",
+            card: CREATURE,
+            zone: "graveyard",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const theirs = makeCard({
+            id: "gy-theirs",
+            card: CREATURE,
+            zone: "graveyard",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        return makeGameState({
+            players: [
+                makePlayer({ id: "p1", graveyard: [mine] }),
+                makePlayer({ id: "p2", graveyard: [theirs] }),
+            ],
+        });
+    }
+
+    it("controller:'you' offers only the chooser's own graveyard card", () => {
+        const state = graveyardState();
+        const req: TargetRequirement = {
+            type: "Creature",
+            count: 1,
+            zone: "graveyard",
+            controller: "you",
+        };
+        const targets = getLegalTargets(state, req, [], "p1");
+        expect(targets).toEqual([
+            { type: "graveyard-card", id: "gy-mine", playerId: "p1" },
+        ]);
+    });
+
+    it("controller:'opponent' offers only the opponent's graveyard card", () => {
+        const state = graveyardState();
+        const req: TargetRequirement = {
+            type: "Creature",
+            count: 1,
+            zone: "graveyard",
+            controller: "opponent",
+        };
+        const targets = getLegalTargets(state, req, [], "p1");
+        expect(targets).toEqual([
+            { type: "graveyard-card", id: "gy-theirs", playerId: "p2" },
+        ]);
+    });
+
+    it("controller:'active' offers only the active player's graveyard card, regardless of chooser (the exact gap this slice closes at selectTarget)", () => {
+        const state = graveyardState(); // activePlayerId defaults to "p1"
+        const req: TargetRequirement = {
+            type: "Creature",
+            count: 1,
+            zone: "graveyard",
+            controller: "active",
+        };
+        const targets = getLegalTargets(state, req, [], "p2");
+        expect(targets).toEqual([
+            { type: "graveyard-card", id: "gy-mine", playerId: "p1" },
+        ]);
+    });
+
+    it("mvFilter restricts graveyard-card targets by mana value (Sevinne's Reclamation)", () => {
+        const cheap = makeCard({
+            id: "gy-cheap",
+            card: { id: "test-gy-cheap", manaCost: { generic: 1 } },
+            zone: "graveyard",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const expensive = makeCard({
+            id: "gy-expensive",
+            card: { id: "test-gy-expensive", manaCost: { generic: 5 } },
+            zone: "graveyard",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeGameState({
+            players: [
+                makePlayer({ id: "p1", graveyard: [cheap, expensive] }),
+                makePlayer({ id: "p2" }),
+            ],
+        });
+        const req: TargetRequirement = {
+            type: "card",
+            count: 1,
+            zone: "graveyard",
+            mvFilter: { max: 3 },
+        };
+        const targets = getLegalTargets(state, req);
+        expect(targets).toEqual([
+            { type: "graveyard-card", id: "gy-cheap", playerId: "p1" },
+        ]);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// pendingTargetFiltersFromRequirement — player/card filter carry-completeness
+// (ADR 0068, T3, issue #1410). Mirrors the spell carry-completeness suite
+// above: a requirement setting a player-only or card-only field must survive
+// onto the interactive PendingTarget with the SAME resolution getLegalTargets
+// and selectTarget use — dropping the carry silently regresses the offered
+// set back to divergence-prone (the Phelia bug class this whole registry
+// exists to close).
+// ---------------------------------------------------------------------------
+
+describe("pendingTargetFiltersFromRequirement — player/card filter carry-completeness (issue #1410)", () => {
+    it("carries controller + playerAttackedThisTurn onto the PendingTarget for a player requirement", () => {
+        const req: TargetRequirement = {
+            type: "player",
+            count: 1,
+            controller: "opponent",
+            playerAttackedThisTurn: true,
+        };
+        const pt = pendingTargetFiltersFromRequirement(req, undefined);
+        expect(pt.controller).toBe("opponent");
+        expect(pt.playerAttackedThisTurn).toBe(true);
+    });
+
+    it("does NOT carry playerAttackedThisTurn for a permanent-only requirement", () => {
+        const req: TargetRequirement = {
+            type: "Creature",
+            count: 1,
+            playerAttackedThisTurn: true,
+        };
+        const pt = pendingTargetFiltersFromRequirement(req, undefined);
+        expect(pt.playerAttackedThisTurn).toBeUndefined();
+    });
+
+    it("DOES carry playerAttackedThisTurn for an 'any' requirement (CR 115.4)", () => {
+        const req: TargetRequirement = {
+            type: "any",
+            count: 1,
+            playerAttackedThisTurn: true,
+        };
+        const pt = pendingTargetFiltersFromRequirement(req, undefined);
+        expect(pt.playerAttackedThisTurn).toBe(true);
+    });
+
+    it("carries controller + mvFilter onto the PendingTarget for a graveyard-zone requirement", () => {
+        const req: TargetRequirement = {
+            type: "Creature",
+            count: 1,
+            zone: "graveyard",
+            controller: "you",
+            mvFilter: { max: 3 },
+        };
+        const pt = pendingTargetFiltersFromRequirement(req, undefined);
+        expect(pt.controller).toBe("you");
+        expect(pt.mvFilter).toEqual({ max: 3 });
+        expect(pt.zone).toBe("graveyard");
     });
 });
 

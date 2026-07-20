@@ -139,6 +139,8 @@ import {
     getLegalTargets,
     checkPermanentTargetFilters,
     checkSpellTargetFilters,
+    checkPlayerTargetFilters,
+    checkCardTargetFilters,
     type TargetFilterCtx,
     getPendingTargetSourceColors,
     getPendingTargetSourceTypes,
@@ -7168,9 +7170,8 @@ export const selectTarget = mutation({
         if (args.targetType === "graveyard-card") {
             // CR 109.2 / 400.7: graveyard-zone target. The chooser names a
             // specific player's graveyard via `targetPlayerId`; the engine
-            // validates that the card sits there, matches the requested
-            // CardType filter, and that the graveyard's owner satisfies the
-            // controller-relationship constraint ("you" / "opponent" / any).
+            // validates that the card sits there and matches the requested
+            // CardType filter (structural — ADR 0068's `StructuralKey`).
             if (pt.zone !== "graveyard") {
                 throw new Error("This spell does not target a graveyard card");
             }
@@ -7181,13 +7182,6 @@ export const selectTarget = mutation({
                 (p) => p.id === args.targetPlayerId
             );
             if (!owner) throw new Error("Invalid graveyard owner");
-            const controllerFilter = pt.controller ?? "any";
-            if (controllerFilter === "you" && owner.id !== args.playerId) {
-                throw new Error("Must target a card in your graveyard");
-            }
-            if (controllerFilter === "opponent" && owner.id === args.playerId) {
-                throw new Error("Must target a card in opponent's graveyard");
-            }
             const matchedCard = owner.graveyard.find(
                 (c) => c.id === args.targetId
             );
@@ -7207,6 +7201,32 @@ export const selectTarget = mutation({
             ) {
                 throw new Error("Card type mismatch for graveyard target");
             }
+            // CR 109.3 / 102.1 / 202.3 — every CARD-kind filter (`controller`
+            // — the graveyard's OWNER, anti-spoof #904's card-flavored twin
+            // — and `mvFilter`), routed through the SINGLE shared authority
+            // — the target-filter registry (ADR 0068 / issue #1410, T3).
+            // `getLegalTargets` runs the SAME `checkCardTargetFilters` per
+            // candidate, so the offered set and the accepted set can't
+            // diverge. This ALSO fixes a real latent gap: this branch never
+            // implemented `controller: "active"` before this slice, while
+            // `getLegalTargets` already did.
+            const cardFilterCtx: TargetFilterCtx = {
+                state,
+                sourceColors: [],
+                sourceTypes: [],
+                sourceSubtypes: [],
+                chooserId: args.playerId,
+                activePlayerId: state.activePlayerId,
+            };
+            const cardFilterViolation = checkCardTargetFilters(
+                cardFilterCtx,
+                matchedCard,
+                {
+                    controller: pt.controller,
+                    mvFilter: pt.mvFilter,
+                }
+            );
+            if (cardFilterViolation) throw new Error(cardFilterViolation);
         } else if (args.targetType === "permanent") {
             const wantsSpellOrPermanent =
                 reqTypes.includes("spell-or-permanent");
@@ -7331,36 +7351,40 @@ export const selectTarget = mutation({
             }
             const found = state.players.find((p) => p.id === args.targetId);
             if (!found) throw new Error("Invalid player target");
-            // CR 115 — "target opponent" / "target player you control": enforce
-            // the controller-relationship filter for player targets (Word of
-            // Command targets an opponent). Mirrors the graveyard-card branch.
-            const playerControllerFilter = pt.controller ?? "any";
-            if (
-                playerControllerFilter === "you" &&
-                found.id !== args.playerId
-            ) {
-                throw new Error("Must target yourself");
-            }
-            if (
-                playerControllerFilter === "opponent" &&
-                found.id === args.playerId
-            ) {
-                throw new Error("Must target an opponent");
-            }
-            // CR 506.2 — "target player who attacked this turn" (Fire and
-            // Brimstone): the chosen player must control a creature flagged as
-            // having attacked this turn.
-            if (
-                pt.playerAttackedThisTurn &&
-                !found.battlefield.some((c) => c.hasAttackedThisTurn)
-            ) {
-                throw new Error("Target player did not attack this turn");
-            }
+            // CR 109.3 / 102.1 / 506.2 — every PLAYER-kind filter
+            // (`controller` — Word of Command's "target opponent", anti-
+            // spoof #904's player-flavored twin — and
+            // `playerAttackedThisTurn` — Fire and Brimstone), routed through
+            // the SINGLE shared authority — the target-filter registry
+            // (ADR 0068 / issue #1410, T3). `getLegalTargets` runs the SAME
+            // `checkPlayerTargetFilters` per candidate, so the offered set
+            // and the accepted set can't diverge. This ALSO fixes a real
+            // latent gap: this branch never implemented `controller:
+            // "active"` before this slice, while `getLegalTargets` already
+            // did.
+            const playerFilterCtx: TargetFilterCtx = {
+                state,
+                sourceColors: [],
+                sourceTypes: [],
+                sourceSubtypes: [],
+                chooserId: args.playerId,
+                activePlayerId: state.activePlayerId,
+            };
+            const playerFilterViolation = checkPlayerTargetFilters(
+                playerFilterCtx,
+                found,
+                {
+                    controller: pt.controller,
+                    playerAttackedThisTurn: pt.playerAttackedThisTurn,
+                }
+            );
+            if (playerFilterViolation) throw new Error(playerFilterViolation);
             // CR 702.18 (applied to a player via CR 115.4) — a shrouded
             // player can't be the target of spells or abilities. Mirror of
             // the permanent branch's `isGuardedAgainst` gate above; no
             // source narrowing (shroud bars every source, including the
-            // guarded player's own).
+            // guarded player's own). Always-on gate (ADR 0068) — stays
+            // outside the registry.
             if (playerHasShroud(state, found.id)) {
                 throw new Error(
                     "Target can't be the target of spells or abilities"
