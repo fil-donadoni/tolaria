@@ -31,16 +31,22 @@ export const hurkylsRecall: CardDefinition = {
     manaCost: { X: 1, U: 1 },
     types: ["Instant"],
     targetRequirement: { type: "player", count: 1 },
-    resolve: (ctx: SpellContext) => {
-        const target = ctx.targets[0];
-        if (target?.type !== "player") return;
-        const artifactIds = ctx.getBattlefieldIds(target.id, {
-            types: "Artifact",
-        });
-        for (const id of artifactIds) {
-            ctx.returnToHand({ type: "permanent", id });
-        }
-    },
+    // Migrated resolve()→effects[] (ADR 0045): forEach over the target
+    // player's battlefield artifacts, moveZone each to hand. Same divergence
+    // as before (scopes to CONTROLLED artifacts via `controller: { target: 0
+    // }`, not strictly OWNED — see the header note above).
+    effects: [
+        {
+            op: "forEach",
+            select: {
+                set: "permanents",
+                zone: "battlefield",
+                controller: { target: 0 },
+                filter: { type: "Artifact" },
+            },
+            effects: [{ op: "moveZone", target: { ref: "$each" }, to: "hand" }],
+        },
+    ],
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -106,6 +112,20 @@ export const drafnasRestoration: CardDefinition = {
         zone: "graveyard",
         controller: "any",
     },
+    // NOT DSL-migratable (ADR 0045): "on top in any order" is a
+    // reorder-FROM-choice — the player's `reorder-library` pick order must
+    // feed back into a subsequent `reorderLibraryTop` call, which the Effect
+    // Script grammar cannot express today (no construct reads a `choice` Op's
+    // ORDER back into a later library-order Op).
+    // Blocked on: missing reorder-FROM-choice construct. The `libraryLook`
+    // registry entry (convex/cards/mechanicsRegistry.ts) names this exact
+    // card as one of the closures deliberately left out of scope ("every
+    // closure that calls [peekLibraryTop/reorderLibraryTop] either reads an
+    // opaque choice result back into reorderLibraryTop (Ponder, Preordain,
+    // Portent, Drafna's Restoration — a reorder-FROM-choice the DSL can't yet
+    // express) ... stays a planned backlog Op (scryReorder) until a
+    // choice-driven reorder ... construct exists"). Planned-migratable, not
+    // protocol — worth an issue if/when that construct ships.
     resolveSteps: [
         (ctx: SpellContext) => {
             const targets = ctx.targets.filter(
@@ -276,18 +296,33 @@ export const energyFlux: CardDefinition = {
                 "At the beginning of your upkeep, sacrifice this artifact unless you pay {2}.",
             phase: "UPKEEP",
             scope: "your",
-            resolve: (ctx, _event, scopedPlayerId) => {
-                // CR 118 — the artifact's controller may pay {2}; if they
-                // don't (or can't), the artifact is sacrificed (CR 701.16).
-                const paid = ctx.requestMayPay({
-                    playerId: scopedPlayerId,
-                    choiceId: `energy-flux-${ctx.sourceInstanceId}`,
+            // Migrated resolve()→effects[] (ADR 0045): CR 118 — the artifact's
+            // controller may pay {2}; if they don't, the artifact is
+            // sacrificed (CR 701.16). `scope: "your"` means the plain
+            // "controller" player selector already IS the scoped player (see
+            // phaseTrigger's `effects` doc), so no `$event` read is needed.
+            // The unique-per-stack-item `choiceId` the old closure built by
+            // hand (`energy-flux-${sourceInstanceId}`) is unnecessary here:
+            // `requestMayPay`'s pending-choice key is scoped by `stackItemId`
+            // (gre/state.ts), and each artifact's granted trigger is its own
+            // stack item, so a fixed `bind`-derived choiceId ("$paid") never
+            // collides across artifacts.
+            effects: [
+                {
+                    op: "mayPay",
+                    player: "controller",
                     cost: { X: 2 },
                     prompt: "Pay {2} or sacrifice this artifact?",
-                });
-                if (paid === undefined) return; // suspended for the choice
-                if (!paid) ctx.sacrifice(ctx.sourceInstanceId);
-            },
+                    bind: "$paid",
+                },
+                {
+                    op: "if",
+                    predicate: { not: { binding: "$paid" } },
+                    then: [
+                        { op: "sacrifice", target: { ref: "$source" } },
+                    ],
+                },
+            ],
         }),
     ],
 };
@@ -319,6 +354,18 @@ export const transmuteArtifact: CardDefinition = {
         "Sacrifice an artifact. If you do, search your library for an artifact card. If that card's mana value is less than or equal to the sacrificed artifact's mana value, put it onto the battlefield. If it's greater, you may pay {X}, where X is the difference. If you do, put it onto the battlefield. If you don't, put it into its owner's graveyard. Then shuffle.",
     manaCost: { U: 2 },
     types: ["Sorcery"],
+    // NOT DSL-migratable (ADR 0045): "you may pay {X}, where X is the
+    // difference" — X here is the ARITHMETIC DIFFERENCE between two
+    // runtime-read mana values (the searched-for card's and the sacrificed
+    // artifact's, neither known at authoring time). The `EffectValue` grammar
+    // is `literal | ref | count` with no arithmetic; `mayPay`'s dynamic-cost
+    // shape (`DynamicMayPayManaCost`) only supports a FIXED `reducedBy`
+    // subtracted from one object's own printed cost, not an object-to-object
+    // difference of two independently-resolved values.
+    // Blocked on: missing arithmetic / chosen-cost (X) value construct (see
+    // playbook § Non-migratable — the "Missing value construct" class).
+    // Planned-migratable, not protocol — worth an issue if/when an X value
+    // construct ships.
     resolveSteps: [
         (ctx: SpellContext) => {
             // "Sacrifice an artifact." — mandatory if able; with no artifact to
