@@ -59,6 +59,11 @@ export function stackFanOffset(
  *  ~one-card footprint instead of a wide fan; `≤` this many still fan (#623). */
 export const STACK_DEPTH_PILE_THRESHOLD = 8;
 
+/** ×N count-badge minimum stack size (QA): small fans (2–4) already show every
+ *  member, so a count badge is noise that only collides with the row above —
+ *  it renders from 5 members up. Pure. */
+export const STACK_COUNT_BADGE_MIN = 5;
+
 /** Tight per-member diagonal offset (px) of a depth-pile (PRD #621, issue #624).
  *  Members step down-and-right by this much so the whole pile reads as a small
  *  stack of cards within roughly one card's footprint. */

@@ -8,6 +8,29 @@ import GameDialog from "~/components/ui/game-dialog";
 import ArrivalGlow from "./arrival-glow";
 import CardBack from "../cards/card-back";
 import CardImage from "../cards/card-image";
+import { COUNTER_TONE_CLASS, getCounterDisplays } from "~/lib/counters";
+
+/** Small counter chips overlaid on a revealed pile card (fan/grid dialog) —
+ *  the exile/graveyard pickers need them (Dauthi Voidwalker's void counter is
+ *  the eligibility marker of `choose-exile-card`). Same plate language as the
+ *  battlefield CounterBadges, sized down for dialog cards. */
+function PileCounterChips({ card }: { card: CardInstance }) {
+    const chips = getCounterDisplays(card);
+    if (chips.length === 0) return null;
+    return (
+        <div className="absolute top-1 left-1 z-10 flex flex-col items-start gap-0.5 pointer-events-none">
+            {chips.map((c) => (
+                <span
+                    key={c.type}
+                    className={`${COUNTER_TONE_CLASS[c.tone]} rounded-full px-1.5 py-0.5 text-[9px] font-bold leading-none drop-shadow-[0_0_2px_rgba(0,0,0,0.9)]`}
+                >
+                    {c.short}
+                    {c.count > 1 ? ` ×${c.count}` : ""}
+                </span>
+            ))}
+        </div>
+    );
+}
 
 function seededRandom(seed: number) {
     const x = Math.sin(seed + 1) * 10000;
@@ -249,6 +272,7 @@ function FanLayout({
                             ) : (
                                 inner
                             )}
+                            <PileCounterChips card={cardInstance} />
                             {action}
                         </div>
                     );
@@ -328,6 +352,7 @@ function GridLayout({
                         ) : (
                             inner
                         )}
+                        <PileCounterChips card={cardInstance} />
                         {action}
                     </div>
                 );

@@ -398,6 +398,41 @@ describe("Phelia — attack trigger (CR 603.6a exile + CR 603.7a delayed return)
         });
     });
 
+    it("wire: the exiled card is pinned under Phelia via exiledByPermanentId (QA: show it like Banishing Light)", () => {
+        const p = makeInstance(phelia.id, {
+            id: "phelia1",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const target = makeInstance(balduvianBears.id, {
+            id: "target1",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [p] }),
+                makePlayer("p2", { battlefield: [target] }),
+            ],
+        });
+        pheliaAttackTriggerOnStack(state, p);
+        choosePheliaTarget(state, "target1");
+        expect(resolveTopOfStack(state)).not.toBeNull();
+
+        // The resolve stamps `exiledBySourceId` (linkExileToSource), which
+        // buildExileAssociation turns into the mechanism-agnostic pin the
+        // board renders under the host (AttachedCardsCluster). Must survive
+        // the projection for BOTH viewers — the target is opponent-owned, so
+        // the link leg that scans every owner's exile zone is what catches it.
+        for (const viewer of ["p1", "p2"] as const) {
+            const projected = projectPublicState(state, 1, viewer);
+            const exiled = projected.players[1].exile.find(
+                (c) => c.id === "target1"
+            )!;
+            expect(exiled.exiledByPermanentId).toBe("phelia1");
+        }
+    });
+
     it("excludes lands and Phelia herself — no legal target, resolves as a no-op (CR 603.3c)", () => {
         const p = makeInstance(phelia.id, {
             id: "phelia2",

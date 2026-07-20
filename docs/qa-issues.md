@@ -41,8 +41,6 @@ Enduring renewal non mostra l'intero oracle text in card-preview, e anche Icetil
 
 La seconda abilità di currency converter non mi mostra le carte esiliate con lei all'interno del dialog di scelta, non posso selezionare niente.
 
-L'abilità di end step di sneak attack va sullo stack con l'immagine della carta intera, invece che con la full-art con sotto l'oracle text dell'abilità. Cerca tutti gli altri casi simili e risolvi alla radice.
-
 L'abilità di Dark Confidant non ha bisogno del box di spostamento della carta, deve andare in mano per forza. viene rivelata automaticamente, spostata in mano e il controllore perde i punti vita. niente scelte, niente box intermedi.
 
 bug ux: Lion Sash equipaggiato su una creatura non può più attivare le sue abilità, né reconfigure né exile from graveyard. Questo accade anche con le aure (Chromatic armor per esempio).
@@ -56,8 +54,6 @@ manca il token golem di sandtorm salvager e lo spirit di staff of the storytelle
 staff of the storyteller non è stata implementata nella sua prima edizione ma in una ristampa. correggi, trova altri casi simili e fai in modo che non ricapiti.
 
 la triggered ability di forth eorlingas in pila non mostra card-preview con oracle dell'abilita', ma la carta intera. correggi, trova casi simili e fai in modo che non ricapiti.
-
-Metallic rebuke non risulta castabile se ho 2 terre stappate e degli artefatti stappati. nel conteggio di castabilità non vengono considerati gli artefatti tappabili, quando una carta ha improvise.
 
 Bug quando provo ad attivare l'abilità di Harvester of misery:
 installHook.js:1 [CONVEX M(game:selectTarget)] [Request ID: 6efb7360d6a7c912] Server Error
@@ -73,3 +69,11 @@ Non si vedono da nessuna parte gli emblemi (Sorin, per esempio, anche se il +1/+
 Le creature distrutte dall'ultimate di Sorin, Lord of Innistrad non tornano sul battlefield, rimangono nel cimitero.
 
 Il may cast di Malcolm è solo nel momento della risoluzione dell'abilità, non nel resto del turno. verifica sul CR.
+
+Urza's Bauble: quando risolve l'abilità non viene mostrata nessuna carta e non rimane nemmeno visibile dalla mano successivamente.
+
+bug counter di dauthi voidwalker:
+Cosa succede al segnalino void
+I segnalini esistono solo sul campo o in esilio: Per regola del gioco, i segnalini (come i segnalini void, +1/+1 o tempo) possono esistere solo sugli oggetti in determinate zone.
+Il cambio di zona cancella i segnalini: Quando attivi l'abilità del Dauthi Voidwalker e lanci la carta esiliata, quella carta si sposta dall'esilio alla pila (stack).
+Rimozione immediata: Nel momento esatto in cui la carta cambia zona ed entra in pila, cessa di essere un "oggetto in esilio" e perde immediatamente il segnalino void.

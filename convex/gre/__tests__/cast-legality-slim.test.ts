@@ -17,12 +17,15 @@ import {
     ankhOfMishra,
     elvishArchers,
     forest,
+    island,
     lightningBolt,
+    mountain,
     plains,
     savannahLions,
     serraAngel,
     solRing,
 } from "../../cards/sets/lea";
+import { metallicRebuke } from "../../cards/sets/aer";
 import type { GameState, PlayerState, StackItem } from "../state";
 
 function withTurnOf(state: GameState, playerId: string): GameState {
@@ -208,5 +211,77 @@ describe("cast affordability with multi-mana sources (issue #132)", () => {
         const state = withTurnOf(makeState({ players: [player] }), "p1");
 
         expect(getLegalActions(state, player, bolt)).not.toContain("cast");
+    });
+});
+
+// CR 702.126 (issue #1313): Improvise lets untapped artifacts pay the generic
+// portion of the spell's own cost. The castability gate (coloredCostLeftover)
+// had no branch for it, so a spell payable only by tapping artifacts was judged
+// unaffordable and its Cast action hidden even with the artifacts sitting
+// untapped. Metallic Rebuke ({2}{U}) is AER's Improvise carrier; Ankh of Mishra
+// is an artifact with NO mana ability, so it counts ONLY through Improvise.
+describe("cast affordability with Improvise (CR 702.126)", () => {
+    function onBattlefield(defId: string, id: string) {
+        return makeInstance(defId, {
+            id,
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+            isTapped: false,
+        });
+    }
+
+    // Metallic Rebuke counters "target spell", so the cast is only offered when
+    // a spell is on the stack to target — put an opponent's Bolt there.
+    function stateWithRebuke(battlefield: ReturnType<typeof onBattlefield>[]) {
+        const rebuke = makeInstance(metallicRebuke.id, {
+            controllerId: "p1",
+            zone: "hand",
+        });
+        const stackBolt: StackItem = {
+            ...makeInstance(lightningBolt.id, {
+                controllerId: "p2",
+                ownerId: "p2",
+                zone: "stack",
+            }),
+            castById: "p2",
+        };
+        const p1 = makePlayer("p1", {
+            hand: [rebuke],
+            battlefield,
+            manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
+        });
+        const p2 = makePlayer("p2");
+        const state = withTurnOf(
+            makeState({ players: [p1, p2], stack: [stackBolt] }),
+            "p1"
+        );
+        return { state, p1, rebuke };
+    }
+
+    it("castable: 1 Island pays {U}, 2 artifacts pay {2} via Improvise", () => {
+        const { state, p1, rebuke } = stateWithRebuke([
+            onBattlefield(island.id, "is1"),
+            onBattlefield(ankhOfMishra.id, "ak1"),
+            onBattlefield(ankhOfMishra.id, "ak2"),
+        ]);
+        expect(getLegalActions(state, p1, rebuke)).toContain("cast");
+    });
+
+    it("NOT castable: 1 Island and no artifacts — Improvise has nothing to tap", () => {
+        const { state, p1, rebuke } = stateWithRebuke([
+            onBattlefield(island.id, "is1"),
+        ]);
+        expect(getLegalActions(state, p1, rebuke)).not.toContain("cast");
+    });
+
+    it("Improvise cannot pay the {U} pip: only a Mountain + artifacts ⇒ not castable", () => {
+        const { state, p1, rebuke } = stateWithRebuke([
+            onBattlefield(mountain.id, "mt1"),
+            onBattlefield(ankhOfMishra.id, "ak1"),
+            onBattlefield(ankhOfMishra.id, "ak2"),
+            onBattlefield(ankhOfMishra.id, "ak3"),
+        ]);
+        expect(getLegalActions(state, p1, rebuke)).not.toContain("cast");
     });
 });

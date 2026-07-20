@@ -1929,6 +1929,13 @@ export type PendingChoice = {
      *  card out of the hand pile. Undefined = every looked-at card is
      *  hand-eligible (Impulse, Stock Up — the unfiltered dig). */
     eligibleIds?: string[];
+    /** `look-distribute` only (Narset, Parter of Veils) — the un-kept cards go
+     *  to `destination` in a RANDOM order, so the submitted second-zone order
+     *  is discarded server-side. The frontend routes such picks to the simple
+     *  grid pick (choose the hand cards; nothing to order) instead of the
+     *  two-zone drag picker — an ordering UI for a random outcome would be a
+     *  lie. Undefined/absent = the rest is ordered (Impulse, Stock Up). */
+    randomizeRest?: boolean;
     /** For `kind: "choose-damage-target"` only — the player ids that are legal
      *  damage targets (CR 115.4 — "any target" includes players). The chooser's
      *  submission carries either a damageable permanent id (from `candidateIds`)
@@ -11069,6 +11076,7 @@ export function buildSpellContext(
                 entry.candidatePlayerIds = req.candidatePlayerIds;
             }
             if (req.destination) entry.destination = req.destination;
+            if (req.randomizeRest) entry.randomizeRest = true;
             if (req.putOnTop) entry.putOnTop = true;
             state.pendingChoices = [...(state.pendingChoices ?? []), entry];
             return undefined;

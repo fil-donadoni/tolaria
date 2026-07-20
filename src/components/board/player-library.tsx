@@ -72,6 +72,24 @@ export default function PlayerLibrary({
         player.id === playerId &&
         !!player.libraryPeek;
 
+    // Satyr Wayfinder / Narset (QA): a `look-distribute` whose rest needs no
+    // ORDERING — either it goes to the graveyard (Satyr, Reviving Vapors:
+    // order is cosmetic) or the server randomizes it (`randomizeRest`,
+    // Narset's random bottom) — is a simple "choose the hand card(s)" grid
+    // pick, NEVER the two-zone scry-style drag picker. The looked-at cards
+    // are exposed on `libraryPeek` (exactly N cards — the library itself is
+    // never shown). The single-list submit is legal for `look-distribute`:
+    // the rest falls to `destination` in look order / randomly.
+    const orderPickOwnerForGrid = head?.zoneOwnerId ?? head?.playerId;
+    const isLookDistributeGridPick =
+        !!head &&
+        head.kind === "look-distribute" &&
+        head.zone === "library" &&
+        (head.destination === "graveyard" || head.randomizeRest === true) &&
+        head.playerId === playerId &&
+        player.id === orderPickOwnerForGrid &&
+        !!player.libraryPeek;
+
     // Scry / surveil / ponder ordered-top pick (`order-top`, CR 701.22/701.44),
     // the unified take-to-hand + order-bottom pick (`look-distribute`, CR 401.4
     // — Impulse, Stock Up), AND the "put them back in any order" reorder
@@ -91,14 +109,17 @@ export default function PlayerLibrary({
     const isOrderTopPick =
         !!head &&
         (head.kind === "order-top" ||
-            head.kind === "look-distribute" ||
-            head.kind === "reorder-library") &&
+            head.kind === "reorder-library" ||
+            // Only an ORDERED look-distribute keeps the drag picker
+            // (Impulse / Stock Up — the bottom order matters).
+            (head.kind === "look-distribute" && !isLookDistributeGridPick)) &&
         head.zone === "library" &&
         head.playerId === playerId &&
         player.id === orderPickOwner &&
         !!player.libraryPeek;
 
-    const isLibraryPick = isLibrarySearchTarget || isLibraryPeekPick;
+    const isLibraryPick =
+        isLibrarySearchTarget || isLibraryPeekPick || isLookDistributeGridPick;
 
     // ADR 0026 — outside an active pick, the pile renders from the projected
     // library: known positions (`knownTo`) face-up, the rest as backs.
@@ -107,16 +128,21 @@ export default function PlayerLibrary({
     // Filtered search (Transmute Artifact: "an artifact card"): the choice
     // carries a `candidateIds` allow-list. Only those cards are pickable — a
     // click on an ineligible card is a no-op (the server would reject it too).
+    // A filtered look-distribute (Satyr "a land", Narset "noncreature,
+    // nonland") instead carries `eligibleIds` restricting which looked-at
+    // cards may go to HAND.
     const eligibleIds =
         isLibrarySearchTarget && head!.candidateIds
             ? new Set(head!.candidateIds)
-            : undefined;
+            : isLookDistributeGridPick && head!.eligibleIds
+              ? new Set(head!.eligibleIds)
+              : undefined;
 
     const libraryCards = isLibrarySearchTarget
         ? // Issue #933 follow-up: put eligible (allow-listed) cards first, then
           // sort the whole pile by type line with name as the tiebreaker.
           orderLibrarySearchCards(player.librarySearch!, eligibleIds)
-        : isLibraryPeekPick
+        : isLibraryPeekPick || isLookDistributeGridPick
           ? player.libraryPeek!
           : pileModel.map((slot) => slot.card);
     // Per-card face-up override for the non-pick library view (picks expose
@@ -189,7 +215,12 @@ export default function PlayerLibrary({
                         head!.kind === "look-top"
                           ? (head!.prompt ?? "Look at the top cards")
                           : "Keep one card to draw"
-                      : "Library"
+                      : isLookDistributeGridPick
+                        ? // Satyr / Narset carry their own card-specific
+                          // prompt (the GRE builds it from the Op).
+                          (head!.prompt ??
+                          "Choose a card to put into your hand")
+                        : "Library"
             }
             onCardClick={onCardClick}
             // Issue #315 — collapse the blocking picker to the board indicator

@@ -74,9 +74,12 @@ export default function BattlefieldStackDepthPile({
                         {renderMember(card)}
                     </div>
                 ))}
+                {/* ×N badge — INSIDE the pile's top-right corner (was -top-1.5,
+                    which collided with the row above; QA). Depth piles are >8
+                    by construction, always ≥ STACK_COUNT_BADGE_MIN. */}
                 <div
                     data-stack-count
-                    className="absolute -top-1.5 -right-1.5 z-[110] pointer-events-none rounded-full bg-black/85 px-1.5 py-0.5 text-[11px] font-bold leading-none text-white ring-1 ring-white/30 drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]"
+                    className="absolute top-1.5 -right-1.5 z-modal-top pointer-events-none rounded-full bg-black/85 px-1.5 py-0.5 text-[11px] font-bold leading-none text-white ring-1 ring-white/30 drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]"
                 >
                     ×{n}
                 </div>

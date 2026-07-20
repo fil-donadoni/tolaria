@@ -186,6 +186,10 @@ export const phelia: CardDefinition = {
                 const ownerId = ctx.getOwnerId(targetId);
                 if (ownerId === undefined) return; // CR 608.2b — target left
                 ctx.exile({ type: "permanent", id: targetId });
+                // Pin the exiled card under Phelia on the board (Banishing-
+                // Light-style, QA): the association self-clears when the
+                // delayed trigger returns the card at the next end step.
+                ctx.linkExileToSource(targetId, ctx.sourceInstanceId);
                 ctx.scheduleDelayedTrigger(
                     PHELIA_ID,
                     "phelia-return",

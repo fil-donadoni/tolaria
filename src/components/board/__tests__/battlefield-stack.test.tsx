@@ -73,6 +73,21 @@ describe("BattlefieldStack fan (#623)", () => {
         expect(getByText("×5")).toBeTruthy();
     });
 
+    it("hides the ×N badge for small fans (2–4): every member is already visible (QA)", () => {
+        // The count badge renders from 5 members up — below that it's noise
+        // that only collided with the row above.
+        for (const n of [2, 3, 4]) {
+            cleanup();
+            const { container } = render(
+                <BattlefieldStack
+                    members={makeMembers(n)}
+                    renderMember={renderMember(() => {})}
+                />
+            );
+            expect(container.querySelector("[data-stack-count]")).toBeNull();
+        }
+    });
+
     it("renders a lone member with no fan or badge for size 1", () => {
         const { container } = render(
             <BattlefieldStack

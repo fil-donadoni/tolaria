@@ -3076,6 +3076,12 @@ export interface SpellContext {
          *  order-only). Prefer the higher-level {@link SpellContext.orderTop},
          *  which raises this choice and applies the split for you. */
         destination?: LibraryDestination;
+        /** `look-distribute` only — the un-kept cards go to `destination` in a
+         *  RANDOM order, so the submitted second-zone order is discarded
+         *  server-side. The client mounts the simple grid pick (nothing to
+         *  order) instead of the two-zone drag picker. Raised by the
+         *  `digToHand` Op when `randomBottom` is set (Narset). */
+        randomizeRest?: boolean;
         /** Client-routing hint for a `choose-hand-card` pick whose destination is
          *  the TOP of the chooser's library, in chosen order (Brainstorm's
          *  `putBack`, CR 401.4). Purely a UI discriminator — the submit path and
@@ -6361,7 +6367,10 @@ export interface GraveyardBoundReplacementEvent {
     /** Counters to stamp on the card once it lands in `destination` (Dauthi
      *  Voidwalker's void counter). Only meaningful when `destination !==
      *  "graveyard"` — a card that lands in the graveyard normally is never
-     *  tagged. */
+     *  tagged. NOTE: deliberately NO per-instance source link here — Dauthi's
+     *  cast ability references ANY void-counter card, not "cards exiled with
+     *  this Voidwalker", so pinning exiled cards under a specific instance
+     *  would assert an ownership the rules don't have. */
     tagCounters?: Record<string, number>;
 }
 

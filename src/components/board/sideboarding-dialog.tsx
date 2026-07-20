@@ -125,11 +125,12 @@ export default function SideboardingDialog({
         );
     }
 
-    // Maindeck size is LOCKED to the seat's starting size (the Match deck copy's
-    // current maindeck count). Ready is blocked until the working maindeck
-    // matches it again (issue #395).
+    // Maindeck size FLOOR = the seat's starting size (the Match deck copy's
+    // current maindeck count — 60 constructed / 40 limited). The maindeck may
+    // GROW past it (>60 allowed, QA sideboard revamp); only going UNDER is
+    // blocked. The combined pool is preserved by the server.
     const lockedSize = seat.deck.maindeck.length;
-    const sizeOk = split.cards.length === lockedSize;
+    const sizeOk = split.cards.length >= lockedSize;
     // The play/draw chooser (previous Game's loser, CR 103.4) picks while
     // sideboarding their seat. `interstitialChoiceState` resolves the viewer's
     // role; the toggle shows only on the seat that is actually the chooser (and
@@ -204,7 +205,7 @@ export default function SideboardingDialog({
             <div className="flex flex-col gap-3 mt-1">
                 <p className="text-text-disabled text-xs text-center">
                     Swap cards between your Maindeck and Sideboard. Your
-                    Maindeck must stay at {lockedSize} cards.
+                    Maindeck must stay at {lockedSize}+ cards.
                 </p>
                 <div className="flex gap-4">
                     <SideboardSwapList
@@ -212,7 +213,7 @@ export default function SideboardingDialog({
                         cards={split.cards}
                         moveLabel="→ Side"
                         onMove={handleToSide}
-                        countSuffix={` / ${lockedSize}`}
+                        countSuffix={` / ${lockedSize}+`}
                         disabled={submitting}
                         emptyMessage="No cards in the Maindeck."
                     />
@@ -227,8 +228,9 @@ export default function SideboardingDialog({
                 </div>
                 {!sizeOk && (
                     <p className="text-danger-strong text-xs text-center">
-                        Maindeck must hold exactly {lockedSize} cards (currently{" "}
-                        {split.cards.length}). The combined pool is {total}.
+                        Maindeck must hold at least {lockedSize} cards
+                        (currently {split.cards.length}). The combined pool is{" "}
+                        {total}.
                     </p>
                 )}
                 {isChooser && (

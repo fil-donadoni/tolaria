@@ -53,6 +53,15 @@ function toneFor(type: string): CounterDisplay["tone"] {
     return p.startsWith("-") || t.startsWith("-") ? "neutral" : "buff";
 }
 
+/** Shared plate-chip classes per counter tone (phase-3 plate language).
+ *  Used by the battlefield CounterBadges and the pile-dialog counter chips. */
+export const COUNTER_TONE_CLASS: Record<CounterDisplay["tone"], string> = {
+    buff: "border border-success/60 bg-success text-surface-base",
+    debuff: "border border-danger/60 bg-danger text-parchment",
+    neutral:
+        "border border-signal-pending/60 bg-signal-pending text-surface-base",
+};
+
 /** Derive the ordered, non-empty counter list for a card. P/T counters first
  *  (most game-relevant), then named counters; both alphabetised within group.
  *  Zero/negative counts are dropped. */

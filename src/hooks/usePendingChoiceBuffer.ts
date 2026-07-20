@@ -25,6 +25,8 @@ export const CLIENT_BUFFERED_KINDS: ReadonlySet<PendingChoiceKind> =
         "option-pick",
         // Recall (LEG) — graveyard pick of N cards to return to hand.
         "choose-graveyard-card",
+        // Dauthi Voidwalker (MH2) — exile pick of a void-counter card to cast.
+        "choose-exile-card",
         // Legend rule keep-one (CR 704.5j, #378) — battlefield pick of exactly
         // one same-name legendary to keep.
         "legend-keep",

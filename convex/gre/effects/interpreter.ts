@@ -1795,6 +1795,9 @@ export const OP_EXECUTORS: {
             // validates the partition) unless `randomBottom` discards the order.
             count: { min: optional ? 0 : keep, max: keep },
             destination,
+            // Narset's random bottom: nothing for the picker to order — the
+            // client mounts the simple grid pick instead of the drag picker.
+            randomizeRest: randomBottom ? true : undefined,
             prompt:
                 op.prompt ??
                 (destination === "graveyard"

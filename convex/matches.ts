@@ -230,9 +230,13 @@ export function applySideboard(
     deck: MatchDeck,
     submission: SideboardSubmission
 ): MatchDeck {
-    if (submission.maindeck.length !== deck.maindeck.length) {
+    // Size floor, not a hard lock (QA sideboard revamp): the maindeck may GROW
+    // past the registered size (constructed 60 / limited 40 stay the floor) —
+    // MTG sideboarding only forbids going UNDER the minimum. Pool preservation
+    // below still pins the combined main+side multiset.
+    if (submission.maindeck.length < deck.maindeck.length) {
         throw new Error(
-            `Maindeck size is locked to ${deck.maindeck.length}; got ${submission.maindeck.length}`
+            `Maindeck must stay at least ${deck.maindeck.length} cards; got ${submission.maindeck.length}`
         );
     }
     const currentPool = poolMultiset([...deck.maindeck, ...deck.sideboard]);

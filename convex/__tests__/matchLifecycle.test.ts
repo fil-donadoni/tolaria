@@ -576,25 +576,25 @@ describe("applySideboard — size-lock + pool preservation (issue #395)", () => 
         expect(next.sideboard.map((c) => c.cardId)).toEqual(["x"]);
     });
 
-    it("rejects a size-lock violation (Maindeck shrinks)", () => {
+    it("rejects a size-floor violation (Maindeck shrinks)", () => {
         const d = deck([C("a"), C("b")], [C("x")]);
-        // Moved b to side without bringing anything back → maindeck size 1 ≠ 2.
+        // Moved b to side without bringing anything back → maindeck size 1 < 2.
         expect(() =>
             applySideboard(d, {
                 maindeck: [C("a")],
                 sideboard: [C("b"), C("x")],
             })
-        ).toThrow(/locked/i);
+        ).toThrow(/at least/i);
     });
 
-    it("rejects a size-lock violation (Maindeck grows)", () => {
+    it("accepts a Maindeck GROWING past the floor (>60 main allowed, QA sideboard revamp)", () => {
         const d = deck([C("a"), C("b")], [C("x")]);
-        expect(() =>
-            applySideboard(d, {
-                maindeck: [C("a"), C("b"), C("x")],
-                sideboard: [],
-            })
-        ).toThrow(/locked/i);
+        const next = applySideboard(d, {
+            maindeck: [C("a"), C("b"), C("x")],
+            sideboard: [],
+        });
+        expect(next.maindeck.map((c) => c.cardId)).toEqual(["a", "b", "x"]);
+        expect(next.sideboard).toHaveLength(0);
     });
 
     it("rejects a pool violation (a card appears that wasn't in the pool)", () => {

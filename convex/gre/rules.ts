@@ -884,6 +884,19 @@ function getProducibleManaUnits(card: CardInstanceState): Set<Color>[] {
  *  announce — draws from. Shared by {@link canPotentiallyPayCost} and
  *  {@link maxAffordableX} so the "can I cast it" and "how big can X be" gates
  *  never diverge. */
+/** CR 702.126 — true iff the spell being cast declares Improvise. Reads the
+ *  printed keyword off the card definition (mirrors the client `hasImprovise`
+ *  in `src/lib/card-utils.ts`); Improvise is never layer-granted in the current
+ *  pool, so the definition is authoritative. */
+function spellHasImprovise(card: CardInstanceState): boolean {
+    const cardId = (card.card as { id?: string }).id;
+    if (!cardId) return false;
+    return (
+        tryGetDefinition(cardId)?.staticAbilities?.includes("improvise") ??
+        false
+    );
+}
+
 function coloredCostLeftover(
     player: PlayerState,
     card: CardInstanceState,
@@ -927,6 +940,31 @@ function coloredCostLeftover(
             for (const unit of tapManaBonusUnits(player.battlefield, perm)) {
                 sources.push(unit);
             }
+        }
+    }
+
+    // CR 702.126 — Improvise: while casting a spell with Improvise, each
+    // untapped artifact you control may be tapped to pay {1} of the generic
+    // cost. Model each as a generic-ONLY source (empty colour set: it never
+    // satisfies a coloured pip in the greedy pass below, so it always survives
+    // into the leftover the generic portion draws from). Unlike a {T} mana
+    // ability, an Improvise tap carries no tap symbol, so summoning sickness
+    // does NOT gate it (CR 302.1 is irrelevant here — an artifact creature
+    // freshly cast can still be tapped for Improvise). Skip an artifact already
+    // counted above as a mana source: it can be tapped only once and its
+    // produced mana already yields ≥1 leftover unit, so adding an Improvise
+    // source too would double-count it. Without this the castability gate
+    // ignored Improvise entirely and hid the Cast action for a spell payable
+    // only by tapping artifacts (e.g. Metallic Rebuke with too few lands).
+    if (spellHasImprovise(card)) {
+        for (const perm of player.battlefield) {
+            if (perm.isTapped) continue;
+            if (!perm.types.includes("Artifact")) continue;
+            const producesMana =
+                !isTapLockedBySummoningSickness(perm) &&
+                getProducibleManaUnits(perm).length > 0;
+            if (producesMana) continue;
+            sources.push(new Set<Color>());
         }
     }
 

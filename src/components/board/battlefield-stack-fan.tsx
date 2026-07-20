@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { CardInstance } from "~/types/game";
-import { stackFanOffset } from "~/lib/board-layout";
+import { stackFanOffset, STACK_COUNT_BADGE_MIN } from "~/lib/board-layout";
 
 type BattlefieldStackFanProps = {
     /** Ordered stack members (untapped first, then tapped — already sorted by
@@ -75,12 +75,13 @@ export default function BattlefieldStackFan({
                     </div>
                 );
             })}
-            {/* ×N count badge — top-right, pinned to the lead member's box so it
-                never shifts with the fan. */}
-            {showBadge && (
+            {/* ×N count badge — only from STACK_COUNT_BADGE_MIN up (small fans
+                show every member anyway), pinned INSIDE the lead member's
+                top-right corner so it never overlaps the row above (QA). */}
+            {showBadge && n >= STACK_COUNT_BADGE_MIN && (
                 <div
                     data-stack-count
-                    className="absolute -top-1.5 -right-1.5 z-[110] pointer-events-none rounded-full bg-black/85 px-1.5 py-0.5 text-[11px] font-bold leading-none text-white ring-1 ring-white/30 drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]"
+                    className="absolute top-1.5 -right-1.5 z-modal-top pointer-events-none rounded-full bg-black/85 px-1.5 py-0.5 text-[11px] font-bold leading-none text-white ring-1 ring-white/30 drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]"
                 >
                     ×{n}
                 </div>

@@ -408,4 +408,131 @@ describe("PlayerLibrary", () => {
         expect(pileProps.eligibleIds.has("artifact-1")).toBe(true);
         expect(pileProps.eligibleIds.has("creature-2")).toBe(false);
     });
+
+    it("routes a look-distribute with a graveyard destination (Satyr Wayfinder) to the simple GRID pick — never the scry-style drag picker (QA)", () => {
+        // Satyr: reveal top 4, you may put a LAND into hand, the rest goes to
+        // the graveyard (order cosmetic). The grid pick exposes exactly the 4
+        // peeked cards (never the library), gated to the land allow-list.
+        cardsPileSpy.mockClear();
+        const peek = [
+            makeCard("land-1"),
+            makeCard("cr-2"),
+            makeCard("cr-3"),
+            makeCard("cr-4"),
+        ];
+        const player = makePlayer({ count: 20 }, {
+            libraryPeek: peek,
+        } as Partial<Player>);
+        const toggle = vi.fn();
+        const { queryByText } = renderWithContext(
+            <PlayerLibrary player={player} />,
+            "me",
+            {
+                pendingChoices: [
+                    {
+                        stackItemId: "stk",
+                        step: 0,
+                        choiceId: "dig-to-hand",
+                        playerId: "me",
+                        kind: "look-distribute",
+                        zone: "library",
+                        destination: "graveyard",
+                        count: { min: 0, max: 1 },
+                        candidateIds: peek.map((c) => c.id),
+                        eligibleIds: ["land-1"],
+                        prompt: "Choose which card(s) to put into your hand, then put the rest into your graveyard.",
+                    },
+                ],
+                buffer: { ...noopBuffer, toggle },
+            }
+        );
+        const pileProps = cardsPileSpy.mock.calls.at(-1)?.[0];
+        // Grid pick: forceOpen grid over the peeked cards, gated to the land,
+        // with the choice's own prompt as the title and a Done footer.
+        expect(pileProps.forceOpen).toBe(true);
+        expect(pileProps.layout).toBe("grid");
+        expect(pileProps.cards).toHaveLength(4);
+        expect(pileProps.title).toContain("graveyard");
+        expect(pileProps.eligibleIds).toBeInstanceOf(Set);
+        expect(pileProps.eligibleIds.has("land-1")).toBe(true);
+        expect(pileProps.eligibleIds.has("cr-2")).toBe(false);
+        expect(pileProps.footer).toBeTruthy();
+        pileProps.onCardClick({ id: "cr-2" }); // ineligible — no-op
+        expect(toggle).not.toHaveBeenCalled();
+        pileProps.onCardClick({ id: "land-1" }); // eligible
+        expect(toggle).toHaveBeenCalledWith("land-1");
+        // The two-zone drag picker (scry chrome) is NOT mounted.
+        expect(queryByText("HAND")).toBeNull();
+        expect(queryByText("GRAVEYARD")).toBeNull();
+    });
+
+    it("routes a randomizeRest look-distribute (Narset) to the GRID pick too — nothing to order (QA)", () => {
+        cardsPileSpy.mockClear();
+        const peek = [makeCard("s1"), makeCard("cr1")];
+        const player = makePlayer({ count: 20 }, {
+            libraryPeek: peek,
+        } as Partial<Player>);
+        const { queryByText } = renderWithContext(
+            <PlayerLibrary player={player} />,
+            "me",
+            {
+                pendingChoices: [
+                    {
+                        stackItemId: "stk",
+                        step: 0,
+                        choiceId: "dig-to-hand",
+                        playerId: "me",
+                        kind: "look-distribute",
+                        zone: "library",
+                        destination: "library-bottom",
+                        randomizeRest: true,
+                        count: { min: 0, max: 1 },
+                        candidateIds: peek.map((c) => c.id),
+                        eligibleIds: ["s1"],
+                        prompt: "Narset, Parter of Veils — you may put a noncreature, nonland card into your hand.",
+                    },
+                ],
+            }
+        );
+        const pileProps = cardsPileSpy.mock.calls.at(-1)?.[0];
+        expect(pileProps.forceOpen).toBe(true);
+        expect(pileProps.layout).toBe("grid");
+        expect(pileProps.title).toContain("Narset");
+        // No drag picker (and its confusing fused hand/top geometry).
+        expect(queryByText("HAND")).toBeNull();
+        expect(queryByText("BOTTOM")).toBeNull();
+    });
+
+    it("keeps an ORDERED look-distribute (Impulse) on the drag picker — the bottom order matters", () => {
+        cardsPileSpy.mockClear();
+        const peek = [makeCard("i1"), makeCard("i2"), makeCard("i3")];
+        const player = makePlayer({ count: 20 }, {
+            libraryPeek: peek,
+        } as Partial<Player>);
+        const { getByText } = renderWithContext(
+            <PlayerLibrary player={player} />,
+            "me",
+            {
+                pendingChoices: [
+                    {
+                        stackItemId: "stk",
+                        step: 0,
+                        choiceId: "dig-to-hand",
+                        playerId: "me",
+                        kind: "look-distribute",
+                        zone: "library",
+                        destination: "library-bottom",
+                        count: 1,
+                        candidateIds: peek.map((c) => c.id),
+                        prompt: "Take a card to your hand, then order the rest on the bottom.",
+                    },
+                ],
+            }
+        );
+        // The two-zone drag picker stays (HAND/BOTTOM chrome).
+        expect(getByText("HAND")).toBeTruthy();
+        expect(getByText("BOTTOM")).toBeTruthy();
+        const pileProps = cardsPileSpy.mock.calls.at(-1)?.[0];
+        expect(pileProps.forceOpen).toBeFalsy();
+    });
 });

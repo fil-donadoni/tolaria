@@ -13393,6 +13393,15 @@ describe("Effect Script Op: digToHand filter/optional/randomBottom (issue #1266,
         expect(head.eligibleIds).toEqual(["s1", "s2"]);
         // "You may" — keeping 0 is legal.
         expect(head.count).toEqual({ min: 0, max: 1 });
+        // The random bottom is flagged on the wire so the client mounts the
+        // simple grid pick (nothing to order) instead of the drag picker.
+        expect(head.randomizeRest).toBe(true);
+        // Wire-format: the flag must survive the public projection (the
+        // `...state` spread carries pendingChoices verbatim).
+        expect(
+            projectPublicState(state, 1, "p1").pendingChoices?.[0]
+                ?.randomizeRest
+        ).toBe(true);
 
         submitKeep(state, ["s1"]);
         expect(state.pendingChoices ?? []).toHaveLength(0);

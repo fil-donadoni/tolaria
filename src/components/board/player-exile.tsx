@@ -1,8 +1,12 @@
 import type { Player } from "~/types/game";
 import { useGameContext } from "~/hooks/useGameContext";
+import { usePendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
+import { useMinimizedChoice } from "~/hooks/useMinimizedChoice";
+import { isExileChoiceActive } from "~/lib/exile-choice";
 import CardsPile from "./cards-pile";
 import ExileIcon from "../icons/exile-icon";
 import ExileCastButton from "./exile-cast-button";
+import LibrarySearchConfirm from "./library-search-confirm";
 
 export default function PlayerExile({
     player,
@@ -14,15 +18,57 @@ export default function PlayerExile({
     open?: boolean;
     onOpenChange?: (open: boolean) => void;
 }) {
-    const { playerId } = useGameContext();
+    const { playerId, pendingChoices } = useGameContext();
+    const bufferCtx = usePendingChoiceBuffer();
+    const { isMinimized, minimize } = useMinimizedChoice();
+
+    // CR 608.2 — mid-resolution exile pick (Dauthi Voidwalker's sacrifice:
+    // "choose an exiled card an opponent owns with a void counter on it").
+    // The pile switches to the buffered-choice path, mirroring the graveyard
+    // picker (forceOpen grid + per-card rings + Done footer). The selectable
+    // pile is the zone OWNER's — usually the chooser's opponent.
+    const head = pendingChoices?.[0];
+    const isExileChoice = isExileChoiceActive(head, player, playerId);
+
+    const choiceCount = isExileChoice ? head!.count : 1;
+    const choiceMin =
+        typeof choiceCount === "number" ? choiceCount : choiceCount.min;
+    const choiceMax =
+        typeof choiceCount === "number" ? choiceCount : choiceCount.max;
+    const eligibleIds =
+        isExileChoice && head!.candidateIds
+            ? new Set(head!.candidateIds)
+            : undefined;
+
+    const onCardClick = isExileChoice
+        ? (card: { id: string }) => {
+              if (eligibleIds && !eligibleIds.has(card.id)) return;
+              if (bufferCtx.buffer.includes(card.id)) {
+                  bufferCtx.toggle(card.id);
+                  return;
+              }
+              if (bufferCtx.buffer.length >= choiceMax) {
+                  if (choiceMax === 1) {
+                      bufferCtx.clear();
+                      bufferCtx.toggle(card.id);
+                  }
+                  return;
+              }
+              bufferCtx.toggle(card.id);
+          }
+        : undefined;
 
     // Cards pinned to the permanent that exiled them (projected
     // `exiledByPermanentId`, set only while that permanent is on a battlefield)
     // render attached to it on the board (Arena treatment,
     // `board-battlefield-card.tsx`). De-duplicate them from the loose Exile pile
     // so each appears in exactly one place. Cards whose exiler has left (or
-    // unlinked exile) keep their normal pile slot.
-    const pileCards = player.exile.filter((c) => !c.exiledByPermanentId);
+    // unlinked exile) keep their normal pile slot. While an exile CHOICE owns
+    // the pile the de-dup is lifted: a pinned card stays a legal pick (the
+    // choice's `candidateIds` decides eligibility, not the pin).
+    const pileCards = isExileChoice
+        ? player.exile
+        : player.exile.filter((c) => !c.exiledByPermanentId);
 
     return (
         <div
@@ -33,22 +79,48 @@ export default function PlayerExile({
                 <CardsPile
                     cards={pileCards}
                     emptyLabel="Exile"
-                    title="Exile"
+                    title={
+                        isExileChoice
+                            ? (head!.prompt ??
+                              "Choose a card from the exile zone")
+                            : "Exile"
+                    }
                     zoneIcon={<ExileIcon className="w-8 h-8 opacity-60" />}
-                    open={open}
-                    onOpenChange={onOpenChange}
+                    onCardClick={onCardClick}
+                    forceOpen={isExileChoice && !isMinimized}
+                    onMinimize={isExileChoice ? minimize : undefined}
+                    layout="grid"
+                    selectedIds={isExileChoice ? bufferCtx.buffer : undefined}
+                    eligibleIds={isExileChoice ? eligibleIds : undefined}
+                    footer={
+                        isExileChoice ? (
+                            <LibrarySearchConfirm
+                                min={choiceMin}
+                                max={choiceMax}
+                            />
+                        ) : undefined
+                    }
                     // CR 601.3e — a card a player has exiled with cast-from-exile
                     // permission (Ice Cauldron) is castable by that player from
                     // the Exile zone. Surface a Cast button on those cards; the
                     // backend cast mutation already validates the exile origin.
-                    renderCardAction={(card, onClose) =>
-                        card.castableFromExileBy === playerId ? (
-                            <ExileCastButton
-                                card={card}
-                                onCommitted={onClose}
-                            />
-                        ) : null
+                    // Suppressed while an exile choice owns the pile so the two
+                    // interactions never collide.
+                    renderCardAction={
+                        isExileChoice
+                            ? undefined
+                            : (card, onClose) =>
+                                  card.castableFromExileBy === playerId ? (
+                                      <ExileCastButton
+                                          card={card}
+                                          onCommitted={onClose}
+                                      />
+                                  ) : null
                     }
+                    // Portrait chip control only drives the normal browse —
+                    // never while a blocking exile pick owns the modal.
+                    open={isExileChoice ? undefined : open}
+                    onOpenChange={isExileChoice ? undefined : onOpenChange}
                 />
             </div>
         </div>
