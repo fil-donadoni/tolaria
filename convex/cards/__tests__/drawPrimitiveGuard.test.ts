@@ -98,14 +98,6 @@ const DRAW_PRIMITIVE_ALLOWLIST: readonly AllowlistEntry[] = [
         issue: 1282,
     },
     {
-        file: "atq/colorless.ts",
-        count: 1,
-        cards: "Urza's Miter",
-        reason: "mayPay+if+draw shape is Op-expressible, but the leftTrigger factory only exposes a resolve callback, no effects alternative.",
-        classification: "planned-migratable",
-        issue: 1280,
-    },
-    {
         file: "atq/red.ts",
         count: 1,
         cards: "Goblin Artisans",

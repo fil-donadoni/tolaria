@@ -318,9 +318,7 @@ export const energyFlux: CardDefinition = {
                 {
                     op: "if",
                     predicate: { not: { binding: "$paid" } },
-                    then: [
-                        { op: "sacrifice", target: { ref: "$source" } },
-                    ],
+                    then: [{ op: "sacrifice", target: { ref: "$source" } }],
                 },
             ],
         }),
