@@ -1,6 +1,8 @@
 import { useMemo } from "react";
+import { motion, useReducedMotion } from "motion/react";
 import type { Player } from "~/types/game";
 import { portraitHandScrolls } from "~/lib/board-layout";
+import { SLOT_SPRING } from "~/lib/board-motion";
 import BoardCard from "./board-card";
 import BoardHandCard from "./board-hand-card";
 
@@ -37,6 +39,7 @@ export default function BoardHandPortrait({
     "data-testid": testId,
 }: BoardHandPortraitProps) {
     const scrolls = portraitHandScrolls(player.hand.length);
+    const reduceMotion = useReducedMotion();
 
     const items = useMemo(
         () =>
@@ -70,7 +73,30 @@ export default function BoardHandPortrait({
                         }}
                     >
                         {interactive && card ? (
-                            <BoardHandCard card={card} />
+                            // Shared-layout identity for the viewer's own cards:
+                            // the layoutId matches the battlefield/stack slots
+                            // so a card played from the portrait hand flies to
+                            // its destination instead of teleporting (#252
+                            // extended to portrait). No `layout` prop — the row
+                            // scrolls horizontally, and layout-on-render would
+                            // fight both the scroll and the drag-to-cast lift.
+                            <motion.div
+                                layoutId={card.id}
+                                data-flight-id={card.id}
+                                transition={
+                                    reduceMotion
+                                        ? { duration: 0 }
+                                        : SLOT_SPRING.motion
+                                }
+                                className="w-full h-full"
+                            >
+                                {/* 76px small slot — keep `thumb`, accurate hint. */}
+                                <BoardHandCard
+                                    card={card}
+                                    sizes="76px"
+                                    includeThumb
+                                />
+                            </motion.div>
                         ) : (
                             <BoardCard card={card} />
                         )}

@@ -4,22 +4,36 @@ export function getImageUrl(id: string): string {
     return getScryfallImageUrl(id);
 }
 
-/** Width-described srcset across Scryfall's WebP renditions (thumb 146w,
- *  grid 488w, display 672w). Paired with a `sizes` hint it lets the browser
- *  fetch the rendition closest to the slot's DEVICE-pixel width: a ~120px CSS
- *  card on a 1× screen gets `thumb` — Scryfall's own offline downscale, visibly
- *  cleaner than the GPU downsampling `grid` 4:1 on a composited layer — while
- *  a 2× screen still gets `grid` and larger surfaces get `display`. */
 /** Default `sizes` hint matching the shared card surfaces: board cards render
  *  76–140px CSS wide (portrait hand → battlefield). The browser multiplies it
- *  by devicePixelRatio to pick a srcset candidate: 1× screens resolve `thumb`
- *  (146w), 2× screens `grid` (488w). Surfaces that render cards substantially
- *  larger pass their real width instead. */
+ *  by devicePixelRatio to pick a srcset candidate. Surfaces pass their real
+ *  slot width instead (see the per-surface rendition strategy on
+ *  {@link getImageSrcSet}). */
 export const DEFAULT_CARD_IMAGE_SIZES = "140px";
 
-export function getImageSrcSet(scryfallId: string): string {
+/** Width-described srcset across Scryfall's WebP renditions (grid 488w,
+ *  display 672w, plus thumb 146w unless excluded). Paired with a `sizes` hint
+ *  it lets the browser fetch the rendition closest to the slot's DEVICE-pixel
+ *  width.
+ *
+ *  The rendition strategy is PER SURFACE: `thumb` is Scryfall's most
+ *  compressed rendition and reads visibly soft once a slot exceeds ~96px, so
+ *  - SMALL slots (≤96px — collapsed piles, target chips, portrait hand) keep
+ *    the default `includeThumb: true` with an ACCURATE `sizes` hint: bytes
+ *    matter there and the compression artifacts are invisible at that size.
+ *  - MID slots (hand 120px, stack 128px, battlefield cards, pickers ~112px,
+ *    pile dialogs) pass `includeThumb: false` so a 1× screen resolves `grid`
+ *    488w — Scryfall's own offline downscale — instead of `thumb`; `display`
+ *    672w stays available for wide slots on high-DPR screens. */
+export function getImageSrcSet(
+    scryfallId: string,
+    opts?: { includeThumb?: boolean }
+): string {
+    const includeThumb = opts?.includeThumb ?? true;
     return [
-        `${scryfallUrl("thumb", scryfallId, "webp")} 146w`,
+        ...(includeThumb
+            ? [`${scryfallUrl("thumb", scryfallId, "webp")} 146w`]
+            : []),
         `${scryfallUrl("grid", scryfallId, "webp")} 488w`,
         `${scryfallUrl("display", scryfallId, "webp")} 672w`,
     ].join(", ");
@@ -33,10 +47,19 @@ export function getImageFallbackUrl(scryfallId: string): string {
     return scryfallUrl("normal", scryfallId, "jpg");
 }
 
-// art_crop stays JPG deliberately: the WebP replacement (`art`, 626×457) is
-// only rendered for recent printings — a July 2026 probe of the catalogue
-// (pre-modern-heavy: LEA/ARN/ATQ/DRK/ICE…) found 0% coverage, so WebP-first
-// here would cost a 404 round-trip on virtually every card.
+/** Preview art primary: the `art` WebP rendition (626×457) — sharper and less
+ *  compressed than art_crop. Only rendered for recent printings (a July 2026
+ *  probe of the catalogue, pre-modern-heavy: LEA/ARN/ATQ/DRK/ICE…, found 0%
+ *  coverage), so callers MUST onError-fall back to {@link getArtCropImageUrl}
+ *  (see card-preview-face). Never mix the two in one srcset — their aspect
+ *  ratios differ. */
+export function getArtImageUrl(scryfallId: string): string {
+    return scryfallUrl("art", scryfallId, "webp");
+}
+
+// art_crop stays JPG deliberately: it is the always-present fallback for the
+// `art` WebP rendition above (old printings lack `art`, per the probe note on
+// getArtImageUrl), so the fallback path must not 404 a second time.
 export function getArtCropImageUrl(scryfallId: string): string {
     return scryfallUrl("art_crop", scryfallId, "jpg");
 }

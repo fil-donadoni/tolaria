@@ -49,6 +49,14 @@ type CardImageProps = {
      * the browser upgrades to the `display` rendition instead of upscaling.
      */
     sizes?: string;
+    /**
+     * Keep Scryfall's `thumb` 146w rendition in the srcset (default true).
+     * Mid-size slots (≥96px CSS — hand, stack, battlefield, pickers) pass
+     * `false` so a 1× display resolves `grid` 488w instead of the visibly
+     * softer `thumb`; small slots keep it for the bytes. See the rendition
+     * strategy on `getImageSrcSet` (src/lib/images.ts).
+     */
+    includeThumb?: boolean;
 };
 
 function isCardInstance(
@@ -66,6 +74,7 @@ function CardImageImpl({
     lazy = false,
     showCopyBadge = false,
     sizes = DEFAULT_CARD_IMAGE_SIZES,
+    includeThumb = true,
 }: CardImageProps) {
     const cardInstance = isCardInstance(card) ? card : undefined;
     const defId = getDefId(card);
@@ -103,7 +112,9 @@ function CardImageImpl({
                             ? { src: getImageFallbackUrl(imageId) }
                             : {
                                   src: getImageUrl(imageId),
-                                  srcSet: getImageSrcSet(imageId),
+                                  srcSet: getImageSrcSet(imageId, {
+                                      includeThumb,
+                                  }),
                                   sizes,
                               })}
                         className="w-full h-full object-cover block select-none"
@@ -153,6 +164,7 @@ const CardImage = memo(
         prev.lazy === next.lazy &&
         prev.showCopyBadge === next.showCopyBadge &&
         prev.sizes === next.sizes &&
+        prev.includeThumb === next.includeThumb &&
         cardImageSignature(prev.card) === cardImageSignature(next.card)
 );
 export default CardImage;

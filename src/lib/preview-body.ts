@@ -1,5 +1,9 @@
 import { tryGetDefinition } from "@convex/cards";
-import { getArtCropImageUrl, resolveCardImageId } from "~/lib/images";
+import {
+    getArtCropImageUrl,
+    getArtImageUrl,
+    resolveCardImageId,
+} from "~/lib/images";
 import {
     formatTypeLine,
     getDisplayAbilities,
@@ -28,7 +32,13 @@ import type { EmblemInstance } from "@convex/cards/types";
 export type PreviewBodyContent = {
     cardName: string;
     displayName: string;
+    /** Primary preview art — the `art` WebP rendition (626×457). Null for a
+     *  token with no printed art (the face renders a placeholder instead). */
     imageSrc: string | null;
+    /** onError fallback for `imageSrc` — the always-present art_crop JPG.
+     *  Old printings lack the `art` WebP rendition (see src/lib/images.ts),
+     *  so the face swaps to this on a 404. */
+    imageFallbackSrc: string | null;
     types: string[];
     subtypes: string[];
     staticAbilities: string[];
@@ -132,7 +142,8 @@ export function buildPreviewBody(
         bodyAbilities.triggered.length > 0;
     const displayName = def?.name ?? fallbackName ?? defId;
     const imageId = resolveCardImageId(defId);
-    const imageSrc = imageId ? getArtCropImageUrl(imageId) : null;
+    const imageSrc = imageId ? getArtImageUrl(imageId) : null;
+    const imageFallbackSrc = imageId ? getArtCropImageUrl(imageId) : null;
     const showOwner =
         !!cardInstance &&
         !!gameCtx &&
@@ -168,6 +179,7 @@ export function buildPreviewBody(
         cardName: displayName,
         displayName,
         imageSrc,
+        imageFallbackSrc,
         types,
         subtypes,
         staticAbilities:

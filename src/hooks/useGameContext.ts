@@ -62,6 +62,13 @@ type GameContext = {
      *  `GameState.monarchId`. Undefined means no one is the monarch yet.
      *  Consumed by `BoardPlayer` / `PlayerLife` to badge the nameplate. */
     monarchId?: string;
+    /** Instance ids of cards that changed zone in the last server push (or
+     *  appeared from a hidden zone), kept for {@link ARRIVAL_GLOW_MS}. Drives
+     *  the arrival glow on the destination slot and defers permanent-stack
+     *  grouping on the battlefield so the flight's shared-layout element
+     *  survives long enough to land. Absent on providers that don't animate
+     *  (tests, classic surfaces) — consumers treat undefined as "no arrivals". */
+    recentArrivals?: ReadonlySet<string>;
     showAllCards: boolean;
     debugAllActions: boolean;
     /** Re-point the client session to another game in-place (state swap, no

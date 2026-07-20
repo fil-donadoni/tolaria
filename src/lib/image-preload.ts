@@ -21,7 +21,10 @@ export function preloadCardImage(cardId: string): void {
     // Mirror CardImage's responsive attributes so the browser resolves the
     // SAME srcset candidate it will render later — a bare `src` preload would
     // warm `grid` while a 1× screen then fetches `thumb` (double download).
-    img.srcset = getImageSrcSet(imageId);
+    // Board surfaces (hand/battlefield/stack) exclude `thumb` from their
+    // srcset, so the preload does too — warming a candidate nobody fetches
+    // is wasted bytes.
+    img.srcset = getImageSrcSet(imageId, { includeThumb: false });
     img.sizes = DEFAULT_CARD_IMAGE_SIZES;
     img.src = getImageUrl(imageId);
 }

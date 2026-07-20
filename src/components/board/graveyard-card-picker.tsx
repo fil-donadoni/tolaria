@@ -30,7 +30,8 @@ export default function GraveyardCardPicker({
                     title={getDefinition(card.card.id).name}
                     className="relative w-24 sm:w-28 aspect-5/7 shrink-0 rounded-sm overflow-hidden ring-1 ring-transparent hover:ring-2 hover:ring-accent disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer"
                 >
-                    <CardImage card={card} />
+                    {/* 96–112px mid slot — no `thumb`; hint at the upper bound. */}
+                    <CardImage card={card} sizes="112px" includeThumb={false} />
                 </button>
             ))}
         </div>

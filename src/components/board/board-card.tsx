@@ -31,7 +31,9 @@ export default function BoardCard({ card, mirror = false }: BoardCardProps) {
         <CardTilt3D>
             <div className="w-full h-full rounded-sm overflow-hidden ring-1 ring-black/40 shadow-[0_6px_16px_rgba(0,0,0,0.55)]">
                 {card ? (
-                    <CardImage card={card} />
+                    // Opponent-hand slots render 76–84px wide; hint at the
+                    // upper bound, `thumb` excluded (mid-slot strategy).
+                    <CardImage card={card} sizes="84px" includeThumb={false} />
                 ) : (
                     <div
                         className={

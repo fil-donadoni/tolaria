@@ -1,7 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useContext, useEffect, useMemo, useState } from "react";
+import { motion, useReducedMotion } from "motion/react";
 import type { CardInstance } from "~/types/game";
 import { useInertialScroll } from "~/hooks/useInertialScroll";
+import { GameContext } from "~/hooks/useGameContext";
+import { SLOT_SPRING } from "~/lib/board-motion";
 import GameDialog from "~/components/ui/game-dialog";
+import ArrivalGlow from "./arrival-glow";
 import CardBack from "../cards/card-back";
 import CardImage from "../cards/card-image";
 
@@ -197,7 +201,13 @@ function FanLayout({
                     const inner = faceDown ? (
                         <CardBack />
                     ) : (
-                        <CardImage card={cardInstance} />
+                        // Fan dialog cards render up to 13rem (208px) wide
+                        // (--pile-card-w) — a mid/large slot, no `thumb`.
+                        <CardImage
+                            card={cardInstance}
+                            sizes="208px"
+                            includeThumb={false}
+                        />
                     );
                     const isEligible = isEligibleCard(
                         cardInstance.id,
@@ -280,7 +290,13 @@ function GridLayout({
                 const inner = faceDown ? (
                     <CardBack />
                 ) : (
-                    <CardImage card={cardInstance} />
+                    // Grid dialog cards render w-24 sm:w-28 (96–112px) — a
+                    // mid slot, no `thumb`; hint at the upper bound.
+                    <CardImage
+                        card={cardInstance}
+                        sizes="112px"
+                        includeThumb={false}
+                    />
                 );
                 const isEligible = isEligibleCard(cardInstance.id, eligibleIds);
                 const clickable = !faceDown && !!onCardClick && isEligible;
@@ -358,6 +374,13 @@ export default function CardsPile({
         [cards]
     );
 
+    // Zone-change flight hooks — hoisted above every early return (rules of
+    // hooks): the collapsed pile renders shared-layout elements keyed by
+    // stable instance id, and the top card plays the arrival glow.
+    const reduceMotion = useReducedMotion();
+    const gameCtx = useContext(GameContext);
+    const recentArrivals = gameCtx?.recentArrivals;
+
     // In controlled (chip) mode the owner renders the trigger; this component
     // contributes only the reveal dialog. An empty pile still needs a mounted
     // dialog so the chip can open it (e.g. an empty exile), so fall through.
@@ -385,7 +408,25 @@ export default function CardsPile({
     // shows a single top-card peek; the dialog below keeps the full `faceUpIds`.
     const stackFaceUpIds = collapsedFaceUpIds ?? faceUpIds;
 
-    const pileCards = cards.map((cardInstance: CardInstance, cardIndex) => {
+    // Zone-change flights (validated in the zone-motion prototype): the pile
+    // participates in the board's shared-layout identity — each rendered card
+    // carries a `layoutId` keyed by its STABLE instance id (was: array-index
+    // keys, which broke identity on every push), so a card arriving here flies
+    // in from its previous zone instead of popping in. Only the top few cards
+    // render: deeper cards are visually identical (backs / hidden behind the
+    // fan), only the top is ever a flight endpoint, and a deep pile used to
+    // mount one CardImage (+CardPreview) per card.
+    const COLLAPSED_DEPTH = 3;
+    const firstVisible = topOnRight
+        ? 0
+        : Math.max(0, cards.length - COLLAPSED_DEPTH);
+    const visibleCards = topOnRight
+        ? cards.slice(0, COLLAPSED_DEPTH)
+        : cards.slice(firstVisible);
+    const topIndex = topOnRight ? 0 : cards.length - 1;
+
+    const pileCards = visibleCards.map((cardInstance: CardInstance, i) => {
+        const cardIndex = firstVisible + i;
         // Library (topOnRight): in the small collapsed board slot a full-library
         // horizontal fan would overflow, so here we only lift the known top card
         // in the stacking order — the topmost (index 0) sits highest and face-up,
@@ -419,17 +460,29 @@ export default function CardsPile({
         ) ? (
             <CardBack />
         ) : (
-            <CardImage card={cardInstance} />
+            // Collapsed pile slot is --card-w-sm (≤96px) — a small slot:
+            // keep `thumb`, hint at the upper bound.
+            <CardImage card={cardInstance} sizes="96px" />
         );
 
         return (
-            <div
-                key={cardIndex}
+            <motion.div
+                key={cardInstance.id}
+                layout
+                layoutId={cardInstance.id}
+                data-flight-id={cardInstance.id}
+                transition={reduceMotion ? { duration: 0 } : SLOT_SPRING.motion}
                 className="absolute w-(--card-w-sm) aspect-5/7 mb-2"
                 style={cardStyle}
             >
                 {image}
-            </div>
+                <ArrivalGlow
+                    show={
+                        cardIndex === topIndex &&
+                        recentArrivals?.has(cardInstance.id) === true
+                    }
+                />
+            </motion.div>
         );
     });
 

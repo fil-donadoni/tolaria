@@ -553,6 +553,30 @@
     }
 }
 
+/* Zone-arrival emphasis: a gold ring + halo that flashes once on a card that
+   just changed zone, then fades. One-shot (the element unmounts on expiry) —
+   the glow itself is also gated JS-side via useReducedMotion in ArrivalGlow,
+   and the animation additionally lives behind the no-preference media gate. */
+@keyframes arrivalGlow {
+    0% {
+        opacity: 0;
+        box-shadow:
+            0 0 0 2px
+                color-mix(in srgb, var(--color-accent-strong) 95%, transparent),
+            0 0 30px 8px
+                color-mix(in srgb, var(--color-accent) 70%, transparent);
+    }
+    25% {
+        opacity: 1;
+    }
+    100% {
+        opacity: 0;
+        box-shadow:
+            0 0 0 2px transparent,
+            0 0 30px 8px transparent;
+    }
+}
+
 /* Hover-lift base: deck rows opt in by carrying `data-deck-row`. The lift is a
    transform (no layout shift) plus a shadow; the transition itself is safe even
    under reduced motion (it's an interaction response, not ambient motion), but
@@ -596,6 +620,12 @@
     }
     .deck-row-liftable:hover {
         transform: translateY(-2px);
+    }
+
+    /* 6. One-shot gold ring on a card that just changed zone. Also gated
+       JS-side (ArrivalGlow returns null under reduced motion). */
+    .arrival-glow {
+        animation: arrivalGlow 0.9s cubic-bezier(0.22, 1, 0.36, 1) forwards;
     }
 }
 

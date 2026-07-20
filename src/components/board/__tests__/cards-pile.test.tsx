@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render } from "@testing-library/react";
 import type { CardInstance } from "~/types/game";
+import { GameContext } from "~/hooks/useGameContext";
 import CardsPile from "../cards-pile";
 
 // Isolate CardsPile's ring/click-gating logic from real card art rendering
@@ -211,5 +212,66 @@ describe("CardsPile — filtered search eligibility (issue #933)", () => {
         const ineligibleWrapper = findCardWrapper(baseElement, "creature-2");
         expect(ineligibleWrapper?.tagName).not.toBe("BUTTON");
         expect(ineligibleWrapper?.className).toContain("opacity-40");
+    });
+});
+
+describe("CardsPile — collapsed stack flights + depth (zone-change animations)", () => {
+    // The collapsed pile participates in the board's shared-layout identity:
+    // every rendered card carries a `data-flight-id` keyed by its STABLE
+    // instance id (was: every card of a deep pile, keyed by array index), so
+    // an arriving card flies in from its previous zone. Only the top few
+    // render — deeper cards are visually identical backs / hidden in the fan.
+    it("renders at most the top 3 cards of a deep pile", () => {
+        const cards = ["a", "b", "c", "d", "e", "f"].map(makeCard);
+        const { baseElement } = render(
+            <CardsPile cards={cards} isFaceDown={false} title="Graveyard" />
+        );
+        const flightIds = Array.from(
+            baseElement.querySelectorAll<HTMLElement>("[data-flight-id]")
+        ).map((el) => el.getAttribute("data-flight-id"));
+        expect(flightIds).toEqual(["d", "e", "f"]);
+    });
+
+    it("renders every card of a shallow pile", () => {
+        const cards = ["a", "b"].map(makeCard);
+        const { baseElement } = render(
+            <CardsPile cards={cards} isFaceDown={false} title="Graveyard" />
+        );
+        expect(baseElement.querySelectorAll("[data-flight-id]")).toHaveLength(
+            2
+        );
+    });
+
+    it("plays the arrival glow on the top card only", () => {
+        const cards = ["a", "b", "fresh"].map(makeCard);
+        const value = {
+            recentArrivals: new Set(["fresh"]),
+        } as unknown as React.ContextType<typeof GameContext>;
+        const { baseElement } = render(
+            <GameContext value={value}>
+                <CardsPile cards={cards} isFaceDown={false} title="Graveyard" />
+            </GameContext>
+        );
+        const glowed = Array.from(
+            baseElement.querySelectorAll<HTMLElement>("[data-arrival-glow]")
+        ).map((el) =>
+            el.closest("[data-flight-id]")?.getAttribute("data-flight-id")
+        );
+        expect(glowed).toEqual(["fresh"]);
+    });
+
+    it("ignores an arrival id that is buried below the top card", () => {
+        const cards = ["buried", "b", "c"].map(makeCard);
+        const value = {
+            recentArrivals: new Set(["buried"]),
+        } as unknown as React.ContextType<typeof GameContext>;
+        const { baseElement } = render(
+            <GameContext value={value}>
+                <CardsPile cards={cards} isFaceDown={false} title="Graveyard" />
+            </GameContext>
+        );
+        expect(
+            baseElement.querySelectorAll("[data-arrival-glow]")
+        ).toHaveLength(0);
     });
 });

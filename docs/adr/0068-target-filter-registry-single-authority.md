@@ -46,45 +46,47 @@ without wiring it everywhere.
 1. **Filter Registry.** `convex/gre/targetFilters.ts` holds one
    `FilterDescriptor` per filter:
 
-   ```ts
-   interface FilterDescriptor<V> {
-     lower(req: TargetRequirement): V | undefined;   // TargetRequirement field → PendingTarget field
-     checks: Partial<Record<TargetKind, (candidate, value: V, ctx) => string | null>>;
-   }
-   ```
+    ```ts
+    interface FilterDescriptor<V> {
+        lower(req: TargetRequirement): V | undefined; // TargetRequirement field → PendingTarget field
+        checks: Partial<
+            Record<TargetKind, (candidate, value: V, ctx) => string | null>
+        >;
+    }
+    ```
 
-   - **`lower` once, `check` everywhere.** `lower` is the carry (resolves `X`,
-     normalizes `string | string[]`); its output IS the `PendingTarget` field.
-     `getLegalTargets` lowers first then runs `check` per candidate;
-     `selectTarget` runs the SAME `check` against the already-lowered
-     `PendingTarget`. Offered set == accepted set **by construction** — there is
-     no second implementation to drift.
-   - **Per-kind `checks` map + kind-eligibility rule.** Each check receives the
-     correctly-typed candidate for its `TargetKind`
-     (`permanent`→`CardInstanceState`, `spell`→`StackItem`,
-     `player`→`PlayerState`, `card`→graveyard/hand card). Loop semantics: a
-     filter whose value is `undefined` is skipped; a filter whose value is
-     **present but whose kind is absent from `checks`** excludes that candidate
-     (this is how `colorFilter`/`tappedFilter` exclude whole non-permanent
-     kinds, matching current `getLegalTargets` behavior). A multi-kind filter
-     (`controller`: permanent + player) supplies one check per kind.
-   - **`check` owns the error message** (English, UI-text rule). `selectTarget`
-     throws it; `getLegalTargets` treats non-null as "skip candidate".
+    - **`lower` once, `check` everywhere.** `lower` is the carry (resolves `X`,
+      normalizes `string | string[]`); its output IS the `PendingTarget` field.
+      `getLegalTargets` lowers first then runs `check` per candidate;
+      `selectTarget` runs the SAME `check` against the already-lowered
+      `PendingTarget`. Offered set == accepted set **by construction** — there is
+      no second implementation to drift.
+    - **Per-kind `checks` map + kind-eligibility rule.** Each check receives the
+      correctly-typed candidate for its `TargetKind`
+      (`permanent`→`CardInstanceState`, `spell`→`StackItem`,
+      `player`→`PlayerState`, `card`→graveyard/hand card). Loop semantics: a
+      filter whose value is `undefined` is skipped; a filter whose value is
+      **present but whose kind is absent from `checks`** excludes that candidate
+      (this is how `colorFilter`/`tappedFilter` exclude whole non-permanent
+      kinds, matching current `getLegalTargets` behavior). A multi-kind filter
+      (`controller`: permanent + player) supplies one check per kind.
+    - **`check` owns the error message** (English, UI-text rule). `selectTarget`
+      throws it; `getLegalTargets` treats non-null as "skip candidate".
 
 2. **Compile-time forcing function.** The set of keys the registry MUST cover
    is derived by omission, not by hand:
 
-   ```ts
-   type StructuralKey = "type" | "count" | "min" | "max" | "equals"
-     | "divideAsChosen" | "excludeSource" | "spellTargetsSelfSource";
-   type FilterKey = keyof Omit<TargetRequirement, StructuralKey>;
-   const REGISTRY = { … } satisfies Record<FilterKey, FilterDescriptor<unknown>>;
-   ```
+    ```ts
+    type StructuralKey = "type" | "count" | "min" | "max" | "equals"
+      | "divideAsChosen" | "excludeSource" | "spellTargetsSelfSource";
+    type FilterKey = keyof Omit<TargetRequirement, StructuralKey>;
+    const REGISTRY = { … } satisfies Record<FilterKey, FilterDescriptor<unknown>>;
+    ```
 
-   Adding any field to `TargetRequirement` forces a conscious classification:
-   either it is a filter (TypeScript demands a registry entry) or it is
-   structural (must be added to `StructuralKey`). The code does not compile
-   otherwise. This is the "cannot recur" guarantee the Phelia fix lacked.
+    Adding any field to `TargetRequirement` forces a conscious classification:
+    either it is a filter (TypeScript demands a registry entry) or it is
+    structural (must be added to `StructuralKey`). The code does not compile
+    otherwise. This is the "cannot recur" guarantee the Phelia fix lacked.
 
 3. **Full-kind coverage.** All target kinds (permanent, spell, player, card)
    route through the registry; the previously inline spell filters are extracted
@@ -97,7 +99,7 @@ without wiring it everywhere.
    its documented over-permissive stance (show clickable, server rejects with
    the registry's message) — many checks read server-only state (effective P/T,
    live supertypes, continuous guards) not identically reproducible on the
-   projected client state, and a permissive client can never *accept* an illegal
+   projected client state, and a permissive client can never _accept_ an illegal
    target. `matchesTargetRequirement` / `matchesTargetController` /
    `matchesTargetExclusions` remain the client mirror.
 
@@ -107,7 +109,7 @@ without wiring it everywhere.
    (T2) spell entries + extract inline spell predicates, migrate the spell path;
    (T3) player + card entries, migrate those branches;
    (T4) **keystone** — flip `FilterKey` to `keyof Omit<…>` + `satisfies
-   Record<FilterKey, …>`, which only compiles once every field has an entry,
+Record<FilterKey, …>`, which only compiles once every field has an entry,
    arming the forcing function. Each slice carries a parity test against
    current `getLegalTargets`/`selectTarget` behavior.
 

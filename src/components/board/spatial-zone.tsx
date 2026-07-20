@@ -19,6 +19,8 @@ export type SpatialItem = {
      *  sets this so its corner peek-stack and ×N badge paint over neighbouring
      *  permanents instead of being hidden behind them. */
     zIndex?: number;
+    /** The card just changed zone — the slot plays the arrival glow. */
+    arrivalGlow?: boolean;
 };
 
 type SpatialZoneProps = {
@@ -122,6 +124,7 @@ export default function SpatialZone({
                         cardHeight={cardHeight}
                         snap={item.key === snapSlotId}
                         zIndex={item.zIndex}
+                        arrivalGlow={item.arrivalGlow}
                     >
                         {item.node}
                     </SpatialSlot>

@@ -68,6 +68,48 @@ describe("groupBattlefield — identity key (PRD #621)", () => {
     });
 });
 
+describe("groupBattlefield — arrival deferral (zone-change flights)", () => {
+    it("a deferred clean permanent renders as its own singleton instead of joining the fan", () => {
+        const a = makeCard({ id: "a" });
+        const b = makeCard({ id: "b" });
+        const arrived = makeCard({ id: "arrived" });
+        const groups = groupBattlefield(
+            [a, b, arrived],
+            noHosts,
+            false,
+            new Set(["arrived"])
+        );
+        expect(groups).toHaveLength(2);
+        const stack = groups.find((g) => g.isStack);
+        const singleton = groups.find((g) => !g.isStack);
+        expect(keys(stack!.members)).toEqual(["a", "b"]);
+        expect(singleton!.key).toBe("arrived");
+    });
+
+    it("deferral preserves input order and stacks the rest normally", () => {
+        const arrived = makeCard({ id: "arrived" });
+        const a = makeCard({ id: "a" });
+        const b = makeCard({ id: "b" });
+        const groups = groupBattlefield(
+            [arrived, a, b],
+            noHosts,
+            false,
+            new Set(["arrived"])
+        );
+        expect(groups.map((g) => g.key)).toEqual(["arrived", "a"]);
+        expect(groups[1].isStack).toBe(true);
+    });
+
+    it("an absent or empty defer set groups exactly as before", () => {
+        const a = makeCard({ id: "a" });
+        const b = makeCard({ id: "b" });
+        expect(
+            groupBattlefield([a, b], noHosts, false, new Set())
+        ).toHaveLength(1);
+        expect(groupBattlefield([a, b], noHosts)).toHaveLength(1);
+    });
+});
+
 describe("groupBattlefield — excluded from key, still stacks", () => {
     it("differing tapped state stacks together", () => {
         const tapped = makeCard({ id: "tapped", isTapped: true });

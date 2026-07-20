@@ -1,6 +1,9 @@
 import { useEffect } from "react";
 import { useMutation } from "convex/react";
+import { motion, useReducedMotion } from "motion/react";
 import { api } from "@convex/_generated/api";
+import { SLOT_SPRING } from "~/lib/board-motion";
+import ArrivalGlow from "./arrival-glow";
 import type { StackItem } from "~/types/game";
 import {
     getAbilityOracleText,
@@ -30,10 +33,17 @@ type GameStackProps = {
 };
 
 export default function GameStack({ stack }: GameStackProps) {
-    const { gameId, playerId, pendingTarget, allPlayers, activePlayerId } =
-        useGameContext();
+    const {
+        gameId,
+        playerId,
+        pendingTarget,
+        allPlayers,
+        activePlayerId,
+        recentArrivals,
+    } = useGameContext();
     const selectTarget = useMutation(api.game.selectTarget);
     const { offset, dragHandlers } = useDraggable();
+    const reduceMotion = useReducedMotion();
     // Arrow hover-highlight (combat-read): a stack item dims when a relationship
     // is hovered and it is not part of it, lights when it is, and seeds the
     // channel with its own id on hover so the arrow layer resolves the
@@ -69,7 +79,10 @@ export default function GameStack({ stack }: GameStackProps) {
                 transform: `translate(${offset.x}px, calc(-50% + ${offset.y}px))`,
             }}
         >
-            <div className="relative bg-surface border border-border-subtle rounded-sm shadow-[0_0_50px_rgba(0,0,0,0.8)] overflow-hidden">
+            {/* overflow-visible, NOT -hidden: a spell flying in from the hand
+                mounts inside this panel, and clipping it to the panel box would
+                hide the flight until it crosses the boundary. */}
+            <div className="relative bg-surface border border-border-subtle rounded-sm shadow-[0_0_50px_rgba(0,0,0,0.8)] overflow-visible">
                 <div className="absolute top-1.5 left-1.5 w-3 h-3 border-t border-l border-border-accent/40 pointer-events-none z-10" />
                 <div className="absolute top-1.5 right-1.5 w-3 h-3 border-t border-r border-border-accent/40 pointer-events-none z-10" />
                 <div className="absolute bottom-1.5 left-1.5 w-3 h-3 border-b border-l border-border-accent/40 pointer-events-none z-10" />
@@ -156,33 +169,23 @@ export default function GameStack({ stack }: GameStackProps) {
                             : null;
 
                         return (
-                            <button
+                            // Shared-layout wrapper: the layoutId (card instance
+                            // id) matches the hand slot the spell was cast from
+                            // and the battlefield/pile slot it resolves into, so
+                            // motion flies the SAME element hand → stack →
+                            // destination. NO `layout` prop — the panel is
+                            // user-draggable, and layout-on-render would
+                            // rubber-band the items behind the drag.
+                            <motion.div
                                 key={item.id}
-                                type="button"
-                                data-arrow-anchor-stack={item.id}
-                                disabled={!isTargetable}
-                                onPointerEnter={
-                                    setSeed
-                                        ? () => setSeed({ nodeId: item.id })
-                                        : undefined
+                                layoutId={item.id}
+                                data-flight-id={item.id}
+                                transition={
+                                    reduceMotion
+                                        ? { duration: 0 }
+                                        : SLOT_SPRING.motion
                                 }
-                                onPointerLeave={
-                                    setSeed ? () => setSeed(null) : undefined
-                                }
-                                onClick={() => {
-                                    if (!isTargetable) return;
-                                    selectTarget({
-                                        gameId,
-                                        playerId,
-                                        targetType: "spell",
-                                        targetId: item.id,
-                                    });
-                                }}
-                                className={`w-32 shrink-0 flex flex-col items-center bg-transparent border-0 p-0 transition-opacity duration-150 ${
-                                    isTargetable
-                                        ? "cursor-pointer ring-2 ring-amber-400 rounded hover:ring-amber-300"
-                                        : "cursor-default"
-                                }`}
+                                className="relative shrink-0 transition-opacity duration-150"
                                 style={{
                                     marginLeft: i > 0 ? "-4rem" : undefined,
                                     // Lit items ride above the rest of the
@@ -195,24 +198,61 @@ export default function GameStack({ stack }: GameStackProps) {
                                     opacity: litState === "unlit" ? 0.3 : 1,
                                 }}
                             >
-                                {abilityKind && abilityText ? (
-                                    <StackAbilityTile
-                                        cardId={item.card.id}
-                                        abilityText={abilityText}
-                                        kind={abilityKind}
-                                    />
-                                ) : (
-                                    <>
-                                        <ColorOverlayCardImage
-                                            card={item}
-                                            showCopyBadge={item.isCopy}
+                                <button
+                                    type="button"
+                                    data-arrow-anchor-stack={item.id}
+                                    disabled={!isTargetable}
+                                    onPointerEnter={
+                                        setSeed
+                                            ? () => setSeed({ nodeId: item.id })
+                                            : undefined
+                                    }
+                                    onPointerLeave={
+                                        setSeed
+                                            ? () => setSeed(null)
+                                            : undefined
+                                    }
+                                    onClick={() => {
+                                        if (!isTargetable) return;
+                                        selectTarget({
+                                            gameId,
+                                            playerId,
+                                            targetType: "spell",
+                                            targetId: item.id,
+                                        });
+                                    }}
+                                    className={`w-32 flex flex-col items-center bg-transparent border-0 p-0 ${
+                                        isTargetable
+                                            ? "cursor-pointer ring-2 ring-amber-400 rounded hover:ring-amber-300"
+                                            : "cursor-default"
+                                    }`}
+                                >
+                                    {abilityKind && abilityText ? (
+                                        <StackAbilityTile
+                                            cardId={item.card.id}
+                                            abilityText={abilityText}
+                                            kind={abilityKind}
                                         />
-                                        {modeLines && (
-                                            <StackModeLines lines={modeLines} />
-                                        )}
-                                    </>
-                                )}
-                            </button>
+                                    ) : (
+                                        <>
+                                            <ColorOverlayCardImage
+                                                card={item}
+                                                showCopyBadge={item.isCopy}
+                                                sizes="128px"
+                                                includeThumb={false}
+                                            />
+                                            {modeLines && (
+                                                <StackModeLines
+                                                    lines={modeLines}
+                                                />
+                                            )}
+                                        </>
+                                    )}
+                                </button>
+                                <ArrivalGlow
+                                    show={recentArrivals?.has(item.id) === true}
+                                />
+                            </motion.div>
                         );
                     })}
                 </div>

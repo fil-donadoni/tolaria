@@ -258,6 +258,7 @@ export default function PendingChoicePrompt({
                                 <CardImage
                                     card={{ id: choice.subjectCardId }}
                                     sizes="112px"
+                                    includeThumb={false}
                                 />
                             </div>
                         )}

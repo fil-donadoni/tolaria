@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { ART_CROP_RATIO } from "~/lib/images";
 import { formatOracleText } from "~/lib/oracle-text";
 import CardImageLoader from "./card-image-loader";
@@ -22,6 +23,7 @@ export default function CardPreviewFace({
     cardName,
     displayName,
     imageSrc,
+    imageFallbackSrc,
     types,
     subtypes,
     staticAbilities,
@@ -54,8 +56,18 @@ export default function CardPreviewFace({
     const ptBaseSize = compact ? "text-xs" : "text-sm";
     const sectionSize = compact ? "text-xs" : "text-sm";
 
+    // `art` WebP-first with art_crop-JPG fallback (old printings lack the
+    // `art` rendition — see src/lib/images.ts). Keyed to the primary URL (not
+    // a boolean) so a face that switches identity re-tries WebP for the new
+    // card instead of inheriting the previous card's failure — the same state
+    // pattern CardImage uses.
+    const [jpgFallbackFor, setJpgFallbackFor] = useState<string | null>(null);
+
     return (
         <>
+            {/* Fixed ART_CROP_RATIO box: the `art` WebP (626×457) and the
+                art_crop JPG (563×451) differ slightly in aspect, so the img
+                object-covers the box and the layout never shifts on fallback. */}
             <div
                 className="relative w-full"
                 style={{ aspectRatio: ART_CROP_RATIO }}
@@ -63,15 +75,29 @@ export default function CardPreviewFace({
                 {imageSrc ? (
                     <>
                         <img
-                            src={imageSrc}
+                            src={
+                                jpgFallbackFor === imageSrc
+                                    ? (imageFallbackSrc ?? imageSrc)
+                                    : imageSrc
+                            }
                             className="w-full h-full block select-none"
                             alt={cardName}
+                            decoding="async"
                             style={{
                                 objectFit: "cover",
                                 WebkitTouchCallout: "none",
                             }}
                             onLoad={onImageLoaded}
-                            onError={onImageLoaded}
+                            onError={() => {
+                                // `art` WebP missing (old printing) → retry as
+                                // art_crop jpg; a second failure ends the loader.
+                                if (
+                                    jpgFallbackFor !== imageSrc &&
+                                    imageFallbackSrc
+                                )
+                                    setJpgFallbackFor(imageSrc);
+                                else onImageLoaded?.();
+                            }}
                         />
                         {!imageLoaded && <CardImageLoader />}
                     </>

@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { motion, useReducedMotion } from "motion/react";
 import type { Placement } from "~/lib/board-layout";
 import { SLOT_SPRING } from "~/lib/board-motion";
+import ArrivalGlow from "./arrival-glow";
 
 type SpatialSlotProps = {
     /** Stable identity for this slot — the card instance id (or a stable
@@ -26,6 +27,9 @@ type SpatialSlotProps = {
      *  attached satellites sets it so its overhanging peek-stack / badge is not
      *  hidden behind neighbouring cards). Overridden by the drag lift (`snap`). */
     zIndex?: number;
+    /** The card in this slot just changed zone — play the one-shot gold arrival
+     *  emphasis (no-op for reduced-motion users, see ArrivalGlow). */
+    arrivalGlow?: boolean;
     children: ReactNode;
 };
 
@@ -61,6 +65,7 @@ export default function SpatialSlot({
     cardHeight,
     snap = false,
     zIndex,
+    arrivalGlow = false,
     children,
 }: SpatialSlotProps) {
     const reduceMotion = useReducedMotion();
@@ -103,9 +108,10 @@ export default function SpatialSlot({
                 transition={
                     reduceMotion || snap ? { duration: 0 } : SLOT_SPRING.motion
                 }
-                className="w-full h-full"
+                className="relative w-full h-full"
             >
                 {children}
+                <ArrivalGlow show={arrivalGlow} />
             </motion.div>
         </div>
     );

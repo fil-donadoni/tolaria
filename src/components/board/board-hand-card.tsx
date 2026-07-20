@@ -34,6 +34,12 @@ type BoardHandCardProps = {
      *  to the hand span. Supplied by the hand (which owns the slot geometry).
      *  When omitted the card falls back to the raw pointer offset. */
     dragTranslateX?: (pointerX: number) => number;
+    /** `sizes` hint forwarded to CardImage — defaults to the landscape hand's
+     *  120px slot; the portrait hand passes its 76px. */
+    sizes?: string;
+    /** Forwarded to CardImage. The landscape hand (120px) is a mid slot, so it
+     *  excludes `thumb` (default false); the portrait hand (76px) keeps it. */
+    includeThumb?: boolean;
 };
 
 /** Interactive hand card for the spatial board (PRD #249, slice #254; UX fixes
@@ -70,6 +76,8 @@ export default function BoardHandCard({
     onDragMove,
     onDragEnd,
     dragTranslateX,
+    sizes = "120px",
+    includeThumb = false,
 }: BoardHandCardProps) {
     const {
         gameId,
@@ -234,7 +242,11 @@ export default function BoardHandCard({
                     if (activeChoice) bufferCtx.toggle(card.id);
                 }}
             >
-                <CardImage card={card} />
+                <CardImage
+                    card={card}
+                    sizes={sizes}
+                    includeThumb={includeThumb}
+                />
                 {seen && <SeenByOpponentBadge />}
             </div>
         );
@@ -320,7 +332,11 @@ export default function BoardHandCard({
                             : "shadow-[0_6px_16px_rgba(0,0,0,0.55)]")
                     }
                 >
-                    <CardImage card={card} />
+                    <CardImage
+                        card={card}
+                        sizes={sizes}
+                        includeThumb={includeThumb}
+                    />
                 </div>
             </CardTilt3D>
             {seen && <SeenByOpponentBadge />}

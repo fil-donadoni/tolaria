@@ -32,6 +32,7 @@ import {
     type Placement,
 } from "~/lib/board-layout";
 import { useIsPortrait } from "~/hooks/useIsPortrait";
+import { useRecentArrivals } from "~/hooks/useRecentArrivals";
 import { ArrowAnchorProvider } from "~/hooks/useArrowAnchors";
 import { ArrowHighlightProvider } from "~/hooks/ArrowHighlightProvider";
 import BoardBattlefield from "./board-battlefield";
@@ -271,6 +272,11 @@ export default function Board({
     // the choice resolves; never persisted to GameState.
     const minimizedChoice = useMinimizedChoiceState(state?.pendingChoices?.[0]);
 
+    // Zone-change arrivals (flight + glow): diff consecutive snapshots by
+    // stable instance id — see useRecentArrivals. Runs above the !state early
+    // return like every other hook; undefined state yields an empty set.
+    const recentArrivals = useRecentArrivals(state?.players, state?.stack);
+
     if (!state) {
         return (
             <div className="flex h-full items-center justify-center text-white">
@@ -363,6 +369,7 @@ export default function Board({
                 emblems: state.emblems,
                 phasedOutCards,
                 monarchId: state.monarchId,
+                recentArrivals,
                 showAllCards,
                 debugAllActions,
                 onSwitchGame,

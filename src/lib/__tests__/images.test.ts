@@ -12,6 +12,7 @@
 import { describe, it, expect } from "vitest";
 import {
     getArtCropImageUrl,
+    getArtImageUrl,
     getImageFallbackUrl,
     getImageSrcSet,
     getImageUrl,
@@ -71,6 +72,26 @@ describe("resolveCardImageId", () => {
         expect(entries[0]).toMatch(/\/thumb\/front\/c\/e\/.*\.webp 146w$/);
         expect(entries[1]).toMatch(/\/grid\/front\/c\/e\/.*\.webp 488w$/);
         expect(entries[2]).toMatch(/\/display\/front\/c\/e\/.*\.webp 672w$/);
+    });
+
+    it("getImageSrcSet with includeThumb:false drops the 146w thumb rendition", () => {
+        // Mid-slot strategy (hand/stack/battlefield): a 1× screen must resolve
+        // `grid` 488w, never the softer `thumb`.
+        const id = "ce2d603a-3231-4a8c-bf39-1617586ea870"; // grizzlyBears
+        const srcSet = getImageSrcSet(id, { includeThumb: false });
+        const entries = srcSet.split(", ");
+        expect(entries).toHaveLength(2);
+        expect(entries[0]).toMatch(/\/grid\/front\/c\/e\/.*\.webp 488w$/);
+        expect(entries[1]).toMatch(/\/display\/front\/c\/e\/.*\.webp 672w$/);
+        expect(srcSet).not.toContain("/thumb/");
+    });
+
+    it("getArtImageUrl targets the `art` WebP rendition", () => {
+        const id = "ce2d603a-3231-4a8c-bf39-1617586ea870"; // grizzlyBears
+        const url = getArtImageUrl(id);
+        expect(url).toContain("/art/front/c/e/");
+        expect(url).toMatch(/\.webp$/);
+        expect(url).toContain(id);
     });
 
     it("getArtCropImageUrl built from a resolved token id targets the printed token", () => {

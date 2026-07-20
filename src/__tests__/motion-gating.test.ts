@@ -43,6 +43,7 @@ describe("micro-motion is reduced-motion gated (issue #598)", () => {
         "ambientBreath", // breathing warm/cool glows
         "kenBurns", // slow ken-burns on the background art
         "selectedPulse", // pulse on the selected Deck
+        "arrivalGlow", // zone-arrival emphasis on a just-moved card
     ];
 
     it.each(motionAnimations)(

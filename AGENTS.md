@@ -48,4 +48,4 @@ Auto-formatting via husky + lint-staged on commit. Never run `prettier` manually
 - ADRs live in `docs/adr/` — index is `docs/adr/README.md`. ADRs are NOT auto-loaded. New ADRs must add an index row.
 - Generated code: `convex/_generated/` — never edit. The `@convex` path alias resolves to `convex/`.
 - Deploy: Vercel runs `bunx convex codegen` before build. CI `.github/workflows/lint.yml` does the same.
-- `/prototype/board` routes are excluded from lint (throwaway WebGL spike).
+- `/prototype/*` routes are excluded from lint (throwaway spikes, e.g. the old `prototype-board*` WebGL one). Fold the winner into real code, then delete the route.

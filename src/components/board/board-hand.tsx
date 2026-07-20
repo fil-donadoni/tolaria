@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useContext, useMemo, useRef, useState } from "react";
 import type { Player } from "~/types/game";
 import type { Placement } from "~/lib/board-layout";
 import {
@@ -9,6 +9,7 @@ import {
     reorderIndexForDragX,
 } from "~/lib/board-layout";
 import { useElementSize } from "~/hooks/useElementSize";
+import { GameContext } from "~/hooks/useGameContext";
 import SpatialZone, { type SpatialItem } from "./spatial-zone";
 import BoardCard from "./board-card";
 import BoardHandCard from "./board-hand-card";
@@ -193,12 +194,19 @@ export default function BoardHand({
     }, [drag, dropIndex, fan, order]);
 
     const canReorder = interactive && order.length > 1;
+    // Arrival glow for cards that just landed in this hand (draw / bounce /
+    // graveyard return). Read from GameContext when present (the spatial board
+    // provides it; minimal test contexts may not).
+    const gameCtx = useContext(GameContext);
+    const recentArrivals = gameCtx?.recentArrivals;
     const orderedItems: SpatialItem[] = useMemo(
         () =>
             order.map((id) => {
                 const card = cardById.get(id) ?? null;
                 return {
                     key: id,
+                    arrivalGlow:
+                        card != null && recentArrivals?.has(card.id) === true,
                     node:
                         interactive && card ? (
                             <BoardHandCard
@@ -227,6 +235,7 @@ export default function BoardHand({
             dragTranslateX,
             endDrag,
             mirror,
+            recentArrivals,
         ]
     );
 

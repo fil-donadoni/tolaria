@@ -19,6 +19,10 @@ describe("buildPreviewBody — original (printed) face (CR 707.2)", () => {
         expect(original.displayName).toBe("Clone");
         // Printed art comes from Clone's own image id, not the copied object.
         expect(original.imageSrc).toContain(CLONE.id);
+        // Primary is the `art` WebP; the art_crop JPG rides along as fallback.
+        expect(original.imageSrc).toContain("/art/");
+        expect(original.imageFallbackSrc).toContain("/art_crop/");
+        expect(original.imageFallbackSrc).toContain(CLONE.id);
         expect(original.typeLine).toContain("Creature");
         // Clone is printed 0/0 (its copiable P/T comes only from a copy effect).
         expect(original.basePower).toBe(CLONE.power);

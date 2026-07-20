@@ -5,10 +5,16 @@ import CardImage from "./card-image";
 export default function ColorOverlayCardImage({
     card,
     showCopyBadge,
+    sizes,
+    includeThumb,
 }: {
     card: CardInstance;
     /** Spell copy on the stack (CR 707.10) — forwarded to the preview badge. */
     showCopyBadge?: boolean;
+    /** `sizes` hint forwarded to CardImage (the stack renders at w-32 → 128px). */
+    sizes?: string;
+    /** Forwarded to CardImage — the stack is a mid slot, so thumb is excluded. */
+    includeThumb?: boolean;
 }) {
     const colorDisplay = card.colorOverride?.length
         ? getColorOverrideDisplay(card.colorOverride)
@@ -16,7 +22,12 @@ export default function ColorOverlayCardImage({
 
     return (
         <div className="relative">
-            <CardImage card={card} showCopyBadge={showCopyBadge} />
+            <CardImage
+                card={card}
+                showCopyBadge={showCopyBadge}
+                sizes={sizes}
+                includeThumb={includeThumb}
+            />
             {colorDisplay && (
                 <div
                     className="absolute inset-0 pointer-events-none rounded-[7%] z-[5]"

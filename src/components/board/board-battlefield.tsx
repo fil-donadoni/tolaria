@@ -130,6 +130,21 @@ export default function BoardBattlefield({
     // the fan into its own slot and its selection ring is visible — mirrors the
     // divide-as-you-choose un-stack above.
     const unstackForSelection = divideActive || isSelectingOnThisBoard;
+    // Zone-arrival deferral (flight animation): a permanent that just arrived
+    // on this battlefield renders as its OWN singleton for the arrival window
+    // even when identical stackable neighbours exist — joining the fan now
+    // would unmount its shared-layout element (the group's layoutId is the old
+    // lead's id) and cut the cross-zone flight short. After the window the
+    // arrivals set empties and it merges into the fan normally.
+    const recentArrivals = ctx.recentArrivals;
+    const arrivalDeferIds = useMemo(() => {
+        if (!recentArrivals || recentArrivals.size === 0) return undefined;
+        const onBattlefield = new Set<string>();
+        for (const c of player.battlefield) {
+            if (recentArrivals.has(c.id)) onBattlefield.add(c.id);
+        }
+        return onBattlefield.size > 0 ? onBattlefield : undefined;
+    }, [recentArrivals, player.battlefield]);
     // The client-side choice buffer (a `choose-permanents` selection) is local
     // React state — it does NOT mutate `player.battlefield`, unlike combat /
     // targeting which change server state and thus the card references. So a
@@ -270,6 +285,7 @@ export default function BoardBattlefield({
                 // Lift a host with attached satellites over its neighbours so its
                 // corner peek-stack / ×N badge is not hidden behind them.
                 zIndex: hostHasAttachments(host.id) ? 30 : undefined,
+                arrivalGlow: arrivalDeferIds?.has(group.key) === true,
             };
         }
         return {
@@ -318,17 +334,20 @@ export default function BoardBattlefield({
         const creatureGroups = groupBattlefield(
             creatures,
             attachedAurasByHost,
-            unstackForSelection
+            unstackForSelection,
+            arrivalDeferIds
         );
         const landGroups = groupBattlefield(
             lands,
             attachedAurasByHost,
-            unstackForSelection
+            unstackForSelection,
+            arrivalDeferIds
         );
         const otherGroups = groupBattlefield(
             others,
             attachedAurasByHost,
-            unstackForSelection
+            unstackForSelection,
+            arrivalDeferIds
         );
         // A fanned stack is wider than one card, so each group reserves its own
         // footprint width in the row (issue #977) — otherwise a 6-card fan
@@ -392,6 +411,7 @@ export default function BoardBattlefield({
         unstackForSelection,
         choiceBuffer,
         myPhasedCards,
+        arrivalDeferIds,
     ]);
 
     // One full-height zone; the layout stacks the creature row (centered) over

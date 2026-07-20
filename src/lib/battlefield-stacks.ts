@@ -120,7 +120,14 @@ export function groupBattlefield(
      *  Used during a divide-as-you-choose selection (CR 601.2d): identical
      *  permanents un-stack so each instance is individually dialable via its
      *  on-card stepper without fighting the fan overlap. */
-    disableStacking = false
+    disableStacking = false,
+    /** Instance ids forced into singletons even though they are clean and
+     *  stackable. Used for permanents that JUST arrived on the battlefield:
+     *  joining a fan immediately would absorb their shared-layout element into
+     *  the group's (keyed by the old lead's id) and kill the cross-zone flight
+     *  mid-animation — they render standalone for the arrival window, then
+     *  merge into the fan. Presentation-only; grouping logic is unchanged. */
+    deferStackIds?: ReadonlySet<string>
 ): PermanentGroup[] {
     if (disableStacking) {
         return permanents.map((card) => ({
@@ -144,7 +151,7 @@ export function groupBattlefield(
     const stackByKey = new Map<string, Extract<Entry, { kind: "stack" }>>();
 
     permanents.forEach((card, i) => {
-        if (isAltered(card, hostIds)) {
+        if (isAltered(card, hostIds) || deferStackIds?.has(card.id)) {
             entries.push({ kind: "singleton", card, pos: i });
             return;
         }

@@ -233,7 +233,7 @@ export default function BoardBattlefieldCard({
                         : undefined
                 }
             >
-                <CardImage card={card} />
+                <CardImage card={card} sizes="120px" includeThumb={false} />
                 {colorOverrideOverlay}
                 {darkenOverlay}
                 {highlightRing}
