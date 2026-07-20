@@ -23,6 +23,7 @@
 // and is shared across every `stateTrigger` instance.
 
 import type {
+    EffectOp,
     GameEvent,
     PermanentView,
     SpellContext,
@@ -39,15 +40,23 @@ export interface StateTriggerArgs {
      *  AND re-evaluated at resolve time (CR 603.8). Receives the source
      *  permanent view and a read-only window over the live game state. */
     condition: (self: PermanentView, state: TriggerStateView) => boolean;
-    /** Effect run when the trigger resolves from the stack. */
-    resolve: (ctx: SpellContext) => void;
+    /** Effect run when the trigger resolves from the stack. Mutually
+     *  exclusive with `effects`. */
+    resolve?: (ctx: SpellContext) => void;
+    /** Effect Script (ADR 0045) — the trigger's effect as declarative,
+     *  JSON-pure data instead of an imperative `resolve`. The interpreter
+     *  runs it through the shared spell/ability code path with the
+     *  trigger's controller and source permanent bound (`$source`,
+     *  `ctx.controller`). Mutually exclusive with `resolve`. */
+    effects?: EffectOp[];
 }
 
 /** Builds a CR 603.8 state-triggered ability. The factory wires up the
  *  `STATE_CHECK` event narrowing and the resolve-time re-check; card authors
- *  declare only the predicate and the effect. */
+ *  declare only the predicate and the effect (imperative `resolve` or a
+ *  declarative `effects[]` script — mutually exclusive). */
 export function stateTrigger(args: StateTriggerArgs): TriggeredAbility {
-    const { id, oracleText, condition, resolve } = args;
+    const { id, oracleText, condition, resolve, effects } = args;
     return {
         id,
         oracleText,
@@ -59,14 +68,18 @@ export function stateTrigger(args: StateTriggerArgs): TriggeredAbility {
         },
         // CR 603.8 — the predicate is re-checked at resolution. If the
         // persistent state has changed since the trigger went on the stack,
-        // the engine fizzles the trigger without invoking `resolve` and emits
-        // a `TRIGGER_FIZZLED` event for downstream observers.
+        // the engine fizzles the trigger without invoking `resolve`/`effects`
+        // and emits a `TRIGGER_FIZZLED` event for downstream observers.
         interveningIf: (_event, self, state) => {
             if (!state) return false;
             return condition(self, state);
         },
-        resolve: (ctx) => {
-            resolve(ctx);
-        },
+        ...(effects
+            ? { effects }
+            : {
+                  resolve: (ctx: SpellContext) => {
+                      resolve?.(ctx);
+                  },
+              }),
     };
 }
