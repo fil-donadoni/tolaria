@@ -399,8 +399,8 @@ export const jalumTome: CardDefinition = {
 // Candelabra of Tawnos — {1} Artifact. "{X}, {T}: Untap X target lands." (CR
 // 107.3 X chosen at activation, CR 601.2c X-bound target count, CR 701.20b
 // untap.) `count: "X"` resolves the number of land targets against the chosen
-// value of X at activation; resolve untaps each. A 0-X activation skips target
-// selection and untaps nothing.
+// value of X at activation; a 0-X activation skips target selection and
+// untaps nothing.
 export const candelabraOfTawnos: CardDefinition = {
     id: "35a335bf-7358-460f-b7c9-1e8bc4300f64",
     rarity: "rare",
@@ -415,17 +415,25 @@ export const candelabraOfTawnos: CardDefinition = {
             cost: { tap: true, mana: { X: "X" } },
             useStack: true,
             targetRequirement: { type: "Land", count: "X" },
-            // NOT DSL-migratable (ADR 0045): untaps a VARIABLE number (X) of
-            // announced land targets by iterating `ctx.targets`. The DSL acts
-            // on fixed positional slots (`{ target: 0 }`) or a declarative
-            // forEach set — there is no forEach-over-announced-target-slots
-            // construct, and the X-count target list is neither.
-            // Blocked on: an announced-targets iteration construct (X-count).
-            resolve: (ctx: SpellContext) => {
-                for (const target of ctx.targets) {
-                    if (target.type === "permanent") ctx.untap(target);
-                }
-            },
+            // Migrated resolve()→effects[] (ADR 0045): untaps every one of the
+            // VARIABLE (X) announced land targets via the `forEach { set:
+            // "targets" }` selector (issue #1083's X-multi-target closer —
+            // Distorting Wake, inv/blue.ts) + `tapUntap` on each `$each`
+            // member (CR 701.20b). A 0-X activation announces no targets, so
+            // the forEach body simply never runs.
+            effects: [
+                {
+                    op: "forEach",
+                    select: { set: "targets" },
+                    effects: [
+                        {
+                            op: "tapUntap",
+                            action: "untap",
+                            target: { ref: "$each" },
+                        },
+                    ],
+                },
+            ],
         },
     ],
 };
@@ -449,16 +457,24 @@ export const urzasChalice: CardDefinition = {
                 "Whenever a player casts an artifact spell, you may pay {1}. If you do, you gain 1 life.",
             scope: "any",
             filter: { types: "Artifact" },
-            resolve: (ctx) => {
-                const accept = ctx.requestMayPay({
-                    playerId: ctx.controller,
-                    choiceId: ctx.controller,
+            // Migrated resolve()→effects[] (ADR 0045): mayPay {1} (CR 117.3a)
+            // then gainLife 1 gated on the $paid outcome — same mayPay + if
+            // shape as Fasting (drk/white.ts), riding the same Pending Choice
+            // pipeline `requestMayPay` used.
+            effects: [
+                {
+                    op: "mayPay",
+                    player: "controller",
                     cost: { X: 1 },
                     prompt: "Pay {1} to gain 1 life from Urza's Chalice?",
-                });
-                if (accept === undefined) return;
-                if (accept) ctx.gainLife(ctx.controller, 1);
-            },
+                    bind: "$paid",
+                },
+                {
+                    op: "if",
+                    predicate: { binding: "$paid" },
+                    then: [{ op: "gainLife", player: "controller", amount: 1 }],
+                },
+            ],
         }),
     ],
 };
@@ -477,6 +493,13 @@ export const onulet: CardDefinition = {
     power: 2,
     toughness: 2,
     triggeredAbilities: [
+        // NOT DSL-migratable (ADR 0045): the `gainLife` clause itself is
+        // trivially Op-expressible, but the `diedTrigger` factory
+        // (`abilities/triggers/diedTrigger.ts`) only accepts a `resolve`
+        // callback — it has no `effects` alternative to route a declarative
+        // script through (same class as Su-Chi below, #841/#847). Planned-
+        // migratable once `diedTrigger` takes a declarative body.
+        // Blocked on: `diedTrigger` factory support for `effects`.
         diedTrigger({
             id: "onulet-life",
             oracleText: "When this creature dies, you gain 2 life.",
@@ -539,16 +562,23 @@ export const tabletOfEpityr: CardDefinition = {
             scope: "yours",
             toZone: "graveyard",
             filter: { types: "Artifact" },
-            resolve: (ctx) => {
-                const accept = ctx.requestMayPay({
-                    playerId: ctx.controller,
-                    choiceId: ctx.controller,
+            // Migrated resolve()→effects[] (ADR 0045): mayPay {1} (CR 117.3a)
+            // then gainLife 1 gated on the $paid outcome, riding
+            // `leftTrigger`'s `effects` site.
+            effects: [
+                {
+                    op: "mayPay",
+                    player: "controller",
                     cost: { X: 1 },
                     prompt: "Pay {1} to gain 1 life from Tablet of Epityr?",
-                });
-                if (accept === undefined) return;
-                if (accept) ctx.gainLife(ctx.controller, 1);
-            },
+                    bind: "$paid",
+                },
+                {
+                    op: "if",
+                    predicate: { binding: "$paid" },
+                    then: [{ op: "gainLife", player: "controller", amount: 1 }],
+                },
+            ],
         }),
     ],
 };
@@ -566,6 +596,15 @@ export const ivoryTower: CardDefinition = {
     manaCost: { X: 1 },
     types: ["Artifact"],
     triggeredAbilities: [
+        // NOT DSL-migratable (ADR 0045): the gain amount is "hand size minus
+        // 4" — the `EffectCount` construct's `zone` is only
+        // `"battlefield" | "graveyard"` (no hand-size read) and, even if it
+        // were, the value grammar (literal | ref | count) has no arithmetic
+        // to subtract a constant from a live count. The clamp-at-0 (never
+        // lose life when hand < 4) compounds this — same class as the
+        // Stream of Life / Earthquake X-value gap the playbook documents.
+        // Blocked on: a hand-size count zone + an arithmetic/subtract value
+        // construct.
         phaseTrigger({
             id: "ivory-tower-life",
             oracleText:
@@ -891,20 +930,22 @@ export const mishrasFactory: CardDefinition = {
             cost: { mana: { X: 1 } },
             useStack: true,
             animatesSelf: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.animateAsCreature(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    {
-                        power: 2,
-                        toughness: 2,
-                        subtype: "Assembly-Worker",
-                        // CR 208.2: becomes a 2/2 Assembly-Worker *artifact*
-                        // creature; it's still a land.
-                        additionalTypes: ["Artifact"],
-                        duration: { phase: "end-of-turn" },
-                    }
-                );
-            },
+            // Migrated resolve()→effects[] (ADR 0045): the `animate` Op (CR
+            // 208.2/611.1, issue #1317) is a thin declarative skin over the
+            // exact `animateAsCreature` call this closure made — 2/2 base
+            // P/T, the Assembly-Worker subtype, the added Artifact type
+            // ("it's still a land"), until end of turn.
+            effects: [
+                {
+                    op: "animate",
+                    target: { ref: "$source" },
+                    power: 2,
+                    toughness: 2,
+                    subtype: "Assembly-Worker",
+                    additionalTypes: ["Artifact"],
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
         {
             id: "mishras-factory-pump",
@@ -1750,6 +1791,10 @@ export const theRack: CardDefinition = {
     manaCost: { X: 1 },
     types: ["Artifact"],
     triggeredAbilities: [
+        // NOT DSL-migratable (ADR 0045): "choose an opponent" has no Op —
+        // `setChosenPlayer`/`getChosenPlayer` are SpellContext-only
+        // primitives with no declarative skin in EFFECT_OP_REGISTRY.
+        // Blocked on: a choose-player-and-store Op.
         enteredTrigger({
             id: "the-rack-choose-opponent",
             oracleText: "As this artifact enters, choose an opponent.",
@@ -1759,6 +1804,11 @@ export const theRack: CardDefinition = {
                 if (opponent) ctx.setChosenPlayer(opponent);
             },
         }),
+        // NOT DSL-migratable (ADR 0045): the damage amount is "3 minus hand
+        // size" — same arithmetic/value-grammar gap as Ivory Tower above
+        // (literal | ref | count has no subtraction, and `count` has no
+        // hand-size zone). Blocked on: a hand-size count zone + an
+        // arithmetic/subtract value construct.
         phaseTrigger({
             id: "the-rack-upkeep-damage",
             oracleText:
@@ -1804,23 +1854,24 @@ export const urzasMiter: CardDefinition = {
             filter: { types: "Artifact" },
             // CR 603.4 — only fires when the artifact was NOT sacrificed.
             condition: (event) => event.cause !== "sacrifice",
-            // NOT DSL-migratable (ADR 0045): the mayPay + if + draw shape
-            // itself IS Op-expressible (mirrors Force Spike, `leg/blue.ts`),
-            // but the `leftTrigger` factory (`abilities/triggers/
-            // leftTrigger.ts`) only accepts a `resolve` callback in
-            // `LeftTriggerArgs` — it has no `effects` alternative to route a
-            // declarative script through. Blocked on: `leftTrigger` factory
-            // support for `effects`. tracked-by: #1280
-            resolve: (ctx) => {
-                const accept = ctx.requestMayPay({
-                    playerId: ctx.controller,
-                    choiceId: ctx.controller,
+            // Migrated resolve()→effects[] (ADR 0045, closes tracked-by
+            // #1280): the mayPay + if + draw shape (mirrors Force Spike,
+            // `leg/blue.ts`) now rides `leftTrigger`'s `effects` site, added
+            // alongside this migration.
+            effects: [
+                {
+                    op: "mayPay",
+                    player: "controller",
                     cost: { X: 3 },
                     prompt: "Pay {3} to draw a card from Urza's Miter?",
-                });
-                if (accept === undefined) return; // suspended for the choice
-                if (accept) ctx.drawCards(ctx.controller, 1);
-            },
+                    bind: "$paid",
+                },
+                {
+                    op: "if",
+                    predicate: { binding: "$paid" },
+                    then: [{ op: "draw", player: "controller", count: 1 }],
+                },
+            ],
         }),
     ],
 };
@@ -1879,6 +1930,15 @@ export const golgothianSylex: CardDefinition = {
                 "{1}, {T}: Each nontoken permanent with a name originally printed in the Antiquities expansion is sacrificed by its controller.",
             cost: { tap: true, mana: { X: 1 } },
             useStack: true,
+            // NOT DSL-migratable (ADR 0045): the sweep's filter is "name
+            // originally printed in the Antiquities expansion" — a
+            // set-of-origin check (`ctx.isPrintedInSet`) with no
+            // corresponding field on `EffectCardFilter`/`PermanentFilter`
+            // (which cover type/subtype/color/mana-value/counter/isToken,
+            // but no printing-origin dimension). A `forEach { set:
+            // "permanents" }` sweep could express "each nontoken permanent"
+            // but not this filter's `isPrintedInSet` clause.
+            // Blocked on: a printed-in-set origin filter field.
             resolve: (ctx: SpellContext) => {
                 // Snapshot the matching ids first; sacrificing mutates the
                 // battlefield arrays. CR 701.16 — each is sacrificed by its
