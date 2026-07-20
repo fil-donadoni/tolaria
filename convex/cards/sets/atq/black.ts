@@ -42,12 +42,31 @@ export const yawgmothDemon: CardDefinition = {
                 "At the beginning of your upkeep, you may sacrifice an artifact. If you don't, tap this creature and it deals 2 damage to you.",
             phase: "UPKEEP",
             scope: "your",
-            // NOT DSL-migratable (ADR 0045): "you may sacrifice an artifact; if
-            // you don't, tap this + 2 damage" is a sacrifice-as-alternative-cost
-            // (a mayPay whose cost is sacrificing a chosen artifact, not mana —
-            // the `mayPay` Op only pays a ManaCost) with a conditional else that
-            // taps the source. Same class as Mishra's War Machine.
-            // Blocked on: a sacrifice-cost mayPay + declined-branch predicate.
+            // NOT DSL-migratable (ADR 0045, re-assessed): the `mayPay` Op's
+            // `cost` union DOES now support a sacrifice leg (MayPayCost.sacrifice,
+            // the Phyrexian Dreadnought / mir/colorless.ts shape) — "you may
+            // sacrifice an artifact" itself IS expressible as
+            // `{ op: "mayPay", cost: { sacrifice: { filter: { types:
+            // "Artifact" }, count: 1 } } }` + `if !$paid` for the tap+damage
+            // else-branch. The remaining blocker is a raise-time/skip mismatch:
+            // this card's imperative body checks `getBattlefieldIds(...,
+            // {types:"Artifact"}).length > 0` BEFORE calling `requestMayPay`,
+            // so with NO artifact the may-pay prompt is never raised at all and
+            // the else-branch runs immediately (see this file's "no artifact to
+            // sacrifice" test — asserts no suspension). The generic interpreter
+            // `mayPay` Op has no such affordability pre-check (see
+            // `gre/effects/interpreter.ts` mayPay executor) — it unconditionally
+            // calls `ctx.requestMayPay`, which unconditionally raises a
+            // PendingChoice (`gre/state.ts` requestMayPay); `canPayMayPayCost`
+            // only gates at the SUBMIT boundary (pendingChoiceSubmit.ts /
+            // applyMove.ts), never at raise time. Migrating would introduce an
+            // unwanted suspension/prompt in the zero-artifact case, changing
+            // observable behaviour under the existing per-card test (forbidden —
+            // the test is the equivalence oracle and stays untouched).
+            // Blocked on: a raise-time affordability gate for `mayPay` (skip
+            // the Op entirely, matching the else-branch, when the cost can't be
+            // paid at all) — a genuine interpreter capability gap, not a missing
+            // Op/value construct. Worth an issue if more cards need it.
             resolve: (ctx, _event, playerId) => {
                 const self: TargetSelection = {
                     type: "permanent",
@@ -108,12 +127,22 @@ export const priestOfYawgmoth: CardDefinition = {
                 "{T}, Sacrifice an artifact: Add an amount of {B} equal to the sacrificed artifact's mana value.",
             cost: { tap: true, sacrificeFilter: { types: "Artifact" } },
             useStack: true,
-            // NOT DSL-migratable (ADR 0045): the produced {B} amount equals the
-            // sacrificed artifact's mana value (a runtime read,
-            // getAdditionalSacrificeMv). The EffectValue grammar has no
-            // sacrificed-cost / mana-value member, so the amount is not
-            // statically expressible. Planned-migratable. Blocked on: a
-            // mana-value / sacrificed-cost EffectValue construct.
+            // NOT DSL-migratable (ADR 0045, re-assessed): the produced {B}
+            // amount equals the sacrificed artifact's mana value (a runtime
+            // read, getAdditionalSacrificeMv, snapshotted onto the stack item
+            // when the cost was paid). A `manaValue` EffectValue member DOES now
+            // exist (`EffectManaValueValue`, cards/types.ts) but its `of`
+            // selector is an `EffectObjectSelector` (an announced target slot,
+            // `$source`, or `$each`) that reads the LIVE printed mana value of a
+            // BATTLEFIELD permanent — 0 once the object has left play (CR
+            // 608.2b). The sacrificed artifact here is an ADDITIONAL COST paid
+            // before the ability goes on the stack, so by resolve time it is
+            // already in the graveyard; there is no `EffectObjectSelector`
+            // variant naming "the object this ability's cost sacrificed" (no
+            // DSL wiring for `getAdditionalSacrificeMv`/`additionalSacrificeSnapshot`,
+            // see gre/state.ts). Planned-migratable. Blocked on: an
+            // `EffectObjectSelector` (or dedicated `EffectValue`) member reading
+            // the cost-sacrificed object's snapshotted mana value.
             resolve: (ctx: SpellContext) => {
                 const mv = ctx.getAdditionalSacrificeMv() ?? 0;
                 if (mv > 0) ctx.addManaTo(ctx.controller, { B: mv });
@@ -183,6 +212,26 @@ export const hauntingWind: CardDefinition = {
                 "Whenever an artifact becomes tapped, this enchantment deals 1 damage to that artifact's controller.",
             scope: "any",
             filter: { types: "Artifact" },
+            // NOT DSL-migratable (ADR 0045/0049): the damage target is the
+            // TAPPED ARTIFACT's controller — `tapped.controllerId`, data carried
+            // on the firing PERMANENT_TAPPED event, not an announced target slot,
+            // `$source`, or a `forEach` member (the trigger is untargeted +
+            // `scope: "any"`, CR 109.5). `TriggeredAbility.effects`' own doc
+            // comment (cards/types.ts) is explicit: "the firing event is not
+            // threaded into a script... a trigger whose effect must inspect the
+            // event stays imperative" UNLESS the event field is censused in the
+            // EVENT_FIELD_REGISTRY (ADR 0049, mechanicsRegistry.ts) for a
+            // `{ ref: "$event.<field>" }` read (the PHASE_BEGIN.activePlayerId /
+            // PERMANENT_ENTERED.controllerId pattern). PERMANENT_TAPPED has NO
+            // registry row today (only ATTACKERS_DECLARED, BLOCKERS_CONFIRMED,
+            // DAMAGE_DEALT, PHASE_BEGIN, PERMANENT_ENTERED are censused).
+            // Additionally, the `tappedTrigger` factory's own `TappedTriggerArgs`
+            // (abilities/triggers/tappedTrigger.ts) exposes only `resolve`, no
+            // `effects` passthrough. Blocked on: a
+            // `PERMANENT_TAPPED: { controllerId: { family: "player", resolve } }`
+            // EVENT_FIELD_REGISTRY row (mirrors the PERMANENT_ENTERED row
+            // exactly) + wiring `effects` through the factory. Planned-
+            // migratable — worth an issue if more Cluster B-style cards need it.
             resolve: (ctx, _event, tapped) => {
                 ctx.dealDamage({ type: "player", id: tapped.controllerId }, 1);
             },
@@ -193,6 +242,12 @@ export const hauntingWind: CardDefinition = {
                 "Whenever a player activates an artifact's ability without {T} in its activation cost, this enchantment deals 1 damage to that artifact's controller.",
             scope: "any",
             filter: { types: "Artifact" },
+            // NOT DSL-migratable (ADR 0045/0049): same blocker as the tapped
+            // trigger above — `activated.controllerId` is ABILITY_ACTIVATED
+            // event payload with no EVENT_FIELD_REGISTRY row, and
+            // `abilityActivatedTrigger`'s args expose no `effects` passthrough.
+            // Blocked on: an `ABILITY_ACTIVATED: { controllerId: {...} } }`
+            // registry row + factory wiring. Planned-migratable.
             resolve: (ctx, _event, activated) => {
                 ctx.dealDamage(
                     { type: "player", id: activated.controllerId },
@@ -227,6 +282,16 @@ export const artifactPossession: CardDefinition = {
             scope: "any",
             condition: (event, self) =>
                 !!self.attachedTo && event.permanentId === self.attachedTo,
+            // NOT DSL-migratable (ADR 0045/0049): same blocker as Haunting
+            // Wind above — `tapped.controllerId` is PERMANENT_TAPPED event
+            // payload, uncensused in EVENT_FIELD_REGISTRY, and `tappedTrigger`'s
+            // args expose no `effects` passthrough. The Aura's own attach
+            // target (`{ target: 0 }`) names the ENCHANTED ARTIFACT, not its
+            // controller, so an object selector doesn't substitute here either
+            // — the ability needs the artifact's CURRENT controller, read off
+            // the tap event exactly like Haunting Wind. Blocked on: the same
+            // `PERMANENT_TAPPED.controllerId` registry row + factory wiring.
+            // Planned-migratable.
             resolve: (ctx, _event, tapped) => {
                 ctx.dealDamage({ type: "player", id: tapped.controllerId }, 2);
             },
@@ -238,6 +303,13 @@ export const artifactPossession: CardDefinition = {
             scope: "any",
             condition: (event, self) =>
                 !!self.attachedTo && event.permanentId === self.attachedTo,
+            // NOT DSL-migratable (ADR 0045/0049): same blocker as Haunting
+            // Wind's ability-activated trigger — `activated.controllerId` is
+            // ABILITY_ACTIVATED event payload, uncensused in
+            // EVENT_FIELD_REGISTRY, and `abilityActivatedTrigger`'s args expose
+            // no `effects` passthrough. Blocked on: an
+            // `ABILITY_ACTIVATED.controllerId` registry row + factory wiring.
+            // Planned-migratable.
             resolve: (ctx, _event, activated) => {
                 ctx.dealDamage(
                     { type: "player", id: activated.controllerId },
@@ -321,6 +393,22 @@ export const xenicPoltergeist: CardDefinition = {
                 count: 1,
                 excludeTypes: "Creature",
             },
+            // NOT DSL-migratable (ADR 0045): the `animate` Op's `power`/
+            // `toughness` fields are typed as a plain literal `number`
+            // (cards/types.ts, the `{ op: "animate"; ...; power: number;
+            // toughness: number }` shape), NOT the `EffectValue` grammar — so
+            // there is no way to pass the target's own `manaValue` (the
+            // `EffectManaValueValue` grammar member, `{ manaValue: { of } }`,
+            // DOES exist and IS read by other Ops, e.g. `pump`'s signed value
+            // grammar) into `animate` directly. A `pump`-on-top-of-a-0/0-
+            // `animate` composition is numerically possible (layer 7b base 0/0
+            // + layer 7c `pump` `+mv/+mv` via `manaValue`) but changes the
+            // mechanism (CDA-style fixed base P/T → two-layer composition) with
+            // no existing reference card exercising that combination — too much
+            // unverified layer-ordering risk for a machine-proven pure refactor.
+            // Planned-migratable. Blocked on: widening `animate`'s `power`/
+            // `toughness` fields from `number` to `EffectValue` (mirrors the
+            // signed-value widening `pump` already got).
             resolve: (ctx: SpellContext) => {
                 const target = ctx.targets[0];
                 if (target?.type !== "permanent") return;
