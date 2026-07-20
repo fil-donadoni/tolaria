@@ -1061,9 +1061,15 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // FREE 454→447 (−7), AFK-ready 414→407 (−7), Op-blocked 220→219 (−1,
         // one migrated closure had been classified Op-blocked). X-only
         // unchanged. Partition: 447+14+219=680.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(680);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(447);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(407);
+        //
+        // 2026-07-20 atq FREE-tranche migration: 9 resolve() closures migrated
+        // to effects[] (atq colorless 5, blue 2, green 2; black 0 — all 5
+        // classifier false-positives, comment-only reassessment) — total
+        // 680→671 (−9), FREE 447→438 (−9), AFK-ready 407→398 (−9). X-only and
+        // Op-blocked unchanged. Partition: 438+14+219=671.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(671);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(438);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(398);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
         expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(219);
     });
