@@ -8,7 +8,7 @@
 // cost (CR 202.2); lands and artifacts (no coloured cost) live in
 // colorless.ts.
 
-import type { CardDefinition, PermanentView, SpellContext } from "../../types";
+import type { CardDefinition, PermanentView } from "../../types";
 import { EFFECT_AFFECTS_SELF } from "../../types";
 import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
 import { tappedTrigger } from "../../abilities/triggers/tappedTrigger";
@@ -28,6 +28,10 @@ import { abilityActivatedTrigger } from "../../abilities/triggers/abilityActivat
 // permanent off the battlefield (CR 608.2c — the effect uses last-known
 // information once the object has left). `cantBeRegenerated: true` suppresses
 // the regen-shield replacement (CR 701.15c); indestructible still protects.
+// Migrated to Effect Script (ADR 0045): `destroy`'s `bind` snapshots the
+// target's controller + mana value BEFORE it leaves the battlefield (CR
+// 608.2h/608.2c), mirroring Reanimate's `bind` + `{ ref: "$x.manaValue" }`
+// shape (tmp/black.ts).
 export const crumble: CardDefinition = {
     id: "d2101f86-8d3c-4ba8-ac42-bd3df0644280",
     rarity: "common",
@@ -37,15 +41,19 @@ export const crumble: CardDefinition = {
     manaCost: { G: 1 },
     types: ["Instant"],
     targetRequirement: { type: "Artifact", count: 1 },
-    resolve: (ctx: SpellContext) => {
-        const target = ctx.targets[0];
-        if (target?.type !== "permanent") return;
-        // Snapshot controller + mana value before the destroy (CR 608.2c).
-        const controllerId = ctx.getController(target);
-        const mv = ctx.getManaValue(target);
-        ctx.destroy(target, { cantBeRegenerated: true });
-        ctx.gainLife(controllerId, mv);
-    },
+    effects: [
+        {
+            op: "destroy",
+            target: { target: 0 },
+            bind: "$c",
+            cantBeRegenerated: true,
+        },
+        {
+            op: "gainLife",
+            player: { ref: "$c.controller" },
+            amount: { ref: "$c.manaValue" },
+        },
+    ],
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -80,18 +88,20 @@ export const citanulDruid: CardDefinition = {
                 "Whenever an opponent casts an artifact spell, put a +1/+1 counter on this creature.",
             scope: "opponents",
             filter: { types: "Artifact" },
-            // NOT DSL-migratable (ADR 0045): built via the `spellCastTrigger`
-            // factory, which owns the `resolve` closure and exposes no
-            // `effects[]` site. The body is a clean `counters` add on
-            // `$source`, but the factory wrapper blocks it. Stays resolve()
-            // until the trigger factories accept effects.
-            resolve: (ctx) => {
-                ctx.addCounter(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    "+1/+1",
-                    1
-                );
-            },
+            // Migrated to Effect Script (ADR 0045): `spellCastTrigger` now
+            // exposes an `effects[]` site (mutually exclusive with `resolve`)
+            // for a spell-cast trigger whose effect doesn't need to inspect
+            // the firing spell. `counters` `target: { ref: "$source" }` is
+            // the same self-counter shape Kavu Monarch uses (inv/red.ts).
+            effects: [
+                {
+                    op: "counters",
+                    action: "add",
+                    counter: "+1/+1",
+                    target: { ref: "$source" },
+                    count: 1,
+                },
+            ],
         }),
     ],
 };
@@ -137,6 +147,14 @@ export const gaeasAvenger: CardDefinition = {
 // its activation cost, you gain 1 life." (CR 603.2.) `scope: "opponents"`
 // encodes "an opponent controls"; the life goes to the enchantment's
 // controller (`ctx.controller`).
+// NOT DSL-migratable (ADR 0045) today: both abilities are built via the
+// `tappedTrigger` / `abilityActivatedTrigger` factories, which declare
+// `resolve` as a MANDATORY field with no `effects[]` site (unlike
+// `spellCastTrigger`/`enteredTrigger`, which already accept `effects`).
+// Blocked on: the two factories gaining an `effects?: EffectOp[]` param —
+// an out-of-scope engine change for a single-file card migration. The
+// sibling ATQ cards using the identical pattern (Haunting Wind, Artifact
+// Possession — `atq/black.ts`) are in the same state. tracked-by: #1437.
 export const powerleech: CardDefinition = {
     id: "ae1d7b09-3a1f-410f-b330-04ae768b0455",
     rarity: "uncommon",
