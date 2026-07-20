@@ -138,20 +138,15 @@ import {
     markGraveyardPermanentCastUsed,
     getLegalTargets,
     checkPermanentTargetFilters,
+    checkSpellTargetFilters,
     type TargetFilterCtx,
     getPendingTargetSourceColors,
     getPendingTargetSourceTypes,
     getPendingTargetSourceSubtypes,
-    hasColor,
     isProtectedFromColors,
-    matchesBattlefieldController,
-    matchesMvFilter,
     pendingTargetFiltersFromRequirement,
     raiseTriggerTargetSelection,
     solvePhyrexianSplit,
-    spellMatchesCreaturePtFilter,
-    spellMatchesExcludeTypeFilter,
-    spellWouldDestroyLandControlledBy,
 } from "./gre/rules";
 import {
     PHYREXIAN_LIFE_PER_PIP,
@@ -7381,179 +7376,48 @@ export const selectTarget = mutation({
             }
             const spell = state.stack.find((s) => s.id === args.targetId);
             if (!spell) throw new Error("Invalid spell target");
-            const spellIsAbility =
-                !!spell.abilityId ||
-                !!spell.triggeredAbilityId ||
-                !!spell.delayedTriggerId;
-            // CR 113 / 114.1 — restrict by stack-object kind. A "target spell"
-            // targets a SPELL, never an ability (CR 701.5a): the default
-            // (omitted) AND "spell" both reject abilities; "activated-ability"
-            // keeps only activated abilities (Brown Ouphe); "ability" keeps any
-            // activated or triggered ability (Stifle) but rejects spells; "any"
-            // (Ward, CR 702.21a) accepts either.
-            const acceptsSpellKind =
-                pt.spellStackKind === undefined ||
-                pt.spellStackKind === "spell" ||
-                pt.spellStackKind === "any";
-            const acceptsAbilityKind =
-                pt.spellStackKind === "activated-ability" ||
-                pt.spellStackKind === "ability" ||
-                pt.spellStackKind === "any";
-            if (spellIsAbility) {
-                if (!acceptsAbilityKind) {
-                    throw new Error("Target must be a spell");
+            // CR 113 / 114.1 / 109.3 / 202.2 / 202.3 / 208.2 / 601.2c / 701.7 /
+            // 702 — every spell-kind filter (spellStackKind, controller,
+            // stackSourceTypeFilter, spellTargetsInstanceIds, colorFilter,
+            // mvFilter, spellTypeFilter, spellExcludeTypeFilter,
+            // spellCreaturePtFilter, spellSingleTargetingController,
+            // spellWouldDestroyLandYouControl), routed through the SINGLE
+            // shared authority — the target-filter registry (ADR 0068 /
+            // issue #1409, T2). `getLegalTargets` runs the SAME
+            // `checkSpellTargetFilters` per candidate, so the offered set
+            // and the accepted set can't diverge — the spell-flavored half
+            // of the Phelia bug class.
+            const spellFilterCtx: TargetFilterCtx = {
+                state,
+                sourceColors: [],
+                sourceTypes: [],
+                sourceSubtypes: [],
+                chooserId: args.playerId,
+                activePlayerId: state.activePlayerId,
+            };
+            const spellFilterViolation = checkSpellTargetFilters(
+                spellFilterCtx,
+                spell,
+                {
+                    spellStackKind: pt.spellStackKind,
+                    controller: pt.controller,
+                    stackSourceTypeFilter: pt.stackSourceTypeFilter,
+                    spellTargetsInstanceIds: pt.spellTargetsInstanceIds,
+                    colorFilter: pt.colorFilter as Color | undefined,
+                    colorFilterAny: pt.colorFilterAny as
+                        | readonly Color[]
+                        | undefined,
+                    mvFilter: pt.mvFilter,
+                    spellTypeFilter: pt.spellTypeFilter,
+                    spellExcludeTypeFilter: pt.spellExcludeTypeFilter,
+                    spellCreaturePtFilter: pt.spellCreaturePtFilter,
+                    spellSingleTargetingController:
+                        pt.spellSingleTargetingController,
+                    spellWouldDestroyLandYouControl:
+                        pt.spellWouldDestroyLandYouControl,
                 }
-                if (
-                    pt.spellStackKind === "activated-ability" &&
-                    !spell.abilityId
-                ) {
-                    throw new Error("Target must be an activated ability");
-                }
-            } else if (!acceptsSpellKind) {
-                throw new Error("Target must be an ability");
-            }
-            // CR 109.3 / 114.1 (Lutri, the Spellchaser — "target instant or
-            // sorcery spell YOU CONTROL"): enforce the controller-relationship
-            // filter for spell/ability stack targets too, mirroring the
-            // permanent branch's anti-spoof check. A stack item's
-            // "controller" is its caster (`castById`). Shares the same
-            // `matchesBattlefieldController` predicate `getLegalTargets` uses.
-            if (
-                !matchesBattlefieldController(
-                    spell.castById,
-                    args.playerId,
-                    state.activePlayerId,
-                    pt.controller
-                )
-            ) {
-                throw new Error(
-                    pt.controller === "you"
-                        ? "Must target a spell you control"
-                        : pt.controller === "opponent"
-                          ? "Must target a spell an opponent controls"
-                          : "Must target a spell the active player controls"
-                );
-            }
-            // CR 113.7a — restrict by source card types (Brown Ouphe: "from an
-            // artifact source").
-            if (
-                pt.stackSourceTypeFilter &&
-                pt.stackSourceTypeFilter.length > 0 &&
-                !pt.stackSourceTypeFilter.some((t) => spell.types.includes(t))
-            ) {
-                throw new Error("Target's source is not of the required type");
-            }
-            // CR 114.1 — Mistfolk: the chosen spell must target one of the
-            // given permanents (the ability's own source).
-            if (
-                pt.spellTargetsInstanceIds &&
-                pt.spellTargetsInstanceIds.length > 0
-            ) {
-                const tgts = spell.targets ?? [];
-                if (
-                    spellIsAbility ||
-                    !tgts.some(
-                        (t) =>
-                            t.type === "permanent" &&
-                            pt.spellTargetsInstanceIds!.includes(t.id)
-                    )
-                ) {
-                    throw new Error(
-                        "Target spell does not target the required permanent"
-                    );
-                }
-            }
-            // CR 114.1 + spellTypeFilter (Fork: "instant or sorcery spell"):
-            // abilities aren't spells, and a spell must match the requested
-            // card type(s).
-            if (pt.spellTypeFilter && pt.spellTypeFilter.length > 0) {
-                const isAbility =
-                    !!spell.abilityId ||
-                    !!spell.triggeredAbilityId ||
-                    !!spell.delayedTriggerId;
-                if (
-                    isAbility ||
-                    !pt.spellTypeFilter.some((t) => spell.types.includes(t))
-                ) {
-                    throw new Error(
-                        "Target is not a spell of the required type"
-                    );
-                }
-            }
-            // CR 114.1 + spellExcludeTypeFilter (Spell Pierce: "target
-            // noncreature spell"). Shared predicate with `getLegalTargets`.
-            if (
-                !spellMatchesExcludeTypeFilter(spell, pt.spellExcludeTypeFilter)
-            ) {
-                throw new Error("Target is not a spell of the required type");
-            }
-            // CR 114.1 + 208.2 — Stern Scolding ("target creature spell with
-            // power or toughness 2 or less"). Shared predicate with
-            // `getLegalTargets`.
-            if (
-                !spellMatchesCreaturePtFilter(spell, pt.spellCreaturePtFilter)
-            ) {
-                throw new Error("Target is not a spell of the required type");
-            }
-            if (pt.colorFilter && !hasColor(spell, pt.colorFilter as Color)) {
-                throw new Error(`Target must be ${pt.colorFilter}`);
-            }
-            // CR 202.2: OR-over-colors choice (Greater Realm of Preservation).
-            if (
-                pt.colorFilterAny &&
-                !pt.colorFilterAny.some((c) => hasColor(spell, c as Color))
-            ) {
-                throw new Error(
-                    `Target must be ${pt.colorFilterAny.join(" or ")}`
-                );
-            }
-            if (pt.mvFilter) {
-                const cardId = (spell.card as { id?: string }).id;
-                const def = cardId ? tryGetDefinition(cardId) : undefined;
-                const baseMv =
-                    def && def.manaCost
-                        ? Object.entries(def.manaCost).reduce<number>(
-                              (acc, [, v]) =>
-                                  acc + (typeof v === "number" ? v : 0),
-                              0
-                          )
-                        : 0;
-                const mv = baseMv + (spell.chosenX ?? 0);
-                if (!matchesMvFilter(pt.mvFilter, mv)) {
-                    throw new Error(
-                        "Target does not match the required mana value"
-                    );
-                }
-            }
-            // CR 114.6 / 115.10 — Reflecting Mirror: the chosen spell must have
-            // exactly one target, and that target must be the activating player.
-            if (pt.spellSingleTargetingController) {
-                const isAbility =
-                    !!spell.abilityId ||
-                    !!spell.triggeredAbilityId ||
-                    !!spell.delayedTriggerId;
-                const tgts = spell.targets ?? [];
-                if (
-                    isAbility ||
-                    tgts.length !== 1 ||
-                    tgts[0].type !== "player" ||
-                    tgts[0].id !== pt.playerId
-                ) {
-                    throw new Error(
-                        "Target spell must have a single target that is you"
-                    );
-                }
-            }
-            // CR 114.1 + 701.7 — Equinox: the chosen spell must be one that
-            // would destroy a land the activating player controls.
-            if (
-                pt.spellWouldDestroyLandYouControl &&
-                !spellWouldDestroyLandControlledBy(state, spell, pt.playerId)
-            ) {
-                throw new Error(
-                    "Target spell would not destroy a land you control"
-                );
-            }
+            );
+            if (spellFilterViolation) throw new Error(spellFilterViolation);
         }
 
         pt.selected.push(target);
