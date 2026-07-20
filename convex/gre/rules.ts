@@ -28,13 +28,8 @@ import {
     isTapLockedBySummoningSickness,
     manaValue,
 } from "./constants";
-import {
-    STATIC_EFFECT_CTX,
-    getEffectivePower,
-    getEffectiveToughness,
-} from "./layers";
+import { STATIC_EFFECT_CTX } from "./layers";
 import { isProtectedFromColors } from "./protection";
-import { hasSupertypeLive } from "./snow";
 import { isGuardedAgainst, playerHasShroud } from "./permanentGuard";
 import { castProhibitionReason } from "../cards/castRestrictions";
 import { tapManaBonusUnits } from "./tapManaBonus";
@@ -63,6 +58,16 @@ import {
     restrictedUnitAllowsSpell,
     emitBecameTargetEvents,
 } from "./state";
+import {
+    hasColor,
+    matchesMvFilter,
+    resolveMvFilter,
+    matchesBattlefieldController,
+    checkPermanentTargetFilters,
+    lowerPermanentFilters,
+    type TargetFilterCtx,
+    type PermanentFilterValues,
+} from "./targetFilters";
 
 export {
     getProtectedColors,
@@ -70,6 +75,21 @@ export {
     isProtectedFromSource,
     parseProtectionFromColor,
 } from "./protection";
+
+// ADR 0068 (PRD #1407, issue #1408) — the low-level color/mv/controller
+// predicates the target-filter registry checks depend on now live in
+// `targetFilters.ts` (no dependency on this module, keeping the import graph
+// acyclic). Re-exported here so existing callers (`game.ts`,
+// `combatRegistry.ts`, tests) keep importing them from `./rules` unchanged.
+export {
+    hasColor,
+    matchesMvFilter,
+    resolveMvFilter,
+    matchesBattlefieldController,
+    checkPermanentTargetFilters,
+    type TargetFilterCtx,
+    type PermanentFilterValues,
+} from "./targetFilters";
 
 /** Reads extra land drops granted by permanents on the player's battlefield
  *  (CR 305.2 — Fastbond). Scans card definitions for `extraLandDrops`. */
@@ -1157,91 +1177,14 @@ function passesCastPhaseRestriction(
     return true;
 }
 
-/** True if the permanent/stack item has at least one of the given color in
- *  its mana cost (CR 202.2). Used by TargetRequirement.colorFilter. */
-export function hasColor(card: CardInstanceState, color: Color): boolean {
-    return STATIC_EFFECT_CTX.getColors(card).includes(color);
-}
-
-/** Resolves a TargetRequirement.mvFilter's `"X"` placeholders against the
- *  announced chosenX so downstream code only sees numeric bounds.
- *  Used by getLegalTargets and selectTarget validation. */
-export function resolveMvFilter(
-    filter: TargetRequirement["mvFilter"] | undefined,
-    chosenX: number | undefined
-): { min?: number; max?: number; equals?: number } | undefined {
-    if (!filter) return undefined;
-    const resolveOne = (v: number | "X" | undefined): number | undefined => {
-        if (v === undefined) return undefined;
-        if (v === "X") return chosenX ?? 0;
-        return v;
-    };
-    return {
-        ...(filter.min !== undefined ? { min: resolveOne(filter.min)! } : {}),
-        ...(filter.max !== undefined ? { max: resolveOne(filter.max)! } : {}),
-        ...(filter.equals !== undefined
-            ? { equals: resolveOne(filter.equals)! }
-            : {}),
-    };
-}
-
-/** Computes mana value for a target lookup. For permanents on the
- *  battlefield, X-cost permanents currently report 0 for X (the chosen X
- *  is not persisted on the resulting permanent). For stack spells, X folds
- *  in the chosen value carried by the stack item. */
-function mvOfPermanent(card: CardInstanceState): number {
-    const cardId = (card.card as { id?: string }).id;
-    const def = cardId ? tryGetDefinition(cardId) : undefined;
-    return manaValue(def?.manaCost);
-}
+// `hasColor`, `resolveMvFilter`, `matchesMvFilter`, `matchesBattlefieldController`
+// moved to `./targetFilters` (ADR 0068 / issue #1408) — imported above and
+// re-exported for backward compatibility with existing callers.
 
 function mvOfStackItem(item: { card: unknown; chosenX?: number }): number {
     const cardId = (item.card as { id?: string }).id;
     const def = cardId ? tryGetDefinition(cardId) : undefined;
     return manaValue(def?.manaCost) + (item.chosenX ?? 0);
-}
-
-/** Tests a resolved mvFilter against a target's mana value. Empty filter
- *  always matches; otherwise all declared bounds (min/max/equals) must hold. */
-export function matchesMvFilter(
-    filter: { min?: number; max?: number; equals?: number } | undefined,
-    mv: number
-): boolean {
-    if (!filter) return true;
-    if (filter.equals !== undefined && mv !== filter.equals) return false;
-    if (filter.min !== undefined && mv < filter.min) return false;
-    if (filter.max !== undefined && mv > filter.max) return false;
-    return true;
-}
-
-/** CR 109.3 / 102.1 — the single authority on a battlefield/permanent target's
- *  controller-relationship filter (`TargetRequirement.controller`). Both
- *  `getLegalTargets` (which permanents may be offered) and the `selectTarget`
- *  mutation's permanent branch (which permanents the server will accept —
- *  anti-spoof) route through this predicate so the two can never disagree.
- *
- *  - `"you"`      — the permanent's controller is the chooser (Simulacrum).
- *  - `"opponent"` — the controller is NOT the chooser (Nettling Imp). A missing
- *                   `chooserId` can never satisfy this.
- *  - `"active"`   — the controller is the active player regardless of who is
- *                   choosing (Arcum's Whistle).
- *  - `"any"` / undefined — no controller restriction. */
-export function matchesBattlefieldController(
-    controllerId: string,
-    chooserId: string | undefined,
-    activePlayerId: string,
-    filter: TargetRequirement["controller"]
-): boolean {
-    switch (filter ?? "any") {
-        case "you":
-            return chooserId !== undefined && controllerId === chooserId;
-        case "opponent":
-            return chooserId !== undefined && controllerId !== chooserId;
-        case "active":
-            return controllerId === activePlayerId;
-        case "any":
-            return true;
-    }
 }
 
 /** Returns all legal targets for a spell/ability with the given target
@@ -1377,9 +1320,19 @@ export interface IntrinsicPermanentTargetFilters {
  *  permanent candidate through this, so the two sets can never diverge. This
  *  closes the Phelia bug class: a filter honored by one site but silently
  *  dropped by the other (letting the client offer — and the server accept — a
- *  permanent the offered set excluded). Adding a new intrinsic filter here
- *  wires it into both sites at once; it still has to be carried across the
- *  async choice by `pendingTargetFiltersFromRequirement`. */
+ *  permanent the offered set excluded).
+ *
+ *  ADR 0068 / issue #1408 (T1) — a thin wrapper over the target-filter
+ *  registry (`targetFilters.ts`): builds the `IntrinsicPermanentTargetFilters`
+ *  input into the registry's `PermanentFilterValues` shape (normalizing the
+ *  `string | string[]` shorthand fields the same way `pendingTargetFiltersFromRequirement`
+ *  does) and runs `checkPermanentTargetFilters`. `controller` is intentionally
+ *  absent from `f` (this predicate never took it) and from the values passed
+ *  through, so its registry entry is always skipped here — unchanged behavior
+ *  from before this refactor. The registry is now the ONE implementation;
+ *  adding a new intrinsic filter means adding a registry entry, which wires
+ *  both `getLegalTargets` and `selectTarget` at once (still has to be carried
+ *  across the async choice by `pendingTargetFiltersFromRequirement`). */
 export function intrinsicPermanentTargetViolation(
     state: GameState,
     card: CardInstanceState,
@@ -1387,95 +1340,35 @@ export function intrinsicPermanentTargetViolation(
 ): string | null {
     const arr = <T>(v: T | T[] | undefined): T[] | undefined =>
         v === undefined ? undefined : Array.isArray(v) ? v : [v];
-    // CR 205.3 — subtype filter ("target Mountains"): at least one present.
-    const subtypeFilter = arr(f.subtypeFilter);
-    if (subtypeFilter && !subtypeFilter.some((s) => card.subtypes.includes(s)))
-        return `Target must be ${subtypeFilter.join(" or ")}`;
-    // CR 205.4a — live supertype filter ("target snow lands"): ALL present.
-    const supertypeFilter = arr(f.supertypeFilter);
-    if (
-        supertypeFilter &&
-        !supertypeFilter.every((s) => hasSupertypeLive(card, s))
-    )
-        return `Target must be ${supertypeFilter.join(" and ")}`;
-    // CR 205.4a — negative supertype filter ("target nonbasic land").
-    const excludeSupertypes = arr(f.excludeSupertypes);
-    if (
-        excludeSupertypes &&
-        excludeSupertypes.some((s) => hasSupertypeLive(card, s))
-    )
-        return `Target must not be ${excludeSupertypes.join(" or ")}`;
-    // CR 109.1 — type-exclude filter ("nonland permanent", "nonartifact").
-    const excludeTypes = arr(f.excludeTypes);
-    if (excludeTypes && excludeTypes.some((t) => card.types.includes(t)))
-        return `Target must not be ${excludeTypes.join(" or ")}`;
-    // CR 202.2 — color-exclude filter (Terror's "nonblack").
-    const excludeColors = arr(f.excludeColors);
-    if (excludeColors && excludeColors.some((c) => hasColor(card, c)))
-        return `Target must not be ${excludeColors.join(" or ")}`;
-    // CR 205.3 — subtype-exclude filter (Nettling Imp's "non-Wall").
-    const excludeSubtypes = arr(f.excludeSubtypes);
-    if (
-        excludeSubtypes &&
-        excludeSubtypes.some((s) => card.subtypes.includes(s))
-    )
-        return `Target must not be ${excludeSubtypes.join(" or ")}`;
-    // CR 202.2 — positive color filter (Circle of Protection).
-    if (f.colorFilter && !hasColor(card, f.colorFilter))
-        return `Target must be ${f.colorFilter}`;
-    // CR 202.2 — OR-over-colors filter ("a black or red source").
-    if (f.colorFilterAny && !f.colorFilterAny.some((c) => hasColor(card, c)))
-        return `Target must be ${f.colorFilterAny.join(" or ")}`;
-    // CR 701.20 — tap-state filter ("target tapped/untapped ~").
-    if (f.tappedFilter === "tapped" && !card.isTapped)
-        return "Target must be tapped";
-    if (f.tappedFilter === "untapped" && card.isTapped)
-        return "Target must be untapped";
-    // CR 508.1 / 509.1 — combat-role filter ("target attacking/blocking ~").
-    if (f.combatRoleFilter) {
-        const roles = arr(f.combatRoleFilter)!;
-        const ok = roles.some(
-            (r) =>
-                (r === "attacking" && card.isAttacking) ||
-                (r === "blocking" && card.isBlocking)
-        );
-        if (!ok) return `Target must be ${roles.join(" or ")}`;
-    }
-    // CR 702 — positive keyword filter ("target creature with flying").
-    if (f.requireAbility && !card.staticAbilities.includes(f.requireAbility))
-        return `Target must have ${f.requireAbility}`;
-    // CR 702 — negative keyword filter ("target creature without flying").
-    if (f.excludeAbility && card.staticAbilities.includes(f.excludeAbility))
-        return `Target must not have ${f.excludeAbility}`;
-    // CR 601.2c — "other than ~" / reflexive self-exclude (Phelia, Sorceress
-    // Queen). Carries the source id resolved from `excludeSource`.
-    if (f.excludeInstanceIds?.includes(card.id))
-        return "Can't target that permanent";
-    // CR 613 layer 7c — effective power / toughness bounds.
-    if (f.powerFilter) {
-        const power = getEffectivePower(state, card);
-        if (f.powerFilter.min !== undefined && power < f.powerFilter.min)
-            return `Target must have power ≥ ${f.powerFilter.min}`;
-        if (f.powerFilter.max !== undefined && power > f.powerFilter.max)
-            return `Target must have power ≤ ${f.powerFilter.max}`;
-    }
-    if (f.toughnessFilter) {
-        const toughness = getEffectiveToughness(state, card);
-        if (
-            f.toughnessFilter.min !== undefined &&
-            toughness < f.toughnessFilter.min
-        )
-            return `Target must have toughness ≥ ${f.toughnessFilter.min}`;
-        if (
-            f.toughnessFilter.max !== undefined &&
-            toughness > f.toughnessFilter.max
-        )
-            return `Target must have toughness ≤ ${f.toughnessFilter.max}`;
-    }
-    // CR 202.3 — mana-value filter (already X-resolved by the caller).
-    if (f.mvFilter && !matchesMvFilter(f.mvFilter, mvOfPermanent(card)))
-        return "Target does not match the required mana value";
-    return null;
+    const ctx: TargetFilterCtx = {
+        state,
+        sourceColors: [],
+        sourceTypes: [],
+        sourceSubtypes: [],
+        activePlayerId: state.activePlayerId,
+    };
+    const values: PermanentFilterValues = {
+        subtypeFilter: arr(f.subtypeFilter),
+        supertypeFilter: arr(f.supertypeFilter),
+        excludeSubtypes: arr(f.excludeSubtypes),
+        excludeSupertypes: arr(f.excludeSupertypes),
+        excludeTypes: arr(f.excludeTypes),
+        excludeColors: arr(f.excludeColors),
+        colorFilter: f.colorFilter,
+        colorFilterAny: f.colorFilterAny,
+        tappedFilter: f.tappedFilter,
+        combatRoleFilter: f.combatRoleFilter,
+        requireAbility: f.requireAbility,
+        excludeAbility: f.excludeAbility,
+        excludeInstanceIds:
+            f.excludeInstanceIds && f.excludeInstanceIds.length > 0
+                ? f.excludeInstanceIds
+                : undefined,
+        powerFilter: f.powerFilter,
+        toughnessFilter: f.toughnessFilter,
+        mvFilter: f.mvFilter,
+    };
+    return checkPermanentTargetFilters(ctx, card, values);
 }
 
 export function getLegalTargets(
@@ -1656,15 +1549,31 @@ export function getLegalTargets(
                 );
                 if (!matchesAny && !wantsSpellOrPermanent && !matchesExplicit)
                     continue;
-                // CR 109.1 / 115 / 202 / 205 / 613 / 701.20 — every intrinsic
-                // (source-independent) filter, routed through the SINGLE shared
-                // authority `intrinsicPermanentTargetViolation`. The selectTarget
-                // mutation runs the SAME function against the submitted target,
-                // so the offered set and the accepted set can't diverge (the
-                // Phelia bug class). Source-DEPENDENT gates (protection / guard /
-                // controller) stay below — they need the source's colors/kind.
+                // CR 109.1 / 115 / 202 / 205 / 613 / 701.20 / 109.3 / 102.1 —
+                // every permanent-kind filter (including `controller`),
+                // routed through the SINGLE shared authority — the
+                // target-filter registry (ADR 0068 / issue #1408). The
+                // selectTarget mutation runs the SAME `checkPermanentTargetFilters`
+                // against the submitted target, so the offered set and the
+                // accepted set can't diverge (the Phelia bug class).
+                // `controller` is ALSO re-checked here per-candidate (redundant
+                // with the per-player `matchesBattlefieldController` gate
+                // above, kept for its early-continue efficiency) — both run
+                // the exact same predicate, so this can never disagree.
+                // Source-DEPENDENT gates (protection / guard) stay below —
+                // they need the source's colors/kind, not a requirement field.
+                const filterCtx: TargetFilterCtx = {
+                    state,
+                    sourceColors,
+                    sourceTypes,
+                    sourceSubtypes,
+                    chooserId: casterId,
+                    activePlayerId: state.activePlayerId,
+                    sourceIsSpell,
+                };
                 if (
-                    intrinsicPermanentTargetViolation(state, card, {
+                    checkPermanentTargetFilters(filterCtx, card, {
+                        controller: requirement.controller,
                         subtypeFilter,
                         supertypeFilter,
                         excludeSupertypes,
@@ -2034,37 +1943,15 @@ export function pendingTargetFiltersFromRequirement(
 ): Partial<PendingTarget> {
     const toArr = (v: string | string[] | undefined): string[] | undefined =>
         v === undefined ? undefined : Array.isArray(v) ? v : [v];
-    const out: Partial<PendingTarget> = {};
-    if (req.colorFilter !== undefined) out.colorFilter = req.colorFilter;
-    if (req.colorFilterAny) out.colorFilterAny = req.colorFilterAny;
-    const sub = toArr(req.subtypeFilter);
-    if (sub) out.subtypeFilter = sub;
-    const sup = toArr(req.supertypeFilter);
-    if (sup) out.supertypeFilter = sup;
-    const exSub = toArr(req.excludeSubtypes);
-    if (exSub) out.excludeSubtypes = exSub;
-    const exSup = toArr(req.excludeSupertypes);
-    if (exSup) out.excludeSupertypes = exSup;
-    // CR 109.1 / 601.2c — the interactive-choice mirror of the getLegalTargets
-    // filters: "nonland permanent" (excludeTypes) and "other than ~" /
-    // reflexive `excludeSource` self-exclude (excludeInstanceIds). Without
-    // these on the PendingTarget the raised choice diverges from the offered
-    // set — the client renders excluded permanents clickable and selectTarget
-    // accepts them (Phelia could exile herself / a land).
-    const exTypes = toArr(req.excludeTypes);
-    if (exTypes) out.excludeTypes = exTypes as CardType[];
-    if (req.excludeInstanceIds && req.excludeInstanceIds.length > 0)
-        out.excludeInstanceIds = [...req.excludeInstanceIds];
-    const exColors = toArr(req.excludeColors);
-    if (exColors) out.excludeColors = exColors as Color[];
-    if (req.tappedFilter) out.tappedFilter = req.tappedFilter;
-    if (req.combatRoleFilter) out.combatRoleFilter = req.combatRoleFilter;
-    if (req.requireAbility) out.requireAbility = req.requireAbility;
-    if (req.excludeAbility) out.excludeAbility = req.excludeAbility;
-    if (req.powerFilter) out.powerFilter = req.powerFilter;
-    if (req.toughnessFilter) out.toughnessFilter = req.toughnessFilter;
-    const mv = resolveMvFilter(req.mvFilter, chosenX);
-    if (mv) out.mvFilter = mv;
+    // ADR 0068 / issue #1408 (T1) — every PERMANENT-kind filter (plus
+    // `controller`) is now lowered through the registry's `lower()`, the
+    // SAME resolution `getLegalTargets` and `selectTarget` run against. This
+    // is the "lower once" half of "lower once, check everywhere": a filter's
+    // carry can no longer drift from its offered/accepted semantics because
+    // there is only one implementation of `lower` to call.
+    const out: Partial<PendingTarget> = {
+        ...(lowerPermanentFilters(req, chosenX) as Partial<PendingTarget>),
+    };
     const spellType = toArr(req.spellTypeFilter);
     if (spellType) out.spellTypeFilter = spellType as CardType[];
     const spellExcludeType = toArr(req.spellExcludeTypeFilter);
@@ -2083,7 +1970,10 @@ export function pendingTargetFiltersFromRequirement(
         out.spellTargetsInstanceIds = [...req.spellTargetsInstanceIds];
     if (req.playerAttackedThisTurn) out.playerAttackedThisTurn = true;
     if (req.zone) out.zone = req.zone;
-    if (req.controller) out.controller = req.controller;
+    // `controller` is lowered by `lowerPermanentFilters` above (ADR 0068) —
+    // it's requirement-generic (permanent/player/spell branches all read the
+    // same `PendingTarget.controller`), not permanent-only, so it rides along
+    // with the permanent filter carry rather than needing its own line here.
     return out;
 }
 

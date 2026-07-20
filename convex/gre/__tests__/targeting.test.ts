@@ -17,6 +17,10 @@ import {
     spellMatchesExcludeTypeFilter,
 } from "../rules";
 import { isGuardedAgainst, playerHasShroud } from "../permanentGuard";
+import {
+    checkPermanentTargetFilters,
+    type TargetFilterCtx,
+} from "../targetFilters";
 import type {
     CardDefinition,
     CardType,
@@ -688,6 +692,263 @@ describe("intrinsicPermanentTargetViolation — shared offered/accepted gate", (
         };
         const ids = getLegalTargets(state, req, [], "p1").map((t) => t.id);
         expect(ids).toEqual(["tap"]);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Target-filter registry (ADR 0068, PRD #1407, issue #1408 — slice T1).
+// `checkPermanentTargetFilters` is the registry's runner: it drives EVERY
+// permanent-kind `FilterDescriptor.check` — the same function `getLegalTargets`
+// and `selectTarget` (game.ts) both call, so this IS the "shared offered/
+// accepted gate" seam, just entered through the registry instead of the old
+// `intrinsicPermanentTargetViolation` name. One passing + one excluded
+// candidate per filter (PRD "Testing Decisions" — a new filter earns one such
+// test; reuse rides free). `controller` is new to this slice (folded in from
+// `matchesBattlefieldController`, previously validated only inline at each
+// call site) — not tested via `intrinsicPermanentTargetViolation`, which never
+// took it, so it gets full coverage here instead.
+// ---------------------------------------------------------------------------
+
+describe("target-filter registry — checkPermanentTargetFilters (ADR 0068, #1408)", () => {
+    const baseCtx = (
+        overrides: Partial<TargetFilterCtx> = {}
+    ): TargetFilterCtx => ({
+        state: makeGameState(),
+        sourceColors: [],
+        sourceTypes: [],
+        sourceSubtypes: [],
+        activePlayerId: "p1",
+        ...overrides,
+    });
+
+    it("controller: 'you' accepts the chooser's own permanent, rejects an opponent's", () => {
+        const mine = makeCard({ controllerId: "p1" });
+        const theirs = makeCard({ controllerId: "p2" });
+        const ctx = baseCtx({ chooserId: "p1" });
+        expect(
+            checkPermanentTargetFilters(ctx, mine, { controller: "you" })
+        ).toBeNull();
+        expect(
+            checkPermanentTargetFilters(ctx, theirs, { controller: "you" })
+        ).toBe("Must target a permanent you control");
+    });
+
+    it("controller: 'opponent' accepts an opponent's permanent, rejects the chooser's own", () => {
+        const mine = makeCard({ controllerId: "p1" });
+        const theirs = makeCard({ controllerId: "p2" });
+        const ctx = baseCtx({ chooserId: "p1" });
+        expect(
+            checkPermanentTargetFilters(ctx, theirs, { controller: "opponent" })
+        ).toBeNull();
+        expect(
+            checkPermanentTargetFilters(ctx, mine, { controller: "opponent" })
+        ).toBe("Must target a permanent an opponent controls");
+    });
+
+    it("controller: 'active' accepts the active player's permanent regardless of chooser", () => {
+        const activePlayers = makeCard({ controllerId: "p1" });
+        const otherPlayer = makeCard({ controllerId: "p2" });
+        const ctx = baseCtx({ chooserId: "p2", activePlayerId: "p1" });
+        expect(
+            checkPermanentTargetFilters(ctx, activePlayers, {
+                controller: "active",
+            })
+        ).toBeNull();
+        expect(
+            checkPermanentTargetFilters(ctx, otherPlayer, {
+                controller: "active",
+            })
+        ).toBe("Must target a permanent the active player controls");
+    });
+
+    it("subtypeFilter: accepts a matching subtype, rejects a non-matching one", () => {
+        const goblin = makeCard({ types: ["Creature"], subtypes: ["Goblin"] });
+        const elf = makeCard({ types: ["Creature"], subtypes: ["Elf"] });
+        const ctx = baseCtx();
+        expect(
+            checkPermanentTargetFilters(ctx, goblin, {
+                subtypeFilter: ["Goblin"],
+            })
+        ).toBeNull();
+        expect(
+            checkPermanentTargetFilters(ctx, elf, { subtypeFilter: ["Goblin"] })
+        ).toBe("Target must be Goblin");
+    });
+
+    it("supertypeFilter: accepts a permanent with ALL listed live supertypes, rejects one missing any", () => {
+        // `hasSupertypeLive` reads the EMBEDDED `card.card.supertypes` (token/
+        // copy shape), not a top-level CardInstanceState field — set it there
+        // directly rather than through `makeCard`'s stripped-down cardRef.
+        const legendary = {
+            ...makeCard({ types: ["Creature"] }),
+            card: { id: "sup-legend", supertypes: ["Legendary"] },
+        };
+        const nonLegendary = makeCard({ types: ["Creature"] });
+        const ctx = baseCtx();
+        expect(
+            checkPermanentTargetFilters(ctx, legendary, {
+                supertypeFilter: ["Legendary"],
+            })
+        ).toBeNull();
+        expect(
+            checkPermanentTargetFilters(ctx, nonLegendary, {
+                supertypeFilter: ["Legendary"],
+            })
+        ).toBe("Target must be Legendary");
+    });
+
+    it("excludeSubtypes: rejects a permanent with an excluded subtype, allows one without it", () => {
+        const wall = makeCard({ types: ["Creature"], subtypes: ["Wall"] });
+        const goblin = makeCard({ types: ["Creature"], subtypes: ["Goblin"] });
+        const ctx = baseCtx();
+        expect(
+            checkPermanentTargetFilters(ctx, wall, {
+                excludeSubtypes: ["Wall"],
+            })
+        ).toBe("Target must not be Wall");
+        expect(
+            checkPermanentTargetFilters(ctx, goblin, {
+                excludeSubtypes: ["Wall"],
+            })
+        ).toBeNull();
+    });
+
+    it("excludeSupertypes: rejects a basic land, allows a nonbasic one (Wasteland)", () => {
+        const basic = {
+            ...makeCard({ types: ["Land"] }),
+            card: { id: "sup-basic", supertypes: ["Basic"] },
+        };
+        const nonbasic = makeCard({ types: ["Land"] });
+        const ctx = baseCtx();
+        expect(
+            checkPermanentTargetFilters(ctx, basic, {
+                excludeSupertypes: ["Basic"],
+            })
+        ).toBe("Target must not be Basic");
+        expect(
+            checkPermanentTargetFilters(ctx, nonbasic, {
+                excludeSupertypes: ["Basic"],
+            })
+        ).toBeNull();
+    });
+
+    it("colorFilter: accepts a permanent of the given color, rejects one that isn't", () => {
+        const red = makeCard({
+            types: ["Creature"],
+            card: { id: "cf-r", manaCost: { R: 1 } },
+        });
+        const white = makeCard({
+            types: ["Creature"],
+            card: { id: "cf-w", manaCost: { W: 1 } },
+        });
+        const ctx = baseCtx();
+        expect(
+            checkPermanentTargetFilters(ctx, red, { colorFilter: "R" })
+        ).toBeNull();
+        expect(
+            checkPermanentTargetFilters(ctx, white, { colorFilter: "R" })
+        ).toBe("Target must be R");
+    });
+
+    it("colorFilterAny: accepts a permanent matching any listed color, rejects one matching none", () => {
+        const red = makeCard({
+            types: ["Creature"],
+            card: { id: "cfa-r", manaCost: { R: 1 } },
+        });
+        const blue = makeCard({
+            types: ["Creature"],
+            card: { id: "cfa-u", manaCost: { U: 1 } },
+        });
+        const ctx = baseCtx();
+        expect(
+            checkPermanentTargetFilters(ctx, red, {
+                colorFilterAny: ["R", "G"],
+            })
+        ).toBeNull();
+        expect(
+            checkPermanentTargetFilters(ctx, blue, {
+                colorFilterAny: ["R", "G"],
+            })
+        ).toBe("Target must be R or G");
+    });
+
+    it("powerFilter: accepts a permanent within bounds, rejects one below the minimum", () => {
+        const strong = makeCard({ types: ["Creature"], power: 4 });
+        const weak = makeCard({ types: ["Creature"], power: 1 });
+        const ctx = baseCtx();
+        expect(
+            checkPermanentTargetFilters(ctx, strong, {
+                powerFilter: { min: 2 },
+            })
+        ).toBeNull();
+        expect(
+            checkPermanentTargetFilters(ctx, weak, { powerFilter: { min: 2 } })
+        ).toBe("Target must have power ≥ 2");
+    });
+
+    it("toughnessFilter: accepts a permanent within bounds, rejects one above the maximum", () => {
+        const small = makeCard({ types: ["Creature"], toughness: 2 });
+        const big = makeCard({ types: ["Creature"], toughness: 6 });
+        const ctx = baseCtx();
+        expect(
+            checkPermanentTargetFilters(ctx, small, {
+                toughnessFilter: { max: 4 },
+            })
+        ).toBeNull();
+        expect(
+            checkPermanentTargetFilters(ctx, big, {
+                toughnessFilter: { max: 4 },
+            })
+        ).toBe("Target must have toughness ≤ 4");
+    });
+
+    it("mvFilter: accepts a permanent matching the mana-value bound, rejects one that doesn't", () => {
+        const cheap = makeCard({
+            types: ["Creature"],
+            card: { id: "test-artcreat" },
+        });
+        const expensive = makeCard({
+            types: ["Creature"],
+            card: { id: "test-enchant" },
+        });
+        const ctx = baseCtx();
+        // Fixtures don't register mana costs, so both report mv 0 — assert the
+        // "equals" bound accepts mv 0 and rejects a nonzero requirement instead.
+        expect(
+            checkPermanentTargetFilters(ctx, cheap, {
+                mvFilter: { equals: 0 },
+            })
+        ).toBeNull();
+        expect(
+            checkPermanentTargetFilters(ctx, expensive, {
+                mvFilter: { equals: 1 },
+            })
+        ).toBe("Target does not match the required mana value");
+    });
+
+    it("loop semantics: an undefined filter value is skipped, never excludes the candidate", () => {
+        const anyCreature = makeCard({ types: ["Creature"] });
+        const ctx = baseCtx();
+        expect(
+            checkPermanentTargetFilters(ctx, anyCreature, {
+                subtypeFilter: undefined,
+                controller: undefined,
+            })
+        ).toBeNull();
+    });
+
+    it("controller violation surfaces before an intrinsic-filter violation (matches the prior hand-written check order)", () => {
+        const theirsAndWrongType = makeCard({
+            types: ["Land"],
+            controllerId: "p2",
+        });
+        const ctx = baseCtx({ chooserId: "p1" });
+        expect(
+            checkPermanentTargetFilters(ctx, theirsAndWrongType, {
+                controller: "you",
+                excludeTypes: ["Land"],
+            })
+        ).toBe("Must target a permanent you control");
     });
 });
 

@@ -137,7 +137,8 @@ import {
     canPlayLandsFromGraveyard,
     markGraveyardPermanentCastUsed,
     getLegalTargets,
-    intrinsicPermanentTargetViolation,
+    checkPermanentTargetFilters,
+    type TargetFilterCtx,
     getPendingTargetSourceColors,
     getPendingTargetSourceTypes,
     getPendingTargetSourceSubtypes,
@@ -7240,42 +7241,29 @@ export const selectTarget = mutation({
                 }
             }
             if (!matchedCard) throw new Error("Invalid target");
-            // CR 109.3 / 102.1 — enforce the controller-relationship filter for
-            // battlefield targets (anti-spoof, #904). Routes through the same
-            // matchesBattlefieldController predicate getLegalTargets uses, so
-            // the offered and accepted target sets can't diverge. Guards
-            // Simulacrum ("you"), Nettling Imp ("opponent") and Arcum's
-            // Whistle ("active"). Source/chooser-dependent, so it stays here.
-            if (
-                !matchesBattlefieldController(
-                    matchedCard.controllerId,
-                    args.playerId,
-                    state.activePlayerId,
-                    pt.controller
-                )
-            ) {
-                const filter = pt.controller ?? "any";
-                throw new Error(
-                    filter === "you"
-                        ? "Must target a permanent you control"
-                        : filter === "opponent"
-                          ? "Must target a permanent an opponent controls"
-                          : "Must target a permanent the active player controls"
-                );
-            }
-            // CR 109.1 / 115 / 202 / 205 / 613 / 701.20 — every INTRINSIC
-            // (source-independent) filter, routed through the SINGLE shared
-            // authority `intrinsicPermanentTargetViolation`, the EXACT function
-            // getLegalTargets runs per candidate. Accepted set == offered set
-            // by construction (subtype/supertype/type-exclude/color/tapped/
-            // combat-role/keyword/exclude-instance/power/toughness/mv), closing
-            // the Phelia bug class (a filter honored by one site, dropped by the
-            // other). A new intrinsic filter added to that function is enforced
-            // at both sites at once — no field-by-field drift possible here.
-            const intrinsicViolation = intrinsicPermanentTargetViolation(
+            // CR 109.1 / 115 / 202 / 205 / 613 / 701.20 / 109.3 / 102.1 —
+            // every PERMANENT-kind filter (including `controller`, anti-spoof
+            // #904), routed through the SINGLE shared authority — the
+            // target-filter registry (ADR 0068 / issue #1408). `getLegalTargets`
+            // runs the SAME `checkPermanentTargetFilters` per candidate, so
+            // the offered set and the accepted set can't diverge (subtype/
+            // supertype/type-exclude/color/tapped/combat-role/keyword/
+            // exclude-instance/power/toughness/mv/controller) — the Phelia
+            // bug class. A new filter added to the registry is enforced at
+            // both sites at once — no field-by-field drift possible here.
+            const filterCtx: TargetFilterCtx = {
                 state,
+                sourceColors: [],
+                sourceTypes: [],
+                sourceSubtypes: [],
+                chooserId: args.playerId,
+                activePlayerId: state.activePlayerId,
+            };
+            const filterViolation = checkPermanentTargetFilters(
+                filterCtx,
                 matchedCard,
                 {
+                    controller: pt.controller,
                     subtypeFilter: pt.subtypeFilter,
                     supertypeFilter: pt.supertypeFilter,
                     excludeSubtypes: pt.excludeSubtypes,
@@ -7296,7 +7284,7 @@ export const selectTarget = mutation({
                     mvFilter: pt.mvFilter,
                 }
             );
-            if (intrinsicViolation) throw new Error(intrinsicViolation);
+            if (filterViolation) throw new Error(filterViolation);
             // CR 702.16b: a permanent with protection from [color] can't be
             // targeted by a spell/ability whose source has that color.
             const sourceColors = getPendingTargetSourceColors(
