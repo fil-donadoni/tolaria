@@ -14,12 +14,18 @@
  *  `getLegalTargets`'s graveyard branch already honored `controller:
  *  "active"`, but `selectTarget`'s graveyard-card branch never implemented
  *  that case at all — exactly the Phelia bug class this registry exists to
- *  close, now closed for the last kind. The `FilterKey = keyof
- *  Omit<TargetRequirement, StructuralKey>` compile-time forcing function
- *  arms in T4 — this module intentionally keys the registry by explicit
- *  per-kind key lists for now (`PERMANENT_FILTER_KEYS`, `SPELL_FILTER_KEYS`,
- *  `PLAYER_FILTER_KEYS`, `CARD_FILTER_KEYS`), not by `keyof Omit<...>`, so it
- *  compiles standalone before every kind has an entry.
+ *  close, now closed for the last kind. **T4** (issue #1411, this slice) arms
+ *  the compile-time forcing function: `REGISTRY` is now declared `satisfies
+ *  Record<FilterKey, FilterDescriptor<unknown>>` where `FilterKey = keyof
+ *  Omit<TargetRequirement, StructuralKey>` (see both types below). A new
+ *  `TargetRequirement` field cannot be added without EITHER a `REGISTRY`
+ *  entry (it's a filter) OR a `StructuralKey` addition with a one-line reason
+ *  (it isn't) — `tsc` refuses to compile otherwise. The per-kind key lists
+ *  (`PERMANENT_FILTER_KEYS`, `SPELL_FILTER_KEYS`, `PLAYER_FILTER_KEYS`,
+ *  `CARD_FILTER_KEYS`) stay as explicit arrays — they encode CHECK ORDER
+ *  (which filter's violation message wins when several fail), a property
+ *  `keyof Omit<...>` cannot express since object-type key order is not part
+ *  of TypeScript's type system.
  *
  *  **Lower once, check everywhere** (the whole point): `lower` resolves a
  *  `TargetRequirement` field to its `PendingTarget` carry value (X-resolution,
@@ -271,6 +277,61 @@ function arr<T>(v: T | T[] | undefined): T[] | undefined {
  *  `"permanent"` has registry entries in T1 — spell/player/card land in
  *  T2/T3. */
 export type TargetKind = "permanent" | "spell" | "player" | "card";
+
+// ─── T4 keystone: the compile-time forcing function (ADR 0068, issue #1411) ─
+
+/** The `TargetRequirement` fields that are NOT a per-candidate filter — they
+ *  do not get a `REGISTRY` entry, and are excluded from `FilterKey` below by
+ *  `Omit`. Every one of the six is here because it fails the same test: it
+ *  is never passed to a `FilterDescriptor.checks` predicate against a
+ *  candidate. Audited field-by-field against the CURRENT `TargetRequirement`
+ *  (`cards/types.ts`) as part of this slice — this list intentionally
+ *  corrects the illustrative one sketched in ADR 0068's Decision section
+ *  before the audit happened: `"min" | "max" | "equals"` are not top-level
+ *  `TargetRequirement` keys at all (they exist only NESTED inside
+ *  `mvFilter`/`powerFilter`/`toughnessFilter`/`count`, already covered by
+ *  their PARENT filter's own descriptor), and `"zone"` — a REAL top-level
+ *  key the ADR sketch omitted — belongs here instead. Adding a field to
+ *  `TargetRequirement` forces a conscious choice: give it a `REGISTRY` entry
+ *  (a filter), or add it here with a one-line reason (structural). There is
+ *  no third option. */
+type StructuralKey =
+    // Declares which `TargetKind` branch even runs (permanent / spell /
+    // player / card) — routing, not a predicate evaluated against one
+    // candidate.
+    | "type"
+    // Cardinality of the selection (how many targets to choose) — not a
+    // legality predicate on any single candidate.
+    | "count"
+    // Selects WHICH candidate population is queried (battlefield vs.
+    // graveyard) — like `type`, this routes to an entirely different
+    // site-selection branch (`getLegalTargets`/`selectTarget`) rather than
+    // filtering candidates within one already-selected population.
+    | "zone"
+    // Divide-as-you-choose damage/counter BUDGET bookkeeping (CR 601.2d) —
+    // an amount-assignment concern, not a target-legality predicate.
+    | "divideAsChosen"
+    // A directive read by `raiseTriggerTargetSelection` (`rules.ts`) that
+    // tells it to APPEND the trigger source's id into `excludeInstanceIds`
+    // (the real, registered filter) — never itself checked against a
+    // candidate.
+    | "excludeSource"
+    // A directive read by `raiseTriggerTargetSelection` that tells it to
+    // dynamically POPULATE `spellTargetsInstanceIds` (the real, registered
+    // filter) from the trigger source — never itself checked against a
+    // candidate.
+    | "spellTargetsSelfSource";
+
+/** The forcing function itself: every requirement-declared filter field,
+ *  derived by omission rather than a hand-maintained list. `REGISTRY`
+ *  (below) is declared `satisfies Record<FilterKey, FilterDescriptor<unknown>>`
+ *  — this only compiles when EVERY member of `FilterKey` has an entry, so a
+ *  filter field newly added to `TargetRequirement` without a matching
+ *  registry entry (or a `StructuralKey` classification) fails `tsc`. This is
+ *  the "cannot recur" guarantee the original Phelia fix (`78c0279c`) lacked:
+ *  offered-set/accepted-set drift is now a compile error, not a runtime bug
+ *  caught by author discipline. */
+export type FilterKey = keyof Omit<TargetRequirement, StructuralKey>;
 
 /** Context threaded into every `check`. Source-dependent (chooser/active
  *  player/source characteristics) so a filter's check can read them without
@@ -893,15 +954,22 @@ export const PLAYER_ONLY_FILTER_KEYS = ["playerAttackedThisTurn"] as const;
 
 export type PlayerOnlyFilterKey = (typeof PLAYER_ONLY_FILTER_KEYS)[number];
 
-/** The registry. Loosely typed (`FilterDescriptor<unknown>`) in T1-T3 by
- *  design — see the module doc comment and issues #1408 / #1409 / #1410. Each
- *  descriptor above is authored with its own precise `V` via `defineFilter`;
- *  only the aggregate map relaxes to `unknown` so a heterogeneous-by-key map
- *  can exist before the T4 `satisfies Record<FilterKey, …>` keystone. */
-export const REGISTRY: Record<
-    PermanentFilterKey | SpellOnlyFilterKey | PlayerOnlyFilterKey,
-    FilterDescriptor<unknown>
-> = {
+/** The registry — one `FilterDescriptor` per requirement-declared filter.
+ *  Each descriptor above is authored with its own precise `V` via
+ *  `defineFilter`; the aggregate map relaxes to `FilterDescriptor<unknown>`
+ *  per value so a heterogeneous-by-key map can exist (`V` differs per
+ *  filter: `Color`, `string[]`, `{ min?: number; max?: number }`, …).
+ *
+ *  **T4 keystone (ADR 0068, issue #1411):** `satisfies Record<FilterKey,
+ *  FilterDescriptor<unknown>>` — NOT a type annotation (`: Record<...>`) —
+ *  is the forcing function. `satisfies` checks the object literal against
+ *  the target shape (every `FilterKey` must be present, no key may be
+ *  missing) while still inferring the literal's own precise key type, unlike
+ *  an annotation which would just widen to `Record<FilterKey, ...>` and
+ *  silently accept a missing key as a type error attributed to the wrong
+ *  line. Removing any entry below — or adding a new filter field to
+ *  `TargetRequirement` without a matching entry — fails `tsc` right here. */
+export const REGISTRY = {
     controller: controllerFilter as FilterDescriptor<unknown>,
     subtypeFilter: subtypeFilterDescriptor as FilterDescriptor<unknown>,
     supertypeFilter: supertypeFilterDescriptor as FilterDescriptor<unknown>,
@@ -936,7 +1004,7 @@ export const REGISTRY: Record<
         spellWouldDestroyLandYouControlDescriptor as FilterDescriptor<unknown>,
     playerAttackedThisTurn:
         playerAttackedThisTurnDescriptor as FilterDescriptor<unknown>,
-};
+} satisfies Record<FilterKey, FilterDescriptor<unknown>>;
 
 /** The requirement-derived filter VALUES for the permanent kind — the
  *  `lower()` output shape, and exactly what both `getLegalTargets` and
