@@ -5,6 +5,8 @@ import type { Id } from "@convex/_generated/dataModel";
 import type { PendingActivation, PendingCast, Player } from "~/types/game";
 import { getDefinition } from "@convex/cards";
 import { useDraggable } from "~/hooks/useDraggable";
+import { Panel } from "~/components/ui/panel";
+import { Button } from "~/components/ui/button";
 import { isManaCostCovered } from "~/lib/card-utils";
 import {
     describeSacrificeChoice,
@@ -136,36 +138,34 @@ export default function PaymentBanner(props: Props) {
 
     return (
         <div
-            className="absolute top-1/2 left-1/2 z-100"
+            className="absolute top-1/2 left-1/2 z-modal"
             style={{
                 transform: `translate(calc(-50% + ${offset.x}px), calc(-50% + ${offset.y}px))`,
             }}
         >
-            <div
-                {...dragHandlers}
-                className="relative bg-surface border border-border-subtle backdrop-blur-md rounded-sm px-5 py-3 shadow-[0_0_50px_rgba(0,0,0,0.8)] cursor-move select-none"
-            >
-                <div className="absolute top-1.5 left-1.5 w-3 h-3 border-t border-l border-border-accent/40" />
-                <div className="absolute top-1.5 right-1.5 w-3 h-3 border-t border-r border-border-accent/40" />
-                <div className="absolute bottom-1.5 left-1.5 w-3 h-3 border-b border-l border-border-accent/40" />
-                <div className="absolute bottom-1.5 right-1.5 w-3 h-3 border-b border-r border-border-accent/40" />
-
-                <p className="font-beleren text-sm tracking-wide text-parchment">
-                    {cardName}
-                </p>
-                <div className="h-[1px] w-full bg-gradient-to-r from-border-accent via-border-accent/40 to-transparent my-1.5" />
-                <p className="text-text-muted text-xs">{subtitle}</p>
-                {manaOwed && (
-                    <button
-                        type="button"
-                        onClick={handleAutoTap}
-                        onPointerDown={(e) => e.stopPropagation()}
-                        disabled={busy}
-                        className="mt-2 w-full rounded-sm border border-success bg-success-soft px-2 py-1 text-xs font-semibold uppercase tracking-wide text-success-strong hover:bg-success-soft/80 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                        Auto-tap
-                    </button>
-                )}
+            {/* Drag chrome stays on a plain wrapper — Panel forwards no
+                handlers, so the frame lives inside it. */}
+            <div {...dragHandlers} className="cursor-move select-none">
+                <Panel density="compact" className="px-5 py-3">
+                    <p className="font-beleren text-sm tracking-wide text-parchment">
+                        {cardName}
+                    </p>
+                    <div className="h-[1px] w-full bg-gradient-to-r from-border-accent via-border-accent/40 to-transparent my-1.5" />
+                    <p className="text-text-muted text-xs">{subtitle}</p>
+                    {manaOwed && (
+                        <Button
+                            type="button"
+                            variant="primary"
+                            size="sm"
+                            onClick={handleAutoTap}
+                            onPointerDown={(e) => e.stopPropagation()}
+                            disabled={busy}
+                            className="mt-2 w-full"
+                        >
+                            Auto-tap
+                        </Button>
+                    )}
+                </Panel>
             </div>
         </div>
     );

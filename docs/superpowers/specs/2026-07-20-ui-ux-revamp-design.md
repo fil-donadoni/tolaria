@@ -1,8 +1,8 @@
 # UI/UX Revamp — decisions & implementation plan
 
 **Date:** 2026-07-20
-**Status:** phase 1 shipped (`02775277`); phases 2–5 planned
-**Prototype:** `/prototype/zone-motion` (folded in and deleted per repo convention; verdict captured in §3)
+**Status:** phase 1 shipped (`02775277`); phase 3 shipped (ADR 0069); phases 2, 4, 5 planned
+**Prototype:** `/prototype/zone-motion` (folded in and deleted per repo convention; verdict captured in §3). Phase-3 census: `/design-system` — PERMANENT page (unlike throwaway spikes), kept as the living design-system reference.
 
 ## 1. Origin
 
@@ -91,6 +91,30 @@ upscale badges. The user evaluated in the browser and ruled:
   flight/depth (4, merged with the pre-existing 7), `battlefield-stacks`
   deferral (3), `card-image-srcset` (new), `images`/`preview-body` extended,
   `motion-gating` extended. Gates: `check:all` ✓, full suite 9813 ✓.
+
+## 4b. Shipped — phase 3 (ADR 0069)
+
+- Contrast: `text-disabled` → `#968a68` (≥4.5 everywhere), `danger`-as-text →
+  `danger-strong`, `border-strong` for control edges, accent focus ring
+  (8.2:1), `--color-scrim` (black/50) replaces the 10–70% scrim drift, visible
+  popup edge (`ring-border-accent/40`). Guard: `design-tokens.test.ts` parses
+  `index.css` and re-derives every WCAG ratio.
+- One Button (plate tones over base-ui), one Banner (5 tones, replaces the 13
+  recipes), one Panel-framed modal language (bug-report → GameDialog; 15
+  floating prompts + pickers + combat panels onto the shared frame; the 60
+  inline corner brackets deleted). GameDialog emulates overlay-click dismissal
+  (QA: pile browse dialogs).
+- `signal-*` (self/opponent/pending/target ± strong) + `combat-1..4` tokens
+  replace the raw emerald/rose/amber/violet/combat-group classes; named z
+  layers (hud/sheet/arrows/modal/modal-top/modal-peak); `surface-2`/`muted`
+  consumers → `surface-elevated`; counter chips on the plate language.
+- Dead layer: TitleTreatment adopted at game-over, OrnamentalDivider kept,
+  keyrune kept, StatChip pruned.
+- QA: declare-attackers draws one arrow per attacker → its target (player
+  nameplate or planeswalker, CR 508.1a) + info banner; solo viewer-swap
+  stale-anchor fix (DOM publisher revision = seat assignment).
+- `/design-system` permanent census page (tokens with live ratios, chrome,
+  variants, application map).
 
 ## 5. Implementation plan — phases 2–5
 

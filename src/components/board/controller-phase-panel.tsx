@@ -37,7 +37,7 @@ export default function ControllerPhasePanel({
     return (
         <div
             ref={listRef}
-            className="fixed right-3 top-1/2 z-50 -translate-y-1/2"
+            className="fixed right-3 top-1/2 z-sheet -translate-y-1/2"
         >
             <ControllerPhaseList onClose={onClose} />
         </div>

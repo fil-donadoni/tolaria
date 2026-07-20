@@ -54,7 +54,7 @@ export default function BanlistCardsDialog({
                 <div className="flex max-h-[65vh] flex-col gap-4 overflow-y-auto">
                     {banned.length > 0 && (
                         <section className="flex flex-col gap-2">
-                            <h3 className="text-xs font-semibold uppercase tracking-wide text-danger">
+                            <h3 className="text-xs font-semibold uppercase tracking-wide text-danger-strong-strong">
                                 Banned ({banned.length})
                             </h3>
                             <div className="flex flex-wrap gap-3">

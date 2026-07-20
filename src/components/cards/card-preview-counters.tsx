@@ -1,9 +1,9 @@
 import type { CounterDisplay } from "~/lib/counters";
 
 const TONE_TEXT: Record<string, string> = {
-    buff: "text-emerald-400",
-    debuff: "text-red-400",
-    neutral: "text-amber-400",
+    buff: "text-success-strong",
+    debuff: "text-danger-strong",
+    neutral: "text-signal-pending",
 };
 
 /** Counters section of the card preview (CR 122). Lists every counter on the

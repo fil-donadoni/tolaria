@@ -2,6 +2,7 @@ import type { CardInstance } from "~/types/game";
 import { useGameContext } from "~/hooks/useGameContext";
 import { usePendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
 import { useMinimizedChoice } from "~/hooks/useMinimizedChoice";
+import { Button } from "~/components/ui/button";
 import CardsPile from "./cards-pile";
 
 /** Modal viewer for a `reveal-hand` look choice (CR 401.4 / 701.18a) — the
@@ -55,14 +56,15 @@ export default function RevealHandView() {
             forceOpen={!isMinimized}
             onMinimize={minimize}
             footer={
-                <button
+                <Button
                     type="button"
+                    variant="primary"
+                    size="sm"
                     disabled={bufferCtx.isPending}
                     onClick={() => bufferCtx.submit()}
-                    className="px-4 py-1.5 rounded-sm text-xs font-beleren tracking-wide bg-accent-soft border border-accent text-accent-strong hover:bg-accent-soft/80 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
                 >
                     Done
-                </button>
+                </Button>
             }
         />
     );

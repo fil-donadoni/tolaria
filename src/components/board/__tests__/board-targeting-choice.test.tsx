@@ -521,7 +521,9 @@ describe("board hand choice parity (#279, CR 608.2)", () => {
         renderClassicHand(card);
         // Classic selectable-card renders a clickable choice wrapper around the
         // card image; click it.
-        fireEvent.click(document.querySelector('[class*="ring-violet"]')!);
+        fireEvent.click(
+            document.querySelector('[class*="ring-signal-target"]')!
+        );
         expect(bufferToggle).toHaveBeenCalledWith("h1");
 
         bufferToggle.mockClear();

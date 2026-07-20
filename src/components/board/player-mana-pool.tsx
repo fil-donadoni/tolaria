@@ -65,7 +65,7 @@ export default function PlayerManaPool({ player }: { player: Player }) {
             {restricted.map((unit, key) => (
                 <div
                     key={`restricted-${key}`}
-                    className="flex items-center gap-1 shrink-0 rounded border border-amber-400/70 bg-amber-400/10 px-1"
+                    className="flex items-center gap-1 shrink-0 rounded border border-accent/70 bg-accent/10 px-1"
                     data-restricted-mana
                     title={restrictedManaLabel(unit, (id) =>
                         resolveExiledCardName(player, id)
@@ -75,10 +75,10 @@ export default function PlayerManaPool({ player }: { player: Player }) {
                         src={`/img/symbols/${unit.color}.svg`}
                         className="size-4 shrink-0"
                     />
-                    <p className="font-bold text-xs text-amber-200">
+                    <p className="font-bold text-xs text-accent-strong">
                         {unit.amount}
                     </p>
-                    <span className="text-[10px] text-amber-200/90">
+                    <span className="text-[10px] text-accent-strong/90">
                         {restrictedManaLabel(unit, (id) =>
                             resolveExiledCardName(player, id)
                         )}

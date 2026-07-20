@@ -140,7 +140,7 @@ describe("CardsPile — filtered search eligibility (issue #933)", () => {
 
         const eligibleWrapper = findCardWrapper(baseElement, "artifact-1");
         expect(eligibleWrapper?.tagName).toBe("BUTTON");
-        expect(eligibleWrapper?.className).toContain("ring-amber-400");
+        expect(eligibleWrapper?.className).toContain("ring-signal-pending");
 
         // Ineligible card renders dimmed and NOT as a clickable button.
         const ineligibleWrapper = findCardWrapper(baseElement, "creature-2");
@@ -170,11 +170,11 @@ describe("CardsPile — filtered search eligibility (issue #933)", () => {
         for (const id of ["a", "b"]) {
             const wrapper = findCardWrapper(baseElement, id);
             expect(wrapper?.tagName).toBe("BUTTON");
-            expect(wrapper?.className).toContain("ring-amber-400");
+            expect(wrapper?.className).toContain("ring-signal-pending");
         }
     });
 
-    it("grid layout: a selected card keeps its emerald ring even under an allow-list", () => {
+    it("grid layout: a selected card keeps its self ring even under an allow-list", () => {
         const cards = [makeCard("artifact-1")];
         const { baseElement } = render(
             <CardsPile
@@ -188,7 +188,7 @@ describe("CardsPile — filtered search eligibility (issue #933)", () => {
             />
         );
         const wrapper = findCardWrapper(baseElement, "artifact-1");
-        expect(wrapper?.className).toContain("ring-emerald-400");
+        expect(wrapper?.className).toContain("ring-signal-self");
     });
 
     it("fan layout: rings and enables clicks only on allow-listed cards", () => {
@@ -207,7 +207,7 @@ describe("CardsPile — filtered search eligibility (issue #933)", () => {
 
         const eligibleWrapper = findCardWrapper(baseElement, "artifact-1");
         expect(eligibleWrapper?.tagName).toBe("BUTTON");
-        expect(eligibleWrapper?.className).toContain("ring-amber-400");
+        expect(eligibleWrapper?.className).toContain("ring-signal-pending");
 
         const ineligibleWrapper = findCardWrapper(baseElement, "creature-2");
         expect(ineligibleWrapper?.tagName).not.toBe("BUTTON");

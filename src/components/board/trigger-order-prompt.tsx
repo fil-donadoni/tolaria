@@ -212,7 +212,7 @@ export default function TriggerOrderPrompt({
 
     return (
         <div
-            className={`fixed inset-0 z-50 items-center justify-center bg-black/70 p-6 ${
+            className={`fixed inset-0 z-modal items-center justify-center bg-scrim p-6 ${
                 isMinimized ? "hidden" : "flex"
             }`}
         >

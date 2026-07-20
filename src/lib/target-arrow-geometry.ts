@@ -138,19 +138,30 @@ export function buildTargetArrows(
 }
 
 /**
- * Build the combat arrows for the current combat: one arrow per
- * `(blocker → attacker)` pair, drawn from the blocker's anchor to the attacker
- * it blocks (CR 509 — a blocker points at what it stops). Both endpoints are
- * battlefield permanents, so anchors come from the `permanent` bucket.
+ * Build the combat arrows for the current combat:
+ *
+ * - one arrow per `(blocker → attacker)` pair, drawn from the blocker's
+ *   anchor to the attacker it blocks (CR 509 — a blocker points at what it
+ *   stops). Both endpoints are battlefield permanents, so anchors come from
+ *   the `permanent` bucket.
+ * - one arrow per declared attacker → its attack target (CR 508.1a): the
+ *   planeswalker named in `combat.attackTargets`, or the DEFENDING player's
+ *   nameplate anchor (`defenderId`) when no planeswalker is chosen. This is
+ *   the QA ask: while attack targets can still be chosen, every directed
+ *   attacker shows where it is going — and it stays up through blocks/damage
+ *   so the defender reads who is attacked at a glance.
  *
  * Each arrow carries a `clusterId`: the id of its connected combat component
  * (union-find over the block graph, with banded attackers unioned via
  * `combat.bands`). Hovering any arrow in a knot highlights the whole knot —
  * the transitive read the spaghetti of a multi-block / banding combat needs.
+ * An attack-direction arrow joins its attacker's cluster, so hovering a
+ * blocker also lights what the blocked attacker is swinging at.
  */
 export function buildCombatArrows(
     combat: Combat | undefined,
-    anchors: AnchorMap
+    anchors: AnchorMap,
+    defenderId?: string | null
 ): TargetArrow[] {
     if (!combat) return [];
     const assignments = combat.blockerAssignments ?? {};
@@ -201,6 +212,29 @@ export function buildCombatArrows(
                 path: arrowPath(from, to),
             });
         }
+    }
+
+    // Attack-direction arrows (QA / CR 508.1a): attacker → chosen planeswalker
+    // (`combat.attackTargets`), or → the defending player's nameplate anchor.
+    // A skipped endpoint (anchor not published yet) skips only that arrow.
+    for (const attacker of combat.attackerIds ?? []) {
+        const from = anchors.permanent[attacker];
+        if (!from) continue;
+        const pwId = combat.attackTargets?.[attacker];
+        const targetId = pwId ?? defenderId;
+        if (!targetId) continue;
+        const to = pwId ? anchors.permanent[pwId] : anchors.player[targetId];
+        if (!to) continue;
+        arrows.push({
+            key: `attack:${attacker}->${targetId}`,
+            kind: "combat",
+            fromId: attacker,
+            toId: targetId,
+            clusterId: find(attacker),
+            from,
+            to,
+            path: arrowPath(from, to),
+        });
     }
     return arrows;
 }

@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { getAllCardNames } from "@convex/cards";
+import { Button } from "~/components/ui/button";
 
 /** Autocomplete name input for a `name-card` pending choice (CR 202.3 — "chooses
  *  a card name", Petra Sphinx). The chooser types a card name; the field
@@ -91,14 +92,15 @@ export default function CardNameInput({
                     ))}
                 </ul>
             )}
-            <button
+            <Button
                 type="button"
+                variant="primary"
+                size="sm"
                 disabled={disabled || !isValid}
-                className="px-3 py-1.5 rounded-sm text-xs font-beleren tracking-wide bg-accent-soft/30 border border-accent/45 text-accent-strong hover:bg-accent-soft/50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
                 onClick={submit}
             >
                 Name it
-            </button>
+            </Button>
             {trimmed.length > 0 && !isValid && (
                 <p className="text-[11px] text-text-disabled text-center">
                     No implemented card by that name

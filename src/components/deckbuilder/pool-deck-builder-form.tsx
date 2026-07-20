@@ -19,6 +19,7 @@ import {
 import type { DeckCard } from "~/types/game";
 import DeckLegalityPanel from "~/components/lobby/deck-builder/deck-legality-panel";
 import SaveDeckBar from "~/components/lobby/deck-builder/save-deck-bar";
+import { Button } from "@/components/ui/button";
 import { isBasicLandCardId, resolveBasicLandCardIds } from "./basicLands";
 import PoolBasicLandsBar from "./pool-basic-lands-bar";
 import PoolDeckbuilderSurface from "./pool-deckbuilder-surface";
@@ -289,12 +290,13 @@ export default function PoolDeckBuilderForm({
     return (
         <div className="flex h-dvh flex-col bg-surface-base text-text">
             <div className="flex items-center gap-3 border-b border-border-subtle/30 bg-surface/60 px-4 py-3 md:px-6">
-                <button
+                <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={() => void handleDone()}
-                    className="btn-base btn-tone-ghost px-3 py-1.5 text-sm"
                 >
                     ← Back to Event
-                </button>
+                </Button>
                 <h1 className="text-lg font-semibold font-beleren tracking-wide text-parchment">
                     Build Limited Deck
                 </h1>

@@ -531,7 +531,7 @@ export function useBattlefieldVisualState(player: Player) {
         // faded valid-target branch would otherwise have fired.
         let targetGlow = false;
         if (pendingBlockerId === card.id) {
-            ringClass = "ring-2 ring-amber-400 rounded-sm";
+            ringClass = "ring-2 ring-signal-pending rounded-sm";
         } else if (
             card.isAttacking &&
             combatGroupColors[card.id] !== undefined
@@ -555,7 +555,7 @@ export function useBattlefieldVisualState(player: Player) {
             // cards-pile.tsx) — so multi-target picks (Pyrokinesis's divided
             // damage, Force of Vigor's up-to-two destroy) are unmistakable
             // against the faded-gold "valid but unpicked" ring below.
-            ringClass = "ring-2 ring-emerald-400 rounded-sm";
+            ringClass = "ring-2 ring-signal-self rounded-sm";
         } else if (!ringClass && isValidTarget) {
             // Legal target of a spell/ability on the stack — mirror the player
             // nameplate's accent-strong glow (player-nameplate.tsx) so a
@@ -569,7 +569,7 @@ export function useBattlefieldVisualState(player: Player) {
             // the selected permanents are unmistakable against the faded-bronze
             // "valid but unpicked" ring below. Bronze-solid vs bronze/40 differ
             // only in opacity and don't read as a distinct selection.
-            ringClass = "ring-2 ring-emerald-400 rounded-sm";
+            ringClass = "ring-2 ring-signal-self rounded-sm";
         } else if (!ringClass && isValidChoice) {
             ringClass = "ring-2 ring-accent/40 rounded-sm";
         }
@@ -601,7 +601,7 @@ export function useBattlefieldVisualState(player: Player) {
                     card.id
                 ));
         if (!ringClass && isCostPicked) {
-            ringClass = "ring-2 ring-emerald-400 rounded-sm";
+            ringClass = "ring-2 ring-signal-self rounded-sm";
         } else if (!ringClass && isValidSacrificePick) {
             ringClass = "ring-2 ring-accent/40 rounded-sm";
         }
@@ -611,7 +611,7 @@ export function useBattlefieldVisualState(player: Player) {
         // choices use; a clickable-but-unchosen defending planeswalker reads with
         // the faded-accent "valid target" ring.
         if (!ringClass && isAttackTargetPw && isAttackedPlaneswalker(card)) {
-            ringClass = "ring-2 ring-emerald-400 rounded-sm";
+            ringClass = "ring-2 ring-signal-self rounded-sm";
         } else if (!ringClass && isAttackTargetPw) {
             ringClass = "ring-2 ring-accent/50 rounded-sm";
         }

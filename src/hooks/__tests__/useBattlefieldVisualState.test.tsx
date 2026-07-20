@@ -286,7 +286,7 @@ describe("useBattlefieldVisualState — multi-pick sacrifice cost selected ring 
         const { result } = renderVisualState(me, ctxWithSacrifice());
 
         expect(result.current.getVisualState(m1).ringClass).toBe(
-            "ring-2 ring-emerald-400 rounded-sm"
+            "ring-2 ring-signal-self rounded-sm"
         );
     });
 
@@ -327,7 +327,7 @@ describe("useBattlefieldVisualState — multi-target selected ring is green", ()
         const { result } = renderVisualState(me, ctxSelectingCreatures());
 
         expect(result.current.getVisualState(c1).ringClass).toBe(
-            "ring-2 ring-emerald-400 rounded-sm"
+            "ring-2 ring-signal-self rounded-sm"
         );
     });
 
@@ -408,7 +408,7 @@ describe("useBattlefieldVisualState — choose-permanents (untap) selection ring
 
         // Selected → emerald; the other candidate stays faded-bronze.
         expect(result.current.getVisualState(me.battlefield[0]).ringClass).toBe(
-            "ring-2 ring-emerald-400 rounded-sm"
+            "ring-2 ring-signal-self rounded-sm"
         );
         expect(result.current.getVisualState(me.battlefield[1]).ringClass).toBe(
             "ring-2 ring-accent/40 rounded-sm"

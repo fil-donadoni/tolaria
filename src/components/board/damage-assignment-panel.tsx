@@ -10,6 +10,7 @@ import {
     damageSourcesForPlayer,
 } from "~/lib/combat-graph";
 import { effectivePower } from "~/lib/effective-stats";
+import { Panel } from "~/components/ui/panel";
 
 function DamageRow({
     targetId,
@@ -38,7 +39,7 @@ function DamageRow({
 }) {
     return (
         <div
-            className={`flex items-center gap-2 ml-4 ${highlight ? "text-yellow-300" : ""}`}
+            className={`flex items-center gap-2 ml-4 ${highlight ? "text-signal-pending" : ""}`}
         >
             <span className="flex-1 truncate">{label}</span>
             <button
@@ -55,7 +56,7 @@ function DamageRow({
                         },
                     });
                 }}
-                className="w-6 h-6 bg-white/20 hover:bg-white/30 rounded text-center leading-6"
+                className="w-6 h-6 bg-surface-elevated hover:bg-surface-elevated/80 rounded text-center leading-6"
             >
                 -
             </button>
@@ -74,7 +75,7 @@ function DamageRow({
                         },
                     });
                 }}
-                className="w-6 h-6 bg-white/20 hover:bg-white/30 rounded text-center leading-6"
+                className="w-6 h-6 bg-surface-elevated hover:bg-surface-elevated/80 rounded text-center leading-6"
             >
                 +
             </button>
@@ -120,63 +121,84 @@ export default function DamageAssignmentPanel({
     if (sourceIds.length === 0) return null;
 
     return (
-        <div className="absolute bottom-12 left-1/2 -translate-x-1/2 z-100 bg-black/90 border border-white/20 rounded-lg p-3 text-white text-sm max-w-md">
-            <div className="font-bold mb-2">Assign Combat Damage</div>
-            {sourceIds.map((sourceId) => {
-                const source = findCard(sourceId);
-                if (!source) return null;
-                // CR 510.1c / 613.4: the assignable budget is the source's
-                // EFFECTIVE power (temporary P/T mods from combat tricks
-                // applied), matching the server-side validation in
-                // setDamageAssignment. Reading the raw base power field would
-                // ignore buffs like Giant Growth and clamp the +/- buttons too
-                // low.
-                const power = Math.max(
-                    0,
-                    effectivePower(allPlayers, source, emblems)
-                );
-                const hasTrample =
-                    source.staticAbilities?.includes("trample") ?? false;
-                const isAttacker = combat.attackerIds.includes(sourceId);
-                const targetIds = isAttacker
-                    ? (blockersByAttacker[sourceId] ?? [])
-                    : (attackersByBlocker[sourceId] ?? []);
-                const assignments = combat.damageAssignments?.[sourceId] ?? {};
-                const assigned = Object.values(assignments).reduce(
-                    (s, n) => s + n,
-                    0
-                );
+        <div className="absolute bottom-12 left-1/2 -translate-x-1/2 z-modal">
+            <Panel density="compact" className="max-w-md p-3 text-sm">
+                <div className="font-bold mb-2">Assign Combat Damage</div>
+                {sourceIds.map((sourceId) => {
+                    const source = findCard(sourceId);
+                    if (!source) return null;
+                    // CR 510.1c / 613.4: the assignable budget is the source's
+                    // EFFECTIVE power (temporary P/T mods from combat tricks
+                    // applied), matching the server-side validation in
+                    // setDamageAssignment. Reading the raw base power field would
+                    // ignore buffs like Giant Growth and clamp the +/- buttons too
+                    // low.
+                    const power = Math.max(
+                        0,
+                        effectivePower(allPlayers, source, emblems)
+                    );
+                    const hasTrample =
+                        source.staticAbilities?.includes("trample") ?? false;
+                    const isAttacker = combat.attackerIds.includes(sourceId);
+                    const targetIds = isAttacker
+                        ? (blockersByAttacker[sourceId] ?? [])
+                        : (attackersByBlocker[sourceId] ?? []);
+                    const assignments =
+                        combat.damageAssignments?.[sourceId] ?? {};
+                    const assigned = Object.values(assignments).reduce(
+                        (s, n) => s + n,
+                        0
+                    );
 
-                return (
-                    <div key={sourceId} className="mb-2 last:mb-0">
-                        <div className="flex items-center gap-2 mb-1">
-                            <span className="font-medium">
-                                {getDefinition(source.card.id).name ?? "Source"}{" "}
-                                ({power} dmg)
-                            </span>
-                            <span
-                                className={
-                                    assigned === power
-                                        ? "text-green-400"
-                                        : "text-red-400"
-                                }
-                            >
-                                {assigned}/{power}
-                            </span>
-                        </div>
-                        {targetIds.map((targetId) => {
-                            const target = findCard(targetId);
-                            const dmg = assignments[targetId] ?? 0;
-                            return (
-                                <DamageRow
-                                    key={targetId}
-                                    targetId={targetId}
-                                    label={
-                                        target
-                                            ? getDefinition(target.card.id).name
-                                            : "Target"
+                    return (
+                        <div key={sourceId} className="mb-2 last:mb-0">
+                            <div className="flex items-center gap-2 mb-1">
+                                <span className="font-medium">
+                                    {getDefinition(source.card.id).name ??
+                                        "Source"}{" "}
+                                    ({power} dmg)
+                                </span>
+                                <span
+                                    className={
+                                        assigned === power
+                                            ? "text-success-strong"
+                                            : "text-danger-strong"
                                     }
-                                    dmg={dmg}
+                                >
+                                    {assigned}/{power}
+                                </span>
+                            </div>
+                            {targetIds.map((targetId) => {
+                                const target = findCard(targetId);
+                                const dmg = assignments[targetId] ?? 0;
+                                return (
+                                    <DamageRow
+                                        key={targetId}
+                                        targetId={targetId}
+                                        label={
+                                            target
+                                                ? getDefinition(target.card.id)
+                                                      .name
+                                                : "Target"
+                                        }
+                                        dmg={dmg}
+                                        assigned={assigned}
+                                        power={power}
+                                        assignments={assignments}
+                                        sourceId={sourceId}
+                                        gameId={gameId}
+                                        playerId={playerId}
+                                        setDamageAssignment={
+                                            setDamageAssignment
+                                        }
+                                    />
+                                );
+                            })}
+                            {isAttacker && hasTrample && (
+                                <DamageRow
+                                    targetId={defenderId}
+                                    label="Defending Player"
+                                    dmg={assignments[defenderId] ?? 0}
                                     assigned={assigned}
                                     power={power}
                                     assignments={assignments}
@@ -184,27 +206,13 @@ export default function DamageAssignmentPanel({
                                     gameId={gameId}
                                     playerId={playerId}
                                     setDamageAssignment={setDamageAssignment}
+                                    highlight
                                 />
-                            );
-                        })}
-                        {isAttacker && hasTrample && (
-                            <DamageRow
-                                targetId={defenderId}
-                                label="Defending Player"
-                                dmg={assignments[defenderId] ?? 0}
-                                assigned={assigned}
-                                power={power}
-                                assignments={assignments}
-                                sourceId={sourceId}
-                                gameId={gameId}
-                                playerId={playerId}
-                                setDamageAssignment={setDamageAssignment}
-                                highlight
-                            />
-                        )}
-                    </div>
-                );
-            })}
+                            )}
+                        </div>
+                    );
+                })}
+            </Panel>
         </div>
     );
 }

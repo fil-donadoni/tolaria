@@ -4,6 +4,7 @@ import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import type { MutationError } from "~/lib/mutation-error";
 import { copyMinified } from "~/lib/clipboard";
+import { Banner } from "~/components/ui/banner";
 
 type ErrorToastProps = {
     /** The Convex error to surface, or `null` to hide the toast. */
@@ -36,31 +37,29 @@ export default function ErrorToast({
     }
 
     return (
-        <div className="fixed left-1/2 bottom-24 -translate-x-1/2 z-100">
-            <div className="relative bg-surface border border-danger/45 rounded-sm px-4 py-2 shadow-[0_0_50px_rgba(0,0,0,0.8)] flex items-center gap-3">
-                <div className="absolute top-1.5 left-1.5 w-3 h-3 border-t border-l border-danger/45" />
-                <div className="absolute top-1.5 right-1.5 w-3 h-3 border-t border-r border-danger/45" />
-                <div className="absolute bottom-1.5 left-1.5 w-3 h-3 border-b border-l border-danger/45" />
-                <div className="absolute bottom-1.5 right-1.5 w-3 h-3 border-b border-r border-danger/45" />
-                <p className="font-beleren text-danger-strong text-sm tracking-wide px-2">
-                    {error.title}
-                </p>
-                <button
-                    type="button"
-                    onClick={handleCopy}
-                    className="font-beleren text-danger-strong text-xs tracking-wide border border-danger/45 rounded-sm px-2 py-0.5 hover:bg-danger/20 transition-colors"
-                >
-                    {copied ? "Copied!" : "Copy"}
-                </button>
-                <button
-                    type="button"
-                    onClick={onDismiss}
-                    aria-label="Dismiss error"
-                    className="font-beleren text-danger-strong text-sm leading-none px-1 hover:text-danger transition-colors"
-                >
-                    ×
-                </button>
-            </div>
+        <div className="fixed left-1/2 bottom-24 -translate-x-1/2 z-modal">
+            <Banner tone="danger" role="alert">
+                <span className="flex items-center gap-3">
+                    <p className="font-beleren text-sm tracking-wide px-2">
+                        {error.title}
+                    </p>
+                    <button
+                        type="button"
+                        onClick={handleCopy}
+                        className="font-beleren text-xs tracking-wide border border-danger/45 rounded-sm px-2 py-0.5 hover:bg-danger/20 transition-colors"
+                    >
+                        {copied ? "Copied!" : "Copy"}
+                    </button>
+                    <button
+                        type="button"
+                        onClick={onDismiss}
+                        aria-label="Dismiss error"
+                        className="font-beleren text-sm leading-none px-1 hover:text-parchment transition-colors"
+                    >
+                        ×
+                    </button>
+                </span>
+            </Banner>
         </div>
     );
 }

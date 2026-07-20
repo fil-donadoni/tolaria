@@ -1,5 +1,6 @@
 import type { LimitedEventView } from "~/hooks/useLimitedEvent";
 import ActionButton from "~/components/board/action-button";
+import { Button } from "@/components/ui/button";
 
 /** One row in the open-events lobby list (PRD #1107 story 7). Shows the
  *  event's type, filled/total seat count, and Pack Source, with a Join button
@@ -32,12 +33,9 @@ export default function LimitedEventListItem({
                 </span>
             </div>
             <div className="flex items-center gap-2">
-                <button
-                    onClick={onOpen}
-                    className="btn-base btn-tone-secondary px-3 py-1.5 text-xs"
-                >
+                <Button variant="secondary" size="sm" onClick={onOpen}>
                     View
-                </button>
+                </Button>
                 {!viewerHasSeat && (
                     <ActionButton
                         onClick={onJoin}

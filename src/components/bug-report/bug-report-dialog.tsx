@@ -3,16 +3,9 @@ import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { CheckCircle2, Loader2 } from "lucide-react";
-import {
-    Dialog,
-    DialogClose,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from "@/components/ui/dialog";
+import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
+import GameDialog from "@/components/ui/game-dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 
@@ -121,112 +114,115 @@ export default function BugReportDialog({
     }
 
     return (
-        <Dialog open={open} onOpenChange={handleOpenChange}>
-            <DialogContent className="w-[min(28rem,90vw)]">
-                <DialogHeader>
-                    <DialogTitle>Report a bug</DialogTitle>
-                    <DialogDescription>
-                        Describe the problem. It is filed directly as a GitHub
-                        issue for the maintainers.
-                    </DialogDescription>
-                </DialogHeader>
-
-                {issueUrl ? (
-                    <div className="flex flex-col items-center gap-3 py-4 text-center">
-                        <CheckCircle2 className="size-8 text-primary" />
-                        <p className="text-sm">
-                            Thanks — your report was filed.
-                        </p>
-                        <a
-                            href={issueUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-sm text-primary underline underline-offset-4"
-                        >
-                            View issue on GitHub
-                        </a>
-                        <DialogClose
-                            render={<Button variant="outline" />}
-                            onClick={() => handleOpenChange(false)}
-                        >
-                            Done
-                        </DialogClose>
-                    </div>
-                ) : (
-                    <form
-                        onSubmit={handleSubmit}
-                        className="flex flex-col gap-3"
+        <GameDialog
+            open={open}
+            onOpenChange={handleOpenChange}
+            title="Report a bug"
+            subtitle="Describe the problem. It is filed directly as a GitHub issue for the maintainers."
+            showCloseButton
+            footer={
+                issueUrl ? (
+                    <Button
+                        variant="secondary"
+                        onClick={() => handleOpenChange(false)}
                     >
-                        <label className="flex flex-col gap-1 text-sm font-medium">
-                            Name
-                            <Input
-                                value={nameValue}
-                                onChange={(e) => {
-                                    setNameDirty(true);
-                                    setName(e.target.value);
-                                }}
-                                placeholder="Your name"
-                                disabled={submitting}
-                            />
-                        </label>
-                        <label className="flex flex-col gap-1 text-sm font-medium">
-                            Email
-                            <Input
-                                type="email"
-                                value={emailValue}
-                                onChange={(e) => {
-                                    setEmailDirty(true);
-                                    setEmail(e.target.value);
-                                }}
-                                placeholder="you@example.com"
-                                disabled={submitting}
-                            />
-                        </label>
-                        <label className="flex flex-col gap-1 text-sm font-medium">
-                            Description
-                            <Textarea
-                                value={description}
-                                onChange={(e) => setDescription(e.target.value)}
-                                placeholder="What happened? What did you expect?"
-                                rows={5}
-                                required
-                                disabled={submitting}
-                            />
-                        </label>
-                        <label className="flex flex-col gap-1 text-sm font-medium">
-                            Attachment (optional)
-                            <Input
-                                type="file"
-                                onChange={(e) =>
-                                    setFile(e.target.files?.[0] ?? null)
-                                }
-                                disabled={submitting}
-                            />
-                        </label>
+                        Done
+                    </Button>
+                ) : (
+                    <>
+                        <Button
+                            variant="secondary"
+                            type="button"
+                            onClick={() => handleOpenChange(false)}
+                            disabled={submitting}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            type="submit"
+                            form="bug-report-form"
+                            disabled={!canSubmit}
+                        >
+                            {submitting && <Loader2 className="animate-spin" />}
+                            {submitting ? "Filing…" : "Submit"}
+                        </Button>
+                    </>
+                )
+            }
+        >
+            {issueUrl ? (
+                <div className="flex flex-col items-center gap-3 py-4 text-center">
+                    <CheckCircle2 className="size-8 text-primary" />
+                    <p className="text-sm">Thanks — your report was filed.</p>
+                    <a
+                        href={issueUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-sm text-primary underline underline-offset-4"
+                    >
+                        View issue on GitHub
+                    </a>
+                </div>
+            ) : (
+                <form
+                    id="bug-report-form"
+                    onSubmit={handleSubmit}
+                    className="flex flex-col gap-3"
+                >
+                    <label className="flex flex-col gap-1 text-sm font-medium">
+                        Name
+                        <Input
+                            value={nameValue}
+                            onChange={(e) => {
+                                setNameDirty(true);
+                                setName(e.target.value);
+                            }}
+                            placeholder="Your name"
+                            disabled={submitting}
+                        />
+                    </label>
+                    <label className="flex flex-col gap-1 text-sm font-medium">
+                        Email
+                        <Input
+                            type="email"
+                            value={emailValue}
+                            onChange={(e) => {
+                                setEmailDirty(true);
+                                setEmail(e.target.value);
+                            }}
+                            placeholder="you@example.com"
+                            disabled={submitting}
+                        />
+                    </label>
+                    <label className="flex flex-col gap-1 text-sm font-medium">
+                        Description
+                        <Textarea
+                            value={description}
+                            onChange={(e) => setDescription(e.target.value)}
+                            placeholder="What happened? What did you expect?"
+                            rows={5}
+                            required
+                            disabled={submitting}
+                        />
+                    </label>
+                    <label className="flex flex-col gap-1 text-sm font-medium">
+                        Attachment (optional)
+                        <Input
+                            type="file"
+                            onChange={(e) =>
+                                setFile(e.target.files?.[0] ?? null)
+                            }
+                            disabled={submitting}
+                        />
+                    </label>
 
-                        {error && (
-                            <p className="text-sm text-destructive">{error}</p>
-                        )}
-
-                        <DialogFooter>
-                            <DialogClose
-                                render={
-                                    <Button variant="outline" type="button" />
-                                }
-                                disabled={submitting}
-                            >
-                                Cancel
-                            </DialogClose>
-                            <Button type="submit" disabled={!canSubmit}>
-                                {submitting && (
-                                    <Loader2 className="animate-spin" />
-                                )}
-                                {submitting ? "Filing…" : "Submit"}
-                            </Button>
-                        </DialogFooter>
-                    </form>
-                )}
-            </DialogContent>
-        </Dialog>
+                    {error && (
+                        <Banner tone="danger" role="alert">
+                            {error}
+                        </Banner>
+                    )}
+                </form>
+            )}
+        </GameDialog>
     );
 }

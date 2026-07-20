@@ -134,7 +134,7 @@ describe("useBattlefieldVisualState — attack a planeswalker (#1220, CR 508.1a)
         });
 
         const vs = result.current.getVisualState(pw);
-        expect(vs.ringClass).toContain("emerald");
+        expect(vs.ringClass).toContain("signal-self");
     });
 
     it("with no attacker declared yet, the planeswalker is not an attack target", () => {

@@ -60,7 +60,7 @@ export default function ActionSheet({
     return createPortal(
         <div
             ref={backdropRef}
-            className={`fixed inset-0 z-100 transition-colors duration-200 ${animIn ? "bg-black/50" : "bg-transparent"}`}
+            className={`z-modal fixed inset-0 transition-colors duration-200 ${animIn ? "bg-scrim" : "bg-transparent"}`}
             onClick={handleClose}
             onTouchEnd={(e) => {
                 e.preventDefault();

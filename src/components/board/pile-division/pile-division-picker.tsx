@@ -20,6 +20,8 @@ import type { Id } from "@convex/_generated/dataModel";
 import type { CardInstance, PendingChoice } from "~/types/game";
 import { formatOracleText } from "~/lib/oracle-text";
 import { useDraggable } from "~/hooks/useDraggable";
+import { Panel } from "~/components/ui/panel";
+import { Button } from "~/components/ui/button";
 import MinimizeChoiceButton from "~/components/board/minimize-choice-button";
 import PileZone from "./pile-zone";
 import PileCard from "./pile-card";
@@ -215,16 +217,15 @@ export default function PileDivisionPicker({
 
     return (
         <div
-            className="absolute top-1/2 left-1/2 z-100 pointer-events-none"
+            className="absolute top-1/2 left-1/2 z-modal pointer-events-none"
             style={{
                 transform: `translate(calc(-50% + ${offset.x}px), calc(-50% + ${offset.y}px))`,
             }}
         >
-            <div className="relative flex flex-col items-center gap-2 bg-surface border border-border-subtle backdrop-blur-md rounded-sm px-5 py-3 shadow-[0_0_50px_rgba(0,0,0,0.8)] select-none pointer-events-auto">
-                <div className="absolute top-1.5 left-1.5 w-3 h-3 border-t border-l border-border-accent/40" />
-                <div className="absolute top-1.5 right-1.5 w-3 h-3 border-t border-r border-border-accent/40" />
-                <div className="absolute bottom-1.5 left-1.5 w-3 h-3 border-b border-l border-border-accent/40" />
-                <div className="absolute bottom-1.5 right-1.5 w-3 h-3 border-b border-r border-border-accent/40" />
+            <Panel
+                density="compact"
+                className="flex flex-col items-center gap-2 px-5 py-3 pointer-events-auto"
+            >
                 <MinimizeChoiceButton className="absolute top-1.5 right-1.5" />
 
                 {/* Header — draggable handle for the whole dialog. */}
@@ -297,22 +298,24 @@ export default function PileDivisionPicker({
                 {/* Footer actions. */}
                 {isPick ? (
                     <div className="flex gap-2 mt-1">
-                        <button
+                        <Button
                             type="button"
+                            variant="primary"
+                            size="sm"
                             disabled={busy}
-                            className="px-3 py-1.5 rounded-sm text-xs font-beleren tracking-wide bg-accent-soft border border-accent text-accent-strong hover:bg-accent-soft/80 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
                             onClick={() => takePile("A")}
                         >
                             Take Pile A
-                        </button>
-                        <button
+                        </Button>
+                        <Button
                             type="button"
+                            variant="primary"
+                            size="sm"
                             disabled={busy}
-                            className="px-3 py-1.5 rounded-sm text-xs font-beleren tracking-wide bg-accent-soft border border-accent text-accent-strong hover:bg-accent-soft/80 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
                             onClick={() => takePile("B")}
                         >
                             Take Pile B
-                        </button>
+                        </Button>
                     </div>
                 ) : (
                     <div className="flex flex-col items-center gap-1 mt-1">
@@ -323,17 +326,18 @@ export default function PileDivisionPicker({
                                 into a pile
                             </p>
                         )}
-                        <button
+                        <Button
                             type="button"
+                            variant="primary"
+                            size="sm"
                             disabled={!canConfirm}
-                            className="px-3 py-1.5 rounded-sm text-xs font-beleren tracking-wide bg-accent-soft border border-accent text-accent-strong hover:bg-accent-soft/80 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
                             onClick={submitDivide}
                         >
                             Done
-                        </button>
+                        </Button>
                     </div>
                 )}
-            </div>
+            </Panel>
         </div>
     );
 }

@@ -20,6 +20,8 @@ import {
     pendingChoiceMin,
     pendingChoiceMax,
 } from "~/lib/pending-choice-confirm";
+import { Panel } from "~/components/ui/panel";
+import { Button } from "~/components/ui/button";
 import PendingChoiceOptions from "~/components/board/pending-choice-options";
 import CardNameInput from "~/components/board/card-name-input";
 import CardImage from "~/components/cards/card-image";
@@ -225,251 +227,265 @@ export default function PendingChoicePrompt({
 
     return (
         <div
-            className="absolute top-1/2 left-1/2 z-100 pointer-events-none"
+            className="absolute top-1/2 left-1/2 z-modal pointer-events-none"
             style={{
                 transform: `translate(calc(-50% + ${offset.x}px), calc(-50% + ${offset.y}px))`,
             }}
         >
+            {/* Drag chrome stays on a plain wrapper — Panel forwards no
+                handlers, so the frame lives inside it. */}
             <div
                 {...dragHandlers}
-                className="relative flex flex-col items-center gap-2 bg-surface border border-border-subtle backdrop-blur-md rounded-sm px-5 py-3 shadow-[0_0_50px_rgba(0,0,0,0.8)] cursor-move select-none pointer-events-auto max-h-[90vh] overflow-y-auto"
+                className="cursor-move select-none pointer-events-auto"
             >
-                <div className="absolute top-1.5 left-1.5 w-3 h-3 border-t border-l border-border-accent/40" />
-                <div className="absolute top-1.5 right-1.5 w-3 h-3 border-t border-r border-border-accent/40" />
-                <div className="absolute bottom-1.5 left-1.5 w-3 h-3 border-b border-l border-border-accent/40" />
-                <div className="absolute bottom-1.5 right-1.5 w-3 h-3 border-b border-r border-border-accent/40" />
-
-                {isChooser ? (
-                    <>
-                        <MinimizeChoiceButton className="absolute top-1.5 right-1.5" />
-                        <div className="flex flex-col items-center text-center gap-1">
-                            <p className="font-beleren text-sm tracking-wide text-parchment">
-                                {sourceLabel}
-                            </p>
-                            <div className="h-[1px] w-full bg-gradient-to-r from-transparent via-border-accent/40 to-transparent" />
-                            <p className="text-text-muted text-xs">
-                                {formatOracleText(choice.prompt)}
-                            </p>
-                        </div>
-                        {choice.subjectCardId && (
-                            // CR 303.4f — show WHICH card the choice is about
-                            // (e.g. the reanimated Aura, held off every zone).
-                            <div className="w-28 shrink-0">
-                                <CardImage
-                                    card={{ id: choice.subjectCardId }}
-                                    sizes="112px"
-                                    includeThumb={false}
-                                />
+                <Panel
+                    density="compact"
+                    className="flex max-h-[90vh] flex-col items-center gap-2 overflow-y-auto px-5 py-3"
+                >
+                    {isChooser ? (
+                        <>
+                            <MinimizeChoiceButton className="absolute top-1.5 right-1.5" />
+                            <div className="flex flex-col items-center text-center gap-1">
+                                <p className="font-beleren text-sm tracking-wide text-parchment">
+                                    {sourceLabel}
+                                </p>
+                                <div className="h-[1px] w-full bg-gradient-to-r from-transparent via-border-accent/40 to-transparent" />
+                                <p className="text-text-muted text-xs">
+                                    {formatOracleText(choice.prompt)}
+                                </p>
                             </div>
-                        )}
-                        {isMadnessCast ? (
-                            <div className="flex gap-2 mt-1">
-                                <button
-                                    type="button"
-                                    disabled={isBusy}
-                                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-sm text-xs font-beleren tracking-wide bg-accent-soft border border-accent text-accent-strong hover:bg-accent-soft/80 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
-                                    onClick={async () => {
-                                        if (isBusy || !choice.cardInstanceId)
-                                            return;
-                                        setIsBusy(true);
-                                        try {
-                                            // CR 702.35d — accept: cast the
-                                            // exiled card via the ordinary cast
-                                            // path (consumes this choice server-
-                                            // side, then runs targets/mana).
-                                            await announceCast({
-                                                gameId,
-                                                playerId,
-                                                cardInstanceId:
-                                                    choice.cardInstanceId,
-                                            });
-                                        } finally {
-                                            setIsBusy(false);
-                                        }
-                                    }}
-                                >
-                                    <span>Cast</span>
-                                    {madnessCostSymbols && (
-                                        <span className="inline-flex items-center">
-                                            {madnessCostSymbols}
-                                        </span>
-                                    )}
-                                </button>
-                                <button
-                                    type="button"
-                                    disabled={isBusy}
-                                    className="px-3 py-1.5 rounded-sm text-xs font-beleren tracking-wide bg-surface-elevated border border-border-accent/40 text-text-muted hover:bg-surface-elevated/80 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
-                                    onClick={async () => {
-                                        if (isBusy) return;
-                                        setIsBusy(true);
-                                        try {
-                                            // CR 702.35d — decline: send the card
-                                            // to the graveyard.
-                                            await submitMadnessDecline({
-                                                gameId,
-                                                playerId,
-                                            });
-                                        } finally {
-                                            setIsBusy(false);
-                                        }
-                                    }}
-                                >
-                                    Decline
-                                </button>
-                            </div>
-                        ) : isOptionPick ? (
-                            <PendingChoiceOptions
-                                options={choice.options ?? []}
-                                disabled={isBusy}
-                                onPick={async (id) => {
-                                    if (isBusy) return;
-                                    setIsBusy(true);
-                                    try {
-                                        // Single-select: submit the chosen
-                                        // option id directly (one id), bypassing
-                                        // the multi-pick buffer — no stale
-                                        // closure on the buffer contents.
-                                        await submitResolutionChoice({
-                                            gameId,
-                                            playerId,
-                                            stackItemId: choice.stackItemId,
-                                            step: choice.step,
-                                            choiceId: choice.choiceId,
-                                            cardInstanceIds: [id],
-                                        });
-                                    } finally {
-                                        setIsBusy(false);
-                                    }
-                                }}
-                            />
-                        ) : isNameCard ? (
-                            <CardNameInput
-                                disabled={isBusy}
-                                onSubmit={async (cardName) => {
-                                    if (isBusy) return;
-                                    setIsBusy(true);
-                                    try {
-                                        await submitNameCard({
-                                            gameId,
-                                            playerId,
-                                            cardName,
-                                        });
-                                    } finally {
-                                        setIsBusy(false);
-                                    }
-                                }}
-                            />
-                        ) : isYesNoPay ? (
-                            <>
-                                {needsSacrificePick && (
-                                    <p className="text-text-disabled text-xs">
-                                        {selected} / {sacrificePickCount}{" "}
-                                        selected — click a permanent to
-                                        sacrifice
-                                    </p>
-                                )}
-                                {sacrificeThreshold !== undefined && (
-                                    <p className="text-text-disabled text-xs">
-                                        {selectedSacrificePower} /{" "}
-                                        {sacrificeThreshold} power selected —
-                                        click creatures to sacrifice
-                                    </p>
-                                )}
-                                {needsDiscardPick && (
-                                    <p className="text-text-disabled text-xs">
-                                        {selected} / {discardPickCount} selected
-                                        — click a card in hand to discard
-                                    </p>
-                                )}
+                            {choice.subjectCardId && (
+                                // CR 303.4f — show WHICH card the choice is about
+                                // (e.g. the reanimated Aura, held off every zone).
+                                <div className="w-28 shrink-0">
+                                    <CardImage
+                                        card={{ id: choice.subjectCardId }}
+                                        sizes="112px"
+                                        includeThumb={false}
+                                    />
+                                </div>
+                            )}
+                            {isMadnessCast ? (
                                 <div className="flex gap-2 mt-1">
-                                    <button
+                                    <Button
                                         type="button"
-                                        disabled={!canConfirm}
-                                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-sm text-xs font-beleren tracking-wide bg-accent-soft border border-accent text-accent-strong hover:bg-accent-soft/80 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
-                                        onClick={() => primary?.confirm()}
-                                    >
-                                        {choice.cost ? (
-                                            <>
-                                                <span>Pay</span>
-                                                <span className="inline-flex items-center">
-                                                    {costSymbols}
-                                                </span>
-                                            </>
-                                        ) : (
-                                            "Yes"
-                                        )}
-                                    </button>
-                                    <button
-                                        type="button"
+                                        variant="primary"
+                                        size="sm"
                                         disabled={isBusy}
-                                        className="px-3 py-1.5 rounded-sm text-xs font-beleren tracking-wide bg-surface-elevated border border-border-accent/40 text-text-muted hover:bg-surface-elevated/80 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
                                         onClick={async () => {
-                                            if (isBusy) return;
+                                            if (
+                                                isBusy ||
+                                                !choice.cardInstanceId
+                                            )
+                                                return;
                                             setIsBusy(true);
                                             try {
-                                                // CR 614.12 / ADR 0051 / #735 —
-                                                // decline routes to the kind's own
-                                                // mutation.
-                                                if (isLandEntry) {
-                                                    await submitLandEntryChoice(
-                                                        {
-                                                            gameId,
-                                                            playerId,
-                                                            accept: false,
-                                                        }
-                                                    );
-                                                } else if (isDrawReplacement) {
-                                                    await submitDrawReplacementPay(
-                                                        {
-                                                            gameId,
-                                                            playerId,
-                                                            accept: false,
-                                                        }
-                                                    );
-                                                } else {
-                                                    await submitMayPay({
-                                                        gameId,
-                                                        playerId,
-                                                        accept: false,
-                                                    });
-                                                }
+                                                // CR 702.35d — accept: cast the
+                                                // exiled card via the ordinary cast
+                                                // path (consumes this choice server-
+                                                // side, then runs targets/mana).
+                                                await announceCast({
+                                                    gameId,
+                                                    playerId,
+                                                    cardInstanceId:
+                                                        choice.cardInstanceId,
+                                                });
                                             } finally {
                                                 setIsBusy(false);
                                             }
                                         }}
                                     >
-                                        {choice.cost ? "Skip" : "No"}
-                                    </button>
+                                        <span>Cast</span>
+                                        {madnessCostSymbols && (
+                                            <span className="inline-flex items-center">
+                                                {madnessCostSymbols}
+                                            </span>
+                                        )}
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        disabled={isBusy}
+                                        onClick={async () => {
+                                            if (isBusy) return;
+                                            setIsBusy(true);
+                                            try {
+                                                // CR 702.35d — decline: send the card
+                                                // to the graveyard.
+                                                await submitMadnessDecline({
+                                                    gameId,
+                                                    playerId,
+                                                });
+                                            } finally {
+                                                setIsBusy(false);
+                                            }
+                                        }}
+                                    >
+                                        Decline
+                                    </Button>
                                 </div>
-                            </>
-                        ) : (
-                            <>
-                                <p className="text-text-disabled text-xs">
-                                    {selected} / {max} selected
-                                    {min < max && remaining > 0
-                                        ? ` — click ${remaining === 1 ? "one more" : `up to ${remaining} more`}`
-                                        : ""}
-                                </p>
-                                <button
-                                    type="button"
-                                    disabled={!canConfirm}
-                                    className="mt-1 px-3 py-1.5 rounded-sm text-xs font-beleren tracking-wide bg-accent-soft border border-accent text-accent-strong hover:bg-accent-soft/80 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
-                                    onClick={() => primary?.confirm()}
-                                >
-                                    {submitLabel}
-                                </button>
-                            </>
-                        )}
-                    </>
-                ) : (
-                    <p className="text-text-muted text-xs text-center">
-                        Waiting for{" "}
-                        <span className="font-beleren text-parchment">
-                            {chooserName}
-                        </span>{" "}
-                        — {choice.prompt}
-                    </p>
-                )}
+                            ) : isOptionPick ? (
+                                <PendingChoiceOptions
+                                    options={choice.options ?? []}
+                                    disabled={isBusy}
+                                    onPick={async (id) => {
+                                        if (isBusy) return;
+                                        setIsBusy(true);
+                                        try {
+                                            // Single-select: submit the chosen
+                                            // option id directly (one id), bypassing
+                                            // the multi-pick buffer — no stale
+                                            // closure on the buffer contents.
+                                            await submitResolutionChoice({
+                                                gameId,
+                                                playerId,
+                                                stackItemId: choice.stackItemId,
+                                                step: choice.step,
+                                                choiceId: choice.choiceId,
+                                                cardInstanceIds: [id],
+                                            });
+                                        } finally {
+                                            setIsBusy(false);
+                                        }
+                                    }}
+                                />
+                            ) : isNameCard ? (
+                                <CardNameInput
+                                    disabled={isBusy}
+                                    onSubmit={async (cardName) => {
+                                        if (isBusy) return;
+                                        setIsBusy(true);
+                                        try {
+                                            await submitNameCard({
+                                                gameId,
+                                                playerId,
+                                                cardName,
+                                            });
+                                        } finally {
+                                            setIsBusy(false);
+                                        }
+                                    }}
+                                />
+                            ) : isYesNoPay ? (
+                                <>
+                                    {needsSacrificePick && (
+                                        <p className="text-text-disabled text-xs">
+                                            {selected} / {sacrificePickCount}{" "}
+                                            selected — click a permanent to
+                                            sacrifice
+                                        </p>
+                                    )}
+                                    {sacrificeThreshold !== undefined && (
+                                        <p className="text-text-disabled text-xs">
+                                            {selectedSacrificePower} /{" "}
+                                            {sacrificeThreshold} power selected
+                                            — click creatures to sacrifice
+                                        </p>
+                                    )}
+                                    {needsDiscardPick && (
+                                        <p className="text-text-disabled text-xs">
+                                            {selected} / {discardPickCount}{" "}
+                                            selected — click a card in hand to
+                                            discard
+                                        </p>
+                                    )}
+                                    <div className="flex gap-2 mt-1">
+                                        <Button
+                                            type="button"
+                                            variant="primary"
+                                            size="sm"
+                                            disabled={!canConfirm}
+                                            onClick={() => primary?.confirm()}
+                                        >
+                                            {choice.cost ? (
+                                                <>
+                                                    <span>Pay</span>
+                                                    <span className="inline-flex items-center">
+                                                        {costSymbols}
+                                                    </span>
+                                                </>
+                                            ) : (
+                                                "Yes"
+                                            )}
+                                        </Button>
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="sm"
+                                            disabled={isBusy}
+                                            onClick={async () => {
+                                                if (isBusy) return;
+                                                setIsBusy(true);
+                                                try {
+                                                    // CR 614.12 / ADR 0051 / #735 —
+                                                    // decline routes to the kind's own
+                                                    // mutation.
+                                                    if (isLandEntry) {
+                                                        await submitLandEntryChoice(
+                                                            {
+                                                                gameId,
+                                                                playerId,
+                                                                accept: false,
+                                                            }
+                                                        );
+                                                    } else if (
+                                                        isDrawReplacement
+                                                    ) {
+                                                        await submitDrawReplacementPay(
+                                                            {
+                                                                gameId,
+                                                                playerId,
+                                                                accept: false,
+                                                            }
+                                                        );
+                                                    } else {
+                                                        await submitMayPay({
+                                                            gameId,
+                                                            playerId,
+                                                            accept: false,
+                                                        });
+                                                    }
+                                                } finally {
+                                                    setIsBusy(false);
+                                                }
+                                            }}
+                                        >
+                                            {choice.cost ? "Skip" : "No"}
+                                        </Button>
+                                    </div>
+                                </>
+                            ) : (
+                                <>
+                                    <p className="text-text-disabled text-xs">
+                                        {selected} / {max} selected
+                                        {min < max && remaining > 0
+                                            ? ` — click ${remaining === 1 ? "one more" : `up to ${remaining} more`}`
+                                            : ""}
+                                    </p>
+                                    <Button
+                                        type="button"
+                                        variant="primary"
+                                        size="sm"
+                                        disabled={!canConfirm}
+                                        className="mt-1"
+                                        onClick={() => primary?.confirm()}
+                                    >
+                                        {submitLabel}
+                                    </Button>
+                                </>
+                            )}
+                        </>
+                    ) : (
+                        <p className="text-text-muted text-xs text-center">
+                            Waiting for{" "}
+                            <span className="font-beleren text-parchment">
+                                {chooserName}
+                            </span>{" "}
+                            — {choice.prompt}
+                        </p>
+                    )}
+                </Panel>
             </div>
         </div>
     );

@@ -3,6 +3,7 @@ import { FORMAT_RULES } from "@convex/formats";
 import type { LobbyDeck } from "~/lib/deckTypes";
 import { cn } from "~/lib/utils";
 import { Panel, PanelHeader, PanelBody } from "~/components/ui/panel";
+import { Banner } from "~/components/ui/banner";
 import ActionButton from "~/components/board/action-button";
 import ManaSymbol from "../cards/mana-symbol";
 import FeaturedDeckArt from "./featured-deck-art";
@@ -110,11 +111,7 @@ export default function DashboardPlayBox({
                 </div>
 
                 {selectedDeck && !selectedDeck.isLegal && (
-                    <div
-                        role="status"
-                        aria-live="polite"
-                        className="rounded-sm border border-danger/50 bg-danger/10 px-4 py-3 text-sm text-danger"
-                    >
+                    <Banner tone="danger" role="status" aria-live="polite">
                         <p className="font-semibold">
                             This deck is not legal for its format and cannot
                             start a game.
@@ -123,13 +120,13 @@ export default function DashboardPlayBox({
                             {selectedDeck.reasons.map((r) => (
                                 <li
                                     key={`${r.code}:${r.message}`}
-                                    className="text-danger/90"
+                                    className="text-danger-strong/90"
                                 >
                                     {r.message}
                                 </li>
                             ))}
                         </ul>
-                    </div>
+                    </Banner>
                 )}
 
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">

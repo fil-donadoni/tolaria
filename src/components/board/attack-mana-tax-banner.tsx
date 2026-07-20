@@ -4,6 +4,8 @@ import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import type { AttackManaTaxPayment } from "~/types/game";
 import { useDraggable } from "~/hooks/useDraggable";
+import { Panel } from "~/components/ui/panel";
+import { Button } from "~/components/ui/button";
 import ManaSymbol from "~/components/cards/mana-symbol";
 
 type Props = {
@@ -68,58 +70,62 @@ export default function AttackManaTaxBanner({
 
     return (
         <div
-            className="absolute top-1/2 left-1/2 z-100"
+            className="absolute top-1/2 left-1/2 z-modal"
             style={{
                 transform: `translate(calc(-50% + ${offset.x}px), calc(-50% + ${offset.y}px))`,
             }}
         >
-            <div
-                {...dragHandlers}
-                className="relative w-72 bg-surface border border-border-subtle backdrop-blur-md rounded-sm px-6 py-4 shadow-[0_0_50px_rgba(0,0,0,0.8)] cursor-move select-none"
-            >
-                <div className="absolute top-1.5 left-1.5 w-3 h-3 border-t border-l border-border-accent/40" />
-                <div className="absolute top-1.5 right-1.5 w-3 h-3 border-t border-r border-border-accent/40" />
-                <div className="absolute bottom-1.5 left-1.5 w-3 h-3 border-b border-l border-border-accent/40" />
-                <div className="absolute bottom-1.5 right-1.5 w-3 h-3 border-b border-r border-border-accent/40" />
+            {/* Drag chrome stays on a plain wrapper — Panel forwards no
+                handlers, so the frame lives inside it. */}
+            <div {...dragHandlers} className="cursor-move select-none">
+                <Panel density="compact" className="w-72 px-6 py-4">
+                    <p className="text-center font-beleren text-sm tracking-wide text-parchment">
+                        Attack Tax
+                    </p>
+                    <div className="h-[1px] w-full bg-gradient-to-r from-transparent via-border-accent/50 to-transparent my-2.5" />
 
-                <p className="text-center font-beleren text-sm tracking-wide text-parchment">
-                    Attack Tax
-                </p>
-                <div className="h-[1px] w-full bg-gradient-to-r from-transparent via-border-accent/50 to-transparent my-2.5" />
+                    <div className="flex items-center justify-center gap-1.5 py-1">
+                        {symbols.map((s, i) => (
+                            <ManaSymbol
+                                key={`${s}-${i}`}
+                                symbol={s}
+                                className="size-7"
+                            />
+                        ))}
+                    </div>
+                    <p className="mt-1 text-center text-[11px] leading-snug text-text-muted">
+                        Pay this cost to legalize the attack, or cancel.
+                    </p>
 
-                <div className="flex items-center justify-center gap-1.5 py-1">
-                    {symbols.map((s, i) => (
-                        <ManaSymbol
-                            key={`${s}-${i}`}
-                            symbol={s}
-                            className="size-7"
-                        />
-                    ))}
-                </div>
-                <p className="mt-1 text-center text-[11px] leading-snug text-text-muted">
-                    Pay this cost to legalize the attack, or cancel.
-                </p>
-
-                <div className="mt-3 flex gap-2.5">
-                    <button
-                        type="button"
-                        onClick={() => run(() => autoTap({ gameId, playerId }))}
-                        onPointerDown={(e) => e.stopPropagation()}
-                        disabled={busy}
-                        className="flex-1 rounded-sm border border-success bg-success-soft px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-success-strong hover:bg-success-soft/80 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                        Auto-tap
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => run(() => cancel({ gameId, playerId }))}
-                        onPointerDown={(e) => e.stopPropagation()}
-                        disabled={busy}
-                        className="flex-1 rounded-sm border border-danger bg-danger-soft px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-danger-strong hover:bg-danger-soft/80 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                        Cancel
-                    </button>
-                </div>
+                    <div className="mt-3 flex gap-2.5">
+                        <Button
+                            type="button"
+                            variant="primary"
+                            size="sm"
+                            onClick={() =>
+                                run(() => autoTap({ gameId, playerId }))
+                            }
+                            onPointerDown={(e) => e.stopPropagation()}
+                            disabled={busy}
+                            className="flex-1"
+                        >
+                            Auto-tap
+                        </Button>
+                        <Button
+                            type="button"
+                            variant="destructive"
+                            size="sm"
+                            onClick={() =>
+                                run(() => cancel({ gameId, playerId }))
+                            }
+                            onPointerDown={(e) => e.stopPropagation()}
+                            disabled={busy}
+                            className="flex-1"
+                        >
+                            Cancel
+                        </Button>
+                    </div>
+                </Panel>
             </div>
         </div>
     );

@@ -156,7 +156,7 @@ export default function BoardBattlefieldCard({
     const ptDamageStack = creature ? (
         <div className="absolute bottom-1.5 right-1.5 flex flex-col items-end gap-0.5 pointer-events-none z-20">
             {damage > 0 && (
-                <div className="bg-red-600 px-1 py-0.5 rounded-xs text-[10px] font-bold text-white leading-none drop-shadow-[0_0_2px_rgba(0,0,0,0.9)]">
+                <div className="bg-danger px-1 py-0.5 rounded-xs text-[10px] font-bold text-white leading-none drop-shadow-[0_0_2px_rgba(0,0,0,0.9)]">
                     {damage}
                 </div>
             )}

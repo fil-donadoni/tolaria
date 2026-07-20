@@ -7,7 +7,7 @@ import { formatOracleText } from "~/lib/oracle-text";
 
 const KEYWORD_STATE_CLASS: Record<AbilityDisplayState, string> = {
     native: "text-text",
-    granted: "text-emerald-400",
+    granted: "text-success-strong",
     lost: "text-text-muted line-through opacity-70",
 };
 
@@ -34,7 +34,7 @@ function AbilityRow({
     text: string;
     state: "native" | "granted";
 }) {
-    const cls = state === "granted" ? "text-emerald-400" : "text-text";
+    const cls = state === "granted" ? "text-success-strong" : "text-text";
     const prefix = state === "granted" ? "[+] " : "";
     return (
         <div className={cls}>

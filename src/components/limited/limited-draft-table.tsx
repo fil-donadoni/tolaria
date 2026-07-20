@@ -13,6 +13,7 @@ import {
     type LimitedEventSeatView,
 } from "~/hooks/useLimitedEvent";
 import CardImage from "~/components/cards/card-image";
+import { Banner } from "@/components/ui/banner";
 import CardZoomSlider from "~/components/lobby/deck-builder/card-zoom-slider";
 import { useCardZoom } from "~/components/lobby/deck-builder/useCardZoom";
 import LimitedDraftPack from "./limited-draft-pack";
@@ -223,11 +224,7 @@ export default function LimitedDraftTable({
                     </div>
                 </div>
 
-                {error && (
-                    <div className="rounded-sm border border-danger/50 bg-danger/10 px-4 py-3 text-sm text-danger">
-                        {error}
-                    </div>
-                )}
+                {error && <Banner tone="danger">{error}</Banner>}
 
                 <LimitedDraftPack
                     pack={pack}

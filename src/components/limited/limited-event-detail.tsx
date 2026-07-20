@@ -7,6 +7,8 @@ import {
     useLimitedEventMutations,
 } from "~/hooks/useLimitedEvent";
 import { Panel, PanelHeader, PanelBody } from "~/components/ui/panel";
+import { Banner } from "@/components/ui/banner";
+import { Button } from "@/components/ui/button";
 import LoadingScreen from "~/components/ui/loading-screen";
 import ActionButton from "~/components/board/action-button";
 import LimitedEventSeatList from "./limited-event-seat-list";
@@ -81,18 +83,16 @@ export default function LimitedEventDetail({
                 subtitle={`${event.type} — ${event.packSlots.join(", ").toUpperCase()} — ${event.status}`}
             />
             <PanelBody>
-                <button
+                <Button
+                    variant="link"
+                    size="sm"
                     onClick={handleBack}
-                    className="self-start text-xs text-text-muted hover:underline"
+                    className="self-start"
                 >
                     ← Back to Limited Events
-                </button>
+                </Button>
 
-                {error && (
-                    <div className="rounded-sm border border-danger/50 bg-danger/10 px-4 py-3 text-sm text-danger">
-                        {error}
-                    </div>
-                )}
+                {error && <Banner tone="danger">{error}</Banner>}
 
                 {draftInProgress ? (
                     <LimitedEventSeatsDisclosure event={event} />

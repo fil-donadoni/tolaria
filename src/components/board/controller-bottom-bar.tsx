@@ -3,6 +3,7 @@ import { ChevronUp } from "lucide-react";
 import { useGameContext } from "~/hooks/useGameContext";
 import { useControllerActions } from "~/hooks/useControllerActions";
 import { phaseGroupLabel, phaseLabel } from "~/lib/phase-labels";
+import { Button } from "~/components/ui/button";
 import ActionButton from "./action-button";
 import ControllerPhaseSheet from "./controller-phase-sheet";
 import PauseMenuButton from "./pause-menu-button";
@@ -40,15 +41,17 @@ export default function ControllerBottomBar({
                 data-controller-bottom-bar
                 data-cue={cue}
                 className={`fixed inset-x-2 bottom-2 z-40 flex flex-col gap-2 rounded-2xl border bg-surface-base p-2 shadow-2xl backdrop-blur-md md:hidden ${
-                    isMyTurn ? "border-emerald-500/60" : "border-rose-500/40"
+                    isMyTurn
+                        ? "border-signal-self/60"
+                        : "border-signal-opponent/40"
                 }`}
             >
                 <div className="flex items-stretch gap-2">
                     <span
                         className={`flex items-center rounded-lg px-2 text-[11px] font-bold uppercase tracking-wider ${
                             isMyTurn
-                                ? "bg-emerald-500/20 text-emerald-300"
-                                : "bg-rose-500/20 text-rose-300"
+                                ? "bg-signal-self/20 text-signal-self-strong"
+                                : "bg-signal-opponent/20 text-signal-opponent-strong"
                         }`}
                     >
                         {isMyTurn ? "You" : "Opp"}
@@ -83,19 +86,20 @@ export default function ControllerBottomBar({
                                 {primary.label}
                             </button>
                         ) : (
-                            <button
+                            <Button
                                 type="button"
+                                variant={
+                                    primary.tone === "destructive"
+                                        ? "destructive"
+                                        : "primary"
+                                }
                                 onClick={primary.onClick}
                                 disabled={primary.disabled}
-                                className={`flex-1 rounded-xl px-3 font-beleren text-sm font-bold ${
-                                    primary.tone === "destructive"
-                                        ? "btn-tone-destructive"
-                                        : "btn-tone-primary"
-                                } ${primary.disabled ? "btn-disabled" : ""}`}
+                                className="flex-1 rounded-xl px-3 text-sm font-bold"
                                 style={{ minHeight: 48 }}
                             >
                                 {primary.label}
-                            </button>
+                            </Button>
                         ))}
                 </div>
 

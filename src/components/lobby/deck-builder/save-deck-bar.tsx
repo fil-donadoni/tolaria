@@ -1,3 +1,5 @@
+import { Button } from "~/components/ui/button";
+
 interface SaveDeckBarProps {
     name: string;
     onChangeName: (name: string) => void;
@@ -34,20 +36,24 @@ export default function SaveDeckBar({
             </span>
             <div className="flex items-center gap-2 ml-auto">
                 {onDelete && (
-                    <button
+                    <Button
                         type="button"
+                        variant="destructive"
+                        size="sm"
                         onClick={onDelete}
-                        className="btn-base btn-tone-destructive px-3 py-1.5 text-xs md:px-4 md:py-2 md:text-sm"
+                        className="md:px-4 md:py-2 md:text-sm"
                     >
                         Delete
-                    </button>
+                    </Button>
                 )}
-                <button
+                <Button
                     type="submit"
-                    className="btn-base btn-tone-primary px-3 py-1.5 text-xs md:px-4 md:py-2 md:text-sm"
+                    variant="primary"
+                    size="sm"
+                    className="md:px-4 md:py-2 md:text-sm"
                 >
                     Done
-                </button>
+                </Button>
             </div>
         </form>
     );

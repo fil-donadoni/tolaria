@@ -23,6 +23,7 @@ import { useGameContext } from "~/hooks/useGameContext";
 import { useArrowHighlight } from "~/hooks/arrowHighlightContext";
 import { useDraggable } from "~/hooks/useDraggable";
 import { repositionLeaderLines } from "~/hooks/use-leader-lines";
+import { Panel } from "~/components/ui/panel";
 import DragHandle from "./drag-handle";
 import StackAbilityTile from "./stack-ability-tile";
 import StackModeLines from "./stack-mode-lines";
@@ -73,7 +74,7 @@ export default function GameStack({ stack }: GameStackProps) {
             // viewport. `--right-piles-w` resolves in-tree under
             // `data-board-root`; portrait ⇒ 0px ⇒ flush to the viewport edge
             // (and the portrait chip path renders the stack differently anyway).
-            className="absolute top-1/2 z-100"
+            className="absolute top-1/2 z-modal"
             style={{
                 right: "var(--right-piles-w)",
                 transform: `translate(${offset.x}px, calc(-50% + ${offset.y}px))`,
@@ -83,10 +84,9 @@ export default function GameStack({ stack }: GameStackProps) {
                 mounts inside this panel, and clipping it to the panel box would
                 hide the flight until it crosses the boundary. */}
             <div className="relative bg-surface border border-border-subtle rounded-sm shadow-[0_0_50px_rgba(0,0,0,0.8)] overflow-visible">
-                <div className="absolute top-1.5 left-1.5 w-3 h-3 border-t border-l border-border-accent/40 pointer-events-none z-10" />
-                <div className="absolute top-1.5 right-1.5 w-3 h-3 border-t border-r border-border-accent/40 pointer-events-none z-10" />
-                <div className="absolute bottom-1.5 left-1.5 w-3 h-3 border-b border-l border-border-accent/40 pointer-events-none z-10" />
-                <div className="absolute bottom-1.5 right-1.5 w-3 h-3 border-b border-r border-border-accent/40 pointer-events-none z-10" />
+                {/* Corner filigree only — the box keeps its own chrome so the
+                    flight layout above is untouched (least-intrusive frame). */}
+                <Panel overlay />
                 <DragHandle label="Stack" handlers={dragHandlers} />
                 <div className="flex items-start p-3">
                     {reversed.map((item, i) => {
@@ -223,7 +223,7 @@ export default function GameStack({ stack }: GameStackProps) {
                                     }}
                                     className={`w-32 flex flex-col items-center bg-transparent border-0 p-0 ${
                                         isTargetable
-                                            ? "cursor-pointer ring-2 ring-amber-400 rounded hover:ring-amber-300"
+                                            ? "cursor-pointer ring-2 ring-signal-target/60 rounded hover:ring-signal-target-strong"
                                             : "cursor-default"
                                     }`}
                                 >

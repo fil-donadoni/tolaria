@@ -4,6 +4,7 @@ import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import type { PendingChoice } from "~/types/game";
 import { useGameContext } from "~/hooks/useGameContext";
+import { Panel } from "~/components/ui/panel";
 import CoinFlipAnimation from "~/components/board/coin-flip-animation";
 
 /** Center-screen reveal for an engine-drawn random outcome (CR 705.2,
@@ -61,13 +62,11 @@ export default function RandomRevealOverlay({
     }
 
     return (
-        <div className="absolute inset-0 z-100 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-            <div className="relative flex flex-col items-center gap-4 rounded-sm border border-border-subtle bg-surface px-8 py-6 shadow-[0_0_60px_rgba(0,0,0,0.85)]">
-                <div className="absolute top-1.5 left-1.5 h-3 w-3 border-t border-l border-border-accent/40" />
-                <div className="absolute top-1.5 right-1.5 h-3 w-3 border-t border-r border-border-accent/40" />
-                <div className="absolute bottom-1.5 left-1.5 h-3 w-3 border-b border-l border-border-accent/40" />
-                <div className="absolute bottom-1.5 right-1.5 h-3 w-3 border-b border-r border-border-accent/40" />
-
+        <div className="absolute inset-0 z-modal flex items-center justify-center bg-scrim backdrop-blur-sm">
+            <Panel
+                density="compact"
+                className="flex flex-col items-center gap-4 px-8 py-6"
+            >
                 {choice.randomKind === "coin" && (
                     <CoinFlipAnimation
                         result={result}
@@ -82,7 +81,7 @@ export default function RandomRevealOverlay({
                 {consequence && (
                     <p className="text-xs text-text-muted">{consequence}</p>
                 )}
-            </div>
+            </Panel>
         </div>
     );
 }

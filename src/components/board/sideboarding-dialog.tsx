@@ -4,6 +4,7 @@ import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import type { PublicMatch } from "@convex/matches";
 import GameDialog from "~/components/ui/game-dialog";
+import { Button } from "~/components/ui/button";
 import { useGameContext } from "~/hooks/useGameContext";
 import {
     moveToMaindeck,
@@ -255,14 +256,16 @@ export default function SideboardingDialog({
                     </div>
                 )}
                 {opponent && <SideboardOpponentStatus opponent={opponent} />}
-                <button
+                <Button
                     type="button"
+                    variant="primary"
+                    size="sm"
                     onClick={() => void handleReady()}
                     disabled={!sizeOk || submitting}
-                    className="mt-1 w-full py-2.5 rounded-sm bg-accent-soft border border-accent text-accent-strong font-beleren tracking-wide hover:bg-accent-soft/80 transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
+                    className="mt-1 w-full"
                 >
                     {submitting ? "Confirming…" : "Ready"}
-                </button>
+                </Button>
             </div>
         </GameDialog>
     );

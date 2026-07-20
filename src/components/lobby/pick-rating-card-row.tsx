@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import type { ScopeCardRating } from "~/hooks/useCardRatings";
 import { PICK_RATING_MIN, PICK_RATING_MAX } from "@convex/limited/pickRatings";
@@ -91,22 +92,24 @@ export default function PickRatingCardRow({
                 onChange={(e) => setValue(e.currentTarget.value)}
                 className="w-20"
             />
-            <button
+            <Button
                 type="button"
+                variant="primary"
+                size="xs"
                 onClick={() => void handleSave()}
                 disabled={pending || !isValidInput}
-                className="btn-base btn-tone-primary px-2 py-1 text-xs disabled:cursor-not-allowed disabled:opacity-50"
             >
                 {pending ? "Saving…" : "Save"}
-            </button>
-            <button
+            </Button>
+            <Button
                 type="button"
+                variant="ghost"
+                size="xs"
                 onClick={() => void handleClear()}
                 disabled={pending || card.dbRating === null}
-                className="btn-base btn-tone-ghost px-2 py-1 text-xs disabled:cursor-not-allowed disabled:opacity-50"
             >
                 Clear
-            </button>
+            </Button>
             {error && (
                 <span className="text-[11px] text-danger-strong">{error}</span>
             )}

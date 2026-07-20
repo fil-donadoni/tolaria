@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { FORMAT_RULES } from "@convex/formats";
 import type { LobbyDeck } from "~/lib/deckTypes";
-import { cn } from "~/lib/utils";
 import ManaSymbol from "../cards/mana-symbol";
 import ActionButton from "../board/action-button";
+import { Button } from "../ui/button";
 import GameDialog from "../ui/game-dialog";
 import ManaPileView from "./mana-pile-view";
 
@@ -60,16 +60,13 @@ export default function DeckDetail({
                                 tone="destructive"
                             />
                         )}
-                        <button
+                        <Button
+                            variant="primary"
                             onClick={onSelect}
                             disabled={isSelected}
-                            className={cn(
-                                "btn-base px-4 py-2 text-sm",
-                                isSelected ? "btn-disabled" : "btn-tone-primary"
-                            )}
                         >
                             {isSelected ? "Selected" : "Select this deck"}
-                        </button>
+                        </Button>
                     </div>
                 </div>
             </div>

@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
 import type { Color, ManaCost } from "~/types/cards";
 import { colors } from "~/types/cards";
+import { Panel } from "~/components/ui/panel";
 
 const VIEWPORT_PAD = 8;
 
@@ -74,59 +75,63 @@ export default function ManaChoicePicker({
 
     return (
         <>
-            <div className="fixed inset-0 z-40" onClick={onCancel} />
+            <div className="fixed inset-0 z-hud" onClick={onCancel} />
+            {/* Positioning/ref/style stay on a plain wrapper — Panel forwards
+                none of them; the frame lives inside it. */}
             <div
                 ref={measureRef}
-                className="fixed z-100 flex flex-col gap-1 overflow-y-auto rounded-lg bg-black/90 p-2 shadow-xl ring-1 ring-white/20"
+                className="fixed z-modal overflow-y-auto"
                 style={style}
             >
-                {choices.map((cost, i) => {
-                    // A choice may be a single pip ({B:2}) or a multi-colour
-                    // combination ({U:1,B:1}). Expand every coloured pip so the
-                    // button shows the full mana it produces, not just the first.
-                    const pips: Color[] = colors.flatMap((c) =>
-                        Array.from({ length: cost[c] ?? 0 }, () => c)
-                    );
-                    // A board-conditional non-tap chooser (Vivi Ornitier at 0
-                    // power, issue #1179) can legally produce a ZERO-mana
-                    // option (CR 605.1a — still a legal, if useless,
-                    // activation). Render it as an explicit "0" entry rather
-                    // than silently dropping the button — every existing
-                    // tap-based choice list has a minimum of 1 mana, so this
-                    // branch never fires for them.
-                    if (!pips.length) {
+                <Panel density="compact" className="flex flex-col gap-1 p-4">
+                    {choices.map((cost, i) => {
+                        // A choice may be a single pip ({B:2}) or a multi-colour
+                        // combination ({U:1,B:1}). Expand every coloured pip so the
+                        // button shows the full mana it produces, not just the first.
+                        const pips: Color[] = colors.flatMap((c) =>
+                            Array.from({ length: cost[c] ?? 0 }, () => c)
+                        );
+                        // A board-conditional non-tap chooser (Vivi Ornitier at 0
+                        // power, issue #1179) can legally produce a ZERO-mana
+                        // option (CR 605.1a — still a legal, if useless,
+                        // activation). Render it as an explicit "0" entry rather
+                        // than silently dropping the button — every existing
+                        // tap-based choice list has a minimum of 1 mana, so this
+                        // branch never fires for them.
+                        if (!pips.length) {
+                            return (
+                                <button
+                                    key={i}
+                                    className="flex items-center justify-center gap-0.5 rounded-full bg-white/5 px-2 py-1 cursor-pointer ring-1 ring-white/15 transition-colors hover:bg-white/15"
+                                    onClick={() => onSelect(i)}
+                                    title="Add no mana"
+                                >
+                                    <span className="flex size-6 shrink-0 items-center justify-center text-xs font-semibold text-text/80">
+                                        0
+                                    </span>
+                                </button>
+                            );
+                        }
+                        const title = `Add ${pips.map((c) => `{${c}}`).join("")}`;
                         return (
                             <button
                                 key={i}
                                 className="flex items-center justify-center gap-0.5 rounded-full bg-white/5 px-2 py-1 cursor-pointer ring-1 ring-white/15 transition-colors hover:bg-white/15"
                                 onClick={() => onSelect(i)}
-                                title="Add no mana"
+                                title={title}
                             >
-                                <span className="flex size-6 shrink-0 items-center justify-center text-xs font-semibold text-white/80">
-                                    0
-                                </span>
+                                {pips.map((c, p) => (
+                                    <img
+                                        key={p}
+                                        src={`/img/symbols/${c}.svg`}
+                                        alt={c}
+                                        className="size-6 shrink-0"
+                                    />
+                                ))}
                             </button>
                         );
-                    }
-                    const title = `Add ${pips.map((c) => `{${c}}`).join("")}`;
-                    return (
-                        <button
-                            key={i}
-                            className="flex items-center justify-center gap-0.5 rounded-full bg-white/5 px-2 py-1 cursor-pointer ring-1 ring-white/15 transition-colors hover:bg-white/15"
-                            onClick={() => onSelect(i)}
-                            title={title}
-                        >
-                            {pips.map((c, p) => (
-                                <img
-                                    key={p}
-                                    src={`/img/symbols/${c}.svg`}
-                                    alt={c}
-                                    className="size-6 shrink-0"
-                                />
-                            ))}
-                        </button>
-                    );
-                })}
+                    })}
+                </Panel>
             </div>
         </>
     );

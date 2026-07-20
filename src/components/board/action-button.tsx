@@ -1,4 +1,5 @@
 import { CornerDownLeft, Space } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 type ActionButtonTone = "primary" | "secondary" | "destructive" | "ghost";
 
@@ -18,15 +19,8 @@ function ShortcutHint({ shortcut }: { shortcut: string }) {
     return <span className="text-xs opacity-70">[{shortcut}]</span>;
 }
 
-const TONE_CLASSES: Record<ActionButtonTone, string> = {
-    primary: "btn-tone-primary",
-    secondary: "btn-tone-secondary",
-    destructive: "btn-tone-destructive",
-    ghost: "btn-tone-ghost",
-};
-
-const DISABLED_CLASS = "btn-disabled";
-
+/** Board action button — thin domain wrapper over the unified ui/Button
+ *  (phase-3): tone → variant, plus the keyboard-shortcut hint. */
 export default function ActionButton({
     onClick,
     label,
@@ -40,12 +34,12 @@ export default function ActionButton({
     disabled?: boolean;
     shortcut?: string;
 }) {
-    const toneClass = disabled ? DISABLED_CLASS : TONE_CLASSES[tone];
     return (
-        <button
-            onClick={onClick}
+        <Button
+            variant={tone}
             disabled={disabled}
-            className={`btn-base px-5 py-2 text-sm ${toneClass} ${disabled ? "" : "cursor-pointer"}`}
+            onClick={onClick}
+            className="px-5 py-2 text-sm"
         >
             <span className="inline-flex items-center gap-2">
                 {label}
@@ -55,6 +49,6 @@ export default function ActionButton({
                     </span>
                 )}
             </span>
-        </button>
+        </Button>
     );
 }

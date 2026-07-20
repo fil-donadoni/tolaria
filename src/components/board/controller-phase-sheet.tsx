@@ -25,7 +25,7 @@ export default function ControllerPhaseSheet({
     return (
         <div
             data-phase-sheet
-            className="fixed inset-0 z-50 flex flex-col justify-end md:hidden"
+            className="fixed inset-0 z-sheet flex flex-col justify-end md:hidden"
         >
             {/* Dimmed backdrop — tap to dismiss (touch + mouse both fire click). */}
             <button

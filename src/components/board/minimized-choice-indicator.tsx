@@ -23,7 +23,7 @@ export default function MinimizedChoiceIndicator({
             type="button"
             onClick={restore}
             aria-label={`Restore choice dialog: ${label}`}
-            className="absolute top-1/2 left-1/2 z-100 -translate-x-1/2 -translate-y-1/2 inline-flex items-center gap-2 rounded-sm border border-accent bg-accent-soft px-4 py-2 font-beleren text-sm tracking-wide text-accent-strong shadow-[0_0_30px_rgba(200,160,96,0.35)] animate-pulse hover:bg-accent-soft/80 hover:animate-none transition-colors cursor-pointer pointer-events-auto"
+            className="absolute top-1/2 left-1/2 z-modal -translate-x-1/2 -translate-y-1/2 inline-flex items-center gap-2 rounded-sm border border-accent bg-accent-soft px-4 py-2 font-beleren text-sm tracking-wide text-accent-strong shadow-[0_0_30px_rgba(200,160,96,0.35)] animate-pulse hover:bg-accent-soft/80 hover:animate-none transition-colors cursor-pointer pointer-events-auto"
         >
             <span className="relative flex h-2.5 w-2.5">
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent-strong opacity-75" />

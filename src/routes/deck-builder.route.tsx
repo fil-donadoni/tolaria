@@ -5,6 +5,7 @@ import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import DeckBuilder from "~/components/lobby/deck-builder/deck-builder";
+import { Button } from "~/components/ui/button";
 import {
     useUserDecks,
     useUserDeckMutations,
@@ -106,12 +107,12 @@ export default function DeckBuilderRoute({
                 return (
                     <div className="flex h-screen flex-col items-center justify-center gap-4 text-text bg-surface-base">
                         <p>Preset not found.</p>
-                        <button
+                        <Button
+                            variant="secondary"
                             onClick={() => void navigate({ to: "/" })}
-                            className="btn-base btn-tone-secondary px-4 py-2 text-sm"
                         >
                             Back to lobby
-                        </button>
+                        </Button>
                     </div>
                 );
             }
@@ -139,12 +140,12 @@ export default function DeckBuilderRoute({
             return (
                 <div className="flex h-screen flex-col items-center justify-center gap-4 text-text bg-surface-base">
                     <p>Deck not found.</p>
-                    <button
+                    <Button
+                        variant="secondary"
                         onClick={() => void navigate({ to: "/" })}
-                        className="btn-base btn-tone-secondary px-4 py-2 text-sm"
                     >
                         Back to lobby
-                    </button>
+                    </Button>
                 </div>
             );
         }

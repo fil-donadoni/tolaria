@@ -17,8 +17,8 @@ type GameDialogProps = {
     title: string;
     subtitle?: string;
     icon?: React.ReactNode;
-    /** Optional Zelda-TotK stat-chip row under the title rule (e.g. life or
-     *  count before/after). Render `StatChip` atoms here; omit for none. */
+    /** Optional stat row under the title rule (e.g. life or count
+     *  before/after). Render small chip atoms here; omit for none. */
     stats?: React.ReactNode;
     /** Optional footer action row, kept clear of the corner filigree with
      *  generous bottom padding. When omitted, render actions inside `children`
@@ -49,7 +49,7 @@ const sizeClasses: Record<GameDialogSize, string> = {
 
 /**
  * Gameplay dialog in the Zelda-TotK item-panel shape (issue #597): sunburst icon
- * well, bold Beleren title + full-width gold underline rule, optional stat-chip
+ * well, bold Beleren title + full-width gold underline rule, optional stat
  * row, body, footer actions, and the Panel's subtle SVG corner filigree.
  *
  * Padding keeps the ornament clear of content — the Panel adds `p-6` all round
@@ -80,13 +80,27 @@ export default function GameDialog({
         <Dialog open={open} onOpenChange={handleOpenChange}>
             <DialogContent
                 showCloseButton={false}
+                onClick={(e) => {
+                    // The popup spans ~the whole play area to center the
+                    // Panel, so the dialog backdrop behind it is unreachable
+                    // and overlay clicks never dismiss (QA: pile browse
+                    // dialogs). Emulate backdrop dismissal: a click landing
+                    // on the popup CONTAINER itself (not the Panel inside)
+                    // closes the dialog, like every other dialog in the app.
+                    if (e.target === e.currentTarget && dismissable) {
+                        onOpenChange?.(false);
+                    }
+                }}
                 className={cn(
                     "flex items-center justify-center overflow-hidden border-none bg-transparent p-0 shadow-none ring-0",
                     sizeClasses[size],
                     className
                 )}
             >
-                <Panel tone="neutral" className="max-w-full overflow-hidden">
+                <Panel
+                    tone="neutral"
+                    className="max-w-full min-w-64 overflow-hidden sm:min-w-80"
+                >
                     <div
                         className={cn(
                             "flex gap-4 sm:gap-6",
@@ -101,7 +115,10 @@ export default function GameDialog({
                             <DialogTitle
                                 className={cn(
                                     "heading-panel shrink-0",
-                                    icon && "sm:text-left"
+                                    icon && "sm:text-left",
+                                    // keep the title clear of the absolute
+                                    // close/minimize controls (top-right)
+                                    (showCloseButton || onMinimize) && "pr-8"
                                 )}
                             >
                                 {title}
@@ -126,7 +143,11 @@ export default function GameDialog({
                                 {subtitle ?? title}
                             </DialogDescription>
 
-                            <div className="mt-3 min-h-0 overflow-auto">
+                            {/* p-[0.2rem]: the buttons' focus outline draws
+                                OUTSIDE the border box — without this breathing
+                                room the overflow clips it at the container
+                                edge. */}
+                            <div className="mt-3 min-h-0 overflow-auto p-[0.2rem]">
                                 {children}
                             </div>
                         </div>

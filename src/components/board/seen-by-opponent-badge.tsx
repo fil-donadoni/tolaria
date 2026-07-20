@@ -14,7 +14,7 @@ export default function SeenByOpponentBadge() {
             title="An opponent knows this card"
             aria-label="An opponent knows this card"
         >
-            <Eye className="w-3.5 h-3.5 text-amber-300" />
+            <Eye className="w-3.5 h-3.5 text-signal-pending" />
         </div>
     );
 }

@@ -16,7 +16,7 @@ export default function PlaneswalkerLoyaltyBadge({
     const loyalty = card.counters?.loyalty ?? 0;
     return (
         <div
-            className="absolute bottom-1.5 right-1.5 flex items-center justify-center min-w-6 h-6 px-1.5 rounded-full bg-amber-500 text-black text-sm font-extrabold leading-none pointer-events-none z-10 drop-shadow-[0_0_2px_rgba(0,0,0,0.9)]"
+            className="absolute bottom-1.5 right-1.5 flex items-center justify-center min-w-6 h-6 px-1.5 rounded-full border border-accent/60 bg-accent text-primary-foreground text-sm font-extrabold leading-none pointer-events-none z-10 drop-shadow-[0_0_2px_rgba(0,0,0,0.9)]"
             aria-label={`${loyalty} loyalty`}
         >
             {loyalty}

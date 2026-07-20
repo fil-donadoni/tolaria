@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { FormatId } from "@convex/formats";
+import { Button } from "~/components/ui/button";
 import GameDialog from "~/components/ui/game-dialog";
 
 interface DeckBanlistPanelProps {
@@ -47,13 +48,14 @@ export default function DeckBanlistPanel({ format }: DeckBanlistPanelProps) {
 
     return (
         <>
-            <button
+            <Button
                 type="button"
+                variant="ghost"
+                size="sm"
                 onClick={() => setOpen(true)}
-                className="btn-base btn-tone-ghost px-3 py-1.5 text-sm"
             >
                 Banlist
-            </button>
+            </Button>
             <GameDialog
                 open={open}
                 onOpenChange={setOpen}
@@ -81,7 +83,7 @@ export default function DeckBanlistPanel({ format }: DeckBanlistPanelProps) {
                                 <span
                                     className={
                                         entry.status === "banned"
-                                            ? "rounded-sm bg-danger/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-danger"
+                                            ? "rounded-sm bg-danger/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-danger-strong-strong"
                                             : "rounded-sm bg-accent-soft px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-accent-strong"
                                     }
                                 >

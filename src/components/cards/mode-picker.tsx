@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { SpellMode } from "@convex/cards/types";
 import GameDialog from "~/components/ui/game-dialog";
+import { Panel } from "@/components/ui/panel";
 
 type ModePickerProps = {
     modes: SpellMode[];
@@ -78,25 +79,33 @@ function ModePickerPortal({
 
     return createPortal(
         <>
-            <div className="fixed inset-0 z-40" onMouseDown={onCancel} />
+            <div className="fixed inset-0 z-hud" onMouseDown={onCancel} />
+            {/* `Panel` forwards no props, so the positioning `style`, the
+                clamp-measure `ref` and the board-ESC `data-slot` tag stay on
+                a plain fixed wrapper; Panel supplies the chrome (bezel +
+                corner filigree) inside it. */}
             <div
                 ref={ref}
                 data-slot="dialog-content"
-                className="fixed z-100 flex min-w-64 max-h-[calc(100vh-16px)] flex-col gap-1 overflow-y-auto rounded-sm bg-surface border border-border-subtle p-3 shadow-[0_0_50px_rgba(0,0,0,0.8)]"
+                className="fixed z-modal"
                 style={{ left: clamped.x, top: clamped.y }}
             >
-                <div className="absolute top-1.5 left-1.5 w-3 h-3 border-t border-l border-border-accent/40" />
-                <div className="absolute top-1.5 right-1.5 w-3 h-3 border-t border-r border-border-accent/40" />
-                <div className="absolute bottom-1.5 left-1.5 w-3 h-3 border-b border-l border-border-accent/40" />
-                <div className="absolute bottom-1.5 right-1.5 w-3 h-3 border-b border-r border-border-accent/40" />
-
-                <p className="text-sm font-beleren tracking-wide text-parchment mb-1 px-2">
-                    {cardName}
-                </p>
-                <div className="h-[1px] w-full bg-gradient-to-r from-border-accent via-border-accent/40 to-transparent mb-1" />
-                {modes.map((mode) => (
-                    <ModeRow key={mode.id} mode={mode} onSelect={onSelect} />
-                ))}
+                <Panel
+                    density="compact"
+                    className="flex min-w-64 max-h-[calc(100vh-16px)] flex-col gap-1 overflow-y-auto p-4"
+                >
+                    <p className="text-sm font-beleren tracking-wide text-parchment mb-1 px-2">
+                        {cardName}
+                    </p>
+                    <div className="h-[1px] w-full bg-gradient-to-r from-border-accent via-border-accent/40 to-transparent mb-1" />
+                    {modes.map((mode) => (
+                        <ModeRow
+                            key={mode.id}
+                            mode={mode}
+                            onSelect={onSelect}
+                        />
+                    ))}
+                </Panel>
             </div>
         </>,
         document.body

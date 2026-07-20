@@ -201,6 +201,81 @@ describe("buildCombatArrows — blocker → attacker", () => {
     });
 });
 
+describe("buildCombatArrows — attacker → attack target (QA / CR 508.1a)", () => {
+    it("draws one arrow per declared attacker to the defending player's nameplate anchor", () => {
+        const c = combat({ attackerIds: ["a1", "a2"] });
+        const map = anchors({
+            permanent: {
+                a1: { x: 100, y: 400 },
+                a2: { x: 200, y: 400 },
+            },
+            player: { p2: { x: 500, y: 40 } },
+        });
+        const arrows = buildCombatArrows(c, map, "p2");
+        expect(arrows).toHaveLength(2);
+        for (const a of arrows) {
+            expect(a.kind).toBe("combat");
+            expect(a.toId).toBe("p2");
+            expect(a.to).toEqual({ x: 500, y: 40 });
+        }
+        expect(arrows[0].key).toBe("attack:a1->p2");
+        expect(arrows[1].key).toBe("attack:a2->p2");
+    });
+
+    it("draws the arrow to the chosen planeswalker instead when attackTargets names one", () => {
+        const c = combat({
+            attackerIds: ["a1"],
+            attackTargets: { a1: "pw1" },
+        });
+        const map = anchors({
+            permanent: {
+                a1: { x: 100, y: 400 },
+                pw1: { x: 300, y: 200 },
+            },
+            player: { p2: { x: 500, y: 40 } },
+        });
+        const arrows = buildCombatArrows(c, map, "p2");
+        expect(arrows).toHaveLength(1);
+        expect(arrows[0].key).toBe("attack:a1->pw1");
+        expect(arrows[0].toId).toBe("pw1");
+        expect(arrows[0].to).toEqual({ x: 300, y: 200 });
+    });
+
+    it("skips the player arrow when no defenderId is known, and any arrow whose anchor is unpublished", () => {
+        const c = combat({ attackerIds: ["a1", "a2"] });
+        const map = anchors({
+            permanent: { a1: { x: 100, y: 400 } },
+            player: { p2: { x: 500, y: 40 } },
+        });
+        // no defenderId
+        expect(buildCombatArrows(c, map)).toEqual([]);
+        // a2 has no published permanent anchor
+        expect(buildCombatArrows(c, map, "p2")).toHaveLength(1);
+    });
+
+    it("the attack arrow joins its attacker's combat cluster (hover lights blocker + attacker + target)", () => {
+        const c = combat({
+            attackerIds: ["att"],
+            blockerAssignments: { att: ["b1"] },
+        });
+        const map = anchors({
+            permanent: {
+                att: { x: 500, y: 100 },
+                b1: { x: 300, y: 400 },
+            },
+            player: { p2: { x: 500, y: 40 } },
+        });
+        const arrows = buildCombatArrows(c, map, "p2");
+        expect(arrows).toHaveLength(2);
+        expect(arrows[0].clusterId).toBe(arrows[1].clusterId);
+        const hl = resolveArrowHighlight(arrows, {
+            key: "attack:att->p2",
+        })!;
+        expect(hl.keys.size).toBe(2);
+        expect([...hl.nodes].sort()).toEqual(["att", "b1", "p2"]);
+    });
+});
+
 describe("resolveArrowHighlight — combat is transitive", () => {
     const c = combat({ blockerAssignments: { att: ["b1", "b2"] } });
     const map = anchors({

@@ -1,5 +1,6 @@
 import type { Player } from "~/types/game";
 import type { PlayerInteraction } from "~/hooks/usePlayerInteraction";
+import CornerFiligreeFrame from "~/components/ui/corner-filigree-frame";
 import AnimatedLifeTotal from "./animated-life-total";
 import PlayerPoisonCounters from "./player-poison-counters";
 import PlayerEnergyCounters from "./player-energy-counters";
@@ -48,7 +49,7 @@ function nameplateShadow(
 
 /** Presentational life total + nameplate shared by the classic life chrome
  *  (`player-life.tsx`) and the spatial board (`board-player.tsx`), slice
- *  #280. Bracketed compact box (Panel corner-bracket motif): a large
+ *  #280. Compact box framed by the shared corner filigree: a large
  *  accent-strong life total over an uppercase, muted name. The seat-coloured
  *  priority ring and the targeting / damage-choice ring are box-shadows from
  *  the flags computed by {@link usePlayerInteraction}; the click handler is
@@ -83,10 +84,7 @@ export default function PlayerNameplate({
                 interactive ? "cursor-pointer" : ""
             } ${className}`}
         >
-            <span className="absolute top-1 left-1 w-2.5 h-2.5 border-t border-l border-border-accent/50" />
-            <span className="absolute top-1 right-1 w-2.5 h-2.5 border-t border-r border-border-accent/50" />
-            <span className="absolute bottom-1 left-1 w-2.5 h-2.5 border-b border-l border-border-accent/50" />
-            <span className="absolute bottom-1 right-1 w-2.5 h-2.5 border-b border-r border-border-accent/50" />
+            <CornerFiligreeFrame overlay size={14} subtle />
             {/* key by player.id so a solo-mode viewer swap (different player
              *  rendered at the same seat position) remounts the animator with a
              *  fresh baseline instead of animating a phantom life delta — the

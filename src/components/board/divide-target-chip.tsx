@@ -20,7 +20,7 @@ export default function DivideTargetChip({ item }: { item: DivideTargetItem }) {
                         <CardImage card={item.card} sizes="64px" />
                     </div>
                 ) : (
-                    <div className="w-16 aspect-[5/7] rounded-sm border border-border-subtle bg-surface-2 flex flex-col items-center justify-center gap-1 px-1 text-center">
+                    <div className="w-16 aspect-[5/7] rounded-sm border border-border-subtle bg-surface-elevated flex flex-col items-center justify-center gap-1 px-1 text-center">
                         <span className="text-2xl font-beleren text-accent-strong tabular-nums leading-none">
                             {item.life}
                         </span>
@@ -30,7 +30,7 @@ export default function DivideTargetChip({ item }: { item: DivideTargetItem }) {
                     </div>
                 )}
                 {assigned > 0 && (
-                    <div className="absolute -top-2 -left-2 z-10 min-w-6 h-6 px-1 rounded-full bg-red-600 ring-2 ring-white text-white text-sm font-bold flex items-center justify-center shadow-[0_0_8px_rgba(0,0,0,0.9)] tabular-nums">
+                    <div className="absolute -top-2 -left-2 z-10 min-w-6 h-6 px-1 rounded-full bg-red-600 ring-2 ring-parchment text-white text-sm font-bold flex items-center justify-center shadow-[0_0_8px_rgba(0,0,0,0.9)] tabular-nums">
                         {assigned}
                     </div>
                 )}

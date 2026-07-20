@@ -4,6 +4,8 @@ import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { storeSession } from "~/lib/session";
+import { Banner } from "~/components/ui/banner";
+import { Button } from "~/components/ui/button";
 import GameDialog from "~/components/ui/game-dialog";
 import ActionButton from "~/components/board/action-button";
 
@@ -70,40 +72,47 @@ export default function ActiveGameNotice({ activeGame, userId }: Props) {
     };
 
     return (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-sm border-2 border-accent bg-accent/20 px-4 py-3 text-sm font-medium text-text shadow-[0_0_0_1px] shadow-accent/30">
-            <span>
-                You have an active game
-                {inProgress
-                    ? " in progress."
-                    : " waiting for an opponent."}{" "}
-                Finish or leave it before starting another.
-            </span>
-            <div className="flex shrink-0 gap-2">
-                <button
-                    onClick={handleResume}
-                    disabled={isBusy}
-                    className="btn-base btn-tone-primary px-3 py-1.5 text-xs disabled:opacity-50"
-                >
-                    Resume
-                </button>
-                {inProgress ? (
-                    <button
-                        onClick={() => setConfirmForfeit(true)}
-                        disabled={isBusy}
-                        className="btn-base btn-tone-destructive px-3 py-1.5 text-xs disabled:opacity-50"
-                    >
-                        Concede Match
-                    </button>
-                ) : (
-                    <button
-                        onClick={() => void handleLeave()}
-                        disabled={isBusy}
-                        className="btn-base btn-tone-secondary px-3 py-1.5 text-xs disabled:opacity-50"
-                    >
-                        Leave
-                    </button>
-                )}
-            </div>
+        <>
+            <Banner tone="prominent">
+                <div className="flex w-full flex-wrap items-center justify-between gap-3">
+                    <span>
+                        You have an active game
+                        {inProgress
+                            ? " in progress."
+                            : " waiting for an opponent."}{" "}
+                        Finish or leave it before starting another.
+                    </span>
+                    <div className="flex shrink-0 gap-2">
+                        <Button
+                            variant="primary"
+                            size="sm"
+                            onClick={handleResume}
+                            disabled={isBusy}
+                        >
+                            Resume
+                        </Button>
+                        {inProgress ? (
+                            <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={() => setConfirmForfeit(true)}
+                                disabled={isBusy}
+                            >
+                                Concede Match
+                            </Button>
+                        ) : (
+                            <Button
+                                variant="secondary"
+                                size="sm"
+                                onClick={() => void handleLeave()}
+                                disabled={isBusy}
+                            >
+                                Leave
+                            </Button>
+                        )}
+                    </div>
+                </div>
+            </Banner>
 
             <GameDialog
                 open={confirmForfeit}
@@ -128,6 +137,6 @@ export default function ActiveGameNotice({ activeGame, userId }: Props) {
                     />
                 </div>
             </GameDialog>
-        </div>
+        </>
     );
 }

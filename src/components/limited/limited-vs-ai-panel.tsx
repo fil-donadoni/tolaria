@@ -4,6 +4,7 @@ import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { useCurrentUser } from "~/hooks/useCurrentUser";
+import { Banner } from "~/components/ui/banner";
 import { useUserDecks } from "~/hooks/useUserDecks";
 import type { LimitedEventView } from "~/hooks/useLimitedEvent";
 import { deckPayload } from "~/lib/deckTypes";
@@ -93,7 +94,11 @@ export default function LimitedVsAiPanel({
                     Drafters.
                 </p>
             )}
-            {error && <p className="mb-2 text-sm text-danger">{error}</p>}
+            {error && (
+                <Banner tone="danger" role="alert" className="mb-2">
+                    {error}
+                </Banner>
+            )}
             {myDeck && (
                 <ul className="flex flex-col gap-2">
                     {botSeats.map((seat) => (

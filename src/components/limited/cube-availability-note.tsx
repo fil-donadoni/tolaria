@@ -1,4 +1,5 @@
 import type { DraftableSetInfo } from "~/hooks/useLimitedEvent";
+import { Banner } from "@/components/ui/banner";
 
 interface CubeAvailabilityNoteProps {
     /** The currently-selected Pack Source's Draftability info, or `undefined`
@@ -19,18 +20,11 @@ export default function CubeAvailabilityNote({
     const count = set.availableCardCount ?? 0;
 
     return (
-        <p
-            role="status"
-            className="rounded-sm border border-accent/40 bg-accent-soft/40 px-2 py-1.5 text-xs text-text"
-        >
-            <span className="font-semibold uppercase tracking-wide text-accent-strong">
-                Vintage Cube
-            </span>
-            {" — "}
+        <Banner tone="info" title="Vintage Cube" role="status">
             {count} card{count === 1 ? "" : "s"} available. A cube is a curated
             pool shuffled into random 15-card packs (no set-completeness gate).
             Packs are singleton when the pool is large enough, topped up
             otherwise. Draft only.
-        </p>
+        </Banner>
     );
 }

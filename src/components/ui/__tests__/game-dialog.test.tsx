@@ -1,7 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import GameDialog from "../game-dialog";
-import StatChip from "../stat-chip";
 
 describe("GameDialog (issue #597, Zelda-TotK shape)", () => {
     it("renders the title with a full-width gold underline rule", () => {
@@ -28,18 +27,17 @@ describe("GameDialog (issue #597, Zelda-TotK shape)", () => {
         ).toBeTruthy();
     });
 
-    it("renders an optional stat-chip row", () => {
+    it("renders an optional stats row", () => {
         render(
             <GameDialog
                 open
                 title="Damage"
-                stats={<StatChip from={3} to={6} />}
+                stats={<span data-testid="stat">3 → 6</span>}
             >
                 <p>body</p>
             </GameDialog>
         );
-        expect(screen.getByText("3")).toBeTruthy();
-        expect(screen.getByText("6")).toBeTruthy();
+        expect(screen.getByTestId("stat")).toBeTruthy();
     });
 
     it("renders a footer action row clear of the corner filigree", () => {
@@ -108,6 +106,53 @@ describe("GameDialog (issue #597, Zelda-TotK shape)", () => {
             </GameDialog>
         );
         fireEvent.keyDown(document.body, { key: "Escape" });
+        expect(onOpenChange).not.toHaveBeenCalled();
+    });
+
+    // QA: the popup spans ~the whole play area so the backdrop is unreachable
+    // — the popup itself emulates overlay dismissal (pile browse dialogs:
+    // graveyard / library / hand / exile).
+    it("dismisses when the click lands on the popup container itself", () => {
+        const onOpenChange = vi.fn();
+        const { baseElement } = render(
+            <GameDialog open title="Browse" onOpenChange={onOpenChange}>
+                <p>body</p>
+            </GameDialog>
+        );
+        const popup = baseElement.querySelector(
+            '[data-slot="dialog-content"]'
+        )!;
+        fireEvent.click(popup);
+        expect(onOpenChange).toHaveBeenCalledWith(false);
+    });
+
+    it("does NOT dismiss when the click lands inside the panel", () => {
+        const onOpenChange = vi.fn();
+        render(
+            <GameDialog open title="Browse" onOpenChange={onOpenChange}>
+                <p>body</p>
+            </GameDialog>
+        );
+        fireEvent.click(screen.getByText("body"));
+        expect(onOpenChange).not.toHaveBeenCalled();
+    });
+
+    it("does NOT dismiss on popup-container click when not dismissable", () => {
+        const onOpenChange = vi.fn();
+        const { baseElement } = render(
+            <GameDialog
+                open
+                title="Locked"
+                dismissable={false}
+                onOpenChange={onOpenChange}
+            >
+                <p>body</p>
+            </GameDialog>
+        );
+        const popup = baseElement.querySelector(
+            '[data-slot="dialog-content"]'
+        )!;
+        fireEvent.click(popup);
         expect(onOpenChange).not.toHaveBeenCalled();
     });
 });

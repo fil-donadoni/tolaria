@@ -30,11 +30,11 @@ export default function DeckLegalityPanel({
                     {formatLabel} legality
                 </span>
                 {isLegal ? (
-                    <span className="rounded-sm bg-success/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-success">
+                    <span className="rounded-sm bg-success/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-success-strong">
                         Legal
                     </span>
                 ) : (
-                    <span className="rounded-sm bg-danger/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-danger">
+                    <span className="rounded-sm bg-danger/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-danger-strong">
                         Illegal
                     </span>
                 )}
@@ -44,7 +44,7 @@ export default function DeckLegalityPanel({
                     {reasons.map((r) => (
                         <li
                             key={`${r.code}:${r.message}`}
-                            className="text-xs text-danger/90"
+                            className="text-xs text-danger-strong/90"
                         >
                             {r.message}
                         </li>

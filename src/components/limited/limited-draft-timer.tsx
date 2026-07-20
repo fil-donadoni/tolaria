@@ -41,7 +41,7 @@ export default function LimitedDraftTimer({
             className={
                 "rounded-sm border px-2 py-0.5 text-xs font-semibold tabular-nums " +
                 (urgent
-                    ? "border-danger/50 bg-danger/10 text-danger"
+                    ? "border-danger/50 bg-danger/10 text-danger-strong"
                     : "border-border-accent/30 bg-surface-elevated/30 text-text-muted")
             }
             role="timer"

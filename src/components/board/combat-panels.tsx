@@ -1,8 +1,10 @@
 import type { Player } from "~/types/game";
 import { useGameContext } from "~/hooks/useGameContext";
 import { outstandingDamageAssigner } from "~/lib/priority";
+import { isPlaneswalker } from "~/lib/card-utils";
 import DamageAssignmentPanel from "./damage-assignment-panel";
 import BandFormationPanel from "./band-formation-panel";
+import AttackDirectionBanner from "./attack-direction-banner";
 
 /** Combat declaration / damage modals for one player's battlefield on the
  *  spatial board ({@link BoardBattlefield}, PRD #249 / slice #281).
@@ -39,6 +41,12 @@ export default function CombatPanels({ player }: { player: Player }) {
         isMe &&
         playerId === activePlayerId;
 
+    // CR 508.1a: the planeswalker-retarget hint (and its attack arrows) only
+    // matter when the DEFENDING player actually controls a planeswalker.
+    const defender = allPlayers.find((p) => p.id !== activePlayerId);
+    const defenderHasPlaneswalker =
+        defender?.battlefield.some(isPlaneswalker) ?? false;
+
     // CR 702.21j-k: the player who assigns may be the defender, so gate on the
     // outstanding assigner rather than always the active player.
     const isAssigningDamage =
@@ -57,14 +65,21 @@ export default function CombatPanels({ player }: { player: Player }) {
     return (
         <>
             {isSelectingAttackers && (
-                <BandFormationPanel
-                    combat={combat}
-                    attackers={player.battlefield.filter((c) =>
-                        combat.attackerIds.includes(c.id)
-                    )}
-                    gameId={gameId}
-                    playerId={playerId}
-                />
+                /* One dock for the whole declare-attackers step (QA info box
+                   + banding panel) so the two never overlap. */
+                <div className="absolute top-12 left-1/2 z-modal flex w-max max-w-[90%] -translate-x-1/2 flex-col items-center gap-2">
+                    <AttackDirectionBanner
+                        planeswalkerPresent={defenderHasPlaneswalker}
+                    />
+                    <BandFormationPanel
+                        combat={combat}
+                        attackers={player.battlefield.filter((c) =>
+                            combat.attackerIds.includes(c.id)
+                        )}
+                        gameId={gameId}
+                        playerId={playerId}
+                    />
+                </div>
             )}
 
             {isAssigningDamage && (

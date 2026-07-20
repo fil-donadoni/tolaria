@@ -145,14 +145,14 @@ export default function CardPreviewFace({
                     >
                         <span
                             className={
-                                ptModified ? "text-emerald-400" : "text-text"
+                                ptModified ? "text-success-strong" : "text-text"
                             }
                         >
                             {effPower ?? 0}/{effToughness ?? 0}
                         </span>
                         {ptModified && (
                             <span
-                                className={`text-red-400 ${ptBaseSize} font-normal`}
+                                className={`text-danger-strong ${ptBaseSize} font-normal`}
                             >
                                 ({basePower}/{baseToughness})
                             </span>

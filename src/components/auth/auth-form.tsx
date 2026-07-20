@@ -7,6 +7,8 @@ import {
     PanelBody,
     PanelFooter,
 } from "~/components/ui/panel";
+import { Banner } from "~/components/ui/banner";
+import { Button } from "~/components/ui/button";
 import LobbyBackground from "~/components/lobby/lobby-background";
 
 type Flow = "signIn" | "signUp";
@@ -151,26 +153,25 @@ export function AuthForm() {
                         )}
 
                         {error && (
-                            <p
-                                className="text-sm text-danger-strong"
-                                role="alert"
-                            >
+                            <Banner tone="danger" role="alert">
                                 {error}
-                            </p>
+                            </Banner>
                         )}
                     </PanelBody>
                     <PanelFooter className="flex-col items-stretch">
-                        <button
+                        <Button
                             type="submit"
+                            variant="primary"
+                            size="lg"
                             disabled={submitting}
-                            className={`btn-base w-full px-5 py-2.5 text-sm ${submitting ? "btn-disabled" : "btn-tone-primary"}`}
+                            className="w-full"
                         >
                             {submitting
                                 ? "Working…"
                                 : flow === "signIn"
                                   ? "Sign In"
                                   : "Create Account"}
-                        </button>
+                        </Button>
                         <button
                             type="button"
                             className="text-sm text-text-muted hover:text-parchment transition-colors text-center"

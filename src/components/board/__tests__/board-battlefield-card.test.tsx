@@ -114,14 +114,14 @@ describe("BoardBattlefieldCard visual state + anchors (#256)", () => {
     it("renders the combat grouping ring + offset but NOT the numeric badge", () => {
         const vs: CardVisualState = {
             ...NEUTRAL_VS,
-            ringClass: "ring-2 ring-red-500 rounded-sm",
-            badge: { color: "bg-red-500", index: 0 },
+            ringClass: "ring-2 ring-combat-1 rounded-sm",
+            badge: { color: "bg-combat-1", index: 0 },
             combatOffset: "-translate-y-8",
         };
         const { container, queryByText } = renderCard(makeCreature(), vs);
         // Ring is applied to the framed face element.
         expect(
-            container.querySelector(".ring-red-500.rounded-sm")
+            container.querySelector(".ring-combat-1.rounded-sm")
         ).toBeTruthy();
         // Combat offset is applied to the outer slot wrapper.
         expect(container.querySelector(".-translate-y-8")).toBeTruthy();
@@ -175,7 +175,7 @@ describe("BoardBattlefieldCard visual state + anchors (#256)", () => {
             NEUTRAL_VS
         );
         // No red damage chip when damageMarked is 0.
-        expect(container.querySelector(".bg-red-600")).toBeNull();
+        expect(container.querySelector(".bg-danger")).toBeNull();
     });
 
     it("renders no P/T badge for a non-creature permanent", () => {

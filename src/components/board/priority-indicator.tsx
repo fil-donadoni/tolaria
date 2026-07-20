@@ -11,14 +11,14 @@ const STATE_STYLE: Record<
     { glow: string; badge: string; label: string; pulse: boolean }
 > = {
     mine: {
-        glow: "inset 0 0 0 3px rgba(16,185,129,0.85), inset 0 0 44px rgba(16,185,129,0.30)",
-        badge: "bg-emerald-500/90 text-emerald-950",
+        glow: "inset 0 0 0 3px color-mix(in srgb, var(--color-signal-self) 85%, transparent), inset 0 0 44px color-mix(in srgb, var(--color-signal-self) 30%, transparent)",
+        badge: "bg-signal-self/90 text-surface-base",
         label: "Your priority",
         pulse: true,
     },
     opponent: {
-        glow: "inset 0 0 0 2px rgba(251,191,36,0.45), inset 0 0 30px rgba(251,191,36,0.14)",
-        badge: "bg-amber-500/80 text-amber-950",
+        glow: "inset 0 0 0 2px color-mix(in srgb, var(--color-signal-pending) 45%, transparent), inset 0 0 30px color-mix(in srgb, var(--color-signal-pending) 14%, transparent)",
+        badge: "bg-signal-pending/80 text-surface-base",
         label: "Opponent's priority",
         pulse: false,
     },
@@ -36,7 +36,7 @@ export default function PriorityIndicator() {
     return (
         <div
             aria-hidden
-            className="pointer-events-none absolute inset-0 z-40"
+            className="pointer-events-none absolute inset-0 z-hud"
             style={{ boxShadow: style.glow }}
         />
     );

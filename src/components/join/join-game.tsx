@@ -20,6 +20,7 @@ import {
     PanelBody,
     PanelFooter,
 } from "~/components/ui/panel";
+import { Banner } from "~/components/ui/banner";
 import { Button } from "~/components/ui/button";
 import LoadingScreen from "~/components/ui/loading-screen";
 import AmbientPageGround from "~/components/ui/ambient-page-ground";
@@ -162,23 +163,20 @@ export default function JoinGame({ gameId }: JoinGameProps) {
                     </PanelBody>
                 </Panel>
 
-                {error && (
-                    <div className="rounded-sm border border-danger/50 bg-danger/10 px-4 py-3 text-sm text-danger">
-                        {error}
-                    </div>
-                )}
+                {error && <Banner tone="danger">{error}</Banner>}
 
                 <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
                     <Panel className="flex max-h-[28rem] flex-col">
                         <PanelHeader title="Your Decks" />
                         <PanelBody className="min-h-0 flex-1">
                             <div className="flex justify-end">
-                                <button
+                                <Button
+                                    variant="primary"
+                                    size="sm"
                                     onClick={handleNewDeck}
-                                    className="btn-base btn-tone-primary px-3 py-1.5 text-xs"
                                 >
                                     + New Deck
-                                </button>
+                                </Button>
                             </div>
                             <div className="min-h-0 flex-1 overflow-auto">
                                 <DeckList

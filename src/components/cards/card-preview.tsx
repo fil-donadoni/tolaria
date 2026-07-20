@@ -210,7 +210,7 @@ export default function CardPreview({
             {showOverlay &&
                 createPortal(
                     <div
-                        className="fixed inset-0 z-100 flex items-center justify-center bg-black/70 backdrop-blur-sm"
+                        className="fixed inset-0 z-modal flex items-center justify-center bg-scrim backdrop-blur-sm"
                         onTouchStart={(e) => e.stopPropagation()}
                         onTouchEnd={(e) => {
                             e.preventDefault();

@@ -37,7 +37,7 @@ export default function CardPreviewDock(props: CardPreviewBodyProps) {
     return createPortal(
         <div
             data-card-preview-dock
-            className="pointer-events-none fixed right-2 z-100 flex items-center justify-end"
+            className="pointer-events-none fixed right-2 z-modal flex items-center justify-end"
             style={{
                 top: VIEWPORT_PAD,
                 bottom: "var(--preview-bottom-safe)",

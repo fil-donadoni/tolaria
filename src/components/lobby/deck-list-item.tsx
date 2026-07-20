@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { FORMAT_RULES } from "@convex/formats";
 import type { LobbyDeck } from "~/lib/deckTypes";
 import { cn } from "~/lib/utils";
+import { Button } from "~/components/ui/button";
 import ManaSymbol from "../cards/mana-symbol";
 import FeaturedDeckArt from "./featured-deck-art";
 
@@ -75,7 +76,7 @@ export default function DeckListItem({
                         is flagged here and blocked from selection below. */}
                     {!deck.isLegal && (
                         <span
-                            className="rounded-sm bg-danger/20 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-danger"
+                            className="rounded-sm bg-danger/20 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-danger-strong-strong"
                             title={deck.reasons.map((r) => r.message).join(" ")}
                         >
                             Illegal
@@ -98,18 +99,14 @@ export default function DeckListItem({
                 onClick={(e) => e.stopPropagation()}
             >
                 {onSelect && (
-                    <button
+                    <Button
+                        variant="primary"
+                        size="sm"
                         onClick={(e) => {
                             e.stopPropagation();
                             onSelect(deck.presetId);
                         }}
                         disabled={isSelected || !deck.isLegal}
-                        className={cn(
-                            "btn-base px-3 py-2 text-xs",
-                            isSelected || !deck.isLegal
-                                ? "btn-disabled"
-                                : "btn-tone-primary"
-                        )}
                         title={
                             !deck.isLegal
                                 ? "Deck is illegal for its format"
@@ -119,7 +116,7 @@ export default function DeckListItem({
                         }
                     >
                         {isSelected ? "Selected" : "Select"}
-                    </button>
+                    </Button>
                 )}
                 {extraActions}
             </div>

@@ -16,6 +16,7 @@ import JoinRoute from "./routes/join.route";
 import LimitedEventsRoute from "./routes/limited-events.route";
 import LimitedEventDetailRoute from "./routes/limited-event-detail.route";
 import LimitedDeckBuilderRoute from "./routes/limited-deck-builder.route";
+import DesignSystemRoute from "./routes/design-system.route";
 
 const rootRoute = createRootRoute({
     component: () => (
@@ -115,6 +116,14 @@ const limitedDeckBuilderRoute = createRoute({
     component: LimitedDeckBuilderRoute,
 });
 
+// Permanent design-system census (phase 3): the living reference for tokens,
+// chrome, and component variants. Unlike /prototype/* spikes this is kept.
+const designSystemRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/design-system",
+    component: DesignSystemRoute,
+});
+
 const routeTree = rootRoute.addChildren([
     indexRoute,
     decksCreateRoute,
@@ -127,6 +136,7 @@ const routeTree = rootRoute.addChildren([
     limitedEventsRoute,
     limitedEventDetailRoute,
     limitedDeckBuilderRoute,
+    designSystemRoute,
 ]);
 
 const router = createRouter({ routeTree });

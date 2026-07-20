@@ -1,6 +1,8 @@
 import { useState } from "react";
 import type { PublicMatch } from "@convex/matches";
 import GameDialog from "~/components/ui/game-dialog";
+import TitleTreatment from "~/components/ui/title-treatment";
+import { Button } from "~/components/ui/button";
 import { clearSession } from "~/lib/session";
 import type { GameOver, Player } from "~/types/game";
 import SideboardingDialog from "./sideboarding-dialog";
@@ -80,6 +82,20 @@ export default function GameOverDialog({
         ? match.players.map((p) => `${p.name}: ${p.score}`).join("  ·  ")
         : null;
 
+    // The big result headline is viewer-relative (TitleTreatment, issue #597):
+    // "Victory" when the viewer's seat took the game, "Defeat" otherwise. The
+    // subtitle keeps the name line so the winner is still named for both seats.
+    const resultTitle = isDraw
+        ? "Draw"
+        : gameOver.winnerId === viewerId
+          ? "Victory"
+          : "Defeat";
+    const resultSubtitle = isDraw
+        ? undefined
+        : matchOver
+          ? `${matchWinner?.name ?? winner?.name ?? "?"} wins the match!`
+          : `${winner?.name ?? "?"} wins!`;
+
     const handleLeave = () => {
         // Clear the session so the lobby is reachable (PRD #387 user story 32).
         clearSession();
@@ -100,36 +116,33 @@ export default function GameOverDialog({
             dismissable={false}
         >
             <div className="flex flex-col items-center text-center gap-2 mt-1">
+                <TitleTreatment title={resultTitle} subtitle={resultSubtitle} />
                 <p className="text-text-muted text-sm">{reasonText}</p>
-                <span className="text-2xl sm:text-3xl font-bold text-accent-strong font-beleren tracking-wide">
-                    {isDraw
-                        ? "Draw"
-                        : matchOver
-                          ? `${matchWinner?.name ?? winner?.name ?? "?"} wins the match!`
-                          : `${winner?.name ?? "?"} wins!`}
-                </span>
                 {scoreLine && (
                     <p className="text-text-disabled text-xs tracking-wide">
                         {scoreLine}
                     </p>
                 )}
                 {interstitial && (
-                    <button
+                    <Button
                         type="button"
+                        variant="primary"
+                        size="sm"
                         onClick={() => setSideboarding(true)}
-                        className="mt-3 w-full py-2.5 rounded-sm bg-accent-soft border border-accent text-accent-strong font-beleren tracking-wide hover:bg-accent-soft/80 transition-colors cursor-pointer"
+                        className="mt-3 w-full"
                     >
                         Continue to Sideboarding
-                    </button>
+                    </Button>
                 )}
                 {showLeave && (
-                    <button
+                    <Button
                         type="button"
+                        variant="primary"
                         onClick={handleLeave}
-                        className="mt-3 w-full py-2.5 rounded-sm bg-surface-elevated border border-border-accent/40 text-text-muted font-beleren tracking-wide hover:bg-surface-elevated/80 transition-colors cursor-pointer"
+                        className="mt-3 w-full"
                     >
                         Back to Lobby
-                    </button>
+                    </Button>
                 )}
             </div>
         </GameDialog>

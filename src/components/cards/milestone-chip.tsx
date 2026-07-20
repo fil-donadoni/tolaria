@@ -6,7 +6,7 @@ import type { Milestone } from "~/lib/graveyard-milestones";
 // the conditional clause's on/off state is readable at a glance.
 export default function MilestoneChip({ milestone }: { milestone: Milestone }) {
     const tone = milestone.met
-        ? "text-emerald-400 border-emerald-400/50"
+        ? "text-success-strong border-success/50"
         : "text-text-muted border-border-subtle";
     return (
         <span

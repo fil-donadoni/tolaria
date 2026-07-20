@@ -1,3 +1,5 @@
+import { Button } from "~/components/ui/button";
+
 /** Option buttons for an `option-pick` pending choice (CR 614.12 — "as it
  *  enters, choose …"). Each author-supplied option renders one button; the
  *  chooser picks exactly one, which submits immediately. Used by the
@@ -15,15 +17,16 @@ export default function PendingChoiceOptions({
     return (
         <div className="flex flex-wrap justify-center gap-2 mt-1">
             {options.map((opt) => (
-                <button
+                <Button
                     key={opt.id}
                     type="button"
+                    variant="primary"
+                    size="sm"
                     disabled={disabled}
-                    className="px-3 py-1.5 rounded-sm text-xs font-beleren tracking-wide bg-accent-soft border border-accent text-accent-strong hover:bg-accent-soft/80 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
                     onClick={() => onPick(opt.id)}
                 >
                     {opt.label}
-                </button>
+                </Button>
             ))}
         </div>
     );

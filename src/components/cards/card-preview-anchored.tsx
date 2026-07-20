@@ -92,7 +92,7 @@ export default function CardPreviewAnchored({
         <div
             ref={measureRef}
             data-card-preview-anchored
-            className="pointer-events-none fixed z-100 flex flex-col rounded-2xl shadow-2xl bg-surface overflow-hidden"
+            className="pointer-events-none fixed z-modal flex flex-col rounded-2xl shadow-2xl bg-surface overflow-hidden"
             style={{
                 top: position.top,
                 left: position.left,

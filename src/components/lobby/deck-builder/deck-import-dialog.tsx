@@ -1,5 +1,7 @@
 import { useCallback, useState } from "react";
 import type { FormatId } from "@convex/formats";
+import { Banner } from "~/components/ui/banner";
+import { Button } from "~/components/ui/button";
 import GameDialog from "~/components/ui/game-dialog";
 import { type ParsedDecklist, parseDecklist } from "~/lib/deckImport";
 
@@ -95,59 +97,62 @@ export default function DeckImportDialog({
                             {parsed.sideboard.length} sideboard
                         </p>
                         {parsed.unresolved.length > 0 && (
-                            <div className="rounded-sm border border-danger/40 bg-danger/10 px-3 py-2">
+                            <Banner tone="danger">
                                 <div className="flex items-start justify-between gap-2">
-                                    <p className="text-label text-danger">
+                                    <p className="text-label">
                                         {parsed.unresolved.length} line
                                         {parsed.unresolved.length === 1
                                             ? ""
                                             : "s"}{" "}
                                         not recognised — skipped:
                                     </p>
-                                    <button
+                                    <Button
                                         type="button"
+                                        variant="ghost"
+                                        size="xs"
                                         onClick={handleCopyUnresolved}
-                                        className="btn-base btn-tone-ghost shrink-0 px-2 py-0.5 text-xs"
+                                        className="shrink-0"
                                     >
                                         {copied ? "Copied" : "Copy"}
-                                    </button>
+                                    </Button>
                                 </div>
                                 <ul className="mt-1 max-h-32 select-text overflow-auto font-mono text-xs text-text-muted">
                                     {parsed.unresolved.map((line, i) => (
                                         <li key={i}>{line}</li>
                                     ))}
                                 </ul>
-                            </div>
+                            </Banner>
                         )}
                     </div>
                 )}
 
                 <div className="flex items-center justify-end gap-2">
-                    <button
+                    <Button
                         type="button"
+                        variant="ghost"
+                        size="sm"
                         onClick={close}
-                        className="btn-base btn-tone-ghost px-3 py-1.5 text-sm"
                     >
                         Cancel
-                    </button>
+                    </Button>
                     {parsed ? (
-                        <button
+                        <Button
                             type="button"
+                            variant="primary"
                             onClick={handleConfirm}
                             disabled={total === 0}
-                            className="btn-base btn-tone-primary px-4 py-1.5 text-sm disabled:opacity-50"
                         >
                             Add {total} card{total === 1 ? "" : "s"}
-                        </button>
+                        </Button>
                     ) : (
-                        <button
+                        <Button
                             type="button"
+                            variant="primary"
                             onClick={handleParse}
                             disabled={text.trim() === ""}
-                            className="btn-base btn-tone-primary px-4 py-1.5 text-sm disabled:opacity-50"
                         >
                             Preview
-                        </button>
+                        </Button>
                     )}
                 </div>
             </div>

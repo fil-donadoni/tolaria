@@ -58,7 +58,7 @@ export default function LimitedPickContextMenu({
             role="menu"
             aria-label="Draft pick actions"
             style={{ position: "fixed", top: state.y, left: state.x }}
-            className="z-100 min-w-40 rounded-lg bg-popover p-1 text-sm text-popover-foreground shadow-md ring-1 ring-foreground/10"
+            className="z-modal min-w-40 rounded-lg bg-popover p-1 text-sm text-popover-foreground shadow-md ring-1 ring-foreground/10"
         >
             <button
                 type="button"

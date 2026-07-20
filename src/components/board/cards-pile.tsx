@@ -101,11 +101,12 @@ function isCardFaceDown(
  *  empty trailing space. */
 const FAN_OVERLAP = 0.8;
 
-/** Ring class for a selectable card: emerald once picked, amber otherwise. */
+/** Ring class for a selectable card: signal-self once picked, signal-pending
+ *  otherwise. */
 function selectionRing(isSelected: boolean): string {
     return isSelected
-        ? "ring-2 ring-emerald-400 hover:ring-emerald-300"
-        : "ring-2 ring-amber-400 hover:ring-amber-300";
+        ? "ring-2 ring-signal-self hover:ring-signal-self-strong"
+        : "ring-2 ring-signal-pending hover:ring-signal-pending-strong";
 }
 
 /** Whether a revealed card is a legal pick under an (optional) filtered

@@ -1,4 +1,5 @@
 import { usePendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
+import { Button } from "~/components/ui/button";
 
 /** Confirm control for the `search-library` picker, rendered inside the
  *  library dialog. The dialog opens as a modal (`forceOpen`) and covers the
@@ -19,13 +20,14 @@ export default function LibrarySearchConfirm({
         min === 0 && selected === 0 ? "Skip" : `Done (${selected}/${max})`;
 
     return (
-        <button
+        <Button
             type="button"
+            variant="primary"
+            size="sm"
             disabled={!canSubmit || isPending}
             onClick={() => submit()}
-            className="px-4 py-1.5 rounded-sm text-xs font-beleren tracking-wide bg-accent-soft border border-accent text-accent-strong hover:bg-accent-soft/80 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
         >
             {label}
-        </button>
+        </Button>
     );
 }

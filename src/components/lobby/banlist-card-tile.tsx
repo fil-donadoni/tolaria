@@ -29,7 +29,7 @@ export default function BanlistCardTile({
     // tokens): danger for banned, accent for restricted.
     const badgeClass =
         status === "banned"
-            ? "bg-danger/20 text-danger"
+            ? "bg-danger/20 text-danger-strong"
             : "bg-accent-soft text-accent-strong";
 
     return (

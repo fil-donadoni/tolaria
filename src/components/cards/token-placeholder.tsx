@@ -43,11 +43,11 @@ export default function TokenPlaceholder({
     const ptVisible =
         isCreature && power !== undefined && toughness !== undefined;
     return (
-        <div className="relative w-full h-full bg-stone-200 text-stone-900 rounded-sm border border-stone-700 flex flex-col">
-            <div className="px-1.5 py-1 border-b border-stone-500/60 bg-stone-300 text-[0.55em] font-semibold leading-tight">
+        <div className="relative w-full h-full bg-parchment text-surface-base rounded-sm border border-border-strong flex flex-col">
+            <div className="px-1.5 py-1 border-b border-border-strong/60 bg-accent-soft/40 text-[0.55em] font-semibold leading-tight">
                 {name}
             </div>
-            <div className="px-1.5 py-0.5 border-b border-stone-500/40 bg-stone-300/60 text-[0.45em] italic leading-tight">
+            <div className="px-1.5 py-0.5 border-b border-border-strong/40 bg-accent-soft/25 text-[0.45em] italic leading-tight">
                 Token — {formatTypeLine(types, subtypes)}
             </div>
             <div className="flex-1 px-1.5 py-1 text-[0.5em] leading-tight overflow-hidden">
@@ -60,7 +60,7 @@ export default function TokenPlaceholder({
                 )}
             </div>
             {ptVisible && (
-                <div className="absolute bottom-1 right-1.5 px-1.5 py-0.5 bg-stone-100 border border-stone-700 rounded-sm text-[0.55em] font-bold leading-none">
+                <div className="absolute bottom-1 right-1.5 px-1.5 py-0.5 bg-parchment border border-border-strong rounded-sm text-[0.55em] font-bold leading-none">
                     {power}/{toughness}
                 </div>
             )}

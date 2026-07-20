@@ -4,6 +4,7 @@ import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import type { PublicMatch } from "@convex/matches";
 import GameDialog from "~/components/ui/game-dialog";
+import { Button } from "~/components/ui/button";
 import { clearSession } from "~/lib/session";
 
 type Step = "menu" | "confirm-concede" | "confirm-forfeit";
@@ -79,21 +80,21 @@ export default function PauseMenuDialog({
                 dismissable
             >
                 <div className="flex gap-3 mt-2">
-                    <button
-                        type="button"
+                    <Button
+                        variant="secondary"
+                        className="flex-1"
                         onClick={() => setStep("menu")}
-                        className="flex-1 py-2 rounded-sm bg-surface-elevated border border-border-accent/40 text-text-muted font-beleren tracking-wide hover:bg-surface-elevated transition-colors cursor-pointer"
                     >
                         No
-                    </button>
-                    <button
-                        type="button"
+                    </Button>
+                    <Button
+                        variant="destructive"
+                        className="flex-1"
                         onClick={handleConcede}
                         disabled={isBusy}
-                        className="flex-1 py-2 rounded-sm bg-danger-soft border border-danger text-danger-strong font-beleren tracking-wide hover:bg-danger disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
                     >
                         Yes
-                    </button>
+                    </Button>
                 </div>
             </GameDialog>
         );
@@ -109,21 +110,21 @@ export default function PauseMenuDialog({
                 dismissable
             >
                 <div className="flex gap-3 mt-2">
-                    <button
-                        type="button"
+                    <Button
+                        variant="secondary"
+                        className="flex-1"
                         onClick={() => setStep("menu")}
-                        className="flex-1 py-2 rounded-sm bg-surface-elevated border border-border-accent/40 text-text-muted font-beleren tracking-wide hover:bg-surface-elevated transition-colors cursor-pointer"
                     >
                         No
-                    </button>
-                    <button
-                        type="button"
+                    </Button>
+                    <Button
+                        variant="destructive"
+                        className="flex-1"
                         onClick={handleForfeit}
                         disabled={isBusy}
-                        className="flex-1 py-2 rounded-sm bg-danger-soft border border-danger text-danger-strong font-beleren tracking-wide hover:bg-danger disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
                     >
                         Yes
-                    </button>
+                    </Button>
                 </div>
             </GameDialog>
         );
@@ -138,21 +139,21 @@ export default function PauseMenuDialog({
             dismissable
         >
             <div className="flex flex-col gap-3 mt-2">
-                <button
-                    type="button"
+                <Button
+                    variant="destructive"
+                    className="w-full"
                     onClick={() => setStep("confirm-concede")}
-                    className="w-full py-2.5 rounded-sm bg-danger-soft border border-danger text-danger-strong font-beleren tracking-wide hover:bg-danger transition-colors cursor-pointer"
                 >
                     {isBo3 ? "Concede Game" : "Concede"}
-                </button>
+                </Button>
                 {isBo3 && match && (
-                    <button
-                        type="button"
+                    <Button
+                        variant="destructive"
+                        className="w-full"
                         onClick={() => setStep("confirm-forfeit")}
-                        className="w-full py-2.5 rounded-sm bg-danger-soft border border-danger-strong text-danger font-beleren tracking-wide hover:bg-danger transition-colors cursor-pointer"
                     >
                         Concede Match
-                    </button>
+                    </Button>
                 )}
             </div>
         </GameDialog>

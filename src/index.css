@@ -133,7 +133,31 @@
     --color-parchment: #f3ead2;
     --color-text: #e9e0cb;
     --color-text-muted: #b7a984;
-    --color-text-disabled: #6f6244;
+    /* #968a68: ≥4.5:1 on every surface token (was #6f6244, 2.78–3.28 — the
+       phase-3 contrast fix; verified in src/__tests__/design-tokens.test.ts) */
+    --color-text-disabled: #968a68;
+    /* Control/input edges: ≥3:1 on surface/input backgrounds (WCAG 1.4.11) */
+    --color-border-strong: #7d6b42;
+
+    /* Signal hues (phase-3 unification): the one source for turn/priority/
+       selection/pending chroma — replaces raw emerald/rose/amber/violet
+       utilities per ADR 0007. All ≥6.9:1 on --color-surface. */
+    --color-signal-self: #34d399;
+    --color-signal-self-strong: #6ee7b7;
+    --color-signal-opponent: #fb7185;
+    --color-signal-opponent-strong: #fda4af;
+    --color-signal-pending: #fbbf24;
+    --color-signal-pending-strong: #fcd34d;
+    --color-signal-target: #a78bfa;
+    --color-signal-target-strong: #c4b5fd;
+    /* Combat-group rings (was combat-colors.ts red/blue/green/yellow-500) */
+    --color-combat-1: #ef4444;
+    --color-combat-2: #3b82f6;
+    --color-combat-3: #22c55e;
+    --color-combat-4: #eab308;
+
+    /* The one modal scrim (was bg-black/10 … bg-black/70 drift) */
+    --color-scrim: rgb(0 0 0 / 0.5);
 
     --color-sidebar-ring: var(--sidebar-ring);
     --color-sidebar-border: var(--sidebar-border);
@@ -334,9 +358,11 @@
         @apply h-px w-full bg-linear-to-r from-transparent via-border-accent/40 to-transparent;
     }
 
-    /* ── Input field ── */
+    /* ── Input field ──
+     * Resting edge border-strong (≥3:1, WCAG 1.4.11 — was border-subtle/40 at
+     * 1.19:1); focus gets an accent border + ring (8.2:1 — was 1.41:1). */
     .input-field {
-        @apply rounded-sm border border-border-subtle/40 bg-surface-elevated/20 px-4 py-2 text-sm text-text placeholder:text-text-disabled focus:border-border-accent/40 focus:bg-surface-elevated/30 focus:outline-none;
+        @apply rounded-sm border border-border-strong bg-surface-elevated/20 px-4 py-2 text-sm text-text placeholder:text-text-disabled focus:border-accent focus:bg-surface-elevated/30 focus:ring-2 focus:ring-accent/50 focus:outline-none;
     }
 
     /* ── Filter chips ── */
@@ -420,17 +446,6 @@
     }
 
     /* ── Shared chrome atoms ── */
-    .stat-chip {
-        background: linear-gradient(
-            180deg,
-            var(--color-surface-base),
-            var(--color-surface)
-        );
-        border: 1px solid var(--color-border-subtle);
-        color: var(--color-accent-strong);
-        box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.6);
-    }
-
     .sunburst-well {
         background:
             radial-gradient(
@@ -634,6 +649,17 @@
         --card-w: min(8rem, 10vw, 9.5dvh);
         --card-h: calc(var(--card-w) * 7 / 5);
         --card-w-sm: calc(var(--card-w) * 0.75);
+
+        /* Named z-index layers (phase-3 unification). Card-internal stacking
+           (0/5/10/20/30) stays bare — it is scoped inside a card and never
+           collides. Everything above the board uses these named layers so the
+           modal band (100+) has exactly three rungs. */
+        --z-hud: 40;
+        --z-sheet: 50;
+        --z-arrows: 60;
+        --z-modal: 100;
+        --z-modal-top: 110;
+        --z-modal-peak: 120;
     }
 
     * {
@@ -658,6 +684,28 @@
 
     .leader-line {
         z-index: 60;
+    }
+}
+
+@layer components {
+    /* Named z layers — see --z-* vars above. */
+    .z-hud {
+        z-index: var(--z-hud);
+    }
+    .z-sheet {
+        z-index: var(--z-sheet);
+    }
+    .z-arrows {
+        z-index: var(--z-arrows);
+    }
+    .z-modal {
+        z-index: var(--z-modal);
+    }
+    .z-modal-top {
+        z-index: var(--z-modal-top);
+    }
+    .z-modal-peak {
+        z-index: var(--z-modal-peak);
     }
 }
 

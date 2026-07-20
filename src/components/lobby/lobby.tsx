@@ -33,6 +33,8 @@ import {
 } from "~/lib/session";
 import type { Difficulty } from "@convex/gre";
 import { Panel, PanelHeader, PanelBody } from "~/components/ui/panel";
+import { Banner } from "~/components/ui/banner";
+import { Button } from "~/components/ui/button";
 import GameDialog from "~/components/ui/game-dialog";
 import LoadingScreen from "~/components/ui/loading-screen";
 import LobbyFooter from "~/components/legal/lobby-footer";
@@ -342,40 +344,44 @@ function Lobby() {
 
     const renderUserActions = (deck: LobbyDeck) => (
         <>
-            <button
+            <Button
+                variant="secondary"
+                size="sm"
                 onClick={() => handleEditDeck(deck.presetId)}
-                className="btn-base btn-tone-secondary px-3 py-2 text-xs"
                 title="Edit deck"
             >
                 Edit
-            </button>
-            <button
+            </Button>
+            <Button
+                variant="destructive"
+                size="sm"
                 onClick={() => handleDeleteDeck(deck.presetId)}
-                className="btn-base btn-tone-destructive px-3 py-2 text-xs"
                 title="Delete deck"
             >
                 Delete
-            </button>
+            </Button>
         </>
     );
 
     const renderPresetActions = isAdmin
         ? (deck: LobbyDeck) => (
               <>
-                  <button
+                  <Button
+                      variant="secondary"
+                      size="sm"
                       onClick={() => handleEditPreset(deck.presetId)}
-                      className="btn-base btn-tone-secondary px-3 py-2 text-xs"
                       title="Edit preset (admin)"
                   >
                       Edit
-                  </button>
-                  <button
+                  </Button>
+                  <Button
+                      variant="destructive"
+                      size="sm"
                       onClick={() => handleDeletePreset(deck.presetId)}
-                      className="btn-base btn-tone-destructive px-3 py-2 text-xs"
                       title="Delete preset (admin)"
                   >
                       Delete
-                  </button>
+                  </Button>
               </>
           )
         : undefined;
@@ -387,12 +393,13 @@ function Lobby() {
                 <DashboardTopBar />
 
                 <div className="flex justify-end">
-                    <button
+                    <Button
+                        variant="secondary"
+                        size="sm"
                         onClick={() => void navigate({ to: "/limited" })}
-                        className="btn-base btn-tone-secondary px-3 py-1.5 text-xs"
                     >
                         Limited Events
-                    </button>
+                    </Button>
                 </div>
 
                 {activeGame && user && (
@@ -402,11 +409,7 @@ function Lobby() {
                     />
                 )}
 
-                {actionError && (
-                    <div className="rounded-sm border border-danger/50 bg-danger/10 px-4 py-3 text-sm text-danger">
-                        {actionError}
-                    </div>
-                )}
+                {actionError && <Banner tone="danger">{actionError}</Banner>}
 
                 <DashboardPlayBox
                     selectedDeck={selectedDeck}
@@ -429,12 +432,13 @@ function Lobby() {
                                     value={deckFormatFilter}
                                     onChange={handleDeckFormatFilterChange}
                                 />
-                                <button
+                                <Button
+                                    variant="primary"
+                                    size="sm"
                                     onClick={handleNewDeck}
-                                    className="btn-base btn-tone-primary px-3 py-1.5 text-xs"
                                 >
                                     + New Deck
-                                </button>
+                                </Button>
                             </div>
                             <div className="min-h-0 flex-1 overflow-auto">
                                 <DeckList
@@ -462,13 +466,14 @@ function Lobby() {
                                     onChange={handleDeckFormatFilterChange}
                                 />
                                 {isAdmin && (
-                                    <button
+                                    <Button
+                                        variant="primary"
+                                        size="sm"
                                         onClick={handleNewPreset}
-                                        className="btn-base btn-tone-primary px-3 py-1.5 text-xs"
                                         title="Create a new preset (admin)"
                                     >
                                         + New Preset
-                                    </button>
+                                    </Button>
                                 )}
                             </div>
                             <div className="min-h-0 flex-1 overflow-auto">

@@ -1,3 +1,4 @@
+import { Button } from "@/components/ui/button";
 import { BASIC_LAND_SUBTYPES, type BasicLandSubtype } from "./basicLands";
 
 interface PoolBasicLandsBarProps {
@@ -31,15 +32,16 @@ export default function PoolBasicLandsBar({
             {available.map((subtype) => {
                 const cardId = cardIdsBySubtype[subtype]!;
                 return (
-                    <button
+                    <Button
                         key={subtype}
                         type="button"
+                        variant="ghost"
+                        size="sm"
                         disabled={disabled}
                         onClick={() => onAdd(cardId, subtype)}
-                        className="btn-base btn-tone-ghost px-3 py-1 text-xs disabled:opacity-50"
                     >
                         + {subtype}
-                    </button>
+                    </Button>
                 );
             })}
         </div>

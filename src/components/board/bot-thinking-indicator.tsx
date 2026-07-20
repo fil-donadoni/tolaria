@@ -16,8 +16,8 @@ export default function BotThinkingIndicator({
     return (
         <div className="absolute left-1/2 top-3 z-20 -translate-x-1/2 flex items-center gap-2 rounded-full bg-black/70 px-3 py-1.5 text-xs font-medium text-white/90 shadow-lg">
             <span className="relative flex h-2 w-2">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75" />
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-amber-400" />
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-signal-pending opacity-75" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-signal-pending" />
             </span>
             Opponent is thinking…
         </div>

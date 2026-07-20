@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
 import { copyText } from "~/lib/clipboard";
 import { type ExportableDeck, deckToText } from "~/lib/deckImport";
+import { Button } from "~/components/ui/button";
 
 interface DeckExportButtonProps {
     // The working deck's two flat piles. Serialized to a portable MTGA /
@@ -26,14 +27,15 @@ export default function DeckExportButton({ deck }: DeckExportButtonProps) {
     }, [deck]);
 
     return (
-        <button
+        <Button
             type="button"
+            variant="ghost"
+            size="sm"
             onClick={handleExport}
             disabled={isEmpty}
-            className="btn-base btn-tone-ghost px-3 py-1.5 text-sm disabled:cursor-not-allowed disabled:opacity-50"
             title="Copy decklist to clipboard"
         >
             {copied ? "Copied" : "Export"}
-        </button>
+        </Button>
     );
 }

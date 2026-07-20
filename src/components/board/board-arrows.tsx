@@ -14,9 +14,19 @@ import type { Combat } from "~/types/game";
 
 type BoardArrowsProps = {
     stack: StackItem[];
-    /** Current combat — drives blocker → attacker arrows. Omitted when not in
-     *  combat (or in tests that exercise only target arrows). */
+    /** Current combat — drives blocker → attacker and attacker → attack-target
+     *  arrows. Omitted when not in combat (or in tests that exercise only
+     *  target arrows). */
     combat?: Combat;
+    /** The player being attacked this combat — the nameplate anchor attack
+     *  arrows point at when no planeswalker target is chosen (CR 508.1a). */
+    defenderId?: string | null;
+    /** Bump when the seat→player-id assignment changes (solo viewer swap):
+     *  the DOM publisher only re-measures on resize/scroll/stack-change, so
+     *  without this the player anchors stay swapped after a swap and every
+     *  player-pointing arrow (incl. attack arrows) lands on the wrong
+     *  nameplate. */
+    anchorRevision?: string;
 };
 
 /** Gold accent tokens (ADR 0007). The arrow is a metallic gold filament: a soft
@@ -50,7 +60,12 @@ const DIM = 0.14;
  * **transitive cluster** for combat (banding-aware): in a 1-attacker /
  * 2-blocker knot, hovering either arrow lights both arrows and all three cards.
  */
-export default function BoardArrows({ stack, combat }: BoardArrowsProps) {
+export default function BoardArrows({
+    stack,
+    combat,
+    defenderId,
+    anchorRevision,
+}: BoardArrowsProps) {
     const svgRef = useRef<SVGSVGElement>(null);
     const registry = useArrowAnchors();
     const channel = useArrowHighlight();
@@ -58,15 +73,19 @@ export default function BoardArrows({ stack, combat }: BoardArrowsProps) {
     // Re-measure DOM anchors when the stack identity set changes (items added /
     // resolved) so newly-mounted stack/player/graveyard anchors are picked up.
     const stackKey = useMemo(() => stack.map((s) => s.id).join(","), [stack]);
-    useDomAnchorPublisher(svgRef, ["stack", "player", "graveyard"], stackKey);
+    useDomAnchorPublisher(
+        svgRef,
+        ["stack", "player", "graveyard"],
+        `${stackKey}|${anchorRevision ?? ""}`
+    );
 
     const anchors = registry?.anchors ?? emptyAnchorMap();
     const arrows = useMemo<TargetArrow[]>(
         () => [
             ...buildTargetArrows(stack, anchors),
-            ...buildCombatArrows(combat, anchors),
+            ...buildCombatArrows(combat, anchors, defenderId),
         ],
-        [stack, combat, anchors]
+        [stack, combat, anchors, defenderId]
     );
 
     // The hover seed (an arrow `key` or a card `nodeId`) is shared via the
@@ -90,7 +109,7 @@ export default function BoardArrows({ stack, combat }: BoardArrowsProps) {
     return (
         <svg
             ref={svgRef}
-            className="pointer-events-none absolute inset-0 z-[60] h-full w-full overflow-visible"
+            className="pointer-events-none absolute inset-0 z-arrows h-full w-full overflow-visible"
             aria-hidden
             data-testid="board-arrows"
         >

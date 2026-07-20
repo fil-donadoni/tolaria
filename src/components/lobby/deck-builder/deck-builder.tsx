@@ -26,6 +26,7 @@ import {
 import type { DeckCard } from "~/types/game";
 import type { ParsedDecklist } from "~/lib/deckImport";
 import CardImage from "~/components/cards/card-image";
+import { Button } from "~/components/ui/button";
 import GameDialog from "~/components/ui/game-dialog";
 import ActionButton from "~/components/board/action-button";
 import CardZoomSlider from "./card-zoom-slider";
@@ -623,12 +624,13 @@ export default function DeckBuilder({
                 <div className="flex flex-col gap-3 border-b border-border-subtle/30 bg-surface/60 px-4 py-3 md:px-6">
                     <div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-3">
                         <div className="flex items-center gap-3">
-                            <button
+                            <Button
+                                variant="ghost"
+                                size="sm"
                                 onClick={() => void handleDone()}
-                                className="btn-base btn-tone-ghost px-3 py-1.5 text-sm"
                             >
                                 ← Back
-                            </button>
+                            </Button>
                             <h1 className="text-lg font-semibold font-beleren tracking-wide text-parchment">
                                 {isPreset
                                     ? mode === "create"
@@ -646,13 +648,14 @@ export default function DeckBuilder({
                                     slug: {initialIdentity}
                                 </span>
                             )}
-                            <button
+                            <Button
                                 type="button"
+                                variant="ghost"
+                                size="sm"
                                 onClick={() => setImportOpen(true)}
-                                className="btn-base btn-tone-ghost px-3 py-1.5 text-sm"
                             >
                                 Import
-                            </button>
+                            </Button>
                             <DeckExportButton
                                 deck={{
                                     cards: deck.cards,

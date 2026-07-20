@@ -24,7 +24,7 @@ export default function DivideTargetStepper({
     };
     return (
         <div
-            className="flex items-center gap-1.5 bg-surface-2 border border-border-subtle rounded-full px-1.5 py-1 shadow-[0_6px_16px_rgba(0,0,0,0.5)]"
+            className="flex items-center gap-1.5 bg-surface-elevated border border-border-subtle rounded-full px-1.5 py-1 shadow-[0_6px_16px_rgba(0,0,0,0.5)]"
             onClick={(e) => e.stopPropagation()}
         >
             <button

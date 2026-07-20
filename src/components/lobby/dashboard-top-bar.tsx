@@ -4,6 +4,7 @@ import { useAuthActions } from "@convex-dev/auth/react";
 import { LogOut } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import { useCurrentUser } from "~/hooks/useCurrentUser";
+import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import CornerFiligreeFrame from "~/components/ui/corner-filigree-frame";
 import OrnamentalDivider from "~/components/ui/ornamental-divider";
@@ -98,20 +99,22 @@ export default function DashboardTopBar() {
                                 autoFocus
                                 className="h-8 w-48"
                             />
-                            <button
+                            <Button
                                 type="submit"
+                                variant="primary"
+                                size="sm"
                                 disabled={saving}
-                                className="btn-base btn-tone-primary px-3 py-1.5 text-xs disabled:btn-disabled"
                             >
                                 {saving ? "Saving…" : "Save"}
-                            </button>
-                            <button
+                            </Button>
+                            <Button
                                 type="button"
+                                variant="secondary"
+                                size="sm"
                                 onClick={() => setEditing(false)}
-                                className="btn-base btn-tone-secondary px-3 py-1.5 text-xs"
                             >
                                 Cancel
-                            </button>
+                            </Button>
                             {error && (
                                 <span className="text-xs text-danger-strong">
                                     {error}
@@ -120,31 +123,34 @@ export default function DashboardTopBar() {
                         </form>
                     ) : (
                         <div className="flex flex-col leading-tight">
-                            <button
+                            <Button
                                 type="button"
+                                variant="link"
+                                size="xs"
                                 onClick={startEdit}
-                                className="text-left text-sm font-semibold text-parchment hover:underline"
+                                className="text-left text-sm font-semibold text-parchment"
                                 title="Edit nickname"
                             >
                                 {user.nickname}
-                            </button>
+                            </Button>
                             <span className="text-xs text-text-muted">
                                 {user.email}
                             </span>
                         </div>
                     )}
-                    <button
+                    <Button
                         type="button"
+                        variant="secondary"
+                        size="sm"
                         onClick={() => void handleSignOut()}
                         disabled={signingOut}
                         title="Sign out"
-                        className="btn-base btn-tone-secondary flex items-center gap-1.5 px-3 py-1.5 text-xs disabled:btn-disabled"
                     >
                         <LogOut className="h-3.5 w-3.5" />
                         <span className="hidden sm:inline">
                             {signingOut ? "Signing out…" : "Sign out"}
                         </span>
-                    </button>
+                    </Button>
                 </div>
             </div>
             <OrnamentalDivider className="px-5 pb-2" />

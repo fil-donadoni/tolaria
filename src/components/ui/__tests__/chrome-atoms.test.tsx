@@ -3,7 +3,6 @@ import { render, screen } from "@testing-library/react";
 import CornerFiligree from "../corner-filigree";
 import CornerFiligreeFrame from "../corner-filigree-frame";
 import SunburstIcon from "../sunburst-icon";
-import StatChip from "../stat-chip";
 import OrnamentalDivider from "../ornamental-divider";
 import SubtitleFlourish from "../subtitle-flourish";
 
@@ -53,21 +52,6 @@ describe("SunburstIcon", () => {
         const well = container.querySelector('[data-slot="sunburst-icon"]')!;
         expect(well.className).toContain("sunburst-well");
         expect(screen.getByText("glyph")).toBeTruthy();
-    });
-});
-
-describe("StatChip", () => {
-    it("renders a single chip when `to` is omitted", () => {
-        render(<StatChip from={20} />);
-        expect(screen.getByText("20")).toBeTruthy();
-        expect(screen.queryByText("▸")).toBeNull();
-    });
-
-    it("renders `from ▸ to` when both provided", () => {
-        render(<StatChip from={20} to={17} />);
-        expect(screen.getByText("20")).toBeTruthy();
-        expect(screen.getByText("17")).toBeTruthy();
-        expect(screen.getByText("▸")).toBeTruthy();
     });
 });
 

@@ -3,6 +3,7 @@ import { useAction, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { type BanlistFormatId } from "@convex/formats";
 import ActionButton from "~/components/board/action-button";
+import { Button } from "~/components/ui/button";
 import BanlistCardsDialog from "./banlist-cards-dialog";
 
 interface BanlistFormatSyncRowProps {
@@ -70,14 +71,15 @@ export default function BanlistFormatSyncRow({
                                 ? "Loading…"
                                 : `${bannedCount} banned, ${restrictedCount} restricted`}
                         </p>
-                        <button
+                        <Button
                             type="button"
+                            variant="ghost"
+                            size="xs"
                             onClick={() => setCardsOpen(true)}
                             disabled={bannedCount === null}
-                            className="btn-base btn-tone-ghost px-2 py-0.5 text-[11px] disabled:opacity-50"
                         >
                             View cards
-                        </button>
+                        </Button>
                     </div>
                     <p className="text-xs text-text-muted">
                         {meta === undefined

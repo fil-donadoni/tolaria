@@ -31,7 +31,7 @@ function DialogOverlay({
         <DialogPrimitive.Backdrop
             data-slot="dialog-overlay"
             className={cn(
-                "fixed inset-0 isolate z-100 bg-black/10 duration-100 supports-backdrop-filter:backdrop-blur-xs data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
+                "z-modal fixed inset-0 isolate bg-scrim duration-100 supports-backdrop-filter:backdrop-blur-xs data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
                 className
             )}
             {...props}
@@ -64,7 +64,7 @@ function DialogContent({
                     // the transform, so the zoom/fade enter-exit animation (which
                     // animates `transform` via keyframes) stays intact. Lobby:
                     // var absent ⇒ 0px ⇒ unchanged full-viewport centering.
-                    "play-area-center-x fixed top-1/2 z-100 grid w-fit -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-popover p-4 text-sm text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+                    "play-area-center-x z-modal fixed top-1/2 grid w-fit -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-popover p-4 text-sm text-popover-foreground ring-1 ring-border-accent/40 duration-100 outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
                     className
                 )}
                 {...props}
@@ -119,7 +119,7 @@ function DialogFooter({
         >
             {children}
             {showCloseButton && (
-                <DialogPrimitive.Close render={<Button variant="outline" />}>
+                <DialogPrimitive.Close render={<Button variant="secondary" />}>
                     Close
                 </DialogPrimitive.Close>
             )}

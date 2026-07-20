@@ -15,12 +15,12 @@ export default function BugReportButton() {
         <>
             <Button
                 type="button"
-                variant="outline"
+                variant="secondary"
                 size="icon"
                 aria-label="Report a bug"
                 title="Report a bug"
                 onClick={() => setOpen(true)}
-                className="fixed bottom-4 left-4 z-50 rounded-full shadow-md"
+                className="z-sheet fixed bottom-4 left-4 rounded-full shadow-md"
             >
                 <Bug />
             </Button>

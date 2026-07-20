@@ -6,6 +6,7 @@ import type { CardInstance, Combat } from "~/types/game";
 import { getDefinition } from "@convex/cards";
 import { extractMutationErrorMessage } from "~/lib/mutation-error";
 import { hasBandingLike, canFormBand } from "~/lib/banding";
+import { Panel } from "~/components/ui/panel";
 
 /**
  * Band-formation control shown to the attacking player during attacker
@@ -80,69 +81,74 @@ export default function BandFormationPanel({
     };
 
     return (
-        <div className="absolute top-12 left-1/2 -translate-x-1/2 z-100 bg-black/90 border border-white/20 rounded-lg p-3 text-white text-xs max-w-sm">
-            <div className="font-bold mb-2">Form a Band (banding)</div>
-            {ungrouped.length >= 2 && (
-                <>
-                    <div className="flex flex-wrap gap-1 mb-2">
-                        {ungrouped.map((c) => {
-                            const isSel = selected.includes(c.id);
-                            return (
-                                <button
-                                    key={c.id}
-                                    onClick={() => toggle(c.id)}
-                                    className={`px-2 py-1 rounded border ${
-                                        isSel
-                                            ? "bg-amber-500/40 border-amber-300"
-                                            : "bg-white/10 border-white/20"
-                                    }`}
-                                >
-                                    {getDefinition(c.card.id).name}
-                                    {hasBandingLike(c) ? " ⟡" : ""}
-                                </button>
-                            );
-                        })}
-                    </div>
-                    <button
-                        disabled={!canCreate || busy}
-                        onClick={handleCreate}
-                        className="px-3 py-1 rounded bg-amber-600/40 border border-amber-400/50 disabled:opacity-40 disabled:cursor-not-allowed mb-2"
-                    >
-                        Create band
-                    </button>
-                </>
-            )}
-            {bands.length > 0 && (
-                <div className="flex flex-col gap-1">
-                    {bands.map((b) => (
-                        <div
-                            key={b.bandId}
-                            className="flex items-center gap-2 bg-white/5 rounded px-2 py-1"
-                        >
-                            <span className="flex-1 truncate">
-                                {b.memberIds
-                                    .map((id) => {
-                                        const c = attackers.find(
-                                            (a) => a.id === id
-                                        );
-                                        return c
-                                            ? getDefinition(c.card.id).name
-                                            : id;
-                                    })
-                                    .join(" + ")}
-                            </span>
-                            <button
-                                disabled={busy}
-                                onClick={() => handleRemove(b.bandId)}
-                                className="text-red-300 hover:text-red-200 disabled:opacity-40"
-                            >
-                                ✕
-                            </button>
+        // Positioning is owned by the declare-attackers dock in CombatPanels.
+        <div>
+            <Panel density="compact" className="max-w-sm p-3 text-xs">
+                <div className="font-bold mb-2">Form a Band (banding)</div>
+                {ungrouped.length >= 2 && (
+                    <>
+                        <div className="flex flex-wrap gap-1 mb-2">
+                            {ungrouped.map((c) => {
+                                const isSel = selected.includes(c.id);
+                                return (
+                                    <button
+                                        key={c.id}
+                                        onClick={() => toggle(c.id)}
+                                        className={`px-2 py-1 rounded border ${
+                                            isSel
+                                                ? "bg-signal-pending/40 border-signal-pending"
+                                                : "bg-surface-elevated border-border-subtle"
+                                        }`}
+                                    >
+                                        {getDefinition(c.card.id).name}
+                                        {hasBandingLike(c) ? " ⟡" : ""}
+                                    </button>
+                                );
+                            })}
                         </div>
-                    ))}
-                </div>
-            )}
-            {error && <div className="text-red-400 mt-2">{error}</div>}
+                        <button
+                            disabled={!canCreate || busy}
+                            onClick={handleCreate}
+                            className="px-3 py-1 rounded bg-signal-pending/40 border border-signal-pending/50 disabled:opacity-40 disabled:cursor-not-allowed mb-2"
+                        >
+                            Create band
+                        </button>
+                    </>
+                )}
+                {bands.length > 0 && (
+                    <div className="flex flex-col gap-1">
+                        {bands.map((b) => (
+                            <div
+                                key={b.bandId}
+                                className="flex items-center gap-2 bg-surface-elevated/50 rounded px-2 py-1"
+                            >
+                                <span className="flex-1 truncate">
+                                    {b.memberIds
+                                        .map((id) => {
+                                            const c = attackers.find(
+                                                (a) => a.id === id
+                                            );
+                                            return c
+                                                ? getDefinition(c.card.id).name
+                                                : id;
+                                        })
+                                        .join(" + ")}
+                                </span>
+                                <button
+                                    disabled={busy}
+                                    onClick={() => handleRemove(b.bandId)}
+                                    className="text-danger-strong hover:text-parchment disabled:opacity-40"
+                                >
+                                    ✕
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                )}
+                {error && (
+                    <div className="text-danger-strong mt-2">{error}</div>
+                )}
+            </Panel>
         </div>
     );
 }

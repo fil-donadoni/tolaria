@@ -230,8 +230,8 @@ export default function BoardHandCard({
     // tests / arrows find the card on either path.
     if (isHandChoice) {
         const ringClass = isChoiceSelected
-            ? "ring-2 ring-emerald-400"
-            : "ring-2 ring-violet-400/60 cursor-pointer hover:ring-violet-300";
+            ? "ring-2 ring-signal-self"
+            : "ring-2 ring-signal-target/60 cursor-pointer hover:ring-signal-target-strong";
         return (
             <div
                 data-board-hand-card={card.id}

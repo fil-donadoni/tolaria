@@ -1,4 +1,5 @@
 import type { DraftableSetInfo } from "~/hooks/useLimitedEvent";
+import { Banner } from "@/components/ui/banner";
 
 interface IncompletenessNoticeProps {
     /** The currently-selected Pack Source's live Draftability info (from
@@ -21,19 +22,12 @@ export default function IncompletenessNotice({
     if (!set || set.missingCardCount === 0) return null;
 
     return (
-        <p
-            role="status"
-            className="rounded-sm border border-accent/40 bg-accent-soft/40 px-2 py-1.5 text-xs text-text"
-        >
-            <span className="font-semibold uppercase tracking-wide text-accent-strong">
-                Incompleteness Notice
-            </span>
-            {" — "}
+        <Banner tone="info" title="Incompleteness Notice" role="status">
             {set.setCode.toUpperCase()} is missing {set.missingCardCount} card
             {set.missingCardCount === 1 ? "" : "s"} with no implemented
             definition yet. They are dropped from the print run and every
             Booster Sheet's weights are renormalized, so no booster ever shows a
             placeholder.
-        </p>
+        </Banner>
     );
 }

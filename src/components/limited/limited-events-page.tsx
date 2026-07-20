@@ -9,6 +9,8 @@ import {
 } from "~/hooks/useLimitedEvent";
 import { canCreateLimitedEvents } from "~/lib/adminGating";
 import { Panel, PanelHeader, PanelBody } from "~/components/ui/panel";
+import { Banner } from "@/components/ui/banner";
+import { Button } from "@/components/ui/button";
 import LoadingScreen from "~/components/ui/loading-screen";
 import LimitedEventList from "./limited-event-list";
 import CreateLimitedEventDialog, {
@@ -85,20 +87,17 @@ export default function LimitedEventsPage() {
             <Panel>
                 <PanelHeader title="Limited Events" />
                 <PanelBody>
-                    {joinError && (
-                        <div className="rounded-sm border border-danger/50 bg-danger/10 px-4 py-3 text-sm text-danger">
-                            {joinError}
-                        </div>
-                    )}
+                    {joinError && <Banner tone="danger">{joinError}</Banner>}
 
                     {canCreateLimitedEvents(user) && (
                         <div className="flex justify-end">
-                            <button
+                            <Button
+                                variant="primary"
+                                size="sm"
                                 onClick={() => setCreateOpen(true)}
-                                className="btn-base btn-tone-primary px-3 py-1.5 text-xs"
                             >
                                 + Create Event
-                            </button>
+                            </Button>
                         </div>
                     )}
 

@@ -52,7 +52,7 @@ describe("OracleParagraph milestone chips (CR 702.D / 702.T)", () => {
         expect(chip!.dataset.met).toBe("false");
     });
 
-    it("shows a met threshold chip turned emerald (7/7)", () => {
+    it("shows a met threshold chip turned success-strong (7/7)", () => {
         const milestones = computeGraveyardMilestones(
             Array.from({ length: 7 }, () => gy(["Creature"]))
         );
@@ -67,6 +67,6 @@ describe("OracleParagraph milestone chips (CR 702.D / 702.T)", () => {
         );
         expect(chip!.textContent).toBe("7/7");
         expect(chip!.dataset.met).toBe("true");
-        expect(chip!.className).toContain("text-emerald-400");
+        expect(chip!.className).toContain("text-success-strong");
     });
 });

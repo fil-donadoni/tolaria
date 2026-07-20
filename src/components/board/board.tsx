@@ -573,6 +573,14 @@ export default function Board({
                                                 <BoardArrows
                                                     stack={stackItems}
                                                     combat={combat}
+                                                    defenderId={
+                                                        allPlayers.find(
+                                                            (p) =>
+                                                                p.id !==
+                                                                activePlayerId
+                                                        )?.id ?? null
+                                                    }
+                                                    anchorRevision={`${me?.id ?? ""}:${opponent?.id ?? ""}`}
                                                 />
                                             </div>
                                         </LayoutGroup>
