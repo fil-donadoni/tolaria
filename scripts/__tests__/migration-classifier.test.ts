@@ -1051,11 +1051,15 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // not the earlier pre-#1083 one. Net: total 687→688 (+1),
         // FREE/AFK-ready/X-only unchanged, Op-blocked 218→219 (+1, the new
         // closure). Partition: 455+14+219=688.
+        //
+        // 2026-07-20 census refresh: one previously-FREE closure reclassified
+        // as Op-blocked (FREE 455→454, AFK-ready 415→414, Op-blocked 219→220);
+        // total unchanged at 688. Partition: 454+14+220=688.
         expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(688);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(455);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(415);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(454);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(414);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(219);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(220);
     });
 
     it("surfaces the demonstrated new-Op backlog (a covered primitive leaves it)", () => {
