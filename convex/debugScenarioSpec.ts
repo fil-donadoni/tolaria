@@ -194,6 +194,33 @@ export function selectEphemeralIdsToPrune<Id>(
     return ephemeral.slice(Math.max(0, keep)).map((row) => row._id);
 }
 
+/**
+ * Pure seed-dedup decision (issue #1422). Given the code-seed presets and the
+ * labels already claimed in the DB pool, return which presets still need
+ * inserting and how many were skipped. A label counts as already-seeded if
+ * it's either a currently-existing row's label OR a TOMBSTONED label — a
+ * hard-deleted scenario's label is remembered precisely so the next seed does
+ * not resurrect a row an admin validated and then deleted. Deterministic and
+ * side-effect-free so the mutation (`seedNewMechanicScenarios`) is a thin
+ * wrapper the tests can drive directly.
+ */
+export function selectPresetsToSeed<T extends { label: string }>(
+    presets: readonly T[],
+    existingLabels: ReadonlySet<string>,
+    tombstonedLabels: ReadonlySet<string>
+): { toInsert: T[]; skipped: number } {
+    const toInsert: T[] = [];
+    let skipped = 0;
+    for (const preset of presets) {
+        if (existingLabels.has(preset.label) || tombstonedLabels.has(preset.label)) {
+            skipped++;
+            continue;
+        }
+        toInsert.push(preset);
+    }
+    return { toInsert, skipped };
+}
+
 // ---- Tolerant load helpers -------------------------------------------------
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -12,6 +12,7 @@ import {
     normalizeScenarioSpec,
     scenarioSpecValidator,
     selectEphemeralIdsToPrune,
+    selectPresetsToSeed,
     SCENARIO_SCHEMA_VERSION,
     type ScenarioSpec,
 } from "./debugScenarioSpec";
@@ -200,6 +201,21 @@ export const deleteDebugScenario = mutation({
             throw new Error("Scenario not found");
         }
         await ctx.db.delete(args.id);
+        // Tombstone the label (issue #1422): a hard-deleted scenario's label is
+        // remembered so `seedNewMechanicScenarios` won't re-insert it on the next
+        // deploy. Idempotent — only insert a tombstone if this label isn't
+        // already tombstoned. Manual `saveDebugScenario` is unaffected: it does
+        // NOT consult tombstones, so re-saving the same label still works.
+        const existingTombstone = await ctx.db
+            .query("debugScenarioTombstones")
+            .withIndex("by_label", (q) => q.eq("label", row.label))
+            .first();
+        if (!existingTombstone) {
+            await ctx.db.insert("debugScenarioTombstones", {
+                label: row.label,
+                createdAt: Date.now(),
+            });
+        }
         return null;
     },
 });
@@ -2048,15 +2064,25 @@ export const seedNewMechanicScenarios = internalMutation({
         const existing = await ctx.db.query("debugScenarios").take(1000);
         const existingLabels = new Set(existing.map((row) => row.label));
 
+        // Tombstoned labels (issue #1422): a hard-deleted scenario's label must
+        // NOT resurrect on the next seed even though it's no longer among
+        // `existingLabels` — `deleteDebugScenario` records it here. Bounded scan,
+        // same style as the `debugScenarios` query above.
+        const tombstones = await ctx.db
+            .query("debugScenarioTombstones")
+            .take(1000);
+        const tombstonedLabels = new Set(tombstones.map((row) => row.label));
+
+        const { toInsert, skipped } = selectPresetsToSeed(
+            NEW_MECHANIC_SCENARIOS,
+            existingLabels,
+            tombstonedLabels
+        );
+
         // Same loadability guard as the write path — reject before insert if any
         // referenced card name doesn't resolve in the catalogue (ADR 0044).
         let inserted = 0;
-        let skipped = 0;
-        for (const preset of NEW_MECHANIC_SCENARIOS) {
-            if (existingLabels.has(preset.label)) {
-                skipped++;
-                continue;
-            }
+        for (const preset of toInsert) {
             const unresolved = collectUnresolvedCardNames(
                 preset.spec,
                 (name) => tryGetCardByName(name) !== null
