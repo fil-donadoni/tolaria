@@ -254,7 +254,129 @@ const fmt = (s: number | null) =>
           ? `${Math.floor(s / 60)}m${String(s % 60).padStart(2, "0")}s`
           : `${s}s`;
 
+// --scorecard: the two headline cost measures across ALL sessions' side-files
+// (general-purpose out-token share + % of subagents in the >150k context band).
+// These are the metrics the built-in usage report surfaces; before side-file
+// enrichment the hook could never produce them (0 of 538 events had tokens).
+function printScorecard() {
+    if (!existsSync(projectsRoot)) {
+        console.log("No transcript side-files under", projectsRoot);
+        return;
+    }
+    let n = 0;
+    let over150 = 0;
+    let totOut = 0;
+    let totCtx = 0;
+    const byType = new Map<string, { n: number; out: number; over: number }>();
+    const bands = { "<50k": 0, "50-100k": 0, "100-150k": 0, ">150k": 0 };
+    for (const proj of readdirSync(projectsRoot)) {
+        const pdir = join(projectsRoot, proj);
+        let sess: string[];
+        try {
+            sess = readdirSync(pdir);
+        } catch {
+            continue;
+        }
+        for (const s of sess) {
+            const sub = join(pdir, s, "subagents");
+            if (!existsSync(sub)) continue;
+            for (const f of readdirSync(sub)) {
+                if (!f.endsWith(".jsonl")) continue;
+                const agentId = f.slice("agent-".length, -".jsonl".length);
+                let atype = "?";
+                try {
+                    atype =
+                        JSON.parse(
+                            readFileSync(
+                                join(sub, `agent-${agentId}.meta.json`),
+                                "utf8"
+                            )
+                        ).agentType ?? "?";
+                } catch {
+                    /* no meta */
+                }
+                let out = 0;
+                let peak = 0;
+                for (const l of readFileSync(join(sub, f), "utf8").split(
+                    "\n"
+                )) {
+                    if (!l) continue;
+                    let r: {
+                        message?: {
+                            usage?: {
+                                output_tokens?: number;
+                                input_tokens?: number;
+                                cache_read_input_tokens?: number;
+                                cache_creation_input_tokens?: number;
+                            };
+                        };
+                    };
+                    try {
+                        r = JSON.parse(l);
+                    } catch {
+                        continue;
+                    }
+                    const u = r.message?.usage;
+                    if (!u) continue;
+                    out += u.output_tokens ?? 0;
+                    const c =
+                        (u.input_tokens ?? 0) +
+                        (u.cache_read_input_tokens ?? 0) +
+                        (u.cache_creation_input_tokens ?? 0);
+                    if (c > peak) peak = c;
+                }
+                if (out === 0 && peak === 0) continue;
+                n++;
+                totOut += out;
+                totCtx += peak;
+                if (peak > BIG_CONTEXT) over150++;
+                const band =
+                    peak < 50_000
+                        ? "<50k"
+                        : peak < 100_000
+                          ? "50-100k"
+                          : peak < BIG_CONTEXT
+                            ? "100-150k"
+                            : ">150k";
+                bands[band]++;
+                const row = byType.get(atype) ?? { n: 0, out: 0, over: 0 };
+                row.n++;
+                row.out += out;
+                if (peak > BIG_CONTEXT) row.over++;
+                byType.set(atype, row);
+            }
+        }
+    }
+    if (!n) {
+        console.log("No subagent side-files with usage found.");
+        return;
+    }
+    console.log(
+        `=== SCORECARD — ${n} subagents (all sessions, side-files) ===`
+    );
+    console.log(
+        `total out-tokens ${Math.round(totOut / 1000)}k | avg peak ctx ${Math.round(totCtx / n / 1000)}k`
+    );
+    console.log(
+        `>${BIG_CONTEXT / 1000}k ctx band: ${over150}/${n} = ${((100 * over150) / n).toFixed(1)}% (expensive-even-when-cached)`
+    );
+    console.log(
+        `ctx distribution: <50k ${bands["<50k"]} | 50-100k ${bands["50-100k"]} | 100-150k ${bands["100-150k"]} | >150k ${bands[">150k"]}`
+    );
+    console.log(`-- out-token share by agent type --`);
+    for (const [t, v] of [...byType.entries()].sort(
+        (a, b) => b[1].out - a[1].out
+    ))
+        console.log(
+            `  ${t.padEnd(24)} n=${String(v.n).padStart(4)}  out=${(Math.round(v.out / 1000) + "k").padStart(7)} (${((100 * v.out) / totOut).toFixed(0).padStart(3)}%)  >150k=${v.over}`
+        );
+}
+
 const args = process.argv.slice(2);
+if (args.includes("--scorecard")) {
+    printScorecard();
+    process.exit(0);
+}
 const onlySession = args.includes("--session")
     ? args[args.indexOf("--session") + 1]
     : null;
