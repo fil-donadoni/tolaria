@@ -1100,9 +1100,15 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // #1281 (coinFlip) / #1282 (Bazaar) / #1285 (Stun) migrations logged
         // above: total 659, FREE 431, AFK-ready 398, X-only 14, Op-blocked
         // 214. Partition: 431+14+214=659.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(659);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(431);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(398);
+        //
+        // 2026-07-21 atq/red Shatterstorm migrated (destroyAll → forEach +
+        // destroy{cantBeRegenerated}, Day of Judgment shape, no new Op): total
+        // 659→658 (−1), FREE 431→430 (−1), AFK-ready 398→397 (−1, it had a
+        // per-card test). X-only and Op-blocked unchanged. Partition:
+        // 430+14+214=658.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(658);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(430);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(397);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
         expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(214);
     });
