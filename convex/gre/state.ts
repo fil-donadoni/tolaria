@@ -11348,6 +11348,21 @@ export function buildSpellContext(
             grantKnowledgeToAll(state, playerId, [picked.id]);
             return picked.id;
         },
+        lookRandomHandCard(ownerId, knowerId): string | undefined {
+            // CR 701.18a — "Look at a card at random in target player's hand"
+            // (Urza's Bauble). A PRIVATE look: unlike `revealRandomHandCard`
+            // (CR 701.20, public `grantKnowledgeToAll`), the pick is stamped
+            // known to the looker ALONE via `grantKnowledge`. Same seeded-PRNG
+            // draw so replay is deterministic (rngSeed/rngCounter, like
+            // `flipCoin` / `discardCardsAtRandom`); MUST run in the final,
+            // non-suspending resolution segment so the counter advances once.
+            // Empty hand → nothing to look at (CR 608.2b).
+            const player = getPlayer(state, ownerId);
+            if (player.hand.length === 0) return undefined;
+            const picked = player.hand[randomInt(state, player.hand.length)];
+            grantKnowledge(state, ownerId, [picked.id], knowerId);
+            return picked.id;
+        },
         requestCoinFlip(req): boolean | undefined {
             // CR 705.2 / ADR 0023 — engine-generated random reveal. Unlike the
             // player-answer primitives above, the OUTCOME is drawn here, not

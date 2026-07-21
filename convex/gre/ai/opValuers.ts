@@ -479,6 +479,9 @@ const restrictCombat: Valuer<"restrictCombat"> = (op) => ({
 
 const reveal: Valuer<"reveal"> = () => ZERO_OP_VALUE;
 
+// A private look at a random hand card grants information, no board material.
+const lookRandomHand: Valuer<"lookRandomHand"> = () => ZERO_OP_VALUE;
+
 const scryReorder: Valuer<"scryReorder"> = (op, ctx) => {
     const { amount, scaling } = ctx.value(op.count);
     return {
@@ -566,6 +569,7 @@ export const OP_VALUERS: {
     restrictCasting,
     restrictCombat,
     reveal,
+    lookRandomHand,
     scryReorder,
     setColor,
     setSubtype,

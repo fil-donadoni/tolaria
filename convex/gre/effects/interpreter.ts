@@ -2095,6 +2095,23 @@ export const OP_EXECUTORS: {
         if (ids.length === 0) return; // CR 608.2b — nothing to reveal
         ctx.markKnownToAll(playerId, ids);
     },
+    // CR 701.18a look (Urza's Bauble) — "Look at a card at random in
+    // `player`'s hand": a PRIVATE look. A thin adapter over the two
+    // SpellContext primitives `lookRandomHandCard` (seeded-PRNG pick + private
+    // `markKnown` to the looker) and `notifyReveal` (the transient look dialog,
+    // audience = the looker ALONE). `looker` defaults to the resolving
+    // controller (CR 113.7). No-op on an empty hand (the primitive returns
+    // undefined, CR 608.2b) or an unresolvable player ref. Distinct from the
+    // public `reveal` Op above (CR 701.20, `markKnownToAll`).
+    lookRandomHand(ctx, op) {
+        const ownerId = resolvePlayerRef(ctx, op.player);
+        if (ownerId === undefined) return;
+        const lookerId = resolvePlayerRef(ctx, op.looker ?? "controller");
+        if (lookerId === undefined) return;
+        const picked = ctx.lookRandomHandCard(ownerId, lookerId);
+        if (picked === undefined) return; // empty hand — CR 608.2b
+        ctx.notifyReveal([lookerId], [picked], ctx.sourceCardId, "look");
+    },
     // CR 201.3 / 202.3 (issue #1085) — "chooses a card name" as part of
     // resolution. A thin adapter over `SpellContext.requestNameCard`, one
     // execution path (ADR 0045): SUSPENDS like `choice`/`mayPay` — the

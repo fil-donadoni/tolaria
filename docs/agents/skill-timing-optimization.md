@@ -249,6 +249,154 @@ cost is accepted as the price of correctness; context is spent, not saved, here.
 Re-pull it after a week of real runs and compare (1) general-purpose token
 share, (2) % usage >150k, (3) `resolved_model` distribution (zero `⚠ LEAK`).
 
+## Session 2026-07-21 — telemetry re-read: leak solved, token/context scorecard is DEAD
+
+Re-pulled the report over the accumulated log (**59.886 events, 538 post
+Task/Agent events**) to check the three success measures from 2026-07-19.
+Result: one measure green, two **unmeasurable** because the enrichment never
+worked.
+
+### What the data actually says
+
+1. **Model-routing leak — SOLVED, confirmed.** `resolved_model` now populates
+   (started recently: 51 of 538 events carry it). Distribution sonnet 35 / opus
+   11 / haiku 5. **0 leaks** — zero read-only `Explore`/`general-purpose` with
+   no explicit model resolving onto opus/fable. Lever 1 delivered; no further
+   action on routing.
+2. **Token/context telemetry — NEVER WORKED (0 of 538).** Not one Task/Agent
+   post event ever carried `out_tokens`/`in_tokens`/`cache_read`/`dur_ms`; the
+   `context` band was never even emitted. Only **6 events in the entire 60k log**
+   ever had a `tokens` value (legacy `totalTokens`, long gone). So the two
+   headline success measures — "general-purpose token share" and "% usage
+    > 150k" — have **never had a single data point**. The context-discipline
+    > scorecard, declared the #1 remaining lever in BOTH prior sessions, is
+    > vaporware.
+3. **Gates still dominate mechanical wall-time.** Last 40 sessions: **163
+   full-test + 111 check-all gate invocations, ~6h aggregate**. The
+   run-full-gate-once cadence is enforced only inside `/process-gh-issues`;
+   interactive Opus debugging sessions re-run the full suite freely (one
+   systematic-debugging session: 4 full-test + 2 check-all ≈ 17 min).
+
+### Root cause of the dead token telemetry (found)
+
+The hook reads `.tool_response.usage.output_tokens` etc. The **current harness
+hook payload's `tool_response` does not contain `usage`/`totalTokens`/
+`totalDurationMs`** — only `resolvedModel` (that one path works, which is why
+leak detection resurrected). The 2026-07-19 note claimed the Agent
+`toolUseResult` exposes `totalTokens/totalDurationMs/usage`; **that shape no
+longer holds** — today's transcript `toolUseResult` for Task carries only
+`{isAsync,status,agentId,description,resolvedModel,prompt,outputFile,
+canReadOutputFile}`. The hook cannot see tokens; chasing a hook key path is a
+dead end.
+
+### Where the per-subagent tokens/context actually live (the fix)
+
+Ground truth exists — in **per-subagent side-files**, not the hook:
+
+```
+~/.claude/projects/<proj>/<session>/subagents/agent-<toolUseId>.jsonl   # per-turn message.usage + message.model
+~/.claude/projects/<proj>/<session>/subagents/agent-<toolUseId>.meta.json # {agentType, description, spawnDepth, toolUseId}
+```
+
+(symlinked from `/private/tmp/claude-501/<proj>/<session>/tasks/<id>.output`).
+Each `.jsonl` turn has `message.usage.{output_tokens,input_tokens,
+cache_read_input_tokens,cache_creation_input_tokens}` + resolved `message.model`
+→ real per-subagent **out_tokens** (sum) and **peak context** (max of
+input+cache per turn). Verified live: three haiku investigators showed
+out=1617/5557/6273, peakCtx=65k/52k/51k. **Join key** = `meta.json.toolUseId`
+== the hook event's `id`.
+
+### Applied — side-file enrichment (context scorecard resurrected)
+
+`agent-timing-report.ts` now sources per-subagent tokens/context from the
+side-files (`enrichSession`, join on `toolUseId` == hook `id`, worktree-aware —
+scans every `~/.claude/projects/*/` dir since worktree sessions encode a
+different cwd). Per-session render now prints `NNtok ctx=NNk⚠` per subagent + a
+`scorecard:` footer. A new **`--scorecard` mode** aggregates the two headline
+measures across ALL sessions' side-files. The hook is unchanged (its perpetually
+-null token fields cost a few bytes/line and are simply ignored now); it stays
+the source for pre/post durations + the `resolved_model` leak flag, both of
+which work.
+
+    bun scripts/agent-timing-report.ts --scorecard   # gp token share + %>150k, all sessions
+
+### First real scorecard (2026-07-21, 1587 subagents) — confirms the reframe with hard data
+
+```
+total out-tokens 41353k | avg peak ctx 122k
+>150k ctx band: 384/1587 = 24.2% (expensive-even-when-cached)
+ctx distribution: <50k 217 | 50-100k 675 | 100-150k 311 | >150k 384
+general-purpose  n=1107  out=32262k (78%)  >150k=340
+fork             n=  72  out= 6389k (15%)  >150k= 43
+Explore          n= 216  out= 1441k ( 3%)  >150k=  0
+cavecrew-*       (investigator/reviewer/builder)  ~2%  >150k=  0
+```
+
+- **general-purpose = 78% of all subagent out-tokens** (32M of 41M) — matches
+  the built-in usage report's "79%". The cost IS the long implement subagents.
+- **fork = 15%, and 43/72 = 60% of forks exceed 150k** (fork always inherits
+  parent context) — the second sink, and structurally uncontrollable per-call.
+- **Explore + every cavecrew type: 0 of 346 ran >150k**, ~5% of tokens combined.
+  Confirms permanently: the read-only-routing lever we chased in 2026-07-19 is a
+  1–2% lever. Stop optimizing it.
+- **The real lever, now quantified:** **340 of 1107 general-purpose runs (31%)
+  blow past 150k.** That 31% is the context-discipline gap — the only lever with
+  material headroom left.
+
+### Root cause of the 31% (diagnosed) — tool-call volume, NOT slice size
+
+Drilled into the heaviest general-purpose runs. The handed-in context is **not**
+the problem: **median first-turn ctx = 43k** (prompt + scaffold), healthy and
+within any slice budget. Context **balloons during the run** — median peak 228k,
+top runs 400–612k — purely from **inline tool-call volume**, each result
+resident for the rest of the run:
+
+```
+peak=612k turns=849  Implement #1391  Bash:317 Read:95 Edit:64
+peak=610k turns=834  Implement #677   Bash:262 Read:142 Edit:71   (of the Bash: grep 113, test 67, build 21)
+peak=449k turns=1892 Implement #1264  Bash:1038 Read:33 Edit:31
+```
+
+The dominant sinks are **inline `grep` (113 in one run) + broad `Read` (95–142
+files)** + unpiped noisy `Bash` output (26 results >5KB, 605KB total in #677).
+Slice size is a red herring — tightening `to-tickets` slices would not move this
+number, because the 43k handed-in is already small.
+
+### Applied lever — implement-subagent context discipline (process-gh-issues §3)
+
+Added a **Context discipline** block to the implement-subagent task in
+`~/.claude/skills/process-gh-issues/SKILL.md` (§3, between read-issue and
+implement): (a) delegate codebase location/mapping to a `cavecrew-investigator`
+sub-agent (`model: sonnet`) instead of grepping the tree inline — its dumps stay
+in _its_ context, only the compressed `file:line` map returns; (b) pipe noisy
+`Bash` through `tail`/`grep`; (c) one search question = one investigator, not a
+fresh grep each time. This attacks the 113-grep / 142-Read / big-dump pattern
+directly. **Success measure:** re-pull `--scorecard` after a week of loop runs —
+the general-purpose `>150k` count should fall from 340/1107 (31%) with gp
+token-share (78%) roughly flat.
+
+Secondary levers (unchanged priority): vitest cold-start #811 (the irreducible
+~174s import floor is where the 6h of gate time actually hides — profiling-first);
+interactive-session gate cadence (green-sha short-circuit already skips baseline
+test — extend the same idea to `check:all` for a no-op tree).
+
+### Success measure (now live)
+
+All three measures are finally instrumented. Standing checks:
+
+1. **gp token share** (`--scorecard`) — baseline **78%**; not a lever to drive
+   down directly (implement work legitimately lives there), but the denominator
+   for #2.
+2. **% of gp runs >150k ctx** (`--scorecard`, `>150k` column) — baseline
+   **31% (340/1107)**. THIS is the number to drive down: it's the
+   context-discipline gap. Target: shrink via smaller `to-tickets` slices.
+3. **`resolved_model` distribution / leak flag** (`--last N`, per-subagent
+   `⚠ LEAK`) — live, currently **zero leaks**. Keep as the routing regression
+   check.
+
+Re-pull `--scorecard` after a week of real runs; a falling #2 with #1 flat is
+the win.
+
 ## Uncommitted files (as of 2026-07-11)
 
 `.claude/settings.json`, `.claude/hooks/timing-log.sh`,

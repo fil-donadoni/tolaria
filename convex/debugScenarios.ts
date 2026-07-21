@@ -1985,6 +1985,27 @@ const NEW_MECHANIC_SCENARIOS: { label: string; spec: ScenarioSpec }[] = [
             landCount: 6,
         },
     },
+    {
+        // Urza's Bauble (issue #674, CR 701.18a look). {T}, Sacrifice: privately
+        // look at a card at random in the target player's hand, then arm a
+        // next-upkeep cantrip (CR 603.7d). Golden path: activate the Bauble
+        // targeting the opponent — the activator alone sees a "look" dialog
+        // revealing one random card from the opponent's hand (the private
+        // `lookRandomHand` Op), and a delayed draw is scheduled for your next
+        // upkeep. The opponent is seeded three distinct hand cards so the
+        // random pick is observable.
+        label: "Urza's Bauble — private look at a random card in the opponent's hand + next-upkeep draw",
+        spec: {
+            cards: [
+                { name: "Urza's Bauble", owner: "me", zone: "battlefield" },
+                { name: "Lightning Bolt", owner: "opp", zone: "hand" },
+                { name: "Grizzly Bears", owner: "opp", zone: "hand" },
+                { name: "Dark Ritual", owner: "opp", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            landCount: 3,
+        },
+    },
 ];
 
 /**

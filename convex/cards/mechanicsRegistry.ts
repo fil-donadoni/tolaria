@@ -2867,6 +2867,13 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
             "SpellContext.peekLibraryTop / markKnownToAll / getLibraryCards / moveCardById",
         note: 'CR 701.20a reveal / CR 401.4 look (issue #1085 — Desperate Research: "Reveal the top seven cards of your library and put all of them with that name into your hand. Exile the rest."). Deterministic sibling of `digToHand`: reveals the top `look` cards of `player`\'s library to EVERY player (unlike `digToHand`\'s private per-chooser look), puts EVERY looked-at card matching `filter` into hand with NO player choice (the filter alone decides — CR 608.2b, zero matches is a no-op for the hand leg), and sends every non-matching looked-at card to `destination` ("exile" — Desperate Research; "graveyard" — a Surveil-shaped future card). A thin declarative composition over four existing SpellContext primitives, one execution path (ADR 0045); `filter` is REQUIRED (a filter-less "look N, keep all" dig is already `digToHand`\'s job with `take` = `look`). `bind` (optional) snapshots the FIRST card put into hand, mirrors `digToHand`\'s own `bind`. No new SpellContext primitive — pure composition, per the "generalize, don\'t add" primitive-reuse rule.',
     },
+    {
+        op: "lookRandomHand",
+        status: "implemented",
+        cr: "701.18a",
+        binding: "SpellContext.lookRandomHandCard / notifyReveal",
+        note: "CR 701.18a look (Urza's Bauble) — \"Look at a card at random in target player's hand\". The PRIVATE-look counterpart the `reveal` Op's note called out as NOT folded (a single-knower look, vs `reveal`'s all-players CR 701.20 grant). Folds two SpellContext primitives, one execution path (ADR 0045): `lookRandomHandCard` (a private sibling of the public `revealRandomHandCard` — same seeded-PRNG pick, but `grantKnowledge` to the looker ALONE so only they see the real card on the wire) and `notifyReveal` (the transient look dialog, audience = the looker). `player` is the hand owner (an announced target slot on Urza's Bauble); `looker` (optional) defaults to the resolving controller (CR 113.7). No-op on an empty hand (CR 608.2b). Distinct from Word of Command's private full-hand look, which stays resolve() for its control-transfer protocol (ADR 0037). A library-top positional reveal (Caustic Bronco-class) is still a separate future Op.",
+    },
 ];
 
 /** Demand-driven Op backlog (PRD #826, playbook #809). Every row is a

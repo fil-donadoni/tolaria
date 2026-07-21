@@ -336,6 +336,7 @@ export type {
     PendingChoice,
     PendingChoiceKind,
     PendingTarget,
+    RevealNotification,
 } from "@convex/gre/state";
 export type { RestrictedMana };
 export type {

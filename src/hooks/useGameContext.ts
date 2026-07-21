@@ -11,6 +11,7 @@ import type {
     PendingChoice,
     PendingTarget,
     Player,
+    RevealNotification,
     StackItem,
 } from "~/types/game";
 
@@ -62,6 +63,13 @@ type GameContext = {
      *  `GameState.monarchId`. Undefined means no one is the monarch yet.
      *  Consumed by `BoardPlayer` / `PlayerLife` to badge the nameplate. */
     monarchId?: string;
+    /** One-shot look/reveal notifications for this viewer (CR 701.18a look /
+     *  701.20 reveal, `SpellContext.notifyReveal`). The projection filters
+     *  `pendingReveals` to entries whose `audience` includes this viewer — a
+     *  private look (Urza's Bauble) reaches only the looker, a public reveal
+     *  reaches everyone. Absent when none apply. Consumed by
+     *  `RevealNotificationOverlay`, which shows each id once. */
+    pendingReveals?: RevealNotification[];
     /** Instance ids of cards that changed zone in the last server push (or
      *  appeared from a hidden zone), kept for {@link ARRIVAL_GLOW_MS}. Drives
      *  the arrival glow on the destination slot and defers permanent-stack
