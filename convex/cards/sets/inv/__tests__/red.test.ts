@@ -15,6 +15,7 @@ import {
     tribalFlames,
     bendOrBreak,
     standOrFall,
+    stun,
 } from "../red";
 import { registerTokenDefinition } from "../../..";
 import {
@@ -620,5 +621,44 @@ describe("Stand or Fall (CR 603.6a combat-begin trigger / 509.1b block restricti
             validateBlockerEligibility(attackerCard, other, [chosen, other])
                 .eligible
         ).toBe(false);
+    });
+});
+
+describe("Stun (CR 509.1b block restriction + cantrip draw, issue #1285)", () => {
+    it("restricts the target creature from blocking this turn and draws a card", () => {
+        const target = makeInstance(savannahLions.id, {
+            id: "stun-target",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const attacker = makeInstance(savannahLions.id, {
+            id: "stun-attacker",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [attacker],
+                    library: [makeInstance(mountain.id, { id: "stun-lib-1" })],
+                }),
+                makePlayer("p2", { battlefield: [target] }),
+            ],
+        });
+        pushSpell(state, stun.id, "p1", [
+            { type: "permanent", id: "stun-target" },
+        ]);
+        resolveTopOfStack(state);
+
+        const resolvedTarget = state.players[1].battlefield.find(
+            (c) => c.id === "stun-target"
+        )!;
+        expect(resolvedTarget.cantBlockThisTurn).toBe(true);
+        expect(
+            validateBlockerEligibility(attacker, resolvedTarget, [
+                resolvedTarget,
+            ]).eligible
+        ).toBe(false);
+        expect(state.players[0].hand.map((c) => c.id)).toContain("stun-lib-1");
     });
 });
