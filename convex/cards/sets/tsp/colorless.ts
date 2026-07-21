@@ -2,7 +2,7 @@
 // colour per ADR 0043. The registry's `import * as tsp from "./sets/tsp"`
 // resolves through tsp/index.ts. Modern Scryfall oracle text is authoritative
 // (ADR 0004); generic mana is encoded as `X: n`.
-import type { CardDefinition, SpellContext } from "../../types";
+import type { CardDefinition } from "../../types";
 import { leftTrigger } from "../../abilities/triggers/leftTrigger";
 
 // Chromatic Star — {1} Artifact. A colour-fixing sac outlet that replaces itself
@@ -36,15 +36,9 @@ export const chromaticStar: CardDefinition = {
                 "When this artifact is put into a graveyard from the battlefield, draw a card.",
             scope: "self",
             toZone: "graveyard",
-            // NOT DSL-migratable (ADR 0045): the `leftTrigger` factory site
-            // only exposes a `resolve` callback, no `effects` alternative —
-            // the draw itself is trivially a `draw` Op, but the factory has
-            // no field to carry one.
-            // Blocked on: extending trigger factories (leftTrigger et al.) to
-            // accept `effects`, not a missing Op. tracked-by: #1280
-            resolve: (ctx: SpellContext) => {
-                ctx.drawCards(ctx.controller, 1);
-            },
+            // Migrated resolve()→effects[] (ADR 0045, closes #1280): the
+            // self-death draw rides `leftTrigger`'s `effects` site.
+            effects: [{ op: "draw", player: "controller", count: 1 }],
         }),
     ],
 };

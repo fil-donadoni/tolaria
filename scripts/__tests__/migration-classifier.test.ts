@@ -1072,9 +1072,18 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // reclassified as FREE (exo colorless / lea green edits in the
         // phase-2 WIP) — FREE 438→440, AFK-ready 398→400, Op-blocked
         // 219→217; total unchanged at 671. Partition: 440+14+217=671.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(671);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(440);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(400);
+        //
+        // 2026-07-21 #1280 factory-effects migration: 9 resolve() closures
+        // migrated to effects[] via the new `effects` site added to the shared
+        // trigger/ability factories — DelayedTriggerDef ×6 (nextUpkeepDrawTrigger
+        // copies in csp/colorless + ice colorless/white/green/blue/black),
+        // leftTrigger (Chromatic Star), damageDealtTrigger (Psychic Frog),
+        // SpellMode (Witherbloom Charm sacrifice-draw mode) — total 671→662
+        // (−9), FREE 440→431 (−9), AFK-ready 400→397 (−3, three had per-card
+        // tests). X-only and Op-blocked unchanged. Partition: 431+14+217=662.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(662);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(431);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(397);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
         expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(217);
     });

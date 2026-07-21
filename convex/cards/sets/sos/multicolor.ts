@@ -64,22 +64,23 @@ export const witherbloomCharm: CardDefinition = {
             label: "You may sacrifice a permanent. If you do, draw two cards.",
             oracleText:
                 "You may sacrifice a permanent. If you do, draw two cards.",
-            // NOT DSL-migratable (ADR 0045): the effect (mayPay sacrifice →
-            // draw two) maps cleanly onto `mayPay` + `if` + `draw`, but
-            // `SpellMode` (this modal card's per-mode site) only accepts a
-            // `resolve` callback — it has no `effects` field to migrate onto.
-            // Planned-migratable (blocked on `SpellMode` gaining an `effects`
-            // option, not this card). tracked-by: #1280
-            resolve: (ctx) => {
-                const paid = ctx.requestMayPay({
-                    playerId: ctx.controller,
-                    choiceId: `witherbloom-charm-sac-${ctx.sourceInstanceId}`,
+            // Migrated resolve()→effects[] (ADR 0045, closes #1280): the
+            // mayPay-sacrifice → draw-two shape rides SpellMode's new
+            // `effects` site (mirrors Phyrexian Dreadnought, `mir/colorless`).
+            effects: [
+                {
+                    op: "mayPay",
+                    player: "controller",
                     cost: { sacrifice: { filter: {}, count: 1 } },
                     prompt: "Witherbloom Charm: sacrifice a permanent to draw two cards?",
-                });
-                if (paid === undefined) return; // suspended for the decision
-                if (paid) ctx.drawCards(ctx.controller, 2);
-            },
+                    bind: "$paid",
+                },
+                {
+                    op: "if",
+                    predicate: { binding: "$paid" },
+                    then: [{ op: "draw", player: "controller", count: 2 }],
+                },
+            ],
         },
         {
             id: "gain-life",

@@ -597,8 +597,15 @@ export interface SpellMode {
     targetRequirement?: TargetRequirement;
     /** Resolution body. Receives the full SpellContext; targets come from
      *  the announcement-time selection driven by `targetRequirement`. Omit
-     *  for modes whose only effect is continuous (via `staticEffects`). */
+     *  for modes whose only effect is continuous (via `staticEffects`).
+     *  Mutually exclusive with `effects` (ADR 0045, issue #1280). */
     resolve?: (ctx: SpellContext) => void;
+    /** Effect Script alternative to `resolve` (ADR 0045, issue #1280): an
+     *  ordered Op list dispatched through the SAME `getAbilityEffectFn` /
+     *  interpreter seam as `ActivatedAbility.effects` /
+     *  `TriggeredAbility.effects` — one execution path for every effect
+     *  site. Mutually exclusive with `resolve`. */
+    effects?: EffectOp[];
     /** Static effects that apply when this mode is chosen. For modal auras
      *  (e.g. Phantasmal Terrain — "choose a basic land type"), the engine
      *  reads the chosen mode's static effects instead of the card-level ones.
@@ -3888,8 +3895,20 @@ export interface DelayedTriggerDef {
     /** When the trigger should fire. */
     timing: DelayedTriggerTiming;
     /** Invoked when the trigger resolves from the stack. `payload` carries
-     *  serialized references (ids) chosen at scheduling time. */
-    resolve: (ctx: SpellContext, payload: Record<string, string>) => void;
+     *  serialized references (ids) chosen at scheduling time. Mutually
+     *  exclusive with `effects` (ADR 0045, issue #1280). */
+    resolve?: (ctx: SpellContext, payload: Record<string, string>) => void;
+    /** Effect Script alternative to `resolve` (ADR 0045, issue #1280): an
+     *  ordered Op list run through `runDelayedTriggerBody`
+     *  (`gre/effects/interpreter.ts`) — the SAME payload-binding + interpreter
+     *  seam the Effect-Script-scheduled INLINE delayed-trigger body already
+     *  uses (`delayedTrigger` Op, ADR 0048); this is the template-path twin
+     *  for card defs that declare the trigger up front instead of scheduling
+     *  an inline body. The captured scalar `payload` (template-path triggers
+     *  never carry list-valued captures, ADR 0049) is bound into the
+     *  interpreter's environment before the script runs. Mutually exclusive
+     *  with `resolve`. */
+    effects?: EffectOp[];
 }
 
 // --- Continuous static effects (CR 611, 613) ---

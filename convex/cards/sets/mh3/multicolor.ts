@@ -37,12 +37,8 @@ export const psychicFrog: CardDefinition = {
     power: 1,
     toughness: 2,
     triggeredAbilities: [
-        // NOT DSL-migratable (ADR 0045): the effect itself (draw one) is
-        // trivially a `draw` Op, but the `damageDealtTrigger` factory only
-        // exposes a `resolve` callback — it has no `effects` alternative to
-        // hand a script to. Planned-migratable (blocked on the shared
-        // trigger-factory helpers gaining an `effects` option, not this
-        // card). tracked-by: #1280
+        // Migrated resolve()→effects[] (ADR 0045, closes #1280): the
+        // combat-damage draw rides `damageDealtTrigger`'s `effects` site.
         damageDealtTrigger({
             id: "psychic-frog-combat-draw",
             oracleText:
@@ -50,9 +46,7 @@ export const psychicFrog: CardDefinition = {
             source: "self",
             isCombat: true,
             target: { kind: "player", player: { relation: "any" } },
-            resolve: (ctx: SpellContext) => {
-                ctx.drawCards(ctx.controller, 1);
-            },
+            effects: [{ op: "draw", player: "controller", count: 1 }],
         }),
     ],
     activatedAbilities: [

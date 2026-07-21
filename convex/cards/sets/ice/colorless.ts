@@ -48,14 +48,9 @@ function nextUpkeepDrawTrigger(): DelayedTriggerDef {
         id: NEXT_UPKEEP_DRAW_TRIGGER_ID,
         oracleText: "At the beginning of the next turn's upkeep, draw a card.",
         timing: "next-upkeep",
-        resolve: (ctx) => {
-            // CR 121.1 — the trigger's controller (the scheduling spell's
-            // controller, or the activator on the tap-rider path) draws one
-            // card. `ctx.controller` is the delayed trigger's controller in
-            // both scheduling paths (`fireDelayedTriggers` sets the stack
-            // item's controller to the instance's `controller`).
-            ctx.drawCards(ctx.controller, 1);
-        },
+        // CR 121.1 — the delayed trigger's controller draws one card.
+        // Migrated resolve()→effects[] (ADR 0045, closes #1280).
+        effects: [{ op: "draw", player: "controller", count: 1 }],
     };
 }
 // Adarkar Sentinel — {1}: This creature gets +0/+1 until end of turn (CR 605
