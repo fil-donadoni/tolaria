@@ -46,8 +46,11 @@ export const detonate: CardDefinition = {
 };
 
 // Shatterstorm — {2}{R}{R} Sorcery. "Destroy all artifacts. They can't be
-// regenerated." Mass destroy via `destroyAll("Artifact", { cantBeRegenerated:
-// true })` (CR 701.7, 701.15c); indestructible artifacts are still spared.
+// regenerated." Mass destroy via `forEach` over the "Artifact" battlefield
+// filter + `destroy { ref: "$each", cantBeRegenerated: true }` (CR 701.7,
+// 701.15c) — the Day of Judgment shape (`m11/white.ts`) with the `destroy`
+// Op's `cantBeRegenerated` passthrough (ADR 0053); indestructible artifacts
+// are still spared.
 export const shatterstorm: CardDefinition = {
     id: "0987461a-45c0-4956-8627-cd27a7e038d0",
     rarity: "rare",
@@ -55,9 +58,23 @@ export const shatterstorm: CardDefinition = {
     oracleText: "Destroy all artifacts. They can't be regenerated.",
     manaCost: { X: 2, R: 2 },
     types: ["Sorcery"],
-    resolve: (ctx: SpellContext) => {
-        ctx.destroyAll("Artifact", { cantBeRegenerated: true });
-    },
+    effects: [
+        {
+            op: "forEach",
+            select: {
+                set: "permanents",
+                zone: "battlefield",
+                filter: { type: "Artifact" },
+            },
+            effects: [
+                {
+                    op: "destroy",
+                    target: { ref: "$each" },
+                    cantBeRegenerated: true,
+                },
+            ],
+        },
+    ],
 };
 
 // Artifact Blast — {R} Instant. "Counter target artifact spell." Targets a
