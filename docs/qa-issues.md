@@ -4,8 +4,6 @@ Flash of Insight non risulta castabile con flashback
 
 Se premo space 2 volte troppo velocemente su declare attackers ricevo un 500 e il gioco si blocca finché non refresho la pagina
 
-Se ho una terra che aggiunge 2 mana (1 blu e uno verde) e casto un artefatto costo 1, non mi fa scegliere quale mana usare
-
 Carte cubo da creare:
 Atraxa
 Sin
@@ -69,12 +67,6 @@ Le creature distrutte dall'ultimate di Sorin, Lord of Innistrad non tornano sul 
 Il may cast di Malcolm è solo nel momento della risoluzione dell'abilità, non nel resto del turno. verifica sul CR.
 
 Urza's Bauble: quando risolve l'abilità non viene mostrata nessuna carta e non rimane nemmeno visibile dalla mano successivamente.
-
-bug counter di dauthi voidwalker:
-Cosa succede al segnalino void
-I segnalini esistono solo sul campo o in esilio: Per regola del gioco, i segnalini (come i segnalini void, +1/+1 o tempo) possono esistere solo sugli oggetti in determinate zone.
-Il cambio di zona cancella i segnalini: Quando attivi l'abilità del Dauthi Voidwalker e lanci la carta esiliata, quella carta si sposta dall'esilio alla pila (stack).
-Rimozione immediata: Nel momento esatto in cui la carta cambia zona ed entra in pila, cessa di essere un "oggetto in esilio" e perde immediatamente il segnalino void.
 
 Nuova UI:
 lo stack non mostra le frecce che attraversano il board tra carta/abilità in stack e bersagli. il badge con scritto il bersaglio non è assolutamente utile.

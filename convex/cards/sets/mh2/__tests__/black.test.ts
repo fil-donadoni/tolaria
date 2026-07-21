@@ -7,6 +7,8 @@ import {
     resolveTopOfStack,
     getPlayer,
     discardToGraveyard,
+    removeFromZone,
+    moveCard,
 } from "../../../../gre/state";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { validateBlockerEligibility } from "../../../../gre/combat";
@@ -459,6 +461,118 @@ describe("Dauthi Voidwalker (CR 601.3e / 702.28, issue #1156)", () => {
             )!;
             expect(entered.castableFromExileBy).toBeUndefined();
             expect(entered.castFromExileWithoutPayingManaCost).toBeUndefined();
+            // CR 122.1e / 400.7 — the void counter ceases to exist when the
+            // land leaves exile; it must NOT ride onto the battlefield.
+            expect(entered.counters?.void).toBeUndefined();
+        });
+    });
+
+    // CR 122.1e / 400.7 — a counter exists only on the object in its current
+    // zone; a zone change makes a new object with no counters. Dauthi's
+    // void-countered card, once played, must shed its void counter.
+    describe("void counter is stripped when the card leaves exile (CR 122.1e / 400.7)", () => {
+        it("casting a void-countered card from exile to the stack drops the void counter (removeFromZone)", () => {
+            const oppVoidCard = makeInstance("test-mh2-black-cast-seam", {
+                id: "voidLeaveExile1",
+                controllerId: "p2",
+                ownerId: "p2",
+                zone: "exile",
+                types: ["Creature"],
+                counters: { void: 1 },
+                castableFromExileBy: "p1",
+                castFromExileWithoutPayingManaCost: true,
+            });
+            const state = makeState({
+                players: [
+                    makePlayer("p1"),
+                    makePlayer("p2", { exile: [oppVoidCard] }),
+                ],
+            });
+            // The real cast-commit path removes the card from its actual exile
+            // owner (`applyMove.ts` / `search.ts` both call `removeFromZone`).
+            const moved = removeFromZone(
+                getPlayer(state, "p2"),
+                "voidLeaveExile1",
+                "exile"
+            );
+            expect(moved.zone).toBe("stack");
+            expect(moved.counters?.void).toBeUndefined();
+        });
+
+        it("returning a void-countered card from exile to hand drops the void counter (generic moveCard)", () => {
+            const voidCard = makeInstance("test-mh2-black-opp-void", {
+                id: "voidToHand1",
+                controllerId: "p2",
+                ownerId: "p2",
+                zone: "exile",
+                types: ["Creature"],
+                counters: { void: 1 },
+            });
+            const state = makeState({
+                players: [
+                    makePlayer("p1"),
+                    makePlayer("p2", { exile: [voidCard] }),
+                ],
+            });
+            const moved = moveCard(
+                getPlayer(state, "p2"),
+                "voidToHand1",
+                "exile",
+                "hand"
+            );
+            expect(moved.zone).toBe("hand");
+            expect(moved.counters?.void).toBeUndefined();
+        });
+    });
+
+    // CR 122.1 / 400.7 — marked damage is battlefield-only transient state; a
+    // creature that dies (Lightning Bolt), is void-exiled and recast enters as
+    // a NEW object with 0 marked damage. It must NOT re-enter pre-damaged and
+    // die instantly to SBA (issue: recast creature came back with 3 damage on
+    // 2 toughness yet alive).
+    describe("battlefield-transient state is stripped when a card is recast from exile (CR 122.1 / 400.7)", () => {
+        it("a creature recast from exile enters with no marked damage (does not carry its pre-death damage)", () => {
+            const bolted = makeInstance("test-mh2-black-cast-seam", {
+                id: "recast1",
+                controllerId: "p2",
+                ownerId: "p2",
+                zone: "exile",
+                types: ["Creature"],
+                // Prior battlefield life: 3 marked damage from Lightning Bolt,
+                // preserved as last-known-information through the void-exile.
+                damageMarked: 3,
+                castableFromExileBy: "p1",
+                castFromExileWithoutPayingManaCost: true,
+            });
+            const state = makeState({
+                players: [
+                    makePlayer("p1"),
+                    makePlayer("p2", { exile: [bolted] }),
+                ],
+            });
+            // Real cast-commit path: exile → stack via `removeFromZone`.
+            const moved = removeFromZone(
+                getPlayer(state, "p2"),
+                "recast1",
+                "exile"
+            );
+            state.stack.push({
+                ...moved,
+                castById: "p1",
+                targets: [],
+            } as StackItem);
+            resolveTopOfStack(state);
+
+            // The 2/2 resolves onto the CASTER's battlefield ALIVE — its stale
+            // 3 marked damage did not ride along, so SBA does not destroy it.
+            const entered = getPlayer(state, "p1").battlefield.find(
+                (c) => c.id === "recast1"
+            );
+            expect(entered).toBeDefined();
+            expect(entered!.damageMarked).toBeUndefined();
+            expect(
+                getPlayer(state, "p2").graveyard.some((c) => c.id === "recast1")
+            ).toBe(false);
         });
     });
 });

@@ -138,6 +138,11 @@ function moveCardAcrossPlayers(
     const [card] = sourceZone.splice(cardIndex, 1);
     card.zone = to;
     delete card.knownTo;
+    // CR 122.1e / 400.7 — leaving exile makes a new object with no counters;
+    // a cross-player play (Dauthi Voidwalker's void-countered opponent land)
+    // must not carry the void counter onto the caster's battlefield. Mirrors
+    // the same clear in `moveCard`.
+    delete card.counters;
     toPlayer[to].push(card);
     return card;
 }

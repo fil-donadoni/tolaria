@@ -13019,6 +13019,14 @@ export function moveCard(
     // friends — clears it separately via `resetBattlefieldTransientState`,
     // since those don't route through this function.)
     if (from === "exile") delete card.exiledBySourceId;
+    // CR 122.1e / 400.7 — a counter exists only on the object it's on in its
+    // current zone; a zone change makes a new object with no counters. A card
+    // leaving exile (Dauthi Voidwalker's void-countered card being played, an
+    // impulse-exiled card returned to hand) must not carry its exile counters
+    // into the new zone. Scoped to exile departures on purpose: the
+    // battlefield→graveyard path preserves counters as last-known-information
+    // for death triggers and does not route through this primitive.
+    if (from === "exile") delete card.counters;
 
     const targetZone = player[toField] as CardInstanceState[];
     targetZone.push(card);
@@ -13130,6 +13138,19 @@ export function removeFromZone(
     delete card.castableFromGraveyardBy;
     delete card.castableFromGraveyardUntilTurn;
     delete card.castFromGraveyardWithoutPayingManaCost;
+    // CR 122.1 / 400.7 — a card put onto the stack is a NEW object with no
+    // memory of any prior battlefield life. A card cast from hand carries none
+    // of this, but a card recast from exile/graveyard (Dauthi Voidwalker's
+    // void-exiled creature, previously killed by Lightning Bolt) still holds the
+    // void counter AND the marked damage / combat flags preserved as
+    // last-known-information through the die→exile redirect. Scrub the full
+    // battlefield-transient set here at cast-commit — BEFORE any resolveStep
+    // runs — so a copy-on-enter (Vesuvan's `becomeCopyOf`, which sets
+    // `colorOverride` DURING resolution) is untouched, while stale damage never
+    // rides onto the battlefield to kill the fresh permanent via SBA. No-op for
+    // a hand cast. Mirrors the reset every reanimation entry runs
+    // (`stageReanimatedOnBattlefield`).
+    resetBattlefieldTransientState(card);
     // CR 111 (issue #791) — the per-source exile provenance link is only
     // meaningful while the card sits in exile; drop it once the card leaves so a
     // later re-exile never re-reads a stale source.
