@@ -275,13 +275,14 @@ function collect() {
             // this the same card resurfaces as FREE every pass and wastes a
             // subagent re-confirming the skip. Window bounded to the closure's
             // own preamble so a neighbour's marker can't leak in.
-            // Bound the marker window at the previous closure's end so a
-            // neighbouring card's marker can't leak onto this (possibly
-            // migratable) closure and falsely exclude it.
-            const skipWindow = src.slice(
-                Math.max(clsPrevEnd, start - 1200),
-                start
-            );
+            // Scan the whole gap between the previous closure's end and this
+            // closure's start for a NOT-DSL-migratable marker. The gap holds
+            // exactly this closure's own preamble (name, fields, comment block),
+            // so a long marker comment is fully captured (no fixed char cap that
+            // a 20-line block would overrun — the atq/black miss) while a
+            // neighbouring card's marker, sitting before the previous closure,
+            // can never leak in.
+            const skipWindow = src.slice(clsPrevEnd, start);
             const assessedSkip = /NOT[- ]DSL-migratable/i.test(skipWindow);
             clsPrevEnd = start + body.length;
             items.push({
