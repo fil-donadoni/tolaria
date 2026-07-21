@@ -6,8 +6,9 @@
  *
  * Usage: bun run scripts/agent-timing-report.ts [--session <id>] [--last <n>]
  */
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+import { homedir } from "node:os";
 
 interface Event {
     ts: number;
@@ -34,6 +35,7 @@ interface Event {
 
 interface Span {
     tool: string;
+    id: string | null; // tool_use_id, join key to subagent side-files
     label: string;
     kind:
         | "gate:full-test"
@@ -112,6 +114,7 @@ for (const e of events) {
     if (e.phase === "pre") {
         const span: Span = {
             tool: e.tool ?? "?",
+            id: e.id,
             label: label(e),
             kind: classify(e),
             model: e.model,
@@ -143,6 +146,107 @@ for (const e of events) {
     }
 }
 
+// --- side-file enrichment ---------------------------------------------------
+// The hook payload's tool_response carries only `resolvedModel`, never token
+// usage — so `tokens`/`context` from the hook are always null (verified: 0 of
+// 538 post events ever had them). Ground truth for per-subagent out_tokens +
+// peak context lives in the per-subagent transcript side-files:
+//   ~/.claude/projects/<projDir>/<session>/subagents/agent-<agentId>.jsonl   (message.usage + message.model per turn)
+//   ~/.claude/projects/<projDir>/<session>/subagents/agent-<agentId>.meta.json ({toolUseId,…})
+// Join key: meta.toolUseId === hook event id. projDir varies (worktree sessions
+// encode a different cwd), so we locate the session dir by scanning projects/.
+const projectsRoot = join(homedir(), ".claude", "projects");
+const sideFileCache = new Map<
+    string,
+    Map<string, { tokens: number; context: number; model: string | null }>
+>();
+
+function subagentDirFor(session: string): string | null {
+    if (!existsSync(projectsRoot)) return null;
+    for (const proj of readdirSync(projectsRoot)) {
+        const dir = join(projectsRoot, proj, session, "subagents");
+        if (existsSync(dir)) return dir;
+    }
+    return null;
+}
+
+// toolUseId -> aggregated usage for one session, read once and memoised
+function sideFileUsage(session: string) {
+    const cached = sideFileCache.get(session);
+    if (cached) return cached;
+    const out = new Map<
+        string,
+        { tokens: number; context: number; model: string | null }
+    >();
+    sideFileCache.set(session, out);
+    const dir = subagentDirFor(session);
+    if (!dir) return out;
+    for (const f of readdirSync(dir)) {
+        if (!f.endsWith(".meta.json")) continue;
+        const agentId = f.slice("agent-".length, -".meta.json".length);
+        let toolUseId: string | null = null;
+        try {
+            toolUseId = JSON.parse(
+                readFileSync(join(dir, f), "utf8")
+            ).toolUseId;
+        } catch {
+            continue;
+        }
+        if (!toolUseId) continue;
+        const jsonl = join(dir, `agent-${agentId}.jsonl`);
+        if (!existsSync(jsonl)) continue;
+        let outTok = 0;
+        let peakCtx = 0;
+        let model: string | null = null;
+        for (const line of readFileSync(jsonl, "utf8").split("\n")) {
+            if (!line) continue;
+            let rec: {
+                message?: {
+                    model?: string;
+                    usage?: {
+                        output_tokens?: number;
+                        input_tokens?: number;
+                        cache_read_input_tokens?: number;
+                        cache_creation_input_tokens?: number;
+                    };
+                };
+            };
+            try {
+                rec = JSON.parse(line);
+            } catch {
+                continue;
+            }
+            const u = rec.message?.usage;
+            if (u) {
+                outTok += u.output_tokens ?? 0;
+                const ctx =
+                    (u.input_tokens ?? 0) +
+                    (u.cache_read_input_tokens ?? 0) +
+                    (u.cache_creation_input_tokens ?? 0);
+                if (ctx > peakCtx) peakCtx = ctx;
+            }
+            if (rec.message?.model) model = rec.message.model;
+        }
+        out.set(toolUseId, { tokens: outTok, context: peakCtx, model });
+    }
+    return out;
+}
+
+// patch a session's subagent spans with side-file ground truth (out_tokens,
+// peak context, resolved model). Called lazily per rendered session.
+function enrichSession(session: string, spans: Span[]) {
+    const subs = spans.filter((s) => s.tool === "Task" || s.tool === "Agent");
+    if (!subs.length) return;
+    const usage = sideFileUsage(session);
+    for (const s of subs) {
+        const u = s.id != null ? usage.get(s.id) : undefined;
+        if (!u) continue;
+        if (u.tokens > 0) s.tokens = u.tokens;
+        if (u.context > 0) s.context = u.context;
+        if (!s.resolvedModel && u.model) s.resolvedModel = u.model;
+    }
+}
+
 const fmt = (s: number | null) =>
     s === null
         ? "   —  "
@@ -163,6 +267,7 @@ const ids = [...sessions.keys()].filter(
 );
 for (const sid of ids.slice(-last)) {
     const spans = sessions.get(sid)!;
+    enrichSession(sid, spans);
     const t0 = spans[0].start;
     const t1 = Math.max(...spans.map((s) => s.start + (s.seconds ?? 0)));
     console.log(
@@ -224,6 +329,15 @@ for (const sid of ids.slice(-last)) {
             console.log(
                 `    → ${big.length}/${agents.length} subagents ran >${BIG_CONTEXT / 1000}k context (the expensive-even-when-cached band)`
             );
+        // scorecard: the two headline measures (out-token volume + peak-context band)
+        const measured = agents.filter((a) => a.tokens != null);
+        if (measured.length) {
+            const totOut = measured.reduce((n, a) => n + (a.tokens ?? 0), 0);
+            const peak = Math.max(...agents.map((a) => a.context ?? 0));
+            console.log(
+                `    scorecard: ${Math.round(totOut / 1000)}k out-tokens across ${measured.length} measured subagent${measured.length > 1 ? "s" : ""}, peak ctx ${Math.round(peak / 1000)}k`
+            );
+        }
     }
     const skills = spans.filter((s) => s.kind === "skill");
     if (skills.length) {

@@ -249,6 +249,84 @@ cost is accepted as the price of correctness; context is spent, not saved, here.
 Re-pull it after a week of real runs and compare (1) general-purpose token
 share, (2) % usage >150k, (3) `resolved_model` distribution (zero `⚠ LEAK`).
 
+## Session 2026-07-21 — telemetry re-read: leak solved, token/context scorecard is DEAD
+
+Re-pulled the report over the accumulated log (**59.886 events, 538 post
+Task/Agent events**) to check the three success measures from 2026-07-19.
+Result: one measure green, two **unmeasurable** because the enrichment never
+worked.
+
+### What the data actually says
+
+1. **Model-routing leak — SOLVED, confirmed.** `resolved_model` now populates
+   (started recently: 51 of 538 events carry it). Distribution sonnet 35 / opus
+   11 / haiku 5. **0 leaks** — zero read-only `Explore`/`general-purpose` with
+   no explicit model resolving onto opus/fable. Lever 1 delivered; no further
+   action on routing.
+2. **Token/context telemetry — NEVER WORKED (0 of 538).** Not one Task/Agent
+   post event ever carried `out_tokens`/`in_tokens`/`cache_read`/`dur_ms`; the
+   `context` band was never even emitted. Only **6 events in the entire 60k log**
+   ever had a `tokens` value (legacy `totalTokens`, long gone). So the two
+   headline success measures — "general-purpose token share" and "% usage
+    > 150k" — have **never had a single data point**. The context-discipline
+    > scorecard, declared the #1 remaining lever in BOTH prior sessions, is
+    > vaporware.
+3. **Gates still dominate mechanical wall-time.** Last 40 sessions: **163
+   full-test + 111 check-all gate invocations, ~6h aggregate**. The
+   run-full-gate-once cadence is enforced only inside `/process-gh-issues`;
+   interactive Opus debugging sessions re-run the full suite freely (one
+   systematic-debugging session: 4 full-test + 2 check-all ≈ 17 min).
+
+### Root cause of the dead token telemetry (found)
+
+The hook reads `.tool_response.usage.output_tokens` etc. The **current harness
+hook payload's `tool_response` does not contain `usage`/`totalTokens`/
+`totalDurationMs`** — only `resolvedModel` (that one path works, which is why
+leak detection resurrected). The 2026-07-19 note claimed the Agent
+`toolUseResult` exposes `totalTokens/totalDurationMs/usage`; **that shape no
+longer holds** — today's transcript `toolUseResult` for Task carries only
+`{isAsync,status,agentId,description,resolvedModel,prompt,outputFile,
+canReadOutputFile}`. The hook cannot see tokens; chasing a hook key path is a
+dead end.
+
+### Where the per-subagent tokens/context actually live (the fix)
+
+Ground truth exists — in **per-subagent side-files**, not the hook:
+
+```
+~/.claude/projects/<proj>/<session>/subagents/agent-<toolUseId>.jsonl   # per-turn message.usage + message.model
+~/.claude/projects/<proj>/<session>/subagents/agent-<toolUseId>.meta.json # {agentType, description, spawnDepth, toolUseId}
+```
+
+(symlinked from `/private/tmp/claude-501/<proj>/<session>/tasks/<id>.output`).
+Each `.jsonl` turn has `message.usage.{output_tokens,input_tokens,
+cache_read_input_tokens,cache_creation_input_tokens}` + resolved `message.model`
+→ real per-subagent **out_tokens** (sum) and **peak context** (max of
+input+cache per turn). Verified live: three haiku investigators showed
+out=1617/5557/6273, peakCtx=65k/52k/51k. **Join key** = `meta.json.toolUseId`
+== the hook event's `id`.
+
+### Recommended optimization (concrete, highest value)
+
+Rewrite `agent-timing-report.ts` to source per-subagent tokens/context from the
+side-files (join on `toolUseId`), and drop the null token fields from the hook
+(`out_tokens`/`in_tokens`/`cache_read`/`dur_ms`/`tokens` — they write null
+forever). This **resurrects the context scorecard** that both prior sessions
+called the #1 remaining lever but could never measure. Keep the hook only for
+the cheap pre/post pairing (durations) + `resolved_model` leak flag, which work.
+
+Secondary levers (unchanged priority): vitest cold-start #811 (the irreducible
+~174s import floor is where the 6h of gate time actually hides — profiling-first);
+interactive-session gate cadence (green-sha short-circuit already skips baseline
+test — extend the same idea to `check:all` for a no-op tree).
+
+### Success measure (revised)
+
+The 2026-07-19 measures (1) gp token share and (2) %>150k are **only
+achievable once the report reads side-files** — until then they are unmeasured,
+not "green". (3) `resolved_model` distribution IS live and shows zero leak —
+keep that as the standing routing check.
+
 ## Uncommitted files (as of 2026-07-11)
 
 `.claude/settings.json`, `.claude/hooks/timing-log.sh`,
