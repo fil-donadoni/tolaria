@@ -1,0 +1,414 @@
+// Per-Op value model unit tests (PRD #1423, issue #1426). One block per
+// charter valuer, asserting its `{ points, tags }` under context-free grounding
+// (the card-in-hand mode `cardValue` consumes) and — where the two modes
+// diverge — context-aware grounding (the decision-node prior mode).
+
+import { describe, it, expect } from "vitest";
+import type { EffectOp } from "../../../cards/types";
+import {
+    valueOp,
+    valueEffectScript,
+    OP_VALUERS,
+    STRUCTURAL_CONSTRUCTS,
+    contextFreeGrounding,
+    contextAwareGrounding,
+} from "../index";
+
+const cf = contextFreeGrounding();
+
+describe("OP_VALUERS — charter valuers (PRD #1423, issue #1426)", () => {
+    describe("dealDamage (CR 120)", () => {
+        it("scores damage to a player positively, scaled by amount", () => {
+            const op: EffectOp = {
+                op: "dealDamage",
+                amount: 3,
+                to: { player: "opponent" },
+            };
+            const v = valueOp(op, cf);
+            expect(v.points).toBe(66); // 3 × 22
+            expect(v.tags).toContain("damage");
+            expect(v.tags).not.toContain("targeted");
+        });
+
+        it("tags an announced-target damage `targeted`", () => {
+            const op: EffectOp = {
+                op: "dealDamage",
+                amount: 2,
+                to: { target: 0 },
+            };
+            const v = valueOp(op, cf);
+            expect(v.points).toBe(44);
+            expect(v.tags).toEqual(
+                expect.arrayContaining(["damage", "targeted"])
+            );
+        });
+
+        it("flags a variable (X) amount board-scaling with a floor value", () => {
+            const op: EffectOp = {
+                op: "dealDamage",
+                amount: { X: true },
+                to: { player: "opponent" },
+            };
+            const v = valueOp(op, cf);
+            expect(v.tags).toContain("board-scaling");
+            expect(v.points).toBeGreaterThan(0);
+        });
+
+        it("context-aware reads the real X amount (no board-scaling tag)", () => {
+            const op: EffectOp = {
+                op: "dealDamage",
+                amount: { X: true },
+                to: { player: "opponent" },
+            };
+            const ctx = contextAwareGrounding({
+                resolveValue: () => 7,
+                resolveIsSelf: () => false,
+                resolveForEachCount: () => 1,
+            });
+            const v = valueOp(op, ctx);
+            expect(v.points).toBe(154); // 7 × 22
+            expect(v.tags).not.toContain("board-scaling");
+        });
+    });
+
+    describe("draw (CR 121.1)", () => {
+        it("scores a self-draw as card advantage (positive)", () => {
+            const op: EffectOp = { op: "draw", player: "controller", count: 2 };
+            const v = valueOp(op, cf);
+            expect(v.points).toBe(90); // 2 × 45
+            expect(v.tags).toContain("cardAdvantage");
+        });
+
+        it("scores an opponent-draw (a downside) negatively", () => {
+            const op: EffectOp = { op: "draw", player: "opponent", count: 1 };
+            expect(valueOp(op, cf).points).toBe(-45);
+        });
+    });
+
+    describe("gainLife / loseLife (CR 119.3)", () => {
+        it("gainLife to self is a positive life swing", () => {
+            const op: EffectOp = {
+                op: "gainLife",
+                player: "controller",
+                amount: 3,
+            };
+            const v = valueOp(op, cf);
+            expect(v.points).toBe(24); // 3 × 8
+            expect(v.tags).toContain("lifeSwing");
+        });
+
+        it("loseLife aimed at the opponent is positive (a drain)", () => {
+            const op: EffectOp = {
+                op: "loseLife",
+                player: "opponent",
+                amount: 4,
+            };
+            expect(valueOp(op, cf).points).toBe(32); // 4 × 8
+        });
+
+        it("loseLife the caster pays is a self-cost (negative)", () => {
+            const op: EffectOp = {
+                op: "loseLife",
+                player: "controller",
+                amount: 2,
+            };
+            const v = valueOp(op, cf);
+            expect(v.points).toBe(-16);
+            expect(v.tags).toContain("self-cost");
+        });
+    });
+
+    describe("destroy / exile (CR 701.8 / 701.13)", () => {
+        it("destroy scores board removal, targeted", () => {
+            const op: EffectOp = { op: "destroy", target: { target: 0 } };
+            const v = valueOp(op, cf);
+            expect(v.points).toBe(160);
+            expect(v.tags).toEqual(
+                expect.arrayContaining(["boardRemoval", "targeted"])
+            );
+        });
+
+        it("exile scores a hair above destroy (no regen/recursion)", () => {
+            const exileV = valueOp(
+                { op: "exile", target: { target: 0 } },
+                cf
+            ).points;
+            const destroyV = valueOp(
+                { op: "destroy", target: { target: 0 } },
+                cf
+            ).points;
+            expect(exileV).toBeGreaterThan(destroyV);
+        });
+    });
+
+    describe("counter (CR 701.5a)", () => {
+        it("scores disruption, targeted", () => {
+            const v = valueOp({ op: "counter", target: { target: 0 } }, cf);
+            expect(v.points).toBe(130);
+            expect(v.tags).toEqual(
+                expect.arrayContaining(["disruption", "targeted"])
+            );
+        });
+    });
+
+    describe("mayPay (CR 117.3a)", () => {
+        it("is neutral — its consequence lives in the following `if`", () => {
+            const op: EffectOp = {
+                op: "mayPay",
+                player: "controller",
+                cost: { life: 2 },
+                prompt: "Pay 2 life?",
+                bind: "$paid",
+            };
+            const v = valueOp(op, cf);
+            expect(v.points).toBe(0);
+            expect(v.tags).toEqual([]);
+        });
+    });
+
+    describe("sacrifice (CR 701.16)", () => {
+        it("a forced picks-set sacrifice (edict) is positive removal", () => {
+            const op: EffectOp = {
+                op: "sacrifice",
+                permanents: { ref: "$picked" },
+            };
+            const v = valueOp(op, cf);
+            expect(v.points).toBe(120);
+            expect(v.tags).toContain("boardRemoval");
+            expect(v.tags).not.toContain("self-cost");
+        });
+
+        it("a self/target sacrifice is a cost (negative, self-cost)", () => {
+            const op: EffectOp = {
+                op: "sacrifice",
+                target: { ref: "$source" },
+            };
+            const v = valueOp(op, cf);
+            expect(v.points).toBe(-40);
+            expect(v.tags).toContain("self-cost");
+        });
+    });
+
+    describe("moveZone (CR 400.7)", () => {
+        it("reanimation (→ battlefield) is high-value recursion", () => {
+            const op: EffectOp = {
+                op: "moveZone",
+                target: { target: 0 },
+                to: "battlefield",
+            };
+            const v = valueOp(op, cf);
+            expect(v.points).toBe(140);
+            expect(v.tags).toContain("recursion");
+        });
+
+        it("bounce/regrowth (→ hand) is a positive tempo/advantage swing", () => {
+            const op: EffectOp = {
+                op: "moveZone",
+                target: { target: 0 },
+                to: "hand",
+            };
+            const v = valueOp(op, cf);
+            expect(v.points).toBe(55);
+            expect(v.tags).toEqual(
+                expect.arrayContaining(["tempo", "targeted"])
+            );
+        });
+    });
+
+    describe("createToken (CR 111 / 707.2)", () => {
+        it("values a creature token by its (discounted) body × count", () => {
+            const op: EffectOp = {
+                op: "createToken",
+                token: { name: "Bear", types: ["Creature"], power: 2, toughness: 2 },
+                controller: "controller",
+            };
+            const v = valueOp(op, cf);
+            // 0.85 × creatureValueRaw(2,2,0,[]) = 0.85 × (100+30+28) = 134.3
+            expect(v.points).toBeCloseTo(134.3, 1);
+            expect(v.tags).toContain("tokens");
+        });
+
+        it("scales with count and flags board-scaling on a variable count", () => {
+            const op: EffectOp = {
+                op: "createToken",
+                token: { name: "Goblin", types: ["Creature"], power: 1, toughness: 1 },
+                controller: "controller",
+                count: { X: true },
+            };
+            const v = valueOp(op, cf);
+            expect(v.tags).toContain("board-scaling");
+            expect(v.points).toBeGreaterThan(0);
+        });
+    });
+
+    describe("pump (CR 613.4c)", () => {
+        it("a positive pump loads the `pump` feature", () => {
+            const op: EffectOp = {
+                op: "pump",
+                target: { target: 0 },
+                power: 3,
+                toughness: 3,
+                duration: { phase: "end-of-turn" },
+            };
+            const v = valueOp(op, cf);
+            expect(v.points).toBe(54); // (3+3) × 9
+            expect(v.tags).toContain("pump");
+        });
+
+        it("a negative pump (shrink) loads `boardRemoval`, magnitude positive", () => {
+            const op: EffectOp = {
+                op: "pump",
+                target: { target: 0 },
+                power: -2,
+                toughness: -2,
+                duration: { phase: "end-of-turn" },
+            };
+            const v = valueOp(op, cf);
+            expect(v.points).toBe(36); // |−4| × 9
+            expect(v.tags).toContain("boardRemoval");
+        });
+    });
+
+    describe("counters (CR 122)", () => {
+        it("adding +1/+1 counters loads `pump`", () => {
+            const op: EffectOp = {
+                op: "counters",
+                action: "add",
+                counter: "+1/+1",
+                target: { target: 0 },
+                count: 2,
+            };
+            const v = valueOp(op, cf);
+            expect(v.points).toBe(36); // (1+1) × 2 × 9
+            expect(v.tags).toContain("pump");
+        });
+
+        it("adding -1/-1 counters loads `boardRemoval`", () => {
+            const op: EffectOp = {
+                op: "counters",
+                action: "add",
+                counter: "-1/-1",
+                target: { target: 0 },
+                count: 1,
+            };
+            const v = valueOp(op, cf);
+            expect(v.tags).toContain("boardRemoval");
+            expect(v.points).toBeGreaterThan(0);
+        });
+    });
+});
+
+describe("walker — structural constructs (PRD #1423)", () => {
+    it("sums a flat script's Op values", () => {
+        const script: EffectOp[] = [
+            { op: "dealDamage", amount: 2, to: { player: "opponent" } },
+            { op: "draw", player: "controller", count: 1 },
+        ];
+        expect(valueEffectScript(script, cf).points).toBe(44 + 45);
+    });
+
+    it("`if` takes the effect-happens (`then`) branch", () => {
+        const op: EffectOp = {
+            op: "if",
+            predicate: { left: { X: true }, op: "ge", right: 1 },
+            then: [{ op: "destroy", target: { target: 0 } }],
+        };
+        expect(valueOp(op, cf).points).toBe(160);
+    });
+
+    it("`forEach` values the body once and flags board-scaling (context-free)", () => {
+        const op: EffectOp = {
+            op: "forEach",
+            select: { set: "permanents", zone: "battlefield" },
+            effects: [{ op: "dealDamage", amount: 1, to: { ref: "$each" } }],
+        };
+        const v = valueOp(op, cf);
+        expect(v.points).toBe(22); // 1 member × (1 × 22)
+        expect(v.tags).toContain("board-scaling");
+    });
+
+    it("`forEach` multiplies by the real member count (context-aware)", () => {
+        const op: EffectOp = {
+            op: "forEach",
+            select: { set: "permanents", zone: "battlefield" },
+            effects: [{ op: "dealDamage", amount: 1, to: { ref: "$each" } }],
+        };
+        const ctx = contextAwareGrounding({
+            resolveValue: (v) => (typeof v === "number" ? v : 1),
+            resolveIsSelf: () => false,
+            resolveForEachCount: () => 4,
+        });
+        expect(valueOp(op, ctx).points).toBe(88); // 4 × 22
+    });
+
+    it("`optionChoice` is worth its best mode", () => {
+        const op: EffectOp = {
+            op: "optionChoice",
+            prompt: "Choose one",
+            modes: [
+                {
+                    label: "gain",
+                    effects: [
+                        { op: "gainLife", player: "controller", amount: 2 },
+                    ],
+                },
+                {
+                    label: "kill",
+                    effects: [{ op: "destroy", target: { target: 0 } }],
+                },
+            ],
+        };
+        expect(valueOp(op, cf).points).toBe(160);
+    });
+
+    it("`coinFlip` is the expected value of its branches", () => {
+        const op: EffectOp = {
+            op: "coinFlip",
+            player: "controller",
+            win: {
+                consequence: "deal 4",
+                effects: [
+                    { op: "dealDamage", amount: 4, to: { player: "opponent" } },
+                ],
+            },
+            loss: { consequence: "nothing", effects: [] },
+        };
+        expect(valueOp(op, cf).points).toBe((88 + 0) / 2);
+    });
+
+    it("an unvalued (backfilled) Op contributes nothing", () => {
+        // `mill` is on the backfill allowlist (#1430) — no valuer yet.
+        const op = {
+            op: "mill",
+            player: "opponent",
+            count: 3,
+        } as unknown as EffectOp;
+        expect(valueOp(op, cf).points).toBe(0);
+    });
+});
+
+describe("dispatch-table invariants", () => {
+    it("every charter Op has a valuer and no structural construct does", () => {
+        for (const s of STRUCTURAL_CONSTRUCTS) {
+            expect(OP_VALUERS[s as keyof typeof OP_VALUERS]).toBeUndefined();
+        }
+        const charter = [
+            "dealDamage",
+            "draw",
+            "gainLife",
+            "loseLife",
+            "destroy",
+            "exile",
+            "counter",
+            "mayPay",
+            "sacrifice",
+            "moveZone",
+            "createToken",
+            "pump",
+            "counters",
+        ] as const;
+        for (const op of charter) {
+            expect(OP_VALUERS[op]).toBeTypeOf("function");
+        }
+    });
+});

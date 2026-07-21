@@ -78,11 +78,14 @@ describe("evaluateBreakdown (DecisionTrace)", () => {
             ],
         });
         const b = evaluateBreakdown(state, "p1");
-        // Forge-scale weights (ADR 0018): W_LIFE = 8; the hand term now sums each
-        // card's latent `cardValue` (issue #195) instead of a flat constant.
-        // Lightning Bolt is a non-creature MV 1 → NONCREATURE_BASE 8 + 1×10 = 18.
+        // Forge-scale weights (ADR 0018): W_LIFE = 8; the hand term sums each
+        // card's latent `cardValue` (issue #195). With the DSL semantic layer
+        // (PRD #1423, issue #1426) a non-creature's worth is now its Effect
+        // Script value, not `base + MV`: Lightning Bolt's `dealDamage 3` scores
+        // 3 × 22 = 66 (far above its old MV-1 worth of 18) — the whole point of
+        // the layer (a burn spell out-values a do-nothing spell of equal MV).
         expect(b.self.life).toBe(10 * 8); // W_LIFE
-        expect(b.self.hand).toBe(2 * 18); // 2 × cardValue(Lightning Bolt)
+        expect(b.self.hand).toBe(2 * 66); // 2 × cardValue(Lightning Bolt), DSL-derived
     });
 
     it("is symmetric: opponent's terms equal their own self-view", () => {
