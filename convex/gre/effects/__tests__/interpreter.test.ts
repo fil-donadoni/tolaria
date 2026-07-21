@@ -2338,6 +2338,260 @@ describe("Effect Script Op: coinFlip (CR 705, issue #851)", () => {
     });
 });
 
+describe("Effect Script Op: coinFlipSync (CR 705, issue #1281)", () => {
+    // Same seeded PRNG as `coinFlip` (both draw through `SpellContext.flipCoin`
+    // — `requestCoinFlip` just wraps the identical call): seed 1 → WIN, seed 7
+    // → LOSE.
+    const WIN_SEED = 1;
+    const LOSE_SEED = 7;
+
+    const handOf = (owner: "p1" | "p2", ids: string[]) =>
+        ids.map((cid) =>
+            makeInstance(BEAR_ID, {
+                id: cid,
+                controllerId: owner,
+                ownerId: owner,
+                zone: "hand",
+            })
+        );
+
+    const winLossScript: EffectOp[] = [
+        {
+            op: "coinFlipSync",
+            win: {
+                consequence: "Gain 3 life.",
+                effects: [{ op: "gainLife", player: "controller", amount: 3 }],
+            },
+            loss: {
+                consequence: "Lose 3 life.",
+                effects: [{ op: "loseLife", player: "controller", amount: 3 }],
+            },
+        },
+    ];
+
+    it("resolves the WIN branch INLINE, with no reveal-ack suspension (CR 705.2)", () => {
+        const id = registerScript("test-op-coinsync-win", winLossScript);
+        const state = makeState({ rngSeed: WIN_SEED });
+        pushSpell(state, id, "p1");
+        // No suspend — the whole Op (flip + branch) completes in one pass.
+        resolveTopOfStack(state);
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        expect(state.stack).toHaveLength(0);
+        expect(state.players[0].life).toBe(23);
+    });
+
+    it("resolves the LOSS branch INLINE on tails", () => {
+        const id = registerScript("test-op-coinsync-lose", winLossScript);
+        const state = makeState({ rngSeed: LOSE_SEED });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        expect(state.players[0].life).toBe(17);
+    });
+
+    it("runs every Op in the taken branch, in order (multi-op nested descent)", () => {
+        const id = registerScript("test-op-coinsync-multi", [
+            {
+                op: "coinFlipSync",
+                win: {
+                    consequence: "Gain 2, burn the opponent for 1.",
+                    effects: [
+                        { op: "gainLife", player: "controller", amount: 2 },
+                        {
+                            op: "dealDamage",
+                            amount: 1,
+                            to: { player: "opponent" },
+                        },
+                    ],
+                },
+                loss: {
+                    consequence: "Lose 1 life.",
+                    effects: [
+                        { op: "loseLife", player: "controller", amount: 1 },
+                    ],
+                },
+            },
+        ]);
+        const state = makeState({ rngSeed: WIN_SEED });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(22);
+        expect(state.players[1].life).toBe(19);
+    });
+
+    it("flips with an announced target player and acts on the win branch (CR 705.1)", () => {
+        const id = registerScript(
+            "test-op-coinsync-target",
+            [
+                {
+                    op: "coinFlipSync",
+                    player: { target: 0 },
+                    win: {
+                        consequence: "Target player gains 5.",
+                        effects: [
+                            {
+                                op: "gainLife",
+                                player: { target: 0 },
+                                amount: 5,
+                            },
+                        ],
+                    },
+                    loss: {
+                        consequence: "Target player loses 5.",
+                        effects: [
+                            {
+                                op: "loseLife",
+                                player: { target: 0 },
+                                amount: 5,
+                            },
+                        ],
+                    },
+                },
+            ],
+            { targetRequirement: { type: "player", count: 1 } }
+        );
+        const state = makeState({ rngSeed: WIN_SEED });
+        pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        expect(state.players[1].life).toBe(25);
+    });
+
+    it("skips the flip entirely when the flipper is gone, and still runs the rest (CR 608.2b)", () => {
+        const id = registerScript(
+            "test-op-coinsync-missing",
+            [
+                {
+                    op: "coinFlipSync",
+                    player: { target: 0 },
+                    win: {
+                        consequence: "Gain 3.",
+                        effects: [
+                            {
+                                op: "gainLife",
+                                player: "controller",
+                                amount: 3,
+                            },
+                        ],
+                    },
+                    loss: {
+                        consequence: "Lose 3.",
+                        effects: [
+                            {
+                                op: "loseLife",
+                                player: "controller",
+                                amount: 3,
+                            },
+                        ],
+                    },
+                },
+                { op: "gainLife", player: "controller", amount: 2 },
+            ],
+            { targetRequirement: { type: "player", count: 1 } }
+        );
+        const state = makeState({ rngSeed: WIN_SEED });
+        pushSpell(state, id, "p1", []); // no target survives to resolution
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        // …and the following Op still ran (branch skipped, not the whole script).
+        expect(state.players[0].life).toBe(22);
+    });
+
+    it("a suspending Op inside the taken branch resumes through the coinFlipSync WITHOUT re-flipping (CR 608.3)", () => {
+        const id = registerScript(
+            "test-op-coinsync-nested-suspend",
+            [
+                {
+                    op: "coinFlipSync",
+                    win: {
+                        consequence: "Target player discards two.",
+                        effects: [
+                            {
+                                op: "choice",
+                                kind: "discard-hand",
+                                player: { target: 0 },
+                                zone: "hand",
+                                count: 2,
+                                prompt: "Discard two cards.",
+                                bind: "$d",
+                            },
+                            {
+                                op: "discard",
+                                player: { target: 0 },
+                                cards: { ref: "$d" },
+                            },
+                        ],
+                    },
+                    loss: {
+                        consequence: "Gain 1 life.",
+                        effects: [
+                            {
+                                op: "gainLife",
+                                player: "controller",
+                                amount: 1,
+                            },
+                        ],
+                    },
+                },
+            ],
+            { targetRequirement: { type: "player", count: 1 } }
+        );
+        const state = makeState({
+            rngSeed: WIN_SEED,
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { hand: handOf("p2", ["h1", "h2", "h3"]) }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]);
+        // The nested `choice` suspends — NO coin-flip Pending Choice is ever
+        // enqueued (coinFlipSync has no reveal-ack step at all).
+        resolveTopOfStack(state);
+        const choiceHead = state.pendingChoices![0];
+        expect(choiceHead.kind).toBe("discard-hand");
+        applyPendingChoiceSubmit(state, {
+            playerId: "p2",
+            stackItemId: choiceHead.stackItemId,
+            step: choiceHead.step,
+            choiceId: choiceHead.choiceId,
+            cardInstanceIds: ["h1", "h2"],
+        });
+        // The discard resolved through the branch (the win branch was taken —
+        // re-descending on resume never re-flipped into a different branch)…
+        expect(state.players[1].hand.map((c) => c.id)).toEqual(["h3"]);
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+    });
+
+    it("the win-branch outcome survives projection (wire format)", () => {
+        const id = registerScript("test-op-coinsync-wire", [
+            {
+                op: "coinFlipSync",
+                win: {
+                    consequence: "Burn the opponent for 2.",
+                    effects: [
+                        {
+                            op: "dealDamage",
+                            amount: 2,
+                            to: { player: "opponent" },
+                        },
+                    ],
+                },
+                loss: {
+                    consequence: "Gain 1 life.",
+                    effects: [
+                        { op: "gainLife", player: "controller", amount: 1 },
+                    ],
+                },
+            },
+        ]);
+        const state = makeState({ rngSeed: WIN_SEED });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[1].life).toBe(18);
+    });
+});
+
 describe("Effect Script Op: destroy (CR 701.8)", () => {
     it("destroys the announced creature target (moves it to its owner's graveyard)", () => {
         const id = registerScript("test-op-destroy", [
