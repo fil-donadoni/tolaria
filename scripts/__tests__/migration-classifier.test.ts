@@ -1092,11 +1092,19 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // 661→660 (−1), FREE 430→429 (−1), AFK-ready 397→396 (−1, it had a
         // per-card test). X-only and Op-blocked unchanged. Partition:
         // 429+14+217=660.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(660);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(429);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(396);
+        //
+        // 2026-07-21 #1281 coinFlipSync Op + Goblin Artisans migration: the
+        // new synchronous flip Op both migrates Goblin Artisans out of the
+        // resolve() pool (total 660→659, −1) AND unblocks 2 previously
+        // Op-blocked closures (Op-blocked 217→215, −2; those 2 become FREE).
+        // Net FREE 429→430 (Goblin −1, +2 unblocked), AFK-ready 396→397
+        // (Goblin −1 had a test, +2 unblocked have tests). X-only unchanged.
+        // Partition: 430+14+215=659.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(659);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(430);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(397);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(217);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(215);
     });
 
     it("surfaces the demonstrated new-Op backlog (a covered primitive leaves it)", () => {
