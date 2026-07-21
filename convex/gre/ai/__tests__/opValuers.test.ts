@@ -219,7 +219,12 @@ describe("OP_VALUERS — charter valuers (PRD #1423, issue #1426)", () => {
         it("values a creature token by its (discounted) body × count", () => {
             const op: EffectOp = {
                 op: "createToken",
-                token: { name: "Bear", types: ["Creature"], power: 2, toughness: 2 },
+                token: {
+                    name: "Bear",
+                    types: ["Creature"],
+                    power: 2,
+                    toughness: 2,
+                },
                 controller: "controller",
             };
             const v = valueOp(op, cf);
@@ -231,7 +236,12 @@ describe("OP_VALUERS — charter valuers (PRD #1423, issue #1426)", () => {
         it("scales with count and flags board-scaling on a variable count", () => {
             const op: EffectOp = {
                 op: "createToken",
-                token: { name: "Goblin", types: ["Creature"], power: 1, toughness: 1 },
+                token: {
+                    name: "Goblin",
+                    types: ["Creature"],
+                    power: 1,
+                    toughness: 1,
+                },
                 controller: "controller",
                 count: { X: true },
             };

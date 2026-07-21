@@ -399,9 +399,7 @@ const getEnergy: Valuer<"getEnergy"> = (op, ctx) => {
 
 const grantAbility: Valuer<"grantAbility"> = (op) => ({
     points: GRANT_ABILITY_VALUE,
-    tags: isAnnouncedTarget(op.target)
-        ? ["evasion", "targeted"]
-        : ["evasion"],
+    tags: isAnnouncedTarget(op.target) ? ["evasion", "targeted"] : ["evasion"],
 });
 
 const grantCastFromExile: Valuer<"grantCastFromExile"> = () => ({
