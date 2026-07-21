@@ -288,7 +288,9 @@ describe("CardPreview — Arena click model (#332)", () => {
         ) as HTMLElement;
         expect(toggle).toBeTruthy();
         expect(
-            document.querySelector('[data-card-preview-dock] img[alt*="(printed)"]')
+            document.querySelector(
+                '[data-card-preview-dock] img[alt*="(printed)"]'
+            )
         ).toBeNull();
 
         act(() => {
@@ -310,7 +312,9 @@ describe("CardPreview — Arena click model (#332)", () => {
             ).click();
         });
         expect(
-            document.querySelector('[data-card-preview-dock] img[alt*="(printed)"]')
+            document.querySelector(
+                '[data-card-preview-dock] img[alt*="(printed)"]'
+            )
         ).toBeNull();
     });
 

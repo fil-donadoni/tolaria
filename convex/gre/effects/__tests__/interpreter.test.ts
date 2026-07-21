@@ -15586,7 +15586,10 @@ describe("Effect Script Op: nameCard (CR 201.3 / 202.3, issue #1085)", () => {
         const head = state.pendingChoices![0];
         expect(head.kind).toBe("name-card");
         expect(head.playerId).toBe("p1");
-        applyNameCardSubmit(state, { playerId: "p1", cardName: "grizzly bears" });
+        applyNameCardSubmit(state, {
+            playerId: "p1",
+            cardName: "grizzly bears",
+        });
         // Resolution resumed and the sorcery left the stack — the binding had
         // no downstream reader in this script, exactly like an unread `choice`
         // pick (CR 608.2b, no crash on an unconsumed binding).
@@ -15614,7 +15617,10 @@ describe("Effect Script Op: nameCard (CR 201.3 / 202.3, issue #1085)", () => {
         // silent skip, the chooser must submit a legal name.
         expect(state.pendingChoices).toHaveLength(1);
         expect(state.pendingChoices![0].kind).toBe("name-card");
-        applyNameCardSubmit(state, { playerId: "p1", cardName: "Grizzly Bears" });
+        applyNameCardSubmit(state, {
+            playerId: "p1",
+            cardName: "Grizzly Bears",
+        });
         expect(state.pendingChoices ?? []).toHaveLength(0);
     });
 
@@ -15689,9 +15695,9 @@ describe("Effect Script Op: digMatchingToHand (CR 701.20a / 401.4, issue #1085)"
         pushSpell(state, id, "p1");
         resolveTopOfStack(state); // no suspension — single synchronous step
         expect(state.pendingChoices ?? []).toHaveLength(0);
-        expect(
-            state.players[0].hand.map((c) => c.card.id).sort()
-        ).toEqual([grizzlyBears.id, grizzlyBears.id].sort());
+        expect(state.players[0].hand.map((c) => c.card.id).sort()).toEqual(
+            [grizzlyBears.id, grizzlyBears.id].sort()
+        );
         expect(state.players[0].exile.map((c) => c.card.id)).toEqual([
             hillGiant.id,
         ]);
@@ -15830,7 +15836,10 @@ describe("Effect Script Op: digMatchingToHand (CR 701.20a / 401.4, issue #1085)"
         });
         pushSpell(state, id, "p1");
         expect(resolveTopOfStack(state)).toBeNull(); // suspends on nameCard
-        applyNameCardSubmit(state, { playerId: "p1", cardName: "Grizzly Bears" });
+        applyNameCardSubmit(state, {
+            playerId: "p1",
+            cardName: "Grizzly Bears",
+        });
         // Resumed: digMatchingToHand's bare ref reads the committed picks-
         // family binding back and splits the revealed window on it.
         expect(state.pendingChoices ?? []).toHaveLength(0);

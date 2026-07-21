@@ -11276,7 +11276,9 @@ export function buildSpellContext(
                 // CR 201.3 (issue #1085) — "a card name other than a basic
                 // land card name" (Desperate Research). Checked at submit
                 // time by `applyNameCardSubmit`.
-                ...(req.excludeBasicLand ? { nameRestriction: "no-basic-land" as const } : {}),
+                ...(req.excludeBasicLand
+                    ? { nameRestriction: "no-basic-land" as const }
+                    : {}),
             };
             if (routed.actingPlayerId)
                 entry.actingPlayerId = routed.actingPlayerId;

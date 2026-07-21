@@ -2863,7 +2863,8 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         op: "digMatchingToHand",
         status: "implemented",
         cr: "701.20a",
-        binding: "SpellContext.peekLibraryTop / markKnownToAll / getLibraryCards / moveCardById",
+        binding:
+            "SpellContext.peekLibraryTop / markKnownToAll / getLibraryCards / moveCardById",
         note: 'CR 701.20a reveal / CR 401.4 look (issue #1085 — Desperate Research: "Reveal the top seven cards of your library and put all of them with that name into your hand. Exile the rest."). Deterministic sibling of `digToHand`: reveals the top `look` cards of `player`\'s library to EVERY player (unlike `digToHand`\'s private per-chooser look), puts EVERY looked-at card matching `filter` into hand with NO player choice (the filter alone decides — CR 608.2b, zero matches is a no-op for the hand leg), and sends every non-matching looked-at card to `destination` ("exile" — Desperate Research; "graveyard" — a Surveil-shaped future card). A thin declarative composition over four existing SpellContext primitives, one execution path (ADR 0045); `filter` is REQUIRED (a filter-less "look N, keep all" dig is already `digToHand`\'s job with `take` = `look`). `bind` (optional) snapshots the FIRST card put into hand, mirrors `digToHand`\'s own `bind`. No new SpellContext primitive — pure composition, per the "generalize, don\'t add" primitive-reuse rule.',
     },
 ];

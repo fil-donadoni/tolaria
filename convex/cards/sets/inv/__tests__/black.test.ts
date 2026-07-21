@@ -55,7 +55,13 @@ import {
     urborgSkeleton,
 } from "../black";
 import { getCardByName } from "../../../index";
-import { plains, island, savannahLions, grizzlyBears, hillGiant } from "../../lea";
+import {
+    plains,
+    island,
+    savannahLions,
+    grizzlyBears,
+    hillGiant,
+} from "../../lea";
 import {
     makeInstance,
     makePlayer,
@@ -1340,9 +1346,7 @@ describe("Desperate Research ({1}{B} Sorcery — choose a card name, reveal 7, s
         pushSpell(state, desperateResearch.id, "p1");
         resolveTopOfStack(state);
         const projectedSuspended = projectPublicState(state, 1, "p1");
-        expect(projectedSuspended.pendingChoices?.[0]?.kind).toBe(
-            "name-card"
-        );
+        expect(projectedSuspended.pendingChoices?.[0]?.kind).toBe("name-card");
 
         applyNameCardSubmit(state, {
             playerId: "p1",

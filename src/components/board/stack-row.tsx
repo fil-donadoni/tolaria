@@ -9,7 +9,11 @@ import {
     manaCostToString,
 } from "~/lib/card-utils";
 import { formatOracleText } from "~/lib/oracle-text";
-import { ART_CROP_RATIO, getArtCropImageUrl, resolveCardImageId } from "~/lib/images";
+import {
+    ART_CROP_RATIO,
+    getArtCropImageUrl,
+    resolveCardImageId,
+} from "~/lib/images";
 import { SLOT_SPRING } from "~/lib/board-motion";
 import ArrivalGlow from "./arrival-glow";
 import ColorOverlayCardImage from "../cards/color-overlay-card-image";
@@ -60,7 +64,9 @@ function targetLabel(
         }
         case "spell": {
             const item = stack.find((x) => x.id === target.id);
-            return item ? (tryGetDefinition(item.card.id)?.name ?? "spell") : "spell";
+            return item
+                ? (tryGetDefinition(item.card.id)?.name ?? "spell")
+                : "spell";
         }
         case "permanent": {
             for (const p of allPlayers) {
@@ -145,7 +151,9 @@ export default function StackRow({
     const kind = abilityKindOf(item);
     const def = tryGetDefinition(item.card.id);
     const name = def?.name ?? item.card.id;
-    const oracle = kind ? abilityOracleText(item, kind) : (def?.oracleText ?? null);
+    const oracle = kind
+        ? abilityOracleText(item, kind)
+        : (def?.oracleText ?? null);
     const modeLines = getStackModeLines(item);
     const imageId = resolveCardImageId(item.card.id);
 
@@ -219,7 +227,9 @@ export default function StackRow({
                         </span>
                         {def?.manaCost && (
                             <span className="text-[10px]">
-                                {formatOracleText(manaCostToString(def.manaCost))}
+                                {formatOracleText(
+                                    manaCostToString(def.manaCost)
+                                )}
                             </span>
                         )}
                         <ControllerChip

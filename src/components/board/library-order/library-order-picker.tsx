@@ -40,7 +40,11 @@ type ZoneMeta = {
 
 function ZoneLabel({ meta, accent }: { meta: ZoneMeta; accent: boolean }) {
     const Icon =
-        meta.icon === "hand" ? Hand : meta.icon === "graveyard" ? Skull : Layers;
+        meta.icon === "hand"
+            ? Hand
+            : meta.icon === "graveyard"
+              ? Skull
+              : Layers;
     return (
         <div
             className={`flex items-center gap-2 rounded-sm border px-2 py-1 ${
@@ -359,7 +363,16 @@ export default function LibraryOrderPicker({
                 dropIndex: number;
             },
         };
-    }, [drag, top, second, hasSecond, detached, detachRight, topCap, eligibleIds]);
+    }, [
+        drag,
+        top,
+        second,
+        hasSecond,
+        detached,
+        detachRight,
+        topCap,
+        eligibleIds,
+    ]);
 
     // ---- Gesture (mirrors the hand's activation feel; no cast branch) ----
     const onPointerDown = useCallback(

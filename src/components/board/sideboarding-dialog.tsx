@@ -67,6 +67,9 @@ export default function SideboardingDialog({
     // (made while sideboarding their seat) reaches the FINAL `setReady` that
     // triggers the build — in Solo the chooser may not be the last seat readied.
     const [playDraw, setPlayDraw] = useState<"play" | "draw">("play");
+    // Hover → the phase-2 computed preview (art + live oracle text) in the
+    // middle column. Must stay above the early returns (rules-of-hooks).
+    const [hoveredCardId, setHoveredCardId] = useState<string | null>(null);
 
     const seat = seats[seatIdx];
     // Working split for the current seat, seeded from its Match deck copy. Keyed
@@ -151,12 +154,7 @@ export default function SideboardingDialog({
         setSplit((s) =>
             all ? moveAllToMaindeck(s, cardId) : moveToMaindeck(s, cardId)
         );
-    // Hover → the phase-2 computed preview (art + live oracle text) in the
-    // middle column.
-    const [hoveredCardId, setHoveredCardId] = useState<string | null>(null);
-    const hoveredBody = hoveredCardId
-        ? buildPreviewBody(hoveredCardId)
-        : null;
+    const hoveredBody = hoveredCardId ? buildPreviewBody(hoveredCardId) : null;
 
     const handleReady = async () => {
         if (!sizeOk || submitting) return;
@@ -238,10 +236,7 @@ export default function SideboardingDialog({
                     <div className="hidden w-56 shrink-0 sm:block">
                         {hoveredBody ? (
                             <div className="card-preview-dock overflow-hidden rounded-2xl bg-surface">
-                                <CardPreviewBody
-                                    {...hoveredBody}
-                                    size="sm"
-                                />
+                                <CardPreviewBody {...hoveredBody} size="sm" />
                             </div>
                         ) : (
                             <div className="flex h-48 items-center justify-center rounded-md border border-dashed border-border-subtle/50 px-3 text-center text-[10px] text-text-disabled">

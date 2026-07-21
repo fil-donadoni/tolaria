@@ -2142,8 +2142,10 @@ export const OP_EXECUTORS: {
                 rest.push(id);
             }
         }
-        for (const id of matches) ctx.moveCardById(playerId, id, "library", "hand");
-        for (const id of rest) ctx.moveCardById(playerId, id, "library", op.destination);
+        for (const id of matches)
+            ctx.moveCardById(playerId, id, "library", "hand");
+        for (const id of rest)
+            ctx.moveCardById(playerId, id, "library", op.destination);
         // `bind` (optional) — snapshot the FIRST card put into hand, mirrors
         // `digToHand`'s own bind (the card already sits in hand at this
         // point — no last-known-info need, `resolveObjectRef`'s hand-lookup
