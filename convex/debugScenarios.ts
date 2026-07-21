@@ -10,9 +10,11 @@ import { tryGetCardByName } from "./cards";
 import {
     collectUnresolvedCardNames,
     normalizeScenarioSpec,
+    resolveScenarioGolden,
     scenarioSpecValidator,
     selectEphemeralIdsToPrune,
     selectPresetsToSeed,
+    selectScenarioUpsert,
     SCENARIO_SCHEMA_VERSION,
     type ScenarioSpec,
 } from "./debugScenarioSpec";
@@ -2107,3 +2109,99 @@ export const seedNewMechanicScenarios = internalMutation({
 
 // Exported for tests only — same loadability proof as the migration list.
 export { NEW_MECHANIC_SCENARIOS };
+
+/**
+ * Write ONE debug scenario row straight to the DB (issue #1453; design doc
+ * `docs/superpowers/specs/2026-07-21-db-direct-debug-scenarios-design.md`).
+ * This is the **post-merge replacement** for the `NEW_MECHANIC_SCENARIOS`
+ * code-array path: once a card/mechanic's branch has merged and the
+ * deployment redeployed (so the card exists in the catalogue the loadability
+ * guard below checks against), the orchestrator registers the scenario by
+ * calling this mutation directly —
+ * `npx convex run debugScenarios:seedScenarioDirect '{"label":"...","spec":{...}}'`
+ * or via the Convex MCP — instead of appending a `{ label, spec }` entry to
+ * the array and waiting for the next `seedNewMechanicScenarios` run.
+ *
+ * `internalMutation`: reachable only with deploy access (dashboard /
+ * `npx convex run` / MCP), never from a client — so unlike `saveDebugScenario`
+ * it does NOT gate on `assertIsAdmin`. There is no caller identity to check;
+ * the access control is "can you run internal mutations against this
+ * deployment at all."
+ *
+ * **Upsert-by-label** (`selectScenarioUpsert`): re-running with the same
+ * `label` PATCHES the existing row's `spec` (and `golden`/`prompt` if
+ * explicitly provided) instead of accumulating a duplicate row.
+ *
+ * **Does NOT consult `debugScenarioTombstones`** — same principle as
+ * `saveDebugScenario`: this is an explicit, one-shot write, not an automatic
+ * re-seed, so a prior manual delete of the same label never suppresses it.
+ *
+ * **Accepted tradeoff** (design doc): the written row is DEPLOYMENT-LOCAL —
+ * not captured in git, so it does not reproduce on a fresh clone, in CI, or
+ * on a different deployment. That is the whole point of retiring the
+ * code-array path: a scenario stops needing a file edit + merge-train
+ * append-conflict to register.
+ */
+export const seedScenarioDirect = internalMutation({
+    args: {
+        label: v.string(),
+        spec: scenarioSpecValidator,
+        golden: v.optional(v.boolean()),
+        prompt: v.optional(v.string()),
+    },
+    returns: v.object({
+        action: v.union(v.literal("insert"), v.literal("patch")),
+        id: v.id("debugScenarios"),
+    }),
+    handler: async (ctx, args) => {
+        const label = args.label.trim() || "Untitled scenario";
+
+        // Loadability guard reused (ADR 0044), same as saveDebugScenario /
+        // seedNewMechanicScenarios: reject before write if any referenced card
+        // name doesn't resolve in the catalogue, with the offending name(s) in
+        // the error.
+        const unresolved = collectUnresolvedCardNames(
+            args.spec,
+            (name) => tryGetCardByName(name) !== null
+        );
+        if (unresolved.length > 0) {
+            throw new Error(`Unknown card name(s): ${unresolved.join(", ")}`);
+        }
+
+        // Bounded scan, same style as the other seed paths above — the table
+        // is kept small by `cleanupEphemeralScenarios`.
+        const existing = await ctx.db.query("debugScenarios").take(1000);
+        const decision = selectScenarioUpsert(existing, label);
+
+        if (decision.action === "patch") {
+            const patch: {
+                spec: ScenarioSpec;
+                golden?: boolean;
+                prompt?: string;
+                schemaVersion?: number;
+            } = { spec: args.spec };
+            if (args.golden !== undefined) {
+                patch.golden = args.golden;
+                patch.schemaVersion = args.golden
+                    ? SCENARIO_SCHEMA_VERSION
+                    : undefined;
+            }
+            if (args.prompt !== undefined) {
+                patch.prompt = args.prompt;
+            }
+            await ctx.db.patch(decision.id, patch);
+            return { action: "patch" as const, id: decision.id };
+        }
+
+        const golden = resolveScenarioGolden(args.golden);
+        const id = await ctx.db.insert("debugScenarios", {
+            label,
+            spec: args.spec,
+            golden,
+            prompt: args.prompt,
+            schemaVersion: golden ? SCENARIO_SCHEMA_VERSION : undefined,
+            createdAt: Date.now(),
+        });
+        return { action: "insert" as const, id };
+    },
+});
