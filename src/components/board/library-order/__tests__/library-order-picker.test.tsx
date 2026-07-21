@@ -53,8 +53,8 @@ describe("LibraryOrderPicker", () => {
                 onConfirm={vi.fn()}
             />
         );
-        expect(getByText("BOTTOM")).toBeTruthy();
-        expect(getByText("TOP")).toBeTruthy();
+        expect(getByText("Bottom of library")).toBeTruthy();
+        expect(getByText("Top of library")).toBeTruthy();
     });
 
     it("renders surveil chrome for graveyard", () => {
@@ -67,8 +67,8 @@ describe("LibraryOrderPicker", () => {
                 onConfirm={vi.fn()}
             />
         );
-        expect(getByText("GRAVEYARD")).toBeTruthy();
-        expect(getByText("LIBRARY")).toBeTruthy();
+        expect(getByText("Graveyard")).toBeTruthy();
+        expect(getByText("Top of library")).toBeTruthy();
     });
 
     it("order-only (none) shows a single top label and submits an empty second list", () => {
@@ -82,7 +82,7 @@ describe("LibraryOrderPicker", () => {
                 onConfirm={onConfirm}
             />
         );
-        expect(getByText("TOP OF LIBRARY")).toBeTruthy();
+        expect(getByText("Top of library")).toBeTruthy();
         fireEvent.click(getByText("Done"));
         expect(onConfirm).toHaveBeenCalledWith(["a", "b", "c"], []);
     });
@@ -114,8 +114,8 @@ describe("LibraryOrderPicker", () => {
                 onConfirm={vi.fn()}
             />
         );
-        expect(getByText("BOTTOM")).toBeTruthy();
-        expect(getByText("HAND")).toBeTruthy();
+        expect(getByText("Bottom of library")).toBeTruthy();
+        expect(getByText("Your hand")).toBeTruthy();
     });
 
     // issue #1101 (Reviving Vapors) — `digToHand`'s `destination: "graveyard"`
@@ -133,9 +133,9 @@ describe("LibraryOrderPicker", () => {
                 onConfirm={vi.fn()}
             />
         );
-        expect(getByText("GRAVEYARD")).toBeTruthy();
-        expect(getByText("HAND")).toBeTruthy();
-        expect(queryByText("BOTTOM")).toBeNull();
+        expect(getByText("Graveyard")).toBeTruthy();
+        expect(getByText("Your hand")).toBeTruthy();
+        expect(queryByText("Bottom of library")).toBeNull();
     });
 
     it("distribute mode gates Done until exactly `keep` cards are in the HAND zone", () => {
@@ -194,8 +194,8 @@ describe("LibraryOrderPicker", () => {
                 onConfirm={vi.fn()}
             />
         );
-        expect(getByText("HAND")).toBeTruthy();
-        expect(getByText("TOP OF LIBRARY")).toBeTruthy();
+        expect(getByText("Your hand")).toBeTruthy();
+        expect(getByText("Top of library")).toBeTruthy();
     });
 
     it("putBack mode gates Done until exactly `keep` cards are on top", () => {
