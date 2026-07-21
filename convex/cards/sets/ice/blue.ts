@@ -85,31 +85,19 @@ function scheduleNextUpkeepDraw(ctx: SpellContext, sourceCardId: string): void {
     );
 }
 
-// NOT DSL-migratable (ADR 0045): the legacy `DelayedTriggerDef` template
-// interface has no `effects` field (only `resolve` — see its declaration in
-// convex/cards/types.ts), so this factory's body can't become a DSL script in
-// place. Moving its 4 callers (Clairvoyance, Force Void, Portent, Ray of
-// Erasure) onto the newer inline `delayedTrigger` Effect Op (ADR 0048) instead
-// would additionally require each caller's OWN effect to be fully
-// DSL-expressible — Clairvoyance's "look at target player's hand" is a
-// private peek (`ctx.revealHand`), distinct from the DSL `reveal` Op (which
-// always does a public `markKnownToAll`), so at least that one caller stays
-// blocked either way. Planned-migratable: worth an issue to add `effects`
-// support to `DelayedTriggerDef` (or a private-look Op) and re-home all 4
-// cantrips at once. tracked-by: #1280
+// The next-upkeep cantrip rider shared by Clairvoyance, Force Void, Portent
+// and Ray of Erasure. Migrated resolve()→effects[] in #1280 once
+// `DelayedTriggerDef` gained an `effects` site (ADR 0045): the delayed draw is
+// now a plain `draw` Op (see the helper below). Each caller's OWN main effect
+// migrates independently of this shared rider.
 function nextUpkeepDrawTrigger(): DelayedTriggerDef {
     return {
         id: NEXT_UPKEEP_DRAW_TRIGGER_ID,
         oracleText: "At the beginning of the next turn's upkeep, draw a card.",
         timing: "next-upkeep",
-        resolve: (ctx) => {
-            // CR 121.1 — the trigger's controller (the scheduling spell's
-            // controller, or the activator on the tap-rider path) draws one
-            // card. `ctx.controller` is the delayed trigger's controller in
-            // both scheduling paths (`fireDelayedTriggers` sets the stack
-            // item's controller to the instance's `controller`).
-            ctx.drawCards(ctx.controller, 1);
-        },
+        // CR 121.1 — the delayed trigger's controller draws one card.
+        // Migrated resolve()→effects[] (ADR 0045, closes #1280).
+        effects: [{ op: "draw", player: "controller", count: 1 }],
     };
 }
 

@@ -3692,14 +3692,29 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
         );
         if (trigger) {
             const ctx = buildSpellContext(state, top);
-            // The template path (legacy `resolve()` cards) only ever schedules
-            // scalar payloads — list-valued captures (ADR 0049, issue #866) are
-            // an inline-body-only feature that takes the branch above. The cast
-            // reflects that invariant: a template trigger never sees a string[].
-            trigger.resolve(
-                ctx,
-                (top.delayedPayload ?? {}) as Record<string, string>
-            );
+            // The template path (legacy `resolve()`/`effects[]` cards) only
+            // ever schedules scalar payloads — list-valued captures (ADR 0049,
+            // issue #866) are an inline-body-only feature that takes the
+            // branch above. The cast reflects that invariant: a template
+            // trigger never sees a string[].
+            const payload = (top.delayedPayload ?? {}) as Record<
+                string,
+                string
+            >;
+            // ADR 0045 (issue #1280) — `DelayedTriggerDef.effects` runs
+            // through the SAME `runDelayedTriggerBody` seam as the
+            // Effect-Script-scheduled inline body (ADR 0048): the captured
+            // scalar payload is bound into the interpreter's environment
+            // before the script runs. `getAbilityEffectFn` is reused purely
+            // for its mutual-exclusivity guard + presence check — the actual
+            // invocation needs payload binding, which the plain
+            // `compileEffectScript` closure it would otherwise return does
+            // not do.
+            if (getAbilityEffectFn(trigger)) {
+                runDelayedTriggerBody(ctx, trigger.effects!, payload);
+            } else {
+                trigger.resolve!(ctx, payload);
+            }
             if (resolutionSuspendedOnChoice(state)) return null;
         }
         delete top.collectedChoices;
@@ -3923,10 +3938,21 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
     if (cardDef) {
         if (top.chosenModeId && cardDef.modes && cardDef.modes.length > 0) {
             const mode = cardDef.modes.find((m) => m.id === top.chosenModeId);
-            if (mode?.resolve) {
-                const ctx = buildSpellContext(state, top);
-                mode.resolve(ctx);
-                if (resolutionSuspendedOnChoice(state)) return null;
+            if (mode) {
+                // ADR 0045 (issue #1280) — a mode's Effect Script runs through
+                // the SAME interpreter seam as every other effect site;
+                // `getAbilityEffectFn` also enforces mutual exclusivity with
+                // `resolve`.
+                const scriptFn = getAbilityEffectFn(mode);
+                if (scriptFn) {
+                    const ctx = buildSpellContext(state, top);
+                    scriptFn(ctx);
+                    if (resolutionSuspendedOnChoice(state)) return null;
+                } else if (mode.resolve) {
+                    const ctx = buildSpellContext(state, top);
+                    mode.resolve(ctx);
+                    if (resolutionSuspendedOnChoice(state)) return null;
+                }
             }
         } else {
             const resolveFn = getResolveFn(cardDef);

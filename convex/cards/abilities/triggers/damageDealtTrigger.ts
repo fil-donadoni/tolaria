@@ -9,6 +9,7 @@
 
 import type {
     DamageDealtEvent,
+    EffectOp,
     GameEvent,
     PermanentView,
     SpellContext,
@@ -70,9 +71,16 @@ export interface DamageDealtTriggerArgs {
         self: PermanentView,
         state?: TriggerStateView
     ) => boolean;
+    /** Effect Script (ADR 0045) — the DSL-first default. Rides straight to
+     *  the interpreter with the source's controller and `$source` bound; the
+     *  damage event's last-known-info payload is a separate argument, not
+     *  reachable from the script, so a `resolve` callback is still the escape
+     *  hatch for an effect that needs it. Mutually exclusive with `resolve`. */
+    effects?: EffectOp[];
     /** Effect to run when the trigger resolves. Receives a pre-narrowed
-     *  payload — no need to re-check `event.type`. */
-    resolve: (
+     *  payload — no need to re-check `event.type`. Mutually exclusive with
+     *  `effects`. */
+    resolve?: (
         ctx: SpellContext,
         event: DamageDealtEvent,
         damage: DamageTriggerPayload
@@ -91,8 +99,15 @@ export function damageDealtTrigger(
         isCombat,
         condition,
         interveningIf,
+        effects,
         resolve,
     } = args;
+
+    if (effects === undefined && resolve === undefined) {
+        throw new Error(
+            `damageDealtTrigger("${id}"): declare either effects[] or resolve — neither was given`
+        );
+    }
 
     function targetPasses(
         event: DamageDealtEvent,
@@ -127,10 +142,14 @@ export function damageDealtTrigger(
         oracleText,
         event: "DAMAGE_DEALT",
         matches,
-        resolve: (ctx: SpellContext, event: GameEvent) => {
-            if (!isDamageDealtEvent(event)) return;
-            resolve(ctx, event, buildDamagePayload(event));
-        },
+        ...(effects
+            ? { effects }
+            : {
+                  resolve: (ctx: SpellContext, event: GameEvent) => {
+                      if (!isDamageDealtEvent(event)) return;
+                      resolve!(ctx, event, buildDamagePayload(event));
+                  },
+              }),
     };
     if (interveningIf) {
         ability.interveningIf = (

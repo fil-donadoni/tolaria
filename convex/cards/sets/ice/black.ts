@@ -55,21 +55,10 @@ function nextUpkeepDrawTrigger(): DelayedTriggerDef {
         id: NEXT_UPKEEP_DRAW_TRIGGER_ID,
         oracleText: "At the beginning of the next turn's upkeep, draw a card.",
         timing: "next-upkeep",
-        // NOT DSL-migratable (ADR 0045): a single fixed-count `draw` Op would
-        // trivially cover "draw a card", but `DelayedTriggerDef` (`convex/
-        // cards/types.ts`) only declares a `resolve` callback — no `effects`
-        // alternative exists on this site at all. Shared by every set using
-        // this next-upkeep cantrip pattern (e.g. `ice/colorless.ts`,
-        // `ice/green.ts`, `ice/white.ts`, `csp/colorless.ts`).
-        // Blocked on: `DelayedTriggerDef` support for `effects`. tracked-by: #1280
-        resolve: (ctx) => {
-            // CR 121.1 — the trigger's controller (the scheduling spell's
-            // controller, or the activator on the tap-rider path) draws one
-            // card. `ctx.controller` is the delayed trigger's controller in
-            // both scheduling paths (`fireDelayedTriggers` sets the stack
-            // item's controller to the instance's `controller`).
-            ctx.drawCards(ctx.controller, 1);
-        },
+        // CR 121.1 — the delayed trigger's controller draws one card.
+        // Migrated resolve()→effects[] (ADR 0045, closes #1280):
+        // DelayedTriggerDef now carries an `effects` site.
+        effects: [{ op: "draw", player: "controller", count: 1 }],
     };
 }
 // ─────────────────────────────────────────────────────────────────────────────
