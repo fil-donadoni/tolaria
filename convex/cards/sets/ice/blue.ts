@@ -85,18 +85,11 @@ function scheduleNextUpkeepDraw(ctx: SpellContext, sourceCardId: string): void {
     );
 }
 
-// NOT DSL-migratable (ADR 0045): the legacy `DelayedTriggerDef` template
-// interface has no `effects` field (only `resolve` — see its declaration in
-// convex/cards/types.ts), so this factory's body can't become a DSL script in
-// place. Moving its 4 callers (Clairvoyance, Force Void, Portent, Ray of
-// Erasure) onto the newer inline `delayedTrigger` Effect Op (ADR 0048) instead
-// would additionally require each caller's OWN effect to be fully
-// DSL-expressible — Clairvoyance's "look at target player's hand" is a
-// private peek (`ctx.revealHand`), distinct from the DSL `reveal` Op (which
-// always does a public `markKnownToAll`), so at least that one caller stays
-// blocked either way. Planned-migratable: worth an issue to add `effects`
-// support to `DelayedTriggerDef` (or a private-look Op) and re-home all 4
-// cantrips at once. tracked-by: #1280
+// The next-upkeep cantrip rider shared by Clairvoyance, Force Void, Portent
+// and Ray of Erasure. Migrated resolve()→effects[] in #1280 once
+// `DelayedTriggerDef` gained an `effects` site (ADR 0045): the delayed draw is
+// now a plain `draw` Op (see the helper below). Each caller's OWN main effect
+// migrates independently of this shared rider.
 function nextUpkeepDrawTrigger(): DelayedTriggerDef {
     return {
         id: NEXT_UPKEEP_DRAW_TRIGGER_ID,
