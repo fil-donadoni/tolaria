@@ -77,10 +77,13 @@ export const dragonWhelp: CardDefinition = {
                 "{R}: Dragon Whelp gets +1/+0 until end of turn. If this ability has been activated four or more times this turn, sacrifice Dragon Whelp at the beginning of the next end step.",
             cost: { mana: { R: 1 } },
             useStack: true,
-            // NOT DSL-migratable (ADR 0045, issue #831): needs a temporary P/T
-            // pump plus a conditional delayed sacrifice keyed on activation
-            // count — both Ops (`pump`, `delayedTrigger`) are `planned`, not
-            // implemented. Blocked on: `pump` + `delayedTrigger` Ops.
+            // NOT DSL-migratable (ADR 0045, issue #831): `pump` and
+            // `delayedTrigger` are both now `implemented` Ops, but the "if
+            // this ability has been activated four or more times this turn"
+            // gate reads `ctx.getActivationCount`, which has no `EffectValue`
+            // grammar member — `abilityResolutionCount` is triggered-ability
+            // only (always 0 for an activated ability). Blocked on: an
+            // activation-count `EffectValue` member.
             resolve: (ctx: SpellContext) => {
                 ctx.addTemporaryPTBuff(
                     { type: "permanent", id: ctx.sourceInstanceId },
@@ -108,11 +111,15 @@ export const dragonWhelp: CardDefinition = {
             oracleText:
                 "Sacrifice Dragon Whelp at the beginning of the next end step.",
             timing: "next-end-step",
-            resolve: (ctx, payload) => {
-                const targetId = payload.targetId;
-                if (!targetId) return;
-                ctx.destroy({ type: "permanent", id: targetId });
-            },
+            // Migrated resolve()→effects[] (ADR 0045, issue #1280): the
+            // scheduling payload's `targetId` is bound as `$targetId` by
+            // `runDelayedTriggerBody` before the body runs; `destroy` on
+            // that ref is behaviourally identical to the prior imperative
+            // `ctx.destroy({ type: "permanent", id: targetId })`. The
+            // SCHEDULING call (`ctx.scheduleDelayedTrigger` in the pump
+            // ability's resolve, unchanged/still blocked above) still sets
+            // the same triggerId/payload shape the per-card test asserts.
+            effects: [{ op: "destroy", target: { ref: "$targetId" } }],
         },
     ],
 };
@@ -282,6 +289,11 @@ export const falseOrders: CardDefinition = {
         count: 1,
         controller: "opponent",
     },
+    // NOT DSL-migratable (ADR 0045, protocol): rewrites combat state —
+    // removes a blocker from combat AND conditionally un-blocks whichever
+    // attackers it was SOLELY blocking (CR 509.1h). No Op models
+    // remove-from-combat / becomes-unblocked; this is combat-pile
+    // restructuring, the same class Raging River below stays resolve() for.
     resolve: (ctx: SpellContext) => {
         const target = ctx.targets[0];
         if (!target || target.type !== "permanent") return;
@@ -327,6 +339,11 @@ export const fireball: CardDefinition = {
     types: ["Sorcery"],
     targetRequirement: { type: "any", count: { min: 1 } },
     additionalGenericPerExtraTarget: 1,
+    // NOT DSL-migratable (ADR 0045): the amount (X) is expressible via the
+    // `X` `EffectValue` member, but there is no Op for dividing one X pool
+    // evenly (rounded down) among an announced variable-count target set —
+    // `dealDamage` deals its `amount` to ONE object/selector, not a split
+    // across several. Blocked on: a divided-damage Op.
     resolve: (ctx: SpellContext) => {
         ctx.dealDividedDamage(ctx.targets, ctx.getX());
     },
@@ -409,6 +426,10 @@ export const fork: CardDefinition = {
         count: 1,
         spellTypeFilter: ["Instant", "Sorcery"],
     },
+    // NOT DSL-migratable (ADR 0045, protocol): copies a stack item onto the
+    // stack above itself (with a colour override) and offers the caster a
+    // NEW targeting decision for the copy (CR 707.10) — stack manipulation
+    // with no Op vocabulary equivalent. Permanent — protocol behaviour.
     resolve: (ctx: SpellContext) => {
         const target = ctx.targets[0];
         if (!target || target.type !== "spell") return;
@@ -657,12 +678,13 @@ export const manaFlare: CardDefinition = {
     manaCost: { X: 2, R: 1 },
     types: ["Enchantment"],
     triggeredAbilities: [
-        // NOT DSL-migratable (ADR 0045): a `tappedTrigger` FACTORY hardcodes its
-        // `resolve` and exposes no `effects[]` site; the recipient and the
-        // produced colour are both read from the trigger event (the tapping
-        // player + the land's produced mana type — an event-field colour choice,
-        // not a static amount). Blocked on: factory-trigger effects[] site +
-        // event-field colour/player.
+        // NOT DSL-migratable (ADR 0045): `tappedTrigger` now HAS an `effects[]`
+        // site, but it binds only `ctx.controller` (the source's controller)
+        // and `$source` — the tapped land's controller (the recipient) and its
+        // `manaProduced` map (which colour to add) are a separate payload,
+        // never reachable from the script (see `tappedTrigger`'s own `effects`
+        // doc comment). Blocked on: tapped-permanent payload exposure
+        // (recipient player ref + produced-colour value) in the DSL.
         tappedTrigger({
             id: "mana-flare-extra",
             oracleText:
@@ -864,6 +886,12 @@ export const ragingRiver: CardDefinition = {
                     event.attackerIds.length > 0
                 );
             },
+            // NOT DSL-migratable (ADR 0045, protocol): a two-step partition
+            // sequence (defender divides non-flying creatures into piles,
+            // then the attacker labels each attacker) that writes transient
+            // per-attacker combat-block restrictions — combat-pile
+            // restructuring with no Op vocabulary equivalent (same class as
+            // False Orders above). Permanent — protocol behaviour.
             resolve: (ctx, event) => {
                 if (event.type !== "ATTACKERS_DECLARED") return;
                 const defenderId = ctx.allPlayerIds.find(
@@ -1205,11 +1233,15 @@ export const stoneGiant: CardDefinition = {
             oracleText:
                 "Destroy that creature at the beginning of the next end step.",
             timing: "next-end-step",
-            resolve: (ctx, payload) => {
-                const targetId = payload.targetId;
-                if (!targetId) return;
-                ctx.destroy({ type: "permanent", id: targetId });
-            },
+            // Migrated resolve()→effects[] (ADR 0045, issue #1280): same
+            // payload-ref shape as Dragon Whelp's `dragon-whelp-sacrifice`
+            // above — `$targetId` is bound from the scheduling payload by
+            // `runDelayedTriggerBody`. The ability's own `resolve` above
+            // (which SCHEDULES this trigger) is unaffected and stays
+            // resolve() for its own, separate reason (test-coupling to the
+            // scheduled instance's triggerId/payload shape) — this def's
+            // resolve→effects swap doesn't touch that shape.
+            effects: [{ op: "destroy", target: { ref: "$targetId" } }],
         },
     ],
 };
@@ -1242,13 +1274,13 @@ export const tunnel: CardDefinition = {
         count: 1,
         subtypeFilter: "Wall",
     },
-    // NOT DSL-migratable (ADR 0045): the "can't be regenerated" rider is a
-    // destroy option the `destroy` Op does not carry. Stays resolve(),
-    // mirroring Fissure / Detonate.
-    resolve: (ctx: SpellContext) => {
-        const target = ctx.targets[0];
-        if (target) ctx.destroy(target, { cantBeRegenerated: true });
-    },
+    // Migrated resolve()→effects[] (ADR 0045): the `destroy` Op's
+    // `cantBeRegenerated` option (a direct passthrough of
+    // `SpellContext.destroy`'s `{ cantBeRegenerated }` argument) now covers
+    // the "It can't be regenerated" rider (CR 701.15c suppression).
+    effects: [
+        { op: "destroy", target: { target: 0 }, cantBeRegenerated: true },
+    ],
 };
 
 // Two-Headed Giant of Foriys — "Trample. Two-Headed Giant of Foriys can
@@ -1379,6 +1411,14 @@ export const disintegrate: CardDefinition = {
     manaCost: { X: "X", R: 1 },
     types: ["Sorcery"],
     targetRequirement: { type: "any", count: 1 },
+    // NOT DSL-migratable (ADR 0045): the damage half (X to any target) is
+    // expressible today (`dealDamage` + the `X` `EffectValue` member), but
+    // "if it would die this turn, exile it instead" is a one-shot
+    // replacement-effect ARM (`SpellContext.setExileOnDeath`) with no Op
+    // skin — distinct from the `destroy` Op's `cantBeRegenerated` flag
+    // (that suppresses regeneration on an IMMEDIATE destroy; this arms a
+    // standing exile-instead-of-death replacement for the rest of the
+    // turn, CR 614.1a). Blocked on: an exile-on-death Op.
     resolve: (ctx: SpellContext) => {
         const t = ctx.targets[0];
         if (!t) return;

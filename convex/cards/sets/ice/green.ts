@@ -6,7 +6,6 @@
 import type {
     CardDefinition,
     CardPrint,
-    DelayedTriggerDef,
     PermanentView,
     SpellContext,
 } from "../../types";
@@ -22,39 +21,13 @@ import { diedTrigger } from "../../abilities/triggers/diedTrigger";
 import { tappedTrigger } from "../../abilities/triggers/tappedTrigger";
 
 // "Draw a card at the beginning of the next turn's upkeep" cantrip rider
-// (CR 502.2 / 603.7d) — the signature kicker on ~22 Ice Age commons. The
-// scheduling spell/ability calls `scheduleNextUpkeepDraw` from its `resolve`;
-// the matching `DelayedTriggerDef` (from `nextUpkeepDrawTrigger`) lives on the
-// card's `delayedTriggers[]`. The trigger carries no `targetPlayerId`, so it
-// fires at the VERY NEXT upkeep regardless of whose turn it is and dequeues
-// exactly once (`fireDelayedTriggers` in gre/phases.ts). The drawing player is
-// the spell's controller, captured in `payload.controller` (CR 113.7).
-//
-// Shared because the rider repeats verbatim across the whole cantrip cycle —
-// extracting it keeps each card definition to its unique body (per the
-// "extract on the second occurrence" convention).
-const NEXT_UPKEEP_DRAW_TRIGGER_ID = "next-upkeep-cantrip";
-
-function scheduleNextUpkeepDraw(ctx: SpellContext, sourceCardId: string): void {
-    ctx.scheduleDelayedTrigger(
-        sourceCardId,
-        NEXT_UPKEEP_DRAW_TRIGGER_ID,
-        "next-upkeep",
-        {}
-    );
-}
-
-function nextUpkeepDrawTrigger(): DelayedTriggerDef {
-    return {
-        id: NEXT_UPKEEP_DRAW_TRIGGER_ID,
-        oracleText: "At the beginning of the next turn's upkeep, draw a card.",
-        timing: "next-upkeep",
-        // CR 121.1 — the delayed trigger's controller draws one card.
-        // Migrated resolve()→effects[] (ADR 0045, closes #1280):
-        // DelayedTriggerDef now carries an `effects` site.
-        effects: [{ op: "draw", player: "controller", count: 1 }],
-    };
-}
+// (CR 502.2 / 603.7d) — the signature kicker on ~22 Ice Age commons. Every
+// occurrence in this file is now an inline `delayedTrigger` Op (CR 603.7d,
+// the Foxfire / Touch of Vitae / Pyknite shape) instead of a shared
+// scheduling helper — the last imperative caller (Pyknite) migrated to
+// `effects[]` (ADR 0045), so the old `scheduleNextUpkeepDraw` /
+// `nextUpkeepDrawTrigger` helpers (and the `delayedTriggers[]` card field
+// they populated) are gone from this file.
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Active tracer
@@ -403,9 +376,14 @@ export const elderDruid: CardDefinition = {
 };
 // Essence Filter — {1}{G}{G} Sorcery. "Destroy all enchantments or all nonwhite
 // enchantments." (CR 700.2 modal — "or" between two mass-destroy effects; CR
-// 701.7 destroy.) Two `modes`, each a no-target resolve that scans every
-// battlefield for Enchantments and destroys the matching set (the nonwhite mode
-// skips white enchantments via `ctx.getColors`).
+// 701.7 destroy.) Two `modes`, each a mass forEach+destroy over every
+// battlefield's Enchantments (the nonwhite mode adds `excludeColor: "W"` to
+// the filter — CR 105.2, the Day of Judgment shape widened with a colour
+// exclusion instead of `ctx.getColors`).
+//
+// Migrated resolve()→effects[] (ADR 0045): `SpellMode.effects` (mutually
+// exclusive with `SpellMode.resolve`) runs each mode through the same
+// forEach{set:"permanents"}+destroy shape as Day of Judgment (m11/white.ts).
 export const essenceFilter: CardDefinition = {
     id: "9b610103-dafd-4248-9d79-ce57f84b9e03",
     name: "Essence Filter",
@@ -418,31 +396,33 @@ export const essenceFilter: CardDefinition = {
             id: "all",
             label: "Destroy all enchantments",
             oracleText: "Destroy all enchantments.",
-            resolve: (ctx: SpellContext) => {
-                for (const pid of ctx.allPlayerIds) {
-                    for (const id of ctx.getBattlefieldIds(pid, {
-                        types: "Enchantment",
-                    })) {
-                        ctx.destroy({ type: "permanent", id });
-                    }
-                }
-            },
+            effects: [
+                {
+                    op: "forEach",
+                    select: {
+                        set: "permanents",
+                        zone: "battlefield",
+                        filter: { type: "Enchantment" },
+                    },
+                    effects: [{ op: "destroy", target: { ref: "$each" } }],
+                },
+            ],
         },
         {
             id: "nonwhite",
             label: "Destroy all nonwhite enchantments",
             oracleText: "Destroy all nonwhite enchantments.",
-            resolve: (ctx: SpellContext) => {
-                for (const pid of ctx.allPlayerIds) {
-                    for (const id of ctx.getBattlefieldIds(pid, {
-                        types: "Enchantment",
-                    })) {
-                        const target = { type: "permanent" as const, id };
-                        if (ctx.getColors(target).includes("W")) continue;
-                        ctx.destroy(target);
-                    }
-                }
-            },
+            effects: [
+                {
+                    op: "forEach",
+                    select: {
+                        set: "permanents",
+                        zone: "battlefield",
+                        filter: { type: "Enchantment", excludeColor: "W" },
+                    },
+                    effects: [{ op: "destroy", target: { ref: "$each" } }],
+                },
+            ],
         },
     ],
 };
@@ -581,6 +561,15 @@ export const forgottenLore: CardDefinition = {
     manaCost: { G: 1 },
     types: ["Sorcery"],
     targetRequirement: { type: "player", count: 1, controller: "opponent" },
+    // NOT DSL-migratable (ADR 0045): an UNBOUNDED iterative may-pay loop over
+    // a set that SHRINKS each iteration (the opponent can't re-choose an
+    // already-chosen card) — the grammar's only iteration construct,
+    // `forEach`, selects its set ONCE at construct entry and freezes it (CR
+    // 608.2i); there is no "repeat while a mayPay is accepted" construct.
+    // Blocked on: a fifth structural construct (a bounded/conditional
+    // repeat) — reopening ADR 0045's frozen four (bind/ref/if/forEach) is a
+    // design decision bigger than an Op-vocabulary addition, so this stays a
+    // permanent resolve() rather than a "planned" Op gap.
     resolve: (ctx: SpellContext) => {
         const me = ctx.controller;
         const t = ctx.targets[0];
@@ -705,6 +694,13 @@ export const freyaliseSupplicant: CardDefinition = {
             },
             useStack: true,
             targetRequirement: { type: "any", count: 1 },
+            // NOT DSL-migratable (ADR 0045): the damage amount is HALF the
+            // sacrificed creature's snapshotted power, rounded down — the
+            // `EffectValue` grammar (literal / ref / count / X) has no
+            // arithmetic (ADR 0045 "there is still no arithmetic"), and the
+            // snapshot itself (`getAdditionalSacrificePower`, CR 608.2h) is
+            // not exposed as an `EffectValue` source. Blocked on: arithmetic
+            // over an `EffectValue` / an `additionalSacrificePower` ref.
             resolve: (ctx: SpellContext) => {
                 const target = ctx.targets[0];
                 if (!target) return;
@@ -799,10 +795,13 @@ export const freyalisesWinds: CardDefinition = {
             // CR 701.20a — any permanent becoming tapped, regardless of
             // controller (including a tap for mana — no `forMana` gate).
             scope: "any",
-            // NOT DSL-migratable (ADR 0045): built via the `tappedTrigger`
-            // factory (no `effects[]` site), and the counter target is the
-            // permanent that became tapped (a trigger-event object) — not a
-            // covered `EffectObjectSelector`. Stays resolve().
+            // NOT DSL-migratable (ADR 0045): `tappedTrigger` now HAS an
+            // `effects[]` site, but it binds only `$source`/ctx.controller
+            // (the AURA's own source/controller) — the counter target here is
+            // the permanent that just became tapped, a trigger-event object
+            // the effects[] binding environment does not surface. Blocked on:
+            // an `EffectObjectSelector` reaching the triggering event's
+            // tapped-permanent id. Stays resolve().
             resolve: (ctx, _event, tapped) => {
                 // CR 122.1 — add a wind counter to the tapped permanent. The
                 // untap-step seam later keys off this counter.
@@ -974,9 +973,10 @@ export const gorillaPack: CardDefinition = {
                     c.subtypes.includes("Forest")
                 );
             },
-            resolve: (ctx) => {
-                ctx.sacrifice(ctx.sourceInstanceId);
-            },
+            // Migrated resolve()→effects[] (ADR 0045): stateTrigger's
+            // effects[] site binds `$source`; sacrifice the triggering
+            // permanent itself (CR 701.16a).
+            effects: [{ op: "sacrifice", target: { ref: "$source" } }],
         }),
     ],
 };
@@ -1169,8 +1169,14 @@ export const lureIce: CardPrint = {
 };
 // Nature's Lore — "Search your library for a Forest card, put that card onto the
 // battlefield, then shuffle." (CR 701.19 search; CR 400.7 put onto battlefield;
-// CR 701.20 shuffle.) A library search restricted to Forest cards via the
-// `candidateIds` allow-list, then `putFromLibraryOntoBattlefield` + shuffle.
+// CR 701.20 shuffle.) A library search restricted to Forest cards, then put
+// onto the battlefield and shuffle — the Natural Order (vis/green.ts) shape.
+//
+// Migrated resolve()→effects[] (ADR 0045): `choice(kind:"search-library",
+// zone:"library", filter:{subtype:"Forest"})` binds the pick, `moveZone`
+// (cards-shape, `from:"library", to:"battlefield"`) puts it into play, then
+// `libraryLook{action:"shuffle"}` shuffles (CR 608.2b — 0 candidates is a
+// no-op search, matching the original `count: {min:0,max:1}`).
 export const naturesLore: CardDefinition = {
     id: "668d2969-b6b7-4507-bdd4-20bbaa68035a",
     name: "Nature's Lore",
@@ -1179,24 +1185,26 @@ export const naturesLore: CardDefinition = {
         "Search your library for a Forest card, put that card onto the battlefield, then shuffle.",
     manaCost: { X: 1, G: 1 },
     types: ["Sorcery"],
-    resolve: (ctx: SpellContext) => {
-        const forests = ctx
-            .getLibraryCards(ctx.controller)
-            .filter((c) => c.subtypes.includes("Forest"));
-        const found = ctx.requestChoice({
-            playerId: ctx.controller,
-            choiceId: "natures-lore-search",
+    effects: [
+        {
+            op: "choice",
             kind: "search-library",
+            player: "controller",
             zone: "library",
-            candidateIds: forests.map((c) => c.id),
+            filter: { subtype: "Forest" },
             count: { min: 0, max: 1 },
             prompt: "Search your library for a Forest card.",
-        });
-        if (found === undefined) return; // suspended
-        const foundId = found[0];
-        if (foundId) ctx.putFromLibraryOntoBattlefield(ctx.controller, foundId);
-        ctx.shuffleLibrary(ctx.controller);
-    },
+            bind: "$picked",
+        },
+        {
+            op: "moveZone",
+            cards: { ref: "$picked" },
+            player: "controller",
+            from: "library",
+            to: "battlefield",
+        },
+        { op: "libraryLook", action: "shuffle", player: "controller" },
+    ],
 };
 // Pale Bears — {2}{G} 2/2 with islandwalk (CR 702.18 landwalk evasion).
 export const paleBears: CardDefinition = {
@@ -1245,12 +1253,22 @@ export const pyknite: CardDefinition = {
             oracleText:
                 "When this creature enters, draw a card at the beginning of the next turn's upkeep.",
             scope: "self",
-            resolve: (ctx) => {
-                scheduleNextUpkeepDraw(ctx, pyknite.id);
-            },
+            // Migrated resolve()→effects[] (ADR 0045): the next-upkeep
+            // cantrip as an inline `delayedTrigger` Op (CR 603.7d — the
+            // Foxfire / Touch of Vitae shape), replacing the shared
+            // `scheduleNextUpkeepDraw` helper (now unused — Pyknite was its
+            // last caller).
+            effects: [
+                {
+                    op: "delayedTrigger",
+                    timing: "next-upkeep",
+                    oracleText:
+                        "At the beginning of the next turn's upkeep, draw a card.",
+                    effects: [{ op: "draw", player: "controller", count: 1 }],
+                },
+            ],
         }),
     ],
-    delayedTriggers: [nextUpkeepDrawTrigger()],
 };
 // Regeneration — ICE reprint of the LEA Aura ("{G}: Regenerate enchanted
 // creature"). CardPrint onto the LEA definition (ADR 0014).
@@ -1420,8 +1438,13 @@ export const stampede: CardDefinition = {
 };
 // Stunted Growth — "Target player chooses three cards from their hand and puts
 // them on top of their library in any order." (CR 701-style hand→library-top;
-// the targeted player makes the choice and the order.) Routes a hand-card
-// choice to the TARGET player, then moves each pick to the top in pick order.
+// the targeted player makes the choice and the order.) The `putBack` Op is
+// exactly this shape (CR 401.4 — put N hand cards on top in chosen order);
+// "fewer than three if the hand is smaller" (CR 700.3 do as much as possible)
+// is `putBack`'s own built-in hand-size clamp.
+//
+// Migrated resolve()→effects[] (ADR 0045): `{ op: "putBack", player: {
+// target: 0 }, count: 3 }` — the announced target player chooses and orders.
 export const stuntedGrowth: CardDefinition = {
     id: "4c9b7393-eb35-4c99-bbf5-bcf924aa8ff3",
     name: "Stunted Growth",
@@ -1431,29 +1454,14 @@ export const stuntedGrowth: CardDefinition = {
     manaCost: { X: 3, G: 2 },
     types: ["Sorcery"],
     targetRequirement: { type: "player", count: 1 },
-    resolve: (ctx: SpellContext) => {
-        const target = ctx.targets[0];
-        if (target?.type !== "player") return;
-        const hand = ctx.getHandCards(target.id).map((c) => c.id);
-        if (hand.length === 0) return;
-        // "chooses three cards" — fewer than three if the hand is smaller
-        // (CR 700.3: do as much as possible). The chooser's pick order becomes
-        // the top-of-library order.
-        const count = Math.min(3, hand.length);
-        const picks = ctx.requestChoice({
-            playerId: target.id,
-            choiceId: "stunted-growth-pick",
-            kind: "choose-hand-card",
-            zone: "hand",
-            candidateIds: hand,
-            count,
+    effects: [
+        {
+            op: "putBack",
+            player: { target: 0 },
+            count: 3,
             prompt: "Choose three cards to put on top of your library in any order.",
-        });
-        if (picks === undefined) return; // suspended on the target's choice
-        for (const id of picks) {
-            ctx.moveHandCardToLibraryTop(target.id, id);
-        }
-    },
+        },
+    ],
 };
 // Tarpan — {G} 1/1 with "When this creature dies, you gain 1 life." (CR 700.4
 // dies trigger; CR 119.3 life gain.)
@@ -1472,7 +1480,10 @@ export const tarpan: CardDefinition = {
             id: "tarpan-death-lifegain",
             oracleText: "When this creature dies, you gain 1 life.",
             scope: "self",
-            resolve: (ctx) => ctx.gainLife(ctx.controller, 1),
+            // Migrated resolve()→effects[] (ADR 0045): diedTrigger's effects[]
+            // site binds the source's controller — a plain controller-scoped
+            // gainLife (CR 119.3a) needs nothing from the dead creature's LKI.
+            effects: [{ op: "gainLife", player: "controller", amount: 1 }],
         }),
     ],
 };
@@ -1504,6 +1515,11 @@ export const thermokarst: CardDefinition = {
 // primitive" defer was stale. The "you may gain 1 life" is strictly beneficial,
 // so the engine auto-resolves the may (ADR 0003) — modelled as an unconditional
 // gain on resolution.
+//
+// Migrated resolve()→effects[] (ADR 0045): the gain reads only the trigger's
+// controller (Thoughtleech's own controller, "you"), never the tapped Island's
+// identity, so `tappedTrigger`'s effects[] site (which binds only $source /
+// ctx.controller) is sufficient.
 export const thoughtleech: CardDefinition = {
     id: "d8fe7f9d-644f-48d0-93fa-d9a536f1f755",
     name: "Thoughtleech",
@@ -1519,9 +1535,7 @@ export const thoughtleech: CardDefinition = {
                 "Whenever an Island an opponent controls becomes tapped, you may gain 1 life.",
             scope: "opponents",
             filter: { types: "Land", subtypes: "Island" },
-            resolve: (ctx) => {
-                ctx.gainLife(ctx.controller, 1);
-            },
+            effects: [{ op: "gainLife", player: "controller", amount: 1 }],
         }),
     ],
 };
@@ -1628,6 +1642,11 @@ export const trailblazer: CardDefinition = {
     manaCost: { X: 2, G: 2 },
     types: ["Instant"],
     targetRequirement: { type: "Creature", count: 1 },
+    // NOT DSL-migratable (ADR 0045): "can't be blocked this turn" is a CR
+    // 509.1b evasion restriction with no Op skin — `restrictCombat` only
+    // covers `"cant-attack"` / `"cant-block"` (CR 508.1c/509.1a directions),
+    // not this one. Blocked on: a `restrictCombat` restriction value (or a
+    // sibling Op) wrapping `SpellContext.setCantBeBlockedThisTurn`.
     resolve: (ctx: SpellContext) => {
         const t = ctx.targets[0];
         if (t?.type === "permanent") ctx.setCantBeBlockedThisTurn(t);
@@ -1726,6 +1745,11 @@ export const whiteout: CardDefinition = {
         "All creatures lose flying until end of turn.\nSacrifice a snow land: Return this card from your graveyard to your hand.",
     manaCost: { X: 1, G: 1 },
     types: ["Instant"],
+    // NOT DSL-migratable (ADR 0045): a mass keyword-REMOVAL sweep. `grantAbility`
+    // only ADDS a keyword/granted-activated-ability (`ability?` /
+    // `grantedActivatedId?`) — there is no removal counterpart Op wrapping
+    // `SpellContext.removeStaticAbilities`. Blocked on: a keyword-removal Op
+    // (or a `grantAbility` "remove" mode).
     resolve: (ctx: SpellContext) => {
         // CR 611.1b — every creature on every battlefield loses flying until
         // end of turn (layer-6 keyword removal).
@@ -1968,20 +1992,29 @@ export const fyndhornPollen: CardDefinition = {
             oracleText: "{1}{G}: All creatures get -1/-0 until end of turn.",
             cost: { mana: { X: 1, G: 1 } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                for (const pid of ctx.allPlayerIds) {
-                    for (const id of ctx.getBattlefieldIds(pid, {
-                        types: "Creature",
-                    })) {
-                        ctx.addTemporaryPTBuff(
-                            { type: "permanent", id },
-                            -1,
-                            0,
-                            { phase: "end-of-turn" }
-                        );
-                    }
-                }
-            },
+            // Migrated resolve()→effects[] (ADR 0045): forEach every
+            // battlefield's creatures (CR 205), -1/-0 EOT each (CR 611.1b) —
+            // the Day of Judgment mass-sweep shape with `pump` instead of
+            // `destroy`.
+            effects: [
+                {
+                    op: "forEach",
+                    select: {
+                        set: "permanents",
+                        zone: "battlefield",
+                        filter: { type: "Creature" },
+                    },
+                    effects: [
+                        {
+                            op: "pump",
+                            target: { ref: "$each" },
+                            power: -1,
+                            toughness: 0,
+                            duration: { phase: "end-of-turn" },
+                        },
+                    ],
+                },
+            ],
         },
     ],
 };

@@ -1132,11 +1132,22 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // Lifetap (lea/blue, tappedTrigger — gainLife controller). Both left
         // the FREE bucket: total 639→637, FREE 411→409, AFK-ready 378→376.
         // X-only and Op-blocked unchanged. Partition: 409+14+214=637.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(637);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(409);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(376);
+        // 2026-07-21 free-tranche batch 3 (ice/black, ice/blue, ice/green,
+        // lea/red — harvesting the diedTrigger/tappedTrigger cluster just
+        // unblocked by the factory effects[] opt-in, plus other stale-marker
+        // re-assessments): 28 closures migrated resolve()→effects[] (incl.
+        // Tarpan/Thoughtleech via the new factory path, Tunnel, Hydroblast,
+        // Nature's Lore, Dark Banishing, …), and ice/green's now-dead
+        // next-upkeep-draw delayed-trigger helper (Pyknite was the last caller)
+        // removed 2 more counted closures. A couple of residual closures shifted
+        // FREE→Op-blocked as newly-added markers cite genuinely-unregistered Ops.
+        // Net: total 637→607, FREE 409→377, AFK-ready 376→350, Op-blocked
+        // 214→216, X-only unchanged. Partition: 377+14+216=607.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(607);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(377);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(350);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(214);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(216);
     });
 
     it("surfaces the demonstrated new-Op backlog (a covered primitive leaves it)", () => {

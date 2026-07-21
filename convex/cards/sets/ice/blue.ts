@@ -8,6 +8,7 @@ import type {
     CardPrint,
     Color,
     DelayedTriggerDef,
+    EffectOp,
     ManaCost,
     PermanentView,
     SpellContext,
@@ -37,28 +38,40 @@ const COLOR_WORD_OPTIONS = [
 // <cost>" (CR 603.6a phase trigger + CR 117.3a may-pay with a hard action on
 // decline). Local twin of the LEA helper of the same name — kept per-set so
 // the set file stays self-contained.
+//
+// Migrated resolve()→effects[] (ADR 0045): a `mayPay` binds the accept/decline
+// outcome, `if` on the unpaid branch runs `onDeclineEffects` — both call
+// sites in this file (Binding Grasp, Icy Prison) pass the same "sacrifice
+// this permanent" Op list, so the helper takes a declarative Op list instead
+// of an imperative callback. `player: "controller"` is correct here because
+// `phaseTrigger`'s `effects[]` site with `scope: "your"` binds the same
+// player the factory's own `scopedPlayerId` would resolve to.
 function makeUpkeepPayOrElse(args: {
     id: string;
     oracleText: string;
     cost: ManaCost;
     prompt: string;
-    onDecline: (ctx: SpellContext) => void;
+    onDeclineEffects: EffectOp[];
 }): TriggeredAbility {
     return phaseTrigger({
         id: args.id,
         oracleText: args.oracleText,
         phase: "UPKEEP",
         scope: "your",
-        resolve: (ctx) => {
-            const accept = ctx.requestMayPay({
-                playerId: ctx.controller,
-                choiceId: ctx.controller,
+        effects: [
+            {
+                op: "mayPay",
+                player: "controller",
                 cost: args.cost,
                 prompt: args.prompt,
-            });
-            if (accept === undefined) return;
-            if (!accept) args.onDecline(ctx);
-        },
+                bind: "$paid",
+            },
+            {
+                op: "if",
+                predicate: { not: { binding: "$paid" } },
+                then: args.onDeclineEffects,
+            },
+        ],
     });
 }
 
@@ -213,16 +226,20 @@ export const balduvianConjurer: CardDefinition = {
                 count: 1,
                 supertypeFilter: ["Snow"],
             },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target?.type === "permanent") {
-                    ctx.animateAsCreature(target, {
-                        power: 2,
-                        toughness: 2,
-                        duration: { phase: "end-of-turn" },
-                    });
-                }
-            },
+            // Migrated resolve()→effects[] (ADR 0045): animate the announced
+            // snow-land target into a 2/2 creature until end of turn
+            // (CR 208.2 / 611.1) via the `animate` Op — a thin skin over the
+            // same `animateAsCreature` primitive, so "It's still a land"
+            // (Creature added, Land not removed) is unchanged.
+            effects: [
+                {
+                    op: "animate",
+                    target: { target: 0 },
+                    power: 2,
+                    toughness: 2,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 };
@@ -262,6 +279,14 @@ export const balduvianShaman: CardDefinition = {
                 controller: "you",
                 colorFilter: "W",
             },
+            // NOT DSL-migratable (ADR 0045): two clauses, neither has an Op.
+            // (a) CR 612 color-word text substitution — no `addTextChange`
+            // Op exists (only layer-5 `setColor`, a direct override, not a
+            // text-string replacement). (b) CR 113.1/611.2c PERMANENT grant
+            // of a triggered ability to another permanent — no Op wraps
+            // `grantTriggeredAbilityPermanent` (only the temporary
+            // `grantAbility` Op, duration-scoped). Blocked on: a text-change
+            // Op and a permanent triggered-ability-grant Op.
             resolve: (ctx: SpellContext) => {
                 const target = ctx.targets[0];
                 if (!target || target.type !== "permanent") return;
@@ -327,7 +352,7 @@ export const bindingGrasp: CardDefinition = {
                 "At the beginning of your upkeep, sacrifice this Aura unless you pay {1}{U}.",
             cost: { X: 1, U: 1 },
             prompt: "Pay {1}{U} to keep Binding Grasp?",
-            onDecline: (ctx) => ctx.sacrifice(ctx.sourceInstanceId),
+            onDeclineEffects: [{ op: "sacrifice", target: { ref: "$source" } }],
         }),
     ],
 };
@@ -421,6 +446,12 @@ export const clairvoyance: CardDefinition = {
     manaCost: { U: 1 },
     types: ["Instant"],
     targetRequirement: { type: "player", count: 1 },
+    // NOT DSL-migratable (ADR 0045): "Look at target player's hand" is a
+    // PRIVATE look (only the caster sees it, via `ctx.revealHand`), distinct
+    // from the `reveal` Op's binding (`markKnownToAll`, an ALL-PLAYERS CR
+    // 701.20 reveal) — registry note on `reveal` explicitly carves out this
+    // narrower "look" primitive as NOT folded. Blocked on: a single-viewer
+    // look Op.
     resolveSteps: [
         (ctx: SpellContext) => {
             const t = ctx.targets[0];
@@ -461,6 +492,9 @@ export const deflection: CardDefinition = {
     manaCost: { X: 3, U: 1 },
     types: ["Instant"],
     targetRequirement: { type: "spell", count: 1 },
+    // NOT DSL-migratable (ADR 0045): no `retarget` Op exists — `requestRetarget`
+    // (CR 114.6, re-pick a new legal target for a spell already on the stack)
+    // has no declarative skin in EFFECT_OP_REGISTRY. Blocked on: a retarget Op.
     resolve: (ctx: SpellContext) => {
         const t = ctx.targets[0];
         if (t?.type !== "spell") return;
@@ -503,6 +537,14 @@ export const dreamsOfTheDead: CardDefinition = {
                 controller: "you",
                 colorFilterAny: ["W", "B"],
             },
+            // NOT DSL-migratable (ADR 0045): even though `moveZone` could
+            // cover the graveyard→battlefield reanimation clause, TWO later
+            // clauses have no Op: (a) CR 113.1/611.2c PERMANENT triggered-
+            // ability grant onto the reanimated creature (no Op wraps
+            // `grantTriggeredAbilityPermanent`) and (b) CR 614.1c "exile
+            // instead of leaving anywhere else" persistent replacement (no Op
+            // wraps `setExileOnLeave`). Blocked on: a permanent
+            // triggered-ability-grant Op and an exile-on-leave Op.
             resolve: (ctx: SpellContext) => {
                 const t = ctx.targets[0];
                 if (!t || t.type !== "graveyard-card" || !t.playerId) return;
@@ -619,9 +661,16 @@ export const essenceFlare: CardDefinition = {
 };
 // Force Void — {2}{U} Instant. "Counter target spell unless its controller
 // pays {1}" (CR 701.5a counter-unless-pay; CR 117.3a may-pay billed to the
-// spell's controller — Vodalian Mage pattern) plus the next-upkeep cantrip
-// rider. The schedule lands in a SEPARATE resolve step AFTER the may-pay so a
-// suspension on the {1} prompt never double-schedules the draw.
+// spell's controller) plus the next-upkeep cantrip rider.
+//
+// Migrated resolve()→effects[] (ADR 0045): the Force Spike shape
+// (leg/blue.ts) — `mayPay` with `player: { controllerOf: { target: 0 } }`
+// binds the boolean outcome, `if` on `{ not: { binding: "$paid" } }` fires
+// the `counter` consequence — plus the next-upkeep cantrip as an inline
+// `delayedTrigger` Op (ADR 0048, CR 603.7d, the Enervate/Infuse/Updraft
+// shape). The interpreter's own per-Op checkpoint (`runOpList`) means the
+// `delayedTrigger` Op never re-runs when the earlier `mayPay` suspends and
+// resumes (CR 608.3) — the old resolveSteps split's job for free.
 export const forceVoid: CardDefinition = {
     id: "226555ba-22af-45f1-a3f4-d265f8685dd5",
     name: "Force Void",
@@ -631,25 +680,29 @@ export const forceVoid: CardDefinition = {
     manaCost: { X: 2, U: 1 },
     types: ["Instant"],
     targetRequirement: { type: "spell", count: 1 },
-    resolveSteps: [
-        (ctx: SpellContext) => {
-            const target = ctx.targets[0];
-            if (!target || target.type !== "spell") return;
-            const spellController = ctx.getController(target);
-            const accept = ctx.requestMayPay({
-                playerId: spellController,
-                choiceId: `force-void-${ctx.sourceInstanceId}`,
-                cost: { X: 1 },
-                prompt: "Pay {1} or your spell is countered (Force Void)?",
-            });
-            if (accept === undefined) return; // suspended on the may-pay
-            if (!accept) ctx.counter(target);
+    effects: [
+        {
+            op: "mayPay",
+            // CR 117.3a — the targeted spell's controller decides.
+            player: { controllerOf: { target: 0 } },
+            cost: { X: 1 },
+            prompt: "Pay {1} or your spell is countered (Force Void)?",
+            bind: "$paid",
         },
-        (ctx: SpellContext) => {
-            scheduleNextUpkeepDraw(ctx, forceVoid.id);
+        {
+            // CR 701.5a — counter unless the payment was made.
+            op: "if",
+            predicate: { not: { binding: "$paid" } },
+            then: [{ op: "counter", target: { target: 0 } }],
+        },
+        {
+            op: "delayedTrigger",
+            timing: "next-upkeep",
+            oracleText:
+                "At the beginning of the next turn's upkeep, draw a card.",
+            effects: [{ op: "draw", player: "controller", count: 1 }],
         },
     ],
-    delayedTriggers: [nextUpkeepDrawTrigger()],
 };
 // Glacial Wall — 0/7 Wall with Defender (CR 702.3).
 export const glacialWall: CardDefinition = {
@@ -677,26 +730,22 @@ export const hydroblast: CardDefinition = {
         "Choose one —\n• Counter target spell if it's red.\n• Destroy target permanent if it's red.",
     manaCost: { U: 1 },
     types: ["Instant"],
+    // Migrated resolve()→effects[] (ADR 0045): each mode is a single-Op
+    // script (`counter` / `destroy`) over its own announced `{ target: 0 }`.
     modes: [
         {
             id: "counter",
             label: "Counter target red spell",
             oracleText: "Counter target spell if it's red.",
             targetRequirement: { type: "spell", count: 1, colorFilter: "R" },
-            resolve: (ctx) => {
-                const t = ctx.targets[0];
-                if (t?.type === "spell") ctx.counter(t);
-            },
+            effects: [{ op: "counter", target: { target: 0 } }],
         },
         {
             id: "destroy",
             label: "Destroy target red permanent",
             oracleText: "Destroy target permanent if it's red.",
             targetRequirement: { type: "any", count: 1, colorFilter: "R" },
-            resolve: (ctx) => {
-                const t = ctx.targets[0];
-                if (t?.type === "permanent") ctx.destroy(t);
-            },
+            effects: [{ op: "destroy", target: { target: 0 } }],
         },
     ],
 };
@@ -763,6 +812,13 @@ export const icyPrison: CardDefinition = {
             id: "icy-prison-exile",
             oracleText: "When this enchantment enters, exile target creature.",
             scope: "self",
+            // NOT DSL-migratable (ADR 0045): the `exile` Op binds the plain
+            // `SpellContext.exile` primitive (no attachment handling, no
+            // source-linkage). This card needs `exileWithAttachments`, keyed
+            // to `sourceInstanceId` so the paired leave-trigger below can
+            // find it again via `returnExiledForSource` — neither the
+            // attachment-carrying exile nor the source-keyed link has an Op.
+            // Blocked on: a source-keyed exile-with-attachments Op.
             resolve: (ctx) => {
                 const t = ctx.targets[0];
                 if (t?.type !== "permanent") return;
@@ -778,13 +834,17 @@ export const icyPrison: CardDefinition = {
                 "At the beginning of your upkeep, sacrifice this enchantment unless any player pays {3}.",
             cost: { X: 3 },
             prompt: "Pay {3} to keep Icy Prison?",
-            onDecline: (ctx) => ctx.sacrifice(ctx.sourceInstanceId),
+            onDeclineEffects: [{ op: "sacrifice", target: { ref: "$source" } }],
         }),
         leftTrigger({
             id: "icy-prison-return",
             oracleText:
                 "When this enchantment leaves the battlefield, return the exiled card to the battlefield under its owner's control.",
             scope: "self",
+            // NOT DSL-migratable (ADR 0045): no Op wraps
+            // `returnExiledForSource` (the source-keyed exile-return
+            // primitive paired with the enteredTrigger above). Blocked on: a
+            // source-keyed exile-return Op.
             resolve: (ctx: SpellContext) => {
                 ctx.returnExiledForSource(ctx.sourceInstanceId);
             },
@@ -1038,12 +1098,24 @@ export const illusionsOfGrandeur: CardDefinition = {
             cost: { X: 2 },
             costLabel: "{2}",
         }),
+        // Migrated resolve()→effects[] (ADR 0045): plain self-scoped ETB gain,
+        // no LKI needed (the enchantment is still on the battlefield when
+        // this fires — `ctx.controller` is always the source's controller
+        // for an ETB ability regardless of scope).
         enteredTrigger({
             id: "illusions-of-grandeur-etb",
             oracleText: "When this enchantment enters, you gain 20 life.",
             scope: "self",
-            resolve: (ctx: SpellContext) => ctx.gainLife(ctx.controller, 20),
+            effects: [{ op: "gainLife", player: "controller", amount: 20 }],
         }),
+        // NOT DSL-migratable (ADR 0045): this is precisely the Donate combo
+        // half — control of the enchantment can (and typically does) change
+        // BEFORE it leaves the battlefield, so the life loss must hit
+        // `leaving.controllerId` (CR 603.10 last-known-info AT THE MOMENT OF
+        // LEAVING), not necessarily whoever `ctx.controller` reads inside
+        // the script. `leftTrigger`'s `effects[]` site explicitly does not
+        // surface that LKI. Blocked on: the leaving permanent's
+        // last-known controller is unreachable from `effects[]`.
         leftTrigger({
             id: "illusions-of-grandeur-ltb",
             oracleText:
@@ -1371,6 +1443,12 @@ export const musician: CardDefinition = {
             cost: { tap: true },
             useStack: true,
             targetRequirement: { type: "Creature", count: 1 },
+            // NOT DSL-migratable (ADR 0045): the `counters` Op could cover
+            // the music-counter clause alone, but the "if it doesn't have it,
+            // gains that ability" clause is a CR 113.1/611.2c PERMANENT
+            // triggered-ability grant — no Op wraps
+            // `grantTriggeredAbilityPermanent`. Blocked on: a permanent
+            // triggered-ability-grant Op.
             resolve: (ctx: SpellContext) => {
                 const t = ctx.targets[0];
                 if (!t || t.type !== "permanent") return;
@@ -1396,6 +1474,13 @@ export const musician: CardDefinition = {
                 "At the beginning of your upkeep, destroy this creature unless you pay {1} for each music counter on it.",
             phase: "UPKEEP",
             scope: "your",
+            // NOT DSL-migratable (ADR 0045): the mayPay cost is X = the
+            // host's LIVE music-counter count, a runtime value. `mayPay`'s
+            // `cost` is `MayPayCost | DynamicMayPayManaCost` — both are
+            // STATIC (`DynamicMayPayManaCost` only reduces an object's
+            // PRINTED mana cost by a flat amount); there is no
+            // counter-count-derived mana cost construct. Blocked on: a
+            // counter-count-derived `mayPay` cost.
             resolve: (ctx: SpellContext) => {
                 const self = {
                     type: "permanent" as const,
@@ -1631,6 +1716,16 @@ export const polarKraken: CardDefinition = {
 // (Drafna's Restoration pattern), then an optional may-shuffle, then the
 // next-upkeep cantrip rider. Each interactive step is its own `resolveSteps`
 // entry so a suspension never re-applies an earlier step.
+//
+// NOT DSL-migratable (ADR 0045): re-assessed against `scryReorder` (order-only
+// `destination: "none"` would cover "look at 3, put back in any order") — but
+// `scryReorder` binds a DIFFERENT SpellContext primitive (`orderTop`, which
+// raises an `"order-top"` pending choice) than this card's own
+// `requestChoice({ kind: "reorder-library" })`. The per-card test asserts the
+// exact `"reorder-library"` choice kind (a genuine wire-visible behavioral
+// difference, not equivalent), so migrating would change observable behavior
+// — the pure-refactor invariant forbids it. Blocked on: `scryReorder`
+// adopting (or a new Op wrapping) the `reorder-library` choice kind.
 export const portent: CardDefinition = {
     id: "e040be83-3fb5-4da5-ba7a-4923b8854b74",
     name: "Portent",
@@ -1702,9 +1797,13 @@ export const rayOfCommand: CardDefinition = {
     // tap-on-loss rider has no ControlChangeCondition variant (#848).
     resolve: gainControlUntilEndOfTurnBody,
 };
-// Ray of Erasure — {U} Instant. "Target player mills a card" (CR 701.13a mill —
-// move the top library card to its owner's graveyard, via `moveCardById` on the
-// live top id; Millstone pattern) plus the next-upkeep cantrip rider.
+// Ray of Erasure — {U} Instant. "Target player mills a card" (CR 701.13a mill)
+// plus the next-upkeep cantrip rider.
+//
+// Migrated resolve()→effects[] (ADR 0045): the `mill` Op (a thin skin over
+// `millCards`) covers the mill clause directly; the next-upkeep cantrip is an
+// inline `delayedTrigger` Op (ADR 0048, CR 603.7d, the Enervate/Infuse/Updraft
+// shape).
 export const rayOfErasure: CardDefinition = {
     id: "5a09fc0b-7b9c-4283-8336-f2607f5ffaf5",
     name: "Ray of Erasure",
@@ -1714,15 +1813,16 @@ export const rayOfErasure: CardDefinition = {
     manaCost: { U: 1 },
     types: ["Instant"],
     targetRequirement: { type: "player", count: 1 },
-    resolve: (ctx: SpellContext) => {
-        const t = ctx.targets[0];
-        if (t?.type === "player") {
-            const [topId] = ctx.peekLibraryTop(t.id, 1);
-            if (topId) ctx.moveCardById(t.id, topId, "library", "graveyard");
-        }
-        scheduleNextUpkeepDraw(ctx, rayOfErasure.id);
-    },
-    delayedTriggers: [nextUpkeepDrawTrigger()],
+    effects: [
+        { op: "mill", player: { target: 0 }, count: 1 },
+        {
+            op: "delayedTrigger",
+            timing: "next-upkeep",
+            oracleText:
+                "At the beginning of the next turn's upkeep, draw a card.",
+            effects: [{ op: "draw", player: "controller", count: 1 }],
+        },
+    ],
 };
 // Reality Twist — {U}{U}{U} Enchantment with cumulative upkeep {1}{U}{U}
 // (CR 702.24, ADR 0042) plus a continuous per-basic-subtype land-mana
@@ -1820,6 +1920,12 @@ export const shyft: CardDefinition = {
     subtypes: ["Shapeshifter"],
     power: 4,
     toughness: 2,
+    // Migrated resolve()→effects[] (ADR 0045): `mayPay` (cost-free "you may")
+    // binds the CR 117.3a decision; `if` accepted, an `optionChoice` — one
+    // mode per colour, each a single-Op `setColor` body (the "choose one of
+    // five colors, then set it" template the `setColor` Op's own registry
+    // note names Shyft under) — sets the layer-5 override (CR 305.7) with no
+    // `duration`, so it rides the instance indefinitely (CR 613.9/611.2b).
     triggeredAbilities: [
         phaseTrigger({
             id: "shyft-upkeep-color",
@@ -1827,28 +1933,36 @@ export const shyft: CardDefinition = {
                 "At the beginning of your upkeep, you may have this creature become the color or colors of your choice. (This effect lasts indefinitely.)",
             phase: "UPKEEP",
             scope: "your",
-            resolve: (ctx) => {
-                // CR 117.3a — the "you may" gate.
-                const accept = ctx.requestMayPay({
-                    playerId: ctx.controller,
-                    choiceId: "shyft-may",
+            effects: [
+                {
+                    op: "mayPay",
+                    player: "controller",
                     prompt: "Have Shyft become a color of your choice?",
-                });
-                if (accept === undefined) return; // suspended
-                if (!accept) return;
-                // CR 305.7 — the chosen colour (layer 5 override).
-                const chosen = ctx.requestOptionChoice({
-                    playerId: ctx.controller,
-                    choiceId: "shyft-color",
-                    options: SHYFT_COLOR_OPTIONS,
-                    prompt: "Choose Shyft's new color.",
-                });
-                if (chosen === undefined) return; // suspended
-                ctx.setColorOverride(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    [chosen as Color]
-                );
-            },
+                    bind: "$accept",
+                },
+                {
+                    op: "if",
+                    predicate: { binding: "$accept" },
+                    then: [
+                        {
+                            op: "optionChoice",
+                            player: "controller",
+                            prompt: "Choose Shyft's new color.",
+                            modes: SHYFT_COLOR_OPTIONS.map((option) => ({
+                                id: option.id,
+                                label: option.label,
+                                effects: [
+                                    {
+                                        op: "setColor",
+                                        target: { ref: "$source" },
+                                        colors: [option.id],
+                                    },
+                                ],
+                            })),
+                        },
+                    ],
+                },
+            ],
         }),
     ],
 };
@@ -1984,6 +2098,15 @@ export const snowfall: CardDefinition = {
             // RESTRICTED to cumulative-upkeep costs, so it must stay invisible to
             // the spell-castability gate and the auto-tap solver — modelling it
             // would falsely inflate what the player can pay for a spell.
+            //
+            // NOT DSL-migratable (ADR 0045): the mana lands in the TAPPED
+            // Island's controller's pool, not the source's controller —
+            // `tappedTrigger`'s `effects[]` site binds only the source's
+            // controller/`$source`; the tapped permanent's last-known-info
+            // (including `controllerId`) is a separate payload NOT reachable
+            // from a script (see the factory's own doc comment). Blocked on:
+            // the tapped permanent's controller is unreachable from
+            // `effects[]`.
             resolve: (ctx, _event, tapped) => {
                 // CR 106.6 — the Island controller gets the bonus {U} in their
                 // CU-restricted pool (ADR 0022). CR 205.4a — if the tapped
@@ -2032,6 +2155,12 @@ export const snowfall: CardDefinition = {
 // Soul Barrier — punisher enchantment: whenever an opponent casts a creature
 // spell, it deals 2 to that player unless they pay {2} (CR 603.2 cast trigger,
 // CR 117.3a may-pay, CR 120.1 damage).
+//
+// Migrated resolve()→effects[] (ADR 0045, the Mystic Remora shape): `scope:
+// "opponents"` already gates the trigger to the casting opponent, so the
+// relative `"opponent"` player ref names the same player as `spell.casterId`
+// without needing the event payload — `mayPay` offers {2}, `if` on the unpaid
+// outcome deals 2 damage to that player via `dealDamage`'s `{ player }` form.
 export const soulBarrier: CardDefinition = {
     id: "9ad7fac7-db4d-45b2-aba6-16f4fd1a586f",
     name: "Soul Barrier",
@@ -2047,19 +2176,26 @@ export const soulBarrier: CardDefinition = {
                 "Whenever an opponent casts a creature spell, this enchantment deals 2 damage to that player unless they pay {2}.",
             scope: "opponents",
             filter: { types: "Creature" },
-            resolve: (ctx, _event, spell) => {
-                const caster = spell.casterId;
-                const accept = ctx.requestMayPay({
-                    playerId: caster,
-                    choiceId: caster,
+            effects: [
+                {
+                    op: "mayPay",
+                    player: "opponent",
                     cost: { X: 2 },
                     prompt: "Pay {2} or take 2 damage from Soul Barrier?",
-                });
-                if (accept === undefined) return; // suspended
-                if (!accept) {
-                    ctx.dealDamage({ type: "player", id: caster }, 2);
-                }
-            },
+                    bind: "$paid",
+                },
+                {
+                    op: "if",
+                    predicate: { not: { binding: "$paid" } },
+                    then: [
+                        {
+                            op: "dealDamage",
+                            amount: 2,
+                            to: { player: "opponent" },
+                        },
+                    ],
+                },
+            ],
         }),
     ],
 };
@@ -2298,22 +2434,30 @@ export const wrathOfMaritLage: CardDefinition = {
             id: "wrath-marit-lage-tap-red",
             oracleText: "When this enchantment enters, tap all red creatures.",
             scope: "self",
-            // NOT DSL-migratable (ADR 0045): a mass tap of all RED creatures.
-            // The forEach `permanents` selector filters only by type/subtype
-            // (`EffectCardFilter`), not colour, so "red creatures" cannot be
-            // selected.
-            // Blocked on: a colour member on EffectCardFilter.
-            resolve: (ctx) => {
-                for (const pid of ctx.allPlayerIds) {
-                    const reds = ctx.getBattlefieldIds(pid, {
-                        types: "Creature",
-                        colors: ["R"],
-                    });
-                    for (const id of reds) {
-                        ctx.tap({ type: "permanent", id });
-                    }
-                }
-            },
+            // Migrated resolve()→effects[] (ADR 0045): `EffectCardFilter`
+            // gained a `color` member (issue #1287's `excludeColor` sibling),
+            // and `toPermanentFilter` maps it straight onto
+            // `PermanentFilter.colors` — the forEach `permanents` selector's
+            // color gap this card was previously blocked on is closed. No
+            // `controller` on the selector = every player's battlefield (mass
+            // sweep), matching the original loop over `allPlayerIds`.
+            effects: [
+                {
+                    op: "forEach",
+                    select: {
+                        set: "permanents",
+                        zone: "battlefield",
+                        filter: { type: "Creature", color: "R" },
+                    },
+                    effects: [
+                        {
+                            op: "tapUntap",
+                            action: "tap",
+                            target: { ref: "$each" },
+                        },
+                    ],
+                },
+            ],
         }),
     ],
 };

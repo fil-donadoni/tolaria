@@ -143,6 +143,15 @@ export const abyssalSpecter: CardDefinition = {
                 "Whenever this creature deals damage to a player, that player discards a card.",
             source: "self",
             target: { kind: "player", player: { relation: "any" } },
+            // NOT DSL-migratable (ADR 0045, re-assessed migration PRD #795):
+            // `damageDealtTrigger`'s `effects[]` site binds only `$source`
+            // and the ability's own controller — NOT the DAMAGED player,
+            // which is the whole point of this effect ("THAT player
+            // discards"). The damage event's target is a separate
+            // `resolve`-only payload (`DamageTriggerPayload`), same class as
+            // Seizures' tapped-permanent-controller gap.
+            // Blocked on: a damaged-player selector reachable from a
+            // `damageDealtTrigger` script.
             resolve: (ctx, _event, damage) => {
                 if (damage.target.type !== "player") return;
                 const pid = damage.target.id;
@@ -429,11 +438,14 @@ export const danceOfTheDead: CardDefinition = {
             oracleText:
                 "Put enchanted creature card onto the battlefield tapped under your control.",
             scope: "self",
-            // NOT DSL-migratable (ADR 0045): taps the ENCHANTED host
-            // (`getAttachedTo` — no attached-object selector) on an
-            // `enteredTrigger`, which has no `effects[]` site (only phaseTrigger
-            // does).
-            // Blocked on: attached-object selector + enteredTrigger effects site.
+            // NOT DSL-migratable (ADR 0045, re-assessed migration PRD #795):
+            // `enteredTrigger` DOES now have an `effects[]` site (that half of
+            // the old blocker is stale — see e.g. Krovikan Fetish's ETB above).
+            // The remaining blocker is unchanged: this taps the ENCHANTED HOST
+            // (`getAttachedTo`), not `$source` (the Aura itself) — there is
+            // still no attached-object `EffectObjectSelector` a script could
+            // read to name the host.
+            // Blocked on: an attached-object selector.
             resolve: (ctx) => {
                 const hostId = ctx.getAttachedTo(ctx.sourceInstanceId);
                 if (hostId) ctx.tap({ type: "permanent", id: hostId });
@@ -468,6 +480,14 @@ export const danceOfTheDead: CardDefinition = {
             oracleText:
                 "When this Aura leaves the battlefield, that creature's controller sacrifices it.",
             scope: "self",
+            // NOT DSL-migratable (ADR 0045): sacrifices the HOST the Aura was
+            // attached to immediately before leaving (`leaving.attachedToBeforeLeave`,
+            // CR 603.10 last-known information) — `leftTrigger`'s `effects[]`
+            // site binds only the source's controller and `$source` (the
+            // Aura itself); the leaving permanent's LKI payload, including
+            // `attachedToBeforeLeave`, is a separate `resolve`-only argument.
+            // Blocked on: an attached-object-before-leave selector reachable
+            // from a `leftTrigger` script.
             resolve: (ctx, _event, leaving) => {
                 const hostId = leaving.attachedToBeforeLeave;
                 if (hostId) ctx.sacrifice(hostId);
@@ -487,10 +507,13 @@ export const darkBanishing: CardDefinition = {
     manaCost: { X: 2, B: 1 },
     types: ["Instant"],
     targetRequirement: { type: "Creature", count: 1, excludeColors: "B" },
-    resolve: (ctx: SpellContext) => {
-        const target = ctx.targets[0];
-        if (target) ctx.destroy(target, { cantBeRegenerated: true });
-    },
+    // Migrated resolve()→effects[] (ADR 0045, migration PRD #795): destroy
+    // the announced target with the regeneration shield suppressed (CR
+    // 701.15c), a direct passthrough of the `destroy` Op's `cantBeRegenerated`
+    // option (ADR 0053).
+    effects: [
+        { op: "destroy", target: { target: 0 }, cantBeRegenerated: true },
+    ],
 };
 // Dark Ritual — ICE reprint of the LEA original (ADR 0014). Mechanics live on
 // the existing LEA definition; this is a CardPrint binding the ICE print id.
@@ -714,22 +737,87 @@ export const gangrenousZombies: CardDefinition = {
                 "{T}, Sacrifice this creature: This creature deals 1 damage to each creature and each player. If you control a snow Swamp, this creature deals 2 damage to each creature and each player instead.",
             cost: { tap: true, sacrifice: true },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                // CR 205.4a — "a snow Swamp": a Land with the Swamp subtype and
-                // the live Snow supertype. `getBattlefieldIds` resolves the
-                // supertype filter against live snow status.
-                const snowSwamp =
-                    ctx.getBattlefieldIds(ctx.controller, {
-                        types: "Land",
-                        subtypes: "Swamp",
-                        supertypes: ["Snow"],
-                    }).length > 0;
-                const amount = snowSwamp ? 2 : 1;
-                ctx.dealDamageToEach(amount, {
-                    creatures: true,
-                    players: true,
-                });
-            },
+            // Migrated resolve()→effects[] (ADR 0045, migration PRD #795):
+            // CR 205.4a — "a snow Swamp" is a `count` of the controller's
+            // battlefield filtered to Land+Swamp+Snow, `>= 1`; the two
+            // branches each repeat the Plague Spitter mass-damage shape
+            // (inv/black.ts) with a literal amount (2 / 1).
+            effects: [
+                {
+                    op: "if",
+                    predicate: {
+                        left: {
+                            count: {
+                                zone: "battlefield",
+                                controller: "controller",
+                                filter: {
+                                    type: "Land",
+                                    subtype: "Swamp",
+                                    supertype: "Snow",
+                                },
+                            },
+                        },
+                        op: "ge",
+                        right: 1,
+                    },
+                    then: [
+                        {
+                            op: "forEach",
+                            select: {
+                                set: "permanents",
+                                zone: "battlefield",
+                                filter: { type: "Creature" },
+                            },
+                            effects: [
+                                {
+                                    op: "dealDamage",
+                                    amount: 2,
+                                    to: { ref: "$each" },
+                                },
+                            ],
+                        },
+                        {
+                            op: "forEach",
+                            select: { set: "players" },
+                            effects: [
+                                {
+                                    op: "dealDamage",
+                                    amount: 2,
+                                    to: { player: { ref: "$each" } },
+                                },
+                            ],
+                        },
+                    ],
+                    else: [
+                        {
+                            op: "forEach",
+                            select: {
+                                set: "permanents",
+                                zone: "battlefield",
+                                filter: { type: "Creature" },
+                            },
+                            effects: [
+                                {
+                                    op: "dealDamage",
+                                    amount: 1,
+                                    to: { ref: "$each" },
+                                },
+                            ],
+                        },
+                        {
+                            op: "forEach",
+                            select: { set: "players" },
+                            effects: [
+                                {
+                                    op: "dealDamage",
+                                    amount: 1,
+                                    to: { player: { ref: "$each" } },
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
         },
     ],
 };
@@ -852,6 +940,21 @@ export const hecatomb: CardDefinition = {
             oracleText:
                 "When this enchantment enters, sacrifice this enchantment unless you sacrifice four creatures.",
             scope: "self",
+            // NOT DSL-migratable (ADR 0045, re-assessed migration PRD #795):
+            // the `mayPay` Op's `cost` union DOES now support a sacrifice leg
+            // (a `{ filter: { type: "Creature" }, count: 4 }` "sacrifice four
+            // creatures" leg is expressible), but this closure gates the
+            // choice at RAISE time — `if (creatureIds.length < 4)` forces the
+            // self-sacrifice WITHOUT ever prompting the player — while the
+            // generic interpreter `mayPay` Op has no such affordability
+            // pre-check: it unconditionally raises a PendingChoice
+            // (`canPayMayPayCost` only gates at the submit boundary).
+            // Migrating would introduce an unwanted extra prompt in the
+            // fewer-than-four-creatures case, changing observable behaviour
+            // under the untouched per-card test. Same class as Yawgmoth Demon
+            // (atq/black.ts).
+            // Blocked on: a raise-time affordability gate for `mayPay` (skip
+            // the Op entirely when the cost can't be paid at all).
             resolve: (ctx) => {
                 const controller = ctx.controller;
                 const creatureIds = ctx.getBattlefieldIds(controller, {
@@ -910,10 +1013,9 @@ export const hecatomb: CardDefinition = {
             },
             useStack: true,
             targetRequirement: { type: "any", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target) ctx.dealDamage(target, 1);
-            },
+            // Migrated resolve()→effects[] (ADR 0045, migration PRD #795): 1
+            // damage to the announced target (CR 120.1).
+            effects: [{ op: "dealDamage", amount: 1, to: { target: 0 } }],
         },
     ],
 };
@@ -1012,6 +1114,17 @@ export const icequake: CardDefinition = {
     manaCost: { X: 1, B: 2 },
     types: ["Sorcery"],
     targetRequirement: { type: "Land", count: 1 },
+    // NOT DSL-migratable (ADR 0045): "if that land WAS a snow land" is a
+    // per-INSTANCE live-supertype check made BEFORE the destroy (CR 608.2g
+    // last-known information) — the `if` construct's `EffectComparisonPredicate`
+    // can express a `count` of matching permanents, but `EffectCardFilter` has
+    // no `instanceIds` field to scope that count down to ONE specific
+    // announced target, so there is no way to ask "does THIS target have the
+    // Snow supertype" declaratively; the amount+conditional-branch would also
+    // need the target's controller (a plain player ref, fine) gated on that
+    // per-instance check.
+    // Blocked on: a per-instance supertype/characteristic predicate over an
+    // announced target.
     resolve: (ctx: SpellContext) => {
         const target = ctx.targets[0];
         if (target?.type !== "permanent") return;
@@ -1187,19 +1300,24 @@ export const kjeldoranDead: CardDefinition = {
             id: "kjeldoran-dead-sac",
             oracleText: "When this creature enters, sacrifice a creature.",
             scope: "self",
-            resolve: (ctx) => {
-                const picks = ctx.requestChoice({
-                    playerId: ctx.controller,
-                    choiceId: `kjeldoran-dead-sac-${ctx.sourceInstanceId}`,
+            // Migrated resolve()→effects[] (ADR 0045, migration PRD #795):
+            // choice(sacrifice-permanents) + sacrifice(picks) — the Innocent
+            // Blood shape (ody/black.ts) — over the controller's own
+            // battlefield (CR 701.16). No exclusion, so Kjeldoran Dead itself
+            // is a legal pick, matching the original closure.
+            effects: [
+                {
+                    op: "choice",
                     kind: "sacrifice-permanents",
+                    player: "controller",
                     zone: "battlefield",
-                    filter: { types: "Creature", controllerRelation: "you" },
+                    filter: { type: "Creature" },
                     count: 1,
                     prompt: "Kjeldoran Dead: sacrifice a creature.",
-                });
-                if (picks === undefined) return; // suspended for the choice
-                for (const id of picks) ctx.sacrifice(id);
-            },
+                    bind: "$sac",
+                },
+                { op: "sacrifice", permanents: { ref: "$sac" } },
+            ],
         }),
     ],
     activatedAbilities: [
@@ -1313,13 +1431,24 @@ export const krovikanElementalist: CardDefinition = {
                 count: 1,
                 controller: "you",
             },
-            // NOT DSL-migratable (ADR 0045): the flying grant is covered
-            // (grantAbility #843), but the delayed "sacrifice it" body cannot be
-            // expressed — the `sacrifice` Op reads a picks-LIST binding, while a
-            // delayedTrigger capture binds the announced target as a single
-            // OBJECT ($ via bindSnapshot), which `sacrifice` cannot read.
-            // Blocked on: sacrifice-by-object-ref (a single-permanent sacrifice
-            // Op).
+            // NOT DSL-migratable (ADR 0045, re-assessed migration PRD #795):
+            // the OLD blocker (`sacrifice` reads only a picks-LIST binding) is
+            // stale — it now also accepts a single snapshot-bound `target`
+            // (issue #1151), and the declarative `delayedTrigger` Op's
+            // `capture` shape (Phantasmal Mount, ice/blue.ts) would otherwise
+            // fit this "grant flying, then sacrifice the SAME target at the
+            // next end step" pattern exactly. The remaining blocker is
+            // NEWLY-FOUND: the declarative `delayedTrigger` Op always
+            // schedules under a fixed internal id
+            // (`INLINE_DELAYED_TRIGGER_ID`, gre/effects/interpreter.ts) —
+            // there is no field to pin a stable, custom `triggerId` the way
+            // `ctx.scheduleDelayedTrigger`'s second argument does. This card's
+            // pre-existing test asserts the scheduled instance's
+            // `triggerId === "krovikan-elementalist-sacrifice"` (an untouched
+            // equivalence oracle), which the declarative Op cannot reproduce.
+            // Blocked on: a stable custom-id field on the `delayedTrigger` Op
+            // (the same migration-equivalence affordance the `choice` Op's
+            // `id` field already provides over `bind`, issue #1282).
             resolve: (ctx: SpellContext) => {
                 const target = ctx.targets[0];
                 if (target?.type !== "permanent") return;
@@ -1582,6 +1711,15 @@ export const limDLsCohort: CardDefinition = {
             matches: (event: GameEvent, self: PermanentView) =>
                 event.type === "BLOCKERS_CONFIRMED" &&
                 (event.attackerId === self.id || event.blockerId === self.id),
+            // NOT DSL-migratable (ADR 0045): "that creature" is the OTHER
+            // creature in the attacker/blocker pair, read off the firing
+            // `BLOCKERS_CONFIRMED` event's `attackerId`/`blockerId` fields at
+            // resolve time — a raw event-derived object with no `$source` /
+            // announced-target / `$each` selector to name it, and
+            // `setTargetCantBeRegeneratedThisTurn` has no Op skin either.
+            // Blocked on: an `$event.<field>`-style object selector for a
+            // plain (non-factory) triggered ability + a standalone
+            // regeneration-lock Op.
             resolve: (ctx: SpellContext, event: GameEvent) => {
                 if (event.type !== "BLOCKERS_CONFIRMED") return;
                 const ev = event as BlockersConfirmedEvent;
@@ -1806,13 +1944,19 @@ export const minionOfLeshrac: CardDefinition = {
                 "At the beginning of your upkeep, this creature deals 5 damage to you unless you sacrifice a creature other than this creature. If this creature deals damage to you this way, tap it.",
             phase: "UPKEEP",
             scope: "your",
-            // NOT DSL-migratable (ADR 0045): "deals 5 damage unless you
-            // sacrifice a creature; if it deals damage this way, tap it" is a
-            // sacrifice-as-alternative-cost (a mayPay whose cost is a chosen
-            // sacrifice, not mana — the `mayPay` Op only pays a ManaCost) with a
-            // conditional self-tap on the declined branch. Same class as
-            // Yawgmoth Demon.
-            // Blocked on: a sacrifice-cost mayPay + declined-branch predicate.
+            // NOT DSL-migratable (ADR 0045, re-assessed migration PRD #795):
+            // the `mayPay` Op's `cost` union DOES now support a sacrifice leg
+            // (MayPayCost.sacrifice) and `if !$paid` covers the declined
+            // branch (tap self + 5 damage) — the mayPay+if shape itself is no
+            // longer the blocker. What remains unexpressible is "a creature
+            // OTHER THAN this one": the sacrifice leg's `filter` is the
+            // engine's `PermanentFilter`, which DOES have
+            // `excludeInstanceIds`, but `EffectCardFilter`/the JSON-pure
+            // Effect Script has no way to inject the SOURCE's own (runtime,
+            // per-instance) id into that filter — same self-exclusion gap as
+            // Lord of the Pit (lea/black.ts).
+            // Blocked on: an `excludeInstanceIds`/self-exclusion member
+            // reachable from a `mayPay` sacrifice-leg filter.
             resolve: (ctx) => {
                 const accept = ctx.requestMayPay({
                     playerId: ctx.controller,
@@ -1847,10 +1991,9 @@ export const minionOfLeshrac: CardDefinition = {
             cost: { tap: true },
             useStack: true,
             targetRequirement: { type: ["Creature", "Land"], count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target?.type === "permanent") ctx.destroy(target);
-            },
+            // Migrated resolve()→effects[] (ADR 0045, migration PRD #795):
+            // destroy the announced target (CR 701.7).
+            effects: [{ op: "destroy", target: { target: 0 } }],
         },
     ],
 };
@@ -1876,18 +2019,31 @@ export const minionOfTeveshSzat: CardDefinition = {
                 "At the beginning of your upkeep, this creature deals 2 damage to you unless you pay {B}{B}.",
             phase: "UPKEEP",
             scope: "your",
-            resolve: (ctx) => {
-                const accept = ctx.requestMayPay({
-                    playerId: ctx.controller,
-                    choiceId: ctx.controller,
+            // Migrated resolve()→effects[] (ADR 0045, migration PRD #795):
+            // mayPay {B}{B} (CR 117.3a) then, on decline, 2 damage to the
+            // controller (`your`-scoped, so `"controller"` == the scoped
+            // player) — the same mayPay + if shape as Force Spike
+            // (leg/blue.ts).
+            effects: [
+                {
+                    op: "mayPay",
+                    player: "controller",
                     cost: { B: 2 },
                     prompt: "Pay {B}{B} or take 2 damage from Minion of Tevesh Szat?",
-                });
-                if (accept === undefined) return; // suspended
-                if (!accept) {
-                    ctx.dealDamage({ type: "player", id: ctx.controller }, 2);
-                }
-            },
+                    bind: "$paid",
+                },
+                {
+                    op: "if",
+                    predicate: { not: { binding: "$paid" } },
+                    then: [
+                        {
+                            op: "dealDamage",
+                            amount: 2,
+                            to: { player: "controller" },
+                        },
+                    ],
+                },
+            ],
         }),
     ],
     activatedAbilities: [
@@ -1936,6 +2092,12 @@ export const moleWorms: CardDefinition = {
             cost: { tap: true },
             useStack: true,
             targetRequirement: { type: "Land", count: 1 },
+            // NOT DSL-migratable (ADR 0045): the tap itself is a registered
+            // `tapUntap` Op, but "doesn't untap ... for as long as this
+            // creature remains tapped" is `SpellContext.lockUntapWhileSourceTapped`
+            // — a conditional untap-lock primitive with no Op skin in
+            // `EFFECT_OP_REGISTRY`.
+            // Blocked on: a `lockUntapWhileSourceTapped`-equivalent Op.
             resolve: (ctx: SpellContext) => {
                 const target = ctx.targets[0];
                 if (target?.type === "permanent") {
@@ -2431,6 +2593,16 @@ export const seizures: CardDefinition = {
                 "Whenever enchanted creature becomes tapped, this Aura deals 3 damage to that creature's controller unless that player pays {3}.",
             // CR 303.4b — keyed on the enchanted creature (the Aura's host).
             scope: "host",
+            // NOT DSL-migratable (ADR 0045, re-assessed migration PRD #795):
+            // `tappedTrigger`'s `effects[]` site binds only `$source` and the
+            // ability's own controller — NOT the tapped permanent's
+            // controller, which is exactly what this effect needs ("that
+            // creature's controller" pays or takes the damage, and the
+            // enchanted host's controller need not be Seizures' own
+            // controller). Confirmed still blocked per the factory's own doc
+            // comment.
+            // Blocked on: a tapped-permanent-controller player selector
+            // reachable from a `tappedTrigger` script.
             resolve: (ctx, _event, tapped) => {
                 // CR 117.3a — the controller of the enchanted creature may pay
                 // {3} to avoid the damage.
@@ -2740,9 +2912,12 @@ export const witheringWisps: CardDefinition = {
                 !(state?.players ?? []).some((p) =>
                     p.battlefield.some((c) => c.types.includes("Creature"))
                 ),
-            resolve: (ctx) => {
-                ctx.sacrifice(ctx.sourceInstanceId);
-            },
+            // Migrated resolve()→effects[] (ADR 0045, migration PRD #795):
+            // self-sacrifice via `$source` (issue #807) — the `interveningIf`
+            // above already re-checks the "no creatures" condition (CR
+            // 603.4d) — mirrors Drop of Honey's `stateTrigger` shape
+            // (arn/green.ts).
+            effects: [{ op: "sacrifice", target: { ref: "$source" } }],
         }),
     ],
     activatedAbilities: [
@@ -2764,9 +2939,33 @@ export const witheringWisps: CardDefinition = {
                     source.activationsThisTurn?.["withering-wisps-blast"] ?? 0;
                 return used < snowSwamps;
             },
-            resolve: (ctx: SpellContext) => {
-                ctx.dealDamageToEach(1, { creatures: true, players: true });
-            },
+            // Migrated resolve()→effects[] (ADR 0045, migration PRD #795):
+            // 1 damage to each creature (forEach permanents) and each player
+            // (forEach players) — the Plague Spitter shape (inv/black.ts).
+            effects: [
+                {
+                    op: "forEach",
+                    select: {
+                        set: "permanents",
+                        zone: "battlefield",
+                        filter: { type: "Creature" },
+                    },
+                    effects: [
+                        { op: "dealDamage", amount: 1, to: { ref: "$each" } },
+                    ],
+                },
+                {
+                    op: "forEach",
+                    select: { set: "players" },
+                    effects: [
+                        {
+                            op: "dealDamage",
+                            amount: 1,
+                            to: { player: { ref: "$each" } },
+                        },
+                    ],
+                },
+            ],
         },
     ],
 };
