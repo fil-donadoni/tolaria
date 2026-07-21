@@ -5,13 +5,12 @@
 // a Forge-scale `{ points, tags }`. A script's value is the walker's sum over
 // its Ops (`valueEffectScript`).
 //
-// This ticket ships the CHARTER Ops only (the highest-frequency / most
-// eval-relevant verbs, PRD #1423). Every other `status:"implemented"` Op sits
-// on the backfill allowlist (`OP_VALUER_BACKFILL`, emptied by the follow-up
-// issue #1430) — the coverage guard
-// (`convex/cards/__tests__/opValuerCoverage.test.ts`) fails CI on any
-// implemented Op that is neither valued, a walker-handled structural construct,
-// nor on the allowlist.
+// Issue #1426 shipped the CHARTER Ops (the highest-frequency / most
+// eval-relevant verbs, PRD #1423). Issue #1430 backfills every remaining
+// `status:"implemented"` Op, emptying the coverage guard's allowlist — the
+// guard (`convex/cards/__tests__/opValuerCoverage.test.ts`) fails CI on any
+// implemented Op that is neither valued nor a walker-handled structural
+// construct.
 //
 // Point magnitudes are on `evaluate.ts`'s Forge scale (a 2/2 vanilla ≈ 170, one
 // life ≈ 8, one untapped mana ≈ 12). They are hand-tuned for ORDERING (a burn/
@@ -42,6 +41,34 @@ const TOKEN_DISCOUNT = 0.85; // a token still has to survive — latent discount
 const NONCREATURE_TOKEN_VALUE = 40; // a Clue/Treasure/Food-style utility token
 const SAC_FORCED_VALUE = 120; // an edict (opponent sacrifices) — discounted removal
 const SAC_SELF_COST = -40; // sacrificing your OWN permanent (a cost)
+
+// --- Backfill-Op point weights (issue #1430) --------------------------------
+const RAMP_PER_MANA = 12; // one produced mana ≈ evaluate.ts's untapped-mana weight
+const ENERGY_PER_POINT = 6; // an energy counter — a smaller, synergy-gated resource
+const ATTACH_VALUE = 15; // reconfigure/equip-style self-attach — a small pump bump
+const MONARCH_VALUE = 70; // CR 720 — a recurring end-step draw, contested
+const DISCARD_VALUE = 40; // a single discarded card — a hair under a drawn card
+const WHOLE_HAND_DISCARD_VALUE = 110; // representative whole-hand discard (~3 cards)
+const CARD_SELECTION_VALUE = 30; // digToHand/digMatchingToHand — an impulse-drawn card
+const SCRY_PER_CARD_VALUE = 10; // one card of scry-style selection
+const MILL_PER_CARD_VALUE = 6; // one milled card — a small library-resource shift
+const GRANT_ABILITY_VALUE = 40; // a temporary keyword grant (evasion/utility)
+const GRANT_CAST_VALUE = 20; // permission to cast an already-known exile/graveyard card
+const GRANT_GRAVEYARD_PLAY_VALUE = 80; // broad graveyard-replay permission (board-scaling)
+const GAIN_CONTROL_VALUE = 150; // steal — denial + a body, a hair under reanimate
+const PREVENT_DAMAGE_FLAT_VALUE = 70; // Fog-style / two-way shield, no scalar amount
+const REGENERATE_VALUE = 60; // a one-shot destroy-proof shield
+const RESTRICT_CASTING_VALUE = 20; // a turn-scoped "can't cast" denial
+const RESTRICT_ACTIVATION_VALUE = 15; // a turn-scoped "can't activate" denial
+const RESTRICT_COMBAT_VALUE = 45; // a targeted "can't attack/block" soft removal
+const PUT_BACK_PER_CARD = 5; // Brainstorm-style card-selection upside, per card
+const SHUFFLE_SELF_VALUE = 10; // dodges the graveyard — small recursion-adjacent upside
+const TAP_UNTAP_VALUE = 20; // Icy Manipulator-style tempo swing
+const TRANSFORM_VALUE = 30; // a self-directed flip, assumed net-beneficial
+const ANIMATE_DISCOUNT = 0.7; // an animated permanent isn't a "real" creature card
+const EMBLEM_VALUE = 150; // a durable, uncounterable ultimate-style effect
+const EXTRA_TURN_VALUE = 300; // CR 500.7 — an entire additional turn
+const WIN_GAME_VALUE = 100000; // CR 104.2a — an alternate win condition
 
 /** A valuer: projects one Op onto the feature basis under a grounding mode. */
 type Valuer<K extends EffectOp["op"]> = (
@@ -241,13 +268,262 @@ const counters: Valuer<"counters"> = (op, ctx) => {
     };
 };
 
-/** The charter-Op dispatch table — one valuer per charter Op (issue #1426).
- *  Keyed by Op name exactly like `OP_EXECUTORS`. Kept a `Partial` over the Op
- *  union: the coverage guard proves every OTHER implemented Op is either a
- *  structural construct or on the backfill allowlist. */
+// -------------------------------------------------------------------------
+// Backfill-Op valuers (issue #1430). Each maps its Op onto the SAME fixed
+// feature basis the charter Ops use — no per-card shapes, no new dimensions.
+// Where an Op's worth is genuinely context-only or negligible (a pure enabler
+// like `setColor`/`nameCard`), the valuer returns `ZERO_OP_VALUE` rather than
+// inventing a magnitude.
+// -------------------------------------------------------------------------
+
+const addMana: Valuer<"addMana"> = (op) => {
+    const total = Object.values(op.mana).reduce(
+        (sum: number, n) => sum + (n ?? 0),
+        0
+    );
+    return { points: total * RAMP_PER_MANA, tags: ["ramp"] };
+};
+
+const addSubtype: Valuer<"addSubtype"> = () => ZERO_OP_VALUE;
+
+const animate: Valuer<"animate"> = (op) => {
+    const points =
+        ANIMATE_DISCOUNT *
+        creatureValueRaw(
+            Math.max(0, op.power),
+            Math.max(0, op.toughness),
+            0,
+            op.grantedAbilities ?? []
+        );
+    const tags: ValueTag[] = op.duration ? ["pump", "tempo"] : ["pump"];
+    return { points, tags };
+};
+
+const armGraveyardRedirect: Valuer<"armGraveyardRedirect"> = () =>
+    ZERO_OP_VALUE;
+
+const attach: Valuer<"attach"> = (op) => ({
+    points: ATTACH_VALUE,
+    tags: isAnnouncedTarget(op.target) ? ["pump", "targeted"] : ["pump"],
+});
+
+const becomeMonarch: Valuer<"becomeMonarch"> = () => ({
+    points: MONARCH_VALUE,
+    tags: ["cardAdvantage"],
+});
+
+const choiceOp: Valuer<"choice"> = () => {
+    // A mid-resolution pick carries no intrinsic material of its own — its
+    // consequence is read back by a LATER Op (`sacrifice`, `discard`,
+    // `moveZone`) through the picks binding, valued by that Op instead.
+    return ZERO_OP_VALUE;
+};
+
+// `delayedTrigger`/`divideIntoPiles` recurse into a nested Effect Script, so
+// their valuers are declared where `valueEffectScript` is hoisted (function
+// declarations hoist module-wide, so the forward reference below is safe).
+const delayedTrigger: Valuer<"delayedTrigger"> = (op, ctx) =>
+    valueEffectScript(op.effects, ctx);
+
+const digMatchingToHand: Valuer<"digMatchingToHand"> = () => ({
+    points: CARD_SELECTION_VALUE,
+    tags: ["cardAdvantage", "board-scaling"],
+});
+
+const digToHand: Valuer<"digToHand"> = (op, ctx) => {
+    const { amount, scaling } = op.take
+        ? ctx.value(op.take)
+        : { amount: 1, scaling: false };
+    return {
+        points: amount * CARD_SELECTION_VALUE,
+        tags: tagScaling(scaling, "cardAdvantage"),
+    };
+};
+
+const discard: Valuer<"discard"> = (op, ctx) => {
+    // Harmful-by-default assumption (mirrors `loseLife`): a discard targets
+    // the OPPONENT unless the player ref clearly resolves to the caster.
+    const self = ctx.isSelf(op.player, "opponent");
+    const sign = self ? -1 : 1;
+    if (op.cards) {
+        const tags: ValueTag[] = ["cardAdvantage"];
+        if (self) tags.push("self-cost");
+        return { points: DISCARD_VALUE * sign, tags };
+    }
+    // Whole-hand discard — no live hand-size reader on `GroundingContext`, so
+    // a representative multi-card magnitude stands in for both modes.
+    const tags = tagScaling(true, "cardAdvantage");
+    if (self) tags.push("self-cost");
+    return { points: WHOLE_HAND_DISCARD_VALUE * sign, tags };
+};
+
+const divideIntoPiles: Valuer<"divideIntoPiles"> = (op, ctx) => {
+    // Adversarial (the OTHER player picks which pile the caster gets) — the
+    // simple, orthogonal approximation is the expected value of the two
+    // piles' effects, mirroring `coinFlip`'s even-odds walk.
+    const chosen = valueEffectScript(op.chosenEffect, ctx);
+    const other = valueEffectScript(op.otherEffect, ctx);
+    const tags = new Set<ValueTag>([
+        ...chosen.tags,
+        ...other.tags,
+        "disruption",
+    ]);
+    return { points: (chosen.points + other.points) / 2, tags: [...tags] };
+};
+
+const emblem: Valuer<"emblem"> = () => ({
+    points: EMBLEM_VALUE,
+    tags: ["pump"],
+});
+
+const extraTurn: Valuer<"extraTurn"> = () => ({
+    points: EXTRA_TURN_VALUE,
+    tags: ["tempo"],
+});
+
+const gainControl: Valuer<"gainControl"> = (op) => ({
+    points: GAIN_CONTROL_VALUE,
+    tags: isAnnouncedTarget(op.target)
+        ? ["boardRemoval", "targeted"]
+        : ["boardRemoval"],
+});
+
+const getEnergy: Valuer<"getEnergy"> = (op, ctx) => {
+    const { amount, scaling } = ctx.value(op.amount);
+    const self = ctx.isSelf(op.player, "self");
+    return {
+        points: amount * ENERGY_PER_POINT * (self ? 1 : -1),
+        tags: tagScaling(scaling, "ramp"),
+    };
+};
+
+const grantAbility: Valuer<"grantAbility"> = (op) => ({
+    points: GRANT_ABILITY_VALUE,
+    tags: isAnnouncedTarget(op.target)
+        ? ["evasion", "targeted"]
+        : ["evasion"],
+});
+
+const grantCastFromExile: Valuer<"grantCastFromExile"> = () => ({
+    points: GRANT_CAST_VALUE,
+    tags: ["cardAdvantage"],
+});
+
+const grantCastFromGraveyard: Valuer<"grantCastFromGraveyard"> = () => ({
+    points: GRANT_CAST_VALUE,
+    tags: ["cardAdvantage"],
+});
+
+const grantGraveyardPlay: Valuer<"grantGraveyardPlay"> = () => ({
+    points: GRANT_GRAVEYARD_PLAY_VALUE,
+    tags: tagScaling(true, "cardAdvantage"),
+});
+
+const libraryLook: Valuer<"libraryLook"> = () => ZERO_OP_VALUE;
+
+const mill: Valuer<"mill"> = (op, ctx) => {
+    const { amount, scaling } = ctx.value(op.count);
+    // Harmful-by-default assumption: milling targets the OPPONENT (a
+    // library-resource denial) unless the ref clearly resolves to the caster.
+    const self = ctx.isSelf(op.player, "opponent");
+    return {
+        points: amount * MILL_PER_CARD_VALUE * (self ? -1 : 1),
+        tags: tagScaling(scaling, "cardAdvantage"),
+    };
+};
+
+const nameCard: Valuer<"nameCard"> = () => ZERO_OP_VALUE;
+
+const preventDamage: Valuer<"preventDamage"> = (op, ctx) => {
+    if (op.mode === "next-n") {
+        const { amount, scaling } = ctx.value(op.amount);
+        return {
+            points: amount * LIFE_PER_POINT,
+            tags: tagScaling(scaling, "protection"),
+        };
+    }
+    // "all-combat" (Fog) / "combat-to-and-by" (Maze of Ith) — no scalar
+    // amount, a flat defensive shield.
+    return { points: PREVENT_DAMAGE_FLAT_VALUE, tags: ["protection"] };
+};
+
+const putBack: Valuer<"putBack"> = (op, ctx) => {
+    const { amount, scaling } = ctx.value(op.count);
+    return {
+        points: amount * PUT_BACK_PER_CARD,
+        tags: tagScaling(scaling, "cardAdvantage"),
+    };
+};
+
+const regenerate: Valuer<"regenerate"> = (op) => ({
+    points: REGENERATE_VALUE,
+    tags: isAnnouncedTarget(op.target)
+        ? ["protection", "targeted"]
+        : ["protection"],
+});
+
+const restrictActivation: Valuer<"restrictActivation"> = () => ({
+    points: RESTRICT_ACTIVATION_VALUE,
+    tags: ["disruption"],
+});
+
+const restrictCasting: Valuer<"restrictCasting"> = () => ({
+    points: RESTRICT_CASTING_VALUE,
+    tags: ["disruption"],
+});
+
+const restrictCombat: Valuer<"restrictCombat"> = (op) => ({
+    points: RESTRICT_COMBAT_VALUE,
+    tags: isAnnouncedTarget(op.target)
+        ? ["boardRemoval", "targeted"]
+        : ["boardRemoval"],
+});
+
+const reveal: Valuer<"reveal"> = () => ZERO_OP_VALUE;
+
+const scryReorder: Valuer<"scryReorder"> = (op, ctx) => {
+    const { amount, scaling } = ctx.value(op.count);
+    return {
+        points: amount * SCRY_PER_CARD_VALUE,
+        tags: tagScaling(scaling, "cardAdvantage"),
+    };
+};
+
+const setColor: Valuer<"setColor"> = () => ZERO_OP_VALUE;
+
+const setSubtype: Valuer<"setSubtype"> = () => ZERO_OP_VALUE;
+
+const shuffleSelfIntoLibrary: Valuer<"shuffleSelfIntoLibrary"> = () => ({
+    points: SHUFFLE_SELF_VALUE,
+    tags: ["recursion"],
+});
+
+const tapUntap: Valuer<"tapUntap"> = (op) => ({
+    points: TAP_UNTAP_VALUE,
+    tags: isAnnouncedTarget(op.target) ? ["tempo", "targeted"] : ["tempo"],
+});
+
+const transform: Valuer<"transform"> = (op) => ({
+    points: TRANSFORM_VALUE,
+    tags: isAnnouncedTarget(op.target) ? ["pump", "targeted"] : ["pump"],
+});
+
+const unattach: Valuer<"unattach"> = () => ZERO_OP_VALUE;
+
+const winGame: Valuer<"winGame"> = () => ({
+    points: WIN_GAME_VALUE,
+    tags: [],
+});
+
+/** The full Op dispatch table — one valuer per non-structural implemented Op
+ *  (charter Ops from issue #1426, backfilled Ops from issue #1430). Keyed by
+ *  Op name exactly like `OP_EXECUTORS`. Kept a `Partial` over the Op union:
+ *  the coverage guard proves every OTHER implemented Op is a structural
+ *  construct — the backfill allowlist is empty (issue #1430). */
 export const OP_VALUERS: {
     [K in EffectOp["op"]]?: Valuer<K>;
 } = {
+    // Charter Ops (issue #1426).
     dealDamage,
     draw,
     gainLife,
@@ -261,6 +537,45 @@ export const OP_VALUERS: {
     createToken,
     pump,
     counters,
+    // Backfilled Ops (issue #1430).
+    addMana,
+    addSubtype,
+    animate,
+    armGraveyardRedirect,
+    attach,
+    becomeMonarch,
+    choice: choiceOp,
+    delayedTrigger,
+    digMatchingToHand,
+    digToHand,
+    discard,
+    divideIntoPiles,
+    emblem,
+    extraTurn,
+    gainControl,
+    getEnergy,
+    grantAbility,
+    grantCastFromExile,
+    grantCastFromGraveyard,
+    grantGraveyardPlay,
+    libraryLook,
+    mill,
+    nameCard,
+    preventDamage,
+    putBack,
+    regenerate,
+    restrictActivation,
+    restrictCasting,
+    restrictCombat,
+    reveal,
+    scryReorder,
+    setColor,
+    setSubtype,
+    shuffleSelfIntoLibrary,
+    tapUntap,
+    transform,
+    unattach,
+    winGame,
 };
 
 /** The structural constructs the WALKER handles by recursion — never a leaf
@@ -282,8 +597,9 @@ function addValues(a: OpValue, b: OpValue): OpValue {
 }
 
 /** Value one Op under a grounding mode — dispatches structural constructs to
- *  recursive walks and leaf Ops to `OP_VALUERS`. An Op with no valuer (a
- *  backfilled Op, #1430) contributes nothing. */
+ *  recursive walks and leaf Ops to `OP_VALUERS`. An Op with no valuer
+ *  (defensive default — every implemented Op has one since issue #1430
+ *  emptied the backfill allowlist) contributes nothing. */
 export function valueOp(op: EffectOp, ctx: GroundingContext): OpValue {
     switch (op.op) {
         case "if": {

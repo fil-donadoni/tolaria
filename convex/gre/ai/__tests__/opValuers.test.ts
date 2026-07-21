@@ -298,6 +298,131 @@ describe("OP_VALUERS — charter valuers (PRD #1423, issue #1426)", () => {
     });
 });
 
+describe("OP_VALUERS — representative backfilled valuers (issue #1430)", () => {
+    describe("extraTurn (CR 500.7) — high value", () => {
+        it("scores a large flat tempo swing", () => {
+            const op: EffectOp = { op: "extraTurn", player: "controller" };
+            const v = valueOp(op, cf);
+            expect(v.points).toBe(300);
+            expect(v.tags).toContain("tempo");
+            // An extra turn must out-score ordinary removal/burn by a wide
+            // margin — it is the biggest single-Op swing in the basis.
+            expect(v.points).toBeGreaterThan(
+                valueOp({ op: "destroy", target: { target: 0 } }, cf).points
+            );
+        });
+    });
+
+    describe("winGame (CR 104.2a) — effectively infinite value", () => {
+        it("scores far above every other Op", () => {
+            const op: EffectOp = { op: "winGame", player: "controller" };
+            const v = valueOp(op, cf);
+            expect(v.points).toBe(100000);
+            expect(v.points).toBeGreaterThan(
+                valueOp({ op: "extraTurn", player: "controller" }, cf).points
+            );
+        });
+    });
+
+    describe("mill (CR 701.17) — card-selection/denial", () => {
+        it("scores milling the opponent as a small positive denial, scaled by count", () => {
+            const op: EffectOp = { op: "mill", player: "opponent", count: 3 };
+            const v = valueOp(op, cf);
+            expect(v.points).toBe(18); // 3 × 6
+            expect(v.tags).toContain("cardAdvantage");
+        });
+
+        it("scores self-mill as a small negative (a library-resource cost)", () => {
+            const op: EffectOp = { op: "mill", player: "controller", count: 2 };
+            expect(valueOp(op, cf).points).toBe(-12); // -(2 × 6)
+        });
+    });
+
+    describe("digToHand (CR 401.4) — card selection", () => {
+        it("scores an impulse-style dig by how many cards land in hand", () => {
+            const op: EffectOp = {
+                op: "digToHand",
+                player: "controller",
+                look: 3,
+                take: 2,
+            };
+            const v = valueOp(op, cf);
+            expect(v.points).toBe(60); // 2 × 30
+            expect(v.tags).toContain("cardAdvantage");
+        });
+
+        it("defaults `take` to 1 when omitted", () => {
+            const op: EffectOp = {
+                op: "digToHand",
+                player: "controller",
+                look: 4,
+            };
+            expect(valueOp(op, cf).points).toBe(30);
+        });
+    });
+
+    describe("setColor / nameCard — near-zero enablers", () => {
+        it("setColor carries no intrinsic material", () => {
+            const op: EffectOp = {
+                op: "setColor",
+                target: { target: 0 },
+                colors: ["U"],
+            };
+            const v = valueOp(op, cf);
+            expect(v.points).toBe(0);
+            expect(v.tags).toEqual([]);
+        });
+
+        it("nameCard carries no intrinsic material", () => {
+            const op: EffectOp = {
+                op: "nameCard",
+                player: "controller",
+                prompt: "Name a card",
+                bind: "$named",
+            };
+            const v = valueOp(op, cf);
+            expect(v.points).toBe(0);
+            expect(v.tags).toEqual([]);
+        });
+    });
+
+    describe("regenerate (CR 701.15) — defensive", () => {
+        it("scores a destroy-proof shield, targeted", () => {
+            const op: EffectOp = {
+                op: "regenerate",
+                target: { target: 0 },
+            };
+            const v = valueOp(op, cf);
+            expect(v.points).toBe(60);
+            expect(v.tags).toEqual(
+                expect.arrayContaining(["protection", "targeted"])
+            );
+        });
+    });
+
+    describe("preventDamage (CR 615) — defensive", () => {
+        it("`next-n` scales with the prevented amount", () => {
+            const op: EffectOp = {
+                op: "preventDamage",
+                mode: "next-n",
+                to: { player: "controller" },
+                amount: 3,
+                duration: { phase: "end-of-turn" },
+            };
+            const v = valueOp(op, cf);
+            expect(v.points).toBe(24); // 3 × 8 (LIFE_PER_POINT)
+            expect(v.tags).toContain("protection");
+        });
+
+        it("`all-combat` (Fog) is a flat defensive shield with no amount", () => {
+            const op: EffectOp = { op: "preventDamage", mode: "all-combat" };
+            const v = valueOp(op, cf);
+            expect(v.points).toBe(70);
+            expect(v.tags).toContain("protection");
+        });
+    });
+});
+
 describe("walker — structural constructs (PRD #1423)", () => {
     it("sums a flat script's Op values", () => {
         const script: EffectOp[] = [
@@ -376,12 +501,15 @@ describe("walker — structural constructs (PRD #1423)", () => {
         expect(valueOp(op, cf).points).toBe((88 + 0) / 2);
     });
 
-    it("an unvalued (backfilled) Op contributes nothing", () => {
-        // `mill` is on the backfill allowlist (#1430) — no valuer yet.
+    it("an Op with no valuer contributes nothing (defensive default)", () => {
+        // The backfill allowlist is empty (issue #1430) — every implemented
+        // Op now has a valuer. This asserts the walker's own fallback for a
+        // (hypothetical) Op name absent from `OP_VALUERS` never throws or
+        // fabricates a value; it's a not-yet-registered name, never a real
+        // catalogue Op.
         const op = {
-            op: "mill",
+            op: "notARealOp",
             player: "opponent",
-            count: 3,
         } as unknown as EffectOp;
         expect(valueOp(op, cf).points).toBe(0);
     });
