@@ -528,4 +528,13 @@ export default defineSchema({
         schemaVersion: v.optional(v.number()),
         createdAt: v.number(),
     }).index("by_user", ["userId"]),
+    debugScenarioTombstones: defineTable({
+        // A deleted scenario's label. `seedNewMechanicScenarios` skips any
+        // NEW_MECHANIC_SCENARIOS entry whose label is tombstoned, so a
+        // validated-then-deleted code-seed row does NOT resurrect on the next
+        // seed (issue #1422). Manual saveDebugScenario is unaffected — only the
+        // automatic seed consults tombstones.
+        label: v.string(),
+        createdAt: v.number(),
+    }).index("by_label", ["label"]),
 });

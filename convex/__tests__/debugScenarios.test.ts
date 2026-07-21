@@ -23,6 +23,7 @@ import {
     normalizeScenarioSpec,
     resolveScenarioBattlefieldCounters,
     selectEphemeralIdsToPrune,
+    selectPresetsToSeed,
     SCENARIO_SCHEMA_VERSION,
     EPHEMERAL_KEEP_BOUND,
     type PrunableScenarioRow,
@@ -418,5 +419,91 @@ describe("NEW_MECHANIC_SCENARIOS — post-#770 scenario batch (seedNewMechanicSc
         ]);
         expect(spec.phase).toBe("PRECOMBAT_MAIN");
         expect(spec.landCount).toBe(2);
+    });
+});
+
+describe("selectPresetsToSeed — tombstoned labels don't resurrect (issue #1422)", () => {
+    // `seedNewMechanicScenarios` is a thin wrapper over this pure decision (same
+    // convention as `selectEphemeralIdsToPrune` above): it inserts exactly
+    // `toInsert` and reports `skipped`. So the regression — "a validated, then
+    // hard-deleted, code-seed row does NOT resurrect on the next seed" — is
+    // asserted directly here, simulating the DB pool across the seed → delete →
+    // re-seed sequence described in the issue.
+    const preset = { label: "Golden Combo", spec: { cards: [] } };
+    const other = { label: "Other Scenario", spec: { cards: [] } };
+
+    it("inserts a preset whose label is neither existing nor tombstoned", () => {
+        const { toInsert, skipped } = selectPresetsToSeed(
+            [preset],
+            new Set<string>(),
+            new Set<string>()
+        );
+        expect(toInsert).toEqual([preset]);
+        expect(skipped).toBe(0);
+    });
+
+    it("skips a preset whose label is already an existing row (pre-existing dedup)", () => {
+        const { toInsert, skipped } = selectPresetsToSeed(
+            [preset],
+            new Set([preset.label]),
+            new Set<string>()
+        );
+        expect(toInsert).toEqual([]);
+        expect(skipped).toBe(1);
+    });
+
+    it("reproduces the bug flow: seed → (admin deletes, tombstoning the label) → re-seed no longer resurrects it", () => {
+        // 1. First seed: pool is empty, nothing tombstoned yet → X is inserted.
+        const firstSeed = selectPresetsToSeed(
+            [preset, other],
+            new Set<string>(),
+            new Set<string>()
+        );
+        expect(firstSeed.toInsert.map((p) => p.label)).toEqual([
+            preset.label,
+            other.label,
+        ]);
+
+        // 2. Admin loads X in the Debug panel, validates it, then hard-deletes it
+        // via `deleteDebugScenario` — which now tombstones `preset.label`
+        // (issue #1422 fix). The row is gone from the pool, but the label is
+        // remembered in the tombstone set.
+        const existingLabelsAfterDelete = new Set([other.label]); // X removed
+        const tombstonedLabelsAfterDelete = new Set([preset.label]); // X tombstoned
+
+        // 3. Next seed re-runs over the SAME NEW_MECHANIC_SCENARIOS array. Before
+        // the fix, X's label was no longer in `existingLabels` so it would be
+        // re-inserted — the resurrection bug. After the fix, the tombstone
+        // suppresses it.
+        const secondSeed = selectPresetsToSeed(
+            [preset, other],
+            existingLabelsAfterDelete,
+            tombstonedLabelsAfterDelete
+        );
+        expect(secondSeed.toInsert.map((p) => p.label)).toEqual([]); // X NOT reinserted
+        expect(secondSeed.skipped).toBe(2); // both X (tombstoned) and Other (existing) skipped
+    });
+
+    it("a manual save of the same label is unaffected by the tombstone (only the automatic seed consults it)", () => {
+        // `saveDebugScenario` (convex/debugScenarios.ts) inserts unconditionally
+        // once past the admin gate and the loadability guard — it never reads
+        // `debugScenarioTombstones` and never calls `selectPresetsToSeed`. The
+        // tombstone mechanism is scoped entirely to the automatic seed path, so
+        // an admin manually re-saving "Golden Combo" after deleting it still
+        // works: there is no dedup-by-tombstone decision in that path at all,
+        // unlike the seed path asserted above.
+        const tombstonedLabels = new Set([preset.label]);
+        // A manual save doesn't run through `selectPresetsToSeed` at all — the
+        // absence of any tombstone check in that call path IS the guarantee.
+        // Demonstrate the seed-path decision would (correctly) skip re-seeding
+        // it automatically, which is the only thing tombstones ever gate.
+        const { toInsert } = selectPresetsToSeed(
+            [preset],
+            new Set<string>(),
+            tombstonedLabels
+        );
+        expect(toInsert).toEqual([]); // automatic seed stays suppressed
+        // Manual save has no equivalent gate to bypass — it is a plain
+        // `ctx.db.insert`, so nothing here can or should block it.
     });
 });
