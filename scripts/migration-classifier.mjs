@@ -221,6 +221,7 @@ function collect() {
             const id = resolveIdToken(idMatch[1]);
             if (id !== undefined) templateBlockers[id] = blockersOf(body);
         }
+        let clsPrevEnd = 0;
         for (const { body, start } of cls) {
             const called = [
                 ...new Set(
@@ -267,6 +268,22 @@ function collect() {
                 blockers.push("$id-equality");
             }
             const name = cardNameBefore(src, start);
+            // Already human/agent-assessed as non-migratable: a NOT-DSL-migratable
+            // marker comment sits directly above this closure. The clause-mapper
+            // can't see the subtle blocker that assessment found (trigger-factory
+            // has no effects site, hidden hand-size arithmetic, etc.), so without
+            // this the same card resurfaces as FREE every pass and wastes a
+            // subagent re-confirming the skip. Window bounded to the closure's
+            // own preamble so a neighbour's marker can't leak in.
+            // Bound the marker window at the previous closure's end so a
+            // neighbouring card's marker can't leak onto this (possibly
+            // migratable) closure and falsely exclude it.
+            const skipWindow = src.slice(
+                Math.max(clsPrevEnd, start - 1200),
+                start
+            );
+            const assessedSkip = /NOT[- ]DSL-migratable/i.test(skipWindow);
+            clsPrevEnd = start + body.length;
             items.push({
                 mod,
                 set: mod.split("/")[0],
@@ -275,6 +292,7 @@ function collect() {
                 blockers: new Set(blockers),
                 usesX: called.includes(X_PRIMITIVE),
                 hasTest: hasPerCardTest(f, name),
+                assessedSkip,
             });
         }
     }
@@ -289,10 +307,21 @@ const opBlocked = items.filter((i) => i.blockers.size > 0);
 const mode = process.argv[2];
 
 if (mode === "--free") {
+    // The worklist picker. Exclude cards already carrying a
+    // NOT-DSL-migratable marker: the summary FREE bucket is an UPPER bound
+    // (clause-mapper can't see subtle blockers), but a marked card was
+    // already human/agent-assessed as non-migratable — re-listing it just
+    // wastes a subagent re-confirming the skip. `--free --all` keeps them.
+    const showAll = process.argv.includes("--all");
+    const pickable = showAll ? free : free.filter((i) => !i.assessedSkip);
+    const hidden = free.length - pickable.length;
     const byMod = {};
-    for (const i of free) (byMod[i.mod] ??= []).push(i);
+    for (const i of pickable) (byMod[i.mod] ??= []).push(i);
+    const readyTotal = pickable.filter((i) => i.hasTest).length;
     console.log(
-        `FREE-tranche: ${free.length} closures across ${Object.keys(byMod).length} modules\n`
+        `FREE-tranche: ${pickable.length} pickable closures (${readyTotal} AFK-ready) across ${Object.keys(byMod).length} modules` +
+            (hidden ? `  [${hidden} assessed non-migratable hidden — --all to show]` : "") +
+            "\n"
     );
     for (const mod of Object.keys(byMod).sort()) {
         const cards = byMod[mod];

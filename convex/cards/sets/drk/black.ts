@@ -161,10 +161,18 @@ export const curseArtifact: CardDefinition = {
                 "At the beginning of the upkeep of enchanted artifact's controller, this Aura deals 2 damage to that player unless they sacrifice that artifact.",
             phase: "UPKEEP",
             scope: "host-controller",
-            // NOT DSL-migratable (ADR 0045): sacrifices the SPECIFIC enchanted
-            // artifact (getAttachedToId) — the sacrifice Op only sacrifices a
-            // choice-picked set — and the payer is a host-controller scoped
-            // player, not expressible as controller/opponent. Stays resolve().
+            // NOT DSL-migratable (ADR 0045): two gaps remain even though
+            // `sacrifice` now takes a `target: EffectObjectSelector` (issue
+            // #1083) — (1) there is no object-ref/selector naming "the
+            // permanent this Aura is attached to" (no `$host`-style binding;
+            // `EffectObjectSelector` only reaches an announced target slot,
+            // `$source`, or a `forEach` `$each`), so the enchanted artifact
+            // can't be named as a sacrifice target; (2) the payer is the
+            // HOST's current controller (CR 603.10 LKI, re-read at resolve),
+            // which has no `EffectPlayerRef` selector (`controller` /
+            // `opponent` / `{ target }` / `{ controllerOf }` all name
+            // something other than an aura's host-controller). Stays
+            // resolve().
             resolve: (ctx, _event, scopedPlayerId) => {
                 const hostId = ctx.getAttachedToId();
                 if (hostId === undefined) return; // host gone — nothing to do
@@ -502,9 +510,24 @@ export const seasonOfTheWitch: CardDefinition = {
                 "At the beginning of your upkeep, sacrifice this enchantment unless you pay 2 life.",
             phase: "UPKEEP",
             scope: "your",
-            // NOT DSL-migratable (ADR 0045): sacrifices this enchantment itself
-            // (sourceInstanceId) — the sacrifice Op only sacrifices a
-            // choice-picked set — gated on a getLife read. Stays resolve().
+            // NOT DSL-migratable (ADR 0045): a `mayPay(cost:{life:2})` Op pays
+            // the cost inside `applyMayPaySubmit` (the mutation-level submit
+            // handler) at ACCEPT time — `SpellContext.requestMayPay`'s resume
+            // path only reads the stored yes/no answer back, it never deducts
+            // life itself (`convex/gre/state.ts`). This card's OWN per-card
+            // test (`black.test.ts`, untouched per the migration playbook)
+            // drives the answer through the raw `answerChoice` shim, which
+            // writes `collectedChoices` directly and bypasses
+            // `applyMayPaySubmit` entirely — so a `mayPay`-Op version would
+            // resume with `$paid=true` but no life ever deducted, silently
+            // failing the pre-existing "paying 2 life keeps it" assertion.
+            // Reusing the exact `mayPay+if+sacrifice` shape Vile Consumption
+            // ships (`inv/multicolor.ts`) is correct in PRODUCTION (which
+            // always goes through the real submit mutation) but not provably
+            // equivalent against this test harness without editing the test —
+            // forbidden by the migration playbook. Stays resolve(), which pays
+            // the 2 life manually via `ctx.loseLife` right after reading the
+            // boolean, matching what `answerChoice` alone can drive.
             resolve: (ctx) => {
                 const controller = ctx.controller;
                 // CR 118.4 — can't pay 2 life you don't have: forced sacrifice.
@@ -586,18 +609,19 @@ export const theFallen: CardDefinition = {
                 "Marks each opponent The Fallen has dealt damage to this game.",
             source: "self",
             target: { kind: "player", player: { relation: "opponent" } },
-            // NOT DSL-migratable (ADR 0045): built via the `damageDealtTrigger`
-            // factory, which owns the `resolve` closure and exposes no
-            // `effects[]` site. The body is a clean `counters` add on
-            // `$source`, but the factory wrapper blocks it. Stays resolve()
-            // until the trigger factories accept effects.
-            resolve: (ctx) => {
-                ctx.addCounter(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    "fallen-marked",
-                    1
-                );
-            },
+            // Migrated resolve()→effects[] (ADR 0045, issue #1015): the
+            // `damageDealtTrigger` factory now exposes an `effects[]` site;
+            // the body is a plain `counters` add on `$source` (Powder Keg
+            // shape, `uds/colorless.ts`).
+            effects: [
+                {
+                    op: "counters",
+                    action: "add",
+                    counter: "fallen-marked",
+                    target: { ref: "$source" },
+                    count: 1,
+                },
+            ],
         }),
         phaseTrigger({
             id: "the-fallen-upkeep",
@@ -605,23 +629,35 @@ export const theFallen: CardDefinition = {
                 "At the beginning of your upkeep, this creature deals 1 damage to each opponent and planeswalker it has dealt damage to this game.",
             phase: "UPKEEP",
             scope: "your",
-            // NOT DSL-migratable (ADR 0045): gated on reading a "fallen-marked"
-            // counter on the source (getCounterCount) — the `count` construct
-            // counts cards in a zone, not counters on a permanent. Stays resolve().
-            resolve: (ctx) => {
-                // The flag is a non-zero "fallen-marked" counter (set on first
-                // damage). One opponent in a 2-player game.
-                const marked =
-                    ctx.getCounterCount(
-                        { type: "permanent", id: ctx.sourceInstanceId },
-                        "fallen-marked"
-                    ) > 0;
-                if (!marked) return;
-                for (const pid of ctx.allPlayerIds) {
-                    if (pid === ctx.controller) continue;
-                    ctx.dealDamage({ type: "player", id: pid }, 1);
-                }
-            },
+            // Migrated resolve()→effects[] (ADR 0045, issue #1015): the
+            // `counters` EffectValue member (a SIXTH grammar member, not a new
+            // Op) reads the LIVE "fallen-marked" counter count on `$source`
+            // directly in an `if` comparison predicate — the flag is a
+            // non-zero counter set by the mark trigger above. One opponent in
+            // a 2-player game (CR 102.2), so "each opponent" is the plain
+            // `"opponent"` player selector.
+            effects: [
+                {
+                    op: "if",
+                    predicate: {
+                        left: {
+                            counters: {
+                                of: { ref: "$source" },
+                                type: "fallen-marked",
+                            },
+                        },
+                        op: "ge",
+                        right: 1,
+                    },
+                    then: [
+                        {
+                            op: "dealDamage",
+                            amount: 1,
+                            to: { player: "opponent" },
+                        },
+                    ],
+                },
+            ],
         }),
     ],
 };
@@ -670,16 +706,19 @@ export const wordOfBinding: CardDefinition = {
     // CR 601.2c — "X target creatures": the number of targets equals X. The
     // engine resolves the count from `chosenX` at announcement.
     targetRequirement: { type: "Creature", count: "X" },
-    // NOT DSL-migratable (ADR 0045): taps a VARIABLE number (X) of announced
-    // creature targets by iterating `ctx.targets`. The DSL acts on fixed
-    // positional slots (`{ target: 0 }`) or a declarative forEach set — there
-    // is no forEach-over-announced-target-slots construct for an X-count list.
-    // Blocked on: an announced-targets iteration construct (X-count).
-    resolve: (ctx: SpellContext) => {
-        for (const target of ctx.targets) {
-            if (target.type === "permanent") ctx.tap(target);
-        }
-    },
+    // Migrated resolve()→effects[] (ADR 0045, issue #1083): the
+    // `forEach { set: "targets" }` selector iterates the WHOLE announced
+    // target set (the X-multi-target companion to a fixed `{ target: N }`
+    // slot, Distorting Wake shape) — tap each (CR 701.26a).
+    effects: [
+        {
+            op: "forEach",
+            select: { set: "targets" },
+            effects: [
+                { op: "tapUntap", action: "tap", target: { ref: "$each" } },
+            ],
+        },
+    ],
 };
 
 // Worms of the Earth — {2}{B}{B}{B} Enchantment.

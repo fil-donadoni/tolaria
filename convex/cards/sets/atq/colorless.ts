@@ -1276,12 +1276,19 @@ export const mishrasWarMachine: CardDefinition = {
                 "At the beginning of your upkeep, this creature deals 3 damage to you unless you discard a card. If it deals damage to you this way, tap it.",
             phase: "UPKEEP",
             scope: "your",
-            // NOT DSL-migratable (ADR 0045): "deals 3 damage unless you discard
-            // a card" is a discard-as-alternative-cost (a mayPay whose cost is a
-            // hand card, not mana — the `mayPay` Op only pays a ManaCost), and
-            // "if it deals damage this way, tap it" is conditional on whether
-            // the else-branch ran. Same class as Psychic Frog (#841 revert).
-            // Blocked on: a discard-cost mayPay + a damage-was-dealt predicate.
+            // NOT DSL-migratable (ADR 0045): re-assessed — `mayPay`'s discard
+            // leg (issue #899) and `if`/`else` now cover "unless you discard a
+            // card" + "if it deals damage this way, tap it" on their own, BUT
+            // this card's own test ("with an empty hand, deals 3 ... and taps
+            // itself") requires the prompt to never appear when hand is empty
+            // (`fireTrigger` called with no `mayPayAccept`, i.e. no suspend
+            // expected). An unconditional `mayPay` Op always enqueues the
+            // pending choice regardless of hand size, which would suspend that
+            // scenario and break the untouched test (playbook invariant: a
+            // migration that forces a test change is wrong). Gating the
+            // `mayPay` on "hand size > 0" needs a hand-size EffectValue/
+            // predicate the grammar still lacks (same class as Ivory Tower /
+            // The Rack above). Blocked on: a hand-size comparison construct.
             resolve: (ctx, _event, playerId) => {
                 const self: TargetSelection = {
                     type: "permanent",

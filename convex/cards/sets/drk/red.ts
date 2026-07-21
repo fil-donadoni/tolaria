@@ -472,6 +472,10 @@ export const goblinRockSled: CardDefinition = {
             matches: (event, self) =>
                 event.type === "ATTACKERS_DECLARED" &&
                 event.attackerIds.includes(self.id),
+            // NOT DSL-migratable (ADR 0045): the "doesn't untap while ..."
+            // family (`skipNextUntap`) is the `lockUntap` Op, still `status:
+            // "planned"` in the Mechanics Registry (not usable vocabulary
+            // yet, ~9 blocked closures). Stays resolve() until that Op ships.
             resolve: (ctx) => {
                 // CR 302.6 / 502.1 — arm a one-shot "doesn't untap next untap
                 // step" on the Sled. The controller's next untap step is their
@@ -555,34 +559,34 @@ export const goblinWizard: CardDefinition = {
                 "{T}: You may put a Goblin permanent card from your hand onto the battlefield.",
             cost: { tap: true },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                // CR 205.3 — a "Goblin permanent card" is a card that is a
-                // permanent type (not Instant/Sorcery) and has the Goblin
-                // subtype. Restrict the optional pick to those in hand.
-                const candidateIds = ctx
-                    .getHandCards(ctx.controller)
-                    .filter(
-                        (c) =>
-                            c.subtypes.includes("Goblin") &&
-                            !c.types.includes("Instant") &&
-                            !c.types.includes("Sorcery")
-                    )
-                    .map((c) => c.id);
-                if (candidateIds.length === 0) return;
-                const picks = ctx.requestChoice({
-                    playerId: ctx.controller,
-                    choiceId: `goblin-wizard-${ctx.sourceInstanceId}`,
+            // Migrated resolve()→effects[] (ADR 0045): the Stoneforge Mystic
+            // hand-source shape (`wwk/white.ts`) — `choice(zone: "hand",
+            // filter)` + `moveZone(from: "hand", to: "battlefield")`, routing
+            // through `putFromHandOntoBattlefield`. CR 205.3 — a "Goblin
+            // permanent card" is `subtype: "Goblin"` AND NOT Instant/Sorcery
+            // (`excludeType`).
+            effects: [
+                {
+                    op: "choice",
                     kind: "choose-hand-card",
+                    player: "controller",
                     zone: "hand",
-                    candidateIds,
+                    filter: {
+                        subtype: "Goblin",
+                        excludeType: ["Instant", "Sorcery"],
+                    },
                     count: { min: 0, max: 1 },
                     prompt: "You may put a Goblin permanent from your hand onto the battlefield.",
-                });
-                if (picks === undefined) return; // suspended
-                const id = picks[0];
-                if (!id) return; // declined
-                ctx.putFromHandOntoBattlefield(ctx.controller, id);
-            },
+                    bind: "$picked",
+                },
+                {
+                    op: "moveZone",
+                    cards: { ref: "$picked" },
+                    player: "controller",
+                    from: "hand",
+                    to: "battlefield",
+                },
+            ],
         },
         {
             id: "goblin-wizard-protection",
@@ -699,6 +703,13 @@ export const manaClash: CardDefinition = {
     manaCost: { R: 1 },
     types: ["Sorcery"],
     targetRequirement: { type: "player", count: 1, controller: "opponent" },
+    // NOT DSL-migratable (ADR 0045): a "repeat until both flips come up
+    // heads on the same round" loop with a runtime termination condition.
+    // The four frozen structural constructs (bind/ref/if/forEach) iterate
+    // over a declaratively-selected SET known in advance — none expresses a
+    // while-style repeat gated on a live coin-flip outcome. `coinFlip` /
+    // `coinFlipSync` exist as Ops, but no loop construct to drive them with.
+    // Protocol-shaped control flow; stays resolve().
     resolve: (ctx: SpellContext) => {
         const target = ctx.targets[0];
         if (target?.type !== "player") return;

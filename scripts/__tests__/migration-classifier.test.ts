@@ -1106,9 +1106,17 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // 659→658 (−1), FREE 431→430 (−1), AFK-ready 398→397 (−1, it had a
         // per-card test). X-only and Op-blocked unchanged. Partition:
         // 430+14+214=658.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(658);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(430);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(397);
+        // 2026-07-21 free-tranche batch 1 (atq/drk colour modules): 4 FREE +
+        // AFK-ready closures migrated resolve()→effects[] — Goblin Wizard
+        // (drk/red, choose-hand-card + moveZone), The Fallen ×2 (drk/black,
+        // damageDealtTrigger factory now exposes an effects[] site + a
+        // counter-count `if` guard), and Word of Binding (drk/black, the
+        // `{ set: "targets" }` X-multi-target selector, issue #1083). All four
+        // left the FREE bucket: total 658→654, FREE 430→426, AFK-ready
+        // 397→393. X-only and Op-blocked unchanged. Partition: 426+14+214=654.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(654);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(426);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(393);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
         expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(214);
     });
@@ -1131,15 +1139,19 @@ describe("migration classifier — census buckets (PRD #826)", () => {
 
 describe("migration classifier — known-card routing (PRD #826)", () => {
     const free = run("--free");
+    const freeAll = run("--free", "--all");
 
-    it("routes an existing-Op-only card (Cuombajj Witches) to the FREE tranche", () => {
-        // Cuombajj Witches' effect maps entirely onto existing Ops, so the
-        // classifier routes it to FREE (migratable now, no new engine code).
-        // (Canary: this asserts a specific still-resolve() card lands in FREE;
-        // when it eventually migrates, swap for another existing-Op-only card
-        // that has not yet been migrated. Swapped from Night's Whisper, whose
-        // draw/loseLife closure migrated to the DSL `draw` Op in #1264.)
-        expect(free).toMatch(/Cuombajj Witches/);
+    it("hides an already-assessed non-migratable card (Cuombajj Witches) from the pickable --free list", () => {
+        // Cuombajj Witches' effect maps onto existing Ops by the static
+        // clause-mapper (so it counts in the summary FREE upper bound), but it
+        // carries a NOT-DSL-migratable marker — its second ping is an
+        // opponent's choice with no Op. The `--free` worklist picker therefore
+        // HIDES it (re-dispatching a subagent onto it would only re-confirm the
+        // skip), while `--free --all` still surfaces it. This is the canary for
+        // the assessed-skip filter: a marked card is hidden from the pickable
+        // list but present with --all.
+        expect(free).not.toMatch(/Cuombajj Witches/);
+        expect(freeAll).toMatch(/Cuombajj Witches/);
     });
 
     it("does NOT route an Op-blocked card (Word of Command) to the FREE tranche", () => {
