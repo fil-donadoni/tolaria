@@ -2387,6 +2387,43 @@ export const OP_EXECUTORS: {
         const branch = won ? op.win.effects : op.loss.effects;
         return runOpList(ctx, branch, cursor);
     },
+    // coinFlipSync — the synchronous sibling of `coinFlip` (CR 705, issue
+    // #1281): flip a coin INLINE, with NO reveal-ack suspension. Same
+    // branching shape (`win`/`loss`, each a nested Op list run through the
+    // SAME `runOpList` path), and the bit comes from the SAME
+    // `SpellContext.flipCoin` seeded-PRNG draw `requestCoinFlip` makes
+    // internally — only the reveal-overlay Pending Choice is skipped, so a
+    // card migrating between the two Ops sees identical seeded outcomes.
+    // `flipCoin` itself has no persistence — unlike `requestCoinFlip`, it does
+    // NOT dedupe a re-drawn bit across a re-walk. So this Op reuses the two
+    // GENERIC replay-safe memoization primitives every suspend-capable Op
+    // already shares (`recallChoice`/`noteChoice` — the same idiom `draw`'s
+    // `#draw:<pos>:<i>` progress marker uses, ADR 0061) rather than adding a
+    // new SpellContext primitive: keyed under this Op's own checkpointed
+    // pre-order position (`ctx.getScriptCheckpoint()`, set by `runOpList`
+    // right before dispatch), so it is unique per coinFlipSync Op and stable
+    // across a re-walk. First pass: no entry yet → draw via `flipCoin()` and
+    // persist the realized bit. A later pass reaching this checkpoint again
+    // (a suspending Op INSIDE the taken branch, e.g. a nested `choice`,
+    // resuming) reads the persisted bit back instead of re-flipping (CR
+    // 608.3 — no re-roll) and re-descends into the SAME branch, exactly like
+    // `coinFlip`'s own resume. Like `coinFlip` it is a structural construct
+    // that always re-descends on a re-walk (the runOpList skip-exception).
+    // Skipped when the flipper is gone (CR 608.2b).
+    coinFlipSync(ctx, op, cursor) {
+        const playerId = resolvePlayerRef(ctx, op.player ?? "controller");
+        if (playerId === undefined) return; // CR 608.2b — flipper gone, skip
+        const pos = ctx.getScriptCheckpoint() ?? 0;
+        const doneKey = `#coinFlipSync:${pos}`;
+        const stored = ctx.recallChoice(doneKey);
+        const won =
+            stored !== undefined ? stored[0] === "heads" : ctx.flipCoin();
+        if (stored === undefined) {
+            ctx.noteChoice(doneKey, [won ? "heads" : "tails"]);
+        }
+        const branch = won ? op.win.effects : op.loss.effects;
+        return runOpList(ctx, branch, cursor);
+    },
     // CR 701.16 (issue #807) — sacrifice the permanents a `choice` Op picked.
     // Routes through `SpellContext.sacrifice`: the controller puts each pick
     // into its owner's graveyard; indestructible does not prevent sacrifice
@@ -2599,17 +2636,24 @@ function runOpList(
         const myPos = cursor.pos++;
         // Already-completed leaf Ops never re-run. The structural constructs
         // `if` / `forEach` (issue #807), `optionChoice` (issue #849) and
-        // `coinFlip` (issue #851) are the exceptions: they must still run so
-        // they re-descend / re-iterate / re-branch into the same nested Ops,
-        // keeping the pre-order positions aligned across the re-walk (their own
-        // leaf Ops are then skipped individually by this same position check) —
-        // a suspending Op inside a branch resumes through them.
+        // `coinFlip` / `coinFlipSync` (issue #851 / #1281) are the exceptions:
+        // they must still run so they re-descend / re-iterate / re-branch into
+        // the same nested Ops, keeping the pre-order positions aligned across
+        // the re-walk (their own leaf Ops are then skipped individually by this
+        // same position check) — a suspending Op inside a branch resumes
+        // through them. `coinFlipSync`'s own re-dispatch never re-flips: its
+        // executor guards the draw itself with the generic
+        // `recallChoice`/`noteChoice` memoization (keyed on its checkpointed
+        // position), the same idempotent-commit idiom `draw` uses — so a
+        // re-entry here reads the persisted bit back and re-descends into the
+        // SAME branch instead of drawing a new one.
         if (
             myPos < cursor.resume &&
             op.op !== "if" &&
             op.op !== "forEach" &&
             op.op !== "optionChoice" &&
             op.op !== "coinFlip" &&
+            op.op !== "coinFlipSync" &&
             // ADR 0053 (pile division) — `divideIntoPiles` runs a NESTED Op
             // list (`chosenEffect`/`otherEffect`) through this same shared
             // cursor after its own two-step choice resolves; if a body Op

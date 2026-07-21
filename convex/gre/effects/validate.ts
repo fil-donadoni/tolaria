@@ -1272,12 +1272,12 @@ function isModeList(value: unknown): boolean {
     });
 }
 
-/** A `coinFlip` Op's `win` / `loss` branch (issue #851) — SHAPE only:
- *  `{ consequence: <non-empty string>, effects: <non-empty Op list> }`. Each
- *  branch's Op-list deep validity (schema, refs, nesting) is checked by the
- *  recursive schema / ref passes, exactly like an `optionChoice` mode or an
- *  `if` branch. Only `consequence` and `effects` are permitted (grammar frozen,
- *  ADR 0045). */
+/** A `coinFlip` / `coinFlipSync` Op's `win` / `loss` branch (issue #851 /
+ *  #1281, shared shape) — SHAPE only: `{ consequence: <non-empty string>,
+ *  effects: <non-empty Op list> }`. Each branch's Op-list deep validity
+ *  (schema, refs, nesting) is checked by the recursive schema / ref passes,
+ *  exactly like an `optionChoice` mode or an `if` branch. Only `consequence`
+ *  and `effects` are permitted (grammar frozen, ADR 0045). */
 function isCoinFlipBranch(value: unknown): boolean {
     if (typeof value !== "object" || value === null || Array.isArray(value)) {
         return false;
@@ -1809,6 +1809,19 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     // optionChoice mode); `player` (optional) names the flipping player (default
     // the resolving controller).
     coinFlip: {
+        required: {
+            win: isCoinFlipBranch,
+            loss: isCoinFlipBranch,
+        },
+        optional: { player: isPlayerRef },
+    },
+    // CR 705 (issue #1281) — flip a coin INLINE, no reveal-ack suspension
+    // (the synchronous sibling of `coinFlip`). Same shape as `coinFlip`: `win`
+    // / `loss` are each `{ consequence, effects }` (SHAPE checked here; each
+    // branch's Op-list validity is checked by the recursive branch pass);
+    // `player` (optional) names the flipping player (default the resolving
+    // controller).
+    coinFlipSync: {
         required: {
             win: isCoinFlipBranch,
             loss: isCoinFlipBranch,
@@ -3004,11 +3017,12 @@ function checkOpListRefs(
             });
         }
 
-        // Recurse into each `coinFlip` branch with a CLONED scope (issue #851):
-        // a branch sees the bindings declared BEFORE the coinFlip, but a
-        // branch-local `bind` does not leak past it (only one branch runs — like
-        // an `if` branch / optionChoice mode, CR 705).
-        if (entry.op === "coinFlip") {
+        // Recurse into each `coinFlip` / `coinFlipSync` branch with a CLONED
+        // scope (issue #851 / #1281): a branch sees the bindings declared
+        // BEFORE the flip, but a branch-local `bind` does not leak past it
+        // (only one branch runs — like an `if` branch / optionChoice mode,
+        // CR 705).
+        if (entry.op === "coinFlip" || entry.op === "coinFlipSync") {
             for (const key of ["win", "loss"] as const) {
                 const branch = entry[key] as { effects?: unknown } | undefined;
                 if (branch && Array.isArray(branch.effects)) {
@@ -3281,10 +3295,11 @@ function validateOpSchema(
             }
         });
     }
-    // Recurse into each `coinFlip` branch's body (issue #851) — win / loss are
-    // nested Op lists validated at their own paths, exactly like an optionChoice
-    // mode. `inForEach` / `inDelayed` thread through so nesting bans still apply.
-    if (entry.op === "coinFlip") {
+    // Recurse into each `coinFlip` / `coinFlipSync` branch's body (issue #851 /
+    // #1281) — win / loss are nested Op lists validated at their own paths,
+    // exactly like an optionChoice mode. `inForEach` / `inDelayed` thread
+    // through so nesting bans still apply.
+    if (entry.op === "coinFlip" || entry.op === "coinFlipSync") {
         for (const key of ["win", "loss"] as const) {
             const branch = entry[key] as { effects?: unknown } | undefined;
             if (branch && Array.isArray(branch.effects)) {

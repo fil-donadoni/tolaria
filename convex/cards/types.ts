@@ -8315,6 +8315,30 @@ export type EffectOp =
           loss: EffectCoinFlipBranch;
           player?: EffectPlayerRef;
       }
+    /** CR 705 (issue #1281) — flip a coin INLINE, no reveal-ack suspension: the
+     *  synchronous sibling of `coinFlip`. A thin declarative skin over the
+     *  single SpellContext primitive `flipCoin` (the same seeded-PRNG bit
+     *  `requestCoinFlip` draws — issue #1281 does not add a new random source,
+     *  it only skips that primitive's ADR 0023 reveal-overlay suspend), one
+     *  execution path (ADR 0045): the bit is drawn and the matching `win`
+     *  (flipper wins) / `loss` branch's `effects` runs in the SAME interpreter
+     *  pass, through the SAME `runOpList` path an `if` branch / `coinFlip`
+     *  branch uses — so a branch composes bind / ref / if / forEach and even a
+     *  further suspending Op. `player` names the flipping player (the resolving
+     *  `"controller"` by default — CR 705.1; an announced target-slot /
+     *  relative player otherwise). Like `coinFlip` it is a structural construct
+     *  that always re-descends on a re-walk (in the interpreter's runOpList
+     *  skip-exception), so a suspension inside the taken branch resumes
+     *  correctly. Skipped when the flipper cannot be resolved (CR 608.2b).
+     *  SCOPE (issue #1281): for a card whose flip genuinely has no interactive
+     *  reveal UX to preserve (Goblin Artisans resolved it synchronously
+     *  pre-DSL) — use `coinFlip` instead when the reveal-ack UX is wanted. */
+    | {
+          op: "coinFlipSync";
+          win: EffectCoinFlipBranch;
+          loss: EffectCoinFlipBranch;
+          player?: EffectPlayerRef;
+      }
     /** CR 701.20a — reveal `player`'s hand to every player (issue #920, #682).
      *  A thin declarative skin over `SpellContext.markKnownToAll` (ADR 0026):
      *  every card currently in `player`'s hand is stamped with every player in
