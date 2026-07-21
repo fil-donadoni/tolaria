@@ -1143,9 +1143,18 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // FREE→Op-blocked as newly-added markers cite genuinely-unregistered Ops.
         // Net: total 637→607, FREE 409→377, AFK-ready 376→350, Op-blocked
         // 214→216, X-only unchanged. Partition: 377+14+216=607.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(607);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(377);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(350);
+        // 2026-07-21 free-tranche batch 4 (leg/black, leg/blue, sos/multicolor,
+        // inv/black — fresh modules): 19 closures migrated resolve()→effects[]
+        // (Plague Spitter via the new diedTrigger effects[] path; the three
+        // Strixhaven charms' modes; Flash Flood, Sea King's Blessing, Part
+        // Water, Phyrexian Reaper/Slayer/Delver, Jovial Evil, Touch of Darkness,
+        // Mold Demon, …). Every examined non-migratable card now carries an
+        // accurate marker. All 19 left the FREE bucket: total 607→588, FREE
+        // 377→358, AFK-ready 350→334. X-only and Op-blocked unchanged.
+        // Partition: 358+14+216=588.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(588);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(358);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(334);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
         expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(216);
     });

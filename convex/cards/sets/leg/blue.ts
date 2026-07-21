@@ -286,14 +286,14 @@ export const psionicEntity: CardDefinition = {
             cost: { tap: true },
             useStack: true,
             targetRequirement: { type: "any", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target) ctx.dealDamage(target, 2);
-                ctx.dealDamage(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    3
-                );
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #795): 2 damage to the
+            // announced target (any target, CR 115.4), then 3 damage to the
+            // resolving source itself (CR 120.1/120.3 — a normal damage event
+            // to the permanent).
+            effects: [
+                { op: "dealDamage", amount: 2, to: { target: 0 } },
+                { op: "dealDamage", amount: 3, to: { ref: "$source" } },
+            ],
         },
     ],
 };
@@ -373,6 +373,16 @@ export const backfire: CardDefinition = {
                 event.sourceInstanceId === self.attachedTo &&
                 event.target.type === "player" &&
                 event.target.id === self.controllerId,
+            // NOT DSL-migratable (ADR 0045): the effect amount is the firing
+            // DAMAGE_DEALT event's `amount` field, and the damage target is
+            // the enchanted host's CONTROLLER (via getAttachedToId +
+            // getController) — a player derived from the aura's attached
+            // host, not an announced target slot. damageDealtTrigger's
+            // `effects[]` site only binds the trigger's own controller/
+            // `$source`; it cannot read the firing event's payload or an
+            // attached-host player (no such EffectPlayerRef selector exists).
+            // Blocked on: an event-amount value construct + an attached-host
+            // player selector.
             resolve: (ctx, event) => {
                 const host = ctx.getAttachedToId();
                 if (!host) return;
@@ -577,10 +587,9 @@ export const flashFlood: CardDefinition = {
             label: "Destroy target red permanent",
             oracleText: "Destroy target red permanent.",
             targetRequirement: { type: "any", count: 1, colorFilter: "R" },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target?.type === "permanent") ctx.destroy(target);
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #795): destroy the
+            // announced target (CR 701.8).
+            effects: [{ op: "destroy", target: { target: 0 } }],
         },
         {
             id: "return-mountain",
@@ -591,10 +600,10 @@ export const flashFlood: CardDefinition = {
                 count: 1,
                 subtypeFilter: "Mountain",
             },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target?.type === "permanent") ctx.returnToHand(target);
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #795): return the
+            // announced target to its owner's hand (CR 701.10/400.7). Same
+            // moveZone shape as Boomerang (`leg/blue.ts`).
+            effects: [{ op: "moveZone", target: { target: 0 }, to: "hand" }],
         },
     ],
 };
@@ -612,13 +621,23 @@ export const seaKingsBlessing: CardDefinition = {
     manaCost: { U: 1 },
     types: ["Instant"],
     targetRequirement: { type: "Creature", count: { min: 1 } },
-    resolve: (ctx: SpellContext) => {
-        for (const target of ctx.targets) {
-            if (target.type === "permanent") {
-                ctx.setColorOverride(target, ["U"]);
-            }
-        }
-    },
+    // Migrated resolve()→effects[] (ADR 0045, #795): a variable-count
+    // "one or more target creatures" announcement iterated via the
+    // `{ set: "targets" }` forEach selector (issue #1083) — closes the
+    // X-multi-target gap this card was previously blocked on. No duration is
+    // passed to setColor, mirroring the pre-migration `setColorOverride`
+    // call exactly (indefinite override — a pre-existing simplification vs.
+    // the oracle's "until end of turn", left unchanged by this pure
+    // refactor).
+    effects: [
+        {
+            op: "forEach",
+            select: { set: "targets" },
+            effects: [
+                { op: "setColor", target: { ref: "$each" }, colors: ["U"] },
+            ],
+        },
+    ],
 };
 
 // Part Water — "X target creatures gain islandwalk until end of turn."
@@ -632,21 +651,27 @@ export const partWater: CardDefinition = {
     manaCost: { X: "X", U: 1 },
     types: ["Sorcery"],
     targetRequirement: { type: "Creature", count: "X" },
-    // NOT DSL-migratable (ADR 0045): grants islandwalk to a VARIABLE number (X)
-    // of announced targets. grantAbility addresses a single announced slot
-    // (`{ target: N }`), and no construct maps over "all announced targets" —
-    // forEach selects zone sets, not the announced-target list (same class as
-    // Word of Binding / Winter Blast). Blocked on: iteration over X announced
-    // targets; grantStaticAbility itself is covered by grantAbility (#843).
-    resolve: (ctx: SpellContext) => {
-        for (const target of ctx.targets) {
-            if (target.type === "permanent") {
-                ctx.grantStaticAbility(target, "islandwalk", {
-                    phase: "end-of-turn",
-                });
-            }
-        }
-    },
+    // Migrated resolve()→effects[] (ADR 0045, #795): the stale marker above
+    // is superseded — the `{ set: "targets" }` forEach selector (issue #1083)
+    // now closes exactly the "grant to a VARIABLE-count announced target set"
+    // gap this card was blocked on. Grants islandwalk to every announced
+    // target creature (CR 601.2c "X target creatures") until end of turn
+    // (CR 611.1), same grantAbility shape as Dwarven Warriors
+    // (`lea/red.ts`).
+    effects: [
+        {
+            op: "forEach",
+            select: { set: "targets" },
+            effects: [
+                {
+                    op: "grantAbility",
+                    ability: "islandwalk",
+                    target: { ref: "$each" },
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
+        },
+    ],
 };
 
 // Teleport — "Target creature can't be blocked this turn." Cast only during
@@ -662,6 +687,16 @@ export const teleport: CardDefinition = {
     types: ["Instant"],
     castPhaseRestriction: ["DECLARE_ATTACKERS"],
     targetRequirement: { type: "Creature", count: 1 },
+    // NOT DSL-migratable (ADR 0045): no Op wraps
+    // `SpellContext.setCantBeBlockedThisTurn`, which flags the specific
+    // `cantBeBlockedThisTurn` field the per-card test asserts on. This is a
+    // distinct primitive from `grantAbility { ability: "unblockable" }`
+    // (Dwarven Warriors, `lea/red.ts`) — a static-ability keyword grant, not
+    // the same underlying field — so swapping to grantAbility would change
+    // observable behaviour (the field the test reads would stay false) and
+    // is not a pure refactor. Planned-migratable: open an issue for a
+    // `cantBeBlockedThisTurn`-shaped Op, or fold Teleport onto the
+    // `unblockable` keyword grant if/when the engine unifies the two.
     resolve: (ctx: SpellContext) => {
         const target = ctx.targets[0];
         if (target?.type === "permanent") {
@@ -689,12 +724,14 @@ export const energyTap: CardDefinition = {
         controller: "you",
         tappedFilter: "untapped",
     },
-    // NOT DSL-migratable (ADR 0045): the produced {C} amount equals the tapped
-    // creature's mana value (a runtime read, getManaValue). The EffectValue
-    // grammar has no mana-value member, so the amount is not statically
-    // expressible (the tap half maps cleanly to tapUntap + addMana, but the
-    // count does not). Planned-migratable. Blocked on: a mana-value EffectValue
-    // construct.
+    // NOT DSL-migratable (ADR 0045): re-assessed post the `manaValue`
+    // EffectValue construct (issue #680) landing — that construct alone does
+    // NOT unblock this card. The tap half maps cleanly to `tapUntap`, but
+    // `addMana`'s `mana: EffectManaPool` fields (`C?: number`, …) are plain
+    // numbers, not `EffectValue` — there is no way to feed a dynamic
+    // `manaValue` read into the {C} amount `addMana` actually adds. Blocked
+    // on: `EffectManaPool` accepting `EffectValue` entries (or an equivalent
+    // dynamic-amount `addMana` variant).
     resolve: (ctx: SpellContext) => {
         const target = ctx.targets[0];
         if (target?.type !== "permanent") return;
@@ -921,6 +958,17 @@ export const inTheEyeOfChaos: CardDefinition = {
                 "Whenever a player casts an instant spell, counter it unless that player pays {X}, where X is its mana value.",
             scope: "any",
             filter: { types: ["Instant"] },
+            // NOT DSL-migratable (ADR 0045): the effect must inspect the
+            // firing SPELL_CAST event's `spell` payload (its `instanceId` to
+            // counter it and its mana value, chosen-X included, to compute
+            // the tax) — spellCastTrigger's `effects[]` site is documented
+            // for an event-INDEPENDENT effect only. Even with the `manaValue`
+            // EffectValue construct (issue #680), the `counter` Op's target
+            // is a narrow `EffectTargetRef` (an ANNOUNCED target slot only —
+            // this trigger has none, it reads the cast spell off the event),
+            // not the broader `EffectObjectSelector` an `$event.<field>`
+            // object ref could satisfy. Blocked on: a firing-spell target
+            // reachable by `counter`, not on the mana-value read itself.
             resolve: (ctx, _event, spell) => {
                 // CR 202.3 / 601.2b — the tax equals the cast spell's mana
                 // value, read from the still-on-stack spell (getManaValue folds

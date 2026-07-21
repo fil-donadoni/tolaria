@@ -100,6 +100,18 @@ import { diedTrigger } from "../../abilities/triggers/diedTrigger";
 // declarative targetRequirement would target the active player's creature but
 // let the WRONG player pick it. `requestChoice` parked on `scopedPlayerId` (the
 // active player) is the only faithful expression.
+//
+// RE-ASSESSED (ADR 0045 effects[] migration pass): the chooser≠controller half
+// above is no longer the binding constraint — a `choice` Op's `player` field
+// CAN now be `{ ref: "$event.activePlayerId" }` (the `PHASE_BEGIN` row in
+// `EVENT_FIELD_REGISTRY`, ADR 0049, shipped for exactly this `scope: "each"`
+// shape). The card is STILL NOT DSL-migratable, for a narrower reason: the
+// `destroy` Op's `target` is an `EffectObjectSelector` (an announced slot or a
+// SNAPSHOT-family `$binding`, `SNAP_ID`-indexed) — it has no `permanents`-ref
+// shape reading a `choice` Op's PICKS-family binding, unlike `sacrifice`'s
+// `permanents?: EffectRef`. There is no way to feed the chosen creature id into
+// `destroy` declaratively. Blocked on: a picks-ref shape on `destroy` (mirroring
+// `sacrifice`'s `permanents` field). Stays resolve().
 export const theAbyss: CardDefinition = {
     id: "86a27d68-3e58-4ade-976d-36381beed451",
     rarity: "rare",
@@ -369,6 +381,15 @@ export const blight: CardDefinition = {
             scope: "any",
             // Fire only for the aura's own host (CR 303.4b).
             condition: (event, self) => event.permanentId === self.attachedTo,
+            // NOT DSL-migratable (ADR 0045): `tappedTrigger`'s `effects[]` opt-in
+            // binds only `ctx.controller` / `$source` (the Aura itself) — it does
+            // NOT surface the tapped permanent's id, and "destroy it" here means
+            // the ENCHANTED land (`ctx.getAttachedToId()`), not `$source`. There is
+            // no `EffectObjectSelector` for "the permanent this Aura is attached
+            // to", and `PERMANENT_TAPPED` has no `EVENT_FIELD_REGISTRY` row (ADR
+            // 0049) to read the tapped permanent's id via `{ ref: "$event.<field>" }`
+            // either. Blocked on: an "attached-to" object selector or a
+            // PERMANENT_TAPPED event-field row. Stays resolve().
             resolve: (ctx) => {
                 const host = ctx.getAttachedToId();
                 if (host) ctx.destroy({ type: "permanent", id: host });
@@ -424,6 +445,15 @@ export const hellfire: CardDefinition = {
         "Destroy all nonblack creatures. Hellfire deals X plus 3 damage to you, where X is the number of creatures that died this way.",
     manaCost: { X: 2, B: 3 },
     types: ["Sorcery"],
+    // NOT DSL-migratable (ADR 0045): the damage amount is "the number of
+    // creatures that DIED this way" (CR 614.5) — a tally of `ctx.destroy`'s
+    // actual per-permanent outcome, not the static cardinality of a
+    // declaratively-selected set. The `count` construct only counts a set's
+    // size at selection time; it cannot express "how many of these were
+    // actually destroyed" (a `forEach` over nonblack creatures would
+    // overcount if any is indestructible or holds a regeneration shield).
+    // Blocked on: no Op/predicate reads a destroy's success/failure to
+    // accumulate a running total. Stays resolve().
     resolve: (ctx: SpellContext) => {
         // Colour-aware sweep: `destroyAll` doesn't populate colours, so drive
         // the destroy off the colour-aware id query (CR 202.2). "Nonblack" is
@@ -482,15 +512,23 @@ export const jovialEvil: CardDefinition = {
     manaCost: { X: 2, B: 1 },
     types: ["Sorcery"],
     targetRequirement: { type: "player", count: 1, controller: "opponent" },
-    resolve: (ctx: SpellContext) => {
-        const target = ctx.targets[0];
-        if (target?.type !== "player") return;
-        const whiteCreatures = ctx.getBattlefieldIds(target.id, {
-            types: "Creature",
-            colors: "W",
-        }).length;
-        ctx.dealDamage(target, whiteCreatures * 2);
-    },
+    // Migrated resolve()→effects[] (ADR 0045): X = twice the count of white
+    // creatures the targeted opponent controls (CR 202.2), via `count`'s
+    // `times` multiplier (the same shape Price of Progress uses, exo/red.ts).
+    effects: [
+        {
+            op: "dealDamage",
+            amount: {
+                count: {
+                    zone: "battlefield",
+                    controller: { target: 0 },
+                    filter: { type: "Creature", color: "W" },
+                    times: 2,
+                },
+            },
+            to: { target: 0 },
+        },
+    ],
 };
 
 // --- Tricks / regeneration utility -----------------------------------------
@@ -506,13 +544,23 @@ export const touchOfDarkness: CardDefinition = {
     manaCost: { B: 1 },
     types: ["Instant"],
     targetRequirement: { type: "Creature", count: { min: 1 } },
-    resolve: (ctx: SpellContext) => {
-        for (const target of ctx.targets) {
-            if (target.type === "permanent") {
-                ctx.setColorOverride(target, ["B"]);
-            }
-        }
-    },
+    // Migrated resolve()→effects[] (ADR 0045): `forEach { set: "targets" }`
+    // iterates the variable-N announced target set (CR 601.2c), `setColor`
+    // overrides each to black until end of turn (layer 5, CR 613.1e).
+    effects: [
+        {
+            op: "forEach",
+            select: { set: "targets" },
+            effects: [
+                {
+                    op: "setColor",
+                    target: { ref: "$each" },
+                    colors: ["B"],
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
+        },
+    ],
 };
 
 // Horror of Horrors — "Sacrifice a Swamp: Regenerate target black creature."
@@ -637,6 +685,15 @@ export const cosmicHorror: CardDefinition = {
                 "At the beginning of your upkeep, destroy this creature unless you pay {3}{B}{B}{B}. If this creature is destroyed this way, it deals 7 damage to you.",
             phase: "UPKEEP",
             scope: "your",
+            // NOT DSL-migratable (ADR 0045): the self-damage rider ("If this
+            // creature is destroyed this way, it deals 7 damage to you") is
+            // conditioned on `ctx.destroy`'s ACTUAL runtime outcome (it can be
+            // prevented by an indestructible/regeneration effect from another
+            // card) — the frozen `if` predicate grammar (boolean-binding /
+            // numeric-comparison / picksNonEmpty / targetIsAnother /
+            // picksMatchFilter) has no form that reads a `destroy` Op's
+            // success/failure. Blocked on: a destroy-outcome predicate.
+            // Planned-migratable if one is added; stays resolve() until then.
             resolve: (ctx, _event, scopedPlayerId) => {
                 const paid = ctx.requestMayPay({
                     playerId: scopedPlayerId,
@@ -684,45 +741,66 @@ export const moldDemon: CardDefinition = {
             oracleText:
                 "When this creature enters, sacrifice it unless you sacrifice two Swamps.",
             scope: "self",
-            resolve: (ctx) => {
-                const controller = ctx.controller;
-                const swampIds = ctx.getBattlefieldIds(controller, {
-                    subtypes: "Swamp",
-                });
-                // Can't afford the cost → the only legal outcome is to
-                // sacrifice Mold Demon (CR 117.3a — an unpayable "unless"
-                // cost forces the consequence). No prompt with no real choice.
-                if (swampIds.length < 2) {
-                    ctx.sacrifice(ctx.sourceInstanceId);
-                    return;
-                }
-                const accept = ctx.requestMayPay({
-                    playerId: controller,
-                    choiceId: `mold-demon-${ctx.sourceInstanceId}`,
-                    prompt: "Sacrifice two Swamps to keep Mold Demon?",
-                });
-                if (accept === undefined) return; // suspended
-                if (!accept) {
-                    ctx.sacrifice(ctx.sourceInstanceId);
-                    return;
-                }
-                const picked = ctx.requestChoice({
-                    playerId: controller,
-                    choiceId: `mold-demon-${ctx.sourceInstanceId}-swamps`,
-                    kind: "sacrifice-permanents",
-                    zone: "battlefield",
-                    filter: { subtypes: "Swamp" },
-                    count: 2,
-                    prompt: "Sacrifice two Swamps.",
-                });
-                if (picked === undefined) return; // suspended
-                if (picked.length < 2) {
-                    // Failed to pay the full cost → sacrifice Mold Demon.
-                    ctx.sacrifice(ctx.sourceInstanceId);
-                    return;
-                }
-                for (const id of picked) ctx.sacrifice(id);
-            },
+            // Migrated resolve()→effects[] (ADR 0045): the unpayable-cost
+            // short-circuit (CR 117.3a — fewer than two Swamps means no real
+            // choice) is a `count`-vs-literal comparison predicate; the
+            // pay-or-sacrifice decision composes `mayPay` + `choice(kind:
+            // "sacrifice-permanents")` + `sacrifice`, the same primitives the
+            // pre-migration closure called directly. Since the `then` branch
+            // only runs with >=2 Swamps present, the `choice`'s exact
+            // `count: 2` is always satisfiable — the closure's defensive
+            // "picked.length < 2" fallback has no reachable counterpart.
+            effects: [
+                {
+                    op: "if",
+                    predicate: {
+                        left: {
+                            count: {
+                                zone: "battlefield",
+                                controller: "controller",
+                                filter: { subtype: "Swamp" },
+                            },
+                        },
+                        op: "lt",
+                        right: 2,
+                    },
+                    then: [{ op: "sacrifice", target: { ref: "$source" } }],
+                    else: [
+                        {
+                            op: "mayPay",
+                            player: "controller",
+                            prompt: "Sacrifice two Swamps to keep Mold Demon?",
+                            bind: "$moldDemonAccept",
+                        },
+                        {
+                            op: "if",
+                            predicate: { binding: "$moldDemonAccept" },
+                            then: [
+                                {
+                                    op: "choice",
+                                    kind: "sacrifice-permanents",
+                                    player: "controller",
+                                    zone: "battlefield",
+                                    filter: { subtype: "Swamp" },
+                                    count: 2,
+                                    prompt: "Sacrifice two Swamps.",
+                                    bind: "$moldDemonSwamps",
+                                },
+                                {
+                                    op: "sacrifice",
+                                    permanents: { ref: "$moldDemonSwamps" },
+                                },
+                            ],
+                            else: [
+                                {
+                                    op: "sacrifice",
+                                    target: { ref: "$source" },
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
         }),
     ],
 };
@@ -800,10 +878,18 @@ export const spiritShackle: CardDefinition = {
             scope: "any",
             // CR 303.4b — only the aura's host firing matters.
             condition: (event, self) => event.permanentId === self.attachedTo,
-            // NOT DSL-migratable (ADR 0045): built via the `tappedTrigger`
-            // factory (no `effects[]` site), and the counter target is the
-            // permanent that became tapped (a trigger-event object) — not a
-            // covered `EffectObjectSelector`. Stays resolve().
+            // NOT DSL-migratable (ADR 0045) — RE-ASSESSED: `tappedTrigger` now
+            // DOES have an `effects[]` opt-in (it binds only `ctx.controller` /
+            // `$source`, the Aura itself), so the stale "no effects[] site"
+            // framing no longer applies. The actual blocker persists: the
+            // counter target is the permanent that BECAME TAPPED (the aura's
+            // host, delivered only via the trigger-event payload), which
+            // `effects[]` cannot reach — `$source` resolves to the Aura, not its
+            // host, and `PERMANENT_TAPPED` has no `EVENT_FIELD_REGISTRY` row
+            // (ADR 0049) to read it via `{ ref: "$event.<field>" }` either.
+            // Blocked on: an "attached-to"/host object selector or a
+            // PERMANENT_TAPPED event-field row (same gap as Blight, above).
+            // Stays resolve().
             resolve: (ctx, _event, tapped) => {
                 ctx.addCounter(
                     { type: "permanent", id: tapped.id },
@@ -898,6 +984,16 @@ export const netherVoid: CardDefinition = {
             oracleText:
                 "Whenever a player casts a spell, counter it unless that player pays {3}.",
             scope: "any",
+            // NOT DSL-migratable (ADR 0045): the ability must counter and bill
+            // the tax to THE SPELL THAT CAUSED THIS TRIGGER, but a SPELL_CAST
+            // trigger has no target-announcement mechanism naming that spell
+            // (unlike Ward's `spellTargetsSelfSource` machinery, which is wired
+            // to BECAME_TARGET, not SPELL_CAST) and `SPELL_CAST` has no
+            // `EVENT_FIELD_REGISTRY` row (ADR 0049) to read `spell.instanceId` /
+            // `spell.casterId` via `{ ref: "$event.<field>" }` either — both
+            // `mayPay`'s `player` and `counter`'s `target` need exactly that.
+            // Blocked on: a SPELL_CAST event-field row (or an equivalent
+            // targeting mechanism) for the causing spell. Stays resolve().
             resolve: (ctx, _event, spell) => {
                 // CR 117.3a — the spell's controller may pay {3} to keep it;
                 // declining (or being unable to pay) counters it (CR 701.5a).
@@ -955,6 +1051,14 @@ export const wallOfTombstones: CardDefinition = {
                 "At the beginning of your upkeep, change this creature's base toughness to 1 plus the number of creature cards in your graveyard.",
             phase: "UPKEEP",
             scope: "your",
+            // NOT DSL-migratable (ADR 0045): doubly blocked. (1) No Op wraps
+            // `SpellContext.setBasePT` (layer 7b) yet — `EFFECT_OP_REGISTRY` has
+            // no `setBasePT`/equivalent entry. (2) Even with one, the amount is
+            // "1 PLUS the number of creature cards in the graveyard" — the
+            // `EffectValue` grammar is literal/ref/count with only `count`'s
+            // fixed `times` MULTIPLIER, no addition of a literal offset to a
+            // count. Blocked on: a `setBasePT`-style Op, and an additive value
+            // construct. Stays resolve().
             resolve: (ctx, _event, scopedPlayerId) => {
                 // CR 611.2 — the count is read once, at resolution, and the
                 // resulting set value is locked (it does NOT track the

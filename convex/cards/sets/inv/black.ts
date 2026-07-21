@@ -16,24 +16,21 @@
 //     no hand-written test required (per-Op regime, ADR 0045/0046): the
 //     catalogue-wide `validateEffectScript` sweep + the auto-generated
 //     canned-scenario smoke test cover them.
-//   • 5 cards (Annihilate, Phyrexian Reaper, Phyrexian Slayer, Spreading
-//     Plague, Tsabo's Assassin) are `resolve()`, each with a recorded
-//     justification — NOT an invented capability, but one of two
-//     already-established architecture limits every such card in the
-//     catalogue hits the same way:
-//       (a) the DSL `destroy` Op has no `cantBeRegenerated` param (the
-//           underlying `SpellContext.destroy` primitive fully supports it —
-//           see Crumble/Detonate in atq/green.ts and atq/red.ts — but the Op
-//           schema doesn't expose it). Widening the Op is a shared-file
-//           change (`convex/cards/types.ts` + `interpreter.ts`) out of scope
-//           for this single-colour, file-scoped tranche.
-//       (b) `TriggeredAbility` has no `targetRequirement` (ADR 0002's
-//           documented "choice-as-target" substitute only covers a target
-//           whose characteristics don't need to be READ by a later Op —
-//           Crypt Angel/Ravenous Rats use it fine); a trigger that must
-//           inspect the firing event's or blocker's live characteristics
-//           (color, mana value) stays imperative by design (see the Op
-//           registry's own `reveal`/`moveZone` notes).
+//   • Migration (ADR 0045, playbook `docs/agents/effect-script-migration.md`):
+//     Annihilate, Phyrexian Reaper, Phyrexian Slayer, Phyrexian Delver, and
+//     Plague Spitter's dies-half moved from `resolve()` to `effects[]` as the
+//     Op vocabulary caught up — `destroy.cantBeRegenerated`, `$event.<field>`
+//     reads for `BLOCKERS_CONFIRMED.blockerId` (ADR 0049, issue #865),
+//     `moveZone`'s `bind` + `ref.manaValue` snapshot (issue #680), and
+//     `diedTrigger`'s `effects?` support all shipped since this tranche's
+//     original authoring. Spreading Plague and Tsabo's Assassin stay
+//     `resolve()`, each with a recorded justification — both hit the SAME
+//     remaining gap: no DSL predicate/filter expresses "shares a color with a
+//     live-computed color set" (Spreading Plague: the entering creature's
+//     color; Tsabo's Assassin: the board's most-common-color tally) — the
+//     frozen `if` predicate (ADR 0045) is only a boolean binding or a
+//     literal/ref/count numeric comparison, neither form. See each card's own
+//     comment for the full assessment.
 //   • 4 cards are commented stubs, tagged `tracked-by:` — none duplicated
 //     from the Domain (#1066) / pile-division (#1067) / can't-be-countered
 //     (#1065) capability clusters (none of those land on black):
@@ -807,12 +804,12 @@ export const phyrexianBattleflies: CardDefinition = {
 // "graveyard"` + `controller: "you"` scopes it to the CONTROLLER's own
 // graveyard — modern Oracle says "your graveyard", not "a graveyard".
 //
-// Still resolve() (not fully DSL): the life-loss-equal-to-mana-value clause
-// needs an MV snapshot of the announced graveyard card, which the DSL has no
-// path for (a target `bind` is a bare id, no `ref.manaValue` — see Reanimate,
-// tmp/black.ts, and Soul Exchange, fem/black.ts, the announced-graveyard-
-// target reanimation precedent this now mirrors). Composes already-shipped
-// SpellContext primitives: `getManaValue`, `returnToBattlefield`, `loseLife`.
+// Migrated resolve()→effects[] (ADR 0045): the MV-snapshot clause is the
+// exact Reanimate template (tmp/black.ts) — `moveZone`'s `target` addresses
+// the announced target slot (CR 603.3d, populated the same way for a
+// TriggeredAbility's `targetRequirement` as for a spell's), `bind` snapshots
+// the graveyard card's mana value BEFORE it leaves the graveyard (CR 202.3 /
+// 608.2h), and `loseLife`'s `amount` reads it back via `ref.manaValue`.
 export const phyrexianDelver: CardDefinition = {
     id: "e66d87a5-7b67-4ec5-b5e2-518d67123118", // INV 115
     rarity: "rare",
@@ -837,27 +834,19 @@ export const phyrexianDelver: CardDefinition = {
                 zone: "graveyard",
                 controller: "you",
             },
-            resolve: (ctx) => {
-                const target = ctx.targets[0];
-                if (!target || target.type !== "graveyard-card") return;
-                const { id, playerId } = target;
-                if (!playerId) return;
-                // CR 202.3 — snapshot the reanimation target's mana value while
-                // it is still in the graveyard, before `returnToBattlefield`
-                // moves it (the returned permanent's MV could differ).
-                const mv = ctx.getManaValue({
-                    type: "graveyard-card",
-                    id,
-                    playerId,
-                });
-                const moved = ctx.returnToBattlefield(
-                    playerId,
-                    id,
-                    "graveyard"
-                );
-                // CR 119.3b — "You lose life": the Delver's controller.
-                if (moved) ctx.loseLife(ctx.controller, mv);
-            },
+            effects: [
+                {
+                    op: "moveZone",
+                    target: { target: 0 },
+                    to: "battlefield",
+                    bind: "$delverReanimated",
+                },
+                {
+                    op: "loseLife",
+                    player: "controller",
+                    amount: { ref: "$delverReanimated.manaValue" },
+                },
+            ],
         }),
     ],
 };
@@ -866,16 +855,21 @@ export const phyrexianDelver: CardDefinition = {
 // a green creature, destroy that creature. It can't be regenerated." (CR
 // 509.1h becomes-blocked, CR 701.8 destroy, CR 701.15c regen suppression.)
 //
-// protocol card: (a) the trigger CONDITION itself depends on the blocker's
-// live color, which isn't carried on `BLOCKERS_CONFIRMED` — read via
-// `TriggerStateView.players[].battlefield[].colors` in `matches` so the
-// ability doesn't even go on the stack when blocked by a non-green creature
-// (CR 603.2); (b) `destroy`'s DSL Op has no `cantBeRegenerated` param (see
-// Annihilate above). `combatPairKillTrigger` doesn't fit — it destroys at
-// END of combat (a delayed trigger) and has no color filter; this is an
-// IMMEDIATE destroy, one direction only ("becomes blocked by", not "blocks
-// or becomes blocked by"), matching Lim-Dûl's Cohort's precedent of
-// declaring the BLOCKERS_CONFIRMED trigger directly (ice/black.ts).
+// The trigger CONDITION still depends on the blocker's live color, which
+// isn't carried on `BLOCKERS_CONFIRMED` — read via
+// `TriggerStateView.players[].battlefield[].colors` in `matches` (a plain
+// `TriggeredAbility` field, orthogonal to the effect body) so the ability
+// doesn't even go on the stack when blocked by a non-green creature (CR
+// 603.2). `combatPairKillTrigger` doesn't fit — it destroys at END of combat
+// (a delayed trigger) and has no color filter; this is an IMMEDIATE destroy,
+// one direction only ("becomes blocked by", not "blocks or becomes blocked
+// by"), matching Lim-Dûl's Cohort's precedent of declaring the
+// BLOCKERS_CONFIRMED trigger directly (ice/black.ts). The effect body itself
+// is now pure DSL (ADR 0049, issue #865): `BLOCKERS_CONFIRMED.blockerId` is a
+// censused `$event.<field>` row (mechanicsRegistry.ts EVENT_FIELD_REGISTRY),
+// so `destroy`'s `target` reads the blocking creature straight off the firing
+// event with no `resolve` needed; `cantBeRegenerated` is the same shipped
+// passthrough Annihilate uses above.
 export const phyrexianReaper: CardDefinition = {
     id: "ccdd498b-1081-43fe-8193-518337a5a3ea", // INV 117
     rarity: "common",
@@ -901,20 +895,21 @@ export const phyrexianReaper: CardDefinition = {
                     .find((p) => p.id === event.blockerId);
                 return blocker?.colors?.includes("G") ?? false;
             },
-            resolve: (ctx, event) => {
-                if (event.type !== "BLOCKERS_CONFIRMED") return;
-                ctx.destroy(
-                    { type: "permanent", id: event.blockerId },
-                    { cantBeRegenerated: true }
-                );
-            },
+            effects: [
+                {
+                    op: "destroy",
+                    target: { ref: "$event.blockerId" },
+                    cantBeRegenerated: true,
+                },
+            ],
         },
     ],
 };
 
 // Phyrexian Slayer — {3}{B} 2/2. "Flying. Whenever this creature becomes
 // blocked by a white creature, destroy that creature. It can't be
-// regenerated." (Same shape as Phyrexian Reaper above, filtered to white.)
+// regenerated." (Same shape as Phyrexian Reaper above, filtered to white —
+// same `$event.blockerId` DSL effect body, same live-color `matches` gate.)
 export const phyrexianSlayer: CardDefinition = {
     id: "5fa8c604-343f-4c94-ac25-439ab1845c19", // INV 118
     rarity: "common",
@@ -941,13 +936,13 @@ export const phyrexianSlayer: CardDefinition = {
                     .find((p) => p.id === event.blockerId);
                 return blocker?.colors?.includes("W") ?? false;
             },
-            resolve: (ctx, event) => {
-                if (event.type !== "BLOCKERS_CONFIRMED") return;
-                ctx.destroy(
-                    { type: "permanent", id: event.blockerId },
-                    { cantBeRegenerated: true }
-                );
-            },
+            effects: [
+                {
+                    op: "destroy",
+                    target: { ref: "$event.blockerId" },
+                    cantBeRegenerated: true,
+                },
+            ],
         },
     ],
 };
@@ -955,11 +950,12 @@ export const phyrexianSlayer: CardDefinition = {
 // Plague Spitter — {2}{B} 2/2. "At the beginning of your upkeep, this
 // creature deals 1 damage to each creature and each player. When this
 // creature dies, it deals 1 damage to each creature and each player." (CR
-// 603.6a upkeep, CR 120.3 damage, CR 700.4/603.2 dies.) The upkeep half is
-// the exact Pestilence `forEach` template (lea/black.ts). `diedTrigger`
-// requires a `resolve` callback (no `effects:` DSL support on that factory
-// yet), so the dies half is written imperatively but composes only the same
-// already-exercised `dealDamage` primitive in a loop.
+// 603.6a upkeep, CR 120.3 damage, CR 700.4/603.2 dies.) Both halves are the
+// exact Pestilence `forEach` template (lea/black.ts) — the dies half doesn't
+// read the dead creature's own LKI (it deals damage to every OTHER creature
+// and every player, not itself), so it composes fully now that `diedTrigger`
+// accepts `effects[]` (binds `ctx.controller`/`$source` only — sufficient
+// here since neither is referenced).
 export const plagueSpitter: CardDefinition = {
     id: "8845e6bd-40ee-45ca-a099-53f19ff20a8a", // INV 119
     rarity: "uncommon",
@@ -1008,16 +1004,30 @@ export const plagueSpitter: CardDefinition = {
             oracleText:
                 "When this creature dies, it deals 1 damage to each creature and each player.",
             scope: "self",
-            resolve: (ctx) => {
-                for (const pid of ctx.allPlayerIds) {
-                    for (const id of ctx.getBattlefieldIds(pid, {
-                        types: "Creature",
-                    })) {
-                        ctx.dealDamage({ type: "permanent", id }, 1);
-                    }
-                    ctx.dealDamage({ type: "player", id: pid }, 1);
-                }
-            },
+            effects: [
+                {
+                    op: "forEach",
+                    select: {
+                        set: "permanents",
+                        zone: "battlefield",
+                        filter: { type: "Creature" },
+                    },
+                    effects: [
+                        { op: "dealDamage", amount: 1, to: { ref: "$each" } },
+                    ],
+                },
+                {
+                    op: "forEach",
+                    select: { set: "players" },
+                    effects: [
+                        {
+                            op: "dealDamage",
+                            amount: 1,
+                            to: { player: { ref: "$each" } },
+                        },
+                    ],
+                },
+            ],
         }),
     ],
 };
@@ -1147,12 +1157,20 @@ export const soulBurnInv: CardPrint = {
 // regenerated." (CR 603.6a ETB — watching ANY creature, CR 701.8 destroy,
 // CR 701.15c regen suppression.)
 //
-// protocol card: needs the entering creature's live color, which isn't
-// carried on `PERMANENT_ENTERED` and can't be read from a script (an Effect
-// Script never sees the firing event — see the `reveal`/`moveZone` Op
-// registry notes); `destroy`'s DSL Op also has no `cantBeRegenerated` param
-// (see Annihilate above). Composes only already-shipped primitives:
-// `getColors`, `allPlayerIds`/`getBattlefieldIds`, `destroy`.
+// NOT DSL-migratable (ADR 0045): needs the entering creature's live color to
+// filter "destroy all OTHER creatures that share a color with it" — a
+// dynamic set-intersection test the `if` predicate grammar can't express
+// (only a boolean binding or a literal/ref/count numeric comparison, ADR
+// 0045's frozen four constructs) and no `forEach`/`filter` shape exists for
+// "shares a color with a live-computed object" either.
+// Blocked on: a "shares color with X" filter/predicate primitive (none
+// registered). `$event.<field>` (ADR 0049) doesn't unblock this either —
+// `PERMANENT_ENTERED`'s only censused field is `controllerId`
+// (mechanicsRegistry.ts EVENT_FIELD_REGISTRY), not the entering permanent's
+// instance id, so the entrant's colors still can't be read from a script.
+// Composes only already-shipped primitives: `getColors`,
+// `allPlayerIds`/`getBattlefieldIds`, `destroy` (incl. the now-shipped
+// `cantBeRegenerated` passthrough, see Annihilate above).
 export const spreadingPlague: CardDefinition = {
     id: "ac86055d-ce08-4b05-a92c-45e007ca0ba4", // INV 125
     rarity: "rare",
@@ -1231,11 +1249,15 @@ export const taintedWell: CardDefinition = {
 // color tied for most common. A creature destroyed this way can't be
 // regenerated." (CR 701.8 destroy, CR 701.15c regen suppression.)
 //
-// protocol card: the frozen `if` predicate (ADR 0045) is only a boolean
+// NOT DSL-migratable (ADR 0045): the frozen `if` predicate is only a boolean
 // binding or a numeric comparison — "shares a color with the board's
-// most-common-color set" is neither form, and `destroy`'s DSL Op has no
-// `cantBeRegenerated` param regardless (see Annihilate above). Composes
-// only already-shipped primitives via the shared `mostCommonColors` helper.
+// most-common-color set" (a dynamic set-intersection test against a
+// board-scan result) is neither form.
+// Blocked on: a "shares color with a computed color set" predicate
+// primitive (none registered) — same root cause as Spreading Plague above.
+// `destroy`'s `cantBeRegenerated` passthrough is already shipped (see
+// Annihilate above) and not itself a blocker. Composes only already-shipped
+// primitives via the shared `mostCommonColors` helper.
 export const tsabosAssassin: CardDefinition = {
     id: "0047302d-4e3d-4327-9bb2-ecd5b00b00e3", // INV 128
     rarity: "rare",

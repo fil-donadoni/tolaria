@@ -86,9 +86,8 @@ export const witherbloomCharm: CardDefinition = {
             id: "gain-life",
             label: "You gain 5 life.",
             oracleText: "You gain 5 life.",
-            resolve: (ctx) => {
-                ctx.gainLife(ctx.controller, 5);
-            },
+            // Migrated resolve()→effects[] (ADR 0045): trivial fixed life gain.
+            effects: [{ op: "gainLife", player: "controller", amount: 5 }],
         },
         {
             id: "destroy",
@@ -106,11 +105,8 @@ export const witherbloomCharm: CardDefinition = {
                 count: 1,
                 mvFilter: { max: 2 },
             },
-            resolve: (ctx) => {
-                const target = ctx.targets[0];
-                if (!target) return;
-                ctx.destroy(target);
-            },
+            // Migrated resolve()→effects[] (ADR 0045): destroy the announced target.
+            effects: [{ op: "destroy", target: { target: 0 } }],
         },
     ],
 };
@@ -133,11 +129,17 @@ export const silverquillCharm: CardDefinition = {
             label: "Put two +1/+1 counters on target creature.",
             oracleText: "Put two +1/+1 counters on target creature.",
             targetRequirement: { type: "Creature", count: 1 },
-            resolve: (ctx) => {
-                const target = ctx.targets[0];
-                if (!target) return;
-                ctx.addCounter(target, "+1/+1", 2);
-            },
+            // Migrated resolve()→effects[] (ADR 0045): fixed counters on the
+            // announced target (CR 122.1).
+            effects: [
+                {
+                    op: "counters",
+                    action: "add",
+                    counter: "+1/+1",
+                    target: { target: 0 },
+                    count: 2,
+                },
+            ],
         },
         {
             id: "exile",
@@ -148,23 +150,20 @@ export const silverquillCharm: CardDefinition = {
                 count: 1,
                 powerFilter: { max: 2 },
             },
-            resolve: (ctx) => {
-                const target = ctx.targets[0];
-                if (!target) return;
-                ctx.exile(target);
-            },
+            // Migrated resolve()→effects[] (ADR 0045): exile the announced target.
+            effects: [{ op: "exile", target: { target: 0 } }],
         },
         {
             id: "drain",
             label: "Each opponent loses 3 life and you gain 3 life.",
             oracleText: "Each opponent loses 3 life and you gain 3 life.",
-            resolve: (ctx) => {
-                const opponentId = ctx.allPlayerIds.find(
-                    (p) => p !== ctx.controller
-                );
-                if (opponentId) ctx.loseLife(opponentId, 3);
-                ctx.gainLife(ctx.controller, 3);
-            },
+            // Migrated resolve()→effects[] (ADR 0045): 2-player engine (CLAUDE.md
+            // "3+ player multiplayer" out of scope), so `"opponent"` IS "each
+            // opponent" — same idiom as mh2/black.ts.
+            effects: [
+                { op: "loseLife", player: "opponent", amount: 3 },
+                { op: "gainLife", player: "controller", amount: 3 },
+            ],
         },
     ],
 };
@@ -195,30 +194,32 @@ export const quandrixCharm: CardDefinition = {
             label: "Counter target spell unless its controller pays {2}.",
             oracleText: "Counter target spell unless its controller pays {2}.",
             targetRequirement: { type: "spell", count: 1 },
-            resolve: (ctx) => {
-                const target = ctx.targets[0];
-                if (!target || target.type !== "spell") return;
-                // CR 117.3a — the spell's controller decides whether to pay.
-                const controllerId = ctx.getController(target);
-                const paid = ctx.requestMayPay({
-                    playerId: controllerId,
-                    choiceId: `quandrix-charm-counter-${ctx.sourceInstanceId}`,
+            // Migrated resolve()→effects[] (ADR 0045): counter-unless-pay,
+            // the same mayPay + if(!$paid) + counter shape as Force Spike
+            // (leg/blue.ts).
+            effects: [
+                {
+                    op: "mayPay",
+                    // CR 117.3a — the spell's controller decides whether to pay.
+                    player: { controllerOf: { target: 0 } },
                     cost: { X: 2 },
                     prompt: "Pay {2} to prevent your spell from being countered?",
-                });
-                if (paid === undefined) return; // suspended for the decision
-                if (!paid) ctx.counter(target);
-            },
+                    bind: "$paid",
+                },
+                {
+                    op: "if",
+                    predicate: { not: { binding: "$paid" } },
+                    then: [{ op: "counter", target: { target: 0 } }],
+                },
+            ],
         },
         {
             id: "destroy-enchantment",
             label: "Destroy target enchantment.",
             oracleText: "Destroy target enchantment.",
             targetRequirement: { type: "Enchantment", count: 1 },
-            resolve: (ctx) => {
-                const target = ctx.targets[0];
-                if (target) ctx.destroy(target);
-            },
+            // Migrated resolve()→effects[] (ADR 0045): destroy the announced target.
+            effects: [{ op: "destroy", target: { target: 0 } }],
         },
         {
             id: "set-pt",
@@ -226,6 +227,12 @@ export const quandrixCharm: CardDefinition = {
             oracleText:
                 "Target creature has base power and toughness 5/5 until end of turn.",
             targetRequirement: { type: "Creature", count: 1 },
+            // NOT DSL-migratable (ADR 0045): "has base power and toughness N/N
+            // until end of turn" (CR 613.4b layer 7b, a timestamped base-P/T
+            // set) has no registered Effect Script Op — `pump` is a relative
+            // layer-7c modifier, not a layer-7b base-P/T set, and there is no
+            // `setBasePT` Op wrapping `SpellContext.setBasePT`. Blocked on:
+            // missing Op (layer-7b base-P/T set), not a value/target gap.
             resolve: (ctx) => {
                 const target = ctx.targets[0];
                 if (!target) return;
