@@ -90,14 +90,6 @@ interface AllowlistEntry {
 // comment for the full reasoning; this table is the enforcement mirror.
 const DRAW_PRIMITIVE_ALLOWLIST: readonly AllowlistEntry[] = [
     {
-        file: "atq/red.ts",
-        count: 1,
-        cards: "Goblin Artisans",
-        reason: "the coinFlip Op's requestCoinFlip primitive always suspends on a random-reveal ack, unlike this card's synchronous ctx.flipCoin() -- migrating would change the test's resolution shape.",
-        classification: "planned-migratable",
-        issue: 1281,
-    },
-    {
         file: "drk/white.ts",
         count: 1,
         cards: "Martyr's Cry",
