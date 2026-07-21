@@ -929,14 +929,11 @@ export const slimyKavu: CardDefinition = {
 };
 
 // Stun — {1}{R} Instant. "Target creature can't block this turn. Draw a
-// card." (CR 509.1b block restriction on an ANNOUNCED target.
-// NOT DSL-migratable (ADR 0045), re-assessed for #1264: the earlier "no
-// Effect Script Op wraps setCantBlockThisTurn" reasoning is STALE — the
-// `restrictCombat` Op now covers this shape (Panic, `ice/red.ts`, migrated
-// onto it). The real remaining blocker: this card has no per-card behavior
-// test today, so it's ineligible for an AFK migration (no green-before
-// baseline to prove equivalence). tracked-by: #1285 — add a test, then
-// migrate to `effects: [{ op: "restrictCombat", ... }]`.)
+// card." Migrated resolve()→effects[] (ADR 0045, issue #1285): "can't block"
+// via the ADR 0053 `restrictCombat` Op (CR 509.1b block restriction on an
+// ANNOUNCED target, `restriction: "cant-block"`, same shape Panic uses in
+// `ice/red.ts`), then an immediate `draw` (unlike Panic's delayed
+// next-upkeep cantrip, Stun's draw fires right away as part of resolution).
 export const stun: CardDefinition = {
     id: "d22f3ae8-a40b-4dab-abf4-3ab7b05191f7",
     rarity: "common",
@@ -945,11 +942,14 @@ export const stun: CardDefinition = {
     manaCost: { X: 1, R: 1 },
     types: ["Instant"],
     targetRequirement: { type: "Creature", count: 1 },
-    resolve: (ctx: SpellContext) => {
-        const t = ctx.targets[0];
-        if (t?.type === "permanent") ctx.setCantBlockThisTurn(t);
-        ctx.drawCards(ctx.controller, 1);
-    },
+    effects: [
+        {
+            op: "restrictCombat",
+            restriction: "cant-block",
+            target: { target: 0 },
+        },
+        { op: "draw", player: "controller", count: 1 },
+    ],
 };
 
 // Tectonic Instability — {2}{R} Enchantment. "Whenever a land enters, tap
