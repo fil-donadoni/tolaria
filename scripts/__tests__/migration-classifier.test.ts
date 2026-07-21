@@ -1092,21 +1092,19 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // 661→660 (−1), FREE 430→429 (−1), AFK-ready 397→396 (−1, it had a
         // per-card test). X-only and Op-blocked unchanged. Partition:
         // 429+14+217=660.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(662);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(431);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(397);
         //
         // 2026-07-21 lookRandomHand Op ships (Urza's Bauble private hand look,
-        // CR 701.18a): `lookRandomHandCard` / `notifyReveal` become Covered Ops,
-        // reclassifying ONE previously Op-blocked closure (a private
-        // random-hand look) as migratable — total unchanged at 662, FREE
-        // 431→432 (+1), AFK-ready 397→398 (+1, it has a per-card test),
-        // Op-blocked 217→216 (−1). X-only unchanged. Partition: 432+14+216=662.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(662);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(432);
+        // CR 701.18a): `lookRandomHandCard` / `notifyReveal` join the Covered
+        // Ops, reclassifying a previously Op-blocked private-random-hand-look
+        // closure as FREE. Measured census after this Op AND the concurrent
+        // #1281 (coinFlip) / #1282 (Bazaar) / #1285 (Stun) migrations logged
+        // above: total 659, FREE 431, AFK-ready 398, X-only 14, Op-blocked
+        // 214. Partition: 431+14+214=659.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(659);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(431);
         expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(398);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(216);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(214);
     });
 
     it("surfaces the demonstrated new-Op backlog (a covered primitive leaves it)", () => {
