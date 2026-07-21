@@ -64,9 +64,7 @@ Non si vedono da nessuna parte gli emblemi (Sorin, per esempio, anche se il +1/+
 
 Le creature distrutte dall'ultimate di Sorin, Lord of Innistrad non tornano sul battlefield, rimangono nel cimitero.
 
-Il may cast di Malcolm è solo nel momento della risoluzione dell'abilità, non nel resto del turno. verifica sul CR.
-
-Urza's Bauble: quando risolve l'abilità non viene mostrata nessuna carta e non rimane nemmeno visibile dalla mano successivamente.
+Il may cast di Malcolm è solo nel momento della risoluzione dell'abilità, non nel resto del turno. verifica sul CR./
 
 Nuova UI:
 lo stack non mostra le frecce che attraversano il board tra carta/abilità in stack e bersagli. il badge con scritto il bersaglio non è assolutamente utile.

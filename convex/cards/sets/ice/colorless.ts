@@ -2315,12 +2315,14 @@ export const snowCoveredForest: CardDefinition = {
 // Urza's Bauble — {0} Artifact (Vintage Cube card-advantage tranche, issue
 // #674). "{T}, Sacrifice this artifact: Look at a card at random in target
 // player's hand. You draw a card at the beginning of the next turn's upkeep."
-// The "look at a random card" clause is hidden information shown only to the
-// activator and changes no game state, so it is not modelled (CR 701.18 look);
-// the card-advantage core is the next-upkeep cantrip, reusing the shared ICE
-// `nextUpkeepDrawTrigger` rider (CR 603.7d delayed triggered ability). The
-// ability resolves on the stack (it is not a mana ability), schedules the
-// delayed draw, and the source is sacrificed as a cost.
+// The private "look at a random card" clause (CR 701.18a) is modelled by the
+// `lookRandomHand` Op: a seeded-PRNG pick from the targeted player's hand is
+// stamped known to the activator alone and shown in a transient look dialog
+// (the activator sees the real card on the wire; every other player still
+// sees a nulled slot). The card-advantage core is the next-upkeep cantrip, a
+// `delayedTrigger` Op (CR 603.7d delayed triggered ability). The ability
+// resolves on the stack (it is not a mana ability), and the source is
+// sacrificed as a cost.
 export const urzasBauble: CardDefinition = {
     id: "58c9e9a7-e170-4361-b7d5-22fc0771c489",
     name: "Urza's Bauble",
@@ -2337,12 +2339,14 @@ export const urzasBauble: CardDefinition = {
             cost: { tap: true, sacrifice: true },
             useStack: true,
             targetRequirement: { type: "player", count: 1 },
-            // Effect Script (ADR 0045/0048, migrated in #838): the
-            // next-upkeep cantrip is a `delayedTrigger` Op with an inline
-            // body (CR 603.7d) — the private look at a random hand card is
-            // not modelled (no game state change). "controller" resolves to
-            // the delayed trigger's controller (the activator, CR 113.7).
+            // Effect Script (ADR 0045/0048): first the private look at a
+            // random card in the targeted player's hand (`lookRandomHand`,
+            // CR 701.18a — the looker defaults to the resolving controller),
+            // then the next-upkeep cantrip as a `delayedTrigger` Op with an
+            // inline body (CR 603.7d, migrated in #838). "controller" resolves
+            // to the delayed trigger's controller (the activator, CR 113.7).
             effects: [
+                { op: "lookRandomHand", player: { target: 0 } },
                 {
                     op: "delayedTrigger",
                     timing: "next-upkeep",

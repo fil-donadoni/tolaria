@@ -399,9 +399,7 @@ const getEnergy: Valuer<"getEnergy"> = (op, ctx) => {
 
 const grantAbility: Valuer<"grantAbility"> = (op) => ({
     points: GRANT_ABILITY_VALUE,
-    tags: isAnnouncedTarget(op.target)
-        ? ["evasion", "targeted"]
-        : ["evasion"],
+    tags: isAnnouncedTarget(op.target) ? ["evasion", "targeted"] : ["evasion"],
 });
 
 const grantCastFromExile: Valuer<"grantCastFromExile"> = () => ({
@@ -480,6 +478,9 @@ const restrictCombat: Valuer<"restrictCombat"> = (op) => ({
 });
 
 const reveal: Valuer<"reveal"> = () => ZERO_OP_VALUE;
+
+// A private look at a random hand card grants information, no board material.
+const lookRandomHand: Valuer<"lookRandomHand"> = () => ZERO_OP_VALUE;
 
 const scryReorder: Valuer<"scryReorder"> = (op, ctx) => {
     const { amount, scaling } = ctx.value(op.count);
@@ -568,6 +569,7 @@ export const OP_VALUERS: {
     restrictCasting,
     restrictCombat,
     reveal,
+    lookRandomHand,
     scryReorder,
     setColor,
     setSubtype,

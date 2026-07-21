@@ -28,7 +28,7 @@ Both must be covered (CR-full, both paths).
 ## Non-goals
 
 - No change to which **sources** auto-tap selects (`solveSmartAutoTap` unchanged).
-- No prompt for the *color a source produces at tap time* — that already exists
+- No prompt for the _color a source produces at tap time_ — that already exists
   (`manaTapNeedsChoice` / `resolveManaTapChoice`, `convex/game.ts:860-881`).
 - No prompt for trivial choices (see auto-resolve rule below). Arena-style UX:
   auto-resolve when there is no real decision.
@@ -39,14 +39,14 @@ Both must be covered (CR-full, both paths).
 
 **`genericSpendAmbiguity(pool, cost): null | { generic: number; candidateColors: string[] }`**
 
-Deterministic from `(pool, cost)`. Computed *after* mandatory colored/colorless
+Deterministic from `(pool, cost)`. Computed _after_ mandatory colored/colorless
 requirements are satisfied (so `pool` reflects what remains for the generic
 portion, and `generic` is the outstanding generic amount). Returns non-null only
 when **both**:
 
 - the generic amount can be drawn from ≥2 distinct colors present in the pool, **and**
 - at least two distinct choices leave a **different set of remaining colors**
-  (the *leftover-set-differs* rule).
+  (the _leftover-set-differs_ rule).
 
 Trivial cases return `null` → silent auto-pick. Examples:
 
@@ -67,14 +67,14 @@ that order.
 
 Payment finalizes inside the already-resumable park objects `pendingCast`
 (`state.ts:2394`, spells) and `pendingActivation` (`state.ts:2397`, abilities).
-This mirrors the existing sacrifice mechanism, which rides *inside* `pendingCast`
+This mirrors the existing sacrifice mechanism, which rides _inside_ `pendingCast`
 as `castSac` via `parkForSacrifice` (`convex/game.ts:4551`).
 
 At the finalize point — after auto-tap has floated mana and colored requirements
 are paid — call `genericSpendAmbiguity`:
 
 - **Ambiguous, no order supplied** → stash `manaSpendChoice = { generic,
-  candidateColors }` inside the parked `pendingCast` / `pendingActivation`.
+candidateColors }` inside the parked `pendingCast` / `pendingActivation`.
   Return stable state; the prompt is shown. No stack commit.
 - **New mutation `resolveManaSpendChoice(gameId, spendOrder)`** — validates
   `spendOrder` (a multiset that is ⊆ pool, sums to `generic`, every element in
@@ -100,7 +100,7 @@ disposable mana first). Deterministic; unit-tested.
 
 - **Reducer** `buildTriggerStateView` (`src/lib/card-utils.ts:744`) must carry the
   parked `manaSpendChoice` through to the client. A SURFACE test drives the
-  assertion *through* the reducer (a hand-built view masks a dropped field).
+  assertion _through_ the reducer (a hand-built view masks a dropped field).
 - **Wire** `projectPublicState` preserves `pendingCast.manaSpendChoice`;
   wire-format test.
 - **Prompt UI** — mana-spend choice renders like the existing `PendingChoicePrompt`
@@ -123,16 +123,16 @@ approach avoids that.)
 
 ## Testing (e2e-mandatory, GRE → game.ts → UI)
 
-| Layer | Test |
-|---|---|
-| GRE | `genericSpendAmbiguity` truth table (trivial → null; real → candidates) |
-| GRE | `payManaCost` honors `genericSpendOrder` |
-| GRE | park + resume for **both** paths (manual float + auto-tap) via finalize / `resolveTopOfStack` |
-| Backend | `resolveManaSpendChoice` validates order; rejects a bad multiset (wrong sum, non-candidate color, exceeds pool) |
-| Wire | `projectPublicState` carries `manaSpendChoice` |
-| Bot | flexibility heuristic returns the deterministic expected order |
-| Frontend | reducer carries `manaSpendChoice`; clickable-mana affordance; prompt label entry (no raw fallback string) |
-| Serialize | round-trip `pendingCast.manaSpendChoice` |
+| Layer     | Test                                                                                                            |
+| --------- | --------------------------------------------------------------------------------------------------------------- |
+| GRE       | `genericSpendAmbiguity` truth table (trivial → null; real → candidates)                                         |
+| GRE       | `payManaCost` honors `genericSpendOrder`                                                                        |
+| GRE       | park + resume for **both** paths (manual float + auto-tap) via finalize / `resolveTopOfStack`                   |
+| Backend   | `resolveManaSpendChoice` validates order; rejects a bad multiset (wrong sum, non-candidate color, exceeds pool) |
+| Wire      | `projectPublicState` carries `manaSpendChoice`                                                                  |
+| Bot       | flexibility heuristic returns the deterministic expected order                                                  |
+| Frontend  | reducer carries `manaSpendChoice`; clickable-mana affordance; prompt label entry (no raw fallback string)       |
+| Serialize | round-trip `pendingCast.manaSpendChoice`                                                                        |
 
 ## Preset scenario
 

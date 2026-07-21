@@ -1301,6 +1301,99 @@ describe("Effect Script Op: draw (CR 121.1)", () => {
     });
 });
 
+// New-Op permanent test (Urza's Bauble): the private "look at a card at random
+// in target player's hand" Op (CR 701.18a). Interpreter unit path + the
+// mandatory wire-format assertion — a private look grants knowledge to the
+// looker ALONE, and BOTH the `knownTo` grant and the reveal dialog must survive
+// (and stay scoped) through `projectPublicState`.
+describe("Effect Script Op: lookRandomHand (CR 701.18a look, Urza's Bauble)", () => {
+    const lookScript = () =>
+        registerScript(
+            "test-op-lookrandomhand",
+            [{ op: "lookRandomHand", player: { target: 0 } }],
+            { targetRequirement: { type: "player", count: 1 } }
+        );
+
+    it("grants PRIVATE knowledge of the picked card to the looker alone + enqueues a look dialog", () => {
+        const id = lookScript();
+        const secret = makeInstance(BLACK_CARD_ID, {
+            id: "p2-secret",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2", { hand: [secret] })],
+        });
+        pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        // CR 701.18a — the looker (controller p1) knows the card; nobody else.
+        expect(state.players[1].hand[0].knownTo).toEqual(["p1"]);
+        // The transient look dialog is addressed to the looker alone.
+        expect(state.pendingReveals).toHaveLength(1);
+        expect(state.pendingReveals![0]).toMatchObject({
+            audience: ["p1"],
+            kind: "look",
+            cards: [{ instanceId: "p2-secret", cardId: BLACK_CARD_ID }],
+        });
+    });
+
+    it("the private look survives projection but never leaks to the other seat (wire format)", () => {
+        const id = lookScript();
+        const secret = makeInstance(BLACK_CARD_ID, {
+            id: "p2-secret",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2", { hand: [secret] })],
+        });
+        pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        // The looker sees the real card in the opponent's (p2's) hand and the
+        // look dialog crosses the wire.
+        const forLooker = projectPublicState(state, 1, "p1");
+        expect(forLooker.players[1].hand[0]?.card.id).toBe(BLACK_CARD_ID);
+        expect(forLooker.pendingReveals).toHaveLength(1);
+        // The other seat (p2) sees no look dialog — a private look must not leak.
+        const forOther = projectPublicState(state, 1, "p2");
+        expect(forOther.pendingReveals ?? []).toHaveLength(0);
+    });
+
+    it("picks exactly one card from a multi-card hand; the rest stay hidden", () => {
+        const id = lookScript();
+        const hand = [0, 1, 2].map((i) =>
+            makeInstance(BLACK_CARD_ID, {
+                id: `p2-h${i}`,
+                controllerId: "p2",
+                ownerId: "p2",
+                zone: "hand",
+            })
+        );
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2", { hand })],
+        });
+        pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        const known = state.players[1].hand.filter((c) =>
+            c.knownTo?.includes("p1")
+        );
+        expect(known).toHaveLength(1);
+        expect(state.pendingReveals).toHaveLength(1);
+    });
+
+    it("is a no-op on an empty hand (CR 608.2b)", () => {
+        const id = lookScript();
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2", { hand: [] })],
+        });
+        pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]);
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+        expect(state.pendingReveals ?? []).toHaveLength(0);
+    });
+});
+
 // issue #985 — the `count` value construct generalized with a `name` filter
 // (CR 201.2) and an `acrossAllPlayers` scope (CR 122 "in all graveyards"),
 // consumed by `draw` for a dynamic count (Accumulated Knowledge). This is the

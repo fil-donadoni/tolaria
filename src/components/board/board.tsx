@@ -65,6 +65,7 @@ import PileDivisionPicker from "./pile-division/pile-division-picker";
 import { resolvePileDivisionCards } from "~/lib/pile-division";
 import HandCardPick from "./hand-card-pick";
 import RevealHandView from "./reveal-hand-view";
+import RevealNotificationOverlay from "./reveal-notification-overlay";
 import PutBackPicker from "./put-back-picker";
 import MinimizedChoiceIndicator from "./minimized-choice-indicator";
 import MulliganPrompt from "./mulligan-prompt";
@@ -369,6 +370,7 @@ export default function Board({
                 emblems: state.emblems,
                 phasedOutCards,
                 monarchId: state.monarchId,
+                pendingReveals: state.pendingReveals,
                 recentArrivals,
                 showAllCards,
                 debugAllActions,
@@ -764,6 +766,7 @@ export default function Board({
                                     )}
                                 <HandCardPick />
                                 <RevealHandView />
+                                <RevealNotificationOverlay />
                                 <PutBackPicker />
 
                                 {mulligan && !mulligan.bottoming && (

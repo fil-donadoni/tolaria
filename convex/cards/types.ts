@@ -3215,6 +3215,21 @@ export interface SpellContext {
      *  random from your hand"). */
     revealRandomHandCard: (playerId: string) => string | undefined;
 
+    /** Private sibling of `revealRandomHandCard` (CR 701.18a look, NOT CR
+     *  701.20 reveal — Urza's Bauble): picks a card at random from `ownerId`'s
+     *  hand via the game's seeded PRNG (deterministic on replay, like
+     *  `flipCoin` / `discardCardsAtRandom`) and stamps it known to `knowerId`
+     *  ALONE (`grantKnowledge`), so the looker sees the real card on the wire
+     *  while every other player still sees a nulled slot. Returns the
+     *  looked-at instance id, or undefined when the hand is empty (CR 608.2b).
+     *  MUST be called only in the final, non-suspending segment of a
+     *  resolution (draw the random bit exactly once). Used by the
+     *  `lookRandomHand` Op. */
+    lookRandomHandCard: (
+        ownerId: string,
+        knowerId: string
+    ) => string | undefined;
+
     /** Reads back an answer collected by an EARLIER resolution step of the same
      *  stack item (CR 608.2 stepped resolution). `requestChoice` /
      *  `requestMayPay` key their answers under `${step}:${choiceId}`, so a later
@@ -8351,6 +8366,18 @@ export type EffectOp =
      *  broader "reveal" note, `mechanicsRegistry.ts`). */
     | { op: "reveal"; player: EffectPlayerRef; zone: "hand" }
     | { op: "reveal"; player: EffectPlayerRef; cards: EffectRef }
+    /** CR 701.18a look (Urza's Bauble) — "Look at a card at random in
+     *  `player`'s hand", a PRIVATE look shown only to `looker` (default the
+     *  resolving controller, CR 113.7). Distinct from the public `reveal` Op
+     *  (CR 701.20, every player): the seeded-PRNG-picked card is stamped known
+     *  to the looker ALONE (`SpellContext.markKnown`) and a transient look
+     *  dialog is enqueued for the looker (`notifyReveal` kind "look"). Empty
+     *  hand → no-op (CR 608.2b). */
+    | {
+          op: "lookRandomHand";
+          player: EffectPlayerRef;
+          looker?: EffectPlayerRef;
+      }
     /** CR 201.3 / 202.3 (issue #1085) — "chooses a card name" as part of
      *  resolution. A thin declarative skin over the single SpellContext
      *  primitive `requestNameCard`, one execution path (ADR 0045): SUSPENDS

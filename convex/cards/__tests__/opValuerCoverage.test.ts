@@ -24,10 +24,7 @@
 // ─────────────────────────────────────────────────────────────────────────
 
 import { describe, it, expect } from "vitest";
-import {
-    EFFECT_OP_REGISTRY,
-    isRegisteredEffectOp,
-} from "../mechanicsRegistry";
+import { EFFECT_OP_REGISTRY, isRegisteredEffectOp } from "../mechanicsRegistry";
 import {
     OP_VALUERS,
     STRUCTURAL_CONSTRUCTS,
@@ -85,7 +82,9 @@ describe("OP_VALUERS coverage guard (PRD #1423, issue #1426)", () => {
     it("the backfill allowlist is sorted and free of duplicates (append-only hygiene)", () => {
         const sorted = [...OP_VALUER_BACKFILL].sort();
         expect(OP_VALUER_BACKFILL).toEqual(sorted);
-        expect(new Set(OP_VALUER_BACKFILL).size).toBe(OP_VALUER_BACKFILL.length);
+        expect(new Set(OP_VALUER_BACKFILL).size).toBe(
+            OP_VALUER_BACKFILL.length
+        );
     });
 
     it("the valued + structural + backfill sets exactly partition the implemented Ops", () => {

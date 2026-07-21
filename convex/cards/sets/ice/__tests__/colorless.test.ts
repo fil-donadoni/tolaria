@@ -3487,9 +3487,10 @@ describe("Pox (proportional mass loss/sacrifice/discard, CR 107.2 round-up)", ()
     });
 });
 
-// Urza's Bauble — {T}, Sacrifice: look (informational) + next-upkeep cantrip
-// (issue #674, CR 603.7d delayed triggered ability).
-describe("Urza's Bauble (next-upkeep cantrip, CR 603.7d)", () => {
+// Urza's Bauble — {T}, Sacrifice: private look at a random card in the target's
+// hand (CR 701.18a, `lookRandomHand` Op) + next-upkeep cantrip (issue #674,
+// CR 603.7d delayed triggered ability).
+describe("Urza's Bauble (private hand look + next-upkeep cantrip, CR 603.7d)", () => {
     it("is a {0} artifact with a tap+sacrifice ability targeting a player", () => {
         expect(urzasBauble.manaCost).toEqual({});
         expect(urzasBauble.types).toEqual(["Artifact"]);
@@ -3535,6 +3536,41 @@ describe("Urza's Bauble (next-upkeep cantrip, CR 603.7d)", () => {
         enterUpkeepAndFire(state, "p1");
         resolveTopOfStack(state);
         expect(state.players[0].hand.map((c) => c.id)).toContain("a");
+    });
+
+    it("privately looks at a random card in the target player's hand (CR 701.18a)", () => {
+        const bauble = makeInstance(urzasBauble.id, {
+            id: "bauble",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const secret = makeInstance(balduvianBears.id, {
+            id: "p2-secret",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bauble] }),
+                makePlayer("p2", { hand: [secret] }),
+            ],
+        });
+        resolveActivated(state, bauble, "urzas-bauble-look-draw", [
+            { type: "player", id: "p2" },
+        ]);
+        // The activator (p1) alone learns the looked-at card…
+        expect(state.players[1].hand[0].knownTo).toEqual(["p1"]);
+        // …and a private look dialog is enqueued for p1 only.
+        expect(state.pendingReveals).toHaveLength(1);
+        expect(state.pendingReveals![0]).toMatchObject({
+            audience: ["p1"],
+            kind: "look",
+            cards: [{ instanceId: "p2-secret" }],
+        });
+        // Wire: the private look never leaks to the opponent's seat.
+        const forOther = projectPublicState(state, 1, "p2");
+        expect(forOther.pendingReveals ?? []).toHaveLength(0);
     });
 });
 

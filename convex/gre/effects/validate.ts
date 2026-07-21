@@ -2038,6 +2038,13 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             return [];
         },
     },
+    // CR 701.18a look (Urza's Bauble) — private "look at a card at random in
+    // `player`'s hand". `looker` (optional) names the private looker; defaults
+    // to the resolving controller (CR 113.7).
+    lookRandomHand: {
+        required: { player: isPlayerRef },
+        optional: { looker: isPlayerRef },
+    },
     // CR 608.2 / 101.4 (issue #805) — mid-resolution choice through the
     // existing Pending Choice pipeline. `bind` is REQUIRED: a choice whose
     // picks nothing consumes is meaningless. `filter` is valid with any zone:

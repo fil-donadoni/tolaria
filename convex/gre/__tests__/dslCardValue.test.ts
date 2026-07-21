@@ -11,7 +11,11 @@
 // never off the fat `card.card` blob the projection strips.
 
 import { describe, it, expect } from "vitest";
-import { makePlayer, makeState, makeInstance } from "../../cards/__tests__/setup";
+import {
+    makePlayer,
+    makeState,
+    makeInstance,
+} from "../../cards/__tests__/setup";
 import { cardValueById, latentValue } from "../cardValue";
 import { projectPublicState } from "../../gameProjections";
 
@@ -95,10 +99,7 @@ describe("cardValue wire-format (issue #1426, client-read via bot-view)", () => 
             zone: "hand",
         });
         const state = makeState({
-            players: [
-                makePlayer("p1", { hand: [bolt] }),
-                makePlayer("p2"),
-            ],
+            players: [makePlayer("p1", { hand: [bolt] }), makePlayer("p2")],
         });
 
         // Server-side (fat state): the burn is worth its DSL value.

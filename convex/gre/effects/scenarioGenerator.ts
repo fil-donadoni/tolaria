@@ -503,6 +503,14 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // exhaustiveness (a reveal-only script would hit this branch).
             req.skip ??= `Op "reveal" changes card visibility (knownTo) — not a state change the canned generator asserts`;
             return;
+        case "lookRandomHand":
+            // `lookRandomHand` (Urza's Bauble) grants PRIVATE knowledge of a
+            // random hand card to the looker — an information-visibility change
+            // (like `reveal`), not a battlefield/life/hand-count outcome the
+            // canned generator's assertions model. Explicit skip for
+            // exhaustiveness; execution coverage is the Op's interpreter tests.
+            req.skip ??= `Op "lookRandomHand" changes card visibility (knownTo) — not a state change the canned generator asserts`;
+            return;
         case "mayPay":
             // A `mayPay` Op suspends resolution for a live Pay/Skip decision
             // (issue #806) — a canned scenario cannot submit an answer, so the
@@ -1354,6 +1362,12 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     // check the canned generator asserts). Kept for the 1:1 coverage guard;
     // execution coverage is the card's own tests.
     reveal() {
+        return null;
+    },
+    // `lookRandomHand` (Urza's Bauble) — never reached: `analyseOp` skips every
+    // script containing it (a private-visibility change, not an asserted state
+    // check). Kept for the 1:1 coverage guard; coverage is the Op's own tests.
+    lookRandomHand() {
         return null;
     },
     // `mayPay` (issue #806) — never reached: `analyseOp` skips every script
