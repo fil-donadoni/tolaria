@@ -318,6 +318,12 @@ export const creatureBond: CardDefinition = {
     types: ["Enchantment"],
     subtypes: ["Aura"],
     targetRequirement: { type: "Creature", count: 1 },
+    // NOT DSL-migratable (ADR 0045): the `diedTrigger` factory has no
+    // `effects[]` dispatch — its `resolve` field is required, unlike
+    // `stateTrigger`/`phaseTrigger` which already accept `effects`.
+    // Blocked on: adding `effects?: EffectOp[]` support to
+    // `convex/cards/abilities/triggers/diedTrigger.ts` (out of scope for a
+    // file-scoped migration of convex/cards/sets/lea/blue.ts).
     triggeredAbilities: [
         diedTrigger({
             id: "creature-bond-death",
@@ -350,6 +356,16 @@ export const feedback: CardDefinition = {
     types: ["Enchantment"],
     subtypes: ["Aura"],
     targetRequirement: { type: "Enchantment", count: 1 },
+    // NOT DSL-migratable (ADR 0045): the damage target is "that player" =
+    // enchanted enchantment's CONTROLLER, re-derived at RESOLVE time (control
+    // can change between trigger-fire and resolution). `phaseTrigger`'s
+    // `effects[]` dispatch has no player-ref construct for "current
+    // controller of this aura's host" — only `"controller"` (the aura's own
+    // controller) / `"opponent"` / an announced `{ target }` / `{
+    // controllerOf: { target } }`, none of which reach `source.attachedTo`.
+    // Blocked on: a new `EffectPlayerRef` value construct exposing the
+    // aura-host's controller re-read live (e.g. `{ controllerOf: "$host" }`
+    // or a `{ ref: "$source.attachedTo.controller" }` shape).
     triggeredAbilities: [
         phaseTrigger({
             id: "feedback-upkeep",
@@ -443,6 +459,12 @@ export const lifetap: CardDefinition = {
         "Whenever a Forest an opponent controls becomes tapped, you gain 1 life.",
     manaCost: { U: 2 },
     types: ["Enchantment"],
+    // NOT DSL-migratable (ADR 0045): the `tappedTrigger` factory has no
+    // `effects[]` dispatch — its `resolve` field is required, unlike
+    // `stateTrigger`/`phaseTrigger` which already accept `effects`.
+    // Blocked on: adding `effects?: EffectOp[]` support to
+    // `convex/cards/abilities/triggers/tappedTrigger.ts` (out of scope for a
+    // file-scoped migration of convex/cards/sets/lea/blue.ts).
     triggeredAbilities: [
         tappedTrigger({
             id: "lifetap-gain",
@@ -735,7 +757,12 @@ export const pirateShip: CardDefinition = {
                     c.subtypes.includes("Island")
                 );
             },
-            resolve: (ctx) => ctx.sacrifice(ctx.sourceInstanceId),
+            // Migrated resolve()→effects[] (ADR 0045): sacrifice this
+            // permanent (CR 701.21). `{ ref: "$source" }` is the interpreter's
+            // standard binding for the triggered ability's own source,
+            // regardless of which factory built the ability (see the same
+            // shape at arn/blue.ts `sacrificeSelfWhen`).
+            effects: [{ op: "sacrifice", target: { ref: "$source" } }],
         }),
     ],
 };
@@ -768,6 +795,16 @@ export const powerLeak: CardDefinition = {
     types: ["Enchantment"],
     subtypes: ["Aura"],
     targetRequirement: { type: "Enchantment", count: 1 },
+    // NOT DSL-migratable (ADR 0045): same host-controller blocker as
+    // Feedback above — "that player" (the damage target AND the mayPay
+    // payer) is enchanted enchantment's controller, re-derived at RESOLVE
+    // time, which the `effects[]` player-ref grammar cannot express (no
+    // construct reaches `source.attachedTo`'s live controller). The
+    // sequential-mayPay/partial-prevention shape itself (two independent {1}
+    // may-pays, each preventing one point) is otherwise expressible via
+    // `mayPay` + `if`, but is moot while the player-ref gap stands.
+    // Blocked on: the same `EffectPlayerRef` value construct noted on
+    // Feedback.
     triggeredAbilities: [
         phaseTrigger({
             id: "power-leak-upkeep",
@@ -894,6 +931,16 @@ export const psychicVenom: CardDefinition = {
     types: ["Enchantment"],
     subtypes: ["Aura"],
     targetRequirement: { type: "Land", count: 1 },
+    // NOT DSL-migratable (ADR 0045): the `tappedTrigger` factory has no
+    // `effects[]` dispatch — its `resolve` field is required, unlike
+    // `stateTrigger`/`phaseTrigger` which already accept `effects`.
+    // Blocked on: adding `effects?: EffectOp[]` support to
+    // `convex/cards/abilities/triggers/tappedTrigger.ts` (out of scope for a
+    // file-scoped migration of convex/cards/sets/lea/blue.ts). Even with that
+    // support, the damage target ("that land's controller") has the same
+    // host-controller player-ref gap noted on Feedback/Power Leak above —
+    // though here it's read off the tapped-event payload rather than
+    // re-derived at resolve time, so it may be easier to close first.
     triggeredAbilities: [
         // No `host` scope in the shared vocabulary (see ADR 0002) — the aura
         // identifies its host via `self.attachedTo`, so `scope: "any"` with a
@@ -963,9 +1010,9 @@ export const seaSerpent: CardDefinition = {
                     c.subtypes.includes("Island")
                 );
             },
-            resolve: (ctx) => {
-                ctx.sacrifice(ctx.sourceInstanceId);
-            },
+            // Migrated resolve()→effects[] (ADR 0045): sacrifice this
+            // permanent (CR 701.21), same shape as Pirate Ship above.
+            effects: [{ op: "sacrifice", target: { ref: "$source" } }],
         }),
     ],
 };
@@ -985,6 +1032,14 @@ export const sirensCall: CardDefinition = {
     types: ["Instant"],
     castTurnRestriction: "opponent",
     castPhaseRestriction: ["UNTAP", "UPKEEP", "DRAW", "PRECOMBAT_MAIN"],
+    // NOT DSL-migratable (ADR 0045): "Creatures the active player controls
+    // attack this turn if able" has no registered Op — `SpellContext
+    // .setAllCreaturesMustAttack` (the forced-attack primitive) is not
+    // wrapped by any EffectOp in EFFECT_OP_REGISTRY. The `scheduleDelayed
+    // Trigger` half IS a registered Op (`delayedTrigger`), but the whole
+    // card is blocked on the missing forced-attack verb.
+    // Blocked on: a new Op wrapping `setAllCreaturesMustAttack` (planned-
+    // migratable — worth an issue if more forced-attack cards surface).
     resolve: (ctx: SpellContext) => {
         const activePlayerId = ctx.allPlayerIds.find(
             (id) => id !== ctx.controller
@@ -1082,10 +1137,11 @@ export const spellBlast: CardDefinition = {
         count: 1,
         mvFilter: { equals: "X" },
     },
-    resolve: (ctx: SpellContext) => {
-        const t = ctx.targets[0];
-        if (t?.type === "spell") ctx.counter(t);
-    },
+    // Migrated resolve()→effects[] (ADR 0045): counter the announced target
+    // spell (CR 701.6). The `counter` Op already type-guards on
+    // `target.type === "spell"` internally (same behavior as the closure's
+    // explicit check), same shape as Counterspell above.
+    effects: [{ op: "counter", target: { target: 0 } }],
 };
 
 // Stasis — "Players skip their untap steps. At the beginning of your upkeep,
@@ -1171,9 +1227,12 @@ export const timeWalk: CardDefinition = {
     oracleText: "Take an extra turn after this one.",
     manaCost: { X: 1, U: 1 },
     types: ["Sorcery"],
-    resolve: (ctx: SpellContext) => {
-        ctx.takeExtraTurn(ctx.controller);
-    },
+    // Migrated resolve()→effects[] (ADR 0045): schedule an extra turn for
+    // the caster (CR 500.7), the same `extraTurn` Op / `takeExtraTurn`
+    // primitive Time Warp uses (tmp/blue.ts) with `player: { target: 0 }` —
+    // Time Walk has no announced target, so `player: "controller"` names the
+    // caster directly.
+    effects: [{ op: "extraTurn", player: "controller" }],
 };
 
 // Timetwister — "Each player shuffles their hand and graveyard into their

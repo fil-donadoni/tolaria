@@ -445,6 +445,13 @@ export const spiritLink: CardDefinition = {
             source: "any",
             condition: (event, self) =>
                 event.sourceInstanceId === self.attachedTo,
+            // NOT DSL-migratable (ADR 0045): the lifegain amount is
+            // `event.amount` (DAMAGE_DEALT's damage amount) — a numeric
+            // firing-event field. `EVENT_FIELD_REGISTRY` (ADR 0049) only
+            // censuses `object`/`player` family `$event.<field>` refs, no
+            // numeric family, and DAMAGE_DEALT's rows (`damagedPlayer`/
+            // `damagedPermanent`) are both object/player, not the amount.
+            // Blocked on: a numeric $event ref family. Stays resolve().
             resolve: (ctx, event) => {
                 ctx.gainLife(ctx.controller, event.amount);
             },
@@ -536,6 +543,8 @@ export const infiniteAuthority: CardDefinition = {
 
 // Cleanse — "Destroy all black creatures." (CR 701.7 mass destroy filtered on
 // colour, CR 202.2.)
+// Migrated resolve()→effects[] (ADR 0045): `forEach` over every player's
+// battlefield creatures filtered to color B (CR 202.2) → `destroy` each.
 export const cleanse: CardDefinition = {
     id: "2fbd611b-ac97-4516-bad7-cc9ee4ef74f7",
     rarity: "rare",
@@ -543,23 +552,24 @@ export const cleanse: CardDefinition = {
     oracleText: "Destroy all black creatures.",
     manaCost: { X: 2, W: 2 },
     types: ["Sorcery"],
-    resolve: (ctx: SpellContext) => {
-        // `getBattlefieldIds` derives colours (CR 202.2) from the card
-        // registry; `destroyAll`'s filter does not populate `colors`, so the
-        // sweep is driven by the colour-aware id query instead.
-        for (const pid of ctx.allPlayerIds) {
-            for (const id of ctx.getBattlefieldIds(pid, {
-                types: "Creature",
-                colors: "B",
-            })) {
-                ctx.destroy({ type: "permanent", id });
-            }
-        }
-    },
+    effects: [
+        {
+            op: "forEach",
+            select: {
+                set: "permanents",
+                zone: "battlefield",
+                filter: { type: "Creature", color: "B" },
+            },
+            effects: [{ op: "destroy", target: { ref: "$each" } }],
+        },
+    ],
 };
 
 // Divine Offering — "Destroy target artifact. You gain life equal to its mana
 // value." (CR 701.7 + 118.3 lifegain; snapshot the MV before the destroy.)
+// Migrated resolve()→effects[] (ADR 0045): `destroy` binds the target's
+// snapshot (captures mana value BEFORE it leaves the battlefield, CR 608.2h —
+// the Swords to Plowshares shape) → `gainLife` reads it back via `ref`.
 export const divineOffering: CardDefinition = {
     id: "9c78c2f3-2f40-48ad-9dc4-55d1fa399a56",
     rarity: "common",
@@ -569,13 +579,14 @@ export const divineOffering: CardDefinition = {
     manaCost: { X: 1, W: 1 },
     types: ["Instant"],
     targetRequirement: { type: "Artifact", count: 1 },
-    resolve: (ctx: SpellContext) => {
-        const target = ctx.targets[0];
-        if (target?.type !== "permanent") return;
-        const mv = ctx.getManaValue(target);
-        ctx.destroy(target);
-        ctx.gainLife(ctx.caster, mv);
-    },
+    effects: [
+        { op: "destroy", target: { target: 0 }, bind: "$art" },
+        {
+            op: "gainLife",
+            player: "controller",
+            amount: { ref: "$art.manaValue" },
+        },
+    ],
 };
 
 // Remove Enchantments — "Return to your hand all enchantments you both own and
@@ -603,6 +614,15 @@ export const removeEnchantments: CardDefinition = {
         "Return to your hand all enchantments you both own and control, all Auras you own attached to permanents you control, and all Auras you own attached to attacking creatures your opponents control. Then destroy all other enchantments you control, all other Auras attached to permanents you control, and all other Auras attached to attacking creatures your opponents control.",
     manaCost: { W: 1 },
     types: ["Instant"],
+    // NOT DSL-migratable (ADR 0045): the affected category is a three-way
+    // union — enchantments the caster controls, PLUS Auras filtered on their
+    // ATTACHMENT HOST's controller/attacking-status — then split return-vs-
+    // destroy by OWNERSHIP (CR 108.3, independent of the selection filter).
+    // Blocked on: `EffectCardFilter`/`PermanentFilter` (forEach's `filter`)
+    // have no attachment-host predicate (host controller / host isAttacking),
+    // and no construct expresses "select by one predicate, branch the ACTION
+    // per-member by a second, unrelated predicate (ownership)". Stays
+    // resolve().
     resolve: (ctx: SpellContext) => {
         const me = ctx.caster;
         const opponents = ctx.allPlayerIds.filter((p) => p !== me);
@@ -842,9 +862,20 @@ export const spiritualSanctuary: CardDefinition = {
                     c.subtypes.includes("Plains")
                 );
             },
-            resolve: (ctx, _event, scopedPlayerId) => {
-                ctx.gainLife(scopedPlayerId, 1);
-            },
+            // Migrated resolve()→effects[] (ADR 0045, issue #1066): `scope:
+            // "each"` means the plain `"controller"` player selector would
+            // read the ABILITY's controller, not the scoped (upkeep) player —
+            // read the scoped player straight off the firing event instead
+            // via the censused `PHASE_BEGIN.activePlayerId` $event ref
+            // (EVENT_FIELD_REGISTRY, ADR 0049), exactly as `phaseTrigger`'s
+            // own doc comment prescribes for `each`/`opponents` scripts.
+            effects: [
+                {
+                    op: "gainLife",
+                    player: { ref: "$event.activePlayerId" },
+                    amount: 1,
+                },
+            ],
         }),
     ],
 };
@@ -866,6 +897,14 @@ export const lifeblood: CardDefinition = {
                 "Whenever a Mountain an opponent controls becomes tapped, you gain 1 life.",
             scope: "opponents",
             filter: { types: "Land", subtypes: "Mountain" },
+            // NOT DSL-migratable (ADR 0045): the effect body itself is a
+            // trivial `gainLife(controller, 1)` — but the `tappedTrigger`
+            // factory (convex/cards/abilities/triggers/tappedTrigger.ts) has
+            // no `effects[]` parameter, unlike `phaseTrigger` /
+            // `damageDealtTrigger` / `spellCastTrigger`, which all accept
+            // `effects` as an alternative to `resolve`. Blocked on: the
+            // shared factory itself, not on Op/value coverage — extending it
+            // is out of scope for a single-card migration. Stays resolve().
             resolve: (ctx) => {
                 ctx.gainLife(ctx.controller, 1);
             },
@@ -889,6 +928,14 @@ export const presenceOfTheMaster: CardDefinition = {
                 "Whenever a player casts an enchantment spell, counter it.",
             scope: "any",
             filter: { types: ["Enchantment"] },
+            // NOT DSL-migratable (ADR 0045): `counter`'s target is the
+            // firing SPELL_CAST event's own `spellInstanceId` — not an
+            // announced target, a bound snapshot, nor a `forEach` member.
+            // `EVENT_FIELD_REGISTRY` (ADR 0049) has no SPELL_CAST row at all
+            // (no censused `$event.<field>`), so there is no ref that names
+            // "the spell that triggered this". Blocked on: an
+            // EVENT_FIELD_REGISTRY row for SPELL_CAST.spellInstanceId. Stays
+            // resolve().
             resolve: (ctx, _event, spell) => {
                 ctx.counter({ type: "spell", id: spell.instanceId });
             },
@@ -910,6 +957,16 @@ export const visions: CardDefinition = {
     manaCost: { W: 1 },
     types: ["Sorcery"],
     targetRequirement: { type: "player", count: 1 },
+    // NOT DSL-migratable (ADR 0045): "look at the top five" marks them known
+    // to the CASTER only, WITHOUT moving or reordering them — no Op covers a
+    // pure look. `libraryLook` only implements `action: "shuffle"`;
+    // `digToHand` / `digMatchingToHand` / `scryReorder` all move or reorder
+    // the looked-at cards, which Visions' first clause must NOT do. Blocked
+    // on: a plain "look, mark known, leave in place" Op (the classifier's
+    // stale `scryReorder` backlog note calls this same gap out for
+    // Ponder/Preordain-family cards). The second clause (mayPay + shuffle)
+    // is itself trivially Op-expressible, but the two clauses share one
+    // `resolveSteps` body — stays resolve()/resolveSteps as a whole.
     resolveSteps: [
         (ctx: SpellContext) => {
             const target = ctx.targets[0];
@@ -1316,27 +1373,27 @@ export const petraSphinx: CardDefinition = {
             cost: { tap: true },
             useStack: true,
             targetRequirement: { type: "player", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target?.type !== "player") return;
-                // CR 202.3 — the targeted player names a card. Suspends until
-                // the name is submitted via `submitNameCard`.
-                const named = ctx.requestNameCard({
-                    playerId: target.id,
-                    choiceId: "petra-name",
+            // Migrated resolve()→effects[] (ADR 0045): `nameCard` (CR 201.3,
+            // suspends for the open choice) → `digMatchingToHand` (CR 701.20a
+            // reveal + 401.4 look/split, `look: 1`) reads the chosen name
+            // back via a bare `ref` into `EffectCardFilter.name` — the exact
+            // Desperate Research shape (inv/black.ts) narrowed to a single
+            // card and a graveyard (not exile) miss destination.
+            effects: [
+                {
+                    op: "nameCard",
+                    player: { target: 0 },
                     prompt: "Name a card.",
-                });
-                if (named === undefined) return; // suspended on the choice
-                // CR 701.13 — reveal the top card of the chooser's library.
-                const top = ctx.peekLibraryTop(target.id, 1);
-                if (top.length === 0) return; // empty library — nothing to do
-                const topId = top[0];
-                ctx.markKnownToAll(target.id, [topId]);
-                const topName = ctx.getCardName(topId);
-                // CR 201.2 — exact name match (registry-canonical casing).
-                const dest = topName === named ? "hand" : "graveyard";
-                ctx.moveCardById(target.id, topId, "library", dest);
-            },
+                    bind: "$named",
+                },
+                {
+                    op: "digMatchingToHand",
+                    player: { target: 0 },
+                    look: 1,
+                    filter: { name: { ref: "$named" } },
+                    destination: "graveyard",
+                },
+            ],
         },
     ],
 };

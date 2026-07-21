@@ -42,9 +42,20 @@ export const ankhOfMishra: CardDefinition = {
                 "Whenever a land enters the battlefield, Ankh of Mishra deals 2 damage to that land's controller.",
             scope: "any",
             filter: { types: "Land" },
-            resolve: (ctx, _event, entered) => {
-                ctx.dealDamage({ type: "player", id: entered.controllerId }, 2);
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #1264/#1250 event-field
+            // precedent): deal 2 damage to the entering land's controller,
+            // read directly off the PERMANENT_ENTERED event via the censused
+            // `$event.controllerId` field (mechanicsRegistry.ts
+            // EVENT_FIELD_REGISTRY, same row Tectonic Instability relies on)
+            // rather than `"controller"`, which would incorrectly read this
+            // artifact's own controller.
+            effects: [
+                {
+                    op: "dealDamage",
+                    amount: 2,
+                    to: { player: { ref: "$event.controllerId" } },
+                },
+            ],
         }),
     ],
 };
@@ -132,6 +143,11 @@ export const blackVise: CardDefinition = {
                 if (!opp) return false;
                 return opp.hand.length > 4;
             },
+            // NOT DSL-migratable (ADR 0045): the amount is "hand size minus 4,
+            // minimum 0" — ARITHMETIC the EffectValue grammar has no construct
+            // for (literal | ref | count only; no subtraction, no clamp).
+            // Blocked on: an X/arithmetic EffectValue member (planned-migratable,
+            // same class as Clockwork Beast's recharge ability above).
             resolve: (ctx, _event, scopedPlayerId) => {
                 const handSize = ctx.getHandSize(scopedPlayerId);
                 const damage = handSize - 4;
@@ -300,9 +316,19 @@ export const copperTablet: CardDefinition = {
                 "At the beginning of each player's upkeep, Copper Tablet deals 1 damage to that player.",
             phase: "UPKEEP",
             scope: "each",
-            resolve: (ctx, _event, playerId) => {
-                ctx.dealDamage({ type: "player", id: playerId }, 1);
-            },
+            // Migrated resolve()→effects[] (ADR 0045): `scope: "each"` reads
+            // the scoped (upkeep) player via the censused
+            // `{ ref: "$event.activePlayerId" }` event-field selector (ADR
+            // 0049, same pattern Howling Mine's draw trigger uses below)
+            // rather than `"controller"`, which would incorrectly read this
+            // artifact's own controller.
+            effects: [
+                {
+                    op: "dealDamage",
+                    amount: 1,
+                    to: { player: { ref: "$event.activePlayerId" } },
+                },
+            ],
         }),
     ],
 };
@@ -448,6 +474,16 @@ export const dingusEgg: CardDefinition = {
             scope: "any",
             toZone: "graveyard",
             filter: { types: "Land" },
+            // NOT DSL-migratable (ADR 0045): the effect needs the leaving
+            // land's controller, but `PERMANENT_LEFT` has no censused
+            // event field in EVENT_FIELD_REGISTRY (mechanicsRegistry.ts) —
+            // only `PHASE_BEGIN.activePlayerId` and
+            // `PERMANENT_ENTERED.controllerId` are registered today. An
+            // unlisted `$event.<field>` is a static validation failure
+            // (ADR 0049), not a runtime skip.
+            // Blocked on: a `PERMANENT_LEFT.controllerId` row in
+            // EVENT_FIELD_REGISTRY (planned-migratable; out of scope for
+            // this pass — constrained to colorless.ts only).
             resolve: (ctx, _event, leaving) => {
                 ctx.dealDamage({ type: "player", id: leaving.controllerId }, 2);
             },
@@ -830,17 +866,19 @@ export const jadeStatue: CardDefinition = {
                 "COMBAT_DAMAGE",
                 "END_OF_COMBAT",
             ],
-            resolve: (ctx: SpellContext) => {
-                ctx.animateAsCreature(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    {
-                        power: 3,
-                        toughness: 6,
-                        subtype: "Golem",
-                        duration: { phase: "end-of-combat" },
-                    }
-                );
-            },
+            // Migrated resolve()→effects[] (ADR 0045): animate the source
+            // artifact as a 3/6 Golem artifact creature until end of combat
+            // (CR 208.2 / 611.1) via the `animate` Op's implicit `$source`.
+            effects: [
+                {
+                    op: "animate",
+                    target: { ref: "$source" },
+                    power: 3,
+                    toughness: 6,
+                    subtype: "Golem",
+                    duration: { phase: "end-of-combat" },
+                },
+            ],
         },
     ],
 };
@@ -1072,9 +1110,13 @@ export const manaVault: CardDefinition = {
             // resolve. If the artifact has untapped between trigger and
             // resolve (e.g. paid upkeep), the ping fizzles.
             interveningIf: (_event, self) => self.isTapped === true,
-            resolve: (ctx) => {
-                ctx.dealDamage({ type: "player", id: ctx.controller }, 1);
-            },
+            // Migrated resolve()→effects[] (ADR 0045): a `your`-scoped
+            // phaseTrigger, so the scoped player == controller — deal 1
+            // damage to the controller (CR 603.4d intervening-if above gates
+            // the "if tapped" clause).
+            effects: [
+                { op: "dealDamage", amount: 1, to: { player: "controller" } },
+            ],
         }),
     ],
     activatedAbilities: [
@@ -1309,6 +1351,16 @@ export const soulNet: CardDefinition = {
             oracleText:
                 "Whenever a creature dies, you may pay {1}. If you do, you gain 1 life.",
             scope: "any",
+            // NOT DSL-migratable (ADR 0045): the `diedTrigger` factory
+            // (convex/cards/abilities/triggers/diedTrigger.ts) hardcodes a
+            // required `resolve` callback and exposes no `effects[]` site —
+            // same class of block as Gauntlet of Might's `tappedTrigger`
+            // above. The mayPay+gainLife shape itself is otherwise a
+            // trivial migration (identical to the colorSphere factory's own
+            // may-pay-for-life pattern below).
+            // Blocked on: an `effects[]` site on `diedTrigger`'s
+            // `DiedTriggerArgs` (out of scope for this pass — constrained to
+            // colorless.ts only).
             resolve: (ctx) => {
                 const accept = ctx.requestMayPay({
                     playerId: ctx.controller,
@@ -1667,6 +1719,13 @@ export const timeVault: CardDefinition = {
             oracleText: "Skip your next turn: Untap Time Vault.",
             cost: {},
             useStack: true,
+            // NOT DSL-migratable (ADR 0045): "skip your next turn" is
+            // modelled here as an on-resolution effect via
+            // `SpellContext.setSkipNextTurn`, which has no registered
+            // EffectOp (EFFECT_OP_REGISTRY, mechanicsRegistry.ts) — an
+            // uncensused mechanic, not an invented name.
+            // Blocked on: a `skipNextTurn`-style EffectOp (stop-and-issue
+            // per the migration playbook; out of scope for this pass).
             resolve: (ctx: SpellContext) => {
                 ctx.setSkipNextTurn(ctx.controller);
                 ctx.untap({ type: "permanent", id: ctx.sourceInstanceId });
@@ -1677,6 +1736,16 @@ export const timeVault: CardDefinition = {
             oracleText: "{T}: Take an extra turn after this one.",
             cost: { tap: true },
             useStack: true,
+            // NOT DSL-migratable (ADR 0045): the `extraTurn` Op's own SCOPE
+            // note (EFFECT_OP_REGISTRY, mechanicsRegistry.ts) explicitly
+            // names Time Vault as out of reach — "an activated-ability
+            // source (Time Vault) ... is out of reach of this Op and stays
+            // resolve()" — kept resolve() for consistency with the coupled
+            // "skip your next turn" untap ability above, which is itself
+            // blocked on a missing Op.
+            // Blocked on: extraTurn Op's documented scope carve-out
+            // (permanent per that note; revisit only if the note's scope
+            // changes).
             resolve: (ctx: SpellContext) => {
                 ctx.takeExtraTurn(ctx.controller);
             },

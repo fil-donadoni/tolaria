@@ -72,6 +72,11 @@ export const animateDead: CardDefinition = {
             oracleText:
                 "When Animate Dead leaves the battlefield, that creature's controller sacrifices it.",
             scope: "self",
+            // NOT DSL-migratable (ADR 0045): needs `leaving.attachedToBeforeLeave`
+            // (CR 603.10 last-known info), a `leftTrigger`-only payload the
+            // Effect Script interpreter cannot read — the factory's own doc
+            // notes `resolve` is the escape hatch specifically for this case.
+            // Blocked on: an `attachedToBeforeLeave` object-ref selector.
             resolve: (ctx, _event, leaving) => {
                 const hostId = leaving.attachedToBeforeLeave;
                 if (!hostId) return;
@@ -161,6 +166,12 @@ export const cursedLand: CardDefinition = {
                 "At the beginning of the upkeep of enchanted land's controller, Cursed Land deals 1 damage to that player.",
             phase: "UPKEEP",
             scope: "host-controller",
+            // NOT DSL-migratable (ADR 0045): a `host-controller`-scoped
+            // trigger's target player (the enchanted land's current
+            // controller, re-fetched at resolve time) has no `EffectPlayerRef`
+            // selector — `"controller"` names the AURA's controller, not the
+            // host's (same gap as Paralyze's upkeep trigger, this file).
+            // Blocked on: a host-controller player selector.
             resolve: (ctx, _event, hostController) => {
                 ctx.dealDamage({ type: "player", id: hostController }, 1);
             },
@@ -267,46 +278,45 @@ export const demonicHordes: CardDefinition = {
                 "At the beginning of your upkeep, unless you pay {B}{B}{B}, tap this creature and sacrifice a land of an opponent's choice.",
             phase: "UPKEEP",
             scope: "your",
-            // NOT DSL-migratable (ADR 0045): on decline, the OPPONENT chooses
-            // which of the CONTROLLER's lands to sacrifice (a cross-player
-            // choice — chooser ≠ zone owner, resolved via apNapOrder +
-            // requestChoice with zoneOwnerId). The `choice` Op picks from the
-            // resolving player's own zone; it cannot express an opponent-driven
-            // pick of the controller's permanents.
-            // Blocked on: a cross-player (chooser ≠ owner) choice selector.
-            resolve: (ctx) => {
-                const accept = ctx.requestMayPay({
-                    playerId: ctx.controller,
-                    choiceId: ctx.controller,
+            // Migrated resolve()→effects[] (ADR 0045): the `choice` Op's
+            // `zoneOwnerId` (issue #920/#682) now exposes the cross-player
+            // chooser≠owner shape `SpellContext.requestChoice` already
+            // supported — `player: "opponent"` picks, `zoneOwnerId:
+            // "controller"` names whose battlefield is picked from (see the
+            // Op's own doc in mechanicsRegistry.ts, which cites this exact
+            // card as the unblocked case).
+            effects: [
+                {
+                    op: "mayPay",
+                    player: "controller",
                     cost: { B: 3 },
                     prompt: "Pay {B}{B}{B} to skip Demonic Hordes's upkeep penalty?",
-                });
-                if (accept === undefined) return;
-                if (accept) return;
-                // Decline → tap self + opp picks one of our lands to sac.
-                ctx.tap({ type: "permanent", id: ctx.sourceInstanceId });
-                const opps = ctx
-                    .apNapOrder()
-                    .filter((p) => p !== ctx.controller);
-                const opp = opps[0];
-                if (!opp) return;
-                const lands = ctx.getBattlefieldIds(ctx.controller, {
-                    types: "Land",
-                });
-                if (lands.length === 0) return;
-                const picks = ctx.requestChoice({
-                    playerId: opp,
-                    choiceId: `demonic-hordes-sac-${ctx.sourceInstanceId}`,
-                    kind: "sacrifice-permanents",
-                    zone: "battlefield",
-                    zoneOwnerId: ctx.controller,
-                    filter: { types: "Land" },
-                    count: 1,
-                    prompt: "Demonic Hordes: choose a land to sacrifice from opponent's battlefield.",
-                });
-                if (picks === undefined) return;
-                for (const id of picks) ctx.sacrifice(id);
-            },
+                    bind: "$paid",
+                },
+                {
+                    op: "if",
+                    predicate: { not: { binding: "$paid" } },
+                    then: [
+                        {
+                            op: "tapUntap",
+                            action: "tap",
+                            target: { ref: "$source" },
+                        },
+                        {
+                            op: "choice",
+                            kind: "sacrifice-permanents",
+                            player: "opponent",
+                            zone: "battlefield",
+                            zoneOwnerId: "controller",
+                            filter: { type: "Land" },
+                            count: 1,
+                            prompt: "Demonic Hordes: choose a land to sacrifice from opponent's battlefield.",
+                            bind: "$picked",
+                        },
+                        { op: "sacrifice", permanents: { ref: "$picked" } },
+                    ],
+                },
+            ],
         }),
     ],
 };
@@ -325,30 +335,29 @@ export const demonicTutor: CardDefinition = {
         "Search your library for a card, put that card into your hand, then shuffle.",
     manaCost: { X: 1, B: 1 },
     types: ["Sorcery"],
-    // NOT DSL-migratable (ADR 0045): the "then shuffle" tail is now a
-    // libraryLook Op (issue #844), but the search half moves a CHOICE-PICKED
-    // LIBRARY card into hand — the `moveZone` Op only sources the battlefield /
-    // graveyard (its `resolveObjectRef` is battlefield-scoped and its card-by-id
-    // branch hardcodes the graveyard source), and no selector references a
-    // library card a `choice` bound. The classifier over-counts this FREE
-    // because `moveCardById` reads as a covered `moveZone` primitive; it is not
-    // covered for a library source.
-    // Blocked on: a library-sourced move of a choice-picked card (planned —
-    // a `moveZone` extension for library sources / a search-and-move Op).
-    resolveSteps: [
-        (ctx: SpellContext) => {
-            const picks = ctx.requestChoice({
-                playerId: ctx.caster,
-                choiceId: ctx.caster,
-                kind: "search-library",
-                zone: "library",
-                count: 1,
-                prompt: "Search your library for a card.",
-            });
-            if (!picks || picks.length === 0) return;
-            ctx.moveCardById(ctx.caster, picks[0], "library", "hand");
-            ctx.shuffleLibrary(ctx.caster);
+    // Migrated resolve()→effects[] (ADR 0045): the `moveZone` Op's second
+    // shape (`cards` from a `choice` pick, `from: "library"`) now covers a
+    // library-sourced move of a choice-picked card — the exact gap the
+    // earlier NOT-DSL-migratable note on this card cited. Same shape as
+    // Entomb (ody/black.ts), `to: "hand"` instead of `to: "graveyard"`.
+    effects: [
+        {
+            op: "choice",
+            kind: "search-library",
+            player: "controller",
+            zone: "library",
+            count: 1,
+            prompt: "Search your library for a card.",
+            bind: "$picked",
         },
+        {
+            op: "moveZone",
+            cards: { ref: "$picked" },
+            player: "controller",
+            from: "library",
+            to: "hand",
+        },
+        { op: "libraryLook", action: "shuffle", player: "controller" },
     ],
 };
 
@@ -601,6 +610,11 @@ export const lich: CardDefinition = {
             oracleText:
                 "As this enchantment enters, you lose life equal to your life total.",
             scope: "self",
+            // NOT DSL-migratable (ADR 0045): the loseLife amount is "your
+            // current life total", a runtime read (`getLife`) the EffectValue
+            // grammar (literal | ref | count | X | counters | manaValue |
+            // domain | kickerCount | escaped) has no member for.
+            // Blocked on: a life-total EffectValue construct.
             resolve: (ctx) => {
                 const life = ctx.getLife(ctx.controller);
                 if (life > 0) ctx.loseLife(ctx.controller, life);
@@ -611,6 +625,13 @@ export const lich: CardDefinition = {
             oracleText:
                 "Whenever you're dealt damage, sacrifice that many nontoken permanents. If you can't, you lose the game.",
             target: { kind: "player", player: { relation: "controller" } },
+            // NOT DSL-migratable (ADR 0045): the sacrifice count is the
+            // triggering damage's `amount`, a runtime event field with no
+            // EffectValue form; the "if you can't, lose the game" fallback
+            // has no `loseGame` Op (only `winGame` is registered); and the
+            // branching (candidates < / == / > amount) has no matching
+            // predicate shape either.
+            // Blocked on: an event-amount EffectValue + a `loseGame` Op.
             resolve: (ctx, _event, damage) => {
                 const amount = damage.amount;
                 if (amount <= 0) return;
@@ -661,6 +682,9 @@ export const lich: CardDefinition = {
                 "When this enchantment is put into a graveyard from the battlefield, you lose the game.",
             scope: "self",
             toZone: "graveyard",
+            // NOT DSL-migratable (ADR 0045): no `loseGame` Op is registered
+            // in EFFECT_OP_REGISTRY (only `winGame` is).
+            // Blocked on: a `loseGame` Op.
             resolve: (ctx, _event, leaving) => {
                 ctx.loseGame(leaving.controllerId);
             },
@@ -721,6 +745,15 @@ export const lordOfThePit: CardDefinition = {
                 "At the beginning of your upkeep, sacrifice a creature other than Lord of the Pit. If you can't, Lord of the Pit deals 7 damage to you.",
             phase: "UPKEEP",
             scope: "your",
+            // NOT DSL-migratable (ADR 0045): "sacrifice a creature OTHER
+            // THAN Lord of the Pit" needs a self-exclusion filter on the
+            // `choice` Op's battlefield candidates; `EffectCardFilter` (the
+            // DSL's JSON-pure filter) has no `excludeInstanceIds` field —
+            // only the engine's internal `PermanentFilter` does, and
+            // `toPermanentFilter` (gre/effects/interpreter.ts) never maps
+            // one in.
+            // Blocked on: an `excludeInstanceIds`/self-exclusion member on
+            // `EffectCardFilter`.
             resolve: (ctx) => {
                 const others = ctx.getBattlefieldIds(ctx.controller, {
                     types: "Creature",
@@ -797,6 +830,15 @@ export const netherShadow: CardDefinition = {
             zone: "graveyard",
             interveningIf: (_event, self, state) =>
                 creatureCardsAboveInGraveyard(state, self) >= 3,
+            // NOT DSL-migratable (ADR 0045): "put this card onto the
+            // battlefield" reanimates the trigger's OWN source while it sits
+            // in the graveyard (`zone: "graveyard"` trigger). The generic
+            // `$source` object-ref path (`resolveObjectRef`,
+            // gre/effects/interpreter.ts) only resolves a battlefield
+            // permanent or (via the digToHand fallback) a hand card — a
+            // graveyard-zone `$source` resolves to neither, so no `moveZone`
+            // Op can reach it declaratively.
+            // Blocked on: a graveyard-zone `$source` object-ref resolution.
             resolve: (ctx) => {
                 const accept = ctx.requestMayPay({
                     playerId: ctx.controller,
@@ -859,6 +901,14 @@ export const nettlingImp: CardDefinition = {
             ],
             canActivate: (source, state) =>
                 state.activePlayerId !== source.controllerId,
+            // NOT DSL-migratable (ADR 0045): `restrictCombat`'s only
+            // restrictions are "cant-attack"/"cant-block" — no "must attack"
+            // shape covers `setMustAttackThisTurn`; and the paired delayed
+            // trigger's "if it didn't attack this turn" gate has no matching
+            // `EffectPredicate` form either (the four are binding /
+            // comparison / picks-nonempty / target-is-another).
+            // Blocked on: a "must attack" restrictCombat mode + an
+            // attacked-this-turn predicate.
             resolve: (ctx: SpellContext) => {
                 const target = ctx.targets[0];
                 if (!target || target.type !== "permanent") return;
@@ -1028,7 +1078,9 @@ export const pestilence: CardDefinition = {
                           )
                       )
                     : true,
-            resolve: (ctx) => ctx.sacrifice(ctx.sourceInstanceId),
+            // Migrated resolve()→effects[] (ADR 0045): self-sacrifice via the
+            // implicit $source (CR 701.16).
+            effects: [{ op: "sacrifice", target: { ref: "$source" } }],
         }),
     ],
     activatedAbilities: [
@@ -1408,6 +1460,11 @@ export const warpArtifact: CardDefinition = {
                 "At the beginning of the upkeep of enchanted artifact's controller, Warp Artifact deals 1 damage to that player.",
             phase: "UPKEEP",
             scope: "host-controller",
+            // NOT DSL-migratable (ADR 0045): same gap as Cursed Land above —
+            // a `host-controller`-scoped trigger's target player has no
+            // `EffectPlayerRef` selector (`"controller"` names the AURA's
+            // controller, not the host's).
+            // Blocked on: a host-controller player selector.
             resolve: (ctx, _event, hostController) => {
                 ctx.dealDamage({ type: "player", id: hostController }, 1);
             },

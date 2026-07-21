@@ -1114,9 +1114,19 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // `{ set: "targets" }` X-multi-target selector, issue #1083). All four
         // left the FREE bucket: total 658→654, FREE 430→426, AFK-ready
         // 397→393. X-only and Op-blocked unchanged. Partition: 426+14+214=654.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(654);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(426);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(393);
+        // 2026-07-21 free-tranche batch 2 (lea/black, lea/blue, lea/colorless,
+        // leg/white — Alpha/Legends): 15 FREE + AFK-ready closures migrated
+        // resolve()→effects[]. lea/colorless: Ankh of Mishra, Copper Tablet,
+        // Jade Statue, Mana Vault. lea/blue: Pirate Ship, Sea Serpent, Spell
+        // Blast, Time Walk. leg/white: Cleanse, Divine Offering, Spiritual
+        // Sanctuary, Petra Sphinx. lea/black: Demonic Hordes, Demonic Tutor,
+        // Pestilence (the first two had STALE NOT-migratable markers that
+        // choice.zoneOwnerId / moveZone-library-source have since unblocked).
+        // All 15 left the FREE bucket: total 654→639, FREE 426→411, AFK-ready
+        // 393→378. X-only and Op-blocked unchanged. Partition: 411+14+214=639.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(639);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(411);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(378);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
         expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(214);
     });
