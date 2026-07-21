@@ -1,6 +1,6 @@
-// OP_VALUERS catalogue coverage guard (PRD #1423, issue #1426). Mirrors the
-// `mechanicsRegistry.test.ts` Guard A / `divergenceMarkers.test.ts` style: a
-// catalogue-wide assertion that EVERY `status:"implemented"` Op in the Op
+// OP_VALUERS catalogue coverage guard (PRD #1423, issues #1426/#1430). Mirrors
+// the `mechanicsRegistry.test.ts` Guard A / `divergenceMarkers.test.ts` style:
+// a catalogue-wide assertion that EVERY `status:"implemented"` Op in the Op
 // registry (`EFFECT_OP_REGISTRY`, queried via `isRegisteredEffectOp`) is
 // accounted for by the per-Op value model — either
 //
@@ -15,11 +15,12 @@
 // (PRD #1423 story 17).
 //
 // ─────────────────────────────────────────────────────────────────────────
-// FOR THE FOLLOW-UP ISSUE #1430 (which empties this allowlist): to value a
-// backfilled Op, DELETE its row from `OP_VALUER_BACKFILL` and add its valuer to
-// `OP_VALUERS` (`convex/gre/ai/opValuers.ts`) — that pair of edits is the ONLY
-// change needed; this guard then proves the Op is covered. The allowlist is
-// meant to shrink to empty, never to grow as a standing escape hatch.
+// Issue #1430 emptied the allowlist: every Op issue #1426 deferred now has an
+// `OP_VALUERS` entry (`convex/gre/ai/opValuers.ts`). The allowlist stays
+// declared (empty) rather than removed — several hygiene tests below
+// reference it directly, and a future Op that ships without a valuer has
+// exactly the same two-edit fix (add the `OP_VALUERS` entry, or append a new
+// backfill row with a note) that emptied it the first time.
 // ─────────────────────────────────────────────────────────────────────────
 
 import { describe, it, expect } from "vitest";
@@ -33,54 +34,15 @@ import {
     VALUED_OR_STRUCTURAL,
 } from "../../gre/ai";
 
-/** Implemented Ops that DO NOT YET have a value model — the backfill allowlist
- *  (issue #1426 ships the charter Ops only; #1430 empties this). APPEND-ONLY
- *  and alphabetically sorted. Each entry is an implemented Op name whose valuer
- *  is deferred; removing a name here + adding its `OP_VALUERS` entry is the
- *  whole of #1430's per-Op work. Keep this the single source of "known-unvalued"
- *  — the guard below cross-checks it against the live registry so a stale entry
- *  (an Op that has since gained a valuer, or is no longer implemented) also
- *  fails CI. */
-export const OP_VALUER_BACKFILL: readonly string[] = [
-    "addMana",
-    "addSubtype",
-    "animate",
-    "armGraveyardRedirect",
-    "attach",
-    "becomeMonarch",
-    "choice",
-    "delayedTrigger",
-    "digMatchingToHand",
-    "digToHand",
-    "discard",
-    "divideIntoPiles",
-    "emblem",
-    "extraTurn",
-    "gainControl",
-    "getEnergy",
-    "grantAbility",
-    "grantCastFromExile",
-    "grantCastFromGraveyard",
-    "grantGraveyardPlay",
-    "libraryLook",
-    "mill",
-    "nameCard",
-    "preventDamage",
-    "putBack",
-    "regenerate",
-    "restrictActivation",
-    "restrictCasting",
-    "restrictCombat",
-    "reveal",
-    "scryReorder",
-    "setColor",
-    "setSubtype",
-    "shuffleSelfIntoLibrary",
-    "tapUntap",
-    "transform",
-    "unattach",
-    "winGame",
-];
+/** Implemented Ops that DO NOT YET have a value model — the backfill
+ *  allowlist (issue #1426 shipped the charter Ops only; issue #1430 emptied
+ *  this to `[]`). APPEND-ONLY and alphabetically sorted. Each entry is an
+ *  implemented Op name whose valuer is deferred; removing a name here +
+ *  adding its `OP_VALUERS` entry is the whole of the per-Op backfill work.
+ *  Keep this the single source of "known-unvalued" — the guard below
+ *  cross-checks it against the live registry so a stale entry (an Op that has
+ *  since gained a valuer, or is no longer implemented) also fails CI. */
+export const OP_VALUER_BACKFILL: readonly string[] = [];
 
 describe("OP_VALUERS coverage guard (PRD #1423, issue #1426)", () => {
     const implementedOps = EFFECT_OP_REGISTRY.filter(
