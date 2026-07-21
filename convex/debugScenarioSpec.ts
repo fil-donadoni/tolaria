@@ -224,6 +224,59 @@ export function selectPresetsToSeed<T extends { label: string }>(
     return { toInsert, skipped };
 }
 
+// ---- DB-direct write path (issue #1453) ------------------------------------
+//
+// `seedScenarioDirect` (`convex/debugScenarios.ts`) replaces the code-array
+// path for agents (design doc 2026-07-21-db-direct-debug-scenarios-design.md):
+// an agent writes ONE scenario straight to the DB instead of appending to
+// `NEW_MECHANIC_SCENARIOS`. The insert-vs-patch decision below is the pure
+// seam — mirrors `selectPresetsToSeed`/`selectEphemeralIdsToPrune`'s
+// structural-subset-row style — so it's unit-testable without a
+// `convex-test` harness (this repo has none, see `debugScenarios.test.ts`).
+
+/** The row fields the upsert decision reads — a structural subset so the
+ *  decision is pure and testable without a Convex `Doc`. */
+export type UpsertableScenarioRow<Id> = {
+    _id: Id;
+    label: string;
+};
+
+/** The insert-vs-patch decision `seedScenarioDirect` acts on. */
+export type ScenarioUpsertDecision<Id> =
+    | { action: "insert" }
+    | { action: "patch"; id: Id };
+
+/**
+ * Pure upsert-by-label decision (issue #1453). Given the existing
+ * `debugScenarios` rows and the label a direct write targets, decide whether
+ * `seedScenarioDirect` should PATCH the existing same-label row (return its
+ * id) or INSERT a new one — at most one row per label, so re-running a direct
+ * write for the same scenario updates it in place instead of accumulating
+ * duplicates. Deterministic and side-effect-free so the mutation is a thin
+ * wrapper the tests can drive directly.
+ */
+export function selectScenarioUpsert<Id>(
+    rows: readonly UpsertableScenarioRow<Id>[],
+    label: string
+): ScenarioUpsertDecision<Id> {
+    const existing = rows.find((row) => row.label === label);
+    return existing
+        ? { action: "patch", id: existing._id }
+        : { action: "insert" };
+}
+
+/**
+ * `seedScenarioDirect`'s `golden` default (issue #1453): an agent-authored
+ * scenario written direct-to-DB is a curated row by default — `golden`
+ * defaults to `true` when the caller omits it, so it isn't pruned by
+ * `cleanupEphemeralScenarios` before anyone loads it. Extracted as its own
+ * one-line pure function so the default is asserted directly, the same way
+ * the other decisions on this page are — no `convex-test` harness needed.
+ */
+export function resolveScenarioGolden(golden: boolean | undefined): boolean {
+    return golden ?? true;
+}
+
 // ---- Tolerant load helpers -------------------------------------------------
 
 function isRecord(value: unknown): value is Record<string, unknown> {

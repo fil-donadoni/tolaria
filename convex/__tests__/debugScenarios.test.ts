@@ -22,12 +22,15 @@ import {
     collectUnresolvedCardNames,
     normalizeScenarioSpec,
     resolveScenarioBattlefieldCounters,
+    resolveScenarioGolden,
     selectEphemeralIdsToPrune,
     selectPresetsToSeed,
+    selectScenarioUpsert,
     SCENARIO_SCHEMA_VERSION,
     EPHEMERAL_KEEP_BOUND,
     type PrunableScenarioRow,
     type ScenarioSpec,
+    type UpsertableScenarioRow,
 } from "../debugScenarioSpec";
 import { getCardByName } from "../cards";
 
@@ -505,5 +508,78 @@ describe("selectPresetsToSeed — tombstoned labels don't resurrect (issue #1422
         expect(toInsert).toEqual([]); // automatic seed stays suppressed
         // Manual save has no equivalent gate to bypass — it is a plain
         // `ctx.db.insert`, so nothing here can or should block it.
+    });
+});
+
+describe("selectScenarioUpsert — insert-vs-patch decision for seedScenarioDirect (issue #1453)", () => {
+    // `seedScenarioDirect` is a thin wrapper over this pure decision (same
+    // convention as `selectEphemeralIdsToPrune` / `selectPresetsToSeed`
+    // above): it inserts when `action === "insert"` and patches `id` when
+    // `action === "patch"`. So "upsert-by-label, no duplicate rows on
+    // re-run" (the AC) is asserted here directly, without a convex-test
+    // harness.
+    const rows: UpsertableScenarioRow<string>[] = [
+        { _id: "s1", label: "Storm test" },
+        { _id: "s2", label: "Improvise smoke" },
+    ];
+
+    it("inserts when no existing row shares the label", () => {
+        expect(selectScenarioUpsert(rows, "Brand New Scenario")).toEqual({
+            action: "insert",
+        });
+    });
+
+    it("patches the existing row's id when a same-label row already exists", () => {
+        expect(selectScenarioUpsert(rows, "Storm test")).toEqual({
+            action: "patch",
+            id: "s1",
+        });
+    });
+
+    it("matches by exact label only — a different label never patches", () => {
+        expect(selectScenarioUpsert(rows, "Storm Test")).toEqual({
+            action: "insert",
+        });
+    });
+
+    it("inserts against an empty pool (first-ever direct write)", () => {
+        expect(selectScenarioUpsert([], "First Scenario")).toEqual({
+            action: "insert",
+        });
+    });
+});
+
+describe("resolveScenarioGolden — golden defaults true (issue #1453)", () => {
+    it("defaults to true when omitted", () => {
+        expect(resolveScenarioGolden(undefined)).toBe(true);
+    });
+
+    it("respects an explicit true", () => {
+        expect(resolveScenarioGolden(true)).toBe(true);
+    });
+
+    it("respects an explicit false (an ephemeral direct write is allowed)", () => {
+        expect(resolveScenarioGolden(false)).toBe(false);
+    });
+});
+
+describe("seedScenarioDirect — loadability guard reused (issue #1453, ADR 0044)", () => {
+    // `seedScenarioDirect` rejects before write via the SAME
+    // `collectUnresolvedCardNames` call as `saveDebugScenario` /
+    // `seedNewMechanicScenarios` above — asserted directly here since there
+    // is no convex-test harness to invoke the mutation itself.
+    it("flags an unknown card name (the offending name surfaces in the guard's output)", () => {
+        const spec: ScenarioSpec = {
+            cards: [{ name: "Definitely Not A Real Card", owner: "me" }],
+        };
+        const unresolved = collectUnresolvedCardNames(spec, resolves);
+        expect(unresolved).toEqual(["Definitely Not A Real Card"]);
+    });
+
+    it("passes a spec whose card names all resolve in the catalogue", () => {
+        const spec: ScenarioSpec = {
+            cards: [{ name: "Forest", owner: "me" }],
+        };
+        expect(collectUnresolvedCardNames(spec, resolves)).toEqual([]);
     });
 });
