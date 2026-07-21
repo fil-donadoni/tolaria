@@ -1963,6 +1963,16 @@ export type PendingChoice = {
      *  committed but whose resolve hasn't replayed yet), though in practice the
      *  head is consumed on submit. Undefined until the chooser submits. */
     chosenName?: string;
+    /** For `kind: "name-card"` only (issue #1085) — a restriction on the
+     *  legal name, checked at SUBMIT time (`applyNameCardSubmit`,
+     *  `pendingChoiceSubmit.ts`) rather than post-hoc filtered by the
+     *  resolving Op. `"no-basic-land"` is CR 201.3's "a card name other than
+     *  a basic land card name" (Desperate Research) — a submission naming
+     *  Plains/Island/Swamp/Mountain/Forest/Wastes is rejected and the
+     *  chooser is asked again, exactly like every other illegal-choice
+     *  rejection in that pipeline. Undefined = no restriction (Petra
+     *  Sphinx — any registered card name is legal). */
+    nameRestriction?: "no-basic-land";
 
     // --- random-reveal family (CR 705, ADR 0023) ---
     /** For `kind: "random-reveal"` only — which random device produced the
@@ -11241,6 +11251,10 @@ export function buildSpellContext(
                 kind: "name-card",
                 count: 1,
                 prompt: req.prompt,
+                // CR 201.3 (issue #1085) — "a card name other than a basic
+                // land card name" (Desperate Research). Checked at submit
+                // time by `applyNameCardSubmit`.
+                ...(req.excludeBasicLand ? { nameRestriction: "no-basic-land" as const } : {}),
             };
             if (routed.actingPlayerId)
                 entry.actingPlayerId = routed.actingPlayerId;
