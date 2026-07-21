@@ -441,6 +441,8 @@ describe("game_state serialize round-trip", () => {
                 // `$`); the ref VALUE inside the effects keeps it.
                 delayedPayload: { it: "target-7" },
                 delayedEffects: [{ op: "destroy", target: { ref: "$it" } }],
+                delayedOracleText:
+                    "At the beginning of the next end step, destroy it.",
             },
         ];
         const expanded = expandState(compactState(state));
@@ -449,6 +451,11 @@ describe("game_state serialize round-trip", () => {
         expect(expanded.stack[0].delayedEffects).toEqual([
             { op: "destroy", target: { ref: "$it" } },
         ]);
+        // The inline trigger's oracle text must survive a mid-suspension save,
+        // else the client re-renders it as a full-card image after reload.
+        expect(expanded.stack[0].delayedOracleText).toBe(
+            "At the beginning of the next end step, destroy it."
+        );
     });
 
     it("preserves a stack item's exileOnResolve flag (Recall, CR 608.2)", () => {

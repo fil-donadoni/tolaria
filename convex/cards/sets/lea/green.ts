@@ -1324,7 +1324,12 @@ export const fastbond: CardDefinition = {
                 "Whenever you play a land, if it wasn't the first land you played this turn, Fastbond deals 1 damage to you.",
             scope: "yours",
             filter: { types: "Land" },
-            condition: (_event, self, state) => {
+            condition: (event, self, state) => {
+                // CR 305.2 — this triggers on a land PLAYED, not on any land
+                // that ENTERS. A fetched/tutored/reanimated land is put onto
+                // the battlefield without being played, so it carries no
+                // `wasPlayed` and must not deal damage.
+                if (!event.wasPlayed) return false;
                 if (!state) return false;
                 const player = state.players.find(
                     (p) => p.id === self.controllerId

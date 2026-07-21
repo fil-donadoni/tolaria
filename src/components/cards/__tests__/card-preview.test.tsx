@@ -1,18 +1,17 @@
-// Desktop card preview — Arena click model (#332).
+// Desktop card preview — hover-intent model (phase 2).
 //
-// The preview is driven entirely by the RIGHT mouse button; left-click stays a
-// gameplay action and never opens a preview. A quick right-click toggles an
-// anchored preview beside the card (board + lobby alike); holding the right
-// button past the threshold shows the big preview in the board's right-column
-// dock while held (board only). The mobile long-press centered overlay (ADR
-// 0009) is a separate, untouched surface. These are render-level contract
-// tests, asserted via the `data-card-preview-{anchored,dock}` markers.
+// HOVER is the discoverable trigger: dwell 250ms on a card and the board's
+// right-column dock opens, leaving closes it after a small grace (board only).
+// The RIGHT mouse button is the power path: a quick right-click toggles an
+// anchored preview pinned beside the card (board + lobby alike). The mobile
+// long-press centered overlay (ADR 0009) is a separate, untouched surface.
+// These are render-level contract tests, asserted via the
+// `data-card-preview-{anchored,dock}` markers.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, cleanup, fireEvent, act } from "@testing-library/react";
 import type { ReactNode } from "react";
-import CardPreview from "../card-preview";
+import CardPreview, { HOVER_DWELL_MS } from "../card-preview";
 import { resetPreviewSingleton } from "../card-preview-singleton";
-import { RIGHT_HOLD_ZOOM_MS } from "~/hooks/useRightPressPreview";
 import { GameContext } from "~/hooks/useGameContext";
 import type { Id } from "@convex/_generated/dataModel";
 
@@ -63,9 +62,27 @@ function release() {
         fireEvent(window, new Event("pointerup"));
     });
 }
-function holdPastThreshold() {
+function hoverEnter(root: HTMLElement) {
     act(() => {
-        vi.advanceTimersByTime(RIGHT_HOLD_ZOOM_MS);
+        fireEvent.pointerEnter(root, { pointerType: "mouse" });
+    });
+}
+function hoverLeave(root: HTMLElement) {
+    act(() => {
+        fireEvent.pointerLeave(root, { pointerType: "mouse" });
+    });
+}
+function dwellPast() {
+    act(() => {
+        vi.advanceTimersByTime(HOVER_DWELL_MS);
+    });
+}
+function gracePast() {
+    act(() => {
+        // runOnlyPendingTimers: vitest's fake scheduler doesn't reliably fire
+        // a timer scheduled mid-test at an advanceTimersByTime boundary (the
+        // browser fires plainly — this is a harness quirk, not app logic).
+        vi.runOnlyPendingTimers();
     });
 }
 
@@ -144,55 +161,66 @@ describe("CardPreview — Arena click model (#332)", () => {
         expect(anchored()).toBeNull();
     });
 
-    it("holding the right button shows the dock zoom on the board, release closes it", () => {
+    it("hover dwell opens the board dock; leaving closes it after the grace", () => {
         const { container } = renderOnBoard();
         const root = container.firstElementChild as HTMLElement;
 
-        rightPress(root);
-        holdPastThreshold();
+        // A brush-by (no dwell) opens nothing.
+        hoverEnter(root);
+        expect(dock()).toBeNull();
+        hoverLeave(root);
 
+        hoverEnter(root);
+        dwellPast();
         const d = dock() as HTMLElement;
         expect(d).toBeTruthy();
         expect(d.className).toContain("fixed");
         expect(d.className).toContain("right-2");
-        // The zoom supersedes the anchored surface — only one shows at a time.
-        expect(anchored()).toBeNull();
 
-        release();
+        hoverLeave(root);
+        // Still up during the grace window, then closes.
+        expect(dock()).toBeTruthy();
+        gracePast();
         expect(dock()).toBeNull();
     });
 
-    it("hold-zoom supersedes an already-open anchored preview", () => {
+    it("a pinned anchored preview supersedes hover (and the pin wins over an open dock)", () => {
         const { container } = renderOnBoard();
         const root = container.firstElementChild as HTMLElement;
 
-        // Open the anchored preview first.
+        // Hover opens the dock.
+        hoverEnter(root);
+        dwellPast();
+        expect(dock()).toBeTruthy();
+
+        // Quick right-click pins the anchored preview: the dock closes.
         rightPress(root);
         release();
         expect(anchored()).toBeTruthy();
-
-        // Now hold: the dock zoom appears and the anchored is hidden.
-        rightPress(root);
-        holdPastThreshold();
-        expect(dock()).toBeTruthy();
-        expect(anchored()).toBeNull();
-
-        release();
         expect(dock()).toBeNull();
-        expect(anchored()).toBeNull();
+
+        // While pinned, hover never re-opens the dock.
+        hoverLeave(root);
+        gracePast();
+        hoverEnter(root);
+        dwellPast();
+        expect(dock()).toBeNull();
+        expect(anchored()).toBeTruthy();
     });
 
-    it("has no hold-zoom in the lobby (no board dock)", () => {
+    it("has no hover dock in the lobby (no board dock), right-click pin still works", () => {
         const { container } = renderInLobby();
         const root = container.firstElementChild as HTMLElement;
 
-        rightPress(root);
-        holdPastThreshold();
-
+        hoverEnter(root);
+        dwellPast();
         expect(dock()).toBeNull();
         expect(anchored()).toBeNull();
+        hoverLeave(root);
 
+        rightPress(root);
         release();
+        expect(anchored()).toBeTruthy();
         expect(dock()).toBeNull();
     });
 
@@ -228,6 +256,62 @@ describe("CardPreview — Arena click model (#332)", () => {
         expect(overlay).toBeTruthy();
         expect(overlay!.className).toContain("items-center");
         expect(overlay!.className).toContain("justify-center");
+    });
+
+    it("hover never opens the dock on a touch device", () => {
+        const { container } = renderOnBoard();
+        const root = container.firstElementChild as HTMLElement;
+
+        act(() => {
+            fireEvent.touchStart(root, {
+                touches: [{ clientX: 10, clientY: 10 }],
+            });
+        });
+        hoverEnter(root);
+        dwellPast();
+
+        expect(dock()).toBeNull();
+        expect(anchored()).toBeNull();
+    });
+
+    it("the printed-card toggle swaps the live-text face for the printed full card (phase 2)", () => {
+        const { container } = renderOnBoard();
+        const root = container.firstElementChild as HTMLElement;
+
+        hoverEnter(root);
+        dwellPast();
+        expect(dock()).toBeTruthy();
+
+        // Default: the computed live-text face (toggle visible, printed hidden).
+        const toggle = document.querySelector(
+            '[data-preview-mode="printed"]'
+        ) as HTMLElement;
+        expect(toggle).toBeTruthy();
+        expect(
+            document.querySelector('[data-card-preview-dock] img[alt*="(printed)"]')
+        ).toBeNull();
+
+        act(() => {
+            toggle.click();
+        });
+        const printedImg = document.querySelector(
+            '[data-card-preview-dock] img[alt*="(printed)"]'
+        ) as HTMLImageElement;
+        expect(printedImg).toBeTruthy();
+        expect(printedImg.src).toContain("/grid/");
+        expect(printedImg.src).toContain(".webp");
+
+        // Toggling back restores the live-text face.
+        act(() => {
+            (
+                document.querySelector(
+                    '[data-preview-mode="computed"]'
+                ) as HTMLElement
+            ).click();
+        });
+        expect(
+            document.querySelector('[data-card-preview-dock] img[alt*="(printed)"]')
+        ).toBeNull();
     });
 
     // Spatial-board flattening: CardTilt3D wraps the card in

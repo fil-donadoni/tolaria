@@ -249,8 +249,11 @@ function settleEnteredLand(
     applyExistingGrantsTo(state, card);
     applySourceStaticEffects(state, card);
 
-    // CR 603.6a — ETB triggers see the permanent enter.
-    emitPermanentEntered(state, card);
+    // CR 603.6a — ETB triggers see the permanent enter. CR 305.2 — `wasPlayed`
+    // marks this as a PLAYED land (vs. one put onto the battlefield by an
+    // effect) so "whenever you play a land" triggers (Fastbond, City of
+    // Traitors) fire here but NOT on a fetch/tutor/reanimation entry.
+    emitPermanentEntered(state, card, { wasPlayed: true });
     processPendingActionTriggers(state);
 
     // CR 704 — settle state-based actions.

@@ -58,6 +58,10 @@ export function buildDelayedTriggerStackItem(
         // ADR 0048 — an inline-body instance carries its Effect Script onto the
         // stack item, so resolution needs no card-def lookup.
         ...(t.effects ? { delayedEffects: t.effects } : {}),
+        // ADR 0048 — an inline delayed trigger's oracle text is not on any card
+        // def (its id is the constant INLINE_DELAYED_TRIGGER_ID), so carry it
+        // onto the stack item for the client to render the ability tile.
+        ...(t.oracleText ? { delayedOracleText: t.oracleText } : {}),
     };
 }
 

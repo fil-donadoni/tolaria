@@ -11,7 +11,9 @@ import CardPreviewBody, {
 // placement before the #332 dock. The position is clamped to the viewport and
 // measured post-mount because the panel's height varies with oracle-text
 // length. Asserted by tests via the `data-card-preview-anchored` marker.
-const DOCK_WIDTH = 128 * 2;
+// Phase 2: the pinned beside-card surface grows from 256px to 384px (the
+// right-column dock is 420px).
+const DOCK_WIDTH = 384;
 const GAP = 8;
 const VIEWPORT_PAD = 8;
 

@@ -23,6 +23,11 @@ describe("buildPreviewBody — original (printed) face (CR 707.2)", () => {
         expect(original.imageSrc).toContain("/art/");
         expect(original.imageFallbackSrc).toContain("/art_crop/");
         expect(original.imageFallbackSrc).toContain(CLONE.id);
+        // Phase 2: the printed-card toggle surface resolves to the grid WebP
+        // of the card's own printing.
+        expect(original.printedImageSrc).toContain("/grid/");
+        expect(original.printedImageSrc).toContain(CLONE.id);
+        expect(original.printedImageSrc).toContain(".webp");
         expect(original.typeLine).toContain("Creature");
         // Clone is printed 0/0 (its copiable P/T comes only from a copy effect).
         expect(original.basePower).toBe(CLONE.power);

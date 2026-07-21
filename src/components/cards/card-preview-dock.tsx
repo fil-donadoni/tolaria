@@ -28,7 +28,8 @@ import CardPreviewBody, {
 // inside it rather than overflowing onto the pod. The pod is right-anchored in
 // both orientations, so a single bottom reservation clears it in portrait and
 // landscape alike.
-const DOCK_WIDTH = 128 * 2;
+// Phase 2: the dock grows from 256px to the 420px class (spec: 400–480px).
+const DOCK_WIDTH = 420;
 const VIEWPORT_PAD = 8;
 
 export default function CardPreviewDock(props: CardPreviewBodyProps) {

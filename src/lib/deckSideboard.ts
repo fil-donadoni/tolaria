@@ -46,3 +46,31 @@ export function moveToMaindeck(
     if (!found) return split;
     return { cards: [...split.cards, found], sideboard: rest };
 }
+
+/** Move ALL copies of `cardId` from the Maindeck to the Sideboard (QA
+ *  sideboard revamp: the move-all CTA). Pool preserved. */
+export function moveAllToSideboard(
+    split: SideboardSplit,
+    cardId: string
+): SideboardSplit {
+    const moving = split.cards.filter((c) => c.cardId === cardId);
+    if (moving.length === 0) return split;
+    return {
+        cards: split.cards.filter((c) => c.cardId !== cardId),
+        sideboard: [...split.sideboard, ...moving],
+    };
+}
+
+/** Move ALL copies of `cardId` from the Sideboard to the Maindeck. Pool
+ *  preserved. */
+export function moveAllToMaindeck(
+    split: SideboardSplit,
+    cardId: string
+): SideboardSplit {
+    const moving = split.sideboard.filter((c) => c.cardId === cardId);
+    if (moving.length === 0) return split;
+    return {
+        cards: [...split.cards, ...moving],
+        sideboard: split.sideboard.filter((c) => c.cardId !== cardId),
+    };
+}

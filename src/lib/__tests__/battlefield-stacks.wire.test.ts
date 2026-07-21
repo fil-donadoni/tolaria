@@ -89,8 +89,9 @@ function shape(groups: PermanentGroup[]) {
 describe("groupBattlefield survives the wire projection", () => {
     it("projected grouping equals fat-state grouping (mixed board)", () => {
         const fat: CardInstanceState[] = [
-            // Two clean bears (stack) — tapped/manaCommitted differ but stack.
-            makeCard({ id: "bear1", isTapped: false }),
+            // Two clean bears (stack) — same tap state (tap now splits, QA);
+            // manaCommitted still differs and stays excluded from the key.
+            makeCard({ id: "bear1", isTapped: true }),
             makeCard({ id: "bear2", isTapped: true, manaCommitted: true }),
             // Sick bear — different key, own group.
             makeCard({ id: "bear-sick", isSummoningSick: true }),

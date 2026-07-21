@@ -2251,12 +2251,14 @@ describe("Fastbond ({G} Enchantment — unlimited land drops, CR 305.2)", () => 
                 makePlayer("p2"),
             ],
         });
-        // Simulate a land entering the battlefield (2nd land already played)
+        // Simulate a land being PLAYED (2nd land already played this turn).
+        // CR 305.2 — a played land carries `wasPlayed: true`.
         const landEvent = {
             type: "PERMANENT_ENTERED" as const,
             instanceId: "new-land",
             controllerId: "p1",
             types: ["Land" as const],
+            wasPlayed: true,
         };
         state.pendingEvents = [landEvent];
         processPendingActionTriggers(state);
@@ -2266,6 +2268,39 @@ describe("Fastbond ({G} Enchantment — unlimited land drops, CR 305.2)", () => 
         // Resolve the trigger — should deal 1 damage to controller
         resolveTopOfStack(state);
         expect(state.players[0].life).toBe(19);
+    });
+
+    it("does NOT trigger on a fetched land that merely ENTERS (CR 305.2 — not played)", () => {
+        // A fetch/tutor puts a land onto the battlefield WITHOUT it being
+        // played: the PERMANENT_ENTERED event carries no `wasPlayed`, and the
+        // effect-entry path never increments landsPlayedThisTurn. Even with two
+        // lands already played this turn, Fastbond must deal no damage.
+        const fb = makeInstance(fastbond.id, {
+            id: "fb",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [fb],
+                    landsPlayedThisTurn: 2,
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const fetchedLandEvent = {
+            type: "PERMANENT_ENTERED" as const,
+            instanceId: "fetched-land",
+            controllerId: "p1",
+            types: ["Land" as const],
+            // no `wasPlayed` — put onto the battlefield by an effect
+        };
+        state.pendingEvents = [fetchedLandEvent];
+        processPendingActionTriggers(state);
+        expect(state.stack.length).toBe(0);
+        expect(state.players[0].life).toBe(20);
     });
 
     it("does NOT trigger on the first land played this turn", () => {

@@ -2,6 +2,7 @@ import { tryGetDefinition } from "@convex/cards";
 import {
     getArtCropImageUrl,
     getArtImageUrl,
+    getPrintedCardImageUrl,
     resolveCardImageId,
 } from "~/lib/images";
 import {
@@ -39,6 +40,10 @@ export type PreviewBodyContent = {
      *  Old printings lack the `art` WebP rendition (see src/lib/images.ts),
      *  so the face swaps to this on a 404. */
     imageFallbackSrc: string | null;
+    /** The printed full card (grid 488w WebP) — the secondary "printed card"
+     *  surface of the phase-2 preview toggle. Null for tokens without a
+     *  printed identity (the toggle hides then). */
+    printedImageSrc: string | null;
     types: string[];
     subtypes: string[];
     staticAbilities: string[];
@@ -144,6 +149,7 @@ export function buildPreviewBody(
     const imageId = resolveCardImageId(defId);
     const imageSrc = imageId ? getArtImageUrl(imageId) : null;
     const imageFallbackSrc = imageId ? getArtCropImageUrl(imageId) : null;
+    const printedImageSrc = imageId ? getPrintedCardImageUrl(imageId) : null;
     const showOwner =
         !!cardInstance &&
         !!gameCtx &&
@@ -180,6 +186,7 @@ export function buildPreviewBody(
         displayName,
         imageSrc,
         imageFallbackSrc,
+        printedImageSrc,
         types,
         subtypes,
         staticAbilities:

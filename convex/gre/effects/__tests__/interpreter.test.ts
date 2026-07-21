@@ -11075,6 +11075,18 @@ describe("Effect Script Op: delayedTrigger (CR 603.7)", () => {
         expect(state.delayedTriggers).toBeUndefined();
         expect(state.stack).toHaveLength(1);
         expect(state.stack[0].delayedEffects).toEqual(inst.effects);
+        // The fired stack item carries the inline trigger's oracle text so the
+        // client can render the ability tile (art + text) — an inline trigger
+        // has no `cardDef.delayedTriggers[]` row to look it up from. The field
+        // must survive the wire projection (bug: inline delayed triggers
+        // rendered as a full-card image on the stack).
+        expect(state.stack[0].delayedOracleText).toBe(
+            "At the beginning of the next end step, destroy it."
+        );
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.stack[0].delayedOracleText).toBe(
+            "At the beginning of the next end step, destroy it."
+        );
         resolveTopOfStack(state);
         expect(state.stack).toHaveLength(0);
         expect(state.players[1].battlefield).toHaveLength(0);

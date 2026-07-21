@@ -1320,11 +1320,20 @@ export function getTriggeredAbilityOracleText(
  *  `getAbilityOracleText` / `getTriggeredAbilityOracleText` but looks up
  *  `cardDef.delayedTriggers` — a delayed trigger has no granted-ability path
  *  (it is always scheduled by its own source's resolve, never granted
- *  cross-card), so there is no grant-template fallback to check. */
+ *  cross-card), so there is no grant-template fallback to check.
+ *
+ *  An INLINE delayed trigger (DSL `delayedTrigger` Op, ADR 0048) has NO
+ *  `cardDef.delayedTriggers[]` row — its `delayedTriggerId` is the shared
+ *  constant `INLINE_DELAYED_TRIGGER_ID` — so its text can only come from the
+ *  stack item itself. `inlineOracleText` (the item's `delayedOracleText`,
+ *  carried across the wire) takes priority, falling back to the card-def
+ *  template lookup for the legacy `resolve()`-scheduled path. */
 export function getDelayedTriggerOracleText(
     cardId: string,
-    delayedTriggerId: string
+    delayedTriggerId: string,
+    inlineOracleText?: string
 ): string | null {
+    if (inlineOracleText) return inlineOracleText;
     const cardDef = getDefinition(cardId);
     const trigger = cardDef.delayedTriggers?.find(
         (t) => t.id === delayedTriggerId

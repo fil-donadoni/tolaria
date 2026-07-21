@@ -1,6 +1,8 @@
 import { useState } from "react";
+import { motion, useReducedMotion } from "motion/react";
 import type { CardInstance } from "~/types/game";
 import { stackFanOffset, STACK_COUNT_BADGE_MIN } from "~/lib/board-layout";
+import { SLOT_SPRING } from "~/lib/board-motion";
 
 type BattlefieldStackFanProps = {
     /** Ordered stack members (untapped first, then tapped — already sorted by
@@ -13,6 +15,12 @@ type BattlefieldStackFanProps = {
     /** Show the `×N` count badge (top-right). The depth-pile overlay suppresses
      *  it because the collapsed pile already carries its own badge. */
     showBadge?: boolean;
+    /** Carry per-member shared-layout identity (`layoutId = card.id`) so a
+     *  tap/untap flies a permanent between the untapped/tapped piles (QA).
+     *  The depth-pile's hover-expanded overlay passes false: it is a transient
+     *  browse state mounted ALONGSIDE the collapsed pile (which already owns
+     *  the ids) — duplicate layoutIds would corrupt the FLIP. */
+    memberLayoutIds?: boolean;
 };
 
 /** The horizontal **fan** body of a permanent stack (PRD #621, issue #623).
@@ -25,8 +33,10 @@ type BattlefieldStackFanProps = {
  *
  *  **Fixed footprint — hard rule (PRD #621).** Members float in an absolute
  *  overlay (`left` offset only) over the parent's one-card slot box; hover-lift
- *  is a transform + z bump. Neither ever changes the layout box or pushes
- *  neighbours — the prototype's reflow-on-hover is the explicit anti-pattern.
+ *  is a transform + z bump on an INNER div (so it never fights the FLIP
+ *  transform the shared-layout identity writes on the outer motion.div).
+ *  Neither ever changes the layout box or pushes neighbours — the prototype's
+ *  reflow-on-hover is the explicit anti-pattern.
  *
  *  Used directly for stacks of 2–8 members, and as the **overlay-expanded** form
  *  of a depth-pile (>8) on hover ({@link BattlefieldStackDepthPile}). */
@@ -34,8 +44,10 @@ export default function BattlefieldStackFan({
     members,
     renderMember,
     showBadge = true,
+    memberLayoutIds = true,
 }: BattlefieldStackFanProps) {
     const [lifted, setLifted] = useState<string | null>(null);
+    const reduceMotion = useReducedMotion();
     const n = members.length;
     const offset = stackFanOffset(n);
 
@@ -48,31 +60,50 @@ export default function BattlefieldStackFan({
             {members.map((card, i) => {
                 const isLifted = lifted === card.id;
                 return (
-                    <div
+                    <motion.div
                         key={card.id}
                         data-stack-member={card.id}
+                        data-flight-id={memberLayoutIds ? card.id : undefined}
+                        // Shared-layout identity per member: a tap/untap moves
+                        // the card between the untapped/tapped piles and the
+                        // FLIP flies it there (QA); within the fan, position
+                        // changes tween too.
+                        layout={memberLayoutIds}
+                        layoutId={memberLayoutIds ? card.id : undefined}
+                        transition={
+                            reduceMotion ? { duration: 0 } : SLOT_SPRING.motion
+                        }
                         // Each member floats over the fixed slot box in an
                         // absolute overlay (left offset only) — the parent slot
-                        // keeps its one-card footprint and never reflows. Lift is
-                        // a transform + z bump, both purely visual.
-                        className="absolute top-0 w-full h-full transition-transform duration-150"
+                        // keeps its one-card footprint and never reflows.
+                        className="absolute top-0 w-full h-full"
                         style={{
                             left: `${i * offset}px`,
                             // Resting z follows fan order (later members paint on
                             // top); a hovered member jumps above everything so it
                             // is fully readable/clickable.
                             zIndex: isLifted ? 100 : 10 + i,
-                            transform: isLifted
-                                ? "translateY(-16px)"
-                                : undefined,
                         }}
-                        onPointerEnter={() => setLifted(card.id)}
-                        onPointerLeave={() =>
-                            setLifted((cur) => (cur === card.id ? null : cur))
-                        }
                     >
-                        {renderMember(card)}
-                    </div>
+                        {/* Lift lives on an INNER div — framer's FLIP owns the
+                            outer transform during flights. */}
+                        <div
+                            className="w-full h-full transition-transform duration-150"
+                            style={{
+                                transform: isLifted
+                                    ? "translateY(-16px)"
+                                    : undefined,
+                            }}
+                            onPointerEnter={() => setLifted(card.id)}
+                            onPointerLeave={() =>
+                                setLifted((cur) =>
+                                    cur === card.id ? null : cur
+                                )
+                            }
+                        >
+                            {renderMember(card)}
+                        </div>
+                    </motion.div>
                 );
             })}
             {/* ×N count badge — only from STACK_COUNT_BADGE_MIN up (small fans

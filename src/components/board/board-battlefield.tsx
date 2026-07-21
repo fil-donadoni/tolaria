@@ -276,6 +276,7 @@ export default function BoardBattlefield({
         key: string;
         isStack: boolean;
         members: CardInstance[];
+        stackKey?: string;
     }): SpatialItem {
         if (!group.isStack) {
             const host = group.members[0];
@@ -288,8 +289,11 @@ export default function BoardBattlefield({
                 arrivalGlow: arrivalDeferIds?.has(group.key) === true,
             };
         }
+        // The stack's slot is keyed by the group's IDENTITY (never a member's
+        // instance id): members carry their own `layoutId = card.id` so a
+        // tap/untap flies a permanent between the untapped/tapped piles (QA).
         return {
-            key: group.key,
+            key: `stack:${group.stackKey ?? group.key}`,
             node: (
                 <BattlefieldStack
                     members={group.members}

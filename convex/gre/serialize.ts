@@ -895,6 +895,7 @@ function compactStackItem(item: StackItem): CompactCard {
     // ADR 0048 — an inline delayed-trigger body (pure JSON) must survive a
     // save while the fired trigger sits on the stack awaiting priority.
     if (item.delayedEffects) base.delayedEffects = item.delayedEffects;
+    if (item.delayedOracleText) base.delayedOracleText = item.delayedOracleText;
     if (item.resolutionStep !== undefined) {
         base.resolutionStep = item.resolutionStep;
     }
@@ -991,6 +992,9 @@ function expandStackItem(compact: CompactCard): StackItem {
     if (compact.delayedEffects) {
         item.delayedEffects =
             compact.delayedEffects as StackItem["delayedEffects"];
+    }
+    if (compact.delayedOracleText) {
+        item.delayedOracleText = compact.delayedOracleText as string;
     }
     if (compact.resolutionStep !== undefined) {
         item.resolutionStep = compact.resolutionStep as number;

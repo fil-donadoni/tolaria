@@ -399,7 +399,9 @@ export function applyMoveInSearch(
                 player.landsPlayedThisTurn =
                     (player.landsPlayedThisTurn ?? 0) + 1;
             }
-            emitPermanentEntered(state, card);
+            // CR 305.2 — mirror the real play-land chokepoint: `wasPlayed`
+            // marks a PLAYED land so "whenever you play a land" triggers fire.
+            emitPermanentEntered(state, card, { wasPlayed: true });
             processPendingActionTriggers(state);
             // A special action resets the pass cycle (CR 117.3c) and keeps
             // priority with the actor, who may keep acting.

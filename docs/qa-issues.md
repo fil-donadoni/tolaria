@@ -49,11 +49,9 @@ Il bot cerca di tappare per mana un everflowing chalice senza counters e continu
 
 Earthbend: manca la parte di abilità che ritorna le terre animate in gioco quando muoiono. Non è scritto nell'oracle text della card-preview e non avviene nel gameplay.
 
-manca il token golem di sandtorm salvager e lo spirit di staff of the storyteller e la beast di garruk wildspeaker. verifica quali altri token mancano, importali e fai in modo che non vengano più create carte con token mancanti
+manca il token golem di sandtorm salvager e lo spirit di staff of the storyteller e la beast di garruk wildspeaker e human di torsten. verifica quali altri token mancano, importali e fai in modo che non vengano più create carte con token mancanti
 
 staff of the storyteller non è stata implementata nella sua prima edizione ma in una ristampa. correggi, trova altri casi simili e fai in modo che non ricapiti.
-
-la triggered ability di forth eorlingas in pila non mostra card-preview con oracle dell'abilita', ma la carta intera. correggi, trova casi simili e fai in modo che non ricapiti.
 
 Bug quando provo ad attivare l'abilità di Harvester of misery:
 installHook.js:1 [CONVEX M(game:selectTarget)] [Request ID: 6efb7360d6a7c912] Server Error
@@ -77,3 +75,8 @@ Cosa succede al segnalino void
 I segnalini esistono solo sul campo o in esilio: Per regola del gioco, i segnalini (come i segnalini void, +1/+1 o tempo) possono esistere solo sugli oggetti in determinate zone.
 Il cambio di zona cancella i segnalini: Quando attivi l'abilità del Dauthi Voidwalker e lanci la carta esiliata, quella carta si sposta dall'esilio alla pila (stack).
 Rimozione immediata: Nel momento esatto in cui la carta cambia zona ed entra in pila, cessa di essere un "oggetto in esilio" e perde immediatamente il segnalino void.
+
+Nuova UI:
+lo stack non mostra le frecce che attraversano il board tra carta/abilità in stack e bersagli. il badge con scritto il bersaglio non è assolutamente utile.
+
+Non c'è modo di vedere Printed Card nel card-preview

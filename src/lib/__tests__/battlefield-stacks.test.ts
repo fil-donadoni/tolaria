@@ -110,22 +110,41 @@ describe("groupBattlefield — arrival deferral (zone-change flights)", () => {
     });
 });
 
-describe("groupBattlefield — excluded from key, still stacks", () => {
-    it("differing tapped state stacks together", () => {
+describe("groupBattlefield — tap state splits the stack (QA)", () => {
+    it("differing tapped state splits into two groups (untapped pile + tapped pile)", () => {
         const tapped = makeCard({ id: "tapped", isTapped: true });
         const untapped = makeCard({ id: "untapped", isTapped: false });
         const groups = groupBattlefield([tapped, untapped], noHosts);
-        expect(groups).toHaveLength(1);
-        expect(groups[0].isStack).toBe(true);
+        expect(groups).toHaveLength(2);
+        // Both are singletons here (one member each) — the untapped pile and
+        // the tapped pile are separate groups.
+        const u = groups.find((g) => g.members[0].id === "untapped")!;
+        const t = groups.find((g) => g.members[0].id === "tapped")!;
+        expect(u.stackKey).toBe(t.stackKey?.replace(/\|1$/, "|0"));
+        expect(u.stackKey).not.toBe(t.stackKey);
     });
 
-    it("differing mana-committed flag stacks together", () => {
+    it("six untapped forests stack; tapping some splits the pile by tap state", () => {
+        const forests = Array.from({ length: 6 }, (_, i) =>
+            makeCard({ id: `f${i}`, isTapped: i >= 4 })
+        );
+        const groups = groupBattlefield(forests, noHosts);
+        expect(groups).toHaveLength(2);
+        const untapped = groups.find((g) => g.members.length === 4)!;
+        const tapped = groups.find((g) => g.members.length === 2)!;
+        expect(untapped.isStack).toBe(true);
+        expect(keys(untapped.members)).toEqual(["f0", "f1", "f2", "f3"]);
+        expect(keys(tapped.members)).toEqual(["f4", "f5"]);
+    });
+
+    it("differing mana-committed flag still stacks together (flag excluded from the key)", () => {
+        // Same card, same tap state — only the mana-committed flag differs.
         const committed = makeCard({
             id: "committed",
             isTapped: true,
             manaCommitted: true,
         });
-        const free = makeCard({ id: "free", isTapped: false });
+        const free = makeCard({ id: "free", isTapped: true });
         const groups = groupBattlefield([committed, free], noHosts);
         expect(groups).toHaveLength(1);
         expect(groups[0].isStack).toBe(true);
@@ -265,18 +284,20 @@ describe("groupBattlefield — altered predicate ejects to singleton", () => {
 });
 
 describe("groupBattlefield — ordering", () => {
-    it("members are untapped first, then tapped, stable by input order", () => {
+    it("tap-split groups are stable by first-member position (QA: tapped/untapped no longer interleave in one pile)", () => {
         const u1 = makeCard({ id: "u1", isTapped: false });
         const t1 = makeCard({ id: "t1", isTapped: true });
         const u2 = makeCard({ id: "u2", isTapped: false });
         const t2 = makeCard({ id: "t2", isTapped: true });
         // Input deliberately interleaved.
         const groups = groupBattlefield([t1, u1, t2, u2], noHosts);
-        expect(groups).toHaveLength(1);
-        // untapped (input order u1, u2) then tapped (input order t1, t2).
-        expect(keys(groups[0].members)).toEqual(["u1", "u2", "t1", "t2"]);
-        // Lead member key is the first untapped.
-        expect(groups[0].key).toBe("u1");
+        // Two piles: the tapped one (first member t1 at index 0) leads.
+        expect(groups).toHaveLength(2);
+        expect(keys(groups[0].members)).toEqual(["t1", "t2"]);
+        expect(keys(groups[1].members)).toEqual(["u1", "u2"]);
+        expect(groups[0].stackKey).toBeTruthy();
+        expect(groups[1].stackKey).toBeTruthy();
+        expect(groups[0].stackKey).not.toBe(groups[1].stackKey);
     });
 
     it("group order is stable relative to input (first-member position)", () => {

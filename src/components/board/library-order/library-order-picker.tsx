@@ -22,12 +22,69 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import type { LibraryDestination } from "@convex/gre/types";
 import { SLOT_SPRING } from "~/lib/board-motion";
-import { Minus } from "lucide-react";
+import { Minus, Hand, Layers, Skull } from "lucide-react";
 import { useMinimizedChoice } from "~/hooks/useMinimizedChoice";
 import OrderCard from "./order-card";
 import DeckMock, { DECK_W, DECK_H } from "./deck-mock";
-import { CARD_W, CARD_H, LIFT, DRAG_START_PX } from "./constants";
+import { CARD_W, CARD_H, LIFT, DRAG_START_PX, REVEAL } from "./constants";
 import { computeLayout, insertionIndex, type Zone } from "./layout";
+
+/** Zone label chrome (phase 2, winner A): every picker zone declares its name
+ *  + ordering hint + icon up front — the fused text labels under the strip are
+ *  gone (they were the Narset hand/top confusion). */
+type ZoneMeta = {
+    title: string;
+    hint: string;
+    icon: "library" | "hand" | "graveyard";
+};
+
+function ZoneLabel({ meta, accent }: { meta: ZoneMeta; accent: boolean }) {
+    const Icon =
+        meta.icon === "hand" ? Hand : meta.icon === "graveyard" ? Skull : Layers;
+    return (
+        <div
+            className={`flex items-center gap-2 rounded-sm border px-2 py-1 ${
+                accent
+                    ? "border-accent/50 bg-accent-soft/20 text-accent-strong"
+                    : "border-border-subtle bg-surface-elevated/40 text-text-muted"
+            }`}
+        >
+            <Icon className="h-4 w-4" />
+            <div className="leading-tight">
+                <p className="text-[11px] font-bold tracking-wide uppercase">
+                    {meta.title}
+                </p>
+                <p className="text-[10px] opacity-80">{meta.hint}</p>
+            </div>
+        </div>
+    );
+}
+
+const META_LIBRARY_TOP: ZoneMeta = {
+    title: "Top of library",
+    hint: "rightmost = topmost",
+    icon: "library",
+};
+const META_LIBRARY_BOTTOM: ZoneMeta = {
+    title: "Bottom of library",
+    hint: "ordered — first here ends up deepest",
+    icon: "library",
+};
+const META_HAND: ZoneMeta = {
+    title: "Your hand",
+    hint: "cards you keep",
+    icon: "hand",
+};
+const META_HAND_POOL: ZoneMeta = {
+    title: "Your hand",
+    hint: "source pool",
+    icon: "hand",
+};
+const META_GRAVEYARD: ZoneMeta = {
+    title: "Graveyard",
+    hint: "discarded / milled",
+    icon: "graveyard",
+};
 
 export type LookedAtCard = { instanceId: string; defId: string };
 
@@ -42,32 +99,32 @@ type Drag = {
 const clamp = (v: number, lo: number, hi: number) =>
     Math.min(hi, Math.max(lo, v));
 
-/** Labels + prompt copy per destination. */
+/** Zone chrome per destination (labels/hints/detach flags). */
 function chromeFor(destination: LibraryDestination): {
-    leftLabel: string;
-    rightLabel: string;
+    leftMeta: ZoneMeta | null;
+    rightMeta: ZoneMeta;
     hasSecond: boolean;
     detached: boolean;
 } {
     switch (destination) {
         case "library-bottom":
             return {
-                leftLabel: "BOTTOM",
-                rightLabel: "TOP",
+                leftMeta: META_LIBRARY_BOTTOM,
+                rightMeta: META_LIBRARY_TOP,
                 hasSecond: true,
                 detached: false,
             };
         case "graveyard":
             return {
-                leftLabel: "GRAVEYARD",
-                rightLabel: "LIBRARY",
+                leftMeta: META_GRAVEYARD,
+                rightMeta: META_LIBRARY_TOP,
                 hasSecond: true,
                 detached: true,
             };
         case "none":
             return {
-                leftLabel: "",
-                rightLabel: "TOP OF LIBRARY",
+                leftMeta: null,
+                rightMeta: META_LIBRARY_TOP,
                 hasSecond: false,
                 detached: false,
             };
@@ -121,22 +178,29 @@ export default function LibraryOrderPicker({
     // graveyard leg in the non-distribute `chromeFor` branch below.
     const chrome = distribute
         ? {
-              leftLabel: destination === "graveyard" ? "GRAVEYARD" : "BOTTOM",
-              rightLabel: "HAND",
+              leftMeta:
+                  destination === "graveyard"
+                      ? META_GRAVEYARD
+                      : META_LIBRARY_BOTTOM,
+              rightMeta: META_HAND,
               hasSecond: true,
               detached: destination === "graveyard",
           }
         : putBack
           ? {
-                leftLabel: "HAND",
-                rightLabel: "TOP OF LIBRARY",
+                leftMeta: META_HAND_POOL,
+                rightMeta: META_LIBRARY_TOP,
                 hasSecond: true,
                 // Detached so the HAND pool reads as its own zone, set apart
                 // from the library with the wider gap (GAP_DETACHED).
                 detached: true,
             }
           : chromeFor(destination);
-    const { leftLabel, rightLabel, hasSecond, detached } = chrome;
+    const { leftMeta, rightMeta, hasSecond, detached } = chrome;
+    // The distribute HAND (right zone) is DETACHED from the library mock (QA
+    // Narset): a real gap + an accent panel instead of the fused under-deck
+    // tuck, so "drag right = into your hand" never reads as "top of library".
+    const detachRight = distribute !== undefined;
 
     // Both `distribute` and `putBack` are "pool" modes: every card starts in the
     // LEFT (`second`) zone and the player pulls exactly `keep` into the RIGHT
@@ -196,7 +260,8 @@ export default function LibraryOrderPicker({
                 second.length,
                 top.length,
                 hasSecond,
-                detached
+                detached,
+                detachRight
             );
             const place = new Map<string, { x: number; z: number }>();
             second.forEach((id, i) =>
@@ -223,7 +288,8 @@ export default function LibraryOrderPicker({
             second0.length,
             top0.length,
             hasSecond,
-            detached
+            detached,
+            detachRight
         );
         let destZone: Zone =
             hasSecond && drag.pointerX < hit.libCenter ? "second" : "top";
@@ -267,7 +333,8 @@ export default function LibraryOrderPicker({
             nextSecond.length,
             nextTop.length,
             hasSecond,
-            detached
+            detached,
+            detachRight
         );
         const place = new Map<string, { x: number; z: number }>();
         nextSecond.forEach((id, i) =>
@@ -292,7 +359,7 @@ export default function LibraryOrderPicker({
                 dropIndex: number;
             },
         };
-    }, [drag, top, second, hasSecond, detached, topCap, eligibleIds]);
+    }, [drag, top, second, hasSecond, detached, detachRight, topCap, eligibleIds]);
 
     // ---- Gesture (mirrors the hand's activation feel; no cast branch) ----
     const onPointerDown = useCallback(
@@ -304,7 +371,8 @@ export default function LibraryOrderPicker({
                 second.length,
                 top.length,
                 hasSecond,
-                detached
+                detached,
+                detachRight
             );
             const center = layout.center(zone, idx);
             press.current = {
@@ -316,7 +384,7 @@ export default function LibraryOrderPicker({
                 active: false,
             };
         },
-        [top, second, hasSecond, detached, localX, submitting]
+        [top, second, hasSecond, detached, detachRight, localX, submitting]
     );
 
     const onPointerMove = useCallback(
@@ -421,6 +489,18 @@ export default function LibraryOrderPicker({
                     {prompt}
                 </p>
 
+                {/* Zone labels ABOVE the strip (phase 2, winner A): every zone
+                    declares name + ordering hint + icon before you drag. The
+                    right zone is the accent one when it's YOURS (hand). */}
+                <div className="flex items-start justify-between gap-4 px-2">
+                    {leftMeta ? (
+                        <ZoneLabel meta={leftMeta} accent={false} />
+                    ) : (
+                        <span />
+                    )}
+                    <ZoneLabel meta={rightMeta} accent={detachRight} />
+                </div>
+
                 {/* overflow-hidden (not auto): a dragged card lifted to the edge
                     must never spawn a scrollbar. Horizontal padding gives the
                     scaled edge cards + their drop-shadow room to breathe. */}
@@ -444,6 +524,25 @@ export default function LibraryOrderPicker({
                                     left: view.layout.secondStart - 10,
                                     top: LIFT - 6,
                                     width: view.layout.secondSlotW + 20,
+                                    height: CARD_H + 12,
+                                    zIndex: 0,
+                                }}
+                            />
+                        )}
+                        {/* The distribute HAND zone's accent panel (QA Narset):
+                            a solid accent frame set apart from the library —
+                            "yours", never confusable with the top of it. */}
+                        {detachRight && (
+                            <div
+                                className="absolute rounded-xl border border-accent/60 bg-accent-soft/10"
+                                style={{
+                                    left: view.layout.topStart - 10,
+                                    top: LIFT - 6,
+                                    width:
+                                        Math.max(
+                                            (top.length - 1) * REVEAL + CARD_W,
+                                            CARD_W
+                                        ) + 20,
                                     height: CARD_H + 12,
                                     zIndex: 0,
                                 }}
@@ -500,11 +599,6 @@ export default function LibraryOrderPicker({
                             );
                         })}
                     </div>
-                </div>
-
-                <div className="flex items-center justify-between px-2 font-beleren text-lg tracking-widest text-muted-foreground">
-                    <span>{leftLabel}</span>
-                    <span className="text-accent">{rightLabel}</span>
                 </div>
 
                 <div className="flex justify-center">

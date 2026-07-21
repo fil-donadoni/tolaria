@@ -1195,6 +1195,30 @@ describe("getDelayedTriggerOracleText", () => {
         );
         expect(text).toBeNull();
     });
+
+    // ADR 0048 — an INLINE delayed trigger (DSL `delayedTrigger` Op) carries
+    // the constant INLINE_DELAYED_TRIGGER_ID as its id and has NO
+    // `cardDef.delayedTriggers[]` row, so the card-def lookup returns null; its
+    // text rides on the stack item (`delayedOracleText`). Without this the
+    // stack tile fell back to a full-card image (Sneak Attack, Forth Eorlingas).
+    it("prefers the inline oracle text carried on the stack item", () => {
+        const text = getDelayedTriggerOracleText(
+            "d07dc95d-82a8-4a58-8ea2-d4513bd7316d", // Sneak Attack
+            "$inline-effects",
+            "Sacrifice the creature at the beginning of the next end step."
+        );
+        expect(text).toBe(
+            "Sacrifice the creature at the beginning of the next end step."
+        );
+    });
+
+    it("returns null for an inline trigger id with no carried text (defensive)", () => {
+        const text = getDelayedTriggerOracleText(
+            "d07dc95d-82a8-4a58-8ea2-d4513bd7316d",
+            "$inline-effects"
+        );
+        expect(text).toBeNull();
+    });
 });
 
 // ---------------------------------------------------------------------------

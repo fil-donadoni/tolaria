@@ -5420,6 +5420,16 @@ export interface PermanentEnteredEvent {
      *  casting stays untouched — only the true cast-resolution chokepoint
      *  passes `true`. */
     wasCast?: boolean;
+    /** CR 305.2 / 305.9 — true ONLY when this permanent entered as a LAND PLAYED
+     *  as a special action (the play-land chokepoints: `settleEnteredLand` and the
+     *  bot search `play-land` case). Every other zone change onto the battlefield
+     *  (a fetched / tutored / reanimated land put there by an effect, token
+     *  creation, a cast permanent) leaves this false/undefined. Read by "whenever
+     *  you play a land" triggers (Fastbond's self-damage, City of Traitors'
+     *  sacrifice) which must NOT fire on a land that merely ENTERS — CR draws a
+     *  sharp line between "play a land" (305.1) and "a land enters" (603.6a).
+     *  Mirrors `wasCast`'s "true only at the one real chokepoint" shape. */
+    wasPlayed?: boolean;
 }
 
 /** Leave-the-battlefield event emitted whenever a permanent transitions

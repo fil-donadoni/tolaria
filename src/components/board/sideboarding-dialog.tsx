@@ -6,7 +6,11 @@ import type { PublicMatch } from "@convex/matches";
 import GameDialog from "~/components/ui/game-dialog";
 import { Button } from "~/components/ui/button";
 import { useGameContext } from "~/hooks/useGameContext";
+import { buildPreviewBody } from "~/lib/preview-body";
+import CardPreviewBody from "~/components/cards/card-preview-body";
 import {
+    moveAllToMaindeck,
+    moveAllToSideboard,
     moveToMaindeck,
     moveToSideboard,
     type SideboardSplit,
@@ -139,10 +143,20 @@ export default function SideboardingDialog({
     const isChooser =
         choiceKind === "prompt" && match.playDrawChooserId === seat.id;
 
-    const handleToSide = (cardId: string) =>
-        setSplit((s) => moveToSideboard(s, cardId));
-    const handleToMain = (cardId: string) =>
-        setSplit((s) => moveToMaindeck(s, cardId));
+    const handleToSide = (cardId: string, all = false) =>
+        setSplit((s) =>
+            all ? moveAllToSideboard(s, cardId) : moveToSideboard(s, cardId)
+        );
+    const handleToMain = (cardId: string, all = false) =>
+        setSplit((s) =>
+            all ? moveAllToMaindeck(s, cardId) : moveToMaindeck(s, cardId)
+        );
+    // Hover → the phase-2 computed preview (art + live oracle text) in the
+    // middle column.
+    const [hoveredCardId, setHoveredCardId] = useState<string | null>(null);
+    const hoveredBody = hoveredCardId
+        ? buildPreviewBody(hoveredCardId)
+        : null;
 
     const handleReady = async () => {
         if (!sizeOk || submitting) return;
@@ -213,15 +227,34 @@ export default function SideboardingDialog({
                         cards={split.cards}
                         moveLabel="→ Side"
                         onMove={handleToSide}
+                        onHoverCard={setHoveredCardId}
                         countSuffix={` / ${lockedSize}+`}
                         disabled={submitting}
                         emptyMessage="No cards in the Maindeck."
                     />
+                    {/* Middle preview column (phase 2, winner B): the computed
+                        art + live oracle of the hovered card. Hidden on small
+                        screens. */}
+                    <div className="hidden w-56 shrink-0 sm:block">
+                        {hoveredBody ? (
+                            <div className="card-preview-dock overflow-hidden rounded-2xl bg-surface">
+                                <CardPreviewBody
+                                    {...hoveredBody}
+                                    size="sm"
+                                />
+                            </div>
+                        ) : (
+                            <div className="flex h-48 items-center justify-center rounded-md border border-dashed border-border-subtle/50 px-3 text-center text-[10px] text-text-disabled">
+                                Hover a card to preview it
+                            </div>
+                        )}
+                    </div>
                     <SideboardSwapList
                         title="Sideboard"
                         cards={split.sideboard}
                         moveLabel="→ Main"
                         onMove={handleToMain}
+                        onHoverCard={setHoveredCardId}
                         disabled={submitting}
                         emptyMessage="No cards in the Sideboard."
                     />

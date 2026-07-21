@@ -88,6 +88,21 @@ describe("BattlefieldStack fan (#623)", () => {
         }
     });
 
+    it("fan members carry shared-layout flight identity (data-flight-id = instance id, QA tap-split flights)", () => {
+        // A tap/untap moves a permanent between the untapped/tapped piles —
+        // the FLIP needs each member keyed by its stable instance id.
+        const { container } = render(
+            <BattlefieldStack
+                members={makeMembers(4)}
+                renderMember={renderMember(() => {})}
+            />
+        );
+        const ids = Array.from(
+            container.querySelectorAll("[data-stack-member]")
+        ).map((el) => el.getAttribute("data-flight-id"));
+        expect(ids).toEqual(["m0", "m1", "m2", "m3"]);
+    });
+
     it("renders a lone member with no fan or badge for size 1", () => {
         const { container } = render(
             <BattlefieldStack
@@ -148,23 +163,25 @@ describe("BattlefieldStack fan (#623)", () => {
         const restingLefts = members().map((m) => m.style.left);
 
         // Hover the middle member: it lifts (transform + high z), nothing else
-        // moves. The lift is an OVERLAY (transform only) — the `left` offsets
-        // that define each member's footprint are untouched for ALL members.
+        // moves. The lift is an OVERLAY (transform only) on the INNER div (the
+        // outer motion.div owns the FLIP identity) — the `left` offsets that
+        // define each member's footprint are untouched for ALL members.
         const middle = members()[2];
-        fireEvent.pointerEnter(middle);
+        const middleInner = middle.firstElementChild as HTMLElement;
+        fireEvent.pointerEnter(middleInner);
 
         const liftedLefts = members().map((m) => m.style.left);
         expect(liftedLefts).toEqual(restingLefts);
 
-        // The hovered member alone gains the lift transform + a top z-index.
-        expect(middle.style.transform).toContain("translateY(-16px)");
+        // The hovered member alone gains the lift transform (inner) + top z
+        // (outer); a non-hovered member keeps its resting (no-lift) transform.
+        expect(middleInner.style.transform).toContain("translateY(-16px)");
         expect(Number(middle.style.zIndex)).toBeGreaterThan(50);
-        // A non-hovered member keeps its resting (no-lift) transform.
-        const other = members()[0];
-        expect(other.style.transform || "").not.toContain("translateY");
+        const otherInner = members()[0].firstElementChild as HTMLElement;
+        expect(otherInner.style.transform || "").not.toContain("translateY");
 
         // Leaving clears the lift; footprint still unchanged.
-        fireEvent.pointerLeave(middle);
+        fireEvent.pointerLeave(middleInner);
         expect(members().map((m) => m.style.left)).toEqual(restingLefts);
         expect(members()[2].style.transform || "").not.toContain("translateY");
     });

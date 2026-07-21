@@ -1,5 +1,5 @@
 import { useEffect, useRef, type RefObject } from "react";
-import { LEADER_LINES_REPOSITION_EVENT } from "~/hooks/use-leader-lines";
+import { ANCHORS_REPOSITION_EVENT } from "~/hooks/anchor-reposition";
 import { useArrowAnchors, type AnchorKind } from "~/hooks/arrowAnchorContext";
 
 /** `data-arrow-anchor-*` attribute name per anchor kind. */
@@ -96,11 +96,11 @@ export function useDomAnchorPublisher(
         const onChange = () => measure();
         window.addEventListener("resize", onChange);
         document.addEventListener("scroll", onChange, true);
-        window.addEventListener(LEADER_LINES_REPOSITION_EVENT, onChange);
+        window.addEventListener(ANCHORS_REPOSITION_EVENT, onChange);
         return () => {
             window.removeEventListener("resize", onChange);
             document.removeEventListener("scroll", onChange, true);
-            window.removeEventListener(LEADER_LINES_REPOSITION_EVENT, onChange);
+            window.removeEventListener(ANCHORS_REPOSITION_EVENT, onChange);
             // Release this publisher's anchors on unmount.
             for (const owned of ownedRef.current) {
                 unpublish(owned.kind, owned.id);

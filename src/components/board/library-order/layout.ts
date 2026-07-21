@@ -19,6 +19,8 @@ export type StripLayout = {
     libCenter: number;
     /** Left x of the library mock (for absolute placement). */
     libStart: number;
+    /** Left x of the top zone (for the accent zone box). */
+    topStart: number;
     /** Total strip width (drives the container + the drag clamp). */
     stripW: number;
     /** Left x and reserved width of the second zone (for the dashed box). */
@@ -37,7 +39,11 @@ export function computeLayout(
     secondCount: number,
     topCount: number,
     hasSecond: boolean,
-    detached: boolean
+    detached: boolean,
+    /** Detach the RIGHT zone from the library mock (distribute HAND, QA
+     *  Narset): a real gap replaces the fused under-deck tuck, so the hand
+     *  zone never reads as "top of library". */
+    detachRight = false
 ): StripLayout {
     const secondStart = 0;
     // Reserve at least one card of room so an EMPTY second zone is still a real,
@@ -48,8 +54,11 @@ export function computeLayout(
     const gapL = hasSecond ? (detached ? GAP_DETACHED : GAP_FUSED) : 0;
     const libStart = secondSlotW + gapL;
     const libCenter = libStart + DECK_W / 2;
-    // The top fan tucks under the library's right edge (Arena fuse).
-    const topStart = libStart + DECK_W - LIB_OVERLAP;
+    // The top fan tucks under the library's right edge (Arena fuse) — unless
+    // the right zone is detached (distribute HAND).
+    const topStart = detachRight
+        ? libStart + DECK_W + GAP_DETACHED
+        : libStart + DECK_W - LIB_OVERLAP;
     const stripW = topStart + Math.max(zoneWidth(topCount), CARD_W);
 
     const center = (zone: Zone, index: number): number => {
@@ -57,7 +66,15 @@ export function computeLayout(
         return start + index * REVEAL + CARD_W / 2;
     };
 
-    return { libCenter, libStart, stripW, secondStart, secondSlotW, center };
+    return {
+        libCenter,
+        libStart,
+        topStart,
+        stripW,
+        secondStart,
+        secondSlotW,
+        center,
+    };
 }
 
 /** Count how many resting slot centers sit left of the pointer → insertion index

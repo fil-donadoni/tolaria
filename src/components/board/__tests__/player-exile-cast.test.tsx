@@ -18,6 +18,13 @@ import {
     PendingChoiceBufferContext,
     type PendingChoiceBuffer,
 } from "~/hooks/usePendingChoiceBuffer";
+import { MinimizedChoiceContext } from "~/hooks/useMinimizedChoice";
+
+const noopMinimized = {
+    isMinimized: false,
+    minimize: () => {},
+    restore: () => {},
+};
 
 const noopBuffer: PendingChoiceBuffer = {
     buffer: [],
@@ -135,8 +142,10 @@ function renderExile(player: Player, viewerId: string) {
     return render(
         <GameContext value={value}>
             <PendingChoiceBufferContext value={noopBuffer}>
-                {/* open the reveal so the per-card actions mount */}
-                <PlayerExile player={player} open onOpenChange={() => {}} />
+                <MinimizedChoiceContext value={noopMinimized}>
+                    {/* open the reveal so the per-card actions mount */}
+                    <PlayerExile player={player} open onOpenChange={() => {}} />
+                </MinimizedChoiceContext>
             </PendingChoiceBufferContext>
         </GameContext>
     );

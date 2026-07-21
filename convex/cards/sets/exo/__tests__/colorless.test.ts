@@ -12,7 +12,10 @@ import { cityOfTraitors } from "..";
 import { getCardByName } from "../../../index";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { applyPlayLand } from "../../../../gre/playLand";
-import { resolveTopOfStack } from "../../../../gre/state";
+import {
+    processPendingActionTriggers,
+    resolveTopOfStack,
+} from "../../../../gre/state";
 
 const FOREST = getCardByName("Forest").id;
 
@@ -63,6 +66,33 @@ describe("City of Traitors (CR 603.2 triggered ability, CR 701.16 sacrifice)", (
         const state = makeState({ players: [player, makePlayer("p2")] });
 
         applyPlayLand(state, player, "city");
+
+        expect(state.stack.length).toBe(0);
+        expect(state.players[0].battlefield.map((c) => c.id)).toContain("city");
+    });
+
+    it("does NOT sacrifice on a fetched land that merely ENTERS (CR 305.2 — not played)", () => {
+        // A land put onto the battlefield by an effect (fetch/tutor) emits a
+        // PERMANENT_ENTERED with no `wasPlayed`. City of Traitors' trigger is
+        // "when you PLAY another land" and must not fire on a mere entry.
+        const city = makeInstance(cityOfTraitors.id, {
+            id: "city",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const player = makePlayer("p1", { battlefield: [city] });
+        const state = makeState({ players: [player, makePlayer("p2")] });
+
+        state.pendingEvents = [
+            {
+                type: "PERMANENT_ENTERED" as const,
+                instanceId: "fetched-land",
+                controllerId: "p1",
+                types: ["Land" as const],
+                // no `wasPlayed` — put onto the battlefield by an effect
+            },
+        ];
+        processPendingActionTriggers(state);
 
         expect(state.stack.length).toBe(0);
         expect(state.players[0].battlefield.map((c) => c.id)).toContain("city");

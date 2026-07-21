@@ -4,6 +4,12 @@ export function getImageUrl(id: string): string {
     return getScryfallImageUrl(id);
 }
 
+/** The printed full card (grid 488w WebP) — the "printed card" surface of the
+ *  phase-2 preview toggle. Same rendition the default CardImage fetches. */
+export function getPrintedCardImageUrl(scryfallId: string): string {
+    return getScryfallImageUrl(scryfallId);
+}
+
 /** Default `sizes` hint matching the shared card surfaces: board cards render
  *  76–140px CSS wide (portrait hand → battlefield). The browser multiplies it
  *  by devicePixelRatio to pick a srcset candidate. Surfaces pass their real

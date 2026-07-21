@@ -291,8 +291,8 @@ describe("PlayerLibrary", () => {
         );
         // The drag picker overlay is shown, with the scry (bottom/top) chrome.
         expect(getByText("Done")).toBeTruthy();
-        expect(getByText("BOTTOM")).toBeTruthy();
-        expect(getByText("TOP")).toBeTruthy();
+        expect(getByText("Bottom of library")).toBeTruthy();
+        expect(getByText("Top of library")).toBeTruthy();
         // The library pile is NOT in grid-pick mode for order-top.
         const pileProps = cardsPileSpy.mock.calls.at(-1)?.[0];
         expect(pileProps.forceOpen).toBeFalsy();
@@ -330,7 +330,7 @@ describe("PlayerLibrary", () => {
         );
         // The order-only picker overlay is shown (Ponder chrome), not the grid.
         expect(getByText("Done")).toBeTruthy();
-        expect(getByText("TOP OF LIBRARY")).toBeTruthy();
+        expect(getByText("Top of library")).toBeTruthy();
         const pileProps = cardsPileSpy.mock.calls.at(-1)?.[0];
         expect(pileProps.forceOpen).toBeFalsy();
         expect(pileProps.layout).toBe("fan");
@@ -368,7 +368,7 @@ describe("PlayerLibrary", () => {
             }
         );
         expect(getByText("Done")).toBeTruthy();
-        expect(getByText("TOP OF LIBRARY")).toBeTruthy();
+        expect(getByText("Top of library")).toBeTruthy();
     });
 
     it("gates clicks to the candidateIds allow-list on a filtered search (Transmute Artifact)", () => {
@@ -462,8 +462,8 @@ describe("PlayerLibrary", () => {
         pileProps.onCardClick({ id: "land-1" }); // eligible
         expect(toggle).toHaveBeenCalledWith("land-1");
         // The two-zone drag picker (scry chrome) is NOT mounted.
-        expect(queryByText("HAND")).toBeNull();
-        expect(queryByText("GRAVEYARD")).toBeNull();
+        expect(queryByText("Your hand")).toBeNull();
+        expect(queryByText("Graveyard")).toBeNull();
     });
 
     it("routes a randomizeRest look-distribute (Narset) to the GRID pick too — nothing to order (QA)", () => {
@@ -499,8 +499,8 @@ describe("PlayerLibrary", () => {
         expect(pileProps.layout).toBe("grid");
         expect(pileProps.title).toContain("Narset");
         // No drag picker (and its confusing fused hand/top geometry).
-        expect(queryByText("HAND")).toBeNull();
-        expect(queryByText("BOTTOM")).toBeNull();
+        expect(queryByText("Your hand")).toBeNull();
+        expect(queryByText("Bottom of library")).toBeNull();
     });
 
     it("keeps an ORDERED look-distribute (Impulse) on the drag picker — the bottom order matters", () => {
@@ -530,8 +530,8 @@ describe("PlayerLibrary", () => {
             }
         );
         // The two-zone drag picker stays (HAND/BOTTOM chrome).
-        expect(getByText("HAND")).toBeTruthy();
-        expect(getByText("BOTTOM")).toBeTruthy();
+        expect(getByText("Your hand")).toBeTruthy();
+        expect(getByText("Bottom of library")).toBeTruthy();
         const pileProps = cardsPileSpy.mock.calls.at(-1)?.[0];
         expect(pileProps.forceOpen).toBeFalsy();
     });

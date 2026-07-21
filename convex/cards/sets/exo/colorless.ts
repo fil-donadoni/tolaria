@@ -40,7 +40,12 @@ export const cityOfTraitors: CardDefinition = {
             event: "PERMANENT_ENTERED",
             matches: (event, self) => {
                 if (event.type !== "PERMANENT_ENTERED") return false;
+                // CR 305.2 — "when you PLAY another land": fires on a land
+                // played, not on any land that ENTERS. A fetched/tutored land
+                // (put onto the battlefield by an effect) carries no
+                // `wasPlayed`, so it must not sacrifice City of Traitors.
                 return (
+                    event.wasPlayed === true &&
                     event.controllerId === self.controllerId &&
                     event.types.includes("Land") &&
                     event.instanceId !== self.id

@@ -21,7 +21,6 @@
         "cmdk": "^1.1.1",
         "convex": "^1.32.0",
         "keyrune": "^3.19.0",
-        "leader-line-new": "^1.1.9",
         "lucide-react": "^0.577.0",
         "motion": "^12.40.0",
         "pixi-filters": "^6.1.5",
@@ -1070,8 +1069,6 @@
     "kleur": ["kleur@4.1.5", "", {}, "sha512-o+NO+8WrRiQEE4/7nwRJhN1HWpVmJm511pBHUxPLtp0BUISzlBplORYSmTclCnJvQq2tKu/sgl3xVpkc7ZWuQQ=="],
 
     "kubernetes-types": ["kubernetes-types@1.30.0", "", {}, "sha512-Dew1okvhM/SQcIa2rcgujNndZwU8VnSapDgdxlYoB84ZlpAD43U6KLAFqYo17ykSFGHNPrg0qry0bP+GJd9v7Q=="],
-
-    "leader-line-new": ["leader-line-new@1.1.9", "", {}, "sha512-x56aRYaqJTA4aAS2fgbSpvWKY3IxRXDSFeGkNBmCQ3LX44B3F1HEjcBTkCiK5I3W0nPWeUTWe7dTt59VtdfFWw=="],
 
     "levn": ["levn@0.4.1", "", { "dependencies": { "prelude-ls": "^1.2.1", "type-check": "~0.4.0" } }, "sha512-+bT2uH4E5LGE7h/n3evcS/sQlJXCpIp6ym8OWJ5eV6+67Dsql/LaaT7qJBAt2rzfoa/5QBGBhxDix1dMt2kQKQ=="],
 

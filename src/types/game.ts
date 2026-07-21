@@ -314,6 +314,13 @@ export interface StackItem extends CardInstance {
      *  Bauble's "draw a card at the beginning of the next turn's upkeep").
      *  Oracle text lives on `cardDef.delayedTriggers`, looked up by this id. */
     delayedTriggerId?: string;
+    /** ADR 0048 — oracle text of a fired INLINE delayed trigger (DSL
+     *  `delayedTrigger` Op). Such a trigger has NO `cardDef.delayedTriggers[]`
+     *  row (its id is the constant `INLINE_DELAYED_TRIGGER_ID`), so its text is
+     *  carried on the stack item and survives the wire projection. The stack
+     *  view reads it to render the ability tile instead of a full-card image
+     *  (Sneak Attack, Forth Eorlingas). Undefined for the template path. */
+    delayedOracleText?: string;
     /** CR 700.2c (issue #1274) — the mode a modal spell locked in at cast
      *  (`SpellMode.id`). Survives the wire projection via `slimCard`
      *  (`SlimStackItem` keeps every StackItem field but `card`); declared here

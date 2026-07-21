@@ -1,6 +1,8 @@
 import { useState } from "react";
+import { motion, useReducedMotion } from "motion/react";
 import type { CardInstance } from "~/types/game";
 import { stackDepthOffset } from "~/lib/board-layout";
+import { SLOT_SPRING } from "~/lib/board-motion";
 import BattlefieldStackFan from "./battlefield-stack-fan";
 
 type BattlefieldStackDepthPileProps = {
@@ -34,6 +36,7 @@ export default function BattlefieldStackDepthPile({
     renderMember,
 }: BattlefieldStackDepthPileProps) {
     const [expanded, setExpanded] = useState(false);
+    const reduceMotion = useReducedMotion();
     const n = members.length;
 
     return (
@@ -55,9 +58,18 @@ export default function BattlefieldStackDepthPile({
                 style={{ visibility: expanded ? "hidden" : "visible" }}
             >
                 {members.map((card, i) => (
-                    <div
+                    <motion.div
                         key={card.id}
                         data-stack-pile-member={card.id}
+                        data-flight-id={card.id}
+                        // Per-member shared-layout identity — the collapsed pile
+                        // owns the ids (the hover-expanded fan passes
+                        // memberLayoutIds={false} so they never duplicate).
+                        layout
+                        layoutId={card.id}
+                        transition={
+                            reduceMotion ? { duration: 0 } : SLOT_SPRING.motion
+                        }
                         // Each face steps down-and-right by a tiny clamped offset;
                         // the spread is capped so the pile stays ~one card wide.
                         className="absolute top-0 left-0 w-full h-full"
@@ -72,7 +84,7 @@ export default function BattlefieldStackDepthPile({
                         }}
                     >
                         {renderMember(card)}
-                    </div>
+                    </motion.div>
                 ))}
                 {/* ×N badge — INSIDE the pile's top-right corner (was -top-1.5,
                     which collided with the row above; QA). Depth piles are >8
@@ -91,12 +103,15 @@ export default function BattlefieldStackDepthPile({
             {expanded && (
                 <div
                     data-stack-pile-expanded
-                    className="absolute top-0 left-0 z-[120]"
+                    className="absolute top-0 left-0 z-modal-peak"
                     style={{ width: "100%", height: "100%" }}
                 >
+                    {/* No member layoutIds here — the collapsed pile owns them;
+                        duplicating would corrupt the FLIP. */}
                     <BattlefieldStackFan
                         members={members}
                         renderMember={renderMember}
+                        memberLayoutIds={false}
                     />
                 </div>
             )}

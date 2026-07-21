@@ -1356,6 +1356,15 @@ export type StackItem = CardInstanceState & {
      *  interpreter directly — no card-def lookup. Pure JSON (ADR 0046), so
      *  it survives the DB round-trip on a mid-suspension save. */
     delayedEffects?: EffectOp[];
+    /** ADR 0048 — the oracle text of a fired delayed trigger (CR 603.7a) that
+     *  was scheduled inline by the DSL `delayedTrigger` Op. Copied from
+     *  `DelayedTriggerInstance.oracleText` when the trigger fires, because an
+     *  inline trigger carries the constant `INLINE_DELAYED_TRIGGER_ID` as its
+     *  `delayedTriggerId` — there is NO `cardDef.delayedTriggers[]` row for the
+     *  client to look the text up from. The stack UI reads this to render the
+     *  ability tile (art + oracle text) instead of the full-card image. Undefined
+     *  for the legacy template path, where the text lives on the card def. */
+    delayedOracleText?: string;
     /** Resume checkpoint for a multi-step resolve (CR 608.3). Index into
      *  `CardDefinition.resolveSteps`. Advanced by the engine after a step
      *  completes without enqueueing pending choices. Undefined = start from
@@ -4237,7 +4246,7 @@ function finalizeSpellResolution(
         // after this resolve completes. `wasCast: true` — this IS the
         // cast-resolution chokepoint (CR 601.2i), read by an "if you cast it"
         // trigger condition (Lutri, the Spellchaser).
-        emitPermanentEntered(state, item, true);
+        emitPermanentEntered(state, item, { wasCast: true });
     } else {
         // CR 707.10 / 112.5 — a copy of an instant/sorcery spell is not a real
         // card: once it finishes resolving it simply ceases to exist instead
@@ -4344,13 +4353,17 @@ export function emitPermanentEntered(
         types: CardType[];
         card: unknown;
     },
-    /** CR 601.2i — true ONLY at the cast-resolution chokepoint
-     *  (`finalizeSpellResolution`). Every other call site (reanimation,
-     *  tutor-to-battlefield, hand-cheat, a land played, token creation)
-     *  passes nothing, matching the field's own "cast-resolution only" doc.
-     *  Read by an "if you cast it" trigger condition (Lutri, the Spellchaser,
-     *  CR 603.4). */
-    wasCast?: boolean
+    /** Entry-provenance flags carried onto the emitted PERMANENT_ENTERED event.
+     *  - `wasCast` (CR 601.2i) — true ONLY at the cast-resolution chokepoint
+     *    (`finalizeSpellResolution`). Read by an "if you cast it" trigger
+     *    condition (Lutri, the Spellchaser, CR 603.4).
+     *  - `wasPlayed` (CR 305.2) — true ONLY at a play-land chokepoint. Read by
+     *    "whenever you play a land" triggers (Fastbond, City of Traitors) which
+     *    must NOT fire when a land merely ENTERS (fetch / tutor / reanimation).
+     *  Every other call site (reanimation, tutor-to-battlefield, hand-cheat,
+     *  token creation) passes nothing, matching each field's "one chokepoint
+     *  only" doc. */
+    opts?: { wasCast?: boolean; wasPlayed?: boolean }
 ): void {
     const cardId = (card.card as { id?: string }).id;
     // Arboria (CR 508.1c) — putting a NONTOKEN permanent onto the battlefield
@@ -4370,7 +4383,8 @@ export function emitPermanentEntered(
             controllerId: card.controllerId,
             cardId,
             types: [...card.types],
-            ...(wasCast ? { wasCast: true } : {}),
+            ...(opts?.wasCast ? { wasCast: true } : {}),
+            ...(opts?.wasPlayed ? { wasPlayed: true } : {}),
         },
     ];
 }

@@ -681,10 +681,6 @@
     *::-webkit-scrollbar-thumb:hover {
         background: var(--color-text-muted);
     }
-
-    .leader-line {
-        z-index: 60;
-    }
 }
 
 @layer components {

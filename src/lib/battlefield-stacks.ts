@@ -27,16 +27,25 @@ export interface PermanentGroup {
     isStack: boolean;
     /** Ordered members (untapped first, then tapped). Never empty. */
     members: CardInstance[];
+    /** The group's identity key (card def + sickness + tap state) — present
+     *  on STACK groups. The board keys the group's layout slot by this
+     *  (`stack:<identityKey>`), NOT by a member's instance id, so individual
+     *  members keep their own shared-layout identity (`layoutId = card.id`)
+     *  and fly between groups on tap/untap (QA). */
+    stackKey?: string;
 }
 
 /** Identity key: members of one permanent stack must share the same card
- *  (art + name, via `card.card.id`) and the same summoning-sickness flag
- *  (a sick creature reads/plays differently from a ready one). Tapped state and
- *  the mana-committed flag are intentionally EXCLUDED so tapping one land for
- *  mana does not eject it from the stack (PRD #621 "Excluded from the key"). */
+ *  (art + name, via `card.card.id`), the same summoning-sickness flag (a sick
+ *  creature reads/plays differently from a ready one), and the same TAPPED
+ *  state (QA: 6 untapped Forests read as one pile; tapping some splits them
+ *  into an untapped pile and a tapped pile — the mana-committed flag stays
+ *  EXCLUDED per PRD #621, tapping for mana only moves the card between the
+ *  two piles, with the rotation + flight animation riding along). */
 function identityKey(card: CardInstance): string {
     const sick = card.isSummoningSick === true ? "1" : "0";
-    return `${card.card.id}|${sick}`;
+    const tapped = card.isTapped === true ? "1" : "0";
+    return `${card.card.id}|${sick}|${tapped}`;
 }
 
 /** A permanent is "altered" — and therefore always renders as its own
@@ -186,6 +195,7 @@ export function groupBattlefield(
             key: members[0].id,
             isStack: members.length > 1,
             members,
+            stackKey: entry.key,
         };
     });
 }
