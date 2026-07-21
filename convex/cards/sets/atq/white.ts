@@ -252,6 +252,10 @@ export const martyrsOfKorlis: CardDefinition = {
 // Reverse Polarity — {W}{W} Instant. "You gain X life, where X is twice the
 // damage dealt to you so far this turn by artifacts." (CR 119 lifegain; reads
 // the artifact-narrowed per-turn damage tally.)
+// NOT DSL-migratable: X = twice getArtifactDamageDealtThisTurn(caster) needs a
+// per-turn artifact-damage EffectValue plus an arithmetic (×2) value construct;
+// neither exists in the grammar (literal|ref|count|manaValue), so the amount
+// can't be expressed as an Op today. tracked-by: #1283
 export const reversePolarity: CardDefinition = {
     id: "da7ed8ba-3886-4779-a9b3-6892a7ed3527",
     rarity: "common",
