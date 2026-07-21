@@ -44,7 +44,7 @@ import {
 } from "../cards";
 import { dangerClock, predictCombatOutcome } from "./dangerClock";
 import { castableHeldInteraction } from "./heldInteraction";
-import { creatureValueRaw, latentValue } from "./cardValue";
+import { creatureValueRaw, dslLatentPiecesById, latentValue } from "./cardValue";
 
 /** A won position. Large enough to dominate every reachable material margin so
  *  the bot always prefers lethal, and finite so two winning lines stay
@@ -136,6 +136,11 @@ export function cardValue(state: GameState, card: CardInstanceState): number {
         manaValue: manaValue(getInstanceManaCost(card)),
         staticAbilities: card.staticAbilities,
         aiValue: getInstanceAiValue(card),
+        // DSL-derived semantic layer (PRD #1423, issue #1426): reads the card's
+        // Effect Script off the REGISTRY definition, keyed by the id that
+        // survives the wire projection (`card.card` is stripped to `{ id }`) —
+        // so the value is identical client- and server-side.
+        ...dslLatentPiecesById(String(card.card.id ?? "")),
     });
 }
 
