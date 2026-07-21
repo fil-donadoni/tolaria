@@ -16,6 +16,7 @@ import {
     projectMatch,
     recordGameResult,
     snapshotDeck,
+    toNextGamePlayers,
     type MatchCore,
     type MatchDeck,
     type MatchPlayer,
@@ -297,6 +298,38 @@ describe("buildNextGameSeats (Bo3 next-Game build, PRD #387)", () => {
             { cardId: "s1", cardName: "Side 1" },
         ]);
         expect(seats[0].deck.sideboard).not.toBe(m.players[0].deck.sideboard);
+    });
+});
+
+// --- toNextGamePlayers (games-row projection, PRD #387) -------------------
+// Regression: `buildNextGameForMatch` (the #395 setReady gate) INSERTS the
+// next-Game seats into the `games` table. The seat carries `deck.sideboard`
+// (ADR 0064, for companion auto-declare) but the `games` schema validator
+// only allows `{id,name,format,cards}` on `deck` — inserting the raw seat
+// throws "Object contains extra field `sideboard`". `toNextGamePlayers` is
+// the strip that keeps the insert schema-valid.
+describe("toNextGamePlayers (Bo3 next-Game DB projection, PRD #387)", () => {
+    it("drops the seat's sideboard for the immutable games-row snapshot", () => {
+        const m = match(3, [player("a"), player("b")]);
+        const seats = buildNextGameSeats(m);
+        // precondition: the seat DOES carry a sideboard (ADR 0064)
+        expect(seats[0].deck.sideboard.length).toBeGreaterThan(0);
+
+        const gamePlayers = toNextGamePlayers(seats);
+        // the projected deck matches the `games` schema `deck` validator exactly
+        expect(Object.keys(gamePlayers[0].deck).sort()).toEqual([
+            "cards",
+            "format",
+            "id",
+            "name",
+        ]);
+        expect(gamePlayers[0].deck).not.toHaveProperty("sideboard");
+        // maindeck is preserved
+        expect(gamePlayers[0].deck.cards).toEqual([
+            { cardId: "c1", cardName: "Card 1" },
+        ]);
+        // seat identity is preserved
+        expect(gamePlayers.map((p) => p.id)).toEqual(["a", "b"]);
     });
 });
 

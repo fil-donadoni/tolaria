@@ -335,6 +335,25 @@ export function buildNextGameSeats(match: {
     }));
 }
 
+/** Project the next-Game seats into the immutable `games`-row `players[]`
+ *  snapshot: drop the seat's `sideboard`, which is carried purely to feed
+ *  `buildInitialGameState`'s companion auto-declare (ADR 0064) and is NOT part
+ *  of the `games` schema (an extra field the validator rejects). Mirrors
+ *  `toGamePlayers` (game.ts) so all `games` inserts agree (PRD #387). */
+export function toNextGamePlayers(seats: NextGameSeat[]) {
+    return seats.map((s) => ({
+        id: s.id,
+        name: s.name,
+        bgColor: s.bgColor,
+        deck: {
+            id: s.deck.id,
+            name: s.deck.name,
+            format: s.deck.format,
+            cards: s.deck.cards,
+        },
+    }));
+}
+
 // ---------------------------------------------------------------------------
 // Play/draw choice for Games 2+ (#394, CR 103.4). After a non-deciding Game the
 // loser of that Game (`playDrawChooserId`, set by `recordGameResult`) chooses to

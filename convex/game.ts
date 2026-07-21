@@ -253,6 +253,7 @@ import {
     pickCoinTossWinner,
     recordGameResult,
     snapshotDeck,
+    toNextGamePlayers,
     type MatchPlayer,
     type PlayDrawChoice,
 } from "./matches";
@@ -3069,12 +3070,18 @@ async function buildNextGameForMatch(
         : (choice ?? "play");
     const activePlayerId = nextGameActivePlayerId(match, resolvedChoice);
 
+    // The seat's deck carries `sideboard` purely to feed `buildInitialGameState`'s
+    // companion auto-declare (ADR 0064); it must NOT be persisted onto the `games`
+    // row (the schema validator rejects the extra field). Strip it to the
+    // immutable maindeck snapshot, mirroring `toGamePlayers` (PRD #387).
+    const gamePlayers = toNextGamePlayers(seats);
+
     const gameId = await ctx.db.insert("games", {
         name: match.solo ? `${nickname}'s solo game` : `${nickname}'s game`,
         matchId: match._id,
         gameNumber: nextGameNumber,
         status: "playing",
-        players: seats,
+        players: gamePlayers,
         solo: match.solo === true ? true : undefined,
         vsAi: match.vsAi === true ? true : undefined,
         createdAt: now,
