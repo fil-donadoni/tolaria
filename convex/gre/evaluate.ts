@@ -44,7 +44,12 @@ import {
 } from "../cards";
 import { dangerClock, predictCombatOutcome } from "./dangerClock";
 import { castableHeldInteraction } from "./heldInteraction";
-import { creatureValueRaw, dslLatentPiecesById, latentValue } from "./cardValue";
+import {
+    creatureValueRaw,
+    dslLatentPiecesById,
+    dslRealizedAbilityValueById,
+    latentValue,
+} from "./cardValue";
 
 /** A won position. Large enough to dominate every reachable material margin so
  *  the bot always prefers lethal, and finite so two winning lines stay
@@ -112,16 +117,33 @@ export { cardValueById } from "./cardValue";
  *  gave the bot a false incentive to dump a trick at sorcery speed. Persistent
  *  layers (counters, static buffs) still count. Mana value comes from the
  *  registry / embedded cost. Floored at 0 power/toughness so a shrunk creature
- *  never goes negative through the body term. */
+ *  never goes negative through the body term.
+ *
+ *  Realized worth = body PLUS the creature's DSL ability-script value
+ *  (`dslRealizedAbilityValueById`, review #1440): a utility creature in play
+ *  (a pinger, a sac outlet) is worth more than a vanilla of the same size, so
+ *  the bot values keeping/deploying it correctly. This ALSO restores the
+ *  issue-#149 invariant — the latent (in-hand) worth is the discounted body
+ *  (0.85×) plus the DISCOUNTED ability value (0.5×), both factors < 1, so
+ *  latent is strictly below this realized worth for every creature; developing
+ *  a good utility creature is always a strictly positive move (it was inverted
+ *  before: latent counted the ability, realized did not). The ability value is
+ *  derived from the REGISTRY definition keyed by the card's id — the same
+ *  projection-safe path the latent term uses, never the wire-stripped
+ *  `card.card` blob — so it is identical client- and server-side. Scored on a
+ *  creature in play; a creature is scored as realized OR latent, never both,
+ *  so the ability value is never double-counted. */
 export function evaluateCreature(
     state: GameState,
     card: CardInstanceState
 ): number {
-    return creatureValueRaw(
-        Math.max(0, getPermanentEffectivePower(state, card)),
-        Math.max(0, getPermanentEffectiveToughness(state, card)),
-        manaValue(getInstanceManaCost(card)),
-        card.staticAbilities
+    return (
+        creatureValueRaw(
+            Math.max(0, getPermanentEffectivePower(state, card)),
+            Math.max(0, getPermanentEffectiveToughness(state, card)),
+            manaValue(getInstanceManaCost(card)),
+            card.staticAbilities
+        ) + dslRealizedAbilityValueById(String(card.card.id ?? ""))
     );
 }
 

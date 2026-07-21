@@ -31,6 +31,10 @@ const SPRITES = getCardByName("Scryb Sprites").id; // 1/1 flying
 const MOUNTAIN = getCardByName("Mountain").id;
 const BOP = getCardByName("Birds of Paradise").id; // 0/1 flying mana dork
 const GROWTH = getCardByName("Giant Growth").id; // instant, G (MV 1)
+// A utility creature with a DSL activated ability (a tap "deal damage" pinger):
+// its ability-script value is large relative to its small body, the exact shape
+// that inverted the issue-#149 invariant before review #1440.
+const ARTILLERY = getCardByName("Orcish Artillery").id;
 
 function bear(controllerId: string, id: string) {
     return makeInstance(BEARS, { controllerId, ownerId: controllerId, id });
@@ -378,6 +382,51 @@ describe("cardValue — latent worth + aiValue override (ADR 0018)", () => {
         expect(cardValue(state, inHand(GIANT))).toBeLessThan(
             evaluateCreature(boardState, onBoard)
         );
+    });
+
+    it("an ABILITY-BEARING creature's latent worth stays below its realized board worth (review #1440, issue #149)", () => {
+        // Regression guard for the inverted invariant: the latent (in-hand) term
+        // counts a creature's DSL ability value, but `evaluateCreature` used to
+        // count ONLY the body — so for a utility creature whose ability worth
+        // exceeds the body's latent discount margin (a 1/x pinger), latent(hand)
+        // exceeded realized(board) and the bot would HOARD the creature instead
+        // of playing it. With the ability value now added symmetrically to the
+        // realized board worth (un-discounted vs the latent 0.5× discount), and
+        // the body still discounted latently (0.85×), latent < realized is
+        // guaranteed. This case FAILS under the old body-only realized code
+        // (latent counts the ability, realized does not) and PASSES now.
+        const onBoard = makeInstance(ARTILLERY, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id: "b",
+        });
+        const boardState = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [onBoard] }),
+                makePlayer("p2"),
+            ],
+        });
+        const latent = cardValue(state, inHand(ARTILLERY));
+        const realized = evaluateCreature(boardState, onBoard);
+        // Non-tautological: the ability worth is real. A 1/2 Orcish Artillery in
+        // play out-values a BIGGER vanilla 3/3 Hill Giant precisely because its
+        // realized worth now includes the pinger ability — if the ability value
+        // were dropped, the smaller body would rank below the Giant.
+        const giantOnBoard = makeInstance(GIANT, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id: "g",
+        });
+        const giantState = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [giantOnBoard] }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(realized).toBeGreaterThan(
+            evaluateCreature(giantState, giantOnBoard)
+        );
+        expect(latent).toBeLessThan(realized);
     });
 
     it("aiValue on the card overrides the derived value verbatim", () => {

@@ -36,10 +36,13 @@ export function dslSpellScriptValue(def: CardDefinition): number | undefined {
     return undefined;
 }
 
-/** The DSL ability-script value of a card's activated + triggered abilities
- *  (context-free), discounted and summed. 0 when the card has no ability
- *  scripts. Added to a creature's body by the `latentValue` precedence. */
-export function dslAbilityScriptValue(def: CardDefinition): number {
+/** The RAW (un-discounted) sum of a card's activated + triggered ability-script
+ *  values (context-free). This is the ability worth of a permanent that is
+ *  ALREADY IN PLAY — its abilities are immediately usable, so no in-hand
+ *  discount applies. The latent (in-hand) paths discount this before adding it
+ *  to the body (`ABILITY_SCRIPT_DISCOUNT`), the realized (in-play) path does
+ *  not. 0 when the card has no ability scripts. */
+export function dslRealizedAbilityScriptValue(def: CardDefinition): number {
     const ctx = contextFreeGrounding();
     let total = 0;
     for (const ability of def.activatedAbilities ?? []) {
@@ -52,5 +55,16 @@ export function dslAbilityScriptValue(def: CardDefinition): number {
             total += valueEffectScript(ability.effects, ctx).points;
         }
     }
-    return total * ABILITY_SCRIPT_DISCOUNT;
+    return total;
+}
+
+/** The DSL ability-script value of a card's activated + triggered abilities
+ *  (context-free), discounted and summed — the LATENT (in-hand) ability worth
+ *  added to a creature's body by the `latentValue` precedence. Kept strictly
+ *  below its realized (in-play) counterpart (`dslRealizedAbilityScriptValue`)
+ *  by `ABILITY_SCRIPT_DISCOUNT < 1`, so a creature's latent worth stays below
+ *  its realized board worth — casting a utility creature is strictly positive
+ *  (issue #149, review #1440). 0 when the card has no ability scripts. */
+export function dslAbilityScriptValue(def: CardDefinition): number {
+    return dslRealizedAbilityScriptValue(def) * ABILITY_SCRIPT_DISCOUNT;
 }

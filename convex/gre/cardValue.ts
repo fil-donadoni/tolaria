@@ -20,7 +20,11 @@
 import type { CardDefinition } from "../cards/types";
 import { tryGetDefinition } from "../cards";
 import { manaValue } from "./constants";
-import { dslAbilityScriptValue, dslSpellScriptValue } from "./ai";
+import {
+    dslAbilityScriptValue,
+    dslRealizedAbilityScriptValue,
+    dslSpellScriptValue,
+} from "./ai";
 
 // The pure creature body math (`creatureValueRaw`) now lives in the leaf module
 // `./creatureBody` (issue #1426) so the per-Op value model (`gre/ai/**`) can
@@ -123,6 +127,19 @@ export function dslLatentPiecesById(cardId: string): {
 } {
     const def = tryGetDefinition(cardId);
     return def ? dslLatentPieces(def) : {};
+}
+
+/** Realized (in-play) DSL ability worth of a permanent from its REGISTRY id —
+ *  the projection-safe entry point the board evaluator (`evaluateCreature`)
+ *  adds ON TOP of the creature body so a utility creature IN PLAY is valued
+ *  above a vanilla of the same size (review #1440). Un-discounted (its
+ *  abilities are usable now), unlike the latent in-hand pieces. Derived from
+ *  the registry `CardDefinition` keyed by the id that survives the wire
+ *  projection — never the stripped fat `card.card` blob. Returns 0 for an
+ *  unknown id (a token / off-registry card). */
+export function dslRealizedAbilityValueById(cardId: string): number {
+    const def = tryGetDefinition(cardId);
+    return def ? dslRealizedAbilityScriptValue(def) : 0;
 }
 
 /** Latent worth of a card from its registry id alone — the resolution-choice
