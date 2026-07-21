@@ -6239,6 +6239,12 @@ export interface EmblemDefinition {
     name: string;
     /** Oracle text of the granted abilities, for display. */
     text: string;
+    /** Scryfall print id of the emblem's own printed card (layout `emblem`,
+     *  e.g. Sorin, Lord of Innistrad Emblem in `tdka`) whose art the UI
+     *  renders. Mirrors a token's `TokenSpec.imagePrintId` — a bare Scryfall
+     *  UUID that `src/lib/images.ts` turns into a CDN URL; absent means the
+     *  client falls back to an in-app text placeholder. */
+    imagePrintId?: string;
     /** Continuous static abilities the emblem contributes (CR 114.2a, 611).
      *  Source-less: collected by the layer system with the emblem scoped to its
      *  owner (an owner-scoped anthem reads `source.controllerId` = the owner).
@@ -6269,6 +6275,11 @@ export interface EmblemInstance {
     name: string;
     /** Denormalized display oracle text of the granted abilities. */
     text: string;
+    /** Denormalized Scryfall print id of the emblem's art (from the
+     *  definition's `imagePrintId`), so the wire projection is self-describing
+     *  and the client renders the emblem's real card art without resolving the
+     *  registry. Absent → the client shows an in-app text placeholder. */
+    imagePrintId?: string;
 }
 
 // --- Replacement effects (CR 614) ---

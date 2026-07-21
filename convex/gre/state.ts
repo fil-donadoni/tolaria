@@ -9981,6 +9981,11 @@ export function buildSpellContext(
                 emblemId,
                 name: def.name,
                 text: def.text,
+                // Denormalize the art print id so the wire is self-describing
+                // (spread through the projection like name/text); omit the key
+                // entirely when the def declares none to keep the object JSON-
+                // minimal (client falls back to a text placeholder).
+                ...(def.imagePrintId ? { imagePrintId: def.imagePrintId } : {}),
             };
             // CR 114.4 — emblems can't be removed and persist the rest of the
             // game, so the list only ever grows.

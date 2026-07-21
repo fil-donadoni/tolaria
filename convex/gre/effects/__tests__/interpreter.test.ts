@@ -15315,6 +15315,9 @@ describe("Effect Script Op: emblem (CR 114, issue #1221)", () => {
             ownerId: "p1",
             emblemId: SORIN_LORD_OF_INNISTRAD_EMBLEM_ID,
             name: "Sorin, Lord of Innistrad emblem",
+            // Art print id denormalized from the def so the UI can render the
+            // emblem's real Scryfall card art (issue #1221 follow-up).
+            imagePrintId: "327ddaaf-b6a7-4c80-9b38-5ab68181b3d6",
         });
     });
 
@@ -15329,6 +15332,14 @@ describe("Effect Script Op: emblem (CR 114, issue #1221)", () => {
         expect(projected.emblems).toHaveLength(1);
         expect(projected.emblems![0].emblemId).toBe(
             SORIN_LORD_OF_INNISTRAD_EMBLEM_ID
+        );
+        // The denormalized display fields the command-zone UI renders survive
+        // the projection (name/text/art print id ride the top-level spread).
+        expect(projected.emblems![0].name).toBe(
+            "Sorin, Lord of Innistrad emblem"
+        );
+        expect(projected.emblems![0].imagePrintId).toBe(
+            "327ddaaf-b6a7-4c80-9b38-5ab68181b3d6"
         );
     });
 

@@ -210,6 +210,47 @@ export function buildPreviewBody(
     };
 }
 
+/** Builds a preview face for a command-zone emblem (CR 114, issue #1221).
+ *  An emblem is NOT a card registry entry, so `buildPreviewBody` (which
+ *  resolves a `CardDefinition`) can't be used — this hand-builds the same
+ *  `PreviewBodyContent` struct directly from the wire-denormalized emblem
+ *  fields (name, oracle text, art print id). Feeds the exact same preview
+ *  surfaces (anchored dock, hover dock, mobile overlay) via
+ *  `CardPreview`'s `bodyOverride`. The art uses the same `art` WebP →
+ *  `art_crop` JPG fallback as every card face; when the emblem declares no
+ *  `imagePrintId` the face renders the in-app placeholder (`imageSrc` null).
+ *  No P/T, mana cost, counters, or granted-ability chips — an emblem is pure
+ *  continuous/triggered text, shown as its oracle paragraphs. */
+export function buildEmblemPreviewBody(
+    emblem: EmblemInstance
+): PreviewBodyContent {
+    const id = emblem.imagePrintId;
+    const oracleParagraphs = emblem.text
+        .split("\n")
+        .filter((p) => p.length > 0);
+    return {
+        cardName: emblem.name,
+        displayName: emblem.name,
+        imageSrc: id ? getArtImageUrl(id) : null,
+        imageFallbackSrc: id ? getArtCropImageUrl(id) : null,
+        printedImageSrc: id ? getPrintedCardImageUrl(id) : null,
+        types: [],
+        subtypes: [],
+        staticAbilities: [],
+        manaCost: null,
+        typeLine: "Emblem",
+        oracleParagraphs: oracleParagraphs.length > 0 ? oracleParagraphs : null,
+        bodyAbilities: { keywords: [], activated: [], triggered: [] },
+        hasBody: false,
+        hasPT: false,
+        ptModified: false,
+        counterDisplays: [],
+        colorName: null,
+        ownerName: null,
+        milestones: null,
+    };
+}
+
 /** Splices an on-entry ordered pair of basic land types (CR 614.12, ADR 0050 —
  *  Illusionary Terrain's `chosenSubtypes`) into the printed oracle text so the
  *  preview reflects the actual choice: "the first chosen type" → "the Forest

@@ -58,8 +58,6 @@ at handler (../convex/game.ts:7608:12)
 
 Le frecce di target di Arc mage sono sbagliate. Ho targettato una creature e un giocatore, vedo una freccia dalla creatura primo bersaglio al giocatore secondo bersaglio invece di 2 frecce che partono da arc mage e vanno verso la creatura e il giocatore
 
-Non si vedono da nessuna parte gli emblemi (Sorin, per esempio, anche se il +1/+0 viene applicato alle creature)
-
 Le creature distrutte dall'ultimate di Sorin, Lord of Innistrad non tornano sul battlefield, rimangono nel cimitero.
 
 Il may cast di Malcolm è solo nel momento della risoluzione dell'abilità, non nel resto del turno. verifica sul CR./
@@ -77,3 +75,7 @@ Bug bot:
 - cerca di tappare per mana un everflowing chalice senza counters e continua a fallire nel castare una spell, rinunciando.
 
 la schermata di game over ha delle scrollbar che compaiono a tratti, molto strano. e manca il pulsante back to lobby
+
+chrome mox: il counter I\* non è chiaro come interfaccia, e la carta imprintata deve essere attaccata a lui, stile banishing light. questo vale per tutte le carte con imprint.
+
+le carte in esilio e graveyard non hanno le animazioni di quelle sul battlefield e nella mano. uniforma l'interazione, anche a quelle nelle pile dei dialog

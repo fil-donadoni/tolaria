@@ -212,7 +212,10 @@ export function selectPresetsToSeed<T extends { label: string }>(
     const toInsert: T[] = [];
     let skipped = 0;
     for (const preset of presets) {
-        if (existingLabels.has(preset.label) || tombstonedLabels.has(preset.label)) {
+        if (
+            existingLabels.has(preset.label) ||
+            tombstonedLabels.has(preset.label)
+        ) {
             skipped++;
             continue;
         }

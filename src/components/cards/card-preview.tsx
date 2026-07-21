@@ -4,7 +4,7 @@ import { GameContext } from "~/hooks/useGameContext";
 import { useLongPress } from "~/hooks/useLongPress";
 import { useRightPressPreview } from "~/hooks/useRightPressPreview";
 import type { CardInstance } from "~/types/game";
-import { buildPreviewBody } from "~/lib/preview-body";
+import { buildPreviewBody, type PreviewBodyContent } from "~/lib/preview-body";
 import { releasePreview, requestOpenPreview } from "./card-preview-singleton";
 import CardPreviewBody from "./card-preview-body";
 import CardPreviewDock from "./card-preview-dock";
@@ -26,6 +26,12 @@ type CardPreviewProps = {
      *  707.10). Permanent copies show a second face instead — driven by
      *  `cardInstance.copiedFrom`, not this flag. */
     showCopyBadge?: boolean;
+    /** Pre-built preview face that bypasses `buildPreviewBody`'s registry
+     *  resolution. Used for objects that aren't card registry entries but
+     *  still want the full preview UX — command-zone emblems (CR 114, issue
+     *  #1221), built via `buildEmblemPreviewBody`. When set, this is the
+     *  CURRENT face verbatim (never a copy, so no second/original face). */
+    bodyOverride?: PreviewBodyContent;
     children: React.ReactNode;
 };
 
@@ -34,6 +40,7 @@ export default function CardPreview({
     cardName,
     cardInstance,
     showCopyBadge,
+    bodyOverride,
     children,
 }: CardPreviewProps) {
     // Desktop preview (phase 2): HOVER-INTENT is the discoverable trigger —
@@ -225,13 +232,12 @@ export default function CardPreview({
     }, [longPress]);
 
     // Current (presented) face — identical to the pre-refactor behavior:
-    // effective P/T, counters, color override, owner, granted abilities.
-    const currentBody = buildPreviewBody(
-        cardId,
-        cardInstance,
-        gameCtx,
-        cardName
-    );
+    // effective P/T, counters, color override, owner, granted abilities. A
+    // `bodyOverride` (emblem, issue #1221) short-circuits the registry-driven
+    // build since the object has no CardDefinition.
+    const currentBody =
+        bodyOverride ??
+        buildPreviewBody(cardId, cardInstance, gameCtx, cardName);
     // Original (printed) face — only for a copy permanent (CR 707.2). Built
     // from the preserved printed id with NO instance/context, so it is the
     // pure printed identity (name, art, type line, oracle, printed P/T).

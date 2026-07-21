@@ -60,6 +60,10 @@ registerEmblemDefinition({
     id: SORIN_LORD_OF_INNISTRAD_EMBLEM_ID,
     name: "Sorin, Lord of Innistrad emblem",
     text: "Creatures you control get +1/+0.",
+    // Scryfall print of the emblem card (set `tdka`, layout `emblem`) — the art
+    // the command-zone UI renders. Verified all renditions (grid/display/normal)
+    // resolve on the Scryfall CDN.
+    imagePrintId: "327ddaaf-b6a7-4c80-9b38-5ab68181b3d6",
     staticEffects: [
         {
             kind: "pt-buff",
