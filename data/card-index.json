@@ -2118,6 +2118,12 @@
         "firstSet": "arn"
     },
     {
+        "name": "Desperate Research",
+        "scryfallId": "6a42ac7e-4a27-488c-a2e7-338b18103b02",
+        "oracleId": "308b49ad-ebab-41c4-9e09-44202549bafc",
+        "firstSet": "inv"
+    },
+    {
         "name": "Despotic Scepter",
         "scryfallId": "53e381a4-810e-4b75-aed3-c16cf0eb06fa",
         "oracleId": "34a85d7f-d4ea-4a0f-aa4c-bf0b0f4987bf",

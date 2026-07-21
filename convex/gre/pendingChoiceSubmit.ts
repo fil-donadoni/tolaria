@@ -325,6 +325,17 @@ export function applyNameCardSubmit(
     // Normalize to the registry's canonical casing so the resolve step's name
     // comparison is exact.
     const canonical = def.name;
+    // CR 201.3 (issue #1085) — "a card name other than a basic land card
+    // name" (Desperate Research). A basic land CARD, not just a land with a
+    // basic land TYPE — checked against the printed characteristics, mirroring
+    // every other registry-backed name restriction in this pipeline.
+    if (
+        head.nameRestriction === "no-basic-land" &&
+        def.supertypes?.includes("Basic") &&
+        def.types.includes("Land")
+    ) {
+        throw new Error("Choose a card name other than a basic land card name");
+    }
 
     head.chosenName = canonical;
     const stackItem = state.stack.find((s) => s.id === head.stackItemId);

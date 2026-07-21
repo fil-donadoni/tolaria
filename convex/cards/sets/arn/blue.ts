@@ -6,9 +6,47 @@
 // identity of their mana cost (CR 202.2); lands and artifacts (no coloured
 // cost) live in colorless.ts.
 
-import type { CardDefinition } from "../../types";
+import type {
+    CardDefinition,
+    PermanentView,
+    TriggeredAbility,
+    TriggerStateView,
+} from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
-import { stateTrigger } from "../../abilities/triggers/stateTrigger";
+
+/** Local builder for the "when you control no <X>, sacrifice this" shape
+ *  shared by Serendib Djinn, Dandân and Island Fish Jasconius (CR 603.8).
+ *  Mirrors `stateTrigger()`'s CR 603.8 wiring (STATE_CHECK narrowing +
+ *  `interveningIf` re-check baked from the same `condition`) but plugs the
+ *  effect into the `effects[]` dispatch seam (ADR 0045) instead of
+ *  `resolve` — `stateTrigger()` itself only exposes `resolve` today, so a
+ *  file-scoped migration reproduces its exact event wiring here rather than
+ *  widening the shared factory. `{ op: "sacrifice", target: { ref: "$source" } }`
+ *  is the registered `sacrifice` Op (`EFFECT_OP_REGISTRY`) applied to the
+ *  triggered ability's own source, which the interpreter binds as `$source`
+ *  for every effects[] ability regardless of which factory built it. */
+function sacrificeSelfWhen(args: {
+    id: string;
+    oracleText: string;
+    condition: (self: PermanentView, state: TriggerStateView) => boolean;
+}): TriggeredAbility {
+    const { id, oracleText, condition } = args;
+    return {
+        id,
+        oracleText,
+        event: "STATE_CHECK",
+        matches: (event, self, state) => {
+            if (event.type !== "STATE_CHECK") return false;
+            if (!state) return false;
+            return condition(self, state);
+        },
+        interveningIf: (_event, self, state) => {
+            if (!state) return false;
+            return condition(self, state);
+        },
+        effects: [{ op: "sacrifice", target: { ref: "$source" } }],
+    };
+}
 
 export const flyingMen: CardDefinition = {
     id: "25ab9a2b-e248-4ae2-aac3-b49fdb3e260a",
@@ -101,7 +139,7 @@ export const serendibDjinn: CardDefinition = {
                 }
             },
         }),
-        stateTrigger({
+        sacrificeSelfWhen({
             id: "serendib-djinn-no-lands",
             oracleText: "When you control no lands, sacrifice Serendib Djinn.",
             condition: (self, state) => {
@@ -112,7 +150,6 @@ export const serendibDjinn: CardDefinition = {
                     c.types.includes("Land")
                 );
             },
-            resolve: (ctx) => ctx.sacrifice(ctx.sourceInstanceId),
         }),
     ],
 };
@@ -139,7 +176,7 @@ export const dandan: CardDefinition = {
         },
     ],
     triggeredAbilities: [
-        stateTrigger({
+        sacrificeSelfWhen({
             id: "dandan-no-islands",
             oracleText: "When you control no Islands, sacrifice Dandân.",
             condition: (self, state) => {
@@ -150,7 +187,6 @@ export const dandan: CardDefinition = {
                     c.subtypes.includes("Island")
                 );
             },
-            resolve: (ctx) => ctx.sacrifice(ctx.sourceInstanceId),
         }),
     ],
 };
@@ -211,7 +247,7 @@ export const islandFishJasconius: CardDefinition = {
                 },
             ],
         }),
-        stateTrigger({
+        sacrificeSelfWhen({
             id: "island-fish-no-islands",
             oracleText:
                 "When you control no Islands, sacrifice Island Fish Jasconius.",
@@ -223,7 +259,6 @@ export const islandFishJasconius: CardDefinition = {
                     c.subtypes.includes("Island")
                 );
             },
-            resolve: (ctx) => ctx.sacrifice(ctx.sourceInstanceId),
         }),
     ],
 };

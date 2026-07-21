@@ -1055,11 +1055,23 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // 2026-07-20 census refresh: one previously-FREE closure reclassified
         // as Op-blocked (FREE 455→454, AFK-ready 415→414, Op-blocked 219→220);
         // total unchanged at 688. Partition: 454+14+220=688.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(688);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(454);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(414);
+        //
+        // 2026-07-20 arn FREE-tranche migration: 8 resolve() closures migrated
+        // to effects[] (arn black/blue/green/red) — total 688→680 (−8),
+        // FREE 454→447 (−7), AFK-ready 414→407 (−7), Op-blocked 220→219 (−1,
+        // one migrated closure had been classified Op-blocked). X-only
+        // unchanged. Partition: 447+14+219=680.
+        //
+        // 2026-07-20 atq FREE-tranche migration: 9 resolve() closures migrated
+        // to effects[] (atq colorless 5, blue 2, green 2; black 0 — all 5
+        // classifier false-positives, comment-only reassessment) — total
+        // 680→671 (−9), FREE 447→438 (−9), AFK-ready 407→398 (−9). X-only and
+        // Op-blocked unchanged. Partition: 438+14+219=671.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(671);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(438);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(398);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(220);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(219);
     });
 
     it("surfaces the demonstrated new-Op backlog (a covered primitive leaves it)", () => {

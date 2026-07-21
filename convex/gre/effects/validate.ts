@@ -219,8 +219,13 @@ function isCardFilter(value: unknown): boolean {
         if (k === "isToken") {
             return typeof v === "boolean";
         }
+        // issue #1085 — a FIXED literal name, or a bare `{ ref: "$binding" }`
+        // naming a `nameCard` Op's chosen-name binding (Desperate Research's
+        // "put all of them with THAT name into your hand"). The ref's
+        // binding existence / family is checked by the ordered ref pass, not
+        // here (shape-only, mirrors every other field in this function).
         if (k === "name") {
-            return typeof v === "string" && v.length > 0;
+            return (typeof v === "string" && v.length > 0) || isBareRef(v);
         }
         // CR 122.6 (issue #1156) — "with a <type> counter on it". `type` is a
         // non-empty counter type string; optional `min` is a positive integer
@@ -833,6 +838,15 @@ function isLibraryDestination(value: unknown): boolean {
     return (
         value === "library-bottom" || value === "graveyard" || value === "none"
     );
+}
+
+/** The `destination` of a `digMatchingToHand` Op (issue #1085) — where every
+ *  NON-matching revealed card goes: `"exile"` (Desperate Research's "Exile
+ *  the rest") or `"graveyard"` (a Surveil-shaped future card). Distinct from
+ *  `isLibraryDestination` — this Op has no "stays on library" outcome, so
+ *  `"library-bottom"` / `"none"` are not legal here. */
+function isDigMatchingDestination(value: unknown): boolean {
+    return value === "exile" || value === "graveyard";
 }
 
 /** The `mode` discriminator of a `preventDamage` Op (issue #845, CR 615): the
@@ -2229,6 +2243,34 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             target: isObjectSelector,
         },
     },
+    // CR 201.3 / 202.3 (issue #1085) — "chooses a card name" as part of
+    // resolution. `bind` is REQUIRED (a name choice nothing reads back is
+    // meaningless — mirrors `choice`'s own required `bind`). `excludeBasicLand`
+    // (CR 201.3, Desperate Research's "other than a basic land card name") is
+    // optional.
+    nameCard: {
+        required: {
+            player: isPlayerRef,
+            prompt: isNonEmptyString,
+            bind: isBindingName,
+        },
+        optional: { excludeBasicLand: isBoolean },
+    },
+    // CR 701.20a reveal / CR 401.4 look (issue #1085) — deterministic sibling
+    // of `digToHand`: reveal the top `look` cards to every player, put every
+    // FILTER-matching card into hand with no player choice, and send the
+    // rest to `destination`. `filter` is REQUIRED — a filter-less "look N,
+    // keep all" dig is already `digToHand`'s job with `take` = `look`.
+    // `bind` (optional) snapshots the first card put into hand.
+    digMatchingToHand: {
+        required: {
+            player: isPlayerRef,
+            look: isEffectValue,
+            filter: isCardFilter,
+            destination: isDigMatchingDestination,
+        },
+        optional: { bind: isBindingName },
+    },
 };
 
 /** Names of the Ops that have a static field schema — used by the coverage
@@ -2338,7 +2380,12 @@ function collectRefUses(value: unknown, keyHint: string, out: RefUse[]): void {
                         // `grantCastFromExile`'s `card` field (issue #1156)
                         // — a bare picks ref naming a `choice` Op's bind
                         // (singular: the choice's `count: 1` pick).
-                        keyHint === "card"
+                        keyHint === "card" ||
+                        // `EffectCardFilter.name` (issue #1085) — a bare ref
+                        // naming a `nameCard` Op's chosen-name binding, the
+                        // identical single-element-string-array runtime
+                        // shape a picks binding uses (Desperate Research).
+                        keyHint === "name"
                       ? "picks"
                       : keyHint === "target" ||
                           keyHint === "to" ||
@@ -2401,6 +2448,11 @@ type BindingKind = "snapshot" | "picks" | "boolean" | "player" | "list";
 function bindingKindOf(op: unknown): BindingKind {
     if (op === "choice") return "picks";
     if (op === "mayPay") return "boolean";
+    // issue #1085 — `nameCard` stores the chosen name as a single-element
+    // string array, the identical runtime shape a `choice` Op's picks use,
+    // so a later `EffectCardFilter.name` bare ref reads it through the SAME
+    // picks family (not a new binding kind).
+    if (op === "nameCard") return "picks";
     return "snapshot";
 }
 

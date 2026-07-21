@@ -3173,11 +3173,18 @@ export interface SpellContext {
      *  server-side against the registry (an unregistered name is rejected).
      *  `choiceId` disambiguates multiple name choices within a step and must be
      *  stable across replays. Used by Petra Sphinx ("Target player chooses a
-     *  card name, then reveals the top card of their library …"). */
+     *  card name, then reveals the top card of their library …") and the
+     *  `nameCard` Effect Op (issue #1085). `excludeBasicLand` (CR 201.3,
+     *  Desperate Research's "choose a card name OTHER THAN a basic land card
+     *  name") stamps the raised `PendingChoice.nameRestriction` so
+     *  `applyNameCardSubmit` (`pendingChoiceSubmit.ts`) rejects a basic-land
+     *  name at submit time — the chooser is asked again, exactly like every
+     *  other illegal-choice rejection in that pipeline. */
     requestNameCard: (req: {
         playerId: string;
         choiceId: string;
         prompt: string;
+        excludeBasicLand?: boolean;
     }) => string | undefined;
 
     /** The card name of an instance in any zone, read from the card registry
@@ -6903,9 +6910,15 @@ export interface EffectCardFilter {
     excludeType?: CardType | CardType[];
     /** Match cards by exact printed name (CR 201.2 — "each other card named
      *  Accumulated Knowledge", Relentless Rats' "cards named ~", issue #985). A
-     *  single card name; matched case-sensitively against the registry name,
+     *  FIXED literal name (matched case-sensitively against the registry
+     *  name), OR (issue #1085) a bare `{ ref: "$binding" }` naming a `nameCard`
+     *  Op's chosen-name binding — "put all of them with THAT name into your
+     *  hand" (Desperate Research, CR 201.3 "chooses a card name"). The bare
+     *  ref is a NAME-family binding (validator-checked, mirrors the picks/
+     *  boolean bare-binding families); an uncaptured binding (the naming Op
+     *  was skipped, CR 608.2b) fails the filter closed — nothing matches.
      *  ANDed with every other field. */
-    name?: string;
+    name?: string | EffectRef;
     /** "With a <type> counter on it" (CR 122.6, issue #1156 — Dauthi
      *  Voidwalker: "an exiled card ... with a void counter on it"). Matches
      *  when the object carries at least `min` (default 1) counters of `type`.
@@ -8319,6 +8332,60 @@ export type EffectOp =
      *  broader "reveal" note, `mechanicsRegistry.ts`). */
     | { op: "reveal"; player: EffectPlayerRef; zone: "hand" }
     | { op: "reveal"; player: EffectPlayerRef; cards: EffectRef }
+    /** CR 201.3 / 202.3 (issue #1085) — "chooses a card name" as part of
+     *  resolution. A thin declarative skin over the single SpellContext
+     *  primitive `requestNameCard`, one execution path (ADR 0045): SUSPENDS
+     *  like `choice` / `mayPay` — the first execution enqueues a `name-card`
+     *  Pending Choice and reports "suspend"; the resumed execution reads the
+     *  chosen name back off the SAME `collectedChoices` store `bind`-carrying
+     *  Ops use (`recallChoice`, keyed by `choiceId` — the binding name doubles
+     *  as the choiceId, exactly like `choice`/`mayPay`'s own `bind`). The
+     *  chosen name is a NAME-family binding (a single-element string array,
+     *  the identical runtime shape a picks binding uses) — read back ONLY by
+     *  a bare `{ ref: "$binding" }` in an `EffectCardFilter.name` position
+     *  (Desperate Research: "put all of them with THAT name into your hand").
+     *  `player` names the chooser (the resolving controller by default, an
+     *  announced target-slot player, or a relative player). `bind` is
+     *  REQUIRED — a name choice nothing reads back is meaningless. `excludeBasicLand`
+     *  (CR 201.3, Desperate Research's "other than a basic land card name")
+     *  rejects a basic-land name at SUBMIT time (`applyNameCardSubmit`,
+     *  `pendingChoiceSubmit.ts`) — the chooser is asked again, exactly like
+     *  every other illegal-choice rejection in that pipeline; it is not a
+     *  post-hoc filter here. */
+    | {
+          op: "nameCard";
+          player: EffectPlayerRef;
+          prompt: string;
+          bind: string;
+          excludeBasicLand?: boolean;
+      }
+    /** CR 701.20a reveal / CR 401.4 look (issue #1085) — deterministic
+     *  sibling of `digToHand`: reveals the top `look` cards of a library to
+     *  EVERY player (unlike `digToHand`'s private per-chooser look), puts
+     *  EVERY looked-at card matching `filter` into hand with NO player
+     *  choice (the filter alone decides — CR 608.2b, zero matches is a no-op
+     *  for the hand leg), and sends every NON-matching looked-at card to
+     *  `destination`. Mirrors the `mill`/`scryReorder` split (a deterministic
+     *  Op is a SEPARATE Op from its choice-driven cousin, never a mode flag
+     *  bolted on — ADR 0045 "one execution path" per Op): `digToHand` is the
+     *  "you choose which to keep" mechanic; this is the "the filter chooses"
+     *  mechanic, so there is no suspending Pending Choice at all — the whole
+     *  looked-at window is revealed and split in one synchronous step.
+     *  `player` names whose library; `look` is how many top cards to reveal;
+     *  `filter` is REQUIRED (a filter-less "look N, keep all" dig is already
+     *  `digToHand`'s job with `take` = `look`); `destination` is where the
+     *  non-matching cards go (`"exile"` — Desperate Research's "Exile the
+     *  rest"; `"graveyard"` — a Surveil-shaped future card); `bind` (optional)
+     *  snapshots the FIRST card put into hand, mirrors `digToHand`'s own
+     *  `bind` (resolves as a `"hand-card"` TargetSelection). */
+    | {
+          op: "digMatchingToHand";
+          player: EffectPlayerRef;
+          look: EffectValue;
+          filter: EffectCardFilter;
+          destination: "exile" | "graveyard";
+          bind?: string;
+      }
     /** CR 608.2 / 101.4 — a mid-resolution player choice (issue #805). Maps
      *  1:1 onto `SpellContext.requestChoice`: the interpreter enqueues a
      *  Pending Choice of the given `kind` and SUSPENDS the script (the stack

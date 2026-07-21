@@ -9,7 +9,11 @@
 
 import { describe, it, expect } from "vitest";
 import type { CardDefinition, EffectOp } from "../../../cards/types";
-import { getDefinition, registerTokenDefinition } from "../../../cards";
+import {
+    getCardByName,
+    getDefinition,
+    registerTokenDefinition,
+} from "../../../cards";
 import {
     makeInstance,
     makePlayer,
@@ -20,6 +24,7 @@ import { resolveTopOfStack, removePermanentTo } from "../../state";
 import type { CardInstanceState, GameState, StackItem } from "../../state";
 import {
     applyMayPaySubmit,
+    applyNameCardSubmit,
     applyPendingChoiceSubmit,
     applyRandomRevealAck,
 } from "../../pendingChoiceSubmit";
@@ -15552,5 +15557,315 @@ describe("Effect Script choice kind: choose-hand-card + Op: grantCastFromGraveya
         expect(granted.castableFromGraveyardBy).toBe("p1");
         expect(granted.castableFromGraveyardUntilTurn).toBeUndefined();
         expect(granted.castFromGraveyardWithoutPayingManaCost).toBeUndefined();
+    });
+});
+
+// --- nameCard Op: an open name choice during resolution (CR 201.3 / 202.3,
+// issue #1085) -----------------------------------------------------------
+// `nameCard` suspends like `choice`/`mayPay` — the binding name doubles as
+// the choiceId, and the chosen name is committed as a picks-family binding
+// (a single-element string array) a later `EffectCardFilter.name` bare ref
+// reads back. Real catalogue card names are used throughout (Grizzly Bears /
+// Hill Giant / Forest) because `applyNameCardSubmit` resolves names through
+// the LIVE catalogue's `nameRegistry`, which synthetic `registerTokenDefinition`
+// test cards never join (mirrors Petra Sphinx's own test fixture, `leg/white`).
+
+describe("Effect Script Op: nameCard (CR 201.3 / 202.3, issue #1085)", () => {
+    it("suspends on a name-card choice, then resumes once a legal name is submitted", () => {
+        const id = registerScript("test-op-namecard-basic", [
+            {
+                op: "nameCard",
+                player: "controller",
+                prompt: "Name a card.",
+                bind: "$named",
+            },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        expect(resolveTopOfStack(state)).toBeNull(); // suspended
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("name-card");
+        expect(head.playerId).toBe("p1");
+        applyNameCardSubmit(state, { playerId: "p1", cardName: "grizzly bears" });
+        // Resolution resumed and the sorcery left the stack — the binding had
+        // no downstream reader in this script, exactly like an unread `choice`
+        // pick (CR 608.2b, no crash on an unconsumed binding).
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        expect(state.stack).toHaveLength(0);
+    });
+
+    it("rejects a basic land name at SUBMIT time (excludeBasicLand, CR 201.3) — the chooser is asked again", () => {
+        const id = registerScript("test-op-namecard-nobasic", [
+            {
+                op: "nameCard",
+                player: "controller",
+                prompt: "Choose a card name other than a basic land card name.",
+                bind: "$named",
+                excludeBasicLand: true,
+            },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(() =>
+            applyNameCardSubmit(state, { playerId: "p1", cardName: "Forest" })
+        ).toThrow(/basic land/i);
+        // The illegal submission left the pending choice in place — no
+        // silent skip, the chooser must submit a legal name.
+        expect(state.pendingChoices).toHaveLength(1);
+        expect(state.pendingChoices![0].kind).toBe("name-card");
+        applyNameCardSubmit(state, { playerId: "p1", cardName: "Grizzly Bears" });
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+    });
+
+    it("wire format: the suspended name-card choice crosses the projection", () => {
+        const id = registerScript(
+            "test-op-namecard-wire",
+            [
+                {
+                    op: "nameCard",
+                    player: { target: 0 },
+                    prompt: "Name a card.",
+                    bind: "$named",
+                },
+            ],
+            { targetRequirement: { type: "player", count: 1 } }
+        );
+        const state = makeState();
+        pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        refreshExpectedInput(state); // ADR 0047 — stable-point snapshot
+        const projected = projectPublicState(state, 1, "p2");
+        const head = projected.pendingChoices![0];
+        expect(head.kind).toBe("name-card");
+        expect(head.playerId).toBe("p2");
+        expect(head.prompt).toBe("Name a card.");
+    });
+});
+
+// --- digMatchingToHand Op: filter-driven reveal-and-split (CR 701.20a /
+// 401.4, issue #1085) ------------------------------------------------------
+// Deterministic sibling of digToHand: reveals the top `look` cards to every
+// player, puts every FILTER-matching card into hand with NO player choice,
+// and sends every non-matching card to `destination`. One synchronous step —
+// no suspension.
+
+describe("Effect Script Op: digMatchingToHand (CR 701.20a / 401.4, issue #1085)", () => {
+    const grizzlyBears = getCardByName("Grizzly Bears");
+    const hillGiant = getCardByName("Hill Giant");
+
+    const libOf = (owner: "p1" | "p2", cardIds: string[]) =>
+        cardIds.map((cardId, i) =>
+            makeInstance(cardId, {
+                id: `dig-match-${owner}-${i}`,
+                controllerId: owner,
+                ownerId: owner,
+                zone: "library",
+            })
+        );
+
+    it("Desperate Research shape: matching cards go to hand, the rest are exiled (literal name filter)", () => {
+        const id = registerScript("test-op-digmatch-literal-exile", [
+            {
+                op: "digMatchingToHand",
+                player: "controller",
+                look: 3,
+                filter: { name: "Grizzly Bears" },
+                destination: "exile",
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: libOf("p1", [
+                        grizzlyBears.id,
+                        hillGiant.id,
+                        grizzlyBears.id,
+                    ]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state); // no suspension — single synchronous step
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        expect(
+            state.players[0].hand.map((c) => c.card.id).sort()
+        ).toEqual([grizzlyBears.id, grizzlyBears.id].sort());
+        expect(state.players[0].exile.map((c) => c.card.id)).toEqual([
+            hillGiant.id,
+        ]);
+        expect(state.players[0].library).toHaveLength(0);
+    });
+
+    it("no matches → the whole looked-at window is sent to destination, hand unchanged (CR 608.2b)", () => {
+        const id = registerScript("test-op-digmatch-no-match", [
+            {
+                op: "digMatchingToHand",
+                player: "controller",
+                look: 2,
+                filter: { name: "Not A Real Card Name" },
+                destination: "graveyard",
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: libOf("p1", [hillGiant.id, hillGiant.id]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].hand).toHaveLength(0);
+        // The graveyard also holds the sorcery itself once it resolves (CR
+        // 608.3) — filter to the dug cards to isolate the digMatchingToHand
+        // outcome.
+        expect(
+            state.players[0].graveyard
+                .filter((c) => c.card.id === hillGiant.id)
+                .map((c) => c.card.id)
+        ).toEqual([hillGiant.id, hillGiant.id]);
+    });
+
+    it("bind snapshots the first matching card put into hand", () => {
+        const id = registerScript("test-op-digmatch-bind", [
+            {
+                op: "digMatchingToHand",
+                player: "controller",
+                look: 2,
+                filter: { name: "Grizzly Bears" },
+                destination: "exile",
+                bind: "$firstMatch",
+            },
+            // A hand-card snapshot's `.power`/`.toughness` are always zero
+            // (`bindSnapshot`'s non-permanent branch, mirrors `digToHand`'s
+            // own `bind`); `.manaValue` IS captured pre-move (CR 202.3,
+            // issue #1101's Reviving Vapors precedent) — asserting it proves
+            // the bind captured the RIGHT instance, not just that a move
+            // happened.
+            {
+                op: "loseLife",
+                player: "opponent",
+                amount: { ref: "$firstMatch.manaValue" },
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: libOf("p1", [grizzlyBears.id, hillGiant.id]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        // Grizzly Bears {X:1}{G:1} → mana value 2.
+        expect(state.players[1].life).toBe(18);
+    });
+
+    it("wire format: the reveal-and-split hand/exile counts cross the projection", () => {
+        const id = registerScript("test-op-digmatch-wire", [
+            {
+                op: "digMatchingToHand",
+                player: "controller",
+                look: 3,
+                filter: { name: "Grizzly Bears" },
+                destination: "exile",
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: libOf("p1", [
+                        grizzlyBears.id,
+                        hillGiant.id,
+                        grizzlyBears.id,
+                    ]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[0].hand).toHaveLength(2);
+        expect(projected.players[0].exile).toHaveLength(1);
+        expect(projected.players[0].library.count).toBe(0);
+    });
+
+    it("Desperate Research composition: nameCard's chosen name reads back into digMatchingToHand's filter via a bare ref", () => {
+        const id = registerScript("test-op-namecard-digmatch-combo", [
+            {
+                op: "nameCard",
+                player: "controller",
+                prompt: "Choose a card name other than a basic land card name.",
+                bind: "$named",
+                excludeBasicLand: true,
+            },
+            {
+                op: "digMatchingToHand",
+                player: "controller",
+                look: 7,
+                filter: { name: { ref: "$named" } },
+                destination: "exile",
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: libOf("p1", [
+                        grizzlyBears.id,
+                        hillGiant.id,
+                        grizzlyBears.id,
+                        hillGiant.id,
+                        grizzlyBears.id,
+                        hillGiant.id,
+                        hillGiant.id,
+                    ]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        expect(resolveTopOfStack(state)).toBeNull(); // suspends on nameCard
+        applyNameCardSubmit(state, { playerId: "p1", cardName: "Grizzly Bears" });
+        // Resumed: digMatchingToHand's bare ref reads the committed picks-
+        // family binding back and splits the revealed window on it.
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        expect(
+            state.players[0].hand.every((c) => c.card.id === grizzlyBears.id)
+        ).toBe(true);
+        expect(state.players[0].hand).toHaveLength(3);
+        expect(state.players[0].exile).toHaveLength(4);
+        expect(state.players[0].library).toHaveLength(0);
+    });
+
+    it("an uncaptured name binding fails the filter closed — nothing matches (CR 608.2b)", () => {
+        // The nameCard Op is deliberately OMITTED here — `$named` is never
+        // bound, so the bare ref read returns undefined and the filter must
+        // fail closed (matching nothing), not throw or match everything.
+        const id = registerScript("test-op-digmatch-uncaptured-ref", [
+            {
+                op: "digMatchingToHand",
+                player: "controller",
+                look: 2,
+                filter: { name: { ref: "$named" } },
+                destination: "exile",
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: libOf("p1", [grizzlyBears.id, hillGiant.id]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].hand).toHaveLength(0);
+        expect(state.players[0].exile).toHaveLength(2);
     });
 });

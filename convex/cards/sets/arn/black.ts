@@ -73,20 +73,25 @@ export const jununEfreet: CardDefinition = {
                 "At the beginning of your upkeep, sacrifice Junún Efreet unless you pay {B}{B}.",
             phase: "UPKEEP",
             scope: "your",
-            // NOT DSL-migratable (ADR 0045): the `sacrifice` Op only sacrifices
-            // permanents a `choice` Op picked (a picks ref) — there is no
-            // sacrifice-the-source form for the "sacrifice Junún Efreet" clause.
-            // Planned-migratable pending a self/source sacrifice Op.
-            resolve: (ctx, _event, scopedPlayerId) => {
-                const paid = ctx.requestMayPay({
-                    playerId: scopedPlayerId,
-                    choiceId: `junun-efreet-${ctx.sourceInstanceId}`,
+            effects: [
+                {
+                    // CR 117.3a — the controller decides whether to pay.
+                    op: "mayPay",
+                    player: "controller",
                     cost: { B: 2 },
                     prompt: "Pay {B}{B} or sacrifice Junún Efreet?",
-                });
-                if (paid === undefined) return; // suspended
-                if (!paid) ctx.sacrifice(ctx.sourceInstanceId);
-            },
+                    bind: "$paid",
+                },
+                {
+                    // CR 701.16 — unless paid, sacrifice Junún Efreet (the
+                    // source). The `sacrifice` Op's `target` form (a single
+                    // object selector, not a `choice`-picked set) resolves
+                    // `$source` to the trigger's own permanent.
+                    op: "if",
+                    predicate: { not: { binding: "$paid" } },
+                    then: [{ op: "sacrifice", target: { ref: "$source" } }],
+                },
+            ],
         }),
     ],
 };

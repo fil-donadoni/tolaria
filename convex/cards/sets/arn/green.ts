@@ -59,6 +59,13 @@ export const wyluliWolf: CardDefinition = {
 // is "until your next upkeep" — the same DurationSpec Xenic Poltergeist uses —
 // scoped to Erhnam's controller, so the keyword falls off as that player's
 // next upkeep begins.
+//
+// Migrated resolve()→effects[] (ADR 0045): a single clause, `grantAbility`
+// (issue #843) — the registered Op wrapping `SpellContext.grantStaticAbility`
+// — reading the announced target slot via `{ target: 0 }` (same slot
+// `ctx.targets[0]` read imperatively). CR 608.2b's "absent target → no-op" is
+// the Op's own skip-when-gone behavior, so the old `if (target?.type !==
+// "permanent") return;` guard needs no explicit restatement.
 export const erhnamDjinn: CardDefinition = {
     id: "42bc0c3f-0a52-4bdc-83da-6484bf3102f3",
     rarity: "rare",
@@ -78,18 +85,18 @@ export const erhnamDjinn: CardDefinition = {
                     "At the beginning of your upkeep, target non-Wall creature an opponent controls gains forestwalk until your next upkeep.",
                 phase: "UPKEEP",
                 scope: "your",
-                resolve: (ctx) => {
-                    // CR 603.3d — the target was chosen when the trigger went on
-                    // the stack; read it off `ctx.targets[0]`, no
-                    // resolution-time choice. Absent/left the battlefield →
-                    // no-op (CR 608.2b).
-                    const target = ctx.targets[0];
-                    if (target?.type !== "permanent") return;
-                    ctx.grantStaticAbility(target, "forestwalk", {
-                        phase: "upkeep",
-                        player: "controller",
-                    });
-                },
+                // CR 603.3d — the target was chosen when the trigger went on
+                // the stack (`ctx.targets[0]` / `{ target: 0 }`); absent/left
+                // the battlefield is a no-op (CR 608.2b, `grantAbility`'s own
+                // skip-when-gone behavior).
+                effects: [
+                    {
+                        op: "grantAbility",
+                        target: { target: 0 },
+                        ability: "forestwalk",
+                        duration: { phase: "upkeep", player: "controller" },
+                    },
+                ],
             }),
             // CR 603.3d — "target non-Wall creature an opponent controls":
             // a real target locked at stack placement (issue #1193), subject to
@@ -421,6 +428,11 @@ export const dropOfHoney: CardDefinition = {
                 );
             },
         }),
+        // Migrated resolve()→effects[] (ADR 0045): a single clause,
+        // `sacrifice` (issue #807) targeting `$source` — the same
+        // self-sacrifice shape as Underworld Breach (thb/red.ts). No
+        // resolution-time choice or filter beyond the state condition, which
+        // the factory already re-checks via `interveningIf`.
         stateTrigger({
             id: "drop-of-honey-sacrifice",
             oracleText:
@@ -429,9 +441,7 @@ export const dropOfHoney: CardDefinition = {
                 state.players.every((p) =>
                     p.battlefield.every((c) => !c.types.includes("Creature"))
                 ),
-            resolve: (ctx) => {
-                ctx.sacrifice(ctx.sourceInstanceId);
-            },
+            effects: [{ op: "sacrifice", target: { ref: "$source" } }],
         }),
     ],
 };
@@ -473,6 +483,13 @@ export const metamorphosis: CardDefinition = {
     manaCost: { G: 1 },
     types: ["Sorcery"],
     additionalCosts: { sacrificeFilter: { types: "Creature" } },
+    // NOT DSL-migratable (ADR 0045): the amount is `1 + <sacrificed
+    // creature's mana value>` — arithmetic over a value
+    // (`getAdditionalSacrificeMv()`) with no censused `EffectValue` member,
+    // and there is no registered Op wrapping `addRestrictedMana` (the
+    // restricted-mana-pool primitive `addMana` doesn't cover). Blocked on: an
+    // arithmetic-composable value construct + an `addRestrictedMana` Op.
+    // Stays resolve().
     modes: METAMORPHOSIS_COLORS.map((m) => ({
         id: m.id,
         label: m.label,
