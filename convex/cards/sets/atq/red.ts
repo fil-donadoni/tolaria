@@ -86,6 +86,13 @@ export const artifactBlast: CardDefinition = {
 // targets an artifact spell you control); on a coin-flip WIN the counter is
 // simply not performed and you draw instead.
 //
+// DSL (issue #1281): migrated onto `coinFlipSync` — the synchronous sibling
+// of `coinFlip` (no CR 705.2/ADR 0023 reveal-ack suspend), added specifically
+// to unblock this card. Its per-card test (`atq/__tests__/red.test.ts`)
+// resolves the ability in a single `resolveActivated` call and asserts the
+// outcome immediately with no ack step; `coinFlipSync` preserves that exact
+// resolution shape, so the existing test stayed byte-for-byte unchanged.
+//
 // DIVERGENCE (flagged, tracked #974): the printed "that isn't the target of an
 // ability from another creature named Goblin Artisans" multi-copy clause is
 // simplified (not enforced) — it only matters with two Goblin Artisans
@@ -114,26 +121,22 @@ export const goblinArtisans: CardDefinition = {
                 spellTypeFilter: "Artifact",
                 controller: "you",
             },
-            // NOT DSL-migratable (ADR 0045): the coinFlip Op
-            // shape itself fits (mirrors Chaotic Strike, `inv/red.ts`), but
-            // `SpellContext.requestCoinFlip` (the DSL Op's primitive) ALWAYS
-            // suspends first on a CR 705.2/ADR 0023 random-reveal pending
-            // choice — unlike this card's `ctx.flipCoin()`, which is
-            // synchronous with no acknowledgment step. The per-card test
-            // resolves this ability in a single `resolveActivated` call and
-            // asserts the outcome immediately; migrating would require adding
-            // an explicit ack step to the test, breaking the untouched-test
-            // invariant. tracked-by: #1281
-            // equivalence invariant. Blocked on: a synchronous-flip variant,
-            // or accepting a test change (planned-migratable).
-            resolve: (ctx: SpellContext) => {
-                if (ctx.flipCoin()) {
-                    ctx.drawCards(ctx.controller, 1);
-                } else {
-                    const target = ctx.targets[0];
-                    if (target?.type === "spell") ctx.counter(target);
-                }
-            },
+            effects: [
+                {
+                    op: "coinFlipSync",
+                    win: {
+                        consequence: "Draw a card.",
+                        effects: [
+                            { op: "draw", player: "controller", count: 1 },
+                        ],
+                    },
+                    loss: {
+                        consequence:
+                            "Counter target artifact spell you control.",
+                        effects: [{ op: "counter", target: { target: 0 } }],
+                    },
+                },
+            ],
         },
     ],
 };

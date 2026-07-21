@@ -833,6 +833,16 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // suspending `optionChoice` skip).
             req.skip ??= `Op "coinFlip" draws a random bit and suspends for the reveal (CR 705) — covered by the Op's interpreter tests`;
             return;
+        case "coinFlipSync":
+            // CR 705 (issue #1281) — a synchronous coin flip draws a RANDOM
+            // bit from the seeded PRNG; unlike `coinFlip` it never suspends,
+            // but the outcome is still non-deterministic across seeds — a
+            // canned generator run has no fixed seed to assert a specific
+            // branch against. Explicit skip — the flip and both branches are
+            // covered by the Op's own interpreter tests (per-Op regime;
+            // mirrors the `coinFlip` skip above, minus the suspend reasoning).
+            req.skip ??= `Op "coinFlipSync" draws a random bit (CR 705) — covered by the Op's interpreter tests`;
+            return;
         case "winGame":
             // CR 104.2a (issue #1066) — sets `state.gameOver` directly. The
             // canned generator's post-resolution assertions (board/life
@@ -1683,6 +1693,14 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     // branches and the no-re-roll resume are covered by the Op's own interpreter
     // tests (per-Op regime).
     coinFlip() {
+        return null;
+    },
+    // `coinFlipSync` (CR 705, issue #1281) — never reached: `analyseOp` skips
+    // every script with a coinFlipSync Op (it draws a RANDOM bit — no fixed
+    // seed to assert a specific branch against). Kept for the 1:1 coverage
+    // guard; the flip and both branches are covered by the Op's own
+    // interpreter tests (per-Op regime).
+    coinFlipSync() {
         return null;
     },
     // `createToken` (CR 111 / 701.7, issue #847) — a deterministic

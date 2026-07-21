@@ -1985,6 +1985,26 @@ const NEW_MECHANIC_SCENARIOS: { label: string; spec: ScenarioSpec }[] = [
             landCount: 6,
         },
     },
+    {
+        // Goblin Artisans (atq/red.ts) — the synchronous `coinFlipSync` Op
+        // (issue #1281): "{T}: Flip a coin. If you win the flip, draw a card.
+        // If you lose the flip, counter target artifact spell you control."
+        // No CR 705.2/ADR 0023 reveal-ack suspension — the whole ability
+        // (flip + branch) resolves in one pass, unlike the suspending
+        // `coinFlip` Op. Golden path: cast the free Ornithopter (a {0}
+        // artifact spell) so it lands on the stack, then activate Goblin
+        // Artisans targeting it — a WIN draws a card (Ornithopter still
+        // resolves); a LOSS counters the Ornithopter instead of drawing.
+        label: "Goblin Artisans — synchronous coin flip: draw a card, or counter your own artifact spell",
+        spec: {
+            cards: [
+                { name: "Goblin Artisans", owner: "me", zone: "battlefield" },
+                { name: "Ornithopter", owner: "me", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            landCount: 1,
+        },
+    },
 ];
 
 /**
