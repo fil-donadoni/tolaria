@@ -2060,7 +2060,17 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             prompt: isNonEmptyString,
             bind: isBindingName,
         },
-        optional: { filter: isCardFilter, zoneOwnerId: isPlayerRef },
+        // `id` (issue #1282) — an optional author-supplied stable choiceId,
+        // overriding `bind` as the `PendingChoice.choiceId` a migrated card
+        // needs to reproduce its `resolve()`-era literal id (e.g.
+        // "bazaar-discard"). Any non-empty string — unlike `bind` it is
+        // NEVER read back via `{ ref }`, so it isn't constrained to the
+        // `$`-prefixed binding-name grammar.
+        optional: {
+            filter: isCardFilter,
+            zoneOwnerId: isPlayerRef,
+            id: isNonEmptyString,
+        },
     },
     // CR 701.9 (issue #805) — discard the cards a `choice` Op picked, OR
     // (issue #1279, `cards` omitted) the bulk whole-hand shape — every card

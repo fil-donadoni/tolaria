@@ -8484,6 +8484,109 @@ describe("Effect Script Op: choice (CR 608.2 / 101.4, issue #805)", () => {
         expect(state.stack).toHaveLength(0); // ability resolved and popped
     });
 
+    // issue #1282 — an author-supplied stable `id`, overriding `bind` as the
+    // wire-visible `PendingChoice.choiceId`. Lets a migrated card reproduce
+    // the exact literal choiceId its `resolve()`-era test pinned (Bazaar of
+    // Baghdad's "bazaar-discard") without touching that pre-existing test —
+    // the migration-equivalence invariant this Op field exists for.
+    it("uses an author-supplied `id` as the PendingChoice.choiceId, while `bind` still resolves the picks (issue #1282)", () => {
+        const id = registerScript(
+            "test-op-choice-author-id",
+            [
+                {
+                    op: "choice",
+                    kind: "discard-hand",
+                    player: { target: 0 },
+                    zone: "hand",
+                    count: 2,
+                    prompt: "Discard two cards.",
+                    bind: "$picked",
+                    id: "custom-stable-id",
+                },
+                {
+                    op: "discard",
+                    player: { target: 0 },
+                    cards: { ref: "$picked" },
+                },
+            ],
+            { targetRequirement: { type: "player", count: 1 } }
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { hand: handOf("p2", ["h1", "h2", "h3"]) }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]);
+        expect(resolveTopOfStack(state)).toBeNull(); // suspended
+        const head = state.pendingChoices![0];
+        // The wire-visible id is the AUTHOR-SUPPLIED one, not the bind name.
+        expect(head.choiceId).toBe("custom-stable-id");
+
+        applyPendingChoiceSubmit(state, {
+            playerId: "p2",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["h1", "h3"],
+        });
+        // The picks still reach the consuming `discard` Op through `$picked`
+        // — `id` only overrides the wire-visible choiceId, never the picks
+        // binding `ref`s read.
+        expect(state.players[1].hand.map((c) => c.id)).toEqual(["h2"]);
+        expect(state.players[1].graveyard.map((c) => c.id).sort()).toEqual([
+            "h1",
+            "h3",
+        ]);
+        expect(state.stack).toHaveLength(0);
+        expect(state.pendingChoices).toBeUndefined();
+    });
+
+    // issue #1282 — the wire projection (`expectedInput.choiceId`) surfaces
+    // the author-supplied id too, not just the raw `PendingChoice`.
+    it("surfaces the author-supplied `id` through the wire projection's expectedInput (issue #1282)", () => {
+        const id = registerScript(
+            "test-op-choice-author-id-wire",
+            [
+                {
+                    op: "choice",
+                    kind: "discard-hand",
+                    player: { target: 0 },
+                    zone: "hand",
+                    count: 1,
+                    prompt: "Discard a card.",
+                    bind: "$picked",
+                    id: "custom-stable-id",
+                },
+                {
+                    op: "discard",
+                    player: { target: 0 },
+                    cards: { ref: "$picked" },
+                },
+            ],
+            { targetRequirement: { type: "player", count: 1 } }
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { hand: handOf("p2", ["hw"]) }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        refreshExpectedInput(state);
+        const projected = projectPublicState(state, 1, "p2");
+        const head = projected.pendingChoices![0];
+        expect(head.choiceId).toBe("custom-stable-id");
+        expect(projected.expectedInput).toEqual({
+            kind: "choice",
+            playerId: "p2",
+            stackItemId: head.stackItemId,
+            choiceId: "custom-stable-id",
+            choiceKind: "discard-hand",
+        });
+    });
+
     // `zone: "graveyard"` + `filter` (issue #680): the graveyard branch used to
     // ignore `op.filter` entirely (unlike the hand/library branches above),
     // so a "choose a LAND card" pick could illegally offer a non-land

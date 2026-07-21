@@ -265,10 +265,20 @@ export const libraryOfAlexandria: CardDefinition = {
 
 // Bazaar of Baghdad — "{T}: Draw two cards, then discard three cards." (CR 305
 // land, CR 121.6 draw, CR 701.8 discard.) A nonbasic land with no mana ability.
-// The draw and the discard are split across `resolveSteps`: step 0 commits the
-// draw, then step 1 suspends for the discard choice. A single `resolve` would
-// re-run the draw every time the discard choice suspended — that re-draw bug is
-// why this card was deferred until activated-ability `resolveSteps` shipped.
+// Migrated resolve()→effects[] (ADR 0045, issue #1282): draw two (CR 121.6),
+// then a `choice(choose-hand-card)` + `discard` pair (CR 701.8) — the
+// standard "draw, then discard N" template every other looter card in the
+// catalogue already uses (Jalum Tome). The Effect Script interpreter runs
+// each Op EXACTLY ONCE per resolution (CR 608.3 checkpointing), so the draw
+// never re-runs when the discard choice suspends — the re-draw bug this card
+// was originally deferred for (see the old `resolveSteps` comment this
+// replaced) was a property of a naive single-`resolve` closure, not of the
+// DSL. `count: 3` self-clamps to hand size with zero candidates skipping the
+// choice entirely (CR 608.2b), same as the old imperative clamp. The
+// author-supplied `id: "bazaar-discard"` (issue #1282) reproduces the
+// `resolve()`-era literal `PendingChoice.choiceId` the pre-existing per-card
+// test pins, byte-for-byte — the migration-equivalence invariant this card
+// was blocked on.
 export const bazaarOfBaghdad: CardDefinition = {
     id: "ff37b863-f8c4-4584-8cc2-ac0e096e583f",
     rarity: "uncommon",
@@ -281,37 +291,22 @@ export const bazaarOfBaghdad: CardDefinition = {
             oracleText: "{T}: Draw two cards, then discard three cards.",
             cost: { tap: true },
             useStack: true,
-            // NOT DSL-migratable (ADR 0045): DSL-expressible in
-            // principle (draw → choice → discard), but the per-card test pins
-            // the internal choice id "bazaar-discard", which the interpreter
-            // regenerates for a `choice` Op — migrating would force a test
-            // edit, breaking the untouched-harness equivalence invariant.
-            // Blocked on: interpreter support for an author-supplied `choice`
-            // Op id (planned-migratable). tracked-by: #1282
-            resolveSteps: [
-                // Step 0 — draw two (CR 121.6). Isolated in its own step so a
-                // suspension in the discard step never re-runs the draw.
-                (ctx: SpellContext) => {
-                    ctx.drawCards(ctx.controller, 2);
+            effects: [
+                { op: "draw", player: "controller", count: 2 },
+                {
+                    op: "choice",
+                    kind: "choose-hand-card",
+                    player: "controller",
+                    zone: "hand",
+                    count: 3,
+                    prompt: "Discard three cards.",
+                    bind: "$discard",
+                    id: "bazaar-discard",
                 },
-                // Step 1 — discard three chosen cards (CR 701.8). Clamped to
-                // hand size: with fewer than three in hand, all are discarded.
-                (ctx: SpellContext) => {
-                    const handIds = ctx.getHandIds(ctx.controller);
-                    const count = Math.min(3, handIds.length);
-                    if (count === 0) return;
-                    const picks = ctx.requestChoice({
-                        playerId: ctx.controller,
-                        choiceId: "bazaar-discard",
-                        kind: "choose-hand-card",
-                        zone: "hand",
-                        count,
-                        prompt: `Discard ${count} card${count === 1 ? "" : "s"}.`,
-                    });
-                    if (picks === undefined) return;
-                    for (const id of picks) {
-                        ctx.discardCard(ctx.controller, id);
-                    }
+                {
+                    op: "discard",
+                    player: "controller",
+                    cards: { ref: "$discard" },
                 },
             ],
         },

@@ -2163,6 +2163,12 @@ export const OP_EXECUTORS: {
     // choice and SUSPENDS the script; the resumed execution (after the
     // generic `submitResolutionChoice` commit) reads the picks back — they
     // are stored under this Op's binding name, which IS the picks binding.
+    // `id` (issue #1282) — an optional author-supplied stable choiceId,
+    // overriding `bind` for the WIRE-VISIBLE `PendingChoice.choiceId` (a
+    // migrated card reproducing its `resolve()`-era literal id, e.g.
+    // Bazaar of Baghdad's "bazaar-discard"). `bind` still names the picks
+    // binding every later `{ ref: "$name" }` reads, so once `id` resolves the
+    // picks they're mirrored into the `bind`-keyed binding too — see below.
     choice(ctx, op) {
         const playerId = resolvePlayerRef(ctx, op.player);
         if (playerId === undefined) return; // CR 608.2b — chooser gone, skip
@@ -2196,12 +2202,15 @@ export const OP_EXECUTORS: {
             if (max <= 0) return;
             count = { min: Math.min(op.count.min, max), max };
         }
+        // The binding name doubles as the choiceId by default: unique within
+        // the script (validator-enforced) and stable across replays, so the
+        // stored entry is exactly the picks binding. `op.id` (issue #1282)
+        // overrides it — an author-supplied stable id for migration
+        // equivalence — in which case the picks are mirrored below.
+        const choiceId = op.id ?? op.bind;
         const picks = ctx.requestChoice({
             playerId,
-            // The binding name doubles as the choiceId: unique within the
-            // script (validator-enforced) and stable across replays, so the
-            // stored entry is exactly the picks binding.
-            choiceId: op.bind,
+            choiceId,
             kind: op.kind,
             zone: op.zone,
             filter: toPermanentFilter(op.filter),
@@ -2211,6 +2220,15 @@ export const OP_EXECUTORS: {
             ...(op.zoneOwnerId !== undefined ? { zoneOwnerId } : {}),
         });
         if (picks === undefined) return "suspend"; // enqueued — wait
+        // issue #1282 — when `id` diverges from `bind`, `requestChoice`
+        // stored/recalled the answer under `id`, but every later `{ ref:
+        // "$name" }` recalls under `bind` (`resolvePicks` → `recallChoice`).
+        // Mirror the resolved picks into the `bind`-keyed binding so those
+        // reads keep working transparently — a no-op when `id` is omitted or
+        // equals `bind`.
+        if (choiceId !== op.bind) {
+            ctx.noteChoice(op.bind, picks);
+        }
     },
     // CR 701.9 — discard cards. Routes through `discardCard` so the Library
     // of Leng replacement and CARD_DISCARDED triggers (Necropotence-style,

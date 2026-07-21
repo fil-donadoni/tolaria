@@ -90,14 +90,6 @@ interface AllowlistEntry {
 // comment for the full reasoning; this table is the enforcement mirror.
 const DRAW_PRIMITIVE_ALLOWLIST: readonly AllowlistEntry[] = [
     {
-        file: "arn/colorless.ts",
-        count: 1,
-        cards: "Bazaar of Baghdad",
-        reason: 'DSL-expressible in principle (draw -> choice -> discard), but the per-card test pins the interpreter-internal choice id "bazaar-discard" -- migrating would force a test edit.',
-        classification: "planned-migratable",
-        issue: 1282,
-    },
-    {
         file: "atq/red.ts",
         count: 1,
         cards: "Goblin Artisans",
@@ -119,14 +111,6 @@ const DRAW_PRIMITIVE_ALLOWLIST: readonly AllowlistEntry[] = [
         cards: "Kavu Lair",
         reason: "enteredTrigger's effects site binds ctx.controller to the SOURCE's controller by design; this card needs the ENTERING creature's controller -- a documented, sanctioned resolve() escape, not a missing Op.",
         classification: "protocol",
-    },
-    {
-        file: "inv/red.ts",
-        count: 1,
-        cards: "Stun",
-        reason: "restrictCombat now covers the keyword shape, but the card has no per-card behavior test today -- ineligible for an AFK migration (no green-before baseline).",
-        classification: "planned-migratable",
-        issue: 1285,
     },
     {
         file: "inv/white.ts",

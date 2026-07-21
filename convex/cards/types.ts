@@ -8463,6 +8463,22 @@ export type EffectOp =
            *  picks nothing consumes is meaningless, so the grammar demands a
            *  binding. */
           bind: string;
+          /** OPTIONAL author-supplied stable choice id (issue #1282). Defaults
+           *  to `bind` (unchanged behaviour for every pre-existing `choice` Op
+           *  card) when omitted. `bind` doubles as BOTH the ref-lookup name AND
+           *  the `PendingChoice.choiceId`/wire `choiceId` today, but `bind`
+           *  is constrained to a `$`-prefixed identifier (the ref-name
+           *  grammar) — a migrated card whose pre-existing `resolve()`-era
+           *  test pins a specific literal `choiceId` string (e.g.
+           *  `"bazaar-discard"`, not `"$"`-shaped) can't reproduce it through
+           *  `bind` alone. `id`, when present, is passed to
+           *  `SpellContext.requestChoice` as the `choiceId` INSTEAD of `bind`
+           *  (so `PendingChoice.choiceId` / the wire `choiceId` is exactly
+           *  this string); the interpreter separately mirrors the resolved
+           *  picks into the `bind`-keyed binding so `{ ref: "$name" }` reads
+           *  keep working transparently. Purely a migration-equivalence
+           *  affordance — does not change resolution behavior. */
+          id?: string;
       }
     /** CR 701.9 — `player` discards cards. TWO shapes share this Op name
      *  (ADR 0045, issue #1279's bulk generalization of the original

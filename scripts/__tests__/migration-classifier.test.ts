@@ -1081,9 +1081,20 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // SpellMode (Witherbloom Charm sacrifice-draw mode) — total 671→662
         // (−9), FREE 440→431 (−9), AFK-ready 400→397 (−3, three had per-card
         // tests). X-only and Op-blocked unchanged. Partition: 431+14+217=662.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(662);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(431);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(397);
+        //
+        // 2026-07-21 #1285 Stun migration (landed first): resolve()→effects[]
+        // via restrictCombat + draw — total 662→661 (−1), FREE 431→430 (−1);
+        // Stun had no test so AFK-ready stayed 397.
+        //
+        // 2026-07-21 #1282 Bazaar of Baghdad migration: 1 resolveSteps()
+        // closure migrated to effects[] (draw + author-supplied-id choice +
+        // discard, unblocked by the new `choice` Op `id` field) — total
+        // 661→660 (−1), FREE 430→429 (−1), AFK-ready 397→396 (−1, it had a
+        // per-card test). X-only and Op-blocked unchanged. Partition:
+        // 429+14+217=660.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(660);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(429);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(396);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
         expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(217);
     });
