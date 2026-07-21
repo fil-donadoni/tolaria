@@ -13,6 +13,7 @@
 // engine (CR 603.4d) — if false at resolve, the trigger fizzles.
 
 import type {
+    EffectOp,
     GameEvent,
     PermanentTappedEvent,
     PermanentView,
@@ -65,11 +66,19 @@ export interface TappedTriggerArgs {
         self: PermanentView,
         state?: TriggerStateView
     ) => boolean;
+    /** Effect Script (ADR 0045) — the DSL-first default. Rides straight to the
+     *  interpreter with the source's controller and `$source` bound; the tapped
+     *  permanent's last-known-info (id, controller, subtypes, `manaProduced`)
+     *  is a separate payload, NOT reachable from the script, so an effect that
+     *  must inspect the tapped permanent — e.g. "deals damage to THAT land's
+     *  controller" (Psychic Venom) — still needs a `resolve` callback.
+     *  Mutually exclusive with `resolve`. */
+    effects?: EffectOp[];
     /** Resolution effect. Receives a pre-narrowed event + a derived payload
      *  exposing the tapped permanent's last-known fields plus `manaProduced`
      *  (CR 605.4) when `forMana` was true. Card authors never narrow
-     *  `event.type` inside the body. */
-    resolve: (
+     *  `event.type` inside the body. Mutually exclusive with `effects`. */
+    resolve?: (
         ctx: SpellContext,
         event: PermanentTappedEvent,
         tapped: {
@@ -84,6 +93,12 @@ export interface TappedTriggerArgs {
 }
 
 export function tappedTrigger(args: TappedTriggerArgs): TriggeredAbility {
+    if (args.effects === undefined && args.resolve === undefined) {
+        throw new Error(
+            `tappedTrigger("${args.id}"): declare either effects[] or resolve — neither was given`
+        );
+    }
+    const userResolve = args.resolve;
     const tappedMatches = (
         event: PermanentTappedEvent,
         self: PermanentView,
@@ -139,17 +154,24 @@ export function tappedTrigger(args: TappedTriggerArgs): TriggeredAbility {
             if (event.type !== "PERMANENT_TAPPED") return false;
             return tappedMatches(event, self, state);
         },
-        resolve: (ctx, event) => {
-            if (event.type !== "PERMANENT_TAPPED") return;
-            args.resolve(ctx, event, {
-                id: event.permanentId,
-                controllerId: event.controllerId,
-                types: event.permanentTypes,
-                subtypes: event.permanentSubtypes,
-                forMana: event.forMana,
-                manaProduced: event.manaProduced,
-            });
-        },
+        // ADR 0045 — an `effects[]` script is compiled downstream by
+        // `getAbilityEffectFn` (effectRegistry.ts); the factory only passes it
+        // through. Otherwise wrap the imperative resolve with the tapped-payload.
+        ...(args.effects
+            ? { effects: args.effects }
+            : {
+                  resolve: (ctx: SpellContext, event: GameEvent) => {
+                      if (event.type !== "PERMANENT_TAPPED") return;
+                      userResolve!(ctx, event, {
+                          id: event.permanentId,
+                          controllerId: event.controllerId,
+                          types: event.permanentTypes,
+                          subtypes: event.permanentSubtypes,
+                          forMana: event.forMana,
+                          manaProduced: event.manaProduced,
+                      });
+                  },
+              }),
     };
 
     if (args.interveningIf) {

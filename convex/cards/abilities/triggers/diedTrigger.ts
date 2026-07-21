@@ -9,6 +9,7 @@
 import type { CardType } from "../../types";
 import type {
     CreatureDiedEvent,
+    EffectOp,
     GameEvent,
     PermanentView,
     SpellContext,
@@ -66,10 +67,18 @@ export interface DiedTriggerArgs {
         self: PermanentView,
         state?: TriggerStateView
     ) => boolean;
+    /** Effect Script (ADR 0045) — the DSL-first default. Rides straight to the
+     *  interpreter with the source's controller and `$source` bound; the dead
+     *  creature's last-known-info (`DeadCreatureLKI`) is a separate payload,
+     *  NOT reachable from the script, so an effect that must inspect the dying
+     *  creature (its controller, P/T, `damagedBySources`, combat partners)
+     *  still needs a `resolve` callback. Mutually exclusive with `resolve`. */
+    effects?: EffectOp[];
     /** Effect run when the trigger resolves from the stack. Receives the
      *  full event, plus a flattened `DeadCreatureLKI` view so card bodies
-     *  don't have to know the event's field naming. */
-    resolve: (
+     *  don't have to know the event's field naming. Mutually exclusive with
+     *  `effects`. */
+    resolve?: (
         ctx: SpellContext,
         event: CreatureDiedEvent,
         deadCreature: DeadCreatureLKI
@@ -81,6 +90,12 @@ export interface DiedTriggerArgs {
  *  gating, filter matching, and CR 603.4 / 603.4d wiring so card authors
  *  write only the effect body. */
 export function diedTrigger(args: DiedTriggerArgs): TriggeredAbility {
+    if (args.effects === undefined && args.resolve === undefined) {
+        throw new Error(
+            `diedTrigger("${args.id}"): declare either effects[] or resolve — neither was given`
+        );
+    }
+    const userResolve = args.resolve;
     const ability: TriggeredAbility = {
         id: args.id,
         oracleText: args.oracleText,
@@ -120,19 +135,26 @@ export function diedTrigger(args: DiedTriggerArgs): TriggeredAbility {
             }
             return true;
         },
-        resolve: (ctx: SpellContext, event: GameEvent) => {
-            if (event.type !== "CREATURE_DIED") return;
-            const deadCreature: DeadCreatureLKI = {
-                id: event.creatureInstanceId,
-                controllerId: event.creatureControllerId,
-                types: event.creatureTypes,
-                lastKnownPower: event.creaturePower,
-                lastKnownToughness: event.creatureToughness,
-                damagedBySources: event.damagedBySources,
-                combatPartnerIds: event.combatPartnerIds ?? [],
-            };
-            args.resolve(ctx, event, deadCreature);
-        },
+        // ADR 0045 — an `effects[]` script is compiled downstream by
+        // `getAbilityEffectFn` (effectRegistry.ts); the factory only passes it
+        // through. Otherwise wrap the imperative resolve with the LKI payload.
+        ...(args.effects
+            ? { effects: args.effects }
+            : {
+                  resolve: (ctx: SpellContext, event: GameEvent) => {
+                      if (event.type !== "CREATURE_DIED") return;
+                      const deadCreature: DeadCreatureLKI = {
+                          id: event.creatureInstanceId,
+                          controllerId: event.creatureControllerId,
+                          types: event.creatureTypes,
+                          lastKnownPower: event.creaturePower,
+                          lastKnownToughness: event.creatureToughness,
+                          damagedBySources: event.damagedBySources,
+                          combatPartnerIds: event.combatPartnerIds ?? [],
+                      };
+                      userResolve!(ctx, event, deadCreature);
+                  },
+              }),
     };
     if (args.interveningIf !== undefined) {
         const userInterveningIf = args.interveningIf;

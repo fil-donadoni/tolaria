@@ -1124,9 +1124,17 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // choice.zoneOwnerId / moveZone-library-source have since unblocked).
         // All 15 left the FREE bucket: total 654→639, FREE 426→411, AFK-ready
         // 393→378. X-only and Op-blocked unchanged. Partition: 411+14+214=639.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(639);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(411);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(378);
+        // 2026-07-21 diedTrigger + tappedTrigger factories gained an effects[]
+        // opt-in (mirroring leftTrigger/landfallTrigger — the interpreter seam
+        // compiles it; the LKI/tapped payload is NOT surfaced so LKI-reading
+        // cards stay resolve()). Two proof cards migrated resolve()→effects[]:
+        // Soul Net (lea/colorless, diedTrigger — mayPay+if+gainLife) and
+        // Lifetap (lea/blue, tappedTrigger — gainLife controller). Both left
+        // the FREE bucket: total 639→637, FREE 411→409, AFK-ready 378→376.
+        // X-only and Op-blocked unchanged. Partition: 409+14+214=637.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(637);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(409);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(376);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
         expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(214);
     });

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { tappedTrigger } from "../tappedTrigger";
+import { getAbilityEffectFn } from "../../../effectRegistry";
 import type {
     CardType,
     GameEvent,
@@ -257,5 +258,53 @@ describe("tappedTrigger factory (CR 701.20a / 605)", () => {
         };
         t.resolve!({} as never, phase);
         expect(resolveBody).not.toHaveBeenCalled();
+    });
+});
+
+describe("tappedTrigger DSL support (ADR 0045)", () => {
+    it("builds an effects[]-based ability when `effects` is given (no `resolve`)", () => {
+        const t = tappedTrigger({
+            id: "dsl-ability",
+            oracleText: "test",
+            scope: "opponents",
+            filter: { subtypes: "Forest" },
+            effects: [{ op: "gainLife", player: "controller", amount: 1 }],
+        });
+        expect(t.effects).toEqual([
+            { op: "gainLife", player: "controller", amount: 1 },
+        ]);
+        expect(t.resolve).toBeUndefined();
+    });
+
+    it("wires the effects[] script to the real interpreter compile seam (getAbilityEffectFn)", () => {
+        const t = tappedTrigger({
+            id: "dsl-compiles",
+            oracleText: "test",
+            scope: "opponents",
+            effects: [{ op: "gainLife", player: "controller", amount: 1 }],
+        });
+        // Same seam the stack-resolution engine uses for ability effect sites.
+        expect(typeof getAbilityEffectFn(t)).toBe("function");
+    });
+
+    it("builds a resolve-based ability when `resolve` is given (no `effects`)", () => {
+        const t = tappedTrigger({
+            id: "resolve-ability",
+            oracleText: "test",
+            scope: "any",
+            resolve: () => {},
+        });
+        expect(t.resolve).toBeDefined();
+        expect(t.effects).toBeUndefined();
+    });
+
+    it("throws when neither `effects` nor `resolve` is given", () => {
+        expect(() =>
+            tappedTrigger({
+                id: "broken-ability",
+                oracleText: "test",
+                scope: "any",
+            } as Parameters<typeof tappedTrigger>[0])
+        ).toThrow(/effects\[\] or resolve/);
     });
 });

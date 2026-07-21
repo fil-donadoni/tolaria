@@ -5,6 +5,7 @@
 
 import { describe, expect, it, vi } from "vitest";
 import { diedTrigger } from "../diedTrigger";
+import { getAbilityEffectFn } from "../../../effectRegistry";
 import { matchesPermanentScope } from "../shared";
 import type {
     CardType,
@@ -295,5 +296,52 @@ describe("diedTrigger factory", () => {
         expect(
             ability.matches(makeEvent({ creatureInstanceId: "other" }), self)
         ).toBe(false);
+    });
+});
+
+describe("diedTrigger DSL support (ADR 0045)", () => {
+    it("builds an effects[]-based ability when `effects` is given (no `resolve`)", () => {
+        const ability = diedTrigger({
+            id: "dsl-ability",
+            oracleText: "test",
+            scope: "any",
+            effects: [{ op: "gainLife", player: "controller", amount: 1 }],
+        });
+        expect(ability.effects).toEqual([
+            { op: "gainLife", player: "controller", amount: 1 },
+        ]);
+        expect(ability.resolve).toBeUndefined();
+    });
+
+    it("wires the effects[] script to the real interpreter compile seam (getAbilityEffectFn)", () => {
+        const ability = diedTrigger({
+            id: "dsl-compiles",
+            oracleText: "test",
+            scope: "any",
+            effects: [{ op: "gainLife", player: "controller", amount: 1 }],
+        });
+        // Same seam the stack-resolution engine uses for ability effect sites.
+        expect(typeof getAbilityEffectFn(ability)).toBe("function");
+    });
+
+    it("builds a resolve-based ability when `resolve` is given (no `effects`)", () => {
+        const ability = diedTrigger({
+            id: "resolve-ability",
+            oracleText: "test",
+            scope: "any",
+            resolve: () => {},
+        });
+        expect(ability.resolve).toBeDefined();
+        expect(ability.effects).toBeUndefined();
+    });
+
+    it("throws when neither `effects` nor `resolve` is given", () => {
+        expect(() =>
+            diedTrigger({
+                id: "broken-ability",
+                oracleText: "test",
+                scope: "any",
+            } as Parameters<typeof diedTrigger>[0])
+        ).toThrow(/effects\[\] or resolve/);
     });
 });

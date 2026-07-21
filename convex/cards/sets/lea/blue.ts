@@ -318,12 +318,13 @@ export const creatureBond: CardDefinition = {
     types: ["Enchantment"],
     subtypes: ["Aura"],
     targetRequirement: { type: "Creature", count: 1 },
-    // NOT DSL-migratable (ADR 0045): the `diedTrigger` factory has no
-    // `effects[]` dispatch — its `resolve` field is required, unlike
-    // `stateTrigger`/`phaseTrigger` which already accept `effects`.
-    // Blocked on: adding `effects?: EffectOp[]` support to
-    // `convex/cards/abilities/triggers/diedTrigger.ts` (out of scope for a
-    // file-scoped migration of convex/cards/sets/lea/blue.ts).
+    // NOT DSL-migratable (ADR 0045): `diedTrigger` now accepts `effects[]`,
+    // but this effect reads the dead creature's last-known-info — its
+    // controller AND its toughness (`dead.controllerId`, `dead.lastKnownToughness`)
+    // — which an Effect Script cannot reach (the effects[] site surfaces
+    // neither the event nor the `DeadCreatureLKI`). Blocked on: a player-ref
+    // and value-ref that resolve the dying creature's controller / P/T from a
+    // triggered-ability script. Stays `resolve()` until then.
     triggeredAbilities: [
         diedTrigger({
             id: "creature-bond-death",
@@ -459,12 +460,6 @@ export const lifetap: CardDefinition = {
         "Whenever a Forest an opponent controls becomes tapped, you gain 1 life.",
     manaCost: { U: 2 },
     types: ["Enchantment"],
-    // NOT DSL-migratable (ADR 0045): the `tappedTrigger` factory has no
-    // `effects[]` dispatch — its `resolve` field is required, unlike
-    // `stateTrigger`/`phaseTrigger` which already accept `effects`.
-    // Blocked on: adding `effects?: EffectOp[]` support to
-    // `convex/cards/abilities/triggers/tappedTrigger.ts` (out of scope for a
-    // file-scoped migration of convex/cards/sets/lea/blue.ts).
     triggeredAbilities: [
         tappedTrigger({
             id: "lifetap-gain",
@@ -472,9 +467,11 @@ export const lifetap: CardDefinition = {
                 "Whenever a Forest an opponent controls becomes tapped, you gain 1 life.",
             scope: "opponents",
             filter: { subtypes: "Forest" },
-            resolve: (ctx) => {
-                ctx.gainLife(ctx.controller, 1);
-            },
+            // Migrated resolve()→effects[] (ADR 0045): "you gain 1 life" reads
+            // only the source's controller, not the tapped land, so the
+            // effects[] site (which doesn't surface the tapped payload) is a
+            // clean fit — a plain gainLife of the controller.
+            effects: [{ op: "gainLife", player: "controller", amount: 1 }],
         }),
     ],
 };
@@ -931,16 +928,13 @@ export const psychicVenom: CardDefinition = {
     types: ["Enchantment"],
     subtypes: ["Aura"],
     targetRequirement: { type: "Land", count: 1 },
-    // NOT DSL-migratable (ADR 0045): the `tappedTrigger` factory has no
-    // `effects[]` dispatch — its `resolve` field is required, unlike
-    // `stateTrigger`/`phaseTrigger` which already accept `effects`.
-    // Blocked on: adding `effects?: EffectOp[]` support to
-    // `convex/cards/abilities/triggers/tappedTrigger.ts` (out of scope for a
-    // file-scoped migration of convex/cards/sets/lea/blue.ts). Even with that
-    // support, the damage target ("that land's controller") has the same
-    // host-controller player-ref gap noted on Feedback/Power Leak above —
-    // though here it's read off the tapped-event payload rather than
-    // re-derived at resolve time, so it may be easier to close first.
+    // NOT DSL-migratable (ADR 0045): `tappedTrigger` now accepts `effects[]`,
+    // but this effect deals damage to "that land's controller" — the tapped
+    // permanent's controller, carried on the tapped-event payload and NOT
+    // reachable from an Effect Script (the effects[] site surfaces neither the
+    // event nor the tapped `LKI`). Blocked on: a player-ref that resolves the
+    // tapped/host permanent's controller from a triggered-ability script.
+    // Stays `resolve()` until then.
     triggeredAbilities: [
         // No `host` scope in the shared vocabulary (see ADR 0002) — the aura
         // identifies its host via `self.attachedTo`, so `scope: "any"` with a

@@ -1351,26 +1351,26 @@ export const soulNet: CardDefinition = {
             oracleText:
                 "Whenever a creature dies, you may pay {1}. If you do, you gain 1 life.",
             scope: "any",
-            // NOT DSL-migratable (ADR 0045): the `diedTrigger` factory
-            // (convex/cards/abilities/triggers/diedTrigger.ts) hardcodes a
-            // required `resolve` callback and exposes no `effects[]` site —
-            // same class of block as Gauntlet of Might's `tappedTrigger`
-            // above. The mayPay+gainLife shape itself is otherwise a
-            // trivial migration (identical to the colorSphere factory's own
-            // may-pay-for-life pattern below).
-            // Blocked on: an `effects[]` site on `diedTrigger`'s
-            // `DiedTriggerArgs` (out of scope for this pass — constrained to
-            // colorless.ts only).
-            resolve: (ctx) => {
-                const accept = ctx.requestMayPay({
-                    playerId: ctx.controller,
-                    choiceId: ctx.controller,
+            // Migrated resolve()→effects[] (ADR 0045): mayPay {1} (CR 117.3a)
+            // then gainLife 1 gated on the $paid outcome — same mayPay + if
+            // shape as Urza's Chalice (atq/colorless.ts), riding the same
+            // Pending Choice pipeline `requestMayPay` used. The dead creature's
+            // LKI isn't read (the effect only touches the controller), so the
+            // effects[] site (which doesn't surface LKI) is a clean fit.
+            effects: [
+                {
+                    op: "mayPay",
+                    player: "controller",
                     cost: { X: 1 },
                     prompt: "Pay {1} to gain 1 life from Soul Net?",
-                });
-                if (accept === undefined) return;
-                if (accept) ctx.gainLife(ctx.controller, 1);
-            },
+                    bind: "$paid",
+                },
+                {
+                    op: "if",
+                    predicate: { binding: "$paid" },
+                    then: [{ op: "gainLife", player: "controller", amount: 1 }],
+                },
+            ],
         }),
     ],
 };
