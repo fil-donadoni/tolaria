@@ -17,7 +17,7 @@ import {
     phyrexianLifePipOptions,
 } from "./gre/rules";
 import { canSummonCompanion } from "./gre/companion";
-import { hasFlashback } from "./gre/flashback";
+import { flashbackExileEligibleCount, hasFlashback } from "./gre/flashback";
 import { hasEscape } from "./gre/escape";
 import {
     FACE_DOWN_CARD_ID,
@@ -90,6 +90,16 @@ export type SlimGraveyardCard = SlimCardInstance & {
         | "graveyard-permission"
         | "graveyard-grant"
         | "graveyard-permanent-permission";
+    /** CR 702.34a / 118.5 / 107.3 — the maximum {X} the caster may announce on
+     *  THIS flashback cast, bounded by its `flashbackExileFromGraveyard`
+     *  additional cost ("Exile X blue cards from your graveyard", Flash of
+     *  Insight): the count of eligible cards in the viewer's own graveyard,
+     *  excluding the flashback card itself (CR 702.34e). Present ONLY on a
+     *  `castKind: "flashback"` card that carries this cost, so the client X
+     *  stepper caps at a payable value instead of letting the caster announce
+     *  an X the exile cost can't cover (which the server rejects at commit).
+     *  Absent for a flashback with no graveyard-exile cost (X uncapped). */
+    flashbackExileMaxX?: number;
 };
 
 /** Companion slot (CR 702.139, ADR 0064) projected to the wire: `instance`
@@ -429,10 +439,27 @@ function projectGraveyardCard(
     // escape by Underworld Breach) so the client can offer + gate the escape
     // cast (the board never sees the GRE).
     if (isOwnGraveyard && hasFlashback(card)) {
+        // CR 702.34a / 118.5 / 107.3 — cap the announceable X to the payable
+        // `flashbackExileFromGraveyard` cost (Flash of Insight: "Exile X blue
+        // cards from your graveyard"), so the client stepper can't offer an X
+        // the exile cost can't cover. Only attached when the card carries that
+        // cost; a plain flashback leaves X uncapped.
+        const fbExile = tryGetDefinition(
+            (card.card as { id?: string }).id ?? ""
+        )?.additionalCosts?.flashbackExileFromGraveyard;
         return {
             ...slim,
             legalActions: legalActionsFor(),
             castKind: "flashback",
+            ...(fbExile
+                ? {
+                      flashbackExileMaxX: flashbackExileEligibleCount(
+                          player,
+                          fbExile.color,
+                          card.id
+                      ),
+                  }
+                : {}),
         };
     }
     if (isOwnGraveyard && hasEscape(state, card)) {

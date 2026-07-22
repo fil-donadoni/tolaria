@@ -136,9 +136,9 @@ approach avoids that.)
 
 ## Preset scenario
 
-Append to `NEW_MECHANIC_SCENARIOS` (`convex/debugScenarios.ts`): a dual-mana land
-(Ancient Spring, `W|B`) on the battlefield + an artifact costing `{1}` in hand,
-main phase — one click reproduces the ambiguous spend.
+Register via `seedScenarioDirect` post-merge (DB-direct, issue #1455 — no code array):
+a dual-mana land (Ancient Spring, `W|B`) on the battlefield + an artifact costing
+`{1}` in hand, main phase — one click reproduces the ambiguous spend.
 
 ## CR references
 

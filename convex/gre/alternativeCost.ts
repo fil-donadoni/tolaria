@@ -30,7 +30,7 @@ import type {
     EffectCardFilter,
 } from "../cards/types";
 import { matchesPermanentFilter } from "../cards/filters";
-import { getCardColors } from "../cards/colors";
+import { cardHasColor } from "../cards/colors";
 import type { CardInstanceState, GameState, PlayerState } from "./state";
 import { getPlayer } from "./state";
 import { liveSupertypesOf } from "./snow";
@@ -113,8 +113,10 @@ export function handCardMatchesFilter(
         return false;
     const colors = asArray(filter.color);
     if (colors !== undefined) {
-        const cardColors = getCardColors(def);
-        if (!colors.some((c) => cardColors.includes(c))) return false;
+        // CR 105.2 / 202.2 — match the card's COLOUR (colours of its mana cost),
+        // not its deck-builder colour identity: Force of Will's "exile a blue
+        // card" must reject a colourless Island even though it taps for blue.
+        if (!colors.some((c) => cardHasColor(def, c))) return false;
     }
     // issue #898 — `manaValueAtMost` now also accepts a dynamic `{ X: true }`
     // (Green Sun's Zenith). There is no resolving-spell context (no `ctx`, no

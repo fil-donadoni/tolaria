@@ -21,7 +21,7 @@
 import { describe, it, expect } from "vitest";
 import { flashOfInsight } from "../blue";
 import { snapcasterMage } from "../../isd/blue";
-import { grizzlyBears } from "../../lea";
+import { grizzlyBears, island } from "../../lea";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import {
     resolveTopOfStack,
@@ -40,6 +40,7 @@ import { projectPublicState } from "../../../../gameProjections";
 const FOI = flashOfInsight.id;
 const BLUE = snapcasterMage.id; // {1}{U} — a blue card (CR 105.2)
 const GREEN = grizzlyBears.id; // {1}{G} — a non-blue card
+const ISLAND = island.id; // basic Island — taps for blue but is COLOURLESS
 
 // A blue card sitting in p1's graveyard, eligible to pay the exile cost.
 const blueGy = (id: string): CardInstanceState =>
@@ -74,6 +75,12 @@ function flashbackState(pick?: string[]): {
                     blueGy("blue3"),
                     makeInstance(GREEN, {
                         id: "green1",
+                        zone: "graveyard",
+                        controllerId: "p1",
+                        ownerId: "p1",
+                    }),
+                    makeInstance(ISLAND, {
+                        id: "island1",
                         zone: "graveyard",
                         controllerId: "p1",
                         ownerId: "p1",
@@ -275,6 +282,13 @@ describe("Flash of Insight (JUD 40) — dig + flashback exile cost", () => {
             ).toThrow(/does not match/);
         });
 
+        it("rejects an Island — colourless, not blue (CR 105.2a, taps-for-blue ≠ blue)", () => {
+            const { state } = flashbackState();
+            expect(() =>
+                recordCastExileCostPick(state, "p1", ["blue1", "island1"])
+            ).toThrow(/does not match/);
+        });
+
         it("rejects a card not in your graveyard", () => {
             const { state } = flashbackState();
             expect(() =>
@@ -306,6 +320,89 @@ describe("Flash of Insight (JUD 40) — dig + flashback exile cost", () => {
             expect(gyIds).toEqual(
                 expect.arrayContaining(["blue1", "blue2", "blue3"])
             );
+        });
+
+        it("projects flashbackExileMaxX = payable blue cards (excl. Flash of Insight, CR 702.34a/107.3)", () => {
+            // Fresh graveyard: Flash of Insight + 3 blue + 1 green, no pending
+            // cast — the projection caps the announceable X at the blue cards
+            // available to pay the exile cost, excluding FoI itself.
+            const foi = makeInstance(FOI, {
+                id: "foi",
+                zone: "graveyard",
+                controllerId: "p1",
+                ownerId: "p1",
+            });
+            const state = makeState({
+                players: [
+                    makePlayer("p1", {
+                        graveyard: [
+                            foi,
+                            blueGy("blue1"),
+                            blueGy("blue2"),
+                            blueGy("blue3"),
+                            makeInstance(GREEN, {
+                                id: "green1",
+                                zone: "graveyard",
+                                controllerId: "p1",
+                                ownerId: "p1",
+                            }),
+                            // CR 105.2a — an Island taps for blue but is
+                            // COLOURLESS: it must NOT count toward the cap.
+                            makeInstance(ISLAND, {
+                                id: "island1",
+                                zone: "graveyard",
+                                controllerId: "p1",
+                                ownerId: "p1",
+                            }),
+                        ],
+                        manaPool: { W: 0, U: 1, B: 0, R: 0, G: 0, C: 1 },
+                    }),
+                    makePlayer("p2"),
+                ],
+                priorityPlayerId: "p1",
+            });
+            const projected = projectPublicState(state, 1, "p1");
+            const projFoi = projected.players[0].graveyard.find(
+                (c) => c.id === "foi"
+            )!;
+            expect(projFoi.castKind).toBe("flashback");
+            // 3 blue cards eligible; FoI itself, the green card AND the Island
+            // (colourless) excluded.
+            expect(projFoi.flashbackExileMaxX).toBe(3);
+        });
+
+        it("flashbackExileMaxX drops to 0 when FoI is the only blue card (CR 702.34e)", () => {
+            const foi = makeInstance(FOI, {
+                id: "foi",
+                zone: "graveyard",
+                controllerId: "p1",
+                ownerId: "p1",
+            });
+            const state = makeState({
+                players: [
+                    makePlayer("p1", {
+                        graveyard: [
+                            foi,
+                            makeInstance(GREEN, {
+                                id: "green1",
+                                zone: "graveyard",
+                                controllerId: "p1",
+                                ownerId: "p1",
+                            }),
+                        ],
+                        manaPool: { W: 0, U: 1, B: 0, R: 0, G: 0, C: 1 },
+                    }),
+                    makePlayer("p2"),
+                ],
+                priorityPlayerId: "p1",
+            });
+            const projected = projectPublicState(state, 1, "p1");
+            const projFoi = projected.players[0].graveyard.find(
+                (c) => c.id === "foi"
+            )!;
+            // No other blue card: X capped to 0 (only a no-op flashback is
+            // payable), so the client stepper never offers an unpayable X.
+            expect(projFoi.flashbackExileMaxX).toBe(0);
         });
 
         it("survives a serialization round-trip (schema drift guard)", () => {

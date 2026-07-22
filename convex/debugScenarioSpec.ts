@@ -194,43 +194,12 @@ export function selectEphemeralIdsToPrune<Id>(
     return ephemeral.slice(Math.max(0, keep)).map((row) => row._id);
 }
 
-/**
- * Pure seed-dedup decision (issue #1422). Given the code-seed presets and the
- * labels already claimed in the DB pool, return which presets still need
- * inserting and how many were skipped. A label counts as already-seeded if
- * it's either a currently-existing row's label OR a TOMBSTONED label — a
- * hard-deleted scenario's label is remembered precisely so the next seed does
- * not resurrect a row an admin validated and then deleted. Deterministic and
- * side-effect-free so the mutation (`seedNewMechanicScenarios`) is a thin
- * wrapper the tests can drive directly.
- */
-export function selectPresetsToSeed<T extends { label: string }>(
-    presets: readonly T[],
-    existingLabels: ReadonlySet<string>,
-    tombstonedLabels: ReadonlySet<string>
-): { toInsert: T[]; skipped: number } {
-    const toInsert: T[] = [];
-    let skipped = 0;
-    for (const preset of presets) {
-        if (
-            existingLabels.has(preset.label) ||
-            tombstonedLabels.has(preset.label)
-        ) {
-            skipped++;
-            continue;
-        }
-        toInsert.push(preset);
-    }
-    return { toInsert, skipped };
-}
-
 // ---- DB-direct write path (issue #1453) ------------------------------------
 //
-// `seedScenarioDirect` (`convex/debugScenarios.ts`) replaces the code-array
+// `seedScenarioDirect` (`convex/debugScenarios.ts`) is the DB-direct write
 // path for agents (design doc 2026-07-21-db-direct-debug-scenarios-design.md):
-// an agent writes ONE scenario straight to the DB instead of appending to
-// `NEW_MECHANIC_SCENARIOS`. The insert-vs-patch decision below is the pure
-// seam — mirrors `selectPresetsToSeed`/`selectEphemeralIdsToPrune`'s
+// an agent writes ONE scenario straight to the DB. The insert-vs-patch
+// decision below is the pure seam — mirrors `selectEphemeralIdsToPrune`'s
 // structural-subset-row style — so it's unit-testable without a
 // `convex-test` harness (this repo has none, see `debugScenarios.test.ts`).
 

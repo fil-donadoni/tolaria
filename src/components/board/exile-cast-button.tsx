@@ -10,8 +10,10 @@ import { useHandCardCommit } from "~/hooks/useHandCardCommit";
  *  a LAND dispatches `playCard` (the backend accepts an exiled land as a play
  *  source, moving exile → battlefield and consuming the CR 305.2 land drop); a
  *  spell dispatches `announceCast` (`findCastableExileCard`). The X-cost prompt,
- *  modal mode picker, and keep-priority modifier all behave identically. Calls
- *  `onCommitted` after dispatch so the host can close the reveal dialog. */
+ *  modal mode picker, and keep-priority modifier all behave identically.
+ *  `onCommitted` is threaded into the hook and fires at the real dispatch point
+ *  (not on click) so a deferred X / kicker / alt-cost cast keeps its dialog
+ *  mounted through the choice sequence. */
 export default function ExileCastButton({
     card,
     onCommitted,
@@ -26,7 +28,7 @@ export default function ExileCastButton({
         altCostPickerOverlay,
         phyrexianPickerOverlay,
         costDialogOverlay,
-    } = useHandCardCommit(card);
+    } = useHandCardCommit(card, { onCommitted });
 
     // A land in exile is PLAYED (as a land, CR 305.2), everything else is CAST.
     // The button's action follows the card type; its enabled state follows the
@@ -56,9 +58,13 @@ export default function ExileCastButton({
                 title={enabled ? undefined : disabledTitle}
                 onClick={(e) => {
                     if (!enabled) return;
+                    // CR 601.2b — do NOT close the reveal here: a cast gated
+                    // behind the X / kicker / alt-cost dialog is deferred and
+                    // its overlays live in this component. The hook fires
+                    // `onCommitted` at the real dispatch point (a land play is
+                    // immediate) so the dialog survives the choice sequence.
                     if (isLand) onPlayClick();
                     else onCastClick(e);
-                    onCommitted?.();
                 }}
                 className="absolute inset-x-1 bottom-1 z-30 rounded bg-accent-strong/90 px-2 py-1 text-xs font-bold text-white shadow hover:bg-accent-strong disabled:cursor-not-allowed disabled:bg-surface-elevated/80 disabled:text-text-muted disabled:shadow-none"
             >

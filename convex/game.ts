@@ -10,7 +10,11 @@ import {
     getInstanceManaCost,
     tryGetDefinition,
 } from "./cards";
-import { basicLandsForColors, getCardColors } from "./cards/colors";
+import {
+    basicLandsForColors,
+    cardHasColor,
+    getCardColors,
+} from "./cards/colors";
 import { resolveScenarioBattlefieldCounters } from "./debugScenarioSpec";
 import {
     type CardInstanceState,
@@ -97,6 +101,7 @@ import {
 import { isGuardedAgainst, playerHasShroud } from "./gre/permanentGuard";
 import {
     findFlashbackCastable,
+    flashbackExileEligibleCount,
     getFlashbackAdditionalCost,
     getFlashbackCost,
     hasFlashback,
@@ -1310,16 +1315,18 @@ function canPayExileFromGraveyard(
 
 /** True iff the graveyard card matches a FLASHBACK exile cost's colour filter
  *  (CR 105.2 / 202.2 — Flash of Insight "blue cards"). Colours are the card's
- *  printed colours (`getCardColors`), read from its definition; `color`
- *  undefined matches any card. A card whose definition can't be resolved never
- *  matches (a token has no graveyard existence, CR 111.7). */
+ *  actual printed COLOUR (`cardHasColor` → colours of its mana cost), NOT its
+ *  deck-builder colour identity: an Island taps for blue but is COLOURLESS
+ *  (CR 105.2a) and never pays "exile a blue card". `color` undefined matches any
+ *  card. A card whose definition can't be resolved never matches (a token has no
+ *  graveyard existence, CR 111.7). */
 function graveyardCardMatchesColor(
     card: CardInstanceState,
     color?: Color
 ): boolean {
     if (color === undefined) return true;
     const def = tryGetDefinition((card.card as { id?: string }).id ?? "");
-    return def ? getCardColors(def).includes(color) : false;
+    return def ? cardHasColor(def, color) : false;
 }
 
 /** True iff `player`'s OWN graveyard holds `count` cards matching `color`,
@@ -1334,11 +1341,7 @@ function canPayFlashbackExile(
     excludeInstanceId: string
 ): boolean {
     return (
-        player.graveyard.filter(
-            (c) =>
-                c.id !== excludeInstanceId &&
-                graveyardCardMatchesColor(c, color)
-        ).length >= count
+        flashbackExileEligibleCount(player, color, excludeInstanceId) >= count
     );
 }
 

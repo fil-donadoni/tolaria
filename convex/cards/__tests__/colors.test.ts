@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
     basicLandsForColors,
+    cardHasColor,
     getCardColors,
     getColorsFromCost,
 } from "../colors";
@@ -78,6 +79,46 @@ describe("getCardColors", () => {
             ],
         });
         expect(getCardColors(def)).toEqual(["B", "R"]);
+    });
+});
+
+describe("cardHasColor (CR 105.2 / 202.2 — actual card colour, not identity)", () => {
+    const stub = (overrides: Partial<CardDefinition>): CardDefinition => ({
+        id: "stub",
+        name: "Stub",
+        rarity: "common",
+        types: ["Creature"],
+        ...overrides,
+    });
+
+    it("matches the colour of a coloured card's mana cost", () => {
+        const snap = stub({ manaCost: { generic: 1, U: 1 } });
+        expect(cardHasColor(snap, "U")).toBe(true);
+        expect(cardHasColor(snap, "R")).toBe(false);
+    });
+
+    it("an Island is COLOURLESS — never blue — even though it taps for blue (the bug)", () => {
+        const island = stub({
+            id: "island",
+            name: "Island",
+            types: ["Land"],
+            subtypes: ["Island"],
+            manaCost: undefined,
+        });
+        // getCardColors (deck-builder IDENTITY) folds the produced mana in...
+        expect(getCardColors(island)).toEqual(["U"]);
+        // ...but the card's actual COLOUR is empty: it must NOT pay "exile a
+        // blue card" (CR 105.2a).
+        expect(cardHasColor(island, "U")).toBe(false);
+    });
+
+    it("an artifact with a colourless cost has no colour", () => {
+        const artifact = stub({
+            id: "moxen",
+            types: ["Artifact"],
+            manaCost: { generic: 0 },
+        });
+        expect(cardHasColor(artifact, "U")).toBe(false);
     });
 });
 

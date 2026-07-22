@@ -12,6 +12,12 @@ type CastCostDialogProps = {
     /** CR 601.2b — render a numeric X stepper (integer ≥ 0) when the spell /
      *  ability has X in its mana cost. */
     askX: boolean;
+    /** CR 702.34a / 118.5 / 107.3 — upper bound on {X} for a flashback cast
+     *  whose additional cost demands exactly X cards from the graveyard (Flash
+     *  of Insight: "Exile X blue cards"). Caps the stepper AND blocks submit
+     *  above it, so the caster can't announce an X the exile cost can't cover.
+     *  Undefined = X uncapped (an ordinary {X} spell). */
+    maxX?: number;
     /** CR 702.33 — the optional Kicker additional cost, when the card has one.
      *  `multi: false` → a single yes/no "pay the kicker" toggle; `multi: true`
      *  (Multikicker, CR 702.33e) → a numeric "times to pay kicker" stepper. */
@@ -46,6 +52,7 @@ export default function CastCostDialog({
     cardName,
     subtitle,
     askX,
+    maxX,
     kicker,
     buyback,
     onConfirm,
@@ -72,7 +79,12 @@ export default function CastCostDialog({
     const xValue = askX ? parseNonNegInt(xRaw) : 0;
     const kickerValue =
         !kicker || !kicker.multi ? 0 : parseNonNegInt(kickerCountRaw);
-    const valid = xValue !== null && kickerValue !== null;
+    // CR 702.34a / 118.5 — a typed X above the flashback exile cap is invalid,
+    // not silently clamped: the stepper buttons already stop at `maxX`, but a
+    // hand-typed value must block submit so the caster can't announce an
+    // unpayable X.
+    const xWithinCap = maxX === undefined || xValue === null || xValue <= maxX;
+    const valid = xValue !== null && kickerValue !== null && xWithinCap;
 
     const submit = () => {
         if (!valid) return;
@@ -121,8 +133,15 @@ export default function CastCostDialog({
                             aria-label="Choose X"
                             value={xRaw}
                             onChange={setXRaw}
+                            max={maxX}
                             autoFocus
                         />
+                        {maxX !== undefined && (
+                            <span className="text-xs text-text-muted">
+                                Max {maxX} — you must exile X cards from your
+                                graveyard to pay the flashback cost.
+                            </span>
+                        )}
                     </div>
                 )}
 

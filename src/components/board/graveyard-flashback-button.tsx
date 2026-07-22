@@ -9,7 +9,10 @@ import { useHandCardCommit } from "~/hooks/useHandCardCommit";
  *  `announceCast` locates the graveyard card via `findFlashbackCastable`, pays
  *  the flashback cost, and flags the spell to exile on resolution. The X-cost
  *  prompt, modal mode picker, and keep-priority modifier behave identically.
- *  Calls `onCommitted` after dispatch so the host can close the reveal dialog. */
+ *  `onCommitted` is threaded into the hook and fires at the real dispatch point
+ *  (not on click) so a deferred X / kicker / alt-cost cast keeps its dialog
+ *  mounted through the choice sequence instead of the host closing the reveal
+ *  early and unmounting the dialog. */
 export default function GraveyardFlashbackButton({
     card,
     onCommitted,
@@ -23,7 +26,7 @@ export default function GraveyardFlashbackButton({
         altCostPickerOverlay,
         phyrexianPickerOverlay,
         costDialogOverlay,
-    } = useHandCardCommit(card);
+    } = useHandCardCommit(card, { onCommitted });
 
     // CR 702.34c — the projection attaches `legalActions` to the viewer's own
     // flashback cards; "cast" is present only when the flashback cast is legal
@@ -63,8 +66,12 @@ export default function GraveyardFlashbackButton({
                 title={enabled ? undefined : disabledTitle}
                 onClick={(e) => {
                     if (!enabled) return;
+                    // CR 601.2b — do NOT close the reveal here: a flashback cast
+                    // gated behind the X / kicker / alt-cost dialog is deferred,
+                    // and the dialog overlays live in this component. The hook
+                    // fires `onCommitted` at the real dispatch point instead, so
+                    // the dialog survives the choice sequence.
                     onCastClick(e);
-                    onCommitted?.();
                 }}
                 className="absolute inset-x-0 bottom-0 z-30 rounded-b bg-accent-strong/90 px-1 py-1 text-xs font-bold text-white shadow hover:bg-accent-strong disabled:cursor-not-allowed disabled:bg-surface-elevated/80 disabled:text-text-muted disabled:shadow-none"
             >

@@ -14,8 +14,9 @@
 // and cost live here. The flashback cost is either printed on the card
 // (`CardDefinition.flashback`) or granted at the instance level until end of
 // turn (`CardInstanceState.grantedFlashback` — Snapcaster Mage).
-import type { FlashbackCost, ManaCost } from "../cards/types";
+import type { Color, FlashbackCost, ManaCost } from "../cards/types";
 import { tryGetDefinition } from "../cards";
+import { cardHasColor } from "../cards/colors";
 import type { CardInstanceState, PlayerState } from "./state";
 
 /** The flashback-only NON-mana additional cost (sacrifice a permanent and/or
@@ -102,6 +103,30 @@ export function getFlashbackAdditionalCost(
  *  Dart) has no mana portion yet is still castable via flashback. */
 export function hasFlashback(card: CardInstanceState): boolean {
     return getNormalizedFlashback(card) !== undefined;
+}
+
+/** CR 702.34a / 118.5 / 702.34e — the number of cards in `player`'s OWN
+ *  graveyard eligible to pay a `flashbackExileFromGraveyard` cost: matching
+ *  `color` (undefined = any card), EXCLUDING `excludeInstanceId` (the flashback
+ *  card can't pay for its own cost). This is BOTH the affordability bound
+ *  (`canPayFlashbackExile` — need `>= chosenX`) AND the maximum X the caster may
+ *  legally announce on the flashback cast, since the cost demands EXACTLY
+ *  `chosenX` such cards. Single authority for "how many blue cards can this
+ *  flashback exile" so the client X cap and the server announce check never
+ *  diverge (`getEffectiveToughness`-style single-source pattern). */
+export function flashbackExileEligibleCount(
+    player: PlayerState,
+    color: Color | undefined,
+    excludeInstanceId: string
+): number {
+    return player.graveyard.filter((c) => {
+        if (c.id === excludeInstanceId) return false;
+        if (color === undefined) return true;
+        const def = tryGetDefinition((c.card as { id?: string }).id ?? "");
+        // CR 105.2 / 202.2 — a card's COLOUR, not its colour identity: an Island
+        // taps for blue but is colourless, so it never pays "exile a blue card".
+        return def ? cardHasColor(def, color) : false;
+    }).length;
 }
 
 /** CR 702.34a — the card in `player`'s graveyard with `instanceId` that can be

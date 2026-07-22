@@ -29,6 +29,23 @@ export function getColorsFromCost(cost?: ManaCost): Color[] {
     return colors;
 }
 
+/** CR 105.2 / 202.2 — true iff the card's actual printed COLOUR includes
+ *  `color`. This is the card's colour as defined by its mana cost (a card with
+ *  no coloured mana in its cost is COLOURLESS — CR 105.2a — so a land, an
+ *  artifact, or any cost-less card is colourless even when it TAPS for coloured
+ *  mana). It is deliberately NOT {@link getCardColors}, which returns deck-
+ *  builder colour IDENTITY (folding a land's produced mana into its colours) —
+ *  identity is wrong for a gameplay "a <colour> card" test, where an Island must
+ *  never count as blue. Single authority for every such cost / filter: Flash of
+ *  Insight's "exile X blue cards from your graveyard", Force of Will's "exile a
+ *  blue card", a flashback "exile a <colour> card from your hand". Colour
+ *  indicators (CR 202.2b) are not modelled on `CardDefinition`, matching the
+ *  layer-5 base colour (`gre/layers.ts`), so a card's colour is exactly the
+ *  colours of its mana cost. */
+export function cardHasColor(def: CardDefinition, color: Color): boolean {
+    return getColorsFromCost(def.manaCost).includes(color);
+}
+
 const COLORED = MANA_COLORS.filter((c) => c !== "C");
 
 /** Basic land name for each color (CR 305.6 intrinsic mana). */

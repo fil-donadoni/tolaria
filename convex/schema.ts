@@ -503,9 +503,9 @@ export default defineSchema({
         // Authorship provenance for interactively-saved rows only (set by
         // `saveDebugScenario` from the current admin). OPTIONAL because scenarios
         // are a SHARED admin tool — `listDebugScenarios` shows every row to every
-        // admin regardless of owner — so the golden seed rows
-        // (`seedPresetScenarios` / `seedNewMechanicScenarios`) are ownerless: they
-        // belong to the pool, not to whichever admin happened to run the seed.
+        // admin regardless of owner — so the golden rows are ownerless: they are
+        // seeded/written directly to the DB, belonging to the pool rather than to
+        // whichever admin happened to write them.
         userId: v.optional(v.id("users")),
         label: v.string(),
         // The resolved spec, same shape `debugSetupScenario` accepts (minus
@@ -528,13 +528,4 @@ export default defineSchema({
         schemaVersion: v.optional(v.number()),
         createdAt: v.number(),
     }).index("by_user", ["userId"]),
-    debugScenarioTombstones: defineTable({
-        // A deleted scenario's label. `seedNewMechanicScenarios` skips any
-        // NEW_MECHANIC_SCENARIOS entry whose label is tombstoned, so a
-        // validated-then-deleted code-seed row does NOT resurrect on the next
-        // seed (issue #1422). Manual saveDebugScenario is unaffected — only the
-        // automatic seed consults tombstones.
-        label: v.string(),
-        createdAt: v.number(),
-    }).index("by_label", ["label"]),
 });

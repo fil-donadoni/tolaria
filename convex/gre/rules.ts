@@ -35,7 +35,7 @@ import { tapManaBonusUnits } from "./tapManaBonus";
 import { PHYREXIAN_LIFE_PER_PIP, phyrexianPipCount } from "./phyrexian";
 import { matchesPermanentFilter } from "../cards/filters";
 import { getInstanceManaCost, tryGetDefinition } from "../cards";
-import { getCardColors } from "../cards/colors";
+import { cardHasColor } from "../cards/colors";
 import { affordableAlternativeCosts } from "./alternativeCost";
 import {
     getFlashbackCost,
@@ -671,10 +671,10 @@ function hasPayableFlashbackAdditionalCost(
             if (!cardId) return false;
             const def = tryGetDefinition(cardId);
             if (!def) return false;
-            return (
-                wantColor === undefined ||
-                getCardColors(def).includes(wantColor)
-            );
+            // CR 105.2 / 202.2 — a card's COLOUR, not its colour identity: a
+            // colourless card (Island, artifact) never pays "exile a <colour>
+            // card from your hand".
+            return wantColor === undefined || cardHasColor(def, wantColor);
         });
         if (!hasCard) return false;
     }

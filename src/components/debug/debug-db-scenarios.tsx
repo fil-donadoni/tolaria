@@ -27,11 +27,9 @@ type Preview = {
  */
 export default function DebugDbScenarios({
     gameId,
-    filter,
     onEdit,
 }: {
     gameId: Id<"games">;
-    filter: string;
     onEdit: (row: Doc<"debugScenarios">) => void;
 }) {
     const user = useCurrentUser();
@@ -57,6 +55,7 @@ export default function DebugDbScenarios({
     );
     const [tweak, setTweak] = useState("");
     const [preview, setPreview] = useState<Preview | null>(null);
+    const [filter, setFilter] = useState("");
 
     if (!isAdmin) return null;
 
@@ -117,10 +116,29 @@ export default function DebugDbScenarios({
     const rows = (scenarios ?? []).filter((s) =>
         s.label.toLowerCase().includes(filter.toLowerCase())
     );
+    const total = scenarios?.length ?? 0;
     const varyingRow = rows.find((r) => r._id === varyingId) ?? null;
 
     return (
         <div className="flex flex-col gap-1">
+            <div className="flex items-center justify-between gap-2">
+                <span className="text-white/40 text-[10px] uppercase tracking-wide">
+                    Load scenario
+                </span>
+                {total > 0 && (
+                    <span className="text-white/30 text-[10px] tabular-nums">
+                        {filter.trim() ? `${rows.length} / ${total}` : total}
+                    </span>
+                )}
+            </div>
+            <input
+                type="text"
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
+                placeholder="Search scenarios…"
+                className="w-full px-2 py-1 rounded bg-black/40 border border-white/20 text-white text-xs placeholder:text-white/30 outline-none focus:border-white/40"
+                autoFocus
+            />
             <div className="max-h-40 overflow-y-auto flex flex-col gap-1">
                 {rows.length === 0 ? (
                     <span className="text-white/30 text-[10px]">

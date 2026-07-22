@@ -1,4 +1,5 @@
-Carte cubo da creare:
+# Carte cubo da creare
+
 Atraxa
 Sin
 Doomsday
@@ -29,27 +30,53 @@ Grist
 Necromancy
 Fable of the mirror-breaker
 
-Bug carte:
+# Bug carte
 
-- chrome mox: il counter I\* non è chiaro come interfaccia, e la carta imprintata deve essere attaccata a lui, stile banishing light. questo vale per tutte le carte con imprint.
-- Flash of Insight non risulta castabile con flashback
+## Carte rotte
+
 - Enduring renewal non mostra l'intero oracle text in card-preview, e anche Icetill Explorer. Cerca altri casi simili e risolvi alla radice.
 - La seconda abilità di currency converter non mi mostra le carte esiliate con lei all'interno del dialog di scelta, non posso selezionare niente.
-- L'abilità di Dark Confidant non ha bisogno del box di spostamento della carta, deve andare in mano per forza. viene rivelata automaticamente, spostata in mano e il controllore perde i punti vita. niente scelte, niente box intermedi.
 - bug ux: Lion Sash equipaggiato su una creatura non può più attivare le sue abilità, né reconfigure né exile from graveyard. Questo accade anche con le aure (Chromatic armor per esempio).
 - Earthbend: manca la parte di abilità che ritorna le terre animate in gioco quando muoiono. Non è scritto nell'oracle text della card-preview e non avviene nel gameplay.
-- manca il token golem di sandtorm salvager e lo spirit di staff of the storyteller e la beast di garruk wildspeaker e human di torsten. verifica quali altri token mancano, importali e fai in modo che non vengano più create carte con token mancanti
-- staff of the storyteller non è stata implementata nella sua prima edizione ma in una ristampa. correggi, trova altri casi simili e fai in modo che non ricapiti.
-- Le frecce di target di Arc mage sono sbagliate. Ho targettato una creature e un giocatore, vedo una freccia dalla creatura primo bersaglio al giocatore secondo bersaglio invece di 2 frecce che partono da arc mage e vanno verso la creatura e il giocatore
 - Le creature distrutte dall'ultimate di Sorin, Lord of Innistrad non tornano sul battlefield, rimangono nel cimitero.
 - Il may cast di Malcolm è solo nel momento della risoluzione dell'abilità, non nel resto del turno. verifica sul CR./
+- L'abilità di Dark Confidant non ha bisogno del box di spostamento della carta, deve andare in mano per forza. viene rivelata automaticamente, spostata in mano e il controllore perde i punti vita. niente scelte, niente box intermedi.
 
-Bug gameplay:
+## UX da migliorare
+
+- Le frecce di target di Arc mage sono sbagliate. Ho targettato una creature e un giocatore, vedo una freccia dalla creatura primo bersaglio al giocatore secondo bersaglio invece di 2 frecce che partono da arc mage e vanno verso la creatura e il giocatore
+- manca il token golem di sandtorm salvager e lo spirit di staff of the storyteller e la beast di garruk wildspeaker e human di torsten. verifica quali altri token mancano, importali e fai in modo che non vengano più create carte con token mancanti
+- staff of the storyteller non è stata implementata nella sua prima edizione ma in una ristampa. correggi, trova altri casi simili e fai in modo che non ricapiti.
+- chrome mox: il counter I\* non è chiaro come interfaccia, e la carta imprintata deve essere attaccata a lui, stile banishing light. questo vale per tutte le carte con imprint.
+- La zona companion mostra la carta croppata, non ha il formato e le dimensioni corrette. deve essere uguale all'emblema, come formato e dimensioni.
+
+# Bug gameplay
 
 - Non so se sia un problema di UI o di fasi di gioco, ma mi chiede di scartare per hand size quando c'è scritto untap dell'avversario invece che nella mia cleanup
 - Se premo space 2 volte troppo velocemente su declare attackers ricevo un 500 e il gioco si blocca finché non refresho la pagina
+  [CONVEX M(game:confirmAttackers)] [Request ID: 4adfe2fe792bbfdd] Server Error
+  Uncaught Error: Attacker selection is not open
+  at handler (../convex/game.ts:8163:23)
 
-Nuova UI:
+overrideMethod @ installHook.js:1
+(anonymous) @ @sentry_react.js?v=48a6b840:6207
+(anonymous) @ react-CRchZIot.js?v=48a6b840:68
+error @ react-CRchZIot.js?v=48a6b840:51
+logForFunction @ react-CRchZIot.js?v=48a6b840:90
+onResponse @ react-CRchZIot.js?v=48a6b840:464
+onMessage @ react-CRchZIot.js?v=48a6b840:1920
+ws.onmessage @ react-CRchZIot.js?v=48a6b840:1111
+react-CRchZIot.js?v=48a6b840:2182 Uncaught (in promise) Error: [CONVEX M(game:confirmAttackers)] [Request ID: 4adfe2fe792bbfdd] Server Error
+Uncaught Error: Attacker selection is not open
+at handler (../convex/game.ts:8163:23)
+
+Called by client
+at handler (../convex/game.ts:8163:23)
+
+Called by client
+at BaseConvexClient.mutation (http://localhost:5174/node_modules/.vite/deps/react-CRchZIot.js?v=48a6b840:2182:10)
+
+# Nuova UI
 
 - lo stack non mostra le frecce che attraversano il board tra carta/abilità in stack e bersagli. il badge con scritto il bersaglio non è assolutamente utile.
 - Non c'è modo di vedere Printed Card nel card-preview
@@ -57,8 +84,11 @@ Nuova UI:
 - i loyalty counters dei planeswalker devono stare sopra l'svg planeswalker, a forma di scudo loyalty
 - la schermata di game over ha delle scrollbar che compaiono a tratti, molto strano. e manca il pulsante back to lobby
 - le carte in esilio e graveyard non hanno le animazioni di quelle sul battlefield e nella mano. uniforma l'interazione, anche a quelle nelle pile dei dialog
+- lo stack spesso si sovrappone ai dialog di posizionamento carte o altri dialog centrati. bisogna metterlo piu' a destra
+- il box informativo della dichiarazione attaccanti è sempre sovrapposto alle creature da selezionare per l'attacco. va messo in alto a destra
+- il selettore di fasi e' finito a sovrapporsi parzialmente con exile library e graveyard, che hanno dello spazio inutile sotto. abbassa questo blocco per evitare overflow
 
-Bug bot:
+# Bug bot
 
 - casta wild growth su terra avversaria
 - cerca di tappare per mana un everflowing chalice senza counters e continua a fallire nel castare una spell, rinunciando.

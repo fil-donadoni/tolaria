@@ -137,6 +137,30 @@ describe("CastCostDialog (CR 601.2b {X} + CR 702.33 Kicker)", () => {
         });
     });
 
+    it("caps the X stepper at maxX and disables Increase there (CR 702.34a flashback)", () => {
+        const { onConfirm } = renderDialog({ askX: true, maxX: 2 });
+        const increase = screen.getByRole("button", { name: "Increase" });
+        fireEvent.click(increase); // 1
+        fireEvent.click(increase); // 2 (cap)
+        expect((increase as HTMLButtonElement).disabled).toBe(true);
+        fireEvent.click(increase); // no-op past the cap
+        fireEvent.click(castButton());
+        expect(onConfirm).toHaveBeenCalledWith({
+            chosenX: 2,
+            kickerCount: undefined,
+        });
+    });
+
+    it("disables Cast when a hand-typed X exceeds maxX and does not confirm", () => {
+        const { onConfirm } = renderDialog({ askX: true, maxX: 2 });
+        fireEvent.change(screen.getByLabelText("Choose X"), {
+            target: { value: "5" },
+        });
+        expect((castButton() as HTMLButtonElement).disabled).toBe(true);
+        fireEvent.click(castButton());
+        expect(onConfirm).not.toHaveBeenCalled();
+    });
+
     it("Cancel dismisses without confirming", () => {
         const { onConfirm, onCancel } = renderDialog({ askX: true });
         fireEvent.click(screen.getByRole("button", { name: "Cancel" }));

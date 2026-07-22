@@ -5,7 +5,7 @@ import type { Id } from "@convex/_generated/dataModel";
 import type { CardInstance, Player } from "~/types/game";
 import type { Color } from "@convex/cards/types";
 import { getDefinition } from "@convex/cards";
-import { getCardColors } from "@convex/cards/colors";
+import { cardHasColor } from "@convex/cards/colors";
 import GameDialog from "~/components/ui/game-dialog";
 import CardImage from "~/components/cards/card-image";
 
@@ -56,8 +56,12 @@ export default function CastExileCostDialog({
                 (card): card is CardInstance =>
                     card !== null &&
                     card.id !== choice.excludeInstanceId &&
+                    // CR 105.2 / 202.2 — a card's COLOUR, not its colour
+                    // identity: an Island taps for blue but is colourless, so it
+                    // is NOT eligible to pay "exile a blue card".
                     (choice.color === undefined ||
-                        getCardColors(getDefinition(card.card.id)).includes(
+                        cardHasColor(
+                            getDefinition(card.card.id),
                             choice.color
                         ))
             ),

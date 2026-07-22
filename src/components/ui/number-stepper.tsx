@@ -14,6 +14,9 @@ type NumberStepperProps = {
     /** Lower bound — the field never steps below this and the decrement button
      *  disables at it. Defaults to 0. */
     min?: number;
+    /** Upper bound — the field never steps above this and the increment button
+     *  disables at it. Undefined = unbounded. */
+    max?: number;
     id?: string;
     "aria-label"?: string;
     autoFocus?: boolean;
@@ -26,6 +29,7 @@ export default function NumberStepper({
     value,
     onChange,
     min = 0,
+    max,
     id,
     "aria-label": ariaLabel,
     autoFocus,
@@ -33,9 +37,11 @@ export default function NumberStepper({
     const parsed = Number.parseInt(value, 10);
     const current = Number.isFinite(parsed) ? parsed : min;
     const canDecrement = Number.isFinite(parsed) && parsed > min;
+    const canIncrement = max === undefined || current < max;
 
     const step = (delta: number) => {
-        onChange(String(Math.max(min, current + delta)));
+        const next = Math.max(min, current + delta);
+        onChange(String(max === undefined ? next : Math.min(max, next)));
     };
 
     return (
@@ -54,6 +60,7 @@ export default function NumberStepper({
                 type="number"
                 inputMode="numeric"
                 min={min}
+                max={max}
                 step={1}
                 value={value}
                 aria-label={ariaLabel}
@@ -62,7 +69,11 @@ export default function NumberStepper({
                 className="text-center [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
             />
             <InputGroupAddon align="inline-end">
-                <InputGroupButton aria-label="Increase" onClick={() => step(1)}>
+                <InputGroupButton
+                    aria-label="Increase"
+                    disabled={!canIncrement}
+                    onClick={() => step(1)}
+                >
                     <Plus />
                 </InputGroupButton>
             </InputGroupAddon>

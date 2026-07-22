@@ -77,8 +77,21 @@ type CostDialogState = {
  * Returns the two commit handlers plus overlay nodes (cost-choice dialog, mode
  * picker, alt-cost picker), which the caller renders so each anchors correctly
  * to its card. Each overlay is `null` until its step of the cast is in
- * progress. */
-export function useHandCardCommit(cardInstance: CardInstance) {
+ * progress.
+ *
+ * `opts.onCommitted` fires exactly when the cast/play is actually DISPATCHED to
+ * the server — NOT when the button is clicked. This distinction matters for a
+ * reveal-dialog host (graveyard Flashback / exile Cast buttons): a cast gated
+ * behind a cost dialog (X — CR 601.2b, Kicker, alt-cost, Phyrexian, mode) is
+ * deferred, and the dialog overlays are rendered by the SAME component that owns
+ * this button. If the host closed the reveal on click, it would unmount those
+ * overlays before the caster chose X — the dialog would flash and vanish with no
+ * cast. Firing `onCommitted` only at the real dispatch point keeps the reveal
+ * (and its overlays) mounted through the whole choice sequence. */
+export function useHandCardCommit(
+    cardInstance: CardInstance,
+    opts?: { onCommitted?: () => void }
+) {
     const { gameId, playerId, debugAllActions, allPlayers, activePlayerId } =
         useGameContext();
     const { reportError } = usePendingChoiceBuffer();
@@ -105,6 +118,9 @@ export function useHandCardCommit(cardInstance: CardInstance) {
                 skipValidation: debugAllActions || undefined,
             })
         ).catch(reportError);
+        // The play is dispatched (a land drop has no deferred cost dialog), so
+        // the reveal-dialog host may close now.
+        opts?.onCommitted?.();
     };
 
     function commitAnnounceCast(args: {
@@ -131,6 +147,11 @@ export function useHandCardCommit(cardInstance: CardInstance) {
                 phyrexianLifePips: args.phyrexianLifePips,
             })
         ).catch(reportError);
+        // The cast is now dispatched (after any cost dialog / picker sequence),
+        // so the reveal-dialog host may close. Firing here — not on click —
+        // keeps the dialog overlays mounted through the whole choice sequence
+        // for a deferred (X / kicker / alt-cost / Phyrexian / modal) cast.
+        opts?.onCommitted?.();
     }
 
     // Resume the cast pipeline once the cost choices (X / kicker) are known:
@@ -356,6 +377,10 @@ export function useHandCardCommit(cardInstance: CardInstance) {
             open
             cardName={def.name}
             askX={costDialogState.askX}
+            // CR 702.34a / 118.5 — a flashback cast whose exile cost demands X
+            // cards from the graveyard caps X at the payable count (projection's
+            // `flashbackExileMaxX`); undefined for every other cast.
+            maxX={cardInstance.flashbackExileMaxX}
             kicker={costDialogState.kicker}
             buyback={costDialogState.buyback}
             onConfirm={({ chosenX, kickerCount, buyback }) => {

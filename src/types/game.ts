@@ -205,6 +205,12 @@ export interface CardInstance {
         | "graveyard-permission"
         | "graveyard-grant"
         | "graveyard-permanent-permission";
+    /** CR 702.34a / 118.5 / 107.3 — max {X} announceable on this flashback
+     *  cast, bounded by its `flashbackExileFromGraveyard` cost (Flash of
+     *  Insight). Present only on a `castKind: "flashback"` card carrying that
+     *  cost; the cast cost dialog caps its X stepper at this value. Mirrors
+     *  `SlimGraveyardCard.flashbackExileMaxX` in `convex/gameProjections.ts`. */
+    flashbackExileMaxX?: number;
     /** ADR 0026 — derived eye-icon flag on the viewer's OWN hand cards: true
      *  when at least one opponent currently knows this card's identity. Only
      *  present on own-hand projected cards; raw `knownTo` never reaches the
