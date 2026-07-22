@@ -19,6 +19,7 @@
 import type { PermanentFilter } from "../../filters";
 import { matchesPermanentFilter } from "../../filters";
 import type {
+    EffectOp,
     GameEvent,
     PermanentUntappedEvent,
     PermanentView,
@@ -52,10 +53,16 @@ export interface UntappedTriggerArgs {
         self: PermanentView,
         state?: TriggerStateView
     ) => boolean;
+    /** Effect Script (ADR 0045) — the DSL-first default. Rides straight to the
+     *  interpreter with the source's controller and `$source` bound; the
+     *  untapped permanent's last-known-info is a separate payload, not reachable
+     *  from the script, so a `resolve` callback is still the escape hatch for an
+     *  effect that needs it. Mutually exclusive with `resolve`. */
+    effects?: EffectOp[];
     /** Resolution effect. Receives a pre-narrowed event + a derived payload
      *  exposing the untapped permanent's last-known fields. Card authors never
-     *  narrow `event.type` inside the body. */
-    resolve: (
+     *  narrow `event.type` inside the body. Mutually exclusive with `effects`. */
+    resolve?: (
         ctx: SpellContext,
         event: PermanentUntappedEvent,
         untapped: {
@@ -68,6 +75,11 @@ export interface UntappedTriggerArgs {
 }
 
 export function untapTrigger(args: UntappedTriggerArgs): TriggeredAbility {
+    if (args.effects === undefined && args.resolve === undefined) {
+        throw new Error(
+            `untapTrigger("${args.id}"): declare either effects[] or resolve — neither was given`
+        );
+    }
     const untappedMatches = (
         event: PermanentUntappedEvent,
         self: PermanentView,
@@ -103,6 +115,7 @@ export function untapTrigger(args: UntappedTriggerArgs): TriggeredAbility {
         return true;
     };
 
+    const resolveCb = args.resolve;
     const ability: TriggeredAbility = {
         id: args.id,
         oracleText: args.oracleText,
@@ -111,15 +124,19 @@ export function untapTrigger(args: UntappedTriggerArgs): TriggeredAbility {
             if (event.type !== "PERMANENT_UNTAPPED") return false;
             return untappedMatches(event, self, state);
         },
-        resolve: (ctx, event) => {
-            if (event.type !== "PERMANENT_UNTAPPED") return;
-            args.resolve(ctx, event, {
-                id: event.permanentId,
-                controllerId: event.controllerId,
-                types: event.permanentTypes,
-                subtypes: event.permanentSubtypes,
-            });
-        },
+        ...(args.effects
+            ? { effects: args.effects }
+            : {
+                  resolve: (ctx: SpellContext, event: GameEvent) => {
+                      if (event.type !== "PERMANENT_UNTAPPED") return;
+                      resolveCb!(ctx, event, {
+                          id: event.permanentId,
+                          controllerId: event.controllerId,
+                          types: event.permanentTypes,
+                          subtypes: event.permanentSubtypes,
+                      });
+                  },
+              }),
     };
 
     if (args.interveningIf) {

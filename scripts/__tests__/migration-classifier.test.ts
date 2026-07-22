@@ -1199,11 +1199,30 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // given accurate markers. All 11 left FREE: total 524→513, FREE 293→283,
         // AFK-ready 281→271. One card reclassified out of Op-blocked (217→216).
         // X-only unchanged. Partition: 283+14+216=513.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(513);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(283);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(271);
+        //
+        // 2026-07-22 (Op-infra batch — exile-and-return Ops, the top New-Op
+        // backlog entries): shipped the `exileWithAttachments` (was 8 blocked)
+        // and `returnExiledForSource` (was 9 blocked) Effect Script Ops — the
+        // O-Ring / Banishing Light / Oblivion Ring / Tawnos's Coffin family —
+        // as thin declarative skins over the existing ADR 0028 SpellContext
+        // primitives, plus an `effects[]` opt-in on the last holdout trigger
+        // factory (`untapTrigger`, mirroring leftTrigger). 16 closures migrated
+        // resolve()→effects[] across the whole exile-and-return cluster: jou
+        // (Banishing Light), afr (Portable Hole), nem/white (Parallax Wave),
+        // nem/blue (Parallax Tide), ice/blue (Icy Prison), tla/white (Aang's
+        // Iceberg — 2 of 3 abilities; the waterbend partition-scry stays
+        // resolve()), drk/colorless (Safe Haven's activated exile; its
+        // may-pay upkeep return stays resolve()), atq/colorless (Tawnos's
+        // Coffin — all 3 abilities, incl. the untapTrigger return). Both Ops
+        // left the New-Op backlog and are now COVERED. All 16 were AFK-ready.
+        // Net: total 513→497, FREE 283→284 (a formerly Op-blocked residual
+        // closure surfaced FREE as the cluster drained), AFK-ready 271→272,
+        // Op-blocked 216→199 (−17), X-only unchanged. Partition: 284+14+199=497.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(497);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(284);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(272);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(216);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(199);
     });
 
     it("surfaces the demonstrated new-Op backlog (a covered primitive leaves it)", () => {

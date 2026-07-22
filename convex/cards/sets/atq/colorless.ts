@@ -2253,16 +2253,19 @@ export const tawnossCoffin: CardDefinition = {
             cost: { tap: true, mana: { X: 3 } },
             useStack: true,
             targetRequirement: { type: "Creature", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const [target] = ctx.targets;
-                if (!target || target.type !== "permanent") return;
-                // CR 701.18 / 122 — exile the creature + its Auras and note its
-                // counters; arm the return keyed to this artifact (ADR 0028).
-                ctx.exileWithAttachments(target.id, {
-                    sourceId: ctx.sourceInstanceId,
+            // CR 701.18 / 122 — exile the announced creature + its Auras and
+            // note its counters; arm the return keyed to `$source` (ADR 0028).
+            // `includeAttachments: true` (the "and all Auras attached to it"
+            // clause — the primitive default this closure relied on);
+            // `returnTapped: true` ("return that exiled card ... tapped").
+            effects: [
+                {
+                    op: "exileWithAttachments",
+                    target: { target: 0 },
                     returnTapped: true,
-                });
-            },
+                    includeAttachments: true,
+                },
+            ],
         },
     ],
     triggeredAbilities: [
@@ -2272,9 +2275,8 @@ export const tawnossCoffin: CardDefinition = {
                 "When this artifact leaves the battlefield, return the exiled card to the battlefield under its owner's control tapped with the noted counters, and reattach the other exiled cards to it.",
             scope: "self",
             condition: tawnossCoffinHoldsSomething,
-            resolve: (ctx: SpellContext) => {
-                ctx.returnExiledForSource(ctx.sourceInstanceId);
-            },
+            // CR 603.7a / ADR 0028 — return the bundle keyed to `$source`.
+            effects: [{ op: "returnExiledForSource" }],
         }),
         untapTrigger({
             id: "tawnoss-coffin-return-on-untap",
@@ -2282,9 +2284,9 @@ export const tawnossCoffin: CardDefinition = {
                 "When this artifact becomes untapped, return the exiled card to the battlefield under its owner's control tapped with the noted counters, and reattach the other exiled cards to it.",
             scope: "self",
             condition: tawnossCoffinHoldsSomething,
-            resolve: (ctx: SpellContext) => {
-                ctx.returnExiledForSource(ctx.sourceInstanceId);
-            },
+            // CR 603.7a / ADR 0028 — return the bundle keyed to `$source` (the
+            // untapTrigger `effects[]` opt-in mirrors leftTrigger's).
+            effects: [{ op: "returnExiledForSource" }],
         }),
     ],
 };

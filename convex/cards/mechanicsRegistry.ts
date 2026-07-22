@@ -2564,6 +2564,21 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         note: "Effect Script Op for the CR 701 keyword action \"Exile\" — moves the target to its owner's exile zone (CR 406). Supports `bind` to snapshot the permanent's power/toughness/controller before it leaves (Swords to Plowshares reads the exiled creature's power, CR 608.2h).",
     },
     {
+        op: "exileWithAttachments",
+        status: "implemented",
+        cr: "701.18",
+        binding: "SpellContext.exileWithAttachments",
+        mechanicId: "exile",
+        note: "Effect Script Op for the O-Ring / Banishing Light / Oblivion Ring / Tawnos's Coffin exile-and-return family (CR 603.7a / 701.18 / ADR 0028). Exiles the announced target permanent keyed to the resolving `$source`, arming an exile-and-return bundle that a later `returnExiledForSource` Op (on the source's leaves/untaps trigger) restores — the host re-enters under its owner's control carrying its noted counters (CR 122). A thin declarative skin over `SpellContext.exileWithAttachments` (ADR 0045, one execution path); the bundle's `sourceId` is ALWAYS `ctx.sourceInstanceId`, never author-supplied — the return must key to the resolving source, so it is not a field. `includeAttachments` (default FALSE, host-only — the O-Ring default where the host's Auras die to the orphan-aura SBA CR 704.5n and its Equipment detaches) bundles the Auras/Equipment to travel WITH the host into exile and return re-attached (CR 701.18 — Tawnos's Coffin / Safe Haven, `true`); `returnTapped` returns the host tapped (Icy Prison). The PAIRED return half is a SEPARATE Op (`returnExiledForSource`) on the source's own leave/untap trigger — the two are always shipped together.",
+    },
+    {
+        op: "returnExiledForSource",
+        status: "implemented",
+        cr: "603.7a",
+        binding: "SpellContext.returnExiledForSource",
+        note: "Effect Script Op for the RETURN half of the exile-and-return family (CR 603.7a / ADR 0028) — the paired counterpart of `exileWithAttachments`. Returns every exile-and-return bundle keyed to the resolving `$source`: the host re-enters under its owner's control (tapped if the bundle noted so, carrying its noted counters, CR 122) and any bundled Auras re-enter attached (CR 303.4). A thin declarative skin over `SpellContext.returnExiledForSource(ctx.sourceInstanceId)` (ADR 0045, one execution path); carries no parameters — the source is always the resolving ability's own source. Lives on the source's \"leaves the battlefield / becomes untapped\" trigger (Banishing Light's leftTrigger, Tawnos's Coffin's untap trigger); a stale fire with nothing held is a harmless no-op (the primitive early-returns), so the `holdsExileBundle` gate is a convenience, not a correctness requirement. No `mechanicId` — the return is a delayed-trigger action (CR 603.7a), not a CR 701 keyword action.",
+    },
+    {
         op: "attach",
         status: "implemented",
         cr: "701.3a",

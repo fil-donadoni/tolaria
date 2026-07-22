@@ -441,6 +441,26 @@ function analyseOp(op: EffectOp, req: Requirements): void {
                 req.skip ??= `object ref "${op.target.ref}" — target depends on a forEach iteration`;
             }
             return;
+        case "exileWithAttachments":
+            // CR 603.7a / 701.18 / ADR 0028 — the exile half moves the target
+            // into an `exileHeld` exile-and-return BUNDLE, not the plain exile
+            // zone the generator's board-delta assertion models; and the
+            // OBSERVABLE outcome (the host coming back re-attached with its
+            // noted counters) only manifests when the SOURCE later leaves /
+            // untaps and the paired `returnExiledForSource` fires — a second
+            // step the canned single-resolution generator does not sequence.
+            // Explicit skip — the exile/return round-trip is covered by the
+            // Op's own hand-written interpreter + card tests (per-Op regime).
+            req.skip ??= `Op "exileWithAttachments" arms an exile-and-return bundle whose observable outcome needs a later source-leaves/untaps return — covered by the Op's interpreter tests`;
+            return;
+        case "returnExiledForSource":
+            // CR 603.7a / ADR 0028 — the return half only has an observable
+            // outcome if a PRIOR `exileWithAttachments` already armed a bundle
+            // for the SAME source, which the canned generator doesn't
+            // sequence (same rationale as `unattach` after `attach`). Explicit
+            // skip — covered by the Op's own hand-written interpreter tests.
+            req.skip ??= `Op "returnExiledForSource" only has an observable outcome after a prior exileWithAttachments armed a bundle — covered by the Op's interpreter tests`;
+            return;
         case "attach":
             // CR 701.3a (ADR 0065, issue #1311) — Reconfigure's attach Op
             // requires "target creature YOU control" (Lion Sash), unlike the
@@ -1790,6 +1810,23 @@ const OP_ASSERTORS: Record<string, Assertor> = {
                 };
             },
         };
+    },
+    // `exileWithAttachments` (CR 603.7a / 701.18 / ADR 0028) — never reached:
+    // `analyseOp` skips every script with it (the exile lands in an `exileHeld`
+    // bundle, not the plain exile zone this generator's board-delta assertion
+    // models, and the observable return needs a later source-leaves/untaps
+    // step). Kept for the 1:1 coverage guard; the Op's own interpreter tests
+    // are the behavioural guarantor.
+    exileWithAttachments() {
+        return null;
+    },
+    // `returnExiledForSource` (CR 603.7a / ADR 0028) — never reached:
+    // `analyseOp` skips every script with it (its outcome is only observable
+    // after a prior `exileWithAttachments` armed a bundle, which the generator
+    // doesn't sequence). Kept for the 1:1 coverage guard; the Op's own
+    // interpreter tests are the behavioural guarantor.
+    returnExiledForSource() {
+        return null;
     },
     // `winGame` (CR 104.2a, issue #1066) — never reached: `analyseOp` skips
     // every script with a winGame Op (it sets `state.gameOver`, a

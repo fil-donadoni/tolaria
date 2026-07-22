@@ -7604,6 +7604,38 @@ export type EffectOp =
      *  (issue #1106) BEFORE it leaves the battlefield, so a later `ref` reads
      *  its last-known values (Swords to Plowshares, CR 608.2h). */
     | { op: "exile"; target: EffectObjectSelector; bind?: string }
+    /** CR 603.7a / 701.18 / ADR 0028 — exile the announced target permanent
+     *  keyed to `$source` (the resolving ability's source), arming an
+     *  exile-and-return bundle a later `returnExiledForSource` Op restores.
+     *  The O-Ring / Banishing Light / Oblivion Ring / Tawnos's Coffin family.
+     *  A thin declarative skin over `SpellContext.exileWithAttachments`, ONE
+     *  execution path (ADR 0045); the bundle's `sourceId` is ALWAYS
+     *  `ctx.sourceInstanceId` (never author-supplied — the return must key to
+     *  the resolving source, so it is not a field). `returnTapped` returns the
+     *  host tapped (default false). `includeAttachments` bundles the host's
+     *  Auras/Equipment to travel WITH it into exile and return re-attached (CR
+     *  701.18 — Tawnos's Coffin / Safe Haven); default FALSE — the host-only
+     *  O-Ring behaviour where the host's Auras die to the orphan-aura SBA (CR
+     *  704.5n) and its Equipment detaches and stays on the battlefield. No-op
+     *  if the target has left the battlefield (CR 608.2b). */
+    | {
+          op: "exileWithAttachments";
+          target: EffectObjectSelector;
+          returnTapped?: boolean;
+          includeAttachments?: boolean;
+      }
+    /** CR 603.7a / ADR 0028 — return every exile-and-return bundle keyed to
+     *  `$source` (armed by an earlier `exileWithAttachments` Op): the host
+     *  re-enters under its owner's control (tapped if the bundle noted so,
+     *  carrying its noted counters) and any bundled Auras re-enter attached
+     *  (CR 303.4). A thin declarative skin over
+     *  `SpellContext.returnExiledForSource(ctx.sourceInstanceId)`, ONE
+     *  execution path (ADR 0045); carries no parameters — the source is always
+     *  the resolving ability's own source. Lives on the source's "leaves the
+     *  battlefield / becomes untapped" trigger. No-op if `$source` holds no
+     *  bundle (the return trigger's `holdsExileBundle` condition normally gates
+     *  it, but a stale fire is harmless). */
+    | { op: "returnExiledForSource" }
     /** CR 701.3a/701.3c (ADR 0065, issue #1311) — attach `$source` to the
      *  announced target permanent, without `$source` leaving the
      *  battlefield. A thin declarative skin over `SpellContext.attachTo`, one

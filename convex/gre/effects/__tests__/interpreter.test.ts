@@ -20,7 +20,11 @@ import {
     makeState,
     pushSpell,
 } from "../../../cards/__tests__/setup";
-import { resolveTopOfStack, removePermanentTo } from "../../state";
+import {
+    resolveTopOfStack,
+    removePermanentTo,
+    exileWithAttachments,
+} from "../../state";
 import type { CardInstanceState, GameState, StackItem } from "../../state";
 import {
     applyMayPaySubmit,
@@ -13634,6 +13638,65 @@ describe("Effect Script Op: digToHand (CR 401.4, issue #984)", () => {
         expect(state.players[0].library.map((c) => c.id)).toEqual(["a"]);
     });
 
+    // Keep-all (take === look) — nothing to select between and nothing left to
+    // distribute, so there is no real choice: auto-resolve WITHOUT a
+    // look-distribute picker (Dark Confidant's look:1/take:1 "reveal the top
+    // card and put it into your hand"). The card must land in hand in a SINGLE
+    // resolveTopOfStack, with no pendingChoice ever raised.
+    it("keep-all (take === look): no picker, the looked-at cards go straight to hand", () => {
+        const id = registerScript("test-op-dig-keepall", [
+            { op: "digToHand", player: "controller", look: 1, take: 1 },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: libOf("p1", ["a", "b", "c"]) }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        // Resolves fully — no suspend, no pendingChoice.
+        expect(resolveTopOfStack(state)).not.toBeNull();
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        // Top card "a" moved to hand; "b", "c" untouched on top of the library.
+        expect(state.players[0].hand.map((c) => c.id)).toContain("a");
+        expect(state.players[0].library.map((c) => c.id)).toEqual(["b", "c"]);
+    });
+
+    // The keep-all path still honours `bind` — the moved top card is snapshot
+    // so a trailing Op (Dark Confidant's `loseLife` off its mana value) reads it.
+    it("keep-all: binds the moved card for a later mana-value ref (Dark Confidant)", () => {
+        const id = registerScript("test-op-dig-keepall-bind", [
+            {
+                op: "digToHand",
+                player: "controller",
+                look: 1,
+                take: 1,
+                bind: "$revealed",
+            },
+            {
+                op: "loseLife",
+                player: "controller",
+                amount: { manaValue: { of: { ref: "$revealed" } } },
+            },
+        ]);
+        // Top card is a Bear ({1}{G}, mana value 2).
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    life: 20,
+                    library: libOf("p1", ["a", "b"]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        expect(resolveTopOfStack(state)).not.toBeNull();
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        expect(state.players[0].hand.map((c) => c.id)).toContain("a");
+        // Lost life equal to the revealed card's mana value (Bear = 2).
+        expect(state.players[0].life).toBe(18);
+    });
+
     it("look via {X} (a value ref): reads the chosen X as the look count", () => {
         const id = registerScript("test-op-dig-x", [
             {
@@ -16337,5 +16400,209 @@ describe("Effect Script Op: digMatchingToHand (CR 701.20a / 401.4, issue #1085)"
         resolveTopOfStack(state);
         expect(state.players[0].hand).toHaveLength(0);
         expect(state.players[0].exile).toHaveLength(2);
+    });
+});
+
+describe("Effect Script Op: exileWithAttachments / returnExiledForSource (CR 603.7a / 701.18 / ADR 0028)", () => {
+    // A minimal Aura for the includeAttachments tests (attaches to a creature).
+    const TEST_AURA_ID = "test-op-exile-aura";
+    registerTokenDefinition({
+        id: TEST_AURA_ID,
+        name: TEST_AURA_ID,
+        rarity: "common",
+        manaCost: { W: 1 },
+        types: ["Enchantment"],
+        subtypes: ["Aura"],
+    });
+
+    it("exiles the announced target and arms a bundle keyed to $source (host-only default)", () => {
+        const id = registerScript("test-op-ewa-exile", [
+            { op: "exileWithAttachments", target: { target: 0 } },
+        ]);
+        const bear = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "ewaBear",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        const item = pushSpell(state, id, "p1", [
+            { type: "permanent", id: "ewaBear" },
+        ]);
+        resolveTopOfStack(state);
+        // CR 701.18 — the target left the battlefield into its owner's exile.
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "ewaBear")
+        ).toBeUndefined();
+        expect(state.players[1].exile.map((c) => c.id)).toContain("ewaBear");
+        // ADR 0028 — a bundle was armed, keyed to the RESOLVING source (the
+        // spell instance), not an author-supplied id.
+        const bundle = (state.exileHeld ?? []).find(
+            (b) => b.hostId === "ewaBear"
+        );
+        expect(bundle).toBeDefined();
+        expect(bundle!.sourceId).toBe(item.id);
+    });
+
+    it("wire format: the exiled target no longer appears on the projected battlefield", () => {
+        const id = registerScript("test-op-ewa-wire", [
+            { op: "exileWithAttachments", target: { target: 0 } },
+        ]);
+        const bear = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "ewaWire",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "ewaWire" }]);
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        expect(
+            projected.players[1].battlefield.find((c) => c.id === "ewaWire")
+        ).toBeUndefined();
+    });
+
+    it("host-only default (includeAttachments omitted): the Aura is NOT bundled — the Op flips the primitive's true default", () => {
+        const id = registerScript("test-op-ewa-hostonly", [
+            { op: "exileWithAttachments", target: { target: 0 } },
+        ]);
+        const bear = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "hoBear",
+        });
+        const aura = makeInstance(TEST_AURA_ID, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "hoAura",
+            attachedTo: "hoBear",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear, aura] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "hoBear" }]);
+        resolveTopOfStack(state);
+        checkStateBasedActions(state); // orphan-aura SBA (CR 704.5n)
+        const bundle = (state.exileHeld ?? []).find(
+            (b) => b.hostId === "hoBear"
+        );
+        expect(bundle).toBeDefined();
+        expect(bundle!.attached).toHaveLength(0);
+        // The now-orphaned Aura fell to its owner's graveyard, not exile.
+        expect(state.players[1].graveyard.map((c) => c.id)).toContain("hoAura");
+        expect(state.players[1].exile.map((c) => c.id)).not.toContain("hoAura");
+    });
+
+    it("includeAttachments: true bundles the host's Aura to travel into exile with it", () => {
+        const id = registerScript("test-op-ewa-withattach", [
+            {
+                op: "exileWithAttachments",
+                target: { target: 0 },
+                includeAttachments: true,
+            },
+        ]);
+        const bear = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "waBear",
+        });
+        const aura = makeInstance(TEST_AURA_ID, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "waAura",
+            attachedTo: "waBear",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear, aura] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "waBear" }]);
+        resolveTopOfStack(state);
+        const bundle = (state.exileHeld ?? []).find(
+            (b) => b.hostId === "waBear"
+        );
+        expect(bundle).toBeDefined();
+        expect(bundle!.attached.map((a) => a.id)).toContain("waAura");
+        expect(state.players[1].exile.map((c) => c.id)).toEqual(
+            expect.arrayContaining(["waBear", "waAura"])
+        );
+    });
+
+    it("returnExiledForSource returns the armed bundle to the battlefield (round-trip)", () => {
+        const id = registerScript("test-op-return", [
+            { op: "returnExiledForSource" },
+        ]);
+        const bear = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "retBear",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        const item = pushSpell(state, id, "p1", []);
+        // Arm a bundle keyed to the resolving source BEFORE it resolves.
+        exileWithAttachments(state, "retBear", {
+            sourceId: item.id,
+            returnTapped: false,
+            includeAttachments: false,
+        });
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "retBear")
+        ).toBeUndefined();
+        resolveTopOfStack(state);
+        // CR 603.7a — the host is back (a fresh object, so match by card id)
+        // and the bundle is cleared.
+        expect(
+            state.players[1].battlefield.some((c) => c.card.id === BEAR_ID)
+        ).toBe(true);
+        expect(
+            (state.exileHeld ?? []).some((b) => b.sourceId === item.id)
+        ).toBe(false);
+    });
+
+    it("wire format: the returned host reappears on the projected battlefield", () => {
+        const id = registerScript("test-op-return-wire", [
+            { op: "returnExiledForSource" },
+        ]);
+        const bear = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "retWire",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        const item = pushSpell(state, id, "p1", []);
+        exileWithAttachments(state, "retWire", {
+            sourceId: item.id,
+            returnTapped: false,
+            includeAttachments: false,
+        });
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        expect(
+            projected.players[1].battlefield.some((c) => c.card.id === BEAR_ID)
+        ).toBe(true);
     });
 });

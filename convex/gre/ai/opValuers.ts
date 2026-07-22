@@ -148,6 +148,26 @@ const exile: Valuer<"exile"> = (op) => ({
         : ["boardRemoval", "board-scaling"],
 });
 
+// CR 603.7a / 701.18 / ADR 0028 — the exile half of the O-Ring / Banishing
+// Light family removes an opponent's permanent from the board (until this
+// source leaves), so for search purposes it values like `exile` removal: a
+// targeted board answer. The conditional return (when the source dies) is a
+// downside the AI doesn't model here — a first-order removal valuation is the
+// right approximation, matching how `gainControl` values as removal despite
+// its own conditional-revert caveat.
+const exileWithAttachments: Valuer<"exileWithAttachments"> = (op) => ({
+    points: EXILE_VALUE,
+    tags: isAnnouncedTarget(op.target)
+        ? ["boardRemoval", "targeted"]
+        : ["boardRemoval", "board-scaling"],
+});
+
+// The RETURN half fires on the source's own leave/untap trigger — the AI never
+// proactively chooses it, and returning the exiled (opponent's) permanent is a
+// wash it doesn't control. Neutral, like `armGraveyardRedirect`.
+const returnExiledForSource: Valuer<"returnExiledForSource"> = () =>
+    ZERO_OP_VALUE;
+
 const counter: Valuer<"counter"> = () => ({
     points: COUNTER_VALUE,
     tags: ["disruption", "targeted"],
@@ -531,6 +551,8 @@ export const OP_VALUERS: {
     loseLife,
     destroy,
     exile,
+    exileWithAttachments,
+    returnExiledForSource,
     counter,
     mayPay,
     sacrifice,

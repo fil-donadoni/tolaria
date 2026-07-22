@@ -1541,6 +1541,19 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
         required: { target: isObjectSelector },
         optional: { bind: isBindingName },
     },
+    // CR 603.7a / 701.18 / ADR 0028 — exile the announced target keyed to
+    // `$source`, arming the exile-and-return bundle (O-Ring / Banishing Light /
+    // Tawnos's Coffin). `returnTapped` returns the host tapped; `includeAttachments`
+    // bundles its Auras/Equipment to travel with and return re-attached (default
+    // false — host-only). No `sourceId` field: the bundle always keys to the
+    // resolving source, set by the interpreter, not the author.
+    exileWithAttachments: {
+        required: { target: isObjectSelector },
+        optional: { returnTapped: isBoolean, includeAttachments: isBoolean },
+    },
+    // CR 603.7a / ADR 0028 — return every exile-and-return bundle held by
+    // `$source`. No parameters — the source is always the resolving ability's own.
+    returnExiledForSource: { required: {} },
     // CR 701.3a/701.3c (ADR 0065, issue #1311) — attach $source to the
     // announced target permanent (Reconfigure's first activated ability).
     attach: {

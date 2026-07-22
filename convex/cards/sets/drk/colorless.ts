@@ -657,17 +657,19 @@ export const safeHaven: CardDefinition = {
                 count: 1,
                 controller: "you",
             },
-            resolve: (ctx: SpellContext) => {
-                const t = ctx.targets[0];
-                if (t?.type !== "permanent") return;
-                // CR 603.7a / ADR 0028 — exile keyed to this land; returned by
-                // the upkeep trigger via `returnExiledForSource`. Safe Haven
-                // returns creatures untapped (no "tapped" clause).
-                ctx.exileWithAttachments(t.id, {
-                    sourceId: ctx.sourceInstanceId,
-                    returnTapped: false,
-                });
-            },
+            // CR 603.7a / ADR 0028 — exile the announced creature keyed to
+            // `$source`; the upkeep trigger returns each bundled card via
+            // `returnExiledForSource`. `includeAttachments: true` (the primitive
+            // default this closure relied on) bundles the creature's Auras/
+            // Equipment; `returnTapped` defaults false — Safe Haven returns
+            // creatures untapped (no "tapped" clause).
+            effects: [
+                {
+                    op: "exileWithAttachments",
+                    target: { target: 0 },
+                    includeAttachments: true,
+                },
+            ],
         },
     ],
     triggeredAbilities: [

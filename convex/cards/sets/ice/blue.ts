@@ -812,21 +812,20 @@ export const icyPrison: CardDefinition = {
             id: "icy-prison-exile",
             oracleText: "When this enchantment enters, exile target creature.",
             scope: "self",
-            // NOT DSL-migratable (ADR 0045): the `exile` Op binds the plain
-            // `SpellContext.exile` primitive (no attachment handling, no
-            // source-linkage). This card needs `exileWithAttachments`, keyed
-            // to `sourceInstanceId` so the paired leave-trigger below can
-            // find it again via `returnExiledForSource` — neither the
-            // attachment-carrying exile nor the source-keyed link has an Op.
-            // Blocked on: a source-keyed exile-with-attachments Op.
-            resolve: (ctx) => {
-                const t = ctx.targets[0];
-                if (t?.type !== "permanent") return;
-                ctx.exileWithAttachments(t.id, {
-                    sourceId: ctx.sourceInstanceId,
-                    returnTapped: false,
-                });
-            },
+            // CR 701.18 / ADR 0028 — exile the announced creature keyed to
+            // `$source`; the paired leftTrigger returns it via
+            // `returnExiledForSource`. `includeAttachments: true` (the primitive
+            // default this closure previously relied on) bundles the creature's
+            // Auras/Equipment to travel with it and return re-attached, so the
+            // Op preserves the pre-migration behaviour exactly. `returnTapped`
+            // defaults false (returns untapped).
+            effects: [
+                {
+                    op: "exileWithAttachments",
+                    target: { target: 0 },
+                    includeAttachments: true,
+                },
+            ],
         }),
         makeUpkeepPayOrElse({
             id: "icy-prison-upkeep",
@@ -841,13 +840,8 @@ export const icyPrison: CardDefinition = {
             oracleText:
                 "When this enchantment leaves the battlefield, return the exiled card to the battlefield under its owner's control.",
             scope: "self",
-            // NOT DSL-migratable (ADR 0045): no Op wraps
-            // `returnExiledForSource` (the source-keyed exile-return
-            // primitive paired with the enteredTrigger above). Blocked on: a
-            // source-keyed exile-return Op.
-            resolve: (ctx: SpellContext) => {
-                ctx.returnExiledForSource(ctx.sourceInstanceId);
-            },
+            // CR 603.7a / ADR 0028 — return the bundle keyed to `$source`.
+            effects: [{ op: "returnExiledForSource" }],
         }),
     ],
 };

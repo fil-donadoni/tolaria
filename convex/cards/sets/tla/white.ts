@@ -68,27 +68,11 @@ export const aangsIceberg: CardDefinition = {
                 excludeTypes: "Land",
                 excludeSource: true,
             },
-            // NOT DSL-migratable (ADR 0045): the registered `exile` Op is a
-            // plain `ctx.exile(target)` (CR 701.13) with no O-Ring
-            // leaves-battlefield-return bookkeeping. This closure needs
-            // `ctx.exileWithAttachments`, which stamps the `exileHeld`
-            // bundle (`sourceId`, `returnTapped`, `includeAttachments`) the
-            // paired `leftTrigger` below reads back via
-            // `returnExiledForSource` — no Op wraps that primitive today.
-            // Blocked on: an `exileWithAttachments`/O-Ring Op (not yet
-            // planned/censused); mirrors the identical, already-unmigrated
-            // Portable Hole (afr/white.ts) / Banishing Light (jou/white.ts)
-            // precedent this card's header comment cites. Planned-migratable
-            // if the class is ever worth unblocking, not protocol-permanent.
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (!target) return; // "up to one": none chosen / CR 608.2b none legal
-                ctx.exileWithAttachments(target.id, {
-                    sourceId: ctx.sourceInstanceId,
-                    returnTapped: false,
-                    includeAttachments: false,
-                });
-            },
+            // CR 701.18 / ADR 0028 — host-only exile ("up to one": if no target
+            // is chosen, `{ target: 0 }` resolves to nothing and the Op no-ops,
+            // CR 608.2b), keyed to `$source`; the paired leftTrigger returns it.
+            // Op defaults includeAttachments/returnTapped false (host-only).
+            effects: [{ op: "exileWithAttachments", target: { target: 0 } }],
         }),
         leftTrigger({
             id: "aangs-iceberg-return",
@@ -96,23 +80,10 @@ export const aangsIceberg: CardDefinition = {
                 "When this enchantment leaves the battlefield, return the exiled card to the battlefield under its owner's control.",
             scope: "self",
             condition: aangsIcebergHoldsSomething,
-            // NOT DSL-migratable (ADR 0045): the effect acts on the very
-            // object that just left the battlefield ("return THAT card") —
-            // its identity/owner is available only via `leftTrigger`'s
-            // `resolve(ctx, event, leaving)` last-known-information payload.
-            // `TriggeredAbility.effects` does not thread the firing
-            // event/leaving object into the script (see the field doc on
-            // `TriggeredAbility.effects`), so a trigger reading LKI stays
-            // imperative. Blocked on: LKI/`$event` surfacing in trigger
-            // `effects[]` (not planned as a general grammar extension — see
-            // Sacred Ground, sth/white.ts, for the identical case). Mirrors
-            // every existing `leftTrigger` card reading `leaving.id` /
-            // `leaving.ownerId` (Personal Incarnation's `pinc-ltb`,
-            // lea/white.ts; Portable Hole's `portable-hole-return`,
-            // afr/white.ts).
-            resolve: (ctx: SpellContext) => {
-                ctx.returnExiledForSource(ctx.sourceInstanceId);
-            },
+            // CR 603.7a / ADR 0028 — return the bundle keyed to `$source`. The
+            // Op needs only `ctx.sourceInstanceId` (which `effects[]` provides),
+            // NOT the leaving object's LKI, so it migrates cleanly.
+            effects: [{ op: "returnExiledForSource" }],
         }),
     ],
     activatedAbilities: [

@@ -1,5 +1,5 @@
 import { PERMANENT_TYPES } from "../../types";
-import type { CardDefinition, SpellContext } from "../../types";
+import type { CardDefinition } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { leftTrigger } from "../../abilities/triggers/leftTrigger";
 import { holdsExileBundle } from "../../abilities/exileBundle";
@@ -51,18 +51,12 @@ export const banishingLight: CardDefinition = {
                 excludeTypes: "Land",
                 controller: "opponent",
             },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (!target) return; // CR 608.2b — no legal target / target left
-                const targetId = target.id;
-                // CR 701.18 — host-only exile (auras die, equipment detaches);
-                // ADR 0028 arms the return keyed to this card.
-                ctx.exileWithAttachments(targetId, {
-                    sourceId: ctx.sourceInstanceId,
-                    returnTapped: false,
-                    includeAttachments: false,
-                });
-            },
+            // CR 701.18 — host-only exile (auras die to the orphan-aura SBA,
+            // equipment detaches); ADR 0028 arms the return keyed to `$source`.
+            // The `exileWithAttachments` Op reads the announced target
+            // (`{ target: 0 }`) and defaults `includeAttachments`/`returnTapped`
+            // to false — the host-only O-Ring shape (ADR 0045 DSL-first).
+            effects: [{ op: "exileWithAttachments", target: { target: 0 } }],
         }),
         leftTrigger({
             // CR 603.7a — return the exiled permanent when this leaves play.
@@ -71,9 +65,7 @@ export const banishingLight: CardDefinition = {
                 "When this enchantment leaves the battlefield, return the exiled card to the battlefield under its owner's control.",
             scope: "self",
             condition: holdsExileBundle,
-            resolve: (ctx: SpellContext) => {
-                ctx.returnExiledForSource(ctx.sourceInstanceId);
-            },
+            effects: [{ op: "returnExiledForSource" }],
         }),
     ],
 };

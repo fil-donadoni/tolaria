@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 import { PERMANENT_TYPES } from "../../types";
-import type { CardDefinition, SpellContext } from "../../types";
+import type { CardDefinition } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { leftTrigger } from "../../abilities/triggers/leftTrigger";
 
@@ -54,16 +54,11 @@ export const portableHole: CardDefinition = {
                 controller: "opponent",
                 mvFilter: { max: 2 },
             },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (!target) return; // CR 608.2b — no legal target / target left
-                const targetId = target.id;
-                ctx.exileWithAttachments(targetId, {
-                    sourceId: ctx.sourceInstanceId,
-                    returnTapped: false,
-                    includeAttachments: false,
-                });
-            },
+            // CR 701.18 — host-only exile (ADR 0028 arms the return keyed to
+            // `$source`); the `exileWithAttachments` Op reads the announced
+            // target and defaults `includeAttachments`/`returnTapped` to false
+            // — the host-only O-Ring shape (ADR 0045 DSL-first).
+            effects: [{ op: "exileWithAttachments", target: { target: 0 } }],
         }),
         leftTrigger({
             id: "portable-hole-return",
@@ -71,9 +66,7 @@ export const portableHole: CardDefinition = {
                 "When this artifact leaves the battlefield, return the exiled card to the battlefield under its owner's control.",
             scope: "self",
             condition: portableHoleHoldsSomething,
-            resolve: (ctx: SpellContext) => {
-                ctx.returnExiledForSource(ctx.sourceInstanceId);
-            },
+            effects: [{ op: "returnExiledForSource" }],
         }),
     ],
 };

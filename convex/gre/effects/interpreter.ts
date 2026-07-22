@@ -1358,6 +1358,31 @@ export const OP_EXECUTORS: {
         if (op.bind) bindSnapshot(ctx, op.bind, target);
         ctx.exile(target);
     },
+    // CR 603.7a / 701.18 / ADR 0028 — exile the announced target keyed to
+    // `$source`, arming the exile-and-return bundle (O-Ring / Banishing Light /
+    // Tawnos's Coffin). The `sourceId` is ALWAYS the resolving source
+    // (`ctx.sourceInstanceId`), so the later `returnExiledForSource` on the
+    // source's leaves/untaps trigger restores exactly this bundle. Skipped when
+    // the target has left the battlefield (CR 608.2b — `resolveObjectRef`
+    // returns undefined). `includeAttachments` defaults FALSE (host-only,
+    // the O-Ring default) — the primitive's own default is `true`, so this Op
+    // passes an EXPLICIT value rather than relying on the primitive default.
+    exileWithAttachments(ctx, op) {
+        const target = resolveObjectRef(ctx, op.target);
+        if (!target) return;
+        ctx.exileWithAttachments(target.id, {
+            sourceId: ctx.sourceInstanceId,
+            returnTapped: op.returnTapped ?? false,
+            includeAttachments: op.includeAttachments ?? false,
+        });
+    },
+    // CR 603.7a / ADR 0028 — return every exile-and-return bundle held by
+    // `$source` (the resolving ability's source). No target, no parameters:
+    // the source is always `ctx.sourceInstanceId`. A no-op when nothing is
+    // held (the primitive early-returns), so a stale fire is harmless.
+    returnExiledForSource(ctx) {
+        ctx.returnExiledForSource(ctx.sourceInstanceId);
+    },
     // CR 701.3a/701.3c (ADR 0065, issue #1311) — attach $source to the
     // announced target permanent. Only a "permanent" TargetSelection is a
     // legal attach host (the ability's targetRequirement already restricts
