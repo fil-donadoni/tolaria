@@ -6,16 +6,11 @@ import { mutation, query, type MutationCtx } from "./_generated/server";
 import {
     getAllCardNames,
     getDefinition,
-    getCardByName,
     getInstanceManaCost,
     tryGetDefinition,
 } from "./cards";
-import {
-    basicLandsForColors,
-    cardHasColor,
-    getCardColors,
-} from "./cards/colors";
-import { resolveScenarioBattlefieldCounters } from "./debugScenarioSpec";
+import { cardHasColor } from "./cards/colors";
+import { buildStateFromScenario } from "./gre/scenarioBuilder";
 import {
     type CardInstanceState,
     type GameState,
@@ -34,7 +29,6 @@ import {
     moveCard,
     removeFromZone,
     removePermanentTo,
-    applySourceStaticEffects,
     getBasicLandMana,
     payManaCost,
     manaSpentDelta,
@@ -62,11 +56,9 @@ import {
     realizeManaAbilityTapBonus,
     allocInstanceId,
     tapPermanent,
-    exileFaceDownCard,
     dealDamageFromPermanentToPlayer,
     loseLifeEmitting,
 } from "./gre/state";
-import { applyCopy } from "./gre/copy";
 import {
     selectCompanion,
     canSummonCompanion,
@@ -174,7 +166,6 @@ import { liveSupertypesOf, countSnowLands } from "./gre/snow";
 import { computeSoloViewerId } from "./soloViewer";
 import { compactState, expandState } from "./gre/serialize";
 import { assertExpectedInput, refreshExpectedInput } from "./gre/expectedInput";
-import { turnFaceDown } from "./gre/faceDown";
 import { substituteColorFilter } from "./gre/textChanges";
 import {
     advancePhase,
@@ -186,11 +177,7 @@ import {
     isSorceryTiming,
 } from "./gre/phases";
 import { freshSeed, seededShuffle } from "./gre/rng";
-import {
-    finalizeMulligan,
-    makeMulliganState,
-    recordDeclaration,
-} from "./gre/mulligan";
+import { makeMulliganState, recordDeclaration } from "./gre/mulligan";
 import type { Phase } from "./gre/types";
 import {
     DAMAGEABLE_PERMANENT_TYPES,
@@ -11549,339 +11536,15 @@ export const debugSetupScenario = mutation({
         const gameState = await getLatestGameState(ctx, args.gameId);
         if (!gameState) throw new Error("Game not found");
 
-        const state = structuredClone(gameState.state) as GameState;
-        // If the game is still in the pre-game mulligan phase (CR 103.5),
-        // confirm the mulligan for both players so the scenario takes over a
-        // clean turn-1 state. The scenario's own `phase` override (later in
-        // this handler) wins if specified.
-        if (state.mulligan) {
-            finalizeMulligan(state);
-        }
-
-        const p1 = state.players[0];
-        const p2 = state.players[1];
-
-        // Clear battlefields, hands, graveyards, exile, and any companion slot
-        // the underlying deck's sideboard auto-declared at game init (CR
-        // 702.139c, ADR 0064) — a scenario is a deterministic full board
-        // reset, so a stale companion from whatever deck started this game
-        // must not leak through. `args.companion` (below) re-declares one
-        // explicitly when the scenario wants to exercise it.
-        p1.battlefield = [];
-        p2.battlefield = [];
-        p1.hand = [];
-        p2.hand = [];
-        p1.graveyard = [];
-        p2.graveyard = [];
-        p1.exile = [];
-        p2.exile = [];
-        p1.companion = undefined;
-        p2.companion = undefined;
-
-        // Helper to create an instance from a card name
-        function makeInstance(
-            cardName: string,
-            controllerId: string,
-            zone: "hand" | "battlefield" | "library" | "graveyard" | "exile",
-            opts?: { tapped?: boolean }
-        ) {
-            const def = getCardByName(cardName);
-            return {
-                id: allocInstanceId(state),
-                card: { id: def.id },
-                types: def.types,
-                subtypes: def.subtypes ?? [],
-                power: def.power,
-                toughness: def.toughness,
-                staticAbilities: def.staticAbilities ?? [],
-                controllerId,
-                ownerId: controllerId,
-                zone,
-                isTapped: opts?.tapped ?? false,
-                isSummoningSick: false,
-            };
-        }
-
-        // Auras/Equipment whose `attachedTo` host must be resolved by name once
-        // every card has been placed (the host may appear later in `args.cards`).
-        const pendingAttach: {
-            aura: CardInstanceState;
-            hostName: string;
-            ownerId: string;
-        }[] = [];
-
-        // Place requested cards
-        for (const entry of args.cards) {
-            const player = entry.owner === "me" ? p1 : p2;
-            const zone = entry.zone ?? "battlefield";
-            const count = entry.count ?? 1;
-            for (let i = 0; i < count; i++) {
-                const instance = makeInstance(entry.name, player.id, zone, {
-                    tapped: entry.tapped,
-                });
-                if (zone === "hand") {
-                    player.hand.push(instance);
-                } else if (zone === "library") {
-                    // Appended to the BOTTOM of the existing deck by default
-                    // (library index 0 = top, where `drawCard` reads), or spliced
-                    // at an explicit `position` (1 = top, -1 = bottom; negatives
-                    // count from the bottom) so a mill/tutor/fetch can find a
-                    // known target at a known depth. `libraryCount` (if set)
-                    // resets the library AFTER this loop, so a scenario seeding
-                    // a specific library card must leave `libraryCount` unset.
-                    const lib = player.library;
-                    if (entry.position !== undefined) {
-                        const p = entry.position;
-                        const idx =
-                            p >= 0
-                                ? Math.min(Math.max(p - 1, 0), lib.length)
-                                : Math.max(lib.length + p + 1, 0);
-                        lib.splice(idx, 0, instance as CardInstanceState);
-                    } else {
-                        lib.push(instance as CardInstanceState);
-                    }
-                } else if (zone === "graveyard") {
-                    player.graveyard.push(instance);
-                } else if (zone === "exile") {
-                    player.exile.push(instance as CardInstanceState);
-                    // ADR 0026 slice 6 — face-down exile (impulse-draw): stamp
-                    // the card known to its controller only via the primitive
-                    // (reuses knownTo; opponents see a face-down card).
-                    if (entry.faceDownExile) {
-                        exileFaceDownCard(
-                            player,
-                            instance.id,
-                            "exile",
-                            player.id
-                        );
-                    }
-                    // #946 (CR 601.3e / 608.2g) — grant "me" a this-turn play-
-                    // from-exile permission so a Play (land) / Cast (spell)
-                    // affordance appears; the current turn stamps the expiry so
-                    // it lapses at cleanup.
-                    if (entry.castableFromExile) {
-                        const exiled = instance as CardInstanceState;
-                        exiled.castableFromExileBy = player.id;
-                        exiled.castableFromExileUntilTurn = state.turn;
-                    }
-                } else {
-                    if (entry.damageMarked && entry.damageMarked > 0) {
-                        (instance as CardInstanceState).damageMarked =
-                            entry.damageMarked;
-                    }
-                    if (entry.faceDown) {
-                        turnFaceDown(instance as CardInstanceState);
-                    }
-                    // Canonicalize the loyalty counter key and seed a
-                    // planeswalker's printed starting loyalty (CR 306.5b) — this
-                    // path bypasses the ETB loyalty seed in `gre/state.ts`, and
-                    // the editor's free-text counter type must fold onto the
-                    // engine's lowercase `loyalty` key to be treated as real
-                    // loyalty (see `resolveScenarioBattlefieldCounters`).
-                    const resolvedCounters = resolveScenarioBattlefieldCounters(
-                        entry.counters,
-                        {
-                            isPlaneswalker: isPlaneswalker(
-                                instance as CardInstanceState
-                            ),
-                            printedLoyalty: getCardByName(entry.name).loyalty,
-                        }
-                    );
-                    if (resolvedCounters) {
-                        (instance as CardInstanceState).counters =
-                            resolvedCounters;
-                    }
-                    if (entry.attackedLastTurn) {
-                        (instance as CardInstanceState).attackedDuringLastTurn =
-                            true;
-                    }
-                    // CR 302.6 — entered this turn: starts the control-continuity
-                    // clock so a manland animated the same turn reads sick (#545).
-                    if (entry.summoningSick) {
-                        (instance as CardInstanceState).isSummoningSick = true;
-                    }
-                    // CR 707.2 — make this permanent a copy of another card, so
-                    // the debug board can exercise the two-face copy preview
-                    // (Current = copied object, Original = printed identity).
-                    if (entry.copyOf) {
-                        const sourceDef = getCardByName(entry.copyOf);
-                        // applyCopy only reads the source's presented def id
-                        // (`source.card.id`), so a minimal stand-in suffices.
-                        const source = {
-                            card: { id: sourceDef.id },
-                        } as unknown as CardInstanceState;
-                        applyCopy(instance as CardInstanceState, source);
-                    }
-                    // CR 303.4 / 701.3 — queue this Aura/Equipment for
-                    // attachment; the host is resolved by name after every card
-                    // is placed (it may be listed later in `args.cards`).
-                    if (entry.attachedTo) {
-                        pendingAttach.push({
-                            aura: instance as CardInstanceState,
-                            hostName: entry.attachedTo,
-                            ownerId: player.id,
-                        });
-                    }
-                    player.battlefield.push(instance);
-                }
-            }
-        }
-
-        // Base lands seeded by `landCount`/`libraryCount` match the COLORS of
-        // the cards placed in the scenario (CR 202.2): a mono-red board seeds
-        // Mountains, a UW board alternates Islands and Plains — so the placed
-        // cards are actually castable. A colourless/empty board falls back to
-        // Plains (the historical behaviour).
-        const colorsPresent = new Set<Color>();
-        for (const entry of args.cards) {
-            const def = getCardByName(entry.name);
-            for (const c of getCardColors(def)) colorsPresent.add(c);
-        }
-        const basicLandCycle = basicLandsForColors(colorsPresent);
-        const basicLandAt = (i: number) =>
-            basicLandCycle[i % basicLandCycle.length];
-
-        // Add lands (only if explicitly requested)
-        const landCount = args.landCount ?? 0;
-        for (let i = 0; i < landCount; i++) {
-            const name = basicLandAt(i);
-            p1.battlefield.push(makeInstance(name, p1.id, "battlefield"));
-            p2.battlefield.push(makeInstance(name, p2.id, "battlefield"));
-        }
-
-        // CR 303.4 / 701.3 — resolve queued Aura/Equipment attachments now that
-        // every permanent is on the battlefield. The host is matched by card id
-        // (derived from the given name), searching the aura owner's battlefield
-        // first and the opponent's second; the first match wins.
-        for (const { aura, hostName, ownerId } of pendingAttach) {
-            const hostDef = getCardByName(hostName);
-            const owner = state.players.find((pl) => pl.id === ownerId);
-            const opp = state.players.find((pl) => pl.id !== ownerId);
-            const findHost = (pl: PlayerState | undefined) =>
-                pl?.battlefield.find(
-                    (c) =>
-                        c.id !== aura.id &&
-                        (c.card as { id?: string }).id === hostDef.id
-                );
-            const host = findHost(owner) ?? findHost(opp);
-            if (host) aura.attachedTo = host.id;
-        }
-
-        // Fill libraries if requested
-        if (args.libraryCount !== undefined) {
-            p1.library = [];
-            p2.library = [];
-            for (let i = 0; i < args.libraryCount; i++) {
-                const name = basicLandAt(i);
-                p1.library.push(makeInstance(name, p1.id, "library"));
-                p2.library.push(makeInstance(name, p2.id, "library"));
-            }
-        }
-
-        // CR 702.139c / ADR 0064 (issue #1392) — directly declare a companion
-        // into the requested slot. Mirrors `buildCompanionInstance`'s shape
-        // (game init) exactly, since the scenario's synthetic board never
-        // runs through `selectCompanion`/the sideboard.
-        if (args.companion) {
-            const companionOwner = args.companion.owner === "opp" ? p2 : p1;
-            const def = getCardByName(args.companion.name);
-            companionOwner.companion = {
-                instance: {
-                    id: allocInstanceId(state),
-                    card: { id: def.id },
-                    types: def.types,
-                    subtypes: def.subtypes ?? [],
-                    power: def.power,
-                    toughness: def.toughness,
-                    staticAbilities: def.staticAbilities ?? [],
-                    controllerId: companionOwner.id,
-                    ownerId: companionOwner.id,
-                    // CR 702.139 — nominal tag only; the companion slot is
-                    // not a real zone (mirrors `buildCompanionInstance`).
-                    zone: "exile" as const,
-                    isTapped: false,
-                },
-                used: args.companion.used ?? false,
-            };
-        }
-
-        // Mark "me"'s last hand card as drawn this turn (Jandor's Ring's
-        // "discard the last card you drew this turn" cost). Cleared at the
-        // next turn start by advanceTurn.
-        if (args.markLastDrawn && p1.hand.length > 0) {
-            p1.lastDrawnCardId = p1.hand[p1.hand.length - 1].id;
-        }
-
-        // CR 611.2 — replay continuous keyword-grant / activated-grant static
-        // effects across the freshly-built battlefield. The placement loop
-        // bypasses `finalizeSpellResolution`'s entry hooks, so a Zombie Master
-        // dropped via the scenario doesn't naturally reach its Zombies. One
-        // pass per source is enough: each call walks every permanent and
-        // pushes matching grants — order-independent because the predicate is
-        // a function of subtype/id, not of timestamp.
-        for (const player of state.players) {
-            for (const source of player.battlefield) {
-                applySourceStaticEffects(state, source);
-            }
-        }
-
-        // The placement loop bypasses ETB triggers, so "as ~ enters, choose an
-        // opponent" (Cursed Rack, The Rack — #292) never resolved. Auto-pick
-        // the controller's opponent so the scenario exercises the stored choice
-        // (2-player: a single opponent, so no ambiguity).
-        for (const player of state.players) {
-            for (const source of player.battlefield) {
-                if (source.chosenPlayerId !== undefined) continue;
-                const cardId = (source.card as { id?: string }).id;
-                const def = cardId ? tryGetDefinition(cardId) : undefined;
-                const choosesOpponent = def?.triggeredAbilities?.some((t) =>
-                    t.id.endsWith("-choose-opponent")
-                );
-                if (choosesOpponent) {
-                    source.chosenPlayerId = getOpponentId(
-                        state,
-                        source.controllerId
-                    );
-                }
-            }
-        }
-
-        // Set the turn number if requested (turn 1 skips the draw step).
-        if (args.turn !== undefined) {
-            state.turn = args.turn;
-        }
-
-        // Set phase if requested
-        if (args.phase) {
-            state.phase = args.phase as Phase;
-            if (args.phase === "DECLARE_ATTACKERS") {
-                state.combat = {
-                    attackerIds: [],
-                    confirmed: false,
-                    blockerAssignments: {},
-                    blockersConfirmed: false,
-                };
-            }
-        }
-
-        state.priorityPlayerId = state.activePlayerId;
-        state.passCount = 0;
-        state.pendingCast = undefined;
-        state.stack = [];
-
-        // Pin the PRNG so the next random draw is deterministic (CR 705 /
-        // ADR 0023) — e.g. force a Bottle of Suleiman coin flip to WIN/LOSE.
-        if (args.rngSeed !== undefined) {
-            state.rngSeed = args.rngSeed;
-            state.rngCounter = 0;
-        }
-
-        // Seed poison counters (CR 122). A player reaching ten or more loses
-        // the game (CR 704.5c) on the next SBA sweep.
-        if (args.poison) {
-            if (args.poison.me) p1.poisonCounters = args.poison.me;
-            if (args.poison.opp) p2.poisonCounters = args.poison.opp;
-        }
+        // The actual state-construction logic lives in the pure
+        // `buildStateFromScenario` (issue #1424, PRD #1423) so it's callable
+        // from a vitest test with no Convex runtime AND from this mutation —
+        // `args` (minus `gameId`) already matches the `ScenarioSpec` shape
+        // it takes.
+        const state = buildStateFromScenario(
+            gameState.state as GameState,
+            args
+        );
 
         await saveGameState(
             ctx,
