@@ -419,6 +419,8 @@ function Lobby() {
                     onCreateMultiplayer={handleCreate}
                     onJoin={handleJoin}
                     onChangeDeck={handleChangeDeck}
+                    matchFormat={matchFormat}
+                    onMatchFormatChange={handleMatchFormatChange}
                     busy={isBusy}
                     hasActiveGame={!!activeGame}
                 />

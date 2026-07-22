@@ -3508,7 +3508,7 @@ describe("Effect Script Op: moveZone — departed-object return (CR 400.7 / 608.
 
     // The exile-sourced twin: `exile` + `bind`, then `from: "exile"` returns
     // the SAME object (the blink shape #1468-B builds on).
-    it("returns an exiled object with from: \"exile\"", () => {
+    it('returns an exiled object with from: "exile"', () => {
         const id = registerScript("test-mz-return-from-exile", [
             { op: "exile", target: { target: 0 }, bind: "$a" },
             {

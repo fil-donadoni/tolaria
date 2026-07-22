@@ -50,6 +50,8 @@ function renderBox(openGames: OpenGame[], onJoin = vi.fn()) {
                 onCreateMultiplayer={vi.fn()}
                 onJoin={onJoin}
                 onChangeDeck={vi.fn()}
+                matchFormat={1}
+                onMatchFormatChange={vi.fn()}
             />
         ),
     };
@@ -103,6 +105,8 @@ describe("DashboardPlayBox featured-art hero splash (PRD #589, issue #600)", () 
                 onCreateMultiplayer={vi.fn()}
                 onJoin={vi.fn()}
                 onChangeDeck={vi.fn()}
+                matchFormat={1}
+                onMatchFormatChange={vi.fn()}
             />
         );
     }
@@ -153,6 +157,8 @@ describe("DashboardPlayBox deck legality gate (issue #512)", () => {
                     onCreateMultiplayer={handlers.onCreateMultiplayer}
                     onJoin={vi.fn()}
                     onChangeDeck={vi.fn()}
+                    matchFormat={1}
+                    onMatchFormatChange={vi.fn()}
                 />
             ),
         };
@@ -194,16 +200,20 @@ describe("DashboardPlayBox vs-AI dialog handoff (two-step flow)", () => {
                     onCreateMultiplayer={vi.fn()}
                     onJoin={vi.fn()}
                     onChangeDeck={vi.fn()}
+                    matchFormat={1}
+                    onMatchFormatChange={vi.fn()}
                 />
             ),
         };
     }
 
-    it("no longer renders the inline difficulty / format / AI-deck selectors", () => {
+    // The vs-AI-only knobs stay in the dialog. Match Format is NOT vs-AI-only:
+    // it governs Solo and Create Multiplayer too, so it lives in the Play box.
+    it("no longer renders the inline difficulty / AI-deck selectors", () => {
         const { queryByLabelText } = renderBox();
         expect(queryByLabelText("AI Difficulty")).toBeNull();
-        expect(queryByLabelText("Match Format")).toBeNull();
         expect(queryByLabelText("AI Opponent Deck")).toBeNull();
+        expect(queryByLabelText("Match Format")).toBeTruthy();
     });
 
     it("clicking 'Play vs AI' fires the open-dialog callback", () => {
@@ -211,5 +221,46 @@ describe("DashboardPlayBox vs-AI dialog handoff (two-step flow)", () => {
         const { getByText } = renderBox(onCreateVsAi);
         fireEvent.click(getByText("Play vs AI"));
         expect(onCreateVsAi).toHaveBeenCalledTimes(1);
+    });
+});
+
+// The Bo1/Bo3 knob used to live ONLY inside the vs-AI setup dialog, so the
+// Solo and Create Multiplayer actions silently used the persisted default with
+// no way to change it. The selector now sits in the Play box, next to the
+// actions it governs.
+describe("DashboardPlayBox match format selector", () => {
+    function renderWith(matchFormat: 1 | 3, onMatchFormatChange = vi.fn()) {
+        return {
+            onMatchFormatChange,
+            ...render(
+                <DashboardPlayBox
+                    selectedDeck={DECK}
+                    openGames={[]}
+                    onCreateSolo={vi.fn()}
+                    onCreateVsAi={vi.fn()}
+                    onCreateMultiplayer={vi.fn()}
+                    onJoin={vi.fn()}
+                    onChangeDeck={vi.fn()}
+                    matchFormat={matchFormat}
+                    onMatchFormatChange={onMatchFormatChange}
+                />
+            ),
+        };
+    }
+
+    it("exposes Bo1/Bo3 for the multiplayer and solo actions", () => {
+        const { getByRole } = renderWith(1);
+        expect(
+            getByRole("radio", { name: "Bo1" }).getAttribute("aria-checked")
+        ).toBe("true");
+        expect(
+            getByRole("radio", { name: "Bo3" }).getAttribute("aria-checked")
+        ).toBe("false");
+    });
+
+    it("reports the picked format to the lobby", () => {
+        const { getByRole, onMatchFormatChange } = renderWith(1);
+        fireEvent.click(getByRole("radio", { name: "Bo3" }));
+        expect(onMatchFormatChange).toHaveBeenCalledWith(3);
     });
 });

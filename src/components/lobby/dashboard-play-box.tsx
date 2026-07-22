@@ -7,6 +7,8 @@ import { Banner } from "~/components/ui/banner";
 import ActionButton from "~/components/board/action-button";
 import ManaSymbol from "../cards/mana-symbol";
 import FeaturedDeckArt from "./featured-deck-art";
+import MatchFormatSelector from "./match-format-selector";
+import type { MatchFormat } from "~/lib/session";
 
 /** An open (waiting) game enriched with its owning Match's format (PRD #387 /
  *  #397). The joiner inherits the creator's `bestOf`, so the format is shown in
@@ -23,6 +25,11 @@ interface DashboardPlayBoxProps {
     onCreateMultiplayer: () => void;
     onJoin: (gameId: Id<"games">) => void;
     onChangeDeck: () => void;
+    /** Bo1/Bo3 for the Solo and Create Multiplayer actions (PRD #387). The
+     *  vs-AI path owns its own copy of the selector inside its setup dialog;
+     *  both write the same lobby-level state, so the choice is shared. */
+    matchFormat: MatchFormat;
+    onMatchFormatChange: (format: MatchFormat) => void;
     busy?: boolean;
     /** #155: a user holds at most one active game. While one exists, creating
      *  or joining is blocked client-side (the server rejects it anyway). */
@@ -37,6 +44,8 @@ export default function DashboardPlayBox({
     onCreateMultiplayer,
     onJoin,
     onChangeDeck,
+    matchFormat,
+    onMatchFormatChange,
     busy = false,
     hasActiveGame = false,
 }: DashboardPlayBoxProps) {
@@ -128,6 +137,12 @@ export default function DashboardPlayBox({
                         </ul>
                     </Banner>
                 )}
+
+                <MatchFormatSelector
+                    value={matchFormat}
+                    onChange={onMatchFormatChange}
+                    disabled={busy}
+                />
 
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                     <ActionButton

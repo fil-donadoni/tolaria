@@ -1809,10 +1809,7 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             // shape, but only for a card ENTERING the battlefield. issue #1469
             // extends it from `cards` to `target` (the departed-object return
             // — needed by the earthbend return clause, #1468-B).
-            if (
-                "tapped" in entry &&
-                (hasBulk || entry.to !== "battlefield")
-            ) {
+            if ("tapped" in entry && (hasBulk || entry.to !== "battlefield")) {
                 errors.push(
                     'field "tapped" is only valid with "cards"/"target" and to: "battlefield"'
                 );

@@ -33,7 +33,11 @@ Crucible of Worlds
 
 ## Carte rotte
 
-- Il may cast di Malcolm è solo nel momento della risoluzione dell'abilità, non nel resto del turno. verifica sul CR./
+- Il testo Companion di Lutri non compare nella card-preview
+- Starting town non viene considerata come produttrice di mana colorato ai fini di castabilità
+- Erode permette di prendere terre non base con tipo di terra base, ma deve farti prendere SOLO terre base. verifica anche path to exile.
+- Sheoldred's edict deve farti scegliere prima di andare in pila, come le spell modali che abbiamo già sistemato
+- Il trigger di animate dead quando la creatura è morta blocca il gioco.
 
 ## UX da migliorare
 
@@ -46,10 +50,17 @@ Crucible of Worlds
 - il peek con click to dismiss deve accettare anche il tasto space per fare dismiss e comunque deve avere un timer che dopo 5 secondi chiude il dialog
 - Goblin artisans: abbiamo perso l'animazione del coin toss che prima c'era.
 - le abilità loyalty di un planeswalker non devono comparire nel context menu se siamo in una fase non sorcery speed, a meno di abilità che le abilitano a questa velocità.
+- Nel pool draft non puoi trascinare una carta nella colonna delle terre
+- Nella sideboard del pool draft le carte sono ancora separate con offset esagerato. disponile come il maindeck
+- Anche nel deckbuilder devo poter spostare le carte tra una colonna e l'altras
+- Nel deckbuidler limited mancano i pulsanti per aggiungere alcune terre base, dipendentemente dai colori del main penso. in vintage cub non c'è nessun pulsante per aggiungere le terre base
+- aggiungere pulsante Attack with all
+- In draft, a mazzi costruiti, non vedo gli altri giocatori umani per giocarci contro
 
 # Bug gameplay
 
 - nello scheam database c'è game_states, unica tabella snake_case. mettila in camelCase come le altre
+- Power Leak non rimane in campo. Verifichiamo il comportamento. Aura su Aura non è visibile
 
 # Nuova UI
 
