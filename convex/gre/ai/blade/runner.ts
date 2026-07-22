@@ -20,13 +20,8 @@
  */
 
 import { getCardByName } from "../../../cards";
-import {
-    createInitialGameState,
-    STARTING_LIFE,
-    type PlayerInput,
-} from "../../setup";
+import { createInitialGameState, type PlayerInput } from "../../setup";
 import { buildStateFromScenario } from "../../scenarioBuilder";
-import { emptyManaPool, resetPerTurnFields } from "../../phases";
 import { searchWithTrace } from "../../search";
 import type { GameState } from "../../state";
 import type { Move } from "../../moves";
@@ -57,14 +52,23 @@ const BASE_DECK_SIZE = 60;
  *  triggers) and cannot perturb a rollout. */
 const BASE_DECK_CARD = "Plains";
 
-function syntheticPlayer(id: string, name: string): PlayerInput {
+/** A seat's identity — the only thing `buildBladeLoadState` (below) needs to
+ *  vary per call: which player id/name/bgColor a seat is built AS. */
+type SeatIdentity = { id: string; name: string; bgColor: string };
+
+/** The harness's own default identities — unchanged from before this was
+ *  parametrized (`p1`/`p2`, "Blade P1"/"Blade P2"). */
+const DEFAULT_SEAT_IDENTITIES: [SeatIdentity, SeatIdentity] = [
+    { id: "p1", name: "Blade P1", bgColor: "#000000" },
+    { id: "p2", name: "Blade P2", bgColor: "#000000" },
+];
+
+function syntheticPlayer(identity: SeatIdentity): PlayerInput {
     const def = getCardByName(BASE_DECK_CARD);
     return {
-        id,
-        name,
-        bgColor: "#000000",
+        ...identity,
         deck: {
-            id: `blade-${id}`,
+            id: `blade-${identity.id}`,
             name: "Blade base deck",
             format: "freeform",
             cards: Array.from({ length: BASE_DECK_SIZE }, () => ({
@@ -77,13 +81,26 @@ function syntheticPlayer(id: string, name: string): PlayerInput {
 
 /**
  * The base `GameState` every blade scenario is applied on top of: two seats
- * (`p1` = the spec's `me`, `p2` = its `opp`) with identical synthetic decks,
- * shuffled at a fixed seed. `buildStateFromScenario` finalizes the mulligan
- * and clears every zone, so nothing but the leftover library survives.
+ * with identical synthetic decks, shuffled at a fixed seed.
+ * `buildStateFromScenario` finalizes the mulligan and clears every zone, so
+ * nothing but the leftover library survives.
+ *
+ * `identities` defaults to the harness's own `p1`/`p2` seats — every caller
+ * before issue #1432 review round 3 relied on that default and still gets
+ * it unchanged. `buildBladeLoadState` (below) is the one caller that passes
+ * an override: building the SAME position but AS the live game's actual
+ * player ids, so identity (owner/controller ids throughout every card, plus
+ * `activePlayerId`/`priorityPlayerId`, both derived from `players[0].id` in
+ * `createInitialGameState`) is correct by construction from the very first
+ * card dealt — not patched onto a `p1`/`p2`-built state after the fact,
+ * which would leave every internal `ownerId`/`controllerId` still pointing
+ * at the old `p1`/`p2` strings.
  */
-export function buildBladeBaseState(): GameState {
+export function buildBladeBaseState(
+    identities: [SeatIdentity, SeatIdentity] = DEFAULT_SEAT_IDENTITIES
+): GameState {
     return createInitialGameState(
-        [syntheticPlayer("p1", "Blade P1"), syntheticPlayer("p2", "Blade P2")],
+        [syntheticPlayer(identities[0]), syntheticPlayer(identities[1])],
         BASE_STATE_SEED
     );
 }
@@ -104,58 +121,58 @@ export function buildBladeState(scenario: BladeScenario): GameState {
  * `buildStateFromScenario` alone normalizes only zones/phase/turn/stack; it
  * never touches `activePlayerId`, life, or any turn-/game-scoped counter, so
  * feeding it a live game's snapshot directly leaves those fields wherever the
- * live game happened to be (wrong player to act, stale land-drop count,
- * leftover poison/Storm count, non-starting life) — a materially different
- * position from the one the harness built and the blade entry's `expect` was
- * written against.
+ * live game happened to be — a materially different position from the one
+ * the harness built and the blade entry's `expect` was written against.
  *
- * Rather than hand-picking which fields diverge (review finding #2 on a
- * prior fixup round: a 4-field list that still leaked `restrictedMana`,
- * `spellsCastThisTurn`, `poisonCounters`, `energyCounters`, `skipNextTurn`,
- * `hasDrawnFromEmpty`, `permanentYouControlledLeftThisTurn`,
- * `drawnThisTurn`/`lastDrawnCardId` and `turnsTaken`), this pins each field
- * from its SINGLE authority so a future turn-scoped field added to either
- * authority is inherited here automatically instead of silently leaking
- * through a stale list:
- *   - `activePlayerId` / `priorityPlayerId` to `players[0].id` (the "me" seat,
- *     CR 500.1 — `buildBladeBaseState` always starts P1's first turn);
- *   - every "this turn" field (`landsPlayedThisTurn`, `spellsCastThisTurn`,
- *     `drawnThisTurn`/`lastDrawnCardId`, per-permanent `activationsThisTurn`/
- *     `loyaltyActivatedThisTurn`, `permanentYouControlledLeftThisTurn`, the
- *     global Storm tally, …) via `resetPerTurnFields` — the exact function
- *     `advanceTurn` itself calls to start a fresh turn (`gre/phases.ts`);
- *   - floating mana (`manaPool` + its `restrictedMana` sibling, CR 500.4/
- *     106.6) via `emptyManaPool` — the same pairing `advanceTurn`'s
- *     end-of-phase mana empty uses;
- *   - `life` to the starting total (CR 103.1), and the cumulative game-long
- *     counters `createInitialGameState`/`buildPlayerState` (`gre/setup.ts`)
- *     never seed on a fresh player — `poisonCounters` (CR 122.1),
- *     `energyCounters` (ADR 0032), `skipNextTurn` (CR 614.10) and
- *     `hasDrawnFromEmpty` (CR 704.5b) — back to unset;
- *   - `turnsTaken` to the exact shape `createInitialGameState` seeds: 1 for
- *     the starting/"me" player (CR 500.1), unset for the other.
+ * Two prior fixup rounds tried to hand-pick which fields diverge: a 4-field
+ * list (round 1) that leaked `restrictedMana`/`spellsCastThisTurn`/
+ * `poisonCounters`/`energyCounters`/`skipNextTurn`/`hasDrawnFromEmpty`/
+ * `permanentYouControlledLeftThisTurn`/`drawnThisTurn`/`lastDrawnCardId`/
+ * `turnsTaken`, then a per-field-authority DENYLIST (round 2,
+ * `resetPerTurnFields` + `emptyManaPool`) that still leaked `extraTurns`
+ * (CR 500.7 — a queued extra turn from the live game would fire after the
+ * loaded position's turn), `queuedEndTurn` (a standing pass-turn intent that
+ * is deliberately turn-boundary-crossing, so `resetPerTurnFields` never
+ * clears it) and `islandSanctuaryProtection` when it belongs to the
+ * NON-active player. A denylist over the live state is structurally leaky:
+ * every `GameState` field not named in it survives untouched, so each new
+ * field added to the type is a leak until someone remembers to list it here
+ * too.
  *
- * Pure: takes an already-fetched base `GameState`, returns a NEW state via
- * `buildStateFromScenario`; the input is never mutated.
+ * This round inverts to an ALLOWLIST instead: build the harness's OWN base
+ * state, `buildBladeBaseState()`, but AS the live game's player identity
+ * (`id`/`name`/`bgColor`, so the loaded position is saved back under the
+ * seats the live game (and its Convex row) actually uses) — passed into
+ * `buildBladeBaseState` at construction time, not patched onto a `p1`/`p2`
+ * state afterward (which would leave every card's `ownerId`/`controllerId`
+ * still pointing at the discarded `p1`/`p2` strings; see `buildBladeBaseState`
+ * for why identity is threaded through instead). Every other field — turn
+ * counters, life, mana, poison/energy, `extraTurns`, `queuedEndTurn`,
+ * `islandSanctuaryProtection`, RNG state, every future field — comes from
+ * the harness's own construction, by definition, not by remembering to
+ * clear it. Leak-proof against every field `GameState` has today AND every
+ * one it grows tomorrow.
+ *
+ * Pure: takes an already-fetched base `GameState` (read for identity only),
+ * returns a NEW state via `buildStateFromScenario`; the input is never
+ * mutated.
  */
 export function buildBladeLoadState(
     base: GameState,
     scenario: BladeScenario
 ): GameState {
-    const normalized = structuredClone(base);
-    normalized.activePlayerId = normalized.players[0].id;
-    normalized.priorityPlayerId = normalized.players[0].id;
-    for (const player of normalized.players) {
-        player.life = STARTING_LIFE;
-        emptyManaPool(player);
-        player.poisonCounters = undefined;
-        player.energyCounters = undefined;
-        player.skipNextTurn = undefined;
-        player.hasDrawnFromEmpty = undefined;
-    }
-    normalized.players[0].turnsTaken = 1;
-    normalized.players[1].turnsTaken = undefined;
-    resetPerTurnFields(normalized);
+    const normalized = buildBladeBaseState([
+        {
+            id: base.players[0].id,
+            name: base.players[0].name,
+            bgColor: base.players[0].bgColor,
+        },
+        {
+            id: base.players[1].id,
+            name: base.players[1].name,
+            bgColor: base.players[1].bgColor,
+        },
+    ]);
     return buildStateFromScenario(normalized, scenario.spec);
 }
 

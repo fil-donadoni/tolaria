@@ -33,7 +33,7 @@
 import { describe, it, expect } from "vitest";
 import { isAdminUser } from "../auth";
 import type { Doc } from "../_generated/dataModel";
-import type { CardInstanceState, GameState } from "../gre/state";
+import type { GameState } from "../gre/state";
 import { STARTING_LIFE } from "../gre/setup";
 import { makePlayer, makeState } from "../cards/__tests__/setup";
 import { BLADE_SCENARIOS, findBladeScenario } from "../gre/ai/blade/registry";
@@ -95,8 +95,20 @@ describe("debugLoadBladeScenario — label resolution (issue #1432)", () => {
  *  (CR 122.1 — 10+ is an instant SBA loss, CR 704.5c), `energyCounters`
  *  (ADR 0032), `skipNextTurn` (CR 614.10), `hasDrawnFromEmpty` (CR 704.5b),
  *  `permanentYouControlledLeftThisTurn` (Revolt, CR 702.RV),
- *  `drawnThisTurn`/`lastDrawnCardId`, and `turnsTaken` (CR 500.1).
- *  `resolveBladeLoadState` must normalize every one of them away. */
+ *  `drawnThisTurn`/`lastDrawnCardId`, and `turnsTaken` (CR 500.1), PLUS the
+ *  3 fields review round 3 found STILL leaking through round 2's
+ *  per-field-authority DENYLIST (`resetPerTurnFields` + `emptyManaPool`):
+ *  `extraTurns` (CR 500.7 — a queued extra turn from the live game would
+ *  fire after the loaded position's turn; `resetPerTurnFields` never
+ *  touches it), `queuedEndTurn` (a standing pass-turn intent that is
+ *  deliberately turn-boundary-crossing, so `resetPerTurnFields` never
+ *  clears it either), and `islandSanctuaryProtection` set on the
+ *  NON-active player (`resetPerTurnFields` only clears it when it equals
+ *  `activePlayerId`, which here is p2 — so a protection flag left on p1
+ *  survives). `resolveBladeLoadState` must normalize every one of them
+ *  away — proven now by a full-state comparison (see `canonicalizeIdentity`
+ *  below), not a hand-picked field list, so this base state is deliberately
+ *  adversarial rather than an exhaustive checklist. */
 function arbitraryCurrentGameBaseState(): GameState {
     return makeState({
         players: [
@@ -127,78 +139,56 @@ function arbitraryCurrentGameBaseState(): GameState {
         priorityPlayerId: "user_abc123-p2",
         phase: "COMBAT_DAMAGE" as GameState["phase"],
         spellsCastThisTurn: 5,
+        // Review round 3, finding 1 — a queued extra turn (CR 500.7).
+        extraTurns: ["user_abc123-p1"],
+        // Review round 3, finding 2 — a standing pass-turn intent.
+        queuedEndTurn: ["user_abc123-p2"],
+        // Review round 3, finding 3 — protection on the NON-active player
+        // (activePlayerId above is p2, so this is deliberately p1).
+        islandSanctuaryProtection: "user_abc123-p1",
     });
 }
 
-/** Card-name-and-shape snapshot of one zone, order-INSENSITIVE (battlefield/
- *  hand/graveyard/exile placement order doesn't matter to "the position";
- *  card identity, tapped state and counters do). */
-function zoneSnapshot(cards: CardInstanceState[]) {
-    return cards
-        .map((c) => ({
-            cardId: (c.card as { id: string }).id,
-            tapped: c.isTapped,
-            counters: c.counters,
-        }))
-        .sort((a, b) => a.cardId.localeCompare(b.cardId));
-}
-
-/** Card-id snapshot of a library, order-SENSITIVE (index 0 = top, where
- *  `drawCard` reads — the top of the library IS part of "the position"). */
-function librarySnapshot(cards: CardInstanceState[]) {
-    return cards.map((c) => (c.card as { id: string }).id);
-}
-
-/** Position snapshot INCLUDING every field `buildStateFromScenario` alone
- *  never normalizes — `activePlayerId`/`priorityPlayerId` (who's to act),
- *  `life`, and the turn-/game-scoped field set review round 2's finding #2
- *  named (see `arbitraryCurrentGameBaseState`'s doc comment for the CR
- *  references). Omitting any of these (as an earlier version of this test
- *  did) masks the exact class of divergence the review flagged: a scenario
- *  loaded mid-game inheriting the live game's counters instead of the
- *  harness's fresh starting position.
+/**
+ * Deep-clones `state` with every PLAYER ID replaced by a positional
+ * placeholder (`seat-0`/`seat-1`, by index in `state.players`) and each
+ * player's `name`/`bgColor` cleared — the only fields `buildBladeLoadState`
+ * deliberately carries over from the live game's identity (issue #1432
+ * review round 3, allowlist fix: `convex/gre/ai/blade/runner.ts`).
  *
- *  Deliberately EXCLUDES `drawnThisTurn`/`lastDrawnCardId`: `buildBladeState`
- *  itself goes through `createInitialGameState`'s opening-hand `drawCard`
- *  calls (7 draws per player, `gre/setup.ts`), which stamps these two with
- *  the drawn ids as a SIDE EFFECT of dealing the synthetic base's mulligan
- *  hand — the harness's own "fresh" state is not empty here, so it isn't a
- *  target the loader should reproduce (the loader correctly clears them to
- *  match the CR-correct "nothing drawn yet this turn" starting position
- *  instead — asserted directly in the "normalizes …" test below). Comparing
- *  them here would only assert that both sides drew from a shuffled deck,
- *  not anything about "the position". */
-function positionSnapshot(state: GameState) {
-    return {
-        phase: state.phase,
-        turn: state.turn,
-        activePlayerId: state.players.findIndex(
-            (p) => p.id === state.activePlayerId
-        ),
-        priorityPlayerId: state.players.findIndex(
-            (p) => p.id === state.priorityPlayerId
-        ),
-        spellsCastThisTurn: state.spellsCastThisTurn ?? 0,
-        players: state.players.map((p) => ({
-            life: p.life,
-            landsPlayedThisTurn: p.landsPlayedThisTurn ?? 0,
-            manaPool: p.manaPool,
-            restrictedMana: p.restrictedMana ?? [],
-            spellsCastThisTurn: p.spellsCastThisTurn ?? 0,
-            poisonCounters: p.poisonCounters ?? 0,
-            energyCounters: p.energyCounters ?? 0,
-            skipNextTurn: p.skipNextTurn ?? false,
-            hasDrawnFromEmpty: p.hasDrawnFromEmpty ?? false,
-            permanentYouControlledLeftThisTurn:
-                p.permanentYouControlledLeftThisTurn ?? false,
-            turnsTaken: p.turnsTaken ?? 0,
-            battlefield: zoneSnapshot(p.battlefield),
-            hand: zoneSnapshot(p.hand),
-            graveyard: zoneSnapshot(p.graveyard),
-            exile: zoneSnapshot(p.exile),
-            library: librarySnapshot(p.library),
-        })),
-    };
+ * Everything else in the two states being compared MUST come out identical
+ * once identity is canonicalized this way, because `buildBladeLoadState`
+ * no longer normalizes the live game's snapshot field by field — it
+ * constructs the starting position via `buildBladeBaseState()` itself (the
+ * exact function the harness uses) and copies across ONLY `id`/`name`/
+ * `bgColor`. A `toEqual` on the canonicalized output is therefore an
+ * ALLOWLIST-shaped assertion, leak-proof against every `GameState` field —
+ * present or added later — not just a hand-picked subset. This is the
+ * class of gap round 2's per-field DENYLIST (`resetPerTurnFields` +
+ * `emptyManaPool`) left open: `extraTurns`, `queuedEndTurn` and
+ * `islandSanctuaryProtection` on the non-active player all leaked through
+ * that list silently, and the round-2 `positionSnapshot` this replaces
+ * didn't even check them, so the leak passed CI.
+ *
+ * ID values are replaced by exact string match, not substring — safe here
+ * because `state.players[].id` values (`p1`/`p2` or `user_…-p1`/`user_…-p2`)
+ * never collide with any other string this state carries (card ids, card
+ * names, etc.).
+ */
+function canonicalizeIdentity(state: GameState): GameState {
+    const idMap = new Map(state.players.map((p, i) => [p.id, `seat-${i}`]));
+    const canonical = JSON.parse(
+        JSON.stringify(state, (_key, value) =>
+            typeof value === "string" && idMap.has(value)
+                ? idMap.get(value)
+                : value
+        )
+    ) as GameState;
+    for (const p of canonical.players) {
+        p.name = "";
+        p.bgColor = "";
+    }
+    return canonical;
 }
 
 describe("debugLoadBladeScenario — loaded position matches the harness's built state (issue #1432)", () => {
@@ -210,14 +200,18 @@ describe("debugLoadBladeScenario — loaded position matches the harness's built
                 scenario.label
             );
 
-            expect(positionSnapshot(loaderState)).toEqual(
-                positionSnapshot(harnessState)
+            // Full-state comparison (minus the deliberately-carried-over
+            // identity fields) — leak-proof against every `GameState`
+            // field, not a hand-picked subset (issue #1432 review round 3).
+            expect(canonicalizeIdentity(loaderState)).toEqual(
+                canonicalizeIdentity(harnessState)
             );
         });
     }
 
     it("normalizes active/priority player to the 'me' seat and life to the starting total", () => {
         const scenario = BLADE_SCENARIOS[0];
+        const harnessState = buildBladeState(scenario);
         const loaderState = runMutationBody(
             arbitraryCurrentGameBaseState(),
             scenario.label
@@ -244,10 +238,30 @@ describe("debugLoadBladeScenario — loaded position matches the harness's built
         expect(
             loaderState.players[0].permanentYouControlledLeftThisTurn
         ).toBeUndefined();
-        expect(loaderState.players[0].drawnThisTurn).toBeUndefined();
-        expect(loaderState.players[0].lastDrawnCardId).toBeUndefined();
+        // NOT undefined: `buildBladeBaseState` itself goes through
+        // `createInitialGameState`'s opening-hand `drawCard` calls (7 draws
+        // per player, `gre/setup.ts`), which stamps these two as a SIDE
+        // EFFECT of dealing the mulligan hand — the harness's own "fresh"
+        // state is not empty here, so the loader shouldn't be either. What
+        // matters is that it matches the harness's own value, not the live
+        // game's stale one (`arbitraryCurrentGameBaseState` seeds
+        // `"stale-drawn-card"`/`"stale-last-drawn"` on player 0 above).
+        expect(loaderState.players[0].drawnThisTurn).toEqual(
+            harnessState.players[0].drawnThisTurn
+        );
+        expect(loaderState.players[0].lastDrawnCardId).toBe(
+            harnessState.players[0].lastDrawnCardId
+        );
         expect(loaderState.players[0].turnsTaken).toBe(1);
         expect(loaderState.players[1].turnsTaken).toBeUndefined();
+        // issue #1432 review round 3 — these leaked through round 2's
+        // per-field-authority DENYLIST (`resetPerTurnFields` never touches
+        // `extraTurns`/`queuedEndTurn`, and only clears
+        // `islandSanctuaryProtection` when it equals `activePlayerId`, which
+        // `arbitraryCurrentGameBaseState` deliberately sets it to NOT).
+        expect(loaderState.extraTurns).toBeUndefined();
+        expect(loaderState.queuedEndTurn).toBeUndefined();
+        expect(loaderState.islandSanctuaryProtection).toBeUndefined();
     });
 });
 
