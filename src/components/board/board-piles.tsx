@@ -4,6 +4,7 @@ import PlayerLibrary from "./player-library";
 import PlayerExile from "./player-exile";
 import PlayerCompanion from "./player-companion";
 import PlayerEmblems from "./player-emblems";
+import PlayerMonarchTile from "./player-monarch-tile";
 
 type BoardPilesProps = {
     /** Opponent first, viewer second (same ordering as the rest of Board). */
@@ -40,6 +41,7 @@ export default function BoardPiles({ orderedPlayers }: BoardPilesProps) {
                     <PlayerExile player={opponent} />
                     <PlayerCompanion player={opponent} />
                     <PlayerEmblems player={opponent} />
+                    <PlayerMonarchTile player={opponent} />
                 </div>
             )}
 
@@ -53,6 +55,7 @@ export default function BoardPiles({ orderedPlayers }: BoardPilesProps) {
                     <PlayerExile player={me} />
                     <PlayerCompanion player={me} />
                     <PlayerEmblems player={me} />
+                    <PlayerMonarchTile player={me} />
                 </div>
             )}
         </>

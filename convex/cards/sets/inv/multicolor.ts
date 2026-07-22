@@ -532,6 +532,9 @@ export const revivingVapors: CardDefinition = {
             player: "controller",
             look: 3,
             take: 1,
+            // "REVEAL the top three cards" (CR 701.20a) — the whole window is
+            // public: every player sees all three in the reveal dialog.
+            reveal: "window",
             destination: "graveyard",
             bind: "$kept",
         },

@@ -1,6 +1,5 @@
 import type { Player } from "~/types/game";
 import { usePlayerInteraction } from "~/hooks/usePlayerInteraction";
-import { useGameContext } from "~/hooks/useGameContext";
 import PlayerNameplate from "./player-nameplate";
 import PlayerManaPool from "./player-mana-pool";
 
@@ -24,9 +23,6 @@ type BoardPlayerProps = {
  *  ({@link useDomAnchorPublisher}) measures. */
 export default function BoardPlayer({ player, side }: BoardPlayerProps) {
     const interaction = usePlayerInteraction(player);
-    // CR 720.1 (issue #1199) — the monarch badge; derived here (not
-    // prop-drilled) from the shared GameContext.
-    const { monarchId } = useGameContext();
     // Relative wrapper so the floating mana-pool indicator anchors to the
     // nameplate (its absolute `bottom-full` / `top-full` need a positioned
     // ancestor), mirroring how the classic `player-side-row` pairs the pool with
@@ -39,11 +35,7 @@ export default function BoardPlayer({ player, side }: BoardPlayerProps) {
             }`}
         >
             <PlayerManaPool player={player} />
-            <PlayerNameplate
-                player={player}
-                interaction={interaction}
-                isMonarch={monarchId === player.id}
-            />
+            <PlayerNameplate player={player} interaction={interaction} />
         </div>
     );
 }

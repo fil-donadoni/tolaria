@@ -8192,6 +8192,20 @@ export type EffectOp =
            *  other Ops — no shipped multi-keep digToHand card reads its
            *  bind today). */
           bind?: string;
+          /** Makes the look a PUBLIC reveal (CR 701.20a) rather than the
+           *  default PRIVATE look (CR 401.4). Two scopes, matching the two
+           *  Oracle shapes:
+           *    - `"window"` — "REVEAL the top N cards ..." (Reviving Vapors,
+           *      Courser-style ETB, Torsten): the WHOLE looked-at window is
+           *      revealed to every player BEFORE the keep/order choice, so the
+           *      opponent sees all N. Marked known-to-all + a reveal dialog.
+           *    - `"kept"` — "Look at the top N (privately) ... you may REVEAL a
+           *      card ... and put it into your hand" (War-blue / Narset shape):
+           *      the look stays private; only the card(s) actually put into
+           *      hand are revealed to everyone, AFTER the pick.
+           *  Omit for a purely private look/dig (Impulse, Domain, Brainstorm-
+           *  style card selection), where nothing is shown to the opponent. */
+          reveal?: "window" | "kept";
       }
     /** CR 401.4 (issue #1046) — put N cards from a hand on top of a library,
      *  in the player's chosen order ("put N cards from your hand on top of

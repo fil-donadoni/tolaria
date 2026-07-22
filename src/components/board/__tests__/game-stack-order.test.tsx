@@ -7,6 +7,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, cleanup } from "@testing-library/react";
 import type { StackItem } from "~/types/game";
 import { GameContext } from "~/hooks/useGameContext";
+import { MONARCH_DESIGNATION } from "@convex/cards/designations";
 
 vi.mock("convex/react", () => ({ useMutation: () => vi.fn() }));
 vi.mock("~/hooks/useDraggable", () => ({
@@ -98,6 +99,34 @@ describe("GameStack ability-kind detection (#935)", () => {
         expect(container.textContent).toContain(
             "Draw a card at the beginning of the next turn's upkeep."
         );
+    });
+
+    it("renders the Monarch end-step draw as a marker-art triggered ability (CR 725, #1305)", () => {
+        // The source-less inherent designation trigger carries `designationId`
+        // but no card (`card.id` is ""). It must render with the Monarch marker
+        // ART + name, labelled a plain "Triggered ability" — not the empty
+        // "Token" placeholder a card-less inline trigger would otherwise show.
+        const item = {
+            ...makeStackItem("monarch-draw"),
+            card: { id: "" },
+            delayedTriggerId: "$inline-effects",
+            delayedOracleText:
+                "At the beginning of the monarch's end step, that player draws a card.",
+            designationId: MONARCH_DESIGNATION.id,
+        } as StackItem;
+        const { container, queryByTestId } = renderStack([item]);
+
+        // Ability-tile path (not the source card image mock).
+        expect(queryByTestId("stack-card")).toBeNull();
+        // Marker art rendered from the designation's print id.
+        const img = container.querySelector("img");
+        expect(img?.getAttribute("src")).toContain(
+            MONARCH_DESIGNATION.imagePrintId
+        );
+        // Marker name + triggered-ability label, not "Token"/"Delayed trigger".
+        expect(container.textContent).toContain(MONARCH_DESIGNATION.name);
+        expect(container.textContent).toContain("Triggered ability");
+        expect(container.textContent).not.toContain("Token");
     });
 });
 

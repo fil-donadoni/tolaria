@@ -327,6 +327,12 @@ export interface StackItem extends CardInstance {
      *  view reads it to render the ability tile instead of a full-card image
      *  (Sneak Attack, Forth Eorlingas). Undefined for the template path. */
     delayedOracleText?: string;
+    /** CR 725 (issue #1305) — a source-less inherent DESIGNATION triggered
+     *  ability (the Monarch's end-step draw). Keys a state designation
+     *  (`convex/cards/designations.ts`) so the stack tile shows the marker-card
+     *  art + name instead of the empty tile a card-less inline trigger would
+     *  render. Undefined for every normal stack item. */
+    designationId?: string;
     /** CR 700.2c (issue #1274) — the mode a modal spell locked in at cast
      *  (`SpellMode.id`). Survives the wire projection via `slimCard`
      *  (`SlimStackItem` keeps every StackItem field but `card`); declared here

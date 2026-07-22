@@ -41,6 +41,7 @@ import {
     isPrintedInSet as isCardPrintedInSet,
 } from "../cards";
 import { getEmblemDefinition, tryGetEmblemDefinition } from "../cards/emblems";
+import { tokenPrintIdFor } from "../cards/tokenPrintLookup";
 import { getKeywordCounterGrant } from "../cards/mechanicsRegistry";
 import { turnFaceDown } from "./faceDown";
 import { transformPermanent } from "./transform";
@@ -1365,6 +1366,13 @@ export type StackItem = CardInstanceState & {
      *  ability tile (art + oracle text) instead of the full-card image. Undefined
      *  for the legacy template path, where the text lives on the card def. */
     delayedOracleText?: string;
+    /** CR 725 (issue #1305) — a source-less inherent DESIGNATION triggered
+     *  ability on the stack (the Monarch's end-step draw). Keys a state
+     *  designation (`convex/cards/designations.ts`) so the stack UI renders the
+     *  marker-card art + name instead of the empty tile a card-less inline
+     *  trigger would otherwise show (`card.id` is ""). Purely cosmetic — the
+     *  resolution path is the inline `delayedEffects` one. */
+    designationId?: string;
     /** Resume checkpoint for a multi-step resolve (CR 608.3). Index into
      *  `CardDefinition.resolveSteps`. Advanced by the engine after a step
      *  completes without enqueueing pending choices. Undefined = start from
@@ -9959,9 +9967,28 @@ export function buildSpellContext(
         // `applyExistingGrantsTo` (CR 611). CR 704.5d cleanup is handled by
         // `checkTokenExistenceSBA` if the token ever leaves the battlefield.
         createToken(spec, controllerId, count = 1, createdBy): string[] {
+            // Auto-resolve real token art (issue #1305). A card's token spec
+            // usually omits `imagePrintId`; the correct printed-token art is
+            // looked up from the committed association lockfile keyed by
+            // (producing card's Scryfall id, token name). This keeps the
+            // card→token art association durable inside Tolaria WITHOUT every
+            // card hand-wiring `tokenPrintIdFor` — the single choke point
+            // through which every DSL and resolve() token creation flows. An
+            // explicit `imagePrintId` already on the spec (shared Treasure /
+            // Clue tokens, or a deliberate override) wins and skips the lookup.
+            let effectiveSpec = spec;
+            if (spec.imagePrintId === undefined) {
+                const sourceCardId = (item.card as { id?: string }).id;
+                const resolved = sourceCardId
+                    ? tokenPrintIdFor(sourceCardId, spec.name)
+                    : undefined;
+                if (resolved !== undefined) {
+                    effectiveSpec = { ...spec, imagePrintId: resolved };
+                }
+            }
             return createTokenPermanents(
                 state,
-                spec,
+                effectiveSpec,
                 controllerId,
                 count,
                 createdBy

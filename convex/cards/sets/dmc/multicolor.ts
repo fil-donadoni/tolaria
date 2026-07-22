@@ -57,6 +57,12 @@ export const torstenFounderOfBenalia: CardDefinition = {
                     take: 7,
                     optional: true,
                     filter: { type: ["Creature", "Land"] },
+                    // "REVEAL the top seven cards" (CR 701.20a) — all seven are
+                    // shown to every player in the reveal dialog. Only the KEPT
+                    // creatures/lands stay known-to-all (they enter hand); the
+                    // rest go to a RANDOM bottom and are NOT tracked there, so
+                    // the reveal doesn't leak their hidden new positions.
+                    reveal: "window",
                     randomBottom: true,
                 },
             ],

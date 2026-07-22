@@ -856,6 +856,15 @@ function isDigMatchingDestination(value: unknown): boolean {
     return value === "exile" || value === "graveyard";
 }
 
+/** The `reveal` scope of a `digToHand` Op (CR 701.20a) — makes the look a
+ *  PUBLIC reveal: `"window"` reveals the whole looked-at window before the
+ *  keep/order choice ("Reveal the top N"), `"kept"` reveals only the cards put
+ *  into hand after the pick ("Look at the top N ... you may reveal a card").
+ *  Omitted for a purely private look (CR 401.4). */
+function isRevealScope(value: unknown): boolean {
+    return value === "window" || value === "kept";
+}
+
 /** The `mode` discriminator of a `preventDamage` Op (issue #845, CR 615): the
  *  three prevention-shield shapes folded here. */
 function isPreventDamageMode(value: unknown): boolean {
@@ -2027,6 +2036,9 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             destination: isLibraryDestination,
             randomBottom: isBoolean,
             bind: isBindingName,
+            // CR 701.20a — public reveal of the looked-at window ("window") or
+            // only the kept cards ("kept"); omit for a private look (CR 401.4).
+            reveal: isRevealScope,
         },
     },
     // CR 401.4 (issue #1046) — put N cards from a hand on top of a library,

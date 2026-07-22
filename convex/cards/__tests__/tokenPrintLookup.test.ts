@@ -48,18 +48,45 @@ describe("tokenPrintIdFor (build-time Scryfall reverse-link)", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Catalogue-wide guard (issue #941): every DSL `createToken` Op across every
-// card, activated ability, and triggered ability is walked (including the
-// structural constructs a createToken can be nested inside — `if`/`else`,
-// `coinFlip` win/loss, `optionChoice` modes, `forEach` bodies, and a
-// `delayedTrigger`'s own body). For each token spec found, if
-// `token-prints.json` HAS a printed counterpart for that (cardId, tokenName)
-// pair, the spec MUST carry the matching `imagePrintId` — silently omitting
-// it would regress straight back to issue #941 (placeholder art despite a
-// real print existing). A token with genuinely no printed counterpart
-// (`tokenPrintIdFor` returns undefined) is a documented exception by
-// construction — nothing to assert, nothing to flag.
+// Catalogue-wide COMPLETENESS guard (issue #1305): every DSL `createToken` Op
+// across every card, activated ability, and triggered ability is walked
+// (including the structural constructs a createToken can be nested inside —
+// `if`/`else`, `coinFlip` win/loss, `optionChoice` modes, `forEach` bodies,
+// and a `delayedTrigger`'s own body). Token art is now auto-resolved at
+// creation time (`SpellContext.createToken`, gre/state.ts) from the committed
+// `token-prints.json` association keyed by (producing card id, token name), so
+// cards no longer hand-wire `imagePrintId`. This guard enforces that EVERY
+// token-producing card actually HAS art available: for each token spec, either
+//   - the spec carries an explicit `imagePrintId` (shared Treasure/Clue/Food
+//     tokens, or a deliberate override), OR
+//   - `tokenPrintIdFor(cardId, name)` resolves a printed counterpart (the
+//     auto-resolution will supply it at runtime), OR
+//   - the (cardId, tokenName) pair is on `NO_PRINTED_TOKEN_ALLOWLIST` — a
+//     token that genuinely has no printed Scryfall counterpart (custom tokens,
+//     or a producing card whose Scryfall `all_parts` links no such token).
+// Anything else FAILS CI: a new token-producing card can never again ship with
+// silently missing art (it must either regenerate the lockfile via
+// `node scripts/fetch-token-prints.mjs --all`, or be allowlisted with a note).
 // ---------------------------------------------------------------------------
+
+/** Tokens that genuinely have NO printed Scryfall counterpart — the accepted
+ *  `TokenPlaceholder`-art exceptions. Keyed `"<cardId>:<tokenName>"`. Keep
+ *  each entry justified; the guard fails if a listed pair actually DOES have a
+ *  print now (so the allowlist can't mask a lockfile that has since caught up). */
+const NO_PRINTED_TOKEN_ALLOWLIST: Record<string, string> = {
+    // Old cards whose bespoke tokens were never printed as token cards, and
+    // for which Scryfall has no same-characteristics substitute print either
+    // (verified via `!"<name>" is:token` / `<name> type:token` — zero hits).
+    // These render via `TokenPlaceholder` by design.
+    "c474cd6b-5610-49eb-ac98-918d900efe8b:Djinn":
+        "Bottle of Suleiman (ARN) — 5/5 flying Djinn; no printed Djinn token of these characteristics exists.",
+    "1e5f8041-67fc-4e00-b119-d216e5cc5a3a:Caribou":
+        "Caribou Range (ICE) — 0/1 white Caribou; no printed Caribou token exists.",
+    "82ae30e8-2dcd-46b8-925b-cc24e11fb95d:Minor Demon":
+        "Boris Devilboon (LEG) — 1/1 B/R Minor Demon; no printed Minor Demon token exists.",
+    "4e6bf56e-2d74-4e4d-a667-885853979377:Wolves of the Hunt":
+        "Master of the Hunt (LEG) — 1/1 green Wolf named Wolves of the Hunt; no printed token exists.",
+};
 
 /** Recursively collects every `createToken` Op's token spec out of an Op
  *  list, descending into every structural construct that can nest one
@@ -114,19 +141,41 @@ function allTokenSpecsFor(card: CardDefinition): EffectTokenSpec[] {
         .flatMap(collectTokenSpecs);
 }
 
-describe("createToken imagePrintId catalogue guard (issue #941)", () => {
-    it("every DSL createToken spec with a known printed counterpart carries imagePrintId", () => {
+describe("createToken art completeness catalogue guard (issue #1305)", () => {
+    it("every DSL createToken spec has resolvable art (print, explicit, or allowlisted)", () => {
         const missing: string[] = [];
         for (const card of getAllCards()) {
             for (const spec of allTokenSpecsFor(card)) {
                 const printed = tokenPrintIdFor(card.id, spec.name);
-                if (printed && spec.imagePrintId !== printed) {
+                const key = `${card.id}:${spec.name}`;
+                const allowlisted = key in NO_PRINTED_TOKEN_ALLOWLIST;
+                const hasArt =
+                    spec.imagePrintId !== undefined || printed !== undefined;
+                if (!hasArt && !allowlisted) {
                     missing.push(
-                        `${card.name} (${card.id}): token "${spec.name}" has a printed counterpart (${printed}) but imagePrintId is ${JSON.stringify(spec.imagePrintId)}`
+                        `${card.name} (${card.id}): token "${spec.name}" has NO token art — regenerate token-prints.json (node scripts/fetch-token-prints.mjs --all) or add "${key}" to NO_PRINTED_TOKEN_ALLOWLIST`
                     );
                 }
             }
         }
         expect(missing).toEqual([]);
+    });
+
+    it("no allowlist entry masks a token that DOES have a print now", () => {
+        const stale: string[] = [];
+        for (const card of getAllCards()) {
+            for (const spec of allTokenSpecsFor(card)) {
+                const key = `${card.id}:${spec.name}`;
+                if (
+                    key in NO_PRINTED_TOKEN_ALLOWLIST &&
+                    tokenPrintIdFor(card.id, spec.name) !== undefined
+                ) {
+                    stale.push(
+                        `${key} is allowlisted as art-less but now has a printed counterpart — drop it from NO_PRINTED_TOKEN_ALLOWLIST`
+                    );
+                }
+            }
+        }
+        expect(stale).toEqual([]);
     });
 });

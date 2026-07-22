@@ -12,6 +12,7 @@
 // order their own slice before the batch lands on the stack.
 
 import type {
+    EffectOp,
     EmblemInstance,
     GameEvent,
     GameEventType,
@@ -20,6 +21,8 @@ import type {
     TriggeredAbility,
 } from "../cards/types";
 import { tryGetDefinition } from "../cards";
+import { MONARCH_DESIGNATION } from "../cards/designations";
+import { INLINE_DELAYED_TRIGGER_ID } from "./effects/interpreter";
 import { tryGetEmblemDefinition } from "../cards/emblems";
 import type {
     CardInstanceState,
@@ -62,6 +65,46 @@ export function buildDelayedTriggerStackItem(
         // def (its id is the constant INLINE_DELAYED_TRIGGER_ID), so carry it
         // onto the stack item for the client to render the ability tile.
         ...(t.oracleText ? { delayedOracleText: t.oracleText } : {}),
+    };
+}
+
+/** CR 725.2 (issue #1199) — the monarch's inherent end-step draw is a real
+ *  TRIGGERED ABILITY that USES THE STACK ("At the beginning of the monarch's
+ *  end step, that player draws a card"), NOT an immediate turn-based action:
+ *  both players receive priority and may respond before it resolves, and — per
+ *  the official ruling — the player who was the monarch when it triggered draws
+ *  even if the monarch designation changes hands before it resolves. The
+ *  ability has no source and is controlled by that monarch (CR 113.8), captured
+ *  here as `controllerId`/`castById` so the draw stays pinned to them.
+ *
+ *  Built as an inline-body delayed-trigger stack item (ADR 0048): the `draw` Op
+ *  rides ON the item (`delayedEffects`, no card-def lookup) and routes through
+ *  the unified draw seam (CR 614, ADR 0061) at resolution, so a draw
+ *  replacement (Zur's Weirding) still applies. `player: "controller"` resolves
+ *  to the pinned monarch via `buildSpellContext`. */
+export function buildMonarchDrawStackItem(
+    state: GameState,
+    monarchId: string
+): StackItem {
+    const draw: EffectOp = { op: "draw", player: "controller", count: 1 };
+    return {
+        id: allocInstanceId(state),
+        card: { id: "" },
+        controllerId: monarchId,
+        ownerId: monarchId,
+        zone: "stack",
+        types: [],
+        subtypes: [],
+        staticAbilities: [],
+        isTapped: false,
+        castById: monarchId,
+        delayedTriggerId: INLINE_DELAYED_TRIGGER_ID,
+        delayedEffects: [draw],
+        delayedOracleText:
+            "At the beginning of the monarch's end step, that player draws a card.",
+        // Cosmetic: keys the Monarch marker art + name for the stack tile
+        // (a card-less inline trigger would otherwise render an empty tile).
+        designationId: MONARCH_DESIGNATION.id,
     };
 }
 

@@ -1,4 +1,5 @@
 import { tryGetDefinition } from "@convex/cards";
+import { tryGetStateDesignation } from "@convex/cards/designations";
 import { motion, useReducedMotion } from "motion/react";
 import type { Player, StackItem } from "~/types/game";
 import {
@@ -149,13 +150,24 @@ export default function StackRow({
 }) {
     const reduceMotion = useReducedMotion();
     const kind = abilityKindOf(item);
+    // CR 725 (issue #1305) — a source-less inherent designation triggered
+    // ability (the Monarch's end-step draw) carries `designationId` but no card
+    // (`card.id` is ""). Render its marker-card art + name and label it a plain
+    // triggered ability rather than the internal "Delayed trigger".
+    const designation = tryGetStateDesignation(item.designationId);
     const def = tryGetDefinition(item.card.id);
-    const name = def?.name ?? item.card.id;
+    const name = designation?.name ?? def?.name ?? item.card.id;
     const oracle = kind
         ? abilityOracleText(item, kind)
         : (def?.oracleText ?? null);
+    const kindLabel = designation
+        ? "Triggered ability"
+        : kind
+          ? KIND_LABEL[kind]
+          : null;
     const modeLines = getStackModeLines(item);
-    const imageId = resolveCardImageId(item.card.id);
+    const imageId =
+        designation?.imagePrintId ?? resolveCardImageId(item.card.id);
 
     return (
         <motion.div
@@ -205,7 +217,7 @@ export default function StackRow({
                                 )}
                             </span>
                             <span className="mt-0.5 block rounded-sm bg-black/70 px-1 py-0.5 text-center text-[8px] font-semibold tracking-wider text-text uppercase">
-                                {KIND_LABEL[kind]}
+                                {kindLabel}
                             </span>
                         </span>
                     ) : (
@@ -257,9 +269,9 @@ export default function StackRow({
                         </span>
                     ))}
 
-                    {kind && (
+                    {kindLabel && (
                         <span className="text-[9px] font-semibold tracking-wider text-text-muted uppercase">
-                            {KIND_LABEL[kind]}
+                            {kindLabel}
                         </span>
                     )}
                     {oracle && !modeLines && (

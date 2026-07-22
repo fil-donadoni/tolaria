@@ -64,6 +64,11 @@ export const narsetParterOfVeils: CardDefinition = {
                     take: 1,
                     optional: true,
                     filter: { excludeType: ["Creature", "Land"] },
+                    // "LOOK at the top four (privately) ... you may REVEAL a
+                    // card ... and put it into your hand" — only the kept card
+                    // is public (CR 701.20a); the other three stay hidden as
+                    // they go to the random bottom. Hence "kept", not "window".
+                    reveal: "kept",
                     randomBottom: true,
                     prompt: "Narset, Parter of Veils — you may put a noncreature, nonland card into your hand.",
                 },

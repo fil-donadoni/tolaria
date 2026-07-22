@@ -1,14 +1,19 @@
-// Monarch designation (CR 720, issue #1199). Covers the four CR clauses:
-// 720.1/720.2 (at most one monarch, crowning reassigns and is idempotent),
-// 720.3 (combat damage to the monarch steals it — a DIVERGENCE-flagged
-// immediate hook in `applyOneCombatDamage`, phases.ts), 720.4 (the monarch
-// draws at the beginning of THEIR end step — likewise an immediate hook),
-// and the Palace Jailer "exile until an opponent becomes the monarch"
-// primitive (`exileUntilMonarchChanges` / `monarchReturnWatch`).
+// Monarch designation (CR 725 / 720, issue #1199). Covers the four CR clauses:
+// 725.1/725.2 (at most one monarch, crowning reassigns and is idempotent),
+// the combat-damage steal (an immediate hook in `applyOneCombatDamage`,
+// phases.ts), the monarch's end-step DRAW (a real triggered ability that USES
+// THE STACK — pushed by `buildMonarchDrawStackItem`, resolved via
+// `resolveTopOfStack`), and the Palace Jailer "exile until an opponent becomes
+// the monarch" primitive (`exileUntilMonarchChanges` / `monarchReturnWatch`).
 import { describe, it, expect } from "vitest";
 import type { CardInstanceState, GameState } from "../state";
 import type { CardType } from "../../cards/types";
-import { becomeMonarch, exileUntilMonarchChanges, getPlayer } from "../state";
+import {
+    becomeMonarch,
+    exileUntilMonarchChanges,
+    getPlayer,
+    resolveTopOfStack,
+} from "../state";
 import { applyAllCombatDamage, advancePhase } from "../phases";
 import { makePlayer, makeState } from "../../cards/__tests__/setup";
 import { projectPublicState, projectFullState } from "../../gameProjections";
@@ -166,8 +171,8 @@ describe("Monarch — combat-damage steal (CR 720.3, issue #1199)", () => {
     });
 });
 
-describe("Monarch — end-step draw (CR 720.4, issue #1199)", () => {
-    it("the monarch draws a card at the beginning of THEIR end step", () => {
+describe("Monarch — end-step draw (CR 725.2, issue #1199)", () => {
+    it("goes on the STACK as a triggered ability, and draws only once it resolves", () => {
         const state = makeState({
             phase: "POSTCOMBAT_MAIN",
             turn: 2,
@@ -183,12 +188,49 @@ describe("Monarch — end-step draw (CR 720.4, issue #1199)", () => {
 
         advancePhase(state);
 
+        // The draw is a responantable triggered ability — it is on the stack,
+        // NOT yet drawn (CR 725.2). Priority is with the active player.
         expect(state.phase).toBe("END_STEP");
+        expect(state.stack).toHaveLength(1);
+        expect(state.stack[0].castById).toBe("p1");
+        expect(state.stack[0].controllerId).toBe("p1");
+        expect(state.priorityPlayerId).toBe("p1");
+        expect(state.players[0].hand ?? []).toHaveLength(0);
+        expect(state.players[0].library).toHaveLength(1);
+
+        // Resolving the trigger performs the draw.
+        resolveTopOfStack(state);
+        expect(state.stack).toHaveLength(0);
         expect(state.players[0].hand).toHaveLength(1);
         expect(state.players[0].library).toHaveLength(0);
     });
 
-    it("does NOT draw on a non-monarch's end step", () => {
+    it("the pinned monarch still draws even if the designation changes before it resolves", () => {
+        const state = makeState({
+            phase: "POSTCOMBAT_MAIN",
+            turn: 2,
+            activePlayerId: "p1",
+            players: [
+                makePlayer("p1", {
+                    library: [libraryCard("lib1", "p1")],
+                }),
+                makePlayer("p2", { library: [libraryCard("lib2", "p2")] }),
+            ],
+        });
+        becomeMonarch(state, "p1");
+        advancePhase(state);
+        expect(state.stack).toHaveLength(1);
+
+        // Monarch changes hands while the draw ability is on the stack.
+        becomeMonarch(state, "p2");
+        resolveTopOfStack(state);
+
+        // p1 (the monarch when it triggered) draws; p2 does not.
+        expect(state.players[0].hand).toHaveLength(1);
+        expect(state.players[1].hand ?? []).toHaveLength(0);
+    });
+
+    it("does NOT trigger on a non-monarch's end step", () => {
         const state = makeState({
             phase: "POSTCOMBAT_MAIN",
             turn: 2,
@@ -205,11 +247,12 @@ describe("Monarch — end-step draw (CR 720.4, issue #1199)", () => {
 
         advancePhase(state);
 
-        expect(state.players[0].hand).toHaveLength(0);
+        expect(state.stack).toHaveLength(0);
+        expect(state.players[0].hand ?? []).toHaveLength(0);
         expect(state.players[0].library).toHaveLength(1);
     });
 
-    it("no draw at all when there is no monarch", () => {
+    it("no trigger at all when there is no monarch", () => {
         const state = makeState({
             phase: "POSTCOMBAT_MAIN",
             turn: 2,
@@ -222,7 +265,35 @@ describe("Monarch — end-step draw (CR 720.4, issue #1199)", () => {
             ],
         });
         advancePhase(state);
-        expect(state.players[0].hand).toHaveLength(0);
+        expect(state.stack).toHaveLength(0);
+        expect(state.players[0].hand ?? []).toHaveLength(0);
+    });
+
+    it("the trigger tile survives projectPublicState (wire format)", () => {
+        const state = makeState({
+            phase: "POSTCOMBAT_MAIN",
+            turn: 2,
+            activePlayerId: "p1",
+            players: [
+                makePlayer("p1", {
+                    library: [libraryCard("lib1", "p1")],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        becomeMonarch(state, "p1");
+        advancePhase(state);
+
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.stack).toHaveLength(1);
+        const tile = projected.stack[0];
+        // The client renders the ability tile from these fields — a dropped
+        // field would leave a nameless / textless stack row.
+        expect(tile.castById).toBe("p1");
+        expect(tile.delayedTriggerId).toBeDefined();
+        expect(tile.delayedOracleText).toContain("monarch");
+        // Keys the marker-card art + name in the stack tile (stack-row.tsx).
+        expect(tile.designationId).toBe("monarch");
     });
 });
 

@@ -1,6 +1,5 @@
 import type { Player } from "~/types/game";
 import { usePlayerInteraction } from "~/hooks/usePlayerInteraction";
-import { useGameContext } from "~/hooks/useGameContext";
 import PlayerNameplate from "./player-nameplate";
 
 type PlayerLifeProps = {
@@ -14,14 +13,5 @@ type PlayerLifeProps = {
  *  the same dispatch (slice #280). */
 export default function PlayerLife({ player }: PlayerLifeProps) {
     const interaction = usePlayerInteraction(player);
-    // CR 720.1 (issue #1199) — the monarch badge; derived here (not
-    // prop-drilled) from the shared GameContext.
-    const { monarchId } = useGameContext();
-    return (
-        <PlayerNameplate
-            player={player}
-            interaction={interaction}
-            isMonarch={monarchId === player.id}
-        />
-    );
+    return <PlayerNameplate player={player} interaction={interaction} />;
 }

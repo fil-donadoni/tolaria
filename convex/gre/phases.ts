@@ -60,6 +60,7 @@ import { isCombatDamagePreventedFromSource } from "./combatDamagePrevention";
 import {
     collectTriggers,
     buildDelayedTriggerStackItem,
+    buildMonarchDrawStackItem,
     placeTriggersOnStack,
 } from "./triggers";
 import { hasAnyLegalBlock, getRequiredAttackerIds } from "./combat";
@@ -1976,27 +1977,23 @@ function performPhaseEntry(state: GameState): void {
         }
         case "END_STEP": {
             fireDelayedTriggers(state, "next-end-step");
-            // CR 720.4 (issue #1199) — "at the beginning of the monarch's end
-            // step, that player draws a card". Only fires when it is
-            // currently THAT player's end step (a non-monarch's end step is a
-            // no-op). Routed through the unified draw seam (CR 614, ADR
-            // 0061) exactly like the turn-based draw-step draw below, so a
-            // draw replacement (Zur's Weirding) still applies; passes
-            // `isTurnBasedDrawStepDraw: false` since this genuinely isn't the
-            // draw step. DIVERGENCE: modeled as an immediate turn-based
-            // action rather than a separate responantable triggered ability
-            // (the real CR 720.4 wording, "a triggered ability that all
-            // players can respond to"); out of scope — no card in the
-            // current pool interacts with intercepting this window, and it
-            // mirrors the sibling CR 720.3 combat-damage-steal hook's
-            // simplification tier above.
+            // CR 725.2 (issue #1199) — "At the beginning of the monarch's end
+            // step, that player draws a card". This is one of the two inherent
+            // monarch triggered abilities (no source, controlled by the game /
+            // the current monarch, CR 113.8) and it USES THE STACK: both
+            // players get priority and may respond before it resolves. Only
+            // fires on THAT player's own end step (a non-monarch's end step is
+            // a no-op). Pushed as a source-less inline-body triggered ability
+            // pinned to the monarch; it resolves through the unified draw seam
+            // (draw replacements still apply). Mirrors `fireDelayedTriggers`'
+            // priority hand-off. (The sibling CR 725.2 combat-damage steal
+            // remains an immediate hook in `applyOneCombatDamage`.)
             if (state.monarchId && state.monarchId === state.activePlayerId) {
-                const plan = planDrawStep(state, state.monarchId, 1, false);
-                if (plan.kind === "may-pay-bin") {
-                    enqueueDrawReplacementPay(state, state.monarchId, plan);
-                } else {
-                    commitDrawPlan(state, state.monarchId, plan);
-                }
+                state.stack.push(
+                    buildMonarchDrawStackItem(state, state.monarchId)
+                );
+                state.priorityPlayerId = state.activePlayerId;
+                state.passCount = 0;
             }
             break;
         }

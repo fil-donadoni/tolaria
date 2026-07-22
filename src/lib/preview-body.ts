@@ -251,6 +251,44 @@ export function buildEmblemPreviewBody(
     };
 }
 
+/** Preview body for a state designation (The Monarch / City's Blessing) — the
+ *  emblem-parallel for a game-state status a player holds (issue #1199 / #1305).
+ *  Mirrors {@link buildEmblemPreviewBody}: marker-card art with the same WebP →
+ *  JPG fallback, oracle paragraphs, a `Designation` type line, and no P/T /
+ *  mana / counters. `imagePrintId` is always present for a designation, so the
+ *  in-app placeholder branch is never taken. */
+export function buildDesignationPreviewBody(designation: {
+    name: string;
+    text: string;
+    imagePrintId: string;
+}): PreviewBodyContent {
+    const id = designation.imagePrintId;
+    const oracleParagraphs = designation.text
+        .split("\n")
+        .filter((p) => p.length > 0);
+    return {
+        cardName: designation.name,
+        displayName: designation.name,
+        imageSrc: getArtImageUrl(id),
+        imageFallbackSrc: getArtCropImageUrl(id),
+        printedImageSrc: getPrintedCardImageUrl(id),
+        types: [],
+        subtypes: [],
+        staticAbilities: [],
+        manaCost: null,
+        typeLine: "Designation",
+        oracleParagraphs: oracleParagraphs.length > 0 ? oracleParagraphs : null,
+        bodyAbilities: { keywords: [], activated: [], triggered: [] },
+        hasBody: false,
+        hasPT: false,
+        ptModified: false,
+        counterDisplays: [],
+        colorName: null,
+        ownerName: null,
+        milestones: null,
+    };
+}
+
 /** Splices an on-entry ordered pair of basic land types (CR 614.12, ADR 0050 —
  *  Illusionary Terrain's `chosenSubtypes`) into the printed oracle text so the
  *  preview reflects the actual choice: "the first chosen type" → "the Forest

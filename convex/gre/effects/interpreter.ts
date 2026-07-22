@@ -1802,7 +1802,8 @@ export const OP_EXECUTORS: {
     // EXACTLY `keep` to hand ({min,max}=keep unless `optional`), so the two
     // lists always partition the looked-at set. Skipped when the player is
     // gone, `look` ≤ 0, or the library is empty (CR 608.2b — never suspends
-    // then).
+    // then). `op.reveal` (CR 701.20a) turns the private look into a PUBLIC
+    // reveal — see the two guarded sites below ("window" vs "kept").
     digToHand(ctx, op) {
         const playerId = resolvePlayerRef(ctx, op.player);
         if (playerId === undefined) return; // CR 608.2b — player gone, skip
@@ -1840,6 +1841,21 @@ export const OP_EXECUTORS: {
         // prompt an empty picker (the Arena UX default for choice-less
         // resolutions). No `bind` either — nothing was kept (CR 608.2b).
         if (keep === 0) {
+            // "Reveal the top N" (op.reveal === "window", CR 701.20a) still
+            // reveals the whole window to every player even when nothing is
+            // kept (bng-style "you may put a land ... — none found"): the
+            // transient reveal dialog fires here, on this single-execution
+            // no-suspend path, so it never double-pops. Nothing is kept, so
+            // no persistent known-to-all grant is needed (the rest head to a
+            // public graveyard or a hidden random bottom, handled below).
+            if (op.reveal === "window") {
+                ctx.notifyReveal(
+                    [...ctx.allPlayerIds],
+                    topIds,
+                    ctx.sourceCardId,
+                    "reveal"
+                );
+            }
             bottomLookedAtCards(
                 ctx,
                 playerId,
@@ -1879,6 +1895,30 @@ export const OP_EXECUTORS: {
                     : "Choose which card(s) to put into your hand, then order the rest on the bottom of your library."),
         });
         if (picks === undefined) return "suspend"; // enqueued — wait
+        // Public reveal (CR 701.20a), fired ONCE here on the resumed pass (the
+        // pre-`requestChoice` code re-runs on resume, so anything above would
+        // double-pop the dialog). Two scopes:
+        //   - "window" ("Reveal the top N ..."): the whole looked-at window is
+        //     shown in the reveal dialog — the opponent sees every revealed
+        //     card (Reviving Vapors, Torsten).
+        //   - "kept" ("Look at the top N ... you may reveal a card you keep"):
+        //     only the cards actually taken are shown (War-blue / Narset).
+        // Either way only the KEPT cards get the PERSISTENT known-to-all grant
+        // (they ride into hand and must stay visible — the "eye" + opponent
+        // view); the un-kept cards keep their destination's own visibility
+        // (public graveyard, or hidden random bottom), so a revealed card put
+        // back on a random bottom is NOT leaked by a stale knownTo stamp.
+        if (op.reveal !== undefined && picks.length > 0) {
+            ctx.markKnownToAll(playerId, picks);
+        }
+        if (op.reveal !== undefined) {
+            ctx.notifyReveal(
+                [...ctx.allPlayerIds],
+                op.reveal === "window" ? topIds : picks,
+                ctx.sourceCardId,
+                "reveal"
+            );
+        }
         // Resume — the kept cards go to hand. A picked id that has since left the
         // library is a no-op in `moveCardById` (CR 608.2b).
         for (const id of picks)
@@ -2216,8 +2256,22 @@ export const OP_EXECUTORS: {
         if (topIds.length === 0) return; // empty library — no-op (CR 608.2b)
         // CR 701.20a — reveal the WHOLE looked-at window to every player
         // BEFORE splitting it (distinct from digToHand's private look: there
-        // is no chooser-only Pending Choice here to gate visibility on).
+        // is no chooser-only Pending Choice here to gate visibility on). Two
+        // halves of one reveal (ADR 0026): `markKnownToAll` is the PERSISTENT
+        // grant — the card keeps a face-up "eye" for its controller and stays
+        // visible in an opponent's view even after it rides into hand (the
+        // knowledge survives the zone move); `notifyReveal` (kind "reveal",
+        // audience = every player) pops the TRANSIENT reveal dialog on both
+        // clients, the public sibling of Urza's Bauble's private "look" popup.
+        // Both are needed for a true reveal (Desperate Research; Dark
+        // Confidant's look:1 match-all reveal-and-keep).
         ctx.markKnownToAll(playerId, topIds);
+        ctx.notifyReveal(
+            [...ctx.allPlayerIds],
+            topIds,
+            ctx.sourceCardId,
+            "reveal"
+        );
         const byId = new Map(
             ctx.getLibraryCards(playerId).map((c) => [c.id, c])
         );

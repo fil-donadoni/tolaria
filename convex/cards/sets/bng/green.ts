@@ -40,6 +40,10 @@ export const satyrWayfinder: CardDefinition = {
                     take: 1,
                     optional: true,
                     filter: { type: "Land" },
+                    // "REVEAL the top four cards" (CR 701.20a) — every player
+                    // sees all four in the reveal dialog, even when no land is
+                    // kept (the reveal fires regardless of the optional pick).
+                    reveal: "window",
                     destination: "graveyard",
                 },
             ],

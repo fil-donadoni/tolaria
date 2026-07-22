@@ -4,15 +4,10 @@ import CornerFiligreeFrame from "~/components/ui/corner-filigree-frame";
 import AnimatedLifeTotal from "./animated-life-total";
 import PlayerPoisonCounters from "./player-poison-counters";
 import PlayerEnergyCounters from "./player-energy-counters";
-import PlayerMonarchBadge from "./player-monarch-badge";
 
 type PlayerNameplateProps = {
     player: Player;
     interaction: PlayerInteraction;
-    /** CR 720.1 (issue #1199) — true while this player is the monarch.
-     *  Computed by the caller from `GameContext.monarchId === player.id`
-     *  (never prop-drilled GameState). */
-    isMonarch?: boolean;
     /** Extra classes appended by the layout (e.g. absolute positioning on the
      *  spatial board). */
     className?: string;
@@ -61,7 +56,6 @@ function nameplateShadow(
 export default function PlayerNameplate({
     player,
     interaction,
-    isMonarch,
     className = "",
 }: PlayerNameplateProps) {
     const { hasPriority, isTargetable, isDamageTargetPickable } = interaction;
@@ -95,7 +89,8 @@ export default function PlayerNameplate({
             </div>
             <PlayerPoisonCounters count={player.poisonCounters} />
             <PlayerEnergyCounters count={player.energyCounters} />
-            <PlayerMonarchBadge isMonarch={isMonarch} />
+            {/* The Monarch designation moved off the nameplate to a marker-card
+             *  tile beside the piles (`player-monarch-tile.tsx`, #1305). */}
             {/* CR 601.2d — a divide-target player keeps its candidate ring (via
              *  `isTargetable`) but the [−] N [+] stepper now lives inside the
              *  divide dialog (`divide-target-list.tsx`), not on the nameplate. */}

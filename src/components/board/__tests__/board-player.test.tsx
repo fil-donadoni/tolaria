@@ -359,13 +359,15 @@ describe("board player life totals (#280)", () => {
         expect(wrapper!.className).toContain("-translate-x-1/2");
     });
 
-    it("shows the Monarch badge only for the player named by GameContext.monarchId (CR 720.1, issue #1199)", () => {
-        // p1 IS the monarch — badge renders on both boards.
+    it("no longer shows the Monarch on the nameplate — it moved to a marker tile beside the piles (#1305)", () => {
+        // Even when p1 IS the monarch, the nameplate carries no crown badge /
+        // 'Monarch' text; the designation renders as a marker-card tile in
+        // `board-piles.tsx` (`PlayerMonarchTile`), covered by its own test.
         const classic = renderClassic(makePlayer("p1"), {
             playerId: "p2",
             monarchId: "p1",
         });
-        expect(classic.container.textContent).toContain("Monarch");
+        expect(classic.container.textContent).not.toContain("Monarch");
         cleanup();
 
         const spatial = renderSpatial(
@@ -373,21 +375,7 @@ describe("board player life totals (#280)", () => {
             { playerId: "p2", monarchId: "p1" },
             "top"
         );
-        expect(spatial.container.textContent).toContain("Monarch");
-        cleanup();
-
-        // p2 is NOT the monarch (p1 is) — no badge for p2's nameplate.
-        const notMonarch = renderSpatial(
-            makePlayer("p2"),
-            { playerId: "p2", monarchId: "p1" },
-            "bottom"
-        );
-        expect(notMonarch.container.textContent).not.toContain("Monarch");
-        cleanup();
-
-        // No monarch at all — badge absent.
-        const none = renderSpatial(makePlayer("p1"), { playerId: "p2" }, "top");
-        expect(none.container.textContent).not.toContain("Monarch");
+        expect(spatial.container.textContent).not.toContain("Monarch");
     });
 
     it("shows a priority ring on the player who holds priority", () => {
