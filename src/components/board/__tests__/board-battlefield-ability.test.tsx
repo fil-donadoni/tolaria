@@ -140,12 +140,35 @@ const MANA_COST_DEF = {
         },
     ],
 };
+// EQUIP_DEF: an Equipment (Lion Sash shape) that, once ATTACHED to a creature,
+// still exposes its own activated abilities — reconfigure (unattach) and an
+// exile-from-graveyard ability. Regression: an attached permanent used to fold
+// into a non-interactive art peek-stack, so neither ability was reachable.
+const EQUIP_DEF = {
+    id: "equip-def",
+    name: "Lion Sash",
+    activatedAbilities: [
+        {
+            id: "ls-reconfigure",
+            useStack: true,
+            oracleText: "Reconfigure {2}.",
+            cost: { mana: { generic: 2 } },
+        },
+        {
+            id: "ls-exile",
+            useStack: true,
+            oracleText: "{W}, Exile a card from a graveyard: Put a +1/+1 counter.",
+            cost: { mana: { W: 1 } },
+        },
+    ],
+};
 const DEFS: Record<string, unknown> = {
     "stack-def": STACK_DEF,
     "x-def": X_DEF,
     "dual-def": DUAL_DEF,
     "any-def": ANY_DEF,
     "mana-cost-def": MANA_COST_DEF,
+    "equip-def": EQUIP_DEF,
 };
 vi.mock("@convex/cards", () => ({
     getDefinition: (id: string) => DEFS[id] ?? { id, name: id },
@@ -492,5 +515,30 @@ describe("board battlefield activated-ability parity with the classic board (#27
         // mana ability, routed to the mana flow (colour picker → tapUntap).
         fireEvent.click(item!, { ctrlKey: false, metaKey: false });
         expect(activateAbility).not.toHaveBeenCalled();
+    });
+
+    it("(i) an ATTACHED permanent (equipment/aura) keeps its activated abilities reachable", () => {
+        // Bug: an Equipment attached to a creature (Lion Sash) — or an Aura
+        // attached to a permanent (Chromatic Armor) — folded into a
+        // non-interactive art peek-stack on its host, so `getActivatable` /
+        // `handleActivateAbility` were never wired to it. Reconfigure and the
+        // exile-from-graveyard ability became impossible to activate in the UI.
+        // The attached permanent must stay interactive (its own ability menu).
+        const host = permanent("host1", "stack-def", { types: ["Creature"] });
+        const sash = permanent("sash1", "equip-def", {
+            types: ["Artifact", "Equipment"],
+            attachedTo: "host1",
+        });
+        const me = makePlayer("me", [host, sash]);
+
+        const { container } = renderSpatial(me, [me]);
+        // The attached Equipment renders its own interactive card (with the
+        // arrow anchor), not a static art sliver — so its menu opens and fires.
+        openMenuAndClick(container, "sash1", "Reconfigure");
+        const args = activateAbility.mock.calls[0][0];
+        expect(args).toMatchObject({
+            cardInstanceId: "sash1",
+            abilityId: "ls-reconfigure",
+        });
     });
 });

@@ -18,7 +18,6 @@ import type { CardVisualState } from "./battlefield-card";
 import BattlefieldStack from "./battlefield-stack";
 import CombatPanels from "./combat-panels";
 import AttachedCardsCluster from "./attached-cards-cluster";
-import CardImage from "../cards/card-image";
 
 /** Two battlefield rows: creatures hold the combat line in FRONT (toward the
  *  midline), and everything noncreature — lands plus other permanents (artifacts
@@ -241,11 +240,14 @@ export default function BoardBattlefield({
      *  host is always "altered" per `groupBattlefield`, so it only ever appears
      *  as a singleton group.
      *
-     *  The peek slivers open the pile dialog on click (they render aura ART, not
-     *  the interactive board card, so a tap anywhere on the fan opens the
-     *  reveal); the dialog then routes a card click to `handleClick` so a
-     *  specific aura buried in the stack can still be targeted (Disenchant). The
-     *  host itself stays fully interactive (rendered via `renderCard` at z-10). */
+     *  The peek members render the FULL interactive board card (`renderCard`),
+     *  not static art: an attached permanent stays targetable AND keeps its own
+     *  activated-ability menu (Lion Sash reconfigure / exile-from-graveyard,
+     *  Chromatic Armor) — folding it into inert art dropped those affordances.
+     *  The ×N badge still opens the pile dialog for a buried member, whose card
+     *  click routes to `handleClick` (targeting a specific aura, e.g.
+     *  Disenchant). The host itself stays fully interactive (rendered via
+     *  `renderCard` at z-10). */
     function renderHostWithAuras(card: CardInstance): React.ReactNode {
         const auras = attachedAurasByHost.get(card.id);
         if (!auras?.length) return renderCard(card);
@@ -254,8 +256,8 @@ export default function BoardBattlefield({
             <div className="relative w-full h-full">
                 <AttachedCardsCluster
                     cards={auras}
-                    renderMember={(aura) => <CardImage card={aura} />}
-                    interactiveMembers={false}
+                    renderMember={renderCard}
+                    interactiveMembers
                     pileTitle={`Attached to ${hostName}`}
                     onPileCardClick={handleClick}
                 />
