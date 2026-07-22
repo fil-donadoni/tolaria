@@ -10,24 +10,30 @@
 // policy: "accept iff trivially affordable", "decline a life-for-unknown-card
 // pay", "give up the least material") — kept below as `heuristicChoicePrior`.
 // Issue #1433 swaps the DEFAULT provider to `dslChoicePrior`, which reads the
-// DSL semantic layer (issue #1426, `OP_VALUERS`) CONTEXT-AWARE: a card's own
-// script value (what it actually does, not a flat per-kind guess) plus a
-// real-board bonus for a removal-tagged find/victim. `heuristicChoicePrior`
-// remains the fallback for a choice kind with no card-level DSL Op to read
-// (`land-entry-tapped`, `draw-replacement` — a pure cost-payment yes/no with
-// no underlying card material) — "heuristics may remain as fallback where no
-// Op maps" (issue #1433's acceptance criterion). No call-site change: every
-// consumer still goes through the single `priorFor` entry point below.
+// DSL semantic layer (issue #1426, `OP_VALUERS`) CONTEXT-AWARE: a
+// `search-library` find's own script value (what it actually does, not a
+// flat per-kind guess), grounded against the REAL board
+// (`contextAwareGroundingForChoice`, `candidateValue.ts` — issue #1433
+// review finding 2), plus a real-board bonus for a removal-tagged find.
+// `heuristicChoicePrior` remains the fallback for every OTHER choice kind —
+// `may-pay` (issue #1433 review finding 3: its material is already summed by
+// the candidate generator through the same worth functions, so a separate
+// DSL leg only duplicates that read less robustly), `land-entry-tapped`,
+// `draw-replacement` (a pure cost-payment yes/no with no underlying card
+// material) — "heuristics may remain as fallback where no Op maps" (issue
+// #1433's acceptance criterion). No call-site change: every consumer still
+// goes through the single `priorFor` entry point below.
 
 import type { CardInstanceState, GameState, PendingChoice } from "../state";
 import { getOpponentId, getPlayer } from "../state";
 import type { Move } from "../moves";
 import {
+    contextAwareGroundingForChoice,
     libraryTargetWorth,
     permanentWorth,
-    prospectiveCardWorth,
     scriptOpValueOf,
 } from "./candidateValue";
+import type { GroundingContext } from "./grounding";
 
 /** A candidate as seen by a prior function: its stable identity key, the move
  *  it would play, and the generator's structural hints (what the candidate
@@ -191,13 +197,18 @@ function biggestOpposingThreat(
 
 /** Context-aware bump on top of a card's own script worth: a targeted board-
  *  removal script (`boardRemoval` + `targeted` tags, `opValuers.ts`) reads
- *  urgency from the REAL opposing board. Every other tag is unaffected. */
+ *  urgency from the REAL opposing board. Every other tag is unaffected.
+ *  Reads the merged spell+ABILITY script (`scriptOpValueOf`, issue #1433
+ *  review finding 1) so an ABILITY-only removal permanent (Icy Manipulator,
+ *  Royal Assassin — no spell `effects[]` of their own) is not silently
+ *  invisible to the tag check. */
 function contextAwareRemovalBonus(
     state: GameState,
     perspectivePlayerId: string,
-    card: CardInstanceState
+    card: CardInstanceState,
+    ctx: GroundingContext
 ): number {
-    const scripted = scriptOpValueOf(card);
+    const scripted = scriptOpValueOf(card, ctx);
     if (!scripted) return 0;
     const isTargetedRemoval =
         scripted.tags.includes("boardRemoval") &&
@@ -214,7 +225,12 @@ function contextAwareRemovalBonus(
  *  named ids, and scores their summed `libraryTargetWorth` PLUS the
  *  context-aware removal bonus. Mirrors `heuristicChoicePrior`'s banding
  *  (`SEARCH_FIND_PRIOR_FLOOR` + worth / `MATERIAL_PRIOR_SCALE`) so the two
- *  providers stay on one calibrated scale. */
+ *  providers stay on one calibrated scale. Grounds `libraryTargetWorth`'s
+ *  noncreature script read with `contextAwareGroundingForChoice` (issue
+ *  #1433 review finding 2) — the seam's first live, non-test caller of
+ *  `contextAwareGrounding` — so a script whose magnitude depends on the
+ *  REAL board (a `count`-scaled amount) prices differently than its
+ *  context-free representative-1 floor. */
 function dslSearchLibraryPrior(
     state: GameState,
     choice: PendingChoice,
@@ -227,64 +243,37 @@ function dslSearchLibraryPrior(
         return clampPrior(SEARCH_FIND_PRIOR_FLOOR);
     }
     const zoneOwner = getPlayer(state, choice.zoneOwnerId ?? choice.playerId);
+    const ctx = contextAwareGroundingForChoice(state, choice.playerId);
     let worth = 0;
     for (const id of ids) {
         const card = zoneOwner.library.find((c) => c.id === id);
         if (!card) continue;
         worth +=
-            libraryTargetWorth(state, choice.playerId, card) +
-            contextAwareRemovalBonus(state, choice.playerId, card);
+            libraryTargetWorth(state, choice.playerId, card, ctx) +
+            contextAwareRemovalBonus(state, choice.playerId, card, ctx);
     }
     return clampPrior(SEARCH_FIND_PRIOR_FLOOR + worth / MATERIAL_PRIOR_SCALE);
 }
 
-/** `may-pay` (CR 117.3a / 118.4): re-reads the REAL sacrifice/discard
- *  victims the candidate names and scores their summed board/latent worth —
- *  a sacrificed permanent through `permanentWorth` (live effective P/T, what
- *  is ACTUALLY being given up), a discarded card through
- *  `prospectiveCardWorth` (OP_VALUERS-driven for a noncreature, issue
- *  #1433's fix for the flat-30 class). Mirrors `heuristicChoicePrior`'s
- *  `0.75 - material/SCALE - lifeDrag` band so accept/decline stay
- *  comparable across providers. */
-function dslMayPayPrior(
-    state: GameState,
-    choice: PendingChoice,
-    candidate: PriorCandidate
-): number {
-    const move = candidate.move;
-    if (move.kind !== "may-pay") return NEUTRAL_PRIOR;
-    if (!move.accept) return NEUTRAL_PRIOR;
-
-    const lifePaid = candidate.hint?.lifePaid ?? 0;
-    const lifeDrag = lifePaid / LIFE_PRIOR_SCALE;
-
-    const player = getPlayer(state, choice.playerId);
-    let material = 0;
-    for (const id of move.sacrificeIds ?? []) {
-        const card = player.battlefield.find((c) => c.id === id);
-        if (card) material += permanentWorth(state, card);
-    }
-    for (const id of move.discardIds ?? []) {
-        const card = player.hand.find((c) => c.id === id);
-        if (card) material += prospectiveCardWorth(state, card);
-    }
-    return clampPrior(0.75 - material / MATERIAL_PRIOR_SCALE - lifeDrag);
-}
-
 /** v2 prior (issue #1433): reads `OP_VALUERS` context-aware for the choice
- *  kinds whose candidates carry real card material (`search-library`'s
- *  finds, `may-pay`'s sacrifice/discard victims). Falls back to the v1
- *  heuristic for a kind with no card-level DSL Op to read — a pure
- *  cost-payment yes/no (`land-entry-tapped`, `draw-replacement`) or a
- *  candidate the DSL reader can't map to real state (defensive). This IS the
- *  "heuristics may remain as fallback where no Op maps" the acceptance
- *  criteria call for, not a separate escape hatch. */
+ *  kind whose candidates carry real card material with no cheaper structural
+ *  hint to lean on (`search-library`'s finds — a library card's worth is
+ *  genuinely the card's own script, not a cost paid). Falls back to the v1
+ *  heuristic for every other kind, including `may-pay` (issue #1433 review
+ *  finding 3): a `may-pay` accept's material is ALREADY summed by the
+ *  candidate generator (`mayPayCandidates`, `choiceCandidates.ts`) through
+ *  the SAME `permanentWorth`/`prospectiveCardWorth` this module would
+ *  otherwise re-derive — a separate `dslMayPayPrior` leg would only
+ *  recompute `hint.materialGivenUp` from scratch (and, unlike the hint,
+ *  silently score an unresolvable instance id as "free" rather than falling
+ *  back to the hint), so deleting it and reading `heuristicChoicePrior`'s
+ *  `hint`-driven band directly is both simpler and strictly more robust.
+ *  This IS the "heuristics may remain as fallback where no Op maps" the
+ *  acceptance criteria call for, not a separate escape hatch. */
 export const dslChoicePrior: ChoicePriorFn = (state, choice, candidate) => {
     switch (choice.kind) {
         case "search-library":
             return dslSearchLibraryPrior(state, choice, candidate);
-        case "may-pay":
-            return dslMayPayPrior(state, choice, candidate);
         default:
             return heuristicChoicePrior(state, choice, candidate);
     }

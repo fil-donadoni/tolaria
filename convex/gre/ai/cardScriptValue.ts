@@ -21,7 +21,7 @@
 import type { CardDefinition, EffectOp } from "../../cards/types";
 import { contextFreeGrounding, type GroundingContext } from "./grounding";
 import { valueEffectScript } from "./opValuers";
-import type { OpValue } from "./featureBasis";
+import type { OpValue, ValueTag } from "./featureBasis";
 
 /** A real `effects[]` script wins outright; otherwise fall back to the
  *  `aiEffects` valuation-only shadow script (issue #1431) — both are walked
@@ -72,35 +72,92 @@ export function dslSpellScriptValue(def: CardDefinition): number | undefined {
     return dslSpellScriptOpValue(def)?.points;
 }
 
+/** Merges two `OpValue`s: points summed, tags unioned (dedup) — mirrors
+ *  `opValuers.ts`'s internal `addValues`, kept as its own tiny helper here
+ *  since it composes ABILITY scripts across an activated + triggered list
+ *  rather than Ops within one script. */
+function mergeOpValue(a: OpValue, b: OpValue): OpValue {
+    const tags = new Set<ValueTag>([...a.tags, ...b.tags]);
+    return { points: a.points + b.points, tags: [...tags] };
+}
+
+/** The merged, RAW (un-discounted) `{ points, tags }` of a card's activated +
+ *  triggered ability scripts under `ctx` (context-free by default): each
+ *  ability's real `effects[]` script if present, else its `aiEffects` shadow
+ *  script (issue #1431), summed / tag-unioned across every ability. This is
+ *  the ability worth of a permanent that is ALREADY IN PLAY — its abilities
+ *  are immediately usable, so no in-hand discount applies (the latent
+ *  (in-hand) reader, `dslLatentAbilityScriptOpValue` below, discounts this).
+ *  `undefined` when the card carries NO ability script at all (real or
+ *  shadow) on any ability — the same "no Op maps" `undefined` convention
+ *  `dslSpellScriptOpValue` uses. Exposes TAGS (the scalar-only
+ *  `dslRealizedAbilityScriptValue` below strips them) for a caller that
+ *  needs to know which feature dimension an ABILITY-ONLY card's worth loads
+ *  onto — issue #1433 review: Icy Manipulator / Royal Assassin / Nevinyrral's
+ *  Disk carry `boardRemoval` + `targeted` only on an ACTIVATED ability (they
+ *  have no spell `effects[]` of their own), so a tag reader that only
+ *  consults `dslSpellScriptOpValue` never sees it. */
+export function dslAbilityScriptOpValue(
+    def: CardDefinition,
+    ctx: GroundingContext = contextFreeGrounding()
+): OpValue | undefined {
+    let acc: OpValue | undefined;
+    const abilities = [
+        ...(def.activatedAbilities ?? []),
+        ...(def.triggeredAbilities ?? []),
+    ];
+    for (const ability of abilities) {
+        const script = effectiveScript(ability);
+        if (!script) continue;
+        const v = valueEffectScript(script, ctx);
+        acc = acc ? mergeOpValue(acc, v) : v;
+    }
+    return acc;
+}
+
 /** The RAW (un-discounted) sum of a card's activated + triggered ability-script
- *  values (context-free): each ability's real `effects[]` script if present,
- *  else its `aiEffects` shadow script (issue #1431). This is the ability
- *  worth of a permanent that is ALREADY IN PLAY — its abilities are
- *  immediately usable, so no in-hand discount applies. The latent (in-hand)
- *  paths discount this before adding it to the body
- *  (`ABILITY_SCRIPT_DISCOUNT`), the realized (in-play) path does not. 0 when
- *  the card has no ability scripts. */
-export function dslRealizedAbilityScriptValue(def: CardDefinition): number {
-    const ctx = contextFreeGrounding();
-    let total = 0;
-    for (const ability of def.activatedAbilities ?? []) {
-        const script = effectiveScript(ability);
-        if (script) total += valueEffectScript(script, ctx).points;
-    }
-    for (const ability of def.triggeredAbilities ?? []) {
-        const script = effectiveScript(ability);
-        if (script) total += valueEffectScript(script, ctx).points;
-    }
-    return total;
+ *  values under `ctx` (context-free by default) — the scalar-only sibling of
+ *  `dslAbilityScriptOpValue`. This is the ability worth of a permanent that is
+ *  ALREADY IN PLAY — its abilities are immediately usable, so no in-hand
+ *  discount applies. The latent (in-hand) paths discount this before adding
+ *  it to the body (`ABILITY_SCRIPT_DISCOUNT`), the realized (in-play) path
+ *  does not. 0 when the card has no ability scripts. */
+export function dslRealizedAbilityScriptValue(
+    def: CardDefinition,
+    ctx: GroundingContext = contextFreeGrounding()
+): number {
+    return dslAbilityScriptOpValue(def, ctx)?.points ?? 0;
+}
+
+/** The merged, DISCOUNTED `{ points, tags }` of a card's activated + triggered
+ *  ability scripts under `ctx` (context-free by default) — the LATENT
+ *  (in-hand) sibling of `dslAbilityScriptOpValue`: same tags, points scaled by
+ *  `ABILITY_SCRIPT_DISCOUNT` (tags are a membership fact, not a magnitude —
+ *  discounting them makes no sense). `undefined` when the card has no
+ *  ability scripts (same convention as the realized reader). */
+export function dslLatentAbilityScriptOpValue(
+    def: CardDefinition,
+    ctx: GroundingContext = contextFreeGrounding()
+): OpValue | undefined {
+    const realized = dslAbilityScriptOpValue(def, ctx);
+    if (!realized) return undefined;
+    return {
+        points: realized.points * ABILITY_SCRIPT_DISCOUNT,
+        tags: realized.tags,
+    };
 }
 
 /** The DSL ability-script value of a card's activated + triggered abilities
- *  (context-free), discounted and summed — the LATENT (in-hand) ability worth
- *  added to a creature's body by the `latentValue` precedence. Kept strictly
- *  below its realized (in-play) counterpart (`dslRealizedAbilityScriptValue`)
- *  by `ABILITY_SCRIPT_DISCOUNT < 1`, so a creature's latent worth stays below
- *  its realized board worth — casting a utility creature is strictly positive
- *  (issue #149, review #1440). 0 when the card has no ability scripts. */
-export function dslAbilityScriptValue(def: CardDefinition): number {
-    return dslRealizedAbilityScriptValue(def) * ABILITY_SCRIPT_DISCOUNT;
+ *  (context-free by default), discounted and summed — the LATENT (in-hand)
+ *  ability worth added to a creature's body by the `latentValue` precedence.
+ *  Kept strictly below its realized (in-play) counterpart
+ *  (`dslRealizedAbilityScriptValue`) by `ABILITY_SCRIPT_DISCOUNT < 1`, so a
+ *  creature's latent worth stays below its realized board worth — casting a
+ *  utility creature is strictly positive (issue #149, review #1440). 0 when
+ *  the card has no ability scripts. */
+export function dslAbilityScriptValue(
+    def: CardDefinition,
+    ctx: GroundingContext = contextFreeGrounding()
+): number {
+    return dslLatentAbilityScriptOpValue(def, ctx)?.points ?? 0;
 }

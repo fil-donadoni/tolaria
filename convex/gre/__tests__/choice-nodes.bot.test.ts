@@ -992,7 +992,46 @@ describe("dslChoicePrior: OP_VALUERS context-aware (issue #1433)", () => {
         return id;
     }
 
-    it("search-library: a noncreature's prior reflects its OWN script, not the flat v1 constant", () => {
+    /** Registers a synthetic noncreature Artifact whose ONLY script lives on
+     *  an ACTIVATED ABILITY — no top-level `effects[]` of its own (the
+     *  Nevinyrral's Disk / Icy Manipulator / Royal Assassin shape, issue
+     *  #1433 review finding 1). */
+    function registerAbilityOnlyArtifact(
+        id: string,
+        name: string,
+        abilityEffects: EffectOp[]
+    ): string {
+        registerTokenDefinition({
+            id,
+            name,
+            rarity: "common",
+            manaCost: { C: 3 },
+            types: ["Artifact"],
+            activatedAbilities: [
+                {
+                    id: `${id}-ability`,
+                    cost: { tap: true, sacrifice: true },
+                    useStack: true,
+                    effects: abilityEffects,
+                },
+            ],
+        } as CardDefinition);
+        return id;
+    }
+
+    it("search-library: candidateValue's OP_VALUERS worth (not the flat v1 constant) ranks a noncreature's own script — the SHARED refactor, exercised through priorFor", () => {
+        // NOTE (issue #1433 review finding 4): this pins the `candidateValue.ts`
+        // refactor (`noncreatureCardWorth` reading a real script instead of the
+        // v1 flat 30) — it does NOT discriminate `dslChoicePrior` from
+        // `heuristicChoicePrior` specifically. Both providers read this exact
+        // worth: `dslSearchLibraryPrior` via `libraryTargetWorth`, and
+        // `heuristicChoicePrior` via the candidate generator's `hint.materialGained`
+        // (`searchLibraryCandidates`, `choiceCandidates.ts`), which is computed
+        // through the SAME `libraryTargetWorth`. Swapping the default provider
+        // back to `heuristicChoicePrior` leaves this test green — see the
+        // "priorFor's default provider genuinely differs..." test below for the
+        // assertion that actually pins the provider swap itself.
+        //
         // Alphabetically "AAA" precedes "ZZZ" — under the old flat-30 prior
         // both candidates tie, and the stable top-K sort's tie-break
         // (ascending identity) would put "AAA Do Nothing" first. The real fix
@@ -1021,6 +1060,52 @@ describe("dslChoicePrior: OP_VALUERS context-aware (issue #1433)", () => {
         // ...and the PRIOR itself carries the distinction — `priorFor` reads
         // the real library, not a per-kind flat guess.
         expect(shockCand.prior).toBeGreaterThan(nothingCand.prior);
+    });
+
+    it("search-library: an ABILITY-only noncreature (no spell effects[] of its own) ranks above a cheap creature/land, not the flat v1 floor (issue #1433 review finding 1)", () => {
+        // Nevinyrral's Disk / Icy Manipulator / Royal Assassin shape: the
+        // card's worth lives ENTIRELY on an activated ability's script — the
+        // card itself has no `effects[]`. Before this fix,
+        // `noncreatureCardWorth` only read the SPELL site
+        // (`dslSpellScriptOpValue`), so this card fell through to the v1 flat
+        // floor (30) and a tutor would rank a vanilla 1/1 or a basic land
+        // ABOVE it despite the ability being real removal.
+        const diskId = registerAbilityOnlyArtifact(
+            "test-1433-finding1-disk",
+            "Finding1 Disk",
+            [{ op: "dealDamage", amount: 20, to: { player: "opponent" } }]
+        );
+        const cheapCreatureId = "test-1433-finding1-cheap-creature";
+        registerTokenDefinition({
+            id: cheapCreatureId,
+            name: "Finding1 Cheap Creature",
+            rarity: "common",
+            manaCost: { G: 1 },
+            types: ["Creature"],
+            power: 1,
+            toughness: 1,
+        } as CardDefinition);
+
+        const state = stateWithLibrarySearch(
+            [diskId, cheapCreatureId, forest.id],
+            {},
+            { landsInPlay: 5 } // flooded — a fetched land is near-worthless too
+        );
+        const cands = choiceCandidates(state, state.pendingChoices![0]);
+        const diskCand = cands.find((c) => c.key.includes("Finding1 Disk"))!;
+        const creatureCand = cands.find((c) =>
+            c.key.includes("Finding1 Cheap Creature")
+        )!;
+        expect(diskCand).toBeDefined();
+        expect(creatureCand).toBeDefined();
+
+        // The ability-only card's real (undiscounted-at-30, script-derived)
+        // worth outranks BOTH the cheap creature and the (flooded) land.
+        expect(cands[0].key).toBe("search-library:Finding1 Disk");
+        expect(diskCand.hint?.materialGained).toBeGreaterThan(
+            creatureCand.hint?.materialGained ?? 0
+        );
+        expect(diskCand.prior).toBeGreaterThan(creatureCand.prior);
     });
 
     it("search-library: a targeted removal script's prior scales with the REAL biggest threat on the opponent's board", () => {
@@ -1091,7 +1176,190 @@ describe("dslChoicePrior: OP_VALUERS context-aware (issue #1433)", () => {
         expect(priorThreatened).toBeGreaterThan(priorEmpty);
     });
 
-    it("may-pay: a discard candidate's prior reflects the DISCARDED card's own DSL script, not the flat v1 constant", () => {
+    it("priorFor's default provider genuinely differs from heuristicChoicePrior (issue #1433 review finding 4)", () => {
+        // Reuses the biggest-threat shape, but pins the PROVIDER SWAP itself:
+        // `heuristicChoicePrior` only ever reads the candidate generator's
+        // CONTEXT-FREE `hint.materialGained` — it has no opinion on the real
+        // opposing board — while `dslChoicePrior`'s search-library leg adds
+        // `contextAwareRemovalBonus` on top. Calling BOTH providers on the
+        // IDENTICAL candidate/state proves they diverge; the earlier tests in
+        // this describe block only pin the shared `candidateValue` refactor,
+        // which lifts both providers equally and is silent on the swap.
+        const terrorId = registerArtifact(
+            "test-1433-finding4-terror",
+            "Finding4 Terror",
+            [{ op: "destroy", target: { target: 0 } }]
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: [
+                        makeInstance(terrorId, {
+                            id: "f4-lib-0",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "library",
+                        }),
+                    ],
+                }),
+                makePlayer("p2", {
+                    battlefield: [
+                        makeInstance(crawWurm.id, {
+                            id: "f4-opp-wurm",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                            zone: "battlefield",
+                        }),
+                    ],
+                }),
+            ],
+            priorityPlayerId: "p1",
+            activePlayerId: "p1",
+        });
+        state.pendingChoices = [
+            {
+                stackItemId: "stack-1",
+                step: 0,
+                choiceId: "c1",
+                playerId: "p1",
+                kind: "search-library",
+                zone: "library",
+                count: 1,
+                prompt: "Search your library for a card.",
+            },
+        ];
+        const head = state.pendingChoices[0];
+        const raw = CHOICE_CANDIDATE_GENERATORS["search-library"]!(state, head);
+        const candidate = raw.find((c) => c.key.includes("Terror"))!;
+        expect(candidate).toBeDefined();
+
+        // The exact SAME (state, choice, candidate) triple, scored by each
+        // provider directly — no ordering indirection.
+        expect(priorFor(state, head, candidate)).toBeGreaterThan(
+            heuristicChoicePrior(state, head, candidate)
+        );
+    });
+
+    it("search-library: contextAwareGroundingForChoice prices a count-scaled script off the REAL board, not the context-free representative floor (issue #1433 review finding 2)", () => {
+        // A script whose amount is `{ count: { zone: "battlefield", ... } }`
+        // (CR 122 counting — "damage equal to the number of creatures you
+        // control") is the shape `contextAwareGrounding` exists FOR: at a
+        // choice node the card hasn't been cast yet, so `contextFreeGrounding`
+        // can only assume a representative count of 1, identically regardless
+        // of the real board. `contextAwareGroundingForChoice`
+        // (`candidateValue.ts`) is the first production caller of
+        // `contextAwareGrounding` — this asserts it actually runs.
+        const countBurnId = registerArtifact(
+            "test-1433-count-burn",
+            "Count Burn",
+            [
+                {
+                    op: "dealDamage",
+                    amount: {
+                        count: {
+                            zone: "battlefield",
+                            controller: "controller",
+                            filter: { type: "Creature" },
+                        },
+                    },
+                    to: { player: "opponent" },
+                },
+            ]
+        );
+
+        function stateWithSearcherCreatures(n: number): GameState {
+            const state = makeState({
+                players: [
+                    makePlayer("p1", {
+                        library: [
+                            makeInstance(countBurnId, {
+                                id: "cb-lib-0",
+                                controllerId: "p1",
+                                ownerId: "p1",
+                                zone: "library",
+                            }),
+                        ],
+                        battlefield: Array.from({ length: n }, (_, i) =>
+                            makeInstance(grizzlyBears.id, {
+                                id: `cb-bear-${i}`,
+                                controllerId: "p1",
+                                ownerId: "p1",
+                                zone: "battlefield",
+                            })
+                        ),
+                    }),
+                    makePlayer("p2"),
+                ],
+                priorityPlayerId: "p1",
+                activePlayerId: "p1",
+            });
+            state.pendingChoices = [
+                {
+                    stackItemId: "stack-1",
+                    step: 0,
+                    choiceId: "c1",
+                    playerId: "p1",
+                    kind: "search-library",
+                    zone: "library",
+                    count: 1,
+                    prompt: "Search your library for a card.",
+                },
+            ];
+            return state;
+        }
+
+        // Comfortably above (5 creatures) / at (0 creatures) the noncreature
+        // floor's rescale threshold, so the two don't tie at the floor.
+        const empty = stateWithSearcherCreatures(0);
+        const crowded = stateWithSearcherCreatures(5);
+
+        const emptyPrior = choiceCandidates(empty, empty.pendingChoices![0])[0]
+            .prior;
+        const crowdedPrior = choiceCandidates(
+            crowded,
+            crowded.pendingChoices![0]
+        )[0].prior;
+        expect(crowdedPrior).toBeGreaterThan(emptyPrior);
+
+        // And this IS `dslChoicePrior`-specific, not the shared hint refactor:
+        // the candidate generator's hint stays CONTEXT-FREE (a representative
+        // count of 1) regardless of board, so `heuristicChoicePrior` sees the
+        // IDENTICAL hint on both boards and can never tell them apart.
+        const rawEmpty = CHOICE_CANDIDATE_GENERATORS["search-library"]!(
+            empty,
+            empty.pendingChoices![0]
+        );
+        const rawCrowded = CHOICE_CANDIDATE_GENERATORS["search-library"]!(
+            crowded,
+            crowded.pendingChoices![0]
+        );
+        const candEmpty = rawEmpty.find((c) => c.key.includes("Count Burn"))!;
+        const candCrowded = rawCrowded.find((c) =>
+            c.key.includes("Count Burn")
+        )!;
+        expect(
+            heuristicChoicePrior(empty, empty.pendingChoices![0], candEmpty)
+        ).toBe(
+            heuristicChoicePrior(
+                crowded,
+                crowded.pendingChoices![0],
+                candCrowded
+            )
+        );
+    });
+
+    it("may-pay: candidateValue's OP_VALUERS worth (not the flat v1 constant) ranks a discard candidate's own script — the SHARED refactor, not a dslChoicePrior-specific leg", () => {
+        // NOTE (issue #1433 review findings 3 & 4): `may-pay` has NO separate
+        // DSL prior leg — `dslChoicePrior` falls straight through to
+        // `heuristicChoicePrior` for this kind (finding 3: a standalone
+        // `dslMayPayPrior` was deleted as a strictly-less-robust duplicate of
+        // the heuristic's own `hint.materialGivenUp`-driven band). This test
+        // pins the SHARED `candidateValue.ts` refactor instead —
+        // `prospectiveCardWorth`/`noncreatureCardWorth` reading a real script —
+        // which the may-pay candidate generator (`mayPayCandidates`,
+        // `choiceCandidates.ts`) already fed into BOTH the pre-#1433 and
+        // post-#1433 world via `hint.materialGivenUp`. Reverting the provider
+        // swap entirely leaves this test green.
         const doNothingId = registerArtifact(
             "test-1433-mp-do-nothing",
             "MP Do Nothing"
