@@ -243,6 +243,13 @@ const OPTION_CHOICE_ID = "optionChoiceMode";
  *  re-reads its own on a re-walk (no re-roll, CR 608.3 / ADR 0023). */
 const COIN_FLIP_ID = "coinFlipOutcome";
 
+/** CR 608.2f (issue #1477) — the Cast / Decline options offered by the
+ *  cast-during-resolution Op's "you may cast" prompt (an `option-pick`). */
+const CAST_DECLINE_OPTIONS: { id: string; label: string }[] = [
+    { id: "cast", label: "Cast" },
+    { id: "decline", label: "Decline" },
+];
+
 /** Boolean payload stored by a `mayPay` Op (issue #806): the single-element
  *  `["yes"]` / `["no"]` array `requestMayPay` persists (mirroring the may-pay
  *  Pending Choice answer). Read by an `if` binding predicate. */
@@ -1403,6 +1410,195 @@ export const OP_EXECUTORS: {
                 ? { withoutPayingManaCost: true }
                 : undefined
         );
+    },
+    // CR 608.2f (issue #1477) — cast a card as PART OF this resolution: a "you
+    // may cast <card>" with no stated duration, which exists ONLY during the
+    // resolution of the ability that grants it. Reuses the resolve-time
+    // mini-cast (`SpellContext.castChosenSpell`, ADR 0037) and the
+    // interpreter's own suspend/resume seam. SELF-cast: actingPlayer ==
+    // controller == `player`. NO priority passes to the opponent between the
+    // offer and the inline cast — the Cast/Decline prompt and the cast card's
+    // own target/mode/X picks are resolve-time choices, not priority; normal
+    // priority resumes only once the parent ability finishes with the new
+    // spell on the stack (CR 608.2f). Timing / card-type restrictions are
+    // ignored. Distinct from `grantCastFrom*` (which stamp a later-in-turn
+    // impulse window) — nothing is saved for later (Malcolm's Oracle ruling).
+    castDuringResolution(ctx, op) {
+        // Idempotent across a re-walk (CR 608.3 — a completed step never
+        // re-runs): once the mini-cast has committed (or the Op has terminally
+        // passed/declined), a LATER Op suspending would re-walk this Op; a
+        // done-marker keyed under this Op's checkpoint short-circuits it so the
+        // spell is never cast twice. Keyed on the pre-order checkpoint set by
+        // `runOpList` right before dispatch (stable across replays).
+        const pos = ctx.getScriptCheckpoint() ?? 0;
+        const doneKey = `#castDuringResolution:${pos}`;
+        if (ctx.recallChoice(doneKey) !== undefined) return;
+
+        const playerId = resolvePlayerRef(ctx, op.player);
+        if (playerId === undefined) return; // CR 608.2b — caster gone, skip
+        const ids = resolvePicks(ctx, op.card);
+        const cardInstanceId = ids && ids.length > 0 ? ids[0] : undefined;
+
+        // Silent pass (CR 608.2b / the Malcolm land ruling): the binding was
+        // never captured, the card is no longer in the source zone (empty
+        // source), or it is a land (lands are played, not cast). No prompt is
+        // offered at all — the trigger finishes silently.
+        if (
+            cardInstanceId === undefined ||
+            !ctx.getChosenCardCastable(playerId, cardInstanceId, op.source)
+        ) {
+            ctx.noteChoice(doneKey, ["pass"]);
+            return;
+        }
+
+        // "you may cast" — a Cast / Decline `option-pick`, a resolve-time
+        // choice routed to the caster (CR 608.2f: NOT priority, the opponent
+        // cannot act here). Reuses the existing suspend/resume seam.
+        const decision = ctx.requestOptionChoice({
+            playerId,
+            choiceId: "cdr:decide",
+            options: CAST_DECLINE_OPTIONS,
+            prompt: "You may cast the card. Cast it or decline.",
+        });
+        if (decision === undefined) return "suspend"; // enqueued — wait
+        if (decision !== "cast") {
+            // Declined — the card stays in its source zone, nothing is cast,
+            // and (unlike `grantCastFrom*`) no later-in-turn window is stamped.
+            ctx.noteChoice(doneKey, ["decline"]);
+            return;
+        }
+
+        // MODE (CR 700.2c) — a modal card's chosen mode drives its targeting
+        // (CR 700.2d). Non-modal cards skip this.
+        const modes = ctx.getCardModes(playerId, cardInstanceId);
+        let chosenModeId: string | undefined;
+        if (modes.length > 0) {
+            const pickedMode = ctx.requestOptionChoice({
+                playerId,
+                choiceId: "cdr:mode",
+                options: modes,
+                prompt: "Choose a mode for the card you are casting.",
+            });
+            if (pickedMode === undefined) return "suspend";
+            chosenModeId = pickedMode;
+        }
+
+        // X (CR 107.3) — only for a PAID cast. A free cast waives the mana
+        // cost, so X in that waived cost is 0 (CR 107.3b) — no prompt.
+        let chosenX: number | undefined;
+        if (!op.free && ctx.cardHasXCost(playerId, cardInstanceId)) {
+            const maxX = ctx.getMaxAffordableX(
+                playerId,
+                cardInstanceId,
+                chosenModeId
+            );
+            const xOptions = Array.from({ length: maxX + 1 }, (_, n) => ({
+                id: String(n),
+                label: `X = ${n}`,
+            }));
+            const pickedX = ctx.requestOptionChoice({
+                playerId,
+                choiceId: "cdr:x",
+                options: xOptions,
+                prompt: "Choose the value of X.",
+            });
+            if (pickedX === undefined) return "suspend";
+            chosenX = Number(pickedX);
+        }
+
+        // ADDITIONAL COST — sacrifice (CR 117.9). Applies even to a free cast
+        // (only the mana cost is waived). No matching permanent => the cost is
+        // unmeetable, the card is NOT cast ("if able").
+        const sacrificeFilter = ctx.getCardSacrificeFilter(
+            playerId,
+            cardInstanceId
+        );
+        let additionalSacrificeId: string | undefined;
+        if (sacrificeFilter) {
+            const candidateIds = ctx.getBattlefieldIds(
+                playerId,
+                sacrificeFilter
+            );
+            if (candidateIds.length === 0) {
+                ctx.noteChoice(doneKey, ["pass"]); // unmeetable — not cast
+                return;
+            }
+            const pickedSac = ctx.requestChoice({
+                playerId,
+                choiceId: "cdr:sacrifice",
+                kind: "choose-permanents",
+                zone: "battlefield",
+                zoneOwnerId: playerId,
+                filter: sacrificeFilter,
+                candidateIds,
+                count: 1,
+                prompt: "Choose a permanent to sacrifice.",
+            });
+            if (pickedSac === undefined) return "suspend";
+            additionalSacrificeId = pickedSac[0];
+            if (!additionalSacrificeId) return;
+        }
+
+        // TARGETS (CR 601.2c) — the caster chooses targets for the cast card
+        // (the chosen mode's requirement for a modal card, CR 700.2d). Reuses
+        // `getLegalTargetsForCard` exactly as a normal cast does. No legal
+        // target => the card is NOT cast ("if able").
+        const targetReq = chosenModeId
+            ? ctx.getCardModeTargetRequirement(
+                  playerId,
+                  cardInstanceId,
+                  chosenModeId
+              )
+            : ctx.getCardTargetRequirement(playerId, cardInstanceId);
+        let chosenTargets: TargetSelection[] | undefined;
+        if (targetReq) {
+            const legal = ctx.getLegalTargetsForCard(
+                playerId,
+                cardInstanceId,
+                targetReq
+            );
+            if (legal.length === 0) {
+                ctx.noteChoice(doneKey, ["pass"]); // no legal target — not cast
+                return;
+            }
+            const candidatePlayerIds = legal
+                .filter((t) => t.type === "player")
+                .map((t) => t.id);
+            const candidateIds = legal
+                .filter((t) => t.type !== "player")
+                .map((t) => t.id);
+            const pickedTarget = ctx.requestChoice({
+                playerId,
+                choiceId: "cdr:target",
+                kind: "choose-damage-target",
+                zone: "battlefield",
+                count: 1,
+                candidateIds,
+                candidatePlayerIds,
+                prompt: "Choose a target for the card you are casting.",
+            });
+            if (pickedTarget === undefined) return "suspend";
+            const pickedId = pickedTarget[0];
+            if (!pickedId) return;
+            const selected = legal.find((t) => t.id === pickedId);
+            if (!selected) return; // pick no longer legal (CR 608.2b)
+            chosenTargets = [selected];
+        }
+
+        // Commit the mini-cast. Self-cast: actingPlayerId == playerId. The
+        // spell is spliced onto the stack just BELOW the resolving ability
+        // (`castChosenSpell`) so it becomes the new top and resolves next —
+        // with NO priority in between (CR 608.2f). `free` waives the mana cost
+        // (Malcolm), `source` is the zone it is cast from.
+        ctx.castChosenSpell(playerId, cardInstanceId, playerId, {
+            targets: chosenTargets,
+            chosenX,
+            chosenModeId,
+            additionalSacrificeId,
+            sourceZone: op.source,
+            free: op.free,
+        });
+        ctx.noteChoice(doneKey, ["cast"]);
     },
     // CR 106.1 (issue #850) — add mana to a player's mana pool. A thin
     // declarative skin over the SpellContext primitive `addManaTo`, ONE

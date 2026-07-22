@@ -1620,6 +1620,20 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             withoutPayingManaCost: isBoolean,
         },
     },
+    // CR 608.2f (issue #1477) — cast a card as part of this resolution (a "you
+    // may cast" with no duration). `card` is a bare picks ref to the card to
+    // offer; `player` names the caster; `source` is the zone it is cast from;
+    // `free` (optional) waives the mana cost (Malcolm).
+    castDuringResolution: {
+        required: {
+            card: isBarePicksRef,
+            player: isPlayerRef,
+            source: (v: unknown) => v === "graveyard" || v === "exile",
+        },
+        optional: {
+            free: isBoolean,
+        },
+    },
     // CR 106.1 (issue #850) — add mana to a player's mana pool. `mana` is the
     // JSON-pure per-colour amount map (WUBRGC, positive integers); `player`
     // (optional) names whose pool (default the resolving controller).

@@ -3,11 +3,7 @@ import { describe, it, expect } from "vitest";
 import { malcolmAlluringScoundrel } from "../blue";
 import { registerTokenDefinition } from "../../../index";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
-import {
-    resolveTopOfStack,
-    getPlayer,
-    removeFromZone,
-} from "../../../../gre/state";
+import { resolveTopOfStack, getPlayer } from "../../../../gre/state";
 import type {
     CardInstanceState,
     GameState,
@@ -16,11 +12,6 @@ import type {
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { finalizeCleanup } from "../../../../gre/phases";
 import { projectPublicState } from "../../../../gameProjections";
-import {
-    castRawManaCost,
-    locateCastSource,
-    castZoneOwner,
-} from "../../../../game";
 
 // A plain vanilla creature card for hand/library fixtures, distinct from
 // Malcolm itself.
@@ -75,7 +66,7 @@ function fireCombatDamage(
     return resolveTopOfStack(state);
 }
 
-describe("Malcolm, Alluring Scoundrel (CR 603.2 combat-damage trigger, CR 122.1/122.6 counters, CR 601.3e / 117.6-analog issue #1344 free graveyard cast)", () => {
+describe("Malcolm, Alluring Scoundrel (CR 603.2 combat-damage trigger, CR 122.1/122.6 counters, CR 608.2f cast-during-resolution issue #1477)", () => {
     it("is a {1}{U} 2/1 Legendary Siren Pirate with Flash and Flying", () => {
         expect(malcolmAlluringScoundrel.manaCost).toEqual({ X: 1, U: 1 });
         expect(malcolmAlluringScoundrel.types).toEqual(["Creature"]);
@@ -201,7 +192,7 @@ describe("Malcolm, Alluring Scoundrel (CR 603.2 combat-damage trigger, CR 122.1/
         expect(discarded.castableFromGraveyardBy).toBeUndefined();
     });
 
-    it("grants a free cast of the discarded card once the count reaches four (threshold gate) — wire format survives projection", () => {
+    it("at the 4-counter threshold, offers a free cast of the discarded card DURING the trigger's resolution and, on accept, casts it from the graveyard — Cast/Decline affordance survives projection", () => {
         const malcolm = makeInstance(malcolmAlluringScoundrel.id, {
             id: "malcolm3",
             controllerId: "p1",
@@ -232,12 +223,15 @@ describe("Malcolm, Alluring Scoundrel (CR 603.2 combat-damage trigger, CR 122.1/
             ],
         });
         fireCombatDamage(state, malcolm, "p2", 4);
-        const head = state.pendingChoices![0];
+
+        // Discard the drawn/hand card (force the hand card explicitly).
+        const discardHead = state.pendingChoices![0];
+        expect(discardHead.kind).toBe("choose-hand-card");
         applyPendingChoiceSubmit(state, {
             playerId: "p1",
-            stackItemId: head.stackItemId,
-            step: head.step,
-            choiceId: head.choiceId,
+            stackItemId: discardHead.stackItemId,
+            step: discardHead.step,
+            choiceId: discardHead.choiceId,
             cardInstanceIds: ["hand3"],
         });
 
@@ -245,28 +239,55 @@ describe("Malcolm, Alluring Scoundrel (CR 603.2 combat-damage trigger, CR 122.1/
             (c) => c.id === "malcolm3"
         )!;
         expect(onBattlefield.counters?.chorus).toBe(4);
-        const discarded = getPlayer(state, "p1").graveyard.find(
-            (c) => c.id === "hand3"
-        )!;
-        expect(discarded.castableFromGraveyardBy).toBe("p1");
-        expect(discarded.castableFromGraveyardUntilTurn).toBe(state.turn);
-        expect(discarded.castFromGraveyardWithoutPayingManaCost).toBe(true);
 
-        // MANDATORY wire format (new-Op regime) — the grant's `legalActions`
-        // + `castKind` survive `projectPublicState` for the caster's own
-        // view; the opponent's view of the SAME game carries no grant on
-        // their side (there's nothing to leak — the card sits in the
-        // caster's own graveyard, invisible to the opponent's affordance
-        // computation entirely since `isOwnGraveyard` gates it).
+        // The trigger SUSPENDS AGAIN on the Cast/Decline offer (an option-pick
+        // routed to Malcolm's controller — CR 608.2f: a resolution choice, NOT
+        // priority; the opponent p2 is never the chooser here).
+        const offer = state.pendingChoices![0];
+        expect(offer.kind).toBe("option-pick");
+        expect(offer.playerId).toBe("p1");
+        expect(offer.options?.map((o) => o.id)).toEqual(["cast", "decline"]);
+        // The trigger is still on the stack, suspended (nothing has been
+        // handed to the opponent).
+        expect(state.stack).toHaveLength(1);
+
+        // MANDATORY wire format (new-Op regime) — the Cast/Decline affordance
+        // reaches the caster's client through `projectPublicState`
+        // (`pendingChoices` carries the generic option-pick prompt).
         const projected = projectPublicState(state, 1, "p1");
-        const projGraveyardCard = projected.players[0].graveyard.find(
-            (c) => c.id === "hand3"
-        )!;
-        expect(projGraveyardCard.legalActions).toContain("cast");
-        expect(projGraveyardCard.castKind).toBe("graveyard-grant");
+        const projOffer = projected.pendingChoices?.[0];
+        expect(projOffer?.kind).toBe("option-pick");
+        expect(projOffer?.options?.map((o) => o.id)).toEqual([
+            "cast",
+            "decline",
+        ]);
+
+        // Accept — the discarded card is cast INLINE from the graveyard, put
+        // on the stack (a real spell) as part of the trigger's own resolution,
+        // no longer in the graveyard.
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: offer.stackItemId,
+            step: offer.step,
+            choiceId: offer.choiceId,
+            cardInstanceIds: ["cast"],
+        });
+        expect(
+            getPlayer(state, "p1").graveyard.some((c) => c.id === "hand3")
+        ).toBe(false);
+        const castSpell = state.stack.find((s) => s.id === "hand3");
+        expect(castSpell).toBeDefined();
+        expect(castSpell!.castById).toBe("p1");
+
+        // A normal spell afterwards — resolving it puts the creature onto the
+        // battlefield (free cast: no mana was paid from p1's empty pool).
+        resolveTopOfStack(state);
+        expect(
+            getPlayer(state, "p1").battlefield.some((c) => c.id === "hand3")
+        ).toBe(true);
     });
 
-    it("a discarded LAND is never granted a cast (CR ruling: 'You may not play land cards discarded with Malcolm's last ability')", () => {
+    it("a discarded LAND passes silently at the threshold — no Cast/Decline offer (CR ruling: 'You may not play land cards discarded with Malcolm's last ability')", () => {
         const malcolm = makeInstance(malcolmAlluringScoundrel.id, {
             id: "malcolm4",
             controllerId: "p1",
@@ -298,8 +319,7 @@ describe("Malcolm, Alluring Scoundrel (CR 603.2 combat-damage trigger, CR 122.1/
         });
         fireCombatDamage(state, malcolm, "p2", 4);
         const head = state.pendingChoices![0];
-        // Only the land is a legal discard target when the drawn card is
-        // also present — force the land pick explicitly.
+        // Force the land pick explicitly.
         applyPendingChoiceSubmit(state, {
             playerId: "p1",
             stackItemId: head.stackItemId,
@@ -308,73 +328,87 @@ describe("Malcolm, Alluring Scoundrel (CR 603.2 combat-damage trigger, CR 122.1/
             cardInstanceIds: ["land4"],
         });
 
+        // No Cast/Decline offer — a land is played, not cast, so the Op passes
+        // silently and the trigger finishes with nothing on the stack.
+        expect(state.pendingChoices).toBeUndefined();
+        expect(state.stack).toHaveLength(0);
         const discardedLand = getPlayer(state, "p1").graveyard.find(
             (c) => c.id === "land4"
         )!;
         expect(discardedLand).toBeDefined();
-        // The primitive itself refuses a land (CR 116.2a) — no grant at all.
+        // Nothing was cast and no later-in-turn window was stamped.
         expect(discardedLand.castableFromGraveyardBy).toBeUndefined();
-
-        const projected = projectPublicState(state, 1, "p1");
-        const projLand = projected.players[0].graveyard.find(
-            (c) => c.id === "land4"
-        )!;
-        expect(projLand.legalActions).toBeUndefined();
     });
 
-    it("casts the granted card FROM THE GRAVEYARD for free — the real cast-commit seam (locateCastSource / castRawManaCost / castZoneOwner)", () => {
-        const grantedCard = makeInstance(FILLER_ID, {
-            id: "castSeamGY",
+    it("declining the offer at the threshold leaves the discarded card in the graveyard and grants NO later-in-turn cast (the impulse-window bug is gone, issue #1477)", () => {
+        const malcolm = makeInstance(malcolmAlluringScoundrel.id, {
+            id: "malcolm5",
             controllerId: "p1",
             ownerId: "p1",
-            zone: "graveyard",
-            castableFromGraveyardBy: "p1",
-            castFromGraveyardWithoutPayingManaCost: true,
+            counters: { chorus: 3 },
+        });
+        const handCard = makeInstance(FILLER_ID, {
+            id: "hand5",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
         });
         const state = makeState({
             players: [
-                makePlayer("p1", { graveyard: [grantedCard] }),
+                makePlayer("p1", {
+                    battlefield: [malcolm],
+                    hand: [handCard],
+                    library: [
+                        makeInstance(FILLER_ID, {
+                            id: "lib5",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "library",
+                        }),
+                    ],
+                }),
                 makePlayer("p2"),
             ],
         });
+        fireCombatDamage(state, malcolm, "p2", 4);
+        const discardHead = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: discardHead.stackItemId,
+            step: discardHead.step,
+            choiceId: discardHead.choiceId,
+            cardInstanceIds: ["hand5"],
+        });
 
-        const caster = getPlayer(state, "p1");
-        const src = locateCastSource(state, caster, "castSeamGY");
-        expect(src.zone).toBe("graveyard");
-        expect(src.card?.id).toBe("castSeamGY");
-        // CR 601.3e / 117.6-analog — the free-cast waiver zeroes the cost
-        // entirely, even though the caster's pool is empty.
-        expect(castRawManaCost(state, src.card!, src.zone)).toEqual({});
+        const offer = state.pendingChoices![0];
+        expect(offer.kind).toBe("option-pick");
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: offer.stackItemId,
+            step: offer.step,
+            choiceId: offer.choiceId,
+            cardInstanceIds: ["decline"],
+        });
 
-        // Same-player commit — `castZoneOwner` is a no-op identity for a
-        // graveyard cast (no cross-player shape exists). `removeFromZone` is
-        // the REAL production removal path (`announceCast`, `convex/game.ts`)
-        // — it also consumes the per-card grant flags, mirroring the real
-        // cast-commit exactly (a raw splice would silently skip that
-        // cleanup).
-        const owner = castZoneOwner(state, caster, "castSeamGY", src.zone);
-        expect(owner.id).toBe("p1");
-        const removed = removeFromZone(owner, "castSeamGY", "graveyard");
-        const stackItem: StackItem = {
-            ...removed,
-            castById: "p1",
-            targets: [],
-        };
-        state.stack.push(stackItem);
-        resolveTopOfStack(state);
-
-        // A plain creature resolves onto the caster's battlefield.
-        expect(
-            getPlayer(state, "p1").battlefield.some(
-                (c) => c.id === "castSeamGY"
-            )
-        ).toBe(true);
-        // The per-card grant flags are consumed on entry (`removeFromZone`).
-        const entered = getPlayer(state, "p1").battlefield.find(
-            (c) => c.id === "castSeamGY"
+        // The trigger finishes; nothing is cast. The discarded card sits in the
+        // graveyard with NO cast permission — it cannot be cast later in the
+        // turn (the old grantCastFromGraveyard "this-turn" impulse window, and
+        // its CR-incorrect sorcery-speed-later-cast, are gone).
+        expect(state.pendingChoices).toBeUndefined();
+        expect(state.stack).toHaveLength(0);
+        const declined = getPlayer(state, "p1").graveyard.find(
+            (c) => c.id === "hand5"
         )!;
-        expect(entered.castableFromGraveyardBy).toBeUndefined();
-        expect(entered.castFromGraveyardWithoutPayingManaCost).toBeUndefined();
+        expect(declined).toBeDefined();
+        expect(declined.castableFromGraveyardBy).toBeUndefined();
+        expect(declined.castFromGraveyardWithoutPayingManaCost).toBeUndefined();
+        // Wire format: the caster's projected graveyard card exposes NO cast
+        // affordance (there is no grant to leak).
+        const projected = projectPublicState(state, 1, "p1");
+        const projCard = projected.players[0].graveyard.find(
+            (c) => c.id === "hand5"
+        )!;
+        expect(projCard.legalActions).toBeUndefined();
     });
 });
 
