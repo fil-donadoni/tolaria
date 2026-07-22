@@ -1,0 +1,377 @@
+// Choice-node candidate generation (PRD #1423, issue #1425) — the contract every
+// choice kind plugs into when a live `PendingChoice` becomes an in-tree ISMCTS
+// decision node.
+//
+// The contract, per choice kind:
+//
+//   candidates(state, choice) -> ChoiceCandidate[]
+//
+// three properties, all load-bearing:
+//
+//  1. SELF-PRUNING. The generator never enumerates a combinatorial answer space.
+//     A `may-pay` whose sacrifice leg is a THRESHOLD (`{ minTotalPower }`,
+//     CR 118 — Phyrexian Dreadnought) has an exponential number of satisfying
+//     subsets; the generator emits a handful of policy-derived victim sets, not
+//     all of them. This is the crux lesson of the #1258 spike.
+//  2. STABLE IDENTITY KEYS. A candidate's `key` is derived from card DEFINITION
+//     identity and choice semantics — never from a per-world instance id. ISMCTS
+//     re-determinizes the hidden world every iteration, so an instance-id key
+//     would split one decision's statistics across worlds and the node would
+//     never accumulate. The search applies the CURRENT world's move for the
+//     selected key (see `search.ts`), so the id inside the move is always fresh.
+//  3. BOUNDED OPENING. `choiceCandidates` returns the TOP-K by prior. There is
+//     NO progressive widening (it barely fires at 400–1200 iterations, PRD
+//     #1423); a pruned top-K is the containment mechanism.
+//
+// Ships the YES/NO family as the first generator: `may-pay` (CR 117.3a / 118.4),
+// `land-entry-tapped` (CR 614.12 / ADR 0051) and `draw-replacement`
+// (CR 614 / ADR 0061). Later tranches (modal `option-pick`, `search-library`, …)
+// register here against this same contract.
+
+import type { CardInstanceState, GameState, PendingChoice } from "../state";
+import {
+    canPayMayPayCost,
+    getMayPayDiscardCandidateIds,
+    getMayPaySacrificeCandidateIds,
+    getPlayer,
+    mayPayDiscardChoiceRequired,
+    mayPaySacrificeChoiceRequired,
+    mayPaySacrificeThreshold,
+    normalizeMayPayCost,
+} from "../state";
+import { getEffectivePower, getEffectiveToughness } from "../layers";
+import { tryGetDefinition } from "../../cards";
+import type { PendingChoiceKind } from "../types";
+import type { Move } from "../moves";
+import { priorFor, type ChoiceCandidateHint } from "./choicePriors";
+
+/** One opened branch of a choice node. */
+export type ChoiceCandidate = {
+    /** Stable identity of the DECISION this candidate represents — the tree key.
+     *  Identical across determinizations for the same semantic answer. */
+    key: string;
+    /** The move that plays this answer IN THE CURRENT WORLD (instance ids are
+     *  world-local and must be re-read every iteration). */
+    move: Move;
+    /** Ordering score from the `priorFor` seam. Bias only, never legality. */
+    prior: number;
+    /** Structural facts the prior seam reads (what the candidate gives up). */
+    hint?: ChoiceCandidateHint;
+};
+
+/** A per-kind generator. Emits candidates WITHOUT priors (the registry attaches
+ *  them) and must be self-pruning: the returned list is already the small,
+ *  policy-derived answer set for the kind. Pure. */
+export type ChoiceCandidateGenerator = (
+    state: GameState,
+    choice: PendingChoice
+) => Omit<ChoiceCandidate, "prior">[];
+
+/** Maximum branches a choice node opens. Bounded opening replaces progressive
+ *  widening (PRD #1423): with a self-pruning generator the realistic candidate
+ *  count is 2–4, so K is a safety ceiling, not the usual binding constraint. */
+export const CHOICE_TOP_K = 8;
+
+// ---------------------------------------------------------------------------
+// Stable identity
+// ---------------------------------------------------------------------------
+
+/** Stable identity of a card instance: its DEFINITION id (equivalently its card
+ *  name — one per definition), never the per-world instance id. Falls back to an
+ *  inlined fixture name, then to a constant so a key is always well-formed. */
+export function stableCardIdentity(card: CardInstanceState): string {
+    const defId = (card.card as { id?: string }).id;
+    if (defId) return tryGetDefinition(defId)?.name ?? defId;
+    return (card.card as { name?: string }).name ?? "unknown-card";
+}
+
+/** Stable identity of a SET of instances: a sorted multiset of card identities
+ *  ("Grizzly Bears x2 | Mox Ruby"). Order-independent and copy-count aware, so
+ *  two determinizations that pick the same cards produce the same key. */
+export function stableSetIdentity(cards: CardInstanceState[]): string {
+    const counts = new Map<string, number>();
+    for (const c of cards) {
+        const id = stableCardIdentity(c);
+        counts.set(id, (counts.get(id) ?? 0) + 1);
+    }
+    return [...counts.entries()]
+        .sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0))
+        .map(([id, n]) => (n > 1 ? `${id} x${n}` : id))
+        .join(" | ");
+}
+
+// ---------------------------------------------------------------------------
+// Yes/no family
+// ---------------------------------------------------------------------------
+
+/** Rough board worth of a permanent, used ONLY to order sacrifice victims and
+ *  to feed the prior seam. Deliberately local and cheap (P/T based) rather than
+ *  the full `evaluate.ts` currency: `gre/ai` must not depend on `evaluate.ts`
+ *  (which already depends on this module's siblings). */
+function permanentWorth(state: GameState, card: CardInstanceState): number {
+    const p = Math.max(0, getEffectivePower(state, card));
+    const t = Math.max(0, getEffectiveToughness(state, card));
+    return card.types.includes("Creature") ? p * p + t * t + 10 : 20;
+}
+
+/** Cheap latent worth of a hand card, for ordering discard victims. */
+function handCardWorth(state: GameState, card: CardInstanceState): number {
+    return card.types.includes("Creature") ? permanentWorth(state, card) : 30;
+}
+
+function instancesById(
+    cards: CardInstanceState[],
+    ids: string[]
+): CardInstanceState[] {
+    const wanted = new Set(ids);
+    return cards.filter((c) => wanted.has(c.id));
+}
+
+/** Greedily take permanents until their summed EFFECTIVE power reaches
+ *  `threshold` (CR 118). `order` decides the policy: `"fewest-bodies"` takes the
+ *  highest-power first (mirrors `brain.ts`'s `thresholdSacrifice`);
+ *  `"cheapest"` takes the least valuable first (keeps the best creature at the
+ *  cost of more bodies). Returns null when the set never reaches the threshold. */
+function thresholdPick(
+    state: GameState,
+    candidates: CardInstanceState[],
+    threshold: number,
+    order: "fewest-bodies" | "cheapest"
+): CardInstanceState[] | null {
+    const sorted = [...candidates].sort((a, b) =>
+        order === "fewest-bodies"
+            ? getEffectivePower(state, b) - getEffectivePower(state, a)
+            : permanentWorth(state, a) - permanentWorth(state, b)
+    );
+    const picked: CardInstanceState[] = [];
+    let total = 0;
+    for (const c of sorted) {
+        if (total >= threshold) break;
+        picked.push(c);
+        total += getEffectivePower(state, c);
+    }
+    return total >= threshold && picked.length > 0 ? picked : null;
+}
+
+/** `may-pay` (CR 117.3a / 118.4): decline, plus the accept variants the cost's
+ *  legs admit. Self-pruning — an unaffordable cost yields the decline only, and
+ *  a threshold sacrifice leg yields at most two policy picks (fewest bodies /
+ *  cheapest material), never the subset lattice. */
+const mayPayCandidates: ChoiceCandidateGenerator = (state, choice) => {
+    const out: Omit<ChoiceCandidate, "prior">[] = [
+        { key: "may-pay:no", move: { kind: "may-pay", accept: false } },
+    ];
+    const playerId = choice.playerId;
+    const cost = choice.cost;
+
+    // A cost-less "you may …" (CR 117.3a) — accepting costs nothing.
+    if (!cost) {
+        out.push({
+            key: "may-pay:yes",
+            move: { kind: "may-pay", accept: true },
+            hint: {},
+        });
+        return out;
+    }
+    if (!canPayMayPayCost(state, playerId, cost, choice.manaRestriction)) {
+        return out;
+    }
+
+    const norm = normalizeMayPayCost(cost);
+    const lifePaid = norm.life ?? 0;
+    const player = getPlayer(state, playerId);
+
+    // CR 701.16b — the sacrifice leg, when it admits a real victim choice.
+    const sacrificeSets: CardInstanceState[][] = [];
+    if (mayPaySacrificeChoiceRequired(state, playerId, cost)) {
+        const victims = instancesById(
+            player.battlefield,
+            getMayPaySacrificeCandidateIds(state, playerId, cost)
+        );
+        const threshold = mayPaySacrificeThreshold(cost);
+        if (threshold !== undefined) {
+            // CR 118 threshold mode (Phyrexian Dreadnought): two policy picks.
+            for (const order of ["fewest-bodies", "cheapest"] as const) {
+                const pick = thresholdPick(state, victims, threshold, order);
+                if (pick) sacrificeSets.push(pick);
+            }
+        } else {
+            // Fixed cardinal: give up the least valuable permanents (brain.ts
+            // picks worst-first for the same reason).
+            const count = norm.sacrifice!.count as number;
+            const worstFirst = [...victims].sort(
+                (a, b) => permanentWorth(state, a) - permanentWorth(state, b)
+            );
+            if (worstFirst.length >= count) {
+                sacrificeSets.push(worstFirst.slice(0, count));
+            }
+        }
+        // No legal victim set → the accept leg cannot be paid; decline only.
+        if (sacrificeSets.length === 0) return out;
+    }
+
+    // CR 701.9 / 118.3 (issue #899) — the discard leg, when it admits a choice.
+    let discardSet: CardInstanceState[] | null = null;
+    if (mayPayDiscardChoiceRequired(state, playerId, cost)) {
+        const cards = instancesById(
+            player.hand,
+            getMayPayDiscardCandidateIds(state, playerId, cost)
+        );
+        const count = norm.discard!.count;
+        const worstFirst = [...cards].sort(
+            (a, b) => handCardWorth(state, a) - handCardWorth(state, b)
+        );
+        if (worstFirst.length < count) return out;
+        discardSet = worstFirst.slice(0, count);
+    }
+
+    const discardIds = discardSet?.map((c) => c.id);
+    const discardKey = discardSet
+        ? `|discard=${stableSetIdentity(discardSet)}`
+        : "";
+    const discardWorth = (discardSet ?? []).reduce(
+        (s, c) => s + handCardWorth(state, c),
+        0
+    );
+
+    if (sacrificeSets.length === 0) {
+        out.push({
+            key: `may-pay:yes${discardKey}`,
+            move: {
+                kind: "may-pay",
+                accept: true,
+                ...(discardIds ? { discardIds } : {}),
+            },
+            hint: { materialGivenUp: discardWorth, lifePaid },
+        });
+        return out;
+    }
+
+    const seen = new Set<string>();
+    for (const set of sacrificeSets) {
+        const key = `may-pay:yes|sac=${stableSetIdentity(set)}${discardKey}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push({
+            key,
+            move: {
+                kind: "may-pay",
+                accept: true,
+                sacrificeIds: set.map((c) => c.id),
+                ...(discardIds ? { discardIds } : {}),
+            },
+            hint: {
+                materialGivenUp:
+                    set.reduce((s, c) => s + permanentWorth(state, c), 0) +
+                    discardWorth,
+                lifePaid,
+            },
+        });
+    }
+    return out;
+};
+
+/** `land-entry-tapped` (CR 614.12 / ADR 0051, shock lands): pay to enter
+ *  untapped, or decline and enter tapped. Both answers are always legal; the
+ *  accept is pruned when the cost is unaffordable. */
+const landEntryCandidates: ChoiceCandidateGenerator = (state, choice) => {
+    const out: Omit<ChoiceCandidate, "prior">[] = [
+        { key: "land-entry:no", move: { kind: "land-entry", accept: false } },
+    ];
+    if (
+        choice.cost &&
+        canPayMayPayCost(state, choice.playerId, choice.cost, undefined)
+    ) {
+        out.push({
+            key: "land-entry:yes",
+            move: { kind: "land-entry", accept: true },
+            hint: { lifePaid: normalizeMayPayCost(choice.cost).life ?? 0 },
+        });
+    }
+    return out;
+};
+
+/** `draw-replacement` (CR 614 / ADR 0061, Zur's Weirding): pay the life to bin
+ *  the revealed card, or decline and let them draw it. */
+const drawReplacementCandidates: ChoiceCandidateGenerator = (state, choice) => {
+    const out: Omit<ChoiceCandidate, "prior">[] = [
+        {
+            key: "draw-replacement:no",
+            move: { kind: "draw-replacement", accept: false },
+        },
+    ];
+    if (
+        choice.cost &&
+        canPayMayPayCost(state, choice.playerId, choice.cost, undefined)
+    ) {
+        out.push({
+            key: "draw-replacement:yes",
+            move: { kind: "draw-replacement", accept: true },
+            hint: { lifePaid: normalizeMayPayCost(choice.cost).life ?? 0 },
+        });
+    }
+    return out;
+};
+
+/** The registry: choice kind → candidate generator. A kind with NO generator is
+ *  not yet an in-tree decision node — the search treats it exactly as before
+ *  (no decider, playout stops there), so adding a tranche is purely additive. */
+export const CHOICE_CANDIDATE_GENERATORS: Partial<
+    Record<PendingChoiceKind, ChoiceCandidateGenerator>
+> = {
+    "may-pay": mayPayCandidates,
+    "land-entry-tapped": landEntryCandidates,
+    "draw-replacement": drawReplacementCandidates,
+};
+
+/** Whether `kind` is an in-tree choice node (has a registered generator). */
+export function hasChoiceCandidateGenerator(kind: PendingChoiceKind): boolean {
+    return CHOICE_CANDIDATE_GENERATORS[kind] !== undefined;
+}
+
+/** Stable-sort by prior, highest first, then take the top K. Ties keep
+ *  generator order, so the whole pipeline stays deterministic. */
+export function topKByPrior(
+    candidates: ChoiceCandidate[],
+    k: number = CHOICE_TOP_K
+): ChoiceCandidate[] {
+    return [...candidates]
+        .map((c, i) => ({ c, i }))
+        .sort((a, b) => b.c.prior - a.c.prior || a.i - b.i)
+        .slice(0, k)
+        .map(({ c }) => c);
+}
+
+/** The choice node's opened branches: the registered generator's self-pruned
+ *  set, scored through the `priorFor` seam and truncated to the top K. Returns
+ *  `[]` for a kind with no generator (not an in-tree node). Pure. */
+export function choiceCandidates(
+    state: GameState,
+    choice: PendingChoice,
+    k: number = CHOICE_TOP_K
+): ChoiceCandidate[] {
+    const generate = CHOICE_CANDIDATE_GENERATORS[choice.kind];
+    if (!generate) return [];
+    const scored = generate(state, choice).map((c) => ({
+        ...c,
+        prior: priorFor(state, choice, c),
+    }));
+    return topKByPrior(scored, k);
+}
+
+/** FIRST-PLAY URGENCY: which not-yet-opened candidate the node opens next.
+ *  An unopened branch has no statistics, so its prior IS its value estimate —
+ *  the node opens branches in descending prior order rather than uniformly at
+ *  random. `rand` breaks ties (and drives the whole pick when no candidate
+ *  carries a prior, e.g. an ordinary priority node) so existing search
+ *  determinism is preserved. Returns null when everything is already open. */
+export function selectOpeningCandidate<T extends { prior: number }>(
+    unopened: T[],
+    rand: () => number
+): T | null {
+    if (unopened.length === 0) return null;
+    const best = unopened.reduce((m, c) => (c.prior > m.prior ? c : m));
+    if (best.prior <= 0) return unopened[Math.floor(rand() * unopened.length)];
+    const tied = unopened.filter((c) => c.prior === best.prior);
+    return tied[Math.floor(rand() * tied.length)];
+}

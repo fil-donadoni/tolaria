@@ -7,3 +7,8 @@ export * from "./featureBasis";
 export * from "./grounding";
 export * from "./opValuers";
 export * from "./cardScriptValue";
+// Choice-node spine (PRD #1423, issue #1425): the per-kind candidate-generator
+// registry and the pluggable `priorFor` ordering seam the search reads at a
+// live `PendingChoice`.
+export * from "./choicePriors";
+export * from "./choiceCandidates";

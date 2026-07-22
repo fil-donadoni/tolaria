@@ -250,11 +250,19 @@ function makeMayPayState(floatingMana: number): GameState {
 }
 
 describe("bot resolution-choice full path — may-pay (ADR 0016, #164)", () => {
-    it("enqueues a may-pay choice that the GRE search cannot resolve", () => {
+    it("enqueues a may-pay choice the GRE search treats as a decision node", () => {
+        // Choice nodes (PRD #1423, issue #1425): the live `may-pay` REPLACES the
+        // action space — the chooser owes the decision and the enumerator offers
+        // the choice's own answers. The live bot still resolves it through the
+        // executor path below (`botActionRealisation === "executor"`); the search
+        // seams exist so a PLAYOUT can descend past the choice.
         const state = makeMayPayState(1);
         expect(state.pendingChoices?.[0]?.kind).toBe("may-pay");
-        expect(enumerateMoves(state, BOT)).toEqual([]);
-        expect(decidingPlayer(state)).toBeNull();
+        expect(decidingPlayer(state)).toBe(BOT);
+        const moves = enumerateMoves(state, BOT);
+        expect(moves.every((m) => m.kind === "may-pay")).toBe(true);
+        expect(moves.some((m) => m.kind === "may-pay" && m.accept)).toBe(true);
+        expect(moves.some((m) => m.kind === "may-pay" && !m.accept)).toBe(true);
     });
 
     it("accepts when the cost is affordable from the pool — pays {1}, gains life, queue drains", async () => {
