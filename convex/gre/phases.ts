@@ -2867,25 +2867,6 @@ function advanceTurn(state: GameState): void {
     // taking another of their turns.
     const newActive = getPlayer(state, state.activePlayerId);
     newActive.turnsTaken = (newActive.turnsTaken ?? 0) + 1;
-    resetPerTurnFields(state);
-}
-
-/**
- * Reset every "this turn" field back to its start-of-turn value, in place.
- * Extracted out of `advanceTurn` (issue #1432 review finding #2) so it is
- * the SINGLE authority for "what counts as turn-scoped state" — a caller
- * other than `advanceTurn` that needs to normalize a state onto a fresh
- * turn (`buildBladeLoadState`, `convex/gre/ai/blade/runner.ts`) reuses this
- * function instead of hand-copying a subset of these fields, so a future
- * per-turn field added here is inherited by every caller automatically
- * instead of silently leaking through the ones that weren't updated.
- *
- * Assumes `state.activePlayerId` already reflects the turn this is
- * resetting FOR (advanceTurn calls this after swapping active player;
- * a caller normalizing onto a synthetic turn 1 must set `activePlayerId`
- * first too).
- */
-export function resetPerTurnFields(state: GameState): void {
     state.autoPassPlayers = undefined;
     state.singleShotAutoPass = undefined;
     // CR 117.2c / 305.2: reset per-turn land drop count at the start of each turn.
@@ -2950,29 +2931,15 @@ export function resetPerTurnFields(state: GameState): void {
  * Auto-phases (UNTAP, CLEANUP) are traversed without giving priority.
  * Returns the list of phases traversed (for event emission).
  */
-/**
- * Empty one player's floating-mana state (CR 500.4/106.6): the mana pool
- * itself plus its sibling restricted-mana field (e.g. Metamorphosis) — the
- * two always empty together. Extracted so a caller that needs "floating
- * mana reset to nothing" without the battlefield-wide `manaCommitted`
- * side effect below (a normalization onto a fresh position, not an actual
- * step/phase boundary) can reuse the same field pairing instead of
- * hand-copying it — `buildBladeLoadState`
- * (`convex/gre/ai/blade/runner.ts`, issue #1432 review finding #2).
- */
-export function emptyManaPool(player: PlayerState): void {
-    for (const color of Object.keys(player.manaPool)) {
-        player.manaPool[color] = 0;
-    }
-    // CR 106.6 / 500.4: restricted mana (e.g. Metamorphosis) empties with
-    // the rest of the pool at end of step/phase.
-    player.restrictedMana = undefined;
-}
-
 /** Empty mana pools for all players (CR 500.4). Tapped lands become committed (non-untappable until untap step). */
 function emptyManaPools(state: GameState): void {
     for (const player of state.players) {
-        emptyManaPool(player);
+        for (const color of Object.keys(player.manaPool)) {
+            player.manaPool[color] = 0;
+        }
+        // CR 106.6 / 500.4: restricted mana (e.g. Metamorphosis) empties with
+        // the rest of the pool at end of step/phase.
+        player.restrictedMana = undefined;
         for (const card of player.battlefield) {
             if (card.isTapped) {
                 card.manaCommitted = true;
