@@ -105,14 +105,6 @@ const DRAW_PRIMITIVE_ALLOWLIST: readonly AllowlistEntry[] = [
         classification: "protocol",
     },
     {
-        file: "inv/white.ts",
-        count: 1,
-        cards: "Restrain",
-        reason: 'no preventDamage Op mode for a source-only "assigns no combat damage" mark.',
-        classification: "planned-migratable",
-        issue: 1283,
-    },
-    {
         file: "lea/black.ts",
         count: 1,
         cards: "Lich",
