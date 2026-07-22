@@ -12,7 +12,7 @@ import {
     resolveDeckCardMeta,
     tryGetDefinition,
 } from "../../cards";
-import { getCardColors } from "../../cards/colors";
+import { getCardColorIdentity } from "../../cards/colors";
 import { manaValue } from "../../gre/constants";
 import { makeRng } from "../../gre/rng";
 import { validateDeck, type Pool, type ResolvePool } from "../../formats";
@@ -59,7 +59,7 @@ const getCardEvalMeta: GetCardEvalMeta = (scryfallId) => {
     if (!def) return null;
     return {
         cardId: meta.cardId,
-        colors: getCardColors(def),
+        colors: getCardColorIdentity(def),
         manaValue: manaValue(def.manaCost),
         rarity: meta.rarity,
     };
@@ -75,7 +75,7 @@ const getAutoBuildCardMeta: GetAutoBuildCardMeta = (scryfallId) => {
     if (!def) return null;
     return {
         cardId: meta.cardId,
-        colors: getCardColors(def),
+        colors: getCardColorIdentity(def),
         manaValue: manaValue(def.manaCost),
         rarity: meta.rarity,
         isLand: def.types.includes("Land"),
@@ -106,7 +106,7 @@ function metaOf(name: string): AutoBuildCardMeta {
     const def = getCardByName(name);
     return {
         cardId: def.id,
-        colors: getCardColors(def),
+        colors: getCardColorIdentity(def),
         manaValue: manaValue(def.manaCost),
         rarity: def.rarity,
         isLand: def.types.includes("Land"),

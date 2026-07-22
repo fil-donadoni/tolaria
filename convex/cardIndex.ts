@@ -9,7 +9,7 @@
 
 import { query } from "./_generated/server";
 import { getAllCards, getPrintingsForCard, type CardPrinting } from "./cards";
-import { getCardColors } from "./cards/colors";
+import { getCardColorIdentity } from "./cards/colors";
 import { aggregateOracleText } from "./cards/oracleAggregator";
 import { foldAccents } from "./cards/textNormalize";
 import { manaValue } from "./gre/constants";
@@ -47,7 +47,7 @@ export const list = query({
                 types: [...def.types] as string[],
                 subtypes: [...(def.subtypes ?? [])],
                 supertypes: [...(def.supertypes ?? [])] as string[],
-                colors: getCardColors(def) as string[],
+                colors: getCardColorIdentity(def) as string[],
                 manaValue: manaValue(def.manaCost),
                 oracleText,
                 oracleFold: foldAccents(oracleText),

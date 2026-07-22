@@ -43,7 +43,7 @@ import {
     recordDeclaration,
 } from "@convex/gre";
 import { manaValue } from "@convex/gre/constants";
-import { getCardColors, getColorsFromCost } from "@convex/cards/colors";
+import { getCardColorIdentity, getColorsFromCost } from "@convex/cards/colors";
 import { tryGetDefinition } from "@convex/cards";
 import {
     chooseResolution,
@@ -160,7 +160,7 @@ function manaSituationFor(state: GameState, playerId: string): ManaSituation {
         if (!instanceIsLand(perm)) continue;
         const def = tryGetDefinition(cardDefId(perm));
         if (!def) continue;
-        for (const c of getCardColors(def)) colors.add(c);
+        for (const c of getCardColorIdentity(def)) colors.add(c);
     }
     return {
         landsInPlay: player.battlefield.filter(instanceIsLand).length,

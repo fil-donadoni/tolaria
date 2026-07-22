@@ -23,7 +23,7 @@ import {
 import { cardValueById } from "@convex/gre";
 import { manaValue } from "@convex/gre/constants";
 import { matchesPermanentFilter } from "@convex/cards/filters";
-import { getColorsFromCost, getCardColors } from "@convex/cards/colors";
+import { getColorsFromCost, getCardColorIdentity } from "@convex/cards/colors";
 import { tryGetDefinition } from "@convex/cards";
 import type { Color } from "@convex/cards/types";
 import type {
@@ -90,7 +90,7 @@ function toCandidate(card: SlimCardInstance): ChoiceCandidate {
 
 /** Distinct colors the controller's lands in play can currently produce
  *  (issue #242). Reads the bot's visible battlefield: each land's
- *  color-identity (`getCardColors` — basic subtypes + declared mana abilities)
+ *  color-identity (`getCardColorIdentity` — basic subtypes + declared mana abilities)
  *  contributes to the producible set. A spell needing a color outside this set
  *  is "uncastable" for the discard ranking. */
 function producibleColors(battlefield: SlimCardInstance[]): Color[] {
@@ -99,7 +99,7 @@ function producibleColors(battlefield: SlimCardInstance[]): Color[] {
         if (!handCardIsLand(perm.types)) continue;
         const def = tryGetDefinition(perm.card.id);
         if (!def) continue;
-        for (const c of getCardColors(def)) set.add(c);
+        for (const c of getCardColorIdentity(def)) set.add(c);
     }
     return [...set];
 }

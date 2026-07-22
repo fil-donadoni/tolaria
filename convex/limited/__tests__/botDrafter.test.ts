@@ -12,7 +12,7 @@ import {
     resolveDeckCardMeta,
     tryGetDefinition,
 } from "../../cards";
-import { getCardColors } from "../../cards/colors";
+import { getCardColorIdentity } from "../../cards/colors";
 import type { Color } from "../../cards/types";
 import { manaValue } from "../../gre/constants";
 import {
@@ -44,7 +44,7 @@ function metaOf(name: string): CardEvalMeta {
     const def = getCardByName(name);
     return {
         cardId: def.id,
-        colors: getCardColors(def),
+        colors: getCardColorIdentity(def),
         manaValue: manaValue(def.manaCost),
         rarity: def.rarity,
     };
@@ -219,7 +219,7 @@ describe("scripted 8-seat all-bot draft — plausibly coherent 2-color pools (PR
         if (!def) return null;
         return {
             cardId: meta.cardId,
-            colors: getCardColors(def),
+            colors: getCardColorIdentity(def),
             manaValue: manaValue(def.manaCost),
             rarity: meta.rarity,
         };
@@ -402,7 +402,7 @@ describe("scripted all-bot LEA draft — bots take obvious bombs first-pick (iss
         if (!def) return null;
         return {
             cardId: meta.cardId,
-            colors: getCardColors(def),
+            colors: getCardColorIdentity(def),
             manaValue: manaValue(def.manaCost),
             rarity: meta.rarity,
         };

@@ -18,7 +18,7 @@ describe("computeDeckColors", () => {
         ).toEqual(["R"]);
     });
 
-    it("a basic land contributes the color of mana it produces (getCardColors, deck-builder color identity)", () => {
+    it("a basic land contributes the color of mana it produces (getCardColorIdentity, deck-builder color identity)", () => {
         expect(
             computeDeckColors([{ cardId: MOUNTAIN, cardName: "Mountain" }])
         ).toEqual(["R"]);

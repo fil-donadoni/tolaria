@@ -22,7 +22,7 @@ import {
     resolveDeckCardMeta,
     tryGetDefinition,
 } from "./cards";
-import { basicLandsForColors, getCardColors } from "./cards/colors";
+import { basicLandsForColors, getCardColorIdentity } from "./cards/colors";
 import type { Color } from "./cards/types";
 import { manaValue } from "./gre/constants";
 import { freshSeed, makeRng } from "./gre/rng";
@@ -260,7 +260,7 @@ const getCardEvalMeta: GetCardEvalMeta = (scryfallId) => {
     if (!def) return null;
     return {
         cardId: meta.cardId,
-        colors: getCardColors(def),
+        colors: getCardColorIdentity(def),
         manaValue: manaValue(def.manaCost),
         rarity: meta.rarity,
     };
@@ -323,7 +323,7 @@ const getAutoBuildCardMeta: GetAutoBuildCardMeta = (scryfallId) => {
     if (!def) return null;
     return {
         cardId: meta.cardId,
-        colors: getCardColors(def),
+        colors: getCardColorIdentity(def),
         manaValue: manaValue(def.manaCost),
         rarity: meta.rarity,
         isLand: def.types.includes("Land"),

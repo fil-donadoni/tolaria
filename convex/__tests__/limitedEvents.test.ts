@@ -8,7 +8,7 @@
 // mutations" proof available without spinning up Convex.
 import { describe, it, expect } from "vitest";
 import { resolveDeckCardMeta, tryGetDefinition } from "../cards";
-import { getCardColors } from "../cards/colors";
+import { getCardColorIdentity } from "../cards/colors";
 import { assertDeckLegal, type GateDeck } from "../formats";
 import { manaValue } from "../gre/constants";
 import { makeRng } from "../gre/rng";
@@ -77,7 +77,7 @@ const getCardEvalMeta: GetCardEvalMeta = (scryfallId) => {
     if (!def) return null;
     return {
         cardId: meta.cardId,
-        colors: getCardColors(def),
+        colors: getCardColorIdentity(def),
         manaValue: manaValue(def.manaCost),
         rarity: meta.rarity,
     };

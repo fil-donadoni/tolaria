@@ -1,5 +1,5 @@
 import { getDefinition } from "@convex/cards";
-import { getCardColors } from "@convex/cards/colors";
+import { getCardColorIdentity } from "@convex/cards/colors";
 import type { DeckCard } from "~/types/game";
 
 const COLOR_ORDER = ["W", "U", "B", "R", "G"] as const;
@@ -17,7 +17,7 @@ export function computeDeckColors(cards: DeckCard[]): string[] {
     for (const card of cards) {
         try {
             const def = getDefinition(card.cardId);
-            for (const color of getCardColors(def)) set.add(color);
+            for (const color of getCardColorIdentity(def)) set.add(color);
         } catch {
             // ignore — card may have been removed from the registry
         }

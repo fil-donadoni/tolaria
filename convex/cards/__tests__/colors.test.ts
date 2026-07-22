@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
     basicLandsForColors,
     cardHasColor,
+    getCardColorIdentity,
     getCardColors,
     getColorsFromCost,
 } from "../colors";
@@ -31,7 +32,7 @@ describe("getColorsFromCost", () => {
     });
 });
 
-describe("getCardColors", () => {
+describe("getCardColors (CR 105.2 / 202.2 — actual card colour)", () => {
     const stub = (overrides: Partial<CardDefinition>): CardDefinition => ({
         id: "stub",
         name: "Stub",
@@ -50,7 +51,38 @@ describe("getCardColors", () => {
         expect(getCardColors(def)).toEqual([]);
     });
 
-    it("derives basic land color from subtype", () => {
+    it("a basic land is COLOURLESS — it taps for a colour but has no cost", () => {
+        const def = stub({
+            id: "island",
+            name: "Island",
+            types: ["Land"],
+            subtypes: ["Island"],
+            manaCost: undefined,
+        });
+        expect(getCardColors(def)).toEqual([]);
+    });
+});
+
+describe("getCardColorIdentity (deck-builder / draft identity)", () => {
+    const stub = (overrides: Partial<CardDefinition>): CardDefinition => ({
+        id: "stub",
+        name: "Stub",
+        rarity: "common",
+        types: ["Creature"],
+        ...overrides,
+    });
+
+    it("derives from manaCost when present", () => {
+        const def = stub({ manaCost: { R: 1, W: 1 } });
+        expect(getCardColorIdentity(def)).toEqual(["W", "R"]);
+    });
+
+    it("returns empty for vanilla colorless creature with no cost", () => {
+        const def = stub({ types: ["Creature"], manaCost: undefined });
+        expect(getCardColorIdentity(def)).toEqual([]);
+    });
+
+    it("derives basic land color from subtype (Island's identity IS blue)", () => {
         const def = stub({
             id: "plains",
             name: "Plains",
@@ -58,7 +90,7 @@ describe("getCardColors", () => {
             subtypes: ["Plains"],
             manaCost: undefined,
         });
-        expect(getCardColors(def)).toEqual(["W"]);
+        expect(getCardColorIdentity(def)).toEqual(["W"]);
     });
 
     it("derives dual land colors from subtypes plus mana choices", () => {
@@ -78,7 +110,7 @@ describe("getCardColors", () => {
                 },
             ],
         });
-        expect(getCardColors(def)).toEqual(["B", "R"]);
+        expect(getCardColorIdentity(def)).toEqual(["B", "R"]);
     });
 });
 
@@ -105,10 +137,12 @@ describe("cardHasColor (CR 105.2 / 202.2 — actual card colour, not identity)",
             subtypes: ["Island"],
             manaCost: undefined,
         });
-        // getCardColors (deck-builder IDENTITY) folds the produced mana in...
-        expect(getCardColors(island)).toEqual(["U"]);
-        // ...but the card's actual COLOUR is empty: it must NOT pay "exile a
-        // blue card" (CR 105.2a).
+        // getCardColorIdentity (deck-builder IDENTITY) folds the produced mana
+        // in — Island's identity is blue...
+        expect(getCardColorIdentity(island)).toEqual(["U"]);
+        // ...but the card's actual COLOUR is empty: getCardColors returns [] and
+        // it must NOT pay "exile a blue card" (CR 105.2a).
+        expect(getCardColors(island)).toEqual([]);
         expect(cardHasColor(island, "U")).toBe(false);
     });
 
