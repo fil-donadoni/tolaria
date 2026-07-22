@@ -3294,6 +3294,289 @@ describe("Effect Script Op: moveZone (CR 400.7, issue #839)", () => {
     });
 });
 
+// ─────────────────────────────────────────────────────────────────────────
+// moveZone — RETURN A DEPARTED OBJECT (issue #1469, CR 400.7 / 608.2b)
+// ─────────────────────────────────────────────────────────────────────────
+//
+// "Destroy up to three target creatures and/or other planeswalkers. Return
+// each card put into a graveyard THIS WAY to the battlefield under your
+// control" (Sorin, Lord of Innistrad's −6). The "this way" linkage is NOT a
+// list-valued binding: it is the existing `bind` snapshot (which records the
+// pre-departure instance id, preserved by `leaveBattlefield`) plus an explicit
+// `from` that makes `moveZone` re-derive that id IN THAT ZONE at execution
+// time. Every miss is a CR 608.2b no-op — which is what the NEGATIVE cases
+// below pin down, since they are the whole reason the re-check exists.
+describe("Effect Script Op: moveZone — departed-object return (CR 400.7 / 608.2b, issue #1469)", () => {
+    // A synthetic Dauthi-Voidwalker-shaped permanent: redirects any card bound
+    // for an OPPONENT's graveyard to exile instead (CR 614.1c replacement).
+    const VOIDWALKER_ID = "test-mz-return-voidwalker";
+    registerTokenDefinition({
+        id: VOIDWALKER_ID,
+        name: VOIDWALKER_ID,
+        rarity: "rare",
+        manaCost: { B: 2 },
+        types: ["Creature"],
+        power: 3,
+        toughness: 2,
+        replacementEffects: [
+            {
+                id: "test-mz-return-voidwalker-exile",
+                oracleText:
+                    "If a card would be put into an opponent's graveyard from anywhere, exile it instead.",
+                eventKind: "graveyard-bound",
+                appliesTo: (event, self) =>
+                    event.kind === "graveyard-bound" &&
+                    event.ownerId !== self.controllerId,
+                replace: (event) => {
+                    if (event.kind !== "graveyard-bound") {
+                        throw new Error("unexpected event kind");
+                    }
+                    return {
+                        kind: "modified",
+                        event: { ...event, destination: "exile" },
+                    };
+                },
+            },
+        ],
+    });
+
+    /** The Sorin-shaped script: destroy the announced target, then return
+     *  whatever that destroy actually put into a graveyard, under the
+     *  resolving controller's control. */
+    function sorinShaped(id: string, extra: Record<string, unknown> = {}) {
+        return registerScript(id, [
+            { op: "destroy", target: { target: 0 }, bind: "$a" },
+            {
+                op: "moveZone",
+                target: { ref: "$a" },
+                from: "graveyard",
+                to: "battlefield",
+                controller: "controller",
+                ...extra,
+            } as EffectOp,
+        ]);
+    }
+
+    it("returns a destroyed permanent from the graveyard under the RESOLVING player's control (wire format)", () => {
+        const id = sorinShaped("test-mz-return-basic");
+        const bear = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "retBear",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "retBear" }]);
+        resolveTopOfStack(state);
+        // CR 400.7 / 800.4a — owner stays p2 (its graveyard was the source),
+        // but the `controller` override lands it under p1's control.
+        expect(state.players[1].graveyard.map((c) => c.id)).not.toContain(
+            "retBear"
+        );
+        const returned = state.players[0].battlefield.find(
+            (c) => c.id === "retBear"
+        );
+        expect(returned).toBeDefined();
+        expect(returned?.controllerId).toBe("p1");
+        expect(returned?.ownerId).toBe("p2");
+        expect(returned?.isTapped).toBeFalsy();
+        // Both zones are public, so the outcome must survive the projection.
+        const projected = projectPublicState(state, 1, "p1");
+        expect(
+            projected.players[0].battlefield.find((c) => c.id === "retBear")
+                ?.controllerId
+        ).toBe("p1");
+        expect(projected.players[1].graveyard.map((c) => c.id)).not.toContain(
+            "retBear"
+        );
+    });
+
+    it("enters tapped with tapped: true (CR 110.5a)", () => {
+        const id = sorinShaped("test-mz-return-tapped", { tapped: true });
+        const bear = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "tapBear",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "tapBear" }]);
+        resolveTopOfStack(state);
+        const returned = state.players[0].battlefield.find(
+            (c) => c.id === "tapBear"
+        );
+        expect(returned?.isTapped).toBe(true);
+    });
+
+    // NEGATIVE 1 — the target survived the destroy (CR 702.12). It never
+    // reached a graveyard, so there is nothing to return: it must stay put,
+    // under its ORIGINAL controller, and must not be stolen by the return.
+    it("does NOT return an indestructible target that survived the destroy (CR 702.12 / 608.2b)", () => {
+        const id = sorinShaped("test-mz-return-indestructible");
+        const bear = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "indBear",
+            staticAbilities: ["indestructible"],
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "indBear" }]);
+        resolveTopOfStack(state);
+        const survivor = state.players[1].battlefield.find(
+            (c) => c.id === "indBear"
+        );
+        expect(survivor).toBeDefined();
+        expect(survivor?.controllerId).toBe("p2");
+        expect(state.players[0].battlefield.map((c) => c.id)).not.toContain(
+            "indBear"
+        );
+    });
+
+    // NEGATIVE 2 — a graveyard-bound replacement redirected the dying
+    // permanent to EXILE (Dauthi Voidwalker / Yawgmoth's Will shape). It was
+    // never "put into a graveyard this way", so it is not returned.
+    it("does NOT return a target a graveyard→exile replacement redirected (CR 614.1c / 608.2b)", () => {
+        const id = sorinShaped("test-mz-return-exile-redirect");
+        const voidwalker = makeInstance(VOIDWALKER_ID, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id: "vw1",
+        });
+        const bear = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "redirBear",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [voidwalker] }),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "redirBear" }]);
+        resolveTopOfStack(state);
+        expect(state.players[1].exile.map((c) => c.id)).toContain("redirBear");
+        expect(state.players[1].graveyard.map((c) => c.id)).not.toContain(
+            "redirBear"
+        );
+        expect(state.players[0].battlefield.map((c) => c.id)).not.toContain(
+            "redirBear"
+        );
+        expect(state.players[1].battlefield.map((c) => c.id)).not.toContain(
+            "redirBear"
+        );
+    });
+
+    // NEGATIVE 3 — a token ceases to exist when it leaves the battlefield
+    // (CR 704.5d), so it is never in the graveyard when the return runs.
+    it("does NOT return a destroyed token (CR 704.5d / 608.2b)", () => {
+        const id = sorinShaped("test-mz-return-token");
+        const token = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "tokBear",
+            isToken: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [token] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "tokBear" }]);
+        resolveTopOfStack(state);
+        expect(state.players[1].battlefield.map((c) => c.id)).not.toContain(
+            "tokBear"
+        );
+        expect(state.players[0].battlefield.map((c) => c.id)).not.toContain(
+            "tokBear"
+        );
+    });
+
+    // The exile-sourced twin: `exile` + `bind`, then `from: "exile"` returns
+    // the SAME object (the blink shape #1468-B builds on).
+    it("returns an exiled object with from: \"exile\"", () => {
+        const id = registerScript("test-mz-return-from-exile", [
+            { op: "exile", target: { target: 0 }, bind: "$a" },
+            {
+                op: "moveZone",
+                target: { ref: "$a" },
+                from: "exile",
+                to: "battlefield",
+                controller: "controller",
+            },
+        ]);
+        const bear = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "exBear",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "exBear" }]);
+        resolveTopOfStack(state);
+        expect(state.players[1].exile.map((c) => c.id)).not.toContain("exBear");
+        const returned = state.players[0].battlefield.find(
+            (c) => c.id === "exBear"
+        );
+        expect(returned).toBeDefined();
+        expect(returned?.controllerId).toBe("p1");
+    });
+
+    // A `from: "graveyard"` return whose bound object is in EXILE is a no-op
+    // (and vice versa) — the zone discriminator is load-bearing, not cosmetic.
+    it("no-ops when the bound object is not in the named zone (CR 608.2b)", () => {
+        const id = registerScript("test-mz-return-wrong-zone", [
+            { op: "exile", target: { target: 0 }, bind: "$a" },
+            {
+                op: "moveZone",
+                target: { ref: "$a" },
+                from: "graveyard",
+                to: "battlefield",
+                controller: "controller",
+            },
+        ]);
+        const bear = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "wrongZoneBear",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [
+            { type: "permanent", id: "wrongZoneBear" },
+        ]);
+        resolveTopOfStack(state);
+        expect(state.players[1].exile.map((c) => c.id)).toContain(
+            "wrongZoneBear"
+        );
+        expect(state.players[0].battlefield.map((c) => c.id)).not.toContain(
+            "wrongZoneBear"
+        );
+    });
+});
+
 // The `cards`-shaped moveZone (issue #677): the SEARCH half of a tutor/fetch
 // effect, consuming a `choice(zone: "library")` Op's picks — a library card
 // has no announced-target form (CR 601.2b, hidden zone), so `resolveObjectRef`

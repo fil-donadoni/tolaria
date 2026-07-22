@@ -7766,13 +7766,34 @@ export type EffectOp =
      *  through to `SpellContext.returnToBattlefield`'s existing optional 4th
      *  argument; omitted keeps the default (Resurrection, Hell's Caretaker —
      *  "under the owner's control"). Invalid outside a `to: "battlefield"`
-     *  graveyard-card move. */
+     *  graveyard-card move.
+     *
+     *  RETURN-A-DEPARTED-OBJECT (issue #1469). A `ref` naming a snapshot bound
+     *  by an EARLIER `destroy` / `exile` / `sacrifice` in the same script (the
+     *  "return each card put into a graveyard THIS WAY" linkage — Sorin, Lord
+     *  of Innistrad's −6) refers to an object that is no longer on the
+     *  battlefield, so its zone cannot be inferred from the snapshot's kind.
+     *  `from` is the explicit discriminator for that case and is valid ONLY on
+     *  the `target` shape with `to: "battlefield"`:
+     *  - `from: "graveyard"` (the default when omitted, so every pre-existing
+     *    script keeps its inferred behaviour) — re-derive the id in a
+     *    graveyard at EXECUTION time;
+     *  - `from: "exile"` — re-derive it in an exile zone instead (a
+     *    `graveyardDestinationFor` redirect, or an `exile` Op's own bind).
+     *  The re-check is the whole point: an object that never reached that zone
+     *  (an indestructible / regenerated target that survived the `destroy`, a
+     *  graveyard → exile replacement redirect, a token that ceased to exist —
+     *  CR 704.5d) is simply not found and the Op no-ops (CR 608.2b — the
+     *  effect does as much as it can). `tapped: true` (CR 110.5a) makes the
+     *  returned permanent enter tapped; valid only with `to: "battlefield"`. */
     | {
           op: "moveZone";
           target: EffectObjectSelector;
           to: EffectMoveZone;
+          from?: "graveyard" | "exile";
           bind?: string;
           controller?: EffectPlayerRef;
+          tapped?: boolean;
       }
     /** CR 400.7 (issue #677) — the SEARCH half of a tutor/fetch effect: move
      *  the cards a `choice` Op picked (a bare picks ref, e.g.

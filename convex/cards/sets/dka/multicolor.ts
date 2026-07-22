@@ -24,13 +24,20 @@ import { SORIN_LORD_OF_INNISTRAD_EMBLEM_ID } from "../../emblems";
 //   • +1 — Create a 1/1 black Vampire with lifelink: `createToken` with a plain
 //     static P/T + lifelink spec.
 //   • −2 — the emblem: the new `emblem` Op (the subsystem's new primitive).
-//   • −6 — Destroy up to three target creatures and/or other planeswalkers:
-//     three per-slot `destroy` Ops over an up-to-3 target group (an unfilled
-//     slot no-ops). Deferred / DIVERGENCE: the reanimation clause ("Return each
-//     card put into a graveyard this way to the battlefield under your
-//     control") and the "OTHER planeswalkers" self-exclusion are NOT
-//     implemented — the destroy-then-return-same-set linkage needs a primitive
-//     the DSL lacks. tracked-by: #1227.
+//   • −6 — Destroy up to three target creatures and/or other planeswalkers,
+//     then return each card put into a graveyard this way to the battlefield
+//     under your control (issue #1469, closing #1227). Three per-slot
+//     `destroy` Ops over an up-to-3 target group (an unfilled slot no-ops),
+//     each `bind`-snapshotting its target, followed by three `moveZone
+//     { ref, from: "graveyard", to: "battlefield", controller: "controller" }`
+//     Ops. The "this way" linkage is the snapshot id plus `moveZone`'s
+//     post-move zone re-check: a target that survived (indestructible /
+//     regenerated), one a replacement effect redirected to exile, and a token
+//     (CR 704.5d) are all simply not in a graveyard at that point, so the
+//     return no-ops (CR 608.2b). "OTHER planeswalkers" is a target-filter
+//     concern, expressed through the single-authority path — a dynamic
+//     `getTargetRequirement(source)` injecting `excludeInstanceIds: [source.id]`,
+//     so `getLegalTargets` and `selectTarget` agree (CR 601.2c).
 export const sorinLordOfInnistrad: CardDefinition = {
     id: "27bb371f-d49f-41bd-bbe0-d5e1e2067e36",
     name: "Sorin, Lord of Innistrad",
@@ -86,13 +93,51 @@ export const sorinLordOfInnistrad: CardDefinition = {
                 type: ["Creature", "Planeswalker"],
                 count: { min: 0, max: 3 },
             },
+            // "…and/or OTHER planeswalkers" (CR 601.2c) — Sorin is never a
+            // legal target of its own −6. Expressed through the SINGLE
+            // authority both `getLegalTargets` and `selectTarget` read
+            // (`excludeInstanceIds` → `intrinsicPermanentTargetViolation`), so
+            // offered == accepted; a UI-only filter is the known bug class.
+            // An activated ability has no `triggerSourceId`, so the reflexive
+            // `excludeSource` flag (triggered-only) does not apply — the
+            // documented activated-ability form is this dynamic requirement.
+            getTargetRequirement: (source) => ({
+                type: ["Creature", "Planeswalker"],
+                count: { min: 0, max: 3 },
+                excludeInstanceIds: [source.id],
+            }),
             // An unfilled target slot resolves to `undefined`, so `destroy`
-            // no-ops it — the three Ops cover "up to three." Reanimation clause
-            // + "other" self-exclusion deferred (see header, #1227).
+            // no-ops it — the three Ops cover "up to three." Each `destroy`
+            // `bind`s its target (CR 608.2h last-known information); the
+            // paired `moveZone` re-derives that id IN THE GRAVEYARD at
+            // execution time, which is exactly the "put into a graveyard THIS
+            // WAY" linkage: a survivor / exile-redirect / token isn't there
+            // and the return no-ops (CR 608.2b).
             effects: [
-                { op: "destroy", target: { target: 0 } },
-                { op: "destroy", target: { target: 1 } },
-                { op: "destroy", target: { target: 2 } },
+                { op: "destroy", target: { target: 0 }, bind: "$a" },
+                { op: "destroy", target: { target: 1 }, bind: "$b" },
+                { op: "destroy", target: { target: 2 }, bind: "$c" },
+                {
+                    op: "moveZone",
+                    target: { ref: "$a" },
+                    from: "graveyard",
+                    to: "battlefield",
+                    controller: "controller",
+                },
+                {
+                    op: "moveZone",
+                    target: { ref: "$b" },
+                    from: "graveyard",
+                    to: "battlefield",
+                    controller: "controller",
+                },
+                {
+                    op: "moveZone",
+                    target: { ref: "$c" },
+                    from: "graveyard",
+                    to: "battlefield",
+                    controller: "controller",
+                },
             ],
         },
     ],

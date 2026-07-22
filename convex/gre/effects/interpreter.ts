@@ -1497,7 +1497,13 @@ export const OP_EXECUTORS: {
     //    player cannot be resolved.
     //  - `target` (issue #839) — the current zone is inferred from the
     //    object's kind (a permanent is on the battlefield; a graveyard-card is
-    //    in the graveyard), so the Op carries no `from`. Skipped when the
+    //    in the graveyard), so the Op normally carries no `from`. The ONE
+    //    exception (issue #1469) is a snapshot `ref` naming an object that has
+    //    already LEFT the battlefield ("return each card put into a graveyard
+    //    this way" — Sorin, Lord of Innistrad's −6): there is no kind to infer
+    //    from, so an explicit `from: "graveyard" | "exile"` re-derives the id
+    //    in that zone at execution time, and `tapped` may make the returned
+    //    permanent enter tapped (CR 110.5a). Skipped when the
     //    referenced object is gone (CR 608.2b — the spell does as much as it
     //    can), or for a zone pair with no plain-move primitive (a battlefield
     //    permanent to any zone but the hand needs LTB semantics — that is
@@ -1568,7 +1574,23 @@ export const OP_EXECUTORS: {
             ctx.moveZone(playerId, op.from, op.to);
             return;
         }
-        let target = resolveObjectRef(ctx, op.target);
+        // issue #1469 — the RETURN-A-DEPARTED-OBJECT shape. An explicit `from`
+        // says the ref names an object that has ALREADY left the battlefield
+        // ("return each card put into a graveyard THIS WAY" — Sorin, Lord of
+        // Innistrad's −6), so its zone can NOT be inferred from the snapshot's
+        // kind. Skip the battlefield-scoped resolution entirely and re-derive
+        // the id in `from` at execution time: a target that survived the
+        // preceding `destroy` (indestructible / regenerated) is still ON the
+        // battlefield and must NOT be "returned" (it never left, CR 608.2b) —
+        // resolving it as a permanent first would be exactly that mistake.
+        const explicitFrom = "from" in op ? op.from : undefined;
+        let target = explicitFrom
+            ? undefined
+            : resolveObjectRef(ctx, op.target);
+        // The zone the recovered card was actually found in — always the
+        // graveyard on the historical inferred path, `op.from` on the #1469
+        // explicit path.
+        let recoveredZone: "graveyard" | "exile" = "graveyard";
         // Graveyard-source recovery (CR 400.7): `resolveObjectRef` is
         // battlefield-scoped, so a ref to a card sitting in a graveyard resolves
         // to undefined. `moveZone` is the only Op whose graveyard → battlefield
@@ -1593,8 +1615,22 @@ export const OP_EXECUTORS: {
                     ? ctx.sourceInstanceId
                     : readBinding(ctx, op.target.ref)?.[SNAP_ID];
                 if (gid !== undefined) {
-                    const owner = ctx.getGraveyardCardOwner(gid);
+                    // issue #1469 — `from: "exile"` re-derives the departed
+                    // object in an EXILE zone instead (an `exile` Op's own
+                    // bind, or a `graveyardDestinationFor` replacement that
+                    // redirected the dying permanent to exile — in which case
+                    // a `from: "graveyard"` return correctly finds nothing).
+                    const zone = explicitFrom ?? "graveyard";
+                    const owner =
+                        zone === "exile"
+                            ? ctx.getExileCardOwner(gid)
+                            : ctx.getGraveyardCardOwner(gid);
                     if (owner !== undefined) {
+                        recoveredZone = zone;
+                        // The `graveyard-card` carrier is the generic
+                        // "card sitting in a non-battlefield zone" selection
+                        // shape; `recoveredZone` is what the move below acts
+                        // on, so an exile-sourced return is not mis-zoned.
                         target = {
                             type: "graveyard-card",
                             id: gid,
@@ -1634,12 +1670,19 @@ export const OP_EXECUTORS: {
                     ? resolvePlayerRef(ctx, op.controller)
                     : undefined;
                 if (op.controller && controllerId === undefined) return;
-                ctx.returnToBattlefield(
+                const entered = ctx.returnToBattlefield(
                     owner,
                     target.id,
-                    "graveyard",
+                    recoveredZone,
                     controllerId
                 );
+                // CR 110.5a (issue #1469) — enter tapped. Mirrors the
+                // `cards`-shape's own `tapped` handling: a direct `tap`
+                // immediately after entry, a simplification that skips any
+                // "as this enters tapped" replacement interaction.
+                if (entered && op.tapped) {
+                    ctx.tap({ type: "permanent", id: target.id });
+                }
                 return;
             }
             // A plain graveyard → hand/library/exile/graveyard move by id
