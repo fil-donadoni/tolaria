@@ -4,7 +4,8 @@
 // pluggable `priorFor` seam, top-K + first-play-urgency opening, and stable
 // identity keys — plus the three traversal seams (`decidingPlayer`,
 // `enumerateMoves`, `applyMoveInSearch`) for the yes/no family and the
-// modal `option-pick` generator (issue #1428).
+// modal `option-pick` generator (issue #1428) and the `search-library`
+// fetch/tutor generator (CR 701.19, issue #1429).
 
 import { describe, it, expect, afterEach } from "vitest";
 import type { GameState, PendingChoice } from "../state";
@@ -16,8 +17,16 @@ import { registerTokenDefinition } from "../../cards";
 const SAC_ONE_CREATURE: MayPayCost = {
     sacrifice: { count: 1, filter: { types: ["Creature"] } },
 };
-import { decidingPlayer, applyMoveInSearch, searchWithTrace } from "../search";
-import { enumerateMoves } from "../moves";
+import {
+    decidingPlayer,
+    applyMoveInSearch,
+    searchWithTrace,
+    selectRootMove,
+    type Edge,
+    type Node,
+} from "../search";
+import { enumerateMoves, type Move } from "../moves";
+import { applyPendingChoiceSubmit } from "../pendingChoiceSubmit";
 import {
     CHOICE_CANDIDATE_GENERATORS,
     CHOICE_TOP_K,
@@ -41,14 +50,15 @@ import {
     makeInstance,
     pushSpell,
 } from "../../cards/__tests__/setup";
-import { grizzlyBears } from "../../cards/sets/lea/green";
+import { crawWurm, grizzlyBears } from "../../cards/sets/lea/green";
+import { forest } from "../../cards/sets/lea/colorless";
 
 afterEach(() => resetChoicePriorFn());
 
-/** Registers a synthetic DSL-only modal sorcery under a stable test id
- *  (mirrors `interpreter.test.ts`'s `registerScript` helper). Test-only ids
- *  never enter `getAllCards()`, so the catalogue sweep stays clean. */
-function registerModalScript(id: string, effects: EffectOp[]): string {
+/** Registers a synthetic DSL-only sorcery under a stable test id (mirrors
+ *  `interpreter.test.ts`'s `registerScript` helper). Test-only ids never enter
+ *  `getAllCards()`, so the catalogue sweep stays clean. */
+function registerSpellScript(id: string, effects: EffectOp[]): string {
     registerTokenDefinition({
         id,
         name: id,
@@ -96,16 +106,69 @@ function stateWithChoice(
     return state;
 }
 
+/** p1 owns a library of `libraryDefIds` (instance ids `<prefix>-<i>`) and
+ *  `landsInPlay` Forests on the battlefield, with a head `search-library`
+ *  pending choice (CR 701.19). */
+function stateWithLibrarySearch(
+    libraryDefIds: string[],
+    choice: Partial<PendingChoice> = {},
+    opts: { landsInPlay?: number; idPrefix?: string } = {}
+): GameState {
+    const prefix = opts.idPrefix ?? "lib";
+    const state = makeState({
+        players: [
+            makePlayer("p1", {
+                library: libraryDefIds.map((defId, i) =>
+                    makeInstance(defId, {
+                        id: `${prefix}-${i}`,
+                        controllerId: "p1",
+                        ownerId: "p1",
+                        zone: "library",
+                    })
+                ),
+                battlefield: Array.from(
+                    { length: opts.landsInPlay ?? 0 },
+                    (_, i) =>
+                        makeInstance(forest.id, {
+                            id: `${prefix}-land-${i}`,
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "battlefield",
+                        })
+                ),
+            }),
+            makePlayer("p2"),
+        ],
+        priorityPlayerId: "p1",
+        activePlayerId: "p1",
+    });
+    state.pendingChoices = [
+        {
+            stackItemId: "stack-1",
+            step: 0,
+            choiceId: "c1",
+            playerId: "p1",
+            kind: "search-library",
+            zone: "library",
+            count: 1,
+            prompt: "Search your library for a card.",
+            ...choice,
+        } as PendingChoice,
+    ];
+    return state;
+}
+
 describe("choice-node candidate contract (CR 608.2 / ADR 0016, issue #1425)", () => {
-    it("registers the yes/no family + option-pick (may-pay, land-entry, draw-replacement, option-pick)", () => {
+    it("registers tranche 1 (yes/no family, option-pick, search-library)", () => {
         expect(hasChoiceCandidateGenerator("may-pay")).toBe(true);
         expect(hasChoiceCandidateGenerator("land-entry-tapped")).toBe(true);
         expect(hasChoiceCandidateGenerator("draw-replacement")).toBe(true);
         expect(hasChoiceCandidateGenerator("option-pick")).toBe(true);
+        expect(hasChoiceCandidateGenerator("search-library")).toBe(true);
         // A kind outside these tranches is NOT an in-tree node yet — additive
         // by design: no generator means the historical no-decision behavior.
         expect(hasChoiceCandidateGenerator("discard-hand")).toBe(false);
-        expect(Object.keys(CHOICE_CANDIDATE_GENERATORS).length).toBe(4);
+        expect(Object.keys(CHOICE_CANDIDATE_GENERATORS).length).toBe(5);
     });
 
     it("may-pay (CR 117.3a): a cost-less choice offers both answers", () => {
@@ -420,7 +483,7 @@ describe("choice-node traversal seams (issue #1425)", () => {
         // an `option-pick` choice. Applying a `resolution-choice` candidate move
         // must run the CHOSEN mode's effects only, and resume past the node —
         // mirroring the yes/no family's `land-entry` traversal test above.
-        const id = registerModalScript("test-1428-option-pick-traversal", [
+        const id = registerSpellScript("test-1428-option-pick-traversal", [
             {
                 op: "optionChoice",
                 prompt: "Choose one.",
@@ -475,7 +538,7 @@ describe("option-pick playout: searchWithTrace picks a sensible mode (issue #142
         // lethal mode once the choice node is live — mirroring `search.test.ts`'s
         // "burns the opponent's face for the kill" shape, but for a MODE pick
         // instead of a target pick.
-        const id = registerModalScript("test-1428-option-pick-playout", [
+        const id = registerSpellScript("test-1428-option-pick-playout", [
             {
                 op: "optionChoice",
                 prompt: "Choose one.",
@@ -498,10 +561,7 @@ describe("option-pick playout: searchWithTrace picks a sensible mode (issue #142
             },
         ]);
         const state = makeState({
-            players: [
-                makePlayer("p1"),
-                makePlayer("p2", { life: 3 }),
-            ],
+            players: [makePlayer("p1"), makePlayer("p2", { life: 3 })],
             priorityPlayerId: "p1",
             activePlayerId: "p1",
         });
@@ -513,5 +573,400 @@ describe("option-pick playout: searchWithTrace picks a sensible mode (issue #142
         expect(move?.kind).toBe("resolution-choice");
         if (move?.kind !== "resolution-choice") throw new Error("kind");
         expect(move.cardInstanceIds).toEqual(["kill"]);
+    });
+});
+
+describe("search-library generator (CR 701.19 — fetchlands / tutors, issue #1429)", () => {
+    it("collapses the pool to DISTINCT card identities, keyed by name", () => {
+        // Four Forests are ONE decision ("fetch a Forest"), not four.
+        const state = stateWithLibrarySearch([
+            forest.id,
+            forest.id,
+            forest.id,
+            forest.id,
+            grizzlyBears.id,
+        ]);
+        const cands = choiceCandidates(state, state.pendingChoices![0]);
+        expect(cands.map((c) => c.key).sort()).toEqual([
+            "search-library:Forest",
+            "search-library:Grizzly Bears",
+        ]);
+        // …and no key leaks a per-world instance id.
+        expect(cands.every((c) => !c.key.includes("lib-"))).toBe(true);
+    });
+
+    it("ranks targets by worth: the bigger body opens before the smaller one", () => {
+        const state = stateWithLibrarySearch(
+            [grizzlyBears.id, crawWurm.id],
+            {},
+            { landsInPlay: 5 }
+        );
+        const cands = choiceCandidates(state, state.pendingChoices![0]);
+        expect(cands[0].key).toBe("search-library:Craw Wurm");
+        expect(cands.map((c) => c.key)).toContain(
+            "search-library:Grizzly Bears"
+        );
+        expect(cands[0].hint?.materialGained).toBeGreaterThan(
+            cands[1].hint?.materialGained ?? 0
+        );
+    });
+
+    it("prices a fetched LAND against the searcher's mana development", () => {
+        // Land-light (the fetchland's real window): the land outranks a body.
+        const early = stateWithLibrarySearch(
+            [crawWurm.id, forest.id],
+            {},
+            { landsInPlay: 0 }
+        );
+        expect(choiceCandidates(early, early.pendingChoices![0])[0].key).toBe(
+            "search-library:Forest"
+        );
+        // Flooded: another land is nearly worthless, the body wins.
+        const flooded = stateWithLibrarySearch(
+            [crawWurm.id, forest.id],
+            {},
+            { landsInPlay: 5 }
+        );
+        expect(
+            choiceCandidates(flooded, flooded.pendingChoices![0])[0].key
+        ).toBe("search-library:Craw Wurm");
+    });
+
+    it("honors the precomputed candidateIds allow-list (a FILTERED tutor)", () => {
+        // A fetchland's "search for a basic land card" is precomputed into
+        // `candidateIds` when the choice is raised (hidden zone, CR 400.2).
+        const state = stateWithLibrarySearch(
+            [grizzlyBears.id, forest.id, crawWurm.id],
+            { candidateIds: ["lib-1"] }
+        );
+        const cands = choiceCandidates(state, state.pendingChoices![0]);
+        expect(cands.map((c) => c.key)).toEqual(["search-library:Forest"]);
+        expect(cands[0].move).toMatchObject({
+            kind: "resolution-choice",
+            stackItemId: "stack-1",
+            step: 0,
+            choiceId: "c1",
+            cardInstanceIds: ["lib-1"],
+        });
+    });
+
+    it("CR 701.19c: 'fail to find' is a branch only when the count admits it", () => {
+        const may = stateWithLibrarySearch([forest.id], {
+            count: { min: 0, max: 1 },
+        });
+        expect(
+            choiceCandidates(may, may.pendingChoices![0]).map((c) => c.key)
+        ).toContain("search-library:none");
+
+        const mustFind = stateWithLibrarySearch([forest.id], { count: 1 });
+        expect(
+            choiceCandidates(mustFind, mustFind.pendingChoices![0]).map(
+                (c) => c.key
+            )
+        ).toEqual(["search-library:Forest"]);
+    });
+
+    it("finding outranks failing to find, but failing stays reachable", () => {
+        const state = stateWithLibrarySearch([crawWurm.id], {
+            count: { min: 0, max: 1 },
+        });
+        const cands = choiceCandidates(state, state.pendingChoices![0]);
+        expect(cands[0].key).toBe("search-library:Craw Wurm");
+        expect(cands[cands.length - 1].key).toBe("search-library:none");
+        expect(cands[cands.length - 1].prior).toBeGreaterThan(0);
+    });
+
+    it("an EMPTY eligible pool with a mandatory count is no decision node", () => {
+        const state = stateWithLibrarySearch([], { count: 1 });
+        expect(choiceCandidates(state, state.pendingChoices![0])).toEqual([]);
+        expect(decidingPlayer(state)).toBeNull();
+    });
+
+    it("branching is BOUNDED at top-K, never the whole matching library", () => {
+        const bulk = Array.from({ length: 20 }, (_, i) => {
+            const id = `test-1429-bulk-${i}`;
+            registerTokenDefinition({
+                id,
+                name: `Bulk Creature ${i}`,
+                rarity: "common",
+                manaCost: { G: 1 },
+                types: ["Creature"],
+                power: i + 1,
+                toughness: 1,
+            } as CardDefinition);
+            return id;
+        });
+        const state = stateWithLibrarySearch(bulk);
+        // Assert against the GENERATOR, not `choiceCandidates`: the latter
+        // `slice(0, k)`s ANY generator's output, so a length assertion on it
+        // holds even when the generator enumerates the whole library. Only the
+        // raw generator output can fail — this is the assertion that pins the
+        // "bounded, never the full matching library" AC (issue #1429).
+        const raw = CHOICE_CANDIDATE_GENERATORS["search-library"]!(
+            state,
+            state.pendingChoices![0]
+        );
+        expect(raw.length).toBeLessThanOrEqual(CHOICE_TOP_K);
+        expect(raw.length).toBeLessThan(bulk.length);
+
+        const cands = choiceCandidates(state, state.pendingChoices![0]);
+        expect(cands.length).toBeLessThanOrEqual(CHOICE_TOP_K);
+        // The pruning is POLICY-driven, not arbitrary: the best body survives.
+        expect(cands[0].key).toBe("search-library:Bulk Creature 19");
+    });
+
+    it("a multi-card search fills greedily and keys the whole multiset", () => {
+        // "Search for up to two cards": the answer space is the subset lattice;
+        // the generator emits one candidate per LEAD identity, greedily filled.
+        const state = stateWithLibrarySearch([grizzlyBears.id, crawWurm.id], {
+            count: 2,
+        });
+        const cands = choiceCandidates(state, state.pendingChoices![0]);
+        expect(cands.map((c) => c.key)).toEqual([
+            "search-library:Craw Wurm | Grizzly Bears",
+        ]);
+        expect(cands[0].move).toMatchObject({
+            cardInstanceIds: ["lib-1", "lib-0"],
+        });
+    });
+
+    it("keys are STABLE across determinizations; the MOVE names this world's ids", () => {
+        // ISMCTS reshuffles the searcher's library every iteration: same cards,
+        // different order and (for a fabricated world) different ids.
+        const worldA = stateWithLibrarySearch(
+            [grizzlyBears.id, crawWurm.id],
+            {},
+            { idPrefix: "worldA" }
+        );
+        const worldB = stateWithLibrarySearch(
+            [crawWurm.id, grizzlyBears.id],
+            {},
+            { idPrefix: "worldB" }
+        );
+        const keysA = choiceCandidates(worldA, worldA.pendingChoices![0]).map(
+            (c) => c.key
+        );
+        const keysB = choiceCandidates(worldB, worldB.pendingChoices![0]).map(
+            (c) => c.key
+        );
+        expect(keysA).toEqual(keysB);
+
+        const wurmA = choiceCandidates(worldA, worldA.pendingChoices![0])[0];
+        const wurmB = choiceCandidates(worldB, worldB.pendingChoices![0])[0];
+        expect(wurmA.key).toBe("search-library:Craw Wurm");
+        expect(wurmA.move).toMatchObject({ cardInstanceIds: ["worldA-1"] });
+        expect(wurmB.move).toMatchObject({ cardInstanceIds: ["worldB-0"] });
+    });
+
+    it("enumerateMoves / decidingPlayer expose the node to the search", () => {
+        const state = stateWithLibrarySearch([grizzlyBears.id, crawWurm.id]);
+        expect(decidingPlayer(state)).toBe("p1");
+        const moves = enumerateMoves(state, "p1");
+        expect(moves).toHaveLength(2);
+        expect(moves.every((m) => m.kind === "resolution-choice")).toBe(true);
+    });
+
+    it("applyMoveInSearch fetches through the real resolver (fetchland pattern)", () => {
+        const id = registerSpellScript("test-1429-search-library-traversal", [
+            {
+                op: "choice",
+                kind: "search-library",
+                player: "controller",
+                zone: "library",
+                filter: { type: "Creature" },
+                count: 1,
+                prompt: "Search your library for a creature card.",
+                bind: "$picked",
+            },
+            {
+                op: "moveZone",
+                cards: { ref: "$picked" },
+                player: "controller",
+                from: "library",
+                to: "battlefield",
+            },
+            { op: "libraryLook", action: "shuffle", player: "controller" },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: [
+                        makeInstance(grizzlyBears.id, {
+                            id: "lib-bear",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "library",
+                        }),
+                        makeInstance(crawWurm.id, {
+                            id: "lib-wurm",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "library",
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+            priorityPlayerId: "p1",
+            activePlayerId: "p1",
+        });
+        pushSpell(state, id, "p1");
+        expect(resolveTopOfStack(state)).toBeNull(); // suspended on the search
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("search-library");
+        expect(decidingPlayer(state)).toBe("p1");
+
+        const cands = choiceCandidates(state, head);
+        const wurm = cands.find((c) => c.key === "search-library:Craw Wurm")!;
+        applyMoveInSearch(state, "p1", wurm.move);
+
+        expect(state.players[0].battlefield.map((c) => c.id)).toContain(
+            "lib-wurm"
+        );
+        expect(state.players[0].library.map((c) => c.id)).not.toContain(
+            "lib-wurm"
+        );
+        expect(state.pendingChoices?.length ?? 0).toBe(0);
+        expect(state.stack).toHaveLength(0);
+    });
+});
+
+describe("search-library playout: searchWithTrace fetches a sensible target (issue #1429)", () => {
+    it("puts the 6/4 onto the battlefield instead of the 2/2", () => {
+        const id = registerSpellScript("test-1429-search-library-playout", [
+            {
+                op: "choice",
+                kind: "search-library",
+                player: "controller",
+                zone: "library",
+                filter: { type: "Creature" },
+                count: 1,
+                prompt: "Search your library for a creature card.",
+                bind: "$picked",
+            },
+            {
+                op: "moveZone",
+                cards: { ref: "$picked" },
+                player: "controller",
+                from: "library",
+                to: "battlefield",
+            },
+            { op: "libraryLook", action: "shuffle", player: "controller" },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: [
+                        makeInstance(grizzlyBears.id, {
+                            id: "lib-bear",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "library",
+                        }),
+                        makeInstance(crawWurm.id, {
+                            id: "lib-wurm",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "library",
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+            priorityPlayerId: "p1",
+            activePlayerId: "p1",
+        });
+        pushSpell(state, id, "p1");
+        expect(resolveTopOfStack(state)).toBeNull(); // suspended on the search
+        expect(decidingPlayer(state)).toBe("p1");
+
+        const { move } = searchWithTrace(state, "p1", { iterations: 200 }, 7);
+        expect(move?.kind).toBe("resolution-choice");
+        if (move?.kind !== "resolution-choice") throw new Error("kind");
+        expect(move.cardInstanceIds).toEqual(["lib-wurm"]);
+    });
+});
+
+// Two determinization-safety guards on the `search-library` node. Both concern
+// the SAME structural fact: an edge is keyed by stable identity, but the cards
+// behind that identity live in a HIDDEN zone that `determinize` re-deals every
+// iteration — so neither the pool size nor the instance ids captured when the
+// edge was opened may be trusted in another world (PRD #1423, issue #1429).
+describe("search-library determinization safety (issue #1429)", () => {
+    it("emits NO pick when this world's pool is smaller than the choice minimum", () => {
+        // "Search target opponent's library for two cards": `determinize`
+        // re-deals the opponent's hand↔library, so a world can show fewer than
+        // `min` eligible cards. A short submission is ILLEGAL, and the throw
+        // would escape `iterate` and kill the whole search — so the generator
+        // must offer nothing rather than an under-count pick.
+        const state = stateWithLibrarySearch([grizzlyBears.id], {
+            count: { min: 2, max: 2 },
+        });
+        const head = state.pendingChoices![0];
+        expect(
+            CHOICE_CANDIDATE_GENERATORS["search-library"]!(state, head)
+        ).toEqual([]);
+        expect(choiceCandidates(state, head)).toEqual([]);
+    });
+
+    it("pins WHY: the real resolver rejects an under-count submission", () => {
+        const state = stateWithLibrarySearch([grizzlyBears.id], {
+            count: { min: 2, max: 2 },
+        });
+        expect(() =>
+            applyPendingChoiceSubmit(state, {
+                stackItemId: "stack-1",
+                step: 0,
+                choiceId: "c1",
+                playerId: "p1",
+                cardInstanceIds: ["lib-0"],
+            })
+        ).toThrow(/Select at least 2 cards/);
+    });
+
+    it("selectRootMove re-resolves the winning edge against the ROOT world", () => {
+        // The root world (the REAL state the move is submitted against).
+        const rootState = stateWithLibrarySearch(
+            [grizzlyBears.id, crawWurm.id],
+            {},
+            { idPrefix: "root" }
+        );
+        // The edge as it was OPENED, in a different determinization: same stable
+        // key, instance ids that do not exist in the root world at all (for an
+        // opponent-zone search those cards sit in the opponent's HAND there).
+        const staleMove: Move = {
+            kind: "resolution-choice",
+            stackItemId: "stack-1",
+            step: 0,
+            choiceId: "c1",
+            cardInstanceIds: ["ghost-7"],
+        };
+        const edge: Edge = {
+            move: staleMove,
+            key: "search-library:Craw Wurm",
+            mover: "p1",
+            node: { children: new Map() },
+            visits: 100,
+            totalReward: 60,
+            totalMargin: 0,
+            avail: 100,
+        };
+        const root: Node = { children: new Map([[edge.key, edge]]) };
+
+        const chosen = selectRootMove(
+            root,
+            enumerateMoves(rootState, "p1"),
+            rootState,
+            "p1"
+        );
+        // The ROOT world's Craw Wurm, not the stale id.
+        expect(chosen).toMatchObject({ cardInstanceIds: ["root-1"] });
+        // …and every id it names really is in the root world's searched zone,
+        // which is what makes the submission legal.
+        if (chosen.kind !== "resolution-choice") throw new Error("kind");
+        const libraryIds = rootState.players[0].library.map((c) => c.id);
+        for (const id of chosen.cardInstanceIds ?? []) {
+            expect(libraryIds).toContain(id);
+        }
     });
 });

@@ -192,6 +192,12 @@ function materialSignal(margin: number): number {
 
 export type Edge = {
     move: Move;
+    /** The tree key this edge is stored under (its key in `Node.children`).
+     *  At a choice node this is the candidate's STABLE IDENTITY, so the move
+     *  above — captured in the determinization that OPENED the edge — can be
+     *  re-resolved against any later world (`rootMoveFor`, `selectRootMove`).
+     *  At a priority node it is the structural `moveKey` of `move` itself. */
+    key: string;
     /** Player who chose this move (perspective the rewards are stored in). */
     mover: string;
     node: Node;
@@ -451,9 +457,11 @@ export function applyMoveInSearch(
         }
 
         case "resolution-choice": {
-            // Generic (non-yes/no) choice-node answer — currently `option-pick`
+            // Generic (non-yes/no) choice-node answer — `option-pick`
             // (CR 700.2 / 601.2b modal spells, CR 614.12 "as it enters, choose
-            // …" body picks, issue #1428). Applied through the SAME validated
+            // …" body picks, issue #1428) and `search-library` (CR 701.19
+            // fetchlands / tutors, issue #1429; an empty `cardInstanceIds` is
+            // CR 701.19c's "fail to find"). Applied through the SAME validated
             // resolver the `submitResolutionChoice` mutation drives
             // (`applyPendingChoiceSubmit`), so the search can never diverge from
             // the authoritative path. It already resumes the suspended
@@ -1027,6 +1035,7 @@ function iterate(
             applyMoveInSearch(world, pid, pick.move);
             const edge: Edge = {
                 move: pick.move,
+                key: pick.key,
                 mover: pid,
                 node: newNode(),
                 visits: 0,
@@ -1156,12 +1165,17 @@ function buildTrace(
 ): DecisionTrace {
     const candidates: CandidateTrace[] = [];
     for (const edge of root.children.values()) {
+        // Same re-resolution the real pick uses (`rootMoveFor`): the stored move
+        // may name instances from the determinization that opened the edge, and
+        // applying those to the root world would probe (or label) a position the
+        // bot could not actually reach.
+        const move = rootMoveFor(edge, rootState);
         const probe = cloneGameState(rootState);
-        applyMoveInSearch(probe, botId, edge.move);
+        applyMoveInSearch(probe, botId, move);
         settleStackForBreakdown(probe);
         candidates.push({
-            label: describeMove(edge.move, rootState),
-            move: edge.move,
+            label: describeMove(move, rootState),
+            move,
             visits: edge.visits,
             meanReward: edge.visits > 0 ? edge.totalReward / edge.visits : 0,
             meanMargin: edge.visits > 0 ? edge.totalMargin / edge.visits : 0,
@@ -1434,6 +1448,30 @@ function isAlternativeTargetCast(
     return !isSelfHarmRemovalCast(state, move, botId);
 }
 
+/** The move an edge names in the ROOT world — the only world whose instance ids
+ *  the caller may legally submit.
+ *
+ *  `edge.move` was captured in the determinization that OPENED the edge, and at
+ *  a choice node the edge is keyed by STABLE IDENTITY (card names), not by those
+ *  ids. For a search of a HIDDEN zone the ids therefore need not exist in the
+ *  root world at all: `determinize` re-deals the opponent's hand↔library, so a
+ *  `search-library` whose `zoneOwnerId` is the opponent (Jester's Cap,
+ *  `ice/colorless.ts`) can have the winning edge's cards sitting in the
+ *  opponent's HAND in the real state — an illegal submission. `iterate` already
+ *  honours this on descent ("apply THIS world's move for the selected key"); so
+ *  must the final root pick. Re-resolve the key against the root world's own
+ *  candidate set and fall back to the stored move when the key no longer
+ *  generates (a card genuinely gone from the real library). */
+function rootMoveFor(edge: Edge, rootState?: GameState): Move {
+    if (!rootState) return edge.move;
+    const headChoice = rootState.pendingChoices?.[0];
+    if (!headChoice || headChoice.playerId !== edge.mover) return edge.move;
+    const match = choiceCandidates(rootState, headChoice).find(
+        (c) => c.key === edge.key
+    );
+    return match?.move ?? edge.move;
+}
+
 export function selectRootMove(
     root: Node,
     moves: Move[],
@@ -1485,7 +1523,8 @@ export function selectRootMove(
             const bestGrant = grants.reduce((m, e) =>
                 credited(e) > credited(m) ? e : m
             );
-            if (credited(bestGrant) > credited(best)) return bestGrant.move;
+            if (credited(bestGrant) > credited(best))
+                return rootMoveFor(bestGrant, rootState);
         }
     }
 
@@ -1571,11 +1610,11 @@ export function selectRootMove(
                 mean(e) >= bestMean - OUTCOME_EPS &&
                 isAlternativeTargetCast(rootState, e.move, best.move, botId)
         );
-        if (enemyTarget) return enemyTarget.move;
+        if (enemyTarget) return rootMoveFor(enemyTarget, rootState);
         const hold = pool.find(
             (e) => e.move.kind === "pass" && mean(e) >= bestMean - OUTCOME_EPS
         );
-        if (hold) return hold.move;
+        if (hold) return rootMoveFor(hold, rootState);
     }
 
     // Free-development tie-break (ADR 0020 §1, issue #206; extended for free
@@ -1612,7 +1651,7 @@ export function selectRootMove(
                         (isFreeManaSourceCast(rootState, e.move, botId) ||
                             isManaDorkCast(rootState, e.move, botId))))
         );
-        if (develop) return develop.move;
+        if (develop) return rootMoveFor(develop, rootState);
     }
 
     // Hold-the-trick tie-break (ADR 0021, issue #229). The mirror image of the
@@ -1640,9 +1679,9 @@ export function selectRootMove(
         const hold = pool.find(
             (e) => e.move.kind === "pass" && mean(e) >= bestMean - OUTCOME_EPS
         );
-        if (hold) return hold.move;
+        if (hold) return rootMoveFor(hold, rootState);
     }
-    return best.move;
+    return rootMoveFor(best, rootState);
 }
 
 /** Whether `move` dumps a held combat TRICK (a `pump` hint) at sorcery speed

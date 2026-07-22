@@ -135,12 +135,12 @@ describe("matchesMove — partial-match semantics (issue #1427)", () => {
         const move = castSpell(boltId, [
             { type: "player", id: seatPlayerId(state, "opp") },
         ]);
-        expect(matchesMove(state, move, { kind: "cast-spell", target: "opp" })).toBe(
-            true
-        );
-        expect(matchesMove(state, move, { kind: "cast-spell", target: "me" })).toBe(
-            false
-        );
+        expect(
+            matchesMove(state, move, { kind: "cast-spell", target: "opp" })
+        ).toBe(true);
+        expect(
+            matchesMove(state, move, { kind: "cast-spell", target: "me" })
+        ).toBe(false);
     });
 
     it("`cards` demands every name, `accept` compares the yes/no payload", () => {
@@ -180,12 +180,12 @@ describe("matchesMove — partial-match semantics (issue #1427)", () => {
         ).toBe(false);
 
         const mayPay: Move = { kind: "may-pay", accept: true };
-        expect(matchesMove(state, mayPay, { kind: "may-pay", accept: true })).toBe(
-            true
-        );
-        expect(matchesMove(state, mayPay, { kind: "may-pay", accept: false })).toBe(
-            false
-        );
+        expect(
+            matchesMove(state, mayPay, { kind: "may-pay", accept: true })
+        ).toBe(true);
+        expect(
+            matchesMove(state, mayPay, { kind: "may-pay", accept: false })
+        ).toBe(false);
         // `accept` is undefined for a move kind that carries no boolean.
         expect(
             matchesMove(state, attack, {
@@ -225,9 +225,7 @@ describe("matchesMove — stack-resident names (finding 1, issue #1427)", () => 
 
     it("matches a counterspell targeting the stack spell", () => {
         const { state, counterId, stackBoltId } = counterspellState();
-        const move = castSpell(counterId, [
-            { type: "spell", id: stackBoltId },
-        ]);
+        const move = castSpell(counterId, [{ type: "spell", id: stackBoltId }]);
         expect(
             matchesMove(state, move, {
                 kind: "cast-spell",
@@ -239,9 +237,7 @@ describe("matchesMove — stack-resident names (finding 1, issue #1427)", () => 
 
     it("describes a stack-resident target by NAME, not by raw id", () => {
         const { state, counterId, stackBoltId } = counterspellState();
-        const move = castSpell(counterId, [
-            { type: "spell", id: stackBoltId },
-        ]);
+        const move = castSpell(counterId, [{ type: "spell", id: stackBoltId }]);
         const described = describeChosenMove(state, move);
         expect(described).toContain(`cards=[${counterspell.name}]`);
         expect(described).toContain(`targets=[${lightningBolt.name}]`);
@@ -268,7 +264,9 @@ describe("instanceIdsForName — unresolvable names fail loudly (finding 2, issu
 
     it("throws when the name is not a card at all", () => {
         const { state } = boltVsBearsState();
-        expect(() => instanceIdsForName(state, "Definitely Not A Card")).toThrow();
+        expect(() =>
+            instanceIdsForName(state, "Definitely Not A Card")
+        ).toThrow();
     });
 
     it("a `forbidden`-style matcher on an absent card can no longer pass vacuously", () => {
@@ -284,10 +282,14 @@ describe("instanceIdsForName — unresolvable names fail loudly (finding 2, issu
             })
         ).toThrow(/no instance of it exists/i);
         expect(() =>
-            matchesMove(state, { kind: "play-land", cardInstanceId: boltId }, {
-                kind: "play-land",
-                card: mountain.name,
-            })
+            matchesMove(
+                state,
+                { kind: "play-land", cardInstanceId: boltId },
+                {
+                    kind: "play-land",
+                    card: mountain.name,
+                }
+            )
         ).toThrow(/no instance of it exists/i);
         // Even a null move (nothing owed) surfaces the authoring bug.
         expect(() =>
@@ -358,9 +360,7 @@ describe("runBladeScenario — expectation branches (issue #1427)", () => {
     });
 
     it("`forbidden` fails, and names the matcher that bit, when it matches", () => {
-        const result = runBladeScenario(
-            landScenario({ forbidden: ANY_LEGAL })
-        );
+        const result = runBladeScenario(landScenario({ forbidden: ANY_LEGAL }));
         expect(result.ok).toBe(false);
         expect(result.failureMessage).toContain("forbidden by");
         // The rendering is in the matcher's own vocabulary, not raw ids.
@@ -405,7 +405,9 @@ describe("runBladeScenario — expectation branches (issue #1427)", () => {
 
 describe("runBladeScenario — seeds (issue #1427)", () => {
     it("runs every declared seed and reports one result per seed", () => {
-        const result = runBladeScenario(landScenario({ moves: ANY_LEGAL }, [1, 2, 3]));
+        const result = runBladeScenario(
+            landScenario({ moves: ANY_LEGAL }, [1, 2, 3])
+        );
         expect(result.seeds.map((s) => s.seed)).toEqual([1, 2, 3]);
         expect(result.seeds.every((s) => s.ok)).toBe(true);
         expect(result.ok).toBe(true);
@@ -423,9 +425,7 @@ describe("runBladeScenario — seeds (issue #1427)", () => {
 
     it("rejects an empty seed list and a non-positive budget", () => {
         expect(() =>
-            runBladeScenario(
-                landScenario({ moves: [{ kind: "pass" }] }, [])
-            )
+            runBladeScenario(landScenario({ moves: [{ kind: "pass" }] }, []))
         ).toThrow(/empty seed list/i);
         expect(() =>
             runBladeScenario({
