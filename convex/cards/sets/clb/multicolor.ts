@@ -36,10 +36,12 @@ import type { CardDefinition, EffectTokenSpec } from "../../types";
 //     it resolves. Expressed with the new `reflexiveTrigger` Op; `sacrifice`'s
 //     new `bind` takes the CR 608.2h last-known-information snapshot before
 //     the creature leaves the battlefield, so `$sacked.power` still reads its
-//     power from the graveyard. The Hamster rider gates on `picksMatchFilter`
-//     against the sacrificed card in its OWNER's graveyard (`$sacked.owner`,
-//     CR 108.3 — not the controller, so a sacrificed creature that was under
-//     someone else's control still checks the right graveyard).
+//     power from the graveyard. The Hamster rider gates on the SAME snapshot
+//     via `boundMatchesFilter` — deliberately NOT the graveyard-reading
+//     `picksMatchFilter`: the Hamster this card exists to sacrifice is Boo, a
+//     TOKEN, and a token that leaves the battlefield ceases to exist
+//     (CR 704.5d) before the reflexive trigger ever resolves, so a graveyard
+//     lookup would silently never fire in the card's main line.
 //
 // DIVERGENCE — "Minsc & Boo, Timeless Heroes can be your commander." is not
 // modelled: the Commander format is out of scope for this engine (only
@@ -179,10 +181,7 @@ export const minscAndBooTimelessHeroes: CardDefinition = {
                             // snapshot whose power/owner survive the zone
                             // change, `$sacPicks` stays a picks binding the
                             // graveyard filter below can read.
-                            capture: {
-                                $sacked: { ref: "$sacked" },
-                                $sacPicks: { ref: "$sacPicks" },
-                            },
+                            capture: { $sacked: { ref: "$sacked" } },
                             // CR 603.3d — announced as the reflexive trigger
                             // goes on the stack, i.e. AFTER the sacrifice.
                             targetRequirement: { type: "any", count: 1 },
@@ -194,13 +193,15 @@ export const minscAndBooTimelessHeroes: CardDefinition = {
                                 },
                                 {
                                     op: "if",
+                                    // CR 608.2h — "WAS a Hamster" is a
+                                    // last-known-information question, asked
+                                    // of the snapshot, NOT of a graveyard: the
+                                    // Hamster this card exists to sacrifice is
+                                    // Boo, a TOKEN, and a token that leaves the
+                                    // battlefield ceases to exist (CR 704.5d)
+                                    // long before this trigger resolves.
                                     predicate: {
-                                        picksMatchFilter: { ref: "$sacPicks" },
-                                        // CR 108.3 — a sacrificed permanent
-                                        // goes to its OWNER's graveyard, which
-                                        // is not necessarily the controller
-                                        // who sacrificed it.
-                                        player: { ref: "$sacked.owner" },
+                                        boundMatchesFilter: { ref: "$sacked" },
                                         filter: { subtype: "Hamster" },
                                     },
                                     then: [

@@ -8,12 +8,7 @@
 // three clauses wired together, driven through the real stack.
 
 import { describe, it, expect } from "vitest";
-import {
-    makeInstance,
-    makePlayer,
-    makeState,
-    pushSpell,
-} from "../../../__tests__/setup";
+import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { resolveTopOfStack } from "../../../../gre/state";
 import type { CardInstanceState, GameState } from "../../../../gre/state";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
@@ -25,6 +20,7 @@ import {
     placeTriggersOnStack,
 } from "../../../../gre/triggers";
 import { projectPublicState } from "../../../../gameProjections";
+import { checkStateBasedActions } from "../../../../gre/sba";
 import { getLegalTargets } from "../../../../gre/rules";
 import { minscAndBooTimelessHeroes } from "../multicolor";
 import { grizzlyBears } from "../../lea/green";
@@ -103,14 +99,8 @@ describe("Minsc & Boo, Timeless Heroes — the Boo trigger (CR 603.2, one Oracle
             })
         );
         // The "you may" suspends on a may-pay decision; accept it.
-        const pending = state.pendingChoices![0];
-        applyMayPaySubmit(state, {
-            playerId: "p1",
-            stackItemId: pending.stackItemId,
-            step: pending.step,
-            choiceId: pending.choiceId,
-            accept: true,
-        });
+        expect(state.pendingChoices![0].kind).toBe("may-pay");
+        applyMayPaySubmit(state, { playerId: "p1", accept: true });
 
         console.log(
             "DBG",
@@ -154,14 +144,7 @@ describe("Minsc & Boo, Timeless Heroes — the Boo trigger (CR 603.2, one Oracle
         ]);
         placeTriggersOnStack(state, triggers);
         resolveTopOfStack(state);
-        const pending = state.pendingChoices![0];
-        applyMayPaySubmit(state, {
-            playerId: "p1",
-            stackItemId: pending.stackItemId,
-            step: pending.step,
-            choiceId: pending.choiceId,
-            accept: false,
-        });
+        applyMayPaySubmit(state, { playerId: "p1", accept: false });
         expect(state.players[0].battlefield.some((c) => c.isToken)).toBe(false);
     });
 
@@ -172,7 +155,6 @@ describe("Minsc & Boo, Timeless Heroes — the Boo trigger (CR 603.2, one Oracle
                 type: "PHASE_BEGIN",
                 phase: "UPKEEP",
                 activePlayerId: "p1",
-                turn: 1,
             },
         ]);
         expect(yours).toHaveLength(1);
@@ -181,7 +163,6 @@ describe("Minsc & Boo, Timeless Heroes — the Boo trigger (CR 603.2, one Oracle
                 type: "PHASE_BEGIN",
                 phase: "UPKEEP",
                 activePlayerId: "p2",
-                turn: 2,
             },
         ]);
         expect(theirs).toHaveLength(0);
@@ -335,14 +316,8 @@ describe("Minsc & Boo, Timeless Heroes — −2 (reflexive trigger, CR 603.3c)",
         ]);
         placeTriggersOnStack(state, triggers);
         resolveTopOfStack(state);
-        const may = state.pendingChoices![0];
-        applyMayPaySubmit(state, {
-            playerId: "p1",
-            stackItemId: may.stackItemId,
-            step: may.step,
-            choiceId: may.choiceId,
-            accept: true,
-        });
+        expect(state.pendingChoices![0].kind).toBe("may-pay");
+        applyMayPaySubmit(state, { playerId: "p1", accept: true });
         const boo = state.players[0].battlefield.find((c) => c.isToken)!;
 
         const minsc = state.players[0].battlefield.find(
@@ -364,6 +339,17 @@ describe("Minsc & Boo, Timeless Heroes — −2 (reflexive trigger, CR 603.3c)",
             state.pendingTarget!,
             state.pendingTarget!.playerId
         );
+        // CR 704.5d — run state-based actions before the reflexive trigger
+        // resolves, exactly as the engine does between priority passes. This
+        // is what makes the sacrificed Boo TOKEN cease to exist: a graveyard
+        // lookup here finds nothing, so the Hamster gate must read the
+        // CR 608.2h snapshot instead (regression — the draw silently never
+        // fired when the gate read the graveyard).
+        checkStateBasedActions(state);
+        expect(state.players[0].graveyard.some((c) => c.id === boo.id)).toBe(
+            false
+        );
+
         resolveTopOfStack(state);
         // Boo is a 1/1 → 1 damage and 1 card.
         expect(state.players[1].life).toBe(19);

@@ -147,6 +147,30 @@ const SNAP_OWNER = 5;
  *  false — treated as "not a permanent card", same fail-closed default every
  *  other missing-slot read uses. */
 const SNAP_IS_PERMANENT_CARD = 6;
+/** CR 608.2h (Minsc & Boo) — the snapshotted object's card TYPES, SUBTYPES and
+ *  NAME at bind time, so a later Op can ask what the object WAS after it has
+ *  left the battlefield. The graveyard is not a substitute: a sacrificed TOKEN
+ *  ceases to exist as a state-based action (CR 704.5d) before a reflexive
+ *  trigger ever resolves, so "if the sacrificed creature was a Hamster" MUST
+ *  read last-known information — reading the graveyard silently fails for
+ *  exactly the tokens these cards are built around (Boo). Stored
+ *  `|`-joined (the store is `string[]`; `|` cannot appear in a type/subtype).
+ *  A pre-existing snapshot has no slot here — readers see `undefined` and
+ *  treat it as "no types / no subtypes / no name", the same fail-closed
+ *  default every other missing-slot read uses. */
+const SNAP_TYPES = 7;
+const SNAP_SUBTYPES = 8;
+const SNAP_NAME = 9;
+
+/** Separator for the `|`-joined snapshot list slots. */
+const SNAP_LIST_SEP = "|";
+
+/** Reads a `|`-joined snapshot list slot back as an array (empty for a slot
+ *  that predates the field, CR 608.2b fail-closed). */
+function snapList(snap: string[] | undefined, slot: number): string[] {
+    const raw = snap?.[slot];
+    return raw ? raw.split(SNAP_LIST_SEP) : [];
+}
 
 /** A players-set `$each` binding (issue #807) is stored as the single-element
  *  `[playerId]` — distinguishable from a 4-slot object snapshot by the
@@ -300,6 +324,24 @@ function evalPredicate(ctx: SpellContext, pred: EffectPredicate): boolean {
     // there), matches `filter`. Connive's "if you discarded a nonland card"
     // gate (CR 701.50, Ledger Shredder). Reuses the SAME `matchesCardFilter`
     // reader `choice`/`count` already share — no new filter grammar.
+    // boundMatchesFilter (Minsc & Boo) — CR 608.2h: match the SNAPSHOT's
+    // last-known characteristics, with no zone lookup at all. The zone-free
+    // form is mandatory for a sacrificed token, which ceases to exist
+    // (CR 704.5d) and is therefore never findable in a graveyard.
+    if ("boundMatchesFilter" in pred) {
+        const snap = resolvePicks(ctx, pred.boundMatchesFilter);
+        if (!snap) return false;
+        return matchesCardFilter(
+            ctx,
+            {
+                name: snap[SNAP_NAME],
+                types: snapList(snap, SNAP_TYPES),
+                subtypes: snapList(snap, SNAP_SUBTYPES),
+                manaValue: Number(snap[SNAP_MANA_VALUE] ?? "0") || 0,
+            },
+            pred.filter
+        );
+    }
     if ("picksMatchFilter" in pred) {
         const picks = resolvePicks(ctx, pred.picksMatchFilter);
         if (!picks || picks.length === 0) return false;
@@ -969,6 +1011,7 @@ function bindSnapshot(
     target: TargetSelection
 ): void {
     const isPermanent = target.type === "permanent";
+    const chars = ctx.getCharacteristics(target);
     ctx.noteChoice(name, [
         String(isPermanent ? ctx.getPower(target) : 0),
         String(isPermanent ? ctx.getToughness(target) : 0),
@@ -996,6 +1039,13 @@ function bindSnapshot(
         // `isPermanentCard`'s graveyard-card/hand-card branches require the
         // card still be findable in its owner's zone array).
         ctx.isPermanentCard(target) ? "1" : "0",
+        // SNAP_TYPES / SNAP_SUBTYPES / SNAP_NAME (Minsc & Boo) — CR 205 /
+        // 201.2, read BEFORE the object moves so "if the sacrificed creature
+        // WAS a Hamster" survives the object ceasing to exist (CR 704.5d — a
+        // sacrificed token is never in a graveyard to look up).
+        (chars?.types ?? []).join(SNAP_LIST_SEP),
+        (chars?.subtypes ?? []).join(SNAP_LIST_SEP),
+        chars?.name ?? "",
     ]);
 }
 

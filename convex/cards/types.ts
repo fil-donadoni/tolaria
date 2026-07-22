@@ -3474,6 +3474,26 @@ export interface SpellContext {
      *  #1311, CR 300.1). */
     isPermanentCard: (target: TargetSelection) => boolean;
 
+    /** CR 205 / 201.2 — the referenced object's live card TYPES, SUBTYPES and
+     *  NAME, or undefined when the object cannot be found. Same
+     *  per-target-shape dispatch as `isPermanentCard` / `getManaValue`
+     *  (permanent / spell / graveyard-card / hand-card), and — for a
+     *  battlefield permanent — read off the INSTANCE, so a type/subtype
+     *  changing continuous effect (CR 613 layer 4) is honored rather than the
+     *  printed card.
+     *
+     *  The point of having it is CR 608.2h last-known information: paired with
+     *  a `bind` snapshot taken BEFORE the object moves, it answers "what WAS
+     *  that object" after the object is gone. That is not a convenience over
+     *  reading the graveyard — it is the only correct source, because a TOKEN
+     *  that leaves the battlefield ceases to exist (CR 704.5d) and is never in
+     *  a graveyard to read. Minsc & Boo's "if the sacrificed creature was a
+     *  Hamster" is exactly this case: the Hamster it is built to sacrifice is
+     *  a token. */
+    getCharacteristics: (
+        target: TargetSelection
+    ) => { types: string[]; subtypes: string[]; name: string } | undefined;
+
     /** Taps all lands controlled by `playerId` (CR 701.20a). Used by Mana
      *  Short and Drain Power. No-op for lands already tapped. */
     tapAllLands: (playerId: string) => void;
@@ -9075,7 +9095,8 @@ export type EffectPredicate =
     | EffectComparisonPredicate
     | EffectPicksNonEmptyPredicate
     | EffectTargetIsAnotherPredicate
-    | EffectPicksMatchFilterPredicate;
+    | EffectPicksMatchFilterPredicate
+    | EffectBoundMatchesFilterPredicate;
 
 /** Boolean-binding predicate: true iff the named boolean binding is true
  *  (`{ binding }`) or false (`{ not: { binding } }`). The binding MUST be a
@@ -9137,6 +9158,30 @@ export interface EffectTargetIsAnotherPredicate {
 export interface EffectPicksMatchFilterPredicate {
     picksMatchFilter: EffectRef;
     player: EffectPlayerRef;
+    filter: EffectCardFilter;
+}
+
+/** Bound-object-matches-filter predicate (Minsc & Boo): true iff the SNAPSHOT
+ *  named by `boundMatchesFilter` — a bare ref to an earlier Op's `bind` —
+ *  matches `filter` against its CR 608.2h last-known characteristics (types /
+ *  subtypes / name / mana value, captured when the snapshot was taken).
+ *
+ *  This is the zone-free counterpart of `picksMatchFilter`, and the correct
+ *  form whenever the question is "what WAS that object" rather than "what is
+ *  in that graveyard now". `picksMatchFilter` answers by looking the picked
+ *  card up in a graveyard, which is right for connive (CR 701.9 — a discard
+ *  always lands there and stays) and WRONG for a sacrifice: a sacrificed
+ *  TOKEN ceases to exist as a state-based action (CR 704.5d), so by the time
+ *  a reflexive trigger resolves there is nothing in the graveyard to match —
+ *  and the token is precisely what Minsc & Boo's "if the sacrificed creature
+ *  was a Hamster" is built to sacrifice.
+ *
+ *  Reads `false` for an uncaptured binding (the Op that would have bound it
+ *  was skipped, CR 608.2b) and for a snapshot predating the characteristics
+ *  slots. Filter fields with no snapshot counterpart (`hasCounter`, `color`)
+ *  never match — the snapshot does not carry them. */
+export interface EffectBoundMatchesFilterPredicate {
+    boundMatchesFilter: EffectRef;
     filter: EffectCardFilter;
 }
 

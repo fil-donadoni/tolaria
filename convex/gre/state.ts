@@ -11853,6 +11853,57 @@ export function buildSpellContext(
             }
             return false;
         },
+        // CR 205 / 201.2 — live types/subtypes/name of a referenced object.
+        // Same per-target-shape dispatch as `isPermanentCard`; a battlefield
+        // permanent is read off the INSTANCE so a CR 613 layer-4 type/subtype
+        // change is honored, every other shape falls back to the card
+        // definition (a card outside the battlefield has only printed
+        // characteristics, CR 108.2).
+        getCharacteristics(
+            target: TargetSelection
+        ): { types: string[]; subtypes: string[]; name: string } | undefined {
+            const fromDef = (cardId: string | undefined) => {
+                const def = cardId ? tryGetDefinition(cardId) : undefined;
+                return def
+                    ? {
+                          types: [...def.types],
+                          subtypes: [...(def.subtypes ?? [])],
+                          name: def.name,
+                      }
+                    : undefined;
+            };
+            if (target.type === "permanent") {
+                const found = findOnBattlefield(state, target.id);
+                if (!found) return undefined;
+                const cardId = (found.card.card as { id?: string }).id;
+                const def = cardId ? tryGetDefinition(cardId) : undefined;
+                return {
+                    types: [...found.card.types],
+                    subtypes: [...found.card.subtypes],
+                    name: def?.name ?? "",
+                };
+            }
+            if (target.type === "spell") {
+                const stackItem = state.stack.find((s) => s.id === target.id);
+                if (!stackItem) return undefined;
+                return fromDef((stackItem.card as { id?: string }).id);
+            }
+            if (
+                target.type === "graveyard-card" ||
+                target.type === "hand-card"
+            ) {
+                const owner = target.playerId;
+                if (owner === undefined) return undefined;
+                const zone =
+                    target.type === "graveyard-card"
+                        ? getPlayer(state, owner).graveyard
+                        : getPlayer(state, owner).hand;
+                const found = zone.find((c) => c.id === target.id);
+                if (!found) return undefined;
+                return fromDef((found.card as { id?: string }).id);
+            }
+            return undefined;
+        },
         // CR 701.20a: tap all lands controlled by playerId. Used by Mana Short
         // and Drain Power.
         tapAllLands(playerId: string): void {

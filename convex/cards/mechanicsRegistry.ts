@@ -2637,6 +2637,15 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         status: "implemented",
         cr: "608.2c",
         binding: "interpreter branch selection (no primitive)",
+        // Predicate forms: boolean-binding, numeric comparison, picksNonEmpty
+        // (#1287), targetIsAnother (#1315), picksMatchFilter (#1343) and
+        // boundMatchesFilter (Minsc & Boo). The last two are a deliberate
+        // PAIR, not duplicates: `picksMatchFilter` resolves the picked cards
+        // through a player's GRAVEYARD (right for connive — CR 701.9 puts
+        // every discard there and it stays), `boundMatchesFilter` reads a
+        // `bind` snapshot's CR 608.2h last-known characteristics with no zone
+        // lookup at all (right for a sacrifice — a sacrificed TOKEN ceases to
+        // exist, CR 704.5d, so there is nothing in any zone to match).
         note: "The `if` structural construct (ADR 0045, issue #806) — NOT an Op verb but the third frozen construct, registered here so the Op-vocabulary coverage guard (registry ⇄ interpreter ⇄ validator ⇄ scenario-assertor, 1:1) counts it. Branches the script on a PREDEFINED predicate form (a boolean-binding test — e.g. a mayPay outcome — a numeric comparison, a `picksNonEmpty` test (issue #1287) reading whether a preceding `choice` Op's picks binding actually captured anything, e.g. Krovikan Sorcerer / Mesmeric Trance's \"draw only if a card was actually discarded\" gate, a `targetIsAnother` test (issue #1315): an object-identity comparison, true iff an announced target slot resolves to a permanent OTHER than the resolving ability's source, Backup's \"if that's ANOTHER creature, it gains …\" gate (CR 702.165a), or — issue #1343 — a `picksMatchFilter` test: true iff at least one picked card, resolved via a named player's graveyard (CR 701.9 — every discard lands there), matches an `EffectCardFilter`, connive's \"if you discarded a nonland card\" gate (CR 701.50, Ledger Shredder)), never an arbitrary expression, so the validator and the bot can read the condition. then/else are Op lists; a suspending Op inside a branch suspends/resumes exactly as at the top level.",
     },
     {
@@ -2821,13 +2830,6 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         cr: "701.15",
         binding: "SpellContext.setTargetCantBeRegeneratedThisTurn",
         note: "Flag a creature so it CAN'T be regenerated for the rest of the turn (CR 701.15c, issue #1283) — the inverse of the `regenerate` shield Op. A thin declarative skin over the single SpellContext primitive `setTargetCantBeRegeneratedThisTurn`, one execution path (ADR 0045): it sets the `cantBeRegeneratedThisTurn` per-instance flag (suppressing every regeneration shield AND the auto-regenerate replacement until CLEANUP, CR 514.2). `target` is an announced target slot (`{ target: N }` — Incinerate's \"a creature dealt damage this way can't be regenerated this turn\", Orcish Healer's \"{R}{R}, {T}: Target creature can't be regenerated this turn\"), the resolving source (`$source` — Clergy of the Holy Nimbus's \"{1}: This creature can't be regenerated this turn\", routed through the SAME setTarget primitive with the source's id; the `setSourceCantBeRegeneratedThisTurn` variant is the identical flag write on `item.id`), or a forEach `$each`. DISTINCT from `destroy`'s `cantBeRegenerated` FLAG, which suppresses regeneration only for that one destroy event — this is a STANDALONE turn-scoped lock with no destroy attached (Bone Shaman rider, Lim-Dûl's Cohort, and the damage-target trigger variants that read the firing $event stay resolve()). No-op on a non-creature or a permanent that has left the battlefield (CR 608.2b).",
-    },
-    {
-        op: "markAssignsNoCombatDamage",
-        status: "implemented",
-        cr: "510.1",
-        binding: "SpellContext.markAssignsNoCombatDamage",
-        note: "Mark a permanent so it assigns NO combat damage for the rest of the turn (CR 510.1c, issue #1283) — a SOURCE-side combat-damage prevention. A thin declarative skin over the single SpellContext primitive `markAssignsNoCombatDamage`, one execution path (ADR 0045): the marked creature still fights, can be dealt combat damage and die, but deals 0 in every combat-damage step this turn. `target` is an announced target slot (`{ target: N }` — Warning / Restrain's \"Prevent all combat damage that would be dealt by target attacking creature this turn\"), the resolving source (`$source` — Farrel's Zealot's \"this creature assigns no combat damage this turn\", routed through the SAME primitive with the source's id), or a forEach `$each`. DISTINCT from the receiver-side prevention Ops `preventNextNDamageToTarget` / `preventAllCombatDamage` (which prevent damage dealt TO a creature) — this suppresses damage dealt BY the marked source. No-op on a permanent that has left the battlefield (CR 608.2b — the Op is skipped when `resolveObjectRef` returns undefined). Multi-step / $event closures that also read the firing combat event (Orcish Squatters' gain-control rider, Heroism's per-attacker may-pay loop) stay resolve().",
     },
     {
         op: "transform",

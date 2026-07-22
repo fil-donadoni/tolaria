@@ -1241,6 +1241,17 @@ function isPredicate(value: unknown): boolean {
             isCardFilter(obj.filter)
         );
     }
+    // boundMatchesFilter form (Minsc & Boo) — a bare ref to an object
+    // SNAPSHOT plus the card shape to test its CR 608.2h last-known
+    // characteristics against. No `player`: unlike `picksMatchFilter` this
+    // form reads no zone at all (a sacrificed token is in none, CR 704.5d).
+    if (
+        keys.length === 2 &&
+        keys.includes("boundMatchesFilter") &&
+        keys.includes("filter")
+    ) {
+        return isBareRef(obj.boundMatchesFilter) && isCardFilter(obj.filter);
+    }
     // Comparison form.
     if (keys.length !== 3) return false;
     return (
@@ -1864,14 +1875,6 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
         },
     },
     preventRegeneration: {
-        required: {
-            target: isObjectSelector,
-        },
-    },
-    // CR 510.1c (issue #1283) — mark a permanent to assign no combat damage
-    // this turn. `target` is an object selector (announced slot, `$source`, or
-    // a forEach `$each`). No other fields.
-    markAssignsNoCombatDamage: {
         required: {
             target: isObjectSelector,
         },
@@ -2708,6 +2711,19 @@ function collectPredicateRefUses(predicate: unknown, out: RefUse[]): void {
             kind: "picks",
         });
         collectRefUses(p.player, "player", out);
+        return;
+    }
+    // boundMatchesFilter (Minsc & Boo) — names an object SNAPSHOT binding
+    // (the `object` position's family), no player ref.
+    if (
+        typeof p.boundMatchesFilter === "object" &&
+        p.boundMatchesFilter !== null &&
+        typeof (p.boundMatchesFilter as { ref?: unknown }).ref === "string"
+    ) {
+        out.push({
+            ref: (p.boundMatchesFilter as { ref: string }).ref,
+            kind: "object",
+        });
         return;
     }
     // Comparison: numeric refs on either side.

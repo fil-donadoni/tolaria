@@ -17681,6 +17681,100 @@ describe("Effect Script Op: reflexiveTrigger (CR 603.3c)", () => {
         expect(slim.delayedOracleText).toContain("When you do");
     });
 
+    it("boundMatchesFilter reads the sacrificed object's LKI characteristics — no zone lookup, so a purged TOKEN still matches (CR 608.2h / 704.5d)", () => {
+        const id = registerScript("test-op-reflexive-lki-token", [
+            {
+                op: "choice",
+                kind: "sacrifice-permanents",
+                player: "controller",
+                zone: "battlefield",
+                filter: { type: "Creature" },
+                count: 1,
+                prompt: "Sacrifice a creature.",
+                bind: "$sacPicks",
+            },
+            {
+                op: "sacrifice",
+                permanents: { ref: "$sacPicks" },
+                bind: "$sacked",
+            },
+            {
+                op: "reflexiveTrigger",
+                oracleText: "When you do, if it was a Bear, draw a card.",
+                capture: { $sacked: { ref: "$sacked" } },
+                effects: [
+                    {
+                        op: "if",
+                        predicate: {
+                            boundMatchesFilter: { ref: "$sacked" },
+                            filter: { subtype: "Bear" },
+                        },
+                        then: [{ op: "draw", player: "controller", count: 1 }],
+                    },
+                ],
+            },
+        ]);
+        const state = sacrificeBoard();
+        state.players[0].library = [
+            makeInstance(BLACK_CARD_ID, { controllerId: "p1", id: "lki1" }),
+        ];
+        pushSpell(state, id, "p1", []);
+        resolveTopOfStack(state);
+        submitSacrifice(state, "rtBear");
+        // Remove the sacrificed card from every zone — the strongest form of
+        // "the object no longer exists anywhere" (what CR 704.5d does to a
+        // sacrificed token). A graveyard-reading gate finds nothing here.
+        state.players[0].graveyard = state.players[0].graveyard.filter(
+            (c) => c.id !== "rtBear"
+        );
+        resolveTopOfStack(state);
+        expect(state.players[0].hand.map((c) => c.id)).toEqual(["lki1"]);
+    });
+
+    it("boundMatchesFilter is false when the snapshot does not match the filter", () => {
+        const id = registerScript("test-op-reflexive-lki-nomatch", [
+            {
+                op: "choice",
+                kind: "sacrifice-permanents",
+                player: "controller",
+                zone: "battlefield",
+                filter: { type: "Creature" },
+                count: 1,
+                prompt: "Sacrifice a creature.",
+                bind: "$sacPicks",
+            },
+            {
+                op: "sacrifice",
+                permanents: { ref: "$sacPicks" },
+                bind: "$sacked",
+            },
+            {
+                op: "reflexiveTrigger",
+                oracleText: "When you do, if it was a Hamster, draw a card.",
+                capture: { $sacked: { ref: "$sacked" } },
+                effects: [
+                    {
+                        op: "if",
+                        predicate: {
+                            boundMatchesFilter: { ref: "$sacked" },
+                            filter: { subtype: "Hamster" },
+                        },
+                        then: [{ op: "draw", player: "controller", count: 1 }],
+                    },
+                ],
+            },
+        ]);
+        const state = sacrificeBoard();
+        state.players[0].library = [
+            makeInstance(BLACK_CARD_ID, { controllerId: "p1", id: "lki2" }),
+        ];
+        pushSpell(state, id, "p1", []);
+        resolveTopOfStack(state);
+        submitSacrifice(state, "rtBear"); // a Bear, not a Hamster
+        resolveTopOfStack(state);
+        expect(state.players[0].hand).toHaveLength(0);
+    });
+
     it("a picks binding crosses into the body VERBATIM, so a graveyard filter can read the sacrificed card (CR 701.16 + 608.2h)", () => {
         const id = registerScript("test-op-reflexive-picks", [
             {
