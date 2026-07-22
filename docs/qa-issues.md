@@ -53,25 +53,6 @@ Fable of the mirror-breaker
 # Bug gameplay
 
 - Non so se sia un problema di UI o di fasi di gioco, ma mi chiede di scartare per hand size quando c'è scritto untap dell'avversario invece che nella mia cleanup
-- Se premo space 2 volte troppo velocemente su declare attackers ricevo un 500 e il gioco si blocca finché non refresho la pagina
-  [CONVEX M(game:confirmAttackers)] [Request ID: 4adfe2fe792bbfdd] Server Error
-  Uncaught Error: Attacker selection is not open
-  at handler (../convex/game.ts:8163:23)
-  overrideMethod @ installHook.js:1
-  (anonymous) @ @sentry_react.js?v=48a6b840:6207
-  (anonymous) @ react-CRchZIot.js?v=48a6b840:68
-  error @ react-CRchZIot.js?v=48a6b840:51
-  logForFunction @ react-CRchZIot.js?v=48a6b840:90
-  onResponse @ react-CRchZIot.js?v=48a6b840:464
-  onMessage @ react-CRchZIot.js?v=48a6b840:1920
-  ws.onmessage @ react-CRchZIot.js?v=48a6b840:1111
-  react-CRchZIot.js?v=48a6b840:2182 Uncaught (in promise) Error: [CONVEX M(game:confirmAttackers)] [Request ID: 4adfe2fe792bbfdd] Server Error
-  Uncaught Error: Attacker selection is not open
-  at handler (../convex/game.ts:8163:23)
-  Called by client
-  at handler (../convex/game.ts:8163:23)
-  Called by client
-  at BaseConvexClient.mutation (http://localhost:5174/node_modules/.vite/deps/react-CRchZIot.js?v=48a6b840:2182:10)
 - nello scheam database c'è game_states, unica tabella snake_case. mettila in camelCase come le altre
 
 # Nuova UI

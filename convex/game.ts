@@ -8163,8 +8163,18 @@ export const confirmAttackers = mutation({
         if (args.playerId !== state.activePlayerId) {
             throw new Error("Only the active player can confirm attackers");
         }
-        if (!state.combat || state.combat.confirmed) {
+        if (!state.combat) {
             throw new Error("Attacker selection is not open");
+        }
+        // Idempotent re-fire guard: a fast double-press (Space×2) queues two
+        // confirmAttackers mutations. The first locks in the selection
+        // (`combat.confirmed`) and passes priority; the second used to throw an
+        // uncaught 500 ("Attacker selection is not open") that froze the client
+        // until refresh. Confirming is idempotent — once the selection is
+        // confirmed the desired end-state already holds, so the redundant call
+        // is a benign no-op instead of a fatal error.
+        if (state.combat.confirmed) {
+            return;
         }
 
         const player = getPlayer(state, args.playerId);
