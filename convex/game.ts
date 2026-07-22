@@ -4012,11 +4012,45 @@ export function finalizeTargetSelection(
     // along and are re-applied at commit.
     if (kind === "ability") {
         if (!abilityId) throw new Error("pendingTarget.abilityId missing");
-        const card = player.battlefield.find((c) => c.id === cardInstanceId);
+        // CR 113.6 / 602.1 — locate the ability's source. Most activated
+        // abilities live on the battlefield, but a from-hand (Cycling,
+        // Harvester of Misery's targeted discard ability) or from-graveyard
+        // (Ashen Ghoul) source lives elsewhere. A TARGETED such ability
+        // detours through this pendingTarget → finalize path, so mirror
+        // activateAbility's multi-zone lookup here; a battlefield-only scan
+        // would spuriously reject it ("Ability source not on battlefield").
+        let card = player.battlefield.find((c) => c.id === cardInstanceId);
+        let sourceFromGraveyard = false;
+        let sourceFromHand = false;
+        if (!card) {
+            const found = player.graveyard.find((c) => c.id === cardInstanceId);
+            if (found) {
+                card = found;
+                sourceFromGraveyard = true;
+            }
+        }
+        if (!card) {
+            const found = player.hand.find((c) => c.id === cardInstanceId);
+            if (found) {
+                card = found;
+                sourceFromHand = true;
+            }
+        }
         if (!card) throw new Error("Ability source not on battlefield");
         const resolved = resolveActivatedAbility(card, abilityId);
         if (!resolved) throw new Error("Ability not found");
         const ability = resolved.ability;
+        // CR 113.6 / 702.29a — the source was found off the battlefield: legal
+        // only for an ability that opts into that zone (a stale prompt whose
+        // source moved zones between announcement and confirmation is rejected).
+        if (sourceFromGraveyard && !ability.activateFromGraveyard) {
+            throw new Error(
+                "This ability can't be activated from the graveyard"
+            );
+        }
+        if (sourceFromHand && !ability.activateFromHand) {
+            throw new Error("This ability can't be activated from your hand");
+        }
         const grantedSourceCardId =
             pt.grantedSourceCardId ?? resolved.grantedSourceCardId;
         if (ability.cost.tap && card.isTapped) {
@@ -4195,6 +4229,16 @@ export function finalizeTargetSelection(
                 tappedLandIds: [],
                 tapSource: !!ability.cost.tap,
                 sacrificeSource: !!ability.cost.sacrifice,
+                // CR 702.29a — the source lives off the battlefield (Harvester
+                // of Misery's from-hand discard ability). Carry the zone flag
+                // and the discard-this cost so the deferred commit
+                // (commitPendingActivation) re-locates the source in the right
+                // zone and pays the discard.
+                ...(ability.cost.discardThis
+                    ? { discardThisSource: true }
+                    : {}),
+                ...(sourceFromHand ? { fromHand: true } : {}),
+                ...(sourceFromGraveyard ? { fromGraveyard: true } : {}),
                 ...(ability.cost.removeCounter
                     ? { removeCounterCost: { ...ability.cost.removeCounter } }
                     : {}),
@@ -4297,6 +4341,14 @@ export function finalizeTargetSelection(
         payLoyaltyCost(card, ability);
         if (ability.cost.sacrifice) {
             removePermanentTo(state, card.id, "graveyard", "sacrifice");
+        }
+        // CR 702.29a / 118.3 — the "Discard this card" activation cost
+        // (Harvester of Misery's targeted discard ability): discard the source
+        // from hand as the ability commits, routed through the shared choke
+        // point so CARD_DISCARDED fires (Marauding Mako). Runs BEFORE the
+        // stack-item clone below (the card object persists after the move).
+        if (ability.cost.discardThis) {
+            discardToGraveyard(state, player.id, card.id);
         }
         // CR 601.2f / 118.5 / 701.21a — apply the auto-resolved filtered
         // sacrifice (Drought / fungible own cost) as the ability commits.
