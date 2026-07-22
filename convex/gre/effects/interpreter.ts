@@ -1173,6 +1173,20 @@ export const OP_EXECUTORS: {
         const target = resolveObjectRef(ctx, op.to);
         if (target) ctx.dealDamage(target, amount, op.unpreventable);
     },
+    // CR 601.2d / 120.4 — deal `total` damage divided as chosen among the
+    // announced target group (`ctx.targets`). The per-target split was chosen at
+    // announcement and snapshotted onto the stack item's `targetAmounts`, which
+    // the primitive reads; `total` (mirroring `divideAsChosen.total`) is the
+    // fallback cap. `"X"` / `"X+1"` resolve against the announced {X} (getX()).
+    dealDamageDividedAsChosen(ctx, op) {
+        const total =
+            op.total === "X"
+                ? ctx.getX()
+                : op.total === "X+1"
+                  ? ctx.getX() + 1
+                  : op.total;
+        ctx.dealDamageDividedAsChosen(ctx.targets, total);
+    },
     // CR 121.1 — draw from the top of the library, one card at a time, through
     // the unified suspend-capable draw seam (ADR 0061). A DETERMINISTIC draw
     // replacement (Enduring Renewal) commits inline; an INTERACTIVE one (Zur's

@@ -2474,6 +2474,14 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         binding: "SpellContext.dealDamage",
     },
     {
+        op: "dealDamageDividedAsChosen",
+        status: "implemented",
+        cr: "601.2d",
+        binding: "SpellContext.dealDamageDividedAsChosen",
+        mechanicId: "dealDamage",
+        note: 'CR 601.2d / 120.4 divide-as-you-choose damage over the WHOLE announced target group (ctx.targets), unlike the single-`to` dealDamage Op. A thin declarative skin over the single SpellContext.dealDamageDividedAsChosen primitive (one execution path, ADR 0045). The per-target split is chosen at ANNOUNCEMENT (targetRequirement.divideAsChosen, each target ≥1) and snapshotted onto the stack item\'s targetAmounts, which the primitive reads back at resolution via resolveChosenDivision (gre/state.ts); `total` is the fallback cap and mirrors the card\'s divideAsChosen.total. `total` reuses the exact divideAsChosen.total vocabulary (number | "X" | "X+1"): a fixed amount, the announced {X} (getX() — Fire Covenant\'s pay-X-life), or X+1 (Meteor Shower\'s "X plus 1 damage"). Powers Arc Lightning, Fiery Justice, Meteor Shower, Fury (ETB trigger), Arc Mage (activated), Fire Covenant.',
+    },
+    {
         op: "draw",
         status: "implemented",
         cr: "121.1",
@@ -2886,8 +2894,8 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         status: "implemented",
         cr: "701.20a",
         binding:
-            "SpellContext.peekLibraryTop / markKnownToAll / getLibraryCards / moveCardById",
-        note: 'CR 701.20a reveal / CR 401.4 look (issue #1085 — Desperate Research: "Reveal the top seven cards of your library and put all of them with that name into your hand. Exile the rest."). Deterministic sibling of `digToHand`: reveals the top `look` cards of `player`\'s library to EVERY player (unlike `digToHand`\'s private per-chooser look), puts EVERY looked-at card matching `filter` into hand with NO player choice (the filter alone decides — CR 608.2b, zero matches is a no-op for the hand leg), and sends every non-matching looked-at card to `destination` ("exile" — Desperate Research; "graveyard" — a Surveil-shaped future card). A thin declarative composition over four existing SpellContext primitives, one execution path (ADR 0045); `filter` is REQUIRED (a filter-less "look N, keep all" dig is already `digToHand`\'s job with `take` = `look`). `bind` (optional) snapshots the FIRST card put into hand, mirrors `digToHand`\'s own `bind`. No new SpellContext primitive — pure composition, per the "generalize, don\'t add" primitive-reuse rule.',
+            "SpellContext.peekLibraryTop / markKnownToAll / notifyReveal / getLibraryCards / moveCardById",
+        note: 'CR 701.20a reveal / CR 401.4 look (issue #1085 — Desperate Research: "Reveal the top seven cards of your library and put all of them with that name into your hand. Exile the rest."). Deterministic sibling of `digToHand`: reveals the top `look` cards of `player`\'s library to EVERY player (unlike `digToHand`\'s PRIVATE per-chooser look) — a two-part public reveal (ADR 0026): `markKnownToAll` is the PERSISTENT grant (the card keeps a face-up "eye" for its controller and stays visible in the opponent\'s view even after it rides into hand) and `notifyReveal` (kind "reveal", audience = all) pops the TRANSIENT reveal dialog on both clients. It then puts EVERY looked-at card matching `filter` into hand with NO player choice (the filter alone decides — CR 608.2b, zero matches is a no-op for the hand leg), and sends every non-matching looked-at card to `destination` ("exile" — Desperate Research; "graveyard" — a Surveil-shaped future card). A thin declarative composition over existing SpellContext primitives, one execution path (ADR 0045); `filter` is REQUIRED but MAY be the match-all `{}` — a PUBLIC reveal-and-keep-all (Dark Confidant: "reveal the top card and put it into your hand") that `digToHand`\'s PRIVATE keep-all (`take` = `look`) cannot express, so this is NOT redundant with it. `bind` (optional) snapshots the FIRST card put into hand, mirrors `digToHand`\'s own `bind`. No new SpellContext primitive — pure composition, per the "generalize, don\'t add" primitive-reuse rule.',
     },
     {
         op: "lookRandomHand",

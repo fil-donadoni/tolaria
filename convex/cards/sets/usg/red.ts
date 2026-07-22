@@ -172,9 +172,9 @@ export const sneakAttack: CardDefinition = {
 // target needs ≥ 1). Home set is Urza's Saga, its earliest paper printing
 // (ADR 0041).
 //
-// protocol / no-DSL-Op (ADR 0045): divide-as-you-choose damage has no Effect
-// Script Op — `dealDamageDividedAsChosen` is a SpellContext primitive, the same
-// imperative shape shared with Fiery Justice (ice) and Meteor Shower (ice).
+// DSL-first (ADR 0045): the `dealDamageDividedAsChosen` Op (CR 601.2d / 120.4)
+// reads the announced per-target split back off the stack item; `total`
+// mirrors `divideAsChosen.total`.
 export const arcLightning: CardDefinition = {
     id: "0c81ade7-0074-4447-ba2c-b16fa0f09ccb", // USG 174
     rarity: "common",
@@ -188,7 +188,5 @@ export const arcLightning: CardDefinition = {
         count: { min: 1 },
         divideAsChosen: { total: 3 },
     },
-    resolve: (ctx) => {
-        ctx.dealDamageDividedAsChosen(ctx.targets, 3);
-    },
+    effects: [{ op: "dealDamageDividedAsChosen", total: 3 }],
 };

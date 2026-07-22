@@ -1,5 +1,5 @@
 // mh2 — red cards (ADR 0043 colour split).
-import type { CardDefinition, SpellContext } from "../../types";
+import type { CardDefinition } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { evokeTrigger } from "../../abilities/evoke";
 
@@ -50,11 +50,10 @@ export const mineCollapse: CardDefinition = {
 // battlefields and assigns the ≥1-each split of 4 damage AT ANNOUNCEMENT
 // (`raiseTriggerTargetSelection` / the shared divide UI), snapshotting the
 // split onto the trigger stack item's `targetAmounts`.
-// protocol card: the resolve reads that announcement-time divide snapshot via
-// `dealDamageDividedAsChosen(ctx.targets, 4)` — no DSL Op expresses per-target
-// divided damage (the `dealDamage` Op deals to a single `{ target }`), the same
-// justification the divide-as-you-choose spells (Fiery Justice, all/red.ts)
-// carry.
+// DSL-first (ADR 0045): the `dealDamageDividedAsChosen` Op (CR 601.2d / 120.4)
+// reads the announcement-time divide snapshot off the trigger stack item — the
+// group counterpart to the single-`to` `dealDamage` Op; `total` mirrors
+// `divideAsChosen.total`.
 export const fury: CardDefinition = {
     id: "bd281158-8180-40b9-a5b7-03cfc712d81a",
     rarity: "mythic",
@@ -89,9 +88,7 @@ export const fury: CardDefinition = {
                 count: { min: 1, max: 4 },
                 divideAsChosen: { total: 4 },
             },
-            resolve: (ctx: SpellContext) => {
-                ctx.dealDamageDividedAsChosen(ctx.targets, 4);
-            },
+            effects: [{ op: "dealDamageDividedAsChosen", total: 4 }],
         }),
         evokeTrigger("Fury"),
     ],

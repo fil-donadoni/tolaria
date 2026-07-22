@@ -106,6 +106,25 @@ const dealDamage: Valuer<"dealDamage"> = (op, ctx) => {
     return { points: amount * DAMAGE_PER_POINT, tags };
 };
 
+const dealDamageDividedAsChosen: Valuer<"dealDamageDividedAsChosen"> = (
+    op,
+    ctx
+) => {
+    // `total` mirrors `divideAsChosen.total` (number | "X" | "X+1"). Reuse the
+    // dealDamage valuer's X estimate by mapping the string forms onto the
+    // `{ X: true }` EffectValue; X+1 adds one point on top.
+    const { amount, scaling } =
+        typeof op.total === "number"
+            ? ctx.value(op.total)
+            : ctx.value({ X: true });
+    const total = op.total === "X+1" ? amount + 1 : amount;
+    // Divided burn among announced targets — removal + reach, always targeted.
+    return {
+        points: total * DAMAGE_PER_POINT,
+        tags: [...tagScaling(scaling, "damage"), "targeted"],
+    };
+};
+
 const draw: Valuer<"draw"> = (op, ctx) => {
     const { amount, scaling } = ctx.value(op.count);
     // "you draw" (self) is card advantage; "target player draws" as a downside
@@ -546,6 +565,7 @@ export const OP_VALUERS: {
 } = {
     // Charter Ops (issue #1426).
     dealDamage,
+    dealDamageDividedAsChosen,
     draw,
     gainLife,
     loseLife,

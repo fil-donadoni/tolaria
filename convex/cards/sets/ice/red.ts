@@ -2329,7 +2329,9 @@ export const wordOfBlasting: CardDefinition = {
 // Meteor Shower — {X}{X}{R} Sorcery. "Meteor Shower deals X plus 1 damage
 // divided as you choose among any number of targets." (CR 107.3 doubled-X cost
 // via `xFactor: 2`; CR 601.2d / 120.4 divide as you choose.) The total is X+1
-// (`divideAsChosen: { total: "X+1" }`); `getX()` returns the announced X.
+// (`divideAsChosen: { total: "X+1" }`); the `dealDamageDividedAsChosen` Op
+// (DSL-first ADR 0045) resolves `total: "X+1"` as `getX()+1` and reads the
+// announced per-target split off the stack item.
 export const meteorShower: CardDefinition = {
     id: "50b4851e-677b-468e-9baa-e47a3b4b8339",
     name: "Meteor Shower",
@@ -2343,7 +2345,5 @@ export const meteorShower: CardDefinition = {
         count: { min: 1 },
         divideAsChosen: { total: "X+1" },
     },
-    resolve: (ctx: SpellContext) => {
-        ctx.dealDamageDividedAsChosen(ctx.targets, ctx.getX() + 1);
-    },
+    effects: [{ op: "dealDamageDividedAsChosen", total: "X+1" }],
 };

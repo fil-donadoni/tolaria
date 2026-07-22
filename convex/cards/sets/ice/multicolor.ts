@@ -539,7 +539,9 @@ export const essenceVortex: CardDefinition = {
 // gains 5 life" is a SECOND target group the single-`targetRequirement` engine
 // can't model independently; in a 2-player game "an opponent" is unambiguous
 // (the one opponent), so the lifegain auto-resolves to that opponent at
-// resolution — a zero-branch choice (Arena-UX auto-resolve).
+// resolution — a zero-branch choice (Arena-UX auto-resolve), expressed as a
+// `gainLife` Op with `player: "opponent"`. DSL-first (ADR 0045): the divided
+// damage is the `dealDamageDividedAsChosen` Op (CR 601.2d / 120.4).
 export const fieryJustice: CardDefinition = {
     id: "8965ce61-0522-4f77-a82d-89441d1ba867",
     name: "Fiery Justice",
@@ -553,11 +555,10 @@ export const fieryJustice: CardDefinition = {
         count: { min: 1 },
         divideAsChosen: { total: 5 },
     },
-    resolve: (ctx: SpellContext) => {
-        ctx.dealDamageDividedAsChosen(ctx.targets, 5);
-        const opponentId = ctx.allPlayerIds.find((p) => p !== ctx.controller);
-        if (opponentId) ctx.gainLife(opponentId, 5);
-    },
+    effects: [
+        { op: "dealDamageDividedAsChosen", total: 5 },
+        { op: "gainLife", player: "opponent", amount: 5 },
+    ],
 };
 // Fire Covenant — {1}{B}{R} Instant. "As an additional cost to cast this spell,
 // pay X life. Fire Covenant deals X damage divided as you choose among any
@@ -566,7 +567,8 @@ export const fieryJustice: CardDefinition = {
 // the life the caster chooses to pay, which becomes the damage total. The
 // engine validates affordability (CR 118.4), pays the life as the spell hits
 // the stack, snapshots X so `getX()` returns it, and drives the per-target
-// split via `divideAsChosen: { total: "X" }`.
+// split via `divideAsChosen: { total: "X" }`. DSL-first (ADR 0045): the
+// `dealDamageDividedAsChosen` Op resolves `total: "X"` as `getX()`.
 export const fireCovenant: CardDefinition = {
     id: "6a0139c2-ad86-4c71-ab6d-4840c37d5d20",
     name: "Fire Covenant",
@@ -583,9 +585,7 @@ export const fireCovenant: CardDefinition = {
         count: { min: 1 },
         divideAsChosen: { total: "X" },
     },
-    resolve: (ctx: SpellContext) => {
-        ctx.dealDamageDividedAsChosen(ctx.targets, ctx.getX());
-    },
+    effects: [{ op: "dealDamageDividedAsChosen", total: "X" }],
 };
 // Flooded Woodlands — {2}{U}{B} enchantment. "Green creatures can't attack
 // unless their controller sacrifices a land of their choice for each green

@@ -7422,6 +7422,21 @@ export type EffectOp =
            *  702.16 protection are unaffected). */
           unpreventable?: boolean;
       }
+    /** CR 601.2d / 120.4 — deal `total` damage DIVIDED AS YOU CHOOSE among the
+     *  spell/ability's announced targets (Arc Lightning, Fiery Justice, Meteor
+     *  Shower, Fury, Arc Mage, Fire Covenant). The per-target split is chosen at
+     *  ANNOUNCEMENT (`targetRequirement.divideAsChosen`, each target ≥1) and
+     *  snapshotted onto the stack item's `targetAmounts`; this Op reads that
+     *  snapshot back at resolution. A thin declarative skin over the single
+     *  `SpellContext.dealDamageDividedAsChosen` primitive over the WHOLE
+     *  announced target group (`ctx.targets`) — unlike the single-`to`
+     *  `dealDamage` Op — one execution path (ADR 0045). `total` reuses the exact
+     *  `divideAsChosen.total` vocabulary (`number | "X" | "X+1"`): a fixed
+     *  amount, the announced {X} (`getX()`, Fire Covenant's pay-X-life), or X+1
+     *  (Meteor Shower's "X plus 1 damage"). Must MIRROR the card's
+     *  `divideAsChosen.total` — the two are the announcement/resolution halves of
+     *  the same value. No-op if there are no targets or the total is ≤0. */
+    | { op: "dealDamageDividedAsChosen"; total: number | "X" | "X+1" }
     /** CR 121.1 — `player` draws `count` cards. */
     | { op: "draw"; player: EffectPlayerRef; count: EffectValue }
     /** CR 119.3a — `player` gains `amount` life. */

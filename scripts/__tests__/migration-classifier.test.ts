@@ -1218,11 +1218,26 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // Net: total 513→497, FREE 283→284 (a formerly Op-blocked residual
         // closure surfaced FREE as the cluster drained), AFK-ready 271→272,
         // Op-blocked 216→199 (−17), X-only unchanged. Partition: 284+14+199=497.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(497);
+        //
+        // 2026-07-22 (Op-infra batch — `dealDamageDividedAsChosen`, the joint
+        // top New-Op backlog entry at 8): shipped the divide-as-you-choose
+        // damage Op (CR 601.2d / 120.4) as a thin declarative skin over the
+        // existing `SpellContext.dealDamageDividedAsChosen` primitive over the
+        // WHOLE announced target group; `total` reuses the exact
+        // `divideAsChosen.total` vocabulary (number | "X" | "X+1"). 7 closures
+        // migrated resolve()→effects[] across the whole cluster: usg (Arc
+        // Lightning), all (Pyrokinesis), mh2 (Fury's ETB trigger), nem (Arc
+        // Mage's activated ability), ice/red (Meteor Shower, total "X+1"),
+        // ice/multicolor (Fiery Justice — +gainLife opponent — and Fire
+        // Covenant, total "X"). The Op left the New-Op backlog and is now
+        // COVERED. All 7 were AFK-ready. Net: total 497→490, Op-blocked
+        // 199→192 (−7), FREE/X-only/AFK-ready unchanged. Partition:
+        // 284+14+192=490.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(490);
         expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(284);
         expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(272);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(199);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(192);
     });
 
     it("surfaces the demonstrated new-Op backlog (a covered primitive leaves it)", () => {

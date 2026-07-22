@@ -377,6 +377,15 @@ function analyseOp(op: EffectOp, req: Requirements): void {
                 req.skip ??= `object ref "${op.to.ref}" — recipient depends on a forEach iteration`;
             }
             return;
+        case "dealDamageDividedAsChosen":
+            // CR 601.2d — the per-target split is chosen at ANNOUNCEMENT and
+            // snapshotted onto the stack item's `targetAmounts`. The auto-
+            // scenario has no way to populate that multi-target division, so it
+            // cannot faithfully assert the per-target outcome. Covered by the
+            // hand-written interpreter test instead (skip-only, like exile).
+            req.skip ??=
+                "dealDamageDividedAsChosen — announced multi-target division cannot be scenario-ized";
+            return;
         case "draw":
             analysePlayer(op.player, req, true);
             analyseValue(op.count, req);
@@ -1826,6 +1835,15 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     // doesn't sequence). Kept for the 1:1 coverage guard; the Op's own
     // interpreter tests are the behavioural guarantor.
     returnExiledForSource() {
+        return null;
+    },
+    // `dealDamageDividedAsChosen` (CR 601.2d / 120.4) — never reached:
+    // `analyseOp` skips every script with it (the per-target division is chosen
+    // at announcement and snapshotted onto the stack item's `targetAmounts`,
+    // which the canned generator has no way to populate). Kept for the 1:1
+    // coverage guard; the Op's own interpreter tests are the behavioural
+    // guarantor.
+    dealDamageDividedAsChosen() {
         return null;
     },
     // `winGame` (CR 104.2a, issue #1066) — never reached: `analyseOp` skips

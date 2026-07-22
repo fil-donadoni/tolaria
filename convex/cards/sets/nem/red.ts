@@ -43,9 +43,9 @@ export const sealOfFire: CardDefinition = {
 // UI; the open-ended `{ min: 1 }` count is capped at the 2-point total by the
 // engine (each target needs ≥ 1).
 //
-// protocol / no-DSL-Op (ADR 0045): divide-as-you-choose damage has no Effect
-// Script Op — `dealDamageDividedAsChosen` is a SpellContext primitive, the same
-// imperative shape shared with Fiery Justice / Meteor Shower / Arc Lightning.
+// DSL-first (ADR 0045): the `dealDamageDividedAsChosen` Op (CR 601.2d / 120.4)
+// reads the announced per-target split off the ability's stack item; `total`
+// mirrors `divideAsChosen.total`.
 export const arcMage: CardDefinition = {
     id: "62982dab-4c27-45b3-9740-38fec3df7226", // NEM 77
     rarity: "uncommon",
@@ -73,9 +73,7 @@ export const arcMage: CardDefinition = {
                 count: { min: 1 },
                 divideAsChosen: { total: 2 },
             },
-            resolve: (ctx) => {
-                ctx.dealDamageDividedAsChosen(ctx.targets, 2);
-            },
+            effects: [{ op: "dealDamageDividedAsChosen", total: 2 }],
         },
     ],
 };

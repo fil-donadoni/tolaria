@@ -13638,65 +13638,6 @@ describe("Effect Script Op: digToHand (CR 401.4, issue #984)", () => {
         expect(state.players[0].library.map((c) => c.id)).toEqual(["a"]);
     });
 
-    // Keep-all (take === look) — nothing to select between and nothing left to
-    // distribute, so there is no real choice: auto-resolve WITHOUT a
-    // look-distribute picker (Dark Confidant's look:1/take:1 "reveal the top
-    // card and put it into your hand"). The card must land in hand in a SINGLE
-    // resolveTopOfStack, with no pendingChoice ever raised.
-    it("keep-all (take === look): no picker, the looked-at cards go straight to hand", () => {
-        const id = registerScript("test-op-dig-keepall", [
-            { op: "digToHand", player: "controller", look: 1, take: 1 },
-        ]);
-        const state = makeState({
-            players: [
-                makePlayer("p1", { library: libOf("p1", ["a", "b", "c"]) }),
-                makePlayer("p2"),
-            ],
-        });
-        pushSpell(state, id, "p1");
-        // Resolves fully — no suspend, no pendingChoice.
-        expect(resolveTopOfStack(state)).not.toBeNull();
-        expect(state.pendingChoices ?? []).toHaveLength(0);
-        // Top card "a" moved to hand; "b", "c" untouched on top of the library.
-        expect(state.players[0].hand.map((c) => c.id)).toContain("a");
-        expect(state.players[0].library.map((c) => c.id)).toEqual(["b", "c"]);
-    });
-
-    // The keep-all path still honours `bind` — the moved top card is snapshot
-    // so a trailing Op (Dark Confidant's `loseLife` off its mana value) reads it.
-    it("keep-all: binds the moved card for a later mana-value ref (Dark Confidant)", () => {
-        const id = registerScript("test-op-dig-keepall-bind", [
-            {
-                op: "digToHand",
-                player: "controller",
-                look: 1,
-                take: 1,
-                bind: "$revealed",
-            },
-            {
-                op: "loseLife",
-                player: "controller",
-                amount: { manaValue: { of: { ref: "$revealed" } } },
-            },
-        ]);
-        // Top card is a Bear ({1}{G}, mana value 2).
-        const state = makeState({
-            players: [
-                makePlayer("p1", {
-                    life: 20,
-                    library: libOf("p1", ["a", "b"]),
-                }),
-                makePlayer("p2"),
-            ],
-        });
-        pushSpell(state, id, "p1");
-        expect(resolveTopOfStack(state)).not.toBeNull();
-        expect(state.pendingChoices ?? []).toHaveLength(0);
-        expect(state.players[0].hand.map((c) => c.id)).toContain("a");
-        // Lost life equal to the revealed card's mana value (Bear = 2).
-        expect(state.players[0].life).toBe(18);
-    });
-
     it("look via {X} (a value ref): reads the chosen X as the look count", () => {
         const id = registerScript("test-op-dig-x", [
             {
@@ -16401,6 +16342,65 @@ describe("Effect Script Op: digMatchingToHand (CR 701.20a / 401.4, issue #1085)"
         expect(state.players[0].hand).toHaveLength(0);
         expect(state.players[0].exile).toHaveLength(2);
     });
+
+    // Dark Confidant shape (match-all `{}`): a PUBLIC reveal-and-keep-all — the
+    // single revealed top card goes to hand, is known to BOTH players, pops the
+    // transient reveal dialog for everyone, and its mana value feeds a trailing
+    // loseLife. No filter excludes anything (`{}` matches every card), no
+    // leftover for `destination`, no choice.
+    it("Dark Confidant (match-all reveal-and-keep): the top card is publicly revealed, kept, and known to all", () => {
+        const id = registerScript("test-op-digmatch-dark-confidant", [
+            {
+                op: "digMatchingToHand",
+                player: "controller",
+                look: 1,
+                filter: {},
+                destination: "graveyard",
+                bind: "$revealed",
+            },
+            {
+                op: "loseLife",
+                player: "controller",
+                amount: { manaValue: { of: { ref: "$revealed" } } },
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    life: 20,
+                    library: libOf("p1", [grizzlyBears.id, hillGiant.id]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        // Single synchronous step — no picker, no suspend.
+        expect(resolveTopOfStack(state)).not.toBeNull();
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        // Top card (Grizzly Bears) moved to hand; second card untouched.
+        const revealed = state.players[0].hand.find(
+            (c) => c.card.id === grizzlyBears.id
+        )!;
+        expect(revealed).toBeDefined();
+        // Lost life = revealed card's mana value (Grizzly Bears = 2).
+        expect(state.players[0].life).toBe(18);
+
+        // The transient reveal dialog is enqueued for EVERY player (kind
+        // "reveal"), the public sibling of Urza's Bauble's private "look".
+        expect(state.pendingReveals).toHaveLength(1);
+        expect(state.pendingReveals![0]).toMatchObject({ kind: "reveal" });
+
+        // Persistent "eye": the card carries both players in `knownTo`, so it
+        // survives the projection into the opponent's view of p1's hand
+        // (instead of the nulled slot a hidden hand card gets).
+        const p2View = projectPublicState(state, 2, "p2");
+        const p1HandForP2 = p2View.players[0].hand;
+        expect(
+            p1HandForP2.some(
+                (c) => c !== null && c.card?.id === grizzlyBears.id
+            )
+        ).toBe(true);
+    });
 });
 
 describe("Effect Script Op: exileWithAttachments / returnExiledForSource (CR 603.7a / 701.18 / ADR 0028)", () => {
@@ -16604,5 +16604,121 @@ describe("Effect Script Op: exileWithAttachments / returnExiledForSource (CR 603
         expect(
             projected.players[1].battlefield.some((c) => c.card.id === BEAR_ID)
         ).toBe(true);
+    });
+});
+
+describe("Effect Script Op: dealDamageDividedAsChosen (CR 601.2d / 120.4)", () => {
+    /** Two 2/5 bears controlled by p2, so marked damage stays observable. */
+    function twoBears(): GameState {
+        return makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    battlefield: [
+                        makeInstance(BEAR_ID, {
+                            controllerId: "p2",
+                            id: "bearA",
+                        }),
+                        makeInstance(BEAR_ID, {
+                            controllerId: "p2",
+                            id: "bearB",
+                        }),
+                    ],
+                }),
+            ],
+        });
+    }
+
+    it("splits a fixed total across the announced targets per the announced division (Arc Lightning)", () => {
+        const id = registerScript("test-op-divdmg-fixed", [
+            { op: "dealDamageDividedAsChosen", total: 3 },
+        ]);
+        const state = twoBears();
+        const item = pushSpell(state, id, "p1", [
+            { type: "permanent", id: "bearA" },
+            { type: "permanent", id: "bearB" },
+        ]);
+        // The player's announced 2/1 split (CR 601.2d — each target ≥1).
+        item.targetAmounts = { "permanent:bearA": 2, "permanent:bearB": 1 };
+        resolveTopOfStack(state);
+        const bf = state.players[1].battlefield;
+        expect(bf.find((c) => c.id === "bearA")!.damageMarked).toBe(2);
+        expect(bf.find((c) => c.id === "bearB")!.damageMarked).toBe(1);
+    });
+
+    it("falls back to a deterministic ≥1-each split when no division was announced (single target gets the full total)", () => {
+        const id = registerScript("test-op-divdmg-fallback", [
+            { op: "dealDamageDividedAsChosen", total: 3 },
+        ]);
+        const state = twoBears();
+        // Only one target survives; no targetAmounts → primitive fallback caps
+        // at `total`, so the lone target takes all 3.
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "bearA" }]);
+        resolveTopOfStack(state);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "bearA")!
+                .damageMarked
+        ).toBe(3);
+    });
+
+    it("resolves total X against the announced {X} (Fire Covenant-style)", () => {
+        const id = registerScript("test-op-divdmg-x", [
+            { op: "dealDamageDividedAsChosen", total: "X" },
+        ]);
+        const state = twoBears();
+        const item = pushSpell(state, id, "p1", [
+            { type: "permanent", id: "bearA" },
+            { type: "permanent", id: "bearB" },
+        ]);
+        item.chosenX = 4;
+        item.targetAmounts = { "permanent:bearA": 3, "permanent:bearB": 1 };
+        resolveTopOfStack(state);
+        const bf = state.players[1].battlefield;
+        expect(bf.find((c) => c.id === "bearA")!.damageMarked).toBe(3);
+        expect(bf.find((c) => c.id === "bearB")!.damageMarked).toBe(1);
+    });
+
+    it("resolves total X+1 as getX()+1 (Meteor Shower-style)", () => {
+        const id = registerScript("test-op-divdmg-xplus1", [
+            { op: "dealDamageDividedAsChosen", total: "X+1" },
+        ]);
+        const state = twoBears();
+        // X=2 → total 3; single-target fallback takes the whole X+1.
+        const item = pushSpell(state, id, "p1", [
+            { type: "permanent", id: "bearA" },
+        ]);
+        item.chosenX = 2;
+        resolveTopOfStack(state);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "bearA")!
+                .damageMarked
+        ).toBe(3);
+    });
+
+    it("is a no-op with no targets and still resolves the spell to the graveyard", () => {
+        const id = registerScript("test-op-divdmg-empty", [
+            { op: "dealDamageDividedAsChosen", total: 3 },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1", []);
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+        expect(state.players[0].graveyard.map((c) => c.card.id)).toContain(id);
+    });
+
+    it("divided marked damage survives projection (wire format)", () => {
+        const id = registerScript("test-op-divdmg-wire", [
+            { op: "dealDamageDividedAsChosen", total: 3 },
+        ]);
+        const state = twoBears();
+        const item = pushSpell(state, id, "p1", [
+            { type: "permanent", id: "bearA" },
+            { type: "permanent", id: "bearB" },
+        ]);
+        item.targetAmounts = { "permanent:bearA": 2, "permanent:bearB": 1 };
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        const projBf = projected.players[1].battlefield;
+        expect(projBf.find((c) => c.id === "bearA")!.damageMarked).toBe(2);
+        expect(projBf.find((c) => c.id === "bearB")!.damageMarked).toBe(1);
     });
 });

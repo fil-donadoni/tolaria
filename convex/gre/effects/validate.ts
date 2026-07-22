@@ -54,6 +54,13 @@ function isPositiveInt(value: unknown): boolean {
     return typeof value === "number" && Number.isInteger(value) && value > 0;
 }
 
+/** A `dealDamageDividedAsChosen` Op's `total` (CR 601.2d / 120.4): the exact
+ *  `TargetRequirement.divideAsChosen.total` vocabulary — a positive-int literal,
+ *  the announced {X} (`"X"`, Fire Covenant), or X+1 (`"X+1"`, Meteor Shower). */
+function isDivideTotal(value: unknown): boolean {
+    return isPositiveInt(value) || value === "X" || value === "X+1";
+}
+
 /** A base P/T value for the `animate` Op (issue #1317) — unlike CR 107.1's
  *  positive-int-literal rule for `EffectValue` AMOUNTS, a creature's base
  *  power/toughness is a plain characteristic and 0 is legal (Earthbend N's
@@ -1468,6 +1475,10 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
         required: { amount: isEffectValue, to: isDamageRecipient },
         optional: { unpreventable: isBoolean },
     },
+    // CR 601.2d / 120.4 — divide-as-you-choose damage over the announced target
+    // group (Arc Lightning, Fiery Justice, Meteor Shower). `total` mirrors the
+    // card's `divideAsChosen.total`.
+    dealDamageDividedAsChosen: { required: { total: isDivideTotal } },
     draw: { required: { player: isPlayerRef, count: isEffectValue } },
     gainLife: { required: { player: isPlayerRef, amount: isEffectValue } },
     getEnergy: { required: { player: isPlayerRef, amount: isEffectValue } },
@@ -2300,10 +2311,12 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
         optional: { excludeBasicLand: isBoolean },
     },
     // CR 701.20a reveal / CR 401.4 look (issue #1085) — deterministic sibling
-    // of `digToHand`: reveal the top `look` cards to every player, put every
-    // FILTER-matching card into hand with no player choice, and send the
-    // rest to `destination`. `filter` is REQUIRED — a filter-less "look N,
-    // keep all" dig is already `digToHand`'s job with `take` = `look`.
+    // of `digToHand`: PUBLICLY reveal the top `look` cards to every player
+    // (transient dialog + persistent known-to-all), put every FILTER-matching
+    // card into hand with no player choice, and send the rest to
+    // `destination`. `filter` is REQUIRED but MAY be the match-all `{}` — a
+    // public reveal-and-keep-all (Dark Confidant) that `digToHand`'s PRIVATE
+    // keep-all (`take` = `look`) cannot express, so the two are NOT redundant.
     // `bind` (optional) snapshots the first card put into hand.
     digMatchingToHand: {
         required: {
