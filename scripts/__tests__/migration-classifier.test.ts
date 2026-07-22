@@ -1315,35 +1315,34 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // primitive that now surfaces elsewhere), FREE 289->290 / AFK-ready
         // 277->278 (+1). X-only unchanged. Partition: 290+14+169=473.
         //
-        // 2026-07-22 (Op-infra batch — `preventRegeneration`, the standalone
-        // regeneration-lock Op, tracked-by #1283): shipped the inverse of the
-        // `regenerate` shield Op (CR 701.15c) as a thin skin over the existing
-        // `SpellContext.setTargetCantBeRegeneratedThisTurn` primitive — a
-        // single `target` EffectObjectSelector, mirroring `regenerate` exactly
-        // (announced slot / `$source` / `$each`; `$source` routes through the
-        // same setTarget primitive with the source's id). Distinct from
-        // `destroy`'s `cantBeRegenerated` FLAG (which locks only that one
-        // destroy) — this is a standalone turn-scoped lock. 3 closures migrated
-        // resolve()->effects[]: ice/red (Incinerate, announced + dealDamage;
-        // Orcish Healer, announced activated ability), leg/white (Clergy of the
-        // Holy Nimbus, `$source` self-lock). The other 3 regen-lock call sites
-        // stay resolve(): ice/red (Bone Shaman, a damageDealtTrigger reading
-        // the firing $event's damage.target), ice/black (Gravebind, blocked on
-        // its next-upkeep delayed-draw rider; Lim-Dûl's Cohort, a conditional
-        // $event object selector). Unlike the dormant `regenerate` shield,
-        // the flag is set in the SAME resolution and survives the wire
-        // (slimCard spreads it), so scenarioGenerator does a REAL assertor
-        // (perm.cantBeRegeneratedThisTurn === true on the filler creature),
-        // not a skip. All 3 migrated were AFK-ready. Net: total 473->470,
-        // Op-blocked 169->164 (-5: the 3 migrated + 2 no longer counted as
-        // regen-lock-Op-blocked, now blocked on other constructs), FREE
-        // 290->292 / AFK-ready 278->280 (+2). X-only unchanged. Partition:
-        // 292+14+164=470.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(470);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(292);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(280);
+        // 2026-07-22 (Op-infra batch — `markAssignsNoCombatDamage`, the
+        // source-side "assigns no combat damage this turn" Op, tracked-by
+        // #1283): shipped a thin skin over the existing
+        // `SpellContext.markAssignsNoCombatDamage` primitive (CR 510.1c) — a
+        // single `target` EffectObjectSelector (announced slot / `$source` /
+        // `$each`). Suppresses combat damage dealt BY the marked source
+        // (distinct from the receiver-side `preventNextNDamageToTarget` /
+        // `preventAllCombatDamage` Ops). 2 closures migrated resolve()->effects[]:
+        // ice/white (Warning, announced), inv/white (Restrain, announced +
+        // draw). The other markAssigns call sites stay resolve() — all
+        // multi-step / $event closures: ice/black + fem/white combat-attacker
+        // triggers reading the firing $event, ice/red (Orcish Squatters'
+        // gain-control rider), fem/white (Heroism's per-attacker may-pay loop),
+        // fem/white (Farrel's Zealot, a targeted trigger with a paired damage
+        // op + "may" clause). The flag is a top-level `state.assignsNoCombatDamageThisTurn`
+        // array set in the SAME resolution and carried to the wire by the
+        // `...state` projection spread, so scenarioGenerator does a REAL
+        // assertor (the id appears in the array), not a skip. Both migrated
+        // were AFK-ready. Net: total 470->468 (2 migrated), Op-blocked
+        // 164->156 (-8: the markAssigns-only-blocked cluster reclassified —
+        // 2 migrated out, the rest to FREE / their other blocker), FREE
+        // 292->298 / AFK-ready 280->286 (+6). X-only unchanged. Partition:
+        // 298+14+156=468.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(468);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(298);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(286);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(164);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(156);
     });
 
     it("surfaces the demonstrated new-Op backlog (a covered primitive leaves it)", () => {

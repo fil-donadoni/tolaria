@@ -3,12 +3,12 @@
 // Scryfall oracle text is authoritative (ADR 0004).
 //
 // Free tranche (issue #1069, parent PRD #1063): 25 of the 41 candidate free
-// White cards ship as active `CardDefinition`s below — 23 DSL Effect Scripts
-// (ADR 0045) + 2 `resolve()` cards, each with a RECORDED precedent already
-// shipped elsewhere in the catalogue (Restrain: Warning's
-// `markAssignsNoCombatDamage` idiom, ice/white.ts; Liberate: Flickerwisp's
-// "flicker" exile + delayed-return idiom, eve/white.ts — DSL-first budget
-// ~0-1 `resolve()` per tranche, ADR 0045). Holy Day is NOT a new card here —
+// White cards ship as active `CardDefinition`s below — 24 DSL Effect Scripts
+// (ADR 0045) + 1 `resolve()` card with a RECORDED precedent already shipped
+// elsewhere in the catalogue (Liberate: Flickerwisp's "flicker" exile +
+// delayed-return idiom, eve/white.ts — DSL-first budget ~0-1 `resolve()` per
+// tranche, ADR 0045). (Restrain migrated resolve()->effects[] via the
+// `markAssignsNoCombatDamage` Op, CR 510.1c.) Holy Day is NOT a new card here —
 // it was first printed in Legends and already ships from `leg/white.ts`; no
 // duplicate `CardDefinition`/lockfile row for the same oracleId. The
 // remaining 16 candidates need engine capabilities that do not exist yet
@@ -604,12 +604,9 @@ export const razorfootGriffin: CardDefinition = {
 };
 
 // Restrain — "Prevent all combat damage that would be dealt by target
-// attacking creature this turn. Draw a card." NOT DSL-migratable (ADR 0045):
-// precedent Warning (ice/white.ts) — no DSL Op wraps
-// `ctx.markAssignsNoCombatDamage` (a source-only "assigns no combat damage"
-// mark, distinct from the receiver-side `preventDamage` Op modes).
-// Planned-migratable (blocked on a source-only preventDamage Op mode).
-// tracked-by: #1283
+// attacking creature this turn. Draw a card." (CR 510.1c) — source-side
+// "assigns no combat damage" mark + a cantrip, via the `markAssignsNoCombatDamage`
+// Op (ADR 0045).
 export const restrain: CardDefinition = {
     id: "f6b5c765-619c-4db9-b509-91892fb65e8f",
     rarity: "common",
@@ -623,11 +620,12 @@ export const restrain: CardDefinition = {
         count: 1,
         combatRoleFilter: "attacking",
     },
-    resolve: (ctx: SpellContext) => {
-        const t = ctx.targets[0];
-        if (t?.type === "permanent") ctx.markAssignsNoCombatDamage(t);
-        ctx.drawCards(ctx.controller, 1);
-    },
+    // CR 510.1c — source-side "assigns no combat damage this turn" mark, then a
+    // cantrip draw (ADR 0045).
+    effects: [
+        { op: "markAssignsNoCombatDamage", target: { target: 0 } },
+        { op: "draw", player: "controller", count: 1 },
+    ],
 };
 
 // Reviving Dose — "You gain 3 life. Draw a card."

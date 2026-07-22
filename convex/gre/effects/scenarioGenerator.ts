@@ -830,6 +830,19 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             }
             recordSlot(req, op.target.target, "permanent");
             return;
+        case "markAssignsNoCombatDamage":
+            // `markAssignsNoCombatDamage` (CR 510.1c, issue #1283) pushes the
+            // target's id onto the IMMEDIATE `state.assignsNoCombatDamageThisTurn`
+            // array (observable in the same resolution). The generator asserts it
+            // on an announced permanent slot (seeds a filler creature there and
+            // reads the array after resolution). A `$source` / `$each` target is
+            // not modelled — skip and let the card's own per-card test cover it.
+            if (!("target" in op.target)) {
+                req.skip ??= `Op "markAssignsNoCombatDamage" targets $source/$each — covered by the card's own per-card test`;
+                return;
+            }
+            recordSlot(req, op.target.target, "permanent");
+            return;
         case "transform":
             // CR 701.27 / 712 (issue #1210) — flips a permanent between its
             // front/back printed characteristic sets. The canned generator's
@@ -1806,6 +1819,37 @@ const OP_ASSERTORS: Record<string, Assertor> = {
                 return {
                     ok: perm.cantBeRegeneratedThisTurn === true,
                     detail: `cantBeRegeneratedThisTurn ${perm.cantBeRegeneratedThisTurn}, expected true`,
+                };
+            },
+        };
+    },
+    // `markAssignsNoCombatDamage` (CR 510.1c, issue #1283) — a source-side
+    // combat-damage lock on an announced permanent slot is observable as the
+    // permanent's id appearing in `state.assignsNoCombatDamageThisTurn`.
+    // `$source`/`$each` targets are skipped upstream in `analyseOp` (returns
+    // null defensively here).
+    markAssignsNoCombatDamage(rawOp, scenario) {
+        const op = rawOp as Extract<
+            EffectOp,
+            { op: "markAssignsNoCombatDamage" }
+        >;
+        if (!("target" in op.target)) return null;
+        const permId = scenario.targetPermanentIds[op.target.target];
+        return {
+            label: `combat-damage lock permanent ${permId} (assignsNoCombatDamageThisTurn contains id)`,
+            check: (post) => {
+                const perm = post.players
+                    .flatMap((p) => p.battlefield)
+                    .find((c) => c.id === permId);
+                if (!perm) {
+                    return { ok: false, detail: "target permanent gone" };
+                }
+                const marked = (
+                    post.assignsNoCombatDamageThisTurn ?? []
+                ).includes(permId);
+                return {
+                    ok: marked,
+                    detail: `assignsNoCombatDamageThisTurn ${marked ? "contains" : "missing"} ${permId}`,
                 };
             },
         };

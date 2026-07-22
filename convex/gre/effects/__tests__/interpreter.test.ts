@@ -17402,3 +17402,106 @@ describe("Effect Script Op: preventRegeneration (CR 701.15c)", () => {
         expect(slim.cantBeRegeneratedThisTurn).toBe(true);
     });
 });
+
+describe("Effect Script Op: markAssignsNoCombatDamage (CR 510.1c)", () => {
+    /** p2 controls one bear (a 2/5 Creature) as the announced combat-lock target. */
+    function oneBear(): GameState {
+        return makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    battlefield: [
+                        makeInstance(BEAR_ID, {
+                            controllerId: "p2",
+                            id: "bearA",
+                        }),
+                    ],
+                }),
+            ],
+        });
+    }
+
+    it("marks an announced target creature to assign no combat damage (Warning / Restrain)", () => {
+        const id = registerScript("test-op-nocombat-target", [
+            { op: "markAssignsNoCombatDamage", target: { target: 0 } },
+        ]);
+        const state = oneBear();
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "bearA" }]);
+        resolveTopOfStack(state);
+        expect(state.assignsNoCombatDamageThisTurn).toContain("bearA");
+    });
+
+    it("marks the resolving source via $source (Farrel's Zealot self-mark)", () => {
+        const SRC_ID = "test-op-nocombat-source";
+        registerTokenDefinition({
+            id: SRC_ID,
+            name: SRC_ID,
+            rarity: "common",
+            manaCost: { W: 1 },
+            types: ["Creature"],
+            subtypes: ["Soldier"],
+            power: 2,
+            toughness: 2,
+            activatedAbilities: [
+                {
+                    id: "nocombat-self-mark",
+                    oracleText:
+                        "{1}: This creature assigns no combat damage this turn.",
+                    cost: { mana: { generic: 1 } },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "markAssignsNoCombatDamage",
+                            target: { ref: "$source" },
+                        },
+                    ],
+                },
+            ],
+        });
+        const src = makeInstance(SRC_ID, {
+            id: "zealot1",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [src] }),
+                makePlayer("p2"),
+            ],
+        });
+        const onBoard = state.players[0].battlefield[0];
+        state.stack.push({
+            ...onBoard,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "nocombat-self-mark",
+            targets: [],
+        });
+        resolveTopOfStack(state);
+        expect(state.assignsNoCombatDamageThisTurn).toContain("zealot1");
+    });
+
+    it("is a no-op when the targeted permanent is gone (CR 608.2b) and still resolves", () => {
+        const id = registerScript("test-op-nocombat-gone", [
+            { op: "markAssignsNoCombatDamage", target: { target: 0 } },
+        ]);
+        const state = oneBear();
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "ghost" }]);
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+        expect(state.assignsNoCombatDamageThisTurn ?? []).not.toContain(
+            "bearA"
+        );
+    });
+
+    it("the combat-damage lock survives projection (wire format)", () => {
+        const id = registerScript("test-op-nocombat-wire", [
+            { op: "markAssignsNoCombatDamage", target: { target: 0 } },
+        ]);
+        const state = oneBear();
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "bearA" }]);
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.assignsNoCombatDamageThisTurn).toContain("bearA");
+    });
+});

@@ -8306,6 +8306,21 @@ export type EffectOp =
      *  destroy attached. No-op on a non-creature or a permanent that has left
      *  the battlefield (CR 608.2b). */
     | { op: "preventRegeneration"; target: EffectObjectSelector }
+    /** CR 510.1c (issue #1283) — mark a permanent so it assigns NO combat
+     *  damage for the rest of the turn: a SOURCE-side prevention (the creature
+     *  still fights and can be dealt damage / die, it merely deals 0 in every
+     *  combat-damage step this turn). A thin declarative skin over the single
+     *  SpellContext primitive `markAssignsNoCombatDamage`, one execution path
+     *  (ADR 0045). `target` is an announced target slot (`{ target: N }` —
+     *  Warning / Restrain's "prevent all combat damage that would be dealt by
+     *  target attacking creature this turn"), the resolving source (`$source`
+     *  — Farrel's Zealot's "this creature assigns no combat damage this turn",
+     *  routed through the SAME primitive with the source's id), or a forEach
+     *  `$each`. DISTINCT from the receiver-side `preventNextNDamageToTarget` /
+     *  `preventAllCombatDamage` Ops (which prevent damage dealt TO a creature)
+     *  — this suppresses damage dealt BY the marked source. No-op on a
+     *  permanent that has left the battlefield (CR 608.2b). */
+    | { op: "markAssignsNoCombatDamage"; target: EffectObjectSelector }
     /** CR 701.27 / 712 (issue #1210, ADR 0067) — transform a permanent
      *  between its front and back printed characteristic sets. A thin
      *  declarative skin over the single SpellContext primitive `transform`,

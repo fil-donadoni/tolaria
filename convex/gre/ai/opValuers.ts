@@ -538,6 +538,19 @@ const preventRegeneration: Valuer<"preventRegeneration"> = (op) => ({
         : ["boardRemoval"],
 });
 
+// Source-side combat-damage neutralization (Warning / Restrain): the marked
+// creature deals 0 combat damage this turn — a single-creature defensive shield
+// worth a fraction of a full Fog (which stops the whole combat).
+const MARK_ASSIGNS_NO_COMBAT_DAMAGE_VALUE = 40;
+const markAssignsNoCombatDamage: Valuer<"markAssignsNoCombatDamage"> = (
+    op
+) => ({
+    points: MARK_ASSIGNS_NO_COMBAT_DAMAGE_VALUE,
+    tags: isAnnouncedTarget(op.target)
+        ? ["protection", "targeted"]
+        : ["protection"],
+});
+
 const restrictActivation: Valuer<"restrictActivation"> = () => ({
     points: RESTRICT_ACTIVATION_VALUE,
     tags: ["disruption"],
@@ -664,6 +677,7 @@ export const OP_VALUERS: {
     mill,
     nameCard,
     preventDamage,
+    markAssignsNoCombatDamage,
     putBack,
     regenerate,
     preventRegeneration,
