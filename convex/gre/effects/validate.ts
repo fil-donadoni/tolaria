@@ -1732,8 +1732,32 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
                 if ("player" in entry) {
                     errors.push('field "player" is not valid with "target"');
                 }
+                // issue #1469 — the RETURN-A-DEPARTED-OBJECT shape. `from` is
+                // otherwise inferred from the object's kind; it is legal on
+                // the `target` shape ONLY to name the zone a snapshot `ref`'s
+                // object left the battlefield FOR, and only for a reanimating
+                // return (`to: "battlefield"`). An announced target slot never
+                // needs it (its zone comes from the requirement), so `from`
+                // requires a `ref` selector.
                 if ("from" in entry) {
-                    errors.push('field "from" is not valid with "target"');
+                    if (entry.from !== "graveyard" && entry.from !== "exile") {
+                        errors.push(
+                            'field "from" with "target" accepts only "graveyard" or "exile" (the zone a bound, already-departed object was put into)'
+                        );
+                    }
+                    if (entry.to !== "battlefield") {
+                        errors.push(
+                            'field "from" is only valid with "target" and to: "battlefield"'
+                        );
+                    }
+                    const sel = entry.target as
+                        | Record<string, unknown>
+                        | undefined;
+                    if (!sel || !("ref" in sel)) {
+                        errors.push(
+                            'field "from" requires "target" to be a snapshot ref (e.g. { ref: "$a" }) — an announced target slot infers its own zone'
+                        );
+                    }
                 }
             }
             // issue #1279 — the whole-zone bulk shape: required `player`/
@@ -1781,12 +1805,16 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
                     'field "controller" is only valid with to: "battlefield"'
                 );
             }
+            // `tapped` (CR 110.5a) is meaningful on either object-selecting
+            // shape, but only for a card ENTERING the battlefield. issue #1469
+            // extends it from `cards` to `target` (the departed-object return
+            // — needed by the earthbend return clause, #1468-B).
             if (
                 "tapped" in entry &&
-                (!hasCards || entry.to !== "battlefield")
+                (hasBulk || entry.to !== "battlefield")
             ) {
                 errors.push(
-                    'field "tapped" is only valid with "cards" and to: "battlefield"'
+                    'field "tapped" is only valid with "cards"/"target" and to: "battlefield"'
                 );
             }
             // issue #1125 — "library-top" is the search-then-shuffle-then-top

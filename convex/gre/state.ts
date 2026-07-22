@@ -8988,6 +8988,15 @@ export function buildSpellContext(
                 fromZone === "graveyard" ? player.graveyard : player.exile;
             const idx = pile.findIndex((c) => c.id === cardInstanceId);
             if (idx === -1) return false;
+            // CR 111.7 / 704.5d (issue #1469) — a TOKEN that left the
+            // battlefield ceases to exist and can never come back. It is
+            // briefly present in the graveyard until the next state-based
+            // action check, so a mid-resolution reanimation would otherwise
+            // scoop it back up ("return each CARD put into a graveyard this
+            // way" — Sorin, Lord of Innistrad's −6: a token is not a card).
+            // Guarded at the ONE primitive every reanimation path funnels
+            // through, so no caller has to remember it.
+            if (pile[idx].isToken) return false;
             const [card] = pile.splice(idx, 1);
             // CR 400.7 / 800.4a — owner stays the source pile's owner; the new
             // controller defaults to that owner (Resurrection) but may differ
@@ -9034,6 +9043,10 @@ export function buildSpellContext(
                     (c) => c.id === cardInstanceId
                 );
                 if (idx === -1) continue; // CR 608.2b — no longer there, skip
+                // CR 111.7 / 704.5d (issue #1469) — same token guard as the
+                // single-entry `returnToBattlefield`: a token that left the
+                // battlefield ceases to exist and never returns.
+                if (player.graveyard[idx].isToken) continue;
                 const [card] = player.graveyard.splice(idx, 1);
                 staged.push({ card, controllerId: controllerId ?? playerId });
             }
