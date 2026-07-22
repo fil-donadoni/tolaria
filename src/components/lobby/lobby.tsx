@@ -57,8 +57,8 @@ function Lobby() {
     );
     const [deleteTarget, setDeleteTarget] = useState<LobbyDeck | null>(null);
     // Two-step "Play vs AI" flow: the Play panel button opens this dialog (the
-    // second step) where difficulty / match format / AI deck are chosen; the
-    // match starts only on Confirm.
+    // second step) where difficulty / AI deck are chosen; the match starts only
+    // on Confirm. Match format is picked in the Play box, not here.
     const [vsAiOpen, setVsAiOpen] = useState(false);
     const [difficulty, setDifficulty] = useState<Difficulty>(() =>
         getStoredDifficulty()
@@ -507,8 +507,6 @@ function Lobby() {
                 onOpenChange={setVsAiOpen}
                 difficulty={difficulty}
                 onDifficultyChange={handleDifficultyChange}
-                matchFormat={matchFormat}
-                onMatchFormatChange={handleMatchFormatChange}
                 decks={allDecks}
                 aiDeckId={aiDeckId}
                 onAiDeckChange={handleAiDeckChange}

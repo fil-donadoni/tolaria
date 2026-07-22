@@ -123,17 +123,16 @@ async function renderLobby() {
 
 describe("Lobby vs-AI two-step flow", () => {
     it("clicking 'Play vs AI' opens the dialog without firing the mutation", async () => {
-        const { getByText, getAllByText, getByLabelText, getAllByLabelText } =
-            await renderLobby();
+        const { getByText, getAllByText, getByLabelText } = await renderLobby();
         // The Play panel button. Before opening, no create mutation.
         fireEvent.click(getByText("Play vs AI"));
         expect(createSoloGame).not.toHaveBeenCalled();
-        // Dialog content is now present (the three selectors). Match Format
-        // also lives in the Play box (it governs Solo / Create Multiplayer),
-        // so two instances of that control exist while the dialog is open.
+        // Dialog content is now present (the two vs-AI selectors). Match
+        // Format is not among them — it governs Solo / Create Multiplayer too
+        // and is picked in the Play box, so exactly one instance exists.
         expect(getByLabelText("AI Difficulty")).toBeTruthy();
-        expect(getAllByLabelText("Match Format").length).toBe(2);
         expect(getByLabelText("AI Opponent Deck")).toBeTruthy();
+        expect(getByLabelText("Match Format")).toBeTruthy();
         // Two "Play vs AI" labels now exist: the panel button + the dialog
         // confirm button.
         expect(getAllByText("Play vs AI").length).toBeGreaterThanOrEqual(2);

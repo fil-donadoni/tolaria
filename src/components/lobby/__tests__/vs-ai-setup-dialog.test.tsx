@@ -40,8 +40,6 @@ function renderDialog(
         onOpenChange: vi.fn(),
         difficulty: "medium" as const,
         onDifficultyChange: vi.fn(),
-        matchFormat: 1 as const,
-        onMatchFormatChange: vi.fn(),
         decks: DECKS,
         aiDeckId: null,
         onAiDeckChange: vi.fn(),
@@ -53,11 +51,13 @@ function renderDialog(
 }
 
 describe("VsAiSetupDialog", () => {
-    it("renders the three vs-AI selectors when open", () => {
-        const { getByLabelText } = renderDialog();
+    it("renders the two vs-AI selectors when open", () => {
+        const { getByLabelText, queryByLabelText } = renderDialog();
         expect(getByLabelText("AI Difficulty")).toBeTruthy();
-        expect(getByLabelText("Match Format")).toBeTruthy();
         expect(getByLabelText("AI Opponent Deck")).toBeTruthy();
+        // Match format is not a vs-AI knob: it governs Solo / Create
+        // Multiplayer too and is picked in the Play box.
+        expect(queryByLabelText("Match Format")).toBeNull();
     });
 
     it("does not render its content while closed", () => {
@@ -83,17 +83,13 @@ describe("VsAiSetupDialog", () => {
 
     it("forwards selector changes to the lobby setters", () => {
         const onDifficultyChange = vi.fn();
-        const onMatchFormatChange = vi.fn();
         const onAiDeckChange = vi.fn();
         const { getByText, getByLabelText } = renderDialog({
             onDifficultyChange,
-            onMatchFormatChange,
             onAiDeckChange,
         });
         fireEvent.click(getByText("Hard"));
         expect(onDifficultyChange).toHaveBeenCalledWith("hard");
-        fireEvent.click(getByText("Bo3"));
-        expect(onMatchFormatChange).toHaveBeenCalledWith(3);
         fireEvent.change(getByLabelText("AI Opponent Deck"), {
             target: { value: "white-weenie" },
         });

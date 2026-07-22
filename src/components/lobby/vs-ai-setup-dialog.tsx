@@ -1,8 +1,10 @@
 // Two-step "Play vs AI" setup (PRD #589 lobby flow). Clicking "Play vs AI" in
 // the Play panel no longer starts a match directly — it opens this dialog, the
-// second step, which collects the three vs-AI knobs (difficulty, match format,
-// AI opponent deck) and only fires `createSoloGame` on Confirm. The player's
-// OWN deck remains the Lobby hero selection and is NOT asked here.
+// second step, which collects the two vs-AI knobs (difficulty, AI opponent
+// deck) and only fires `createSoloGame` on Confirm. The player's OWN deck
+// remains the Lobby hero selection and is NOT asked here. Match format is NOT
+// vs-AI-specific — it governs Solo and Create Multiplayer too, so its selector
+// lives in the Play box (`dashboard-play-box`) and is not duplicated here.
 //
 // The selectors are the same reusable controls that used to live inline in the
 // Play panel; they edit the lobby's persisted state through their setters, so
@@ -10,11 +12,9 @@
 
 import type { Difficulty } from "@convex/gre";
 import type { LobbyDeck } from "~/lib/deckTypes";
-import type { MatchFormat } from "~/lib/session";
 import GameDialog from "~/components/ui/game-dialog";
 import ActionButton from "~/components/board/action-button";
 import DifficultySelector from "./difficulty-selector";
-import MatchFormatSelector from "./match-format-selector";
 import AiDeckSelector from "./ai-deck-selector";
 
 interface VsAiSetupDialogProps {
@@ -22,8 +22,6 @@ interface VsAiSetupDialogProps {
     onOpenChange: (open: boolean) => void;
     difficulty: Difficulty;
     onDifficultyChange: (difficulty: Difficulty) => void;
-    matchFormat: MatchFormat;
-    onMatchFormatChange: (format: MatchFormat) => void;
     /** All decks selectable as the AI opponent's deck (user + preset). */
     decks: LobbyDeck[];
     /** Selected AI opponent deck presetId, or null to mirror the player. */
@@ -41,8 +39,6 @@ export default function VsAiSetupDialog({
     onOpenChange,
     difficulty,
     onDifficultyChange,
-    matchFormat,
-    onMatchFormatChange,
     decks,
     aiDeckId,
     onAiDeckChange,
@@ -54,7 +50,7 @@ export default function VsAiSetupDialog({
             open={open}
             onOpenChange={onOpenChange}
             title="Play vs AI"
-            subtitle="Choose the difficulty, match format, and the deck your AI opponent will play."
+            subtitle="Choose the difficulty and the deck your AI opponent will play."
             footer={
                 <>
                     <ActionButton
@@ -76,11 +72,6 @@ export default function VsAiSetupDialog({
                 <DifficultySelector
                     value={difficulty}
                     onChange={onDifficultyChange}
-                    disabled={pending}
-                />
-                <MatchFormatSelector
-                    value={matchFormat}
-                    onChange={onMatchFormatChange}
                     disabled={pending}
                 />
                 <AiDeckSelector
