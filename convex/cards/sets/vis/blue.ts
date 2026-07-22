@@ -77,22 +77,13 @@ export const visionCharm: CardDefinition = {
             oracleText: "Target player mills four cards.",
             // CR 700.2d — the chosen mode announces its target at cast.
             targetRequirement: { type: "player", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const targetPlayer = ctx.targets[0]?.id;
-                if (targetPlayer === undefined) return;
-                // CR 701.17a — mill re-reads the LIVE top each pass, stopping
-                // when the library empties.
-                for (let i = 0; i < 4; i++) {
-                    const top = ctx.peekLibraryTop(targetPlayer, 1);
-                    if (top.length === 0) break;
-                    ctx.moveCardById(
-                        targetPlayer,
-                        top[0],
-                        "library",
-                        "graveyard"
-                    );
-                }
-            },
+            // Migrated resolve()→effects[] (ADR 0045, PRD #795): the `mill`
+            // Op (CR 701.17, issue #885) is a thin declarative skin over the
+            // exact peekLibraryTop/moveCardById loop this closure wrote by
+            // hand — it re-reads the live top each pass and stops early when
+            // the library empties (CR 701.17a), matching this mode's own
+            // early-break behavior.
+            effects: [{ op: "mill", player: { target: 0 }, count: 4 }],
         },
         {
             id: "land-type",
@@ -104,6 +95,18 @@ export const visionCharm: CardDefinition = {
             // No targetRequirement — this mode takes no targets. Its two
             // land-type picks stay RESOLUTION-time choices (CR 608.2): they are
             // neither modes nor targets, so they are not made at cast.
+            //
+            // NOT DSL-migratable (ADR 0045): the resolved land-type picks
+            // drive a forEach over ALL lands on the battlefield, filtered by
+            // a RUNTIME-chosen subtype (`fromType`) read back from the first
+            // `requestOptionChoice` — the frozen `forEach` construct's set is
+            // determined ONCE at construct entry from a declarative
+            // set/filter (CR 608.2i), not a filter computed from an opaque
+            // choice result, so this selection is not expressible. Blocked
+            // on: a filter-by-ref forEach predicate (no Op/construct
+            // extension planned; this is the one remaining protocol-like
+            // closure on the card per the file-header comment above,
+            // Illusionary Terrain protocol).
             resolve: (ctx: SpellContext) => {
                 // "Choose a land type and a basic land type. Each land of the
                 // first chosen type becomes the second chosen type until end of
@@ -153,6 +156,11 @@ export const visionCharm: CardDefinition = {
             // CR 700.2d — a single artifact, any controller's ("target
             // artifact"), announced at cast.
             targetRequirement: { type: "Artifact", count: 1 },
+            // NOT DSL-migratable (ADR 0045): phasing (CR 702.26) has no
+            // registered Effect Script Op — `ctx.phaseOut` is not one of the
+            // primitives any `EFFECT_OP_REGISTRY` row binds to. Blocked on:
+            // a `phaseOut` Op (not yet planned/censused); planned-migratable
+            // if the class is ever worth unblocking, not protocol-permanent.
             resolve: (ctx: SpellContext) => {
                 const target = ctx.targets[0];
                 if (target?.type !== "permanent") return;

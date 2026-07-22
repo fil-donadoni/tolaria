@@ -528,15 +528,21 @@ const LIBERATE_ID = "96794470-31ea-478f-b11c-dc8342a508e2";
 
 // Liberate — "Exile target creature you control. Return that card to the
 // battlefield under its owner's control at the beginning of the next end
-// step." protocol card: the DSL `moveZone` Op has no exile-zone branch
-// (`resolveObjectRef` is battlefield-scoped once a card is exiled — see
-// Flickerwisp, eve/white.ts, and Krovikan Vampire/Seraph, ice/white.ts, for
-// the same established "flicker idiom": `exile` + `scheduleDelayedTrigger`
-// ("next-end-step") + a card-level `delayedTriggers[]` entry that calls
-// `returnToBattlefield(owner, id, "exile")`). Unlike Flickerwisp (which
-// chooses its target via an ETB `choice` substitute), Liberate is a plain
-// targeted instant, so the real announced target (`ctx.targets[0]`) drives
-// the exile directly — no choice step needed.
+// step."
+// NOT DSL-migratable (ADR 0045): the DSL `moveZone` Op has no exile-zone
+// branch — `resolveObjectRef` recovers a graveyard-card source (CR 400.7)
+// but has no equivalent recovery for a card sitting in exile, so a
+// `delayedTrigger` body can't express "return THAT (exiled) card to the
+// battlefield" declaratively.
+// Blocked on: missing exile-zone object recovery in `moveZone`/
+// `resolveObjectRef` (see Flickerwisp, eve/white.ts, and Krovikan
+// Vampire/Seraph, ice/white.ts, for the same established "flicker idiom":
+// `exile` + `scheduleDelayedTrigger` ("next-end-step") + a card-level
+// `delayedTriggers[]` entry that calls `returnToBattlefield(owner, id,
+// "exile")`). Unlike Flickerwisp (which chooses its target via an ETB
+// `choice` substitute), Liberate is a plain targeted instant, so the real
+// announced target (`ctx.targets[0]`) drives the exile directly — no choice
+// step needed.
 export const liberate: CardDefinition = {
     id: LIBERATE_ID,
     rarity: "uncommon",
@@ -568,6 +574,8 @@ export const liberate: CardDefinition = {
             oracleText:
                 "Return that card to the battlefield under its owner's control at the beginning of the next end step.",
             timing: "next-end-step",
+            // NOT DSL-migratable (ADR 0045): same exile-zone recovery gap as
+            // the card-level resolve() above — see that comment.
             resolve: (ctx, payload) => {
                 if (!payload.cardId || !payload.ownerId) return;
                 ctx.returnToBattlefield(

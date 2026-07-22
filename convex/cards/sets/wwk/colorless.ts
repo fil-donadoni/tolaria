@@ -63,8 +63,20 @@ export const creepingTarPit: CardDefinition = {
     ],
 };
 
-// Celestial Colonnade — see Creeping Tar Pit's comment for the manland shape
-// and the colour-modelling simplification.
+// Celestial Colonnade — see Creeping Tar Pit's comment for the
+// colour-modelling simplification (no `colors` field on `AnimateSpec`).
+//
+// Migrated resolve()→effects[] (ADR 0045, PRD #795): the `animate` Op (CR
+// 208.2/611.1, issue #1317) is a thin declarative skin over the exact
+// `animateAsCreature` call this closure made (4/4 base P/T, Elemental
+// subtype, until end of turn). Flying/vigilance are NOT folded into
+// `animate`'s own `grantedAbilities` param — that param grants PERMANENTLY
+// (not spliced back out at `duration`, unlike a plain `grantAbility` Op call;
+// see `AnimateSpec.grantedAbilities`'s doc), which would diverge from the
+// original two `ctx.grantStaticAbility(source, ability, { phase:
+// "end-of-turn" })` calls that DO expire at end of turn. Two separate
+// `grantAbility` Ops (CR 611.1b/613.1f, issue #843), each carrying its own
+// `duration: { phase: "end-of-turn" }`, reproduce that exactly.
 export const celestialColonnade: CardDefinition = {
     id: "f6929259-2903-4f6f-9b06-42048fd55c6a",
     rarity: "rare",
@@ -90,24 +102,28 @@ export const celestialColonnade: CardDefinition = {
             cost: { mana: { X: 3, W: 1, U: 1 } },
             useStack: true,
             animatesSelf: true,
-            resolve: (ctx: SpellContext) => {
-                const source = {
-                    type: "permanent" as const,
-                    id: ctx.sourceInstanceId,
-                };
-                ctx.animateAsCreature(source, {
+            effects: [
+                {
+                    op: "animate",
+                    target: { ref: "$source" },
                     power: 4,
                     toughness: 4,
                     subtype: "Elemental",
                     duration: { phase: "end-of-turn" },
-                });
-                ctx.grantStaticAbility(source, "flying", {
-                    phase: "end-of-turn",
-                });
-                ctx.grantStaticAbility(source, "vigilance", {
-                    phase: "end-of-turn",
-                });
-            },
+                },
+                {
+                    op: "grantAbility",
+                    target: { ref: "$source" },
+                    ability: "flying",
+                    duration: { phase: "end-of-turn" },
+                },
+                {
+                    op: "grantAbility",
+                    target: { ref: "$source" },
+                    ability: "vigilance",
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 };

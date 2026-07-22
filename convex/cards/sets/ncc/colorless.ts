@@ -57,14 +57,32 @@ const ROGUE_TOKEN: TokenSpec = {
 //      accept, the discarded card (already in the graveyard when the event
 //      fires) moves graveyard → exile and is STAMPED with this artifact as its
 //      source, so ability 3 can find it later.
-//   2. CR 121.6 draw + CR 701.8 discard, split across `resolveSteps` (draw in
-//      step 0, discard-choice in step 1) so a suspension on the discard pick
-//      never re-runs the draw (Bazaar of Baghdad precedent). The discard emits
-//      CARD_DISCARDED, which re-fires ability 1 — the intended engine loop.
+//      NOT DSL-migratable (ADR 0045): the accept branch calls
+//      `ctx.linkExileToSource` to stamp the exiled card's provenance —
+//      there is no registered Op wrapping `linkExileToSource` /
+//      `getCardsExiledWith` (checked EFFECT_OP_REGISTRY,
+//      convex/cards/mechanicsRegistry.ts). Blocked on: missing Op for the
+//      per-source exile-linkage primitive (shipped as a raw SpellContext
+//      primitive by issue #791, never given an Op wrapper). Planned-migratable
+//      if that Op is ever added.
+//   2. CR 121.6 draw + CR 701.8 discard — migrated to `effects[]`
+//      (`draw` → `choice` kind `choose-hand-card` → `discard`), the same
+//      shape as Jalum Tome (`atq/colorless.ts`). The interpreter suspends at
+//      the `choice` Op exactly like the old `resolveSteps` split did, so the
+//      draw never re-runs on resume (Bazaar of Baghdad precedent preserved).
+//      The discard emits CARD_DISCARDED, which re-fires ability 1 — the
+//      intended engine loop.
 //   3. CR 111 retrieval — enumerate the cards exiled with this artifact
 //      (`getCardsExiledWith`), let the controller pick one (`choose-exile-card`,
 //      Dauthi Voidwalker precedent), move it exile → its OWNER's graveyard (CR
 //      400.7), then branch on land/nonland to make a Treasure or Rogue token.
+//      NOT DSL-migratable (ADR 0045): reads `getCardsExiledWith` (no
+//      registered Op) to build the candidate set, and the token-creation
+//      branch depends on land/nonland type of the CHOSEN exiled card read out
+//      of that same closure-local lookup, not an announced target or a
+//      declaratively-selected `forEach` set. Blocked on: missing Op for
+//      per-source exile-linkage retrieval. Planned-migratable if that Op is
+//      ever added.
 export const currencyConverter: CardDefinition = {
     id: CURRENCY_CONVERTER_ID,
     name: "Currency Converter",
@@ -81,6 +99,9 @@ export const currencyConverter: CardDefinition = {
             oracleText:
                 "Whenever you discard a card, you may exile that card from your graveyard.",
             scope: "your",
+            // NOT DSL-migratable (ADR 0045): stamps `ctx.linkExileToSource` —
+            // no registered Op wraps this per-source provenance primitive.
+            // Blocked on: missing Op. See file-header note above.
             resolve: (ctx, _event, discardingPlayerId, discardedId) => {
                 // CR 117.3a — "you may": a cost-less yes/no decision.
                 const accept = ctx.requestMayPay({
@@ -110,29 +131,25 @@ export const currencyConverter: CardDefinition = {
             oracleText: "{2}, {T}: Draw a card, then discard a card.",
             cost: { mana: { X: 2 }, tap: true },
             useStack: true,
-            resolveSteps: [
-                // Step 0 — draw one (CR 121.6). Isolated so a suspension in the
-                // discard step never re-runs the draw.
-                (ctx: SpellContext) => {
-                    ctx.drawCards(ctx.controller, 1);
+            // CR 121.6 draw, then CR 701.8 discard — draw → choice → discard,
+            // same shape as Jalum Tome (atq/colorless.ts). The interpreter
+            // suspends at the `choice` Op, so the draw never re-runs on resume
+            // (Bazaar of Baghdad precedent preserved).
+            effects: [
+                { op: "draw", player: "controller", count: 1 },
+                {
+                    op: "choice",
+                    kind: "choose-hand-card",
+                    player: "controller",
+                    zone: "hand",
+                    count: 1,
+                    prompt: "Currency Converter: discard a card.",
+                    bind: "$discard",
                 },
-                // Step 1 — discard one chosen card (CR 701.8). No-op with an
-                // empty hand (nothing to discard).
-                (ctx: SpellContext) => {
-                    const handIds = ctx.getHandIds(ctx.controller);
-                    if (handIds.length === 0) return;
-                    const picks = ctx.requestChoice({
-                        playerId: ctx.controller,
-                        choiceId: "currency-converter-discard",
-                        kind: "choose-hand-card",
-                        zone: "hand",
-                        count: 1,
-                        prompt: "Currency Converter: discard a card.",
-                    });
-                    if (picks === undefined) return; // suspended for the choice
-                    for (const id of picks) {
-                        ctx.discardCard(ctx.controller, id);
-                    }
+                {
+                    op: "discard",
+                    player: "controller",
+                    cards: { ref: "$discard" },
                 },
             ],
         },
@@ -145,6 +162,11 @@ export const currencyConverter: CardDefinition = {
                 "{T}: Put a card exiled with this artifact into its owner's graveyard. If it's a land card, create a Treasure token. If it's a nonland card, create a 2/2 black Rogue creature token.",
             cost: { tap: true },
             useStack: true,
+            // NOT DSL-migratable (ADR 0045): reads `ctx.getCardsExiledWith`
+            // (no registered Op) to build the candidate set, then branches the
+            // token choice on the CHOSEN card's land/nonland type read out of
+            // that closure-local lookup. Blocked on: missing Op. See
+            // file-header note above.
             resolve: (ctx: SpellContext) => {
                 const linked = ctx.getCardsExiledWith(ctx.sourceInstanceId);
                 if (linked.length === 0) return; // nothing exiled with it

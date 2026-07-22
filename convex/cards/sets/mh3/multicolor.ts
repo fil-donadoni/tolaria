@@ -138,15 +138,16 @@ const phlageSacrificeUnlessEscaped: EffectOp[] = [
 // `requestChoice`. That makes the damage subject to hexproof / protection /
 // ward and fires "becomes the target of an ability" triggers, which the old
 // choice-as-target workaround silently skipped. `type: "any"` legally targets
-// any damageable permanent OR a player (CR 115.4); `ctx.targets[0]` is a
-// `{ type: "permanent" | "player", id }` ref that `ctx.dealDamage` already
-// handles for both branches. Kept as resolve() (not DSL) only because the plain
-// damage + unconditional life-gain body reads the announced target slot.
-function resolvePhlageValue(ctx: SpellContext): void {
-    const target = ctx.targets[0];
-    if (target) ctx.dealDamage(target, 3); // CR 608.2b — no-op if it left
-    ctx.gainLife(ctx.controller, 3);
-}
+// any damageable permanent OR a player (CR 115.4); `{ target: 0 }` resolves to
+// the same `{ type: "permanent" | "player", id }` ref `ctx.targets[0]` did, and
+// the `dealDamage` Op no-ops identically when the target has left (CR 608.2b —
+// `resolveObjectRef` mirrors the old `if (target)` guard). Migrated
+// resolve()→effects[] (ADR 0045): plain fixed damage to an announced target +
+// unconditional life gain, both registered Ops.
+const phlageValueEffects: EffectOp[] = [
+    { op: "dealDamage", amount: 3, to: { target: 0 } },
+    { op: "gainLife", player: "controller", amount: 3 },
+];
 
 // Phlage, Titan of Fire's Fury — {1}{R}{W} Legendary Creature — Elder Giant 6/6.
 // "When Phlage enters, sacrifice it unless it escaped." (CR 702.138e escaped.)
@@ -181,7 +182,7 @@ export const phlageTitanOfFiresFury: CardDefinition = {
             // the stack (subject to hexproof/protection/ward), not at
             // resolution. count 1 = a single required target.
             targetRequirement: { type: "any", count: 1 },
-            resolve: resolvePhlageValue,
+            effects: phlageValueEffects,
         }),
         {
             id: "phlage-attacks-value",
@@ -195,7 +196,7 @@ export const phlageTitanOfFiresFury: CardDefinition = {
             matches: (event, self) =>
                 event.type === "ATTACKERS_DECLARED" &&
                 event.attackerIds.includes(self.id),
-            resolve: resolvePhlageValue,
+            effects: phlageValueEffects,
         },
     ],
     // CR 702.138 — Escape. {R}{R}{W}{W} + exile five OTHER graveyard cards.

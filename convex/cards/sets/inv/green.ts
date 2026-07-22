@@ -360,7 +360,7 @@ export const kavuClimber: CardDefinition = {
 // greater enters, its controller draws a card." (CR 603.6a ETB, any
 // creature; CR 121.1 draw.)
 //
-// resolve() JUSTIFICATION: the recipient is the ENTERING creature's
+// NOT DSL-migratable (ADR 0045): the recipient is the ENTERING creature's
 // controller, not this permanent's controller — `enteredTrigger`'s `effects`
 // site always binds `ctx.controller` to the SOURCE's controller by design
 // (documented on `EnteredTriggerArgs.effects`, `enteredTrigger.ts`), so a
@@ -369,9 +369,11 @@ export const kavuClimber: CardDefinition = {
 // this shape. Not "the Op doesn't exist" — the DSL site's controller binding
 // is fixed by design; `resolve` is the sanctioned escape for an event-field
 // player ref (mirrors the `PERMANENT_TAPPED`-trigger precedent documented on
-// Wild Growth, `lea/green.ts`). Power is read from the trigger's
-// `TriggerStateView` snapshot (printed/base power — the event payload itself
-// carries no power field).
+// Wild Growth, `lea/green.ts`).
+// Blocked on: `enteredTrigger`'s `effects[]` site has no entering-permanent
+// controller binding (protocol-adjacent factory limitation, not a missing
+// Op). Power is read from the trigger's `TriggerStateView` snapshot
+// (printed/base power — the event payload itself carries no power field).
 export const kavuLair: CardDefinition = {
     id: "f4581b53-23a0-4ca6-a77c-97d79e7a6570",
     rarity: "rare",
@@ -1087,19 +1089,19 @@ export const whipSilk: CardDefinition = {
 // mana of any color." (CR 303.4 aura attachment, CR 603.2 PERMANENT_TAPPED
 // trigger, CR 605 mana ability.)
 //
-// resolve() JUSTIFICATION (twin of Wild Growth, `lea/green.ts`, same tranche
-// convention; re-verified against the current engine, 2026-07): `tappedTrigger`
-// now DOES have an `effects[]` site, but its script only binds the SOURCE's
-// controller (`ctx.controller`) and `$source` — the tapped permanent's
-// last-known-info (id, controller, subtypes) is a separate payload never
-// threaded into the script (`TappedTriggerArgs.effects` doc,
-// `tappedTrigger.ts`). Fertile Ground's recipient is the ENCHANTED LAND's
-// controller, who can differ from the Aura's own controller (no
+// NOT DSL-migratable (ADR 0045, twin of Wild Growth, `lea/green.ts`, same
+// tranche convention; re-verified against the current engine, 2026-07):
+// `tappedTrigger` now DOES have an `effects[]` site, but its script only
+// binds the SOURCE's controller (`ctx.controller`) and `$source` — the
+// tapped permanent's last-known-info (id, controller, subtypes) is a
+// separate payload never threaded into the script (`TappedTriggerArgs.effects`
+// doc, `tappedTrigger.ts`). Fertile Ground's recipient is the ENCHANTED
+// LAND's controller, who can differ from the Aura's own controller (no
 // controller-filter on the target), so this still needs the imperative
-// `resolve` callback's `tapped.controllerId`. Blocked on: an event-field
-// player ref reachable from a `tappedTrigger` script (same gap Wild
-// Growth's own comment documents). The runtime colour choice reuses the
-// `requestOptionChoice` picker Kavu Chameleon uses above.
+// `resolve` callback's `tapped.controllerId`.
+// Blocked on: an event-field player ref reachable from a `tappedTrigger`
+// script (same gap Wild Growth's own comment documents). The runtime colour
+// choice reuses the `requestOptionChoice` picker Kavu Chameleon uses above.
 const FERTILE_GROUND_COLOR_OPTIONS: { id: Color; label: string }[] = [
     { id: "W", label: "White" },
     { id: "U", label: "Blue" },

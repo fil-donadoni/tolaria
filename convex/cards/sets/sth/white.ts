@@ -22,7 +22,7 @@ import {
 // removal into the graveyard (destroy OR a forced sacrifice), matching "causes
 // ... to be put into your graveyard" (broader than "destroys").
 //
-// resolve() justification (ADR 0045 DSL-first): the effect acts on the very
+// NOT DSL-migratable (ADR 0045) — resolve() justification (DSL-first): the effect acts on the very
 // permanent that fired the trigger ("return THAT card to the battlefield") —
 // its identity/owner is only available via `leftTrigger`'s `resolve(ctx,
 // event, leaving)` last-known-information payload. `TriggeredAbility.effects`

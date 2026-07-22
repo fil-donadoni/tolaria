@@ -1186,11 +1186,24 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // bodies double-counted) given accurate NOT-DSL markers. All 25 left
         // FREE: total 549→524, FREE 318→293, AFK-ready 303→281. X-only and
         // Op-blocked unchanged. Partition: 293+14+217=524.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(524);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(293);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(281);
+        // 2026-07-22 free-tranche batch 8 (INV/MH3/HOU/NCC/EVE/singleton sweep
+        // — heavily fragmented pool, packed many small modules per subagent):
+        // 11 closures migrated resolve()→effects[]. mh3/multicolor (Phlage
+        // enters+attacks, shared value fn); hou/red (Abrade both modes);
+        // inv/colorless (Alloy Golem setColor); ncc/colorless (Currency
+        // Converter draw-discard); znr/white (Luminarch Aspirant); wwk/colorless
+        // (Celestial Colonnade); vis/blue (Vision Charm mill mode); thb/colorless
+        // (Soul-Guide Lantern x2). Most other classifier entries were confirmed
+        // heuristic false positives (comment-`resolve:` mis-attribution,
+        // DelayedTriggerDef body double-counts, host-controller/LKI blockers) and
+        // given accurate markers. All 11 left FREE: total 524→513, FREE 293→283,
+        // AFK-ready 281→271. One card reclassified out of Op-blocked (217→216).
+        // X-only unchanged. Partition: 283+14+216=513.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(513);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(283);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(271);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(217);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(216);
     });
 
     it("surfaces the demonstrated new-Op backlog (a covered primitive leaves it)", () => {

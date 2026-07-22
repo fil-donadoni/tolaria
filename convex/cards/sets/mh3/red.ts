@@ -14,14 +14,19 @@ import type { CardDefinition, SpellContext } from "../../types";
 // primitive the `getEnergy` Effect Script Op skins; the SPENDING half ("pay any
 // amount of {E}") is `SpellContext.payEnergy`.
 //
-// protocol card: `resolveSteps` (NOT DSL) because "pay ANY AMOUNT of {E}" is a
-// VARIABLE resource payment whose chosen amount then feeds the damage dealt —
-// a bounded numeric choice (0..current energy) the frozen Op grammar cannot
-// express (there is no "choose a number ≤ resource" Op; `mayPay` pays a FIXED
-// cost). Modeled exactly like Nameless Race's "pay any amount of life"
-// (drk/black.ts): a `requestOptionChoice` over 0..pool. Split into two steps so
-// the "you get {E}{E}{E}" mutation (step 0) runs ONCE and is not re-applied when
-// the pay choice (step 1) suspends/resumes (CR 608.3 stepped resolution).
+// NOT DSL-migratable (ADR 0045): `resolveSteps` (NOT DSL) because "pay ANY
+// AMOUNT of {E}" is a VARIABLE resource payment whose chosen amount then feeds
+// the damage dealt — a bounded numeric choice (0..current energy) the frozen
+// Op grammar cannot express (there is no "choose a number ≤ resource" Op /
+// EffectValue; `mayPay` pays a FIXED cost). Blocked on: a missing Op value
+// construct — this is the PLANNED-migratable class (not protocol behaviour;
+// nothing here restructures control flow), same shape as the X-value gap the
+// playbook documents for Stream of Life / Earthquake. Worth an Op/EffectValue
+// addition if the "pay any amount, deal that much" template recurs. Modeled
+// exactly like Nameless Race's "pay any amount of life" (drk/black.ts): a
+// `requestOptionChoice` over 0..pool. Split into two steps so the "you get
+// {E}{E}{E}" mutation (step 0) runs ONCE and is not re-applied when the pay
+// choice (step 1) suspends/resumes (CR 608.3 stepped resolution).
 export const galvanicDischarge: CardDefinition = {
     id: "32aa6e33-221f-414c-9b51-850d97a7e051",
     rarity: "common",

@@ -955,13 +955,19 @@ export const monsoon: CardDefinition = {
                 "At the beginning of each player's end step, tap all untapped Islands that player controls and this enchantment deals X damage to the player, where X is the number of Islands tapped this way.",
             phase: "END_STEP",
             scope: "each",
-            // NOT DSL-migratable (ADR 0045): an `each`-scoped phaseTrigger
-            // (scoped player ≠ controller, so `effects` is disallowed) that taps
-            // only UNTAPPED Islands (no tap-state filter on the forEach
-            // selector) and deals damage equal to the number tapped THIS WAY (a
-            // count of the just-tapped subset, not a selectable set count).
-            // Blocked on: non-"your" trigger effects + a tap-state filter +
-            // a "tapped-this-way" count value.
+            // NOT DSL-migratable (ADR 0045): RE-ASSESSED — the `each`-scope
+            // blocker on `effects` itself has SHIPPED (issue #1066,
+            // `{ ref: "$event.activePlayerId" }`; see phaseTrigger.ts), but two
+            // real blockers remain: taps only UNTAPPED Islands and
+            // `EffectCardFilter` (the forEach `permanents` selector's filter,
+            // convex/cards/types.ts) has no tap-state field to select just
+            // those; and the damage amount is the count TAPPED THIS WAY (the
+            // just-tapped subset), not a selectable set's `count` — no Op
+            // value construct captures "how many a `tapUntap` forEach actually
+            // changed" (`tapUntap` no-ops silently on an already-tapped member,
+            // per its registry note, with no output count). Blocked on: a
+            // tap-state filter on the `permanents` forEach selector + a
+            // tapped-this-way count value.
             resolve: (ctx, _event, scopedPlayerId) => {
                 const islandIds = ctx.getBattlefieldIds(scopedPlayerId, {
                     subtypes: "Island",

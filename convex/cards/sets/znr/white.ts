@@ -18,8 +18,13 @@ import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 // fires "becomes the target of an ability" triggers, which the old
 // choice-as-target workaround silently skipped. `phaseTrigger` supplies the
 // step/scope/matches plumbing; the `targetRequirement` is merged onto the
-// returned ability. The `resolve()` then only reads the announced target
-// (`ctx.targets[0]`) and places the +1/+1 counter.
+// returned ability.
+//
+// Migrated resolve()→effects[] (ADR 0045, PRD #795): the `counters` Op
+// (`action: "add"`, "+1/+1", `count: 1`) targeting the announced slot
+// (`{ target: 0 }`) is a thin declarative skin over the exact
+// `ctx.addCounter` call this closure made; skipped when the target is gone
+// (CR 608.2b), matching the old `if (!target) return` guard.
 export const luminarchAspirant: CardDefinition = {
     id: "fe964e7e-e2c5-4263-889d-0a531eb51442",
     name: "Luminarch Aspirant",
@@ -44,15 +49,15 @@ export const luminarchAspirant: CardDefinition = {
                     "At the beginning of combat on your turn, put a +1/+1 counter on target creature you control.",
                 phase: "BEGINNING_OF_COMBAT",
                 scope: "your",
-                resolve: (ctx) => {
-                    const target = ctx.targets[0];
-                    if (!target) return; // CR 608.2b — target left / none legal
-                    ctx.addCounter(
-                        { type: "permanent", id: target.id },
-                        "+1/+1",
-                        1
-                    );
-                },
+                effects: [
+                    {
+                        op: "counters",
+                        action: "add",
+                        counter: "+1/+1",
+                        target: { target: 0 },
+                        count: 1,
+                    },
+                ],
             }),
             targetRequirement: {
                 type: "Creature",

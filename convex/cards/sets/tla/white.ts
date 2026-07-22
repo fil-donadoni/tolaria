@@ -68,6 +68,18 @@ export const aangsIceberg: CardDefinition = {
                 excludeTypes: "Land",
                 excludeSource: true,
             },
+            // NOT DSL-migratable (ADR 0045): the registered `exile` Op is a
+            // plain `ctx.exile(target)` (CR 701.13) with no O-Ring
+            // leaves-battlefield-return bookkeeping. This closure needs
+            // `ctx.exileWithAttachments`, which stamps the `exileHeld`
+            // bundle (`sourceId`, `returnTapped`, `includeAttachments`) the
+            // paired `leftTrigger` below reads back via
+            // `returnExiledForSource` — no Op wraps that primitive today.
+            // Blocked on: an `exileWithAttachments`/O-Ring Op (not yet
+            // planned/censused); mirrors the identical, already-unmigrated
+            // Portable Hole (afr/white.ts) / Banishing Light (jou/white.ts)
+            // precedent this card's header comment cites. Planned-migratable
+            // if the class is ever worth unblocking, not protocol-permanent.
             resolve: (ctx: SpellContext) => {
                 const target = ctx.targets[0];
                 if (!target) return; // "up to one": none chosen / CR 608.2b none legal
@@ -84,6 +96,20 @@ export const aangsIceberg: CardDefinition = {
                 "When this enchantment leaves the battlefield, return the exiled card to the battlefield under its owner's control.",
             scope: "self",
             condition: aangsIcebergHoldsSomething,
+            // NOT DSL-migratable (ADR 0045): the effect acts on the very
+            // object that just left the battlefield ("return THAT card") —
+            // its identity/owner is available only via `leftTrigger`'s
+            // `resolve(ctx, event, leaving)` last-known-information payload.
+            // `TriggeredAbility.effects` does not thread the firing
+            // event/leaving object into the script (see the field doc on
+            // `TriggeredAbility.effects`), so a trigger reading LKI stays
+            // imperative. Blocked on: LKI/`$event` surfacing in trigger
+            // `effects[]` (not planned as a general grammar extension — see
+            // Sacred Ground, sth/white.ts, for the identical case). Mirrors
+            // every existing `leftTrigger` card reading `leaving.id` /
+            // `leaving.ownerId` (Personal Incarnation's `pinc-ltb`,
+            // lea/white.ts; Portable Hole's `portable-hole-return`,
+            // afr/white.ts).
             resolve: (ctx: SpellContext) => {
                 ctx.returnExiledForSource(ctx.sourceInstanceId);
             },
@@ -96,6 +122,25 @@ export const aangsIceberg: CardDefinition = {
                 "Waterbend {3}: Sacrifice this enchantment. If you do, scry 2.",
             cost: { mana: { X: 3 } },
             useStack: true,
+            // NOT DSL-migratable (ADR 0045): step 1 alone (`ctx.sacrifice`)
+            // maps onto the registered `sacrifice` Op, but `effects[]` is a
+            // single ordered list for the whole ability — it cannot be
+            // migrated piecemeal while step 2 stays blocked. Step 2's scry
+            // drives a `kind: "partition"` `requestChoice` (submit = only the
+            // BOTTOM-bound ids; the kept top cards stay in their existing
+            // order, unreordered). The registered `scryReorder` Op instead
+            // raises a `kind: "order-top"` choice, whose submit contract
+            // requires EVERY looked-at card to be placed (both the kept-on-
+            // top order AND the bottomed remainder) or the engine throws
+            // ("order-top must place every looked-at card once",
+            // pendingChoiceSubmit.ts) — an observably different choice
+            // protocol, not a pure-refactor swap: the existing per-card test
+            // submits only the bottomed id and would need editing to satisfy
+            // `order-top`'s full-cover requirement, which the playbook
+            // forbids (never edit a test to make a migration pass). Blocked
+            // on: a `partition`-kind choice Op (not censused/planned) —
+            // `scryReorder` is a genuine behavior change here, not a like-
+            // for-like skin.
             resolveSteps: [
                 (ctx: SpellContext) => {
                     ctx.sacrifice(ctx.sourceInstanceId);

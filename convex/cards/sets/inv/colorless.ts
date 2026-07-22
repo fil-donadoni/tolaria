@@ -115,8 +115,9 @@ export const powerArmor: CardDefinition = {
 // the `untapRestriction` `dynamicMatch` refinement (Tsabo's Web above) — no
 // hand-written test required beyond the catalogue-wide `validateEffectScript`
 // sweep + `effectScriptSmoke` generator (per-Op regime, ADR 0045/0046),
-// except where noted per-card below (a new trigger-math shape and a
-// resolve()-justified ETB colour choice each get a dedicated test).
+// except where noted per-card below (a new trigger-math shape gets a
+// dedicated test; Alloy Golem's ETB colour choice, once resolve()-justified,
+// is now migrated to `effects[]` — see its own comment).
 // ─────────────────────────────────────────────────────────────────────────
 
 // Alloy Golem — {6} Artifact Creature — Golem 4/4. "As this creature enters,
@@ -124,15 +125,22 @@ export const powerArmor: CardDefinition = {
 // artifact.)" (CR 105.2 / 613.1e layer 5 colour-set; CR 603.6b "as ~ enters,
 // choose".)
 //
-// resolve() justification (ADR 0045 DSL-first): the declarative `setColor`
-// Op is `status: "planned"` in the Mechanics Registry (not yet registered),
-// so the colour-choice-then-set stays imperative here, mirroring Alchor's
-// Tomb (`leg/colorless.ts`) exactly — `requestOptionChoice` for the pick,
-// `setColorOverride` (no `duration` = indefinite) to apply it. The trigger
-// fires on `PERMANENT_ENTERED` (CR 603.6a); by resolve time the entering
-// permanent is already on the battlefield, so `setColorOverride` (which
-// requires `findOnBattlefield`) resolves it — the same "as ~ enters, choose"
-// convention Black Vise's `setChosenPlayer` already uses in this codebase.
+// Migrated resolve()→effects[] (ADR 0045): the stale marker here cited the
+// `setColor` Op as `status: "planned"` — it has since shipped (issue #1083,
+// promoted from `EFFECT_OP_BACKLOG`), the same Shyft shape (`ice/blue.ts`) /
+// Kavu Chameleon shape (this set's `green.ts`): `optionChoice` — one mode per
+// colour, each a single-Op `setColor` body targeting `$source` with no
+// `duration` (indefinite, mirrors the removed `setColorOverride` call this
+// closure made directly). Scope is `self`, so the entering permanent IS the
+// source — `$source` needs no `entered` payload.
+const ALLOY_GOLEM_COLOR_OPTIONS: { id: Color; label: string }[] = [
+    { id: "W", label: "White" },
+    { id: "U", label: "Blue" },
+    { id: "B", label: "Black" },
+    { id: "R", label: "Red" },
+    { id: "G", label: "Green" },
+];
+
 export const alloyGolem: CardDefinition = {
     id: "1fb6d6a1-9d71-405b-9c93-1a7f06c67abd",
     rarity: "uncommon",
@@ -150,24 +158,24 @@ export const alloyGolem: CardDefinition = {
             oracleText:
                 "As this creature enters, choose a color. This creature is the chosen color.",
             scope: "self",
-            resolve: (ctx: SpellContext, _event, entered) => {
-                const pick = ctx.requestOptionChoice({
-                    playerId: ctx.controller,
-                    choiceId: "alloy-golem-color",
+            effects: [
+                {
+                    op: "optionChoice",
+                    player: "controller",
                     prompt: "Choose a color.",
-                    options: [
-                        { id: "W", label: "White" },
-                        { id: "U", label: "Blue" },
-                        { id: "B", label: "Black" },
-                        { id: "R", label: "Red" },
-                        { id: "G", label: "Green" },
-                    ],
-                });
-                if (pick === undefined) return; // suspended — wait for the pick
-                ctx.setColorOverride({ type: "permanent", id: entered.id }, [
-                    pick as Color,
-                ]);
-            },
+                    modes: ALLOY_GOLEM_COLOR_OPTIONS.map((option) => ({
+                        id: option.id,
+                        label: option.label,
+                        effects: [
+                            {
+                                op: "setColor",
+                                target: { ref: "$source" },
+                                colors: [option.id],
+                            },
+                        ],
+                    })),
+                },
+            ],
         }),
     ],
 };
@@ -402,12 +410,17 @@ export const planarPortal: CardDefinition = {
 // `firstBlockerOf`), same `getBlockersByAttacker` + `addTemporaryPTBuff`
 // primitives — but EVERY blocker counts (no "beyond the first" subtraction),
 // so this isn't the Rampage keyword and doesn't share its factory or
-// `staticAbilities` entry. resolve() justification (ADR 0045): no
-// `EffectValue` member counts "creatures blocking this creature" (checked
-// against the full grammar in `mechanicsRegistry.ts` / `pump`'s own registry
-// note) — a small dedicated trigger mirrors the shipped `rampageTrigger`
-// shape exactly, reusing its exported dedupe helper rather than duplicating
-// it.
+// `staticAbilities` entry.
+// NOT DSL-migratable (ADR 0045): no `EffectValue` member counts "creatures
+// blocking this creature" (checked against the full grammar in
+// `mechanicsRegistry.ts` / `pump`'s own registry note) — the `count`
+// construct only counts battlefield/graveyard cards by zone/filter, and the
+// `combatPartners` list selector is restricted to `delayedTrigger` capture
+// position only (validate.ts `isListCaptureSource`), never a general
+// forEach/count selector. Blocked on: a live-blockers-of-source count
+// selector in the `EffectValue`/`forEach` grammar. A small dedicated trigger
+// mirrors the shipped `rampageTrigger` shape exactly, reusing its exported
+// dedupe helper rather than duplicating it.
 export const sparringGolem: CardDefinition = {
     id: "d829d9de-83fa-4feb-8efc-0075315163c6",
     rarity: "uncommon",
