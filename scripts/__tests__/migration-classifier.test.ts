@@ -1275,11 +1275,31 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // closures reclassified: their named primitive is now covered but they
         // stay resolve(), re-marked NOT-DSL so hidden from the --free worklist).
         // X-only unchanged. Partition: 288+14+179=481.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(481);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(288);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(276);
+        //
+        // 2026-07-22 (Op-infra batch — `skipNextUntap`, joint-top New-Op
+        // backlog entry at 6): shipped the one-shot "doesn't untap during its
+        // controller's next untap step" Op (CR 302.6/502.1) as a thin
+        // declarative skin over the existing `SpellContext.skipNextUntap`
+        // primitive — a single `target` selector, no amount/duration (the
+        // one-shot next-untap scope is intrinsic to the flag). Split off the
+        // CONTINUOUS source-linked half (`lockUntapWhileSourceTapped`), which
+        // stays `planned` under the `lockUntap` row. 5 closures migrated
+        // resolve()->effects[]: drk/colorless (Barl's Cage, announced slot),
+        // drk/red (Goblin Rock Sled, $source self-lock trigger), fem/blue
+        // (Homarid Warrior + Deep Spawn — each a grantAbility shroud +
+        // tapUntap tap + skipNextUntap $source triple), fem/green (Elvish
+        // Hunter, announced slot). The 6th skipNextUntap closure (fem/green
+        // Spore Cloud — a forEach over attacking/blocking creatures) is
+        // NOT cleanly migratable (a battlefield forEach loop) but its named
+        // primitive is now covered, so the classifier reclassifies it FREE
+        // (+1). All 5 migrated were AFK-ready. Net: total 481->476, Op-blocked
+        // 179->173 (-6), FREE 288->289 / AFK-ready 276->277 (+1 = the forEach
+        // closure surfacing as FREE). X-only unchanged. Partition: 289+14+173=476.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(476);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(289);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(277);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(179);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(173);
     });
 
     it("surfaces the demonstrated new-Op backlog (a covered primitive leaves it)", () => {

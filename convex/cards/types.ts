@@ -7870,6 +7870,22 @@ export type EffectOp =
           action: "tap" | "untap";
           target: EffectObjectSelector;
       }
+    /** CR 302.6 / 502.1 (PRD #795) — a permanent "doesn't untap during its
+     *  controller's next untap step" (Barl's Cage, Elvish Hunter, the Homarid
+     *  dive cycle, Goblin Rock Sled). A thin declarative skin over the
+     *  SpellContext primitive `skipNextUntap`, one execution path (ADR 0045):
+     *  it stamps a one-shot `skipNextUntap` flag consumed by (and cleared
+     *  after) exactly one untap step. No amount / duration — the one-shot
+     *  scope is intrinsic. `target` names the permanent: an announced target
+     *  slot, the resolving source (`$source` — a permanent locking itself), or
+     *  the current member of a `forEach` set (`{ ref: "$each" }`). Skipped when
+     *  the permanent is gone (CR 608.2b). Distinct from the still-planned
+     *  `lockUntapWhileSourceTapped` (a continuous source-linked lock), not this
+     *  one-shot flag. */
+    | {
+          op: "skipNextUntap";
+          target: EffectObjectSelector;
+      }
     /** CR 611.1b / 613.1f (layer 6, issue #843) — grant an ability to a
      *  permanent for a limited duration. A thin declarative skin over the
      *  SpellContext primitives `grantStaticAbility` / `grantActivatedAbility`,

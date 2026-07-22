@@ -472,20 +472,13 @@ export const goblinRockSled: CardDefinition = {
             matches: (event, self) =>
                 event.type === "ATTACKERS_DECLARED" &&
                 event.attackerIds.includes(self.id),
-            // NOT DSL-migratable (ADR 0045): the "doesn't untap while ..."
-            // family (`skipNextUntap`) is the `lockUntap` Op, still `status:
-            // "planned"` in the Mechanics Registry (not usable vocabulary
-            // yet, ~9 blocked closures). Stays resolve() until that Op ships.
-            resolve: (ctx) => {
-                // CR 302.6 / 502.1 — arm a one-shot "doesn't untap next untap
-                // step" on the Sled. The controller's next untap step is their
-                // next turn's, so a Sled that attacked this turn stays tapped
-                // then. Cleared automatically after exactly one untap step.
-                ctx.skipNextUntap({
-                    type: "permanent",
-                    id: ctx.sourceInstanceId,
-                });
-            },
+            // DSL-first (ADR 0045): CR 302.6 / 502.1 — arm a one-shot "doesn't
+            // untap during your next untap step" on the Sled ($source). The
+            // controller's next untap step is their next turn's, so a Sled that
+            // attacked this turn stays tapped then; cleared after exactly one
+            // untap step. A `$source` skin over SpellContext.skipNextUntap (the
+            // `skipNextUntap` Op, PRD #795).
+            effects: [{ op: "skipNextUntap", target: { ref: "$source" } }],
         },
     ],
 };

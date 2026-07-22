@@ -667,6 +667,19 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             }
             recordSlot(req, op.target.target, "permanent");
             return;
+        case "skipNextUntap":
+            // `skipNextUntap` (PRD #795, CR 302.6/502.1) arms a one-shot
+            // "doesn't untap next untap step" flag on a permanent. The
+            // generator can assert it on an announced permanent slot (it seeds
+            // a filler creature there and reads `skipNextUntap` after
+            // resolution). A `$source` / `$each` target is not modelled — skip
+            // and let the card's own per-card test cover it.
+            if (!("target" in op.target)) {
+                req.skip ??= `Op "skipNextUntap" targets $source/$each — covered by the card's own per-card test`;
+                return;
+            }
+            recordSlot(req, op.target.target, "permanent");
+            return;
         case "grantAbility":
             // `grantAbility` (issue #843) grants a keyword static ability to a
             // permanent for a duration (CR 611.1b / 613.1f). The generator can
@@ -1554,6 +1567,31 @@ const OP_ASSERTORS: Record<string, Assertor> = {
                 return {
                     ok: perm.isTapped === true,
                     detail: `isTapped ${perm.isTapped}, expected true`,
+                };
+            },
+        };
+    },
+    // `skipNextUntap` (PRD #795, CR 302.6/502.1) — a lock on an announced
+    // permanent slot is observable as the one-shot `skipNextUntap` flag
+    // flipping undefined→true on the seeded filler permanent. `$source`/`$each`
+    // targets are skipped upstream in `analyseOp` (returns null defensively
+    // here).
+    skipNextUntap(rawOp, scenario) {
+        const op = rawOp as Extract<EffectOp, { op: "skipNextUntap" }>;
+        if (!("target" in op.target)) return null;
+        const permId = scenario.targetPermanentIds[op.target.target];
+        return {
+            label: `lock permanent ${permId} (skipNextUntap undefined→true)`,
+            check: (post) => {
+                const perm = post.players
+                    .flatMap((p) => p.battlefield)
+                    .find((c) => c.id === permId);
+                if (!perm) {
+                    return { ok: false, detail: "target permanent gone" };
+                }
+                return {
+                    ok: perm.skipNextUntap === true,
+                    detail: `skipNextUntap ${perm.skipNextUntap}, expected true`,
                 };
             },
         };

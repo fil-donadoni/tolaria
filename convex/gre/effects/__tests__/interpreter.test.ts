@@ -17099,3 +17099,120 @@ describe("Effect Script Op: setBasePT (CR 613.4b layer 7b)", () => {
         expect(getEffectiveToughness(projected, slim)).toBe(5);
     });
 });
+
+describe("Effect Script Op: skipNextUntap (CR 302.6 / 502.1)", () => {
+    /** p2 controls one bear as the announced "doesn't untap" target. */
+    function oneBear(): GameState {
+        return makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    battlefield: [
+                        makeInstance(BEAR_ID, {
+                            controllerId: "p2",
+                            id: "bearA",
+                        }),
+                    ],
+                }),
+            ],
+        });
+    }
+
+    it("arms the one-shot skipNextUntap flag on an announced target (Barl's Cage / Elvish Hunter)", () => {
+        const id = registerScript("test-op-skipuntap-target", [
+            { op: "skipNextUntap", target: { target: 0 } },
+        ]);
+        const state = oneBear();
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "bearA" }]);
+        resolveTopOfStack(state);
+        const bear = state.players[1].battlefield.find(
+            (c) => c.id === "bearA"
+        )!;
+        expect(bear.skipNextUntap).toBe(true);
+    });
+
+    it("arms the flag on the resolving source via $source (Goblin Rock Sled / Homarid dive)", () => {
+        const SLED_ID = "test-op-skipuntap-source";
+        registerTokenDefinition({
+            id: SLED_ID,
+            name: SLED_ID,
+            rarity: "common",
+            manaCost: { R: 1 },
+            types: ["Creature"],
+            subtypes: ["Goblin"],
+            power: 4,
+            toughness: 1,
+            activatedAbilities: [
+                {
+                    id: "sled-self-lock",
+                    oracleText:
+                        "{0}: This creature doesn't untap during your next untap step.",
+                    cost: { mana: { generic: 0 } },
+                    useStack: true,
+                    effects: [
+                        { op: "skipNextUntap", target: { ref: "$source" } },
+                    ],
+                },
+            ],
+        });
+        const sled = makeInstance(SLED_ID, {
+            id: "sled1",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [sled] }),
+                makePlayer("p2"),
+            ],
+        });
+        const src = state.players[0].battlefield[0];
+        state.stack.push({
+            ...src,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "sled-self-lock",
+            targets: [],
+        });
+        resolveTopOfStack(state);
+        const locked = state.players[0].battlefield.find(
+            (c) => c.id === "sled1"
+        )!;
+        expect(locked.skipNextUntap).toBe(true);
+    });
+
+    it("is a no-op when the targeted permanent is gone (CR 608.2b) and still resolves", () => {
+        const id = registerScript("test-op-skipuntap-gone", [
+            { op: "skipNextUntap", target: { target: 0 } },
+        ]);
+        const state = oneBear();
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "ghost" }]);
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+        expect(state.players[0].graveyard.map((c) => c.card.id)).toContain(id);
+        const bear = state.players[1].battlefield.find(
+            (c) => c.id === "bearA"
+        )!;
+        expect(bear.skipNextUntap).toBeUndefined();
+    });
+
+    it("the armed skipNextUntap flag survives projection (wire format)", () => {
+        const id = registerScript("test-op-skipuntap-wire", [
+            { op: "skipNextUntap", target: { target: 0 } },
+        ]);
+        const state = oneBear();
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "bearA" }]);
+        resolveTopOfStack(state);
+        const bear = state.players[1].battlefield.find(
+            (c) => c.id === "bearA"
+        )!;
+        expect(bear.skipNextUntap).toBe(true);
+        // The flag is on the instance, not the stripped inner card — the wire
+        // projection preserves it (slimCard, gameProjections.ts).
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[1].battlefield.find(
+            (c) => c.id === "bearA"
+        )!;
+        expect(slim.skipNextUntap).toBe(true);
+    });
+});

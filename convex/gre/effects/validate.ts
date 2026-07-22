@@ -1773,6 +1773,15 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             target: isObjectSelector,
         },
     },
+    // CR 302.6 / 502.1 (PRD #795) — arm a one-shot "doesn't untap next untap
+    // step" flag. `target` is an object selector (announced slot, `$source`, or
+    // a forEach `$each`). No amount / duration — the one-shot scope is
+    // intrinsic to the flag.
+    skipNextUntap: {
+        required: {
+            target: isObjectSelector,
+        },
+    },
     // CR 701.15 (issue #846) — stack a regeneration shield on a permanent.
     // `target` is an object selector (announced slot, `$source`, or a forEach
     // `$each`). No amount / duration — one shield per Op, consumed by the next

@@ -65,6 +65,7 @@ const SET_BASE_PT_VALUE = 45; // a base-P/T set (CR 613.4b) — mostly a shrink/
 const PUT_BACK_PER_CARD = 5; // Brainstorm-style card-selection upside, per card
 const SHUFFLE_SELF_VALUE = 10; // dodges the graveyard — small recursion-adjacent upside
 const TAP_UNTAP_VALUE = 20; // Icy Manipulator-style tempo swing
+const SKIP_UNTAP_VALUE = 18; // a one-shot "doesn't untap" lock — a delayed tap
 const TRANSFORM_VALUE = 30; // a self-directed flip, assumed net-beneficial
 const ANIMATE_DISCOUNT = 0.7; // an animated permanent isn't a "real" creature card
 const EMBLEM_VALUE = 150; // a durable, uncounterable ultimate-style effect
@@ -569,6 +570,11 @@ const tapUntap: Valuer<"tapUntap"> = (op) => ({
     tags: isAnnouncedTarget(op.target) ? ["tempo", "targeted"] : ["tempo"],
 });
 
+const skipNextUntap: Valuer<"skipNextUntap"> = (op) => ({
+    points: SKIP_UNTAP_VALUE,
+    tags: isAnnouncedTarget(op.target) ? ["tempo", "targeted"] : ["tempo"],
+});
+
 const transform: Valuer<"transform"> = (op) => ({
     points: TRANSFORM_VALUE,
     tags: isAnnouncedTarget(op.target) ? ["pump", "targeted"] : ["pump"],
@@ -644,6 +650,7 @@ export const OP_VALUERS: {
     setSubtype,
     shuffleSelfIntoLibrary,
     tapUntap,
+    skipNextUntap,
     transform,
     unattach,
     winGame,

@@ -236,17 +236,20 @@ export const homaridWarrior: CardDefinition = {
                 "{U}: This creature gains shroud until end of turn and doesn't untap during your next untap step. Tap it.",
             cost: { mana: { U: 1 } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                const self = {
-                    type: "permanent" as const,
-                    id: ctx.sourceInstanceId,
-                };
-                ctx.grantStaticAbility(self, "shroud", {
-                    phase: "end-of-turn",
-                });
-                ctx.tap(self);
-                ctx.skipNextUntap(self);
-            },
+            // DSL-first (ADR 0045): "gains shroud until end of turn" (layer 6
+            // grant), "Tap it" (CR 701.26), "doesn't untap during your next
+            // untap step" (CR 302.6/502.1) — three $source skins over
+            // grantStaticAbility / tap / skipNextUntap, in order.
+            effects: [
+                {
+                    op: "grantAbility",
+                    ability: "shroud",
+                    target: { ref: "$source" },
+                    duration: { phase: "end-of-turn" },
+                },
+                { op: "tapUntap", action: "tap", target: { ref: "$source" } },
+                { op: "skipNextUntap", target: { ref: "$source" } },
+            ],
         },
     ],
 };
@@ -393,17 +396,20 @@ export const deepSpawn: CardDefinition = {
                 "{U}: This creature gains shroud until end of turn and doesn't untap during your next untap step. Tap this creature.",
             cost: { mana: { U: 1 } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                const self = {
-                    type: "permanent" as const,
-                    id: ctx.sourceInstanceId,
-                };
-                ctx.grantStaticAbility(self, "shroud", {
-                    phase: "end-of-turn",
-                });
-                ctx.tap(self);
-                ctx.skipNextUntap(self);
-            },
+            // DSL-first (ADR 0045): "gains shroud until end of turn" (layer 6
+            // grant), "Tap this creature" (CR 701.26), "doesn't untap during
+            // your next untap step" (CR 302.6/502.1) — three $source skins over
+            // grantStaticAbility / tap / skipNextUntap, in order.
+            effects: [
+                {
+                    op: "grantAbility",
+                    ability: "shroud",
+                    target: { ref: "$source" },
+                    duration: { phase: "end-of-turn" },
+                },
+                { op: "tapUntap", action: "tap", target: { ref: "$source" } },
+                { op: "skipNextUntap", target: { ref: "$source" } },
+            ],
         },
     ],
 };

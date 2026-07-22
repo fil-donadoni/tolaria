@@ -31,8 +31,8 @@ import { tappedTrigger } from "../../abilities/triggers/tappedTrigger";
 
 // Barl's Cage — "{3}: Target creature doesn't untap during its controller's next
 // untap step." (CR 605 activated ability; CR 302.6 / 502.1 one-shot
-// untap-prevention via the new `skipNextUntap` flag, cleared after exactly one
-// untap step.)
+// untap-prevention via the `skipNextUntap` Op, cleared after exactly one untap
+// step. DSL-first, ADR 0045 — announced-slot skin over SpellContext.skipNextUntap.)
 export const barlsCage: CardDefinition = {
     id: "6768a307-da2e-435e-8efd-72d82b4d4a2b",
     rarity: "rare",
@@ -49,10 +49,7 @@ export const barlsCage: CardDefinition = {
             cost: { mana: { X: 3 } },
             useStack: true,
             targetRequirement: { type: "Creature", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const t = ctx.targets[0];
-                if (t?.type === "permanent") ctx.skipNextUntap(t);
-            },
+            effects: [{ op: "skipNextUntap", target: { target: 0 } }],
         },
     ],
 };

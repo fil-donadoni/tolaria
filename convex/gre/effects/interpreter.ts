@@ -2118,6 +2118,16 @@ export const OP_EXECUTORS: {
             ctx.untap(target);
         }
     },
+    // CR 302.6 / 502.1 (PRD #795) — arm a one-shot "doesn't untap during its
+    // controller's next untap step" flag on a permanent. A thin adapter over
+    // `SpellContext.skipNextUntap`: stamps the instance flag consumed by (and
+    // cleared after) exactly one untap step. Skipped when the referenced
+    // permanent has left the battlefield (CR 608.2b).
+    skipNextUntap(ctx, op) {
+        const target = resolveObjectRef(ctx, op.target);
+        if (!target) return;
+        ctx.skipNextUntap(target);
+    },
     // CR 701.20a (issue #920, #682) — reveal `player`'s hand to every player.
     // A thin adapter over `SpellContext.markKnownToAll` (ADR 0026): stamps
     // every current hand card with every player in `knownTo` so the wire

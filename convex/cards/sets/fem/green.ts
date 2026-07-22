@@ -405,12 +405,10 @@ export const elvishHunter: CardDefinition = {
             cost: { mana: { X: 1, G: 1 }, tap: true },
             useStack: true,
             targetRequirement: { type: "Creature", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target?.type === "permanent") {
-                    ctx.skipNextUntap(target);
-                }
-            },
+            // DSL-first (ADR 0045): "doesn't untap during its controller's next
+            // untap step" (CR 302.6/502.1) — an announced-slot skin over
+            // SpellContext.skipNextUntap (the `skipNextUntap` Op, PRD #795).
+            effects: [{ op: "skipNextUntap", target: { target: 0 } }],
         },
     ],
 };

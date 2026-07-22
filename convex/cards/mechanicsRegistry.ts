@@ -2692,6 +2692,13 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         note: 'Tap or untap a permanent (CR 701.26, issue #842). A thin declarative skin over two SpellContext primitives, one execution path (ADR 0045): `action: "tap"` → tap (Icy Manipulator\'s "tap target artifact, creature, or land"), `action: "untap"` → untap (Twiddle\'s untap mode). `target` is an announced slot, the resolving source (`$source` — a permanent tapping itself), or a forEach `$each` (a mass tap). No amount — a permanent is tapped or it isn\'t; the primitives no-op when the permanent is already in the requested state (CR 701.26a/b) and are skipped when it has left the battlefield (CR 608.2b). Subsumes the tap / untap closures the migration classifier folds here (~68 blocked closures at ship time). `tapAllLands` (Mana Short, Drain Power — a whole-player tap, not a permanent target) stays resolve() by design; it is not a `tap`-on-a-selected-permanent skin.',
     },
     {
+        op: "skipNextUntap",
+        status: "implemented",
+        cr: "502.1",
+        binding: "SpellContext.skipNextUntap",
+        note: 'A permanent "doesn\'t untap during its controller\'s next untap step" (CR 302.6 / 502.1, PRD #795). A thin declarative skin over the single SpellContext primitive `skipNextUntap`, one execution path (ADR 0045): it stamps a one-shot instance flag consumed by (and cleared after) exactly one untap step — Barl\'s Cage / Elvish Hunter ("target creature doesn\'t untap …", an announced slot), the Homarid dive cycle / Deep Spawn (`$source`, paired with a `tapUntap` tap + a `grantAbility` shroud), and Goblin Rock Sled (`$source`, a self-lock arming trigger). `target` is an announced slot, the resolving source (`$source`), or a forEach `$each`. No amount / duration — the one-shot next-untap scope is intrinsic; skipped when the permanent has left the battlefield (CR 608.2b). Subsumes the `skipNextUntap` closures the migration classifier folds here. The CONTINUOUS source-linked variant (`lockUntapWhileSourceTapped`, "doesn\'t untap as long as … remains tapped") is a distinct primitive and stays `planned` (its own `lockUntap` row).',
+    },
+    {
         op: "grantAbility",
         status: "implemented",
         cr: "613.1f",
@@ -3068,7 +3075,7 @@ export const EFFECT_OP_BACKLOG: EffectOpRow[] = [
         op: "lockUntap",
         status: "planned",
         cr: "502.3",
-        note: 'Untap-step restriction ("doesn\'t untap while …", CR 502.3). Folds SpellContext.lockUntapWhileSourceTapped / skipNextUntap (~9 blocked closures). Long-tail.',
+        note: 'CONTINUOUS source-linked untap-step restriction ("doesn\'t untap as long as … remains tapped", CR 502.3). Folds SpellContext.lockUntapWhileSourceTapped (~3 blocked closures). Long-tail. The ONE-SHOT "doesn\'t untap during its controller\'s next untap step" half (`skipNextUntap`) has SHIPPED as its own `skipNextUntap` Op (status "implemented", PRD #795) — this row no longer folds it.',
     },
     // `sacrificeObject` (issue #1151) CLOSED — removed from this backlog, not
     // promoted to EFFECT_OP_REGISTRY as a separate Op. Its design sketch
