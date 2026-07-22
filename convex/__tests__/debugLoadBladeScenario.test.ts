@@ -1,32 +1,34 @@
 // debugLoadBladeScenario — read-only browser loader for blade scenarios
 // (issue #1432, PRD #1423). The mutation (`convex/game.ts`) resolves a
-// client-supplied `label` against the code-side registry
-// (`findBladeScenario`, `convex/gre/ai/blade/registry.ts`), then applies
-// the resolved entry's `spec` to the CURRENT game's state through
-// `buildBladeLoadState` (`convex/gre/ai/blade/runner.ts`) — the same
-// normalize-then-`buildStateFromScenario` pipeline the DB-backed scenario
-// loader and the blade test harness both build on. The project has no
-// convex-test harness (see `convex/__tests__/debugSetupScenario.test.ts`),
-// so:
-//   - the admin gate is asserted the same way `debugSetupScenario`'s is:
-//     against the pure decision `isAdminUser` the mutation's
-//     `assertIsAdmin(ctx)` is built from;
-//   - "resolves a label / rejects an unknown one" is asserted against the
-//     pure `findBladeScenario` the mutation's lookup delegates to
-//     (`registry.test.ts` also covers this at the registry level);
-//   - `runMutationBody` below mirrors the handler's own body (label lookup +
-//     `buildBladeLoadState`, minus `ctx`/the admin gate/`saveGameState`) so
-//     the "loaded position matches the harness's built state" assertions run
-//     through the CODE THE MUTATION ACTUALLY EXECUTES, not a hand-rolled
-//     stand-in — dropping the `findBladeScenario` lookup from the real
-//     handler (review finding #1432/#3) would now break these tests, not
-//     silently pass them.
-//   - the acceptance criterion "loaded position matches the harness's built
-//     state for that entry" is asserted by calling `runMutationBody` against
-//     a base state that stands in for "an arbitrary current game" (different
-//     player ids, life totals, turn, active player, a mid-turn land drop and
-//     floating mana, than the harness's synthetic base) — and comparing the
-//     resulting board to `buildBladeState` (the harness's own builder call).
+// client-supplied `label` against the code-side registry and applies the
+// resolved entry's `spec` to the CURRENT game's state, all through ONE pure
+// function: `resolveBladeLoadState` (`convex/gre/ai/blade/runner.ts`). The
+// handler is a thin wrapper around it (`ctx` / `assertIsAdmin` / DB
+// fetch+persist only) — see that function's doc comment and the mutation's
+// own comment in `convex/game.ts` for the shape.
+//
+// The project has no `convex-test` harness (see
+// `convex/__tests__/debugSetupScenario.test.ts`), so the Convex-runtime
+// slice of the handler (the `ctx` calls) genuinely cannot be driven from
+// here and is covered by convention instead, not by exercising the mutation
+// itself:
+//   - the admin gate is asserted against the pure decision `isAdminUser`
+//     the mutation's `assertIsAdmin(ctx)` is built from (describe block
+//     below);
+//   - `getLatestGameState`/`saveGameState` (DB fetch/persist) are exercised
+//     nowhere in this file — they're generic plumbing shared by every
+//     Convex mutation in `convex/game.ts`, not specific to this one.
+//
+// EVERYTHING ELSE — the `label` → scenario lookup and the state build — is
+// NOT a Convex-runtime concern (`resolveBladeLoadState` takes a plain
+// `GameState`, no `ctx`), so it needs no stand-in: this file imports and
+// calls the exact function `convex/game.ts` calls. A regression in either
+// half (e.g. the lookup always returning `BLADE_SCENARIOS[0]` regardless of
+// `label`, or a dropped normalization field) breaks these tests directly,
+// not a hand-rolled copy of them. The "mutation body throws on an unknown
+// label" block near the bottom exercises that same guard through
+// `resolveBladeLoadState` itself, on top of `registry.test.ts`'s coverage of
+// `findBladeScenario` in isolation.
 
 import { describe, it, expect } from "vitest";
 import { isAdminUser } from "../auth";
@@ -35,27 +37,12 @@ import type { CardInstanceState, GameState } from "../gre/state";
 import { STARTING_LIFE } from "../gre/setup";
 import { makePlayer, makeState } from "../cards/__tests__/setup";
 import { BLADE_SCENARIOS, findBladeScenario } from "../gre/ai/blade/registry";
-import { buildBladeLoadState, buildBladeState } from "../gre/ai/blade/runner";
+import { buildBladeState, resolveBladeLoadState } from "../gre/ai/blade/runner";
 
-/**
- * Mirrors `debugLoadBladeScenario`'s handler body (`convex/game.ts`) minus
- * `ctx`, the `assertIsAdmin` gate, and the `saveGameState` persistence call
- * — those three are Convex-runtime concerns the project's test setup can't
- * exercise without a `convex-test` harness (see file header) and are covered
- * separately/conventionally (admin gate: `isAdminUser` describe block below;
- * label resolution: `findBladeScenario` describe block below). Everything
- * ELSE the mutation does — the label lookup and the state build — runs here
- * verbatim, so a regression in either (e.g. always applying
- * `BLADE_SCENARIOS[0].spec` regardless of `label`) breaks this helper's
- * callers too.
- */
-function runMutationBody(gameState: GameState, label: string): GameState {
-    const scenario = findBladeScenario(label);
-    if (!scenario) {
-        throw new Error(`Unknown blade scenario: ${label}`);
-    }
-    return buildBladeLoadState(gameState, scenario);
-}
+/** Thin alias so the tests below read as "run the mutation's body" — this
+ *  IS `resolveBladeLoadState`, the same function `convex/game.ts` imports
+ *  and calls; not a copy. */
+const runMutationBody = resolveBladeLoadState;
 
 function user(isAdmin?: boolean): Doc<"users"> {
     return {
@@ -98,12 +85,20 @@ describe("debugLoadBladeScenario — label resolution (issue #1432)", () => {
 /** An arbitrary "current game" base state, deliberately UNLIKE the blade
  *  harness's synthetic base (real-looking player ids, non-default life
  *  totals, a turn already underway, a leftover library, an already-used land
- *  drop, and floating mana) — so a match against the harness's built state
- *  proves the loader is base-state-independent, not an artifact of both
- *  builds starting from the same substrate. The land-drop/mana/active-player/
- *  life divergences are deliberate: they are exactly the fields
- *  `buildStateFromScenario` alone leaves untouched (issue #1432 review
- *  finding #1) — `buildBladeLoadState` must normalize every one of them away. */
+ *  drop, floating mana, and every other turn-/game-scoped field a real match
+ *  can accumulate) — so a match against the harness's built state proves the
+ *  loader is base-state-independent, not an artifact of both builds starting
+ *  from the same substrate. Every divergent field here is deliberate: they
+ *  are exactly the fields `buildStateFromScenario` alone leaves untouched
+ *  (issue #1432 review finding #1), PLUS the fields review round 2's
+ *  finding #2 found still leaking through a hand-picked 4-field list —
+ *  `restrictedMana` (CR 500.4/106.6, `manaPool`'s sibling), per-player and
+ *  global `spellsCastThisTurn` (Storm, ADR 0052), `poisonCounters`
+ *  (CR 122.1 — 10+ is an instant SBA loss, CR 704.5c), `energyCounters`
+ *  (ADR 0032), `skipNextTurn` (CR 614.10), `hasDrawnFromEmpty` (CR 704.5b),
+ *  `permanentYouControlledLeftThisTurn` (Revolt, CR 702.RV),
+ *  `drawnThisTurn`/`lastDrawnCardId`, and `turnsTaken` (CR 500.1).
+ *  `resolveBladeLoadState` must normalize every one of them away. */
 function arbitraryCurrentGameBaseState(): GameState {
     return makeState({
         players: [
@@ -111,13 +106,29 @@ function arbitraryCurrentGameBaseState(): GameState {
                 life: 17,
                 landsPlayedThisTurn: 1,
                 manaPool: { W: 0, U: 0, B: 0, R: 3, G: 0, C: 0 },
+                restrictedMana: [{ color: "R", amount: 2 }],
+                spellsCastThisTurn: 2,
+                poisonCounters: 6,
+                energyCounters: 4,
+                skipNextTurn: true,
+                hasDrawnFromEmpty: true,
+                permanentYouControlledLeftThisTurn: true,
+                drawnThisTurn: ["stale-drawn-card"],
+                lastDrawnCardId: "stale-last-drawn",
+                turnsTaken: 12,
             }),
-            makePlayer("user_abc123-p2", { life: 9 }),
+            makePlayer("user_abc123-p2", {
+                life: 9,
+                poisonCounters: 3,
+                energyCounters: 1,
+                turnsTaken: 11,
+            }),
         ],
         turn: 9,
         activePlayerId: "user_abc123-p2",
         priorityPlayerId: "user_abc123-p2",
         phase: "COMBAT_DAMAGE" as GameState["phase"],
+        spellsCastThisTurn: 5,
     });
 }
 
@@ -140,13 +151,25 @@ function librarySnapshot(cards: CardInstanceState[]) {
     return cards.map((c) => (c.card as { id: string }).id);
 }
 
-/** Position snapshot INCLUDING the fields `buildStateFromScenario` alone
+/** Position snapshot INCLUDING every field `buildStateFromScenario` alone
  *  never normalizes — `activePlayerId`/`priorityPlayerId` (who's to act),
- *  `life`, and the per-turn counters (`landsPlayedThisTurn`, `manaPool`).
- *  Omitting these (as the pre-fix version of this test did) masks the exact
- *  divergence review finding #1432/#1 flagged: a scenario loaded mid-game
- *  inheriting the live game's turn/life/land-drop state instead of the
- *  harness's starting position. */
+ *  `life`, and the turn-/game-scoped field set review round 2's finding #2
+ *  named (see `arbitraryCurrentGameBaseState`'s doc comment for the CR
+ *  references). Omitting any of these (as an earlier version of this test
+ *  did) masks the exact class of divergence the review flagged: a scenario
+ *  loaded mid-game inheriting the live game's counters instead of the
+ *  harness's fresh starting position.
+ *
+ *  Deliberately EXCLUDES `drawnThisTurn`/`lastDrawnCardId`: `buildBladeState`
+ *  itself goes through `createInitialGameState`'s opening-hand `drawCard`
+ *  calls (7 draws per player, `gre/setup.ts`), which stamps these two with
+ *  the drawn ids as a SIDE EFFECT of dealing the synthetic base's mulligan
+ *  hand — the harness's own "fresh" state is not empty here, so it isn't a
+ *  target the loader should reproduce (the loader correctly clears them to
+ *  match the CR-correct "nothing drawn yet this turn" starting position
+ *  instead — asserted directly in the "normalizes …" test below). Comparing
+ *  them here would only assert that both sides drew from a shuffled deck,
+ *  not anything about "the position". */
 function positionSnapshot(state: GameState) {
     return {
         phase: state.phase,
@@ -157,10 +180,20 @@ function positionSnapshot(state: GameState) {
         priorityPlayerId: state.players.findIndex(
             (p) => p.id === state.priorityPlayerId
         ),
+        spellsCastThisTurn: state.spellsCastThisTurn ?? 0,
         players: state.players.map((p) => ({
             life: p.life,
             landsPlayedThisTurn: p.landsPlayedThisTurn ?? 0,
             manaPool: p.manaPool,
+            restrictedMana: p.restrictedMana ?? [],
+            spellsCastThisTurn: p.spellsCastThisTurn ?? 0,
+            poisonCounters: p.poisonCounters ?? 0,
+            energyCounters: p.energyCounters ?? 0,
+            skipNextTurn: p.skipNextTurn ?? false,
+            hasDrawnFromEmpty: p.hasDrawnFromEmpty ?? false,
+            permanentYouControlledLeftThisTurn:
+                p.permanentYouControlledLeftThisTurn ?? false,
+            turnsTaken: p.turnsTaken ?? 0,
             battlefield: zoneSnapshot(p.battlefield),
             hand: zoneSnapshot(p.hand),
             graveyard: zoneSnapshot(p.graveyard),
@@ -200,6 +233,23 @@ describe("debugLoadBladeScenario — loaded position matches the harness's built
         expect(
             Object.values(loaderState.players[0].manaPool).every((v) => v === 0)
         ).toBe(true);
+        // issue #1432 review round 2, finding #2 — these leaked through the
+        // prior fixup's 4-field list.
+        expect(loaderState.players[0].restrictedMana).toBeUndefined();
+        expect(loaderState.players[0].spellsCastThisTurn ?? 0).toBe(0);
+        expect(loaderState.spellsCastThisTurn).toBeUndefined();
+        expect(loaderState.players[0].poisonCounters ?? 0).toBe(0);
+        expect(loaderState.players[1].poisonCounters ?? 0).toBe(0);
+        expect(loaderState.players[0].energyCounters ?? 0).toBe(0);
+        expect(loaderState.players[0].skipNextTurn).toBeUndefined();
+        expect(loaderState.players[0].hasDrawnFromEmpty).toBeUndefined();
+        expect(
+            loaderState.players[0].permanentYouControlledLeftThisTurn
+        ).toBeUndefined();
+        expect(loaderState.players[0].drawnThisTurn).toBeUndefined();
+        expect(loaderState.players[0].lastDrawnCardId).toBeUndefined();
+        expect(loaderState.players[0].turnsTaken).toBe(1);
+        expect(loaderState.players[1].turnsTaken).toBeUndefined();
     });
 });
 

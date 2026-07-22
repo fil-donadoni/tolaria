@@ -342,6 +342,17 @@ export function buildStateFromScenario(
         state.turn = spec.turn;
     }
 
+    // CR 506.4/508.1 — `state.combat` holds attacker/blocker ids that point
+    // at THIS turn's battlefield instances. The placement loop above clears
+    // every zone and reassigns fresh instance ids (`allocInstanceId`), so any
+    // `combat` inherited from the base state (e.g. loading a
+    // `PRECOMBAT_MAIN` scenario onto a game that was mid-combat) references
+    // ids that no longer exist on the rebuilt board. Clear it unconditionally
+    // and only re-seed it below when the target phase needs it (issue #1432
+    // review finding #3) — this fixes the shared builder, so it closes the
+    // class for `debugSetupScenario` too, not just the blade loader.
+    state.combat = undefined;
+
     // Set phase if requested
     if (spec.phase) {
         state.phase = spec.phase as Phase;

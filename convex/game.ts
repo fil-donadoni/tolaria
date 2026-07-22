@@ -11,8 +11,8 @@ import {
 } from "./cards";
 import { cardHasColor } from "./cards/colors";
 import { buildStateFromScenario } from "./gre/scenarioBuilder";
-import { BLADE_SCENARIOS, findBladeScenario } from "./gre/ai/blade/registry";
-import { buildBladeLoadState } from "./gre/ai/blade/runner";
+import { BLADE_SCENARIOS } from "./gre/ai/blade/registry";
+import { resolveBladeLoadState } from "./gre/ai/blade/runner";
 import {
     type CardInstanceState,
     type GameState,
@@ -11587,22 +11587,25 @@ export const debugListBladeScenarios = query({
 /**
  * READ-ONLY browser loader for a blade scenario (issue #1432, PRD #1423).
  * Loads one entry's position into the CURRENT solo game so a developer can
- * eyeball it, through `buildBladeLoadState` (`convex/gre/ai/blade/runner.ts`)
- * — which first normalizes the CURRENT game's snapshot onto the same
- * starting position `buildBladeBaseState` produces (active/priority player =
- * the "me" seat, starting life, per-turn counters cleared), then applies the
- * entry's `spec` through the same `buildStateFromScenario` the DB-backed
- * scenario loader (`debugSetupScenario` above) and the blade test harness
- * both use. Without that normalization, a live game's turn/life/land-drop
- * state would leak into the loaded position, diverging it from the one the
- * blade harness actually built and the entry's `expect` was written against
- * (review finding, issue #1432).
+ * eyeball it, through `resolveBladeLoadState`
+ * (`convex/gre/ai/blade/runner.ts`) — which resolves `label` against the
+ * code-side registry, then normalizes the CURRENT game's snapshot onto the
+ * same starting position `buildBladeBaseState` produces (active/priority
+ * player = the "me" seat, starting life, every turn-/game-scoped field back
+ * to its start-of-game value — see that function's doc comment for the full
+ * list), then applies the entry's `spec` through the same
+ * `buildStateFromScenario` the DB-backed scenario loader
+ * (`debugSetupScenario` above) and the blade test harness both use. Without
+ * that normalization, a live game's turn/life/counter state would leak into
+ * the loaded position, diverging it from the one the blade harness actually
+ * built and the entry's `expect` was written against (issue #1432 review,
+ * both rounds).
  *
  * Deliberately NOT the `debugScenarios` DB path: `label` only selects an
- * entry from the code-side registry (`findBladeScenario`) — the client never
- * supplies a `spec` — so there is no DB row to write, edit, or delete. A
- * blade entry is a regression assertion that lives in git with the engine
- * change it guards (PRD #1423), never DB-seeded.
+ * entry from the code-side registry — the client never supplies a `spec` —
+ * so there is no DB row to write, edit, or delete. A blade entry is a
+ * regression assertion that lives in git with the engine change it guards
+ * (PRD #1423), never DB-seeded.
  */
 export const debugLoadBladeScenario = mutation({
     args: {
@@ -11615,17 +11618,18 @@ export const debugLoadBladeScenario = mutation({
         // convention, issue #768) — same gate as `debugSetupScenario`.
         await assertIsAdmin(ctx);
 
-        const scenario = findBladeScenario(args.label);
-        if (!scenario) {
-            throw new Error(`Unknown blade scenario: ${args.label}`);
-        }
-
         const gameState = await getLatestGameState(ctx, args.gameId);
         if (!gameState) throw new Error("Game not found");
 
-        const state = buildBladeLoadState(
+        // Label lookup + state build both live in `resolveBladeLoadState`
+        // (`gre/ai/blade/runner.ts`) — this handler is a thin wrapper around
+        // it (ctx / admin gate / fetch / persist only), so the pure-function
+        // test suite in `convex/__tests__/debugLoadBladeScenario.test.ts`
+        // exercises the exact code this mutation runs (issue #1432 review
+        // round 2, finding #1).
+        const state = resolveBladeLoadState(
             gameState.state as GameState,
-            scenario
+            args.label
         );
 
         await saveGameState(
