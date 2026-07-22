@@ -50,6 +50,10 @@ import { matchesPermanentFilter } from "../cards/filters";
 import { liveSupertypesOf, countSnowLands } from "./snow";
 import { canSummonCompanion } from "./companion";
 import { substituteColorFilter } from "./textChanges";
+// Choice-node candidate generation (PRD #1423, issue #1425) — a live
+// `PendingChoice` becomes an in-tree decision node whose candidate answers this
+// enumerator surfaces.
+import { choiceCandidates } from "./ai/choiceCandidates";
 
 /** One land tap the executor must perform to fund a cast/activation. */
 export type ManaTap = { cardInstanceId: string; manaChoiceIndex?: number };
@@ -93,6 +97,11 @@ export type Move =
           /** CR 701.16b — chosen sacrifice victim id(s) when the accepted cost's
            *  sacrifice leg admits a real choice. Omitted otherwise. */
           sacrificeIds?: string[];
+          /** CR 701.9 / 118.3 (issue #899) — chosen hand card id(s) when the
+           *  accepted cost's discard leg admits a real choice. Omitted
+           *  otherwise. Mirrors `sacrificeIds`; both travel to the same
+           *  `submitMayPay` entry point. */
+          discardIds?: string[];
       }
     | {
           /** Yes/no answer to a `land-entry-tapped` pending choice (shock lands,
@@ -963,16 +972,38 @@ export function enumerateMoves(state: GameState, playerId: string): Move[] {
         return enumerateBlockerMoves(state, player);
     }
 
-    // Ordinary priority window. A mid-flight pending cast/target/activation or a
-    // resolution choice is a continuation the executor drives atomically, not a
-    // fresh macro-move — surface nothing so the driver waits.
+    // A live mid-resolution CHOICE is a first-class decision node (PRD #1423,
+    // issue #1425): the choice REPLACES the action space, so the enumerator
+    // surfaces the head choice's candidate answers instead of nothing. Chooser =
+    // the queue head's `playerId` (APNAP already applied by the engine at
+    // enqueue, CR 101.4). Checked BEFORE the priority-holder gate: while a
+    // choice is pending, priority belongs to the chooser by construction, and
+    // only the chooser is offered moves. A kind with no registered generator
+    // (`choiceCandidates` returns []) keeps the historical behavior — no moves,
+    // the driver waits and the executor resolves it.
+    const headChoice = state.pendingChoices?.[0];
+    if (headChoice) {
+        if (
+            headChoice.playerId !== playerId ||
+            state.pendingCast ||
+            state.pendingTarget ||
+            state.pendingActivation ||
+            state.pendingCompanionPay
+        ) {
+            return [];
+        }
+        return choiceCandidates(state, headChoice).map((c) => c.move);
+    }
+
+    // Ordinary priority window. A mid-flight pending cast/target/activation is a
+    // continuation the executor drives atomically, not a fresh macro-move —
+    // surface nothing so the driver waits.
     if (state.priorityPlayerId !== playerId) return [];
     if (
         state.pendingCast ||
         state.pendingTarget ||
         state.pendingActivation ||
-        state.pendingCompanionPay ||
-        (state.pendingChoices && state.pendingChoices.length > 0)
+        state.pendingCompanionPay
     ) {
         return [];
     }

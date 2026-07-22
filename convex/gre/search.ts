@@ -58,6 +58,7 @@ import {
     emitBlockersConfirmedEvents,
     applyAllCombatDamage,
     buildAutoDamageAssignments,
+    finalizeDrawReplacementPay,
 } from "./phases";
 import { cloneGameState } from "./clone";
 import { predictCombatOutcome } from "./dangerClock";
@@ -84,6 +85,13 @@ import { tryGetDefinition } from "../cards";
 import { getManaSubstitutions } from "./state";
 import { buildAutoTapSources, solveSmartAutoTap } from "./autoTap";
 import { COMPANION_SUMMON_COST } from "./companion";
+// Choice-node spine (PRD #1423, issue #1425).
+import {
+    choiceCandidates,
+    selectOpeningCandidate,
+    type ChoiceCandidate,
+} from "./ai/choiceCandidates";
+import { applyLandEntrySubmit, applyMayPaySubmit } from "./pendingChoiceSubmit";
 
 /** Search budget: stop at `iterations` tree iterations, or once `timeMs` of
  *  wall-clock has elapsed (whichever comes first). At least one must be set —
@@ -238,13 +246,22 @@ export function decidingPlayer(state: GameState): string | null {
         return getOpponentId(state, state.activePlayerId);
     }
 
-    if (
-        state.pendingCast ||
-        state.pendingActivation ||
-        state.pendingTarget ||
-        (state.pendingChoices && state.pendingChoices.length > 0)
-    ) {
+    if (state.pendingCast || state.pendingActivation || state.pendingTarget) {
         return null;
+    }
+
+    // A live mid-resolution choice is an in-tree DECISION NODE (PRD #1423,
+    // issue #1425): its chooser — the head of the engine-ordered queue, APNAP
+    // already applied at enqueue (CR 101.4) — owes the decision. Opponent
+    // resolution-choices are ordinary adversarial nodes over the determinized
+    // world (no chance nodes). A kind with no registered candidate generator
+    // yields no candidates, and the window stays a non-decision exactly as
+    // before — this mirrors `enumerateMoves` so the two can never disagree.
+    const headChoice = state.pendingChoices?.[0];
+    if (headChoice) {
+        return choiceCandidates(state, headChoice).length > 0
+            ? headChoice.playerId
+            : null;
     }
 
     return state.priorityPlayerId;
@@ -387,6 +404,47 @@ export function applyMoveInSearch(
             // Handled only at the root (see `search`); never reached mid-rollout
             // because no phase re-enters MULLIGAN. Treat as a no-op for safety.
             return;
+
+        // ---- Choice-node answers (PRD #1423, issue #1425) --------------------
+        // A live `PendingChoice` is an in-tree decision node; its answer is
+        // applied through the SAME pure resolvers the executor mutations drive
+        // (`pendingChoiceSubmit.ts` / `phases.ts`), so the search can never
+        // diverge from the authoritative path. Each resolver already resumes
+        // the suspended resolution (`resolveTopOfStack` when the queue empties)
+        // and hands priority to whoever owes the next decision, so the playout
+        // simply continues past the node.
+        case "may-pay": {
+            applyMayPaySubmit(state, {
+                playerId,
+                accept: move.accept,
+                ...(move.sacrificeIds
+                    ? { sacrificeIds: move.sacrificeIds }
+                    : {}),
+                ...(move.discardIds ? { discardIds: move.discardIds } : {}),
+            });
+            drainAutoPasses(state);
+            checkStateBasedActions(state);
+            return;
+        }
+
+        case "land-entry": {
+            // CR 614.12 / ADR 0051 — shock land: no stack item, the resolver
+            // resumes the active player's priority window itself.
+            applyLandEntrySubmit(state, { playerId, accept: move.accept });
+            drainAutoPasses(state);
+            checkStateBasedActions(state);
+            return;
+        }
+
+        case "draw-replacement": {
+            // CR 614 / ADR 0061 — Zur's Weirding. Turn-based draw-step choice
+            // (again no stack item); mirrors the `submitDrawReplacementPay`
+            // mutation, which calls the same resolver + SBA check.
+            finalizeDrawReplacementPay(state, move.accept);
+            drainAutoPasses(state);
+            checkStateBasedActions(state);
+            return;
+        }
 
         case "play-land": {
             const card = moveCard(
@@ -881,6 +939,39 @@ export function reactivePrior(
     return REACTIVE_PRIOR_C / (1 + visits);
 }
 
+/** Weight of a choice-node prior in UCB1 selection (PRD #1423, issue #1425).
+ *  Like `REACTIVE_PRIOR_C` this is a DECAYING bias (`/(1 + visits)`), so an
+ *  ordering hint can never outvote an edge's accumulated reward — a prior that
+ *  ranked a candidate wrongly is washed out after a handful of visits. */
+const CHOICE_PRIOR_C = 0.75;
+
+function choicePriorBonus(prior: number, visits: number): number {
+    return prior <= 0 ? 0 : (CHOICE_PRIOR_C * prior) / (1 + visits);
+}
+
+/** A move paired with the tree key it is stored under and its ordering prior.
+ *
+ *  The KEY is why this type exists. At a choice node the key is the candidate's
+ *  STABLE IDENTITY (card names / choice semantics, never a per-world instance
+ *  id, PRD #1423) — so the same semantic answer accumulates statistics across
+ *  determinizations instead of splitting into a fresh edge per world. Everywhere
+ *  else it is the historical structural `moveKey`, with a zero prior. */
+type KeyedMove = { move: Move; key: string; prior: number };
+
+/** The keyed decision set for `pid` in `state`: the choice node's candidates
+ *  when a choice is live, else the ordinary enumerated moves. */
+function keyedMovesFor(state: GameState, pid: string): KeyedMove[] {
+    const headChoice = state.pendingChoices?.[0];
+    if (headChoice && headChoice.playerId === pid) {
+        return choiceCandidates(state, headChoice) as ChoiceCandidate[];
+    }
+    return enumerateMoves(state, pid).map((move) => ({
+        move,
+        key: moveKey(move),
+        prior: 0,
+    }));
+}
+
 /** Grow the tree by one iteration on a freshly-determinized world. */
 function iterate(
     root: Node,
@@ -895,15 +986,18 @@ function iterate(
     for (let depth = 0; depth < MAX_TREE_DEPTH; depth++) {
         const pid = decidingPlayer(world);
         if (!pid) break;
-        const moves = enumerateMoves(world, pid);
-        if (moves.length === 0) break;
+        const keyed = keyedMovesFor(world, pid);
+        if (keyed.length === 0) break;
 
-        const keyed = moves.map((m) => ({ move: m, key: moveKey(m) }));
         const untried = keyed.filter((k) => !node.children.has(k.key));
 
         if (untried.length > 0) {
-            // Expand one untried legal move, then roll out from it.
-            const pick = untried[Math.floor(rng() * untried.length)];
+            // Open one unopened branch, then roll out from it. FIRST-PLAY
+            // URGENCY (issue #1425): an unopened branch has no statistics, so
+            // its prior IS its estimate — a choice node opens its candidates in
+            // descending prior order. Priority nodes carry a zero prior and keep
+            // the historical uniform-random expansion.
+            const pick = selectOpeningCandidate(untried, rng)!;
             applyMoveInSearch(world, pid, pick.move);
             const edge: Edge = {
                 move: pick.move,
@@ -922,18 +1016,27 @@ function iterate(
 
         // All legal moves are in the tree: bump availability, then UCB-select.
         let bestEdge: Edge | null = null;
+        let bestKeyed: KeyedMove | null = null;
         let bestVal = -Infinity;
-        for (const { key } of keyed) {
-            const edge = node.children.get(key)!;
+        for (const k of keyed) {
+            const edge = node.children.get(k.key)!;
             edge.avail += 1;
             const val =
-                ucb1(edge) + reactivePrior(world, pid, edge.move, edge.visits);
+                ucb1(edge) +
+                reactivePrior(world, pid, edge.move, edge.visits) +
+                choicePriorBonus(k.prior, edge.visits);
             if (val > bestVal) {
                 bestVal = val;
                 bestEdge = edge;
+                bestKeyed = k;
             }
         }
-        applyMoveInSearch(world, pid, bestEdge!.move);
+        // Apply THIS world's move for the selected key, not the move captured
+        // when the edge was first opened: an edge is keyed by stable identity,
+        // so its stored move may name instances from a different
+        // determinization. (Identical for a priority node, where the key IS the
+        // structural move.)
+        applyMoveInSearch(world, pid, bestKeyed!.move);
         path.push(bestEdge!);
         node = bestEdge!.node;
     }
