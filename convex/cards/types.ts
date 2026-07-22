@@ -3915,6 +3915,19 @@ export type DelayedTriggerTiming =
      *  not at a step boundary; any instance still pending expires unfired at
      *  CLEANUP (the "this turn" bound, CR 514.2). */
     | "leaves-battlefield"
+    /** CR 603.7a / 603.10 (issue #1470) — the INDEFINITE twin of
+     *  `leaves-battlefield`: same instance-scoped watch (`watchInstanceId`,
+     *  same `PERMANENT_LEFT` match in `gre/triggers.ts`, dequeued on firing),
+     *  but with NO "this turn" bound — it is deliberately EXCLUDED from the
+     *  CLEANUP purge in `gre/phases.ts`, so the watch survives end of turn and
+     *  still fires on a later turn. Earthbend N's third reminder sentence
+     *  ("When it dies or is exiled, return it to the battlefield tapped.") has
+     *  no turn bound at all; the purge encodes the "this turn" CLAUSE of the
+     *  Kjeldoran-Guard wording (CR 514.2), not a general rule about
+     *  leave-watches. Fires on ANY departure (`PERMANENT_LEFT` is emitted for
+     *  every zone change off the battlefield, including a
+     *  `graveyardDestinationFor` graveyard → exile redirect), exactly once. */
+    | "leaves-battlefield-indefinite"
     /** CR 603.7d / 603.10 (issue #884) — a REPEATING, this-turn-bounded,
      *  combat-event watch: "Whenever a creature blocks this turn, …" (Battle
      *  Cry). Unlike every other timing (single-shot: fires once, then the
@@ -8916,13 +8929,16 @@ export type EffectOp =
           /** REQUIRED for the player-scoped timings (CR 504/505); rejected
            *  for the global-boundary timings. Resolved at scheduling time. */
           targetPlayer?: EffectPlayerRef;
-          /** REQUIRED for the `leaves-battlefield` timing (CR 603.7a / 603.10):
-           *  the specific permanent whose departure fires this delayed trigger
-           *  ("When THAT creature leaves the battlefield this turn, …"),
-           *  resolved to an instance id at scheduling time. Rejected for every
-           *  phase-boundary timing. Distinct from `capture` (which carries the
-           *  body's data): `watch` is the trigger CONDITION's watched instance,
-           *  not necessarily anything the body reads. */
+          /** REQUIRED for BOTH instance leave-watch timings
+           *  (`leaves-battlefield` and its indefinite twin
+           *  `leaves-battlefield-indefinite`, CR 603.7a / 603.10): the specific
+           *  permanent whose departure fires this delayed trigger ("When THAT
+           *  creature leaves the battlefield this turn, …" / earthbend N's
+           *  unbounded "When it dies or is exiled, …"), resolved to an instance
+           *  id at scheduling time. Rejected for every phase-boundary timing.
+           *  Distinct from `capture` (which carries the body's data): `watch`
+           *  is the trigger CONDITION's watched instance, not necessarily
+           *  anything the body reads. */
           watch?: EffectObjectSelector;
           /** The delayed body — a nested Effect Script run by the
            *  interpreter when the trigger fires. */

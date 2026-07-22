@@ -2753,12 +2753,17 @@ export const OP_EXECUTORS: {
         if (op.targetPlayer !== undefined && targetPlayerId === undefined) {
             return;
         }
-        // Instance leave-watch (CR 603.7a / 603.10, issue #731): resolve the
-        // watched permanent to an id NOW (scheduling time — it is still on the
-        // battlefield). A watch that cannot be resolved (the object already
-        // left) would never fire — skip scheduling entirely (CR 608.2b).
+        // Instance leave-watch (CR 603.7a / 603.10, issues #731 / #1470):
+        // resolve the watched permanent to an id NOW (scheduling time — it is
+        // still on the battlefield). A watch that cannot be resolved (the
+        // object already left) would never fire — skip scheduling entirely (CR
+        // 608.2b). Both bounds (this-turn and indefinite) resolve identically;
+        // they diverge only at the CLEANUP purge (phases.ts).
         let watchInstanceId: string | undefined;
-        if (op.timing === "leaves-battlefield") {
+        if (
+            op.timing === "leaves-battlefield" ||
+            op.timing === "leaves-battlefield-indefinite"
+        ) {
             const watched =
                 op.watch !== undefined
                     ? resolveObjectRef(ctx, op.watch)
@@ -3423,6 +3428,30 @@ export function runDelayedTriggerBody(
                 ctx.noteChoice(name, [value]);
             } else if (ctx.getOwnerId(value) !== undefined) {
                 bindSnapshot(ctx, name, { type: "permanent", id: value });
+            } else {
+                // issue #1470 — the DEPARTED-OBJECT case. An instance
+                // leave-watch body (`leaves-battlefield[-indefinite]`) fires
+                // precisely BECAUSE the captured object left the battlefield,
+                // so the battlefield lookup above always misses for it and the
+                // binding would be dropped — leaving earthbend's "return it to
+                // the battlefield tapped" with nothing to return. Fall back to
+                // the graveyard, then exile (a `graveyardDestinationFor`
+                // redirect), and bind a non-permanent snapshot carrying the id.
+                // This does NOT resurrect any pre-existing CR 608.2b skip:
+                // `resolveObjectRef` is battlefield(+hand)-scoped, so every Op
+                // that acts on a live permanent still finds nothing; only
+                // `moveZone`'s explicit `from:` return path (issue #1469) reads
+                // the id back out of this binding.
+                const owner =
+                    ctx.getGraveyardCardOwner(value) ??
+                    ctx.getExileCardOwner(value);
+                if (owner !== undefined) {
+                    bindSnapshot(ctx, name, {
+                        type: "graveyard-card",
+                        id: value,
+                        playerId: owner,
+                    });
+                }
             }
         }
     }

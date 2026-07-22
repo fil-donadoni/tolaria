@@ -1,6 +1,5 @@
 import type { Phase } from "./types";
 import type {
-    CardType,
     DrawStepPlan,
     GameEvent,
     StaticUntapRestriction,
@@ -41,6 +40,7 @@ import {
     matchesPermanentFilter,
     discardToGraveyard,
     resolveTopOfStack,
+    revertAnimation,
     revertControlChange,
     runDamageReplacement,
     tapPermanent,
@@ -2346,6 +2346,15 @@ export function finalizeCleanup(state: GameState): void {
     // fired expires here. Every `leaves-battlefield` instance is this-turn
     // scoped, so the whole class is purged at CLEANUP; the phase-boundary
     // timings are left untouched (they fire on a future step, not this turn).
+    //
+    // The purge encodes the "this turn" CLAUSE, not a general rule about
+    // leave-watches (issue #1470): the INDEFINITE twin
+    // `leaves-battlefield-indefinite` (earthbend N — "when it dies or is
+    // exiled, return it to the battlefield tapped", no turn bound at all) is
+    // deliberately NOT listed below, so it survives every CLEANUP and still
+    // fires on a later turn. Keep the two timings distinct here — collapsing
+    // them into one `startsWith("leaves-battlefield")` test would silently
+    // re-bound the indefinite watch to this turn.
     // Same bound applies to `this-turn-creature-blocks` (CR 603.7d, issue
     // #884, Battle Cry) and `this-turn-creature-deals-combat-damage-to-player`
     // (CR 720.2, issue #1199, Forth Eorlingas!): unlike `leaves-battlefield`
@@ -2792,44 +2801,6 @@ function tickAllDurations(state: GameState): void {
     if (view.phase === "CLEANUP" && state.abilityResolutionCounts) {
         state.abilityResolutionCounts = undefined;
     }
-}
-
-/** Undoes the mutations applied by `animateAsCreature`, restoring the
- *  permanent to its pre-animation shape. Safe to call only on a card whose
- *  `animation` field is set (caller checks). */
-function revertAnimation(card: CardInstanceState): void {
-    const anim = card.animation;
-    if (!anim) return;
-    if (anim.addedSubtype !== undefined) {
-        const idx = card.subtypes.indexOf(anim.addedSubtype);
-        if (idx !== -1) {
-            card.subtypes = [
-                ...card.subtypes.slice(0, idx),
-                ...card.subtypes.slice(idx + 1),
-            ];
-        }
-    }
-    // CR 208.2, 611.1: remove exactly the types the animation added — the
-    // creature type and any `additionalTypes` (e.g. "Artifact" for Mishra's
-    // Factory) — restoring the permanent's original type line.
-    const typesToRemove = [
-        ...(anim.addedCreatureType ? (["Creature"] as CardType[]) : []),
-        ...(anim.addedTypes ?? []),
-    ];
-    for (const t of typesToRemove) {
-        const idx = card.types.indexOf(t);
-        if (idx !== -1) {
-            card.types = [
-                ...card.types.slice(0, idx),
-                ...card.types.slice(idx + 1),
-            ];
-        }
-    }
-    card.power = anim.savedPower;
-    card.toughness = anim.savedToughness;
-    card.animation = undefined;
-    // CR 704.5g: damage marked on a permanent that's no longer a creature
-    // is irrelevant but harmless — cleared at CLEANUP regardless.
 }
 
 /** Advance turn: increment counter, swap active player, reset autoPass.

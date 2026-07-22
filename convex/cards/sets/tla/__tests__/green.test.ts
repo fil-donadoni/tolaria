@@ -9,7 +9,9 @@ import {
     resolveTopOfStack,
     emitPermanentTapped,
     processPendingActionTriggers,
+    removePermanentTo,
 } from "../../../../gre/state";
+import { finalizeCleanup } from "../../../../gre/phases";
 import type {
     CardInstanceState,
     GameState,
@@ -235,5 +237,169 @@ describe("Badgermole Cub — mana doubler (CR 605.4, tap a creature for mana, is
         emitPermanentTapped(state, land, true, { G: 1 });
         processPendingActionTriggers(state);
         expect(state.players[0].manaPool?.G).toBe(1);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Earthbend N's THIRD reminder sentence (issue #1470) — "When it dies or is
+// exiled, return it to the battlefield tapped." Built on the new INDEFINITE
+// instance leave-watch delayed-trigger timing (CR 603.7a /
+// "leaves-battlefield-indefinite") plus #1469's moveZone return-a-departed-
+// object shape (`from: "graveyard" | "exile"`, `tapped: true`).
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Earthbends `landId` (a Forest p1 controls) with Badgermole Cub's ETB, and
+ *  returns the settled state. */
+function earthbend(landId: string): GameState {
+    const cub = makeInstance(badgermoleCub.id, {
+        id: `cub-${landId}`,
+        controllerId: "p1",
+        ownerId: "p1",
+    });
+    const land = makeInstance(forest.id, {
+        id: landId,
+        controllerId: "p1",
+        ownerId: "p1",
+    });
+    const state = makeState({
+        players: [
+            makePlayer("p1", { battlefield: [cub, land] }),
+            makePlayer("p2"),
+        ],
+    });
+    earthbendTriggerOnStack(state, cub);
+    raiseTriggerTargetSelection(state);
+    resolveTopOfStack(state);
+    return state;
+}
+
+/** Fires whatever leave-watches the last departure matched and drains them. */
+function drainDelayedTriggers(state: GameState): void {
+    processPendingActionTriggers(state);
+    while (state.stack.some((s) => s.delayedTriggerId !== undefined)) {
+        resolveTopOfStack(state);
+    }
+}
+
+/** CR 400.7 — asserts the land came back as a NEW object: a plain, tapped
+ *  land with no animation, no granted haste and no +1/+1 counters. */
+function expectPlainTappedLand(state: GameState, landId: string): void {
+    const back = state.players[0].battlefield.find((c) => c.id === landId)!;
+    expect(back).toBeDefined();
+    expect(back.isTapped).toBe(true); // CR 110.5a — returns tapped
+    expect(back.types).toContain("Land");
+    expect(back.types).not.toContain("Creature"); // animation reverted
+    expect(back.subtypes).not.toContain("Elemental");
+    expect(back.staticAbilities).not.toContain("haste");
+    expect(back.counters?.["+1/+1"] ?? 0).toBe(0);
+    expect(back.animation).toBeUndefined();
+}
+
+describe("Badgermole Cub — earthbend return clause (CR 603.7a indefinite leave-watch, issue #1470)", () => {
+    it("restores the FULL reminder text on the ability's oracleText", () => {
+        const etb = badgermoleCub.triggeredAbilities![0];
+        expect(etb.oracleText).toBe(
+            "When this creature enters, earthbend 1. (Target land you control becomes a 0/0 creature with haste that's still a land. Put a +1/+1 counter on it. When it dies or is exiled, return it to the battlefield tapped.)"
+        );
+        // The card-level Oracle text (rendered in the card preview) already
+        // carried the full reminder — the two must now agree.
+        expect(badgermoleCub.oracleText).toContain(
+            "When it dies or is exiled, return it to the battlefield tapped."
+        );
+    });
+
+    it("schedules an INDEFINITE leave-watch keyed to the earthbent land", () => {
+        const state = earthbend("watchedLand");
+        const watch = state.delayedTriggers?.find(
+            (t) => t.timing === "leaves-battlefield-indefinite"
+        );
+        expect(watch).toBeDefined();
+        expect(watch!.watchInstanceId).toBe("watchedLand");
+        // Payload keys are stored '$'-stripped (Convex reserves a leading '$').
+        expect(watch!.payload).toEqual({ land: "watchedLand" });
+    });
+
+    it("CLEANUP does NOT purge the indefinite watch — but still purges the this-turn one (CR 514.2)", () => {
+        const state = earthbend("survivor");
+        // Plant a this-turn leave-watch alongside it (the Kjeldoran shape).
+        state.delayedTriggers = [
+            ...(state.delayedTriggers ?? []),
+            {
+                ...state.delayedTriggers![0],
+                id: "delayed-this-turn",
+                timing: "leaves-battlefield",
+            },
+        ];
+        finalizeCleanup(state);
+        const timings = (state.delayedTriggers ?? []).map((t) => t.timing);
+        expect(timings).toContain("leaves-battlefield-indefinite");
+        expect(timings).not.toContain("leaves-battlefield");
+    });
+
+    it("fires on a LATER turn: the land dies after CLEANUP and still returns tapped", () => {
+        const state = earthbend("laterTurnLand");
+        finalizeCleanup(state);
+        state.turn += 1;
+        removePermanentTo(state, "laterTurnLand", "graveyard");
+        drainDelayedTriggers(state);
+        expectPlainTappedLand(state, "laterTurnLand");
+        expect(
+            state.players[0].graveyard.some((c) => c.id === "laterTurnLand")
+        ).toBe(false);
+    });
+
+    it("dies branch: the earthbent land goes to the graveyard and returns to the battlefield tapped as a plain land", () => {
+        const state = earthbend("diedLand");
+        removePermanentTo(state, "diedLand", "graveyard");
+        drainDelayedTriggers(state);
+        expectPlainTappedLand(state, "diedLand");
+        // The watch is consumed — no double return.
+        expect(
+            state.delayedTriggers?.some(
+                (t) => t.timing === "leaves-battlefield-indefinite"
+            ) ?? false
+        ).toBe(false);
+    });
+
+    it("exile branch: an EXILED earthbent land returns to the battlefield tapped too", () => {
+        const state = earthbend("exiledLand");
+        removePermanentTo(state, "exiledLand", "exile");
+        drainDelayedTriggers(state);
+        expectPlainTappedLand(state, "exiledLand");
+        expect(
+            state.players[0].exile.some((c) => c.id === "exiledLand")
+        ).toBe(false);
+    });
+
+    it("no-op (CR 608.2b): the land left the graveyard before the trigger resolved", () => {
+        const state = earthbend("goneLand");
+        removePermanentTo(state, "goneLand", "graveyard");
+        processPendingActionTriggers(state);
+        expect(state.stack.some((s) => s.delayedTriggerId !== undefined)).toBe(
+            true
+        );
+        // Someone scoops it out of the graveyard in response.
+        const p1 = state.players[0];
+        const idx = p1.graveyard.findIndex((c) => c.id === "goneLand");
+        p1.hand.push(...p1.graveyard.splice(idx, 1));
+        resolveTopOfStack(state);
+        expect(p1.battlefield.some((c) => c.id === "goneLand")).toBe(false);
+        expect(p1.hand.some((c) => c.id === "goneLand")).toBe(true);
+    });
+
+    it("wire format: the returned plain tapped land survives projectPublicState", () => {
+        const state = earthbend("wireLand");
+        removePermanentTo(state, "wireLand", "graveyard");
+        drainDelayedTriggers(state);
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "wireLand"
+        )!;
+        expect(slim).toBeDefined();
+        expect(slim.isTapped).toBe(true);
+        expect(slim.types).toContain("Land");
+        expect(slim.types).not.toContain("Creature");
+        expect(slim.staticAbilities).not.toContain("haste");
+        expect(slim.counters?.["+1/+1"] ?? 0).toBe(0);
     });
 });
