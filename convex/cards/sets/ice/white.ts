@@ -7,11 +7,9 @@ import type {
     CardDefinition,
     CardPrint,
     Color,
-    DelayedTriggerDef,
     ManaCost,
     PermanentView,
     SpellContext,
-    TriggeredAbility,
 } from "../../types";
 import { countSnowLands } from "../../snowReads";
 import { AURA_AFFECTS_HOST, EFFECT_AFFECTS_SELF } from "../../types";
@@ -36,69 +34,14 @@ const COLOR_NAMES: Record<string, string> = {
     G: "green",
 };
 
-// "At the beginning of your upkeep, sacrifice this permanent unless you pay
-// <cost>" (CR 603.6a phase trigger + CR 117.3a may-pay with a hard action on
-// decline). Local twin of the LEA helper of the same name — kept per-set so
-// the set file stays self-contained.
-function makeUpkeepPayOrElse(args: {
-    id: string;
-    oracleText: string;
-    cost: ManaCost;
-    prompt: string;
-    onDecline: (ctx: SpellContext) => void;
-}): TriggeredAbility {
-    return phaseTrigger({
-        id: args.id,
-        oracleText: args.oracleText,
-        phase: "UPKEEP",
-        scope: "your",
-        resolve: (ctx) => {
-            const accept = ctx.requestMayPay({
-                playerId: ctx.controller,
-                choiceId: ctx.controller,
-                cost: args.cost,
-                prompt: args.prompt,
-            });
-            if (accept === undefined) return;
-            if (!accept) args.onDecline(ctx);
-        },
-    });
-}
-
 // "Draw a card at the beginning of the next turn's upkeep" cantrip rider
-// (CR 502.2 / 603.7d) — the signature kicker on ~22 Ice Age commons. The
-// scheduling spell/ability calls `scheduleNextUpkeepDraw` from its `resolve`;
-// the matching `DelayedTriggerDef` (from `nextUpkeepDrawTrigger`) lives on the
-// card's `delayedTriggers[]`. The trigger carries no `targetPlayerId`, so it
-// fires at the VERY NEXT upkeep regardless of whose turn it is and dequeues
-// exactly once (`fireDelayedTriggers` in gre/phases.ts). The drawing player is
-// the spell's controller, captured in `payload.controller` (CR 113.7).
-//
-// Shared because the rider repeats verbatim across the whole cantrip cycle —
-// extracting it keeps each card definition to its unique body (per the
-// "extract on the second occurrence" convention).
-const NEXT_UPKEEP_DRAW_TRIGGER_ID = "next-upkeep-cantrip";
-
-function scheduleNextUpkeepDraw(ctx: SpellContext, sourceCardId: string): void {
-    ctx.scheduleDelayedTrigger(
-        sourceCardId,
-        NEXT_UPKEEP_DRAW_TRIGGER_ID,
-        "next-upkeep",
-        {}
-    );
-}
-
-function nextUpkeepDrawTrigger(): DelayedTriggerDef {
-    return {
-        id: NEXT_UPKEEP_DRAW_TRIGGER_ID,
-        oracleText: "At the beginning of the next turn's upkeep, draw a card.",
-        timing: "next-upkeep",
-        // CR 121.1 — the delayed trigger's controller draws one card.
-        // Migrated resolve()→effects[] (ADR 0045, closes #1280):
-        // DelayedTriggerDef now carries an `effects` site.
-        effects: [{ op: "draw", player: "controller", count: 1 }],
-    };
-}
+// (CR 502.2 / 603.7d) — the signature kicker on ~22 Ice Age commons. Every
+// occurrence in this file is now an inline `delayedTrigger` Op (CR 603.7d,
+// the Formation shape) instead of a shared scheduling helper — the last
+// imperative caller (Blessed Wine) migrated to `effects[]` (ADR 0045, PRD
+// #795), so the old `scheduleNextUpkeepDraw` / `nextUpkeepDrawTrigger`
+// helpers (and the `delayedTriggers[]` card field they populated) are gone
+// from this file.
 
 // Colors (CR 202.2) of a battlefield-view permanent, derived from its mana
 // cost. The engine stores only the slim `{ id }` card reference, so the colour
@@ -468,11 +411,19 @@ export const blessedWine: CardDefinition = {
         "You gain 1 life.\nDraw a card at the beginning of the next turn's upkeep.",
     manaCost: { X: 1, W: 1 },
     types: ["Instant"],
-    resolve: (ctx: SpellContext) => {
-        ctx.gainLife(ctx.controller, 1);
-        scheduleNextUpkeepDraw(ctx, blessedWine.id);
-    },
-    delayedTriggers: [nextUpkeepDrawTrigger()],
+    // Migrated resolve()→effects[] (ADR 0045, PRD #795): gain 1 life
+    // (CR 119.3), then the next-upkeep cantrip as an inline `delayedTrigger`
+    // Op (ADR 0048, CR 603.7d) — the Formation shape.
+    effects: [
+        { op: "gainLife", player: "controller", amount: 1 },
+        {
+            op: "delayedTrigger",
+            timing: "next-upkeep",
+            oracleText:
+                "At the beginning of the next turn's upkeep, draw a card.",
+            effects: [{ op: "draw", player: "controller", count: 1 }],
+        },
+    ],
 };
 // Blinking Spirit — {0}: Return this creature to its owner's hand (CR 701.14
 // move-to-hand). A repeatable bounce that dodges targeted removal.
@@ -615,7 +566,10 @@ export const callToArms: CardDefinition = {
                     (c) => colorsOfView(c)
                 );
             },
-            resolve: (ctx) => ctx.sacrifice(ctx.sourceInstanceId),
+            // Migrated resolve()→effects[] (ADR 0045, PRD #795): sacrifice
+            // the source permanent (CR 701.16) via the implicit `$source`
+            // binding — the arn/green.ts Sacred Boon shape.
+            effects: [{ op: "sacrifice", target: { ref: "$source" } }],
         }),
     ],
 };
@@ -741,18 +695,27 @@ export const coldSnap: CardDefinition = {
                 "At the beginning of each player's upkeep, this enchantment deals damage to that player equal to the number of snow lands they control.",
             phase: "UPKEEP",
             scope: "each",
-            resolve: (ctx, _event, scopedPlayerId) => {
-                const snowLands = ctx.getBattlefieldIds(scopedPlayerId, {
-                    types: "Land",
-                    supertypes: ["Snow"],
-                }).length;
-                if (snowLands > 0) {
-                    ctx.dealDamage(
-                        { type: "player", id: scopedPlayerId },
-                        snowLands
-                    );
-                }
-            },
+            // Migrated resolve()→effects[] (ADR 0045, PRD #795): an
+            // `each`-scope trigger reads the scoped player via
+            // `{ ref: "$event.activePlayerId" }` (issue #1066, the
+            // Collapsing Borders shape, inv/red.ts) rather than the plain
+            // `"controller"` selector. The snow-land count is a `count`
+            // construct over the scoped player's battlefield (CR 205.4a);
+            // `dealDamage` no-ops at amount 0 (interpreter parity with the
+            // old `if (snowLands > 0)` guard).
+            effects: [
+                {
+                    op: "dealDamage",
+                    amount: {
+                        count: {
+                            zone: "battlefield",
+                            controller: { ref: "$event.activePlayerId" },
+                            filter: { type: "Land", supertype: "Snow" },
+                        },
+                    },
+                    to: { player: { ref: "$event.activePlayerId" } },
+                },
+            ],
         }),
     ],
 };
@@ -890,9 +853,13 @@ export const elvishHealer: CardDefinition = {
 //     603.2). `diedTrigger` matches any dying creature and the `condition`
 //     narrows to the ones OWNED by this card's controller (CR 400.7 — a card
 //     goes to its owner's graveyard), then returns it to that owner's hand.
-//     Authored via the shared `diedTrigger` factory (not a DSL `moveZone` Op)
-//     because "return IT" references the trigger's dead-creature subject, the
-//     `$event.<field>` grammar gap (#865).
+//     NOT DSL-migratable (ADR 0045): "return IT" references the trigger's
+//     dead-creature LKI (`deadCreature.id`, CR 603.10) — `diedTrigger`'s
+//     `effects[]` site binds only `$source`/`ctx.controller`, NOT the dead
+//     creature's last-known-info payload (no `CREATURE_DIED` row in
+//     EVENT_FIELD_REGISTRY, `mechanicsRegistry.ts`), and `moveCardById` needs
+//     that captured id. Blocked on: dead-creature LKI reachable from a
+//     script (the `$event.<field>` grammar gap, issue #865).
 export const enduringRenewal: CardDefinition = {
     id: "be77edac-9a8b-4b7f-a859-27df76b10aa6",
     name: "Enduring Renewal",
@@ -1177,10 +1144,12 @@ export const hallowedGround: CardDefinition = {
                 count: 1,
                 controller: "you",
             },
-            resolve: (ctx: SpellContext) => {
-                const t = ctx.targets[0];
-                if (t?.type === "permanent") ctx.returnToHand(t);
-            },
+            // Migrated resolve()→effects[] (ADR 0045, PRD #795): return the
+            // announced target land to its owner's hand (CR 701.10 / 400.7) —
+            // the Boomerang shape (leg/blue.ts); `moveZone … to: "hand"` routes
+            // through the same `SpellContext.returnToHand` the old resolve
+            // called directly.
+            effects: [{ op: "moveZone", target: { target: 0 }, to: "hand" }],
         },
     ],
 };
@@ -1253,11 +1222,19 @@ export const hipparion: CardDefinition = {
     ],
 };
 // Justice — {2}{W}{W} Enchantment. Upkeep pay-{W}{W}-or-sacrifice (CR 603.6a +
-// 117.3a, the `makeUpkeepPayOrElse` template) + a damage-watch trigger
+// 117.3a, inline `mayPay`/`if` on `phaseTrigger`) + a damage-watch trigger
 // (CR 603.4): whenever a red creature or spell deals damage, Justice deals that
 // much to the damage source's controller. The trigger filters the source on
 // colour red and restricts to creature/spell sources via `sourceTypes` (a red
 // noncreature permanent's damage is excluded, matching the Oracle wording).
+// NOT DSL-migratable (ADR 0045): the reflect trigger's `resolve` reads
+// `event.amount` and `event.sourceControllerId` off the DAMAGE_DEALT last-
+// known-info payload — neither field is censused in EVENT_FIELD_REGISTRY
+// (`convex/cards/mechanicsRegistry.ts`; only `damagedPlayer`/
+// `damagedPermanent` are). Blocked on: censusing an `amount` (value) and a
+// `sourceControllerId` (player) row for DAMAGE_DEALT — planned-migratable
+// (a missing censused field, not protocol behaviour), no tracking issue
+// filed yet.
 export const justice: CardDefinition = {
     id: "9a6e0c8d-0fc1-4f52-8357-e550b0ac579a",
     name: "Justice",
@@ -1267,13 +1244,32 @@ export const justice: CardDefinition = {
     manaCost: { X: 2, W: 2 },
     types: ["Enchantment"],
     triggeredAbilities: [
-        makeUpkeepPayOrElse({
+        // Migrated resolve()→effects[] (ADR 0045, PRD #795): the upkeep
+        // pay-or-sacrifice half inlines `mayPay` + `if` (the Force Spike
+        // shape, leg/blue.ts) directly on `phaseTrigger` instead of the
+        // (now-unused) local `makeUpkeepPayOrElse` closure factory —
+        // `scope: "your"` so the plain `"controller"` selector is the
+        // ability's controller (CR 117.3a).
+        phaseTrigger({
             id: "justice-upkeep",
             oracleText:
                 "At the beginning of your upkeep, sacrifice this enchantment unless you pay {W}{W}.",
-            cost: { W: 2 },
-            prompt: "Pay {W}{W} to keep Justice?",
-            onDecline: (ctx) => ctx.sacrifice(ctx.sourceInstanceId),
+            phase: "UPKEEP",
+            scope: "your",
+            effects: [
+                {
+                    op: "mayPay",
+                    player: "controller",
+                    cost: { W: 2 },
+                    prompt: "Pay {W}{W} to keep Justice?",
+                    bind: "$paid",
+                },
+                {
+                    op: "if",
+                    predicate: { not: { binding: "$paid" } },
+                    then: [{ op: "sacrifice", target: { ref: "$source" } }],
+                },
+            ],
         }),
         damageDealtTrigger({
             id: "justice-reflect",
@@ -2000,6 +1996,16 @@ export const seraph: CardDefinition = {
             },
         }),
     ],
+    // NOT DSL-migratable (ADR 0045): `runDelayedTriggerBody`'s automatic
+    // payload→binding seed (interpreter.ts) only produces a player binding
+    // (`ctx.allPlayerIds.includes(value)`) or a LIVE-permanent snapshot
+    // (`ctx.getOwnerId(value) !== undefined`, battlefield-scoped) — it has no
+    // graveyard-card binding shape. `deadId` here names a card already in the
+    // graveyard by fire time, so the auto-seed produces no binding for it at
+    // all and an `effects[]` body's `{ ref: "$deadId" }` would silently skip
+    // (CR 608.2b false-positive, not the real "object left" case). Blocked
+    // on: a graveyard-card-aware payload binding for inline delayed-trigger
+    // bodies. No tracking issue filed yet.
     delayedTriggers: [
         {
             id: "seraph-reanimate",

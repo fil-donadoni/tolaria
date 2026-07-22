@@ -540,6 +540,15 @@ export const demonicConsultation: CardDefinition = {
         "Choose a card name. Exile the top six cards of your library, then reveal cards from the top of your library until you reveal a card with the chosen name. Put that card into your hand and exile all other cards revealed this way.",
     manaCost: { B: 1 },
     types: ["Instant"],
+    // NOT DSL-migratable (ADR 0045, re-assessed migration PRD #795): the
+    // `nameCard` Op covers the naming half, but the reveal is an UNBOUNDED
+    // "reveal from the top until you reveal a card with the chosen name"
+    // loop that STOPS at the first match — the rest of the library is never
+    // even looked at. `digMatchingToHand` is the closest Op, but it scans a
+    // FIXED `look` window and puts EVERY matching card in that window into
+    // hand (and exiles every non-match in it) rather than stopping at the
+    // first hit; there is no "reveal-until-match" search Op today.
+    // Blocked on: a reveal-until-match search Op/construct.
     resolve: (ctx: SpellContext) => {
         const me = ctx.controller;
         const named = ctx.requestNameCard({
@@ -1470,9 +1479,15 @@ export const krovikanElementalist: CardDefinition = {
             oracleText:
                 "Sacrifice that creature at the beginning of the next end step.",
             timing: "next-end-step",
-            resolve: (ctx, payload) => {
-                if (payload.targetId) ctx.sacrifice(payload.targetId);
-            },
+            // Migrated resolve()→effects[] (ADR 0045, migration PRD #795): the
+            // TEMPLATE-path `DelayedTriggerDef.effects` (issue #1280) is a
+            // separate site from the scheduling ability above (which stays
+            // resolve() — its own marker is unchanged), so this body migrates
+            // independently. `payload.targetId` re-binds as `$targetId`
+            // (`runDelayedTriggerBody`) and `sacrifice`'s `target` form
+            // re-checks battlefield presence (CR 608.2b), matching the
+            // original no-op-if-gone semantics.
+            effects: [{ op: "sacrifice", target: { ref: "$targetId" } }],
         },
     ],
 };
@@ -1571,6 +1586,18 @@ export const krovikanVampire: CardDefinition = {
             oracleText:
                 "Put that card onto the battlefield under your control at the beginning of the end step.",
             timing: "next-end-step",
+            // NOT DSL-migratable (ADR 0045, re-assessed migration PRD #795):
+            // the declarative `moveZone` Op's graveyard→battlefield leg
+            // auto-detects the reanimated card's ACTUAL graveyard owner
+            // (`getGraveyardCardOwner`) and passes it as `returnToBattlefield`'s
+            // pile-owner arg, with `controller` as a SEPARATE reanimating-player
+            // arg. This closure instead passes `payload.controllerId` (the
+            // Vampire's controller) as the pile-owner arg directly — a
+            // pre-existing call shape this migration must not silently change
+            // (an Op-based rewrite would search a DIFFERENT player's graveyard
+            // whenever the dead creature isn't the Vampire controller's own,
+            // the common case). Stays resolve() to avoid a hidden behaviour
+            // change; not re-verified as correct/buggy in this migration pass.
             resolve: (ctx, payload) => {
                 if (!payload.deadId || !payload.controllerId) return;
                 ctx.returnToBattlefield(
@@ -1641,6 +1668,15 @@ export const leshracsSigil: CardDefinition = {
                 "Whenever an opponent casts a green spell, you may pay {B}{B}. If you do, look at that player's hand and choose a card from it. The player discards that card.",
             scope: "opponents",
             filter: { colors: ["G"] },
+            // NOT DSL-migratable (ADR 0045, re-assessed migration PRD #795):
+            // `spellCastTrigger`'s `effects[]` site binds only `$source` and
+            // the source's controller (an event-independent effect only) —
+            // NOT the spell's caster, which this effect needs as BOTH the
+            // pay-or-not chooser's target (`getHandSize(caster)`) and the
+            // `discard-hand` choice's `zoneOwnerId`/discard target. There is
+            // no `$event.<field>` player-ref site for a spell-cast trigger.
+            // Blocked on: a caster selector reachable from a spellCastTrigger
+            // script.
             resolve: (ctx, _event, spell) => {
                 const caster = spell.casterId;
                 const accept = ctx.requestMayPay({
@@ -2155,6 +2191,13 @@ export const necropotence: CardDefinition = {
     triggeredAbilities: [
         // 2. CR 701.8 / 603 — "Whenever you discard a card, exile that card from
         //    your graveyard." Fires off the CARD_DISCARDED choke point.
+        // NOT DSL-migratable (ADR 0045, migration PRD #795): the `discardTrigger`
+        // factory (convex/cards/abilities/triggers/discardTrigger.ts) has no
+        // `effects[]` alternative at all — `resolve` is its only site — so this
+        // trigger is structurally blocked regardless of how simple its body is
+        // (the body is a plain `moveCardById` graveyard→exile, an already-
+        // covered Op primitive).
+        // Blocked on: an `effects[]` site on the discardTrigger factory.
         discardTrigger({
             id: "necropotence-discard-exile",
             oracleText:
@@ -2181,6 +2224,15 @@ export const necropotence: CardDefinition = {
                 "Pay 1 life: Exile the top card of your library face down. Put that card into your hand at the beginning of your next end step.",
             cost: { life: 1 },
             useStack: true,
+            // NOT DSL-migratable (ADR 0045, re-assessed migration PRD #795):
+            // same blocker class as Krovikan Elementalist's fly ability — the
+            // declarative `delayedTrigger` Op always schedules under the fixed
+            // `INLINE_DELAYED_TRIGGER_ID`, with no field to pin a stable custom
+            // `triggerId`. This card's pre-existing test asserts
+            // `state.delayedTriggers[0].triggerId === "necropotence-return-to-hand"`
+            // (an untouched equivalence oracle), which the declarative Op
+            // cannot reproduce.
+            // Blocked on: a stable custom-id field on the `delayedTrigger` Op.
             resolve: (ctx: SpellContext) => {
                 // CR 121.1 — the top card of the controller's library.
                 const topId = ctx.peekLibraryTop(ctx.controller, 1)[0];
@@ -2211,6 +2263,15 @@ export const necropotence: CardDefinition = {
             oracleText:
                 "At the beginning of your next end step, put the exiled card into your hand.",
             timing: "next-end-step",
+            // NOT DSL-migratable (ADR 0045, migration PRD #795): the exiled
+            // card's payload id is neither a player id nor a live battlefield
+            // permanent, so `runDelayedTriggerBody`'s payload rebinding
+            // (`ctx.allPlayerIds.includes` / `ctx.getOwnerId`, both scoped to
+            // players/battlefield) never captures it as a binding — no `ref`
+            // in an Op could name it. `moveZone`'s object-ref shape also has
+            // no exile-sourced branch (only battlefield-permanent and
+            // graveyard-card).
+            // Blocked on: a payload-rebinding path for an exile-zone card id.
             resolve: (ctx: SpellContext, payload) => {
                 // CR 400.7 — move the exiled card to its owner's hand. No-op if
                 // it has since left exile (e.g. a graveyard-hate effect).
@@ -2276,6 +2337,13 @@ export const norritt: CardDefinition = {
                 "PRECOMBAT_MAIN",
                 "BEGINNING_OF_COMBAT",
             ],
+            // NOT DSL-migratable (ADR 0045, migration PRD #795): same blocker
+            // class as Krovikan Elementalist's fly ability — the declarative
+            // `delayedTrigger` Op always schedules under the fixed
+            // `INLINE_DELAYED_TRIGGER_ID`, with no field to pin a stable
+            // custom `triggerId` ("norritt-destroy") for this closure's
+            // scheduling call.
+            // Blocked on: a stable custom-id field on the `delayedTrigger` Op.
             resolve: (ctx: SpellContext) => {
                 const target = ctx.targets[0];
                 if (!target || target.type !== "permanent") return;
@@ -2295,6 +2363,13 @@ export const norritt: CardDefinition = {
             oracleText:
                 "Destroy that creature at the beginning of the next end step if it didn't attack this turn.",
             timing: "next-end-step",
+            // NOT DSL-migratable (ADR 0045, migration PRD #795): the gate is
+            // "if it didn't attack this turn" (`ctx.hasAttackedThisTurn`) — the
+            // `if` construct's `EffectPredicate` union (binding / comparison /
+            // picksNonEmpty / targetIsAnother / picksMatchFilter) has no member
+            // reading a permanent's attacked-this-turn flag, and the `EffectValue`
+            // grammar has no way to read it as a 0/1 either.
+            // Blocked on: a has-attacked-this-turn predicate/value.
             resolve: (ctx, payload) => {
                 const targetId = payload.targetId;
                 if (!targetId) return;
@@ -2334,6 +2409,19 @@ export const oathOfLimDul: CardDefinition = {
             oracleText:
                 "Whenever you lose life, for each 1 life you lost, sacrifice a permanent other than this enchantment unless you discard a card.",
             scope: "your",
+            // NOT DSL-migratable (ADR 0045, migration PRD #795): the
+            // `lifeLostTrigger` factory (convex/cards/abilities/triggers/
+            // lifeLostTrigger.ts) has no `effects[]` alternative — `resolve` is
+            // its only site. Even setting that aside, the body repeats a
+            // punisher choice (may-pay discard, else sacrifice) `amount` times
+            // (an `$event`-derived numeric loop count) — the `forEach`
+            // construct only iterates a declaratively-selected SET (players or
+            // battlefield permanents), not a numeric repeat — and each
+            // iteration needs a per-i suspend/resume `choiceId` for replay
+            // stability, which the Pending Choice-backed `choice`/`mayPay` Ops
+            // don't parametrize per loop index.
+            // Blocked on: an effects[] site on lifeLostTrigger + a numeric
+            // repeat construct.
             resolve: (ctx, _event, losingPlayerId, amount) => {
                 // CR 603 — repeat the punisher resolution once per point of
                 // life lost. The loop is replay-stable: each iteration's

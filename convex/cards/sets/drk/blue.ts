@@ -47,6 +47,12 @@ function upkeepPayOrElse(args: {
         oracleText: args.oracleText,
         phase: "UPKEEP",
         scope: "your",
+        // NOT DSL-migratable (ADR 0045): a shared parameterized helper whose
+        // "unless" consequence (`onDecline`) is an opaque TypeScript callback
+        // supplied per call site — no DSL construct captures a caller-
+        // supplied effect body threaded through a factory parameter. Its
+        // only current call site in this file (Sunken City) has its own
+        // per-card test. Stays resolve().
         resolve: (ctx) => {
             const accept = ctx.requestMayPay({
                 playerId: ctx.controller,
@@ -162,10 +168,25 @@ export const erosion: CardDefinition = {
             // resolve); the factory resolves `host-controller` to the host's
             // current controller.
             scope: "host-controller",
-            // NOT DSL-migratable (ADR 0045): destroys the SPECIFIC enchanted
-            // land (getAttachedToId), the payer is a host-controller scoped
-            // player, and it is a factory-built trigger with no `effects[]`
-            // site. Stays resolve().
+            // NOT DSL-migratable (ADR 0045, re-assessed): `phaseTrigger` DOES
+            // have an `effects[]` site now, so that's no longer the blocker.
+            // Two genuine gaps remain: (1) the destroy target is the aura's
+            // HOST (`ctx.getAttachedToId()`), a DIFFERENT object than
+            // `$source`/`$each` — no DSL object-ref construct names "the
+            // enchanted permanent"; (2) `scope: "host-controller"` needs the
+            // land's controller as the mayPay/destroy actor, but an
+            // `effects[]` script's `ctx.controller` is always the ABILITY's
+            // controller (Erosion's own controller) — WRONG here, since the
+            // whole point of the card is enchanting an OPPONENT's land.
+            // Unlike `scope: "each"` (unblocked via `{ ref:
+            // "$event.activePlayerId" }`, issue #1066), `PHASE_BEGIN`'s
+            // censused field is the ACTIVE player, not "the host's
+            // controller" — no equivalent ref exists for host-controller
+            // scope. Stays resolve().
+            // Blocked on: an object-ref construct for an aura's attached
+            // host, and a host-controller-scope player ref — both genuine
+            // Op-vocabulary gaps. Worth an issue if more Aura-upkeep-tax
+            // cards need it.
             resolve: (ctx, _event, scopedPlayerId) => {
                 const hostId = ctx.getAttachedToId();
                 if (hostId === undefined) return; // host gone — nothing to tax
@@ -293,13 +314,22 @@ export const giantShark: CardDefinition = {
                     event.attackerId === self.id || event.blockerId === self.id
                 );
             },
-            // NOT DSL-migratable (ADR 0045): reads trigger-event fields
-            // (event.attackerId / blockerId) to identify the paired combat
-            // creature, then conditions the self-pump + trample grant on that
-            // runtime creature's marked damage — no DSL construct captures
-            // trigger-event data or a computed (non-announced) target.
-            // Blocked on: trigger-event field capture (planned-migratable);
-            // grantStaticAbility itself is covered by grantAbility (#843).
+            // NOT DSL-migratable (ADR 0045, re-assessed): trigger-event field
+            // capture itself HAS shipped — `BLOCKERS_CONFIRMED.attackerId` /
+            // `.blockerId` are censused `EVENT_FIELD_REGISTRY` rows (ADR
+            // 0049), so `$event.attackerId` / `$event.blockerId` ARE
+            // readable. The remaining blocker is selecting "the OTHER
+            // creature in the pair" — `isSelfAttacker ? event.blockerId :
+            // event.attackerId`, an id-equality conditional pick. The frozen
+            // grammar (bind/ref/if/forEach) has no id-equality `if`
+            // predicate for this (tracked `$id-equality`, issue #865/#1315);
+            // Venom sidesteps it by splitting into two role-discriminated
+            // triggers, a restructuring this single-Oracle-line ability
+            // avoids for now. `grantStaticAbility` itself is covered by
+            // `grantAbility` (#843) and `addTemporaryPTBuff` by `pump` — only
+            // the pair-selection is unblocked. Stays resolve().
+            // Blocked on: an id-equality conditional-pick construct
+            // ($id-equality, issue #865/#1315).
             resolve: (ctx, event) => {
                 if (event.type !== "BLOCKERS_CONFIRMED") return;
                 const isSelfAttacker =
@@ -355,11 +385,24 @@ export const manaVortex: CardDefinition = {
             oracleText:
                 "When you cast this spell, counter it unless you sacrifice a land.",
             scope: "self",
-            // NOT DSL-migratable (ADR 0045): Mana Vortex's clauses need a
-            // land-sacrifice-or-counter gate on a specific spell, each-player
-            // land sacrifice, and self-sacrifice — none expressible with the
-            // current Op vocabulary; all are factory-built triggers with no
-            // `effects[]` site. Stays resolve().
+            // NOT DSL-migratable (ADR 0045, re-assessed): `spellCastTrigger`
+            // DOES have an `effects[]` site now, and `counter` IS a
+            // registered Op — but the target here is THIS SPELL, currently on
+            // the stack, being cast (CR 603.6e). `SPELL_CAST` has no
+            // `EVENT_FIELD_REGISTRY` row (unlike `BLOCKERS_CONFIRMED` /
+            // `PHASE_BEGIN`), so there is no `$event.spellInstanceId` ref to
+            // name the counter target — a genuine census gap. Separately, the
+            // land-sacrifice-or-counter gate needs the SAME raise-time
+            // affordability pre-check gap documented on Yawgmoth Demon
+            // (atq/black.ts): the imperative body checks `lands.length === 0`
+            // BEFORE prompting, so a landless controller is countered with NO
+            // suspension — the generic `mayPay` Op has no such pre-check.
+            // Stays resolve(). (Mana Vortex's other two triggers — the
+            // each-upkeep land sac and the no-lands self-sac — HAVE been
+            // migrated to `effects[]` below.)
+            // Blocked on: a `SPELL_CAST` `EVENT_FIELD_REGISTRY` row for
+            // `spellInstanceId`, AND a raise-time affordability gate for
+            // `mayPay` (same gap as Yawgmoth Demon).
             resolve: (ctx, _event, spell) => {
                 const controller = ctx.controller;
                 const spellRef = {
@@ -409,24 +452,24 @@ export const manaVortex: CardDefinition = {
                 "At the beginning of each player's upkeep, that player sacrifices a land of their choice.",
             phase: "UPKEEP",
             scope: "each",
-            resolve: (ctx, _event, scopedPlayerId) => {
-                const lands = ctx.getBattlefieldIds(scopedPlayerId, {
-                    types: "Land",
-                });
-                if (lands.length === 0) return; // nothing to sacrifice
-                const picked = ctx.requestChoice({
-                    playerId: scopedPlayerId,
-                    choiceId: `mana-vortex-${ctx.sourceInstanceId}-${scopedPlayerId}`,
+            // Migrated resolve()→effects[] (ADR 0045, PRD #795): scope
+            // "each" needs the ACTIVE player, not the ability's controller —
+            // `{ ref: "$event.activePlayerId" }` reads it straight off the
+            // firing `PHASE_BEGIN` event (issue #1066, ADR 0049), unblocking
+            // this trigger for `effects[]`.
+            effects: [
+                {
+                    op: "choice",
                     kind: "sacrifice-permanents",
+                    player: { ref: "$event.activePlayerId" },
                     zone: "battlefield",
-                    zoneOwnerId: scopedPlayerId,
-                    filter: { types: "Land" },
+                    filter: { type: "Land" },
                     count: 1,
                     prompt: "Mana Vortex: sacrifice a land.",
-                });
-                if (picked === undefined) return; // suspended
-                for (const id of picked) ctx.sacrifice(id);
-            },
+                    bind: "$sac",
+                },
+                { op: "sacrifice", permanents: { ref: "$sac" } },
+            ],
         }),
         // CR 603.8 — when no lands remain on the battlefield, sacrifice Mana
         // Vortex.
@@ -438,7 +481,9 @@ export const manaVortex: CardDefinition = {
                 !state.players.some((p) =>
                     p.battlefield.some((c) => c.types.includes("Land"))
                 ),
-            resolve: (ctx) => ctx.sacrifice(ctx.sourceInstanceId),
+            // Migrated resolve()→effects[] (ADR 0045, PRD #795): sacrifice
+            // the implicit $source (CR 701.16).
+            effects: [{ op: "sacrifice", target: { ref: "$source" } }],
         }),
     ],
 };
@@ -551,12 +596,22 @@ export const psychicAllergy: CardDefinition = {
                 "At the beginning of each opponent's upkeep, this enchantment deals X damage to that player, where X is the number of nontoken permanents of the chosen color they control.",
             phase: "UPKEEP",
             scope: "opponents",
-            // NOT DSL-migratable (ADR 0045): damage equals a count of the
-            // chosen-colour nontoken permanents an opponent controls
-            // (getChosenModeId + a coloured battlefield count for a scoped
-            // player), and the sibling upkeep clause sacrifices two Islands —
-            // none expressible with the current Op vocabulary; both are
-            // factory-built triggers with no `effects[]` site. Stays resolve().
+            // NOT DSL-migratable (ADR 0045, re-assessed): `phaseTrigger` DOES
+            // have an `effects[]` site now, and `{ ref:
+            // "$event.activePlayerId" }` (issue #1066) would resolve the
+            // `scope: "opponents"` scoped player correctly. The remaining
+            // blocker is the damage amount itself: "X, where X is the number
+            // of nontoken permanents of the CHOSEN color" — the color is a
+            // per-instance runtime value (`ctx.getChosenModeId()`, CR 700.2
+            // modal pick), and `EffectCardFilter.color` only accepts a
+            // static literal `Color`, not a ref/binding — no DSL construct
+            // parametrizes a battlefield-count filter by a stored modal
+            // choice. Stays resolve(). (The sibling upkeep clause —
+            // "destroy unless sacrifice two Islands" — is tracked separately
+            // below on `psychic-allergy-own-upkeep`.)
+            // Blocked on: a ref/binding-driven `color` field on
+            // `EffectCardFilter` (to parametrize a count filter by a stored
+            // modal choice) — a genuine Op-vocabulary gap.
             resolve: (ctx, _event, scopedPlayerId) => {
                 const color = ctx.getChosenModeId();
                 if (!color) return;
@@ -582,6 +637,29 @@ export const psychicAllergy: CardDefinition = {
                 "At the beginning of your upkeep, destroy this enchantment unless you sacrifice two Islands.",
             phase: "UPKEEP",
             scope: "your",
+            // NOT DSL-migratable (ADR 0045, re-assessed): the `mayPay` Op's
+            // `cost.sacrifice` leg (`MayPayCost.sacrifice`) DOES now express
+            // "sacrifice two Islands" itself — `{ op: "mayPay", cost: {
+            // sacrifice: { filter: { subtypes: "Island" }, count: 2 } } }` +
+            // `if !$paid` for the destroy else-branch. The remaining blocker
+            // is the SAME raise-time/skip mismatch documented on Yawgmoth
+            // Demon (atq/black.ts): this card's imperative body checks
+            // `islandIds.length < 2` BEFORE calling `requestMayPay`, so with
+            // fewer than two Islands the may-pay prompt is never raised at
+            // all and Psychic Allergy is destroyed immediately (see this
+            // file's "no Islands to sacrifice" test — asserts no
+            // suspension). The generic interpreter `mayPay` Op has no such
+            // affordability pre-check — it unconditionally calls
+            // `ctx.requestMayPay`, which unconditionally raises a
+            // PendingChoice; `canPayMayPayCost` only gates at the SUBMIT
+            // boundary. Migrating would introduce an unwanted
+            // suspension/prompt in the too-few-Islands case, changing
+            // observable behaviour under the existing per-card test
+            // (forbidden — the test is the equivalence oracle and stays
+            // untouched). Stays resolve().
+            // Blocked on: a raise-time affordability gate for `mayPay` (same
+            // gap as Yawgmoth Demon) — a genuine interpreter capability gap,
+            // not a missing Op/value construct.
             resolve: (ctx) => {
                 const controller = ctx.controller;
                 const islandIds = ctx.getBattlefieldIds(controller, {
@@ -637,20 +715,23 @@ export const riptide: CardDefinition = {
     oracleText: "Tap all blue creatures.",
     manaCost: { U: 1 },
     types: ["Instant"],
-    // NOT DSL-migratable (ADR 0045): a mass tap of all BLUE creatures. The
-    // forEach `permanents` selector filters only by type/subtype
-    // (`EffectCardFilter`), not colour, so "blue creatures" cannot be selected.
-    // Blocked on: a colour member on EffectCardFilter.
-    resolve: (ctx: SpellContext) => {
-        for (const pid of ctx.allPlayerIds) {
-            for (const id of ctx.getBattlefieldIds(pid, {
-                types: "Creature",
-                colors: "U",
-            })) {
-                ctx.tap({ type: "permanent", id });
-            }
-        }
-    },
+    // Migrated resolve()→effects[] (ADR 0045, PRD #795; re-assessed stale
+    // marker — `EffectCardFilter.color` now propagates to a battlefield
+    // `forEach`'s `PermanentFilter` via `toPermanentFilter`): tap every blue
+    // creature, either controller (CR 701.20a).
+    effects: [
+        {
+            op: "forEach",
+            select: {
+                set: "permanents",
+                zone: "battlefield",
+                filter: { type: "Creature", color: "U" },
+            },
+            effects: [
+                { op: "tapUntap", action: "tap", target: { ref: "$each" } },
+            ],
+        },
+    ],
 };
 
 // Sunken City — "At the beginning of your upkeep, sacrifice this enchantment
@@ -819,6 +900,18 @@ export const danceOfMany: CardDefinition = {
             oracleText:
                 "When this enchantment leaves the battlefield, exile the token.",
             scope: "self",
+            // NOT DSL-migratable (ADR 0045): iterates EVERY player's
+            // battlefield for permanents whose `createdBy` equals the
+            // leaving enchantment's id (`leaving.id`, always `$source` at
+            // this scope:"self" site) and exiles each. `EffectCardFilter`
+            // (the forEach `permanents` selector's filter shape) has no
+            // `createdBy` field — `PermanentFilter` (the engine-level type)
+            // does, but `toPermanentFilter` doesn't expose it, so a
+            // provenance-scoped forEach can't be expressed. Stays resolve().
+            // Blocked on: a `createdBy` member on `EffectCardFilter` (with
+            // ref support, since the id is a runtime `$source`, not a
+            // literal) — a genuine Op-vocabulary gap. Worth an issue if more
+            // token-provenance cards need it.
             resolve: (ctx: SpellContext, _event, leaving) => {
                 // CR 603.10 — the token (still on the battlefield) is found by
                 // its `createdBy` provenance link to this enchantment.
@@ -843,9 +936,10 @@ export const danceOfMany: CardDefinition = {
             condition: (event, self) =>
                 self.linkedTokenId !== undefined &&
                 event.instanceId === self.linkedTokenId,
-            resolve: (ctx: SpellContext) => {
-                ctx.sacrifice(ctx.sourceInstanceId);
-            },
+            // Migrated resolve()→effects[] (ADR 0045, PRD #795): sacrifice
+            // the implicit $source (CR 701.16); `condition` (unchanged)
+            // still gates the firing to this enchantment's own token.
+            effects: [{ op: "sacrifice", target: { ref: "$source" } }],
         }),
         payOrSacrificeUpkeepTrigger({
             id: "dance-of-many-upkeep",
@@ -944,13 +1038,14 @@ export const electricEel: CardDefinition = {
             id: "electric-eel-etb-damage",
             oracleText: "When this creature enters, it deals 1 damage to you.",
             scope: "self",
-            // NOT DSL-migratable (ADR 0045): built via the `enteredTrigger`
-            // factory, which owns the `resolve` closure (scope gating) and
-            // exposes no `effects[]` site. Stays resolve() until the trigger
-            // factories accept effects.
-            resolve: (ctx) => {
-                ctx.dealDamage({ type: "player", id: ctx.controller }, 1);
-            },
+            // Migrated resolve()→effects[] (ADR 0045, PRD #795; re-assessed
+            // stale marker — `enteredTrigger` now accepts `effects[]` and is
+            // safe for every scope, since an ETB ability's controller is
+            // always the source's controller): 1 damage to the controller
+            // (CR 119.3).
+            effects: [
+                { op: "dealDamage", amount: 1, to: { player: "controller" } },
+            ],
         }),
     ],
     activatedAbilities: [

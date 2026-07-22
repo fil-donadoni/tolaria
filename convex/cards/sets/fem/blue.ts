@@ -69,18 +69,19 @@ function tideEnterTrigger(id: string) {
         id,
         oracleText: "This permanent enters with a tide counter on it.",
         scope: "self",
-        // NOT DSL-migratable (ADR 0045): built via the `enteredTrigger`
-        // factory, which owns the `resolve` closure and exposes no `effects[]`
-        // site. The body is a clean `counters` add on `$source`, but the factory
-        // wrapper blocks it. Stays resolve() until the trigger factories accept
-        // effects.
-        resolve: (ctx) => {
-            ctx.addCounter(
-                { type: "permanent", id: ctx.sourceInstanceId },
-                "tide",
-                1
-            );
-        },
+        // Migrated resolve()→effects[] (ADR 0045, PRD #795): `enteredTrigger`
+        // now accepts an `effects[]` site, making the old "factory has no
+        // effects site" marker stale. CR 122 — put one tide counter on the
+        // source.
+        effects: [
+            {
+                op: "counters",
+                action: "add",
+                counter: "tide",
+                target: { ref: "$source" },
+                count: 1,
+            },
+        ],
     });
 }
 
@@ -110,18 +111,21 @@ function tideSheddingTrigger(id: string) {
         oracleText:
             "Whenever there are four or more tide counters on this permanent, remove all tide counters from it.",
         condition: (self) => (self.counters?.["tide"] ?? 0) >= 4,
-        // NOT DSL-migratable (ADR 0045): built via the `stateTrigger` factory
-        // (no `effects[]` site), and "remove ALL tide counters" removes a
-        // runtime count (`getCounterCount`) — a counter tally the `count`
-        // grammar cannot express. Stays resolve().
-        resolve: (ctx) => {
-            const src = {
-                type: "permanent" as const,
-                id: ctx.sourceInstanceId,
-            };
-            const have = ctx.getCounterCount(src, "tide");
-            if (have > 0) ctx.removeCounter(src, "tide", have);
-        },
+        // Migrated resolve()→effects[] (ADR 0045, PRD #795): `stateTrigger`
+        // now accepts an `effects[]` site, and the `{ counters: { of, type } }`
+        // EffectValue member (a live counter-tally read) lets "remove ALL tide
+        // counters" be expressed as "remove a count equal to the current
+        // tally" — `removeCounter` clamps to what's present (CR 122.6), so
+        // this is exact. Both blockers the old marker cited are stale.
+        effects: [
+            {
+                op: "counters",
+                action: "remove",
+                counter: "tide",
+                target: { ref: "$source" },
+                count: { counters: { of: { ref: "$source" }, type: "tide" } },
+            },
+        ],
     });
 }
 
@@ -341,6 +345,14 @@ export const deepSpawn: CardDefinition = {
                 "At the beginning of your upkeep, sacrifice this creature unless you mill two cards.",
             phase: "UPKEEP",
             scope: "your",
+            // NOT DSL-migratable (ADR 0045): "unless you mill two cards" is an
+            // optional-cost decision. `mayPay` is a registered Op, but its
+            // `MayPayCost` leg union (mana/life/sacrifice/discard/energy) has
+            // no "mill" leg, so the decline branch can't be expressed as a
+            // `mayPay` cost — even though the `mill` Op itself (CR 701.17,
+            // status implemented) covers the direct-mill primitive on its own.
+            // Blocked on: a mill leg for `MayPayCost` (planned-migratable,
+            // worth an issue if this shape recurs). Stays resolve().
             resolve: (ctx, _event, scopedPlayerId) => {
                 // CR 117.3a — "unless you mill two cards": the upkeep player may
                 // mill two (a real cost they choose to pay) to keep Deep Spawn.
@@ -579,7 +591,9 @@ export const vodalianKnights: CardDefinition = {
                     c.subtypes.includes("Island")
                 );
             },
-            resolve: (ctx) => ctx.sacrifice(ctx.sourceInstanceId),
+            // Migrated resolve()→effects[] (ADR 0045, PRD #795): sacrifice the
+            // source (CR 701.16a).
+            effects: [{ op: "sacrifice", target: { ref: "$source" } }],
         }),
     ],
     activatedAbilities: [
@@ -698,7 +712,9 @@ export const seasinger: CardDefinition = {
                     c.subtypes.includes("Island")
                 );
             },
-            resolve: (ctx) => ctx.sacrifice(ctx.sourceInstanceId),
+            // Migrated resolve()→effects[] (ADR 0045, PRD #795): sacrifice the
+            // source (CR 701.16a).
+            effects: [{ op: "sacrifice", target: { ref: "$source" } }],
         }),
     ],
     activatedAbilities: [
@@ -758,18 +774,19 @@ export const merseine: CardDefinition = {
             id: "merseine-enter-counters",
             oracleText: "This Aura enters with three net counters on it.",
             scope: "self",
-            // NOT DSL-migratable (ADR 0045): built via the `enteredTrigger`
-            // factory, which owns the `resolve` closure and exposes no
-            // `effects[]` site. The body is a clean `counters` add on
-            // `$source`, but the factory wrapper blocks it. Stays resolve()
-            // until the trigger factories accept effects.
-            resolve: (ctx) => {
-                ctx.addCounter(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    "net",
-                    3
-                );
-            },
+            // Migrated resolve()→effects[] (ADR 0045, PRD #795): `enteredTrigger`
+            // now accepts an `effects[]` site, making the old "factory has no
+            // effects site" marker stale. CR 122 — put three net counters on
+            // the source.
+            effects: [
+                {
+                    op: "counters",
+                    action: "add",
+                    counter: "net",
+                    target: { ref: "$source" },
+                    count: 3,
+                },
+            ],
         }),
     ],
     // CR 502.1 — the enchanted creature doesn't untap while a net counter
@@ -807,6 +824,13 @@ export const merseine: CardDefinition = {
             // to still be attached (the dynamic cost needs a host).
             canActivate: (source) => source.attachedTo !== undefined,
             activatableByEnchantedController: true,
+            // NOT DSL-migratable (ADR 0045): the ability's entire effect is
+            // paid as part of the activation COST (the `removeCounter` leg,
+            // CR 122.6) — resolution itself does nothing further, but
+            // `effects[]` requires a non-empty Op list (`validateEffectScript`
+            // rejects `effects: []`), and no no-op Op exists (nor should one
+            // be invented for a single card). Stays resolve() as an
+            // intentional empty no-op.
             resolve: () => {
                 // The net counter was removed as part of the activation cost
                 // (CR 122.6); nothing more happens on resolution.

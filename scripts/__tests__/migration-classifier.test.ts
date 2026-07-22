@@ -1164,11 +1164,22 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // Shards). All 22 left the FREE bucket: total 588→565, FREE 358→335,
         // AFK-ready 334→317. X-only and Op-blocked unchanged.
         // Partition: 335+14+216=565.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(565);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(335);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(317);
+        // 2026-07-22 free-tranche batch 6 (ice/black, ice/white, fem/blue,
+        // drk/blue — disjoint modules): 16 closures migrated resolve()→effects[].
+        // ice/black 1 (Krovikan Elementalist delayed body) + 8 over-count cards
+        // accurately marked ($event/factory-no-site/custom-triggerId); ice/white
+        // 5 (Blessed Wine, Call to Arms, Cold Snap, Hallowed Ground, Justice
+        // upkeep); fem/blue 5 (Homarid+Tidal Influence tide-trigger factory ×2,
+        // Vodalian Knights, Seasinger, Merseine enter); drk/blue 5 (Mana Vortex
+        // ×2, Riptide, Electric Eel, Dance of Many self-sac). All 16 left FREE:
+        // total 565→549, FREE 335→318, AFK-ready 317→303. One card reclassified
+        // FREE→Op-blocked on re-marking (Op-blocked 216→217). X-only unchanged.
+        // Partition: 318+14+217=549.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(549);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(318);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(303);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(216);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(217);
     });
 
     it("surfaces the demonstrated new-Op backlog (a covered primitive leaves it)", () => {
