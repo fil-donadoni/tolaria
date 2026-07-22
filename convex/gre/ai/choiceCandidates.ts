@@ -313,6 +313,38 @@ const drawReplacementCandidates: ChoiceCandidateGenerator = (state, choice) => {
     return out;
 };
 
+// ---------------------------------------------------------------------------
+// Modal "choose one" (option-pick)
+// ---------------------------------------------------------------------------
+
+/** `option-pick` (CR 700.2 / 601.2b modal spells, CR 614.12 / 701.x "as it
+ *  enters, choose …" body picks): one candidate per author-supplied option.
+ *  Unlike the yes/no family this generator does no legality pruning of its
+ *  own — every option on `choice.options` was already validated legal when
+ *  `requestOptionChoice` (the `optionChoice` Op, issue #849) built the list,
+ *  and the submit-time allow-list check
+ *  (`applyPendingChoiceSubmit`/`pendingChoiceSubmit.ts`) is the single source
+ *  of truth for that. A modal spell's natural mode count (2–5) already sits
+ *  well under `CHOICE_TOP_K`, so bounding here would only ever be a no-op.
+ *  Each option's `id` is the mode's author-supplied semantic id (or, when
+ *  omitted, its position as a string) — fixed by the card's DEFINITION, so it
+ *  is already a STABLE key across determinizations with no extra derivation
+ *  needed (unlike `may-pay`'s victim sets, which must be re-keyed off card
+ *  identity because the raw ids are per-world instances). */
+const optionPickCandidates: ChoiceCandidateGenerator = (_state, choice) => {
+    const options = choice.options ?? [];
+    return options.map((option) => ({
+        key: `option-pick:${option.id}`,
+        move: {
+            kind: "resolution-choice",
+            stackItemId: choice.stackItemId,
+            step: choice.step,
+            choiceId: choice.choiceId,
+            cardInstanceIds: [option.id],
+        },
+    }));
+};
+
 /** The registry: choice kind → candidate generator. A kind with NO generator is
  *  not yet an in-tree decision node — the search treats it exactly as before
  *  (no decider, playout stops there), so adding a tranche is purely additive. */
@@ -322,6 +354,7 @@ export const CHOICE_CANDIDATE_GENERATORS: Partial<
     "may-pay": mayPayCandidates,
     "land-entry-tapped": landEntryCandidates,
     "draw-replacement": drawReplacementCandidates,
+    "option-pick": optionPickCandidates,
 };
 
 /** Whether `kind` is an in-tree choice node (has a registered generator). */
