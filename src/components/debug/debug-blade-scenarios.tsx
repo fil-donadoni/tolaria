@@ -57,9 +57,7 @@ export default function DebugBladeScenarios({
             </span>
             <div className="max-h-40 overflow-y-auto flex flex-col gap-1">
                 {scenarios === undefined ? (
-                    <span className="text-white/30 text-[10px]">
-                        Loading…
-                    </span>
+                    <span className="text-white/30 text-[10px]">Loading…</span>
                 ) : scenarios.length === 0 ? (
                     <span className="text-white/30 text-[10px]">
                         No blade scenarios registered
