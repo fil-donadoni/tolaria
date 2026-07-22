@@ -163,14 +163,17 @@ export const singingTree: CardDefinition = {
                 count: 1,
                 combatRoleFilter: "attacking",
             },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target?.type === "permanent") {
-                    ctx.setBasePT(target, 0, undefined, {
-                        phase: "end-of-turn",
-                    });
-                }
-            },
+            // DSL-first (ADR 0045): base POWER set to 0 until end of turn via
+            // the `setBasePT` Op (CR 613.4b layer 7b) — toughness omitted, so it
+            // is left untouched (a power-only base set).
+            effects: [
+                {
+                    op: "setBasePT",
+                    target: { target: 0 },
+                    power: 0,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 };

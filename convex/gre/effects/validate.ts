@@ -1733,6 +1733,24 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             duration: isDurationSpec,
         },
     },
+    // CR 613.4b layer 7b (issue #1318) — SET a permanent's base P/T to a fixed
+    // value for `duration`. `power`/`toughness` are OPTIONAL non-negative-int
+    // characteristics (0 is legal, CR 107.4b); at least one is required (an
+    // omitted stat is left untouched — Island of Wak-Wak's power-only set).
+    setBasePT: {
+        required: {
+            target: isObjectSelector,
+            duration: isDurationSpec,
+        },
+        optional: {
+            power: isNonNegativeInt,
+            toughness: isNonNegativeInt,
+        },
+        check: (entry) =>
+            entry.power === undefined && entry.toughness === undefined
+                ? ['at least one of "power" / "toughness" is required']
+                : [],
+    },
     // CR 122 (issue #841) — put/remove counters on a permanent. `action`
     // selects the direction; `counter` is the free-form counter type; `target`
     // is an object selector (announced slot, `$source`, or a forEach `$each`);

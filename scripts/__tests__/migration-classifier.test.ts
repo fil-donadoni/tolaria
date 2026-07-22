@@ -1253,11 +1253,33 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // named primitive is now covered but they stay resolve(), already
         // NOT-DSL-marked so hidden from the --free worklist). X-only unchanged.
         // Partition: 286+14+185=485.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(485);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(286);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(274);
+        //
+        // 2026-07-22 (Op-infra batch — `setBasePT`, joint top New-Op backlog
+        // entry at 7): shipped the layer-7b base-P/T SET Op (CR 613.4b) as a
+        // thin declarative skin over the existing `SpellContext.setBasePT`
+        // primitive; power/toughness are each OPTIONAL non-negative-int
+        // characteristics (0 legal), at least one required, `duration` required
+        // (distinct from `pump`'s relative 7c modifier and `animate`'s 7a
+        // base-set-plus-become-creature). 4 closures migrated resolve()->
+        // effects[]: arn/black (Sorceress Queen 0/2), arn/colorless (Island of
+        // Wak-Wak power-0), arn/green (Singing Tree power-0), sos/multicolor
+        // (the 5/5 set). The 3 remaining setBasePT closures stay resolve(),
+        // blocked on OTHER gaps (markers re-worded off the now-shipped Op):
+        // leg/multicolor (Halfdane — base P/T = SNAPSHOT of an announced
+        // target's P/T, a value-from-target ref), leg/black (base toughness =
+        // "1 + creatures in graveyard", an additive-count value), blb/blue
+        // (removeStaticAbilities Op + a target-is-creature `if` predicate).
+        // The Op left the New-Op backlog and is now COVERED. All 4 were
+        // AFK-ready. Net: total 485->481, Op-blocked 185->179 (-6), FREE
+        // 286->288 / AFK-ready 274->276 (+2 = the leg/multicolor + leg/black
+        // closures reclassified: their named primitive is now covered but they
+        // stay resolve(), re-marked NOT-DSL so hidden from the --free worklist).
+        // X-only unchanged. Partition: 288+14+179=481.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(481);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(288);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(276);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(185);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(179);
     });
 
     it("surfaces the demonstrated new-Op backlog (a covered primitive leaves it)", () => {

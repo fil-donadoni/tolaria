@@ -1207,12 +1207,15 @@ export const halfdane: CardDefinition = {
                     "At the beginning of your upkeep, change Halfdane's base power and toughness to the power and toughness of target creature other than Halfdane until your next upkeep.",
                 phase: "UPKEEP",
                 scope: "your",
-                // NOT DSL-migratable (ADR 0045): sets Halfdane's BASE power/
-                // toughness to a snapshot of the target's effective P/T
-                // (`setBasePT`) — no Op wraps `SpellContext.setBasePT` (New-Op
-                // backlog `setBasePT`, migration-classifier.mjs; same gap
-                // flagged for Wood Elemental / Sentinel). Blocked on: a
-                // `setBasePT` Op.
+                // NOT DSL-migratable (ADR 0045): the `setBasePT` Op (CR 613.4b,
+                // issue #1318) now ships, BUT it takes LITERAL power/toughness
+                // only. Halfdane sets its base P/T to a SNAPSHOT of the target's
+                // effective P/T (`ctx.getPower(target)` / `getToughness`, CR
+                // 611.2) — a value-from-target read the `EffectValue` grammar
+                // (literal / bound-snapshot ref / count) can't express for an
+                // ANNOUNCED target (no bound snapshot exists for it). Blocked
+                // on: a target-P/T value construct, NOT the setBasePT Op. Same
+                // gap flagged for Wood Elemental / Sentinel.
                 resolve: (ctx) => {
                     const self = ctx.sourceInstanceId;
                     // CR 603.3d — the target was chosen when the trigger was put

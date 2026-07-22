@@ -693,6 +693,17 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // instead of relying on the canned smoke sweep.
             req.skip ??= `Op "animate" changes a permanent's basic kind (CR 208.2/611.1) — covered by the Op's own interpreter + wire-format tests`;
             return;
+        case "setBasePT":
+            // `setBasePT` (issue #1318) sets a permanent's base P/T (CR 613.4b
+            // layer 7b) for a duration. The canonical callers (Sorceress Queen,
+            // Island of Wak-Wak, Singing Tree) target a creature with a
+            // characteristic filter (flying / attacking) the canned generator's
+            // default filler does not satisfy, and the observable outcome is an
+            // effective-P/T READ that the smoke sweep's outcome vocabulary does
+            // not assert. Explicit skip — the Op is new (per-Op regime) and
+            // earns its own hand-written interpreter + wire-format test.
+            req.skip ??= `Op "setBasePT" sets base P/T (CR 613.4b) — covered by the Op's own interpreter + wire-format tests`;
+            return;
         case "addSubtype":
             // `addSubtype` (issue #1194) adds a subtype to a permanent
             // INDEFINITELY (CR 613.1d layer 4). The generator can assert an
@@ -1589,6 +1600,15 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     // guard; covered by the Op's own hand-written interpreter + wire-format
     // tests instead.
     animate() {
+        return null;
+    },
+    // `setBasePT` (issue #1318, CR 613.4b layer 7b) — never reached: `analyseOp`
+    // skips every script with a `setBasePT` Op (a new Op, per-Op regime; the
+    // canonical callers use characteristic-filtered targets the generator's
+    // filler doesn't satisfy and the outcome is an effective-P/T read outside
+    // the smoke vocabulary). Kept for the 1:1 coverage guard; covered by the
+    // Op's own hand-written interpreter + wire-format tests instead.
+    setBasePT() {
         return null;
     },
     // `addSubtype` (issue #1194, CR 613.1d layer 4) — an add on an announced

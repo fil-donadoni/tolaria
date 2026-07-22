@@ -7996,6 +7996,28 @@ export type EffectOp =
           grantedAbilities?: string[];
           duration?: DurationSpec;
       }
+    /** CR 613.4b layer 7b (issue #1318) — SET a permanent's base power and/or
+     *  toughness to a fixed characteristic value, locked at resolution
+     *  (CR 611.2), for `duration`. A thin declarative skin over the SpellContext
+     *  primitive `setBasePT`, one execution path (ADR 0045). Distinct from
+     *  `pump` (a layer-7c relative +N/+N modifier) and from `animate` (layer-7a
+     *  base P/T set that ALSO turns the permanent into a creature) — this is the
+     *  standalone "has base power and toughness N/N" / "has base power 0" set on
+     *  a permanent that is ALREADY a creature (Sorceress Queen 0/2, Island of
+     *  Wak-Wak power-0, Singing Tree power-0, the 5/5 set). `power` / `toughness`
+     *  are each OPTIONAL non-negative-int characteristics (CR 107.4b — 0 is
+     *  legal); omitting one leaves that stat untouched (Island of Wak-Wak sets
+     *  only power) — at least one is required. `target` is an announced target
+     *  slot, `$source`, or a `forEach` `$each` member. Skipped when the
+     *  referenced permanent is gone (CR 608.2b — the effect does as much as it
+     *  can). */
+    | {
+          op: "setBasePT";
+          target: EffectObjectSelector;
+          power?: number;
+          toughness?: number;
+          duration: DurationSpec;
+      }
     /** CR 701.20 (issue #844) — shuffle a player's library. A thin declarative
      *  skin over the SpellContext primitive `shuffleLibrary`, one execution
      *  path (ADR 0045). `action` is `"shuffle"` — the seeded-PRNG randomization

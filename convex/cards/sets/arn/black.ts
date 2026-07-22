@@ -6,11 +6,7 @@
 // identity of their mana cost (CR 202.2); lands and artifacts (no coloured
 // cost) live in colorless.ts.
 
-import type {
-    CardDefinition,
-    SpellContext,
-    TargetSelection,
-} from "../../types";
+import type { CardDefinition, TargetSelection } from "../../types";
 import { DAMAGEABLE_PERMANENT_TYPES } from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
@@ -273,12 +269,17 @@ export const sorceressQueen: CardDefinition = {
                 count: 1,
                 excludeInstanceIds: [source.id],
             }),
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target?.type === "permanent") {
-                    ctx.setBasePT(target, 0, 2, { phase: "end-of-turn" });
-                }
-            },
+            // DSL-first (ADR 0045): base P/T set to 0/2 until end of turn via
+            // the `setBasePT` Op (CR 613.4b layer 7b) on the announced target.
+            effects: [
+                {
+                    op: "setBasePT",
+                    target: { target: 0 },
+                    power: 0,
+                    toughness: 2,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 };

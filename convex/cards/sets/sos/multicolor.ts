@@ -227,19 +227,19 @@ export const quandrixCharm: CardDefinition = {
             oracleText:
                 "Target creature has base power and toughness 5/5 until end of turn.",
             targetRequirement: { type: "Creature", count: 1 },
-            // NOT DSL-migratable (ADR 0045): "has base power and toughness N/N
-            // until end of turn" (CR 613.4b layer 7b, a timestamped base-P/T
-            // set) has no registered Effect Script Op — `pump` is a relative
-            // layer-7c modifier, not a layer-7b base-P/T set, and there is no
-            // `setBasePT` Op wrapping `SpellContext.setBasePT`. Blocked on:
-            // missing Op (layer-7b base-P/T set), not a value/target gap.
-            resolve: (ctx) => {
-                const target = ctx.targets[0];
-                if (!target) return;
-                // CR 613.4b layer 7b — a fixed base P/T set, locked at
-                // resolution (CR 611.2), until end of turn.
-                ctx.setBasePT(target, 5, 5, { phase: "end-of-turn" });
-            },
+            // DSL-first (ADR 0045): "has base power and toughness 5/5 until end
+            // of turn" (CR 613.4b layer 7b, a timestamped base-P/T set locked at
+            // resolution CR 611.2) via the `setBasePT` Op on the announced
+            // target.
+            effects: [
+                {
+                    op: "setBasePT",
+                    target: { target: 0 },
+                    power: 5,
+                    toughness: 5,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 };

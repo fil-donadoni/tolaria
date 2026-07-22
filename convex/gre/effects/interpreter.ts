@@ -1702,6 +1702,17 @@ export const OP_EXECUTORS: {
             duration: op.duration,
         });
     },
+    // CR 613.4b layer 7b (issue #1318) — SET a permanent's base power and/or
+    // toughness to a fixed value for `duration`. A thin declarative skin over
+    // `SpellContext.setBasePT`, one execution path (ADR 0045). An omitted
+    // `power`/`toughness` passes `undefined` straight through — the primitive
+    // leaves that stat untouched (Island of Wak-Wak's power-only set). Skipped
+    // when the referenced permanent is gone (CR 608.2b).
+    setBasePT(ctx, op) {
+        const target = resolveObjectRef(ctx, op.target);
+        if (!target) return;
+        ctx.setBasePT(target, op.power, op.toughness, op.duration);
+    },
     // CR 701.20 (issue #844) — shuffle a player's library. A thin declarative
     // skin over `shuffleLibrary`, ONE execution path (ADR 0045): the seeded
     // PRNG reorder that also clears persistent knowledge (ADR 0026). Skipped

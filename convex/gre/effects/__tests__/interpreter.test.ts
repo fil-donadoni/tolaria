@@ -13776,6 +13776,137 @@ describe("Effect Script Op: digToHand (CR 401.4, issue #984)", () => {
     });
 });
 
+// --- digToHand `reveal` (CR 701.20a): PUBLIC reveal upgrade -----------------
+// "window" reveals the whole looked-at window to every player ("Reveal the top
+// N", Reviving Vapors / Torsten); "kept" reveals only the cards put into hand
+// ("Look at ... you may reveal a card", Narset). The reveal fires exactly ONCE
+// despite the suspend/resume re-entry (the dialog must never double-pop), and
+// only the KEPT cards get the persistent known-to-all "eye" — un-kept cards on
+// a random bottom must stay hidden.
+describe("Effect Script Op: digToHand reveal (CR 701.20a)", () => {
+    const libOf = (owner: "p1" | "p2", ids: string[]) =>
+        ids.map((cid) =>
+            makeInstance(BEAR_ID, {
+                id: cid,
+                controllerId: owner,
+                ownerId: owner,
+                zone: "library",
+            })
+        );
+    const submitKeep = (state: GameState, keep: string[]) => {
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: keep,
+        });
+    };
+
+    it('reveal "window": the whole window is publicly revealed ONCE, only the kept card stays known-to-all', () => {
+        const id = registerScript("test-op-dig-reveal-window", [
+            {
+                op: "digToHand",
+                player: "controller",
+                look: 3,
+                take: 1,
+                reveal: "window",
+                destination: "graveyard",
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: libOf("p1", ["a", "b", "c"]) }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        expect(resolveTopOfStack(state)).toBeNull(); // suspends on the pick
+        // No reveal dialog yet — it must fire on the RESUMED pass only, so it
+        // never double-pops across the suspend/resume re-entry.
+        expect(state.pendingReveals ?? []).toHaveLength(0);
+
+        submitKeep(state, ["b"]);
+        // Exactly ONE reveal entry, kind "reveal", showing all three cards.
+        expect(state.pendingReveals).toHaveLength(1);
+        expect(state.pendingReveals![0].kind).toBe("reveal");
+        expect(state.pendingReveals![0].cards.map((c) => c.instanceId)).toEqual(
+            ["a", "b", "c"]
+        );
+        // The kept card "b" is in hand and visible to the opponent (eye).
+        const p2View = projectPublicState(state, 2, "p2");
+        expect(
+            p2View.players[0].hand.some((c) => c !== null && c.id === "b")
+        ).toBe(true);
+    });
+
+    it('reveal "window": fires the dialog even when nothing is kept (keep === 0, no suspend)', () => {
+        const id = registerScript("test-op-dig-reveal-window-empty", [
+            {
+                op: "digToHand",
+                player: "controller",
+                look: 2,
+                take: 1,
+                optional: true,
+                // A filter that matches no Bear — keep clamps to 0.
+                filter: { type: "Land" },
+                reveal: "window",
+                destination: "graveyard",
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: libOf("p1", ["a", "b"]) }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        // No pick to make (nothing eligible) — resolves in one step, dialog
+        // still fires for the revealed window.
+        expect(resolveTopOfStack(state)).not.toBeNull();
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        expect(state.pendingReveals).toHaveLength(1);
+        expect(state.pendingReveals![0].cards.map((c) => c.instanceId)).toEqual(
+            ["a", "b"]
+        );
+    });
+
+    it('reveal "kept": only the card put into hand is revealed, not the private window', () => {
+        const id = registerScript("test-op-dig-reveal-kept", [
+            {
+                op: "digToHand",
+                player: "controller",
+                look: 3,
+                take: 1,
+                reveal: "kept",
+                randomBottom: true,
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: libOf("p1", ["a", "b", "c"]) }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        expect(resolveTopOfStack(state)).toBeNull();
+        submitKeep(state, ["b"]);
+        // Exactly the kept card is revealed — the two un-kept cards (on the
+        // random bottom) are NOT shown.
+        expect(state.pendingReveals).toHaveLength(1);
+        expect(state.pendingReveals![0].cards.map((c) => c.instanceId)).toEqual(
+            ["b"]
+        );
+        // Kept card visible to the opponent; the random-bottom cards are not
+        // leaked (they carry no known-to-all stamp).
+        const p2View = projectPublicState(state, 2, "p2");
+        expect(
+            p2View.players[0].hand.some((c) => c !== null && c.id === "b")
+        ).toBe(true);
+    });
+});
+
 // --- digToHand refinements: filter + optional + randomBottom (issue #1266,
 // Narset, Parter of Veils) --------------------------------------------------
 // Narset −2: look at the top four, you MAY put a NONCREATURE, NONLAND card into
@@ -16856,5 +16987,115 @@ describe('Effect Script Op: restrictCombat restriction "cant-be-blocked" (CR 509
         expect(
             projBf.find((c) => c.id === "bearA")!.cantBeBlockedThisTurn
         ).toBe(true);
+    });
+});
+
+describe("Effect Script Op: setBasePT (CR 613.4b layer 7b)", () => {
+    /** p2 controls one 2/5 bear as the announced base-P/T-set target. */
+    function oneBear(): GameState {
+        return makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    battlefield: [
+                        makeInstance(BEAR_ID, {
+                            controllerId: "p2",
+                            id: "bearA",
+                        }),
+                    ],
+                }),
+            ],
+        });
+    }
+
+    it("sets base power AND toughness to a fixed value (Sorceress Queen 0/2)", () => {
+        const id = registerScript("test-op-setpt-both", [
+            {
+                op: "setBasePT",
+                target: { target: 0 },
+                power: 0,
+                toughness: 2,
+                duration: { phase: "end-of-turn" },
+            },
+        ]);
+        const state = oneBear();
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "bearA" }]);
+        resolveTopOfStack(state);
+        const bear = state.players[1].battlefield.find(
+            (c) => c.id === "bearA"
+        )!;
+        expect(getEffectivePower(state, bear)).toBe(0);
+        expect(getEffectiveToughness(state, bear)).toBe(2);
+    });
+
+    it("sets base power only, leaving toughness untouched (Island of Wak-Wak)", () => {
+        const id = registerScript("test-op-setpt-power", [
+            {
+                op: "setBasePT",
+                target: { target: 0 },
+                power: 0,
+                duration: { phase: "end-of-turn" },
+            },
+        ]);
+        const state = oneBear();
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "bearA" }]);
+        resolveTopOfStack(state);
+        const bear = state.players[1].battlefield.find(
+            (c) => c.id === "bearA"
+        )!;
+        expect(getEffectivePower(state, bear)).toBe(0);
+        // Base toughness untouched — still the bear's printed 5.
+        expect(getEffectiveToughness(state, bear)).toBe(5);
+    });
+
+    it("is a no-op when the targeted permanent is gone (CR 608.2b) and still resolves", () => {
+        const id = registerScript("test-op-setpt-gone", [
+            {
+                op: "setBasePT",
+                target: { target: 0 },
+                power: 5,
+                toughness: 5,
+                duration: { phase: "end-of-turn" },
+            },
+        ]);
+        const state = oneBear();
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "ghost" }]);
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+        expect(state.players[0].graveyard.map((c) => c.card.id)).toContain(id);
+        // The real bear is untouched (printed 2/5).
+        const bear = state.players[1].battlefield.find(
+            (c) => c.id === "bearA"
+        )!;
+        expect(getEffectivePower(state, bear)).toBe(2);
+        expect(getEffectiveToughness(state, bear)).toBe(5);
+    });
+
+    it("set base P/T survives projection (wire format)", () => {
+        const id = registerScript("test-op-setpt-wire", [
+            {
+                op: "setBasePT",
+                target: { target: 0 },
+                power: 5,
+                toughness: 5,
+                duration: { phase: "end-of-turn" },
+            },
+        ]);
+        const state = oneBear();
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "bearA" }]);
+        resolveTopOfStack(state);
+        // Fat state:
+        const bear = state.players[1].battlefield.find(
+            (c) => c.id === "bearA"
+        )!;
+        expect(getEffectivePower(state, bear)).toBe(5);
+        expect(getEffectiveToughness(state, bear)).toBe(5);
+        // Same value survives the projection (the base-P/T set is on the
+        // instance, not the stripped inner card):
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[1].battlefield.find(
+            (c) => c.id === "bearA"
+        )!;
+        expect(getEffectivePower(projected, slim)).toBe(5);
+        expect(getEffectiveToughness(projected, slim)).toBe(5);
     });
 });

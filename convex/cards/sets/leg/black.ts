@@ -1051,14 +1051,13 @@ export const wallOfTombstones: CardDefinition = {
                 "At the beginning of your upkeep, change this creature's base toughness to 1 plus the number of creature cards in your graveyard.",
             phase: "UPKEEP",
             scope: "your",
-            // NOT DSL-migratable (ADR 0045): doubly blocked. (1) No Op wraps
-            // `SpellContext.setBasePT` (layer 7b) yet — `EFFECT_OP_REGISTRY` has
-            // no `setBasePT`/equivalent entry. (2) Even with one, the amount is
-            // "1 PLUS the number of creature cards in the graveyard" — the
-            // `EffectValue` grammar is literal/ref/count with only `count`'s
-            // fixed `times` MULTIPLIER, no addition of a literal offset to a
-            // count. Blocked on: a `setBasePT`-style Op, and an additive value
-            // construct. Stays resolve().
+            // NOT DSL-migratable (ADR 0045): the `setBasePT` Op (CR 613.4b layer
+            // 7b, issue #1318) now ships, BUT it takes a LITERAL toughness. This
+            // sets base toughness to "1 PLUS the number of creature cards in the
+            // graveyard" — the `EffectValue` grammar is literal / bound-ref /
+            // count with only `count`'s fixed `times` MULTIPLIER, no addition of
+            // a literal offset to a count. Blocked on: an additive-count value
+            // construct, NOT the setBasePT Op. Stays resolve().
             resolve: (ctx, _event, scopedPlayerId) => {
                 // CR 611.2 — the count is read once, at resolution, and the
                 // resulting set value is locked (it does NOT track the

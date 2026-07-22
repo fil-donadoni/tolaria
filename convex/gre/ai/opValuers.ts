@@ -61,6 +61,7 @@ const REGENERATE_VALUE = 60; // a one-shot destroy-proof shield
 const RESTRICT_CASTING_VALUE = 20; // a turn-scoped "can't cast" denial
 const RESTRICT_ACTIVATION_VALUE = 15; // a turn-scoped "can't activate" denial
 const RESTRICT_COMBAT_VALUE = 45; // a targeted "can't attack/block" soft removal
+const SET_BASE_PT_VALUE = 45; // a base-P/T set (CR 613.4b) — mostly a shrink/neutralize
 const PUT_BACK_PER_CARD = 5; // Brainstorm-style card-selection upside, per card
 const SHUFFLE_SELF_VALUE = 10; // dodges the graveyard — small recursion-adjacent upside
 const TAP_UNTAP_VALUE = 20; // Icy Manipulator-style tempo swing
@@ -338,6 +339,18 @@ const animate: Valuer<"animate"> = (op) => {
     return { points, tags };
 };
 
+// A base-P/T set (CR 613.4b layer 7b). The in-scope callers overwhelmingly
+// SHRINK an opponent's creature (Sorceress Queen 0/2, Island of Wak-Wak /
+// Singing Tree power 0) — a targeted soft-removal / neutralize, valued like a
+// combat restriction. (A rare buff-direction set, the 5/5, is the exception the
+// flat heuristic tolerates.)
+const setBasePT: Valuer<"setBasePT"> = (op) => ({
+    points: SET_BASE_PT_VALUE,
+    tags: isAnnouncedTarget(op.target)
+        ? ["boardRemoval", "targeted"]
+        : ["boardRemoval"],
+});
+
 const armGraveyardRedirect: Valuer<"armGraveyardRedirect"> = () =>
     ZERO_OP_VALUE;
 
@@ -597,6 +610,7 @@ export const OP_VALUERS: {
     addMana,
     addSubtype,
     animate,
+    setBasePT,
     armGraveyardRedirect,
     attach,
     becomeMonarch,
