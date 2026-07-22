@@ -2287,13 +2287,16 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
                   ]
                 : [],
     },
-    // CR 508.1a / 509.1b (ADR 0053, pile division) — a turn-scoped attack/
-    // block restriction grant. `target` is an object selector (announced
-    // slot, `$source`, or a forEach `$each` — the shape every pile card
-    // uses).
+    // CR 508.1a / 509.1a / 509.1b — a turn-scoped combat restriction grant.
+    // `target` is an object selector (announced slot, `$source`, or a forEach
+    // `$each`). `"cant-be-blocked"` is the CR 509.1b evasion side (Teleport,
+    // Trailblazer …), routing to `setCantBeBlockedThisTurn`.
     restrictCombat: {
         required: {
-            restriction: (v) => v === "cant-attack" || v === "cant-block",
+            restriction: (v) =>
+                v === "cant-attack" ||
+                v === "cant-block" ||
+                v === "cant-be-blocked",
             target: isObjectSelector,
         },
     },

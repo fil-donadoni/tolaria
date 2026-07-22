@@ -2650,18 +2650,20 @@ export const OP_EXECUTORS: {
         if (chosenOutcome === "suspend") return "suspend";
         return runOpList(ctx, op.otherEffect, cursor);
     },
-    // CR 508.1a / 509.1b (ADR 0053, pile division) — grant a turn-scoped
-    // "can't attack" / "can't block" restriction. A thin declarative skin
-    // over `SpellContext.setCantAttackThisTurn` / `setCantBlockThisTurn`, one
-    // execution path (ADR 0045). Skipped when the referenced permanent is
-    // gone (CR 608.2b — the effect does as much as it can).
+    // CR 508.1a / 509.1a / 509.1b — grant a turn-scoped combat restriction. A
+    // thin declarative skin over `SpellContext.setCantAttackThisTurn` /
+    // `setCantBlockThisTurn` / `setCantBeBlockedThisTurn`, one execution path
+    // (ADR 0045). Skipped when the referenced permanent is gone (CR 608.2b —
+    // the effect does as much as it can).
     restrictCombat(ctx, op) {
         const target = resolveObjectRef(ctx, op.target);
         if (!target) return;
         if (op.restriction === "cant-attack") {
             ctx.setCantAttackThisTurn(target);
-        } else {
+        } else if (op.restriction === "cant-block") {
             ctx.setCantBlockThisTurn(target);
+        } else {
+            ctx.setCantBeBlockedThisTurn(target);
         }
     },
 };

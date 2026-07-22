@@ -8815,19 +8815,22 @@ export type EffectOp =
           chosenEffect: EffectOp[];
           otherEffect: EffectOp[];
       }
-    /** CR 508.1a / 509.1b (ADR 0053, pile division) — grant a turn-scoped
-     *  "can't attack" or "can't block" restriction to a permanent. A thin
-     *  declarative skin over the two existing SpellContext primitives
-     *  `setCantAttackThisTurn` / `setCantBlockThisTurn`, one execution path
-     *  (ADR 0045) — the same "restriction grant" reuse `tapUntap` already
-     *  established for tap/untap. `target` is an object selector: an
-     *  announced target slot, `$source`, or (the only shape the six pile
-     *  cards use) the current `forEach { set: "bound" }` member `$each` over
-     *  an unchosen pile (Fight or Flight, Stand or Fall). Skipped when the
-     *  referenced permanent is gone (CR 608.2b). */
+    /** CR 508.1a / 509.1a / 509.1b — grant a turn-scoped combat restriction
+     *  to a permanent. A thin declarative skin over three existing SpellContext
+     *  primitives, one execution path (ADR 0045) — the same "restriction grant"
+     *  reuse `tapUntap` already established for tap/untap:
+     *  - `"cant-attack"`     → `setCantAttackThisTurn`   (CR 508.1a, ADR 0053)
+     *  - `"cant-block"`      → `setCantBlockThisTurn`     (CR 509.1a, ADR 0053)
+     *  - `"cant-be-blocked"` → `setCantBeBlockedThisTurn` (CR 509.1b — the
+     *    evasion side: OTHER creatures can't block this one this turn;
+     *    Teleport, Trailblazer, Tawnos's Wand, Runed Arch, Creeping Tar-Pit).
+     *  `target` is an object selector: an announced target slot, `$source`, or
+     *  a `forEach { set: "bound" }` member `$each` over an unchosen pile (Fight
+     *  or Flight, Stand or Fall). Skipped when the referenced permanent is gone
+     *  (CR 608.2b). */
     | {
           op: "restrictCombat";
-          restriction: "cant-attack" | "cant-block";
+          restriction: "cant-attack" | "cant-block" | "cant-be-blocked";
           target: EffectObjectSelector;
       };
 

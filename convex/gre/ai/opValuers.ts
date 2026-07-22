@@ -509,12 +509,25 @@ const restrictCasting: Valuer<"restrictCasting"> = () => ({
     tags: ["disruption"],
 });
 
-const restrictCombat: Valuer<"restrictCombat"> = (op) => ({
-    points: RESTRICT_COMBAT_VALUE,
-    tags: isAnnouncedTarget(op.target)
-        ? ["boardRemoval", "targeted"]
-        : ["boardRemoval"],
-});
+const restrictCombat: Valuer<"restrictCombat"> = (op) => {
+    // "cant-be-blocked" (CR 509.1b) is the evasion side — an offensive buff to
+    // YOUR creature (it connects), not disruption of an opponent's board. Value
+    // and tag it like a keyword-evasion grant, not soft removal.
+    if (op.restriction === "cant-be-blocked") {
+        return {
+            points: GRANT_ABILITY_VALUE,
+            tags: isAnnouncedTarget(op.target)
+                ? ["evasion", "targeted"]
+                : ["evasion"],
+        };
+    }
+    return {
+        points: RESTRICT_COMBAT_VALUE,
+        tags: isAnnouncedTarget(op.target)
+            ? ["boardRemoval", "targeted"]
+            : ["boardRemoval"],
+    };
+};
 
 const reveal: Valuer<"reveal"> = () => ZERO_OP_VALUE;
 

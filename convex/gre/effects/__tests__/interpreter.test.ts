@@ -16722,3 +16722,139 @@ describe("Effect Script Op: dealDamageDividedAsChosen (CR 601.2d / 120.4)", () =
         expect(projBf.find((c) => c.id === "bearB")!.damageMarked).toBe(1);
     });
 });
+
+describe('Effect Script Op: restrictCombat restriction "cant-be-blocked" (CR 509.1b)', () => {
+    /** p1 controls two 2/5 bears as would-be attackers to flag unblockable. */
+    function twoBears(): GameState {
+        return makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        makeInstance(BEAR_ID, {
+                            controllerId: "p1",
+                            id: "bearA",
+                        }),
+                        makeInstance(BEAR_ID, {
+                            controllerId: "p1",
+                            id: "bearB",
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+    }
+
+    it("flags an announced target as cantBeBlockedThisTurn (Teleport / Trailblazer)", () => {
+        const id = registerScript("test-op-cbb-target", [
+            {
+                op: "restrictCombat",
+                restriction: "cant-be-blocked",
+                target: { target: 0 },
+            },
+        ]);
+        const state = twoBears();
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "bearA" }]);
+        resolveTopOfStack(state);
+        const bf = state.players[0].battlefield;
+        expect(bf.find((c) => c.id === "bearA")!.cantBeBlockedThisTurn).toBe(
+            true
+        );
+        // Untargeted sibling is untouched.
+        expect(
+            bf.find((c) => c.id === "bearB")!.cantBeBlockedThisTurn
+        ).toBeUndefined();
+    });
+
+    it('flags every member of a forEach { set: "targets" } (Runed Arch)', () => {
+        const id = registerScript("test-op-cbb-foreach", [
+            {
+                op: "forEach",
+                select: { set: "targets" },
+                effects: [
+                    {
+                        op: "restrictCombat",
+                        restriction: "cant-be-blocked",
+                        target: { ref: "$each" },
+                    },
+                ],
+            },
+        ]);
+        const state = twoBears();
+        pushSpell(state, id, "p1", [
+            { type: "permanent", id: "bearA" },
+            { type: "permanent", id: "bearB" },
+        ]);
+        resolveTopOfStack(state);
+        const bf = state.players[0].battlefield;
+        expect(bf.find((c) => c.id === "bearA")!.cantBeBlockedThisTurn).toBe(
+            true
+        );
+        expect(bf.find((c) => c.id === "bearB")!.cantBeBlockedThisTurn).toBe(
+            true
+        );
+    });
+
+    it("is a no-op when the targeted permanent is gone (CR 608.2b) and still resolves", () => {
+        const id = registerScript("test-op-cbb-gone", [
+            {
+                op: "restrictCombat",
+                restriction: "cant-be-blocked",
+                target: { target: 0 },
+            },
+        ]);
+        const state = twoBears();
+        // Announce a target that is not on the battlefield.
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "ghost" }]);
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+        expect(state.players[0].graveyard.map((c) => c.card.id)).toContain(id);
+    });
+
+    it("routes cant-attack / cant-block to their own flags (3-way branch regression)", () => {
+        const attackId = registerScript("test-op-cbb-regress-attack", [
+            {
+                op: "restrictCombat",
+                restriction: "cant-attack",
+                target: { target: 0 },
+            },
+        ]);
+        const s1 = twoBears();
+        pushSpell(s1, attackId, "p1", [{ type: "permanent", id: "bearA" }]);
+        resolveTopOfStack(s1);
+        const a = s1.players[0].battlefield.find((c) => c.id === "bearA")!;
+        expect(a.cantAttackThisTurn).toBe(true);
+        expect(a.cantBeBlockedThisTurn).toBeUndefined();
+
+        const blockId = registerScript("test-op-cbb-regress-block", [
+            {
+                op: "restrictCombat",
+                restriction: "cant-block",
+                target: { target: 0 },
+            },
+        ]);
+        const s2 = twoBears();
+        pushSpell(s2, blockId, "p1", [{ type: "permanent", id: "bearA" }]);
+        resolveTopOfStack(s2);
+        const b = s2.players[0].battlefield.find((c) => c.id === "bearA")!;
+        expect(b.cantBlockThisTurn).toBe(true);
+        expect(b.cantBeBlockedThisTurn).toBeUndefined();
+    });
+
+    it("cantBeBlockedThisTurn survives projection (wire format)", () => {
+        const id = registerScript("test-op-cbb-wire", [
+            {
+                op: "restrictCombat",
+                restriction: "cant-be-blocked",
+                target: { target: 0 },
+            },
+        ]);
+        const state = twoBears();
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "bearA" }]);
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 0, "p1");
+        const projBf = projected.players[0].battlefield;
+        expect(
+            projBf.find((c) => c.id === "bearA")!.cantBeBlockedThisTurn
+        ).toBe(true);
+    });
+});

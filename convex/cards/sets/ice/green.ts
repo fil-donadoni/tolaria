@@ -1642,15 +1642,16 @@ export const trailblazer: CardDefinition = {
     manaCost: { X: 2, G: 2 },
     types: ["Instant"],
     targetRequirement: { type: "Creature", count: 1 },
-    // NOT DSL-migratable (ADR 0045): "can't be blocked this turn" is a CR
-    // 509.1b evasion restriction with no Op skin — `restrictCombat` only
-    // covers `"cant-attack"` / `"cant-block"` (CR 508.1c/509.1a directions),
-    // not this one. Blocked on: a `restrictCombat` restriction value (or a
-    // sibling Op) wrapping `SpellContext.setCantBeBlockedThisTurn`.
-    resolve: (ctx: SpellContext) => {
-        const t = ctx.targets[0];
-        if (t?.type === "permanent") ctx.setCantBeBlockedThisTurn(t);
-    },
+    // DSL-first (ADR 0045): "can't be blocked this turn" (CR 509.1b) via the
+    // `restrictCombat` Op's evasion `restriction: "cant-be-blocked"` over an
+    // announced target → `setCantBeBlockedThisTurn`.
+    effects: [
+        {
+            op: "restrictCombat",
+            restriction: "cant-be-blocked",
+            target: { target: 0 },
+        },
+    ],
 };
 // Venomous Breath — {3}{G} Instant. "Choose target creature. At this turn's next
 // end of combat, destroy all creatures that blocked or were blocked by it this

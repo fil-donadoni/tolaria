@@ -6,15 +6,13 @@ import type {
     ActivatedAbilityContext,
     CardDefinition,
     PermanentView,
-    SpellContext,
 } from "../../types";
 
-// Creeping Tar Pit — the manland cycle (CR 611.1 animate), same shape as
-// Mishra's Factory (`convex/cards/sets/atq/colorless.ts`): `animateAsCreature`
-// + `animatesSelf` are not Op-wrapped yet, so the animate ability stays
-// `resolve()` — the established precedent for every manland in this catalog,
-// not a new escape hatch. "It can't be blocked this turn" composes the
-// existing `setCantBeBlockedThisTurn` SpellContext primitive on the source.
+// Creeping Tar Pit — the manland cycle (CR 611.1 animate). DSL-first (ADR
+// 0045): the `animate` Op (issue #1317) skins `animateAsCreature` and the
+// `restrictCombat` Op's evasion `restriction: "cant-be-blocked"` (CR 509.1b)
+// skins `setCantBeBlockedThisTurn` — the whole ability is now `effects[]`, no
+// `resolve()`.
 // SIMPLIFICATION (flagged): `AnimateSpec` has no `colors` field, so the
 // animated creature does not become blue/black while animated (CR 105.1) —
 // this only matters against colour-referencing effects (protection, colour
@@ -46,19 +44,26 @@ export const creepingTarPit: CardDefinition = {
             cost: { mana: { X: 1, U: 1, B: 1 } },
             useStack: true,
             animatesSelf: true,
-            resolve: (ctx: SpellContext) => {
-                const source = {
-                    type: "permanent" as const,
-                    id: ctx.sourceInstanceId,
-                };
-                ctx.animateAsCreature(source, {
+            // DSL-first (ADR 0045): the `animate` Op (CR 208.2/611.1, issue
+            // #1317) skins `animateAsCreature` (3/2 Elemental until end of
+            // turn), then the `restrictCombat` Op's evasion `restriction:
+            // "cant-be-blocked"` (CR 509.1b) → `setCantBeBlockedThisTurn` on
+            // the same `$source`.
+            effects: [
+                {
+                    op: "animate",
+                    target: { ref: "$source" },
                     power: 3,
                     toughness: 2,
                     subtype: "Elemental",
                     duration: { phase: "end-of-turn" },
-                });
-                ctx.setCantBeBlockedThisTurn(source);
-            },
+                },
+                {
+                    op: "restrictCombat",
+                    restriction: "cant-be-blocked",
+                    target: { ref: "$source" },
+                },
+            ],
         },
     ],
 };

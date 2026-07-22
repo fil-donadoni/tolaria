@@ -1340,13 +1340,23 @@ export const runedArch: CardDefinition = {
                 count: "X",
                 powerFilter: { max: 2 },
             },
-            resolve: (ctx: SpellContext) => {
-                for (const target of ctx.targets) {
-                    if (target.type === "permanent") {
-                        ctx.setCantBeBlockedThisTurn(target);
-                    }
-                }
-            },
+            // DSL-first (ADR 0045): "can't be blocked this turn" (CR 509.1b) on
+            // each of the X announced targets — `forEach` over the announced
+            // target set, the `restrictCombat` evasion restriction per member
+            // → `setCantBeBlockedThisTurn`.
+            effects: [
+                {
+                    op: "forEach",
+                    select: { set: "targets" },
+                    effects: [
+                        {
+                            op: "restrictCombat",
+                            restriction: "cant-be-blocked",
+                            target: { ref: "$each" },
+                        },
+                    ],
+                },
+            ],
         },
     ],
 };

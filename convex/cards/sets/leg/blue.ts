@@ -687,22 +687,17 @@ export const teleport: CardDefinition = {
     types: ["Instant"],
     castPhaseRestriction: ["DECLARE_ATTACKERS"],
     targetRequirement: { type: "Creature", count: 1 },
-    // NOT DSL-migratable (ADR 0045): no Op wraps
-    // `SpellContext.setCantBeBlockedThisTurn`, which flags the specific
-    // `cantBeBlockedThisTurn` field the per-card test asserts on. This is a
-    // distinct primitive from `grantAbility { ability: "unblockable" }`
-    // (Dwarven Warriors, `lea/red.ts`) — a static-ability keyword grant, not
-    // the same underlying field — so swapping to grantAbility would change
-    // observable behaviour (the field the test reads would stay false) and
-    // is not a pure refactor. Planned-migratable: open an issue for a
-    // `cantBeBlockedThisTurn`-shaped Op, or fold Teleport onto the
-    // `unblockable` keyword grant if/when the engine unifies the two.
-    resolve: (ctx: SpellContext) => {
-        const target = ctx.targets[0];
-        if (target?.type === "permanent") {
-            ctx.setCantBeBlockedThisTurn(target);
-        }
-    },
+    // DSL-first (ADR 0045): "can't be blocked this turn" (CR 509.1b) via the
+    // `restrictCombat` Op's evasion `restriction: "cant-be-blocked"` over an
+    // announced target → `setCantBeBlockedThisTurn` (sets the distinct
+    // `cantBeBlockedThisTurn` field, NOT a static `unblockable` keyword grant).
+    effects: [
+        {
+            op: "restrictCombat",
+            restriction: "cant-be-blocked",
+            target: { target: 0 },
+        },
+    ],
 };
 
 // --- Mana / untap utility --------------------------------------------------

@@ -2879,8 +2879,9 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         op: "restrictCombat",
         status: "implemented",
         cr: "508.1a",
-        binding: "SpellContext.setCantAttackThisTurn / setCantBlockThisTurn",
-        note: 'Grant a turn-scoped "can\'t attack" (CR 508.1a) or "can\'t block" (CR 509.1b) restriction to a permanent (ADR 0053, pile division — Fight or Flight\'s unchosen attacking pile, Stand or Fall\'s unchosen blocking pile). A thin declarative skin over the two existing SpellContext primitives, one execution path (ADR 0045) — the same restriction-grant reuse `tapUntap` already established for tap/untap. Cleared at CLEANUP (CR 514.2) like every other "this turn" combat flag.',
+        binding:
+            "SpellContext.setCantAttackThisTurn / setCantBlockThisTurn / setCantBeBlockedThisTurn",
+        note: 'Grant a turn-scoped combat restriction to a permanent: "can\'t attack" (CR 508.1a), "can\'t block" (CR 509.1a — both from ADR 0053 pile division: Fight or Flight\'s unchosen attacking pile, Stand or Fall\'s unchosen blocking pile), or "can\'t be blocked" (CR 509.1b — the evasion side, `setCantBeBlockedThisTurn`: Teleport, Trailblazer, Tawnos\'s Wand, Runed Arch, Creeping Tar-Pit\'s animate-then-unblockable). A thin declarative skin over the three existing SpellContext primitives, one execution path (ADR 0045) — the same restriction-grant reuse `tapUntap` already established for tap/untap. Cleared at CLEANUP (CR 514.2) like every other "this turn" combat flag.',
     },
     {
         op: "nameCard",

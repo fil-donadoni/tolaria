@@ -1233,11 +1233,31 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // COVERED. All 7 were AFK-ready. Net: total 497→490, Op-blocked
         // 199→192 (−7), FREE/X-only/AFK-ready unchanged. Partition:
         // 284+14+192=490.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(490);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(284);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(272);
+        //
+        // 2026-07-22 (Op-infra batch — `restrictCombat` evasion restriction,
+        // the joint top New-Op backlog entry at 7): EXTENDED the existing
+        // `restrictCombat` Op with `restriction: "cant-be-blocked"` (CR
+        // 509.1b) → `setCantBeBlockedThisTurn`, the reuse-over-new-Op choice
+        // (widen one union member + one executor branch + one validator value;
+        // NO new op-key / registry row / scenarioGenerator switch case — the
+        // generator switches on op name, so the value is auto-covered). 5
+        // closures migrated resolve()→effects[]: atq (Tawnos's Wand), ice/green
+        // (Trailblazer), ice/colorless (Runed Arch — forEach { set: "targets" }
+        // over X targets), leg/blue (Teleport), wwk/colorless (Creeping Tar-Pit
+        // — `animate` Op + the new restriction, now fully DSL). The 2 Goblin
+        // Sappers legs (ice/red) stay resolve() — blocked on the delayedTrigger
+        // sentinel-id issue, orthogonal to this Op. The primitive left the
+        // New-Op backlog and is now COVERED. All 5 were AFK-ready. Net: total
+        // 490→485, Op-blocked 192→185 (−7 whole cluster de-listed), FREE
+        // 284→286 / AFK-ready 272→274 (+2 = the 2 Sappers reclassified: their
+        // named primitive is now covered but they stay resolve(), already
+        // NOT-DSL-marked so hidden from the --free worklist). X-only unchanged.
+        // Partition: 286+14+185=485.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(485);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(286);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(274);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(192);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(185);
     });
 
     it("surfaces the demonstrated new-Op backlog (a covered primitive leaves it)", () => {

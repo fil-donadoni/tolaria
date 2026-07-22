@@ -2042,12 +2042,16 @@ export const tawnossWand: CardDefinition = {
                 count: 1,
                 powerFilter: { max: 2 },
             },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target?.type === "permanent") {
-                    ctx.setCantBeBlockedThisTurn(target);
-                }
-            },
+            // DSL-first (ADR 0045): "can't be blocked this turn" (CR 509.1b) is
+            // the `restrictCombat` Op's evasion `restriction: "cant-be-blocked"`
+            // over an announced target → `setCantBeBlockedThisTurn`.
+            effects: [
+                {
+                    op: "restrictCombat",
+                    restriction: "cant-be-blocked",
+                    target: { target: 0 },
+                },
+            ],
         },
     ],
 };
