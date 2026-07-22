@@ -20,7 +20,11 @@
  */
 
 import { getCardByName } from "../../../cards";
-import { createInitialGameState, type PlayerInput } from "../../setup";
+import {
+    createInitialGameState,
+    STARTING_LIFE,
+    type PlayerInput,
+} from "../../setup";
 import { buildStateFromScenario } from "../../scenarioBuilder";
 import { searchWithTrace } from "../../search";
 import type { GameState } from "../../state";
@@ -86,6 +90,43 @@ export function buildBladeBaseState(): GameState {
  *  can be inspected (or replayed at a bigger budget) from a scratch test. */
 export function buildBladeState(scenario: BladeScenario): GameState {
     return buildStateFromScenario(buildBladeBaseState(), scenario.spec);
+}
+
+/**
+ * Normalize an arbitrary CURRENT game's `GameState` onto the same starting
+ * position `buildBladeBaseState` produces, then apply the scenario through
+ * `buildStateFromScenario` — the shape `debugLoadBladeScenario`
+ * (`convex/game.ts`) needs to make a browser-loaded position match the one
+ * the blade harness actually tests against (issue #1432 review finding #1).
+ *
+ * `buildStateFromScenario` alone normalizes only zones/phase/turn/stack; it
+ * never touches `activePlayerId`, life, or per-turn counters, so feeding it
+ * a live game's snapshot directly leaves those fields wherever the live game
+ * happened to be (wrong player to act, stale land-drop count, non-starting
+ * life) — a materially different position from the one the harness built and
+ * the blade entry's `expect` was written against. This helper pins:
+ *   - `activePlayerId` / `priorityPlayerId` to `players[0].id` (the "me" seat,
+ *     CR 500.1 — `buildBladeBaseState` always starts P1's first turn);
+ *   - each player's `life` to the starting total (CR 103.1);
+ *   - each player's per-turn counters (`landsPlayedThisTurn`, CR 305.2, and
+ *     `manaPool`, CR 500.4) back to zero/empty.
+ *
+ * Pure: takes an already-fetched base `GameState`, returns a NEW state via
+ * `buildStateFromScenario`; the input is never mutated.
+ */
+export function buildBladeLoadState(
+    base: GameState,
+    scenario: BladeScenario
+): GameState {
+    const normalized = structuredClone(base);
+    normalized.activePlayerId = normalized.players[0].id;
+    normalized.priorityPlayerId = normalized.players[0].id;
+    for (const player of normalized.players) {
+        player.life = STARTING_LIFE;
+        player.landsPlayedThisTurn = 0;
+        player.manaPool = { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 };
+    }
+    return buildStateFromScenario(normalized, scenario.spec);
 }
 
 /** Result of running ONE seed of one blade scenario. */
