@@ -54,8 +54,7 @@ function isResolveOnlySpell(card: CardDefinition): boolean {
     if (card.modes && card.modes.length > 0) return false;
     if (card.effects && card.effects.length > 0) return false;
     return (
-        !!card.resolve ||
-        !!(card.resolveSteps && card.resolveSteps.length > 0)
+        !!card.resolve || !!(card.resolveSteps && card.resolveSteps.length > 0)
     );
 }
 
@@ -624,9 +623,7 @@ const AI_EFFECTS_ALLOWLIST: readonly AllowlistEntry[] = [
 
 describe("aiEffects shadow-script guard (issue #1431)", () => {
     it("every resolve()/resolveSteps card with no effects[] carries aiEffects, aiValue, or a well-formed allowlist entry", () => {
-        const allowlistIds = new Set(
-            AI_EFFECTS_ALLOWLIST.map((e) => e.cardId)
-        );
+        const allowlistIds = new Set(AI_EFFECTS_ALLOWLIST.map((e) => e.cardId));
         const offenders: string[] = [];
         for (const card of getAllCards()) {
             if (!isResolveOnlySpell(card)) continue;
