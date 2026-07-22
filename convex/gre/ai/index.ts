@@ -9,6 +9,9 @@ export * from "./opValuers";
 export * from "./cardScriptValue";
 // Choice-node spine (PRD #1423, issue #1425): the per-kind candidate-generator
 // registry and the pluggable `priorFor` ordering seam the search reads at a
-// live `PendingChoice`.
+// live `PendingChoice`. `candidateValue` is the shared "worth of a card" core
+// both `choiceCandidates` (hints) and `choicePriors` (the DSL prior, issue
+// #1433) read, so the two never drift apart.
+export * from "./candidateValue";
 export * from "./choicePriors";
 export * from "./choiceCandidates";

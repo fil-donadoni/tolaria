@@ -970,3 +970,202 @@ describe("search-library determinization safety (issue #1429)", () => {
         }
     });
 });
+
+describe("dslChoicePrior: OP_VALUERS context-aware (issue #1433)", () => {
+    /** Registers a synthetic noncreature Artifact under a stable test id,
+     *  optionally carrying a real Effect Script — mirrors `registerSpellScript`
+     *  but for a PERMANENT (a search-library / discard target) rather than a
+     *  cast sorcery. */
+    function registerArtifact(
+        id: string,
+        name: string,
+        effects?: EffectOp[]
+    ): string {
+        registerTokenDefinition({
+            id,
+            name,
+            rarity: "common",
+            manaCost: { C: 1 },
+            types: ["Artifact"],
+            ...(effects ? { effects } : {}),
+        } as CardDefinition);
+        return id;
+    }
+
+    it("search-library: a noncreature's prior reflects its OWN script, not the flat v1 constant", () => {
+        // Alphabetically "AAA" precedes "ZZZ" — under the old flat-30 prior
+        // both candidates tie, and the stable top-K sort's tie-break
+        // (ascending identity) would put "AAA Do Nothing" first. The real fix
+        // must win on ACTUAL worth despite that adverse tie-break.
+        const doNothingId = registerArtifact(
+            "test-1433-aaa-do-nothing",
+            "AAA Do Nothing"
+        );
+        const shockRodId = registerArtifact(
+            "test-1433-zzz-shock-rod",
+            "ZZZ Shock Rod",
+            [{ op: "dealDamage", amount: 5, to: { player: "opponent" } }]
+        );
+        const state = stateWithLibrarySearch([doNothingId, shockRodId]);
+        const cands = choiceCandidates(state, state.pendingChoices![0]);
+        const shockCand = cands.find((c) => c.key.includes("Shock Rod"))!;
+        const nothingCand = cands.find((c) => c.key.includes("Do Nothing"))!;
+        expect(shockCand).toBeDefined();
+        expect(nothingCand).toBeDefined();
+
+        // The real burn script outranks the do-nothing artifact...
+        expect(cands[0].key).toBe("search-library:ZZZ Shock Rod");
+        expect(shockCand.hint?.materialGained).toBeGreaterThan(
+            nothingCand.hint?.materialGained ?? 0
+        );
+        // ...and the PRIOR itself carries the distinction — `priorFor` reads
+        // the real library, not a per-kind flat guess.
+        expect(shockCand.prior).toBeGreaterThan(nothingCand.prior);
+    });
+
+    it("search-library: a targeted removal script's prior scales with the REAL biggest threat on the opponent's board", () => {
+        const terrorId = registerArtifact(
+            "test-1433-terror-artifact",
+            "Terror Artifact",
+            [{ op: "destroy", target: { target: 0 } }]
+        );
+
+        function stateWithOpponentThreat(hasThreat: boolean): GameState {
+            const state = makeState({
+                players: [
+                    makePlayer("p1", {
+                        library: [
+                            makeInstance(terrorId, {
+                                id: "threat-lib-0",
+                                controllerId: "p1",
+                                ownerId: "p1",
+                                zone: "library",
+                            }),
+                        ],
+                    }),
+                    makePlayer("p2", {
+                        battlefield: hasThreat
+                            ? [
+                                  makeInstance(crawWurm.id, {
+                                      id: "opp-wurm",
+                                      controllerId: "p2",
+                                      ownerId: "p2",
+                                      zone: "battlefield",
+                                  }),
+                              ]
+                            : [],
+                    }),
+                ],
+                priorityPlayerId: "p1",
+                activePlayerId: "p1",
+            });
+            state.pendingChoices = [
+                {
+                    stackItemId: "stack-1",
+                    step: 0,
+                    choiceId: "c1",
+                    playerId: "p1",
+                    kind: "search-library",
+                    zone: "library",
+                    count: 1,
+                    prompt: "Search your library for a card.",
+                },
+            ];
+            return state;
+        }
+
+        const emptyBoard = stateWithOpponentThreat(false);
+        const threatenedBoard = stateWithOpponentThreat(true);
+        const priorEmpty = choiceCandidates(
+            emptyBoard,
+            emptyBoard.pendingChoices![0]
+        )[0].prior;
+        const priorThreatened = choiceCandidates(
+            threatenedBoard,
+            threatenedBoard.pendingChoices![0]
+        )[0].prior;
+
+        // The SAME removal spell is a more urgent find when a real target
+        // (the Craw Wurm) sits on the opponent's board right now — the
+        // context-aware read `cardValue`'s context-free scoring can't make.
+        expect(priorThreatened).toBeGreaterThan(priorEmpty);
+    });
+
+    it("may-pay: a discard candidate's prior reflects the DISCARDED card's own DSL script, not the flat v1 constant", () => {
+        const doNothingId = registerArtifact(
+            "test-1433-mp-do-nothing",
+            "MP Do Nothing"
+        );
+        const midBurnId = registerArtifact(
+            "test-1433-mp-mid-burn",
+            "MP Mid Burn",
+            [{ op: "dealDamage", amount: 8, to: { player: "opponent" } }]
+        );
+        const bigBurnId = registerArtifact(
+            "test-1433-mp-big-burn",
+            "MP Big Burn",
+            [{ op: "dealDamage", amount: 20, to: { player: "opponent" } }]
+        );
+        const cost: MayPayCost = { discard: { count: 1 } };
+
+        function stateWithHand(cardIds: string[]): GameState {
+            const state = makeState({
+                players: [
+                    makePlayer("p1", {
+                        hand: cardIds.map((id, i) =>
+                            makeInstance(id, {
+                                id: `hand-${i}`,
+                                controllerId: "p1",
+                                ownerId: "p1",
+                                zone: "hand",
+                            })
+                        ),
+                    }),
+                    makePlayer("p2"),
+                ],
+                priorityPlayerId: "p1",
+                activePlayerId: "p1",
+            });
+            state.pendingChoices = [
+                {
+                    stackItemId: "stack-1",
+                    step: 0,
+                    choiceId: "c1",
+                    playerId: "p1",
+                    kind: "may-pay",
+                    cost,
+                    count: 1,
+                    prompt: "Discard a card?",
+                },
+            ];
+            return state;
+        }
+
+        // "Cheap" hand: worst-first discards the SCRIPTLESS artifact (worth
+        // the v1 flat floor) — the big burn spell is kept.
+        const cheap = stateWithHand([doNothingId, bigBurnId]);
+        // "Expensive" hand: no scriptless card to hide behind — worst-first
+        // is FORCED to discard a real (if smaller) burn script.
+        const expensive = stateWithHand([midBurnId, bigBurnId]);
+
+        const acceptOf = (state: GameState) =>
+            choiceCandidates(state, state.pendingChoices![0]).find((c) =>
+                c.key.startsWith("may-pay:yes")
+            )!;
+        const cheapAccept = acceptOf(cheap);
+        const expensiveAccept = acceptOf(expensive);
+
+        expect(cheapAccept.move).toMatchObject({
+            discardIds: ["hand-0"], // the scriptless "MP Do Nothing"
+        });
+        expect(expensiveAccept.move).toMatchObject({
+            discardIds: ["hand-0"], // the smaller "MP Mid Burn" script
+        });
+        expect(expensiveAccept.hint?.materialGivenUp).toBeGreaterThan(
+            cheapAccept.hint?.materialGivenUp ?? 0
+        );
+        // Giving up REAL material (even second-worst) costs more than giving
+        // up a do-nothing card — the prior, not just the hint, says so.
+        expect(cheapAccept.prior).toBeGreaterThan(expensiveAccept.prior);
+    });
+});

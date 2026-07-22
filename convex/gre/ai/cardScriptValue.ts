@@ -19,8 +19,9 @@
 // client-importable `cardValue` barrel.
 
 import type { CardDefinition, EffectOp } from "../../cards/types";
-import { contextFreeGrounding } from "./grounding";
+import { contextFreeGrounding, type GroundingContext } from "./grounding";
 import { valueEffectScript } from "./opValuers";
+import type { OpValue } from "./featureBasis";
 
 /** A real `effects[]` script wins outright; otherwise fall back to the
  *  `aiEffects` valuation-only shadow script (issue #1431) — both are walked
@@ -41,6 +42,25 @@ function effectiveScript(site: {
  *  is discounted before being added to the body (never doubled with it). */
 const ABILITY_SCRIPT_DISCOUNT = 0.5;
 
+/** The full DSL-derived `{ points, tags }` of a NON-CREATURE card's spell
+ *  script — its real `effects[]` if present, else its `aiEffects` shadow
+ *  script (issue #1431), both walked through the identical `OP_VALUERS`.
+ *  `undefined` when the card carries neither (see `dslSpellScriptValue`
+ *  below). Exposes the TAGS alongside the scalar (`dslSpellScriptValue`
+ *  strips them) for a caller that needs to know WHICH feature dimension the
+ *  script loads onto — the choice-node `priorFor` seam's context-aware
+ *  removal-target bonus (issue #1433) is the first such reader. Defaults to
+ *  CONTEXT-FREE grounding (a card's worth in hand); a context-aware caller
+ *  passes its own `GroundingContext` (`contextAwareGrounding`, PRD #1423). */
+export function dslSpellScriptOpValue(
+    def: CardDefinition,
+    ctx: GroundingContext = contextFreeGrounding()
+): OpValue | undefined {
+    const script = effectiveScript(def);
+    if (!script) return undefined;
+    return valueEffectScript(script, ctx);
+}
+
 /** The DSL spell-script value of a NON-CREATURE card (context-free): its real
  *  `effects[]` script if present, else its `aiEffects` shadow script (issue
  *  #1431) — either walked identically through `OP_VALUERS`. `undefined` when
@@ -49,9 +69,7 @@ const ABILITY_SCRIPT_DISCOUNT = 0.5;
  *  modal spell instead nests its modes in an `optionChoice` Op INSIDE
  *  `effects[]`, valued by the walker). */
 export function dslSpellScriptValue(def: CardDefinition): number | undefined {
-    const script = effectiveScript(def);
-    if (!script) return undefined;
-    return valueEffectScript(script, contextFreeGrounding()).points;
+    return dslSpellScriptOpValue(def)?.points;
 }
 
 /** The RAW (un-discounted) sum of a card's activated + triggered ability-script
