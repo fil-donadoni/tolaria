@@ -45,28 +45,35 @@ import { diedTrigger } from "../../abilities/triggers/diedTrigger";
 // <cost>" (CR 603.6a phase trigger + CR 117.3a may-pay with a hard action on
 // decline). Local twin of the LEA helper of the same name — kept per-set so
 // the set file stays self-contained.
+// Migrated resolve()→effects[] (ADR 0045, PRD #795): both call sites in this
+// file (Earthlink, Glaciers) decline into the SAME "sacrifice this permanent"
+// consequence, so the shared body is a fixed `mayPay` + `if(not $paid)` +
+// `sacrifice($source)` script — no `onDecline` closure parameter needed.
 function makeUpkeepPayOrElse(args: {
     id: string;
     oracleText: string;
     cost: ManaCost;
     prompt: string;
-    onDecline: (ctx: SpellContext) => void;
 }): TriggeredAbility {
     return phaseTrigger({
         id: args.id,
         oracleText: args.oracleText,
         phase: "UPKEEP",
         scope: "your",
-        resolve: (ctx) => {
-            const accept = ctx.requestMayPay({
-                playerId: ctx.controller,
-                choiceId: ctx.controller,
+        effects: [
+            {
+                op: "mayPay",
+                player: "controller",
                 cost: args.cost,
                 prompt: args.prompt,
-            });
-            if (accept === undefined) return;
-            if (!accept) args.onDecline(ctx);
-        },
+                bind: "$paid",
+            },
+            {
+                op: "if",
+                predicate: { not: { binding: "$paid" } },
+                then: [{ op: "sacrifice", target: { ref: "$source" } }],
+            },
+        ],
     });
 }
 // Pyknite — activated above (Green tranche; duplicate stub removed, #660).
@@ -325,6 +332,14 @@ export const diabolicVision: CardDefinition = {
         "Look at the top five cards of your library. Put one of them into your hand and the rest on top of your library in any order.",
     manaCost: { U: 1, B: 1 },
     types: ["Sorcery"],
+    // NOT DSL-migratable (ADR 0045): "put ONE into hand, the REST back on
+    // top in any order" needs BOTH a hand-bound pick from a peeked window AND
+    // a full reorder of the remainder — `digToHand` sends its un-taken cards
+    // to the library BOTTOM or graveyard (never a reordered top), and
+    // `scryReorder` has no "send some to hand" destination (`LibraryDestination`
+    // is `"library-bottom" | "graveyard" | "none"`). No existing Op composes
+    // "N to hand, rest reordered on top". Blocked on: a hand-bound `digToHand`
+    // rest-destination (or a `scryReorder` hand destination) — stays resolve().
     resolve: (ctx: SpellContext) => {
         const top = ctx.peekLibraryTop(ctx.controller, 5);
         if (top.length === 0) return;
@@ -382,8 +397,15 @@ export const earthlink: CardDefinition = {
                 "At the beginning of your upkeep, sacrifice this enchantment unless you pay {2}.",
             cost: { X: 2 },
             prompt: "Pay {2} to keep Earthlink?",
-            onDecline: (ctx) => ctx.sacrifice(ctx.sourceInstanceId),
         }),
+        // NOT DSL-migratable (ADR 0045): the consequence names "that
+        // creature's controller" — the DYING creature's controller (CR
+        // 603.10 last-known information), read from `diedTrigger`'s
+        // `deadCreature` LKI payload. A `diedTrigger` `effects[]` script only
+        // binds the SOURCE's controller (`ctx.controller`, Earthlink's own
+        // controller), never the dead creature's — the LKI payload isn't
+        // reachable from the DSL. Blocked on: LKI-derived player exposure to
+        // Effect Script — stays resolve().
         diedTrigger({
             id: "earthlink-dies-sac-land",
             oracleText:
@@ -433,6 +455,15 @@ export const elementalAugury: CardDefinition = {
             cost: { mana: { X: 3 } },
             useStack: true,
             targetRequirement: { type: "player", count: 1 },
+            // NOT DSL-migratable (ADR 0045): the ability's CONTROLLER looks at
+            // and reorders the TARGET PLAYER's library — a cross-player scry
+            // (chooser ≠ library owner). The only reorder-capable Op,
+            // `scryReorder`, wraps `SpellContext.orderTop(playerId, n, …)`,
+            // which takes a SINGLE playerId for both "whose library" and "who
+            // chooses" — it cannot express a chooser distinct from the zone
+            // owner. The raw `choice` Op's `zoneOwnerId` generalization only
+            // covers its `search-library` kind, not a reorder. Blocked on: a
+            // cross-player reorder-library Op/kind — stays resolve().
             resolve: (ctx: SpellContext) => {
                 const t = ctx.targets[0];
                 if (t?.type !== "player") return;
@@ -470,6 +501,15 @@ export const essenceVortex: CardDefinition = {
     manaCost: { X: 1, U: 1, B: 1 },
     types: ["Instant"],
     targetRequirement: { type: "Creature", count: 1 },
+    // NOT DSL-migratable (ADR 0045): "pays life equal to its toughness" is a
+    // DYNAMIC `mayPay` life cost derived from the target's own toughness —
+    // `MayPayCost.life` is a flat `number`, never a `ref`/`EffectValue` (only
+    // a dynamic MANA cost exists, `DynamicMayPayManaCost`, for a different
+    // shape — Flash's "pay its mana cost reduced by {2}"). The card also
+    // pre-checks affordability (toughness > 0 AND life >= toughness) BEFORE
+    // even offering the choice, skipping straight to `destroy` when unaffordable
+    // — the `mayPay` Op has no such pre-check gate. Blocked on: a dynamic
+    // (ref-derived) life leg for `mayPay` — stays resolve().
     resolve: (ctx: SpellContext) => {
         const target = ctx.targets[0];
         if (target?.type !== "permanent") return;
@@ -640,13 +680,14 @@ export const giantTrapDoorSpider: CardDefinition = {
                 combatRoleFilter: "attacking",
                 excludeAbility: "flying",
             },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target?.type === "permanent") ctx.exile(target);
-                // Exile the spider itself (CR 118.5) — its own ability paid the
-                // tap cost, so it is on the battlefield at resolution.
-                ctx.exile({ type: "permanent", id: ctx.sourceInstanceId });
-            },
+            // Migrated resolve()→effects[] (ADR 0045, PRD #795): two `exile`
+            // Ops — the announced attacker, then the spider itself (CR 118.5
+            // — its own ability already paid the tap cost, so it is still on
+            // the battlefield at resolution).
+            effects: [
+                { op: "exile", target: { target: 0 } },
+                { op: "exile", target: { ref: "$source" } },
+            ],
         },
     ],
 };
@@ -675,7 +716,6 @@ export const glaciers: CardDefinition = {
                 "At the beginning of your upkeep, sacrifice this enchantment unless you pay {W}{U}.",
             cost: { W: 1, U: 1 },
             prompt: "Pay {W}{U} to keep Glaciers?",
-            onDecline: (ctx) => ctx.sacrifice(ctx.sourceInstanceId),
         }),
     ],
 };
@@ -701,12 +741,23 @@ export const hymnOfRebirth: CardDefinition = {
         zone: "graveyard",
         controller: "any",
     },
-    resolve: (ctx: SpellContext) => {
-        const t = ctx.targets[0];
-        if (!t || t.type !== "graveyard-card" || !t.playerId) return;
-        // CR 800.4a — owner stays `t.playerId`; controller becomes the caster.
-        ctx.returnToBattlefield(t.playerId, t.id, "graveyard", ctx.controller);
-    },
+    // Migrated resolve()→effects[] (ADR 0045, PRD #795): a single `moveZone`
+    // Op. CR 800.4a — owner stays the graveyard card's own owner (the
+    // `moveZone` graveyard→battlefield branch's default); `controller:
+    // "controller"` redirects control to the caster ("under your control"),
+    // routing through `SpellContext.returnToBattlefield`'s optional 4th
+    // argument exactly as the prior imperative body did. No dedicated
+    // per-card test exists — covered by the catalogue-wide
+    // `validateEffectScript` static sweep + the auto-generated
+    // canned-scenario smoke test (per-Op regime, ADR 0045).
+    effects: [
+        {
+            op: "moveZone",
+            target: { target: 0 },
+            to: "battlefield",
+            controller: "controller",
+        },
+    ],
 };
 // Kjeldoran Frostbeast — "At end of combat, destroy all creatures blocking or
 // blocked by this creature." (CR 511.3 END_OF_COMBAT phase trigger, scope
@@ -737,6 +788,13 @@ export const kjeldoranFrostbeast: CardDefinition = {
                 "At end of combat, destroy all creatures blocking or blocked by this creature.",
             phase: "END_OF_COMBAT",
             scope: "each",
+            // NOT DSL-migratable (ADR 0045): "creatures blocking or blocked
+            // by this creature" is a COMBAT-RELATIONSHIP selector (walking
+            // `getBlockersByAttacker()` both directions relative to the
+            // source) — no `EffectForEachSelector` filters permanents by
+            // combat role relative to a specific object (only zone/controller/
+            // type). Blocked on: a combat-partner-of-source forEach selector
+            // — stays resolve().
             resolve: (ctx) => {
                 const selfId = ctx.sourceInstanceId;
                 const blockersByAttacker = ctx.getBlockersByAttacker();
@@ -782,6 +840,12 @@ function meriekeMarker(sourceInstanceId: string): string {
 }
 // Destroy every creature Merieke had gained control of (marked on steal),
 // clearing the marker. Shared by the leave and untap triggers (CR 603.10).
+// NOT DSL-migratable (ADR 0045): scans EVERY player's battlefield for a
+// counter of a RUNTIME-COMPUTED name (`meriekeMarker(ctx.sourceInstanceId)`)
+// — the `counters` Op's `counter` field is a fixed literal string, never a
+// ref, and no `EffectForEachSelector` filters permanents by counter
+// count/name across all players. Blocked on: a dynamic (ref-named) counter
+// type + a counter-count-filtered forEach selector — stays resolve().
 function meriekeDestroyControlled(ctx: SpellContext): void {
     const marker = meriekeMarker(ctx.sourceInstanceId);
     for (const pid of ctx.allPlayerIds) {
@@ -845,6 +909,9 @@ export const meriekeRiBerit: CardDefinition = {
         },
     ],
     triggeredAbilities: [
+        // NOT DSL-migratable (ADR 0045): delegates to `meriekeDestroyControlled`
+        // — see that function's doc comment for the blocker (dynamic marker
+        // counter name + cross-player counter-filtered scan).
         leftTrigger({
             id: "merieke-ri-berit-on-leave",
             oracleText:
@@ -852,6 +919,10 @@ export const meriekeRiBerit: CardDefinition = {
             scope: "self",
             resolve: (ctx) => meriekeDestroyControlled(ctx),
         }),
+        // NOT DSL-migratable (ADR 0045): same blocker as the leave trigger
+        // above (`meriekeDestroyControlled`); `untapTrigger` also has no
+        // `effects[]` site at all (its `resolve` is a required, non-optional
+        // field — no dual-mode dispatch).
         untapTrigger({
             id: "merieke-ri-berit-on-untap",
             oracleText:
@@ -1024,7 +1095,12 @@ export const skeletonShip: CardDefinition = {
                     perm.subtypes.includes("Island")
                 );
             },
-            resolve: (ctx) => ctx.sacrifice(ctx.sourceInstanceId),
+            // Migrated resolve()→effects[] (ADR 0045, PRD #795): a single
+            // `sacrifice($source)` Op. No dedicated per-card test exercises
+            // this clause specifically — covered by the catalogue-wide
+            // `validateEffectScript` static sweep + the auto-generated
+            // canned-scenario smoke test (per-Op regime, ADR 0045).
+            effects: [{ op: "sacrifice", target: { ref: "$source" } }],
         }),
     ],
     activatedAbilities: [

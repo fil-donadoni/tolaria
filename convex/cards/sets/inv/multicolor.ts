@@ -13,7 +13,6 @@ import type {
     Color,
     EffectOp,
     PermanentView,
-    SpellContext,
     StaticKeywordGrant,
 } from "../../types";
 import {
@@ -1192,8 +1191,12 @@ export const shivanZombie: CardDefinition = {
 // gre/rules.ts), NOT a resolution-time `requestOptionChoice` player pick.
 // The old choice-as-target workaround chose the player at resolution, which
 // bypassed the target-legality checks and "becomes the target" triggers the
-// stack-placement target is subject to. The resolve() then only reads the
-// announced player slot (`ctx.targets[0]`). The second (sacrifice-for-
+// stack-placement target is subject to. Migrated resolve()→effects[] (ADR
+// 0045, PRD #795): `{ target: number }` is a legal `EffectPlayerRef`
+// directly (`convex/cards/types.ts`), so `loseLife`'s `player` reads the
+// announced player slot with no `controllerOf`/bind indirection needed; a
+// missing/illegal slot is CR 608.2b's standard skip, handled by
+// `resolvePlayerRef` returning `undefined`. The second (sacrifice-for-
 // damage) ability is fully DSL — no gap.
 export const smolderingTar: CardDefinition = {
     id: "fcdc55c0-c8ac-49d5-969b-9bf0ee8e696c",
@@ -1211,17 +1214,13 @@ export const smolderingTar: CardDefinition = {
             event: "PHASE_BEGIN",
             // CR 603.3d — "target player" chosen when the trigger is put on
             // the stack (issue #1193, `raiseTriggerTargetSelection`), not a
-            // resolution-time pick. `ctx.targets[0]` is the announced player.
+            // resolution-time pick. `{ target: 0 }` is the announced player.
             targetRequirement: { type: "player", count: 1 },
             matches: (event, self) =>
                 event.type === "PHASE_BEGIN" &&
                 event.phase === "UPKEEP" &&
                 event.activePlayerId === self.controllerId,
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (!target) return; // CR 608.2b — target became illegal
-                ctx.loseLife(target.id, 1);
-            },
+            effects: [{ op: "loseLife", player: { target: 0 }, amount: 1 }],
         },
     ],
     activatedAbilities: [
@@ -2092,9 +2091,12 @@ export const auraMutation: CardDefinition = {
 // max: 1 }` IS the "may" (the caster may lock zero or one target as the
 // trigger goes on the stack). Choosing at stack placement makes it subject to
 // hexproof/shroud/protection and fires "becomes the target of an ability"
-// triggers, which the old choice-as-target workaround silently skipped. The
-// resolve() then only reads the announced slot (`ctx.targets[0]`) and
-// destroys it.
+// triggers, which the old choice-as-target workaround silently skipped.
+// Migrated resolve()→effects[] (ADR 0045, PRD #795): `destroy`'s
+// `resolveObjectRef` already no-ops on a missing target slot, which is
+// exactly the "may: none chosen / CR 608.2b none legal" fizzle the old
+// resolve() spelled out by hand — `enteredTrigger`'s `effects[]` site (this
+// factory now accepts either) needs no imperative reach.
 export const auraShards: CardDefinition = {
     id: "df4039ef-af72-4267-ade9-fdb7c921279e",
     rarity: "uncommon",
@@ -2115,11 +2117,7 @@ export const auraShards: CardDefinition = {
                 type: ["Artifact", "Enchantment"],
                 count: { min: 0, max: 1 },
             },
-            resolve: (ctx) => {
-                const target = ctx.targets[0];
-                if (!target) return; // "may": none chosen / CR 608.2b none legal
-                ctx.destroy({ type: "permanent", id: target.id });
-            },
+            effects: [{ op: "destroy", target: { target: 0 } }],
         }),
     ],
 };

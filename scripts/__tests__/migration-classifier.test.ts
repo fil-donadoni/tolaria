@@ -1152,9 +1152,21 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // accurate marker. All 19 left the FREE bucket: total 607→588, FREE
         // 377→358, AFK-ready 350→334. X-only and Op-blocked unchanged.
         // Partition: 358+14+216=588.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(588);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(358);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(334);
+        // 2026-07-22 free-tranche batch 5 (ice/red, ice/multicolor,
+        // ice/colorless, inv/multicolor — fresh disjoint modules): 22 closures
+        // migrated resolve()→effects[]. ice/red 9 (Anarchy, Avalanche,
+        // Jokulhaups, Glacial Crevasses, Karplusan Giant, Goblin Ski Patrol,
+        // Orcish Farmer, Pyroblast, Word of Blasting); ice/multicolor 5 (Giant
+        // Trap Door Spider, Hymn of Rebirth, Skeleton Ship, Earthlink+Glaciers
+        // shared upkeep factory); ice/colorless 6 (Despotic Scepter, Pit Trap,
+        // Soldevi Golem, Soldevi Simulacrum, Time Bomb, Jester's Cap — stale
+        // moveZone marker cleared); inv/multicolor 2 (Smoldering Tar, Aura
+        // Shards). All 22 left the FREE bucket: total 588→565, FREE 358→335,
+        // AFK-ready 334→317. X-only and Op-blocked unchanged.
+        // Partition: 335+14+216=565.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(565);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(335);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(317);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
         expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(216);
     });

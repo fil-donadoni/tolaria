@@ -246,11 +246,14 @@ export const arcumsWeathervane: CardDefinition = {
 // target uses the `controller: "active"` filter (CR 102.1) — the creature the
 // ACTIVE player controls, independent of who activates.
 //
-// protocol: the pay-{X}-then-conditional-must-attack-and-delayed-destroy
-// branch is a stepped resolution (may-pay suspends, then branches on the
-// answer) — the interpreter has no Op that both wraps `setMustAttackThisTurn`
-// and gates it behind a may-pay answer, so this reuses the same SpellContext
-// primitives as the shipped Nettling Imp resolve() rather than the DSL.
+// NOT DSL-migratable (ADR 0045): the "if they don't pay, the creature attacks
+// this turn if able" clause needs `SpellContext.setMustAttackThisTurn` — a
+// forced-attack restriction with no Op skin (the DSL has `restrictCasting` /
+// `restrictActivation` / a can't-attack-or-block grant, but no MUST-attack
+// Op). `mayPay` + `if` + `delayedTrigger` alone can't express this branch.
+// Blocked on: a `mustAttack`-style Op wrapping `setMustAttackThisTurn`
+// (planned-migratable — no Op exists yet, not protocol behaviour; re-assess
+// once that Op ships).
 //
 // "Controlled continuously since the beginning of the turn" is approximated by
 // the active-player controller filter (matching Nettling Imp's shipped
@@ -317,6 +320,11 @@ export const arcumsWhistle: CardDefinition = {
             oracleText:
                 "Destroy that creature at the beginning of the next end step if it didn't attack this turn.",
             timing: "next-end-step",
+            // NOT DSL-migratable (ADR 0045): part of the same stepped
+            // resolution as the scheduling ability above — see the card-level
+            // note. This body alone WOULD compose (`hasAttackedThisTurn` is a
+            // pure read, `destroy` is a covered Op), but it cannot migrate in
+            // isolation while the scheduling ability stays `resolve()`.
             resolve: (ctx, payload) => {
                 const targetId = payload.targetId;
                 if (!targetId) return;
@@ -393,6 +401,23 @@ export const batonOfMorale: CardDefinition = {
 // Celestial Sword — {3}, {T}: Target creature you control gets +3/+3 until end
 // of turn, then is sacrificed at the next end step (CR 605 activated ability;
 // CR 613 layer 7c buff; CR 603.7b delayed triggered ability for the sacrifice).
+//
+// NOT DSL-migratable (ADR 0045): the pump half composes cleanly (`pump` Op +
+// inline `delayedTrigger` Op, the Kjeldoran Elite Guard shape, ice/white.ts —
+// tried and verified against the interpreter). Blocked on the TEST, not the
+// Op vocabulary: the pre-existing per-card test
+// (`describe("Celestial Sword …")`, `ice/__tests__/colorless.test.ts`)
+// asserts `celestialSword.delayedTriggers?.some(d => d.id ===
+// "celestial-sword-sacrifice")` — a structural check on the CARD
+// DEFINITION's top-level `delayedTriggers[]` array, the pre-ADR-0048 shape.
+// The inline `delayedTrigger` Op persists its body on the scheduled
+// `DelayedTriggerInstance` at fire time (ADR 0048) and never populates that
+// static array, so migrating breaks this byte-for-byte-preserved test
+// (playbook: "if migrating forces you to change the test, the migration is
+// wrong — stop"). Blocked on: either retiring/rewriting that assertion to a
+// behavioral check (out of scope for a pure refactor — never edit a test to
+// make it pass) or a future Op-vocabulary affordance that also surfaces on
+// the static definition.
 const CELESTIAL_SWORD_ID = "2bc0e8d3-633b-4281-863f-c51c69eed0b6";
 export const celestialSword: CardDefinition = {
     id: CELESTIAL_SWORD_ID,
@@ -433,6 +458,9 @@ export const celestialSword: CardDefinition = {
             oracleText:
                 "Its controller sacrifices it at the beginning of the next end step.",
             timing: "next-end-step",
+            // NOT DSL-migratable (ADR 0045): see the card-level note above —
+            // blocked on the pre-existing test's structural check on the
+            // top-level `delayedTriggers[]` array, not on the Op vocabulary.
             resolve: (ctx, payload) => {
                 const targetId = payload.targetId;
                 if (targetId) ctx.sacrifice(targetId);
@@ -463,12 +491,15 @@ export const despoticScepter: CardDefinition = {
                 count: 1,
                 controller: "you",
             },
-            resolve: (ctx: SpellContext) => {
-                const t = ctx.targets[0];
-                if (t?.type === "permanent") {
-                    ctx.destroy(t, { cantBeRegenerated: true });
-                }
-            },
+            // Migrated resolve()→effects[] (ADR 0045, PRD #795): destroy the
+            // announced target, can't-be-regenerated (CR 701.7 / 701.15c).
+            effects: [
+                {
+                    op: "destroy",
+                    target: { target: 0 },
+                    cantBeRegenerated: true,
+                },
+            ],
         },
     ],
 };
@@ -695,6 +726,21 @@ export const goblinLyre: CardDefinition = {
 // `targetRequirement` is spread onto it here (the trigger factories carry no
 // targetRequirement param of their own). All five share `makeTalisman`; only
 // the matched color and ids differ.
+//
+// NOT DSL-migratable (ADR 0045): the mayPay+if shape composes cleanly (the
+// Force Spike counter/punisher pattern, `leg/blue.ts`) — tried and verified
+// against the interpreter. Blocked on a genuine grammar gap: `mayPay` has no
+// way to be gated behind "was the optional (up to one) announced target slot
+// actually filled" — there is no `EffectPredicate` variant testing whether a
+// `{ target: N }` slot resolved at all (only `targetIsAnother`, which tests
+// identity-vs-source, not presence). The imperative closure below early-
+// returns before ever asking the {3} question when the target was declined
+// (CR 603.3d "up to one" folded into the "you may" itself); a bare `mayPay`
+// Op has no such guard and would surface the payment prompt even with
+// nothing to untap — the pre-existing per-card test
+// ("declining the target … resolves as a no-op — no may-pay") catches
+// exactly this divergence. Blocked on: a target-slot-resolved predicate
+// (planned — no issue filed yet).
 function makeTalisman(args: {
     id: string;
     name: string;
@@ -962,34 +1008,40 @@ export const jestersCap: CardDefinition = {
             cost: { mana: { X: 2 }, tap: true, sacrifice: true },
             useStack: true,
             targetRequirement: { type: "player", count: 1 },
-            // NOT DSL-migratable (ADR 0045): the "then that player shuffles"
-            // tail is now a libraryLook Op (issue #844), but the search half
-            // moves CHOICE-PICKED LIBRARY cards to exile — the `moveZone` Op
-            // only sources the battlefield / graveyard, and no selector
-            // references a library card a `choice` bound. The classifier
-            // over-counts this FREE because `moveCardById` reads as a covered
-            // `moveZone` primitive; it is not covered for a library source.
-            // Blocked on: a library-sourced move of a choice-picked card
-            // (planned — a `moveZone` extension for library sources).
-            resolve: (ctx: SpellContext) => {
-                const t = ctx.targets[0];
-                if (t?.type !== "player") return;
-                const targetPlayer = t.id;
-                const picked = ctx.requestChoice({
-                    playerId: ctx.controller,
-                    choiceId: "jesters-cap-search",
+            // Migrated resolve()→effects[] (ADR 0045, PRD #795). STALE-MARKER
+            // RE-ASSESSMENT: the prior "NOT DSL-migratable" note (a
+            // library-sourced move of a choice-picked card was unsupported)
+            // is now false — the `moveZone` `cards`-shape's `from` union
+            // includes `"library"` and its `to` union includes `"exile"`
+            // (falls through to `SpellContext.moveCardById`), so the search →
+            // exile → shuffle sequence composes directly: `choice(kind:
+            // "search-library", zone: "library", zoneOwnerId: { target: 0 })`
+            // binds the picks, `moveZone(cards: {ref}, from: "library", to:
+            // "exile")` moves each, `libraryLook(action: "shuffle")` shuffles.
+            effects: [
+                {
+                    op: "choice",
                     kind: "search-library",
+                    player: "controller",
                     zone: "library",
-                    zoneOwnerId: targetPlayer,
+                    zoneOwnerId: { target: 0 },
                     count: { min: 0, max: 3 },
                     prompt: "Search the target player's library for up to three cards to exile.",
-                });
-                if (picked === undefined) return; // suspended for the search
-                for (const id of picked) {
-                    ctx.moveCardById(targetPlayer, id, "library", "exile");
-                }
-                ctx.shuffleLibrary(targetPlayer);
-            },
+                    bind: "$picked",
+                },
+                {
+                    op: "moveZone",
+                    cards: { ref: "$picked" },
+                    player: { target: 0 },
+                    from: "library",
+                    to: "exile",
+                },
+                {
+                    op: "libraryLook",
+                    action: "shuffle",
+                    player: { target: 0 },
+                },
+            ],
         },
     ],
 };
@@ -1249,12 +1301,15 @@ export const pitTrap: CardDefinition = {
                 combatRoleFilter: "attacking",
                 excludeAbility: "flying",
             },
-            resolve: (ctx: SpellContext) => {
-                const t = ctx.targets[0];
-                if (t?.type === "permanent") {
-                    ctx.destroy(t, { cantBeRegenerated: true });
-                }
-            },
+            // Migrated resolve()→effects[] (ADR 0045, PRD #795): destroy the
+            // announced target, can't-be-regenerated (CR 701.7 / 701.15c).
+            effects: [
+                {
+                    op: "destroy",
+                    target: { target: 0 },
+                    cantBeRegenerated: true,
+                },
+            ],
         },
     ],
 };
@@ -1443,12 +1498,15 @@ export const snowFortress: CardDefinition = {
 // resolution-time `requestChoice`. It is a mandatory single target: CR 603.3c
 // keeps the trigger off the stack entirely when no opponent tapped creature
 // exists, so a locked target is always present at resolution. The "you may"
-// (optional untap) stays a resolution-time `requestMayPay` gate; on accept the
-// engine untaps BOTH the target and this creature ("If you do, untap this
-// creature"). Kept as `resolve()` (not the Effect Script DSL): the two-object
-// untap gated behind an optional yes/no has no single Op skin. The factory
-// returns a plain `TriggeredAbility`, so the `targetRequirement` is spread onto
-// it here (the trigger factories carry no targetRequirement param of their own).
+// (optional untap) stays a resolution-time may-pay gate; on accept the engine
+// untaps BOTH the target and this creature ("If you do, untap this
+// creature"). Migrated resolve()→effects[] (ADR 0045, PRD #795): a bare
+// cost-free `mayPay` (issue #680, the Powder Keg / Leovold shape) binds the
+// yes/no answer, gating two `tapUntap` Ops (the announced target and
+// `$source`) behind an `if`. `scope: "your"` makes the ability's controller
+// equal the factory's `scopedPlayerId`, so the plain `"controller"` player
+// ref is safe (per `phaseTrigger`'s own doc caveat). `targetRequirement` is
+// now passed straight into the factory call (it accepts the param directly).
 export const soldeviGolem: CardDefinition = {
     id: "64d35e88-81d3-4a54-aa79-190615abc616",
     name: "Soldevi Golem",
@@ -1462,29 +1520,12 @@ export const soldeviGolem: CardDefinition = {
     toughness: 3,
     staticAbilities: ["does-not-untap"],
     triggeredAbilities: [
-        {
-            ...phaseTrigger({
-                id: "soldevi-golem-upkeep",
-                oracleText:
-                    "At the beginning of your upkeep, you may untap target tapped creature an opponent controls. If you do, untap this creature.",
-                phase: "UPKEEP",
-                scope: "your",
-                resolve: (ctx, _event, scopedPlayerId) => {
-                    // CR 603.3d — target chosen at stack placement; read it
-                    // here rather than picking one.
-                    const target = ctx.targets[0];
-                    if (target?.type !== "permanent") return;
-                    const accept = ctx.requestMayPay({
-                        playerId: scopedPlayerId,
-                        choiceId: "soldevi-golem-may",
-                        prompt: "Untap the target tapped creature an opponent controls (and untap Soldevi Golem)?",
-                    });
-                    if (accept === undefined) return; // suspended
-                    if (!accept) return;
-                    ctx.untap(target); // CR 701.20b — the target creature…
-                    ctx.untap({ type: "permanent", id: ctx.sourceInstanceId }); // …and Soldevi Golem
-                },
-            }),
+        phaseTrigger({
+            id: "soldevi-golem-upkeep",
+            oracleText:
+                "At the beginning of your upkeep, you may untap target tapped creature an opponent controls. If you do, untap this creature.",
+            phase: "UPKEEP",
+            scope: "your",
             // CR 603.3d — "target tapped creature an opponent controls":
             // mandatory single target (CR 603.3c gates the trigger off the
             // stack when no opponent tapped creature exists).
@@ -1494,7 +1535,31 @@ export const soldeviGolem: CardDefinition = {
                 tappedFilter: "tapped",
                 controller: "opponent",
             },
-        },
+            effects: [
+                {
+                    op: "mayPay",
+                    player: "controller",
+                    prompt: "Untap the target tapped creature an opponent controls (and untap Soldevi Golem)?",
+                    bind: "$accept",
+                },
+                {
+                    op: "if",
+                    predicate: { binding: "$accept" },
+                    then: [
+                        {
+                            op: "tapUntap",
+                            action: "untap",
+                            target: { target: 0 },
+                        },
+                        {
+                            op: "tapUntap",
+                            action: "untap",
+                            target: { ref: "$source" },
+                        },
+                    ],
+                },
+            ],
+        }),
     ],
 };
 // Soldevi Simulacrum — {4} Artifact Creature 2/4 with cumulative upkeep {1}
@@ -1524,14 +1589,20 @@ export const soldeviSimulacrum: CardDefinition = {
             oracleText: "{1}: This creature gets +1/+0 until end of turn.",
             cost: { mana: { X: 1 } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.addTemporaryPTBuff(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    1,
-                    0,
-                    { phase: "end-of-turn" }
-                );
-            },
+            // Migrated resolve()→effects[] (ADR 0045, PRD #795): +1/+0 EOT on
+            // this creature (CR 611.1b) via the pump Op. No per-card test
+            // (✗no-test) — the `pump` Op is already exercised catalogue-wide
+            // (Adarkar Sentinel, Snow Fortress), so the per-Op smoke sweep
+            // covers this card for free (no hand-written test required).
+            effects: [
+                {
+                    op: "pump",
+                    target: { ref: "$source" },
+                    power: 1,
+                    toughness: 0,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 };
@@ -1626,18 +1697,53 @@ export const timeBomb: CardDefinition = {
                 "{1}, {T}, Sacrifice this artifact: This artifact deals damage equal to the number of time counters on it to each creature and each player.",
             cost: { mana: { X: 1 }, tap: true, sacrifice: true },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                const count = ctx.getCounterCount(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    "time"
-                );
-                if (count > 0) {
-                    ctx.dealDamageToEach(count, {
-                        creatures: true,
-                        players: true,
-                    });
-                }
-            },
+            // Migrated resolve()→effects[] (ADR 0045, PRD #795, the Powder Keg
+            // shape — uds/colorless.ts): the sacrifice is a COST, so by
+            // resolution the source is off the battlefield; `{ counters: {
+            // of: { ref: "$source" }, type: "time" } }` reads the pre-
+            // sacrifice count as last-known information (CR 608.2g) via the
+            // interpreter's off-battlefield `$source` fallback. A `forEach`
+            // over every creature and a second over every player each deal
+            // that amount (CR 119/120.1) — dealing 0 damage is a no-op
+            // (CR 119.8), so no explicit `count > 0` guard is needed.
+            effects: [
+                {
+                    op: "forEach",
+                    select: {
+                        set: "permanents",
+                        zone: "battlefield",
+                        filter: { type: "Creature" },
+                    },
+                    effects: [
+                        {
+                            op: "dealDamage",
+                            amount: {
+                                counters: {
+                                    of: { ref: "$source" },
+                                    type: "time",
+                                },
+                            },
+                            to: { ref: "$each" },
+                        },
+                    ],
+                },
+                {
+                    op: "forEach",
+                    select: { set: "players" },
+                    effects: [
+                        {
+                            op: "dealDamage",
+                            amount: {
+                                counters: {
+                                    of: { ref: "$source" },
+                                    type: "time",
+                                },
+                            },
+                            to: { player: { ref: "$each" } },
+                        },
+                    ],
+                },
+            ],
         },
     ],
 };
@@ -1652,6 +1758,19 @@ export const timeBomb: CardDefinition = {
 // reveal via `markKnownToAll`; CR 120.1 damage). The named-card choice and the
 // reveal are both the target's, so the prompt's `playerId` is the target, not the
 // controller.
+//
+// NOT DSL-migratable (ADR 0045): the miss/hit branch compares the REVEALED
+// top card's name against the `nameCard` Op's chosen-name binding — there is
+// no Op that peeks/reveals the library top card as an object the `if`
+// predicate grammar can read back, and no `EffectPredicate` variant compares
+// a card's name to a `nameCard` binding (`EffectComparisonPredicate` is
+// numeric-only; `EffectPicksMatchFilterPredicate`/`EffectCardFilter.name`
+// match a FILTER, not a bound opponent's chosen string). The classifier
+// over-counts this FREE because `peekLibraryTop` is folded into the
+// `digToHand` Op's COVERED-primitives list for an unrelated (choice-driven,
+// multi-card) shape — this card's single-card reveal-and-compare use isn't
+// that shape. Blocked on: a reveal-top-card Op + a name-equality predicate
+// (planned — no issue filed yet).
 export const vexingArcanix: CardDefinition = {
     id: "0c9ea118-6a19-4e1b-aa5a-9b2729efc096",
     name: "Vexing Arcanix",

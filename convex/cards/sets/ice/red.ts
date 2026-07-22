@@ -116,6 +116,15 @@ export const aggression: CardDefinition = {
                 "At the beginning of the end step of enchanted creature's controller, destroy that creature if it didn't attack this turn.",
             phase: "END_STEP",
             scope: "each",
+            // NOT DSL-migratable (ADR 0045, PRD #795 assessment): the body
+            // reads the Aura's ATTACHED HOST via `ctx.getAttachedTo` and
+            // conditionally destroys it based on `ctx.hasAttackedThisTurn` —
+            // neither a host-object selector nor an "attacked this turn"
+            // predicate exists in the EffectObjectSelector / `if`-predicate
+            // grammar (only `$source`/`$each`/announced targets are
+            // resolvable refs, per `EffectObjectSelector` in
+            // convex/cards/types.ts). Blocked on: an attached-host object
+            // selector + a combat-history predicate, not destroy.
             resolve: (ctx, _event, scopedPlayerId) => {
                 const hostId = ctx.getAttachedTo(ctx.sourceInstanceId);
                 if (!hostId) return;
@@ -142,9 +151,20 @@ export const anarchy: CardDefinition = {
     oracleText: "Destroy all white permanents.",
     manaCost: { X: 2, R: 2 },
     types: ["Sorcery"],
-    resolve: (ctx: SpellContext) => {
-        ctx.destroyAll({ colors: "W" });
-    },
+    // Migrated resolve()→effects[] (ADR 0045, PRD #795): the Day of Judgment
+    // sweep shape — forEach over battlefield permanents matching the colour
+    // filter, destroy each (CR 701.7 / 105.2).
+    effects: [
+        {
+            op: "forEach",
+            select: {
+                set: "permanents",
+                zone: "battlefield",
+                filter: { color: "W" },
+            },
+            effects: [{ op: "destroy", target: { ref: "$each" } }],
+        },
+    ],
 };
 // Avalanche — Destroy X target SNOW lands (CR 205.4a). `count: "X"` resolves the
 // number of land targets against the chosen X; the `supertypeFilter: ["Snow"]`
@@ -169,11 +189,18 @@ export const avalanche: CardDefinition = {
         count: "X",
         supertypeFilter: ["Snow"],
     },
-    resolve: (ctx: SpellContext) => {
-        for (const target of ctx.targets) {
-            if (target.type === "permanent") ctx.destroy(target);
-        }
-    },
+    // Migrated resolve()→effects[] (ADR 0045, PRD #795): a forEach over the
+    // announced `{ set: "targets" }` set (the X-multi-target shape) destroying
+    // each (CR 701.7). No hand-written per-card outcome test exists (the
+    // colorless.test.ts coverage checks target legality only) — the per-Op
+    // regime (catalogue static sweep + canned-scenario smoke) covers it.
+    effects: [
+        {
+            op: "forEach",
+            select: { set: "targets" },
+            effects: [{ op: "destroy", target: { ref: "$each" } }],
+        },
+    ],
 };
 // Balduvian Barbarians — {1}{R}{R} 3/2 vanilla Human Barbarian (CR 302).
 export const balduvianBarbarians: CardDefinition = {
@@ -285,14 +312,22 @@ export const barbarianGuides: CardDefinition = {
                 count: 1,
                 controller: "you",
             },
-            // NOT DSL-migratable (ADR 0045, issue #849): although the land-type
-            // pick is expressible as the `optionChoice` Op, the unconditional
-            // rider schedules a `next-end-step` delayed trigger whose body is a
-            // TEMPLATE in `delayedTriggers[]` (id "barbarian-guides-bounce") —
-            // there is no effects[] site for a template body, so the delayedTrigger
-            // Op (inline-body only, issue #838) can't express it (same class as
-            // Rainbow Vale). Planned-migratable once a schedule-existing-template
-            // capability exists. Stays resolve().
+            // NOT DSL-migratable (ADR 0045, PRD #795 re-assessment): the STALE
+            // reason below (delayedTrigger inline-body-only) is gone — both the
+            // `optionChoice` Op (land-type pick) and the `delayedTrigger` Op's
+            // inline body now ship. Re-blocked for a DIFFERENT, concrete
+            // reason: the `delayedTrigger` Op always persists the FIXED
+            // sentinel `INLINE_DELAYED_TRIGGER_ID` ("$inline-effects") as the
+            // scheduled instance's `triggerId` (`convex/gre/effects/
+            // interpreter.ts`), never the card-chosen id below. This card's
+            // OWN pre-existing per-card test
+            // (`ice/__tests__/red.test.ts` "Barbarian Guides") asserts
+            // `state.delayedTriggers` contains a `triggerId ===
+            // "barbarian-guides-bounce"` entry — migrating would silently
+            // change that id and either fail the untouched harness or force
+            // editing it (forbidden by the migration playbook). Blocked on:
+            // this specific test's literal id assertion, not an Op gap.
+            // Stays resolve().
             resolve: (ctx: SpellContext) => {
                 const t = ctx.targets[0];
                 if (t?.type !== "permanent") return;
@@ -330,6 +365,11 @@ export const barbarianGuides: CardDefinition = {
             oracleText:
                 "Return that creature to its owner's hand at the beginning of the next end step.",
             timing: "next-end-step",
+            // NOT DSL-migratable (ADR 0045, PRD #795): this legacy
+            // `delayedTriggers[]` template body is inseparable from the
+            // scheduling ability's own marker above — see that marker for
+            // the full reason (the `delayedTrigger` Op's fixed sentinel
+            // triggerId would break this card's untouched per-card test).
             resolve: (ctx, payload) => {
                 if (payload.creatureId) {
                     ctx.returnToHand({
@@ -882,16 +922,15 @@ export const glacialCrevasses: CardDefinition = {
                 },
             },
             useStack: true,
-            // NOT AFK-migratable this wave (ADR 0045, issue #845): the Op is
-            // covered (this is the trivial "all-combat" Fog, identical to Fog /
-            // Darkness / Holy Day migrated in #845), but Glacial Crevasses has
-            // NO pre-existing per-card test — the green-before harness that
-            // proves migration equivalence (playbook Step 1). Left resolve()
-            // until a behavioural test is authored first. Blocked on: missing
-            // per-card test, not the Op vocabulary.
-            resolve: (ctx: SpellContext) => {
-                ctx.preventAllCombatDamage();
-            },
+            // Migrated resolve()→effects[] (ADR 0045, PRD #795): the trivial
+            // "all-combat" Fog shape, identical to Fog / Darkness / Holy Day
+            // (#845). No hand-written per-card outcome test exists in
+            // red.test.ts, but colorless.test.ts's "Glacial Crevasses ...
+            // prevents all combat damage on resolution" test already exercises
+            // this exact resolve path (kept green, unchanged) — plus the
+            // per-Op regime (catalogue static sweep + canned-scenario smoke)
+            // covers it independently.
+            effects: [{ op: "preventDamage", mode: "all-combat" }],
         },
     ],
 };
@@ -971,6 +1010,19 @@ export const goblinSappers: CardDefinition = {
                 count: 1,
                 controller: "you",
             },
+            // NOT DSL-migratable (ADR 0045, PRD #795 assessment): setCantBeBlockedThisTurn
+            // + a next-end-of-combat delayed trigger are both Op-covered
+            // (`restrictCombat`, `delayedTrigger`), but the `delayedTrigger`
+            // Op always persists the fixed sentinel `INLINE_DELAYED_TRIGGER_ID`
+            // ("$inline-effects") as the scheduled instance's `triggerId`
+            // (`convex/gre/effects/interpreter.ts`), never a card-chosen id.
+            // This ability's OWN pre-existing per-card test
+            // (`ice/__tests__/red.test.ts` "Goblin Sappers") asserts
+            // `state.delayedTriggers` contains `triggerId ===
+            // "goblin-sappers-destroy-both"` — migrating would change that id
+            // and either fail the untouched harness or force editing it
+            // (forbidden). Blocked on: this test's literal id assertion, not
+            // an Op gap. Stays resolve().
             resolve: (ctx: SpellContext) => {
                 const target = ctx.targets[0];
                 if (target?.type !== "permanent") return;
@@ -994,6 +1046,11 @@ export const goblinSappers: CardDefinition = {
                 count: 1,
                 controller: "you",
             },
+            // NOT DSL-migratable (ADR 0045, PRD #795 assessment): same class
+            // as the {R}{R} leg above — the `delayedTrigger` Op's fixed
+            // `INLINE_DELAYED_TRIGGER_ID` sentinel triggerId would break this
+            // leg's OWN untouched test asserting `triggerId ===
+            // "goblin-sappers-destroy-target"`. Stays resolve().
             resolve: (ctx: SpellContext) => {
                 const target = ctx.targets[0];
                 if (target?.type !== "permanent") return;
@@ -1013,6 +1070,10 @@ export const goblinSappers: CardDefinition = {
             oracleText:
                 "Destroy that creature and Goblin Sappers at end of combat.",
             timing: "next-end-of-combat",
+            // NOT DSL-migratable (ADR 0045, PRD #795): legacy
+            // `delayedTriggers[]` template body — see the scheduling
+            // ability's marker above (the `delayedTrigger` Op's fixed
+            // sentinel triggerId would break this card's untouched test).
             resolve: (ctx, payload) => {
                 if (payload.creatureId)
                     ctx.destroy({
@@ -1027,6 +1088,10 @@ export const goblinSappers: CardDefinition = {
             id: "goblin-sappers-destroy-target",
             oracleText: "Destroy that creature at end of combat.",
             timing: "next-end-of-combat",
+            // NOT DSL-migratable (ADR 0045, PRD #795): legacy
+            // `delayedTriggers[]` template body — see the scheduling
+            // ability's marker above (the `delayedTrigger` Op's fixed
+            // sentinel triggerId would break this card's untouched test).
             resolve: (ctx, payload) => {
                 if (payload.creatureId)
                     ctx.destroy({
@@ -1070,40 +1135,39 @@ export const goblinSkiPatrol: CardDefinition = {
                 if (!controller) return false;
                 return controlsSnowSubtype(controller.battlefield, "Mountain");
             },
-            // NOT DSL-migratable (ADR 0045): the self +2/0 pump and flying grant
-            // are covered (pump #840, grantAbility #843), but the delayed
-            // "controller sacrifices it" body cannot be expressed — the
-            // `sacrifice` Op reads a picks-LIST binding, while a delayedTrigger
-            // capture binds the source as a single OBJECT ($self via
-            // bindSnapshot), which `sacrifice` cannot read. Blocked on:
-            // sacrifice-by-object-ref (a single-permanent sacrifice Op).
-            resolve: (ctx: SpellContext) => {
-                const self = {
-                    type: "permanent" as const,
-                    id: ctx.sourceInstanceId,
-                };
-                ctx.addTemporaryPTBuff(self, 2, 0, { phase: "end-of-turn" });
-                ctx.grantStaticAbility(self, "flying", {
-                    phase: "end-of-turn",
-                });
-                ctx.scheduleDelayedTrigger(
-                    GOBLIN_SKI_PATROL_ID,
-                    "goblin-ski-patrol-sacrifice",
-                    "next-end-step",
-                    { selfId: ctx.sourceInstanceId }
-                );
-            },
-        },
-    ],
-    delayedTriggers: [
-        {
-            id: "goblin-ski-patrol-sacrifice",
-            oracleText:
-                "Its controller sacrifices it at the beginning of the next end step.",
-            timing: "next-end-step",
-            resolve: (ctx, payload) => {
-                if (payload.selfId) ctx.sacrifice(payload.selfId);
-            },
+            // Migrated resolve()→effects[] (ADR 0045, PRD #795 re-assessment):
+            // the STALE reason below (sacrifice-by-object-ref) is gone — the
+            // `sacrifice` Op's `target` form (issue #1151, Sneak Attack /
+            // Goblin Kites shape) now sacrifices a `delayedTrigger`-captured
+            // single object directly. This ability's only per-card test
+            // (`ice/__tests__/red.test.ts` "Goblin Ski Patrol") covers
+            // `canActivate` gating only — it does not assert the resolve
+            // body's `delayedTriggers[]` triggerId, so the delayedTrigger Op's
+            // fixed sentinel id (unlike Barbarian Guides / Goblin Sappers
+            // above) doesn't collide with anything.
+            effects: [
+                {
+                    op: "pump",
+                    target: { ref: "$source" },
+                    power: 2,
+                    toughness: 0,
+                    duration: { phase: "end-of-turn" },
+                },
+                {
+                    op: "grantAbility",
+                    target: { ref: "$source" },
+                    ability: "flying",
+                    duration: { phase: "end-of-turn" },
+                },
+                {
+                    op: "delayedTrigger",
+                    timing: "next-end-step",
+                    oracleText:
+                        "Its controller sacrifices it at the beginning of the next end step.",
+                    capture: { $self: { ref: "$source" } },
+                    effects: [{ op: "sacrifice", target: { ref: "$self" } }],
+                },
+            ],
         },
     ],
 };
@@ -1274,11 +1338,27 @@ export const jokulhaups: CardDefinition = {
         "Destroy all artifacts, creatures, and lands. They can't be regenerated.",
     manaCost: { X: 4, R: 2 },
     types: ["Sorcery"],
-    resolve: (ctx: SpellContext) => {
-        ctx.destroyAll(["Artifact", "Creature", "Land"], {
-            cantBeRegenerated: true,
-        });
-    },
+    // Migrated resolve()→effects[] (ADR 0045, PRD #795): forEach over
+    // battlefield permanents matching the OR-within-field type filter
+    // (Artifact/Creature/Land), destroy each with `cantBeRegenerated: true`
+    // (CR 701.7 / 701.15c).
+    effects: [
+        {
+            op: "forEach",
+            select: {
+                set: "permanents",
+                zone: "battlefield",
+                filter: { type: ["Artifact", "Creature", "Land"] },
+            },
+            effects: [
+                {
+                    op: "destroy",
+                    target: { ref: "$each" },
+                    cantBeRegenerated: true,
+                },
+            ],
+        },
+    ],
 };
 // Karplusan Giant — "Tap an untapped snow land you control: +1/+1 until end of
 // turn." The cost is a `tapOtherFilter` over snow lands (CR 118.8 / 205.4a),
@@ -1311,21 +1391,20 @@ export const karplusanGiant: CardDefinition = {
                 },
             },
             useStack: true,
-            // AFK-migration skip (ADR 0045, issue #840), NOT a capability gap:
-            // this is a plain +1/+1 EOT self-pump ({ ref: "$source" }) the pump
-            // Op covers. It stays resolve() because the migration classifier
-            // flags it ✗no-test — its per-card test lives in the snow cluster
-            // (ice/__tests__/colorless.test.ts), not the parallel red.test.ts,
-            // so the sweep can't confirm the green-before equivalence harness in
-            // the expected location. Migrate when that test moves/parallels.
-            resolve: (ctx: SpellContext) => {
-                ctx.addTemporaryPTBuff(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    1,
-                    1,
-                    { phase: "end-of-turn" }
-                );
-            },
+            // Migrated resolve()→effects[] (ADR 0045, PRD #795): a plain +1/+1
+            // EOT self-pump — the pump Op covers it directly. The per-card
+            // test lives in the snow cluster (ice/__tests__/colorless.test.ts
+            // "Karplusan Giant"), kept green unchanged as the equivalence
+            // harness.
+            effects: [
+                {
+                    op: "pump",
+                    target: { ref: "$source" },
+                    power: 1,
+                    toughness: 1,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 };
@@ -1691,17 +1770,20 @@ export const orcishFarmer: CardDefinition = {
             cost: { tap: true },
             useStack: true,
             targetRequirement: { type: "Land", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const t = ctx.targets[0];
-                if (t?.type !== "permanent") return;
-                // CR 305.7 / 502.1 — the land becomes a Swamp until its
-                // controller's next untap step, then reverts to its printed
-                // subtypes.
-                ctx.setSubtypesUntil(t, ["Swamp"], {
-                    phase: "untap",
-                    player: "controller",
-                });
-            },
+            // Migrated resolve()→effects[] (ADR 0045, PRD #795): the
+            // `setSubtype` Op is the direct declarative skin over
+            // `setSubtypesUntil` — its own doc comment (convex/cards/types.ts)
+            // names this exact card as the reference "target land becomes a
+            // Swamp ... until its controller's next untap step" shape (CR
+            // 305.7 / 502.1).
+            effects: [
+                {
+                    op: "setSubtype",
+                    target: { target: 0 },
+                    subtypes: ["Swamp"],
+                    duration: { phase: "untap", player: "controller" },
+                },
+            ],
         },
     ],
 };
@@ -1945,26 +2027,22 @@ export const pyroblast: CardDefinition = {
         "Choose one —\n• Counter target spell if it's blue.\n• Destroy target permanent if it's blue.",
     manaCost: { R: 1 },
     types: ["Instant"],
+    // Migrated resolve()→effects[] per mode (ADR 0045, PRD #795): `SpellMode.effects`
+    // dispatches through the same interpreter seam as `ActivatedAbility.effects`.
     modes: [
         {
             id: "counter",
             label: "Counter target blue spell",
             oracleText: "Counter target spell if it's blue.",
             targetRequirement: { type: "spell", count: 1, colorFilter: "U" },
-            resolve: (ctx) => {
-                const t = ctx.targets[0];
-                if (t?.type === "spell") ctx.counter(t);
-            },
+            effects: [{ op: "counter", target: { target: 0 } }],
         },
         {
             id: "destroy",
             label: "Destroy target blue permanent",
             oracleText: "Destroy target permanent if it's blue.",
             targetRequirement: { type: "any", count: 1, colorFilter: "U" },
-            resolve: (ctx) => {
-                const t = ctx.targets[0];
-                if (t?.type === "permanent") ctx.destroy(t);
-            },
+            effects: [{ op: "destroy", target: { target: 0 } }],
         },
     ],
 };
@@ -2131,6 +2209,15 @@ export const totalWar: CardDefinition = {
             matches: (event) =>
                 event.type === "ATTACKERS_DECLARED" &&
                 event.attackerIds.length > 0,
+            // NOT DSL-migratable (ADR 0045, PRD #795 assessment): the sweep
+            // needs FOUR simultaneous per-creature exclusions (untapped, not
+            // attacking, non-Wall, not summoning-sick) — `EffectCardFilter`
+            // (the `forEach { set: "permanents" }` selector's filter) has
+            // type/subtype/supertype/color/manaValue/isToken/name/hasCounter
+            // fields, none of which read tap state, live combat-attacker
+            // status, or summoning sickness. Blocked on: a forEach filter (or
+            // an `if`-predicate) reading `isTapped`/`isAttacking`/
+            // `isSummoningSick`, not destroy/forEach themselves.
             resolve: (ctx, event) => {
                 if (event.type !== "ATTACKERS_DECLARED") return;
                 const attackerPlayer = event.attackingPlayerId;
@@ -2220,14 +2307,23 @@ export const wordOfBlasting: CardDefinition = {
     manaCost: { X: 1, R: 1 },
     types: ["Instant"],
     targetRequirement: { type: "Creature", count: 1, subtypeFilter: "Wall" },
-    resolve: (ctx: SpellContext) => {
-        const t = ctx.targets[0];
-        if (t?.type !== "permanent") return;
-        const mv = ctx.getManaValue(t);
-        const controller = ctx.getController(t);
-        ctx.destroy(t, { cantBeRegenerated: true });
-        if (mv > 0) ctx.dealDamage({ type: "player", id: controller }, mv);
-    },
+    // Migrated resolve()→effects[] (ADR 0045, PRD #795): the `manaValue`
+    // EffectValue reads the LIVE mana value off the battlefield permanent
+    // (CR 608.2b — undefined once it leaves play), so the damage Op runs
+    // BEFORE the destroy Op — the reverse of the oracle's sentence order, but
+    // the same final state as the original closure's pre-destroy
+    // snapshot-and-destroy sequence (CR 608.2h last-known information; no
+    // observer can see the intermediate ordering within one resolution). A 0
+    // mana value deals 0 damage — a no-op, equivalent to the original
+    // closure's `if (mv > 0)` guard.
+    effects: [
+        {
+            op: "dealDamage",
+            amount: { manaValue: { of: { target: 0 } } },
+            to: { player: { controllerOf: { target: 0 } } },
+        },
+        { op: "destroy", target: { target: 0 }, cantBeRegenerated: true },
+    ],
 };
 
 // Meteor Shower — {X}{X}{R} Sorcery. "Meteor Shower deals X plus 1 damage
