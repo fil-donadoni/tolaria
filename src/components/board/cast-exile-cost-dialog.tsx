@@ -60,10 +60,7 @@ export default function CastExileCostDialog({
                     // identity: an Island taps for blue but is colourless, so it
                     // is NOT eligible to pay "exile a blue card".
                     (choice.color === undefined ||
-                        cardHasColor(
-                            getDefinition(card.card.id),
-                            choice.color
-                        ))
+                        cardHasColor(getDefinition(card.card.id), choice.color))
             ),
         [sourceCards, choice.color, choice.excludeInstanceId]
     );

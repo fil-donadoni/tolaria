@@ -22,8 +22,16 @@ vi.mock("@convex/cards", () => ({
         id === "island-def"
             ? { name: "Island", types: ["Land"], subtypes: ["Island"] }
             : id === "blue-def"
-              ? { name: "Blue Elemental", types: ["Creature"], manaCost: { generic: 1, U: 1 } }
-              : { name: "Flash of Insight", types: ["Instant"], manaCost: { X: "X", generic: 1, U: 1 } },
+              ? {
+                    name: "Blue Elemental",
+                    types: ["Creature"],
+                    manaCost: { generic: 1, U: 1 },
+                }
+              : {
+                    name: "Flash of Insight",
+                    types: ["Instant"],
+                    manaCost: { X: "X", generic: 1, U: 1 },
+                },
 }));
 vi.mock("../../cards/card-image", () => ({
     default: () => <div data-testid="card-image" />,
@@ -40,9 +48,30 @@ function me(): Player {
         hand: [],
         library: { count: 0 },
         graveyard: [
-            { id: "foi", card: { id: "foi-def" }, controllerId: "me", ownerId: "me", zone: "graveyard", isTapped: false },
-            { id: "blue1", card: { id: "blue-def" }, controllerId: "me", ownerId: "me", zone: "graveyard", isTapped: false },
-            { id: "island1", card: { id: "island-def" }, controllerId: "me", ownerId: "me", zone: "graveyard", isTapped: false },
+            {
+                id: "foi",
+                card: { id: "foi-def" },
+                controllerId: "me",
+                ownerId: "me",
+                zone: "graveyard",
+                isTapped: false,
+            },
+            {
+                id: "blue1",
+                card: { id: "blue-def" },
+                controllerId: "me",
+                ownerId: "me",
+                zone: "graveyard",
+                isTapped: false,
+            },
+            {
+                id: "island1",
+                card: { id: "island-def" },
+                controllerId: "me",
+                ownerId: "me",
+                zone: "graveyard",
+                isTapped: false,
+            },
         ],
         exile: [],
         battlefield: [],
@@ -63,7 +92,9 @@ describe("CastExileCostDialog blue-card filter (CR 105.2a — Island is colourle
             />
         );
         // The blue card is selectable...
-        expect(screen.getByRole("button", { name: "Blue Elemental" })).toBeTruthy();
+        expect(
+            screen.getByRole("button", { name: "Blue Elemental" })
+        ).toBeTruthy();
         // ...the Island is not (colourless), and neither is Flash of Insight
         // (excluded as the flashback card itself).
         expect(screen.queryByRole("button", { name: "Island" })).toBeNull();

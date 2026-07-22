@@ -506,7 +506,9 @@ export const icatianMoneychanger: CardDefinition = {
             // Migrated resolve()→effects[] (ADR 0045, #795): 3 damage to the
             // source's controller (CR 120.1). enteredTrigger binds
             // ctx.controller to the source's controller for every scope.
-            effects: [{ op: "dealDamage", amount: 3, to: { player: "controller" } }],
+            effects: [
+                { op: "dealDamage", amount: 3, to: { player: "controller" } },
+            ],
         }),
         phaseTrigger({
             id: "icatian-moneychanger-upkeep-counter",
