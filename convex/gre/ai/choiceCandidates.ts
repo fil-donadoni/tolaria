@@ -45,11 +45,16 @@ import {
     mayPaySacrificeThreshold,
     normalizeMayPayCost,
 } from "../state";
-import { getEffectivePower, getEffectiveToughness } from "../layers";
+import { getEffectivePower } from "../layers";
 import { tryGetDefinition } from "../../cards";
 import type { PendingChoiceKind } from "../types";
 import type { Move } from "../moves";
 import { priorFor, type ChoiceCandidateHint } from "./choicePriors";
+import {
+    libraryTargetWorth,
+    permanentWorth,
+    prospectiveCardWorth,
+} from "./candidateValue";
 
 /** One opened branch of a choice node. */
 export type ChoiceCandidate = {
@@ -109,21 +114,6 @@ export function stableSetIdentity(cards: CardInstanceState[]): string {
 // ---------------------------------------------------------------------------
 // Yes/no family
 // ---------------------------------------------------------------------------
-
-/** Rough board worth of a permanent, used ONLY to order sacrifice victims and
- *  to feed the prior seam. Deliberately local and cheap (P/T based) rather than
- *  the full `evaluate.ts` currency: `gre/ai` must not depend on `evaluate.ts`
- *  (which already depends on this module's siblings). */
-function permanentWorth(state: GameState, card: CardInstanceState): number {
-    const p = Math.max(0, getEffectivePower(state, card));
-    const t = Math.max(0, getEffectiveToughness(state, card));
-    return card.types.includes("Creature") ? p * p + t * t + 10 : 20;
-}
-
-/** Cheap latent worth of a hand card, for ordering discard victims. */
-function handCardWorth(state: GameState, card: CardInstanceState): number {
-    return card.types.includes("Creature") ? permanentWorth(state, card) : 30;
-}
 
 function instancesById(
     cards: CardInstanceState[],
@@ -225,7 +215,8 @@ const mayPayCandidates: ChoiceCandidateGenerator = (state, choice) => {
         );
         const count = norm.discard!.count;
         const worstFirst = [...cards].sort(
-            (a, b) => handCardWorth(state, a) - handCardWorth(state, b)
+            (a, b) =>
+                prospectiveCardWorth(state, a) - prospectiveCardWorth(state, b)
         );
         if (worstFirst.length < count) return out;
         discardSet = worstFirst.slice(0, count);
@@ -236,7 +227,7 @@ const mayPayCandidates: ChoiceCandidateGenerator = (state, choice) => {
         ? `|discard=${stableSetIdentity(discardSet)}`
         : "";
     const discardWorth = (discardSet ?? []).reduce(
-        (s, c) => s + handCardWorth(state, c),
+        (s, c) => s + prospectiveCardWorth(state, c),
         0
     );
 
@@ -354,37 +345,11 @@ const optionPickCandidates: ChoiceCandidateGenerator = (_state, choice) => {
 // ---------------------------------------------------------------------------
 // Library search (search-library) — fetchlands / tutors
 // ---------------------------------------------------------------------------
-
-/** Lands in play at which searching up ANOTHER land stops being development and
- *  starts being flood (a rough Forge-style curve point). Below it a fetched land
- *  outranks a small creature; at or above it, it is nearly worthless. */
-const LAND_SEARCH_SATURATION = 5;
-
-/** Worth of a fetched LAND at zero lands in play, decaying `LAND_SEARCH_STEP`
- *  per land already on the battlefield until `LAND_SEARCH_SATURATION`. */
-const LAND_SEARCH_BASE = 70;
-const LAND_SEARCH_STEP = 10;
-const LAND_SEARCH_FLOODED = 20;
-
-/** Rough latent worth of a card a library search could find (CR 701.19), used
- *  ONLY to RANK targets and to feed the prior seam — never legality. Nonland
- *  cards reuse the hand-card scale (a fetched card lands in hand / on the
- *  battlefield, exactly the material `handCardWorth` prices); a LAND is priced
- *  against the searcher's own mana development, which is what makes a fetchland
- *  pick sensible early and near-irrelevant when flooded. */
-function libraryTargetWorth(
-    state: GameState,
-    searcherId: string,
-    card: CardInstanceState
-): number {
-    if (!card.types.includes("Land")) return handCardWorth(state, card);
-    const lands = getPlayer(state, searcherId).battlefield.filter((c) =>
-        c.types.includes("Land")
-    ).length;
-    return lands >= LAND_SEARCH_SATURATION
-        ? LAND_SEARCH_FLOODED
-        : LAND_SEARCH_BASE - LAND_SEARCH_STEP * lands;
-}
+//
+// Target pricing (`libraryTargetWorth`) now lives in `./candidateValue` — the
+// same function feeds this generator's `materialGained` hint AND the DSL
+// `priorFor` provider (`choicePriors.ts`, issue #1433), so the two never
+// drift apart.
 
 /** `search-library` (CR 701.19 — fetchlands, tutors): the hardest tranche-1
  *  kind, and the reason the contract's three properties exist at all.
