@@ -39,7 +39,13 @@ import {
  *  Keep this the single source of "known-unvalued" — the guard below
  *  cross-checks it against the live registry so a stale entry (an Op that has
  *  since gained a valuer, or is no longer implemented) also fails CI. */
-export const OP_VALUER_BACKFILL: readonly string[] = [];
+export const OP_VALUER_BACKFILL: readonly string[] = [
+    // castDuringResolution (CR 608.2f, issue #1477): resolve-time free/paid
+    // mini-cast of a discarded/exiled card. Its value is the recursive value of
+    // casting that card, which the flat OP_VALUERS heuristic can't size without
+    // spell-level lookahead — deferred to the bot-AI valuation track (#1254).
+    "castDuringResolution",
+];
 
 describe("OP_VALUERS coverage guard (PRD #1423, issue #1426)", () => {
     const implementedOps = EFFECT_OP_REGISTRY.filter(

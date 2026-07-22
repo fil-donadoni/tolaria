@@ -2109,6 +2109,14 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     digMatchingToHand() {
         return null;
     },
+    // `castDuringResolution` (CR 608.2f, issue #1477) — never reached:
+    // `analyseOp` skips every script with this Op (it suspends for a live
+    // Cast/Decline plus the cast card's own targets/modes/X, which the canned
+    // generator can't drive). Kept for the 1:1 coverage guard; the Op's own
+    // interpreter tests are the behavioural guarantor.
+    castDuringResolution() {
+        return null;
+    },
 };
 
 /** Op kinds the generator has an assertor for — used by the coverage guard
