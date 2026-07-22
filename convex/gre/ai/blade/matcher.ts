@@ -16,7 +16,12 @@ import type { Move } from "../../moves";
 import type { BladeSeat, MoveMatcher } from "./types";
 
 /** Every zone a scenario can place a card in. `library` is included so a
- *  matcher can name a card the bot digs up mid-resolution. */
+ *  matcher can name a card the bot digs up mid-resolution; `stack` is included
+ *  because the archetypal blade position is a RESPONSE — a matcher naming the
+ *  spell being answered (`{ kind: "cast-spell", card: "Counterspell", target:
+ *  "Lightning Bolt" }`) must resolve the stack-resident name, or the entry
+ *  false-fails under `moves` and false-passes under `forbidden`.
+ *  (`StackItem extends CardInstanceState`.) */
 function allInstances(state: GameState): CardInstanceState[] {
     const out: CardInstanceState[] = [];
     for (const p of state.players) {
@@ -28,6 +33,7 @@ function allInstances(state: GameState): CardInstanceState[] {
             ...p.library
         );
     }
+    out.push(...state.stack);
     return out;
 }
 
@@ -39,9 +45,16 @@ export function seatPlayerId(state: GameState, seat: BladeSeat): string {
 
 /**
  * Resolve a card NAME to the set of instance ids of that card present in
- * `state`. Throws (loudly, with the offending name) when the name is not a
- * known card — a typo in a blade entry must fail the suite, never silently
- * match nothing.
+ * `state`. Throws (loudly, with the offending name) in BOTH unresolvable
+ * cases:
+ *   - the name is not a known card (a typo in a blade entry), and
+ *   - the name IS a real card but has zero instances anywhere in the built
+ *     state.
+ * The second case is the dangerous one: an empty id set silently matches
+ * nothing, which under `expect: { forbidden: [...] }` is a VACUOUS GREEN —
+ * the entry passes while asserting nothing. This suite's whole value is that
+ * it cannot pass by accident, so an unresolvable name is a hard authoring
+ * error.
  */
 export function instanceIdsForName(
     state: GameState,
@@ -53,6 +66,15 @@ export function instanceIdsForName(
         if ((inst.card as { id?: string } | undefined)?.id === def.id) {
             ids.add(inst.id);
         }
+    }
+    if (ids.size === 0) {
+        throw new Error(
+            `Blade matcher names "${name}", but no instance of it exists in ` +
+                `the built state (checked battlefield, hand, graveyard, exile, ` +
+                `library and stack of both seats). A matcher name that resolves ` +
+                `to nothing can never match — under \`forbidden\` that is a ` +
+                `vacuous pass. Fix the spec or the matcher.`
+        );
     }
     return ids;
 }
@@ -124,26 +146,37 @@ export function matchesMove(
     move: Move | null,
     matcher: MoveMatcher
 ): boolean {
+    // Resolve EVERY declared name FIRST, before any short-circuit. An
+    // unresolvable name is an authoring bug in the entry, and it must surface
+    // whatever the bot happened to choose — resolving lazily would hide it
+    // behind a kind mismatch and leave the entry vacuously green.
+    const cardIds =
+        matcher.card !== undefined
+            ? instanceIdsForName(state, matcher.card)
+            : undefined;
+    const cardsIds = matcher.cards?.map((name) =>
+        instanceIdsForName(state, name)
+    );
+    const targetIds =
+        matcher.target !== undefined
+            ? targetCandidateIds(state, matcher.target)
+            : undefined;
+
     if (!move) return false;
     if (move.kind !== matcher.kind) return false;
 
     const acting = movingCardIds(move);
 
-    if (matcher.card !== undefined) {
-        const ids = instanceIdsForName(state, matcher.card);
-        if (!acting.some((id) => ids.has(id))) return false;
-    }
+    if (cardIds && !acting.some((id) => cardIds.has(id))) return false;
 
-    if (matcher.cards !== undefined) {
-        for (const name of matcher.cards) {
-            const ids = instanceIdsForName(state, name);
+    if (cardsIds) {
+        for (const ids of cardsIds) {
             if (!acting.some((id) => ids.has(id))) return false;
         }
     }
 
-    if (matcher.target !== undefined) {
-        const ids = targetCandidateIds(state, matcher.target);
-        if (!targetedIds(move).some((id) => ids.has(id))) return false;
+    if (targetIds && !targetedIds(move).some((id) => targetIds.has(id))) {
+        return false;
     }
 
     if (matcher.accept !== undefined && moveAccept(move) !== matcher.accept) {

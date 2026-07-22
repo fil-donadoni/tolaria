@@ -151,8 +151,8 @@ function checkExpectation(
  * Run one blade scenario at every declared seed. Never throws on a failed
  * expectation (the caller decides whether a failure is blocking — `must` — or
  * report-only — `stretch`); it DOES throw on a malformed entry (unknown card
- * name, empty seed list, a seat that owes no action), which is an authoring
- * bug, not a bot result.
+ * name, a matcher name with no instance in the built state, empty seed list,
+ * a seat that owes no action), which is an authoring bug, not a bot result.
  */
 export function runBladeScenario(scenario: BladeScenario): BladeResult {
     if (scenario.budget.iterations <= 0) {
