@@ -8289,6 +8289,23 @@ export type EffectOp =
           op: "regenerate";
           target: EffectObjectSelector;
       }
+    /** CR 701.15c (issue #1283) — flag a creature so it CAN'T be regenerated
+     *  for the rest of the turn (the inverse of the `regenerate` shield): every
+     *  regeneration shield AND the auto-regenerate replacement on it are
+     *  suppressed until CLEANUP (CR 514.2). A thin declarative skin over the
+     *  single SpellContext primitive `setTargetCantBeRegeneratedThisTurn`, one
+     *  execution path (ADR 0045). `target` is an announced target slot
+     *  (`{ target: N }` — Incinerate's "a creature dealt damage this way can't
+     *  be regenerated this turn", Orcish Healer's activated ability), the
+     *  resolving source (`$source` — Clergy of the Holy Nimbus's self-lock,
+     *  routed through the SAME setTarget primitive with the source's id — the
+     *  `setSourceCantBeRegeneratedThisTurn` variant is the identical flag write
+     *  on `item.id`), or a forEach `$each`. DISTINCT from `destroy`'s
+     *  `cantBeRegenerated` FLAG, which suppresses regeneration only for that
+     *  one destroy event — this is a STANDALONE turn-scoped lock with no
+     *  destroy attached. No-op on a non-creature or a permanent that has left
+     *  the battlefield (CR 608.2b). */
+    | { op: "preventRegeneration"; target: EffectObjectSelector }
     /** CR 701.27 / 712 (issue #1210, ADR 0067) — transform a permanent
      *  between its front and back printed characteristic sets. A thin
      *  declarative skin over the single SpellContext primitive `transform`,

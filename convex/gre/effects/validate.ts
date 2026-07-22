@@ -1803,6 +1803,11 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             target: isObjectSelector,
         },
     },
+    preventRegeneration: {
+        required: {
+            target: isObjectSelector,
+        },
+    },
     // CR 701.27 / 712 (issue #1210) — transform a permanent. `target` is an
     // object selector (announced slot, `$source`, or a forEach `$each`). No
     // other fields — CR 712.8a's toggle (front→back / back→front) is

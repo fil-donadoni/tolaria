@@ -1434,9 +1434,9 @@ export const clergyOfTheHolyNimbus: CardDefinition = {
             useStack: true,
             // CR 602.1 — controller may NOT activate; only opponents may.
             activatableByOpponentsOnly: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.setSourceCantBeRegeneratedThisTurn();
-            },
+            effects: [
+                { op: "preventRegeneration", target: { ref: "$source" } },
+            ],
         },
     ],
 };

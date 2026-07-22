@@ -2055,6 +2055,16 @@ export const OP_EXECUTORS: {
         if (!target) return;
         ctx.applyRegenerationShield(target);
     },
+    // CR 701.15c (issue #1283) — the inverse of `regenerate`: flag the creature
+    // so it can't be regenerated for the rest of the turn. `$source` resolves
+    // to the source's own selection, so the single setTarget primitive covers
+    // the self-lock (Clergy) too. No-op off the battlefield / on a non-creature
+    // (CR 608.2b — the primitive checks both).
+    preventRegeneration(ctx, op) {
+        const target = resolveObjectRef(ctx, op.target);
+        if (!target) return;
+        ctx.setTargetCantBeRegeneratedThisTurn(target);
+    },
     // CR 701.27 / 712 (issue #1210, ADR 0067) — transform a permanent. A thin
     // declarative skin over the single SpellContext primitive `transform`,
     // ONE execution path (ADR 0045). CR 712.8a — the SAME toggle flips

@@ -526,6 +526,18 @@ const regenerate: Valuer<"regenerate"> = (op) => ({
         : ["protection"],
 });
 
+// The inverse of `regenerate`: strip a creature's regeneration for the turn —
+// an offensive removal-enabler (it lets a companion destroy/damage stick), so
+// it is worth a fraction of a full removal, not the defensive REGENERATE_VALUE.
+const PREVENT_REGEN_VALUE = 25;
+
+const preventRegeneration: Valuer<"preventRegeneration"> = (op) => ({
+    points: PREVENT_REGEN_VALUE,
+    tags: isAnnouncedTarget(op.target)
+        ? ["boardRemoval", "targeted"]
+        : ["boardRemoval"],
+});
+
 const restrictActivation: Valuer<"restrictActivation"> = () => ({
     points: RESTRICT_ACTIVATION_VALUE,
     tags: ["disruption"],
@@ -654,6 +666,7 @@ export const OP_VALUERS: {
     preventDamage,
     putBack,
     regenerate,
+    preventRegeneration,
     restrictActivation,
     restrictCasting,
     restrictCombat,

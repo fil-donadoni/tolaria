@@ -17289,3 +17289,116 @@ describe("Effect Script Op: discardAtRandom (CR 701.8a)", () => {
         expect(projected.players[1].graveyard).toHaveLength(2);
     });
 });
+
+describe("Effect Script Op: preventRegeneration (CR 701.15c)", () => {
+    /** p2 controls one bear (a 2/5 Creature) as the announced regen-lock target. */
+    function oneBear(): GameState {
+        return makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    battlefield: [
+                        makeInstance(BEAR_ID, {
+                            controllerId: "p2",
+                            id: "bearA",
+                        }),
+                    ],
+                }),
+            ],
+        });
+    }
+
+    it("flags an announced target creature as can't-be-regenerated (Incinerate / Orcish Healer)", () => {
+        const id = registerScript("test-op-regenlock-target", [
+            { op: "preventRegeneration", target: { target: 0 } },
+        ]);
+        const state = oneBear();
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "bearA" }]);
+        resolveTopOfStack(state);
+        const bear = state.players[1].battlefield.find(
+            (c) => c.id === "bearA"
+        )!;
+        expect(bear.cantBeRegeneratedThisTurn).toBe(true);
+    });
+
+    it("flags the resolving source via $source (Clergy of the Holy Nimbus self-lock)", () => {
+        const CLERGY_ID = "test-op-regenlock-source";
+        registerTokenDefinition({
+            id: CLERGY_ID,
+            name: CLERGY_ID,
+            rarity: "common",
+            manaCost: { W: 1 },
+            types: ["Creature"],
+            subtypes: ["Cleric"],
+            power: 1,
+            toughness: 1,
+            activatedAbilities: [
+                {
+                    id: "clergy-self-regenlock",
+                    oracleText:
+                        "{1}: This creature can't be regenerated this turn.",
+                    cost: { mana: { generic: 1 } },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "preventRegeneration",
+                            target: { ref: "$source" },
+                        },
+                    ],
+                },
+            ],
+        });
+        const clergy = makeInstance(CLERGY_ID, {
+            id: "clergy1",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [clergy] }),
+                makePlayer("p2"),
+            ],
+        });
+        const src = state.players[0].battlefield[0];
+        state.stack.push({
+            ...src,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "clergy-self-regenlock",
+            targets: [],
+        });
+        resolveTopOfStack(state);
+        const locked = state.players[0].battlefield.find(
+            (c) => c.id === "clergy1"
+        )!;
+        expect(locked.cantBeRegeneratedThisTurn).toBe(true);
+    });
+
+    it("is a no-op when the targeted permanent is gone (CR 608.2b) and still resolves", () => {
+        const id = registerScript("test-op-regenlock-gone", [
+            { op: "preventRegeneration", target: { target: 0 } },
+        ]);
+        const state = oneBear();
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "ghost" }]);
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+        const bear = state.players[1].battlefield.find(
+            (c) => c.id === "bearA"
+        )!;
+        expect(bear.cantBeRegeneratedThisTurn).toBeUndefined();
+    });
+
+    it("the regen-lock flag survives projection (wire format)", () => {
+        const id = registerScript("test-op-regenlock-wire", [
+            { op: "preventRegeneration", target: { target: 0 } },
+        ]);
+        const state = oneBear();
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "bearA" }]);
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[1].battlefield.find(
+            (c) => c.id === "bearA"
+        )!;
+        expect(slim.cantBeRegeneratedThisTurn).toBe(true);
+    });
+});

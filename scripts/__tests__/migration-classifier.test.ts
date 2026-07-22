@@ -1314,11 +1314,36 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // (-4: the 3 migrated + one closure double-counted under this
         // primitive that now surfaces elsewhere), FREE 289->290 / AFK-ready
         // 277->278 (+1). X-only unchanged. Partition: 290+14+169=473.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(473);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(290);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(278);
+        //
+        // 2026-07-22 (Op-infra batch — `preventRegeneration`, the standalone
+        // regeneration-lock Op, tracked-by #1283): shipped the inverse of the
+        // `regenerate` shield Op (CR 701.15c) as a thin skin over the existing
+        // `SpellContext.setTargetCantBeRegeneratedThisTurn` primitive — a
+        // single `target` EffectObjectSelector, mirroring `regenerate` exactly
+        // (announced slot / `$source` / `$each`; `$source` routes through the
+        // same setTarget primitive with the source's id). Distinct from
+        // `destroy`'s `cantBeRegenerated` FLAG (which locks only that one
+        // destroy) — this is a standalone turn-scoped lock. 3 closures migrated
+        // resolve()->effects[]: ice/red (Incinerate, announced + dealDamage;
+        // Orcish Healer, announced activated ability), leg/white (Clergy of the
+        // Holy Nimbus, `$source` self-lock). The other 3 regen-lock call sites
+        // stay resolve(): ice/red (Bone Shaman, a damageDealtTrigger reading
+        // the firing $event's damage.target), ice/black (Gravebind, blocked on
+        // its next-upkeep delayed-draw rider; Lim-Dûl's Cohort, a conditional
+        // $event object selector). Unlike the dormant `regenerate` shield,
+        // the flag is set in the SAME resolution and survives the wire
+        // (slimCard spreads it), so scenarioGenerator does a REAL assertor
+        // (perm.cantBeRegeneratedThisTurn === true on the filler creature),
+        // not a skip. All 3 migrated were AFK-ready. Net: total 473->470,
+        // Op-blocked 169->164 (-5: the 3 migrated + 2 no longer counted as
+        // regen-lock-Op-blocked, now blocked on other constructs), FREE
+        // 290->292 / AFK-ready 278->280 (+2). X-only unchanged. Partition:
+        // 292+14+164=470.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(470);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(292);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(280);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(169);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(164);
     });
 
     it("surfaces the demonstrated new-Op backlog (a covered primitive leaves it)", () => {

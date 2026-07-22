@@ -1319,14 +1319,10 @@ export const incinerate: CardDefinition = {
     manaCost: { X: 1, R: 1 },
     types: ["Instant"],
     targetRequirement: { type: "any", count: 1 },
-    resolve: (ctx: SpellContext) => {
-        const t = ctx.targets[0];
-        if (!t) return;
-        if (t.type === "permanent") {
-            ctx.setTargetCantBeRegeneratedThisTurn(t);
-        }
-        ctx.dealDamage(t, 3);
-    },
+    effects: [
+        { op: "dealDamage", amount: 3, to: { target: 0 } },
+        { op: "preventRegeneration", target: { target: 0 } },
+    ],
 };
 // Jokulhaups — "Destroy all artifacts, creatures, and lands. They can't be
 // regenerated." (CR 701.7 destroy + CR 701.15c regen suppression.)
@@ -1810,11 +1806,7 @@ export const orcishHealer: CardDefinition = {
             cost: { mana: { R: 2 }, tap: true },
             useStack: true,
             targetRequirement: { type: "Creature", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target?.type === "permanent")
-                    ctx.setTargetCantBeRegeneratedThisTurn(target);
-            },
+            effects: [{ op: "preventRegeneration", target: { target: 0 } }],
         },
         {
             id: "orcish-healer-regen-br",

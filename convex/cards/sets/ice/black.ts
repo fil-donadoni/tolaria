@@ -913,10 +913,13 @@ export const gravebind: CardDefinition = {
     manaCost: { B: 1 },
     types: ["Instant"],
     targetRequirement: { type: "Creature", count: 1 },
-    // NOT DSL-migratable (ADR 0045): "can't be regenerated this turn" as a
-    // standalone effect has no Op — `SpellContext.setTargetCantBeRegeneratedThisTurn`
-    // is only exposed as an option on `destroy`, not as its own primitive.
-    // Blocked on: a standalone regeneration-lock Op/value construct.
+    // NOT DSL-migratable (ADR 0045): the regeneration-lock half now HAS an Op
+    // (`preventRegeneration`, CR 701.15c, #1283 — shipped), but the next-upkeep
+    // cantrip rider keeps this resolve(): it arms a card-specific delayed
+    // trigger (`scheduleNextUpkeepDraw` + the `delayedTriggers` entry below)
+    // with a draw body, which the `scheduleDelayedTrigger` Op vocabulary
+    // doesn't yet express as a self-contained effect.
+    // Blocked on: a delayed-trigger-with-draw-body Op skin.
     // tracked-by: #1283
     resolve: (ctx: SpellContext) => {
         const t = ctx.targets[0];
@@ -1747,15 +1750,17 @@ export const limDLsCohort: CardDefinition = {
             matches: (event: GameEvent, self: PermanentView) =>
                 event.type === "BLOCKERS_CONFIRMED" &&
                 (event.attackerId === self.id || event.blockerId === self.id),
-            // NOT DSL-migratable (ADR 0045): "that creature" is the OTHER
-            // creature in the attacker/blocker pair, read off the firing
-            // `BLOCKERS_CONFIRMED` event's `attackerId`/`blockerId` fields at
-            // resolve time — a raw event-derived object with no `$source` /
-            // announced-target / `$each` selector to name it, and
-            // `setTargetCantBeRegeneratedThisTurn` has no Op skin either.
-            // Blocked on: an `$event.<field>`-style object selector for a
-            // plain (non-factory) triggered ability + a standalone
-            // regeneration-lock Op.
+            // NOT DSL-migratable (ADR 0045): the regeneration-lock half now HAS
+            // an Op (`preventRegeneration`, CR 701.15c, #1283 — shipped), but
+            // "that creature" is the OTHER creature in the attacker/blocker
+            // pair, read off the firing `BLOCKERS_CONFIRMED` event's
+            // `attackerId`/`blockerId` fields at resolve time — a raw
+            // event-derived object with no `$source` / announced-target /
+            // `$each` selector to name it.
+            // Blocked on: a CONDITIONAL `$event.<field>`-style object selector
+            // (the OTHER creature in the pair) for a plain (non-factory)
+            // triggered ability.
+            // tracked-by: #1283
             resolve: (ctx: SpellContext, event: GameEvent) => {
                 if (event.type !== "BLOCKERS_CONFIRMED") return;
                 const ev = event as BlockersConfirmedEvent;

@@ -24,11 +24,12 @@ Mox Opal
 Teferino
 Teferone
 Fallen Shinobi
-Lurrus
 Lutri
 Grist
 Necromancy
 Fable of the mirror-breaker
+Ramunap Excavator
+Crucible of Worlds
 
 # Bug carte
 

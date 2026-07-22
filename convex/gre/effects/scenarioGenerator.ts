@@ -816,6 +816,20 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // regime).
             req.skip ??= `Op "regenerate" registers a dormant regeneration shield (no same-resolution destroy event) — covered by the Op's interpreter tests`;
             return;
+        case "preventRegeneration":
+            // `preventRegeneration` (CR 701.15c, issue #1283) sets an IMMEDIATE
+            // `cantBeRegeneratedThisTurn` flag on the target creature (unlike
+            // the dormant `regenerate` shield, the outcome is observable in the
+            // same resolution). The generator can assert it on an announced
+            // permanent slot (it seeds a filler creature there and reads the
+            // flag after resolution). A `$source` / `$each` target is not
+            // modelled — skip and let the card's own per-card test cover it.
+            if (!("target" in op.target)) {
+                req.skip ??= `Op "preventRegeneration" targets $source/$each — covered by the card's own per-card test`;
+                return;
+            }
+            recordSlot(req, op.target.target, "permanent");
+            return;
         case "transform":
             // CR 701.27 / 712 (issue #1210) — flips a permanent between its
             // front/back printed characteristic sets. The canned generator's
@@ -1770,6 +1784,31 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     // consumption are covered by the Op's own interpreter tests.
     regenerate() {
         return null;
+    },
+    // `preventRegeneration` (CR 701.15c, issue #1283) — a lock on an announced
+    // permanent slot is observable as the `cantBeRegeneratedThisTurn` flag
+    // flipping undefined→true on the seeded filler creature. `$source`/`$each`
+    // targets are skipped upstream in `analyseOp` (returns null defensively
+    // here).
+    preventRegeneration(rawOp, scenario) {
+        const op = rawOp as Extract<EffectOp, { op: "preventRegeneration" }>;
+        if (!("target" in op.target)) return null;
+        const permId = scenario.targetPermanentIds[op.target.target];
+        return {
+            label: `regen-lock permanent ${permId} (cantBeRegeneratedThisTurn undefined→true)`,
+            check: (post) => {
+                const perm = post.players
+                    .flatMap((p) => p.battlefield)
+                    .find((c) => c.id === permId);
+                if (!perm) {
+                    return { ok: false, detail: "target permanent gone" };
+                }
+                return {
+                    ok: perm.cantBeRegeneratedThisTurn === true,
+                    detail: `cantBeRegeneratedThisTurn ${perm.cantBeRegeneratedThisTurn}, expected true`,
+                };
+            },
+        };
     },
     // `transform` (CR 701.27 / 712, issue #1210) — never reached: `analyseOp`
     // skips every script with a transform Op (a characteristic-set swap has
