@@ -2,7 +2,7 @@
 // split by colour per ADR 0043. The registry's `import * as thb from "./sets/thb"`
 // resolves through thb/index.ts. Modern Scryfall oracle text is authoritative
 // (ADR 0004); generic mana is encoded as `X: n` (e.g. {1} → { X: 1 }).
-import type { CardDefinition, SpellContext } from "../../types";
+import type { CardDefinition } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 
 // Soul-Guide Lantern — {1} Artifact. Graveyard hate plus a sacrifice-cantrip
@@ -38,11 +38,16 @@ export const soulGuideLantern: CardDefinition = {
                 zone: "graveyard",
                 controller: "any",
             },
-            resolve: (ctx: SpellContext) => {
-                const t = ctx.targets[0];
-                if (t?.type !== "graveyard-card" || !t.playerId) return; // CR 608.2b — target gone / no legal target
-                ctx.moveCardById(t.playerId, t.id, "graveyard", "exile");
-            },
+            // Migrated resolve()→effects[] (ADR 0045, PRD #795): the
+            // announced target is a `graveyard-card` TargetSelection, so the
+            // `moveZone` Op's `target`-shape (CR 400.7, issue #839) routes it
+            // through the SAME `ctx.moveCardById(owner, id, "graveyard",
+            // "exile")` call this closure made by hand — no `bind`/`to:
+            // "battlefield"` branch involved, matching the old `t?.type !==
+            // "graveyard-card"` / `!t.playerId` guard's CR 608.2b skip.
+            effects: [
+                { op: "moveZone", target: { target: 0 }, to: "exile" },
+            ],
         }),
     ],
     activatedAbilities: [
@@ -52,13 +57,22 @@ export const soulGuideLantern: CardDefinition = {
                 "{T}, Sacrifice this artifact: Exile each opponent's graveyard.",
             cost: { tap: true, sacrifice: true },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                // CR 406 / 400.7 — each opponent's whole graveyard → exile.
-                for (const pid of ctx.allPlayerIds) {
-                    if (pid === ctx.controller) continue;
-                    ctx.moveZone(pid, "graveyard", "exile");
-                }
-            },
+            // Migrated resolve()→effects[] (ADR 0045, PRD #795): the
+            // `moveZone` Op's THIRD (bulk whole-zone) shape (CR 400.7, issue
+            // #1279) is a thin declarative skin over the exact
+            // `ctx.moveZone(pid, "graveyard", "exile")` call this closure
+            // made. The game is 2-player/solo only (CLAUDE.md — no 3+ player
+            // multiplayer), so the `"opponent"` player selector is the same
+            // single player the original `for (pid of allPlayerIds) if (pid
+            // === controller) continue` loop reached.
+            effects: [
+                {
+                    op: "moveZone",
+                    player: "opponent",
+                    from: "graveyard",
+                    to: "exile",
+                },
+            ],
         },
         {
             id: "soul-guide-lantern-draw",

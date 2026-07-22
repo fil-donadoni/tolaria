@@ -9,7 +9,9 @@ import type { CardDefinition } from "../../types";
 // (creature vs artifact), chosen before the target — the same cross-mode-
 // target gap as Healing Salve (lea/white.ts); uses the legacy `modes`
 // mechanism instead of the DSL `optionChoice` Op (which runs on a single
-// already-announced target set).
+// already-announced target set). Each mode's own body is migrated
+// resolve()→effects[] (ADR 0045): a fixed-damage / destroy shape identical to
+// Lava Spike / Day of Judgment's per-mode Ops, both registered.
 export const abrade: CardDefinition = {
     id: "84319dfb-eaf7-4b98-8c4f-30f5e779591b",
     rarity: "uncommon",
@@ -24,22 +26,14 @@ export const abrade: CardDefinition = {
             label: "Abrade deals 3 damage to target creature.",
             oracleText: "Abrade deals 3 damage to target creature.",
             targetRequirement: { type: "Creature", count: 1 },
-            resolve: (ctx) => {
-                const target = ctx.targets[0];
-                if (!target) return;
-                ctx.dealDamage(target, 3);
-            },
+            effects: [{ op: "dealDamage", amount: 3, to: { target: 0 } }],
         },
         {
             id: "destroy",
             label: "Destroy target artifact.",
             oracleText: "Destroy target artifact.",
             targetRequirement: { type: "Artifact", count: 1 },
-            resolve: (ctx) => {
-                const target = ctx.targets[0];
-                if (!target) return;
-                ctx.destroy(target);
-            },
+            effects: [{ op: "destroy", target: { target: 0 } }],
         },
     ],
 };

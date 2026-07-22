@@ -59,6 +59,13 @@ export const flickerwisp: CardDefinition = {
                 count: 1,
                 excludeSource: true,
             },
+            // NOT DSL-migratable (ADR 0045): the exile leg alone (`exile` Op)
+            // is trivially expressible, but the paired `scheduleDelayedTrigger`
+            // call can't be, per the file-header note above — `moveZone`'s
+            // graveyard-source recovery in the interpreter
+            // (convex/gre/effects/interpreter.ts) has no EXILE-zone branch, so
+            // a delayed body can't read the exiled card back to return it.
+            // Blocked on: an exile-zone recovery branch for `moveZone`.
             resolve: (ctx: SpellContext) => {
                 const target = ctx.targets[0];
                 if (!target) return; // CR 608.2b — no legal target / target left
@@ -81,6 +88,14 @@ export const flickerwisp: CardDefinition = {
             oracleText:
                 "Return that card to the battlefield under its owner's control at the beginning of the next end step.",
             timing: "next-end-step",
+            // NOT DSL-migratable (ADR 0045): old-style `delayedTriggers[]`
+            // (`DelayedTriggerDef`) exposes only a `resolve` closure — there
+            // is no `effects[]` site on this definition shape to convert
+            // (precedent: Merseine, fem/blue.ts). Even if there were, the
+            // return-from-exile leg hits the same `moveZone` exile-recovery
+            // gap noted on the ETB trigger above. Blocked on: an `effects[]`
+            // site on `DelayedTriggerDef` AND an exile-zone recovery branch
+            // for `moveZone`.
             resolve: (ctx, payload) => {
                 if (!payload.cardId || !payload.ownerId) return;
                 ctx.returnToBattlefield(

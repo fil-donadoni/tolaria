@@ -482,6 +482,12 @@ export const delifsCone: CardDefinition = {
             cost: { tap: true, sacrifice: true },
             useStack: true,
             targetRequirement: { type: "Creature", count: 1 },
+            // NOT DSL-migratable (ADR 0045): resolution is an intentional
+            // empty no-op (see the deferral note below) — `validateEffectScript`
+            // rejects `effects: []` and no no-op Op exists (nor should one be
+            // invented for a single card; precedent: Merseine, fem/blue.ts).
+            // Stays resolve() until the armed unblocked-attack rider ships, at
+            // which point the ability gets real Ops.
             resolve: () => {
                 // DIVERGENCE (tracked #974): the "this turn, when target creature you control
                 // attacks and isn't blocked, …" armed unblocked-attack rider is NOT
@@ -508,6 +514,12 @@ export const delifsCube: CardDefinition = {
             cost: { mana: { X: 2 }, tap: true },
             useStack: true,
             targetRequirement: { type: "Creature", count: 1 },
+            // NOT DSL-migratable (ADR 0045): resolution is an intentional
+            // empty no-op (see the deferral note below) — `validateEffectScript`
+            // rejects `effects: []` and no no-op Op exists (nor should one be
+            // invented for a single card; precedent: Merseine, fem/blue.ts).
+            // Stays resolve() until the armed unblocked-attack rider ships, at
+            // which point the ability gets real Ops.
             resolve: () => {
                 // DIVERGENCE (tracked #974): the "this turn, when target creature you control
                 // attacks and isn't blocked, …" armed unblocked-attack rider is NOT
