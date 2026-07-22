@@ -135,13 +135,13 @@ describe("bot resolution-choice full path — search-library (ADR 0016, #162)", 
         // brain's own policy (asserted below) stays the live bot's path.
         const moves = enumerateMoves(state, BOT);
         expect(moves).toHaveLength(2);
+        expect(moves.every((m) => m.kind === "resolution-choice")).toBe(true);
         expect(
-            moves.every((m) => m.kind === "resolution-choice")
-        ).toBe(true);
-        expect(
-            moves.flatMap((m) =>
-                m.kind === "resolution-choice" ? m.cardInstanceIds : []
-            ).sort()
+            moves
+                .flatMap((m) =>
+                    m.kind === "resolution-choice" ? m.cardInstanceIds : []
+                )
+                .sort()
         ).toEqual(["bot-lib-bears", "bot-lib-land"]);
         expect(decidingPlayer(state)).toBe(BOT);
     });

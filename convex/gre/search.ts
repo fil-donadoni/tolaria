@@ -1523,7 +1523,8 @@ export function selectRootMove(
             const bestGrant = grants.reduce((m, e) =>
                 credited(e) > credited(m) ? e : m
             );
-            if (credited(bestGrant) > credited(best)) return rootMoveFor(bestGrant, rootState);
+            if (credited(bestGrant) > credited(best))
+                return rootMoveFor(bestGrant, rootState);
         }
     }
 

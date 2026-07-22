@@ -561,10 +561,7 @@ describe("option-pick playout: searchWithTrace picks a sensible mode (issue #142
             },
         ]);
         const state = makeState({
-            players: [
-                makePlayer("p1"),
-                makePlayer("p2", { life: 3 }),
-            ],
+            players: [makePlayer("p1"), makePlayer("p2", { life: 3 })],
             priorityPlayerId: "p1",
             activePlayerId: "p1",
         });
