@@ -8,7 +8,6 @@ Bowmaster
 The one ring
 Emrakul
 Craterhoof
-Ocelot Pride
 Jacked Rabbit
 Gut
 Laelia
@@ -35,9 +34,6 @@ Crucible of Worlds
 ## Carte rotte
 
 - Enduring renewal non mostra l'intero oracle text in card-preview, e anche Icetill Explorer. Cerca altri casi simili e risolvi alla radice.
-- La seconda abilità di currency converter non mi mostra le carte esiliate con lei all'interno del dialog di scelta, non posso selezionare niente.
-- Earthbend: manca la parte di abilità che ritorna le terre animate in gioco quando muoiono. Non è scritto nell'oracle text della card-preview e non avviene nel gameplay.
-- Le creature distrutte dall'ultimate di Sorin, Lord of Innistrad non tornano sul battlefield, rimangono nel cimitero.
 - Il may cast di Malcolm è solo nel momento della risoluzione dell'abilità, non nel resto del turno. verifica sul CR./
 
 ## UX da migliorare

@@ -157,7 +157,8 @@ const EQUIP_DEF = {
         {
             id: "ls-exile",
             useStack: true,
-            oracleText: "{W}, Exile a card from a graveyard: Put a +1/+1 counter.",
+            oracleText:
+                "{W}, Exile a card from a graveyard: Put a +1/+1 counter.",
             cost: { mana: { W: 1 } },
         },
     ],
