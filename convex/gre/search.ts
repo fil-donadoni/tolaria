@@ -91,7 +91,11 @@ import {
     selectOpeningCandidate,
     type ChoiceCandidate,
 } from "./ai/choiceCandidates";
-import { applyLandEntrySubmit, applyMayPaySubmit } from "./pendingChoiceSubmit";
+import {
+    applyLandEntrySubmit,
+    applyMayPaySubmit,
+    applyPendingChoiceSubmit,
+} from "./pendingChoiceSubmit";
 
 /** Search budget: stop at `iterations` tree iterations, or once `timeMs` of
  *  wall-clock has elapsed (whichever comes first). At least one must be set —
@@ -441,6 +445,28 @@ export function applyMoveInSearch(
             // (again no stack item); mirrors the `submitDrawReplacementPay`
             // mutation, which calls the same resolver + SBA check.
             finalizeDrawReplacementPay(state, move.accept);
+            drainAutoPasses(state);
+            checkStateBasedActions(state);
+            return;
+        }
+
+        case "resolution-choice": {
+            // Generic (non-yes/no) choice-node answer — currently `option-pick`
+            // (CR 700.2 / 601.2b modal spells, CR 614.12 "as it enters, choose
+            // …" body picks, issue #1428). Applied through the SAME validated
+            // resolver the `submitResolutionChoice` mutation drives
+            // (`applyPendingChoiceSubmit`), so the search can never diverge from
+            // the authoritative path. It already resumes the suspended
+            // resolution (`resolveTopOfStack` when the queue empties) and hands
+            // priority to whoever owes next; the extra drain/SBA calls below
+            // mirror the yes/no-family cases for safety.
+            applyPendingChoiceSubmit(state, {
+                playerId,
+                stackItemId: move.stackItemId,
+                step: move.step,
+                choiceId: move.choiceId,
+                cardInstanceIds: move.cardInstanceIds,
+            });
             drainAutoPasses(state);
             checkStateBasedActions(state);
             return;
