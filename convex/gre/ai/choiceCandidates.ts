@@ -17,8 +17,11 @@
 //     identity and choice semantics — never from a per-world instance id. ISMCTS
 //     re-determinizes the hidden world every iteration, so an instance-id key
 //     would split one decision's statistics across worlds and the node would
-//     never accumulate. The search applies the CURRENT world's move for the
-//     selected key (see `search.ts`), so the id inside the move is always fresh.
+//     never accumulate. The search always applies the CURRENT world's move for
+//     the selected key, so the id inside the move is always fresh — on descent
+//     (`iterate`) AND at the final root pick (`rootMoveFor`/`selectRootMove`),
+//     which re-resolves the winning key against the ROOT world before returning
+//     it. Both are in `search.ts`.
 //  3. BOUNDED OPENING. `choiceCandidates` returns the TOP-K by prior. There is
 //     NO progressive widening (it barely fires at 400–1200 iterations, PRD
 //     #1423); a pruned top-K is the containment mechanism.
@@ -446,6 +449,14 @@ const searchLibraryCandidates: ChoiceCandidateGenerator = (state, choice) => {
 
     const take = Math.min(getPendingChoiceMax(choice.count), pool.length);
     if (take <= 0) return out;
+    // The pool can be SMALLER than the choice's minimum in a determinized world:
+    // `determinize` re-deals the opponent's hidden zones, so an opponent-zone
+    // search ("search target opponent's library for two cards") may see fewer
+    // than `min` eligible cards in THIS world. A short pick is an illegal
+    // submission — `applyPendingChoiceSubmit` throws ("Select at least N cards")
+    // — and the throw would escape the search. Emit no pick at all instead (the
+    // "fail to find" branch above already stands when CR 701.19c admits it).
+    if (take < getPendingChoiceMin(choice.count)) return out;
 
     // Rank by worth, breaking ties on stable identity so the ordering — and
     // therefore the emitted candidate set — is world-order independent.

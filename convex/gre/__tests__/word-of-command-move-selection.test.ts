@@ -117,6 +117,7 @@ function rootOf(
         const visits = 100;
         children.set(`${e.move.kind}:${i}`, {
             move: e.move,
+            key: `${e.move.kind}:${i}`,
             mover: BOT,
             node: { children: new Map() },
             visits,

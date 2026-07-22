@@ -157,9 +157,11 @@ export function useVsAiDriver(
         // Brain-resolved windows skip the Worker entirely and realise straight
         // through the executor (mirroring the immediate-pass short-circuit):
         // mulligan keep / mull / bottom-N (issue #145, ISMCTS mulligan eval out
-        // of scope) and any mid-resolution interactive choice default (ADR 0016 —
-        // the GRE surfaces no move while a choice is pending, so the search can't
-        // make it). The set of executor-realised kinds is derived from the
+        // of scope) and any mid-resolution interactive choice default (ADR 0016).
+        // Since PRD #1423 / issue #1425 a choice kind WITH a registered candidate
+        // generator is an in-tree search node instead (`decidingPlayer` /
+        // `enumerateMoves` surface it), so this path is the fallback for the
+        // kinds that have none yet. The set of executor-realised kinds is derived from the
         // compile-time-exhaustive `botActionRealisation` (NOT a hand-maintained
         // list): a new choice mechanic that adds a BotAction kind is a build
         // error until classified, so it can never silently fall through to the

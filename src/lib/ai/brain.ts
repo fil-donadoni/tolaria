@@ -9,13 +9,18 @@
 // (`brain.worker.ts`) runs off the UI thread. Both layers are pure and tested
 // without a browser; this file is the gate only.
 //
-// Mid-resolution interactive choices (ADR 0016) are the exception that, like the
-// mulligan heuristic, is resolved RIGHT HERE on the main thread rather than in
-// the search: while `pendingChoices` is non-empty the GRE deliberately surfaces
-// no move (`enumerateMoves` → [], `decidingPlayer` → null), so the bot would
-// freeze. `chooseResolution` gives the bot a weak-but-legal default for every
-// `PendingChoiceKind` so the game always advances; smart selection is deferred to
-// the evaluation work (ADR 0016).
+// Mid-resolution interactive choices (ADR 0016) are resolved RIGHT HERE on the
+// main thread rather than in the search, like the mulligan heuristic.
+// `chooseResolution` gives the bot a weak-but-legal default for every
+// `PendingChoiceKind`, so the game always advances whatever the choice.
+//
+// That default is no longer the ONLY answer available. Since PRD #1423 / issue
+// #1425 a pending choice with a registered candidate generator IS an in-tree
+// ISMCTS decision node: `decidingPlayer` names its owner and `enumerateMoves`
+// surfaces the candidate submissions, so the search picks those kinds properly.
+// The heuristic here remains the fallback for every kind with no generator yet
+// (`hasChoiceCandidateGenerator` → false) — additive by design, so a kind
+// gaining a generator simply stops needing the default.
 
 import type { PendingChoiceKind } from "@convex/gre";
 import type { Color } from "@convex/cards/types";

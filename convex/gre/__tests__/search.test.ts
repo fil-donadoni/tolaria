@@ -433,6 +433,7 @@ describe("selectRootMove — land-drop tie-break (issue #206)", () => {
             const visits = e.visits ?? 100;
             children.set(`${e.move.kind}:${i}`, {
                 move: e.move,
+                key: `${e.move.kind}:${i}`,
                 mover: "p1",
                 node: { children: new Map() },
                 visits,
@@ -563,6 +564,7 @@ describe("selectRootMove — free mana source tie-break (issue #244)", () => {
             const visits = 100;
             children.set(`${e.move.kind}:${i}`, {
                 move: e.move,
+                key: `${e.move.kind}:${i}`,
                 mover: "p1",
                 node: { children: new Map() },
                 visits,
@@ -672,6 +674,7 @@ describe("selectRootMove — mana dork tie-break", () => {
             const visits = 100;
             children.set(`${e.move.kind}:${i}`, {
                 move: e.move,
+                key: `${e.move.kind}:${i}`,
                 mover: "p1",
                 node: { children: new Map() },
                 visits,
@@ -772,6 +775,7 @@ describe("selectRootMove — extra-turn structural credit (issue #244)", () => {
         edges.forEach((e, i) => {
             children.set(`${e.move.kind}:${i}`, {
                 move: e.move,
+                key: `${e.move.kind}:${i}`,
                 mover: "p1",
                 node: { children: new Map() },
                 visits: e.visits,
@@ -1400,6 +1404,7 @@ describe("selectRootMove — self-harm removal tie-break (issue #365)", () => {
             const visits = 100;
             children.set(`${e.move.kind}:${i}`, {
                 move: e.move,
+                key: `${e.move.kind}:${i}`,
                 mover: "p1",
                 node: { children: new Map() },
                 visits,

@@ -17,8 +17,16 @@ import { registerTokenDefinition } from "../../cards";
 const SAC_ONE_CREATURE: MayPayCost = {
     sacrifice: { count: 1, filter: { types: ["Creature"] } },
 };
-import { decidingPlayer, applyMoveInSearch, searchWithTrace } from "../search";
-import { enumerateMoves } from "../moves";
+import {
+    decidingPlayer,
+    applyMoveInSearch,
+    searchWithTrace,
+    selectRootMove,
+    type Edge,
+    type Node,
+} from "../search";
+import { enumerateMoves, type Move } from "../moves";
+import { applyPendingChoiceSubmit } from "../pendingChoiceSubmit";
 import {
     CHOICE_CANDIDATE_GENERATORS,
     CHOICE_TOP_K,
@@ -692,6 +700,18 @@ describe("search-library generator (CR 701.19 — fetchlands / tutors, issue #14
             return id;
         });
         const state = stateWithLibrarySearch(bulk);
+        // Assert against the GENERATOR, not `choiceCandidates`: the latter
+        // `slice(0, k)`s ANY generator's output, so a length assertion on it
+        // holds even when the generator enumerates the whole library. Only the
+        // raw generator output can fail — this is the assertion that pins the
+        // "bounded, never the full matching library" AC (issue #1429).
+        const raw = CHOICE_CANDIDATE_GENERATORS["search-library"]!(
+            state,
+            state.pendingChoices![0]
+        );
+        expect(raw.length).toBeLessThanOrEqual(CHOICE_TOP_K);
+        expect(raw.length).toBeLessThan(bulk.length);
+
         const cands = choiceCandidates(state, state.pendingChoices![0]);
         expect(cands.length).toBeLessThanOrEqual(CHOICE_TOP_K);
         // The pruning is POLICY-driven, not arbitrary: the best body survives.
@@ -867,5 +887,89 @@ describe("search-library playout: searchWithTrace fetches a sensible target (iss
         expect(move?.kind).toBe("resolution-choice");
         if (move?.kind !== "resolution-choice") throw new Error("kind");
         expect(move.cardInstanceIds).toEqual(["lib-wurm"]);
+    });
+});
+
+// Two determinization-safety guards on the `search-library` node. Both concern
+// the SAME structural fact: an edge is keyed by stable identity, but the cards
+// behind that identity live in a HIDDEN zone that `determinize` re-deals every
+// iteration — so neither the pool size nor the instance ids captured when the
+// edge was opened may be trusted in another world (PRD #1423, issue #1429).
+describe("search-library determinization safety (issue #1429)", () => {
+    it("emits NO pick when this world's pool is smaller than the choice minimum", () => {
+        // "Search target opponent's library for two cards": `determinize`
+        // re-deals the opponent's hand↔library, so a world can show fewer than
+        // `min` eligible cards. A short submission is ILLEGAL, and the throw
+        // would escape `iterate` and kill the whole search — so the generator
+        // must offer nothing rather than an under-count pick.
+        const state = stateWithLibrarySearch([grizzlyBears.id], {
+            count: { min: 2, max: 2 },
+        });
+        const head = state.pendingChoices![0];
+        expect(
+            CHOICE_CANDIDATE_GENERATORS["search-library"]!(state, head)
+        ).toEqual([]);
+        expect(choiceCandidates(state, head)).toEqual([]);
+    });
+
+    it("pins WHY: the real resolver rejects an under-count submission", () => {
+        const state = stateWithLibrarySearch([grizzlyBears.id], {
+            count: { min: 2, max: 2 },
+        });
+        expect(() =>
+            applyPendingChoiceSubmit(state, {
+                stackItemId: "stack-1",
+                step: 0,
+                choiceId: "c1",
+                playerId: "p1",
+                cardInstanceIds: ["lib-0"],
+            })
+        ).toThrow(/Select at least 2 cards/);
+    });
+
+    it("selectRootMove re-resolves the winning edge against the ROOT world", () => {
+        // The root world (the REAL state the move is submitted against).
+        const rootState = stateWithLibrarySearch(
+            [grizzlyBears.id, crawWurm.id],
+            {},
+            { idPrefix: "root" }
+        );
+        // The edge as it was OPENED, in a different determinization: same stable
+        // key, instance ids that do not exist in the root world at all (for an
+        // opponent-zone search those cards sit in the opponent's HAND there).
+        const staleMove: Move = {
+            kind: "resolution-choice",
+            stackItemId: "stack-1",
+            step: 0,
+            choiceId: "c1",
+            cardInstanceIds: ["ghost-7"],
+        };
+        const edge: Edge = {
+            move: staleMove,
+            key: "search-library:Craw Wurm",
+            mover: "p1",
+            node: { children: new Map() },
+            visits: 100,
+            totalReward: 60,
+            totalMargin: 0,
+            avail: 100,
+        };
+        const root: Node = { children: new Map([[edge.key, edge]]) };
+
+        const chosen = selectRootMove(
+            root,
+            enumerateMoves(rootState, "p1"),
+            rootState,
+            "p1"
+        );
+        // The ROOT world's Craw Wurm, not the stale id.
+        expect(chosen).toMatchObject({ cardInstanceIds: ["root-1"] });
+        // …and every id it names really is in the root world's searched zone,
+        // which is what makes the submission legal.
+        if (chosen.kind !== "resolution-choice") throw new Error("kind");
+        const libraryIds = rootState.players[0].library.map((c) => c.id);
+        for (const id of chosen.cardInstanceIds ?? []) {
+            expect(libraryIds).toContain(id);
+        }
     });
 });
