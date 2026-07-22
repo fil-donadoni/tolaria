@@ -1,14 +1,21 @@
-// cardValue DSL-precedence + wire-format tests (PRD #1423, issue #1426). The
-// semantic layer wires the per-Op value model into `cardValue`:
+// cardValue DSL-precedence + wire-format tests (PRD #1423, issue #1426; the
+// `aiEffects` shadow-script precedence, issue #1431). The semantic layer wires
+// the per-Op value model into `cardValue`. For a NON-CREATURE (the spell-script
+// chain issue #1431 targets):
 //
-//     explicit `aiValue`  >  DSL-derived (Effect Script)  >  `base + MV`
+//     real `effects[]` / `aiEffects` shadow script  >  `aiValue`  >  `base + MV`
 //
-// so a burn / removal spell — whose Effect Script the value model reads — now
-// scores far above a do-nothing spell of the same mana value. The valuation is
-// read CLIENT-SIDE (`src/lib/ai/bot-view.ts` → `cardValueById(card.card.id)`),
-// so the change must survive the wire projection: the DSL value is derived from
-// the REGISTRY definition keyed by the id that survives `projectPublicState`,
-// never off the fat `card.card` blob the projection strips.
+// (a real script or its shadow, folded together into the caller-computed
+// `dslSpellValue`, wins outright over the `aiValue` scalar override — see
+// `latentValue`'s doc comment for the full precedence including the CREATURE
+// branch, where `aiValue` still overrides the whole computed body+ability
+// worth unconditionally). A burn / removal spell — whose Effect Script the
+// value model reads — scores far above a do-nothing spell of the same mana
+// value. The valuation is read CLIENT-SIDE (`src/lib/ai/bot-view.ts` →
+// `cardValueById(card.card.id)`), so the change must survive the wire
+// projection: the DSL value is derived from the REGISTRY definition keyed by
+// the id that survives `projectPublicState`, never off the fat `card.card`
+// blob the projection strips.
 
 import { describe, it, expect } from "vitest";
 import {
@@ -18,6 +25,8 @@ import {
 } from "../../cards/__tests__/setup";
 import { cardValueById, latentValue } from "../cardValue";
 import { projectPublicState } from "../../gameProjections";
+import { dslSpellScriptValue } from "../ai/cardScriptValue";
+import type { CardDefinition, EffectOp } from "../../cards/types";
 
 // Real, registered cards of equal mana value (probed from the catalogue):
 //   Lightning Bolt — DSL `dealDamage 3` burn, MV 1.
@@ -49,10 +58,10 @@ describe("cardValue DSL precedence (PRD #1423, issue #1426)", () => {
             staticAbilities: [] as string[],
         };
 
-        it("explicit aiValue wins over a DSL-derived value", () => {
+        it("a DSL-derived value wins over aiValue (issue #1431 precedence: effects[]/aiEffects > aiValue)", () => {
             expect(
                 latentValue({ ...base, aiValue: 7, dslSpellValue: 500 })
-            ).toBe(7);
+            ).toBe(500);
         });
 
         it("DSL-derived value beats the base+MV fallback when higher", () => {
@@ -66,7 +75,11 @@ describe("cardValue DSL precedence (PRD #1423, issue #1426)", () => {
             expect(latentValue({ ...base, dslSpellValue: 5 })).toBe(38);
         });
 
-        it("no DSL script → the base+MV fallback (unchanged behavior)", () => {
+        it("no DSL script → the aiValue scalar override (issue #1431, the 'no honest shadow script' escape hatch)", () => {
+            expect(latentValue({ ...base, aiValue: 99 })).toBe(99);
+        });
+
+        it("no DSL script and no aiValue → the base+MV fallback (unchanged behavior)", () => {
             expect(latentValue(base)).toBe(38);
         });
 
@@ -88,6 +101,100 @@ describe("cardValue DSL precedence (PRD #1423, issue #1426)", () => {
             });
             expect(withAbility).toBe(body + 50);
         });
+
+        it("a creature's aiValue still overrides its WHOLE computed worth outright (unchanged, unaffected by issue #1431's non-creature reordering)", () => {
+            expect(
+                latentValue({
+                    isCreature: true,
+                    power: 2,
+                    toughness: 2,
+                    manaValue: 2,
+                    staticAbilities: [],
+                    dslAbilityValue: 500,
+                    aiValue: 7,
+                })
+            ).toBe(7);
+        });
+    });
+});
+
+// --- aiEffects shadow-script mechanism (issue #1431) ------------------------
+// A `resolve()` card given an `aiEffects` sketch gets a sensible derived
+// cardValue: the SAME `OP_VALUERS` walker values the sketch identically to
+// how it would value an equivalent real `effects[]` script, and that value
+// flows through `dslSpellScriptValue` → `latentValue` exactly like a real
+// script would (never executed — `resolve` still runs at resolution time).
+describe("aiEffects shadow-script mechanism (issue #1431)", () => {
+    it("a resolve()-only card's aiEffects sketch yields the same value a real effects[] script would", () => {
+        const sketch: EffectOp[] = [
+            { op: "dealDamage", amount: 3, to: { player: "opponent" } },
+        ];
+        const real: EffectOp[] = [
+            { op: "dealDamage", amount: 3, to: { player: "opponent" } },
+        ];
+        const shadowValue = dslSpellScriptValue({
+            id: "shadow-test",
+            name: "Shadow Test",
+            rarity: "common",
+            types: ["Instant"],
+            resolve: () => {},
+            aiEffects: sketch,
+        } as CardDefinition);
+        const realValue = dslSpellScriptValue({
+            id: "real-test",
+            name: "Real Test",
+            rarity: "common",
+            types: ["Instant"],
+            effects: real,
+        } as CardDefinition);
+        expect(shadowValue).toBeDefined();
+        expect(shadowValue).toBe(realValue);
+    });
+
+    it("a resolve()-only card with a burn aiEffects sketch scores far above a do-nothing base+MV fallback", () => {
+        const sketchValue = dslSpellScriptValue({
+            id: "shadow-burn-test",
+            name: "Shadow Burn Test",
+            rarity: "common",
+            types: ["Instant"],
+            manaCost: { generic: 1 },
+            resolve: () => {},
+            aiEffects: [
+                { op: "dealDamage", amount: 3, to: { player: "opponent" } },
+            ],
+        } as CardDefinition);
+        expect(sketchValue).toBeDefined();
+        const cardValue = latentValue({
+            isCreature: false,
+            power: 0,
+            toughness: 0,
+            manaValue: 1,
+            staticAbilities: [],
+            dslSpellValue: sketchValue,
+        });
+        // base+MV fallback for MV1 = 8 + 1×10 = 18.
+        expect(cardValue).toBeGreaterThan(18 * 2);
+    });
+
+    it("real effects[] wins over aiEffects when a card carries both (defensive precedence check)", () => {
+        const value = dslSpellScriptValue({
+            id: "both-test",
+            name: "Both Test",
+            rarity: "common",
+            types: ["Instant"],
+            effects: [{ op: "gainLife", amount: 1, player: "controller" }],
+            aiEffects: [
+                { op: "dealDamage", amount: 20, to: { player: "opponent" } },
+            ],
+        } as CardDefinition);
+        const realOnly = dslSpellScriptValue({
+            id: "real-only-test",
+            name: "Real Only Test",
+            rarity: "common",
+            types: ["Instant"],
+            effects: [{ op: "gainLife", amount: 1, player: "controller" }],
+        } as CardDefinition);
+        expect(value).toBe(realOnly);
     });
 });
 

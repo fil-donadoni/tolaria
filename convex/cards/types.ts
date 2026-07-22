@@ -886,6 +886,13 @@ export interface ActivatedAbility {
      *  sweep. Only meaningful for `useStack: true` abilities (a mana ability's
      *  `effect` is a separate, stackless site). */
     effects?: EffectOp[];
+    /** AI-only shadow Effect Script for a `resolve()`/`resolveSteps` activated
+     *  ability (PRD #1423, issue #1431) — see `CardDefinition.aiEffects` for
+     *  the full contract (never executed, valued by `OP_VALUERS` only). Not
+     *  covered by the card-level catalogue guard in this ticket (scoped to
+     *  spell-site `resolve()`, issue #1431) — provided so the same shadow-
+     *  script mechanism is available at this site too. */
+    aiEffects?: EffectOp[];
     /** Multi-step resolve for stack abilities that gather player choices
      *  mid-resolution (CR 608.2, 101.4). Mirrors `CardDefinition.resolveSteps`:
      *  the engine runs steps in order; a step that calls
@@ -6196,6 +6203,13 @@ export interface TriggeredAbility {
      *  ability — combining them throws at the `getAbilityEffectFn` seam and
      *  fails the catalogue-wide validation sweep. */
     effects?: EffectOp[];
+    /** AI-only shadow Effect Script for a `resolve()`/`resolveSteps` triggered
+     *  ability (PRD #1423, issue #1431) — see `CardDefinition.aiEffects` for
+     *  the full contract (never executed, valued by `OP_VALUERS` only). Not
+     *  covered by the card-level catalogue guard in this ticket (scoped to
+     *  spell-site `resolve()`, issue #1431) — provided so the same shadow-
+     *  script mechanism is available at this site too. */
+    aiEffects?: EffectOp[];
     /** Multi-step resolution (CR 608.2), mirror of `CardDefinition.resolveSteps`
      *  and `ActivatedAbility.resolveSteps`. The engine runs the step closures in
      *  order, checkpointing `resolutionStep` so a `requestChoice` suspension
@@ -9406,6 +9420,26 @@ export interface CardDefinition {
      *  sites (activated/triggered/modes) adopt Effect Scripts in follow-up
      *  slices. */
     effects?: EffectOp[];
+    /** AI-only shadow Effect Script (PRD #1423, issue #1431) — a `resolve()`/
+     *  `resolveSteps` card's effect SKETCHED as an `EffectOp[]` purely for
+     *  valuation: the SAME `OP_VALUERS` walker that scores a real `effects[]`
+     *  script (`convex/gre/ai/opValuers.ts`) walks this one too, yielding the
+     *  identical `{ points, tags }` shape a real script would — but it is
+     *  NEVER executed (`getAbilityEffectFn`/the interpreter never reads this
+     *  field; only the context-free valuer does). Precedence (highest first):
+     *  a real `effects[]` script, then this `aiEffects` sketch, then the
+     *  scalar `aiValue` override, then the `base + MV` fallback
+     *  (`convex/gre/cardValue.ts` `latentValue`). Mutually exclusive in
+     *  PRACTICE with `effects` (a card with a real script doesn't need a
+     *  shadow one) though not enforced structurally — the catalogue guard
+     *  (`convex/cards/__tests__/aiEffectsGuard.test.ts`) requires every
+     *  `resolve()`/`resolveSteps` card with no `effects[]` to carry either
+     *  this field or `aiValue`, so the bot's card-quality signal doesn't stay
+     *  blind to the ever-growing `resolve()` residue during the
+     *  resolve()→effects[] migration. Backfilling the CURRENT residue with
+     *  real sketches is issue #1436 — this field only stops the population
+     *  from GROWING. */
+    aiEffects?: EffectOp[];
     /** Declarative marker: this spell's resolution destroys every land in play
      *  (CR 701.7, e.g. Armageddon's `ctx.destroyAll("Land")`). Purely a
      *  classification hint for effects that need to reason about a spell's

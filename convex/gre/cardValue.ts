@@ -47,17 +47,27 @@ const NONCREATURE_BASE = 8; // base latent worth of a non-creature card (MV 0)
 const W_NC_MV = 10; // per mana value, non-creature latent worth
 
 /** Latent worth from a card's raw characteristics (ADR 0018), with the
- *  DSL-derived semantic layer wired in (PRD #1423, issue #1426). Precedence,
- *  highest first:
+ *  DSL-derived semantic layer wired in (PRD #1423, issue #1426), and the
+ *  `aiEffects` shadow-script mechanism (issue #1431). Precedence, highest
+ *  first:
  *
- *    1. an explicit `aiValue` override — wins outright (the Forge `SVar`
- *       analog, correction-on-divergence);
- *    2. the DSL-derived value from the card's Effect Script(s) — a CREATURE is
- *       its discounted body PLUS its activated/triggered ability-script value
- *       (`dslAbilityValue`), a NON-CREATURE is its spell-script value
- *       (`dslSpellValue`, when it has an `effects[]` script);
- *    3. the `base + MV` fallback — a creature's discounted body, a
- *       non-creature's `NONCREATURE_BASE + MV × W_NC_MV`.
+ *    1. CREATURE: an explicit `aiValue` override wins outright (the Forge
+ *       `SVar` analog, correction-on-divergence) over the whole computed
+ *       worth (body + ability scripts) — a board-presence axis this ticket
+ *       leaves untouched;
+ *    2. CREATURE (no override): its discounted body PLUS its
+ *       activated/triggered ability-script value (`dslAbilityValue`) — each
+ *       ability script is itself a real `effects[]` if present, else its
+ *       `aiEffects` shadow script (folded in by the caller, issue #1431);
+ *    3. NON-CREATURE: its spell-script value (`dslSpellValue` — a real
+ *       `effects[]` if present, else its `aiEffects` shadow script, again
+ *       folded in by the caller) when it has one, floored at `base + MV`;
+ *    4. NON-CREATURE (no script): the `aiValue` scalar override, when set;
+ *    5. the `base + MV` fallback — `NONCREATURE_BASE + MV × W_NC_MV`.
+ *
+ *  So for the non-creature spell-script chain this ticket targets, the order
+ *  is exactly: real `effects[]` → `aiEffects` shadow script → `aiValue`
+ *  scalar → `base + MV` (issue #1431).
  *
  *  The DSL pieces are precomputed by the caller (which holds the
  *  `CardDefinition`) and passed in, so this core stays free of any card-def /
@@ -71,15 +81,18 @@ export function latentValue(chars: {
     manaValue: number;
     staticAbilities: readonly string[];
     aiValue?: number;
-    /** DSL spell-script value (a non-creature's `effects[]`); undefined when
-     *  the card has no spell script. */
+    /** DSL spell-script value (a non-creature's `effects[]`/`aiEffects`);
+     *  undefined when the card has no spell script. */
     dslSpellValue?: number;
-    /** DSL activated/triggered ability-script value (a creature's abilities);
-     *  undefined/0 when it has none. */
+    /** DSL activated/triggered ability-script value (a creature's
+     *  `effects[]`/`aiEffects` abilities); undefined/0 when it has none. */
     dslAbilityValue?: number;
 }): number {
-    if (chars.aiValue !== undefined) return chars.aiValue;
     if (chars.isCreature) {
+        // A creature's `aiValue` overrides its WHOLE computed worth (body +
+        // ability scripts) outright — unaffected by the effects[]→aiEffects
+        // chain below, which targets the spell-script (non-creature) path.
+        if (chars.aiValue !== undefined) return chars.aiValue;
         const body =
             LATENT_DISCOUNT *
             creatureValueRaw(
@@ -90,15 +103,19 @@ export function latentValue(chars: {
             );
         return body + (chars.dslAbilityValue ?? 0);
     }
-    // A non-creature: its DSL spell-script value if it has one, floored at the
-    // `base + MV` fallback. The floor makes the semantic layer a strict UPLIFT
-    // — a card whose script the current Op vocabulary can't yet value fully (a
+    // A non-creature: its DSL spell-script value (real `effects[]`, else its
+    // `aiEffects` shadow script) if it has one, floored at the `base + MV`
+    // fallback. The floor makes the semantic layer a strict UPLIFT — a card
+    // whose script the current Op vocabulary can't yet value fully (a
     // backfilled Op, #1430) never drops BELOW its mana-value worth; a burn /
-    // removal spell rises far above it. `aiValue` still overrides both.
+    // removal spell rises far above it. With NO script at all, the `aiValue`
+    // scalar override (issue #1431's "no honest shadow script" escape hatch)
+    // applies before the blind fallback.
     const fallback = NONCREATURE_BASE + chars.manaValue * W_NC_MV;
     if (chars.dslSpellValue !== undefined) {
         return Math.max(fallback, chars.dslSpellValue);
     }
+    if (chars.aiValue !== undefined) return chars.aiValue;
     return fallback;
 }
 
