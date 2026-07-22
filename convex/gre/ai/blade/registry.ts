@@ -82,3 +82,13 @@ export function bladeScenariosForTier(
 ): BladeScenario[] {
     return BLADE_SCENARIOS.filter((s) => s.tier === tier);
 }
+
+/**
+ * Look up one entry by its exact `label` (issue #1432 — the Debug panel's
+ * read-only blade loader resolves the entry server-side from a client-
+ * supplied label, so the registry — not the client — is the sole source of
+ * the `spec` that gets applied to a board).
+ */
+export function findBladeScenario(label: string): BladeScenario | undefined {
+    return BLADE_SCENARIOS.find((s) => s.label === label);
+}
