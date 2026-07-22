@@ -144,14 +144,6 @@ const DRAW_PRIMITIVE_ALLOWLIST: readonly AllowlistEntry[] = [
         issue: 1388,
     },
     {
-        file: "ncc/colorless.ts",
-        count: 1,
-        cards: "Currency Converter ({2},{T}: Draw a card, then discard a card)",
-        reason: 'DSL-expressible in principle (draw -> choice -> discard), but the per-card test pins the interpreter-internal choice id "currency-converter-discard" -- migrating would force a test edit (same shape as Bazaar of Baghdad).',
-        classification: "planned-migratable",
-        issue: 791,
-    },
-    {
         file: "nph/blue.ts",
         count: 1,
         cards: "Gitaxian Probe",
