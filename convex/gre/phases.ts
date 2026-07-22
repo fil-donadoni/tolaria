@@ -3282,6 +3282,17 @@ export function drainAutoPasses(state: GameState): void {
             state.passCount = 0;
         } else if (state.passCount >= 2 && state.stack.length === 0) {
             advancePhase(state);
+            // An auto-phase entry may have suspended on a pending choice (CR
+            // 514.1 CLEANUP discard, CR 502.1 Winter-Orb untap-pick). advancePhase
+            // does NOT recurse past it, but advanceTurn never ran, so
+            // autoPassPlayers is still set — without this guard the loop would
+            // call advancePhase again and skip the suspended step, landing in the
+            // next turn's UNTAP with the discard prompt still owed. Halt here and
+            // route priority to the chooser (mirrors the resolveTopOfStack guard).
+            if ((state.pendingChoices?.length ?? 0) > 0) {
+                state.priorityPlayerId = state.pendingChoices![0].playerId;
+                return;
+            }
             // advanceTurn clears autoPassPlayers, so the loop will exit naturally
         } else {
             state.priorityPlayerId = getOpponentId(

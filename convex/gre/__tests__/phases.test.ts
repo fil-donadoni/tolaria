@@ -1373,6 +1373,33 @@ describe("drainAutoPasses", () => {
         expect(state.phase).toBe("UPKEEP");
     });
 
+    // CR 514.1 — the active player ends the turn via "Pass Turn" (auto-pass)
+    // while holding more than their maximum hand size. The cleanup discard must
+    // HALT the auto-pass drain in CLEANUP and hand the active player priority to
+    // discard — not fast-forward into the opponent's UNTAP while the discard is
+    // still owed (which surfaced as a discard prompt labelled "opponent's untap"
+    // instead of "your cleanup").
+    it("halts at the CLEANUP discard instead of skipping to the next turn", () => {
+        const hand = Array.from({ length: 8 }, () =>
+            makeCard({ zone: "hand" })
+        );
+        const state = makeGameState({
+            phase: "END_STEP",
+            turn: 1,
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            passCount: 0,
+            autoPassPlayers: ["p1", "p2"],
+            players: [makePlayer({ id: "p1", hand }), makePlayer({ id: "p2" })],
+        });
+        drainAutoPasses(state);
+        // Suspended in CLEANUP on the active player's discard, still their turn.
+        expect(state.phase).toBe("CLEANUP");
+        expect(state.turn).toBe(1);
+        expect(state.priorityPlayerId).toBe("p1");
+        expect(state.pendingChoices?.[0]?.kind).toBe("discard-hand");
+    });
+
     it("only one player auto-passing: advances when both pass meet", () => {
         // p1 has priority, p2 is auto-passing. p1 calls passPriority manually,
         // then drain should auto-pass for p2 → both passed → advance phase

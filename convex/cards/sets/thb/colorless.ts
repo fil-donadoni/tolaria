@@ -45,9 +45,7 @@ export const soulGuideLantern: CardDefinition = {
             // "exile")` call this closure made by hand — no `bind`/`to:
             // "battlefield"` branch involved, matching the old `t?.type !==
             // "graveyard-card"` / `!t.playerId` guard's CR 608.2b skip.
-            effects: [
-                { op: "moveZone", target: { target: 0 }, to: "exile" },
-            ],
+            effects: [{ op: "moveZone", target: { target: 0 }, to: "exile" }],
         }),
     ],
     activatedAbilities: [

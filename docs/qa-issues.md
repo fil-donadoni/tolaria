@@ -52,7 +52,6 @@ Fable of the mirror-breaker
 
 # Bug gameplay
 
-- Non so se sia un problema di UI o di fasi di gioco, ma mi chiede di scartare per hand size quando c'è scritto untap dell'avversario invece che nella mia cleanup
 - nello scheam database c'è game_states, unica tabella snake_case. mettila in camelCase come le altre
 
 # Nuova UI
