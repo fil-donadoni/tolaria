@@ -17216,3 +17216,76 @@ describe("Effect Script Op: skipNextUntap (CR 302.6 / 502.1)", () => {
         expect(slim.skipNextUntap).toBe(true);
     });
 });
+
+describe("Effect Script Op: discardAtRandom (CR 701.8a)", () => {
+    /** p2 holds `n` bears in hand as the random-discard pool. */
+    function handOf(n: number): GameState {
+        return makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    hand: Array.from({ length: n }, (_, i) =>
+                        makeInstance(BEAR_ID, {
+                            controllerId: "p2",
+                            ownerId: "p2",
+                            zone: "hand",
+                            id: `h${i}`,
+                        })
+                    ),
+                }),
+            ],
+        });
+    }
+
+    it("discards `count` cards at random from an announced target player (Hymn to Tourach)", () => {
+        const id = registerScript("test-op-discardrand-target", [
+            { op: "discardAtRandom", player: { target: 0 }, count: 2 },
+        ]);
+        const state = handOf(3);
+        pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        expect(state.players[1].hand).toHaveLength(1);
+        expect(state.players[1].graveyard).toHaveLength(2);
+    });
+
+    it("count reads the chosen-cost {X} (Mind Twist)", () => {
+        const id = registerScript("test-op-discardrand-x", [
+            {
+                op: "discardAtRandom",
+                player: { target: 0 },
+                count: { X: true },
+            },
+        ]);
+        const state = handOf(4);
+        const item = pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]);
+        item.chosenX = 3;
+        resolveTopOfStack(state);
+        expect(state.players[1].hand).toHaveLength(1);
+        expect(state.players[1].graveyard).toHaveLength(3);
+    });
+
+    it("is a no-op on an empty hand and still resolves (CR 608.2b)", () => {
+        const id = registerScript("test-op-discardrand-empty", [
+            { op: "discardAtRandom", player: { target: 0 }, count: 2 },
+        ]);
+        const state = handOf(0);
+        pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]);
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+        expect(state.players[1].hand).toHaveLength(0);
+        expect(state.players[1].graveyard).toHaveLength(0);
+    });
+
+    it("the discard reaches the graveyard through projection (wire format)", () => {
+        const id = registerScript("test-op-discardrand-wire", [
+            { op: "discardAtRandom", player: { target: 0 }, count: 2 },
+        ]);
+        const state = handOf(3);
+        pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        expect(state.players[1].graveyard).toHaveLength(2);
+        // The graveyard is public (not stripped by the wire projection); the
+        // discarded cards survive projectPublicState.
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[1].graveyard).toHaveLength(2);
+    });
+});

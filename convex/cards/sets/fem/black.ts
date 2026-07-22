@@ -259,11 +259,7 @@ export const hymnToTourach: CardDefinition = {
     manaCost: { B: 2 },
     types: ["Sorcery"],
     targetRequirement: { type: "player", count: 1 },
-    resolve: (ctx: SpellContext) => {
-        const target = ctx.targets[0];
-        if (target?.type !== "player") return;
-        ctx.discardAtRandom(target.id, 2);
-    },
+    effects: [{ op: "discardAtRandom", player: { target: 0 }, count: 2 }],
 };
 
 export const hymnToTourachFemB: CardPrint = {

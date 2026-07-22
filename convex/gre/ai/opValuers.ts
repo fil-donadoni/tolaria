@@ -410,6 +410,19 @@ const discard: Valuer<"discard"> = (op, ctx) => {
     return { points: WHOLE_HAND_DISCARD_VALUE * sign, tags };
 };
 
+const discardAtRandom: Valuer<"discardAtRandom"> = (op, ctx) => {
+    // Harmful-by-default (mirrors `discard`/`loseLife`): a random discard is
+    // aimed at the OPPONENT unless the player ref resolves to the caster. The
+    // `count` scales the magnitude (Mind Twist's {X}); one discarded card is
+    // worth DISCARD_VALUE, the same disruption weight as a `discard` picks-op.
+    const { amount, scaling } = ctx.value(op.count);
+    const self = ctx.isSelf(op.player, "opponent");
+    const sign = self ? -1 : 1;
+    const tags = tagScaling(scaling, "cardAdvantage");
+    if (self) tags.push("self-cost");
+    return { points: amount * DISCARD_VALUE * sign, tags };
+};
+
 const divideIntoPiles: Valuer<"divideIntoPiles"> = (op, ctx) => {
     // Adversarial (the OTHER player picks which pile the caster gets) — the
     // simple, orthogonal approximation is the expected value of the two
@@ -625,6 +638,7 @@ export const OP_VALUERS: {
     digMatchingToHand,
     digToHand,
     discard,
+    discardAtRandom,
     divideIntoPiles,
     emblem,
     extraTurn,

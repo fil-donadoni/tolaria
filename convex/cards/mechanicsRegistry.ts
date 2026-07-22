@@ -2699,6 +2699,13 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         note: 'A permanent "doesn\'t untap during its controller\'s next untap step" (CR 302.6 / 502.1, PRD #795). A thin declarative skin over the single SpellContext primitive `skipNextUntap`, one execution path (ADR 0045): it stamps a one-shot instance flag consumed by (and cleared after) exactly one untap step — Barl\'s Cage / Elvish Hunter ("target creature doesn\'t untap …", an announced slot), the Homarid dive cycle / Deep Spawn (`$source`, paired with a `tapUntap` tap + a `grantAbility` shroud), and Goblin Rock Sled (`$source`, a self-lock arming trigger). `target` is an announced slot, the resolving source (`$source`), or a forEach `$each`. No amount / duration — the one-shot next-untap scope is intrinsic; skipped when the permanent has left the battlefield (CR 608.2b). Subsumes the `skipNextUntap` closures the migration classifier folds here. The CONTINUOUS source-linked variant (`lockUntapWhileSourceTapped`, "doesn\'t untap as long as … remains tapped") is a distinct primitive and stays `planned` (its own `lockUntap` row).',
     },
     {
+        op: "discardAtRandom",
+        status: "implemented",
+        cr: "701.8",
+        binding: "SpellContext.discardAtRandom",
+        note: "A player discards `count` cards chosen AT RANDOM from their hand (CR 701.8a, PRD #795). A thin declarative skin over the single SpellContext primitive `discardAtRandom`, one execution path (ADR 0045): the primitive draws the discarded cards from the game's seeded PRNG so replays stay deterministic. `player` is an announced target slot (Hymn to Tourach's \"target player discards two cards at random\", Mind Twist, Gwendlyn Di Corci's activated ability) or a relative selector; `count` is a literal or an EffectValue (Mind Twist's chosen-cost {X}). DISTINCT from the `discard` Op, which discards a player-CHOSEN set (a `choice`-bound picks ref) or the WHOLE hand — this Op owns the RANDOM selection no `choice` binding can express. No type/subtype filter: the filtered variant (The Fallen's \"discards a creature card at random\", which reveals the hand first) stays resolve() until a real card warrants a filter parameter. Skipped when the player is gone (CR 608.2b); an empty hand is a no-op.",
+    },
+    {
         op: "grantAbility",
         status: "implemented",
         cr: "613.1f",

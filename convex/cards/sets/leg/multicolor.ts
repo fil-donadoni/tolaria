@@ -4,7 +4,7 @@
 // generic mana is encoded as `X: n` (e.g. {3}{G}{W} → { X: 3, G: 1, W: 1 }).
 // Cards are classified by the colour identity of their mana cost (CR 202.2).
 
-import type { CardDefinition, ManaCost, SpellContext } from "../../types";
+import type { CardDefinition, ManaCost } from "../../types";
 import { EFFECT_AFFECTS_SELF } from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
@@ -518,16 +518,9 @@ export const gwendlynDiCorci: CardDefinition = {
             useStack: true,
             controllerTurnOnly: true,
             targetRequirement: { type: "player", count: 1 },
-            // NOT DSL-migratable (ADR 0045): a RANDOM discard (CR 701.8a) —
-            // the `discard` Op only discards a `choice`-picked (player-chosen)
-            // set, no random-selection mode. Blocked on: a `discardAtRandom`
-            // Op (New-Op backlog, migration-classifier.mjs).
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target?.type === "player") {
-                    ctx.discardAtRandom(target.id, 1);
-                }
-            },
+            effects: [
+                { op: "discardAtRandom", player: { target: 0 }, count: 1 },
+            ],
         },
     ],
 };

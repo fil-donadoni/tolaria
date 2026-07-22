@@ -1295,11 +1295,30 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // (+1). All 5 migrated were AFK-ready. Net: total 481->476, Op-blocked
         // 179->173 (-6), FREE 288->289 / AFK-ready 276->277 (+1 = the forEach
         // closure surfacing as FREE). X-only unchanged. Partition: 289+14+173=476.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(476);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(289);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(277);
+        //
+        // 2026-07-22 (Op-infra batch — `discardAtRandom`, joint-top New-Op
+        // backlog entry at 6): shipped the "discards N cards AT RANDOM from
+        // hand" Op (CR 701.8a) as a thin declarative skin over the existing
+        // `SpellContext.discardAtRandom` primitive — a `player` selector plus
+        // a `count` EffectValue (literal or chosen-cost {X}). Distinct from
+        // the `discard` Op (player-chosen / whole-hand set); this Op owns the
+        // seeded-PRNG random selection no `choice` binding can express. 3
+        // closures migrated resolve()->effects[]: fem/black (Hymn to Tourach,
+        // count 2), lea/black (Mind Twist, count {X}), leg/multicolor (Gwendlyn
+        // Di Corci's activated ability, count 1) — all announced-player slots.
+        // The other 3 discardAtRandom closures stay resolve(): drk/black (The
+        // Fallen — a "creature card" filter + reveal-hand it, blocked on
+        // revealHand + a filter param), ice/black (Cloak of Confusion) and
+        // lea/black (Hypnotic Specter) both read the firing $event. All 3
+        // migrated were AFK-ready. Net: total 476->473, Op-blocked 173->169
+        // (-4: the 3 migrated + one closure double-counted under this
+        // primitive that now surfaces elsewhere), FREE 289->290 / AFK-ready
+        // 277->278 (+1). X-only unchanged. Partition: 290+14+169=473.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(473);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(290);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(278);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(173);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(169);
     });
 
     it("surfaces the demonstrated new-Op backlog (a covered primitive leaves it)", () => {

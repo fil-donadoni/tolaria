@@ -563,6 +563,15 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // execution coverage is the Op's own interpreter tests.
             req.skip ??= `Op "mill" moves top-of-library cards to the graveyard — covered by the Op's interpreter tests`;
             return;
+        case "discardAtRandom":
+            // `discardAtRandom` (CR 701.8a) removes `count` RANDOM cards from a
+            // TARGET player's hand. The canned generator seeds only a minimal
+            // filler hand and does not provision a target player's hand with a
+            // known count, so rather than mis-assert a hand-size delta it
+            // reports an explicit skip; execution coverage is the Op's own
+            // interpreter tests plus the migrated cards' per-card tests.
+            req.skip ??= `Op "discardAtRandom" removes random cards from a target player's hand — the canned generator does not provision the target's hand contents; covered by the Op's interpreter tests`;
+            return;
         case "digToHand":
             // A `digToHand` Op suspends resolution for a live look-distribute
             // pick (issue #984) — a canned scenario cannot submit the
@@ -1718,6 +1727,15 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     // without mis-modelling the source deck). Kept for the 1:1 coverage guard;
     // the mill loop is covered by the Op's own interpreter tests.
     mill() {
+        return null;
+    },
+    // `discardAtRandom` (CR 701.8a, PRD #795) — never reached: `analyseOp`
+    // skips every script with a discardAtRandom Op (the canned generator does
+    // not provision a target player's hand with a known count, so there is no
+    // hand-size delta it can assert without mis-modelling the target's hand).
+    // Kept for the 1:1 coverage guard; the random-discard loop is covered by
+    // the Op's own interpreter tests.
+    discardAtRandom() {
         return null;
     },
     // `digToHand` (CR 401.4, issue #984) — never reached: `analyseOp` skips

@@ -1480,6 +1480,9 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     // card's `divideAsChosen.total`.
     dealDamageDividedAsChosen: { required: { total: isDivideTotal } },
     draw: { required: { player: isPlayerRef, count: isEffectValue } },
+    discardAtRandom: {
+        required: { player: isPlayerRef, count: isEffectValue },
+    },
     gainLife: { required: { player: isPlayerRef, amount: isEffectValue } },
     getEnergy: { required: { player: isPlayerRef, amount: isEffectValue } },
     loseLife: { required: { player: isPlayerRef, amount: isEffectValue } },

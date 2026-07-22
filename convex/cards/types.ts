@@ -8642,6 +8642,23 @@ export type EffectOp =
      *  candidates — CR 608.2b); the whole-hand shape skips only when `player`
      *  cannot be resolved (an empty hand is simply a no-op loop). */
     | { op: "discard"; player: EffectPlayerRef; cards?: EffectRef }
+    /** CR 701.8a — `player` discards `count` cards chosen AT RANDOM from their
+     *  hand (Hymn to Tourach's "discards two cards at random", Mind Twist's
+     *  "discards X cards at random", Gwendlyn Di Corci's random-discard
+     *  activated ability). A thin declarative skin over the single
+     *  `SpellContext.discardAtRandom` primitive (one execution path, ADR 0045),
+     *  which draws the discarded cards from the game's seeded PRNG so replays
+     *  stay deterministic. DISTINCT from the `discard` Op: that Op discards a
+     *  player-CHOSEN set (a `choice`-bound picks ref) or the WHOLE hand — this
+     *  one performs the random SELECTION the engine owns, which no `choice`
+     *  binding can express. `count` is a literal or an `EffectValue` (Mind
+     *  Twist's chosen-cost {X}); `player` is an announced target slot
+     *  (`{ target: N }`) or a relative selector. No type/subtype filter — the
+     *  filtered variant (The Fallen's "discards a CREATURE card at random",
+     *  which also reveals the hand first) stays resolve() until a filter
+     *  parameter is warranted. Skipped when `player` cannot be resolved
+     *  (CR 608.2b); an empty hand is a no-op. */
+    | { op: "discardAtRandom"; player: EffectPlayerRef; count: EffectValue }
     /** CR 117.3a / 118.4 — an optional "you may pay {cost}" decision offered to
      *  a player (issue #806), OR a bare cost-free "you may …" decision (issue
      *  #680 — `cost` omitted). Maps 1:1 onto `SpellContext.requestMayPay`,

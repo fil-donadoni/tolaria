@@ -797,12 +797,9 @@ export const mindTwist: CardDefinition = {
     manaCost: { X: "X", B: 1 },
     types: ["Sorcery"],
     targetRequirement: { type: "player", count: 1 },
-    resolve: (ctx: SpellContext) => {
-        const target = ctx.targets[0];
-        if (target?.type === "player") {
-            ctx.discardAtRandom(target.id, ctx.getX());
-        }
-    },
+    effects: [
+        { op: "discardAtRandom", player: { target: 0 }, count: { X: true } },
+    ],
 };
 
 // Nether Shadow — "Haste. At the beginning of your upkeep, if this card is in

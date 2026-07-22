@@ -1246,6 +1246,18 @@ export const OP_EXECUTORS: {
         if (amount === undefined || amount <= 0) return;
         ctx.loseLife(playerId, amount);
     },
+    // CR 701.8a — random discard: `count` cards chosen AT RANDOM from
+    // `player`'s hand (Hymn to Tourach, Mind Twist, Gwendlyn Di Corci). The
+    // primitive owns the seeded-PRNG selection (deterministic replays); the
+    // `discard` Op discards a player-CHOSEN or whole-hand set instead. Skipped
+    // when the player is gone (CR 608.2b); an empty hand is a no-op.
+    discardAtRandom(ctx, op) {
+        const playerId = resolvePlayerRef(ctx, op.player);
+        if (playerId === undefined) return;
+        const count = resolveValue(ctx, op.count);
+        if (count === undefined || count <= 0) return;
+        ctx.discardAtRandom(playerId, count);
+    },
     // CR 500.7 (issue #686) — schedule an extra turn for `player` (Time
     // Warp). Skipped when the player cannot be resolved (CR 608.2b).
     extraTurn(ctx, op) {
