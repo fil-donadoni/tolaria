@@ -128,6 +128,30 @@ describe("GameStack ability-kind detection (#935)", () => {
         expect(container.textContent).toContain("Triggered ability");
         expect(container.textContent).not.toContain("Token");
     });
+
+    it("themes the Monarch tile to the per-source printing when present (CR 725, #1305)", () => {
+        // When the crowning card supplies a themed marker printing
+        // (`designationImagePrintId`), the tile renders THAT print — not the
+        // designation's global `imagePrintId` — so the art matches the card.
+        const themed = "63455c28-3e53-45b1-8d0b-a5045dab1fb9"; // Forth's LTR print
+        const item = {
+            ...makeStackItem("monarch-themed"),
+            card: { id: "" },
+            delayedTriggerId: "$inline-effects",
+            delayedOracleText:
+                "At the beginning of the monarch's end step, that player draws a card.",
+            designationId: MONARCH_DESIGNATION.id,
+            designationImagePrintId: themed,
+        } as StackItem;
+        const { container } = renderStack([item]);
+
+        const img = container.querySelector("img");
+        expect(img?.getAttribute("src")).toContain(themed);
+        // Not the global fallback printing.
+        expect(img?.getAttribute("src")).not.toContain(
+            MONARCH_DESIGNATION.imagePrintId
+        );
+    });
 });
 
 describe("GameStack play-area anchor", () => {

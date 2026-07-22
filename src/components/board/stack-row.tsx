@@ -166,8 +166,12 @@ export default function StackRow({
           ? KIND_LABEL[kind]
           : null;
     const modeLines = getStackModeLines(item);
+    // Per-source marker art (issue #1305) wins over the designation's global
+    // printing, so the Monarch tile matches the card that crowned the player.
     const imageId =
-        designation?.imagePrintId ?? resolveCardImageId(item.card.id);
+        item.designationImagePrintId ??
+        designation?.imagePrintId ??
+        resolveCardImageId(item.card.id);
 
     return (
         <motion.div
@@ -194,7 +198,7 @@ export default function StackRow({
                         : "cursor-default"
                 }`}
             >
-                <span className="relative block w-12 shrink-0 self-start">
+                <span className="relative block w-16 shrink-0 self-start">
                     {kind ? (
                         // Ability/trigger tile: art crop + kind badge (never a
                         // bare card image for a non-spell stack object).

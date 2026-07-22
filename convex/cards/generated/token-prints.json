@@ -9,6 +9,10 @@
         {
             "scryfallId": "491fc1c3-a46e-4cfd-a749-57f4c96f6aea",
             "name": "Human Knight"
+        },
+        {
+            "scryfallId": "63455c28-3e53-45b1-8d0b-a5045dab1fb9",
+            "name": "The Monarch"
         }
     ],
     "0783b426-a527-42c1-9271-be28b229e1c6": [
@@ -219,6 +223,12 @@
         {
             "scryfallId": "248ade83-ac57-42d6-985c-1e4cc3639f36",
             "name": "Saproling"
+        }
+    ],
+    "78cef262-c753-4658-b3ec-fec8db47f944": [
+        {
+            "scryfallId": "40b79918-22a7-4fff-82a6-8ebfe6e87185",
+            "name": "The Monarch"
         }
     ],
     "7c024bae-5631-4e20-ac69-df392ac9e109": [

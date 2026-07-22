@@ -45,6 +45,8 @@ import {
     checkStateBasedActions,
 } from "../../sba";
 import { collectTriggers, placeTriggersOnStack } from "../../triggers";
+import { raiseTriggerTargetSelection } from "../../rules";
+import { finalizeTargetSelection } from "../../../game";
 import { INLINE_DELAYED_TRIGGER_ID } from "../interpreter";
 import { getEffectivePower, getEffectiveToughness } from "../../layers";
 import {
@@ -17400,5 +17402,345 @@ describe("Effect Script Op: preventRegeneration (CR 701.15c)", () => {
             (c) => c.id === "bearA"
         )!;
         expect(slim.cantBeRegeneratedThisTurn).toBe(true);
+    });
+});
+
+describe("Effect Script Op: markAssignsNoCombatDamage (CR 510.1c)", () => {
+    /** p2 controls one bear (a 2/5 Creature) as the announced combat-lock target. */
+    function oneBear(): GameState {
+        return makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    battlefield: [
+                        makeInstance(BEAR_ID, {
+                            controllerId: "p2",
+                            id: "bearA",
+                        }),
+                    ],
+                }),
+            ],
+        });
+    }
+
+    it("marks an announced target creature to assign no combat damage (Warning / Restrain)", () => {
+        const id = registerScript("test-op-nocombat-target", [
+            { op: "markAssignsNoCombatDamage", target: { target: 0 } },
+        ]);
+        const state = oneBear();
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "bearA" }]);
+        resolveTopOfStack(state);
+        expect(state.assignsNoCombatDamageThisTurn).toContain("bearA");
+    });
+
+    it("marks the resolving source via $source (Farrel's Zealot self-mark)", () => {
+        const SRC_ID = "test-op-nocombat-source";
+        registerTokenDefinition({
+            id: SRC_ID,
+            name: SRC_ID,
+            rarity: "common",
+            manaCost: { W: 1 },
+            types: ["Creature"],
+            subtypes: ["Soldier"],
+            power: 2,
+            toughness: 2,
+            activatedAbilities: [
+                {
+                    id: "nocombat-self-mark",
+                    oracleText:
+                        "{1}: This creature assigns no combat damage this turn.",
+                    cost: { mana: { generic: 1 } },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "markAssignsNoCombatDamage",
+                            target: { ref: "$source" },
+                        },
+                    ],
+                },
+            ],
+        });
+        const src = makeInstance(SRC_ID, {
+            id: "zealot1",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [src] }),
+                makePlayer("p2"),
+            ],
+        });
+        const onBoard = state.players[0].battlefield[0];
+        state.stack.push({
+            ...onBoard,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "nocombat-self-mark",
+            targets: [],
+        });
+        resolveTopOfStack(state);
+        expect(state.assignsNoCombatDamageThisTurn).toContain("zealot1");
+    });
+
+    it("is a no-op when the targeted permanent is gone (CR 608.2b) and still resolves", () => {
+        const id = registerScript("test-op-nocombat-gone", [
+            { op: "markAssignsNoCombatDamage", target: { target: 0 } },
+        ]);
+        const state = oneBear();
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "ghost" }]);
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+        expect(state.assignsNoCombatDamageThisTurn ?? []).not.toContain(
+            "bearA"
+        );
+    });
+
+    it("the combat-damage lock survives projection (wire format)", () => {
+        const id = registerScript("test-op-nocombat-wire", [
+            { op: "markAssignsNoCombatDamage", target: { target: 0 } },
+        ]);
+        const state = oneBear();
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "bearA" }]);
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.assignsNoCombatDamageThisTurn).toContain("bearA");
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// reflexiveTrigger (CR 603.3c) + sacrifice `bind` (CR 608.2h)
+// ─────────────────────────────────────────────────────────────────────────
+//
+// "Sacrifice a creature. WHEN YOU DO, ~ deals X damage to any target, where X
+// is that creature's power" (Minsc & Boo, Timeless Heroes) is not one effect:
+// it is an effect that CREATES a second, separate stack object. These tests
+// drive the real path end to end — resolve the ability (which sacrifices and
+// queues), let the trigger drain place the reflexive ability on the stack
+// (`processPendingActionTriggers`, called by `resolveTopOfStack`), announce
+// its target through the CR 603.3d machinery, then resolve it.
+describe("Effect Script Op: reflexiveTrigger (CR 603.3c)", () => {
+    /** The Minsc-shaped script: sacrifice a chosen creature, then a reflexive
+     *  trigger that burns for the sacrificed creature's power. */
+    const SAC_THEN_BURN: EffectOp[] = [
+        {
+            op: "choice",
+            kind: "sacrifice-permanents",
+            player: "controller",
+            zone: "battlefield",
+            filter: { type: "Creature" },
+            count: 1,
+            prompt: "Sacrifice a creature.",
+            bind: "$sacPicks",
+        },
+        { op: "sacrifice", permanents: { ref: "$sacPicks" }, bind: "$sacked" },
+        {
+            op: "if",
+            predicate: { picksNonEmpty: { ref: "$sacPicks" } },
+            then: [
+                {
+                    op: "reflexiveTrigger",
+                    oracleText:
+                        "When you do, this deals X damage to any target, where X is that creature's power.",
+                    capture: { $sacked: { ref: "$sacked" } },
+                    targetRequirement: { type: "any", count: 1 },
+                    effects: [
+                        {
+                            op: "dealDamage",
+                            amount: { ref: "$sacked.power" },
+                            to: { target: 0 },
+                        },
+                    ],
+                },
+            ],
+        },
+    ];
+
+    /** p1 controls one 2/5 bear to feed the sacrifice. */
+    function sacrificeBoard(): GameState {
+        return makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        makeInstance(BEAR_ID, {
+                            controllerId: "p1",
+                            id: "rtBear",
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+    }
+
+    /** Answers the sacrifice choice with `id`. */
+    function submitSacrifice(state: GameState, id: string): void {
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: [id],
+        });
+    }
+
+    it("puts the reflexive ability on the stack as a SEPARATE object after the sacrifice, and burns for the sacrificed creature's power (CR 603.3c + 608.2h LKI)", () => {
+        const id = registerScript("test-op-reflexive-burn", SAC_THEN_BURN);
+        const state = sacrificeBoard();
+        pushSpell(state, id, "p1", []);
+        resolveTopOfStack(state);
+        submitSacrifice(state, "rtBear");
+
+        // The creature is gone…
+        expect(state.players[0].battlefield).toHaveLength(0);
+        expect(state.players[0].graveyard.map((c) => c.id)).toContain("rtBear");
+        // …and the reflexive ability is on the stack as its own object,
+        // carrying the inline body + its announced-target requirement.
+        const reflexive = state.stack.find((s) => s.reflexiveTrigger);
+        expect(reflexive).toBeDefined();
+        expect(reflexive!.controllerId).toBe("p1");
+        expect(reflexive!.delayedTriggerId).toBe(INLINE_DELAYED_TRIGGER_ID);
+        expect(reflexive!.inlineTargetRequirement).toEqual({
+            type: "any",
+            count: 1,
+        });
+        expect(reflexive!.delayedOracleText).toContain("When you do");
+        // The queue is drained — nothing left waiting.
+        expect(state.pendingReflexiveTriggers).toBeUndefined();
+
+        // CR 603.3d — the target is announced as it goes on the stack, i.e.
+        // AFTER the sacrifice: the chooser already knows X is 2.
+        expect(raiseTriggerTargetSelection(state)).toBe(true);
+        expect(state.pendingTarget!.kind).toBe("trigger");
+        expect(state.pendingTarget!.playerId).toBe("p1");
+        state.pendingTarget!.selected = [{ type: "player", id: "p2" }];
+        finalizeTargetSelection(
+            state,
+            state.pendingTarget!,
+            state.pendingTarget!.playerId
+        );
+
+        resolveTopOfStack(state);
+        // CR 608.2h — the power was read from the pre-sacrifice snapshot even
+        // though the creature is in the graveyard by the time this resolves.
+        expect(state.players[1].life).toBe(18);
+        expect(state.stack.some((s) => s.reflexiveTrigger)).toBe(false);
+    });
+
+    it("does not trigger when nothing was sacrificed (CR 603.3c — the action never happened)", () => {
+        const id = registerScript("test-op-reflexive-none", SAC_THEN_BURN);
+        // p1 controls no creature, so the choice finds no candidates.
+        const state = makeState();
+        pushSpell(state, id, "p1", []);
+        resolveTopOfStack(state);
+        expect(state.stack.some((s) => s.reflexiveTrigger)).toBe(false);
+        expect(state.pendingReflexiveTriggers).toBeUndefined();
+        expect(state.players[1].life).toBe(20);
+    });
+
+    it("the queued reflexive ability and its inline requirement survive a DB round-trip and the wire projection", () => {
+        const id = registerScript("test-op-reflexive-wire", SAC_THEN_BURN);
+        const state = sacrificeBoard();
+        pushSpell(state, id, "p1", []);
+        resolveTopOfStack(state);
+        submitSacrifice(state, "rtBear");
+
+        // Round-trip the whole state while the reflexive ability sits on the
+        // stack awaiting its target — a real save point.
+        const restored = expandState(compactState(state));
+        const restoredReflexive = restored.stack.find(
+            (s) => s.reflexiveTrigger
+        )!;
+        expect(restoredReflexive.inlineTargetRequirement).toEqual({
+            type: "any",
+            count: 1,
+        });
+        expect(restoredReflexive.delayedEffects).toEqual([
+            {
+                op: "dealDamage",
+                amount: { ref: "$sacked.power" },
+                to: { target: 0 },
+            },
+        ]);
+        // Targeting and resolution still work off the restored state.
+        expect(raiseTriggerTargetSelection(restored)).toBe(true);
+        restored.pendingTarget!.selected = [{ type: "player", id: "p2" }];
+        finalizeTargetSelection(
+            restored,
+            restored.pendingTarget!,
+            restored.pendingTarget!.playerId
+        );
+        resolveTopOfStack(restored);
+        expect(restored.players[1].life).toBe(18);
+
+        // Wire format — the client renders the reflexive tile from the inline
+        // oracle text (it has no card-def ability row to read it from).
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.stack.find((s) => s.reflexiveTrigger)!;
+        expect(slim.delayedOracleText).toContain("When you do");
+    });
+
+    it("a picks binding crosses into the body VERBATIM, so a graveyard filter can read the sacrificed card (CR 701.16 + 608.2h)", () => {
+        const id = registerScript("test-op-reflexive-picks", [
+            {
+                op: "choice",
+                kind: "sacrifice-permanents",
+                player: "controller",
+                zone: "battlefield",
+                filter: { type: "Creature" },
+                count: 1,
+                prompt: "Sacrifice a creature.",
+                bind: "$sacPicks",
+            },
+            {
+                op: "sacrifice",
+                permanents: { ref: "$sacPicks" },
+                bind: "$sacked",
+            },
+            {
+                op: "reflexiveTrigger",
+                oracleText:
+                    "When you do, if it was a Bear, draw that many cards.",
+                capture: {
+                    $sacked: { ref: "$sacked" },
+                    $sacPicks: { ref: "$sacPicks" },
+                },
+                effects: [
+                    {
+                        op: "if",
+                        predicate: {
+                            picksMatchFilter: { ref: "$sacPicks" },
+                            player: { ref: "$sacked.owner" },
+                            filter: { subtype: "Bear" },
+                        },
+                        then: [
+                            {
+                                op: "draw",
+                                player: "controller",
+                                count: { ref: "$sacked.power" },
+                            },
+                        ],
+                    },
+                ],
+            },
+        ]);
+        const state = sacrificeBoard();
+        // The draw needs a library to draw FROM (CR 121.3) — the fixture
+        // player starts with an empty one.
+        state.players[0].library = [
+            makeInstance(BLACK_CARD_ID, { controllerId: "p1", id: "lib1" }),
+            makeInstance(BLACK_CARD_ID, { controllerId: "p1", id: "lib2" }),
+        ];
+        const handBefore = state.players[0].hand.length;
+        pushSpell(state, id, "p1", []);
+        resolveTopOfStack(state);
+        submitSacrifice(state, "rtBear");
+        // Untargeted reflexive ability — nothing to announce, resolve it.
+        expect(state.stack.some((s) => s.reflexiveTrigger)).toBe(true);
+        resolveTopOfStack(state);
+        // eslint-disable-next-line no-console
+        // The BEAR_ID fixture is a Bear with power 2 → draw 2.
+        expect(state.players[0].hand.length).toBe(handBefore + 2);
     });
 });

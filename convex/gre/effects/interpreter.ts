@@ -2065,6 +2065,15 @@ export const OP_EXECUTORS: {
         if (!target) return;
         ctx.setTargetCantBeRegeneratedThisTurn(target);
     },
+    // CR 510.1c (issue #1283) — mark a permanent so it assigns no combat damage
+    // this turn (source-side prevention). Thin skin over the single primitive
+    // `markAssignsNoCombatDamage`, one execution path (ADR 0045). No-op when the
+    // target is gone (CR 608.2b — `resolveObjectRef` returns undefined).
+    markAssignsNoCombatDamage(ctx, op) {
+        const target = resolveObjectRef(ctx, op.target);
+        if (!target) return;
+        ctx.markAssignsNoCombatDamage(target);
+    },
     // CR 701.27 / 712 (issue #1210, ADR 0067) — transform a permanent. A thin
     // declarative skin over the single SpellContext primitive `transform`,
     // ONE execution path (ADR 0045). CR 712.8a — the SAME toggle flips
@@ -2591,6 +2600,9 @@ export const OP_EXECUTORS: {
         if (op.target !== undefined) {
             const target = resolveObjectRef(ctx, op.target);
             if (!target) return;
+            // CR 608.2h — snapshot BEFORE the zone change, so "that creature's
+            // power" survives the move to the graveyard (issue: Minsc & Boo).
+            if (op.bind) bindSnapshot(ctx, op.bind, target);
             ctx.sacrifice(target.id);
             return;
         }
@@ -2599,6 +2611,11 @@ export const OP_EXECUTORS: {
         if (op.permanents === undefined) return;
         const ids = resolvePicks(ctx, op.permanents);
         if (!ids) return; // binding never captured — CR 608.2b, skip
+        // CR 608.2h — snapshot the FIRST pick before any of them leaves the
+        // battlefield ("sacrifice A creature. … that creature's power").
+        if (op.bind && ids.length > 0) {
+            bindSnapshot(ctx, op.bind, { type: "permanent", id: ids[0] });
+        }
         for (const id of ids) ctx.sacrifice(id);
     },
     // CR 603.7 (ADR 0048) — grant a delayed triggered ability. Resolve each
@@ -2664,6 +2681,34 @@ export const OP_EXECUTORS: {
             targetPlayerId,
             { oracleText: op.oracleText, effects: op.effects },
             watchInstanceId
+        );
+    },
+    // CR 603.3c — create a REFLEXIVE triggered ability from inside this
+    // resolving effect ("Sacrifice a creature. When you do, …"). Nothing is
+    // scheduled: the ability is queued now and the next trigger drain puts it
+    // on the stack above this object (CR 603.3b APNAP with the other triggers
+    // that became waiting during this same resolution), announcing its own
+    // targets there (CR 603.3d). A thin skin over the single
+    // `SpellContext.pushReflexiveTrigger` primitive (one execution path,
+    // ADR 0045).
+    reflexiveTrigger(ctx, op) {
+        const payload: Record<string, string | string[]> = {};
+        for (const [name, source] of Object.entries(op.capture ?? {})) {
+            // Same '$'-stripping contract as `delayedTrigger` (Convex rejects
+            // a field name starting with '$'); `runDelayedTriggerBody` re-adds
+            // the sigil when it re-binds the payload.
+            const key = name.slice(1);
+            const value = resolveReflexiveCaptureSource(ctx, source);
+            // An unresolvable capture stays OUT of the payload: the body
+            // binding is uncaptured and Ops reading it skip (CR 608.2b).
+            if (value !== undefined) payload[key] = value;
+        }
+        ctx.pushReflexiveTrigger(
+            ctx.sourceCardId,
+            op.oracleText,
+            op.effects,
+            payload,
+            op.targetRequirement
         );
     },
     // forEach — the fourth structural construct (ADR 0045, issue #807).
@@ -3174,6 +3219,47 @@ function resolveCaptureSource(
     const stored = readBinding(ctx, source.ref);
     if (!stored) return undefined;
     return stored.length === 1 ? stored[PLAYER_BINDING_ID] : stored[SNAP_ID];
+}
+
+/** Resolves ONE `reflexiveTrigger` capture (CR 603.3c). Differs from
+ *  `resolveCaptureSource` in exactly one, deliberate way: a BARE binding ref
+ *  (`{ ref: "$sac" }`) carries the WHOLE recorded binding across verbatim
+ *  instead of flattening it to an instance id.
+ *
+ *  That is what makes CR 608.2h last-known information survive. A delayed
+ *  trigger fires much later, so re-reading a captured id fresh at fire time is
+ *  right (the object may have changed). A reflexive trigger's whole reason to
+ *  exist is to act on what the resolving effect JUST did — typically to an
+ *  object that is no longer on the battlefield ("sacrifice a creature … where
+ *  X is THAT creature's power"). Re-binding by id would find nothing;
+ *  re-noting the snapshot verbatim keeps power/toughness/controller/owner
+ *  readable. `runDelayedTriggerBody`'s array branch already re-notes a
+ *  `string[]` payload value unchanged, so every binding family — object
+ *  snapshot, `choice` picks, player — round-trips through the same path with
+ *  no new plumbing. */
+function resolveReflexiveCaptureSource(
+    ctx: SpellContext,
+    source: EffectCaptureSource
+): string | string[] | undefined {
+    if (typeof source === "string") return source;
+    if ("target" in source) return ctx.targets[source.target]?.id;
+    // A `{ select }` LIST source is a delayedTrigger-only shape (the
+    // validator rejects it here); narrow it out.
+    if ("select" in source) return undefined;
+    // `$event.<field>` — a reflexive trigger has no firing event of its own
+    // (it triggers off the resolving effect's action, CR 603.3c), so the
+    // validator rejects an event ref here; narrow it out defensively.
+    if (isEventRef(source.ref)) return undefined;
+    const parsed = parseRef(source.ref);
+    if (parsed) {
+        // Property refs: only `.controller` (a player binding at the far end),
+        // matching the delayed-trigger capture vocabulary.
+        if (parsed.property !== "controller") return undefined;
+        return readBinding(ctx, parsed.binding)?.[SNAP_CONTROLLER];
+    }
+    if (!source.ref.startsWith("$")) return undefined;
+    // Bare binding ref — carry the recorded binding VERBATIM (see above).
+    return readBinding(ctx, source.ref);
 }
 
 /** Resolves a `delayedTrigger` LIST-valued capture (ADR 0049, issue #866) to

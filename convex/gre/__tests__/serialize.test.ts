@@ -458,6 +458,48 @@ describe("game_state serialize round-trip", () => {
         );
     });
 
+    it("preserves the Monarch draw trigger's designationId on the stack item (CR 725, #1305)", () => {
+        // The source-less inherent designation trigger keys its marker-card art
+        // + name off `designationId`. It is a whitelisted StackItem field —
+        // dropping it in the compactor made the client fall back to the empty
+        // "Token"/"Delayed trigger" placeholder after every DB round-trip (the
+        // in-memory GRE/wire tests never round-tripped, so they missed it).
+        const state = freshState();
+        const spell = state.players[0].hand[0];
+        state.stack = [
+            {
+                ...spell,
+                card: { id: "" },
+                zone: "stack",
+                castById: "p1",
+                delayedTriggerId: "$inline-effects",
+                delayedEffects: [
+                    { op: "draw", player: "controller", count: 1 },
+                ],
+                delayedOracleText:
+                    "At the beginning of the monarch's end step, that player draws a card.",
+                designationId: "monarch",
+                // Per-source themed marker (Forth Eorlingas' LTR printing).
+                designationImagePrintId: "63455c28-3e53-45b1-8d0b-a5045dab1fb9",
+            },
+        ];
+        const expanded = expandState(compactState(state));
+        expect(expanded.stack[0].designationId).toBe("monarch");
+        expect(expanded.stack[0].designationImagePrintId).toBe(
+            "63455c28-3e53-45b1-8d0b-a5045dab1fb9"
+        );
+    });
+
+    it("preserves monarchSourceCardId (themed crown provenance, #1305)", () => {
+        const state = freshState();
+        state.monarchId = "p1";
+        state.monarchSourceCardId = "06c053d3-028e-4961-93a5-5b7bb5a8601c";
+        const expanded = expandState(compactState(state));
+        expect(expanded.monarchSourceCardId).toBe(
+            "06c053d3-028e-4961-93a5-5b7bb5a8601c"
+        );
+    });
+
     it("preserves a stack item's exileOnResolve flag (Recall, CR 608.2)", () => {
         const state = freshState();
         const recall = state.players[0].hand[0];

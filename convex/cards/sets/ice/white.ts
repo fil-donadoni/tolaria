@@ -2099,10 +2099,8 @@ export const warning: CardDefinition = {
         count: 1,
         combatRoleFilter: "attacking",
     },
-    resolve: (ctx: SpellContext) => {
-        const t = ctx.targets[0];
-        if (t?.type === "permanent") ctx.markAssignsNoCombatDamage(t);
-    },
+    // CR 510.1c — source-side "assigns no combat damage this turn" mark (ADR 0045).
+    effects: [{ op: "markAssignsNoCombatDamage", target: { target: 0 } }],
 };
 export const whiteScarab: CardDefinition = makeScarab({
     id: "c57726b5-dfdd-4e47-bc52-ebf6eedbf3bd",

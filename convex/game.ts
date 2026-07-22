@@ -7354,6 +7354,7 @@ export const selectTarget = mutation({
                     tappedFilter: pt.tappedFilter,
                     combatRoleFilter: pt.combatRoleFilter,
                     requireAbility: pt.requireAbility,
+                    requireAbilityAny: pt.requireAbilityAny,
                     excludeAbility: pt.excludeAbility,
                     excludeInstanceIds: pt.excludeInstanceIds,
                     powerFilter: pt.powerFilter,

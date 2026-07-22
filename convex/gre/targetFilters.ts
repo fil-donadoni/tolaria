@@ -642,6 +642,23 @@ const requireAbilityDescriptor = defineFilter<string>({
     },
 });
 
+// CR 702 — disjunctive keyword filter ("target creature with trample or
+// haste"). OR semantics across the listed keywords; orthogonal to the
+// single-keyword `requireAbility` (a requirement sets one or the other, and
+// both are ANDed by the loop when a card sets both anyway).
+const requireAbilityAnyDescriptor = defineFilter<ReadonlyArray<string>>({
+    lower: (req) =>
+        req.requireAbilityAny && req.requireAbilityAny.length > 0
+            ? [...req.requireAbilityAny]
+            : undefined,
+    checks: {
+        permanent: (card, value) =>
+            value.some((kw) => card.staticAbilities.includes(kw))
+                ? null
+                : `Target must have ${value.join(" or ")}`,
+    },
+});
+
 // CR 702 — negative keyword filter ("target creature without flying").
 const excludeAbilityDescriptor = defineFilter<string>({
     lower: (req) => req.excludeAbility,
@@ -921,6 +938,7 @@ export const PERMANENT_FILTER_KEYS = [
     "tappedFilter",
     "combatRoleFilter",
     "requireAbility",
+    "requireAbilityAny",
     "excludeAbility",
     "excludeInstanceIds",
     "powerFilter",
@@ -982,6 +1000,7 @@ export const REGISTRY = {
     tappedFilter: tappedFilterDescriptor as FilterDescriptor<unknown>,
     combatRoleFilter: combatRoleFilterDescriptor as FilterDescriptor<unknown>,
     requireAbility: requireAbilityDescriptor as FilterDescriptor<unknown>,
+    requireAbilityAny: requireAbilityAnyDescriptor as FilterDescriptor<unknown>,
     excludeAbility: excludeAbilityDescriptor as FilterDescriptor<unknown>,
     excludeInstanceIds:
         excludeInstanceIdsDescriptor as FilterDescriptor<unknown>,
@@ -1024,6 +1043,7 @@ export type PermanentFilterValues = Partial<{
     tappedFilter: "tapped" | "untapped";
     combatRoleFilter: "attacking" | "blocking" | ("attacking" | "blocking")[];
     requireAbility: string;
+    requireAbilityAny: ReadonlyArray<string>;
     excludeAbility: string;
     excludeInstanceIds: ReadonlyArray<string>;
     powerFilter: { min?: number; max?: number };

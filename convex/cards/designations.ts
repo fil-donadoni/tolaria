@@ -5,12 +5,15 @@
 // imagePrintId` (resolved to a Scryfall image by `src/lib/images.ts`, with a
 // text placeholder fallback).
 //
-// Unlike a token (whose art is a PER-CARD association keyed by the producing
-// card in `token-prints.json`), a designation has ONE canonical marker art
-// regardless of which card granted it — Scryfall prints a single marker card
-// per designation. So this is a fixed registry keyed by designation id, the
-// direct analogue of the emblem registry (`convex/cards/emblems.ts`), not a
-// per-source-card association.
+// This registry holds each designation's GLOBAL fallback marker art, keyed by
+// designation id — the direct analogue of the emblem registry
+// (`convex/cards/emblems.ts`). On TOP of it, a designation may be themed
+// per-source like a token (issue #1305): the card that grants it carries its
+// own set-printing of the marker in `token-prints.json` (Forth Eorlingas → the
+// LTR "The Monarch", Palace Jailer → the Conspiracy one), resolved by
+// `buildMonarchDrawStackItem` into `StackItem.designationImagePrintId`. When no
+// themed source exists (a CR 720.3 combat-damage steal, or a card with no
+// lockfile entry), the tile falls back to the global `imagePrintId` here.
 //
 // This is pure display data (no closures / engine imports), so both the engine
 // and the client import it freely. Monarch storage/behaviour lives in the GRE

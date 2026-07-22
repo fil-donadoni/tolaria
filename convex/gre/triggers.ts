@@ -22,6 +22,7 @@ import type {
 } from "../cards/types";
 import { tryGetDefinition } from "../cards";
 import { MONARCH_DESIGNATION } from "../cards/designations";
+import { tokenPrintIdFor } from "../cards/tokenPrintLookup";
 import { INLINE_DELAYED_TRIGGER_ID } from "./effects/interpreter";
 import { tryGetEmblemDefinition } from "../cards/emblems";
 import type {
@@ -87,6 +88,14 @@ export function buildMonarchDrawStackItem(
     monarchId: string
 ): StackItem {
     const draw: EffectOp = { op: "draw", player: "controller", count: 1 };
+    // Cosmetic per-source art (issue #1305): theme the marker to the card that
+    // crowned this monarch (Forth Eorlingas → LTR "The Monarch", Palace Jailer
+    // → the Conspiracy one), the way a token's art matches its producer. Falls
+    // back to the designation's global marker when there is no themed source
+    // (a CR 720.3 combat-damage steal) or the lockfile has no entry.
+    const themedPrintId = state.monarchSourceCardId
+        ? tokenPrintIdFor(state.monarchSourceCardId, MONARCH_DESIGNATION.name)
+        : undefined;
     return {
         id: allocInstanceId(state),
         card: { id: "" },
@@ -105,6 +114,7 @@ export function buildMonarchDrawStackItem(
         // Cosmetic: keys the Monarch marker art + name for the stack tile
         // (a card-less inline trigger would otherwise render an empty tile).
         designationId: MONARCH_DESIGNATION.id,
+        ...(themedPrintId ? { designationImagePrintId: themedPrintId } : {}),
     };
 }
 
@@ -548,6 +558,13 @@ export const TRIGGER_BATCH_STACK_ID = "trigger-batch";
  *  scheduling order; they are pushed as collected, never prompted (matching
  *  pre-ADR-0058 behavior). */
 function isPlainTrigger(item: StackItem): boolean {
+    // CR 603.3c — a REFLEXIVE triggered ability rides the inline-body
+    // machinery (`delayedTriggerId` / `delayedEffects`) but is NOT an
+    // engine-internal firing: it is an ordinary triggered ability its
+    // controller may order against the other triggers that became waiting
+    // during the same resolution (typically the dies-trigger of the very
+    // sacrifice that produced it). Ordered like a plain trigger.
+    if (item.reflexiveTrigger) return true;
     return (
         !item.madnessTrigger &&
         !item.delayedTriggerId &&
@@ -565,6 +582,12 @@ function isPlainTrigger(item: StackItem): boolean {
  *  regardless of targets — swapping them has one meaningful result (ADR 0003). */
 function triggerOrderKey(item: StackItem): string {
     const cardId = (item.card as { id?: string }).id ?? "";
+    // CR 603.3c/603.3d — a reflexive ability DOES announce its own targets as
+    // it goes on the stack, so two reflexive instances are NOT
+    // outcome-interchangeable the way two copies of a plain trigger are (ADR
+    // 0003's premise). Key each by its own instance id so a pair of them is
+    // put to a real ordering decision rather than auto-ordered.
+    if (item.reflexiveTrigger) return `${cardId}::reflexive::${item.id}`;
     return `${cardId}::${item.triggeredAbilityId}`;
 }
 

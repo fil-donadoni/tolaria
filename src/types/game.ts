@@ -333,6 +333,11 @@ export interface StackItem extends CardInstance {
      *  art + name instead of the empty tile a card-less inline trigger would
      *  render. Undefined for every normal stack item. */
     designationId?: string;
+    /** Per-source marker-art override (issue #1305) — themes the designation
+     *  tile to the granting card's own printing (Forth Eorlingas → the LTR
+     *  "The Monarch"). Undefined ⇒ the client uses the designation's global
+     *  `imagePrintId`. Cosmetic. */
+    designationImagePrintId?: string;
     /** CR 700.2c (issue #1274) — the mode a modal spell locked in at cast
      *  (`SpellMode.id`). Survives the wire projection via `slimCard`
      *  (`SlimStackItem` keeps every StackItem field but `card`); declared here

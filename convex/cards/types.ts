@@ -364,6 +364,13 @@ export interface TargetRequirement {
      *  include this keyword (CR 702). Used by Island of Wak-Wak ("target
      *  creature with flying"). Ignored for player / spell targets. */
     requireAbility?: string;
+    /** Restricts legal permanent targets to those whose `staticAbilities`
+     *  include AT LEAST ONE of these keywords (CR 702 — OR semantics, the
+     *  disjunctive counterpart of the single-keyword `requireAbility`, which
+     *  it is orthogonal to: set one or the other). Used by "target creature
+     *  with trample or haste" (Minsc & Boo, Timeless Heroes). Ignored for
+     *  player / spell targets. */
+    requireAbilityAny?: ReadonlyArray<string>;
     /** Excludes legal permanent targets whose `staticAbilities` include this
      *  keyword (CR 702 — the negative of `requireAbility`). Used by Flood
      *  ("tap target creature without flying"). Ignored for player / spell
@@ -2688,6 +2695,29 @@ export interface SpellContext {
          *  the instance id whose `PERMANENT_LEFT` fires this delayed trigger.
          *  Undefined for every phase-boundary timing. */
         watchInstanceId?: string
+    ) => void;
+    /** CR 603.3c — creates a REFLEXIVE triggered ability from inside a
+     *  resolving effect ("Sacrifice a creature. **When you do**, ~ deals X
+     *  damage to any target"). Unlike `scheduleDelayedTrigger` there is no
+     *  waiting-for-a-boundary: the reflexive trigger is queued right here and
+     *  put on the stack (above the resolving object) the next time a player
+     *  would receive priority, choosing its targets as it goes on the stack
+     *  (CR 603.3d) — the SAME `placeTriggersOnStack` /
+     *  `raiseTriggerTargetSelection` path an ordinary triggered ability
+     *  takes, so APNAP ordering and target announcement are inherited whole.
+     *
+     *  The body is always INLINE (a pure-JSON Op list, ADR 0046) and the
+     *  payload is re-bound as its initial binding environment at resolution
+     *  through the same `runDelayedTriggerBody` seam an inline delayed
+     *  trigger uses. `targetRequirement` rides ON the queued stack item (the
+     *  ability has no card-def row to read it from). Controlled by the
+     *  resolving object's controller (CR 603.3c). */
+    pushReflexiveTrigger: (
+        sourceCardId: string,
+        oracleText: string,
+        effects: readonly EffectOp[],
+        payload: Record<string, string | string[]>,
+        targetRequirement?: TargetRequirement
     ) => void;
     /** Returns true if the target permanent was declared as an attacker this
      *  turn (CR 506.2). Used by "destroy it if it attacked this turn"-style
@@ -8306,6 +8336,21 @@ export type EffectOp =
      *  destroy attached. No-op on a non-creature or a permanent that has left
      *  the battlefield (CR 608.2b). */
     | { op: "preventRegeneration"; target: EffectObjectSelector }
+    /** CR 510.1c (issue #1283) — mark a permanent so it assigns NO combat
+     *  damage for the rest of the turn: a SOURCE-side prevention (the creature
+     *  still fights and can be dealt damage / die, it merely deals 0 in every
+     *  combat-damage step this turn). A thin declarative skin over the single
+     *  SpellContext primitive `markAssignsNoCombatDamage`, one execution path
+     *  (ADR 0045). `target` is an announced target slot (`{ target: N }` —
+     *  Warning / Restrain's "prevent all combat damage that would be dealt by
+     *  target attacking creature this turn"), the resolving source (`$source`
+     *  — Farrel's Zealot's "this creature assigns no combat damage this turn",
+     *  routed through the SAME primitive with the source's id), or a forEach
+     *  `$each`. DISTINCT from the receiver-side `preventNextNDamageToTarget` /
+     *  `preventAllCombatDamage` Ops (which prevent damage dealt TO a creature)
+     *  — this suppresses damage dealt BY the marked source. No-op on a
+     *  permanent that has left the battlefield (CR 608.2b). */
+    | { op: "markAssignsNoCombatDamage"; target: EffectObjectSelector }
     /** CR 701.27 / 712 (issue #1210, ADR 0067) — transform a permanent
      *  between its front and back printed characteristic sets. A thin
      *  declarative skin over the single SpellContext primitive `transform`,
@@ -8776,6 +8821,19 @@ export type EffectOp =
            *  so a permanent already gone is a no-op. Mutually exclusive with
            *  `permanents`. */
           target?: EffectObjectSelector;
+          /** CR 608.2h LAST-KNOWN INFORMATION — snapshots the sacrificed
+           *  permanent's characteristics BEFORE it leaves the battlefield, so
+           *  a later Op can read them off the graveyard-bound object
+           *  (`{ ref: "$sac.power" }` — Minsc & Boo's "deals X damage …, where
+           *  X is that creature's power"). Mirrors `destroy`/`exile`/
+           *  `moveZone`'s own `bind` — the same snapshot family, same reader
+           *  refs. On the `permanents` picks form it snapshots the FIRST
+           *  picked permanent (the "sacrifice A creature" shape; a multi-pick
+           *  mass sacrifice has no single "that creature" to name anyway),
+           *  mirroring `digToHand`'s first-kept-card bind. Never captured when
+           *  nothing was sacrificed (CR 608.2b — a later `ref` then reads
+           *  undefined and its Op skips). */
+          bind?: string;
       }
     /** delayedTrigger — grants a DELAYED triggered ability (CR 603.7, ADR
      *  0048): "At the beginning of the next <boundary>, <do something>". The
@@ -8813,6 +8871,49 @@ export type EffectOp =
           watch?: EffectObjectSelector;
           /** The delayed body — a nested Effect Script run by the
            *  interpreter when the trigger fires. */
+          effects: EffectOp[];
+      }
+    /** reflexiveTrigger — a REFLEXIVE triggered ability (CR 603.3c) created
+     *  by the resolving effect that just did the thing it triggers off:
+     *  "Sacrifice a creature. **When you do**, ~ deals X damage to any
+     *  target, where X is that creature's power" (Minsc & Boo, Timeless
+     *  Heroes). It is NOT a delayed trigger — nothing is waited for. The
+     *  ability is queued as the Op executes and goes on the stack ABOVE the
+     *  object that created it the next time a player would receive priority,
+     *  choosing its targets as it goes on the stack (CR 603.3d); both players
+     *  then get priority before it resolves. Because it is a separate stack
+     *  object, its `targetRequirement` is announced there — which is the
+     *  whole point of the shape: the target is chosen KNOWING what was
+     *  sacrificed.
+     *
+     *  Rides the existing inline-body trigger machinery whole (ADR 0048): the
+     *  body is a nested pure-JSON Op list persisted on the queued stack item,
+     *  placed through `placeTriggersOnStack` (APNAP ordering, CR 603.3b) and
+     *  resolved through `runDelayedTriggerBody`. No new resolution path.
+     *
+     *  `capture` is the ONLY data crossing into the body (outer bindings —
+     *  `$source` included — are not visible inside), keyed by the binding
+     *  name the body reads it back under. Unlike `delayedTrigger`'s capture,
+     *  a bare binding ref carries the WHOLE recorded binding verbatim rather
+     *  than flattening it to an instance id — which is what makes CR 608.2h
+     *  last-known information survive: a `sacrifice`-bound snapshot still
+     *  reads `$sac.power` after the creature reached the graveyard, where an
+     *  id would re-bind to nothing. Does not nest inside another
+     *  `reflexiveTrigger` or a `delayedTrigger` body (validator-enforced). */
+    | {
+          op: "reflexiveTrigger";
+          /** Oracle text of the reflexive ability (rendered on its stack
+           *  tile — it has no card-def ability row to read text from). */
+          oracleText: string;
+          /** What crosses into the body, keyed by the binding name it is read
+           *  back under. */
+          capture?: Record<string, EffectCaptureSource>;
+          /** Targets announced as the reflexive trigger goes on the stack
+           *  (CR 603.3d) — read by the body as `{ target: 0 }`. Omitted for a
+           *  non-targeted reflexive ability. */
+          targetRequirement?: TargetRequirement;
+          /** The reflexive body — a nested Effect Script run when the
+           *  trigger resolves. */
           effects: EffectOp[];
       }
     /** forEach — the fourth and FINAL structural construct (ADR 0045, issue

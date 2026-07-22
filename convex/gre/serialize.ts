@@ -896,6 +896,24 @@ function compactStackItem(item: StackItem): CompactCard {
     // save while the fired trigger sits on the stack awaiting priority.
     if (item.delayedEffects) base.delayedEffects = item.delayedEffects;
     if (item.delayedOracleText) base.delayedOracleText = item.delayedOracleText;
+    // CR 725 (issue #1305) — a source-less inherent designation trigger (the
+    // Monarch's end-step draw) keys its marker-card art + name off this id; it
+    // must survive a save while the trigger sits on the stack, or the client
+    // falls back to the empty "Token"/"Delayed trigger" placeholder.
+    if (item.designationId) base.designationId = item.designationId;
+    // Per-source marker art override (issue #1305) — must survive a save so the
+    // themed Monarch tile keeps the granting card's printing after a reload.
+    if (item.designationImagePrintId) {
+        base.designationImagePrintId = item.designationImagePrintId;
+    }
+    // CR 603.3c/603.3d — a reflexive trigger sits on the stack awaiting
+    // priority like any other; its marker and its inline target requirement
+    // must survive a save taken while it is there (the requirement is what
+    // `raiseTriggerTargetSelection` re-reads if targeting is still owed).
+    if (item.reflexiveTrigger) base.reflexiveTrigger = item.reflexiveTrigger;
+    if (item.inlineTargetRequirement) {
+        base.inlineTargetRequirement = item.inlineTargetRequirement;
+    }
     if (item.resolutionStep !== undefined) {
         base.resolutionStep = item.resolutionStep;
     }
@@ -996,6 +1014,24 @@ function expandStackItem(compact: CompactCard): StackItem {
     if (compact.delayedOracleText) {
         item.delayedOracleText = compact.delayedOracleText as string;
     }
+    // CR 725 (issue #1305) — rehydrate the designation-marker id so the
+    // Monarch's on-stack draw keeps its marker art after a save/load.
+    if (compact.designationId) {
+        item.designationId = compact.designationId as string;
+    }
+    if (compact.designationImagePrintId) {
+        item.designationImagePrintId =
+            compact.designationImagePrintId as string;
+    }
+    // CR 603.3c/603.3d — restore the reflexive-trigger marker and its inline
+    // target requirement.
+    if (compact.reflexiveTrigger) {
+        item.reflexiveTrigger = compact.reflexiveTrigger as boolean;
+    }
+    if (compact.inlineTargetRequirement) {
+        item.inlineTargetRequirement =
+            compact.inlineTargetRequirement as StackItem["inlineTargetRequirement"];
+    }
     if (compact.resolutionStep !== undefined) {
         item.resolutionStep = compact.resolutionStep as number;
     }
@@ -1053,6 +1089,12 @@ export const PERSISTED_OPTIONAL_KEYS = [
     // point, so the batch must survive a DB round-trip (round-trips as raw JSON —
     // its StackItems already carry `card: { id }`, no fat defs).
     "pendingTriggerBatch",
+    // CR 603.3c — reflexive triggered abilities queued by a still-resolving
+    // effect. Normally drained at the end of the resolution that made them,
+    // but a script can suspend on a player choice AFTER its `reflexiveTrigger`
+    // Op ran — a stable save point with the queue non-empty — so it must
+    // round-trip. Raw JSON, same shape as `pendingTriggerBatch`.
+    "pendingReflexiveTriggers",
     "pendingReveals",
     "autoPassPlayers",
     "singleShotAutoPass",
@@ -1120,6 +1162,9 @@ export const PERSISTED_OPTIONAL_KEYS = [
     // the generic optional-key loop with no per-field compaction needed.
     "monarchId",
     "monarchReturnWatch",
+    // Cosmetic crown provenance (issue #1305) — a plain string scalar keying
+    // the end-step draw tile's themed marker art; round-trips generically.
+    "monarchSourceCardId",
     // CR 303.4f — Auras held off every zone while their controller owes a
     // `choose-aura-host` pick. Transiently non-empty only while a matching
     // choice is pending (which is itself a stable save point), so it must

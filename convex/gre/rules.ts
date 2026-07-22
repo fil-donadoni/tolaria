@@ -1262,6 +1262,7 @@ export interface IntrinsicPermanentTargetFilters {
     tappedFilter?: "tapped" | "untapped";
     combatRoleFilter?: "attacking" | "blocking" | ("attacking" | "blocking")[];
     requireAbility?: string;
+    requireAbilityAny?: ReadonlyArray<string>;
     excludeAbility?: string;
     excludeInstanceIds?: ReadonlyArray<string>;
     powerFilter?: { min?: number; max?: number };
@@ -1316,6 +1317,10 @@ export function intrinsicPermanentTargetViolation(
         tappedFilter: f.tappedFilter,
         combatRoleFilter: f.combatRoleFilter,
         requireAbility: f.requireAbility,
+        requireAbilityAny:
+            f.requireAbilityAny && f.requireAbilityAny.length > 0
+                ? f.requireAbilityAny
+                : undefined,
         excludeAbility: f.excludeAbility,
         excludeInstanceIds:
             f.excludeInstanceIds && f.excludeInstanceIds.length > 0
@@ -1521,6 +1526,7 @@ export function getLegalTargets(
                         tappedFilter,
                         combatRoleFilter,
                         requireAbility: requirement.requireAbility,
+                        requireAbilityAny: requirement.requireAbilityAny,
                         excludeAbility: requirement.excludeAbility,
                         excludeInstanceIds: requirement.excludeInstanceIds,
                         powerFilter,
@@ -1836,9 +1842,17 @@ export function raiseTriggerTargetSelection(state: GameState): boolean {
         // Already-targeted (or engine-locked to []) and non-targeted triggers
         // are skipped; only a trigger with an un-set target slot is a candidate.
         if (item.targets !== undefined) continue;
-        if (!item.triggeredAbilityId) continue;
-        const ability = findTriggeredAbility(item, item.triggeredAbilityId);
-        const req = ability?.targetRequirement;
+        // CR 603.3c/603.3d — a REFLEXIVE triggered ability has no card-def
+        // ability row to read a `targetRequirement` from; its requirement
+        // rides on the stack item itself (`reflexiveTrigger` Op). Everything
+        // downstream — legality, auto-select, the `kind:"trigger"`
+        // PendingTarget — is the same path a card-def trigger takes.
+        const req: TargetRequirement | undefined = item.inlineTargetRequirement
+            ? item.inlineTargetRequirement
+            : item.triggeredAbilityId
+              ? findTriggeredAbility(item, item.triggeredAbilityId)
+                    ?.targetRequirement
+              : undefined;
         if (!req) continue;
 
         // CR 702.21a (Ward) — a reflexive requirement resolves its own

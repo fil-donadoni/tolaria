@@ -106,6 +106,11 @@ console.log(
 // Batch /cards/collection (max 75 ids per request, ~120ms throttle).
 // ---------------------------------------------------------------------------
 
+// State-designation marker names (lowercased) captured alongside tokens — see
+// STATE_DESIGNATIONS in convex/cards/designations.ts. City's Blessing is listed
+// ahead of its (unimplemented) Ascend mechanic so the pipeline is ready.
+const DESIGNATION_MARKER_NAMES = new Set(["the monarch", "city's blessing"]);
+
 const BATCH = 75;
 const ids = [...uuids];
 const tokensByCard = {};
@@ -137,7 +142,21 @@ for (let i = 0; i < ids.length; i += BATCH) {
     const data = await res.json();
     for (const card of data.data ?? []) {
         const tokens = (card.all_parts ?? [])
-            .filter((p) => p.component === "token")
+            .filter(
+                (p) =>
+                    p.component === "token" ||
+                    // State-designation markers (The Monarch, CR 725) are
+                    // token-layout cards but Scryfall tags them `combo_piece`,
+                    // not `token`. Capture them so a card that GRANTS the
+                    // designation carries its set-themed marker art, keyed by
+                    // the granting card exactly like its tokens (issue #1305).
+                    // Names mirror the registry in
+                    // `convex/cards/designations.ts` (STATE_DESIGNATIONS).
+                    (p.component === "combo_piece" &&
+                        DESIGNATION_MARKER_NAMES.has(
+                            (p.name ?? "").toLowerCase()
+                        ))
+            )
             .map((p) => ({ scryfallId: p.id, name: p.name }));
         if (tokens.length > 0) {
             tokensByCard[card.id] = tokens;

@@ -295,6 +295,58 @@ describe("Monarch — end-step draw (CR 725.2, issue #1199)", () => {
         // Keys the marker-card art + name in the stack tile (stack-row.tsx).
         expect(tile.designationId).toBe("monarch");
     });
+
+    it("themes the marker art to the card that crowned the monarch (Forth Eorlingas, #1305)", () => {
+        // Forth Eorlingas! (ltc) crowns via a DSL becomeMonarch; the draw tile
+        // must carry its set-themed "The Monarch" printing, not the global one.
+        const state = makeState({
+            phase: "POSTCOMBAT_MAIN",
+            turn: 2,
+            activePlayerId: "p1",
+            players: [
+                makePlayer("p1", { library: [libraryCard("lib1", "p1")] }),
+                makePlayer("p2"),
+            ],
+        });
+        // Crowned by Forth Eorlingas! (its Scryfall id is the crowning source).
+        becomeMonarch(state, "p1", "06c053d3-028e-4961-93a5-5b7bb5a8601c");
+        expect(state.monarchSourceCardId).toBe(
+            "06c053d3-028e-4961-93a5-5b7bb5a8601c"
+        );
+
+        advancePhase(state);
+        const tile = state.stack[0];
+        // The LTR "The Monarch" print (tltc) — Forth's own all_parts marker.
+        expect(tile.designationImagePrintId).toBe(
+            "63455c28-3e53-45b1-8d0b-a5045dab1fb9"
+        );
+        // Survives the wire projection (the client reads it off the tile).
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.stack[0].designationImagePrintId).toBe(
+            "63455c28-3e53-45b1-8d0b-a5045dab1fb9"
+        );
+    });
+
+    it("falls back to the global marker art when the crown was stolen in combat (no card source, #1305)", () => {
+        // A CR 720.3 combat-damage steal crowns with no card source, so the
+        // themed override is cleared and the tile uses the global marker.
+        const state = makeState({
+            phase: "POSTCOMBAT_MAIN",
+            turn: 2,
+            activePlayerId: "p1",
+            players: [
+                makePlayer("p1", { library: [libraryCard("lib1", "p1")] }),
+                makePlayer("p2"),
+            ],
+        });
+        // First a themed crown, then a source-less re-crown clears it.
+        becomeMonarch(state, "p2", "06c053d3-028e-4961-93a5-5b7bb5a8601c");
+        becomeMonarch(state, "p1");
+        expect(state.monarchSourceCardId).toBeUndefined();
+
+        advancePhase(state);
+        expect(state.stack[0].designationImagePrintId).toBeUndefined();
+    });
 });
 
 describe("Monarch — Palace Jailer's exile-until-monarch-changes primitive (CR 720, issue #1199)", () => {

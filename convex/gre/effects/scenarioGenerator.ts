@@ -778,6 +778,16 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // interpreter tests (per-Op regime, issue #838).
             req.skip ??= `Op "delayedTrigger" fires at a future phase boundary — covered by the Op's interpreter tests`;
             return;
+        case "reflexiveTrigger":
+            // CR 603.3c — the Op's only same-resolution outcome is a QUEUED
+            // trigger; the body's effects land only after the reflexive
+            // ability is placed on the stack, its targets are announced
+            // (CR 603.3d) and both players pass priority — none of which a
+            // canned single-resolution scenario reaches. Explicit skip:
+            // queueing, capture round-trip and body execution are covered by
+            // the Op's own interpreter tests (per-Op regime).
+            req.skip ??= `Op "reflexiveTrigger" resolves on a separate stack object after a priority round — covered by the Op's interpreter tests`;
+            return;
         case "libraryLook":
             // CR 701.20 (issue #844) — a shuffle is a seeded-PRNG
             // RANDOMIZATION with no deterministic same-resolution outcome the
@@ -826,6 +836,19 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // modelled — skip and let the card's own per-card test cover it.
             if (!("target" in op.target)) {
                 req.skip ??= `Op "preventRegeneration" targets $source/$each — covered by the card's own per-card test`;
+                return;
+            }
+            recordSlot(req, op.target.target, "permanent");
+            return;
+        case "markAssignsNoCombatDamage":
+            // `markAssignsNoCombatDamage` (CR 510.1c, issue #1283) pushes the
+            // target's id onto the IMMEDIATE `state.assignsNoCombatDamageThisTurn`
+            // array (observable in the same resolution). The generator asserts it
+            // on an announced permanent slot (seeds a filler creature there and
+            // reads the array after resolution). A `$source` / `$each` target is
+            // not modelled — skip and let the card's own per-card test cover it.
+            if (!("target" in op.target)) {
+                req.skip ??= `Op "markAssignsNoCombatDamage" targets $source/$each — covered by the card's own per-card test`;
                 return;
             }
             recordSlot(req, op.target.target, "permanent");
@@ -1709,6 +1732,15 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     delayedTrigger() {
         return null;
     },
+    // `reflexiveTrigger` (CR 603.3c) — never reached: `analyseOp` skips every
+    // script with a reflexiveTrigger Op (the body resolves on a SEPARATE
+    // stack object, after target announcement and a priority round the canned
+    // single-resolution scenario never runs). Kept for the 1:1 coverage
+    // guard; queueing, capture round-trip and body execution are covered by
+    // the Op's own interpreter tests.
+    reflexiveTrigger() {
+        return null;
+    },
     // `libraryLook` (CR 701.20, issue #844) — never reached: `analyseOp` skips
     // every script with a libraryLook Op (a shuffle is a seeded-PRNG
     // randomization with no deterministic same-resolution outcome the canned
@@ -1806,6 +1838,37 @@ const OP_ASSERTORS: Record<string, Assertor> = {
                 return {
                     ok: perm.cantBeRegeneratedThisTurn === true,
                     detail: `cantBeRegeneratedThisTurn ${perm.cantBeRegeneratedThisTurn}, expected true`,
+                };
+            },
+        };
+    },
+    // `markAssignsNoCombatDamage` (CR 510.1c, issue #1283) — a source-side
+    // combat-damage lock on an announced permanent slot is observable as the
+    // permanent's id appearing in `state.assignsNoCombatDamageThisTurn`.
+    // `$source`/`$each` targets are skipped upstream in `analyseOp` (returns
+    // null defensively here).
+    markAssignsNoCombatDamage(rawOp, scenario) {
+        const op = rawOp as Extract<
+            EffectOp,
+            { op: "markAssignsNoCombatDamage" }
+        >;
+        if (!("target" in op.target)) return null;
+        const permId = scenario.targetPermanentIds[op.target.target];
+        return {
+            label: `combat-damage lock permanent ${permId} (assignsNoCombatDamageThisTurn contains id)`,
+            check: (post) => {
+                const perm = post.players
+                    .flatMap((p) => p.battlefield)
+                    .find((c) => c.id === permId);
+                if (!perm) {
+                    return { ok: false, detail: "target permanent gone" };
+                }
+                const marked = (
+                    post.assignsNoCombatDamageThisTurn ?? []
+                ).includes(permId);
+                return {
+                    ok: marked,
+                    detail: `assignsNoCombatDamageThisTurn ${marked ? "contains" : "missing"} ${permId}`,
                 };
             },
         };

@@ -584,6 +584,41 @@ describe("intrinsicPermanentTargetViolation — shared offered/accepted gate", (
         ).toBeNull();
     });
 
+    it("requireAbilityAny: accepts a creature with EITHER keyword, rejects one with neither (CR 702 OR semantics)", () => {
+        // "target creature with trample or haste" (Minsc & Boo) — a
+        // DISJUNCTION the single-keyword `requireAbility` cannot express.
+        const trampler = makeCard({
+            types: ["Creature"],
+            staticAbilities: ["trample"],
+        });
+        const hasty = makeCard({
+            types: ["Creature"],
+            staticAbilities: ["haste"],
+        });
+        const vanilla = makeCard({ types: ["Creature"], staticAbilities: [] });
+        const req = { requireAbilityAny: ["trample", "haste"] };
+        expect(intrinsicPermanentTargetViolation(st, trampler, req)).toBeNull();
+        expect(intrinsicPermanentTargetViolation(st, hasty, req)).toBeNull();
+        expect(
+            intrinsicPermanentTargetViolation(st, vanilla, req)
+        ).not.toBeNull();
+    });
+
+    it("requireAbilityAny is carried across the async target choice (pendingTargetFiltersFromRequirement)", () => {
+        // The Phelia bug class: a filter honored by `getLegalTargets` but
+        // dropped on the way to `selectTarget` lets the server accept an
+        // illegal target. Both read it from the carry below.
+        const pt = pendingTargetFiltersFromRequirement(
+            {
+                type: "Creature",
+                count: { min: 0, max: 1 },
+                requireAbilityAny: ["trample", "haste"],
+            },
+            undefined
+        );
+        expect(pt.requireAbilityAny).toEqual(["trample", "haste"]);
+    });
+
     it("excludeAbility: rejects a creature WITH the keyword ('without flying')", () => {
         const flyer = makeCard({
             types: ["Creature"],
@@ -2160,11 +2195,12 @@ describe("checkCardTargetFilters — shared offered/accepted gate (ADR 0068, iss
 describe("target-filter registry — FilterKey exhaustiveness keystone (ADR 0068, issue #1411)", () => {
     it("REGISTRY is non-empty and covers every filter migrated by T1-T3", () => {
         const keys = Object.keys(REGISTRY);
-        // 17 permanent + 8 spell-only + 1 player-only (T1 + T2 + T3) — see
+        // 18 permanent + 8 spell-only + 1 player-only (T1 + T2 + T3) — see
         // PERMANENT_FILTER_KEYS / SPELL_ONLY_FILTER_KEYS / PLAYER_ONLY_FILTER_KEYS
         // in targetFilters.ts. Card-kind reuses `controller`/`mvFilter`, both
         // already counted under the permanent set — no additional keys.
-        expect(keys.length).toBe(26);
+        // (`requireAbilityAny` joined the permanent set with Minsc & Boo.)
+        expect(keys.length).toBe(27);
     });
 
     it("every registered filter has a `lower` function and at least one `checks` predicate", () => {

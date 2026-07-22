@@ -52,6 +52,7 @@ Crucible of Worlds
 - se cerco nel grimorio con filtro e non ci sono risultati validi, devo comunque vedere il grimorio con tutte le carte disattivate e poi mischiare.
 - il peek con click to dismiss deve accettare anche il tasto space per fare dismiss e comunque deve avere un timer che dopo 5 secondi chiude il dialog
 - Goblin artisans: abbiamo perso l'animazione del coin toss che prima c'era.
+- le abilità loyalty di un planeswalker non devono comparire nel context menu se siamo in una fase non sorcery speed, a meno di abilità che le abilitano a questa velocità.
 
 # Bug gameplay
 

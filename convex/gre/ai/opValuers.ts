@@ -378,6 +378,13 @@ const choiceOp: Valuer<"choice"> = () => {
 const delayedTrigger: Valuer<"delayedTrigger"> = (op, ctx) =>
     valueEffectScript(op.effects, ctx);
 
+// CR 603.3c — a reflexive trigger's whole value IS its body: the Op itself
+// only queues a stack object. Same recursion as `delayedTrigger`, and — unlike
+// it — with no discount for the wait, since a reflexive ability resolves in
+// the same priority round rather than at a future phase boundary.
+const reflexiveTrigger: Valuer<"reflexiveTrigger"> = (op, ctx) =>
+    valueEffectScript(op.effects, ctx);
+
 const digMatchingToHand: Valuer<"digMatchingToHand"> = () => ({
     points: CARD_SELECTION_VALUE,
     tags: ["cardAdvantage", "board-scaling"],
@@ -538,6 +545,19 @@ const preventRegeneration: Valuer<"preventRegeneration"> = (op) => ({
         : ["boardRemoval"],
 });
 
+// Source-side combat-damage neutralization (Warning / Restrain): the marked
+// creature deals 0 combat damage this turn — a single-creature defensive shield
+// worth a fraction of a full Fog (which stops the whole combat).
+const MARK_ASSIGNS_NO_COMBAT_DAMAGE_VALUE = 40;
+const markAssignsNoCombatDamage: Valuer<"markAssignsNoCombatDamage"> = (
+    op
+) => ({
+    points: MARK_ASSIGNS_NO_COMBAT_DAMAGE_VALUE,
+    tags: isAnnouncedTarget(op.target)
+        ? ["protection", "targeted"]
+        : ["protection"],
+});
+
 const restrictActivation: Valuer<"restrictActivation"> = () => ({
     points: RESTRICT_ACTIVATION_VALUE,
     tags: ["disruption"],
@@ -647,6 +667,7 @@ export const OP_VALUERS: {
     becomeMonarch,
     choice: choiceOp,
     delayedTrigger,
+    reflexiveTrigger,
     digMatchingToHand,
     digToHand,
     discard,
@@ -664,6 +685,7 @@ export const OP_VALUERS: {
     mill,
     nameCard,
     preventDamage,
+    markAssignsNoCombatDamage,
     putBack,
     regenerate,
     preventRegeneration,

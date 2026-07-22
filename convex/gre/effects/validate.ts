@@ -1471,6 +1471,66 @@ function isCaptureMap(value: unknown): boolean {
     );
 }
 
+/** SHAPE of a `reflexiveTrigger` Op's `capture` map (CR 603.3c). Same
+ *  vocabulary as `isCaptureMap` MINUS the `{ select }` list source, which is a
+ *  delayed-only shape (its freeze-at-cast combat-partner semantics has no
+ *  reflexive analogue), and minus `$event.<field>` refs (a reflexive ability
+ *  triggers off the resolving effect's own action, not a firing event — there
+ *  is no `$event` in scope). A bare binding ref is the common case: it carries
+ *  the recorded binding VERBATIM so CR 608.2h last-known information survives
+ *  onto the separate stack object. */
+function isReflexiveCaptureMap(value: unknown): boolean {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+        return false;
+    }
+    return Object.entries(value).every(
+        ([k, v]) =>
+            isBindingName(k) &&
+            k !== "$each" &&
+            k !== "$source" &&
+            (isNonEmptyString(v) ||
+                isTargetRef(v) ||
+                isBareRef(v) ||
+                (isRefValue(v) && !isEventRefValue(v)))
+    );
+}
+
+/** SHAPE of a `TargetRequirement` carried inline on an Op (CR 603.3d — the
+ *  `reflexiveTrigger` Op's own announced targets). Structural only: a plain
+ *  object with a `type` (a non-empty string or array of strings) and a
+ *  `count` (a non-negative int, `"X"`, or a `{ min, max? }` range). The FIELD
+ *  vocabulary itself is enforced by `tsc` against `TargetRequirement` at
+ *  authoring time and by the target-filter registry at resolution time; what
+ *  this adds — and what tsc cannot — is that the requirement survives the DB
+ *  round-trip as pure JSON (ADR 0046), checked by the script-wide purity
+ *  pass. */
+function isInlineTargetRequirement(value: unknown): boolean {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+        return false;
+    }
+    const req = value as Record<string, unknown>;
+    const typeOk =
+        isNonEmptyString(req.type) ||
+        (Array.isArray(req.type) &&
+            req.type.length > 0 &&
+            req.type.every(isNonEmptyString));
+    if (!typeOk) return false;
+    const count = req.count;
+    if (count === "X") return true;
+    if (typeof count === "number") {
+        return Number.isInteger(count) && count >= 0;
+    }
+    if (typeof count === "object" && count !== null && !Array.isArray(count)) {
+        const c = count as Record<string, unknown>;
+        const minOk = Number.isInteger(c.min) && (c.min as number) >= 0;
+        const maxOk =
+            c.max === undefined ||
+            (Number.isInteger(c.max) && (c.max as number) >= 0);
+        return minOk && maxOk;
+    }
+    return false;
+}
+
 /** Per-Op field schemas. Adding an Op = one registry row (mechanicsRegistry),
  *  one executor (interpreter) and one schema row here; the coverage guard
  *  test fails CI when the three drift apart. `bind` (ADR 0045) is an optional
@@ -1804,6 +1864,14 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
         },
     },
     preventRegeneration: {
+        required: {
+            target: isObjectSelector,
+        },
+    },
+    // CR 510.1c (issue #1283) — mark a permanent to assign no combat damage
+    // this turn. `target` is an object selector (announced slot, `$source`, or
+    // a forEach `$each`). No other fields.
+    markAssignsNoCombatDamage: {
         required: {
             target: isObjectSelector,
         },
@@ -2205,7 +2273,13 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     // Kjeldoran Elite Guard, Phantasmal Mount, issue #731). Exactly one form.
     sacrifice: {
         required: {},
-        optional: { permanents: isBarePicksRef, target: isObjectSelector },
+        optional: {
+            permanents: isBarePicksRef,
+            target: isObjectSelector,
+            // CR 608.2h — last-known-info snapshot of the sacrificed
+            // permanent, same binding family as destroy/exile/moveZone.
+            bind: isBindingName,
+        },
         check: (entry) => {
             const hasPicks = "permanents" in entry;
             const hasTarget = "target" in entry;
@@ -2304,6 +2378,23 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             }
             return errors;
         },
+    },
+    // CR 603.3c — a REFLEXIVE triggered ability created by the resolving
+    // effect ("Sacrifice a creature. When you do, …"). No `timing` (nothing
+    // is waited for) and no `targetPlayer` / `watch` — the delayed-trigger
+    // fields that scope a FUTURE firing have no reflexive analogue. The
+    // capture map / body scoping / nesting ban are checked by the recursive
+    // schema and ordered ref passes.
+    reflexiveTrigger: {
+        required: { oracleText: isNonEmptyString, effects: isOpList },
+        optional: {
+            capture: isReflexiveCaptureMap,
+            targetRequirement: isInlineTargetRequirement,
+        },
+        check: (entry) =>
+            Array.isArray(entry.effects) && entry.effects.length === 0
+                ? ['field "effects" must be a non-empty Op list']
+                : [],
     },
     // CR 104.2a (issue #1066) — designate the winning player, through the
     // SAME `state.gameOver` seam State-Based Actions use.
@@ -2819,7 +2910,15 @@ function checkCaptureSource(
     declared: ReadonlyMap<string, BindingKind>,
     at: string,
     errors: string[],
-    eventScope: EventScope
+    eventScope: EventScope,
+    /** CR 603.3c — a `reflexiveTrigger` capture carries the recorded binding
+     *  VERBATIM instead of flattening it to a single id, so the single-value
+     *  restriction below does not apply: a picks binding crosses as picks, a
+     *  list as a list. (`$event` stays illegal either way — a reflexive
+     *  ability has no firing event; the caller's `isReflexiveCaptureMap`
+     *  already rejects that shape, and the `inDelayedBody` branch below
+     *  catches any that slips through.) */
+    verbatim = false
 ): void {
     if (typeof source !== "object" || source === null) return; // literal
     const obj = source as Record<string, unknown>;
@@ -2854,6 +2953,7 @@ function checkCaptureSource(
             );
             return;
         }
+        if (verbatim) return;
         if (family !== "snapshot" && family !== "player") {
             errors.push(
                 `${at}: capture "${name}" ref "${ref}" names a ${family} binding — only single-value snapshot/player bindings can cross to fire time (list captures are a tracked grammar gap, ADR 0048)`
@@ -2909,6 +3009,31 @@ function captureBindingKind(
             if (ref.includes(".")) return "player"; // `.controller` capture
             const outer = declared.get(ref);
             if (outer === "player") return "player";
+        }
+    }
+    return "snapshot";
+}
+
+/** The binding family a `reflexiveTrigger` capture key declares INSIDE the
+ *  body scope (CR 603.3c). Unlike `captureBindingKind`, a BARE ref keeps its
+ *  outer family wholesale — the interpreter carries the recorded binding
+ *  across verbatim rather than flattening it to an instance id, so a picks
+ *  binding is still picks inside the body (what lets an `if
+ *  picksMatchFilter` gate read the sacrificed creature's card in the
+ *  graveyard) and a snapshot is still a snapshot (what lets `$sac.power`
+ *  read CR 608.2h last-known information). A `.controller` capture still
+ *  narrows to a player binding; a literal / target slot re-binds as a
+ *  snapshot, same as the delayed path. */
+function reflexiveCaptureBindingKind(
+    source: unknown,
+    declared: ReadonlyMap<string, BindingKind>
+): BindingKind {
+    if (typeof source === "object" && source !== null) {
+        const ref = (source as Record<string, unknown>).ref;
+        if (typeof ref === "string") {
+            if (ref.includes(".")) return "player"; // `.controller` capture
+            const outer = declared.get(ref);
+            if (outer !== undefined) return outer;
         }
     }
     return "snapshot";
@@ -3041,7 +3166,9 @@ function checkOpListRefs(
         // delayedTrigger (CR 603.7, ADR 0048): capture sources and the
         // `targetPlayer` selector resolve at SCHEDULING time, in the OUTER
         // scope (the body's own fire-time scope is walked below).
-        if (entry.op === "delayedTrigger") {
+        // reflexiveTrigger (CR 603.3c) resolves its capture sources in the
+        // SAME outer scope, at the moment the Op executes.
+        if (entry.op === "delayedTrigger" || entry.op === "reflexiveTrigger") {
             const capture = entry.capture;
             if (capture && typeof capture === "object") {
                 for (const [name, src] of Object.entries(capture)) {
@@ -3051,7 +3178,8 @@ function checkOpListRefs(
                         declared,
                         at,
                         errors,
-                        eventScope
+                        eventScope,
+                        entry.op === "reflexiveTrigger"
                     );
                 }
             }
@@ -3181,6 +3309,36 @@ function checkOpListRefs(
             );
         }
 
+        // Recurse into the reflexiveTrigger body (CR 603.3c) with a FRESH
+        // scope, exactly like the delayed body above — its ONLY initial
+        // bindings are the capture keys. Two differences, both following from
+        // "carried verbatim, resolved immediately":
+        //   * family — a bare ref keeps its OUTER family (a picks binding is
+        //     still picks inside the body, so `picksMatchFilter` on it type-
+        //     checks), because nothing is flattened to an id on the way in;
+        //   * `$event` — a reflexive ability triggers off the resolving
+        //     effect's own action, not an event, so `$event` is illegal in
+        //     the body (`inDelayedBody: true` enforces it).
+        if (entry.op === "reflexiveTrigger" && Array.isArray(entry.effects)) {
+            const bodyScope = new Map<string, BindingKind>();
+            const capture = entry.capture;
+            if (capture && typeof capture === "object") {
+                for (const [name, src] of Object.entries(capture)) {
+                    bodyScope.set(
+                        name,
+                        reflexiveCaptureBindingKind(src, declared)
+                    );
+                }
+            }
+            checkOpListRefs(
+                entry.effects,
+                (j) => `${at}: effects[${j}]`,
+                errors,
+                bodyScope,
+                { eventType: eventScope.eventType, inDelayedBody: true }
+            );
+        }
+
         // Recurse into `divideIntoPiles`'s `chosenEffect` / `otherEffect`
         // (ADR 0053, pile division) each with a CLONED scope that additionally
         // declares that branch's own pile binding (`chosenBind` in
@@ -3289,6 +3447,17 @@ function validateOpSchema(
     if (entry.op === "delayedTrigger" && inDelayed) {
         errors.push(
             `${at}: delayedTrigger must not nest inside a delayedTrigger body — one scheduling level per script (ADR 0048)`
+        );
+        return;
+    }
+    // CR 603.3c — a reflexive trigger's body is itself a fresh script run on
+    // a separate stack object; nesting another deferred-body construct inside
+    // it would compound capture scoping with no card needing it. `inDelayed`
+    // covers BOTH deferred-body constructs (delayedTrigger / reflexiveTrigger)
+    // — one deferral level per script, either kind.
+    if (entry.op === "reflexiveTrigger" && inDelayed) {
+        errors.push(
+            `${at}: reflexiveTrigger must not nest inside a delayedTrigger / reflexiveTrigger body — one deferral level per script (CR 603.3c)`
         );
         return;
     }
@@ -3416,6 +3585,15 @@ function validateOpSchema(
     // new script's single construct level) and `inDelayed` is set so a nested
     // delayedTrigger is rejected.
     if (entry.op === "delayedTrigger" && Array.isArray(entry.effects)) {
+        entry.effects.forEach((op, j) => {
+            validateOpSchema(op, `${at}: effects[${j}]`, errors, false, true);
+        });
+    }
+    // Recurse into a `reflexiveTrigger` body (CR 603.3c) — same contract as
+    // the delayed body above: a FRESH script executed on its own stack
+    // object, so `inForEach` resets and `inDelayed` is set (banning a nested
+    // deferred-body construct of either kind).
+    if (entry.op === "reflexiveTrigger" && Array.isArray(entry.effects)) {
         entry.effects.forEach((op, j) => {
             validateOpSchema(op, `${at}: effects[${j}]`, errors, false, true);
         });

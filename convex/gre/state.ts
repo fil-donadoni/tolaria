@@ -56,7 +56,10 @@ import { checkStateBasedActions } from "./sba";
 import { getExtraLandDrops, getLegalTargets } from "./rules";
 import { resolveEntersTapped } from "../cards/entersTapped";
 import { getAbilityEffectFn, getResolveFn } from "../cards/effectRegistry";
-import { runDelayedTriggerBody } from "./effects/interpreter";
+import {
+    INLINE_DELAYED_TRIGGER_ID,
+    runDelayedTriggerBody,
+} from "./effects/interpreter";
 import { matchesPermanentFilter } from "../cards/filters";
 import type { Phase, Zone, PhaseReturnCondition } from "./types";
 import type { SacrificeSelection } from "./sacrificeChoice";
@@ -1366,6 +1369,21 @@ export type StackItem = CardInstanceState & {
      *  ability tile (art + oracle text) instead of the full-card image. Undefined
      *  for the legacy template path, where the text lives on the card def. */
     delayedOracleText?: string;
+    /** CR 603.3c/603.3d — the target requirement of a REFLEXIVE triggered
+     *  ability (the `reflexiveTrigger` Op). A reflexive ability has no
+     *  `cardDef.triggeredAbilities[]` row, so the requirement its targets are
+     *  announced from rides ON the stack item instead;
+     *  `raiseTriggerTargetSelection` reads it exactly where it would read a
+     *  card-def ability's `targetRequirement`. Undefined for a non-targeted
+     *  reflexive ability and for every other kind of stack item. */
+    inlineTargetRequirement?: TargetRequirement;
+    /** CR 603.3c — marks this stack item as a REFLEXIVE triggered ability
+     *  (created by the `reflexiveTrigger` Op). It rides the inline-body
+     *  machinery (`delayedTriggerId` / `delayedEffects`) but, unlike a genuine
+     *  delayed / Madness / Storm firing, it IS an ordinary triggered ability
+     *  its controller may order against other simultaneous triggers
+     *  (CR 603.3b) — this flag is what tells `isPlainTrigger` so. */
+    reflexiveTrigger?: boolean;
     /** CR 725 (issue #1305) — a source-less inherent DESIGNATION triggered
      *  ability on the stack (the Monarch's end-step draw). Keys a state
      *  designation (`convex/cards/designations.ts`) so the stack UI renders the
@@ -1373,6 +1391,13 @@ export type StackItem = CardInstanceState & {
      *  trigger would otherwise show (`card.id` is ""). Purely cosmetic — the
      *  resolution path is the inline `delayedEffects` one. */
     designationId?: string;
+    /** Per-source Scryfall print id overriding the designation's global marker
+     *  art on this tile (issue #1305). Set by `buildMonarchDrawStackItem` from
+     *  `state.monarchSourceCardId` (resolved via `tokenPrintIdFor`) so the
+     *  Monarch draw shows the granting card's own set-themed marker; omitted
+     *  when there is no themed source, and the client falls back to
+     *  `designation.imagePrintId`. Cosmetic only. */
+    designationImagePrintId?: string;
     /** Resume checkpoint for a multi-step resolve (CR 608.3). Index into
      *  `CardDefinition.resolveSteps`. Advanced by the engine after a step
      *  completes without enqueueing pending choices. Undefined = start from
@@ -2160,6 +2185,10 @@ export type PendingTarget = {
      *  "target creature with flying"). Propagated from
      *  TargetRequirement.requireAbility. */
     requireAbility?: string;
+    /** If set, restricts to permanents that have AT LEAST ONE of these keyword
+     *  abilities (CR 702 — OR semantics, "target creature with trample or
+     *  haste"). Propagated from TargetRequirement.requireAbilityAny. */
+    requireAbilityAny?: ReadonlyArray<string>;
     /** If set, EXCLUDES permanents that have this keyword ability (CR 702,
      *  "target creature without flying"). Propagated from
      *  TargetRequirement.excludeAbility. */
@@ -2435,6 +2464,16 @@ export type GameState = {
      *  batch is pushed onto the stack in one shot and the field is cleared.
      *  Undefined at every fully-resolved point. */
     pendingTriggerBatch?: StackItem[];
+    /** CR 603.3c — REFLEXIVE triggered abilities created by an effect that is
+     *  still resolving ("Sacrifice a creature. When you do, …"), queued by
+     *  `SpellContext.pushReflexiveTrigger` and placed on the stack by the
+     *  same `processPendingActionTriggers` drain that stacks event-derived
+     *  triggers — so a reflexive ability and the dies-triggers of the very
+     *  sacrifice that produced it land in ONE APNAP-ordered batch, which is
+     *  exactly what CR 603.3b calls for (both became "waiting to be put on
+     *  the stack" during the same resolution). Never non-empty at a stable
+     *  save point: the drain runs at the end of every resolution. */
+    pendingReflexiveTriggers?: StackItem[];
     /** ADR 0026 (Reveal dialog) — one-shot notifications produced when a pure
      *  look/peek/reveal effect resolves (Mishra's Bauble, Gitaxian Probe, …).
      *  Each entry drives a transient client dialog that shows the revealed
@@ -2915,6 +2954,15 @@ export type GameState = {
      *  (`applyOneCombatDamage`, phases.ts) and the CR 720.4 end-step draw hook
      *  (phases.ts `END_STEP` phase entry). */
     monarchId?: string;
+    /** Scryfall id of the card that most recently crowned the current monarch
+     *  (issue #1305). Purely cosmetic: it themes the Monarch marker art on the
+     *  end-step draw stack tile to the granting card's own set-printing (Forth
+     *  Eorlingas → the LTR "The Monarch", Palace Jailer → the Conspiracy one),
+     *  the way a token's art matches its producer. Set by `becomeMonarch` when
+     *  the crown changes hands via a card, and CLEARED when the crown moves
+     *  with no card source (the CR 720.3 combat-damage steal) so that draw
+     *  falls back to the global `MONARCH_DESIGNATION.imagePrintId`. */
+    monarchSourceCardId?: string;
     /** CR 720 (Palace Jailer, issue #1199) — pending "return the exiled
      *  creature the next time an opponent of `controllerId` becomes the
      *  monarch" watches, armed by `SpellContext.exileUntilMonarchChanges`.
@@ -3404,9 +3452,17 @@ function resolveManaAbilityTriggerImmediately(
  *  step that tapped the land — no intervening priority pass, and the player is
  *  never forced to commit "pay"/"skip" before the bonus mana arrives. */
 export function processPendingActionTriggers(state: GameState): void {
+    // CR 603.3c — reflexive abilities created during the resolution that just
+    // ended are "waiting to be put on the stack" exactly like the event-derived
+    // triggers below, so they join the SAME batch and are APNAP-ordered with
+    // them (CR 603.3b). Drained unconditionally: a reflexive trigger can exist
+    // with no pending events at all (nothing about "when you do" requires the
+    // action to have emitted a trigger-visible event).
+    const reflexive = state.pendingReflexiveTriggers ?? [];
+    if (reflexive.length > 0) delete state.pendingReflexiveTriggers;
     const events = flushPendingEvents(state);
-    if (events.length === 0) return;
-    const triggers = collectTriggers(state, events);
+    if (events.length === 0 && reflexive.length === 0) return;
+    const triggers = [...reflexive, ...collectTriggers(state, events)];
     if (triggers.length === 0) return;
     const stackTriggers: StackItem[] = [];
     for (const trigger of triggers) {
@@ -6535,9 +6591,18 @@ export function returnExiledForSource(
  *  change hands, sweeps `monarchReturnWatch` (Palace Jailer, CR 720) and
  *  returns every held exile whose watch names a DIFFERENT controller than
  *  the new monarch ("an opponent becomes the monarch"). */
-export function becomeMonarch(state: GameState, playerId: string): void {
+export function becomeMonarch(
+    state: GameState,
+    playerId: string,
+    sourceCardId?: string
+): void {
     if (state.monarchId === playerId) return;
     state.monarchId = playerId;
+    // Cosmetic provenance (issue #1305): remember which card crowned them so
+    // the end-step draw tile can theme its marker art to that card's own
+    // printing. A source-less crown (CR 720.3 combat-damage steal) passes
+    // undefined, clearing it back to the global marker art.
+    state.monarchSourceCardId = sourceCardId || undefined;
     const watches = state.monarchReturnWatch;
     if (!watches?.length) return;
     const remaining: MonarchReturnWatch[] = [];
@@ -9311,9 +9376,10 @@ export function buildSpellContext(
             returnExiledForSource(state, sourceId);
         },
         // CR 720.2 (issue #1199) — crown `playerId` the monarch. See
-        // `becomeMonarch`.
+        // `becomeMonarch`. Passes the resolving card's id as the crowning
+        // source so the end-step draw tile themes its marker art (#1305).
         becomeMonarch(playerId) {
-            becomeMonarch(state, playerId);
+            becomeMonarch(state, playerId, (item.card as { id?: string }).id);
         },
         // CR 720 (Palace Jailer, issue #1199) — exile a creature until an
         // opponent of `sourceInstanceId`'s controller becomes the monarch. See
@@ -10361,6 +10427,48 @@ export function buildSpellContext(
             state.delayedTriggers = [
                 ...(state.delayedTriggers ?? []),
                 instance,
+            ];
+        },
+        // CR 603.3c — queue a REFLEXIVE triggered ability created by this
+        // resolving effect. Nothing is scheduled or waited for: the item is
+        // handed to the next `processPendingActionTriggers` drain, which
+        // places it (CR 603.3b APNAP ordering) and announces its targets
+        // (CR 603.3d) through the ordinary trigger path. Built as an
+        // inline-body trigger item (ADR 0048) so resolution reuses the
+        // existing `delayedEffects` seam — no new resolution path.
+        pushReflexiveTrigger(
+            sourceCardId: string,
+            oracleText: string,
+            effects: readonly EffectOp[],
+            payload: Record<string, string | string[]>,
+            targetRequirement?: TargetRequirement
+        ): void {
+            const controller = item.castById;
+            const reflexive: StackItem = {
+                id: allocInstanceId(state),
+                card: { id: sourceCardId },
+                controllerId: controller,
+                ownerId: controller,
+                zone: "stack",
+                types: [],
+                subtypes: [],
+                staticAbilities: [],
+                isTapped: false,
+                castById: controller,
+                delayedTriggerId: INLINE_DELAYED_TRIGGER_ID,
+                delayedEffects: [...effects],
+                delayedOracleText: oracleText,
+                reflexiveTrigger: true,
+                ...(Object.keys(payload).length > 0
+                    ? { delayedPayload: payload }
+                    : {}),
+                ...(targetRequirement
+                    ? { inlineTargetRequirement: targetRequirement }
+                    : {}),
+            };
+            state.pendingReflexiveTriggers = [
+                ...(state.pendingReflexiveTriggers ?? []),
+                reflexive,
             ];
         },
         hasAttackedThisTurn(target: TargetSelection): boolean {
