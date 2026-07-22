@@ -33,7 +33,6 @@ Crucible of Worlds
 
 ## Carte rotte
 
-- Enduring renewal non mostra l'intero oracle text in card-preview, e anche Icetill Explorer. Cerca altri casi simili e risolvi alla radice.
 - Il may cast di Malcolm è solo nel momento della risoluzione dell'abilità, non nel resto del turno. verifica sul CR./
 
 ## UX da migliorare

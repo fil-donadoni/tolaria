@@ -2567,6 +2567,55 @@ describe("shouldShowOracleText — preview Oracle-text gate", () => {
         expect(show(def)).toBe(false);
     });
 
+    it("shows FULL Oracle text for a card with an oracle-only clause NOT in the field allowlist (Enduring Renewal — drawReplacement + revealsHand)", () => {
+        // 3-clause card: "Play with your hand revealed." (revealsHand) +
+        // draw-replacement (drawReplacement) + one triggered ability. Only the
+        // trigger has a structured row; the other two clauses live in fields the
+        // old `hasOracleOnlyText` allowlist did not check, so its printed text
+        // was suppressed entirely. Coverage check (3 paragraphs > 1 row) fixes it.
+        const def = getDefinition("be77edac-9a8b-4b7f-a859-27df76b10aa6");
+        expect(def.drawReplacement).toBeDefined();
+        expect(def.revealsHand).toBeDefined();
+        expect((def.triggeredAbilities?.length ?? 0) > 0).toBe(true);
+        expect(show(def)).toBe(true);
+    });
+
+    it("shows FULL Oracle text for a card with land-play clauses NOT in the field allowlist (Icetill Explorer — extraLandDrops + playsLandsFromGraveyard)", () => {
+        // "You may play an additional land." (extraLandDrops) + "You may play
+        // lands from your graveyard." (playsLandsFromGraveyard) + a landfall
+        // trigger. Only the trigger had a structured row; the two land clauses
+        // were dropped by the old allowlist. 3 paragraphs > 1 row → show.
+        const def = getDefinition("d9482aab-6ddf-48e1-84fa-b13d5ff81e69");
+        expect(def.extraLandDrops).toBeDefined();
+        expect(def.playsLandsFromGraveyard).toBe(true);
+        expect((def.triggeredAbilities?.length ?? 0) > 0).toBe(true);
+        expect(show(def)).toBe(true);
+    });
+
+    it("shows FULL Oracle text whenever printed lines exceed renderable structured rows (coverage check, bug class)", () => {
+        // Synthetic root-cause case: two oracle paragraphs, one of which has no
+        // structured representation (a single triggered ability). Regardless of
+        // WHICH field the second clause lives in, the paragraph/row mismatch
+        // surfaces the full text.
+        const def: CardDefinition = {
+            id: "cov",
+            name: "Coverage Test",
+            rarity: "common",
+            oracleText:
+                "Some effect with no structured field.\nWhenever this enters, draw a card.",
+            manaCost: { U: 1 },
+            types: ["Enchantment"],
+            triggeredAbilities: [
+                {
+                    id: "cov-trig",
+                    oracleText: "Whenever this enters, draw a card.",
+                    // minimal shape — only oracleText is read by the gate
+                } as unknown as CardDefinition["triggeredAbilities"][number],
+            ],
+        };
+        expect(show(def)).toBe(true);
+    });
+
     it("shows Oracle text for spells, auras, and ability-less cards", () => {
         const spell: CardDefinition = {
             id: "s",

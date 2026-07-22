@@ -230,7 +230,8 @@ export function buildStateFromScenario(
         for (const c of getCardColors(def)) colorsPresent.add(c);
     }
     const basicLandCycle = basicLandsForColors(colorsPresent);
-    const basicLandAt = (i: number) => basicLandCycle[i % basicLandCycle.length];
+    const basicLandAt = (i: number) =>
+        basicLandCycle[i % basicLandCycle.length];
 
     // Add lands (only if explicitly requested)
     const landCount = spec.landCount ?? 0;

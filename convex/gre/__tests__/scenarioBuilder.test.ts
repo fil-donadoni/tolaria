@@ -83,9 +83,9 @@ describe("buildStateFromScenario (issue #1424)", () => {
             state.players[0].battlefield.every((c) => c.isTapped === true)
         ).toBe(true);
         // The stale pre-scenario instance must be gone, not merged in.
-        expect(
-            state.players[0].battlefield.some((c) => c.id === "stale")
-        ).toBe(false);
+        expect(state.players[0].battlefield.some((c) => c.id === "stale")).toBe(
+            false
+        );
     });
 
     it("seeds `landCount` basic lands per player, colour-matched to the placed cards", () => {

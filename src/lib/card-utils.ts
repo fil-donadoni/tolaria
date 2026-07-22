@@ -1424,16 +1424,30 @@ export type DisplayAbilities = {
 /** Decides whether the card preview should print the card's `oracleText`
  *  instead of (or alongside) the structured ability rows. The structured
  *  abilities view (`getDisplayAbilities`) only renders keywords, activated and
- *  triggered abilities — it has NO row for effects whose rules text lives ONLY
- *  in `oracleText`:
+ *  triggered abilities — it has NO row for behavior whose rules text lives in
+ *  any OTHER field, e.g.:
  *    - `staticEffects[]` (P/T CDA, anthems, keyword grants — CR 611/613)
  *    - `replacementEffects[]` (CR 614 — e.g. Sulfuric Vortex's lifegain lock)
  *    - enter-tapped mechanics (CR 614.12 shocklands, conditional-tapped lands,
  *      plain `entersTapped`)
+ *    - `drawReplacement`, `revealsHand`, `extraLandDrops`,
+ *      `playsLandsFromGraveyard`, … and any field added in the future.
  *  For those, and for spells/auras/cards with no structured abilities at all,
  *  the Oracle text is the only place the behavior is described, so it must be
  *  shown. When it is shown, the structured render is suppressed by the caller
- *  to avoid double-printing keywords already covered by the Oracle text. */
+ *  to avoid double-printing keywords already covered by the Oracle text.
+ *
+ *  Root detection is a COVERAGE check, not a field allowlist: comparing the
+ *  count of oracle paragraphs to the count of renderable structured rows.
+ *  Enumerating every oracle-bearing field (the old approach) silently dropped a
+ *  clause the day a new field shipped — the Enduring Renewal (`drawReplacement`
+ *  / `revealsHand`) and Icetill Explorer (`extraLandDrops` /
+ *  `playsLandsFromGraveyard`) bug. When the printed Oracle text has MORE
+ *  non-empty lines than the structured view can render, at least one clause is
+ *  unrepresented, so the full Oracle text is printed. The named-field checks
+ *  below remain as an explicit fast-path/safety-net for the CR-documented cases
+ *  (they cover the rare shape where an oracle-only clause shares a printed line
+ *  with a keyword, so paragraph count alone would undercount). */
 export function shouldShowOracleText(
     def: CardDefinition | null | undefined,
     types: readonly string[],
@@ -1444,20 +1458,33 @@ export function shouldShowOracleText(
     // CR 303.4 — an aura's granted clauses live on `staticEffects`, never on
     // its own `staticAbilities`, so the structured view would hide them.
     const isAura = subtypes.includes("Aura");
-    const hasStructuredAbilities =
-        (def.staticAbilities?.length ?? 0) > 0 ||
-        (def.activatedAbilities?.length ?? 0) > 0 ||
-        (def.triggeredAbilities?.length ?? 0) > 0;
-    // Effects the structured view cannot render — their text is oracle-only.
+    if (isSpellCard || isAura) return true;
+
+    // Rows the structured view (`getDisplayAbilities`) can actually render —
+    // mirror its filters: one row per keyword, and only abilities that carry
+    // their own `oracleText`.
+    const structuredRows =
+        (def.staticAbilities?.length ?? 0) +
+        (def.activatedAbilities?.filter((a) => a.oracleText).length ?? 0) +
+        (def.triggeredAbilities?.filter((a) => a.oracleText).length ?? 0);
+    // No structured rows at all → Oracle text is the only description.
+    if (structuredRows === 0) return true;
+
+    // Explicit safety-net for the CR-documented oracle-only fields.
     const hasOracleOnlyText =
         (def.staticEffects?.length ?? 0) > 0 ||
         (def.replacementEffects?.length ?? 0) > 0 ||
         def.entersTappedUnlessPay !== undefined ||
         def.entersTappedUnless !== undefined ||
         def.entersTapped === true;
-    return (
-        isSpellCard || isAura || !hasStructuredAbilities || hasOracleOnlyText
-    );
+    if (hasOracleOnlyText) return true;
+
+    // Coverage check (root fix): more printed lines than renderable rows means
+    // a clause lives in a field the structured view can't show → print it all.
+    const oracleParagraphs = def.oracleText
+        .split("\n")
+        .filter((p) => p.trim().length > 0).length;
+    return oracleParagraphs > structuredRows;
 }
 
 /** Resolves the abilities to display in the zoom panel for a card. When
