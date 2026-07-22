@@ -3,12 +3,12 @@
 // Scryfall oracle text is authoritative (ADR 0004).
 //
 // Free tranche (issue #1069, parent PRD #1063): 25 of the 41 candidate free
-// White cards ship as active `CardDefinition`s below — 23 DSL Effect Scripts
-// (ADR 0045) + 2 `resolve()` cards, each with a RECORDED precedent already
-// shipped elsewhere in the catalogue (Restrain: Warning's
-// `markAssignsNoCombatDamage` idiom, ice/white.ts; Liberate: Flickerwisp's
-// "flicker" exile + delayed-return idiom, eve/white.ts — DSL-first budget
-// ~0-1 `resolve()` per tranche, ADR 0045). Holy Day is NOT a new card here —
+// White cards ship as active `CardDefinition`s below — 24 DSL Effect Scripts
+// (ADR 0045) + 1 `resolve()` card with a RECORDED precedent already shipped
+// elsewhere in the catalogue (Liberate: Flickerwisp's "flicker" exile +
+// delayed-return idiom, eve/white.ts — DSL-first budget ~0-1 `resolve()` per
+// tranche, ADR 0045). (Restrain migrated resolve()->effects[] via the
+// `markAssignsNoCombatDamage` Op, CR 510.1c.) Holy Day is NOT a new card here —
 // it was first printed in Legends and already ships from `leg/white.ts`; no
 // duplicate `CardDefinition`/lockfile row for the same oracleId. The
 // remaining 16 candidates need engine capabilities that do not exist yet

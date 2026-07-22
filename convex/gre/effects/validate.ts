@@ -1879,6 +1879,14 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             target: isObjectSelector,
         },
     },
+    // CR 510.1c (issue #1283) — mark a permanent to assign no combat damage
+    // this turn. `target` is an object selector (announced slot, `$source`, or
+    // a forEach `$each`). No other fields.
+    markAssignsNoCombatDamage: {
+        required: {
+            target: isObjectSelector,
+        },
+    },
     // CR 701.27 / 712 (issue #1210) — transform a permanent. `target` is an
     // object selector (announced slot, `$source`, or a forEach `$each`). No
     // other fields — CR 712.8a's toggle (front→back / back→front) is
@@ -2399,13 +2407,6 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
                 ? ['field "effects" must be a non-empty Op list']
                 : [],
     },
-    // CR 510.1c (issue #1283) — mark a permanent to assign no combat damage
-    // this turn. `target` is an object selector (announced slot, `$source`, or
-    // a forEach `$each`). No other fields.
-    markAssignsNoCombatDamage: {
-        required: {
-            target: isObjectSelector,
-        },
     // CR 104.2a (issue #1066) — designate the winning player, through the
     // SAME `state.gameOver` seam State-Based Actions use.
     winGame: { required: { player: isPlayerRef } },
