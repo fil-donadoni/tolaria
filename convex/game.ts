@@ -11,6 +11,8 @@ import {
 } from "./cards";
 import { cardHasColor } from "./cards/colors";
 import { buildStateFromScenario } from "./gre/scenarioBuilder";
+import { BLADE_SCENARIOS } from "./gre/ai/blade/registry";
+import { resolveBladeLoadState } from "./gre/ai/blade/runner";
 import {
     type CardInstanceState,
     type GameState,
@@ -11553,5 +11555,90 @@ export const debugSetupScenario = mutation({
             state,
             gameState
         );
+    },
+});
+
+/**
+ * List the code-side blade-scenario registry (issue #1432, PRD #1423):
+ * metadata only (`label`/`tier`/`note`), never the `spec` — the browser
+ * loader below resolves the `spec` server-side by label, so the registry —
+ * not the client — stays the sole source of what gets applied to a board.
+ * Admin-gated like every other debug endpoint (issue #768).
+ */
+export const debugListBladeScenarios = query({
+    args: {},
+    returns: v.array(
+        v.object({
+            label: v.string(),
+            tier: v.union(v.literal("must"), v.literal("stretch")),
+            note: v.optional(v.string()),
+        })
+    ),
+    handler: async (ctx) => {
+        await assertIsAdmin(ctx);
+        return BLADE_SCENARIOS.map((s) => ({
+            label: s.label,
+            tier: s.tier,
+            note: s.note,
+        }));
+    },
+});
+
+/**
+ * READ-ONLY browser loader for a blade scenario (issue #1432, PRD #1423).
+ * Loads one entry's position into the CURRENT solo game so a developer can
+ * eyeball it, through `resolveBladeLoadState`
+ * (`convex/gre/ai/blade/runner.ts`) — which resolves `label` against the
+ * code-side registry, then normalizes the CURRENT game's snapshot onto the
+ * same starting position `buildBladeBaseState` produces (active/priority
+ * player = the "me" seat, starting life, every turn-/game-scoped field back
+ * to its start-of-game value — see that function's doc comment for the full
+ * list), then applies the entry's `spec` through the same
+ * `buildStateFromScenario` the DB-backed scenario loader
+ * (`debugSetupScenario` above) and the blade test harness both use. Without
+ * that normalization, a live game's turn/life/counter state would leak into
+ * the loaded position, diverging it from the one the blade harness actually
+ * built and the entry's `expect` was written against (issue #1432 review,
+ * both rounds).
+ *
+ * Deliberately NOT the `debugScenarios` DB path: `label` only selects an
+ * entry from the code-side registry — the client never supplies a `spec` —
+ * so there is no DB row to write, edit, or delete. A blade entry is a
+ * regression assertion that lives in git with the engine change it guards
+ * (PRD #1423), never DB-seeded.
+ */
+export const debugLoadBladeScenario = mutation({
+    args: {
+        gameId: v.id("games"),
+        label: v.string(),
+    },
+    returns: v.null(),
+    handler: async (ctx, args) => {
+        // Admin-only debug board setup (CLAUDE.md privileged-mutation
+        // convention, issue #768) — same gate as `debugSetupScenario`.
+        await assertIsAdmin(ctx);
+
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
+
+        // Label lookup + state build both live in `resolveBladeLoadState`
+        // (`gre/ai/blade/runner.ts`) — this handler is a thin wrapper around
+        // it (ctx / admin gate / fetch / persist only), so the pure-function
+        // test suite in `convex/__tests__/debugLoadBladeScenario.test.ts`
+        // exercises the exact code this mutation runs (issue #1432 review
+        // round 2, finding #1).
+        const state = resolveBladeLoadState(
+            gameState.state as GameState,
+            args.label
+        );
+
+        await saveGameState(
+            ctx,
+            args.gameId,
+            gameState.seq + 1,
+            state,
+            gameState
+        );
+        return null;
     },
 });

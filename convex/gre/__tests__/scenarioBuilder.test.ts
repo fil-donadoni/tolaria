@@ -130,6 +130,44 @@ describe("buildStateFromScenario (issue #1424)", () => {
         });
     });
 
+    it("clears a stale `combat` inherited from a mid-combat base state when the target phase doesn't re-seed it (issue #1432 review finding #3)", () => {
+        const base = makeState({
+            phase: "DECLARE_BLOCKERS",
+            combat: {
+                attackerIds: ["stale-attacker"],
+                confirmed: true,
+                blockerAssignments: { "stale-attacker": ["stale-blocker"] },
+                blockersConfirmed: false,
+            },
+        });
+        const spec: ScenarioSpec = {
+            cards: [{ name: grizzlyBears.name, owner: "me" }],
+            phase: "PRECOMBAT_MAIN",
+        };
+
+        const state = buildStateFromScenario(base, spec);
+
+        expect(state.phase).toBe("PRECOMBAT_MAIN");
+        expect(state.combat).toBeUndefined();
+    });
+
+    it("clears a stale `combat` even when the spec doesn't override `phase` at all", () => {
+        const base = makeState({
+            phase: "DECLARE_BLOCKERS",
+            combat: {
+                attackerIds: ["stale-attacker"],
+                confirmed: true,
+                blockerAssignments: {},
+                blockersConfirmed: false,
+            },
+        });
+        const spec: ScenarioSpec = { cards: [] };
+
+        const state = buildStateFromScenario(base, spec);
+
+        expect(state.combat).toBeUndefined();
+    });
+
     it("pins `rngSeed` and resets `rngCounter` (CR 705 / ADR 0023)", () => {
         const base = makeState({ rngSeed: 42, rngCounter: 7 });
         const spec: ScenarioSpec = { cards: [], rngSeed: 1 };

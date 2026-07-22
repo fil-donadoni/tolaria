@@ -21,6 +21,9 @@ import { getDefinition } from "../cards";
 /** Number of cards in the opening hand (CR 103.4). */
 export const STARTING_HAND_SIZE = 7;
 
+/** Starting life total for a two-player game (CR 103.1). */
+export const STARTING_LIFE = 20;
+
 export type DeckInput = {
     id: string;
     name: string;
@@ -63,7 +66,7 @@ export function buildPlayerState(
         id: player.id,
         name: player.name,
         bgColor: player.bgColor,
-        life: 20,
+        life: STARTING_LIFE,
         hand: [],
         library: instances,
         graveyard: [],

@@ -20,8 +20,13 @@
  */
 
 import { getCardByName } from "../../../cards";
-import { createInitialGameState, type PlayerInput } from "../../setup";
+import {
+    createInitialGameState,
+    STARTING_LIFE,
+    type PlayerInput,
+} from "../../setup";
 import { buildStateFromScenario } from "../../scenarioBuilder";
+import { emptyManaPool, resetPerTurnFields } from "../../phases";
 import { searchWithTrace } from "../../search";
 import type { GameState } from "../../state";
 import type { Move } from "../../moves";
@@ -31,6 +36,7 @@ import {
     matchesMove,
     seatPlayerId,
 } from "./matcher";
+import { findBladeScenario } from "./registry";
 import type { BladeScenario } from "./types";
 
 /** The one seed every blade entry uses unless it declares its own. Fixed
@@ -86,6 +92,98 @@ export function buildBladeBaseState(): GameState {
  *  can be inspected (or replayed at a bigger budget) from a scratch test. */
 export function buildBladeState(scenario: BladeScenario): GameState {
     return buildStateFromScenario(buildBladeBaseState(), scenario.spec);
+}
+
+/**
+ * Normalize an arbitrary CURRENT game's `GameState` onto the same starting
+ * position `buildBladeBaseState` produces, then apply the scenario through
+ * `buildStateFromScenario` — the shape `debugLoadBladeScenario`
+ * (`convex/game.ts`) needs to make a browser-loaded position match the one
+ * the blade harness actually tests against (issue #1432 review finding #1).
+ *
+ * `buildStateFromScenario` alone normalizes only zones/phase/turn/stack; it
+ * never touches `activePlayerId`, life, or any turn-/game-scoped counter, so
+ * feeding it a live game's snapshot directly leaves those fields wherever the
+ * live game happened to be (wrong player to act, stale land-drop count,
+ * leftover poison/Storm count, non-starting life) — a materially different
+ * position from the one the harness built and the blade entry's `expect` was
+ * written against.
+ *
+ * Rather than hand-picking which fields diverge (review finding #2 on a
+ * prior fixup round: a 4-field list that still leaked `restrictedMana`,
+ * `spellsCastThisTurn`, `poisonCounters`, `energyCounters`, `skipNextTurn`,
+ * `hasDrawnFromEmpty`, `permanentYouControlledLeftThisTurn`,
+ * `drawnThisTurn`/`lastDrawnCardId` and `turnsTaken`), this pins each field
+ * from its SINGLE authority so a future turn-scoped field added to either
+ * authority is inherited here automatically instead of silently leaking
+ * through a stale list:
+ *   - `activePlayerId` / `priorityPlayerId` to `players[0].id` (the "me" seat,
+ *     CR 500.1 — `buildBladeBaseState` always starts P1's first turn);
+ *   - every "this turn" field (`landsPlayedThisTurn`, `spellsCastThisTurn`,
+ *     `drawnThisTurn`/`lastDrawnCardId`, per-permanent `activationsThisTurn`/
+ *     `loyaltyActivatedThisTurn`, `permanentYouControlledLeftThisTurn`, the
+ *     global Storm tally, …) via `resetPerTurnFields` — the exact function
+ *     `advanceTurn` itself calls to start a fresh turn (`gre/phases.ts`);
+ *   - floating mana (`manaPool` + its `restrictedMana` sibling, CR 500.4/
+ *     106.6) via `emptyManaPool` — the same pairing `advanceTurn`'s
+ *     end-of-phase mana empty uses;
+ *   - `life` to the starting total (CR 103.1), and the cumulative game-long
+ *     counters `createInitialGameState`/`buildPlayerState` (`gre/setup.ts`)
+ *     never seed on a fresh player — `poisonCounters` (CR 122.1),
+ *     `energyCounters` (ADR 0032), `skipNextTurn` (CR 614.10) and
+ *     `hasDrawnFromEmpty` (CR 704.5b) — back to unset;
+ *   - `turnsTaken` to the exact shape `createInitialGameState` seeds: 1 for
+ *     the starting/"me" player (CR 500.1), unset for the other.
+ *
+ * Pure: takes an already-fetched base `GameState`, returns a NEW state via
+ * `buildStateFromScenario`; the input is never mutated.
+ */
+export function buildBladeLoadState(
+    base: GameState,
+    scenario: BladeScenario
+): GameState {
+    const normalized = structuredClone(base);
+    normalized.activePlayerId = normalized.players[0].id;
+    normalized.priorityPlayerId = normalized.players[0].id;
+    for (const player of normalized.players) {
+        player.life = STARTING_LIFE;
+        emptyManaPool(player);
+        player.poisonCounters = undefined;
+        player.energyCounters = undefined;
+        player.skipNextTurn = undefined;
+        player.hasDrawnFromEmpty = undefined;
+    }
+    normalized.players[0].turnsTaken = 1;
+    normalized.players[1].turnsTaken = undefined;
+    resetPerTurnFields(normalized);
+    return buildStateFromScenario(normalized, scenario.spec);
+}
+
+/**
+ * Resolve a label against the registry and load it onto `base` — the ENTIRE
+ * non-Convex body of `debugLoadBladeScenario`'s handler (`convex/game.ts`),
+ * extracted so the mutation is a thin wrapper (`ctx`/admin gate/fetch/persist
+ * only) around this pure function. `convex/game.ts` imports and calls this
+ * exact function; it does not reimplement the lookup or the state build
+ * inline. This is also why the "read-only browser loader" test suite
+ * (`convex/__tests__/debugLoadBladeScenario.test.ts`) can call this function
+ * directly and honestly claim it runs through the code the mutation
+ * executes — see that file's header for the project's no-convex-test-harness
+ * convention this still has to work around for the `ctx`-touching parts
+ * (issue #1432 review round 2, finding #1).
+ *
+ * Throws `Unknown blade scenario: <label>` for an unregistered label —
+ * the mutation lets this propagate as its own error, same as before.
+ */
+export function resolveBladeLoadState(
+    base: GameState,
+    label: string
+): GameState {
+    const scenario = findBladeScenario(label);
+    if (!scenario) {
+        throw new Error(`Unknown blade scenario: ${label}`);
+    }
+    return buildBladeLoadState(base, scenario);
 }
 
 /** Result of running ONE seed of one blade scenario. */

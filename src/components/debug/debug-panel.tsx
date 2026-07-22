@@ -8,6 +8,7 @@ import { usePageVisible } from "~/hooks/usePageVisible";
 import { storeSession } from "~/lib/session";
 import { copyMinified } from "~/lib/clipboard";
 import DebugButton from "./debug-button";
+import DebugBladeScenarios from "./debug-blade-scenarios";
 import DebugDbScenarios from "./debug-db-scenarios";
 import DebugGenerateScenario from "./debug-generate-scenario";
 import DebugSaveScenario, { type EditingScenario } from "./debug-save-scenario";
@@ -255,6 +256,9 @@ export default function DebugPanel({
                                         })
                                     }
                                 />
+                                <div className="mt-2 pt-2 border-t border-white/10">
+                                    <DebugBladeScenarios gameId={gameId} />
+                                </div>
                                 <div className="mt-2 pt-2 border-t border-white/10">
                                     <DebugGenerateScenario />
                                 </div>
