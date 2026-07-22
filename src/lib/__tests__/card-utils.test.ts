@@ -2610,7 +2610,9 @@ describe("shouldShowOracleText — preview Oracle-text gate", () => {
                     id: "cov-trig",
                     oracleText: "Whenever this enters, draw a card.",
                     // minimal shape — only oracleText is read by the gate
-                } as unknown as CardDefinition["triggeredAbilities"][number],
+                } as unknown as NonNullable<
+                    CardDefinition["triggeredAbilities"]
+                >[number],
             ],
         };
         expect(show(def)).toBe(true);

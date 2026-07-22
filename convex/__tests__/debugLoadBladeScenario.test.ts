@@ -71,9 +71,7 @@ describe("debugLoadBladeScenario — admin gate (issue #1432)", () => {
 describe("debugLoadBladeScenario — label resolution (issue #1432)", () => {
     it("resolves a registered label to its entry, mirroring the mutation's lookup", () => {
         for (const scenario of BLADE_SCENARIOS) {
-            expect(findBladeScenario(scenario.label)?.spec).toBe(
-                scenario.spec
-            );
+            expect(findBladeScenario(scenario.label)?.spec).toBe(scenario.spec);
         }
     });
 
