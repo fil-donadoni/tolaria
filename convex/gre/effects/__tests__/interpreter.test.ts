@@ -15960,6 +15960,201 @@ describe("Effect Script choice kind: choose-exile-card + Op: grantCastFromExile 
     });
 });
 
+// A vanilla land token for the cast-during-resolution silent-pass test (a
+// discarded land is played, not cast — CR 305.1 / the Malcolm land ruling).
+const CDR_LAND_ID = "test-effects-cdr-land";
+registerTokenDefinition({
+    id: CDR_LAND_ID,
+    name: CDR_LAND_ID,
+    rarity: "common",
+    types: ["Land"],
+});
+
+describe("Effect Script Op: castDuringResolution (CR 608.2f, issue #1477)", () => {
+    // The permanent per-Op test (new-Op regime). Shape: discard a card, then
+    // offer a FREE cast of it FROM THE GRAVEYARD as part of THIS resolution —
+    // Malcolm's threshold clause. Covers cast-accepted / declined / silent-pass
+    // (land, empty source). Prior art: the grantCastFromExile / madness-cast
+    // suites.
+    function cdrScript(id: string): string {
+        return registerScript(id, [
+            {
+                op: "choice",
+                kind: "choose-hand-card",
+                player: "controller",
+                zone: "hand",
+                count: 1,
+                prompt: "Discard a card.",
+                bind: "$picked",
+            },
+            { op: "discard", player: "controller", cards: { ref: "$picked" } },
+            {
+                op: "castDuringResolution",
+                card: { ref: "$picked" },
+                player: "controller",
+                source: "graveyard",
+                free: true,
+            },
+        ]);
+    }
+
+    function stateWithHand(hand: CardInstanceState[]): GameState {
+        return makeState({
+            players: [makePlayer("p1", { hand }), makePlayer("p2")],
+        });
+    }
+
+    it("offers a Cast/Decline of the discarded card and, on accept, casts it FROM THE GRAVEYARD for free — the spell lands on the stack with no priority in between (CR 608.2f)", () => {
+        const bear = makeInstance(BEAR_ID, {
+            id: "gyBear",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const id = cdrScript("test-op-cdr-accept");
+        const state = stateWithHand([bear]);
+        pushSpell(state, id, "p1");
+        expect(resolveTopOfStack(state)).toBeNull(); // suspended on the discard
+
+        // Discard the bear → resolution continues and SUSPENDS AGAIN on the
+        // Cast/Decline (an option-pick routed to the caster, NOT priority).
+        const discardHead = state.pendingChoices![0];
+        expect(discardHead.kind).toBe("choose-hand-card");
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: discardHead.stackItemId,
+            step: discardHead.step,
+            choiceId: discardHead.choiceId,
+            cardInstanceIds: ["gyBear"],
+        });
+
+        const offer = state.pendingChoices![0];
+        expect(offer.kind).toBe("option-pick");
+        expect(offer.playerId).toBe("p1");
+        expect(offer.options?.map((o) => o.id)).toEqual(["cast", "decline"]);
+        // CR 608.2f — the opponent never gets priority here: the offer is a
+        // resolution choice routed to the CASTER, and the parent script is
+        // still on the stack, suspended.
+        expect(state.stack).toHaveLength(1);
+
+        // MANDATORY wire format (new-Op regime) — the Cast/Decline affordance
+        // survives `projectPublicState` for the caster's own view (the client
+        // renders the generic option-pick prompt from `pendingChoices`).
+        const projected = projectPublicState(state, 1, "p1");
+        const projOffer = projected.pendingChoices?.[0];
+        expect(projOffer?.kind).toBe("option-pick");
+        expect(projOffer?.options?.map((o) => o.id)).toEqual([
+            "cast",
+            "decline",
+        ]);
+
+        // Accept — the bear is cast from the graveyard onto the stack (a real
+        // spell), no longer in the graveyard.
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: offer.stackItemId,
+            step: offer.step,
+            choiceId: offer.choiceId,
+            cardInstanceIds: ["cast"],
+        });
+        expect(state.pendingChoices).toBeUndefined();
+        expect(state.players[0].graveyard.some((c) => c.id === "gyBear")).toBe(
+            false
+        );
+        const onStack = state.stack.find((s) => s.id === "gyBear");
+        expect(onStack).toBeDefined();
+        expect(onStack!.castById).toBe("p1");
+
+        // The spell is a normal spell afterwards — resolving it puts the 2/5
+        // creature onto the battlefield.
+        resolveTopOfStack(state);
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "gyBear")
+        ).toBe(true);
+    });
+
+    it("declining leaves the discarded card in the graveyard, casts nothing, and grants NO later-in-turn window (the card can't be cast later)", () => {
+        const bear = makeInstance(BEAR_ID, {
+            id: "declineBear",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const id = cdrScript("test-op-cdr-decline");
+        const state = stateWithHand([bear]);
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const discardHead = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: discardHead.stackItemId,
+            step: discardHead.step,
+            choiceId: discardHead.choiceId,
+            cardInstanceIds: ["declineBear"],
+        });
+        const offer = state.pendingChoices![0];
+        expect(offer.kind).toBe("option-pick");
+
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: offer.stackItemId,
+            step: offer.step,
+            choiceId: offer.choiceId,
+            cardInstanceIds: ["decline"],
+        });
+        expect(state.pendingChoices).toBeUndefined();
+        expect(state.stack).toHaveLength(0);
+        const declined = state.players[0].graveyard.find(
+            (c) => c.id === "declineBear"
+        )!;
+        expect(declined).toBeDefined();
+        // Unlike grantCastFromGraveyard, no impulse window is stamped — the
+        // card cannot be cast later in the turn (CR 608.2f).
+        expect(declined.castableFromGraveyardBy).toBeUndefined();
+        expect(declined.castFromGraveyardWithoutPayingManaCost).toBeUndefined();
+    });
+
+    it("passes silently (no Cast/Decline offer) when the discarded card is a LAND — lands are played, not cast (CR 305.1 / the Malcolm land ruling)", () => {
+        const land = makeInstance(CDR_LAND_ID, {
+            id: "cdrLand",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const id = cdrScript("test-op-cdr-land");
+        const state = stateWithHand([land]);
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const discardHead = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: discardHead.stackItemId,
+            step: discardHead.step,
+            choiceId: discardHead.choiceId,
+            cardInstanceIds: ["cdrLand"],
+        });
+        // No second suspension — the Op passes silently over the land.
+        expect(state.pendingChoices).toBeUndefined();
+        expect(state.stack).toHaveLength(0);
+        const inGy = state.players[0].graveyard.find(
+            (c) => c.id === "cdrLand"
+        )!;
+        expect(inGy).toBeDefined();
+        expect(inGy.castableFromGraveyardBy).toBeUndefined();
+    });
+
+    it("passes silently when the source binding was never captured (empty hand — CR 608.2b)", () => {
+        const id = cdrScript("test-op-cdr-empty");
+        const state = stateWithHand([]);
+        pushSpell(state, id, "p1");
+        // A 0-candidate fixed-count discard clamps to a no-op; the binding is
+        // never captured, so castDuringResolution never suspends.
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+        expect(state.pendingChoices).toBeUndefined();
+        expect(state.stack).toHaveLength(0);
+    });
+});
+
 describe("Effect Script choice kind: choose-hand-card + Op: grantCastFromGraveyard (CR 601.3e / 117.6-analog, issue #1344)", () => {
     it("discards the chosen hand card, then grants graveyard cast permission + the free-cast waiver (Malcolm shape, same-player, 'this-turn' window)", () => {
         const handCard = makeInstance(BEAR_ID, {

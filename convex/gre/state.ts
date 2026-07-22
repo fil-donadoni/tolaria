@@ -12454,15 +12454,32 @@ export function buildSpellContext(
         },
         getCardTargetRequirement(casterId, cardInstanceId) {
             // CR 108.1 — read the chosen card's target requirement from the
-            // registry so a controlled cast (Word of Command) can branch on
-            // whether the Acting Player must choose targets.
+            // registry so a controlled cast (Word of Command) or a
+            // cast-during-resolution (Malcolm, issue #1477) can branch on
+            // whether the caster must choose targets. Zone-broad (issue #1477).
             const owner = getPlayer(state, casterId);
-            const handCard = owner.hand.find((c) => c.id === cardInstanceId);
-            const cardId = handCard
-                ? (handCard.card as { id?: string }).id
+            const found = findOwnedCastSource(owner, cardInstanceId);
+            const cardId = found
+                ? (found.card.card as { id?: string }).id
                 : undefined;
             const def = cardId ? tryGetDefinition(cardId) : undefined;
             return def?.targetRequirement;
+        },
+        getChosenCardCastable(playerId, cardInstanceId, sourceZone) {
+            // CR 608.2f / 305.1 (issue #1477) — the card must still be in the
+            // named source zone (CR 608.2b — an empty/absent source silently
+            // passes) AND be a castable, nonland card. Lands are PLAYED, not
+            // cast (the official Malcolm land ruling), so a discarded land
+            // reports false and the cast-during-resolution Op passes silently.
+            const owner = getPlayer(state, playerId);
+            const found = owner[sourceZone].find(
+                (c) => c.id === cardInstanceId
+            );
+            if (!found) return false;
+            const cardId = (found.card as { id?: string }).id;
+            const def = cardId ? tryGetDefinition(cardId) : undefined;
+            if (!def) return false;
+            return !(def.types ?? []).includes("Land");
         },
         getCardModes(casterId, cardInstanceId) {
             // CR 700.2 / 108.1 — the modes of a chosen card, read from the
@@ -12508,7 +12525,9 @@ export function buildSpellContext(
             const owner = getPlayer(state, controllerId);
             const def = getHandCardDef(state, controllerId, cardInstanceId);
             if (!def) return 0;
-            const handCard = owner.hand.find((c) => c.id === cardInstanceId);
+            // Zone-broad (issue #1477) — a graveyard/exile-sourced cast reads
+            // its cost modifiers off the instance wherever it currently sits.
+            const handCard = findOwnedCastSource(owner, cardInstanceId)?.card;
             if (!handCard) return 0;
             const subs = getManaSubstitutions(state, controllerId);
             const sources = buildAutoTapSources(owner.battlefield);
@@ -12562,9 +12581,11 @@ export function buildSpellContext(
             // restriction and the Acting Player may aim it at the opponent
             // (the controlled player) themselves.
             const owner = getPlayer(state, casterId);
-            const handCard = owner.hand.find((c) => c.id === cardInstanceId);
-            const cardId = handCard
-                ? (handCard.card as { id?: string }).id
+            // Zone-broad (issue #1477) — enumerate targets for a card cast from
+            // hand (Word of Command) or graveyard/exile (cast-during-resolution).
+            const found = findOwnedCastSource(owner, cardInstanceId);
+            const cardId = found
+                ? (found.card.card as { id?: string }).id
                 : undefined;
             const def = cardId ? tryGetDefinition(cardId) : undefined;
             const sourceColors = getColorsFromCost(def?.manaCost);
@@ -12600,10 +12621,17 @@ export function buildSpellContext(
             const chosenX = opts?.chosenX;
             const chosenModeId = opts?.chosenModeId;
             const additionalSacrificeId = opts?.additionalSacrificeId;
+            // CR 608.2f (issue #1477) — the source zone (default hand, Word of
+            // Command) and the free-cast waiver (Malcolm casts the discarded
+            // card without paying its mana cost).
+            const sourceZone = opts?.sourceZone ?? "hand";
+            const free = opts?.free ?? false;
 
             const owner = getPlayer(state, controllerId);
-            const handCard = owner.hand.find((c) => c.id === cardInstanceId);
-            if (!handCard) return false; // not in hand — no-op (CR 608.2b)
+            const handCard = owner[sourceZone].find(
+                (c) => c.id === cardInstanceId
+            );
+            if (!handCard) return false; // not in source zone — no-op (CR 608.2b)
 
             const cardId = (handCard.card as { id?: string }).id;
             const def = cardId ? tryGetDefinition(cardId) : undefined;
@@ -12635,40 +12663,56 @@ export function buildSpellContext(
                 }
             }
 
-            // CR 107.3 — fold the chosen X into the generic cost (xFactor
-            // honored). CR 601.2f — apply cost modifiers, mirroring a normal
-            // cast (announceCast). Pay the mana ONLY from lands the controlled
-            // player controls (the oracle's mana restriction): auto-tap over
-            // THEIR battlefield and THEIR floating pool; unpayable from those
-            // sources => the card is not played ("if able", CR 117.3 / 608.2).
-            const cost = normalizeManaCost(def.manaCost ?? {}, { chosenX });
-            applyCostModifiers(
-                cost,
-                getCostModifiers(state, handCard, "spell")
-            );
-            const subs = getManaSubstitutions(state, controllerId);
-            const sources = buildAutoTapSources(owner.battlefield);
-            const plan = solveSmartAutoTap(owner.manaPool, cost, subs, sources);
-            if (plan === null) return false; // unpayable — not played
+            // CR 601.2b (issue #1477) — a free cast ("without paying its mana
+            // cost", Malcolm) waives the mana cost entirely: no auto-tap, no
+            // payment, and X in the waived cost is 0 (CR 107.3b, the Op never
+            // collects X for a free cast). Additional costs (the sacrifice
+            // above) still apply. Otherwise pay normally.
+            if (!free) {
+                // CR 107.3 — fold the chosen X into the generic cost (xFactor
+                // honored). CR 601.2f — apply cost modifiers, mirroring a normal
+                // cast (announceCast). Pay the mana ONLY from lands the
+                // controlled player controls (the oracle's mana restriction):
+                // auto-tap over THEIR battlefield and THEIR floating pool;
+                // unpayable => the card is not played ("if able", CR 117.3 /
+                // 608.2).
+                const cost = normalizeManaCost(def.manaCost ?? {}, { chosenX });
+                applyCostModifiers(
+                    cost,
+                    getCostModifiers(state, handCard, "spell")
+                );
+                const subs = getManaSubstitutions(state, controllerId);
+                const sources = buildAutoTapSources(owner.battlefield);
+                const plan = solveSmartAutoTap(
+                    owner.manaPool,
+                    cost,
+                    subs,
+                    sources
+                );
+                if (plan === null) return false; // unpayable — not played
 
-            // Execute the plan against the controlled player's own pool: tap
-            // the chosen lands and add their mana (CR 605.1a). `manaFromPlan`
-            // totals the planned output so the pool covers the cost.
-            const tappedIds = new Set(plan.map((step) => step.cardId));
-            for (const src of owner.battlefield) {
-                if (tappedIds.has(src.id)) src.isTapped = true;
-            }
-            const produced = manaFromPlan(sources, plan);
-            for (const color of MANA_COLORS) {
-                const v = produced[color];
-                if (v) {
-                    owner.manaPool[color] = (owner.manaPool[color] ?? 0) + v;
+                // Execute the plan against the controlled player's own pool:
+                // tap the chosen lands and add their mana (CR 605.1a).
+                // `manaFromPlan` totals the planned output so the pool covers
+                // the cost.
+                const tappedIds = new Set(plan.map((step) => step.cardId));
+                for (const src of owner.battlefield) {
+                    if (tappedIds.has(src.id)) src.isTapped = true;
                 }
-            }
-            // CR 601.2g — pay the cost from the controlled player's pool only.
-            if (Object.keys(cost).length > 0) {
-                payManaCostForSpell(owner, cost, def.types, subs);
-                commitLandsForCost(owner, cost);
+                const produced = manaFromPlan(sources, plan);
+                for (const color of MANA_COLORS) {
+                    const v = produced[color];
+                    if (v) {
+                        owner.manaPool[color] =
+                            (owner.manaPool[color] ?? 0) + v;
+                    }
+                }
+                // CR 601.2g — pay the cost from the controlled player's pool
+                // only.
+                if (Object.keys(cost).length > 0) {
+                    payManaCostForSpell(owner, cost, def.types, subs);
+                    commitLandsForCost(owner, cost);
+                }
             }
 
             // CR 117.9 — pay the additional sacrifice from the opponent's
@@ -12701,10 +12745,12 @@ export function buildSpellContext(
                 );
             }
 
-            // Move hand -> stack as a real spell controlled by the opponent,
-            // with the acting-player override so any choice during the cast /
-            // resolution routes to the Word of Command controller (ADR 0037).
-            const card = removeFromZone(owner, cardInstanceId, "hand");
+            // Move source zone -> stack as a real spell controlled by the
+            // caster, with the acting-player override so any choice during the
+            // cast / resolution routes to the acting player (ADR 0037). For a
+            // graveyard/exile source (issue #1477) the card leaves that zone
+            // exactly as a hand cast leaves the hand.
+            const card = removeFromZone(owner, cardInstanceId, sourceZone);
             const stackItem: StackItem = {
                 ...card,
                 zone: "stack",
@@ -12762,18 +12808,43 @@ export function getPlayer(state: GameState, playerId: string): PlayerState {
     return player;
 }
 
-/** CR 108.1 — resolve the CardDefinition of an instance in `playerId`'s hand
- *  via the registry, or undefined if it isn't in their hand / has no known id.
- *  Shared by the controlled-cast getters (Word of Command, ADR 0037) that
- *  inspect a chosen card's modes / X cost / additional costs before casting. */
+/** CR 608.2f (issue #1477) — the zones a card can be cast from that the
+ *  controlled-cast / cast-during-resolution getters search. Instance ids are
+ *  unique across a player's zones, so the search order is immaterial. */
+const CAST_SOURCE_ZONES = ["hand", "graveyard", "exile"] as const;
+
+/** Find a card instance in any of `owner`'s castable source zones (hand,
+ *  graveyard, exile), returning the instance and the zone it was found in.
+ *  Word of Command's chosen card lives in hand; Malcolm's (issue #1477) in the
+ *  graveyard — both resolve through the same getters via this lookup. */
+function findOwnedCastSource(
+    owner: PlayerState,
+    cardInstanceId: string
+):
+    | { card: CardInstanceState; zone: "hand" | "graveyard" | "exile" }
+    | undefined {
+    for (const zone of CAST_SOURCE_ZONES) {
+        const found = owner[zone].find((c) => c.id === cardInstanceId);
+        if (found) return { card: found, zone };
+    }
+    return undefined;
+}
+
+/** CR 108.1 — resolve the CardDefinition of an instance in one of `playerId`'s
+ *  castable source zones (hand, graveyard, exile) via the registry, or
+ *  undefined if it isn't there / has no known id. Shared by the
+ *  controlled-cast getters (Word of Command, ADR 0037) and the
+ *  cast-during-resolution mini-cast (Malcolm, issue #1477) that inspect a
+ *  chosen card's modes / X cost / additional costs before casting. Zone-broad
+ *  because the card's definition is intrinsic to the card, not its zone. */
 function getHandCardDef(
     state: GameState,
     playerId: string,
     cardInstanceId: string
 ): CardDefinition | undefined {
     const owner = getPlayer(state, playerId);
-    const handCard = owner.hand.find((c) => c.id === cardInstanceId);
-    const cardId = handCard ? (handCard.card as { id?: string }).id : undefined;
+    const found = findOwnedCastSource(owner, cardInstanceId);
+    const cardId = found ? (found.card.card as { id?: string }).id : undefined;
     return (cardId ? tryGetDefinition(cardId) : undefined) ?? undefined;
 }
 

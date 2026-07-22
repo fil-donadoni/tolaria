@@ -1016,6 +1016,18 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // library"). Explicit skip for exhaustiveness.
             req.skip ??= `Op "digMatchingToHand" depends on a filter match against library contents — covered by the Op's interpreter tests`;
             return;
+        case "castDuringResolution":
+            // CR 608.2f (issue #1477) — offers the controller a live
+            // Cast/Decline of a bound card and, on accept, casts it inline
+            // during resolution (a suspending `option-pick`, then the cast
+            // card's own suspending target/mode/X picks). The canned
+            // single-resolution generator cannot drive those live decisions,
+            // so the script is an explicit skip; execution coverage comes from
+            // the Op's own interpreter tests (cast / decline / silent-pass) —
+            // mirrors the suspending `choice` / `optionChoice` / `nameCard`
+            // skips (per-Op regime, `.claude/rules/gre-development.md`).
+            req.skip ??= `Op "castDuringResolution" suspends for a live Cast/Decline + the cast card's own picks (CR 608.2f) — covered by the Op's interpreter tests`;
+            return;
         default: {
             // Exhaustiveness guard: a registered Op with no analyser branch is
             // a skip, not a silent pass.

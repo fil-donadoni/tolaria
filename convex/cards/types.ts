@@ -3804,6 +3804,16 @@ export interface SpellContext {
             chosenX?: number;
             chosenModeId?: string;
             additionalSacrificeId?: string;
+            /** CR 608.2f (issue #1477) — the zone the card is cast FROM.
+             *  Defaults to `"hand"` (Word of Command's controlled cast). The
+             *  cast-during-resolution Op passes `"graveyard"` (Malcolm) or
+             *  `"exile"`. */
+            sourceZone?: "hand" | "graveyard" | "exile";
+            /** CR 601.2b / 608.2f (issue #1477) — cast WITHOUT paying the mana
+             *  cost (Malcolm's free cast). Skips auto-tap/payment entirely; X in
+             *  a waived cost is 0 (CR 107.3b). Additional costs (e.g. sacrifice)
+             *  still apply. Defaults to false (pay normally). */
+            free?: boolean;
         }
     ) => boolean;
     /** ADR 0037 / CR 700.2 — the modes of a card in `casterId`'s hand, read
@@ -3869,6 +3879,17 @@ export interface SpellContext {
         casterId: string,
         cardInstanceId: string
     ) => TargetRequirement | undefined;
+    /** CR 608.2f / 305.1 (issue #1477) — for the cast-during-resolution Op: is
+     *  the card `cardInstanceId` present in `playerId`'s `sourceZone` AND a
+     *  castable (nonland) card? Lands are PLAYED, not cast (the official Malcolm
+     *  land ruling), so a discarded land reports false and the Op passes
+     *  silently. Also false when the card is absent from that zone (empty
+     *  source, CR 608.2b) or has no registered definition. */
+    getChosenCardCastable: (
+        playerId: string,
+        cardInstanceId: string,
+        sourceZone: "hand" | "graveyard" | "exile"
+    ) => boolean;
     /** CR 608.2 — the resolving spell exiles itself as the last thing it does
      *  ("Exile <this spell>", e.g. Recall). Flags the stack item so
      *  `finalizeSpellResolution` routes the card to exile instead of the
@@ -7648,6 +7669,35 @@ export type EffectOp =
           player: EffectPlayerRef;
           window?: "this-turn" | "while-in-graveyard";
           withoutPayingManaCost?: boolean;
+      }
+    /** CR 608.2f (issue #1477) — cast a card as PART OF THIS resolution: a
+     *  "you may cast <card>" permission with NO stated duration, which per CR
+     *  608.2f exists ONLY during the resolution of the ability that grants it.
+     *  The controller (`player`) is offered an optional Cast/Decline prompt
+     *  and, if they accept, the card (`card`, a bare picks ref to a bound card
+     *  such as Malcolm's just-discarded card) is cast INLINE — put onto the
+     *  stack right below the resolving ability, collecting its own
+     *  targets/modes/X through the resolve-time suspend/resume seam. Crucially,
+     *  distinct from `grantCastFromGraveyard`/`grantCastFromExile` (which stamp
+     *  a later-in-turn impulse window): no priority is granted between the
+     *  offer and the inline cast, the card CANNOT be saved for later, and the
+     *  card's own timing / card-type restrictions are ignored (CR 608.2f). A
+     *  resolve-time mini-cast reusing `SpellContext.castChosenSpell` (ADR 0037,
+     *  self-cast: actingPlayer == controller).
+     *
+     *  `source` is the zone the card is cast FROM (`"graveyard"` — Malcolm; or
+     *  `"exile"`). `free` (default false) waives the mana cost entirely
+     *  (Malcolm's "without paying its mana cost"); omit it for a pay-normal-cost
+     *  cast. Silent pass (CR 608.2b — no prompt, nothing cast) when `player`
+     *  can't be resolved, the picks binding was never captured, the card is no
+     *  longer in `source`, or it is a land (lands are PLAYED, not cast — the
+     *  official Malcolm land ruling). */
+    | {
+          op: "castDuringResolution";
+          card: EffectRef;
+          player: EffectPlayerRef;
+          source: "graveyard" | "exile";
+          free?: boolean;
       }
     /** CR 106.1 (issue #850) — add mana to a player's mana pool (a one-shot
      *  effect that produces mana: a ritual like Dark Ritual "Add {B}{B}{B}").

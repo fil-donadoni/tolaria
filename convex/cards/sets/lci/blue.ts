@@ -26,11 +26,11 @@ import type { CardDefinition, GameEvent, PermanentView } from "../../types";
 // };
 
 // Malcolm, Alluring Scoundrel — {1}{U} Legendary Creature — Siren Pirate,
-// 2/1 (LCI, residue of #1302, parent PRD #620, issue #1344). "Flash. Flying.
-// Whenever Malcolm deals combat damage to a player, put a chorus counter on
-// it. Draw a card, then discard a card. If there are four or more chorus
-// counters on Malcolm, you may cast the discarded card without paying its
-// mana cost." DSL-first (ADR 0045) — no `resolve()`.
+// 2/1 (LCI, residue of #1302, parent PRD #620, issues #1344 / #1477). "Flash.
+// Flying. Whenever Malcolm deals combat damage to a player, put a chorus
+// counter on it. Draw a card, then discard a card. If there are four or more
+// chorus counters on Malcolm, you may cast the discarded card without paying
+// its mana cost." DSL-first (ADR 0045) — no `resolve()`.
 //
 // TRIGGER HALF (CR 603.2 damage trigger): `event: "DAMAGE_DEALT"` +
 // `matches` mirrors the shipped Barrowgoyf/Nethergoyf "deals combat damage
@@ -47,29 +47,18 @@ import type { CardDefinition, GameEvent, PermanentView } from "../../types";
 //      across the discard (a zone move, not a new instance).
 //   4. `if` gated on the chorus-counter READ (`{ counters: { of: {ref:
 //      "$source"}, type: "chorus" } }`, CR 122.6, issue #1015) `>= 4`:
-//      `grantCastFromGraveyard` grants a free cast of the JUST-discarded
-//      card (issue #1344's new Op — the graveyard-sourced twin of
-//      `grantCastFromExile`, issue #1156). Skips harmlessly when `$discarded`
-//      was never captured (an empty hand at discard time, CR 608.2b) or when
-//      the picked card is a LAND — `getLegalActions`'s graveyard-grant
-//      branch excludes lands unconditionally (CR ruling: "You may not play
-//      land cards discarded with Malcolm, Alluring Scoundrel's last
-//      ability"), so a land grant is silently inert, matching the ruling
-//      with no extra code.
-//
-// DIVERGENCE (issue #1344, out of scope): per the official ruling ("If you
-// cast a spell using Malcolm's last ability, you do so as part of the
-// resolution of the ability. You can't wait to cast the spell later in the
-// turn. Timing permissions based on the card's type are ignored"), the free
-// cast should happen INLINE, forced, during the trigger's own resolution,
-// ignoring the discarded card's normal timing restrictions. This engine has
-// no forced-inline-cast machinery; `grantCastFromGraveyard`'s `"this-turn"`
-// window instead grants an ordinary impulse cast option usable any time that
-// turn through normal priority (sorcery-speed timing still applies to a
-// sorcery-speed discard) — the SAME simplification every other impulse-cast
-// card here already relies on (Expressive Iteration, Headliner Scarlett via
-// `grantCastFromExile`). A forced-inline, timing-ignoring cast is a distinct
-// engine capability with no other consumer yet.
+//      `castDuringResolution` (CR 608.2f, issue #1477) offers the caster an
+//      optional Cast/Decline of the JUST-discarded card and, on accept, casts
+//      it INLINE from the graveyard for free, as part of THIS trigger's own
+//      resolution — matching the official ruling ("you do so as part of the
+//      resolution of the ability; you can't wait to cast the spell later in
+//      the turn; timing permissions based on the card's type are ignored").
+//      Passes silently (no prompt) when `$discarded` was never captured (an
+//      empty hand at discard time, CR 608.2b) or the picked card is a LAND
+//      (lands are played, not cast — the official land ruling), so those cases
+//      finish the trigger with nothing cast. No later-in-turn window is ever
+//      granted (the impulse-window bug of the previous `grantCastFromGraveyard`
+//      implementation, issue #1344, is gone).
 export const malcolmAlluringScoundrel: CardDefinition = {
     id: "19d6834d-afa3-4747-a62d-0654f4d9729f",
     name: "Malcolm, Alluring Scoundrel",
@@ -131,11 +120,11 @@ export const malcolmAlluringScoundrel: CardDefinition = {
                     },
                     then: [
                         {
-                            op: "grantCastFromGraveyard",
+                            op: "castDuringResolution",
                             card: { ref: "$discarded" },
                             player: "controller",
-                            window: "this-turn",
-                            withoutPayingManaCost: true,
+                            source: "graveyard",
+                            free: true,
                         },
                     ],
                 },
