@@ -91,7 +91,7 @@ Locate the card's per-card test (`convex/cards/sets/<set>/__tests__/<colour>.tes
 the `describe` block named after the card). Run it **before touching anything**:
 
 ```
-bun run test convex/cards/sets/<set>/__tests__/<colour>.test.ts
+bunx vitest run convex/cards/sets/<set>/__tests__/<colour>.test.ts
 ```
 
 It must be green. This is the baseline the migration must preserve. **Do not edit
@@ -128,7 +128,7 @@ Re-run the **same untouched** per-card test plus the two catalogue sweeps that
 now automatically include the card:
 
 ```
-bun run test convex/cards/sets/<set>/__tests__/<colour>.test.ts \
+bunx vitest run convex/cards/sets/<set>/__tests__/<colour>.test.ts \
              convex/cards/__tests__/effectScripts.test.ts \
              convex/cards/__tests__/effectScriptSmoke.test.ts
 ```
@@ -224,7 +224,7 @@ The migration this playbook was validated against. `convex/cards/sets/lea/red.ts
 - **Step 0 — assess.** Oracle: "Lightning Bolt deals 3 damage to any target."
   One clause → `dealDamage`, a registered Op ✅. Amount `3` is a literal ✅.
   Target is announced slot 0 ✅. No protocol behaviour ✅. **Migratable.**
-- **Step 1 — green-before.** `bun run test
+- **Step 1 — green-before.** `bunx vitest run
 convex/cards/sets/lea/__tests__/red.test.ts` — the `describe("Lightning Bolt (3
 damage to any target, CR 608.3)")` block (deals 3 to a player, kills a 1/1,
   goes to graveyard, can't target lands) passed. Baseline recorded. **Test left
