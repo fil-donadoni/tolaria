@@ -503,9 +503,10 @@ export const icatianMoneychanger: CardDefinition = {
             id: "icatian-moneychanger-etb-damage",
             oracleText: "When this creature enters, it deals 3 damage to you.",
             scope: "self",
-            resolve: (ctx) => {
-                ctx.dealDamage({ type: "player", id: ctx.controller }, 3);
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #795): 3 damage to the
+            // source's controller (CR 120.1). enteredTrigger binds
+            // ctx.controller to the source's controller for every scope.
+            effects: [{ op: "dealDamage", amount: 3, to: { player: "controller" } }],
         }),
         phaseTrigger({
             id: "icatian-moneychanger-upkeep-counter",
@@ -534,18 +535,22 @@ export const icatianMoneychanger: CardDefinition = {
             useStack: true,
             controllerTurnOnly: true,
             activationPhaseRestriction: ["UPKEEP"],
-            resolve: (ctx: SpellContext) => {
-                // Read the counter count from the source BEFORE the sacrifice
-                // cost removes it (the cost is paid at activation, so by resolve
-                // the permanent is gone — read via last-known is unavailable, so
-                // the ability records nothing extra: count is captured here from
-                // the resolving stack item's snapshot of counters).
-                const count = ctx.getCounterCount(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    "credit"
-                );
-                if (count > 0) ctx.gainLife(ctx.controller, count);
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #795): gain life equal
+            // to the credit-counter count on the (already-sacrificed) source.
+            // `$source` after a sacrifice-as-cost activation is a named CR
+            // 608.2g last-known-information case the `counters` EffectValue's
+            // reader handles directly (interpreter.ts, comment cites Icatian
+            // Moneychanger by name) — no `if (count > 0)` guard needed, the
+            // `gainLife` Op already no-ops for amount <= 0.
+            effects: [
+                {
+                    op: "gainLife",
+                    player: "controller",
+                    amount: {
+                        counters: { of: { ref: "$source" }, type: "credit" },
+                    },
+                },
+            ],
         },
     ],
 };

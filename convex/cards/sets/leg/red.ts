@@ -117,6 +117,12 @@ export const chainLightning: CardDefinition = {
     manaCost: { R: 1 },
     types: ["Sorcery"],
     targetRequirement: { type: "any", count: 1 },
+    // NOT DSL-migratable (ADR 0045): "may copy this spell and may choose a
+    // new target for that copy" (CR 707.12) — spell-copying / retargeting
+    // (`copyResolvingSpell` / `requestCopyRetarget`) has no Op, and the
+    // step-0 last-known-information chooser capture (`noteChoice`, New-Op
+    // backlog `noteChoice`, migration-classifier.mjs) is a bare imperative
+    // primitive too. Blocked on: spell-copy/retarget Ops + a `noteChoice` Op.
     resolveSteps: [
         // Step 0 — capture the chooser by last-known information (CR 608.2h),
         // THEN deal the damage (CR 119.3 "any target"). The chooser must be
@@ -590,13 +596,21 @@ export const dwarvenSong: CardDefinition = {
     manaCost: { R: 1 },
     types: ["Instant"],
     targetRequirement: { type: "Creature", count: { min: 1 } },
-    resolve: (ctx: SpellContext) => {
-        for (const target of ctx.targets) {
-            if (target.type === "permanent") {
-                ctx.setColorOverride(target, ["R"]);
-            }
-        }
-    },
+    // Migrated resolve()→effects[] (ADR 0045): `{ set: "targets" }` iterates
+    // the WHOLE variable-count announced target set (issue #1083), each
+    // member set via `setColor`. No `duration` — mirrors the original
+    // `setColorOverride` call exactly (no end-of-turn revert was wired despite
+    // the oracle text; preserved as-is, a pure refactor of the existing
+    // closure, not a behaviour fix — same shape as Sylvan Paradise, `green.ts`).
+    effects: [
+        {
+            op: "forEach",
+            select: { set: "targets" },
+            effects: [
+                { op: "setColor", target: { ref: "$each" }, colors: ["R"] },
+            ],
+        },
+    ],
 };
 
 // Blood Lust — "If target creature has toughness 5 or greater, it gets +4/-4
@@ -691,16 +705,16 @@ export const activeVolcano: CardDefinition = {
         "Choose one —\n• Destroy target blue permanent.\n• Return target Island to its owner's hand.",
     manaCost: { R: 1 },
     types: ["Instant"],
+    // Migrated resolve()→effects[] (ADR 0045): both modes are single-Op
+    // scripts on the announced target slot (`SpellMode.effects`, issue
+    // #1280) — `destroy` / `moveZone` to hand.
     modes: [
         {
             id: "destroy-blue",
             label: "Destroy target blue permanent",
             oracleText: "Destroy target blue permanent.",
             targetRequirement: { type: "any", count: 1, colorFilter: "U" },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target?.type === "permanent") ctx.destroy(target);
-            },
+            effects: [{ op: "destroy", target: { target: 0 } }],
         },
         {
             id: "return-island",
@@ -711,10 +725,7 @@ export const activeVolcano: CardDefinition = {
                 count: 1,
                 subtypeFilter: "Island",
             },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target?.type === "permanent") ctx.returnToHand(target);
-            },
+            effects: [{ op: "moveZone", target: { target: 0 }, to: "hand" }],
         },
     ],
 };

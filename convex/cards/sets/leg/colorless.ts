@@ -220,24 +220,74 @@ export const alchorsTomb: CardDefinition = {
                 count: 1,
                 controller: "you",
             },
-            resolveSteps: [
-                (ctx: SpellContext) => {
-                    const target = ctx.targets[0];
-                    if (target?.type !== "permanent") return;
-                    const pick = ctx.requestOptionChoice({
-                        playerId: ctx.controller,
-                        choiceId: "alchors-tomb-color",
-                        prompt: "Choose a color.",
-                        options: [
-                            { id: "W", label: "White" },
-                            { id: "U", label: "Blue" },
-                            { id: "B", label: "Black" },
-                            { id: "R", label: "Red" },
-                            { id: "G", label: "Green" },
-                        ],
-                    });
-                    if (pick === undefined) return; // suspended
-                    ctx.setColorOverride(target, [pick as "W"]);
+            // Migrated resolve()→effects[] (ADR 0045): the "choose one of five
+            // colors, then set it" template the `setColor` Op's own registry
+            // note names Shyft under (`ice/blue.ts`) — one `optionChoice` mode
+            // per color, each a single-Op `setColor` body on the announced
+            // target. No `duration` — the effect "lasts indefinitely" (CR
+            // 611.2b/613.9), matching the original `setColorOverride` call.
+            effects: [
+                {
+                    op: "optionChoice",
+                    player: "controller",
+                    prompt: "Choose a color.",
+                    modes: [
+                        {
+                            id: "W",
+                            label: "White",
+                            effects: [
+                                {
+                                    op: "setColor",
+                                    target: { target: 0 },
+                                    colors: ["W"],
+                                },
+                            ],
+                        },
+                        {
+                            id: "U",
+                            label: "Blue",
+                            effects: [
+                                {
+                                    op: "setColor",
+                                    target: { target: 0 },
+                                    colors: ["U"],
+                                },
+                            ],
+                        },
+                        {
+                            id: "B",
+                            label: "Black",
+                            effects: [
+                                {
+                                    op: "setColor",
+                                    target: { target: 0 },
+                                    colors: ["B"],
+                                },
+                            ],
+                        },
+                        {
+                            id: "R",
+                            label: "Red",
+                            effects: [
+                                {
+                                    op: "setColor",
+                                    target: { target: 0 },
+                                    colors: ["R"],
+                                },
+                            ],
+                        },
+                        {
+                            id: "G",
+                            label: "Green",
+                            effects: [
+                                {
+                                    op: "setColor",
+                                    target: { target: 0 },
+                                    colors: ["G"],
+                                },
+                            ],
+                        },
+                    ],
                 },
             ],
         },
@@ -269,6 +319,14 @@ export const mirrorUniverse: CardDefinition = {
                 count: 1,
                 controller: "opponent",
             },
+            // NOT DSL-migratable (ADR 0045): "exchange life totals" (CR
+            // 701.12b) has no Op — the mechanicsRegistry's `gainControl` note
+            // explicitly scopes control-exchange composition as NOT covering
+            // "the broader CR 701.12 keyword (exchanging life totals ...)".
+            // Also needs the delta between two players' life totals
+            // (arithmetic subtraction), which the frozen EffectValue grammar
+            // has no construct for. Blocked on: a life-exchange primitive/Op
+            // + an arithmetic/delta value construct.
             resolve: (ctx: SpellContext) => {
                 const target = ctx.targets[0];
                 if (target?.type !== "player") return;
@@ -544,6 +602,12 @@ export const tolaria: CardDefinition = {
             useStack: true,
             activationPhaseRestriction: ["UPKEEP"],
             targetRequirement: { type: "Creature", count: 1 },
+            // NOT DSL-migratable (ADR 0045): `removeStaticAbilities` takes a
+            // PREDICATE closure (matching two different keyword shapes:
+            // "banding" exactly, or any "bands with other:" prefix) — no Op
+            // wraps ability REMOVAL (only the `grantAbility` GRANT direction
+            // is an Op; New-Op backlog `removeStaticAbilities`,
+            // migration-classifier.mjs). Blocked on: a keyword-removal Op.
             resolve: (ctx: SpellContext) => {
                 const target = ctx.targets[0];
                 if (target?.type !== "permanent") return;

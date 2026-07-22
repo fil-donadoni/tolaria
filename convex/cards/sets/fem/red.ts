@@ -235,16 +235,19 @@ export const goblinKites: CardDefinition = {
                 controller: "you",
                 toughnessFilter: { max: 2 },
             },
-            // NOT DSL-migratable (ADR 0045, assessed #851): the grant-flying +
-            // delayedTrigger halves ARE expressible (grantAbility + a
-            // delayedTrigger Op capturing the creature), but the delayed body
-            // must "sacrifice that creature" — a SINGLE captured object — and
-            // the `sacrifice` Op only consumes a `choice` Op's picks binding (an
-            // array of player-chosen ids read via recallChoice), not a bound
-            // single object (a delayed capture / snapshot). Migrating the card
-            // would leave the body un-migratable, so the whole card stays
-            // resolve(). Blocked on: a sacrifice-single-bound-object capability
-            // (planned backlog Op `sacrificeObject`, mechanicsRegistry.ts).
+            // NOT DSL-migratable (ADR 0045, re-assessed #795): the PREVIOUS
+            // blocker (a sacrifice-single-captured-object capability,
+            // "sacrificeObject") has SHIPPED — `sacrifice`'s `target` form now
+            // consumes a `delayedTrigger` capture directly (issue #1151,
+            // mechanicsRegistry.ts `sacrifice` row cites this exact card by
+            // name). The card is blocked on a DIFFERENT gap instead: the
+            // grant-flying + delayedTrigger + coinFlip halves are all
+            // expressible, but a `coinFlip` branch's `effects` must be a
+            // NON-EMPTY Op list (`validateEffectScript`/`isCoinFlipBranch`) and
+            // this card's WIN branch does nothing ("Creature is safe." — no
+            // game effect at all). No no-op Op exists to fill it (see
+            // Merseine, fem/blue.ts, for the identical empty-branch gap).
+            // Stays resolve().
             resolve: (ctx: SpellContext) => {
                 const target = ctx.targets[0];
                 if (target?.type !== "permanent") return;
@@ -270,10 +273,12 @@ export const goblinKites: CardDefinition = {
             oracleText:
                 "Flip a coin. If you lose the flip, sacrifice that creature (Goblin Kites).",
             timing: "next-end-step",
-            // NOT DSL-migratable (ADR 0045, assessed #851): "sacrifice that
-            // creature" sacrifices a SINGLE captured object, which the
-            // `sacrifice` Op (picks-consuming only) cannot express — see the
-            // activated ability above. Blocked on: `sacrificeObject`.
+            // NOT DSL-migratable (ADR 0045, re-assessed #795): the captured-
+            // object sacrifice itself is now expressible (`sacrifice`'s
+            // `target` form, issue #1151 — see the activated ability above),
+            // but the flip's WIN branch does nothing and `coinFlip` requires a
+            // non-empty branch Op list. Same blocker as the activated ability
+            // above. Stays resolve().
             resolve: (ctx, payload) => {
                 const creatureId = payload.creatureId;
                 const flipperId = payload.flipperId;
@@ -479,6 +484,12 @@ export const orcishSpy: CardDefinition = {
             cost: { tap: true },
             useStack: true,
             targetRequirement: { type: "player", count: 1 },
+            // NOT DSL-migratable (ADR 0045, re-assessed #795): classifier
+            // over-count — the `libraryLook` Op's ONLY folded action is
+            // `"shuffle"` (issue #844); peeking N cards and marking them known
+            // to the caster (`peekLibraryTop` + `markKnown`) has no Op. `reveal`
+            // is hand-only and `lookRandomHand` is a random hand card — neither
+            // covers a private top-N library peek. Stays resolve().
             resolve: (ctx: SpellContext) => {
                 const target = ctx.targets[0];
                 if (target?.type !== "player") return;
@@ -651,6 +662,17 @@ export const dwarvenArmorer: CardDefinition = {
             cost: { mana: { R: 1 }, tap: true },
             useStack: true,
             targetRequirement: { type: "Creature", count: 1 },
+            // NOT DSL-migratable (ADR 0045, re-assessed #795): the shape IS
+            // expressible today — `choice(kind:"discard-hand")` + `discard`
+            // for the discard leg (the faithlessLooting/dka pattern), then an
+            // `optionChoice` with two modes (one `counters` Op each) for the
+            // "+0/+1 OR +1/+0" pick — but this card's own per-card test
+            // (`fem/__tests__/red.test.ts`, "Dwarven Armorer — discard for a
+            // counter") asserts
+            // `activatedAbilities![0].resolveSteps).toHaveLength(2)` directly.
+            // Migrating to `effects[]` would break that pinned assertion,
+            // which the migration playbook forbids editing (the pre-existing
+            // test is the untouchable equivalence oracle). Stays resolveSteps().
             resolveSteps: [
                 // Step 0 — pay the discard portion of the cost (a chosen card).
                 (ctx: SpellContext) => {

@@ -559,6 +559,12 @@ export const stormSeeker: CardDefinition = {
     manaCost: { X: 3, G: 1 },
     types: ["Instant"],
     targetRequirement: { type: "player", count: 1 },
+    // NOT DSL-migratable (ADR 0045): the damage amount is "the number of
+    // cards in that player's HAND" — the `count` EffectValue's zone grammar
+    // is `"battlefield" | "graveyard"` only (no `"hand"` member), so a
+    // hand-size read has no Op/value construct despite `getHandSize` being a
+    // plain getter (the migration classifier's read-heuristic false-positive
+    // caveat). Blocked on: a hand-size `count`/`EffectValue` member.
     resolve: (ctx: SpellContext) => {
         const target = ctx.targets[0];
         if (target?.type !== "player") return;
@@ -577,18 +583,25 @@ export const typhoon: CardDefinition = {
         "Typhoon deals damage to each opponent equal to the number of Islands that player controls.",
     manaCost: { X: 2, G: 1 },
     types: ["Sorcery"],
-    resolve: (ctx: SpellContext) => {
-        for (const pid of ctx.allPlayerIds) {
-            if (pid === ctx.caster) continue;
-            const islands = ctx.getBattlefieldIds(pid, {
-                types: "Land",
-                subtypes: "Island",
-            }).length;
-            if (islands > 0) {
-                ctx.dealDamage({ type: "player", id: pid }, islands);
-            }
-        }
-    },
+    // Migrated resolve()→effects[] (ADR 0045): 2-player game (CR 102.2), so
+    // "each opponent" is the plain `"opponent"` player selector (The Fallen
+    // shape, `drk/black.ts`); the amount is a `count` of the opponent's
+    // battlefield filtered to the Island subtype. `dealDamage` no-ops on a
+    // resolved amount of 0 (`reduced <= 0` guard in `SpellContext.dealDamage`),
+    // matching the original `if (islands > 0)` guard exactly.
+    effects: [
+        {
+            op: "dealDamage",
+            amount: {
+                count: {
+                    zone: "battlefield",
+                    controller: "opponent",
+                    filter: { subtype: "Island" },
+                },
+            },
+            to: { player: "opponent" },
+        },
+    ],
 };
 
 // --- Combat tricks (CR 611.1) ----------------------------------------------
@@ -605,12 +618,14 @@ export const winterBlast: CardDefinition = {
     manaCost: { X: "X", G: 1 },
     types: ["Sorcery"],
     targetRequirement: { type: "Creature", count: "X" },
-    // NOT DSL-migratable (ADR 0045): acts on a VARIABLE number (X) of announced
-    // targets (no forEach-over-target-slots construct) and gates the 2 damage on
-    // "those creatures with flying" (a subset of the targets, not expressible by
-    // a value/filter). Also has no per-card test, so it is not AFK-eligible.
-    // Blocked on: an announced-targets iteration construct + a per-target flying
-    // predicate.
+    // NOT DSL-migratable (ADR 0045), re-assessed: the VARIABLE-target-count
+    // iteration gap is CLOSED (`{ set: "targets" }` forEach selector, issue
+    // #1083). The remaining blocker is narrower: gating the 2 damage on
+    // "those creatures WITH FLYING" — a per-member keyword-ability predicate —
+    // has no `EffectPredicate` member (the grammar has binding/comparison/
+    // picks-nonempty/target-is-another/picks-match-filter, none of which read
+    // "has ability X"). Also has no per-card test, so it is not AFK-eligible
+    // regardless. Blocked on: a has-keyword-ability `EffectPredicate` member.
     resolve: (ctx: SpellContext) => {
         // "each of those creatures with flying" — derive the flying set from
         // the live battlefield (CR 702.9, snapshot at resolution) and gate the
@@ -643,13 +658,21 @@ export const sylvanParadise: CardDefinition = {
     manaCost: { G: 1 },
     types: ["Instant"],
     targetRequirement: { type: "Creature", count: { min: 1 } },
-    resolve: (ctx: SpellContext) => {
-        for (const target of ctx.targets) {
-            if (target.type === "permanent") {
-                ctx.setColorOverride(target, ["G"]);
-            }
-        }
-    },
+    // Migrated resolve()→effects[] (ADR 0045): `{ set: "targets" }` iterates
+    // the WHOLE variable-count announced target set (issue #1083), each
+    // member set via `setColor`. No `duration` — mirrors the original
+    // `setColorOverride` call exactly (no end-of-turn revert was wired despite
+    // the oracle text; preserved as-is, a pure refactor of the existing
+    // closure, not a behaviour fix).
+    effects: [
+        {
+            op: "forEach",
+            select: { set: "targets" },
+            effects: [
+                { op: "setColor", target: { ref: "$each" }, colors: ["G"] },
+            ],
+        },
+    ],
 };
 
 // Craw Giant — {3}{G}{G}{G}{G} 6/4, Trample, Rampage 2.
@@ -756,6 +779,12 @@ export const shelkinBrownie: CardDefinition = {
             cost: { tap: true },
             useStack: true,
             targetRequirement: { type: "Creature", count: 1 },
+            // NOT DSL-migratable (ADR 0045): `removeStaticAbilities` takes a
+            // PREDICATE closure (any "bands with other:"-prefixed keyword) —
+            // no Op wraps ability REMOVAL (only `grantAbility`'s GRANT
+            // direction is an Op; New-Op backlog `removeStaticAbilities`,
+            // migration-classifier.mjs; same gap as Tolaria's strip ability,
+            // `colorless.ts`). Blocked on: a keyword-removal Op.
             resolve: (ctx: SpellContext) => {
                 const target = ctx.targets[0];
                 if (target?.type !== "permanent") return;
@@ -823,6 +852,16 @@ export const cocoon: CardDefinition = {
                 "At the beginning of your upkeep, remove a pupa counter from this Aura. If you can't, sacrifice it, put a +1/+1 counter on enchanted creature, and that creature gains flying.",
             phase: "UPKEEP",
             scope: "your",
+            // NOT DSL-migratable (ADR 0045): two independent blockers. (a) The
+            // hatch branch acts on the Aura's ENCHANTED creature (host), read
+            // via `getAttachedToId` — the `EffectObjectSelector` grammar has
+            // no attached-host ref (same gap as the sibling `cocoon-etb`
+            // trigger above and The Brute's regenerate ability, `red.ts`).
+            // (b) The hatch's flying grant is INDEFINITE ("that creature gains
+            // flying", no duration) but `grantAbility`'s `duration` field is
+            // REQUIRED (phase-scoped only) — no indefinite-grant Op exists.
+            // Blocked on: an attached-host object selector + an indefinite
+            // grantAbility Op/variant.
             resolve: (ctx) => {
                 const self: TargetSelection = {
                     type: "permanent",

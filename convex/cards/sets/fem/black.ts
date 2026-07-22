@@ -382,38 +382,41 @@ export const mindstabThrull: CardDefinition = {
             matches: (event, self) =>
                 event.type === "ATTACKER_UNBLOCKED" &&
                 event.attackerId === self.id,
-            resolve: (ctx, event) => {
-                if (event.type !== "ATTACKER_UNBLOCKED") return;
-                const controllerId = event.attackerControllerId;
-                const sac = ctx.requestMayPay({
-                    playerId: controllerId,
-                    choiceId: `mindstab-thrull-${ctx.sourceInstanceId}`,
+            // Migrated resolve()→effects[] (ADR 0045, #795): "you may
+            // sacrifice it" is a cost-free `mayPay` (CR 701.7a); on accept,
+            // sacrifice `$source` then the defending player — CR 506.2's
+            // 2-player/solo "opponent" relative to this ability's controller
+            // — discards three (CR 701.8a, `choice` clamps the literal 3 down
+            // to hand size, matching the closure's `Math.min(3, handSize)`).
+            effects: [
+                {
+                    op: "mayPay",
+                    player: "controller",
                     prompt: "Sacrifice Mindstab Thrull to make the defending player discard three cards?",
-                });
-                if (sac === undefined) return; // suspended
-                if (!sac) return; // declined
-                ctx.sacrifice(ctx.sourceInstanceId);
-                // CR 506.2 — the defending player is the attacker controller's
-                // opponent (2-player / solo).
-                const defenderId = ctx.allPlayerIds.find(
-                    (p) => p !== controllerId
-                );
-                if (!defenderId) return;
-                // CR 701.8a — "discards three cards" (the defending player's
-                // own choice, clamped to hand size).
-                const handSize = ctx.getHandSize(defenderId);
-                if (handSize === 0) return;
-                const picks = ctx.requestChoice({
-                    playerId: defenderId,
-                    choiceId: `mindstab-thrull-discard-${ctx.sourceInstanceId}`,
-                    kind: "discard-hand",
-                    zone: "hand",
-                    count: Math.min(3, handSize),
-                    prompt: "Discard three cards (Mindstab Thrull).",
-                });
-                if (picks === undefined) return; // suspended
-                for (const id of picks) ctx.discardCard(defenderId, id);
-            },
+                    bind: "$sac",
+                },
+                {
+                    op: "if",
+                    predicate: { binding: "$sac" },
+                    then: [
+                        { op: "sacrifice", target: { ref: "$source" } },
+                        {
+                            op: "choice",
+                            kind: "discard-hand",
+                            player: "opponent",
+                            zone: "hand",
+                            count: 3,
+                            prompt: "Discard three cards (Mindstab Thrull).",
+                            bind: "$discards",
+                        },
+                        {
+                            op: "discard",
+                            player: "opponent",
+                            cards: { ref: "$discards" },
+                        },
+                    ],
+                },
+            ],
         },
     ],
 };
@@ -466,26 +469,31 @@ export const necrite: CardDefinition = {
             matches: (event, self) =>
                 event.type === "ATTACKER_UNBLOCKED" &&
                 event.attackerId === self.id,
-            resolve: (ctx) => {
-                // Target is already announced (ctx.targets[0]). resolve() only
-                // runs the "you may sacrifice it. If you do" clause: sacrifice is
-                // an optional cost paid at resolution (CR 701.7a), separate from
-                // the stack-placement target choice above.
-                const target = ctx.targets[0];
-                if (!target) return; // CR 608.2b — target left before resolution
-                const sac = ctx.requestMayPay({
-                    playerId: ctx.controller,
-                    choiceId: `necrite-${ctx.sourceInstanceId}`,
+            // Migrated resolve()→effects[] (ADR 0045, #795): the target is
+            // already announced (`{ target: 0 }`, CR 603.3d — locked at stack
+            // placement above). "You may sacrifice it. If you do" is a
+            // cost-free `mayPay` (CR 701.7a); on accept, sacrifice `$source`
+            // and destroy the target, unregenerable (CR 701.19c / 701.7).
+            effects: [
+                {
+                    op: "mayPay",
+                    player: "controller",
                     prompt: "Sacrifice Necrite to destroy the target creature?",
-                });
-                if (sac === undefined) return; // suspended for the may decision
-                if (!sac) return; // declined — Necrite stays, nothing destroyed
-                ctx.sacrifice(ctx.sourceInstanceId);
-                ctx.destroy(
-                    { type: "permanent", id: target.id },
-                    { cantBeRegenerated: true }
-                );
-            },
+                    bind: "$sac",
+                },
+                {
+                    op: "if",
+                    predicate: { binding: "$sac" },
+                    then: [
+                        { op: "sacrifice", target: { ref: "$source" } },
+                        {
+                            op: "destroy",
+                            target: { target: 0 },
+                            cantBeRegenerated: true,
+                        },
+                    ],
+                },
+            ],
         },
     ],
 };
@@ -783,11 +791,15 @@ export const tourachsChant: CardDefinition = {
                 }
                 return false;
             },
-            // NOT DSL-migratable (ADR 0045): built via the `enteredTrigger`
-            // factory (no `effects[]` site), and the "3 damage unless they put a
-            // -1/-1 counter" branch is a punisher choice whose target is the
-            // punished player's own creature pick (`requestChoice`) — not a
-            // covered object selector. Stays resolve().
+            // NOT DSL-migratable (ADR 0045, re-assessed #795): `enteredTrigger`
+            // DOES have an `effects[]` site now (this marker predates it) —
+            // that part of the original reasoning is stale. The real blocker
+            // remains: the "3 damage unless they put a -1/-1 counter" branch
+            // needs a `{ min: 0, max: 1 }` player-chosen creature (a punisher
+            // pick), and the `counters` Op's `target` is a single
+            // `EffectObjectSelector` with no picks-consuming form (unlike
+            // `sacrifice.permanents` / `discard.cards`) to accept that choice's
+            // binding. Stays resolve().
             resolve: (ctx, event, entered) => {
                 if (event.type !== "PERMANENT_ENTERED") return;
                 const player = entered.controllerId;
@@ -844,12 +856,20 @@ export const tourachsGate: CardDefinition = {
             scope: "your",
             oracleText:
                 "At the beginning of your upkeep, remove a time counter from this Aura. If there are no time counters on this Aura, sacrifice it.",
-            // NOT DSL-migratable (ADR 0045): the `counters` remove is
-            // expressible, but "if there are no time counters, sacrifice it" is
-            // gated on a counter-COUNT threshold (`getCounterCount` <= 0) — the
-            // `if` predicate grammar reads only a bound `$paid` outcome, not a
-            // counter tally. Stays resolve() until a counter-count predicate
-            // exists.
+            // NOT DSL-migratable within this migration's scope (ADR 0045,
+            // re-assessed #795): the grammar gap this marker originally cited
+            // has SHIPPED — `EffectComparisonPredicate` now composes with the
+            // `counters` `EffectValue` (`{ left: { counters: { of: {ref:
+            // "$source"}, type: "time" } }, op: "le", right: 0 }`), so the
+            // counter-count threshold gate is expressible in principle. But
+            // this exact `if` + `counters`-value combination is not yet
+            // exercised anywhere in `interpreter.test.ts` — per the
+            // new-construct-combination rule (gre-development.md) it needs its
+            // own interpreter/wire-format test before a card may rely on it,
+            // and authoring that test is outside this migration's single-file
+            // scope (convex/gre/effects/__tests__/interpreter.test.ts is a
+            // different file). Left resolve(); a follow-up pass that adds the
+            // interpreter coverage should convert this card.
             resolve: (ctx) => {
                 const self = {
                     type: "permanent" as const,

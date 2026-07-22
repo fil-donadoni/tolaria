@@ -118,10 +118,11 @@ export function makeElementalBlast(args: {
                     count: 1,
                     colorFilter: args.targetColor,
                 },
-                resolve: (ctx) => {
-                    const t = ctx.targets[0];
-                    if (t?.type === "spell") ctx.counter(t);
-                },
+                // Migrated resolve()→effects[] (ADR 0045, PRD #795): the
+                // `counter` Op already type-guards on `target.type ===
+                // "spell"` internally (same behavior as the former closure's
+                // explicit check), same shape as Counterspell (this file).
+                effects: [{ op: "counter", target: { target: 0 } }],
             },
             {
                 id: "destroy",
@@ -132,10 +133,14 @@ export function makeElementalBlast(args: {
                     count: 1,
                     colorFilter: args.targetColor,
                 },
-                resolve: (ctx) => {
-                    const t = ctx.targets[0];
-                    if (t?.type === "permanent") ctx.destroy(t);
-                },
+                // Migrated resolve()→effects[] (ADR 0045, PRD #795): a
+                // `colorFilter` target excludes players (colorless — CR
+                // 202.2, see `getLegalTargets` in gre/rules.ts), so the
+                // announced target always resolves to a permanent — the
+                // former closure's `t.type === "permanent"` check was
+                // defensive, never load-bearing. `destroy` throws on a
+                // player TargetSelection, but that branch is unreachable here.
+                effects: [{ op: "destroy", target: { target: 0 } }],
             },
         ],
     };
@@ -1049,6 +1054,15 @@ export const sirensCall: CardDefinition = {
     },
     delayedTriggers: [
         {
+            // NOT DSL-migratable (ADR 0045): inseparable from the scheduling
+            // `resolve()` above (blocked on the missing forced-attack Op) —
+            // `scheduleDelayedTrigger` is an imperative primitive here, not
+            // the `delayedTrigger` Op, so this body stays a plain
+            // `DelayedTriggerDef.resolve` regardless of its own primitives
+            // being covered. (The migration classifier double-counts a
+            // DelayedTriggerDef body as its own standalone "free" item
+            // whenever the body alone isn't blocked — a known false
+            // positive; this note is what keeps it from resurfacing.)
             id: "sirens-call-destroy",
             oracleText:
                 "Destroy all non-Wall creatures that didn't attack this turn.",

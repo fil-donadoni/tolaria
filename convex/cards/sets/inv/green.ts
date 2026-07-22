@@ -7,7 +7,6 @@ import type {
     CardPrint,
     Color,
     EffectOp,
-    SpellContext,
     StaticKeywordGrant,
 } from "../../types";
 import { AURA_AFFECTS_HOST, EFFECT_AFFECTS_SELF } from "../../types";
@@ -67,17 +66,13 @@ const KAVU_CHAMELEON_COLOR_OPTIONS: { id: Color; label: string }[] = [
 // becomes the color of your choice until end of turn." (CR 701.5c can't-be-
 // countered flag, issue #1065; CR 305.7 / 613.1d layer-5 colour change.)
 //
-// The activated ability is a `resolve()` closure, not DSL: the DSL Op that
-// would skin this ("setColor") is registry status "planned"
-// (`mechanicsRegistry.ts`) — not yet implemented — so per the DSL-first
-// stop-and-issue rule it is NOT invented here. Instead this reuses the
-// EXISTING `SpellContext.setColorOverride` primitive directly (the same
-// primitive ~7 other resolve()-based cards already call — Alchor's Tomb,
-// Dream Coat, Shyft, the LEG/LEA lace instants), generalized with an
-// optional `duration` parameter (issue #1065) so a "until end of turn"
-// change reverts at CLEANUP instead of lasting indefinitely like those. The
-// colour CHOICE reuses the same `requestOptionChoice` mono-colour picker
-// Shyft uses (`ice/blue.ts`).
+// Migrated resolve()→effects[] (ADR 0045): the `setColor` Op shipped (issue
+// #1083, promoted from `EFFECT_OP_BACKLOG`), a thin declarative skin over
+// the same `SpellContext.setColorOverride` primitive this closure called
+// directly. The Shyft shape (`ice/blue.ts`): `optionChoice` — one mode per
+// colour, each a single-Op `setColor` body with `duration: { phase:
+// "end-of-turn" }` so the change reverts at CLEANUP (CR 514.2) instead of
+// riding indefinitely like Shyft's own no-duration grant.
 export const kavuChameleon: CardDefinition = {
     id: "f726437b-a41a-4ee9-b0ee-e09327508615",
     rarity: "uncommon",
@@ -97,20 +92,25 @@ export const kavuChameleon: CardDefinition = {
                 "{G}: This creature becomes the color of your choice until end of turn.",
             cost: { mana: { G: 1 } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                const chosen = ctx.requestOptionChoice({
-                    playerId: ctx.controller,
-                    choiceId: "kavu-chameleon-color",
-                    options: KAVU_CHAMELEON_COLOR_OPTIONS,
+            effects: [
+                {
+                    op: "optionChoice",
+                    player: "controller",
                     prompt: "Choose a color for Kavu Chameleon.",
-                });
-                if (chosen === undefined) return; // suspended
-                ctx.setColorOverride(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    [chosen as Color],
-                    { phase: "end-of-turn" }
-                );
-            },
+                    modes: KAVU_CHAMELEON_COLOR_OPTIONS.map((option) => ({
+                        id: option.id,
+                        label: option.label,
+                        effects: [
+                            {
+                                op: "setColor",
+                                target: { ref: "$source" },
+                                colors: [option.id],
+                                duration: { phase: "end-of-turn" },
+                            },
+                        ],
+                    })),
+                },
+            ],
         },
     ],
 };
@@ -1088,11 +1088,17 @@ export const whipSilk: CardDefinition = {
 // trigger, CR 605 mana ability.)
 //
 // resolve() JUSTIFICATION (twin of Wild Growth, `lea/green.ts`, same tranche
-// convention): a `tappedTrigger` FACTORY hardcodes its `resolve` and exposes
-// no `effects[]` site, and the recipient is read from the trigger event (the
-// tapped land's controller — an event field, not `ctx.controller`). Blocked
-// on: factory-trigger `effects[]` site + an event-field player ref (same gap
-// Wild Growth's own comment documents). The runtime colour choice reuses the
+// convention; re-verified against the current engine, 2026-07): `tappedTrigger`
+// now DOES have an `effects[]` site, but its script only binds the SOURCE's
+// controller (`ctx.controller`) and `$source` — the tapped permanent's
+// last-known-info (id, controller, subtypes) is a separate payload never
+// threaded into the script (`TappedTriggerArgs.effects` doc,
+// `tappedTrigger.ts`). Fertile Ground's recipient is the ENCHANTED LAND's
+// controller, who can differ from the Aura's own controller (no
+// controller-filter on the target), so this still needs the imperative
+// `resolve` callback's `tapped.controllerId`. Blocked on: an event-field
+// player ref reachable from a `tappedTrigger` script (same gap Wild
+// Growth's own comment documents). The runtime colour choice reuses the
 // `requestOptionChoice` picker Kavu Chameleon uses above.
 const FERTILE_GROUND_COLOR_OPTIONS: { id: Color; label: string }[] = [
     { id: "W", label: "White" },

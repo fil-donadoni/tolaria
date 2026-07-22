@@ -122,6 +122,15 @@ export const berserk: CardDefinition = {
     },
     delayedTriggers: [
         {
+            // NOT DSL-migratable (ADR 0045): inseparable from the scheduling
+            // `resolve()` above (blocked on self-power + attacked-this-turn
+            // value/predicate gaps) — `scheduleDelayedTrigger` is an
+            // imperative primitive here, not the `delayedTrigger` Op, so this
+            // body stays a plain `DelayedTriggerDef.resolve`. (The migration
+            // classifier double-counts a DelayedTriggerDef body as its own
+            // standalone "free" item whenever the body alone isn't blocked —
+            // a known false positive; this note is what keeps it from
+            // resurfacing.)
             id: "destroy-if-attacked",
             oracleText:
                 "At the beginning of the next end step, destroy that creature if it attacked this turn.",
@@ -866,6 +875,21 @@ export const naturalSelection: CardDefinition = {
     manaCost: { G: 1 },
     types: ["Instant"],
     targetRequirement: { type: "player", count: 1 },
+    // NOT DSL-migratable (ADR 0045, re-assessed): the `scryReorder` Op
+    // (issue #885, `SpellContext.orderTop`) assumes the library's owner and
+    // the CHOOSER are the same player — `orderTop(playerId, n, opts)` takes
+    // one `playerId` and uses it both as whose library is reordered AND as
+    // the `PendingChoice.playerId` (the chooser) / the knowledge grantee
+    // (`grantKnowledge(state, playerId, …, playerId)`, gre/state.ts). That
+    // holds for every existing `scryReorder` card (Ponder, Preordain, Scry —
+    // all self-targeting) but not here: Natural Selection's caster reorders a
+    // TARGET player's library ("look at the top three cards of TARGET
+    // player's library... You may have THAT PLAYER shuffle" — chooser ≠
+    // library owner). Migrating anyway silently reassigns both the choice
+    // and the resulting knowledge to the wrong player (verified by running
+    // the per-card test: it stamped `knownTo` on the target instead of the
+    // caster). Blocked on: a `scryReorder` chooser param independent of
+    // `player` (the library owner), or an equivalent DSL construct.
     resolveSteps: [
         // Step 0: peek top 3, request reorder
         (ctx: SpellContext) => {

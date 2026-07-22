@@ -324,9 +324,13 @@ export const demonicHordes: CardDefinition = {
 // Demonic Tutor — "Search your library for a card, then shuffle and put that
 // card on top." (CR 701.19 for search, CR 701.20 for shuffle). Modern oracle
 // simplifies to "Search your library for a card, put it into your hand, then
-// shuffle." Implemented as a two-step resolve: step 0 enqueues a
-// search-library pending choice (count=1); step 1 moves the picked card into
-// the caster's hand and shuffles.
+// shuffle." Effect Script: search-library choice (count=1), then move the
+// picked card into the caster's hand, then shuffle. (Comment deliberately
+// avoids the literal text "resolve" immediately followed by a colon — the
+// migration classifier's `resolve\s*:` regex scans comments too, and that
+// exact phrase previously caused it to brace-match into the NEXT card's
+// object literal and misattribute a spurious "free" migration item to this
+// card's name.)
 export const demonicTutor: CardDefinition = {
     id: "711d4d54-5520-4de8-9b93-79902ed8e562",
     rarity: "uncommon",
@@ -924,6 +928,15 @@ export const nettlingImp: CardDefinition = {
     ],
     delayedTriggers: [
         {
+            // NOT DSL-migratable (ADR 0045): inseparable from the scheduling
+            // ability `resolve()` above (blocked on the missing "must attack"
+            // restrictCombat mode + attacked-this-turn predicate) —
+            // `scheduleDelayedTrigger` is an imperative primitive here, not
+            // the `delayedTrigger` Op, so this body stays a plain
+            // `DelayedTriggerDef.resolve`. (The migration classifier
+            // double-counts a DelayedTriggerDef body as its own standalone
+            // "free" item whenever the body alone isn't blocked — a known
+            // false positive; this note is what keeps it from resurfacing.)
             id: "nettling-imp-destroy",
             oracleText:
                 "Destroy that creature at the beginning of the next end step if it didn't attack this turn.",
@@ -1333,18 +1346,21 @@ export const sengirVampire: CardDefinition = {
             scope: "any-other",
             condition: (event, self) =>
                 event.damagedBySources.includes(self.id),
-            // NOT DSL-migratable (ADR 0045): built via the `diedTrigger`
-            // factory, which owns the `resolve` closure and exposes no
-            // `effects[]` site. The body is a clean `counters` add on
-            // `$source`, but the factory wrapper blocks it. Stays resolve()
-            // until the trigger factories accept effects.
-            resolve: (ctx) => {
-                ctx.addCounter(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    "+1/+1",
-                    1
-                );
-            },
+            // Migrated resolve()→effects[] (ADR 0045, PRD #795, re-assessed):
+            // `diedTrigger` now accepts an `effects[]` site (mutually
+            // exclusive with `resolve`), binding the source's controller and
+            // `$source`. This body only ever read `$source` (never the dead
+            // creature's LKI), so it was never actually blocked on the
+            // factory's LKI-payload gap — a plain `counters` add on `$source`.
+            effects: [
+                {
+                    op: "counters",
+                    action: "add",
+                    counter: "+1/+1",
+                    target: { ref: "$source" },
+                    count: 1,
+                },
+            ],
         }),
     ],
 };
@@ -1835,10 +1851,12 @@ export const terror: CardDefinition = {
         excludeTypes: "Artifact",
         excludeColors: "B",
     },
-    // NOT DSL-migratable (ADR 0045): the "can't be regenerated" rider is a
-    // destroy option the `destroy` Op does not expose.
-    // Blocked on: destroy Op `cantBeRegenerated` parameter (planned-migratable).
-    resolve: (ctx: SpellContext) => {
-        ctx.destroy(ctx.targets[0], { cantBeRegenerated: true });
-    },
+    // Migrated resolve()→effects[] (ADR 0045, PRD #795, re-assessed): the
+    // earlier marker's blocker (a "can't be regenerated" option on `destroy`)
+    // has shipped — `cantBeRegenerated` (ADR 0053) is a direct passthrough of
+    // `SpellContext.destroy`'s existing option, same shape as Tunnel
+    // (lea/red.ts).
+    effects: [
+        { op: "destroy", target: { target: 0 }, cantBeRegenerated: true },
+    ],
 };

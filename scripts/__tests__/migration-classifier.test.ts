@@ -1175,9 +1175,20 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // total 565→549, FREE 335→318, AFK-ready 317→303. One card reclassified
         // FREE→Op-blocked on re-marking (Op-blocked 216→217). X-only unchanged.
         // Partition: 318+14+217=549.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(549);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(318);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(303);
+        // 2026-07-22 free-tranche batch 7 (fem white/red/black, leg
+        // multicolor/green/red/colorless, lea blue/white/green/black, ice/blue,
+        // inv/green — small disjoint modules, packed 2-4 per subagent): 25
+        // closures migrated resolve()→effects[]. Several shared factories
+        // collapsed (payOrSacrificeUpkeepTrigger across the Elder Dragons +
+        // Tabernacle; makeElementalBlast; makeLace 5-card cycle), so the closure
+        // count drops by more than the card count. Many classifier over-counts
+        // (misattributed comment/factory-ref false positives, DelayedTriggerDef
+        // bodies double-counted) given accurate NOT-DSL markers. All 25 left
+        // FREE: total 549→524, FREE 318→293, AFK-ready 303→281. X-only and
+        // Op-blocked unchanged. Partition: 293+14+217=524.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(524);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(293);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(281);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
         expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(217);
     });

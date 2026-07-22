@@ -2299,6 +2299,22 @@ export const windSpirit: CardDefinition = {
 //  • Leaves: `preventAllCombatDamageToAndBy` (CR 615) for the {1} branch; one
 //    `next-end-of-combat` delayed destroy per unpaid creature (CR 603.7 /
 //    701.7), the Arcum's Whistle scalar-payload shape.
+//
+// NOT DSL-migratable (ADR 0045) for THIS PR: every clause maps onto a
+// shipped Op (`mayPay`, `preventDamage` mode "combat-to-and-by",
+// `delayedTrigger`), `forEach { set: "targets" }` covers the X-count
+// attacking-creature set (issue #1083), and `EffectPlayerRef`'s bare-ref
+// form (`{ ref: "$each.controller" }`) reaches a forEach-bound member's
+// controller ("its controller may pay") — but composing `forEach` with a
+// NESTED `delayedTrigger` whose `capture` snapshots `$each` is a construct
+// combination with no existing interpreter-suite precedent (every shipped
+// `capture` source today is `$source` or an announced target, never a
+// forEach `$each` — see Skizzik, `inv/red.ts`). Per DSL-first authoring
+// (`.claude/rules/gre-development.md` — a new construct combination earns
+// its own permanent interpreter test before a card ships on it), and this
+// migration pass is restricted to `convex/cards/sets/**` files only.
+// Blocked on: a forEach + delayedTrigger($each capture) interpreter-suite
+// precedent test.
 const WINTERS_CHILL_ID = "a779aca7-ff2c-48d8-9484-6ad04b2c6bcb";
 export const wintersChill: CardDefinition = {
     id: WINTERS_CHILL_ID,
@@ -2383,6 +2399,13 @@ export const wintersChill: CardDefinition = {
 // bouncing the creature (which would otherwise drop its Auras to the
 // graveyard), the caster's white Auras attached to that creature are returned
 // to hand: scan the caster's white Auras and match each host id to the target.
+//
+// NOT DSL-migratable (ADR 0045): "all white Auras you own attached to IT"
+// needs a selector/filter over the caster's battlefield keyed to an aura's
+// `attachedTo` host id. `EffectCardFilter` has no attachment field, and no
+// `ref` path reaches `.attachedTo` (the same gap Feedback's own note
+// documents, `lea/blue.ts`). Blocked on: an attached-to-target
+// selector/filter.
 export const wordOfUndoing: CardDefinition = {
     id: "22b04476-5a5d-4843-a948-82db209c4218",
     name: "Word of Undoing",

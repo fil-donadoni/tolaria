@@ -4,12 +4,7 @@
 // generic mana is encoded as `X: n` (e.g. {3}{G}{W} → { X: 3, G: 1, W: 1 }).
 // Cards are classified by the colour identity of their mana cost (CR 202.2).
 
-import type {
-    CardDefinition,
-    ManaCost,
-    SpellContext,
-    TargetSelection,
-} from "../../types";
+import type { CardDefinition, ManaCost, SpellContext } from "../../types";
 import { EFFECT_AFFECTS_SELF } from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
@@ -371,7 +366,10 @@ export const solkanarTheSwampKing: CardDefinition = {
                 "Whenever a player casts a black spell, you gain 1 life.",
             scope: "any",
             filter: { colors: "B" },
-            resolve: (ctx) => ctx.gainLife(ctx.controller, 1),
+            // Migrated resolve()→effects[] (ADR 0045): event-independent
+            // 1-life gain for the source's controller (CR 119.3a) via the
+            // `gainLife` Op.
+            effects: [{ op: "gainLife", player: "controller", amount: 1 }],
         }),
     ],
 };
@@ -443,7 +441,9 @@ export const angusMackenzie: CardDefinition = {
                 "DECLARE_ATTACKERS",
                 "DECLARE_BLOCKERS",
             ],
-            resolve: (ctx: SpellContext) => ctx.preventAllCombatDamage(),
+            // Migrated resolve()→effects[] (ADR 0045): a turn-scoped global
+            // Fog (CR 615) via the `preventDamage` Op's "all-combat" mode.
+            effects: [{ op: "preventDamage", mode: "all-combat" }],
         },
     ],
 };
@@ -518,6 +518,10 @@ export const gwendlynDiCorci: CardDefinition = {
             useStack: true,
             controllerTurnOnly: true,
             targetRequirement: { type: "player", count: 1 },
+            // NOT DSL-migratable (ADR 0045): a RANDOM discard (CR 701.8a) —
+            // the `discard` Op only discards a `choice`-picked (player-chosen)
+            // set, no random-selection mode. Blocked on: a `discardAtRandom`
+            // Op (New-Op backlog, migration-classifier.mjs).
             resolve: (ctx: SpellContext) => {
                 const target = ctx.targets[0];
                 if (target?.type === "player") {
@@ -933,28 +937,35 @@ export function payOrSacrificeUpkeepTrigger(args: {
     consequence?: "sacrifice" | "destroy";
 }) {
     const verb = args.consequence ?? "sacrifice";
+    // Migrated resolve()→effects[] (ADR 0045): `mayPay` binds the CR 117.3a
+    // pay-or-not decision (`scope: "your"` means the trigger's controller IS
+    // the scoped player, so the plain "controller" player selector is safe —
+    // see `phaseTrigger`'s effects doc); `if { not: { binding: "$paid" } }`
+    // fires the sacrifice/destroy consequence on `$source` only when the cost
+    // went unpaid (the Force Spike "unless pays" template, `leg/blue.ts`).
     return phaseTrigger({
         id: args.id,
         oracleText: `At the beginning of your upkeep, ${verb} ${args.cardName} unless you pay ${args.costText}.`,
         phase: "UPKEEP",
         scope: "your",
-        resolve: (ctx, _event, scopedPlayerId) => {
-            // CR 117.3a — the controller may pay the cost to keep the
-            // permanent; if they don't (or can't), it is sacrificed/destroyed.
-            const paid = ctx.requestMayPay({
-                playerId: scopedPlayerId,
-                choiceId: `${args.id}-${ctx.sourceInstanceId}`,
+        effects: [
+            {
+                op: "mayPay",
+                player: "controller",
                 cost: args.cost,
                 prompt: `Pay ${args.costText} or ${verb} ${args.cardName}?`,
-            });
-            if (paid === undefined) return; // suspended for the choice
-            if (paid) return;
-            if (verb === "destroy") {
-                ctx.destroy({ type: "permanent", id: ctx.sourceInstanceId });
-            } else {
-                ctx.sacrifice(ctx.sourceInstanceId);
-            }
-        },
+                bind: "$paid",
+            },
+            {
+                op: "if",
+                predicate: { not: { binding: "$paid" } },
+                then: [
+                    verb === "destroy"
+                        ? { op: "destroy", target: { ref: "$source" } }
+                        : { op: "sacrifice", target: { ref: "$source" } },
+                ],
+            },
+        ],
     });
 }
 
@@ -1127,20 +1138,33 @@ export const rasputinDreamweaver: CardDefinition = {
             scope: "your",
             // CR 603.4d — only if it started the turn untapped.
             interveningIf: (_event, self) => self.startedTurnUntapped === true,
-            // NOT DSL-migratable (ADR 0045): the `counters` add is gated on a
-            // counter-COUNT cap ("no-op once it has seven dream counters",
-            // `getCounterCount` >= 7) — the `if` predicate grammar reads only a
-            // bound `$paid` outcome, not a counter tally. Stays resolve() until a
-            // counter-count predicate exists.
-            resolve: (ctx) => {
-                const self: TargetSelection = {
-                    type: "permanent",
-                    id: ctx.sourceInstanceId,
-                };
-                // CR 122 — capped at seven dream counters: no-op at the cap.
-                if (ctx.getCounterCount(self, "dream") >= 7) return;
-                ctx.addCounter(self, "dream", 1);
-            },
+            // Migrated resolve()→effects[] (ADR 0045): the stale blocker (no
+            // counter-count predicate) is resolved — the `counters` EffectValue
+            // member (issue #1015) reads the LIVE "dream" counter count on
+            // `$source` directly in an `if` comparison predicate (The Fallen
+            // shape, `drk/black.ts`), gating the add at the CR 122 seven-counter
+            // cap.
+            effects: [
+                {
+                    op: "if",
+                    predicate: {
+                        left: {
+                            counters: { of: { ref: "$source" }, type: "dream" },
+                        },
+                        op: "lt",
+                        right: 7,
+                    },
+                    then: [
+                        {
+                            op: "counters",
+                            action: "add",
+                            counter: "dream",
+                            target: { ref: "$source" },
+                            count: 1,
+                        },
+                    ],
+                },
+            ],
         }),
     ],
 };
@@ -1183,6 +1207,12 @@ export const halfdane: CardDefinition = {
                     "At the beginning of your upkeep, change Halfdane's base power and toughness to the power and toughness of target creature other than Halfdane until your next upkeep.",
                 phase: "UPKEEP",
                 scope: "your",
+                // NOT DSL-migratable (ADR 0045): sets Halfdane's BASE power/
+                // toughness to a snapshot of the target's effective P/T
+                // (`setBasePT`) — no Op wraps `SpellContext.setBasePT` (New-Op
+                // backlog `setBasePT`, migration-classifier.mjs; same gap
+                // flagged for Wood Elemental / Sentinel). Blocked on: a
+                // `setBasePT` Op.
                 resolve: (ctx) => {
                     const self = ctx.sourceInstanceId;
                     // CR 603.3d — the target was chosen when the trigger was put

@@ -597,24 +597,21 @@ export const healingSalve: CardDefinition = {
         "Choose one —\n• Target player gains 3 life.\n• Prevent the next 3 damage that would be dealt to any target this turn.",
     manaCost: { W: 1 },
     types: ["Instant"],
-    // NOT DSL-migratable (ADR 0045, issue #845): a MODAL "choose one" card.
-    // `effects[]` is mutually exclusive with `modes`, and there is no
-    // mode-level Effect Script yet — the "choose one" mode selection needs the
-    // `optionChoice` Op, still `planned`. The classifier over-counts this site
-    // (both mode closures now use only covered Ops — gainLife and preventDamage
-    // "next-n"), but the modal WRAPPER is the blocker, not the mode bodies.
-    // Blocked on: modal-card support (`optionChoice` Op).
+    // Migrated resolve()→effects[] (ADR 0045, PRD #795, re-assessed): the
+    // earlier marker claimed the modal WRAPPER itself needed an `optionChoice`
+    // Op — stale. `SpellMode.effects` (issue #1280) is a per-mode Effect
+    // Script site independent of `effects[]`/`optionChoice`; card-level modal
+    // selection is already handled by the `modes[]` array machinery the
+    // engine has used since Blue/Red Elemental Blast, Magical Hack, Phantasmal
+    // Terrain, and Sleight of Mind (this file / blue.ts). Each mode body here
+    // maps to a single already-exercised Op.
     modes: [
         {
             id: "gain-life",
             label: "Gain 3 life",
             oracleText: "Target player gains 3 life.",
             targetRequirement: { type: "player", count: 1 },
-            resolve: (ctx) => {
-                const t = ctx.targets[0];
-                if (!t || t.type !== "player") return;
-                ctx.gainLife(t.id, 3);
-            },
+            effects: [{ op: "gainLife", player: { target: 0 }, amount: 3 }],
         },
         {
             id: "prevent",
@@ -622,13 +619,15 @@ export const healingSalve: CardDefinition = {
             oracleText:
                 "Prevent the next 3 damage that would be dealt to any target this turn.",
             targetRequirement: { type: "any", count: 1 },
-            resolve: (ctx) => {
-                const t = ctx.targets[0];
-                if (!t) return;
-                ctx.preventNextNDamageToTarget(t, 3, {
-                    phase: "end-of-turn",
-                });
-            },
+            effects: [
+                {
+                    op: "preventDamage",
+                    mode: "next-n",
+                    to: { target: 0 },
+                    amount: 3,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 };
@@ -767,19 +766,27 @@ export const karma: CardDefinition = {
                 "At the beginning of each player's upkeep, Karma deals damage to that player equal to the number of Swamps they control.",
             phase: "UPKEEP",
             scope: "each",
-            // NOT DSL-migratable (ADR 0045, issue #831): the damaged player is
-            // the upkeep player (each-scope, event-derived), not the ability's
-            // controller/opponent, so no EffectPlayerRef targets it; the amount
-            // is a Swamp count on that same dynamic player. Blocked on:
-            // event-player ref for `each`-scope triggers.
-            resolve: (ctx, _event, playerId) => {
-                const swamps = ctx.getBattlefieldIds(playerId, {
-                    subtypes: "Swamp",
-                }).length;
-                if (swamps > 0) {
-                    ctx.dealDamage({ type: "player", id: playerId }, swamps);
-                }
-            },
+            // Migrated resolve()→effects[] (ADR 0045, PRD #795, re-assessed):
+            // an `each`-scope trigger reads the scoped (upkeep) player via
+            // `{ ref: "$event.activePlayerId" }` (issue #1066, ADR 0049) — the
+            // same shape ice/white.ts's near-identical "damage equal to the
+            // number of snow lands they control" card already uses. The Swamp
+            // count is a `count` construct over that same dynamic player's
+            // battlefield; `dealDamage` no-ops at amount 0 (interpreter parity
+            // with the former `if (swamps > 0)` guard).
+            effects: [
+                {
+                    op: "dealDamage",
+                    amount: {
+                        count: {
+                            zone: "battlefield",
+                            controller: { ref: "$event.activePlayerId" },
+                            filter: { subtype: "Swamp" },
+                        },
+                    },
+                    to: { player: { ref: "$event.activePlayerId" } },
+                },
+            ],
         }),
     ],
 };
@@ -947,11 +954,17 @@ export function makeLace(args: {
         manaCost: args.manaCost,
         types: ["Instant"],
         targetRequirement: { type: "spell-or-permanent", count: 1 },
-        resolve: (ctx: SpellContext) => {
-            const t = ctx.targets[0];
-            if (!t) return;
-            ctx.setColorOverride(t, [args.color]);
-        },
+        // Migrated resolve()→effects[] (ADR 0045, PRD #795): the `setColor`
+        // Op (layer 5, CR 613.1e) is a direct declarative skin over
+        // `SpellContext.setColorOverride` and explicitly documents this exact
+        // "target spell or permanent becomes the color of your choice"
+        // shape. `target: { target: 0 }` resolves either kind (a permanent OR
+        // a stack spell) — no type guard needed, same as the former closure.
+        // No `duration` — the lace color change is indefinite (persists,
+        // doesn't revert at end of turn).
+        effects: [
+            { op: "setColor", target: { target: 0 }, colors: [args.color] },
+        ],
     };
 }
 
@@ -1279,13 +1292,31 @@ export const wrathOfGod: CardDefinition = {
     oracleText: "Destroy all creatures. They can't be regenerated.",
     manaCost: { X: 2, W: 2 },
     types: ["Sorcery"],
-    // NOT DSL-migratable (ADR 0045, issue #831): the `destroy` Op has no
-    // "can't be regenerated" option, so a forEach/destroy sweep would let
-    // regeneration shields save creatures (unlike this card). Blocked on:
-    // cantBeRegenerated flag on the `destroy` Op.
-    resolve: (ctx: SpellContext) => {
-        ctx.destroyAll("Creature", { cantBeRegenerated: true });
-    },
+    // Migrated resolve()→effects[] (ADR 0045, PRD #795, re-assessed): the
+    // earlier marker's blocker (a "can't be regenerated" option on `destroy`)
+    // has shipped — `cantBeRegenerated` (ADR 0053) is a direct passthrough of
+    // `SpellContext.destroy`'s existing option (Terror/Tunnel already use it).
+    // `destroyAll` is `forEach` over every player's battlefield Creatures
+    // (CR 110) → `destroy` each with `cantBeRegenerated: true`, same sweep
+    // shape as Armageddon/Tranquility/Tsunami (this file / green.ts) plus the
+    // regeneration-suppression rider.
+    effects: [
+        {
+            op: "forEach",
+            select: {
+                set: "permanents",
+                zone: "battlefield",
+                filter: { type: "Creature" },
+            },
+            effects: [
+                {
+                    op: "destroy",
+                    target: { ref: "$each" },
+                    cantBeRegenerated: true,
+                },
+            ],
+        },
+    ],
 };
 
 // Helper for the "at the beginning of your upkeep, pay {cost} or
@@ -1296,6 +1327,16 @@ export const wrathOfGod: CardDefinition = {
 // upkeep (CR 702.23, post-LEA) is a distinct mechanic and not modeled here.
 // Delegates to the `phaseTrigger` factory so the matches() narrowing and
 // scope filter live in one place.
+//
+// NOT DSL-migratable (ADR 0045): this factory's `resolve` body is
+// parameterized by an arbitrary imperative `onDecline` callback (sacrifice
+// self, deal damage, etc. — varies per caller), so it cannot itself become a
+// single Effect Script; each caller's `onDecline` would need its own
+// migration, and the factory would need to stop being a shared imperative
+// wrapper. (The migration classifier misattributes this closure's own body —
+// just a `mayPay` call, since `args.onDecline(ctx)` is invisible to its
+// `ctx.xxx(...)` primitive scan — to whichever card literal precedes it in
+// the file; this note is what keeps that false positive from resurfacing.)
 export function makeUpkeepPayOrElse(args: {
     id: string;
     oracleText: string;
