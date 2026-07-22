@@ -33,6 +33,11 @@ export type ChoiceCandidateHint = {
     materialGivenUp?: number;
     /** Life this candidate pays (CR 118.4). 0 / undefined when it pays none. */
     lifePaid?: number;
+    /** Summed latent worth of the material this candidate GAINS — the cards a
+     *  library search finds (CR 701.19). 0 for a "fail to find" (CR 701.19c).
+     *  The mirror of `materialGivenUp`: same rough point currency, opposite
+     *  sign of intent. */
+    materialGained?: number;
 };
 
 /** The pluggable prior seam: score a candidate at a choice node. Higher = try
@@ -55,6 +60,13 @@ const MATERIAL_PRIOR_SCALE = 400;
 
 /** Life total fraction at which paying life stops looking cheap. */
 const LIFE_PRIOR_SCALE = 20;
+
+/** Prior of a `search-library` candidate that finds nothing of worth — and so
+ *  of "fail to find" (CR 701.19c) itself. Every real find scores above it by
+ *  its `materialGained`, which is exactly the ordering first-play urgency
+ *  wants; the floor stays inside the band so failing to find is still reachable
+ *  (a search that shuffles away a stacked library CAN be the right answer). */
+const SEARCH_FIND_PRIOR_FLOOR = 0.3;
 
 /** Prior floor / ceiling. A candidate is never pruned by its prior — pruning is
  *  the generator's job (`candidates()` is self-pruning) — so priors stay inside
@@ -84,12 +96,24 @@ function acceptOf(move: Move): boolean | undefined {
  *  - `land-entry-tapped` (CR 614.12 / ADR 0051, shock lands): paying a couple of
  *    life to enter untapped is the standard play — brain.ts pays iff affordable.
  *  - `draw-replacement` (CR 614 / ADR 0061, Zur's Weirding): brain.ts DECLINES —
- *    paying life to bin an unknown card is speculative. */
+ *    paying life to bin an unknown card is speculative.
+ *  - `search-library` (CR 701.19, fetchlands / tutors): the better the card
+ *    found, the earlier that branch opens; failing to find (CR 701.19c) sits at
+ *    the bottom of the band but is never pruned. */
 export function heuristicChoicePrior(
     _state: GameState,
     choice: PendingChoice,
     candidate: PriorCandidate
 ): number {
+    // CR 701.19 — a library search is not a yes/no answer: it is ranked purely
+    // by what it FINDS, so it is scored before the accept/decline dispatch.
+    if (choice.kind === "search-library") {
+        return clampPrior(
+            SEARCH_FIND_PRIOR_FLOOR +
+                (candidate.hint?.materialGained ?? 0) / MATERIAL_PRIOR_SCALE
+        );
+    }
+
     const accept = acceptOf(candidate.move);
     if (accept === undefined) return NEUTRAL_PRIOR;
 

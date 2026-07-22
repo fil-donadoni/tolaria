@@ -451,9 +451,11 @@ export function applyMoveInSearch(
         }
 
         case "resolution-choice": {
-            // Generic (non-yes/no) choice-node answer — currently `option-pick`
+            // Generic (non-yes/no) choice-node answer — `option-pick`
             // (CR 700.2 / 601.2b modal spells, CR 614.12 "as it enters, choose
-            // …" body picks, issue #1428). Applied through the SAME validated
+            // …" body picks, issue #1428) and `search-library` (CR 701.19
+            // fetchlands / tutors, issue #1429; an empty `cardInstanceIds` is
+            // CR 701.19c's "fail to find"). Applied through the SAME validated
             // resolver the `submitResolutionChoice` mutation drives
             // (`applyPendingChoiceSubmit`), so the search can never diverge from
             // the authoritative path. It already resumes the suspended

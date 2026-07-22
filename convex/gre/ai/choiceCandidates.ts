@@ -25,7 +25,8 @@
 //
 // Ships the YES/NO family as the first generator: `may-pay` (CR 117.3a / 118.4),
 // `land-entry-tapped` (CR 614.12 / ADR 0051) and `draw-replacement`
-// (CR 614 / ADR 0061). Later tranches (modal `option-pick`, `search-library`, …)
+// (CR 614 / ADR 0061), then the modal `option-pick` (issue #1428) and
+// `search-library` (CR 701.19 fetchlands / tutors, issue #1429). Later tranches
 // register here against this same contract.
 
 import type { CardInstanceState, GameState, PendingChoice } from "../state";
@@ -33,6 +34,8 @@ import {
     canPayMayPayCost,
     getMayPayDiscardCandidateIds,
     getMayPaySacrificeCandidateIds,
+    getPendingChoiceMax,
+    getPendingChoiceMin,
     getPlayer,
     mayPayDiscardChoiceRequired,
     mayPaySacrificeChoiceRequired,
@@ -345,6 +348,147 @@ const optionPickCandidates: ChoiceCandidateGenerator = (_state, choice) => {
     }));
 };
 
+// ---------------------------------------------------------------------------
+// Library search (search-library) — fetchlands / tutors
+// ---------------------------------------------------------------------------
+
+/** Lands in play at which searching up ANOTHER land stops being development and
+ *  starts being flood (a rough Forge-style curve point). Below it a fetched land
+ *  outranks a small creature; at or above it, it is nearly worthless. */
+const LAND_SEARCH_SATURATION = 5;
+
+/** Worth of a fetched LAND at zero lands in play, decaying `LAND_SEARCH_STEP`
+ *  per land already on the battlefield until `LAND_SEARCH_SATURATION`. */
+const LAND_SEARCH_BASE = 70;
+const LAND_SEARCH_STEP = 10;
+const LAND_SEARCH_FLOODED = 20;
+
+/** Rough latent worth of a card a library search could find (CR 701.19), used
+ *  ONLY to RANK targets and to feed the prior seam — never legality. Nonland
+ *  cards reuse the hand-card scale (a fetched card lands in hand / on the
+ *  battlefield, exactly the material `handCardWorth` prices); a LAND is priced
+ *  against the searcher's own mana development, which is what makes a fetchland
+ *  pick sensible early and near-irrelevant when flooded. */
+function libraryTargetWorth(
+    state: GameState,
+    searcherId: string,
+    card: CardInstanceState
+): number {
+    if (!card.types.includes("Land")) return handCardWorth(state, card);
+    const lands = getPlayer(state, searcherId).battlefield.filter((c) =>
+        c.types.includes("Land")
+    ).length;
+    return lands >= LAND_SEARCH_SATURATION
+        ? LAND_SEARCH_FLOODED
+        : LAND_SEARCH_BASE - LAND_SEARCH_STEP * lands;
+}
+
+/** `search-library` (CR 701.19 — fetchlands, tutors): the hardest tranche-1
+ *  kind, and the reason the contract's three properties exist at all.
+ *
+ *  SELF-PRUNING (property 1). The raw answer space is every subset of the
+ *  matching library — a 50-card library with an unfiltered tutor already has 50
+ *  single-card answers, and a "search for up to two" has 1275. The generator
+ *  never enumerates it: it collapses the pool to DISTINCT CARD IDENTITIES (a
+ *  Forest is a Forest — picking either copy is the same decision), ranks them by
+ *  `libraryTargetWorth`, and emits at most `CHOICE_TOP_K` policy leads. When the
+ *  choice takes more than one card, the remaining slots are filled greedily by
+ *  the same ranking, so a candidate stays "the best set LED BY this card"
+ *  instead of a subset lattice.
+ *
+ *  STABLE IDENTITY KEYS (property 2). This is the clairvoyance-critical kind:
+ *  ISMCTS reshuffles the searcher's library every iteration (`determinize`), so
+ *  the "best" card sits at a different position — and, for an OPPONENT's search,
+ *  may not even be in the library — in each world. Keying by the picked cards'
+ *  NAMES (`stableSetIdentity`) means "fetch a Forest" accumulates statistics
+ *  across every determinization, while the instance ids inside the move are
+ *  re-read from the CURRENT world every iteration (`search.ts` applies this
+ *  world's move for the selected key). No extra anti-clairvoyance machinery is
+ *  needed: the reshuffle plus `edge.avail` already carry the hidden-information
+ *  discipline (PRD #1423).
+ *
+ *  CR 701.19c — a player may FAIL TO FIND. Modelled whenever the choice's count
+ *  admits an empty pick (`{ min: 0, … }`, the "you may search" shape): an empty
+ *  submission is a real, sometimes-correct answer (keeping the library
+ *  unshuffled, declining the life payment's downside), so it is always offered
+ *  as its own branch rather than assumed away. A fixed-count choice
+ *  (`count: 1`) has no legal empty answer and gets none. */
+const searchLibraryCandidates: ChoiceCandidateGenerator = (state, choice) => {
+    const searcherId = choice.playerId;
+    const zoneOwner = getPlayer(state, choice.zoneOwnerId ?? searcherId);
+
+    // The eligible pool, recomputed against the CURRENT world (the allow-list
+    // was precomputed when the choice was raised; a determinization may have
+    // moved one of those cards out of the library — see `determinize`).
+    const allow = choice.candidateIds ? new Set(choice.candidateIds) : null;
+    const pool = allow
+        ? zoneOwner.library.filter((c) => allow.has(c.id))
+        : zoneOwner.library;
+
+    const submit = (cards: CardInstanceState[]): Move => ({
+        kind: "resolution-choice",
+        stackItemId: choice.stackItemId,
+        step: choice.step,
+        choiceId: choice.choiceId,
+        cardInstanceIds: cards.map((c) => c.id),
+    });
+
+    const out: Omit<ChoiceCandidate, "prior">[] = [];
+
+    // CR 701.19c — "fail to find" (only when the count admits an empty pick).
+    if (getPendingChoiceMin(choice.count) <= 0) {
+        out.push({
+            key: "search-library:none",
+            move: submit([]),
+            hint: { materialGained: 0 },
+        });
+    }
+
+    const take = Math.min(getPendingChoiceMax(choice.count), pool.length);
+    if (take <= 0) return out;
+
+    // Rank by worth, breaking ties on stable identity so the ordering — and
+    // therefore the emitted candidate set — is world-order independent.
+    const ranked = pool
+        .map((card) => ({
+            card,
+            identity: stableCardIdentity(card),
+            worth: libraryTargetWorth(state, searcherId, card),
+        }))
+        .sort(
+            (a, b) =>
+                b.worth - a.worth ||
+                (a.identity < b.identity ? -1 : a.identity > b.identity ? 1 : 0)
+        );
+
+    const seenIdentities = new Set<string>();
+    const seenKeys = new Set<string>();
+    for (const lead of ranked) {
+        if (out.length >= CHOICE_TOP_K) break;
+        if (seenIdentities.has(lead.identity)) continue;
+        seenIdentities.add(lead.identity);
+        // "The best set LED BY this card": the lead, then the next-best cards.
+        const picked = [lead];
+        for (const other of ranked) {
+            if (picked.length >= take) break;
+            if (other.card.id === lead.card.id) continue;
+            picked.push(other);
+        }
+        const cards = picked.map((p) => p.card);
+        const key = `search-library:${stableSetIdentity(cards)}`;
+        if (seenKeys.has(key)) continue;
+        seenKeys.add(key);
+        out.push({
+            key,
+            move: submit(cards),
+            hint: {
+                materialGained: picked.reduce((s, p) => s + p.worth, 0),
+            },
+        });
+    }
+    return out;
+};
+
 /** The registry: choice kind → candidate generator. A kind with NO generator is
  *  not yet an in-tree decision node — the search treats it exactly as before
  *  (no decider, playout stops there), so adding a tranche is purely additive. */
@@ -355,6 +499,7 @@ export const CHOICE_CANDIDATE_GENERATORS: Partial<
     "land-entry-tapped": landEntryCandidates,
     "draw-replacement": drawReplacementCandidates,
     "option-pick": optionPickCandidates,
+    "search-library": searchLibraryCandidates,
 };
 
 /** Whether `kind` is an in-tree choice node (has a registered generator). */

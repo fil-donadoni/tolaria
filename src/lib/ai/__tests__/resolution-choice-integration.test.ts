@@ -125,12 +125,25 @@ function makeTutorState(): GameState {
 }
 
 describe("bot resolution-choice full path — search-library (ADR 0016, #162)", () => {
-    it("the GRE surfaces no move while the choice is pending (policy stays in the brain)", () => {
+    it("the GRE surfaces the pending search as an in-tree choice node (issue #1429)", () => {
         const state = makeTutorState();
         expect(state.pendingChoices?.[0]?.kind).toBe("search-library");
-        // Search produces nothing — the bot would freeze without a brain policy.
-        expect(enumerateMoves(state, BOT)).toEqual([]);
-        expect(decidingPlayer(state)).toBeNull();
+        // PRD #1423 / issue #1429: a `search-library` choice is now a
+        // policy-pruned ISMCTS decision node — one candidate per DISTINCT card
+        // identity in the eligible pool (here: the land and the creature), so
+        // the search can reason about the fetch instead of halting on it. The
+        // brain's own policy (asserted below) stays the live bot's path.
+        const moves = enumerateMoves(state, BOT);
+        expect(moves).toHaveLength(2);
+        expect(
+            moves.every((m) => m.kind === "resolution-choice")
+        ).toBe(true);
+        expect(
+            moves.flatMap((m) =>
+                m.kind === "resolution-choice" ? m.cardInstanceIds : []
+            ).sort()
+        ).toEqual(["bot-lib-bears", "bot-lib-land"]);
+        expect(decidingPlayer(state)).toBe(BOT);
     });
 
     it("buildBotView surfaces the owed choice (kind, count bounds, candidates)", () => {
