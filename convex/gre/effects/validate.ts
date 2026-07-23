@@ -158,7 +158,7 @@ function isValueOrArray(
 }
 
 /** `{ type?, excludeType?, subtype?, supertype?, color?, excludeColor?,
- *  manaValueAtMost?, isToken?, name? }` — the minimal card filter for a
+ *  manaValueAtMost?, isToken?, enteredThisTurn?, name? }` — the minimal card filter for a
  *  `count` set or a `choice` Op's
  *  zone-restricted candidates (issue #677). `type`/`excludeType`/`subtype`/
  *  `color`/`excludeColor` accept a single value OR a non-empty array (OR
@@ -224,6 +224,13 @@ function isCardFilter(value: unknown): boolean {
             );
         }
         if (k === "isToken") {
+            return typeof v === "boolean";
+        }
+        // CR 400.7 (issue #1458) — "entered the battlefield this turn", read
+        // off the `enteredOnTurn` entry stamp the engine writes on every
+        // battlefield entry (`markEnteredThisTurn`). Shape mirrors `isToken`
+        // exactly: a plain boolean.
+        if (k === "enteredThisTurn") {
             return typeof v === "boolean";
         }
         // issue #1085 — a FIXED literal name, or a bare `{ ref: "$binding" }`

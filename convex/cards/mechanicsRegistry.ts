@@ -3025,7 +3025,18 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
  *  it earns neither an EFFECT_OP_REGISTRY row nor a MECHANICS_REGISTRY row
  *  (unlike Domain, it names no CR keyword or ability word). It unblocks
  *  "-X/-X" style pump amounts driven off a non-negative-by-nature value
- *  member (Toxic Deluge's chosen-cost X, CR 118.4 pay-X-life). */
+ *  member (Toxic Deluge's chosen-cost X, CR 118.4 pay-X-life).
+ *  `EffectCardFilter.enteredThisTurn` (issue #1458, CR 302.6) is likewise NOT
+ *  an Op and NOT a new grammar member — it is a REFINEMENT of the existing
+ *  card-filter shape (a plain boolean clause, mirroring `isToken`'s own shape
+ *  and battlefield-only scope exactly), read straight off the engine's
+ *  `isSummoningSick` control-continuity flag (`markEnteredThisTurn`) with NO
+ *  new bookkeeping. It earns no EFFECT_OP_REGISTRY row. Reaches every site a
+ *  card filter is read for a battlefield set — the `count` construct and
+ *  `forEach { set: "permanents" }` (both route through `toPermanentFilter` →
+ *  `ctx.getBattlefieldIds`) — and composes with every other clause,
+ *  including `isToken`. Deliberately shipped with no card consumer of its
+ *  own; its first consumer is Ocelot Pride (issue #1461). */
 export const EFFECT_OP_BACKLOG: EffectOpRow[] = [
     // --- Architecture-setting foundations (implemented before the skins) ---
     // delayedTrigger SHIPPED (issue #838, ADR 0048) and moveZone SHIPPED
