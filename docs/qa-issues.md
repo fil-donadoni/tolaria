@@ -47,7 +47,7 @@ Fable of the mirror-breaker
 - Nel pool draft non puoi trascinare una carta nella colonna delle terre
 - Nella sideboard del pool draft le carte sono ancora separate con offset esagerato. disponile come il maindeck
 - Anche nel deckbuilder devo poter spostare le carte tra una colonna e l'altras
-- Nel deckbuidler limited mancano i pulsanti per aggiungere alcune terre base, dipendentemente dai colori del main penso. in vintage cub non c'è nessun pulsante per aggiungere le terre base
+- Nel deckbuidler limited mancano i pulsanti per aggiungere alcune terre base, dipendentemente dai colori del main penso. in vintage cub non c'è nessun pulsante per aggiungere le terre base. devo poterle sempre aggiungere tutte
 - In draft, a mazzi costruiti, non vedo gli altri giocatori umani per giocarci contro
 - Chromatic armor non mostra il colore attualmente attivo nell'oracle text live
 
