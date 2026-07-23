@@ -1,17 +1,20 @@
 // cardValue DSL-precedence + wire-format tests (PRD #1423, issue #1426; the
-// `aiEffects` shadow-script precedence, issue #1431). The semantic layer wires
-// the per-Op value model into `cardValue`. For a NON-CREATURE (the spell-script
-// chain issue #1431 targets):
+// `aiEffects` shadow-script precedence, issue #1431; the creature/non-creature
+// precedence unification, issue #1512). The semantic layer wires the per-Op
+// value model into `cardValue`. ONE precedence rule now applies identically to
+// BOTH card classes (issue #1512 — PRD #1423's order, previously only honored
+// by the CREATURE branch):
 //
-//     real `effects[]` / `aiEffects` shadow script  >  `aiValue`  >  `base + MV`
+//     `aiValue`  >  real `effects[]` / `aiEffects` shadow script  >  `base + MV`
 //
-// (a real script or its shadow, folded together into the caller-computed
-// `dslSpellValue`, wins outright over the `aiValue` scalar override — see
-// `latentValue`'s doc comment for the full precedence including the CREATURE
-// branch, where `aiValue` still overrides the whole computed body+ability
-// worth unconditionally). A burn / removal spell — whose Effect Script the
-// value model reads — scores far above a do-nothing spell of the same mana
-// value. The valuation is read CLIENT-SIDE (`src/lib/ai/bot-view.ts` →
+// An explicit `aiValue` override wins outright — the correction-on-divergence
+// knob PRD #1423 exists to preserve for a card whose script `OP_VALUERS`
+// misvalues — over the derived script value (folded together into the
+// caller-computed `dslSpellValue`/`dslAbilityValue`), which in turn beats the
+// blind `base + MV` fallback. See `latentValue`'s doc comment for the full
+// precedence. A burn / removal spell — whose Effect Script the value model
+// reads — scores far above a do-nothing spell of the same mana value. The
+// valuation is read CLIENT-SIDE (`src/lib/ai/bot-view.ts` →
 // `cardValueById(card.card.id)`), so the change must survive the wire
 // projection: the DSL value is derived from the REGISTRY definition keyed by
 // the id that survives `projectPublicState`, never off the fat `card.card`
@@ -58,15 +61,15 @@ describe("cardValue DSL precedence (PRD #1423, issue #1426)", () => {
             staticAbilities: [] as string[],
         };
 
-        it("a DSL-derived value wins over aiValue (issue #1431 precedence: effects[]/aiEffects > aiValue)", () => {
-            // A DSL value under the #1508 latent-script clamp (300) passes
-            // through untouched and still beats the aiValue scalar.
+        it("an explicit aiValue wins outright over a DSL-derived script value (PRD #1423 order, issue #1512)", () => {
+            // The correction-on-divergence knob: an explicit aiValue always
+            // wins, even when the script value would otherwise be higher.
             expect(
                 latentValue({ ...base, aiValue: 7, dslSpellValue: 250 })
-            ).toBe(250);
+            ).toBe(7);
         });
 
-        it("DSL-derived value beats the base+MV fallback when higher", () => {
+        it("DSL-derived value beats the base+MV fallback when higher (no aiValue override)", () => {
             // base+MV fallback for MV3 = 8 + 3×10 = 38.
             expect(latentValue({ ...base, dslSpellValue: 200 })).toBe(200);
         });
@@ -150,7 +153,7 @@ describe("cardValue DSL precedence (PRD #1423, issue #1426)", () => {
             expect(withAbility).toBe(body + 50);
         });
 
-        it("a creature's aiValue still overrides its WHOLE computed worth outright (unchanged, unaffected by issue #1431's non-creature reordering)", () => {
+        it("a creature's aiValue still overrides its WHOLE computed worth outright (unchanged; unified with the non-creature fix, issue #1512)", () => {
             expect(
                 latentValue({
                     isCreature: true,
@@ -162,6 +165,27 @@ describe("cardValue DSL precedence (PRD #1423, issue #1426)", () => {
                     aiValue: 7,
                 })
             ).toBe(7);
+        });
+
+        it("creature and non-creature branches apply IDENTICAL aiValue-over-script precedence (issue #1512)", () => {
+            // Both branches: an explicit aiValue wins outright over a large
+            // DSL-derived script value, regardless of card type.
+            const creature = latentValue({
+                isCreature: true,
+                power: 2,
+                toughness: 2,
+                manaValue: 2,
+                staticAbilities: [],
+                dslAbilityValue: 500,
+                aiValue: 42,
+            });
+            const nonCreature = latentValue({
+                ...base,
+                dslSpellValue: 500,
+                aiValue: 42,
+            });
+            expect(creature).toBe(42);
+            expect(nonCreature).toBe(42);
         });
     });
 });
