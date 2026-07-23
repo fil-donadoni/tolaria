@@ -1151,6 +1151,10 @@ export const PERSISTED_OPTIONAL_KEYS = [
     "madnessCastWindow",
     "damageDealtToPlayerThisTurn",
     "artifactDamageToPlayerThisTurn",
+    // CR 119.3 per-turn life-gain tally (issue #1457) — read by "if you gained
+    // life this turn" intervening-ifs at any later point in the SAME turn, so
+    // it must survive every stable-point DB round-trip within the turn.
+    "lifeGainedThisTurn",
     "damageRedirections",
     "combatBlockRestrictions",
     "camouflageCombat",

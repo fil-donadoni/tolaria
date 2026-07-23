@@ -84,6 +84,7 @@ export function useBattlefieldInteraction(player: Player) {
         meleeCombat,
         allPlayers,
         cannotActivateAbilitiesThisTurn,
+        lifeGainedThisTurn,
     } = useGameContext();
     const isMe = player.id === playerId;
     // Melee (#669) — under `meleeCombat` the attacking (active) player declares
@@ -621,7 +622,8 @@ export function useBattlefieldInteraction(player: Player) {
         const stateView = buildTriggerStateView(
             allPlayers,
             activePlayerId,
-            cannotActivateAbilitiesThisTurn
+            cannotActivateAbilitiesThisTurn,
+            lifeGainedThisTurn
         );
         // CR 113.3c — on an OPPONENT's permanent, the viewer may only activate
         // "any player may activate" abilities, and only while holding priority.

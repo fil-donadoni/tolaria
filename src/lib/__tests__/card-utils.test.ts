@@ -487,6 +487,20 @@ describe("getStackAbilities", () => {
         ).toHaveLength(1);
     });
 
+    // CR 119.3 (issue #1457) — the per-turn life-gain tally must reach the
+    // client-side view, or a "if you gained life this turn" affordance would be
+    // permanently dead in the UI. Driven through the REAL reducer (a hand-built
+    // view would mask a dropped field).
+    it("buildTriggerStateView carries lifeGainedThisTurn (CR 603.4 condition input)", () => {
+        const view = buildTriggerStateView([], undefined, undefined, {
+            p1: 4,
+        });
+        expect(view.lifeGainedThisTurn).toEqual({ p1: 4 });
+        expect(view.lifeGainedThisTurn?.p2 ?? 0).toBe(0);
+        // Omitted (no gains yet this turn) stays undefined — 0 by default.
+        expect(buildTriggerStateView([]).lifeGainedThisTurn).toBeUndefined();
+    });
+
     it("filters out phase-restricted abilities outside their allow-list (Jade Statue)", () => {
         // Jade Statue's animate is activationPhaseRestriction-limited to
         // combat. Outside combat the menu must hide it (CR 602.5).

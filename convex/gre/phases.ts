@@ -2865,6 +2865,10 @@ function advanceTurn(state: GameState): void {
     // narrowed) — Reverse Polarity scopes "damage dealt to you so far this
     // turn by artifacts" to the current turn.
     state.artifactDamageToPlayerThisTurn = undefined;
+    // Reset the per-turn life-gain tally (CR 119.3, issue #1457) — "if you
+    // gained life THIS TURN" (Crested Sunmare's CR 603.4 intervening-if) must
+    // read false again at the start of every new turn.
+    state.lifeGainedThisTurn = undefined;
     // CR 602.5 — `oncePerTurn` activation counts are per-source per-turn.
     // Clear them across every permanent at turn start so the next turn's
     // first activation isn't blocked by a stale tally.

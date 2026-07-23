@@ -1251,7 +1251,7 @@
         "name": "Cabal Ritual",
         "scryfallId": "5403b49d-03a7-4cc3-af3c-df098c1c9c2e",
         "oracleId": "5b5bf1fa-6502-4790-b66b-f0f8504ebc7c",
-        "firstSet": "vma"
+        "firstSet": "tor"
     },
     {
         "name": "Call to Arms",
@@ -1780,6 +1780,12 @@
         "scryfallId": "1095cdfe-8060-4a73-bacf-9f983152b486",
         "oracleId": "c6a2e410-b182-48d1-aeb2-bc8de27e9cd2",
         "firstSet": "inv"
+    },
+    {
+        "name": "Crested Sunmare",
+        "scryfallId": "732fa4c9-11da-4bdb-96af-aa37c74be25f",
+        "oracleId": "054fedbb-062e-491e-9a94-594fda33094f",
+        "firstSet": "hou"
     },
     {
         "name": "Crimson Acolyte",
@@ -2919,7 +2925,7 @@
         "name": "Fatal Push",
         "scryfallId": "b5e81649-9954-424c-89d1-f87d73b66047",
         "oracleId": "16437a83-be52-44cd-a768-a767c9347eb2",
-        "firstSet": "2xm"
+        "firstSet": "aer"
     },
     {
         "name": "Fear",
@@ -5553,7 +5559,7 @@
         "name": "Mana Tithe",
         "scryfallId": "7d48d622-f397-4f31-b1a5-0c23f60aa71c",
         "oracleId": "948217ac-289e-455f-8c7c-519aa75fa345",
-        "firstSet": "tsr"
+        "firstSet": "plc"
     },
     {
         "name": "Mana Vault",
@@ -5685,13 +5691,13 @@
         "name": "Memory Jar",
         "scryfallId": "a15d33d6-7213-4482-a1be-ac0a73644af6",
         "oracleId": "eb9c9a34-88a8-4afe-a053-806f6b29834f",
-        "firstSet": "vma"
+        "firstSet": "ulg"
     },
     {
         "name": "Memory Lapse",
         "scryfallId": "3d2cc591-3a81-468a-91a4-3c3aac83a21a",
         "oracleId": "bbfb3e4a-b389-4391-8141-13b68c0ef2e0",
-        "firstSet": "ema"
+        "firstSet": "hml"
     },
     {
         "name": "Mercenaries",

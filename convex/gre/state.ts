@@ -2683,6 +2683,24 @@ export type GameState = {
      *  reduced the amount. Read by Reverse Polarity's "twice the damage dealt
      *  to you so far this turn by artifacts" clause. Reset at turn start. */
     artifactDamageToPlayerThisTurn?: Record<string, number>;
+    /** Cumulative life GAINED by each player this turn (CR 119.3 tally, issue
+     *  #1457). Map `playerId → total life gained`. Incremented inside
+     *  `gainLifeEmitting` — the single choke point every gain sink funnels
+     *  through (the `gainLife` primitive, the CR 702.15b lifelink gain, and
+     *  every DSL `gainLife` Op) — with the ACTUAL amount gained, AFTER the
+     *  CR 614 lifegain replacement layer has run. A gain fully replaced away
+     *  (Lich) or of amount <= 0 never reaches the tally, so "gaining 0 life"
+     *  correctly does NOT count as having gained life. Reset at turn start
+     *  (`advanceTurn`), mirroring `deathsThisTurn` /
+     *  `damageDealtToPlayerThisTurn`.
+     *
+     *  The retrospective half of the lifegain-payoff family: "whenever you
+     *  gain life" reads the LIFE_GAINED event, while "if you gained life this
+     *  turn" (CR 603.4 intervening-if — Crested Sunmare, Ocelot Pride,
+     *  Resplendent Angel) reads THIS tally, both at trigger time and again on
+     *  resolution. Also exposed to the DSL as the
+     *  `{ lifeGainedThisTurn: { of } }` EffectValue grammar member. */
+    lifeGainedThisTurn?: Record<string, number>;
     /** Transient one-shot damage redirections (CR 614). Distinct from
      *  permanent-bound `replacementEffects` (CardDefinition) — these are
      *  state-level shields produced by spells / activated abilities
@@ -7002,6 +7020,13 @@ export function gainLifeEmitting(
     if (repl === null) return; // replacement consumed the gain (ran its own fx)
     if (repl.amount <= 0) return;
     getPlayer(state, repl.playerId).life += repl.amount;
+    // CR 119.3 tally (issue #1457) — "if you gained life this turn". Counted
+    // here, at the single gain choke point, with the POST-replacement amount:
+    // a gain replaced away entirely (Lich) returned above and never lands, and
+    // a zero/negative amount is not a life gain at all. Reset in `advanceTurn`.
+    const gainTally = { ...(state.lifeGainedThisTurn ?? {}) };
+    gainTally[repl.playerId] = (gainTally[repl.playerId] ?? 0) + repl.amount;
+    state.lifeGainedThisTurn = gainTally;
     emitLifeGained(state, repl.playerId, repl.amount);
 }
 
@@ -9844,6 +9869,16 @@ export function buildSpellContext(
         // path, no duplicated logic.
         getDomain(playerId: string): number {
             return countDomain(state as never, playerId);
+        },
+        // CR 119.3 (issue #1457) — total life `playerId` has GAINED so far
+        // this turn (0 when none). Reads back the `lifeGainedThisTurn` tally
+        // maintained by `gainLifeEmitting`, the single gain choke point; the
+        // getter never scans or recomputes. Powers the "if you gained life
+        // this turn" retrospective condition (Crested Sunmare) from both the
+        // DSL `{ lifeGainedThisTurn: { of } }` EffectValue and imperative
+        // effects.
+        getLifeGainedThisTurn(playerId: string): number {
+            return state.lifeGainedThisTurn?.[playerId] ?? 0;
         },
         // CR 122 / 603.3 (issue #1189) — how many times the CURRENTLY
         // RESOLVING triggered ability has resolved this turn, counting this
