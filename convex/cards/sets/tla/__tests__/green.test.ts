@@ -366,9 +366,9 @@ describe("Badgermole Cub — earthbend return clause (CR 603.7a indefinite leave
         removePermanentTo(state, "exiledLand", "exile");
         drainDelayedTriggers(state);
         expectPlainTappedLand(state, "exiledLand");
-        expect(
-            state.players[0].exile.some((c) => c.id === "exiledLand")
-        ).toBe(false);
+        expect(state.players[0].exile.some((c) => c.id === "exiledLand")).toBe(
+            false
+        );
     });
 
     it("no-op (CR 608.2b): the land left the graveyard before the trigger resolved", () => {

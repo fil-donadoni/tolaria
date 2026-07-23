@@ -148,6 +148,12 @@ function compactCard(
     if (card.counters && Object.keys(card.counters).length > 0) {
         out.counters = card.counters;
     }
+    // CR 608.2h — the moment-of-departure counter snapshot outlives the
+    // permanent, so a death trigger resolving after a save/load boundary still
+    // reads it (see `CardInstanceState.countersAtLeave`).
+    if (card.countersAtLeave && Object.keys(card.countersAtLeave).length > 0) {
+        out.countersAtLeave = card.countersAtLeave;
+    }
     // CR 704.5m world-rule timestamp — battlefield-only, must round-trip so a
     // mid-game save/load preserves which World permanent is the newest.
     if (card.worldSeq !== undefined) out.worldSeq = card.worldSeq;
@@ -448,6 +454,12 @@ function expandCard(
         result.canAttackDespiteDefenderThisTurn = true;
     if (compact.counters) {
         result.counters = compact.counters as Record<string, number>;
+    }
+    if (compact.countersAtLeave) {
+        result.countersAtLeave = compact.countersAtLeave as Record<
+            string,
+            number
+        >;
     }
     if (compact.worldSeq !== undefined) {
         result.worldSeq = compact.worldSeq as number;
