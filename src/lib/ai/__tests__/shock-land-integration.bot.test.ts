@@ -18,7 +18,7 @@ import { type GameState } from "@convex/gre/state";
 import { applyPlayLand } from "@convex/gre/playLand";
 import { applyLandEntrySubmit } from "@convex/gre/pendingChoiceSubmit";
 import { projectPublicState } from "@convex/gameProjections";
-import { decideBotAction } from "../brain";
+import { chooseOwedChoiceAction } from "../brain";
 import { buildBotView, botActionToMove } from "../bot-view";
 import { executeMove, type MoveMutations } from "../executor";
 
@@ -87,10 +87,15 @@ async function runBotPlay(state: GameState) {
     await executeMove({ kind: "play-land", cardInstanceId: "shock" }, ctx);
     expect(state.pendingChoices?.[0]?.kind).toBe("land-entry-tapped");
 
-    // 2. Bot resolves the owed choice through its default policy, wired the same
-    //    way the driver does (view → decide → toMove → execute).
+    // 2. Bot resolves the owed choice through its ADR 0016 minimal-legal policy.
+    //    Since issue #1506 a generator-covered root choice (land-entry-tapped
+    //    IS one) is instead routed to the Worker search by `decideBotAction`;
+    //    this test pins the heuristic itself — the search's fallback and the
+    //    answer for uncovered kinds — so it calls `chooseOwedChoiceAction`
+    //    directly (the worker routing is covered by
+    //    `root-choice-search-routing.bot.test.ts`).
     const view = buildBotView(projectPublicState(state, 1, BOT), BOT);
-    const action = decideBotAction(view);
+    const action = chooseOwedChoiceAction(view.owedChoice!);
     const move = botActionToMove(
         action,
         projectPublicState(state, 1, BOT),

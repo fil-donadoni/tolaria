@@ -29,7 +29,7 @@ import {
 import { applyMayPaySubmit } from "@convex/gre/pendingChoiceSubmit";
 import { projectPublicState } from "@convex/gameProjections";
 import type { EffectOp } from "@convex/cards/types";
-import { decideBotAction } from "../brain";
+import { chooseOwedChoiceAction } from "../brain";
 import { buildBotView, botActionToMove } from "../bot-view";
 import { executeMove, type MoveMutations } from "../executor";
 
@@ -170,7 +170,7 @@ describe("Leovold became-target may-draw — real cast + bot driver (CR 603.2b, 
         const projected = projectPublicState(state, 2, BOT);
         const view = buildBotView(projected, BOT);
 
-        const action = decideBotAction(view);
+        const action = chooseOwedChoiceAction(view.owedChoice!);
         expect(action.kind).toBe("may-pay");
         if (action.kind !== "may-pay") throw new Error("expected may-pay");
         expect(action.accept).toBe(true);

@@ -20,7 +20,7 @@ import {
 import { resolveTopOfStack, type GameState } from "@convex/gre/state";
 import { applyMayPaySubmit } from "@convex/gre/pendingChoiceSubmit";
 import { projectPublicState } from "@convex/gameProjections";
-import { decideBotAction } from "../brain";
+import { chooseOwedChoiceAction } from "../brain";
 import { buildBotView, botActionToMove } from "../bot-view";
 import { executeMove, type MoveMutations } from "../executor";
 
@@ -123,7 +123,7 @@ describe("may-pay sacrifice choice — bot driver (issue #940, CR 701.16b)", () 
         const state = seedTwoFodder();
         const projected = projectPublicState(state, 1, BOT);
         const view = buildBotView(projected, BOT);
-        const action = decideBotAction(view);
+        const action = chooseOwedChoiceAction(view.owedChoice!);
         // The action carries a single legal sacrifice pick alongside accept.
         expect(action.kind).toBe("may-pay");
         if (action.kind !== "may-pay") throw new Error("expected may-pay");

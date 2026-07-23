@@ -38,7 +38,7 @@ import {
 } from "@convex/gre/state";
 import { applyMayPaySubmit } from "@convex/gre/pendingChoiceSubmit";
 import { projectPublicState } from "@convex/gameProjections";
-import { decideBotAction } from "../brain";
+import { chooseOwedChoiceAction } from "../brain";
 import { buildBotView, botActionToMove } from "../bot-view";
 import { executeMove, type MoveMutations } from "../executor";
 
@@ -173,7 +173,7 @@ describe("may-pay threshold sacrifice — bot driver (issue #977, CR 118 / 701.1
         ]);
         const projected = projectPublicState(state, 1, BOT);
         const view = buildBotView(projected, BOT);
-        const action = decideBotAction(view);
+        const action = chooseOwedChoiceAction(view.owedChoice!);
 
         expect(action.kind).toBe("may-pay");
         if (action.kind !== "may-pay") throw new Error("expected may-pay");
@@ -210,7 +210,7 @@ describe("may-pay threshold sacrifice — bot driver (issue #977, CR 118 / 701.1
         const view = buildBotView(projected, BOT);
         // Unaffordable once the source is excluded from the threshold pool.
         expect(view.owedChoice?.affordable).toBe(false);
-        const action = decideBotAction(view);
+        const action = chooseOwedChoiceAction(view.owedChoice!);
 
         expect(action.kind).toBe("may-pay");
         if (action.kind !== "may-pay") throw new Error("expected may-pay");
