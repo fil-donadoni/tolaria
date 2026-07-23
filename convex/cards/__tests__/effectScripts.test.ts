@@ -8,7 +8,9 @@
 import { describe, it, expect } from "vitest";
 import { getAllCards } from "..";
 import {
+    validateAbilityAiEffectsScript,
     validateAbilityEffectScript,
+    validateAiEffectsScript,
     validateEffectScript,
 } from "../../gre/effects/validate";
 import { getAbilityEffectFn, getResolveFn } from "../effectRegistry";
@@ -110,6 +112,37 @@ describe("Effect Script catalogue sweep (ADR 0045)", () => {
     it("every cast-time mode-site Effect Script passes validation (CR 700.2 modes[], issue #1274)", () => {
         const errors = cards.flatMap((card) =>
             modeSites(card).flatMap(({ host }) => validateEffectScript(host))
+        );
+        expect(errors).toEqual([]);
+    });
+
+    // aiEffects shadow scripts (PRD #1423, issue #1431) — never executed,
+    // only walked by OP_VALUERS for AI valuation. Before this guard (issue
+    // #1514) they had NO static validation at all: an unregistered Op, a
+    // dangling ref, or a non-JSON value silently valuated to the walker's
+    // defensive zero rather than failing CI — the exact silent-AI-blindness
+    // class the shadow-script mechanism (#1431) exists to close. Zero cards
+    // in the catalogue carry `aiEffects` today (the backfill is issue #1436),
+    // so this sweep is currently vacuous over real cards — it exists so a
+    // malformed shadow script fails CI the moment the backfill lands, rather
+    // than only once the valuer's defensive default is diagnosed as the
+    // actual bug. Direct fixture coverage (a typo'd Op failing, a valid
+    // shadow script coexisting with `resolve()` passing) lives in
+    // `convex/gre/effects/__tests__/validate.test.ts`.
+    it("every CardDefinition's aiEffects shadow script passes the same checks as effects[] (issue #1514)", () => {
+        const errors = cards.flatMap((card) => validateAiEffectsScript(card));
+        expect(errors).toEqual([]);
+    });
+
+    it("every ability-site aiEffects shadow script passes validation (issue #1514)", () => {
+        const errors = cards.flatMap((card) =>
+            abilitySites(card).flatMap((s) =>
+                validateAbilityAiEffectsScript(
+                    s.ability,
+                    s.label,
+                    s.triggerEventType
+                )
+            )
         );
         expect(errors).toEqual([]);
     });

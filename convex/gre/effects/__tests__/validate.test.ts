@@ -12,6 +12,8 @@ import {
     SCHEMA_OP_NAMES,
     validateEffectScript,
     validateAbilityEffectScript,
+    validateAiEffectsScript,
+    validateAbilityAiEffectsScript,
     type EffectScriptHost,
 } from "../validate";
 
@@ -502,6 +504,142 @@ describe("validateEffectScript — mutual exclusivity per effect site", () => {
             })
         );
         expect(errors.some((e) => /effects\[\] and modes/.test(e))).toBe(true);
+    });
+});
+
+describe("validateAiEffectsScript / validateAbilityAiEffectsScript — AI-only shadow scripts (PRD #1423, issue #1431/#1514)", () => {
+    it("trivially passes a card with no aiEffects", () => {
+        expect(validateAiEffectsScript(host({ resolve: () => {} }))).toEqual(
+            []
+        );
+    });
+
+    it("accepts a well-formed shadow script on a resolve()-only card (coexistence is legal)", () => {
+        const errors = validateAiEffectsScript(
+            host({
+                resolve: () => {},
+                aiEffects: [
+                    { op: "dealDamage", amount: 3, to: { target: 0 } },
+                ],
+            })
+        );
+        expect(errors).toEqual([]);
+    });
+
+    it("rejects an unknown Op name in aiEffects (Mechanics Registry is still the authority)", () => {
+        const errors = validateAiEffectsScript(
+            host({
+                resolve: () => {},
+                aiEffects: [{ op: "vaproize", amount: 1 } as never],
+            })
+        );
+        expect(errors).toHaveLength(1);
+        expect(errors[0]).toMatch(/unknown Op "vaproize"/);
+        expect(errors[0]).toContain("aiEffects");
+    });
+
+    it("rejects a dangling ref in aiEffects (same ref/binding integrity check as effects[])", () => {
+        const errors = validateAiEffectsScript(
+            host({
+                resolve: () => {},
+                aiEffects: [
+                    { op: "destroy", target: { ref: "$nope.foo" } } as never,
+                ],
+            })
+        );
+        expect(errors.length).toBeGreaterThan(0);
+    });
+
+    it("rejects a non-JSON-pure value in aiEffects (ADR 0046 purity)", () => {
+        const errors = validateAiEffectsScript(
+            host({
+                resolve: () => {},
+                aiEffects: [
+                    { op: "draw", player: "controller", count: () => 1 },
+                ] as never,
+            })
+        );
+        expect(errors.length).toBeGreaterThan(0);
+    });
+
+    it("rejects an empty aiEffects[]", () => {
+        const errors = validateAiEffectsScript(
+            host({ resolve: () => {}, aiEffects: [] })
+        );
+        expect(errors[0]).toMatch(/must not be empty/);
+    });
+
+    it("does NOT flag coexistence with resolve/resolveSteps/effect/modes as an error (shadow scripts are legitimate alongside them)", () => {
+        const validAiEffects: EffectOp[] = [
+            { op: "gainLife", player: "controller", amount: 1 },
+        ];
+        expect(
+            validateAiEffectsScript(
+                host({ resolve: () => {}, aiEffects: validAiEffects })
+            )
+        ).toEqual([]);
+        expect(
+            validateAiEffectsScript(
+                host({ resolveSteps: [() => {}], aiEffects: validAiEffects })
+            )
+        ).toEqual([]);
+        expect(
+            validateAiEffectsScript(
+                host({
+                    effect: "destroy-target",
+                    aiEffects: validAiEffects,
+                })
+            )
+        ).toEqual([]);
+    });
+
+    it("ability-site: trivially passes an ability with no aiEffects", () => {
+        expect(
+            validateAbilityAiEffectsScript({ id: "a1" }, "Test (id)")
+        ).toEqual([]);
+    });
+
+    it("ability-site: accepts a well-formed shadow script alongside resolve()", () => {
+        const errors = validateAbilityAiEffectsScript(
+            {
+                id: "a1",
+                resolve: () => {},
+                aiEffects: [
+                    { op: "gainLife", player: "controller", amount: 2 },
+                ],
+            },
+            "Test (id)"
+        );
+        expect(errors).toEqual([]);
+    });
+
+    it("ability-site: rejects an unknown Op name in aiEffects", () => {
+        const errors = validateAbilityAiEffectsScript(
+            {
+                id: "a1",
+                resolve: () => {},
+                aiEffects: [{ op: "vaproize", amount: 1 } as never],
+            },
+            "Test (id)"
+        );
+        expect(errors).toHaveLength(1);
+        expect(errors[0]).toMatch(/unknown Op "vaproize"/);
+        expect(errors[0]).toContain("aiEffects");
+    });
+
+    it("ability-site: accepts an $event ref at a trigger site (same $event scope as a real effects[] script)", () => {
+        const errors = validateAbilityAiEffectsScript(
+            {
+                id: "trig",
+                resolve: () => {},
+                aiEffects: [
+                    { op: "destroy", target: { ref: "$event.blockerId" } },
+                ],
+            },
+            "Test (id)",
+            "BLOCKERS_CONFIRMED"
+        );
+        expect(errors).toEqual([]);
     });
 });
 
