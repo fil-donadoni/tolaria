@@ -2567,9 +2567,8 @@ describe("Reverse Damage (CR 614 one-shot prevent + gain life)", () => {
         // Driven through the shield consumer directly so the emitted events
         // are still on `state.pendingEvents` (a full resolution drains them
         // into the trigger scan).
-        const { applyTransientDamageRedirections } = await import(
-            "../../../../gre/replacements"
-        );
+        const { applyTransientDamageRedirections } =
+            await import("../../../../gre/replacements");
         const bear = makeInstance(grizzlyBears.id, {
             id: "bear",
             controllerId: "p2",
