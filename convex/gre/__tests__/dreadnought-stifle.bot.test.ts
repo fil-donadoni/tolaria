@@ -16,7 +16,7 @@
 // material margin for the losing line. Traversal makes the margin sound.
 
 import { describe, it, expect } from "vitest";
-import type { GameState, StackItem } from "../state";
+import type { GameState } from "../state";
 import { resolveTopOfStack } from "../state";
 import {
     searchWithTrace,
@@ -32,6 +32,7 @@ import {
 } from "../../cards/__tests__/setup";
 import { phyrexianDreadnought } from "../../cards/sets/mir/colorless";
 import { stifle } from "../../cards/sets/scg/blue";
+import { applyBladeSetup } from "../ai/blade";
 
 const SEED = 0xc0ffee;
 const ITERATIONS = 1200;
@@ -64,23 +65,17 @@ function buildResponseState(): GameState {
         activePlayerId: "p1",
         passCount: 0,
     });
-    // Put the self-ETB trigger on the stack (mirrors processPendingActionTriggers)
-    // WITHOUT resolving it, so P1 holds priority to respond.
-    const trigger: StackItem = {
-        ...dread,
-        zone: "stack",
-        castById: "p1",
-        triggeredAbilityId: "phyrexian-dreadnought-etb-sacrifice",
-        triggerSourceId: dread.id,
-        triggerEvent: {
-            type: "PERMANENT_ENTERED",
-            instanceId: dread.id,
-            controllerId: "p1",
-            types: ["Artifact", "Creature"],
-        } as StackItem["triggerEvent"],
-        targets: [],
-    };
-    state.stack.push(trigger);
+    // Put the self-ETB trigger on the stack WITHOUT resolving it, so P1 holds
+    // priority to respond. Issue #1487 / ADR 0070 §4: this used to be a
+    // hand-built `StackItem` whose own comment admitted it "mirrors
+    // processPendingActionTriggers" — a silent copy of engine logic. It now
+    // runs the REAL emitter + collection/placement path via the blade
+    // harness's `etb-trigger` setup step, which THROWS if the engine puts
+    // nothing on the stack.
+    applyBladeSetup(state, {
+        label: "dreadnought-stifle response state",
+        setup: [{ kind: "etb-trigger", card: "Phyrexian Dreadnought" }],
+    });
     return state;
 }
 

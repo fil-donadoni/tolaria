@@ -36,6 +36,7 @@ import type { Doc } from "../_generated/dataModel";
 import type { GameState } from "../gre/state";
 import { STARTING_LIFE } from "../gre/setup";
 import { makePlayer, makeState } from "../cards/__tests__/setup";
+import { getCardByName } from "../cards";
 import { BLADE_SCENARIOS, findBladeScenario } from "../gre/ai/blade/registry";
 import { buildBladeState, resolveBladeLoadState } from "../gre/ai/blade/runner";
 
@@ -262,6 +263,70 @@ describe("debugLoadBladeScenario — loaded position matches the harness's built
         expect(loaderState.extraTurns).toBeUndefined();
         expect(loaderState.queuedEndTurn).toBeUndefined();
         expect(loaderState.islandSanctuaryProtection).toBeUndefined();
+    });
+});
+
+/**
+ * GRE → `game.ts` integration coverage for the `setup` step (issue #1487
+ * review finding #1).
+ *
+ * `buildBladeLoadState` now runs `applyBladeSetup` after
+ * `buildStateFromScenario` (`convex/gre/ai/blade/runner.ts`), which is what
+ * puts the charter entry's ETB trigger on the stack via the REAL engine
+ * (`emitPermanentEntered` → `processPendingActionTriggers`) rather than a
+ * hand-built `StackItem`. `setup.bot.test.ts` asserts that only for
+ * `buildBladeState` — the in-process SUITE path, which builds its seats as
+ * `p1`/`p2`. The mutation path differs precisely in seat identity: it
+ * overrides both seats with the LIVE game's user ids, and `seatPlayerId`
+ * ("me"/"opponent") is index-based, so a suite-path assertion cannot stand in
+ * for it. The block below drives the exact function `debugLoadBladeScenario`
+ * calls, under seat ids that are deliberately NOT `p1`/`p2`.
+ */
+describe("debugLoadBladeScenario — a `setup`-carrying entry loads its engine-built stack (issue #1487)", () => {
+    const CHARTER_LABEL =
+        "charter: Stifles its own Phyrexian Dreadnought trigger";
+
+    it("loads the charter entry with its ETB trigger on the stack under non-p1/p2 seat ids", () => {
+        const base = arbitraryCurrentGameBaseState();
+        // Guards the premise of this whole block: if the base state ever
+        // reverts to `p1`/`p2`, the identity half of the assertion below
+        // becomes vacuous and the suite-path test WOULD stand in for it.
+        expect(base.players.map((p) => p.id)).toEqual([
+            "user_abc123-p1",
+            "user_abc123-p2",
+        ]);
+        expect(findBladeScenario(CHARTER_LABEL)?.setup).toBeDefined();
+
+        const loaded = runMutationBody(base, CHARTER_LABEL);
+
+        // The `setup` step ran on the MUTATION path, not just the suite path.
+        expect(loaded.stack).toHaveLength(1);
+        expect(loaded.stack[0].triggeredAbilityId).toBe(
+            "phyrexian-dreadnought-etb-sacrifice"
+        );
+        // …and the engine-produced stack item belongs to the LIVE game's seat,
+        // not the harness's discarded `p1`. This is the half `buildBladeState`
+        // cannot prove, because it never builds any seat but `p1`/`p2`.
+        expect(loaded.stack[0].controllerId).toBe("user_abc123-p1");
+        expect(loaded.stack[0].ownerId).toBe("user_abc123-p1");
+        // (`card` is already slim here — `{ id }` only, as it is on the wire —
+        // so cards are identified by definition id, not by name.)
+        const dreadnought = loaded.players[0].battlefield.find(
+            (c) => c.card.id === getCardByName("Phyrexian Dreadnought").id
+        );
+        expect(dreadnought).toBeDefined();
+        expect(loaded.stack[0].triggerSourceId).toBe(dreadnought!.id);
+        // The answer is castable in response — the position is the one the
+        // blade entry's `expect` was written against, not merely a board with
+        // a trigger parked on it.
+        expect(
+            loaded.players[0].hand.some(
+                (c) => c.card.id === getCardByName("Stifle").id
+            )
+        ).toBe(true);
+        expect(loaded.players[0].battlefield.some((c) => !c.isTapped)).toBe(
+            true
+        );
     });
 });
 

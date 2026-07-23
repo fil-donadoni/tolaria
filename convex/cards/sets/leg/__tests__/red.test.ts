@@ -564,6 +564,33 @@ describe("Glyph of Life (delayed lifegain on attacker damage to a Wall, CR 603.7
         ).toBeDefined();
     });
 
+    it("routes the gain through the single life-gain choke point — tally + LIFE_GAINED (CR 119.3)", () => {
+        const state = setupArmedCombat(3);
+        // The combat-damage step drains `pendingEvents` into its own trigger
+        // scan, so tap the queue as it is written to observe the emission.
+        const emitted: { type: string }[] = [];
+        let queue = state.pendingEvents;
+        Object.defineProperty(state, "pendingEvents", {
+            configurable: true,
+            get: () => queue,
+            set: (v) => {
+                if (v) emitted.push(...v);
+                queue = v;
+            },
+        });
+        applyAllCombatDamage(state, { atk: { wall: 3 } });
+        expect(state.players[0].life).toBe(23);
+        // "if you gained life this turn" tally (issue #1457) is fed by the
+        // choke point, so the Glyph's gain must land in it...
+        expect(state.lifeGainedThisTurn?.p1).toBe(3);
+        // ...and "whenever you gain life" triggers must see the event.
+        expect(emitted).toContainEqual({
+            type: "LIFE_GAINED",
+            playerId: "p1",
+            amount: 3,
+        });
+    });
+
     it("does NOT gain life from a non-attacking (blocker) source", () => {
         // p1's Wall is the ATTACKER's blocker, but here we flip roles: the
         // damage to the watched permanent comes from a creature that is NOT in

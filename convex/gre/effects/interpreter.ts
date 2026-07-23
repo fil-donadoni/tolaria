@@ -507,6 +507,17 @@ function resolveValue(
     if ("abilityResolutionCount" in value) {
         return ctx.getAbilityResolutionCount();
     }
+    // lifeGainedThisTurn (CR 119.3, issue #1457) — total life a PLAYER has
+    // gained so far this turn, a thin skin over ctx.getLifeGainedThisTurn.
+    // `of` is a PLAYER selector (like domain's, unlike counters'/manaValue's
+    // object `of`), resolved through the SAME resolvePlayerRef path. Undefined
+    // when the player cannot be resolved (CR 608.2b). Powers the "if you
+    // gained life this turn" retrospective predicate (Crested Sunmare).
+    if ("lifeGainedThisTurn" in value) {
+        const playerId = resolvePlayerRef(ctx, value.lifeGainedThisTurn.of);
+        if (playerId === undefined) return undefined;
+        return ctx.getLifeGainedThisTurn(playerId);
+    }
     return countSet(ctx, value.count);
 }
 

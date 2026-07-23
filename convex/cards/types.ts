@@ -2272,6 +2272,16 @@ export interface SpellContext {
      *  closures (Kavu Scout, Wayfaring Giant, Exotic Curse, Strength of
      *  Unity) via the shared `countDomain` helper directly. */
     getDomain: (playerId: string) => number;
+    /** CR 119.3 (issue #1457) — the total life `playerId` has GAINED so far
+     *  this turn, 0 when none. Reads back `GameState.lifeGainedThisTurn`, the
+     *  tally `gainLifeEmitting` maintains at the single life-gain choke point
+     *  every sink funnels through (the `gainLife` primitive, the CR 702.15b
+     *  lifelink gain, the DSL `gainLife` Op) — so this getter never scans or
+     *  recomputes. A gain of 0, or one fully replaced away (CR 614), never
+     *  enters the tally: "gained 0 life" is correctly NOT "gained life".
+     *  Used by the `{ lifeGainedThisTurn: { of } }` EffectValue grammar member
+     *  and by imperative "if you gained life this turn" conditions. */
+    getLifeGainedThisTurn: (playerId: string) => number;
     /** CR 122 / 603.3 (issue #1189) — how many times (1-indexed, counting
      *  this resolution) the CURRENTLY RESOLVING triggered ability has
      *  resolved this turn. Reads `GameState.abilityResolutionCounts`, keyed
@@ -6130,6 +6140,14 @@ export interface TriggerStateView {
      *  without waiting for resolve — Osai Vultures' end-step intervening-if
      *  reads it. Mirrors `GameState.deathsThisTurn`; undefined defaults to 0. */
     deathsThisTurn?: number;
+    /** Life gained by each player this turn (CR 119.3 tally, issue #1457),
+     *  keyed by player id. Exposed so a CR 603.4 / 603.4d intervening-if can
+     *  answer "if you gained life this turn" at BOTH trigger-check time and
+     *  resolution — Crested Sunmare's end-step Horse trigger reads
+     *  `state?.lifeGainedThisTurn?.[self.controllerId]`. Mirrors
+     *  `GameState.lifeGainedThisTurn`; an absent entry means 0 (a player who
+     *  gained no life, or gained exactly 0 — CR 119.3: not a life gain). */
+    lifeGainedThisTurn?: Readonly<Record<string, number>>;
     /** Player ids under Abeyance's turn-scoped "can't activate abilities that
      *  aren't mana abilities" lock (CR 602.1 / 605.1a, issue #1124). Mirrors
      *  `GameState.cannotActivateAbilitiesThisTurn`; exposed so `getStackAbilities`
@@ -7198,7 +7216,32 @@ export type EffectValue =
     | EffectManaValueValue
     | EffectDomainValue
     | EffectEscapedValue
-    | EffectAbilityResolutionCountValue;
+    | EffectAbilityResolutionCountValue
+    | EffectLifeGainedThisTurnValue;
+
+/** lifeGainedThisTurn — the total life a PLAYER has gained so far this turn
+ *  (CR 119.3, issue #1457), a thin JSON-pure skin over
+ *  `SpellContext.getLifeGainedThisTurn`. A TWELFTH `EffectValue` grammar
+ *  member; like `domain` (issue #1066) and `abilityResolutionCount` (issue
+ *  #1189) it is NOT an Op and NOT a new STRUCTURAL construct — it does not
+ *  reopen ADR 0045.
+ *
+ *  `of` is a PLAYER selector (`EffectPlayerRef`) — this is a per-player
+ *  scalar, exactly like `domain`'s `of` and unlike `counters`/`manaValue`'s
+ *  object `of`. Resolves through the same `resolvePlayerRef` path every
+ *  player-scoped Op uses, so `"controller"`, an announced slot and `$each`
+ *  all work; an unresolvable player yields undefined (CR 608.2b).
+ *
+ *  Its reason to exist is the RETROSPECTIVE lifegain question the LIFE_GAINED
+ *  event cannot answer: "if you gained life this turn" (CR 603.4 — Crested
+ *  Sunmare, Ocelot Pride, Resplendent Angel), written as an `if` predicate
+ *  `{ left: { lifeGainedThisTurn: { of: "controller" } }, op: "gt", right: 0 }`.
+ *  Gaining 0 life never enters the tally, so that predicate is false — as the
+ *  rules require. Also composes with every amount-taking Op as a magnitude
+ *  ("draw cards equal to the life you gained this turn"). */
+export type EffectLifeGainedThisTurnValue = {
+    lifeGainedThisTurn: { of: EffectPlayerRef };
+};
 
 /** CR 702.138e — resolves to 1 if the referenced permanent ESCAPED (was cast
  *  from a graveyard via Escape, `CardInstanceState.escaped`), else 0. Powers the

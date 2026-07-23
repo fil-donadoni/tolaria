@@ -1706,6 +1706,15 @@ describe("optional field round-trip smoke tests", () => {
         expect(roundTrip(state).deathsThisTurn).toBe(2);
     });
 
+    // CR 119.3 per-turn life-gain tally (issue #1457) — "if you gained life
+    // this turn" is read at any later stable point in the SAME turn, so the
+    // map must survive the DB round-trip intact.
+    it("lifeGainedThisTurn", () => {
+        const state = freshState();
+        state.lifeGainedThisTurn = { p1: 7, p2: 3 };
+        expect(roundTrip(state).lifeGainedThisTurn).toEqual({ p1: 7, p2: 3 });
+    });
+
     it("pendingUntapStep", () => {
         const state = freshState();
         state.pendingUntapStep = { restrictionCursor: 4 };

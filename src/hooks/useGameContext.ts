@@ -45,6 +45,12 @@ type GameContext = {
      *  `buildTriggerStateView` call sites so `getStackAbilities` can hide the
      *  affected controller's non-mana abilities as a UI hint. */
     cannotActivateAbilitiesThisTurn?: string[];
+    /** Life gained by each player this turn (CR 119.3 tally, issue #1457).
+     *  Forwarded from the wire `GameState.lifeGainedThisTurn` to
+     *  `buildTriggerStateView` call sites so a client-side "if you gained life
+     *  this turn" predicate reads the SAME number the server's CR 603.4
+     *  intervening-if does. */
+    lifeGainedThisTurn?: Record<string, number>;
     gameOver?: GameOver;
     allPlayers: Player[];
     /** CR 114 (issue #1221) — command-zone emblems, forwarded from the wire
