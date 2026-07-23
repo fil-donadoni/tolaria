@@ -96,6 +96,7 @@ import {
     applyLandEntrySubmit,
     applyMayPaySubmit,
     applyPendingChoiceSubmit,
+    applyRandomRevealAck,
 } from "./pendingChoiceSubmit";
 
 /** Search budget: stop at `iterations` tree iterations, or once `timeMs` of
@@ -452,6 +453,24 @@ export function applyMoveInSearch(
             // (again no stack item); mirrors the `submitDrawReplacementPay`
             // mutation, which calls the same resolver + SBA check.
             finalizeDrawReplacementPay(state, move.accept);
+            drainAutoPasses(state);
+            checkStateBasedActions(state);
+            return;
+        }
+
+        case "random-reveal-ack": {
+            // CR 705.2 (ADR 0023, issue #1511) — the coin-flip/reveal
+            // acknowledge: the outcome was already drawn and persisted when
+            // the reveal was raised, so this carries no choice data. Applied
+            // through the SAME resolver the `submitRandomRevealAck` mutation
+            // drives; it drops the queue head and resumes the suspended
+            // resolution (`resolveTopOfStack` when the queue empties), so the
+            // playout simply continues past the node instead of halting.
+            applyRandomRevealAck(state, {
+                playerId,
+                stackItemId: move.stackItemId,
+                choiceId: move.choiceId,
+            });
             drainAutoPasses(state);
             checkStateBasedActions(state);
             return;

@@ -159,16 +159,20 @@ function stateWithLibrarySearch(
 }
 
 describe("choice-node candidate contract (CR 608.2 / ADR 0016, issue #1425)", () => {
-    it("registers tranche 1 (yes/no family, option-pick, search-library)", () => {
+    it("registers tranche 1 (yes/no family, option-pick, search-library) + random-reveal (issue #1511)", () => {
         expect(hasChoiceCandidateGenerator("may-pay")).toBe(true);
         expect(hasChoiceCandidateGenerator("land-entry-tapped")).toBe(true);
         expect(hasChoiceCandidateGenerator("draw-replacement")).toBe(true);
         expect(hasChoiceCandidateGenerator("option-pick")).toBe(true);
         expect(hasChoiceCandidateGenerator("search-library")).toBe(true);
+        // CR 705.2 / ADR 0023 (issue #1511) — a degenerate single-candidate
+        // acknowledge, not a real decision; registering it is the fix for the
+        // playout halting mid-resolution on every coin-flip/reveal line.
+        expect(hasChoiceCandidateGenerator("random-reveal")).toBe(true);
         // A kind outside these tranches is NOT an in-tree node yet — additive
         // by design: no generator means the historical no-decision behavior.
         expect(hasChoiceCandidateGenerator("discard-hand")).toBe(false);
-        expect(Object.keys(CHOICE_CANDIDATE_GENERATORS).length).toBe(5);
+        expect(Object.keys(CHOICE_CANDIDATE_GENERATORS).length).toBe(6);
     });
 
     it("may-pay (CR 117.3a): a cost-less choice offers both answers", () => {
@@ -328,6 +332,21 @@ describe("choice-node candidate contract (CR 608.2 / ADR 0016, issue #1425)", ()
         );
         expect(keys.sort()).toEqual(["option-pick:gain", "option-pick:kill"]);
         expect(keys.every((k) => !/\d{2,}/.test(k))).toBe(true); // no instance-id-shaped key
+    });
+
+    it("random-reveal (CR 705.2 / ADR 0023, issue #1511): a degenerate single-candidate ack", () => {
+        // Unlike every other family the chooser makes NO real decision — the
+        // outcome was already drawn from the seeded PRNG and persisted on the
+        // choice when it was raised. The generator's only job is to surface
+        // the one legal "resume" answer so the kind becomes an in-tree node.
+        const state = stateWithChoice({ kind: "random-reveal" });
+        const cands = choiceCandidates(state, state.pendingChoices![0]);
+        expect(cands.map((c) => c.key)).toEqual(["random-reveal:ack"]);
+        expect(cands[0].move).toEqual({
+            kind: "random-reveal-ack",
+            stackItemId: "stack-1",
+            choiceId: "c1",
+        });
     });
 });
 
@@ -528,6 +547,115 @@ describe("choice-node traversal seams (issue #1425)", () => {
         expect(state.players[0].life).toBe(20); // the "gain" mode did NOT run
         expect(state.pendingChoices?.length ?? 0).toBe(0);
         expect(state.stack).toHaveLength(0);
+    });
+
+    it("applyMoveInSearch resolves a random-reveal-ack through the real resolver (issue #1511)", () => {
+        // CR 705.2 / ADR 0023 — the coin-flip choice: applying the ack must
+        // clear the queue, run the ALREADY-DETERMINIZED branch's effects, and
+        // resume the game (past the node) — mirroring the land-entry /
+        // option-pick traversal tests above. Before this seam existed,
+        // `applyMoveInSearch` had no case for `random-reveal-ack`, so the
+        // move applied as a no-op and the tree never advanced past the node.
+        const id = registerSpellScript("test-1511-random-reveal-traversal", [
+            {
+                op: "coinFlip",
+                win: {
+                    consequence: "Gain 5 life",
+                    effects: [
+                        { op: "gainLife", player: "controller", amount: 5 },
+                    ],
+                },
+                loss: {
+                    consequence: "Lose 5 life",
+                    effects: [
+                        { op: "loseLife", player: "controller", amount: 5 },
+                    ],
+                },
+            },
+        ]);
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+            priorityPlayerId: "p1",
+            activePlayerId: "p1",
+        });
+        pushSpell(state, id, "p1");
+        expect(resolveTopOfStack(state)).toBeNull(); // suspended on the reveal
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("random-reveal");
+        expect(decidingPlayer(state)).toBe("p1");
+        expect(enumerateMoves(state, "p1")).toEqual([
+            {
+                kind: "random-reveal-ack",
+                stackItemId: head.stackItemId,
+                choiceId: head.choiceId,
+            },
+        ]);
+        const won = head.result === 1;
+
+        applyMoveInSearch(state, "p1", {
+            kind: "random-reveal-ack",
+            stackItemId: head.stackItemId,
+            choiceId: head.choiceId,
+        });
+
+        expect(state.players[0].life).toBe(won ? 25 : 15); // the landed branch ran
+        expect(state.pendingChoices?.length ?? 0).toBe(0);
+        expect(state.stack).toHaveLength(0);
+    });
+});
+
+describe("random-reveal playout: a coin-flip line descends past the node instead of halting (issue #1511)", () => {
+    it("a manual rollout-style ply loop reaches the post-reveal stable state, not a mid-resolution leaf", () => {
+        // Reproduces the exact shape `rollout`/`iterate` drive: repeatedly ask
+        // `decidingPlayer` for who owes a decision, `enumerateMoves` for the
+        // legal answers, and apply the chosen one. Before the fix,
+        // `decidingPlayer` returned null the instant the coin-flip choice
+        // went live (no registered generator), so this loop broke on ply 0
+        // with the reveal still pending — the exact "halts and leaf-scores
+        // mid-resolution" pathology the issue describes. After the fix the
+        // loop descends past the node within a couple of plies and lands on
+        // the stable, fully-resolved state.
+        const id = registerSpellScript("test-1511-random-reveal-rollout", [
+            {
+                op: "coinFlip",
+                win: {
+                    consequence: "Gain 5 life",
+                    effects: [
+                        { op: "gainLife", player: "controller", amount: 5 },
+                    ],
+                },
+                loss: {
+                    consequence: "Lose 5 life",
+                    effects: [
+                        { op: "loseLife", player: "controller", amount: 5 },
+                    ],
+                },
+            },
+        ]);
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+            priorityPlayerId: "p1",
+            activePlayerId: "p1",
+        });
+        pushSpell(state, id, "p1");
+        expect(resolveTopOfStack(state)).toBeNull(); // suspended on the reveal
+        expect(state.pendingChoices?.[0]?.kind).toBe("random-reveal");
+
+        let plies = 0;
+        for (; plies < 5; plies++) {
+            const pid = decidingPlayer(state);
+            if (!pid) break;
+            const moves = enumerateMoves(state, pid);
+            if (moves.length === 0) break;
+            applyMoveInSearch(state, pid, moves[0]);
+        }
+
+        // Descended past the reveal — reached a stable leaf, not a stall on
+        // ply 0 with the choice still pending.
+        expect(plies).toBeGreaterThan(0);
+        expect(state.pendingChoices?.length ?? 0).toBe(0);
+        expect(state.stack).toHaveLength(0);
+        expect([15, 25]).toContain(state.players[0].life);
     });
 });
 

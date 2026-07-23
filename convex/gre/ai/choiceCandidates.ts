@@ -311,6 +311,32 @@ const drawReplacementCandidates: ChoiceCandidateGenerator = (state, choice) => {
 };
 
 // ---------------------------------------------------------------------------
+// Random reveal (coin flip / future dice) — degenerate acknowledge
+// ---------------------------------------------------------------------------
+
+/** `random-reveal` (CR 705.2, ADR 0023): a coin-flip/dice-roll reveal is a
+ *  DEGENERATE single-candidate choice node — the outcome was already drawn
+ *  from the seeded PRNG and persisted on the choice when it was raised
+ *  (`requestCoinFlip`); the chooser makes NO real decision, only
+ *  acknowledges so resolution resumes past the animated reveal. Before this
+ *  generator existed the kind had NO registry entry, so `decidingPlayer`
+ *  returned null on a pending random-reveal and every playout crossing a
+ *  coin-flip/reveal line halted and leaf-scored mid-resolution (issue
+ *  #1511, the exact pathology PRD #1423 exists to remove). Registering the
+ *  degenerate ack here lets the search descend past the reveal with the
+ *  already-determinized outcome, exactly like every other choice kind. */
+const randomRevealAckCandidates: ChoiceCandidateGenerator = (_state, choice) => [
+    {
+        key: "random-reveal:ack",
+        move: {
+            kind: "random-reveal-ack",
+            stackItemId: choice.stackItemId,
+            choiceId: choice.choiceId,
+        },
+    },
+];
+
+// ---------------------------------------------------------------------------
 // Modal "choose one" (option-pick)
 // ---------------------------------------------------------------------------
 
@@ -476,6 +502,7 @@ export const CHOICE_CANDIDATE_GENERATORS: Partial<
     "draw-replacement": drawReplacementCandidates,
     "option-pick": optionPickCandidates,
     "search-library": searchLibraryCandidates,
+    "random-reveal": randomRevealAckCandidates,
 };
 
 /** Whether `kind` is an in-tree choice node (has a registered generator). */
