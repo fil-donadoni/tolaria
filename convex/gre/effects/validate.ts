@@ -1667,9 +1667,7 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
                     );
                 }
                 if (!("source" in entry)) {
-                    errors.push(
-                        'field "source" is required with "card"'
-                    );
+                    errors.push('field "source" is required with "card"');
                 }
             }
             return errors;

@@ -16508,9 +16508,9 @@ describe("Effect Script Op: castDuringResolution — exile-top source + paid cas
         // Wire format (new-Op regime): the exiled card survives the projection
         // in the caster's own exile zone.
         const projected = projectPublicState(state, 1, "p1");
-        expect(
-            projected.players[0].exile.some((c) => c.id === "topBear")
-        ).toBe(true);
+        expect(projected.players[0].exile.some((c) => c.id === "topBear")).toBe(
+            true
+        );
 
         // Accept — the bear is cast from exile onto the stack (real spell), its
         // mana cost paid from the floating pool.

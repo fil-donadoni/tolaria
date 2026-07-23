@@ -16,7 +16,10 @@ import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { resolveTopOfStack } from "../../../../gre/state";
 import type { GameState } from "../../../../gre/state";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
-import { collectTriggers, placeTriggersOnStack } from "../../../../gre/triggers";
+import {
+    collectTriggers,
+    placeTriggersOnStack,
+} from "../../../../gre/triggers";
 import { raiseTriggerTargetSelection } from "../../../../gre/rules";
 import { finalizeTargetSelection } from "../../../../game";
 import { projectPublicState } from "../../../../gameProjections";
@@ -115,9 +118,9 @@ describe("Chandra, Torch of Defiance — +1 impulse (exile top, paid cast during
         });
         activate(state, PLUS1_IMPULSE);
         // Top card exiled unconditionally; suspended on the Cast/Decline offer.
-        expect(state.players[0].library.some((c) => c.id === "topArchers")).toBe(
-            false
-        );
+        expect(
+            state.players[0].library.some((c) => c.id === "topArchers")
+        ).toBe(false);
         expect(state.players[0].exile.some((c) => c.id === "topArchers")).toBe(
             true
         );

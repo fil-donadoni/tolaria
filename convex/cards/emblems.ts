@@ -13,11 +13,7 @@
 // ability is collected owner-scoped by `triggers.ts`. See ADR 0058 (loyalty
 // framework, #700) for the planeswalker ultimates that create them.
 
-import type {
-    EmblemDefinition,
-    GameEvent,
-    PermanentView,
-} from "./types";
+import type { EmblemDefinition, GameEvent, PermanentView } from "./types";
 
 const EMBLEM_REGISTRY = new Map<string, EmblemDefinition>();
 
