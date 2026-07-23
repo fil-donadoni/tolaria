@@ -82,7 +82,13 @@ export type MoveMutations = {
         }
     ) => Promise<unknown>;
     submitMayPay: (
-        a: GP & { accept: boolean; sacrificeIds?: string[] }
+        a: GP & {
+            accept: boolean;
+            sacrificeIds?: string[];
+            /** CR 701.9 / 118.3 (issue #899 / #1507) — chosen hand card id(s)
+             *  for a may-pay discard-leg pick. Mirrors `sacrificeIds`. */
+            discardIds?: string[];
+        }
     ) => Promise<unknown>;
     submitLandEntryChoice: (a: GP & { accept: boolean }) => Promise<unknown>;
     submitDrawReplacementPay: (a: GP & { accept: boolean }) => Promise<unknown>;
@@ -138,13 +144,15 @@ export async function executeMove(
         case "may-pay":
             // Yes/no family (CR 117.3a / 118.4) — a SEPARATE entry point from
             // submitResolutionChoice (ADR 0016). CR 701.16b — a sacrifice-leg
-            // pick rides along as `sacrificeIds`.
+            // pick rides along as `sacrificeIds`; CR 701.9 / 118.3 (issue
+            // #899 / #1507) — a discard-leg pick rides along as `discardIds`.
             await mutations.submitMayPay({
                 ...base,
                 accept: move.accept,
                 ...(move.sacrificeIds
                     ? { sacrificeIds: move.sacrificeIds }
                     : {}),
+                ...(move.discardIds ? { discardIds: move.discardIds } : {}),
             });
             return;
 
