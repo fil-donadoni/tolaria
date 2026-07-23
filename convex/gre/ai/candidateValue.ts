@@ -383,8 +383,15 @@ function resolveValueAgainstBoard(
             v.count
         );
     if ("X" in v) return CF_ASSUMED_X_FALLBACK;
-    if ("counters" in v || "escaped" in v || "kickerCount" in v) return 0;
-    if ("abilityResolutionCount" in v) return 1;
+    // counters / kickerCount — an object-scoped read with no bound object or
+    // announced kicker pre-cast, same as `ref`/`manaValue`/`domain` below.
+    // MUST mirror `contextFreeGrounding`'s floor (its counters/kickerCount
+    // branch falls through to `CF_ASSUMED_REF`): a context-aware zero here
+    // priced a "damage equal to charge counters" card at nothing in a tutor
+    // prior, strictly LESS informed than the context-free floor it is
+    // supposed to refine (issue #1520).
+    if ("counters" in v || "kickerCount" in v) return CF_ASSUMED_REF_FALLBACK;
+    if ("escaped" in v || "abilityResolutionCount" in v) return 1;
     // lifeGainedThisTurn (CR 119.3, issue #1457) — a per-turn tally genuinely
     // resolvable off the live board, unlike the object-scoped reads below.
     // Only the `"controller"` selector is resolvable pre-cast (the caster IS

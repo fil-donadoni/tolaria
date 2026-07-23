@@ -258,7 +258,12 @@ export function decidingPlayer(state: GameState): string | null {
         return getOpponentId(state, state.activePlayerId);
     }
 
-    if (state.pendingCast || state.pendingActivation || state.pendingTarget) {
+    if (
+        state.pendingCast ||
+        state.pendingActivation ||
+        state.pendingTarget ||
+        state.pendingCompanionPay
+    ) {
         return null;
     }
 
@@ -1012,22 +1017,80 @@ function choicePriorBonus(prior: number, visits: number): number {
  *  The KEY is why this type exists. At a choice node the key is the candidate's
  *  STABLE IDENTITY (card names / choice semantics, never a per-world instance
  *  id, PRD #1423) — so the same semantic answer accumulates statistics across
- *  determinizations instead of splitting into a fresh edge per world. Everywhere
- *  else it is the historical structural `moveKey`, with a zero prior. */
-type KeyedMove = { move: Move; key: string; prior: number };
+ *  determinizations instead of splitting into a fresh edge per world. At an
+ *  ordinary priority node it is `priorityMoveKey` — the historical structural
+ *  `moveKey`, EXCEPT for a non-observer mover's hand-sourced card id, stabilized
+ *  the same way (issue #1520) — with a zero prior. */
+export type KeyedMove = { move: Move; key: string; prior: number };
+
+/** Structural key for an ordinary priority move, stabilized against
+ *  hidden-hand reshuffling for a NON-OBSERVER mover (issue #1520). Plain
+ *  `moveKey` embeds every field verbatim, including `cardInstanceId` — stable
+ *  for the SEARCHING bot's own moves (`determinize` never touches its own
+ *  hand) but not for the OPPONENT: `determinizeOpponent` freely reshuffles
+ *  which physical card object lands in the opponent's hand each iteration, so
+ *  two functionally-identical duplicates (two copies of the same card) can
+ *  supply a DIFFERENT id for the "same" semantic move across worlds —
+ *  splitting one decision's statistics across determinizations exactly the
+ *  way PRD #1423 already fixed for choice nodes. Swaps a hand-sourced
+ *  `cardInstanceId` for the card's DEFINITION id — the invariant that
+ *  actually identifies the semantic move; every other field (battlefield
+ *  ids, mana taps, targets) is public and already world-stable, so it is
+ *  left untouched. A no-op for the bot's own moves, and for any
+ *  `cardInstanceId` that isn't sourced from `pid`'s hand (a battlefield
+ *  permanent activating its own ability). Currently inert in live play (the
+ *  production adapter fills the opponent's hidden zones with opaque
+ *  placeholders that carry no real card identity to collapse — see
+ *  `determinize.ts`'s production note) but load-bearing in CI/self-play,
+ *  which searches over full-information states with real duplicate cards. */
+function priorityMoveKey(
+    state: GameState,
+    pid: string,
+    botId: string,
+    move: Move
+): string {
+    if (pid === botId) return moveKey(move);
+    if (
+        move.kind !== "play-land" &&
+        move.kind !== "cast-spell" &&
+        move.kind !== "activate-ability"
+    ) {
+        return moveKey(move);
+    }
+    const player = state.players.find((p) => p.id === pid);
+    const handCard = player?.hand.find((c) => c.id === move.cardInstanceId);
+    const defId = handCard && (handCard.card as { id?: string }).id;
+    if (!defId) return moveKey(move);
+    return moveKey({ ...move, cardInstanceId: defId });
+}
 
 /** The keyed decision set for `pid` in `state`: the choice node's candidates
- *  when a choice is live, else the ordinary enumerated moves. */
-function keyedMovesFor(state: GameState, pid: string): KeyedMove[] {
+ *  when a choice is live, else the ordinary enumerated moves — deduplicated
+ *  by key (issue #1520): stabilizing a hand-sourced id onto the shared card
+ *  DEFINITION id can make two distinct duplicate-card moves collapse to the
+ *  same key within one enumeration; keep the first (deterministic within
+ *  this call) as the representative, since a duplicate's own id is
+ *  interchangeable by construction. Exported as a test seam (mirrors
+ *  `reactivePrior`/`isReactiveInstantCast` above) so the determinization
+ *  statistics test can assert on tree keys without driving a full search. */
+export function keyedMovesFor(
+    state: GameState,
+    pid: string,
+    botId: string
+): KeyedMove[] {
     const headChoice = state.pendingChoices?.[0];
     if (headChoice && headChoice.playerId === pid) {
         return choiceCandidates(state, headChoice) as ChoiceCandidate[];
     }
-    return enumerateMoves(state, pid).map((move) => ({
-        move,
-        key: moveKey(move),
-        prior: 0,
-    }));
+    const seen = new Set<string>();
+    const keyed: KeyedMove[] = [];
+    for (const move of enumerateMoves(state, pid)) {
+        const key = priorityMoveKey(state, pid, botId, move);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        keyed.push({ move, key, prior: 0 });
+    }
+    return keyed;
 }
 
 /** Grow the tree by one iteration on a freshly-determinized world. */
@@ -1044,7 +1107,7 @@ function iterate(
     for (let depth = 0; depth < MAX_TREE_DEPTH; depth++) {
         const pid = decidingPlayer(world);
         if (!pid) break;
-        const keyed = keyedMovesFor(world, pid);
+        const keyed = keyedMovesFor(world, pid, botId);
         if (keyed.length === 0) break;
 
         const untried = keyed.filter((k) => !node.children.has(k.key));
@@ -1093,8 +1156,8 @@ function iterate(
         // Apply THIS world's move for the selected key, not the move captured
         // when the edge was first opened: an edge is keyed by stable identity,
         // so its stored move may name instances from a different
-        // determinization. (Identical for a priority node, where the key IS the
-        // structural move.)
+        // determinization — true at a choice node AND, since issue #1520, at
+        // an opponent priority node whose key stabilized a hand-sourced id.
         applyMoveInSearch(world, pid, bestKeyed!.move);
         path.push(bestEdge!);
         node = bestEdge!.node;

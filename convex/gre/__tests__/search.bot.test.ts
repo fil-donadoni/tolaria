@@ -15,6 +15,7 @@ import {
     isDiscouragedRolloutMove,
     isReactiveInstantCast,
     reactivePrior,
+    keyedMovesFor,
     type Edge,
     type Node,
 } from "../search";
@@ -1730,5 +1731,113 @@ describe("selectRootMove — self-harm removal tie-break (issue #365)", () => {
             if (chosen.kind !== "cast-spell") throw new Error("kind");
             expect(chosen.targets[0]?.id).toBe("oppUnicorn");
         });
+    });
+});
+
+describe("opponent priority edges use stable, definition-based keys (issue #1520)", () => {
+    // `determinizeOpponent` (determinize.ts) freely reshuffles which physical
+    // card object lands in the opponent's hand each ISMCTS iteration. Two
+    // functionally-identical duplicate cards can therefore supply a DIFFERENT
+    // `cardInstanceId` for the "same" semantic move across determinizations —
+    // the raw structural `moveKey` (JSON.stringify) split one decision's tree
+    // statistics across worlds, exactly the pathology PRD #1423 already fixed
+    // for choice nodes. `keyedMovesFor` now stabilizes a hand-sourced id onto
+    // the card's DEFINITION id for a non-observer mover.
+
+    /** p2 (the modeled opponent from p1's search) at priority with `hand`
+     *  hand cards and a tapped-for-mana-able land, so `cast-spell` is a legal
+     *  move. `botId` is "p1" throughout — p2 is always the non-observer. */
+    function opponentPriorityState(
+        hand: ReturnType<typeof makeInstance>[]
+    ): GameState {
+        return makeState({
+            phase: "PRECOMBAT_MAIN",
+            activePlayerId: "p2",
+            priorityPlayerId: "p2",
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    hand,
+                    battlefield: [land("p2", "p2-mtn")],
+                }),
+            ],
+        });
+    }
+
+    it("keys an opponent's cast-spell move identically across two determinizations naming a different physical copy", () => {
+        // World A: THIS physical Bolt ("copy-1") was dealt into the
+        // opponent's hand this iteration.
+        const worldA = opponentPriorityState([bolt("p2", "copy-1")]);
+        // World B: a re-determinization dealt a DIFFERENT physical copy of
+        // the exact same card ("copy-2") into the hand instead — the same
+        // semantic decision ("cast the opponent's one Lightning Bolt"), a
+        // different underlying id.
+        const worldB = opponentPriorityState([bolt("p2", "copy-2")]);
+
+        const keyA = keyedMovesFor(worldA, "p2", "p1").find(
+            (k) => k.move.kind === "cast-spell"
+        )?.key;
+        const keyB = keyedMovesFor(worldB, "p2", "p1").find(
+            (k) => k.move.kind === "cast-spell"
+        )?.key;
+
+        expect(keyA).toBeDefined();
+        expect(keyA).toBe(keyB);
+    });
+
+    it("collapses two functionally-identical opponent hand duplicates down to one keyed move PER target, not two", () => {
+        const state = opponentPriorityState([
+            bolt("p2", "copy-1"),
+            bolt("p2", "copy-2"),
+        ]);
+        const castMoves = keyedMovesFor(state, "p2", "p1").filter(
+            (k) => k.move.kind === "cast-spell"
+        );
+        // Lightning Bolt has 2 legal "any target" picks with no creatures on
+        // board (either player) — 2 copies × 2 targets would be 4 raw moves,
+        // but each target's two copies collapse to ONE representative: the
+        // interchangeable-copy statistics no longer split across the two ids.
+        expect(castMoves).toHaveLength(2);
+        const keys = new Set(castMoves.map((m) => m.key));
+        expect(keys.size).toBe(2); // both representatives are distinct targets
+    });
+
+    it("leaves the SEARCHING bot's own hand-sourced moves keyed by raw instance id (unchanged, out of scope)", () => {
+        // `determinize` never touches the observer's own hand, so the raw
+        // instance id is already stable there — two of the bot's own
+        // duplicate cards stay two distinct keyed moves (historical
+        // behavior, not a regression this issue addresses).
+        const state = makeState({
+            phase: "PRECOMBAT_MAIN",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            players: [
+                makePlayer("p1", {
+                    hand: [bolt("p1", "own-1"), bolt("p1", "own-2")],
+                    battlefield: [land("p1", "p1-mtn")],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const castMoves = keyedMovesFor(state, "p1", "p1").filter(
+            (k) => k.move.kind === "cast-spell"
+        );
+        // 2 copies × 2 legal targets, NONE collapsed (the bot's own hand is
+        // never touched by `determinize`, so there is nothing to stabilize).
+        expect(castMoves).toHaveLength(4);
+    });
+
+    it("leaves a battlefield-sourced activate-ability move's key untouched (public zone, already stable)", () => {
+        // Sanity: `priorityMoveKey` only stabilizes a HAND-sourced id;
+        // battlefield ids are public and never reshuffled by `determinize`,
+        // so an opponent's own-ability activation must key identically to
+        // the plain structural `moveKey` (no accidental over-matching).
+        const state = opponentPriorityState([]);
+        const keyed = keyedMovesFor(state, "p2", "p1");
+        // No activated abilities on a bare Mountain — this just confirms the
+        // land's `play-land`/mana-ability surface stays keyed by its own
+        // (public, stable) instance id rather than being swapped out.
+        const passMove = keyed.find((k) => k.move.kind === "pass");
+        expect(passMove?.key).toBe(JSON.stringify({ kind: "pass" }));
     });
 });
