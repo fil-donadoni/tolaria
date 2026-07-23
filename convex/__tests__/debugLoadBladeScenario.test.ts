@@ -283,7 +283,8 @@ describe("debugLoadBladeScenario — loaded position matches the harness's built
  * calls, under seat ids that are deliberately NOT `p1`/`p2`.
  */
 describe("debugLoadBladeScenario — a `setup`-carrying entry loads its engine-built stack (issue #1487)", () => {
-    const CHARTER_LABEL = "charter: Stifles its own Phyrexian Dreadnought trigger";
+    const CHARTER_LABEL =
+        "charter: Stifles its own Phyrexian Dreadnought trigger";
 
     it("loads the charter entry with its ETB trigger on the stack under non-p1/p2 seat ids", () => {
         const base = arbitraryCurrentGameBaseState();
