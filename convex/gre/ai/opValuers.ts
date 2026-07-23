@@ -6,9 +6,12 @@
 // its Ops (`valueEffectScript`).
 //
 // Issue #1426 shipped the CHARTER Ops (the highest-frequency / most
-// eval-relevant verbs, PRD #1423). Issue #1430 backfills every remaining
-// `status:"implemented"` Op, emptying the coverage guard's allowlist — the
-// guard (`convex/cards/__tests__/opValuerCoverage.test.ts`) fails CI on any
+// eval-relevant verbs, PRD #1423). Issue #1430 backfilled every remaining
+// `status:"implemented"` Op at the time, emptying the coverage guard's
+// allowlist; `castDuringResolution` (#1477) and `createTokenCopy` (#1459)
+// shipped afterward straight onto the allowlist instead of earning a valuer —
+// issue #1515 backfills those two and re-empties it. The guard
+// (`convex/cards/__tests__/opValuerCoverage.bot.test.ts`) fails CI on any
 // implemented Op that is neither valued nor a walker-handled structural
 // construct.
 //
@@ -71,6 +74,18 @@ const ANIMATE_DISCOUNT = 0.7; // an animated permanent isn't a "real" creature c
 const EMBLEM_VALUE = 150; // a durable, uncounterable ultimate-style effect
 const EXTRA_TURN_VALUE = 300; // CR 500.7 — an entire additional turn
 const WIN_GAME_VALUE = 100000; // CR 104.2a — an alternate win condition
+
+// --- Backfill-Op point weights (issue #1515) --------------------------------
+// castDuringResolution (CR 608.2f) and createTokenCopy (CR 707.2 + CR 111.1)
+// were the LAST two `OP_VALUER_BACKFILL` rows (issue #1430's charter backfill
+// deferred them for spell-level/runtime lookahead the flat model doesn't have)
+// — valued here the same way every other lookahead-shaped Op already is: a
+// representative flat magnitude, always `board-scaling` since the realized
+// worth (which spell gets cast; the copied body's stats) is unknown until
+// resolution.
+const CAST_DURING_RESOLUTION_FREE_VALUE = 55; // a free mini-cast (Cascade-style) — a hair above a drawn card (CARD_VALUE), since no mana is spent
+const CAST_DURING_RESOLUTION_PAID_VALUE = 20; // a pay-the-cost mini-cast — matches GRANT_CAST_VALUE's "permission to cast" scale, since the mana cost offsets most of the card's own worth
+const COPY_TOKEN_REPRESENTATIVE_STAT = 2; // unknown copied body's P/T — same representative magnitude `grounding.ts`'s CF_ASSUMED_REF uses for a bound ref
 
 /** A valuer: projects one Op onto the feature basis under a grounding mode. */
 type Valuer<K extends EffectOp["op"]> = (
@@ -263,6 +278,28 @@ const createToken: Valuer<"createToken"> = (op, ctx) => {
         points: per * count,
         tags: tagScaling(scaling, "tokens"),
     };
+};
+
+// Backfilled Op (issue #1515) — the copy sibling of `createToken` above.
+// Unlike `createToken`'s JSON-pure spec, `source` is a RUNTIME permanent (an
+// announced target or an earlier `ref`), so the copied body's P/T/abilities
+// are unknowable to this flat static model — a representative 2/2 discounted
+// like a token, ALWAYS `board-scaling` regardless of `count` (the body, not
+// just the count, is a floor here).
+const createTokenCopy: Valuer<"createTokenCopy"> = (op, ctx) => {
+    const grounded = op.count ? ctx.value(op.count) : { amount: 1 };
+    const count = grounded.amount;
+    const per =
+        TOKEN_DISCOUNT *
+        creatureValueRaw(
+            COPY_TOKEN_REPRESENTATIVE_STAT,
+            COPY_TOKEN_REPRESENTATIVE_STAT,
+            0, // a token copy has no mana value (CR 111.4 — no mana cost)
+            []
+        );
+    const tags = tagScaling(true, "tokens");
+    if (isAnnouncedTarget(op.source)) tags.push("targeted");
+    return { points: per * count, tags };
 };
 
 const pump: Valuer<"pump"> = (op, ctx) => {
@@ -489,6 +526,20 @@ const grantAbility: Valuer<"grantAbility"> = (op) => ({
     tags: isAnnouncedTarget(op.target) ? ["evasion", "targeted"] : ["evasion"],
 });
 
+// Backfilled Op (issue #1515). Unlike `grantCastFromExile`/
+// `grantCastFromGraveyard` (which only grant a LATER impulse window), this Op
+// resolves the mini-cast NOW — the realized value is the recursive value of
+// whatever gets cast, unknowable to the flat static model, so it always
+// carries `board-scaling`. `free` (Cascade-style, no mana spent) is valued
+// above a plain drawn card; a paid mini-cast nets far less since the mana
+// cost offsets most of the cast card's own worth.
+const castDuringResolution: Valuer<"castDuringResolution"> = (op) => ({
+    points: op.free
+        ? CAST_DURING_RESOLUTION_FREE_VALUE
+        : CAST_DURING_RESOLUTION_PAID_VALUE,
+    tags: tagScaling(true, "cardAdvantage"),
+});
+
 const grantCastFromExile: Valuer<"grantCastFromExile"> = () => ({
     points: GRANT_CAST_VALUE,
     tags: ["cardAdvantage"],
@@ -647,10 +698,10 @@ const winGame: Valuer<"winGame"> = () => ({
 });
 
 /** The full Op dispatch table — one valuer per non-structural implemented Op
- *  (charter Ops from issue #1426, backfilled Ops from issue #1430). Keyed by
- *  Op name exactly like `OP_EXECUTORS`. Kept a `Partial` over the Op union:
- *  the coverage guard proves every OTHER implemented Op is a structural
- *  construct — the backfill allowlist is empty (issue #1430). */
+ *  (charter Ops from issue #1426, backfilled Ops from issues #1430 and
+ *  #1515). Keyed by Op name exactly like `OP_EXECUTORS`. Kept a `Partial`
+ *  over the Op union: the coverage guard proves every OTHER implemented Op is
+ *  a structural construct — the backfill allowlist is empty (issue #1515). */
 export const OP_VALUERS: {
     [K in EffectOp["op"]]?: Valuer<K>;
 } = {
@@ -679,7 +730,9 @@ export const OP_VALUERS: {
     armGraveyardRedirect,
     attach,
     becomeMonarch,
+    castDuringResolution,
     choice: choiceOp,
+    createTokenCopy,
     delayedTrigger,
     reflexiveTrigger,
     digMatchingToHand,

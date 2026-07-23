@@ -15,12 +15,16 @@
 // (PRD #1423 story 17).
 //
 // ─────────────────────────────────────────────────────────────────────────
-// Issue #1430 emptied the allowlist: every Op issue #1426 deferred now has an
-// `OP_VALUERS` entry (`convex/gre/ai/opValuers.ts`). The allowlist stays
-// declared (empty) rather than removed — several hygiene tests below
-// reference it directly, and a future Op that ships without a valuer has
-// exactly the same two-edit fix (add the `OP_VALUERS` entry, or append a new
-// backfill row with a note) that emptied it the first time.
+// Issue #1430 emptied the allowlist: every Op issue #1426 deferred now had an
+// `OP_VALUERS` entry (`convex/gre/ai/opValuers.ts`). `castDuringResolution`
+// (#1477) and `createTokenCopy` (#1459) then shipped straight onto the
+// allowlist instead of earning a valuer, eroding the "every new Op pays the
+// entry fee" guarantee — issue #1515 backfilled both and re-emptied it. The
+// allowlist stays declared (empty) rather than removed — several hygiene
+// tests below reference it directly, and a future Op that ships without a
+// valuer has exactly the same two-edit fix (add the `OP_VALUERS` entry, or
+// append a new backfill row with a note AND a tracking issue number) that
+// emptied it each time so far.
 // ─────────────────────────────────────────────────────────────────────────
 
 import { describe, it, expect } from "vitest";
@@ -33,27 +37,17 @@ import {
 
 /** Implemented Ops that DO NOT YET have a value model — the backfill
  *  allowlist (issue #1426 shipped the charter Ops only; issue #1430 emptied
- *  this to `[]`). APPEND-ONLY and alphabetically sorted. Each entry is an
- *  implemented Op name whose valuer is deferred; removing a name here +
- *  adding its `OP_VALUERS` entry is the whole of the per-Op backfill work.
- *  Keep this the single source of "known-unvalued" — the guard below
- *  cross-checks it against the live registry so a stale entry (an Op that has
- *  since gained a valuer, or is no longer implemented) also fails CI. */
-export const OP_VALUER_BACKFILL: readonly string[] = [
-    // castDuringResolution (CR 608.2f, issue #1477): resolve-time free/paid
-    // mini-cast of a discarded/exiled card. Its value is the recursive value of
-    // casting that card, which the flat OP_VALUERS heuristic can't size without
-    // spell-level lookahead — deferred to the bot-AI valuation track (#1254).
-    "castDuringResolution",
-    // createTokenCopy (CR 707.2 + CR 111.1, issue #1459): creates token copies
-    // of a RUNTIME source permanent (an announced target or a `ref` to a
-    // permanent bound earlier in the script). The copy's copiable values (P/T,
-    // abilities) are the source's, unknown to the flat static OP_VALUERS
-    // heuristic — sizing it needs the runtime board, so valuation is deferred
-    // to the bot-AI valuation track (#1254), like createToken's runtime-shaped
-    // sibling cases.
-    "createTokenCopy",
-];
+ *  this to `[]`; #1477/#1459 re-added two rows without a valuer; issue #1515
+ *  backfilled both and re-emptied it to `[]`). APPEND-ONLY and alphabetically
+ *  sorted. Each entry is an implemented Op name whose valuer is deferred;
+ *  removing a name here + adding its `OP_VALUERS` entry is the whole of the
+ *  per-Op backfill work. Keep this the single source of "known-unvalued" —
+ *  the guard below cross-checks it against the live registry so a stale
+ *  entry (an Op that has since gained a valuer, or is no longer implemented)
+ *  also fails CI. A new row here MUST carry a real tracking issue number, not
+ *  just a "deferred" note (issue #1515) — that's what let these two rows
+ *  linger unbacked. */
+export const OP_VALUER_BACKFILL: readonly string[] = [];
 
 describe("OP_VALUERS coverage guard (PRD #1423, issue #1426)", () => {
     const implementedOps = EFFECT_OP_REGISTRY.filter(

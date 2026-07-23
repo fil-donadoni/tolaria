@@ -431,6 +431,71 @@ describe("OP_VALUERS — representative backfilled valuers (issue #1430)", () =>
             expect(v.tags).toContain("protection");
         });
     });
+
+    describe("castDuringResolution (CR 608.2f) — issue #1515 backfill", () => {
+        it("values a free (Cascade-style) mini-cast above a plain drawn card", () => {
+            const op: EffectOp = {
+                op: "castDuringResolution",
+                card: { ref: "$discarded" },
+                player: "controller",
+                source: "graveyard",
+                free: true,
+            };
+            const v = valueOp(op, cf);
+            expect(v.points).toBe(55);
+            expect(v.points).toBeGreaterThan(
+                valueOp(
+                    { op: "draw", player: "controller", count: 1 },
+                    cf
+                ).points // 45 — CARD_VALUE
+            );
+            expect(v.tags).toEqual(
+                expect.arrayContaining(["cardAdvantage", "board-scaling"])
+            );
+        });
+
+        it("values a pay-the-cost mini-cast lower (the mana cost offsets the card)", () => {
+            const op: EffectOp = {
+                op: "castDuringResolution",
+                player: "controller",
+                fromTopOfLibrary: true,
+            };
+            const v = valueOp(op, cf);
+            expect(v.points).toBe(20);
+            expect(v.tags).toContain("cardAdvantage");
+        });
+    });
+
+    describe("createTokenCopy (CR 707.2 + CR 111.1) — issue #1515 backfill", () => {
+        it("values a token copy by a representative (discounted) body", () => {
+            const op: EffectOp = {
+                op: "createTokenCopy",
+                source: { target: 0 },
+                controller: "controller",
+            };
+            const v = valueOp(op, cf);
+            // 0.85 × creatureValueRaw(2,2,0,[]) = 0.85 × (100+30+28) = 134.3 —
+            // the SAME representative magnitude as createToken's 2/2 example,
+            // since the copied body is unknown until runtime.
+            expect(v.points).toBeCloseTo(134.3, 1);
+            expect(v.tags).toEqual(
+                expect.arrayContaining(["tokens", "board-scaling", "targeted"])
+            );
+        });
+
+        it("scales with count and stays board-scaling even at a fixed count", () => {
+            const op: EffectOp = {
+                op: "createTokenCopy",
+                source: { ref: "$token" },
+                controller: "controller",
+                count: 2,
+            };
+            const v = valueOp(op, cf);
+            expect(v.points).toBeCloseTo(134.3 * 2, 1);
+            expect(v.tags).toContain("board-scaling");
+            expect(v.tags).not.toContain("targeted"); // a `ref` source, not an announced target
+        });
+    });
 });
 
 describe("walker — structural constructs (PRD #1423)", () => {
