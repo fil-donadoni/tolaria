@@ -126,6 +126,49 @@ describe("OP_VALUERS — charter valuers (PRD #1423, issue #1426)", () => {
             ];
             expect(valueEffectScript(script, cf).points).toBe(0);
         });
+
+        // Issue #1548 (regression from #1521) — grounding's CONTEXT-FREE
+        // `isSelf` treats EVERY `{ ref }` object as self (the "$source etc."
+        // branch), so `dealDamage` naively calling `ctx.isSelf(playerRef,
+        // "opponent")` on a BOUND player ref flipped Agonizing Demise's
+        // kicked "deals damage equal to that creature's power to the
+        // creature's controller" (`{ ref: "$slain.controller" }`) from a
+        // positive removal-adjacent burn to a scored self-harm. A bound ref
+        // is an opaque/arbitrary player determined at resolution, not
+        // literally the caster — it must get the same harmful-by-default
+        // sign as `loseLife`/`discard`/`mill` (opponent-directed unless the
+        // ref is the literal `"controller"` string).
+        it("a bound-ref player (e.g. $slain.controller) burn stays positive, not self-cost", () => {
+            const op: EffectOp = {
+                op: "dealDamage",
+                amount: { ref: "$slain.power" },
+                to: { player: { ref: "$slain.controller" } },
+            };
+            const v = valueOp(op, cf);
+            expect(v.points).toBeGreaterThan(0);
+            expect(v.tags).not.toContain("self-cost");
+        });
+
+        it("the literal controller string still scores as a self-cost (negative)", () => {
+            const op: EffectOp = {
+                op: "dealDamage",
+                amount: 4,
+                to: { player: "controller" },
+            };
+            const v = valueOp(op, cf);
+            expect(v.points).toBeLessThan(0);
+            expect(v.tags).toContain("self-cost");
+        });
+
+        it("the $each iteration ref stays neutral (not routed through the bound-ref harmful default)", () => {
+            const op: EffectOp = {
+                op: "dealDamage",
+                amount: 4,
+                to: { player: { ref: "$each" } },
+            };
+            const v = valueOp(op, cf);
+            expect(v.points).toBe(0);
+        });
     });
 
     describe("draw (CR 121.1)", () => {

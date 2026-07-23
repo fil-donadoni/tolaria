@@ -157,7 +157,23 @@ const dealDamage: Valuer<"dealDamage"> = (op, ctx) => {
     if (isEachPlayerRef(playerRef)) {
         return { points: 0, tags };
     }
-    const self = ctx.isSelf(playerRef, "opponent");
+    // Issue #1548 — `ctx.isSelf` can't disambiguate an opaque/BOUND player
+    // ref (`{ ref: "$slain.controller" }`, Agonizing Demise / Collapsing
+    // Borders / Ankh of Mishra's upkeep trigger). Grounding's CONTEXT-FREE
+    // `isSelf` (grounding.ts) treats every `{ ref }` object as self — the
+    // "$source etc." branch, built for OBJECT refs (dealDamage's own `to`
+    // target uses `$each`/target snapshots that way), not a bound PLAYER
+    // selector — and would flip every one of these opponent-directed/
+    // symmetric burns to a scored self-cost. Only the LITERAL `"controller"`
+    // string is a genuine self-cost (the caster IS the resolving spell's
+    // controller, CR 109.5); a bound ref names an ARBITRARY player determined
+    // at resolution, so it gets the same harmful-by-default assumption
+    // `loseLife`/`discard`/`mill` use for their own ambiguous player refs
+    // (opponent-directed unless the ref literally names the caster).
+    const self =
+        typeof playerRef === "object" && "ref" in playerRef
+            ? false
+            : ctx.isSelf(playerRef, "opponent");
     if (self) tags.push("self-cost");
     return { points: amount * DAMAGE_PER_POINT * (self ? -1 : 1), tags };
 };
