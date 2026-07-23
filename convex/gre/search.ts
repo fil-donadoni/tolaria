@@ -71,6 +71,7 @@ import {
     evaluateBreakdown,
     declaredBlockDelta,
     declaredCombatDelta,
+    lethalUnblockedDelta,
     hasCastableInstant,
     materialMargin,
     WIN_SCORE,
@@ -819,6 +820,10 @@ function policyValue(probe: GameState, botId: string, move: Move): number {
     // pre-damage block — `declaredBlockDelta` reads effective P/T, so it covers
     // the block declaration itself AND a combat trick just cast in response (the
     // resolved pump is live this turn). No-op when no block is confirmed.
+    //
+    // `lethalUnblockedDelta` (issue #1489) reaches this sum EXACTLY ONCE, via
+    // `evaluate` above: it is deliberately not inside `declaredBlockDelta`, so
+    // this third consumer of the term cannot double it to ±2·WIN_SCORE.
     return v + declaredBlockDelta(probe, botId);
 }
 
@@ -1242,12 +1247,29 @@ function isWastefulAttack(state: GameState, move: Move): boolean {
  *  face taken, minus the cautious-block discount). The principled measure of a
  *  block's worth — a clean kill scores highest, a dominated over-commit (a double
  *  chump that loses two creatures to kill nothing) lowest. `declare-blockers` is
- *  the defender's move, i.e. `botId` itself at this decision. */
-function blockDeltaOf(state: GameState, move: Move, botId: string): number {
+ *  the defender's move, i.e. `botId` itself at this decision.
+ *
+ *  Plus `lethalUnblockedDelta` (issue #1489), folded in HERE rather than inside
+ *  `declaredBlockDelta`: this tie-break is the seam the term was measured
+ *  against (the linear, lethality-blind life clause rates "take it and die"
+ *  ABOVE "chump and live"), but `policyValue` above sums `evaluate` — which
+ *  already carries the term — with `declaredBlockDelta`, so folding it into the
+ *  latter would show the rollout default policy ±2·WIN_SCORE. Two seams, one
+ *  count each. Exactly zero off-pattern, so every non-lethal block is ranked
+ *  exactly as before.
+ *
+ *  Exported as a named seam so the tie-break lens is unit-testable in isolation. */
+export function blockDeltaOf(
+    state: GameState,
+    move: Move,
+    botId: string
+): number {
     if (move.kind !== "declare-blockers") return -Infinity;
     const probe = cloneGameState(state);
     applyMoveInSearch(probe, botId, move);
-    return declaredBlockDelta(probe, botId);
+    return (
+        declaredBlockDelta(probe, botId) + lethalUnblockedDelta(probe, botId)
+    );
 }
 
 // --- Extra-turn structural credit (issue #244) -----------------------------
