@@ -30,10 +30,19 @@ import {
 } from "../../cards/mechanicsRegistry";
 
 /** The slice of CardDefinition the validator reads — kept narrow so tests
- *  can validate synthetic shapes without building a full definition. */
+ *  can validate synthetic shapes without building a full definition.
+ *  `aiEffects` (PRD #1423, issue #1431) is included so `validateAiEffectsScript`
+ *  below can read it from the same host shape (issue #1514). */
 export type EffectScriptHost = Pick<
     CardDefinition,
-    "id" | "name" | "effects" | "resolve" | "resolveSteps" | "effect" | "modes"
+    | "id"
+    | "name"
+    | "effects"
+    | "resolve"
+    | "resolveSteps"
+    | "effect"
+    | "modes"
+    | "aiEffects"
 >;
 
 /** Field schema for one Op: required fields (each must be present and valid)
@@ -3973,12 +3982,15 @@ const EMPTY_BINDINGS: ReadonlySet<string> = new Set();
 const ABILITY_BINDINGS: ReadonlySet<string> = new Set(["$source"]);
 
 /** The narrow ability slice the ability-site validator reads. Both
- *  `ActivatedAbility` and `TriggeredAbility` satisfy it structurally. */
+ *  `ActivatedAbility` and `TriggeredAbility` satisfy it structurally.
+ *  `aiEffects` (PRD #1423, issue #1431) is included so
+ *  `validateAbilityAiEffectsScript` below can read it (issue #1514). */
 export type AbilityEffectScriptHost = {
     id: string;
     effects?: unknown;
     resolve?: unknown;
     resolveSteps?: unknown;
+    aiEffects?: unknown;
 };
 
 /** Validates an ABILITY-SITE Effect Script (activated / triggered, issue
@@ -4014,6 +4026,67 @@ export function validateAbilityEffectScript(
 
     validateEffectOpList(
         ability.effects,
+        label,
+        ABILITY_BINDINGS,
+        errors,
+        triggerEventType
+    );
+    return errors;
+}
+
+// ─── AI-only shadow scripts (`aiEffects`, PRD #1423, issue #1431) ──────────
+//
+// `aiEffects` is a valuation-only `EffectOp[]` sketch attached to a
+// `resolve()`/`resolveSteps` card or ability: it is NEVER dispatched by the
+// interpreter/`getResolveFn`/`getAbilityEffectFn` — only walked, structurally,
+// by `OP_VALUERS` (`convex/gre/ai/opValuers.ts` via `dslSpellScriptValue` /
+// `dslAbilityScriptValue`, `convex/gre/ai/cardScriptValue.ts`) to give the
+// bot's card-quality signal something to score. Because it is data walked at
+// runtime rather than code the interpreter type-checks, an unregistered Op
+// name, a dangling ref, or a non-JSON-pure value silently hits the walker's
+// defensive `ZERO_OP_VALUE` default instead of throwing — recreating exactly
+// the "silent AI-blindness" failure class the shadow-script mechanism exists
+// to close (issue #1514). The two validators below run the IDENTICAL
+// schema/vocabulary/ref/purity checks `validateEffectScript` /
+// `validateAbilityEffectScript` run on a real `effects[]` script, MINUS the
+// mutual-exclusivity check: a shadow script legitimately — and by design —
+// coexists with `resolve()`/`resolveSteps` on the very same site (that's the
+// whole point of the mechanism: it exists ONLY where there's no real
+// `effects[]` to value instead), so declaring both is not an error here.
+
+/** Validates a card's SPELL-SITE `aiEffects` shadow script statically. Same
+ *  grounding as `validateEffectScript`'s spell-site check (no `$source`, no
+ *  firing `$event` — ADR 0049): a spell's source is the resolving stack item,
+ *  not a permanent, and a spell never fires from an event. Returns [] when
+ *  the card has no `aiEffects`. */
+export function validateAiEffectsScript(def: EffectScriptHost): string[] {
+    const errors: string[] = [];
+    if (def.aiEffects === undefined) return errors;
+    const label = `${def.name} (${def.id}) aiEffects`;
+    validateEffectOpList(
+        def.aiEffects,
+        label,
+        EMPTY_BINDINGS,
+        errors,
+        undefined
+    );
+    return errors;
+}
+
+/** Validates an ABILITY-SITE (activated/triggered) `aiEffects` shadow script
+ *  statically. Same `$source` implicit binding and `$event` scope
+ *  (`triggerEventType`, ADR 0049) as `validateAbilityEffectScript`'s real
+ *  check. Returns [] when the ability has no `aiEffects`. */
+export function validateAbilityAiEffectsScript(
+    ability: AbilityEffectScriptHost,
+    cardLabel: string,
+    triggerEventType?: string
+): string[] {
+    const errors: string[] = [];
+    if (ability.aiEffects === undefined) return errors;
+    const label = `${cardLabel} ability "${ability.id}" aiEffects`;
+    validateEffectOpList(
+        ability.aiEffects,
         label,
         ABILITY_BINDINGS,
         errors,
