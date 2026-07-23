@@ -32,6 +32,7 @@ import {
     payMayPayCost,
     emitCardDrawn,
     flushPendingEvents,
+    gainLifeEmitting,
     processPendingActionTriggers,
     getOpponentId,
     getPlayer,
@@ -1400,7 +1401,12 @@ export function applyAllCombatDamage(
             ) {
                 for (const w of watchers) {
                     if (w.instanceId !== finalTarget.id) continue;
-                    getPlayer(state, w.controllerId).life += reduced;
+                    // Routed through the single life-gain choke point (CR
+                    // 119.3) so this gain runs the CR 614 lifegain
+                    // replacement layer, feeds the `lifeGainedThisTurn`
+                    // tally (issue #1457) and emits LIFE_GAINED for
+                    // "whenever you gain life" triggers.
+                    gainLifeEmitting(state, w.controllerId, reduced);
                 }
             }
         }

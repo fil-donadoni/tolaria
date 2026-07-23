@@ -2562,6 +2562,55 @@ describe("Reverse Damage (CR 614 one-shot prevent + gain life)", () => {
         // Sanity: opponent is unaffected.
         expect(opp.life).toBe(20);
     });
+
+    it("routes the gain through the single life-gain choke point — tally + LIFE_GAINED (CR 119.3)", async () => {
+        // Driven through the shield consumer directly so the emitted events
+        // are still on `state.pendingEvents` (a full resolution drains them
+        // into the trigger scan).
+        const { applyTransientDamageRedirections } = await import(
+            "../../../../gre/replacements"
+        );
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { life: 10 }),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, reverseDamage.id, "p1", [
+            { type: "permanent", id: "bear" },
+        ]);
+        resolveTopOfStack(state);
+        state.pendingEvents = undefined;
+        const result = applyTransientDamageRedirections(state, {
+            kind: "damage",
+            sourceInstanceId: "bear",
+            sourceControllerId: "p2",
+            target: { type: "player", id: "p1" },
+            amount: 3,
+            isCombat: false,
+            sourceColors: [],
+            sourceTypes: ["Creature"],
+            sourceStaticAbilities: [],
+        });
+        // The shield consumed the damage and the caster gained 3 life.
+        expect(result).toBeNull();
+        expect(state.players[0].life).toBe(13);
+        // "if you gained life this turn" tally (issue #1457).
+        expect(state.lifeGainedThisTurn?.p1).toBe(3);
+        // "whenever you gain life" triggers must observe the gain.
+        expect(state.pendingEvents ?? []).toContainEqual({
+            type: "LIFE_GAINED",
+            playerId: "p1",
+            amount: 3,
+        });
+        // The one-shot shield was consumed.
+        expect(state.damageRedirections).toBeUndefined();
+    });
 });
 
 describe("Veteran Bodyguard (CR 614 continuous damage redirect)", () => {

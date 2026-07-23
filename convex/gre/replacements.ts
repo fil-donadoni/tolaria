@@ -45,6 +45,7 @@ import type { CardInstanceState, DamageRedirection, GameState } from "./state";
 import {
     bumpDamageDealtToPlayer,
     emitLifeLost,
+    gainLifeEmitting,
     getPlayer,
     moveCard,
     putHandCardOnTopOfLibrary,
@@ -377,6 +378,14 @@ export function applyTransientDamageRedirections(
     const kept: DamageRedirection[] = [];
     let current = event;
     let consumed = false;
+    // Reverse Damage's life gain is DEFERRED to after the shield array is
+    // written back (see below). `gainLifeEmitting` runs the CR 614 lifegain
+    // replacement layer, which can execute arbitrary card effects (Lich's
+    // "draw that many cards instead"); running it mid-loop would let a nested
+    // effect mutate `state.damageRedirections` only for this function's
+    // end-of-loop `kept` writeback to clobber it. Deferring keeps the
+    // in-flight damage event and the shield bookkeeping untouched.
+    let pendingLifeGain: { playerId: string; amount: number } | null = null;
     for (let i = 0; i < shields.length; i++) {
         const sh = shields[i];
         if (consumed) {
@@ -390,8 +399,14 @@ export function applyTransientDamageRedirections(
                 current.sourceInstanceId === sh.sourceInstanceId
             ) {
                 // Reverse Damage: prevent the damage and gain life equal to
-                // the amount that was prevented. The shield is one-shot.
-                getPlayer(state, sh.playerId).life += current.amount;
+                // the amount that was prevented. The shield is one-shot. The
+                // gain is routed through the single life-gain choke point
+                // (CR 119.3) — deferred to the end of this function so the
+                // tally/LIFE_GAINED emission can't disturb the shield loop.
+                pendingLifeGain = {
+                    playerId: sh.playerId,
+                    amount: current.amount,
+                };
                 consumed = true;
                 // splice this shield: do not push back
                 continue;
@@ -492,6 +507,14 @@ export function applyTransientDamageRedirections(
         }
     }
     state.damageRedirections = kept.length > 0 ? kept : undefined;
+    // Reverse Damage's gain, now that the shield bookkeeping is committed.
+    if (pendingLifeGain !== null) {
+        gainLifeEmitting(
+            state,
+            pendingLifeGain.playerId,
+            pendingLifeGain.amount
+        );
+    }
     return consumed ? null : current;
 }
 
