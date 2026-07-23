@@ -127,6 +127,31 @@ export type BladeSetupStep =
           card: string;
           ability?: string;
           controller?: BladeSeat;
+      }
+    /** Cast the named card from a seat's hand through the REAL move pipeline
+     *  (issue #1490, ADR 0070 §4), leaving the spell on the stack UNRESOLVED —
+     *  the archetypal RESPONSE position a `ScenarioSpec` cannot express (a
+     *  hand-seeded stack item can describe a spell the engine could never have
+     *  cast; §4 forbids exactly that). The cast is realised by `enumerateMoves`
+     *  (`gre/moves.ts` — the production legality gate: it returns ONLY legal
+     *  casts for the seat that holds priority, so mana, timing and legal-target
+     *  checks are the real ones) plus `applyMoveInSearch` (`gre/search.ts` — the
+     *  exact application the search itself replays a cast with). No purchase in
+     *  that pipeline THROWS (`BladeSetupError`); there is no hand-built fallback.
+     *
+     *  `by` is the casting seat (defaults to `me`, the active player who holds
+     *  priority in a freshly built board). `target` pins WHICH legal target the
+     *  cast takes — a seat (`me`/`opp`) for a player target, else a card NAME for
+     *  a permanent/spell target — and `x` pins the {X} value (CR 107.3). The step
+     *  must resolve to EXACTLY ONE legal cast: it throws when the name matches no
+     *  legal cast, when `target`/`x` match none, and — rather than guess — when
+     *  more than one legal cast still matches (narrow it with `target`/`x`). */
+    | {
+          kind: "cast";
+          card: string;
+          by?: BladeSeat;
+          target?: BladeSeat | string;
+          x?: number;
       };
 
 /**
