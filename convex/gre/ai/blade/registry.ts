@@ -576,6 +576,111 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         },
         note: "Charter scenario 4 (evaluation, not choice-node). NOT blocking loses the game by force: 4 x Craw Wurm = 24 unblocked damage into 20 life (CR 510.1c / 704.5a), with no instant, mana or life gain in the position. Any single block leaves 18 and the bot lives at 2, at the cost of the 2/2 — a materially losing block that survival requires. Guards `lethalUnblockedDelta` (issue #1489): before it, the leaf evaluation was identical for both moves and the block-quality tie-break actively preferred dying.",
     },
+    {
+        // DEEP LETHAL-BLOCK charter (issue #1505) — the LEAF companion to
+        // charter scenario 4 above. Scenario 4's block-or-die decision sits at
+        // the ROOT, where the `blockDeltaOf` tie-break (`search.ts`) fires; the
+        // issue measured that removing `lethalUnblockedDelta` from `evaluate.ts`
+        // while leaving `blockDeltaOf` intact keeps scenario 4 green 9/9,
+        // because the root tie-break carries the term independently. This entry
+        // exercises the OTHER seam: the shared leaf `evaluate` call (line ~338),
+        // which is what values lethal-block positions reached DEEPER in the
+        // search (inside rollouts), where `blockDeltaOf` — gated on
+        // `best.move.kind === "declare-blockers"` — never fires.
+        //
+        // THE POSITION. It is the bot's OWN turn (`me` = players[0], the active
+        // player, is the bot). The bot controls one Phantom Monster (3/3 flyer)
+        // and nothing else; the opponent controls four Craw Wurms (6/4) and is
+        // at 20. The bot's ROOT decision is its `declare-attackers`: swing the
+        // flyer, or hold it back. The forbidden move is the GREEDY SWING.
+        //
+        //   * The swing is genuinely TEMPTING, not a wasteful attack (which the
+        //     `isWastefulAttack` tie-break would already reject): the opponent
+        //     has no flyer and no reach, so the 3/3 connects for 3 unanswered
+        //     face damage. Nothing THIS turn punishes it.
+        //   * But it taps the flyer, and the flyer is the bot's ONLY blocker.
+        //     On the opponent's crackback the four Wurms swing for 24 into the
+        //     bot's 20 (lethal, CR 510.1c/704.5a); held back, the flyer chumps
+        //     one Wurm — 18 through, the bot lives at 2 — and the flyer untaps
+        //     only on the bot's next turn, a turn too late. So the swing trades
+        //     3 face now for the game next turn.
+        //
+        // WHY THE LEAF TERM, NOT THE ROOT TIE-BREAK. The root move is a
+        // `declare-attackers`, so the `blockDeltaOf` block-quality tie-break is
+        // structurally inert here. The only thing that can tell the search the
+        // held-back line SURVIVES is the rollout: with the flyer untapped, the
+        // crackback's forced chump-block must be valued as SURVIVAL rather than
+        // as a materially-losing chump. That valuation is `lethalUnblockedDelta`
+        // in the leaf `evaluate` (folded into `policyValue`, so it drives the
+        // rollout default policy's block choice too). Without it the rollout
+        // defender declines the chump — `declaredBlockDelta` alone rates 'die'
+        // above 'lose the creature' (the scenario-4 measurement) — so BOTH the
+        // swing and the hold-back lines end in death and the free 3 face tips
+        // the bot into the swing.
+        //
+        // BITE PROOF (ADR 0070 §1), recorded because a `stretch` entry cannot
+        // assert it live. Mutation: replace the `lethalUnblockedDelta(state,
+        // playerId)` term in `evaluate` (`evaluate.ts`) with `0 *
+        // lethalUnblockedDelta(...)` — the LEAF seam only; `blockDeltaOf`
+        // (`search.ts`) is left calling the function untouched. At 900
+        // iterations the five seeds below flip cleanly: WITH the term the bot
+        // holds back on all five (survives); WITHOUT it the bot swings on all
+        // five (dies). So the leaf term — not the root tie-break, which never
+        // fires on a `declare-attackers` root — is exactly what this position
+        // needs. (Measured on twelve seeds: WITH held 11/12 at 900, WITHOUT
+        // 3/12; they reconverge to 12/12 by ~1000 once the SEARCH TREE, not the
+        // rollout, expands the crackback to the real damage step and reads the
+        // death off the life total directly, which is why the decisive window
+        // is the rollout-reliant 900 and not higher.)
+        //
+        // TIER = STRETCH, cause HORIZON (ADR 0070 §2). At the production
+        // `DEFAULT_BUDGET = { iterations: 400 }` the crackback is beyond the
+        // rollout horizon: the bot swings on every one of these seeds and dies.
+        // The payoff (surviving the crackback) only comes within reach at ~900,
+        // where the rollout reliably reaches the block — so this is a genuine
+        // horizon shortfall, not a priors or hidden-information one. Budget
+        // STAYS at the production 400; `passesAt` records the 900 at which it
+        // greens, per the ADR (raising the declared budget to force it green is
+        // the forbidden move).
+        label: "deep lethal block: does NOT greedily swing its only blocker",
+        spec: {
+            cards: [
+                {
+                    name: "Phantom Monster",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Craw Wurm",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                    count: 4,
+                },
+            ],
+            phase: "DECLARE_ATTACKERS",
+            turn: 3,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        // ADR 0070 §3 — K ≥ 3 seeds. Every one of these swings at 400 (the
+        // `beyondBudget` claim) and holds back at 900 WITH the leaf term / swings
+        // at 900 WITHOUT it (the bite proof above).
+        seeds: [1, 3, 5, 6, 8],
+        tier: "stretch",
+        beyondBudget: {
+            cause: "horizon",
+            passesAt: { iterations: 900 },
+            note: "The crackback that punishes the swing is a full turn away; at the production 400-iteration budget the rollout does not reach it, so the greedy swing and the safe hold-back score alike and the free 3 face wins. The missing knowledge is depth to the payoff, not a term — `lethalUnblockedDelta` already values the pattern correctly; it only fires once the search reaches the block, which the rollout does reliably by ~900.",
+        },
+        expect: {
+            forbidden: [{ kind: "declare-attackers", card: "Phantom Monster" }],
+        },
+        note: "Deep lethal-block charter (issue #1505): the LEAF companion to scenario 4. The bot's own-turn attack decision — swing the 3/3 flyer for a free 3, or hold it as the only blocker against a lethal crackback — is a `declare-attackers` root, so `blockDeltaOf` is inert; only the leaf `lethalUnblockedDelta` (via the rollout block policy) can tell the search the held-back line survives. Bite proof recorded in the block comment: at 900 iterations, WITH the leaf term the bot holds on all five seeds, WITHOUT it (0 * lethalUnblockedDelta in evaluate.ts, blockDeltaOf untouched) it swings on all five. Stretch/horizon because the crackback is beyond the 400 rollout horizon. A live-asserting regression guard for the same bite lives in `__tests__/deep-lethal-block.bot.test.ts`.",
+    },
 ];
 
 /** Entries of one tier, in registry order. */
