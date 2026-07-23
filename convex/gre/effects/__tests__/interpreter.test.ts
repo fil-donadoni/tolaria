@@ -16385,6 +16385,13 @@ describe("Effect Script Op: emblem (CR 114, issue #1221)", () => {
             id: TRIGGERED_ID,
             name: "Test cast-lifegain emblem",
             text: "Whenever you cast a spell, you gain 2 life.",
+            // Art is mandatory on every registered emblem (emblemArt.test.ts's
+            // CR 114 guard). This test emblem persists in the shared
+            // EMBLEM_REGISTRY, and under vitest `isolate: false` it can leak into
+            // the same worker as emblemArt.test.ts — without an imagePrintId it
+            // intermittently reddened that catalogue guard (order-dependent
+            // flake). Give it a real emblem print so a leak is art-complete.
+            imagePrintId: "327ddaaf-b6a7-4c80-9b38-5ab68181b3d6",
             triggeredAbilities: [
                 {
                     id: `${TRIGGERED_ID}-trigger`,
