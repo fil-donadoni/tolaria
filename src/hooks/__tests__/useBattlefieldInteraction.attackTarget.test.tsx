@@ -207,7 +207,12 @@ describe("useBattlefieldInteraction — attack-with-all sequence routing", () =>
         };
     }
 
-    function renderWithSequence(me: Player, opp: Player, s: AttackSequence) {
+    function renderWithSequence(
+        me: Player,
+        opp: Player,
+        s: AttackSequence,
+        combatOverrides: Record<string, unknown> = {}
+    ) {
         const ctx = {
             gameId: "game-id",
             playerId: "me",
@@ -224,6 +229,7 @@ describe("useBattlefieldInteraction — attack-with-all sequence routing", () =>
                 confirmed: false,
                 blockerAssignments: {},
                 blockersConfirmed: false,
+                ...combatOverrides,
             },
         } as unknown as NonNullable<React.ContextType<typeof GameContext>>;
         const wrapper = ({ children }: { children: ReactNode }) => (
@@ -251,6 +257,25 @@ describe("useBattlefieldInteraction — attack-with-all sequence routing", () =>
             cardInstanceId: "atk2",
             planeswalkerId: "pw1",
         });
+        expect(s.advance).toHaveBeenCalledTimes(1);
+    });
+
+    it("does NOT re-toggle an attacker already on that planeswalker (would de-target it)", () => {
+        // The server reads a repeat `planeswalkerId` for an attacker already
+        // attacking that planeswalker as a toggle-OFF back to the defending
+        // player. Confirming the existing target mid-sequence must be a no-op
+        // mutation — but must still advance the cursor.
+        const pw = planeswalker();
+        const me = player("me", []);
+        const opp = player("opp", [pw]);
+        const s = seq({ index: 0, currentAttackerId: "atk1" });
+        const { result } = renderWithSequence(me, opp, s, {
+            attackTargets: { atk1: "pw1" },
+        });
+
+        result.current.handleClick(pw);
+
+        expect(toggleAttacker).not.toHaveBeenCalled();
         expect(s.advance).toHaveBeenCalledTimes(1);
     });
 });

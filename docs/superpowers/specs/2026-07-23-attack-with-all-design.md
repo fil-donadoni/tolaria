@@ -5,12 +5,12 @@
 
 ## Problem
 
-During DECLARE*ATTACKERS the active player must click each creature individually
-to declare it as an attacker. There is no one-click "attack with everything".
-Separately, when the defending player controls planeswalkers, an attacker's
-destination (defending player vs. a specific planeswalker, CR 508.1a / issue
-#1220) is chosen ad-hoc by clicking a planeswalker, which retargets the
-\_most-recently declared* attacker — awkward when many attackers need distinct
+During `DECLARE_ATTACKERS` the active player must click each creature
+individually to declare it as an attacker. There is no one-click "attack with
+everything". Separately, when the defending player controls planeswalkers, an
+attacker's destination (defending player vs. a specific planeswalker, CR 508.1a
+/ issue #1220) is chosen ad-hoc by clicking a planeswalker, which retargets the
+`most-recently declared` attacker — awkward when many attackers need distinct
 destinations.
 
 Goal: add an **"Attack with all"** button that declares every eligible creature,
@@ -49,8 +49,18 @@ reused unchanged.
   controls ≥1 planeswalker.
 - Eligibility is decided server-side by `validateAttackerEligibility`
   (untapped, not summoning-sick unless haste, no "can't attack", must-attack
-  handling, attacker cap). The client must use the same predicate so its
-  "all" set matches what the server would accept — no divergent client list.
+  handling, attacker cap). The client uses ONE shared predicate for both the
+  board's graying and the button's "all" set, so those two can never drift from
+  each other.
+- **The client predicate is a strict SUBSET of the server's**, and deliberately
+  so: `cantAttackThisTurn`, the registry-driven keyword restrictions, Arboria,
+  Island Sanctuary and the attacker cap live in the engine and are not on the
+  wire (this is the pre-existing state of the board's own gray-out gate, not a
+  new gap). The button therefore treats a per-creature server rejection as
+  normal: each toggle is dispatched and tolerated independently, and the
+  sequence walks the attackers that were ACTUALLY declared, never the
+  optimistic client list. Closing the subset gap would mean projecting those
+  fields onto the wire — out of scope here.
 
 ## Design
 
@@ -69,17 +79,22 @@ reused unchanged.
 In `useControllerActions.ts`, inside the `isSelectingAttackers` branch, added
 alongside `confirm-attackers`:
 
-- Compute the eligible-creature set by running `validateAttackerEligibility`
-  over the active player's battlefield (same predicate the server uses).
+- Compute the eligible-creature set with the shared client predicate
+  `eligibleAttackerIds` (`src/lib/attacker-eligibility.ts`) — the subset of
+  `validateAttackerEligibility` expressible on the wire (see Domain facts).
 - **onClick:** declare every eligible creature vs. the defending player —
   `toggleAttacker` for each not-already-selected creature (ignore any partial
-  manual selection = option A, Arena behavior).
+  manual selection = option A, Arena behavior). Each toggle is awaited and its
+  rejection tolerated INDIVIDUALLY, so one server-refused creature neither
+  aborts the run nor leaves the board half-declared with no sequence.
 - Then branch on the defender's planeswalker count:
     - **0 planeswalkers** → call `confirmAttackers` immediately (no destination
       choice is possible).
     - **≥1 planeswalker** → start the sequence: `active=true`,
-      `order = eligible ids`, `index=0`.
-- Disabled when there is no eligible creature.
+      `order = the ids actually declared` (pre-existing declarations plus the
+      toggles the server accepted), `index=0`.
+- Omitted entirely when there is no eligible creature — a permanently dead
+  button is worse UX than no button.
 
 ### 3. Destination sequence (defender has ≥1 planeswalker)
 
@@ -89,7 +104,10 @@ alongside `confirm-attackers`:
   declared that way by the "all" step).
 - Interactions on the current attacker:
     - **Click an opponent planeswalker** → `toggleAttacker({ planeswalkerId })`
-      for `order[index]`, then `index++`.
+      for `order[index]`, then `index++`. Skipped when that attacker is ALREADY
+      on that planeswalker: the server reads a repeat `planeswalkerId` as a
+      toggle-OFF back to the defending player, which would silently undo the
+      choice the click expresses.
     - **Keep on the player and advance** → Space, or a primary "Next" button →
       `index++` with no mutation.
 - The primary controller button during the sequence shows progress, e.g.

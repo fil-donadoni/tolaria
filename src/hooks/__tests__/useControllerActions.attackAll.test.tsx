@@ -14,9 +14,16 @@ import {
 } from "~/hooks/useAttackSequence";
 
 const calls: { ref: string; args: unknown }[] = [];
+// Card instance ids the fake server refuses to declare (stands in for an
+// engine-side restriction the client predicate can't see).
+const rejectedIds = new Set<string>();
 vi.mock("convex/react", () => ({
     useMutation: (ref: string) => (args: unknown) => {
         calls.push({ ref, args });
+        const id = (args as { cardInstanceId?: string })?.cardInstanceId;
+        if (ref === "toggleAttacker" && id && rejectedIds.has(id)) {
+            return Promise.reject(new Error("Creature can't attack"));
+        }
         return Promise.resolve(null);
     },
 }));
@@ -113,7 +120,12 @@ function makeSequence(overrides: Partial<AttackSequence> = {}): AttackSequence {
     };
 }
 
-function renderCtrl(me: Player, opp: Player, seq: AttackSequence) {
+function renderCtrl(
+    me: Player,
+    opp: Player,
+    seq: AttackSequence,
+    combatOverrides: Record<string, unknown> = {}
+) {
     const ctx = {
         gameId: "game-id",
         playerId: "me",
@@ -128,6 +140,7 @@ function renderCtrl(me: Player, opp: Player, seq: AttackSequence) {
             confirmed: false,
             blockerAssignments: {},
             blockersConfirmed: false,
+            ...combatOverrides,
         },
         showAllCards: false,
         debugAllActions: false,
@@ -152,6 +165,7 @@ function findAction(
 describe("useControllerActions — Attack with all (design 2026-07-23)", () => {
     beforeEach(() => {
         calls.length = 0;
+        rejectedIds.clear();
     });
 
     it("shows the button labelled with the eligible count", () => {
@@ -226,8 +240,77 @@ describe("useControllerActions — Attack with all (design 2026-07-23)", () => {
         expect(findAction(result, "cancel-attack-sequence")).toBeDefined();
         expect(findAction(result, "confirm-attackers")).toBeUndefined();
         expect(findAction(result, "attack-with-all")).toBeUndefined();
+        // Pass Turn stays reachable throughout the sequence (design §6).
+        expect(findAction(result, "pass-turn-attackers")).toBeDefined();
 
         act(() => findAction(result, "assign-attack-target-next")!.onClick());
         expect(seq.advance).toHaveBeenCalledTimes(1);
+    });
+
+    it("a server-rejected creature does not abort the run, and is kept out of the sequence order", async () => {
+        // The client predicate is a subset of the server's, so a creature it
+        // admits can still be refused. The rest must still be declared and the
+        // sequence must walk only what was ACTUALLY declared.
+        rejectedIds.add("b");
+        const me = player("me", [
+            creature({ id: "a" }),
+            creature({ id: "b" }),
+            creature({ id: "c" }),
+        ]);
+        const opp = player("opp", [planeswalker()]);
+        const seq = makeSequence();
+        const { result } = renderCtrl(me, opp, seq);
+
+        await act(async () => {
+            await findAction(result, "attack-with-all")!.onClick();
+        });
+
+        // All three were attempted — the rejection did not short-circuit "c".
+        expect(
+            calls
+                .filter((c) => c.ref === "toggleAttacker")
+                .map(
+                    (c) => (c.args as { cardInstanceId: string }).cardInstanceId
+                )
+        ).toEqual(["a", "b", "c"]);
+        expect(seq.begin).toHaveBeenCalledWith(["a", "c"]);
+    });
+
+    it("the sequence order includes attackers declared manually beforehand", async () => {
+        const me = player("me", [creature({ id: "a" }), creature({ id: "b" })]);
+        const opp = player("opp", [planeswalker()]);
+        const seq = makeSequence();
+        const { result } = renderCtrl(me, opp, seq, {
+            attackerIds: ["a"],
+        });
+
+        await act(async () => {
+            await findAction(result, "attack-with-all")!.onClick();
+        });
+
+        // "a" was already declared, so only "b" is toggled — but both walk.
+        expect(
+            calls
+                .filter((c) => c.ref === "toggleAttacker")
+                .map(
+                    (c) => (c.args as { cardInstanceId: string }).cardInstanceId
+                )
+        ).toEqual(["b"]);
+        expect(seq.begin).toHaveBeenCalledWith(["a", "b"]);
+    });
+
+    it("with every creature rejected, neither confirms nor opens a sequence", async () => {
+        rejectedIds.add("a");
+        const me = player("me", [creature({ id: "a" })]);
+        const opp = player("opp", []);
+        const seq = makeSequence();
+        const { result } = renderCtrl(me, opp, seq);
+
+        await act(async () => {
+            await findAction(result, "attack-with-all")!.onClick();
+        });
+
+        expect(calls.some((c) => c.ref === "confirmAttackers")).toBe(false);
+        expect(seq.begin).not.toHaveBeenCalled();
     });
 });

@@ -468,14 +468,23 @@ export function useBattlefieldInteraction(player: Player) {
                       .reverse()
                       .find((id) => targets[id] !== card.id);
             if (!attackerId) return;
-            guardMutation(
-                toggleAttacker({
-                    gameId,
-                    playerId,
-                    cardInstanceId: attackerId,
-                    planeswalkerId: card.id,
-                })
-            );
+            // The server treats a repeat `planeswalkerId` for an attacker
+            // ALREADY on that planeswalker as a toggle-OFF (target reverts to
+            // the defending player). Mid-sequence that would silently undo the
+            // very choice the click expresses — reachable when the attacker was
+            // manually pointed at this planeswalker before "Attack with all".
+            // Confirming the existing target is a no-op mutation, then advance.
+            const alreadyOnThisPw = targets[attackerId] === card.id;
+            if (!alreadyOnThisPw) {
+                guardMutation(
+                    toggleAttacker({
+                        gameId,
+                        playerId,
+                        cardInstanceId: attackerId,
+                        planeswalkerId: card.id,
+                    })
+                );
+            }
             if (attackSequence.active) attackSequence.advance();
             return;
         }

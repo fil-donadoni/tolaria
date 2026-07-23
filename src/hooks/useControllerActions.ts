@@ -127,16 +127,18 @@ export function useControllerActions(): ControllerState {
 
     // "Attack with all" (design 2026-07-23). The declaring player is always
     // this viewer while `isSelectingAttackers` (they hold priority as the
-    // active player); the opponent is the sole other seat.
+    // active player); the opponent is the sole other seat. Named for the seat
+    // it is read from — it is the VIEWER's player, which merely coincides with
+    // `activePlayerId` in this branch.
     const attackSequence = useAttackSequence();
-    const activePlayer = allPlayers.find((p) => p.id === playerId);
+    const viewerPlayer = allPlayers.find((p) => p.id === playerId);
     const opponent = allPlayers.find((p) => p.id !== playerId);
     const eligibleIds = useMemo(
         () =>
-            isSelectingAttackers && activePlayer && opponent
-                ? eligibleAttackerIds(activePlayer, opponent, allPlayers)
+            isSelectingAttackers && viewerPlayer && opponent
+                ? eligibleAttackerIds(viewerPlayer, opponent, allPlayers)
                 : [],
-        [isSelectingAttackers, activePlayer, opponent, allPlayers]
+        [isSelectingAttackers, viewerPlayer, opponent, allPlayers]
     );
     const defenderHasPlaneswalker =
         opponent?.battlefield.some((c) => isPlaneswalker(c)) ?? false;
@@ -148,22 +150,36 @@ export function useControllerActions(): ControllerState {
         if (isBusy || eligibleIds.length === 0) return;
         setIsBusy(true);
         try {
-            const already = new Set(combat?.attackerIds ?? []);
+            // The client eligibility predicate is a SUBSET of the server's
+            // `validateAttackerEligibility` (it can't see engine-side
+            // restrictions like Arboria / Island Sanctuary / the attacker cap),
+            // so an individual toggle may still be rejected. Tolerate each
+            // rejection on its own rather than aborting the whole run, and
+            // track what actually got declared — the sequence must walk the
+            // REAL attackers, never the optimistic client list.
+            const declared = [...(combat?.attackerIds ?? [])];
             for (const id of eligibleIds) {
-                if (already.has(id)) continue;
-                await toggleAttacker({
-                    gameId,
-                    playerId,
-                    cardInstanceId: id,
-                });
+                if (declared.includes(id)) continue;
+                try {
+                    await toggleAttacker({
+                        gameId,
+                        playerId,
+                        cardInstanceId: id,
+                    });
+                    declared.push(id);
+                } catch {
+                    // Server refused this creature (restriction the client
+                    // can't see, or the attacker cap). Skip it, keep going.
+                }
             }
+            if (declared.length === 0) return;
             if (!defenderHasPlaneswalker) {
                 await confirmAttackers({ gameId, playerId });
             } else {
-                attackSequence.begin(eligibleIds);
+                attackSequence.begin(declared);
             }
         } catch {
-            // Benign race (priority moved, cap rejected a surplus toggle).
+            // Benign race: priority moved between click and dispatch.
             // Ignore — not actionable.
         } finally {
             setIsBusy(false);
@@ -416,6 +432,15 @@ export function useControllerActions(): ControllerState {
             tone: "destructive",
             disabled: isBusy,
             onClick: () => attackSequence.reset(),
+        });
+        // Pass Turn stays available throughout the sequence (design §6): the
+        // server auto-confirms the current declaration on the way out.
+        actions.push({
+            key: "pass-turn-attackers",
+            label: "Pass Turn",
+            tone: "destructive",
+            disabled: isBusy,
+            onClick: handleEndTurn,
         });
     } else if (isSelectingAttackers) {
         actions.push({
