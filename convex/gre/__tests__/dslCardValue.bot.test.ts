@@ -59,9 +59,11 @@ describe("cardValue DSL precedence (PRD #1423, issue #1426)", () => {
         };
 
         it("a DSL-derived value wins over aiValue (issue #1431 precedence: effects[]/aiEffects > aiValue)", () => {
+            // A DSL value under the #1508 latent-script clamp (300) passes
+            // through untouched and still beats the aiValue scalar.
             expect(
-                latentValue({ ...base, aiValue: 7, dslSpellValue: 500 })
-            ).toBe(500);
+                latentValue({ ...base, aiValue: 7, dslSpellValue: 250 })
+            ).toBe(250);
         });
 
         it("DSL-derived value beats the base+MV fallback when higher", () => {
@@ -81,6 +83,52 @@ describe("cardValue DSL precedence (PRD #1423, issue #1426)", () => {
 
         it("no DSL script and no aiValue → the base+MV fallback (unchanged behavior)", () => {
             expect(latentValue(base)).toBe(38);
+        });
+
+        // Issue #1508 — a latent (in-hand) script value is clamped so no single
+        // card can saturate the material signal. The `winGame` valuer returns
+        // 100 000 and context-free grounding always assumes the `then` branch,
+        // so a conditional alternate-win card (Coalition Victory) would report a
+        // latent hand value of 100 000; unclamped, that pins the reward band
+        // (MATERIAL_FULL = 500, `search.ts`) at its edge for any leaf while the
+        // card sits in a hand, blinding the search to material.
+        describe("latent-script clamp (issue #1508 — saturation impossible)", () => {
+            const MATERIAL_FULL = 500; // mirror of `search.ts` band constant
+
+            it("clamps an alternate-win-condition latent value far below the material band", () => {
+                // A winGame-style script grounds to ~100 000 context-free.
+                const clamped = latentValue({
+                    ...base,
+                    dslSpellValue: 100_000,
+                });
+                // The clamped worth must leave enough headroom below the band
+                // edge that a creature dying (a ~170-200 pt swing) still moves
+                // the reward — i.e. a single hand card cannot saturate it.
+                expect(clamped).toBeLessThan(MATERIAL_FULL);
+                expect(clamped).toBeLessThanOrEqual(300);
+            });
+
+            it("is exactly zero-impact for an ordinary hand (values below the clamp unchanged)", () => {
+                // Ashes to Ashes tops out around 460 context-free? No — ordinary
+                // scripts sit well under the cap; a 200-pt script is untouched.
+                expect(latentValue({ ...base, dslSpellValue: 200 })).toBe(200);
+                // And the floored small-script case is unchanged too.
+                expect(latentValue({ ...base, dslSpellValue: 5 })).toBe(38);
+            });
+
+            it("even the most valuable known card in hand still leaves the reward responsive to a creature dying", () => {
+                // The clamped hand value must leave more headroom below the band
+                // edge than a realistic creature-death swing, so that material
+                // swing still moves the reward rather than being swamped.
+                const handCard = latentValue({
+                    ...base,
+                    dslSpellValue: 100_000,
+                });
+                const creatureSwing = 170; // a modest creature dying
+                expect(MATERIAL_FULL - handCard).toBeGreaterThanOrEqual(
+                    creatureSwing
+                );
+            });
         });
 
         it("a creature adds its ability-script value on top of its body", () => {
