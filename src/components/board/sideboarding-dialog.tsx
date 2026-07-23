@@ -219,7 +219,12 @@ export default function SideboardingDialog({
                     Swap cards between your Maindeck and Sideboard. Your
                     Maindeck must stay at {lockedSize}+ cards.
                 </p>
-                <div className="flex gap-4">
+                {/* FIXED row height (QA): the hovered-card preview used to size
+                    the dialog, so a long-oracle card grew the panel, moved the
+                    row out from under the pointer, dropped the hover and shrank
+                    it back — a flicker loop. The row is now a stable, taller box
+                    (capped to the viewport) and every column scrolls INSIDE it. */}
+                <div className="flex h-[min(30rem,60vh)] gap-4">
                     <SideboardSwapList
                         title="Maindeck"
                         cards={split.cards}
@@ -233,13 +238,13 @@ export default function SideboardingDialog({
                     {/* Middle preview column (phase 2, winner B): the computed
                         art + live oracle of the hovered card. Hidden on small
                         screens. */}
-                    <div className="hidden w-56 shrink-0 sm:block">
+                    <div className="hidden h-full w-56 shrink-0 overflow-y-auto sm:block">
                         {hoveredBody ? (
                             <div className="card-preview-dock overflow-hidden rounded-2xl bg-surface">
                                 <CardPreviewBody {...hoveredBody} size="sm" />
                             </div>
                         ) : (
-                            <div className="flex h-48 items-center justify-center rounded-md border border-dashed border-border-subtle/50 px-3 text-center text-[10px] text-text-disabled">
+                            <div className="flex h-full items-center justify-center rounded-md border border-dashed border-border-subtle/50 px-3 text-center text-[10px] text-text-disabled">
                                 Hover a card to preview it
                             </div>
                         )}

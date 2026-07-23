@@ -1,34 +1,36 @@
-// Standalone floating box for the Bot's last DecisionTrace.
+// Box for the Bot's last DecisionTrace, mounted in the left `DevPanelRail`.
 //
-// Split out of the Debug panel on purpose: the Debug panel closes on any
-// click-outside, which dismisses the trace the moment you interact with the
-// board. This box has its OWN collapse toggle and no outside-click listener, so
-// it stays put while you play and watch the bot decide. Mounted only in DEV
-// vs-AI games (see game.route). Reads the client-only trace store via the inner
-// `AiDecisionTrace`.
+// Kept a SEPARATE box from the Debug panel on purpose: the Debug panel closes on
+// any click-outside, which would dismiss the trace the moment you interact with
+// the board. This box has its OWN collapse toggle and no outside-click listener,
+// so it stays put while you play and watch the bot decide. It does NOT position
+// itself — the rail owns the anchoring, which is what keeps the two overlays
+// from overlapping. Mounted only in DEV vs-AI games (see game.route). Reads the
+// client-only trace store via the inner `AiDecisionTrace`.
 
 import { useState } from "react";
+import { Panel } from "~/components/ui/panel";
 import AiDecisionTrace from "./ai-decision-trace";
 
 export default function AiDecisionTraceBox() {
     const [open, setOpen] = useState(true);
 
     return (
-        <div className="fixed top-1/2 left-3 z-100 -translate-y-1/2 font-mono text-xs">
-            <div className="rounded-lg border border-white/10 bg-black/90 shadow-2xl backdrop-blur">
-                <button
-                    onClick={() => setOpen((v) => !v)}
-                    className="flex w-full items-center justify-between gap-6 px-3 py-2 text-white/70 hover:text-white"
-                >
-                    <span className="font-semibold">AI trace</span>
-                    <span className="text-white/40">{open ? "▾" : "▸"}</span>
-                </button>
-                {open && (
-                    <div className="max-h-[70vh] overflow-y-auto border-t border-white/10 px-3 py-2">
-                        <AiDecisionTrace />
-                    </div>
-                )}
-            </div>
-        </div>
+        <Panel density="compact" className="w-72 shrink-0 px-3 py-2">
+            {/* Toggle kept as the original compact dev affordance — the big
+                    Beleren `PanelHeader` band is deliberately NOT used here. */}
+            <button
+                onClick={() => setOpen((v) => !v)}
+                className="flex w-full items-center justify-between gap-6 text-text-muted hover:text-parchment"
+            >
+                <span className="font-semibold">AI trace</span>
+                <span className="text-text-disabled">{open ? "▾" : "▸"}</span>
+            </button>
+            {open && (
+                <div className="mt-2 max-h-[40vh] overflow-y-auto border-t border-border-accent/20 pt-2">
+                    <AiDecisionTrace />
+                </div>
+            )}
+        </Panel>
     );
 }

@@ -68,7 +68,10 @@ export default function SideboardSwapList({
                     {emptyMessage}
                 </div>
             ) : (
-                <ul className="flex flex-col gap-1 overflow-y-auto max-h-[24rem] pr-1">
+                // `min-h-0 flex-1` (not a max-height): the parent row owns the
+                // height, so the list scrolls inside a box that never changes
+                // size as the neighbouring preview grows.
+                <ul className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto pr-1">
                     {rows.map((row) => {
                         const imageId = resolveCardImageId(row.cardId);
                         return (

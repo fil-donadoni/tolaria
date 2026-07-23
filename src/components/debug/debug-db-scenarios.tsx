@@ -122,11 +122,9 @@ export default function DebugDbScenarios({
     return (
         <div className="flex flex-col gap-1">
             <div className="flex items-center justify-between gap-2">
-                <span className="text-white/40 text-[10px] uppercase tracking-wide">
-                    Load scenario
-                </span>
+                <span className="text-label">Load scenario</span>
                 {total > 0 && (
-                    <span className="text-white/30 text-[10px] tabular-nums">
+                    <span className="text-[10px] text-text-disabled tabular-nums">
                         {filter.trim() ? `${rows.length} / ${total}` : total}
                     </span>
                 )}
@@ -136,12 +134,12 @@ export default function DebugDbScenarios({
                 value={filter}
                 onChange={(e) => setFilter(e.target.value)}
                 placeholder="Search scenarios…"
-                className="w-full px-2 py-1 rounded bg-black/40 border border-white/20 text-white text-xs placeholder:text-white/30 outline-none focus:border-white/40"
+                className="input-field w-full px-2 py-1 text-xs"
                 autoFocus
             />
             <div className="max-h-40 overflow-y-auto flex flex-col gap-1">
                 {rows.length === 0 ? (
-                    <span className="text-white/30 text-[10px]">
+                    <span className="text-[10px] text-text-disabled">
                         {scenarios === undefined
                             ? "Loading…"
                             : "No saved scenarios"}
@@ -176,8 +174,8 @@ export default function DebugDbScenarios({
             )}
 
             {varyingRow && (
-                <div className="flex flex-col gap-1 mt-1 pt-2 border-t border-white/10">
-                    <span className="text-white/40 text-[10px] uppercase tracking-wide">
+                <div className="flex flex-col gap-1 mt-1 pt-2 border-t border-border-accent/20">
+                    <span className="text-label">
                         {`Vary: ${varyingRow.label}`}
                     </span>
                     <input
@@ -185,7 +183,7 @@ export default function DebugDbScenarios({
                         value={tweak}
                         onChange={(e) => setTweak(e.target.value)}
                         placeholder="Tweak, e.g. add a second Mountain to opp"
-                        className="w-full px-2 py-1 rounded bg-black/40 border border-white/20 text-white text-xs placeholder:text-white/30 outline-none focus:border-white/40"
+                        className="input-field w-full px-2 py-1 text-xs"
                     />
                     <div className="flex gap-1">
                         <DebugButton
@@ -222,7 +220,9 @@ export default function DebugDbScenarios({
                 />
             )}
 
-            {error && <span className="text-red-400 text-[10px]">{error}</span>}
+            {error && (
+                <span className="text-[10px] text-danger-strong">{error}</span>
+            )}
         </div>
     );
 }

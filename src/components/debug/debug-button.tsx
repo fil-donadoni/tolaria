@@ -1,3 +1,12 @@
+import { Button } from "~/components/ui/button";
+
+/**
+ * Debug-panel button: a thin adapter over the shared `Button` (ADR 0007 — one
+ * button system, forged-plate tones from the semantic palette). Keeps the
+ * two-tone `default` / `danger` API the debug call sites already use, mapping
+ * them onto the design-system `secondary` / `destructive` tones at the compact
+ * `xs` size the dev overlays need.
+ */
 export default function DebugButton({
     onClick,
     children,
@@ -9,20 +18,15 @@ export default function DebugButton({
     variant?: "default" | "danger";
     disabled?: boolean;
 }) {
-    const base =
-        "rounded px-2 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40";
-    const styles =
-        variant === "danger"
-            ? "bg-red-900/50 text-red-300 hover:bg-red-900/80"
-            : "bg-white/10 text-white/70 hover:bg-white/20 hover:text-white";
-
     return (
-        <button
+        <Button
+            variant={variant === "danger" ? "destructive" : "secondary"}
+            size="xs"
             onClick={onClick}
             disabled={disabled}
-            className={`${base} ${styles}`}
+            className="font-sans tracking-normal"
         >
             {children}
-        </button>
+        </Button>
     );
 }

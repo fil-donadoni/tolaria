@@ -73,10 +73,12 @@ export default function GameOverDialog({
     // Interstitial: an undecided Bo3 between Games. The player continues into the
     // Sideboarding step; the screen shows the running score, no "Back to Lobby".
     const interstitial = match?.status === "sideboarding";
-    // When Match meta isn't available (still loading, or a legacy game without
-    // a Match), fall back to the single-game terminal so the user is never
-    // stranded without a "Back to Lobby".
-    const showLeave = matchOver || match === null;
+    // "Back to Lobby" is ALWAYS available (QA): the game is over, so leaving is
+    // legal in every state — a decided Match, a Bo3 between Games, and equally
+    // the states this used to miss (Match meta still loading, or a status that
+    // is neither `finished` nor `sideboarding`), where the screen offered no
+    // action at all and stranded the player. On the Bo3 interstitial it is the
+    // secondary action under "Continue to Sideboarding".
     const matchWinner = match?.players.find((p) => p.id === match.winner);
     const scoreLine = match
         ? match.players.map((p) => `${p.name}: ${p.score}`).join("  ·  ")
@@ -134,16 +136,14 @@ export default function GameOverDialog({
                         Continue to Sideboarding
                     </Button>
                 )}
-                {showLeave && (
-                    <Button
-                        type="button"
-                        variant="primary"
-                        onClick={handleLeave}
-                        className="mt-3 w-full"
-                    >
-                        Back to Lobby
-                    </Button>
-                )}
+                <Button
+                    type="button"
+                    variant={interstitial ? "secondary" : "primary"}
+                    onClick={handleLeave}
+                    className="mt-3 w-full"
+                >
+                    Back to Lobby
+                </Button>
             </div>
         </GameDialog>
     );

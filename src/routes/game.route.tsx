@@ -7,6 +7,7 @@ import Board from "~/components/board/board";
 import PregameDialog from "~/components/board/pregame-dialog";
 import DebugPanel from "~/components/debug/debug-panel";
 import AiDecisionTraceBox from "~/components/debug/ai-decision-trace-box";
+import DevPanelRail from "~/components/debug/dev-panel-rail";
 import LoadingScreen from "~/components/ui/loading-screen";
 import WaitingForOpponent from "~/components/board/waiting-for-opponent";
 import { usePageVisible } from "~/hooks/usePageVisible";
@@ -80,20 +81,24 @@ export default function GameRoute() {
                     debugAllActions={debugAllActions}
                     onSwitchGame={handleSwitchGame}
                 />
+                {/* One left rail for every DEV overlay — it owns the anchoring
+                    so the panels stack instead of overlapping. */}
                 {import.meta.env.DEV && (
-                    <DebugPanel
-                        gameId={gameId}
-                        showAllCards={showAllCards}
-                        onToggleShowAllCards={() => setShowAllCards((v) => !v)}
-                        debugAllActions={debugAllActions}
-                        onToggleDebugAllActions={() =>
-                            setDebugAllActions((v) => !v)
-                        }
-                        onSwitchGame={handleSwitchGame}
-                    />
-                )}
-                {import.meta.env.DEV && game.vsAi === true && (
-                    <AiDecisionTraceBox />
+                    <DevPanelRail>
+                        {game.vsAi === true && <AiDecisionTraceBox />}
+                        <DebugPanel
+                            gameId={gameId}
+                            showAllCards={showAllCards}
+                            onToggleShowAllCards={() =>
+                                setShowAllCards((v) => !v)
+                            }
+                            debugAllActions={debugAllActions}
+                            onToggleDebugAllActions={() =>
+                                setDebugAllActions((v) => !v)
+                            }
+                            onSwitchGame={handleSwitchGame}
+                        />
+                    </DevPanelRail>
                 )}
             </div>
         );

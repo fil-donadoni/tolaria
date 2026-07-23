@@ -55,15 +55,15 @@ export default function DebugCardNameField({
                 onFocus={() => setFocused(true)}
                 // Delay blur so a suggestion click registers before the list unmounts.
                 onBlur={() => setTimeout(() => setFocused(false), 120)}
-                className="w-full px-2 py-1 rounded bg-black/40 border border-white/20 text-white text-xs placeholder:text-white/30 outline-none focus:border-white/40"
+                className="input-field w-full px-2 py-1 text-xs"
             />
             {showList && (
-                <ul className="absolute left-0 right-0 top-full z-10 mt-0.5 max-h-40 overflow-y-auto rounded border border-white/20 bg-black/95 shadow-xl">
+                <ul className="absolute top-full right-0 left-0 z-10 mt-0.5 max-h-40 overflow-y-auto rounded-sm border border-border-strong bg-surface shadow-xl">
                     {suggestions.map((name) => (
                         <li key={name}>
                             <button
                                 type="button"
-                                className="w-full text-left px-2 py-1 text-xs text-white/80 hover:bg-white/10"
+                                className="w-full px-2 py-1 text-left text-xs text-text hover:bg-accent-soft/40 hover:text-parchment"
                                 onMouseDown={(e) => {
                                     // onMouseDown (not onClick) so it fires before blur.
                                     e.preventDefault();

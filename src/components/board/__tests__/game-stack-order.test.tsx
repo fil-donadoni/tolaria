@@ -38,7 +38,9 @@ function makeStackItem(id: string): StackItem {
 
 function renderStack(
     stack: StackItem[],
-    allPlayers: React.ContextType<typeof GameContext>["allPlayers"] = []
+    allPlayers: NonNullable<
+        React.ContextType<typeof GameContext>
+    >["allPlayers"] = []
 ) {
     const value = {
         gameId: "game-id" as never,
@@ -182,16 +184,14 @@ describe("GameStack targets are arrows, not text chips (QA)", () => {
     });
 });
 
-describe("GameStack play-area anchor", () => {
-    it("anchors to the right edge of the play area (left of the reserved strip)", () => {
-        // Play-area layout rule: the floating stack panel anchors its right
-        // edge to `--right-piles-w` (the reserved right strip) rather than the
-        // viewport, so it sits just BEFORE the piles/preview column. Portrait ⇒
-        // var resolves to 0px ⇒ flush to the edge.
+describe("GameStack viewport anchor (QA)", () => {
+    it("anchors to the viewport right edge so it clears centered dialogs", () => {
+        // It used to anchor to the play area's right edge
+        // (`--right-piles-w`), which pushed the 384px panel far enough left to
+        // overlap every play-area-centered dialog (card placement, pickers).
         const { container } = renderStack([makeStackItem("only")]);
         const panel = container.firstElementChild as HTMLElement;
-        expect(panel.style.right).toBe("var(--right-piles-w)");
-        // No hard-coded viewport right inset remains.
-        expect(panel.className).not.toContain("right-4");
+        expect(panel.style.right).toBe("0.5rem");
+        expect(panel.style.right).not.toContain("--right-piles-w");
     });
 });

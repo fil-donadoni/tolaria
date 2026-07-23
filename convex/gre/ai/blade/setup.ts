@@ -252,7 +252,10 @@ function applyActivate(
  *  (`me`/`opp`), otherwise every instance of the named card in the built state.
  *  Mirrors the matcher's `targetCandidateIds`, and reuses `instanceIdsForName`
  *  so an unresolvable card name throws loudly rather than matching nothing. */
-function castTargetIds(state: GameState, target: BladeSeat | string): Set<string> {
+function castTargetIds(
+    state: GameState,
+    target: BladeSeat | string
+): Set<string> {
     if (target === "me" || target === "opp") {
         return new Set([seatPlayerId(state, target)]);
     }
@@ -296,7 +299,11 @@ function applyCast(
     const casterId = seatPlayerId(state, seat);
     const caster = state.players.find((p) => p.id === casterId);
     if (!caster) {
-        throw new BladeSetupError(label, step, `no "${seat}" seat in the state.`);
+        throw new BladeSetupError(
+            label,
+            step,
+            `no "${seat}" seat in the state.`
+        );
     }
     const def = getCardByName(step.card); // throws on an unknown name
 
@@ -304,13 +311,15 @@ function applyCast(
     const legal = enumerateMoves(state, casterId);
     const isCast = (m: Move): m is Extract<Move, { kind: "cast-spell" }> =>
         m.kind === "cast-spell";
-    let candidates = legal.filter(isCast).filter((m) =>
-        caster.hand.some(
-            (c) =>
-                c.id === m.cardInstanceId &&
-                (c.card as { id?: string } | undefined)?.id === def.id
-        )
-    );
+    let candidates = legal
+        .filter(isCast)
+        .filter((m) =>
+            caster.hand.some(
+                (c) =>
+                    c.id === m.cardInstanceId &&
+                    (c.card as { id?: string } | undefined)?.id === def.id
+            )
+        );
     if (candidates.length === 0) {
         throw new BladeSetupError(
             label,

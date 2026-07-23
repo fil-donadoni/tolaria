@@ -41,18 +41,16 @@ const LEGEND: { group: string; items: [string, string][] }[] = [
 
 export default function AiTraceLegend() {
     return (
-        <div className="mb-1 rounded border border-white/10 bg-white/[0.02] px-2 py-1.5 text-[10px] leading-snug">
+        <div className="mb-1 rounded-sm border border-border-subtle bg-surface-elevated/30 px-2 py-1.5 text-[10px] leading-snug">
             {LEGEND.map(({ group, items }) => (
                 <div key={group} className="mb-1 last:mb-0">
-                    <div className="text-white/40 uppercase tracking-wide">
-                        {group}
-                    </div>
+                    <div className="text-label">{group}</div>
                     {items.map(([sym, meaning]) => (
                         <div key={sym} className="flex gap-1.5">
-                            <span className="w-6 shrink-0 text-right font-semibold text-white/70 tabular-nums">
+                            <span className="w-6 shrink-0 text-right font-semibold text-text tabular-nums">
                                 {sym}
                             </span>
-                            <span className="text-white/50">{meaning}</span>
+                            <span className="text-text-muted">{meaning}</span>
                         </div>
                     ))}
                 </div>

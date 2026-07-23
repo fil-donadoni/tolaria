@@ -145,10 +145,13 @@ export default function StackRow({
         resolveCardImageId(item.card.id);
 
     return (
-        <motion.div
-            layoutId={item.id}
+        // The shared-layout flight identity lives on the CARD TILE below, not on
+        // this row. A row is a wide text block; matching a 5:7 hand card to it
+        // made the FLIP interpolate between two different aspect ratios and the
+        // card art visibly SQUASHED across the flight. The tile keeps the card's
+        // own proportions, so the flight is a pure translate + uniform scale.
+        <div
             data-flight-id={item.id}
-            transition={reduceMotion ? { duration: 0 } : SLOT_SPRING.motion}
             className="relative shrink-0 transition-opacity duration-150"
             style={{ opacity: dimmed ? 0.3 : 1 }}
         >
@@ -196,11 +199,21 @@ export default function StackRow({
                             </span>
                         </span>
                     ) : (
-                        <ColorOverlayCardImage
-                            card={item}
-                            showCopyBadge={item.isCopy}
-                            sizes="96px"
-                        />
+                        <motion.span
+                            layoutId={item.id}
+                            transition={
+                                reduceMotion
+                                    ? { duration: 0 }
+                                    : SLOT_SPRING.motion
+                            }
+                            className="block"
+                        >
+                            <ColorOverlayCardImage
+                                card={item}
+                                showCopyBadge={item.isCopy}
+                                sizes="96px"
+                            />
+                        </motion.span>
                     )}
                     <span className="absolute -top-1 -left-1 flex h-4 w-4 items-center justify-center rounded-full bg-accent font-beleren text-[10px] font-bold text-primary-foreground">
                         {order}
@@ -257,6 +270,6 @@ export default function StackRow({
                 </span>
             </button>
             <ArrivalGlow show={arrived} />
-        </motion.div>
+        </div>
     );
 }

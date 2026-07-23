@@ -6,6 +6,7 @@ import { GameContext } from "~/hooks/useGameContext";
 import { SLOT_SPRING } from "~/lib/board-motion";
 import GameDialog from "~/components/ui/game-dialog";
 import ArrivalGlow from "./arrival-glow";
+import CardTilt3D from "./card-tilt-3d";
 import CardBack from "../cards/card-back";
 import CardImage from "../cards/card-image";
 import { COUNTER_TONE_CLASS, getCounterDisplays } from "~/lib/counters";
@@ -237,16 +238,25 @@ function FanLayout({
                         isFaceDown,
                         faceUpIds
                     );
-                    const inner = faceDown ? (
-                        <CardBack />
-                    ) : (
-                        // Fan dialog cards render up to 13rem (208px) wide
-                        // (--pile-card-w) — a mid/large slot, no `thumb`.
-                        <CardImage
-                            card={cardInstance}
-                            sizes="208px"
-                            includeThumb={false}
-                        />
+                    // Same hover language as a hand / battlefield card (QA): the
+                    // 3D tilt + glare wraps every pile card too, so graveyard,
+                    // exile and every dialog pile react identically to the
+                    // pointer instead of sitting inert.
+                    const inner = (
+                        <CardTilt3D>
+                            {faceDown ? (
+                                <CardBack />
+                            ) : (
+                                // Fan dialog cards render up to 13rem (208px)
+                                // wide (--pile-card-w) — a mid/large slot, no
+                                // `thumb`.
+                                <CardImage
+                                    card={cardInstance}
+                                    sizes="208px"
+                                    includeThumb={false}
+                                />
+                            )}
+                        </CardTilt3D>
                     );
                     const isEligible = isEligibleCard(
                         cardInstance.id,
@@ -329,12 +339,22 @@ function GridCard({
     captionFor?: (card: CardInstance) => string | null;
 }) {
     const faceDown = isCardFaceDown(cardInstance, isFaceDown, faceUpIds);
-    const inner = faceDown ? (
-        <CardBack />
-    ) : (
-        // Grid dialog cards render w-24 sm:w-28 (96–112px) — a mid slot, no
-        // `thumb`; hint at the upper bound.
-        <CardImage card={cardInstance} sizes="112px" includeThumb={false} />
+    // Tilt + glare on hover, exactly like a board card (QA — uniform card
+    // interaction across zones and dialogs).
+    const inner = (
+        <CardTilt3D>
+            {faceDown ? (
+                <CardBack />
+            ) : (
+                // Grid dialog cards render w-24 sm:w-28 (96–112px) — a mid
+                // slot, no `thumb`; hint at the upper bound.
+                <CardImage
+                    card={cardInstance}
+                    sizes="112px"
+                    includeThumb={false}
+                />
+            )}
+        </CardTilt3D>
     );
     const isEligible = isEligibleCard(cardInstance.id, eligibleIds);
     const clickable = !faceDown && !!onCardClick && isEligible;
@@ -344,26 +364,28 @@ function GridCard({
     const caption = faceDown ? null : captionFor?.(cardInstance);
     return (
         <div className="flex w-24 sm:w-28 shrink-0 flex-col gap-1">
-        <div className="relative w-full aspect-5/7">
-            {clickable ? (
-                <button
-                    type="button"
-                    onClick={() => {
-                        onCardClick(cardInstance);
-                        onClose();
-                    }}
-                    className={`w-full h-full bg-transparent border-0 p-0 cursor-pointer rounded ${selectionRing(isSelected)}`}
-                >
-                    {inner}
-                </button>
-            ) : isIneligible ? (
-                <div className="w-full h-full rounded opacity-40">{inner}</div>
-            ) : (
-                inner
-            )}
-            <PileCounterChips card={cardInstance} />
-            {action}
-        </div>
+            <div className="relative w-full aspect-5/7">
+                {clickable ? (
+                    <button
+                        type="button"
+                        onClick={() => {
+                            onCardClick(cardInstance);
+                            onClose();
+                        }}
+                        className={`w-full h-full bg-transparent border-0 p-0 cursor-pointer rounded ${selectionRing(isSelected)}`}
+                    >
+                        {inner}
+                    </button>
+                ) : isIneligible ? (
+                    <div className="w-full h-full rounded opacity-40">
+                        {inner}
+                    </div>
+                ) : (
+                    inner
+                )}
+                <PileCounterChips card={cardInstance} />
+                {action}
+            </div>
             {caption && (
                 <span className="text-center text-[10px] leading-tight text-text-muted">
                     {caption}
@@ -604,16 +626,16 @@ export default function CardsPile({
         // gameProjections) into a `<div onClick={play}>`, so the single pile click
         // both PLAYS the card and opens the dialog. Per-card actions belong in the
         // dialog only, surfaced via `renderCardAction` (Exile → ExileCastButton).
-        const image = isCardFaceDown(
-            cardInstance,
-            isFaceDown,
-            stackFaceUpIds
-        ) ? (
-            <CardBack />
-        ) : (
-            // Collapsed pile slot is --card-w-sm (≤96px) — a small slot:
-            // keep `thumb`, hint at the upper bound.
-            <CardImage card={cardInstance} sizes="96px" />
+        const image = (
+            <CardTilt3D>
+                {isCardFaceDown(cardInstance, isFaceDown, stackFaceUpIds) ? (
+                    <CardBack />
+                ) : (
+                    // Collapsed pile slot is --card-w-sm (≤96px) — a small
+                    // slot: keep `thumb`, hint at the upper bound.
+                    <CardImage card={cardInstance} sizes="96px" />
+                )}
+            </CardTilt3D>
         );
 
         return (

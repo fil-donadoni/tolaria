@@ -31,7 +31,18 @@ function findCardWrapper(
     id: string
 ): HTMLElement | null {
     const marker = container.querySelector(`[data-testid="card-image-${id}"]`);
-    return (marker?.parentElement as HTMLElement | null) ?? null;
+    // Pile cards are wrapped in CardTilt3D (the same hover tilt/glare board
+    // cards use), so walk past its two layers to the INTERACTION wrapper —
+    // the clickable <button>, the dimmed ineligible <div>, or the slot.
+    let el = (marker?.parentElement as HTMLElement | null) ?? null;
+    while (
+        el &&
+        (el.hasAttribute("data-card-tilt") ||
+            el.hasAttribute("data-card-tilt-root"))
+    ) {
+        el = el.parentElement;
+    }
+    return el;
 }
 
 function makeCard(id: string): CardInstance {

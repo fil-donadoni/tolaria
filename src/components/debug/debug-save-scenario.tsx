@@ -23,8 +23,9 @@ export type EditingScenario = {
     spec: unknown;
 };
 
-const inputClass =
-    "px-2 py-1 rounded bg-black/40 border border-white/20 text-white text-xs placeholder:text-white/30 outline-none focus:border-white/40";
+/** Design-system input at the compact size the debug forms use (`.input-field`
+ *  carries the token colours/focus ring; the utilities only shrink it). */
+const inputClass = "input-field px-2 py-1 text-xs";
 
 const PHASES = [
     "",
@@ -143,7 +144,7 @@ export default function DebugSaveScenario({
 
     return (
         <div className="flex flex-col gap-1.5">
-            <span className="text-white/40 text-[10px] uppercase tracking-wide">
+            <span className="text-label">
                 {editing ? `Edit: ${editing.label}` : "Save scenario"}
             </span>
             <input
@@ -167,7 +168,7 @@ export default function DebugSaveScenario({
                 <button
                     type="button"
                     onClick={addCard}
-                    className="self-start text-white/50 hover:text-white/80 text-[10px] underline"
+                    className="self-start text-[10px] text-text-muted underline hover:text-parchment"
                 >
                     + card
                 </button>
@@ -175,7 +176,7 @@ export default function DebugSaveScenario({
 
             {/* Spec-level knobs */}
             <div className="flex flex-wrap items-center gap-2">
-                <label className="flex items-center gap-1 text-white/50">
+                <label className="flex items-center gap-1 text-text-muted">
                     lands
                     <input
                         type="number"
@@ -185,7 +186,7 @@ export default function DebugSaveScenario({
                         className={`${inputClass} w-14`}
                     />
                 </label>
-                <label className="flex items-center gap-1 text-white/50">
+                <label className="flex items-center gap-1 text-text-muted">
                     library
                     <input
                         type="number"
@@ -195,7 +196,7 @@ export default function DebugSaveScenario({
                         className={`${inputClass} w-14`}
                     />
                 </label>
-                <label className="flex items-center gap-1 text-white/50">
+                <label className="flex items-center gap-1 text-text-muted">
                     turn
                     <input
                         type="number"
@@ -205,7 +206,7 @@ export default function DebugSaveScenario({
                         className={`${inputClass} w-14`}
                     />
                 </label>
-                <label className="flex items-center gap-1 text-white/50">
+                <label className="flex items-center gap-1 text-text-muted">
                     phase
                     <select
                         value={phase}
@@ -224,17 +225,19 @@ export default function DebugSaveScenario({
             <button
                 type="button"
                 onClick={() => setShowJson((v) => !v)}
-                className="self-start text-white/40 hover:text-white/70 text-[10px] underline"
+                className="self-start text-[10px] text-text-disabled underline hover:text-parchment"
             >
                 {showJson ? "hide JSON" : "show JSON"}
             </button>
             {showJson && (
-                <pre className="max-h-40 overflow-auto rounded bg-black/40 border border-white/10 p-1.5 text-[10px] text-white/60">
+                <pre className="max-h-40 overflow-auto rounded-sm border border-border-subtle bg-surface-base/60 p-1.5 font-mono text-[10px] text-text-muted">
                     {JSON.stringify(spec, null, 2)}
                 </pre>
             )}
 
-            {error && <span className="text-red-400 text-[10px]">{error}</span>}
+            {error && (
+                <span className="text-[10px] text-danger-strong">{error}</span>
+            )}
             <div className="flex gap-1">
                 <DebugButton
                     onClick={() => void handleSave()}

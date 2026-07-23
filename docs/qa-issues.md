@@ -13,7 +13,6 @@ Laelia
 Troll of Kazad-dum
 Bitter Triumph
 Pyrogoyf
-Skullclamp
 Nadu
 Lightning Greaves
 Springheart Nantuko
@@ -31,7 +30,8 @@ Fable of the mirror-breaker
 ## Carte rotte
 
 - Starting town non viene considerata come produttrice di mana colorato ai fini di castabilità
-- Erode permette di prendere terre non base con tipo di terra base, ma deve farti prendere SOLO terre base. verifica anche path to exile.
+- Erode permette di prendere terre non base con tipo di terra base, ma deve farti prendere SOLO terre base. anche path to exile.
+- Il bot non so come puo' cercare di attivare cycling di un trioma già sul battlefield. Non deve essere un'opzione valida, per il giocatore reale non lo è tramite UI ma perché il bot la vede come possiblità?
 
 ## UX da migliorare
 

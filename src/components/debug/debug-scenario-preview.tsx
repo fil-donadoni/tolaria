@@ -68,12 +68,10 @@ export default function DebugScenarioPreview({
     };
 
     return (
-        <div className="flex flex-col gap-1 mt-1 pt-2 border-t border-white/10">
-            <span className="text-white/40 text-[10px] uppercase tracking-wide">
-                Preview &amp; edit
-            </span>
+        <div className="flex flex-col gap-1 mt-1 pt-2 border-t border-border-accent/20">
+            <span className="text-label">Preview &amp; edit</span>
             {unresolved.length > 0 && (
-                <span className="text-red-400 text-[10px]">
+                <span className="text-[10px] text-danger-strong">
                     {`Unknown card(s): ${unresolved.join(", ")} — fix before saving`}
                 </span>
             )}
@@ -82,13 +80,13 @@ export default function DebugScenarioPreview({
                 value={label}
                 onChange={(e) => setLabel(e.target.value)}
                 placeholder="Label…"
-                className="w-full px-2 py-1 rounded bg-black/40 border border-white/20 text-white text-xs placeholder:text-white/30 outline-none focus:border-white/40"
+                className="input-field w-full px-2 py-1 text-xs"
             />
             <textarea
                 value={previewText}
                 onChange={(e) => setPreviewText(e.target.value)}
                 rows={8}
-                className="w-full px-2 py-1 rounded bg-black/40 border border-white/20 text-white text-xs placeholder:text-white/30 outline-none focus:border-white/40 font-mono"
+                className="input-field w-full px-2 py-1 font-mono text-xs"
             />
             <div className="flex gap-1">
                 <DebugButton
@@ -101,7 +99,9 @@ export default function DebugScenarioPreview({
                     Discard
                 </DebugButton>
             </div>
-            {error && <span className="text-red-400 text-[10px]">{error}</span>}
+            {error && (
+                <span className="text-[10px] text-danger-strong">{error}</span>
+            )}
         </div>
     );
 }

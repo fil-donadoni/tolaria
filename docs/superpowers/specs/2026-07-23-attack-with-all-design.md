@@ -5,12 +5,12 @@
 
 ## Problem
 
-During DECLARE_ATTACKERS the active player must click each creature individually
+During DECLARE*ATTACKERS the active player must click each creature individually
 to declare it as an attacker. There is no one-click "attack with everything".
 Separately, when the defending player controls planeswalkers, an attacker's
 destination (defending player vs. a specific planeswalker, CR 508.1a / issue
 #1220) is chosen ad-hoc by clicking a planeswalker, which retargets the
-*most-recently declared* attacker — awkward when many attackers need distinct
+\_most-recently declared* attacker — awkward when many attackers need distinct
 destinations.
 
 Goal: add an **"Attack with all"** button that declares every eligible creature,
@@ -75,10 +75,10 @@ alongside `confirm-attackers`:
   `toggleAttacker` for each not-already-selected creature (ignore any partial
   manual selection = option A, Arena behavior).
 - Then branch on the defender's planeswalker count:
-  - **0 planeswalkers** → call `confirmAttackers` immediately (no destination
-    choice is possible).
-  - **≥1 planeswalker** → start the sequence: `active=true`,
-    `order = eligible ids`, `index=0`.
+    - **0 planeswalkers** → call `confirmAttackers` immediately (no destination
+      choice is possible).
+    - **≥1 planeswalker** → start the sequence: `active=true`,
+      `order = eligible ids`, `index=0`.
 - Disabled when there is no eligible creature.
 
 ### 3. Destination sequence (defender has ≥1 planeswalker)
@@ -88,10 +88,10 @@ alongside `confirm-attackers`:
 - Default destination is the defending player (the attacker was already
   declared that way by the "all" step).
 - Interactions on the current attacker:
-  - **Click an opponent planeswalker** → `toggleAttacker({ planeswalkerId })`
-    for `order[index]`, then `index++`.
-  - **Keep on the player and advance** → Space, or a primary "Next" button →
-    `index++` with no mutation.
+    - **Click an opponent planeswalker** → `toggleAttacker({ planeswalkerId })`
+      for `order[index]`, then `index++`.
+    - **Keep on the player and advance** → Space, or a primary "Next" button →
+      `index++` with no mutation.
 - The primary controller button during the sequence shows progress, e.g.
   `Assign target (2/4)`, and drives "Next". `Confirm Attackers` is disabled
   while `active` is true.

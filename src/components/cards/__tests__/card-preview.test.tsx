@@ -274,6 +274,53 @@ describe("CardPreview — Arena click model (#332)", () => {
         expect(anchored()).toBeNull();
     });
 
+    it("keeps the dock open while the pointer is on the panel, and the panel takes clicks (QA)", () => {
+        // The dock panel used to be `pointer-events-none`, so its Live text /
+        // Printed card toggle was unreachable on desktop — and leaving the card
+        // closed the dock before the pointer could get there. The panel now
+        // takes pointer events and holds itself open while hovered.
+        const { container } = renderOnBoard();
+        const root = container.firstElementChild as HTMLElement;
+
+        hoverEnter(root);
+        dwellPast();
+        const panel = document.querySelector(
+            "[data-card-preview-dock] .card-preview-dock"
+        ) as HTMLElement;
+        expect(panel).toBeTruthy();
+        expect(panel.className).toContain("pointer-events-auto");
+
+        // Pointer travels card → panel: the close grace is cancelled.
+        hoverLeave(root);
+        act(() => {
+            fireEvent.pointerEnter(panel, { pointerType: "mouse" });
+        });
+        gracePast();
+        expect(dock()).toBeTruthy();
+
+        // Leaving the panel finally closes it.
+        act(() => {
+            fireEvent.pointerLeave(panel, { pointerType: "mouse" });
+        });
+        gracePast();
+        expect(dock()).toBeNull();
+    });
+
+    it("a click inside the pinned preview does not dismiss it (QA)", () => {
+        const { container } = renderOnBoard();
+        const root = container.firstElementChild as HTMLElement;
+        rightPress(root);
+        release();
+        const panel = anchored() as HTMLElement;
+        expect(panel).toBeTruthy();
+        expect(panel.className).toContain("pointer-events-auto");
+
+        act(() => {
+            fireEvent.pointerDown(panel, { button: 0 });
+        });
+        expect(anchored()).toBeTruthy();
+    });
+
     it("the printed-card toggle swaps the live-text face for the printed full card (phase 2)", () => {
         const { container } = renderOnBoard();
         const root = container.firstElementChild as HTMLElement;

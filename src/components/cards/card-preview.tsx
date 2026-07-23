@@ -101,6 +101,14 @@ export default function CardPreview({
     useEffect(() => {
         if (!showAnchored) return;
         const onPointerDown = (e: PointerEvent) => {
+            // Clicks INSIDE the pinned panel (the Live text / Printed card
+            // toggle) must not dismiss it — the panel is portal'd to body, so
+            // it is never a DOM descendant of the card.
+            if (
+                e.target instanceof Element &&
+                e.target.closest("[data-card-preview-anchored]")
+            )
+                return;
             const el = containerRef.current;
             // The board flattens this card's subtree (CardTilt3D `preserve-3d`
             // + `overflow-hidden`), so an INSIDE right-click hit-tests to the
@@ -185,6 +193,20 @@ export default function CardPreview({
         };
     }, [onRightPress]);
 
+    // Close grace shared by the card's own pointerleave and the dock's (hovering
+    // the dock keeps it open so its controls are usable).
+    const scheduleHoverClose = useCallback(() => {
+        window.clearTimeout(graceRef.current);
+        graceRef.current = window.setTimeout(() => {
+            hoverOpenRef.current = false;
+            setShowHoverDock(false);
+            releasePreview(closeRef.current);
+        }, HOVER_GRACE_MS);
+    }, []);
+    const cancelHoverClose = useCallback(() => {
+        window.clearTimeout(graceRef.current);
+    }, []);
+
     // Desktop hover-intent (board only — the dock lives in the right column).
     // Dwell 250ms → open the dock through the singleton (closing any other
     // card's surface); leave → close after a small grace. Touch pointers are
@@ -211,11 +233,7 @@ export default function CardPreview({
         const onLeave = () => {
             window.clearTimeout(dwellRef.current);
             if (!hoverOpenRef.current) return;
-            graceRef.current = window.setTimeout(() => {
-                hoverOpenRef.current = false;
-                setShowHoverDock(false);
-                releasePreview(closeRef.current);
-            }, HOVER_GRACE_MS);
+            scheduleHoverClose();
         };
         cardEl.addEventListener("pointerenter", onEnter);
         cardEl.addEventListener("pointerleave", onLeave);
@@ -225,7 +243,7 @@ export default function CardPreview({
             window.clearTimeout(dwellRef.current);
             window.clearTimeout(graceRef.current);
         };
-    }, [gameCtx]);
+    }, [gameCtx, scheduleHoverClose]);
 
     const dismissOverlay = useCallback(() => {
         longPress.dismiss();
@@ -299,6 +317,8 @@ export default function CardPreview({
                     size="md"
                     imageLoaded={imageSrc ? imgLoaded : true}
                     onImageLoaded={() => setImgLoaded(true)}
+                    onPointerEnter={cancelHoverClose}
+                    onPointerLeave={scheduleHoverClose}
                 />
             )}
             {/* Desktop quick-click preview: anchored beside the card, board and

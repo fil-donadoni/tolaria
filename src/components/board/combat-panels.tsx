@@ -65,9 +65,17 @@ export default function CombatPanels({ player }: { player: Player }) {
     return (
         <>
             {isSelectingAttackers && (
-                /* One dock for the whole declare-attackers step (QA info box
-                   + banding panel) so the two never overlap. */
-                <div className="absolute top-12 left-1/2 z-modal flex w-max max-w-[90%] -translate-x-1/2 flex-col items-center gap-2">
+                /* One dock for the whole declare-attackers step (QA info box +
+                   banding panel) so the two never overlap. Parked TOP-RIGHT of
+                   the play area (`fixed`, clearing the reserved right strip):
+                   centered over the battlefield it covered the very creatures
+                   the step asks you to click. */
+                <div
+                    className="fixed top-2 z-modal flex w-max max-w-[38vw] flex-col items-end gap-2"
+                    style={{
+                        right: "calc(var(--right-piles-w, 0px) + 0.5rem)",
+                    }}
+                >
                     <AttackDirectionBanner
                         planeswalkerPresent={defenderHasPlaneswalker}
                     />

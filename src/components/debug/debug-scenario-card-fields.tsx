@@ -4,8 +4,9 @@ import DebugCardNameField from "./debug-card-name-field";
 
 const ZONES = ["battlefield", "hand", "library", "graveyard", "exile"] as const;
 
-const inputClass =
-    "px-2 py-1 rounded bg-black/40 border border-white/20 text-white text-xs placeholder:text-white/30 outline-none focus:border-white/40";
+/** Design-system input at the compact size the debug forms use (`.input-field`
+ *  carries the token colours/focus ring; the utilities only shrink it). */
+const inputClass = "input-field px-2 py-1 text-xs";
 
 /** One card row in the scenario save form's repeater. Fields are laid out in
  *  descending order of use-probability: name + owner always visible, then the
@@ -40,10 +41,10 @@ export default function DebugScenarioCardFields({
         onPatch({ counters: draft.counters.filter((_, j) => j !== i) });
 
     return (
-        <div className="flex flex-col gap-1 rounded border border-white/10 bg-white/5 p-1.5">
+        <div className="flex flex-col gap-1 rounded-sm border border-border-subtle bg-surface-elevated/30 p-1.5">
             {/* Primary: name + owner + remove */}
             <div className="flex items-center gap-1">
-                <span className="text-white/30 text-[10px] w-4 shrink-0">
+                <span className="w-4 shrink-0 text-[10px] text-text-disabled">
                     {index + 1}
                 </span>
                 <DebugCardNameField
@@ -66,7 +67,7 @@ export default function DebugScenarioCardFields({
                     type="button"
                     onClick={onRemove}
                     aria-label={`Remove card ${index + 1}`}
-                    className="px-1.5 py-1 rounded text-red-400/80 hover:text-red-300 hover:bg-white/10 text-xs"
+                    className="rounded-sm px-1.5 py-1 text-xs text-danger-strong/80 hover:bg-danger-soft/40 hover:text-danger-strong"
                 >
                     ✕
                 </button>
@@ -88,7 +89,7 @@ export default function DebugScenarioCardFields({
                         </option>
                     ))}
                 </select>
-                <label className="flex items-center gap-1 text-white/50">
+                <label className="flex items-center gap-1 text-text-muted">
                     count
                     <input
                         type="number"
@@ -98,7 +99,7 @@ export default function DebugScenarioCardFields({
                         className={`${inputClass} w-14`}
                     />
                 </label>
-                <label className="flex items-center gap-1 text-white/50">
+                <label className="flex items-center gap-1 text-text-muted">
                     <input
                         type="checkbox"
                         checked={draft.tapped}
@@ -106,7 +107,7 @@ export default function DebugScenarioCardFields({
                     />
                     tapped
                 </label>
-                <label className="flex items-center gap-1 text-white/50">
+                <label className="flex items-center gap-1 text-text-muted">
                     <input
                         type="checkbox"
                         checked={draft.summoningSick}
@@ -119,7 +120,7 @@ export default function DebugScenarioCardFields({
                 <button
                     type="button"
                     onClick={() => setShowMore((v) => !v)}
-                    className="text-white/40 hover:text-white/70 text-[10px] underline"
+                    className="text-[10px] text-text-disabled underline hover:text-parchment"
                 >
                     {showMore ? "less" : "more…"}
                 </button>
@@ -127,12 +128,10 @@ export default function DebugScenarioCardFields({
 
             {/* Rarer fields */}
             {showMore && (
-                <div className="flex flex-col gap-1.5 pl-5 pt-1 border-t border-white/10">
+                <div className="flex flex-col gap-1.5 pl-5 pt-1 border-t border-border-accent/20">
                     {/* Counters */}
                     <div className="flex flex-col gap-1">
-                        <span className="text-white/40 text-[10px] uppercase tracking-wide">
-                            Counters
-                        </span>
+                        <span className="text-label">Counters</span>
                         {draft.counters.map((c, i) => (
                             <div key={i} className="flex items-center gap-1">
                                 <input
@@ -159,7 +158,7 @@ export default function DebugScenarioCardFields({
                                 <button
                                     type="button"
                                     onClick={() => removeCounter(i)}
-                                    className="px-1.5 py-1 text-red-400/80 hover:text-red-300 text-xs"
+                                    className="px-1.5 py-1 text-xs text-danger-strong/80 hover:text-danger-strong"
                                 >
                                     ✕
                                 </button>
@@ -168,14 +167,14 @@ export default function DebugScenarioCardFields({
                         <button
                             type="button"
                             onClick={addCounter}
-                            className="self-start text-white/40 hover:text-white/70 text-[10px] underline"
+                            className="self-start text-[10px] text-text-disabled underline hover:text-parchment"
                         >
                             + counter
                         </button>
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2">
-                        <label className="flex items-center gap-1 text-white/50">
+                        <label className="flex items-center gap-1 text-text-muted">
                             dmg
                             <input
                                 type="number"
@@ -186,7 +185,7 @@ export default function DebugScenarioCardFields({
                                 className={`${inputClass} w-14`}
                             />
                         </label>
-                        <label className="flex items-center gap-1 text-white/50">
+                        <label className="flex items-center gap-1 text-text-muted">
                             pos
                             <input
                                 type="number"
@@ -199,7 +198,7 @@ export default function DebugScenarioCardFields({
                         </label>
                     </div>
 
-                    <label className="flex items-center gap-1 text-white/50">
+                    <label className="flex items-center gap-1 text-text-muted">
                         attach→
                         <DebugCardNameField
                             value={draft.attachedTo}
@@ -208,7 +207,7 @@ export default function DebugScenarioCardFields({
                             ariaLabel={`Card ${index + 1} attached to`}
                         />
                     </label>
-                    <label className="flex items-center gap-1 text-white/50">
+                    <label className="flex items-center gap-1 text-text-muted">
                         copyOf
                         <DebugCardNameField
                             value={draft.copyOf}
@@ -219,7 +218,7 @@ export default function DebugScenarioCardFields({
                     </label>
 
                     <div className="flex flex-wrap items-center gap-2">
-                        <label className="flex items-center gap-1 text-white/50">
+                        <label className="flex items-center gap-1 text-text-muted">
                             <input
                                 type="checkbox"
                                 checked={draft.faceDown}
@@ -229,7 +228,7 @@ export default function DebugScenarioCardFields({
                             />
                             faceDown
                         </label>
-                        <label className="flex items-center gap-1 text-white/50">
+                        <label className="flex items-center gap-1 text-text-muted">
                             <input
                                 type="checkbox"
                                 checked={draft.faceDownExile}
@@ -239,7 +238,7 @@ export default function DebugScenarioCardFields({
                             />
                             fdExile
                         </label>
-                        <label className="flex items-center gap-1 text-white/50">
+                        <label className="flex items-center gap-1 text-text-muted">
                             <input
                                 type="checkbox"
                                 checked={draft.castableFromExile}
@@ -251,7 +250,7 @@ export default function DebugScenarioCardFields({
                             />
                             castExile
                         </label>
-                        <label className="flex items-center gap-1 text-white/50">
+                        <label className="flex items-center gap-1 text-text-muted">
                             <input
                                 type="checkbox"
                                 checked={draft.attackedLastTurn}

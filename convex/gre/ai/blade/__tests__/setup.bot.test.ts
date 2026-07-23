@@ -432,7 +432,12 @@ describe("blade setup — `cast` runs the real cast pipeline (ADR 0070 §4)", ()
         applyBladeSetup(state, {
             label: "t",
             setup: [
-                { kind: "cast", card: "Lightning Bolt", by: "me", target: "opp" },
+                {
+                    kind: "cast",
+                    card: "Lightning Bolt",
+                    by: "me",
+                    target: "opp",
+                },
             ],
         });
 
@@ -476,7 +481,12 @@ describe("blade setup — `cast` runs the real cast pipeline (ADR 0070 §4)", ()
     it("THROWS when `x` matches no legal cast", () => {
         const state = build({
             cards: [
-                { name: "Mountain", owner: "me", zone: "battlefield", count: 3 },
+                {
+                    name: "Mountain",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 3,
+                },
                 { name: "Disintegrate", owner: "me", zone: "hand" },
             ],
             phase: "PRECOMBAT_MAIN",
@@ -501,7 +511,12 @@ describe("blade setup — `cast` runs the real cast pipeline (ADR 0070 §4)", ()
     it("THROWS on an ambiguous cast rather than guessing (many X / targets match)", () => {
         const state = build({
             cards: [
-                { name: "Mountain", owner: "me", zone: "battlefield", count: 3 },
+                {
+                    name: "Mountain",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 3,
+                },
                 { name: "Disintegrate", owner: "me", zone: "hand" },
             ],
             phase: "PRECOMBAT_MAIN",

@@ -40,7 +40,13 @@ export default function TitleTreatment({
                 aria-hidden
                 className="pointer-events-none absolute inset-0 grid place-items-center"
             >
-                <span className="runic-ring h-44 w-44 rounded-full opacity-40 sm:h-52 sm:w-52" />
+                {/* Sized from the block's own height (never a fixed 176/208px
+                    square): an oversized absolute child still contributes to
+                    the ancestor's scrollable overflow, so inside a scrolling
+                    dialog body the ring pushed the box over the edge — and its
+                    rotation made the sub-pixel bounding box wobble, so the
+                    scrollbars blinked in and out (QA, game-over screen). */}
+                <span className="runic-ring aspect-square h-full max-h-52 rounded-full opacity-40" />
             </span>
 
             <h1 className="title-treatment-glow relative font-beleren text-4xl font-bold tracking-[0.06em] sm:text-5xl">

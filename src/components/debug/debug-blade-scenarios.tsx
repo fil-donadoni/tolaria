@@ -52,14 +52,17 @@ export default function DebugBladeScenarios({
 
     return (
         <div className="flex flex-col gap-1">
-            <span className="text-white/40 text-[10px] uppercase tracking-wide">
-                Blade scenarios (read-only)
-            </span>
+            {/* "load-only", not "read-only": clicking a row APPLIES that
+                registry position to the current game — the registry itself is
+                the source of truth and isn't editable from here. */}
+            <span className="text-label">Blade scenarios (click to load)</span>
             <div className="max-h-40 overflow-y-auto flex flex-col gap-1">
                 {scenarios === undefined ? (
-                    <span className="text-white/30 text-[10px]">Loading…</span>
+                    <span className="text-[10px] text-text-disabled">
+                        Loading…
+                    </span>
                 ) : scenarios.length === 0 ? (
-                    <span className="text-white/30 text-[10px]">
+                    <span className="text-[10px] text-text-disabled">
                         No blade scenarios registered
                     </span>
                 ) : (
@@ -68,8 +71,8 @@ export default function DebugBladeScenarios({
                             <span
                                 className={
                                     s.tier === "must"
-                                        ? "text-red-300 text-[10px] uppercase w-12 shrink-0"
-                                        : "text-white/30 text-[10px] uppercase w-12 shrink-0"
+                                        ? "w-12 shrink-0 text-[10px] uppercase text-danger-strong"
+                                        : "w-12 shrink-0 text-[10px] uppercase text-text-disabled"
                                 }
                                 title={
                                     s.tier === "must"
@@ -91,7 +94,9 @@ export default function DebugBladeScenarios({
                     ))
                 )}
             </div>
-            {error && <span className="text-red-400 text-[10px]">{error}</span>}
+            {error && (
+                <span className="text-[10px] text-danger-strong">{error}</span>
+            )}
         </div>
     );
 }

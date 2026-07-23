@@ -57,9 +57,7 @@ export default function DebugGenerateScenario() {
 
     return (
         <div className="flex flex-col gap-1">
-            <span className="text-white/40 text-[10px] uppercase tracking-wide">
-                Generate from description
-            </span>
+            <span className="text-label">Generate from description</span>
             <textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
@@ -72,7 +70,7 @@ export default function DebugGenerateScenario() {
                 }}
                 placeholder="e.g. Mishra's Factory with the lands to animate it; opponent holds Shatter and has 2 Mountains"
                 rows={2}
-                className="w-full px-2 py-1 rounded bg-black/40 border border-white/20 text-white text-xs placeholder:text-white/30 outline-none focus:border-white/40"
+                className="input-field w-full px-2 py-1 text-xs"
             />
             <DebugButton
                 onClick={() => void handleGenerate()}
@@ -95,7 +93,9 @@ export default function DebugGenerateScenario() {
                 />
             )}
 
-            {error && <span className="text-red-400 text-[10px]">{error}</span>}
+            {error && (
+                <span className="text-[10px] text-danger-strong">{error}</span>
+            )}
         </div>
     );
 }

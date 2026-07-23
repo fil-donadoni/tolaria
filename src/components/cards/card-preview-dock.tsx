@@ -28,11 +28,26 @@ import CardPreviewBody, {
 // inside it rather than overflowing onto the pod. The pod is right-anchored in
 // both orientations, so a single bottom reservation clears it in portrait and
 // landscape alike.
-// Phase 2: the dock grows from 256px to the 420px class (spec: 400–480px).
-const DOCK_WIDTH = 420;
+// Desktop dock width (QA): 360px. It was 420px, which ate a wide slice of the
+// board on a laptop screen without adding readability — the face art scales with
+// the panel, so a smaller dock still renders the full oracle text.
+const DOCK_WIDTH = 360;
 const VIEWPORT_PAD = 8;
 
-export default function CardPreviewDock(props: CardPreviewBodyProps) {
+type CardPreviewDockProps = CardPreviewBodyProps & {
+    /** Pointer entered the dock itself — the hover-intent owner cancels its
+     *  close grace so the panel's own controls (the Live text / Printed card
+     *  toggle) can actually be clicked. */
+    onPointerEnter?: () => void;
+    /** Pointer left the dock — resume the close grace. */
+    onPointerLeave?: () => void;
+};
+
+export default function CardPreviewDock({
+    onPointerEnter,
+    onPointerLeave,
+    ...props
+}: CardPreviewDockProps) {
     // A copy permanent shows two faces (Current + Original) — double the width.
     const width = props.originalBody ? DOCK_WIDTH * 2 : DOCK_WIDTH;
     return createPortal(
@@ -44,9 +59,15 @@ export default function CardPreviewDock(props: CardPreviewBodyProps) {
                 bottom: "var(--preview-bottom-safe)",
             }}
         >
+            {/* The PANEL takes pointer events (the outer band stays
+                transparent): without this the "Printed card" toggle inside the
+                body was unclickable, so the printed scan was unreachable on
+                desktop. Hovering the panel holds it open (see handlers). */}
             <div
-                className="card-preview-dock pointer-events-none flex max-h-full flex-col overflow-hidden rounded-2xl bg-surface"
+                className="card-preview-dock pointer-events-auto flex max-h-full flex-col overflow-hidden rounded-2xl bg-surface"
                 style={{ width }}
+                onPointerEnter={onPointerEnter}
+                onPointerLeave={onPointerLeave}
             >
                 <CardPreviewBody {...props} />
             </div>

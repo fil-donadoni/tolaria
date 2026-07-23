@@ -11,9 +11,9 @@ import CardPreviewBody, {
 // placement before the #332 dock. The position is clamped to the viewport and
 // measured post-mount because the panel's height varies with oracle-text
 // length. Asserted by tests via the `data-card-preview-anchored` marker.
-// Phase 2: the pinned beside-card surface grows from 256px to 384px (the
-// right-column dock is 420px).
-const DOCK_WIDTH = 384;
+// Desktop width (QA): 330px, trimmed from 384px alongside the right-column dock
+// (360px) — the preview was taking more of the screen than it needed.
+const DOCK_WIDTH = 330;
 const GAP = 8;
 const VIEWPORT_PAD = 8;
 
@@ -94,7 +94,10 @@ export default function CardPreviewAnchored({
         <div
             ref={measureRef}
             data-card-preview-anchored
-            className="pointer-events-none fixed z-modal flex flex-col rounded-2xl shadow-2xl bg-surface overflow-hidden"
+            // Interactive: the pinned preview hosts the Live text / Printed
+            // card toggle, so it must receive clicks. `CardPreview`'s
+            // outside-pointerdown dismiss treats this panel as "inside".
+            className="pointer-events-auto fixed z-modal flex flex-col rounded-2xl shadow-2xl bg-surface overflow-hidden"
             style={{
                 top: position.top,
                 left: position.left,

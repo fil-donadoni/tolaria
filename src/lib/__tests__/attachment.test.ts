@@ -74,6 +74,8 @@ describe("attachment host labelling (CR 303.4 Aura / CR 301.5 Equipment)", () =>
     it("says nothing for an unattached permanent or a vanished host", () => {
         const players = [player("me", [bear])];
         expect(attachmentLabel(bear, players)).toBeNull();
-        expect(attachmentLabel(card("orphan", "def-leak", "gone"), players)).toBeNull();
+        expect(
+            attachmentLabel(card("orphan", "def-leak", "gone"), players)
+        ).toBeNull();
     });
 });

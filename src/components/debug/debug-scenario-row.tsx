@@ -33,7 +33,9 @@ export default function DebugScenarioRow({
         <div className="flex items-center gap-1">
             <DebugButton onClick={onToggleGolden} disabled={disabled}>
                 <span
-                    className={row.golden ? "text-amber-300" : "text-white/40"}
+                    className={
+                        row.golden ? "text-accent-strong" : "text-text-disabled"
+                    }
                 >
                     {row.golden ? "★" : "☆"}
                 </span>

@@ -7,30 +7,35 @@ import { useCurrentUser } from "~/hooks/useCurrentUser";
 import { usePageVisible } from "~/hooks/usePageVisible";
 import { storeSession } from "~/lib/session";
 import { copyMinified } from "~/lib/clipboard";
+import { Panel } from "~/components/ui/panel";
 import DebugButton from "./debug-button";
 import DebugBladeScenarios from "./debug-blade-scenarios";
 import DebugDbScenarios from "./debug-db-scenarios";
 import DebugGenerateScenario from "./debug-generate-scenario";
 import DebugSaveScenario, { type EditingScenario } from "./debug-save-scenario";
 
+/** JSON tree palette, mapped onto the Antique Bronze semantic tokens (ADR 0007)
+ *  so the state dump reads as part of the design system instead of the stock
+ *  Monokai scheme. `react-json-tree` needs literal colours, so the token values
+ *  are inlined here — keep in sync with `@theme` in `src/index.css`. */
 const theme = {
     scheme: "tolaria",
     base00: "transparent",
-    base01: "#383830",
-    base02: "#49483e",
-    base03: "#75715e",
-    base04: "#a59f85",
-    base05: "#f8f8f2",
-    base06: "#f5f4f1",
-    base07: "#f9f8f5",
-    base08: "#f92672",
-    base09: "#fd971f",
-    base0A: "#f4bf75",
-    base0B: "#a6e22e",
-    base0C: "#a1efe4",
-    base0D: "#66d9ef",
-    base0E: "#ae81ff",
-    base0F: "#cc6633",
+    base01: "#241d12" /* surface-elevated */,
+    base02: "#2e2516" /* border-subtle */,
+    base03: "#968a68" /* text-disabled */,
+    base04: "#b7a984" /* text-muted */,
+    base05: "#e9e0cb" /* text */,
+    base06: "#f3ead2" /* parchment */,
+    base07: "#f3ead2" /* parchment */,
+    base08: "#b1473a" /* danger */,
+    base09: "#ecc878" /* accent-strong */,
+    base0A: "#c9a24b" /* accent */,
+    base0B: "#6fa05a" /* success */,
+    base0C: "#9cc6d4" /* secondary-accent-strong */,
+    base0D: "#5f97a8" /* secondary-accent */,
+    base0E: "#a78bfa" /* signal-target */,
+    base0F: "#c9a24b" /* accent */,
 };
 
 type DebugPanelProps = {
@@ -62,12 +67,17 @@ export default function DebugPanel({
     useEffect(() => {
         if (!isOpen) return;
         const handlePointerDown = (event: PointerEvent) => {
+            const target = event.target as Node;
+            if (!panelRef.current || panelRef.current.contains(target)) return;
+            // The whole DEV rail counts as "inside": the AI-trace box sits in
+            // the same rail, and clicking it must not dismiss this panel.
             if (
-                panelRef.current &&
-                !panelRef.current.contains(event.target as Node)
+                target instanceof Element &&
+                target.closest("[data-dev-rail]") !== null
             ) {
-                setIsOpen(false);
+                return;
             }
+            setIsOpen(false);
         };
         document.addEventListener("pointerdown", handlePointerDown);
         return () =>
@@ -166,22 +176,28 @@ export default function DebugPanel({
     };
 
     return (
-        <div
-            ref={panelRef}
-            className="fixed bottom-4 left-3 z-100 font-mono text-xs"
-        >
-            <div className="flex max-h-[calc(100vh-2rem)] flex-col overflow-y-auto rounded-lg border border-white/10 bg-black/90 shadow-2xl backdrop-blur">
+        // Positioning is owned by the enclosing `DevPanelRail` — this panel only
+        // sizes itself, so it can never grow over the AI-trace box.
+        <div ref={panelRef} className="min-h-0 shrink-0 text-xs">
+            <Panel
+                density="compact"
+                className="flex flex-col overflow-y-auto px-3 py-2"
+            >
+                {/* Toggle kept as the original compact dev affordance — the big
+                    Beleren `PanelHeader` band is deliberately NOT used here. */}
                 <button
                     onClick={() => setIsOpen(!isOpen)}
-                    className="flex w-full items-center justify-between px-3 py-2 text-white/70 hover:text-white"
+                    className="flex w-full items-center justify-between text-text-muted hover:text-parchment"
                 >
                     <span className="font-semibold">Debug</span>
-                    <span>{isOpen ? "\u25B2" : "\u25BC"}</span>
+                    <span className="text-text-disabled">
+                        {isOpen ? "▲" : "▼"}
+                    </span>
                 </button>
 
                 {isOpen && (
-                    <div className="border-t border-white/10">
-                        <div className="flex flex-wrap gap-2 px-3 py-2 border-b border-white/10">
+                    <div className="mt-2 flex flex-col border-t border-border-accent/20 pt-2">
+                        <div className="flex flex-wrap gap-2 border-b border-border-accent/20 pb-2">
                             <DebugButton
                                 onClick={() => setShowScenarios(!showScenarios)}
                             >
@@ -245,7 +261,7 @@ export default function DebugPanel({
                         </div>
 
                         {showScenarios && (
-                            <div className="px-3 py-2 border-b border-white/10 flex flex-col gap-1">
+                            <div className="flex flex-col gap-1 border-b border-border-accent/20 py-2">
                                 <DebugDbScenarios
                                     gameId={gameId}
                                     onEdit={(row) =>
@@ -256,13 +272,13 @@ export default function DebugPanel({
                                         })
                                     }
                                 />
-                                <div className="mt-2 pt-2 border-t border-white/10">
+                                <div className="mt-2 border-t border-border-accent/20 pt-2">
                                     <DebugBladeScenarios gameId={gameId} />
                                 </div>
-                                <div className="mt-2 pt-2 border-t border-white/10">
+                                <div className="mt-2 border-t border-border-accent/20 pt-2">
                                     <DebugGenerateScenario />
                                 </div>
-                                <div className="mt-2 pt-2 border-t border-white/10">
+                                <div className="mt-2 border-t border-border-accent/20 pt-2">
                                     <DebugSaveScenario
                                         key={editingScenario?.id ?? "new"}
                                         editing={editingScenario}
@@ -272,7 +288,7 @@ export default function DebugPanel({
                             </div>
                         )}
 
-                        <div className="max-h-[70vh] w-100 overflow-auto px-2 py-1">
+                        <div className="max-h-[70vh] w-100 overflow-auto pt-1 font-mono">
                             {state ? (
                                 <JSONTree
                                     data={state}
@@ -282,14 +298,14 @@ export default function DebugPanel({
                                     shouldExpandNodeInitially={() => false}
                                 />
                             ) : (
-                                <span className="text-white/40">
+                                <span className="text-text-muted">
                                     Loading...
                                 </span>
                             )}
                         </div>
                     </div>
                 )}
-            </div>
+            </Panel>
         </div>
     );
 }

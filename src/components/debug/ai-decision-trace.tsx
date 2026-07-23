@@ -53,15 +53,15 @@ function CandidateRow({
     return (
         <div
             className={`rounded px-1.5 py-1 ${
-                chosen ? "bg-emerald-500/15" : "bg-white/[0.03]"
+                chosen ? "bg-signal-self/15" : "bg-surface-elevated/30"
             }`}
         >
             <div className="flex items-baseline justify-between gap-2">
-                <span className="text-white/90 truncate">
-                    {chosen && <span className="text-emerald-400">★ </span>}
+                <span className="truncate text-text">
+                    {chosen && <span className="text-signal-self">★ </span>}
                     {cand.label}
                 </span>
-                <span className="shrink-0 text-white/50 tabular-nums">
+                <span className="shrink-0 text-text-muted tabular-nums">
                     <span title="Visits — times this move was simulated">
                         v{cand.visits}
                     </span>{" "}
@@ -73,11 +73,11 @@ function CandidateRow({
                     </span>
                 </span>
             </div>
-            <div className="mt-0.5 text-[10px] leading-tight text-white/40">
+            <div className="mt-0.5 text-[10px] leading-tight text-text-muted">
                 <span
                     title="Material margin (self − opp)"
                     className={
-                        margin < 0 ? "text-rose-400/80" : "text-emerald-400/80"
+                        margin < 0 ? "text-signal-opponent" : "text-signal-self"
                     }
                 >
                     Δ{r3(margin)}
@@ -86,8 +86,8 @@ function CandidateRow({
                     <span
                         className={
                             danger < 0
-                                ? "text-rose-400/80"
-                                : "text-emerald-400/80"
+                                ? "text-signal-opponent"
+                                : "text-signal-self"
                         }
                         title="Danger Clock — race term; negative = losing the race"
                     >
@@ -95,13 +95,13 @@ function CandidateRow({
                         {Math.round(danger)}{" "}
                     </span>
                 )}
-                <span className="text-white/50" title={termTitle("self", self)}>
+                <span className="text-text" title={termTitle("self", self)}>
                     self
                 </span>{" "}
                 <span title={termTitle("self", self)}>
                     {termLine(self) || "—"}
                 </span>{" "}
-                <span className="text-white/50" title={termTitle("opp", opp)}>
+                <span className="text-text" title={termTitle("opp", opp)}>
                     opp
                 </span>{" "}
                 <span title={termTitle("opp", opp)}>
@@ -127,29 +127,27 @@ export default function AiDecisionTrace() {
     return (
         <div className="flex flex-col gap-1">
             <div className="flex items-baseline justify-between gap-2">
-                <span className="text-white/40 text-[10px] uppercase tracking-wide">
-                    AI · last decision
-                </span>
+                <span className="text-label">AI · last decision</span>
                 {trace && (
                     <span className="flex items-baseline gap-2">
-                        <span className="text-white/30 text-[10px] tabular-nums">
+                        <span className="text-[10px] text-text-disabled tabular-nums">
                             {trace.iterations} iters · {trace.candidates.length}{" "}
                             moves
                         </span>
                         <button
                             onClick={() => setShowLegend((v) => !v)}
                             title="Show what each symbol means"
-                            className={`rounded border px-1.5 py-0.5 text-[10px] hover:bg-white/10 hover:text-white ${
+                            className={`rounded-sm border px-1.5 py-0.5 text-[10px] transition-colors hover:border-accent hover:text-parchment ${
                                 showLegend
-                                    ? "border-white/40 text-white/80"
-                                    : "border-white/20 text-white/60"
+                                    ? "border-accent text-accent-strong"
+                                    : "border-border-strong text-text-muted"
                             }`}
                         >
                             ?
                         </button>
                         <button
                             onClick={copyTrace}
-                            className="rounded border border-white/20 px-1.5 py-0.5 text-[10px] text-white/60 hover:bg-white/10 hover:text-white"
+                            className="rounded-sm border border-border-strong px-1.5 py-0.5 text-[10px] text-text-muted transition-colors hover:border-accent hover:text-parchment"
                         >
                             {copied ? "Copied!" : "Copy"}
                         </button>
@@ -160,7 +158,7 @@ export default function AiDecisionTrace() {
             {trace && showLegend && <AiTraceLegend />}
 
             {!trace ? (
-                <span className="text-white/30 text-[11px]">
+                <span className="text-[11px] text-text-disabled">
                     No bot decision yet.
                 </span>
             ) : (

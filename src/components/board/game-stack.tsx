@@ -81,14 +81,14 @@ export default function GameStack({ stack }: GameStackProps) {
 
     return (
         <div
-            // Play-area layout rule: anchor the stack to the right edge of the
-            // play area (just LEFT of the reserved right strip), not the
-            // viewport. `--right-piles-w` resolves in-tree under
-            // `data-board-root`; portrait ⇒ 0px ⇒ flush to the viewport edge
-            // (and the portrait chip path renders the stack differently anyway).
+            // Anchored to the VIEWPORT right edge (QA): parked at the play
+            // area's edge (`--right-piles-w`) the panel reached far enough left
+            // to sit under every play-area-centered dialog (card placement,
+            // pickers). Pushing it fully right clears them; the panel is
+            // draggable if a pile underneath needs a look.
             className="absolute top-1/2 z-modal"
             style={{
-                right: "var(--right-piles-w)",
+                right: "0.5rem",
                 transform: `translate(${offset.x}px, calc(-50% + ${offset.y}px))`,
             }}
         >
