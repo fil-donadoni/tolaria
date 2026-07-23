@@ -13,6 +13,7 @@ import { describe, expect, it } from "vitest";
 import {
     BLADE_SCENARIOS,
     bladeScenariosForTier,
+    describeBeyondBudget,
     runBladeScenario,
     type BladeScenario,
     type BladeTier,
@@ -47,6 +48,60 @@ describe(`blade suite — registry integrity`, () => {
             ).toEqual(["iterations"]);
         }
     });
+
+    it("no `must` entry claims to be beyond its budget (ADR 0070 §2)", () => {
+        // A `must` entry passes at its declared, production-range budget by
+        // definition. Recording a beyond-budget cause on one would mean the
+        // blocking tier is green only above production — the exact thing the
+        // budget rule exists to prevent.
+        for (const s of BLADE_SCENARIOS) {
+            if (s.tier !== "must") continue;
+            expect(
+                s.beyondBudget,
+                `${s.label}: a beyond-budget entry belongs in the stretch tier`
+            ).toBeUndefined();
+        }
+    });
+
+    it("a beyond-budget entry classifies its cause and names the missing knowledge", () => {
+        for (const s of BLADE_SCENARIOS) {
+            if (!s.beyondBudget) continue;
+            expect(
+                ["branching", "horizon", "hidden-information"],
+                `${s.label}: unknown beyond-budget cause`
+            ).toContain(s.beyondBudget.cause);
+            // "needs more iterations" is never an accepted verdict — the note
+            // has to say what the bot does not KNOW.
+            expect(
+                s.beyondBudget.note.length,
+                `${s.label}: beyond-budget note must state the missing knowledge`
+            ).toBeGreaterThan(20);
+            expect(
+                s.beyondBudget.passesAt.iterations,
+                `${s.label}: passesAt must exceed the declared budget`
+            ).toBeGreaterThan(s.budget.iterations);
+        }
+    });
+
+    it("every discriminating-pair entry names its partner (issue #1487)", () => {
+        // A pair half is only meaningful WITH its partner: a bot that never
+        // casts passes the forbidden half, one that always casts passes the
+        // expected half. Naming the partner in the note makes deleting one
+        // half obvious in the diff instead of silently gutting the other.
+        const pair = BLADE_SCENARIOS.filter((s) =>
+            s.label.startsWith("discriminating pair:")
+        );
+        expect(pair.length).toBeGreaterThanOrEqual(2);
+        for (const s of pair) {
+            const partner = pair.find(
+                (o) => o !== s && s.note?.includes(o.label)
+            );
+            expect(
+                partner,
+                `${s.label}: its note must quote its partner entry's label`
+            ).toBeDefined();
+        }
+    });
 });
 
 describe(`blade suite — ${TIER} tier`, () => {
@@ -71,6 +126,15 @@ describe(`blade suite — ${TIER} tier`, () => {
                 console.log(
                     `[blade:stretch] ${verdict} ${scenario.label} — ${detail}`
                 );
+                // ADR 0070 §2 — a beyond-budget entry names WHY it needs more
+                // than production search, and the report prints that cause.
+                // "needs more iterations" is never an accepted verdict; each
+                // cause names a missing piece of bot knowledge instead.
+                if (result.beyondBudget) {
+                    console.log(
+                        `[blade:stretch]   ↳ ${describeBeyondBudget(result.beyondBudget)}`
+                    );
+                }
                 return;
             }
             expect(result.ok, result.failureMessage).toBe(true);

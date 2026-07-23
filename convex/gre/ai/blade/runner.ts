@@ -32,7 +32,8 @@ import {
     seatPlayerId,
 } from "./matcher";
 import { findBladeScenario } from "./registry";
-import type { BladeScenario } from "./types";
+import { applyBladeSetup } from "./setup";
+import type { BeyondBudget, BladeScenario } from "./types";
 
 /** The one seed every blade entry uses unless it declares its own. Fixed
  *  forever — changing it re-rolls the whole suite. */
@@ -105,10 +106,15 @@ export function buildBladeBaseState(
     );
 }
 
-/** Build the `GameState` a blade entry describes. Exported so a failing entry
- *  can be inspected (or replayed at a bigger budget) from a scratch test. */
+/** Build the `GameState` a blade entry describes: the `spec` board, then its
+ *  engine-real `setup` steps (issue #1487, ADR 0070 §4). Exported so a failing
+ *  entry can be inspected (or replayed at a bigger budget) from a scratch
+ *  test. Throws `BladeSetupError` when a setup step finds no purchase. */
 export function buildBladeState(scenario: BladeScenario): GameState {
-    return buildStateFromScenario(buildBladeBaseState(), scenario.spec);
+    return applyBladeSetup(
+        buildStateFromScenario(buildBladeBaseState(), scenario.spec),
+        scenario
+    );
 }
 
 /**
@@ -173,7 +179,14 @@ export function buildBladeLoadState(
             bgColor: base.players[1].bgColor,
         },
     ]);
-    return buildStateFromScenario(normalized, scenario.spec);
+    // Same two-stage build the in-process runner uses — the Debug panel must
+    // load the SAME position the suite measures, pending decision included
+    // (issue #1487). A setup step that finds no purchase throws here too; the
+    // mutation lets it propagate rather than loading a different board.
+    return applyBladeSetup(
+        buildStateFromScenario(normalized, scenario.spec),
+        scenario
+    );
 }
 
 /**
@@ -223,7 +236,17 @@ export type BladeResult = {
     /** One-line failure summary, ready to hand to `expect(...).toBe(true)` as
      *  its message. Empty when `ok`. */
     failureMessage: string;
+    /** Carried straight through from the entry (ADR 0070 §2) so the stretch
+     *  report can print WHY the position needs more than its declared budget
+     *  without re-reading the registry. Absent when the entry declares none. */
+    beyondBudget?: BeyondBudget;
 };
+
+/** One line, ready to print: the classified cause of a beyond-budget entry.
+ *  Exported so both the stretch report and its test render it identically. */
+export function describeBeyondBudget(b: BeyondBudget): string {
+    return `beyond budget [${b.cause}] — passes at ${b.passesAt.iterations} iterations; ${b.note}`;
+}
 
 function seedsFor(scenario: BladeScenario): number[] {
     const seeds = scenario.seeds ?? [DEFAULT_BLADE_SEED];
@@ -307,5 +330,8 @@ export function runBladeScenario(scenario: BladeScenario): BladeResult {
         failureMessage: failures
             .map((f) => `seed ${f.seed}: ${f.reason}`)
             .join("; "),
+        ...(scenario.beyondBudget
+            ? { beyondBudget: scenario.beyondBudget }
+            : {}),
     };
 }
