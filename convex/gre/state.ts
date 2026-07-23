@@ -3755,6 +3755,33 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
         }
     }
 
+    // --- Ascend, instant/sorcery form (CR 702.131c, issue #1460) ---
+    // "Ascend" on an instant or sorcery is that spell's FIRST spell ability:
+    // "If you control ten or more permanents, you get the city's blessing for
+    // the rest of the game." It therefore applies BEFORE the rest of the
+    // spell's text, so the card's own later clauses observe the blessing it
+    // just granted (Golden Demise, Secrets of the Golden City). Placed here —
+    // after the target-legality gate, before EVERY effect dispatch (Effect
+    // Script, `resolve`, and the `resolveSteps` loop below) — so both
+    // resolution paths are covered. Gated on a fresh resolution
+    // (`resolutionStep === undefined`) so a spell suspended mid-resolve for a
+    // player choice does not re-check on resume; the grant itself is
+    // idempotent and never revoked. A copy still checks (it resolves like the
+    // original). Permanent-form Ascend is NOT handled here: it is a
+    // continuous check in the SBA sweep instead.
+    if (
+        isSpell &&
+        top.resolutionStep === undefined &&
+        cardDef?.staticAbilities?.includes(ASCEND_KEYWORD) &&
+        !top.types.some((t) =>
+            CASTABLE_PERMANENT_TYPES.includes(
+                t as (typeof CASTABLE_PERMANENT_TYPES)[number]
+            )
+        )
+    ) {
+        grantCityBlessingIfThreshold(state, top.castById);
+    }
+
     // --- Stepped spell resolve (CR 608.2, 101.4) ---
     // Peek-and-pop: the item stays on the stack while steps run so that
     // suspension between steps preserves it for resume. Only popped after
@@ -4424,15 +4451,9 @@ function finalizeSpellResolution(
         emitPermanentEntered(state, item, { wasCast: true });
     } else {
         // CR 702.131c (issue #1460) — the INSTANT/SORCERY form of Ascend is
-        // part of the spell's resolution: "if you control ten or more
-        // permanents, you get the city's blessing." Checked ONCE here, as the
-        // spell finishes resolving, for the spell's controller. Reads the card
-        // def's `ascend` keyword; the permanent form is handled continuously by
-        // the SBA sweep instead. A copy still checks (it resolves like the
-        // original) before it ceases to exist below.
-        if (cardDef?.staticAbilities?.includes(ASCEND_KEYWORD)) {
-            grantCityBlessingIfThreshold(state, item.castById);
-        }
+        // NOT handled here: it is the spell's first spell ability and must
+        // apply BEFORE the rest of the spell's text, so it runs at the top of
+        // `resolveTopOfStackInner` (before the effect dispatch) instead.
         // CR 707.10 / 112.5 — a copy of an instant/sorcery spell is not a real
         // card: once it finishes resolving it simply ceases to exist instead
         // of being put into a graveyard.

@@ -224,6 +224,85 @@ describe("Ascend — instant/sorcery form, once on resolution (CR 702.131c)", ()
         checkStateBasedActions(state);
         expect(hasCityBlessing(state, "p1")).toBe(false);
     });
+
+    // CR 702.131c — Ascend is the FIRST spell ability of an instant/sorcery
+    // that has it, so the blessing is granted BEFORE the rest of the spell's
+    // text. Every real Ascend instant/sorcery reads the blessing in its own
+    // later clauses (Golden Demise: "if you have the city's blessing, instead
+    // only creatures your opponents control get -2/-2"; Secrets of the Golden
+    // City: "draw three instead of two"). A probe with `effects: []` cannot
+    // observe the ordering — these two DO: they gate on the blessing from
+    // INSIDE their own resolution, and fail if the grant runs afterwards.
+    const ORDERING_SPELL_ID = "test-ascend-ordering-1460";
+    registerTokenDefinition({
+        id: ORDERING_SPELL_ID,
+        name: "Ascend Ordering Test Sorcery",
+        types: ["Sorcery"] as CardType[],
+        subtypes: [],
+        manaCost: {},
+        staticAbilities: ["ascend"],
+        effects: [
+            {
+                op: "if",
+                predicate: { hasCityBlessing: "controller" },
+                then: [{ op: "gainLife", player: "controller", amount: 5 }],
+                else: [{ op: "gainLife", player: "controller", amount: 1 }],
+            },
+        ],
+    } as unknown as CardDefinition);
+
+    it("grants the blessing BEFORE its own Effect Script runs", () => {
+        const state = stateWithPermanents(10, false);
+        const before = state.players[0].life;
+        pushSpell(state, ORDERING_SPELL_ID, "p1");
+        resolveTopOfStack(state);
+        expect(hasCityBlessing(state, "p1")).toBe(true);
+        // The `then` branch — the spell's own text saw the blessing.
+        expect(state.players[0].life).toBe(before + 5);
+    });
+
+    it("takes the else branch below the threshold (no blessing to see)", () => {
+        const state = stateWithPermanents(9, false);
+        const before = state.players[0].life;
+        pushSpell(state, ORDERING_SPELL_ID, "p1");
+        resolveTopOfStack(state);
+        expect(hasCityBlessing(state, "p1")).toBe(false);
+        expect(state.players[0].life).toBe(before + 1);
+    });
+
+    // The `resolveSteps` loop is a SEPARATE dispatch path in
+    // `resolveTopOfStackInner` (it pops + finalizes on its own), so it needs
+    // its own ordering assertion.
+    const ORDERING_STEPS_ID = "test-ascend-ordering-steps-1460";
+    registerTokenDefinition({
+        id: ORDERING_STEPS_ID,
+        name: "Ascend Ordering Steps Sorcery",
+        types: ["Sorcery"] as CardType[],
+        subtypes: [],
+        manaCost: {},
+        staticAbilities: ["ascend"],
+        resolveSteps: [
+            (ctx: {
+                controller: string;
+                hasCityBlessing: (playerId: string) => boolean;
+                gainLife: (playerId: string, amount: number) => void;
+            }) => {
+                ctx.gainLife(
+                    ctx.controller,
+                    ctx.hasCityBlessing(ctx.controller) ? 5 : 1
+                );
+            },
+        ],
+    } as unknown as CardDefinition);
+
+    it("grants the blessing BEFORE its `resolveSteps` run", () => {
+        const state = stateWithPermanents(10, false);
+        const before = state.players[0].life;
+        pushSpell(state, ORDERING_STEPS_ID, "p1");
+        resolveTopOfStack(state);
+        expect(hasCityBlessing(state, "p1")).toBe(true);
+        expect(state.players[0].life).toBe(before + 5);
+    });
 });
 
 describe("hasCityBlessing Effect Script predicate (issue #1460)", () => {

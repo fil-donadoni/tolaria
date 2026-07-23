@@ -21,9 +21,13 @@
 //     permanent reaches ten permanents they are granted the blessing.
 //   * INSTANT / SORCERY. Ascend is part of the spell's resolution: "if you
 //     control ten or more permanents, you get the city's blessing." Checked
-//     ONCE, on resolution — `finalizeSpellResolution` (`state.ts`) calls
+//     ONCE, on resolution, and FIRST (CR 702.131c: it is the spell's first
+//     spell ability, so the spell's own later clauses observe the blessing it
+//     just granted — Golden Demise, Secrets of the Golden City).
+//     `resolveTopOfStackInner` (`state.ts`) calls
 //     `grantCityBlessingIfThreshold` for a resolving non-permanent spell whose
-//     card declares the `ascend` keyword.
+//     card declares the `ascend` keyword, BEFORE dispatching the spell's
+//     Effect Script / `resolve` / `resolveSteps`.
 //
 // The threshold count is "permanents you CONTROL" (CR 702.131), so it counts by
 // `controllerId` across every battlefield, not by whose battlefield array the
