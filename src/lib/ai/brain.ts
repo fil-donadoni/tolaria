@@ -9,18 +9,24 @@
 // (`brain.worker.ts`) runs off the UI thread. Both layers are pure and tested
 // without a browser; this file is the gate only.
 //
-// Mid-resolution interactive choices (ADR 0016) are resolved RIGHT HERE on the
-// main thread rather than in the search, like the mulligan heuristic.
-// `chooseResolution` gives the bot a weak-but-legal default for every
-// `PendingChoiceKind`, so the game always advances whatever the choice.
+// Mid-resolution interactive choices (ADR 0016) split TWO ways (issue #1506):
 //
-// That default is no longer the ONLY answer available. Since PRD #1423 / issue
-// #1425 a pending choice with a registered candidate generator IS an in-tree
-// ISMCTS decision node: `decidingPlayer` names its owner and `enumerateMoves`
-// surfaces the candidate submissions, so the search picks those kinds properly.
-// The heuristic here remains the fallback for every kind with no generator yet
-// (`hasChoiceCandidateGenerator` → false) — additive by design, so a kind
-// gaining a generator simply stops needing the default.
+//  * A choice kind WITH a registered candidate generator is an in-tree ISMCTS
+//    decision node (PRD #1423 / issue #1425): `decidingPlayer` names its owner
+//    and `enumerateMoves` surfaces the candidate submissions. `buildOwedChoice`
+//    marks such a choice `searchable`, and the gate answers `search-choice` —
+//    a WORKER-realised action, so the SEARCH picks the answer.
+//  * A kind with NO generator (`hasChoiceCandidateGenerator` → false) is still
+//    resolved RIGHT HERE on the main thread, like the mulligan heuristic:
+//    `chooseOwedChoiceAction` / `chooseResolution` give the bot a
+//    weak-but-legal default for every `PendingChoiceKind`, so the game always
+//    advances whatever the choice.
+//
+// The split is registry-driven, never a hand-maintained kind list: a kind that
+// gains a generator automatically stops being heuristic-answered (locked by
+// `bot-action-dispatch.bot.test.ts`, which enumerates the registry). The
+// heuristic ALSO stays the driver's safety net — if the search surfaces no move
+// for a searchable choice, `useVsAiDriver` falls back to it rather than stall.
 
 import type { PendingChoiceKind } from "@convex/gre";
 import type { Color } from "@convex/cards/types";
@@ -151,6 +157,14 @@ export const LAND_LIGHT_LANDS_IN_PLAY = 4;
  *  active `PendingChoice` and the bot's visible zones. */
 export type OwedChoice = {
     kind: PendingChoiceKind;
+    /** Whether this choice is an in-tree ISMCTS decision node the SEARCH should
+     *  answer instead of the ADR 0016 heuristic (issue #1506). True iff the kind
+     *  has a registered candidate generator (`hasChoiceCandidateGenerator`, the
+     *  single authority) AND no mid-flight cast/target/activation/companion
+     *  continuation is parked — the exact conditions under which
+     *  `enumerateMoves` surfaces the choice's candidate answers. Undefined /
+     *  false → the heuristic answers it, exactly as before. */
+    searchable?: boolean;
     /** Normalized count bounds (`getPendingChoiceMin` / `getPendingChoiceMax`):
      *  the submission must pick between `min` and `max` ids inclusive. */
     min: number;
@@ -211,8 +225,19 @@ export type OwedChoice = {
  *   - `declare-blockers`  → `confirmBlockers` (empty selection = no block)
  *   - `confirm-combat-damage` → `confirmDamage` (default assignment, multi-block)
  *   - `pass`              → `passPriority`
+ *   - `search-choice`     → the Worker search picks the answer to the owed
+ *                           pending choice and the executor submits it through
+ *                           whichever mutation that Move names (issue #1506)
  *   - `none`              → the bot owes no action right now; do nothing. */
 export type BotAction =
+    | {
+          /** A generator-covered pending choice (`OwedChoice.searchable`): NOT
+           *  answered here. The driver hands the window to the ISMCTS Worker,
+           *  whose `enumerateMoves` surfaces the candidate submissions, and
+           *  realises the returned Move through the ordinary executor. Carries
+           *  no payload — the answer is the search's, not the gate's. */
+          kind: "search-choice";
+      }
     | { kind: "keep" }
     | { kind: "mull" }
     | { kind: "mulligan-bottom"; cardInstanceIds: string[] }
@@ -241,11 +266,14 @@ const NONE: BotAction = { kind: "none" };
 /** How the vs-AI driver (`useVsAiDriver`) must realise a decided {@link
  *  BotAction}:
  *   - `"executor"`      — a brain-resolved choice/mulligan window realised on
- *                          the MAIN THREAD via `botActionToMove` → `executeMove`
- *                          (the GRE surfaces no search move while a choice is
- *                          pending, so the Worker cannot make it).
+ *                          the MAIN THREAD via `botActionToMove` → `executeMove`.
+ *                          For a choice kind with NO registered candidate
+ *                          generator the GRE surfaces no search move, so the
+ *                          Worker cannot make it (issue #1506: a kind WITH a
+ *                          generator is `"worker"` instead, see below).
  *   - `"worker"`        — a real decision that needs the Worker search
- *                          (priority pass, combat declarations).
+ *                          (priority pass, combat declarations, and a
+ *                          generator-covered pending choice).
  *   - `"confirm-damage"`— the multi-block damage confirmation, a direct mutation.
  *   - `"none"`          — the bot owes nothing; do nothing.
  *
@@ -288,6 +316,13 @@ export function botActionRealisation(
         case "random-reveal-ack":
         case "madness-decline":
             return "executor";
+        // issue #1506 — `search-choice` (a generator-covered pending choice) IS
+        // a search node (PRD #1423): `decidingPlayer` names the bot and
+        // `enumerateMoves` surfaces the candidate submissions, so the Worker can
+        // and must decide it. (The pre-#1506 blanket "the Worker surfaces no move
+        // while a choice is pending" is only true of kinds with NO generator,
+        // which still take the executor branch above.)
+        case "search-choice":
         case "pass":
         case "declare-attackers":
         case "declare-blockers":
@@ -707,106 +742,129 @@ export function decideBotAction(view: BotView): BotAction {
         return NONE;
     }
 
-    // Mid-resolution interactive choice (ADR 0016): resolve any owed choice with
-    // a legal default. A non-empty `pendingChoices` freezes priority and
-    // suppresses every other move, so this precedes combat and the ordinary
-    // priority pass — otherwise the bot would `pass` into a server no-op and
-    // hang the game.
+    // Mid-resolution interactive choice. A non-empty `pendingChoices` freezes
+    // priority and suppresses every other move, so this precedes combat and the
+    // ordinary priority pass — otherwise the bot would `pass` into a server
+    // no-op and hang the game.
+    //
+    // A GENERATOR-COVERED choice is a real ISMCTS decision node (PRD #1423,
+    // issue #1506) — hand it to the Worker instead of answering it with the
+    // ADR 0016 minimal default. The gate is `OwedChoice.searchable`, computed in
+    // `buildOwedChoice` from `hasChoiceCandidateGenerator` (the single
+    // authority), so a kind that gains a generator stops being heuristic-
+    // answered with no edit here.
     if (view.owedChoice) {
-        const choice = view.owedChoice;
-        if (choice.kind === "may-pay") {
-            // Yes/no family: accept only when the cost is trivially affordable
-            // from the bot's mana pool, else decline (ADR 0016 minimal policy —
-            // smart "should I pay?" is deferred). Both answers are legal.
-            const accept = choice.affordable === true;
-            // CR 701.16b — a sacrifice leg with a real victim choice needs a
-            // legal pick supplied alongside the accept, or the submit throws and
-            // the bot freezes. Pick `sacrificeCount` worst-first candidates (a
-            // minimal-legal default — smart victim choice is deferred).
-            if (accept && choice.sacrificeCount && choice.sacrificeCount > 0) {
-                return {
-                    kind: "may-pay",
-                    accept,
-                    sacrificeIds: worstFirst(choice.candidates)
-                        .slice(0, choice.sacrificeCount)
-                        .map((c) => c.id),
-                };
-            }
-            // CR 118 threshold mode (Phyrexian Dreadnought) — greedily take the
-            // highest-power candidates until the running total reaches the
-            // threshold (fewest bodies given up; over-payment is legal).
-            if (
-                accept &&
-                choice.sacrificeThreshold &&
-                choice.sacrificeThreshold > 0
-            ) {
-                return {
-                    kind: "may-pay",
-                    accept,
-                    sacrificeIds: thresholdSacrifice(
-                        choice.candidates,
-                        choice.sacrificeThreshold
-                    ),
-                };
-            }
-            // CR 701.9 / 118.3 (issue #899) — a discard leg with a real card
-            // choice needs a legal pick supplied alongside the accept, or the
-            // submit throws and the bot freezes. Pick `discardCount` worst-first
-            // hand cards (a minimal-legal default — smart discard choice is
-            // deferred), mirroring the sacrifice pick above.
-            if (accept && choice.discardCount && choice.discardCount > 0) {
-                return {
-                    kind: "may-pay",
-                    accept,
-                    discardIds: worstFirst(choice.candidates)
-                        .slice(0, choice.discardCount)
-                        .map((c) => c.id),
-                };
-            }
-            return { kind: "may-pay", accept };
-        }
-        if (choice.kind === "land-entry-tapped") {
-            // CR 614.12 / ADR 0051 — shock land: pay iff affordable (life ≥
-            // cost) to enter untapped, else enter tapped. Same minimal-legal
-            // default as may-pay (ADR 0016); routed through its own mutation.
-            return { kind: "land-entry", accept: choice.affordable === true };
-        }
-        if (choice.kind === "random-reveal") {
-            // CR 705.2 / ADR 0023 — a no-decision reveal: the engine already
-            // drew the outcome. The bot just acknowledges to resume (the human
-            // client auto-acks on animation end).
-            return { kind: "random-reveal-ack" };
-        }
-        if (choice.kind === "name-card") {
-            // CR 202.3 — name a card. The default (the bot's own top library
-            // card when visible, else a registered fallback) is computed in
-            // `buildOwedChoice`; submit it through `submitNameCard`.
-            return {
-                kind: "name-card",
-                cardName: choice.nameCardDefault ?? "Plains",
-            };
-        }
-        if (choice.kind === "madness-cast") {
-            // CR 702.35d — the reflexive Madness cast-choice: the bot's minimal
-            // policy is to DECLINE (send the card to the graveyard). Casting from
-            // exile for the madness cost is a real value decision deferred to a
-            // later slice (ADR 0016); declining is always legal and never stalls.
-            return { kind: "madness-decline" };
-        }
-        if (choice.kind === "draw-replacement") {
-            // CR 614 / issue #735 — Zur's Weirding "any other player may pay N
-            // life to bin the revealed draw". The bot's minimal-legal default
-            // (ADR 0016) is to DECLINE (let them draw) — paying life to deny an
-            // unknown card is a value decision deferred to a later slice.
-            // Declining is always legal and never stalls.
-            return { kind: "draw-replacement", accept: false };
-        }
-        return {
-            kind: "resolution-choice",
-            cardInstanceIds: chooseResolution(choice),
-        };
+        if (view.owedChoice.searchable) return { kind: "search-choice" };
+        return chooseOwedChoiceAction(view.owedChoice);
     }
 
+    return decideNonChoiceAction(view);
+}
+
+/** The ADR 0016 minimal-legal answer to an owed pending choice — the fallback
+ *  for every kind the ISMCTS search does NOT cover (no registered candidate
+ *  generator), and the driver's safety net when a searchable choice yields no
+ *  search move. Every branch returns a LEGAL submission, so the game always
+ *  advances whatever the choice. Deterministic and side-effect free. */
+export function chooseOwedChoiceAction(choice: OwedChoice): BotAction {
+    if (choice.kind === "may-pay") {
+        // Yes/no family: accept only when the cost is trivially affordable
+        // from the bot's mana pool, else decline (ADR 0016 minimal policy —
+        // smart "should I pay?" is deferred). Both answers are legal.
+        const accept = choice.affordable === true;
+        // CR 701.16b — a sacrifice leg with a real victim choice needs a
+        // legal pick supplied alongside the accept, or the submit throws and
+        // the bot freezes. Pick `sacrificeCount` worst-first candidates (a
+        // minimal-legal default — smart victim choice is deferred).
+        if (accept && choice.sacrificeCount && choice.sacrificeCount > 0) {
+            return {
+                kind: "may-pay",
+                accept,
+                sacrificeIds: worstFirst(choice.candidates)
+                    .slice(0, choice.sacrificeCount)
+                    .map((c) => c.id),
+            };
+        }
+        // CR 118 threshold mode (Phyrexian Dreadnought) — greedily take the
+        // highest-power candidates until the running total reaches the
+        // threshold (fewest bodies given up; over-payment is legal).
+        if (
+            accept &&
+            choice.sacrificeThreshold &&
+            choice.sacrificeThreshold > 0
+        ) {
+            return {
+                kind: "may-pay",
+                accept,
+                sacrificeIds: thresholdSacrifice(
+                    choice.candidates,
+                    choice.sacrificeThreshold
+                ),
+            };
+        }
+        // CR 701.9 / 118.3 (issue #899) — a discard leg with a real card
+        // choice needs a legal pick supplied alongside the accept, or the
+        // submit throws and the bot freezes. Pick `discardCount` worst-first
+        // hand cards (a minimal-legal default — smart discard choice is
+        // deferred), mirroring the sacrifice pick above.
+        if (accept && choice.discardCount && choice.discardCount > 0) {
+            return {
+                kind: "may-pay",
+                accept,
+                discardIds: worstFirst(choice.candidates)
+                    .slice(0, choice.discardCount)
+                    .map((c) => c.id),
+            };
+        }
+        return { kind: "may-pay", accept };
+    }
+    if (choice.kind === "land-entry-tapped") {
+        // CR 614.12 / ADR 0051 — shock land: pay iff affordable (life ≥
+        // cost) to enter untapped, else enter tapped. Same minimal-legal
+        // default as may-pay (ADR 0016); routed through its own mutation.
+        return { kind: "land-entry", accept: choice.affordable === true };
+    }
+    if (choice.kind === "random-reveal") {
+        // CR 705.2 / ADR 0023 — a no-decision reveal: the engine already
+        // drew the outcome. The bot just acknowledges to resume (the human
+        // client auto-acks on animation end).
+        return { kind: "random-reveal-ack" };
+    }
+    if (choice.kind === "name-card") {
+        // CR 202.3 — name a card. The default (the bot's own top library
+        // card when visible, else a registered fallback) is computed in
+        // `buildOwedChoice`; submit it through `submitNameCard`.
+        return {
+            kind: "name-card",
+            cardName: choice.nameCardDefault ?? "Plains",
+        };
+    }
+    if (choice.kind === "madness-cast") {
+        // CR 702.35d — the reflexive Madness cast-choice: the bot's minimal
+        // policy is to DECLINE (send the card to the graveyard). Casting from
+        // exile for the madness cost is a real value decision deferred to a
+        // later slice (ADR 0016); declining is always legal and never stalls.
+        return { kind: "madness-decline" };
+    }
+    if (choice.kind === "draw-replacement") {
+        // CR 614 / issue #735 — Zur's Weirding "any other player may pay N
+        // life to bin the revealed draw". The bot's minimal-legal default
+        // (ADR 0016) is to DECLINE (let them draw) — paying life to deny an
+        // unknown card is a value decision deferred to a later slice.
+        // Declining is always legal and never stalls.
+        return { kind: "draw-replacement", accept: false };
+    }
+    return {
+        kind: "resolution-choice",
+        cardInstanceIds: chooseResolution(choice),
+    };
+}
+
+/** The rest of the gate, once no pending choice is owed: the attack-mana tax,
+ *  the combat declarations and the ordinary priority window. Split out of
+ *  {@link decideBotAction} when the choice branch grew its own entry point
+ *  (issue #1506); the ordering is unchanged. */
+function decideNonChoiceAction(view: BotView): BotAction {
     // CR 508.1c/1g — the parked per-attacker MANA attack tax (Propaganda /
     // Collective Restraint). The bot declared a taxed attack and now owes the
     // tax: pay it (auto-tap) when it can plausibly cover it, else cancel the

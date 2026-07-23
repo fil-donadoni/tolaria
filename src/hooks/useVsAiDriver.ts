@@ -24,7 +24,11 @@ import type { Id } from "@convex/_generated/dataModel";
 import { shouldThink, budgetFor } from "@convex/gre";
 import { consultBrain } from "~/lib/ai/brain-client";
 import { setLatestAiTrace } from "~/lib/ai/trace-store";
-import { decideBotAction, botActionRealisation } from "~/lib/ai/brain";
+import {
+    decideBotAction,
+    botActionRealisation,
+    chooseOwedChoiceAction,
+} from "~/lib/ai/brain";
 import { buildBotView, botActionToMove } from "~/lib/ai/bot-view";
 import { executeMove, type MoveMutations } from "~/lib/ai/executor";
 import { projectedToGameState } from "~/lib/ai/state-adapter";
@@ -157,11 +161,11 @@ export function useVsAiDriver(
         // Brain-resolved windows skip the Worker entirely and realise straight
         // through the executor (mirroring the immediate-pass short-circuit):
         // mulligan keep / mull / bottom-N (issue #145, ISMCTS mulligan eval out
-        // of scope) and any mid-resolution interactive choice default (ADR 0016).
-        // Since PRD #1423 / issue #1425 a choice kind WITH a registered candidate
-        // generator is an in-tree search node instead (`decidingPlayer` /
-        // `enumerateMoves` surface it), so this path is the fallback for the
-        // kinds that have none yet. The set of executor-realised kinds is derived from the
+        // of scope) and the mid-resolution interactive choices the search does
+        // NOT cover (ADR 0016 heuristic defaults). A choice kind WITH a
+        // registered candidate generator is decided as `search-choice` by the
+        // gate and takes the Worker branch below instead (PRD #1423 /
+        // issue #1506). The set of executor-realised kinds is derived from the
         // compile-time-exhaustive `botActionRealisation` (NOT a hand-maintained
         // list): a new choice mechanic that adds a BotAction kind is a build
         // error until classified, so it can never silently fall through to the
@@ -210,8 +214,24 @@ export function useVsAiDriver(
                 .then(({ move, trace }) => {
                     // Surface the reasoning to the Debug panel (client-only).
                     setLatestAiTrace(trace);
-                    return move
-                        ? executeMove(move, { gameId, botId, mutations })
+                    // Safety net for a searched pending choice (issue #1506): a
+                    // choice window suppresses EVERY other move, so if the
+                    // search surfaced none (a generator that self-pruned to
+                    // nothing in the real world, a stale view) the bot would sit
+                    // on the frozen priority forever. Fall back to the ADR 0016
+                    // minimal-legal answer — the same one the pre-#1506 driver
+                    // always gave — rather than stall.
+                    const chosen =
+                        move ??
+                        (action.kind === "search-choice" && view.owedChoice
+                            ? botActionToMove(
+                                  chooseOwedChoiceAction(view.owedChoice),
+                                  botState,
+                                  botId
+                              )
+                            : null);
+                    return chosen
+                        ? executeMove(chosen, { gameId, botId, mutations })
                         : undefined;
                 })
                 .catch(() => {

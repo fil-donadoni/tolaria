@@ -24,6 +24,7 @@ import { projectPublicState } from "@convex/gameProjections";
 import {
     decideBotAction,
     botActionRealisation,
+    chooseOwedChoiceAction,
     type BotAction,
 } from "../brain";
 import { buildBotView, botActionToMove } from "../bot-view";
@@ -46,6 +47,11 @@ const WORKER_KINDS: BotAction["kind"][] = [
     "pass",
     "declare-attackers",
     "declare-blockers",
+    // issue #1506 — a pending choice whose kind has a registered candidate
+    // generator IS a search node (PRD #1423), so the gate defers it to the
+    // Worker instead of heuristic-answering it. See
+    // `root-choice-search-routing.bot.test.ts` for the registry-driven guard.
+    "search-choice",
 ];
 
 describe("botActionRealisation — driver dispatch classification", () => {
@@ -70,6 +76,10 @@ describe("botActionRealisation — driver dispatch classification", () => {
 
     // The exact regression: the three kinds a new mechanic added over time and
     // the driver forgot. Each MUST be executor-realised or the bot freezes.
+    // (The ACTION kinds stay executor-realised — issue #1506 changed which
+    // choices the gate emits them for, not how they are realised: `land-entry`
+    // remains the driver's fallback answer and the Move the search returns for a
+    // `land-entry-tapped` node.)
     it("land-entry, name-card and random-reveal-ack are executor-realised", () => {
         expect(botActionRealisation("land-entry")).toBe("executor");
         expect(botActionRealisation("name-card")).toBe("executor");
@@ -77,8 +87,8 @@ describe("botActionRealisation — driver dispatch classification", () => {
     });
 });
 
-describe("bot shock-land choice reaches the executor, not the Worker (CR 614.12)", () => {
-    it("the land-entry action the driver decides is executor-realised AND translates to a Move", () => {
+describe("bot shock-land choice is decided by the search (CR 614.12, issue #1506)", () => {
+    it("the shock-land window is handed to the Worker, and the heuristic answer stays executor-realisable", () => {
         const BOT = "u1-p2";
         const shock = makeInstance(getCardByName("Steam Vents").id, {
             id: "shock",
@@ -101,12 +111,17 @@ describe("bot shock-land choice reaches the executor, not the Worker (CR 614.12)
         const publicState = projectPublicState(state, 1, BOT);
         const view = buildBotView(publicState, BOT);
         const action = decideBotAction(view);
-        expect(action.kind).toBe("land-entry");
-        // The driver's dispatch gate: this is what was broken — the action fell
-        // through to the Worker and stalled.
-        expect(botActionRealisation(action.kind)).toBe("executor");
-        // And the executor path can actually realise it.
-        expect(botActionToMove(action, publicState, BOT)).not.toBeNull();
+        // `land-entry-tapped` has a registered candidate generator, so the SEARCH
+        // decides whether to pay the life (issue #1506) — it is no longer
+        // answered by the "pay iff affordable" heuristic on the main thread.
+        expect(action.kind).toBe("search-choice");
+        expect(botActionRealisation(action.kind)).toBe("worker");
+        // The heuristic remains the driver's no-move safety net, and its action
+        // is still executor-realisable — the original regression assertion.
+        const fallback = chooseOwedChoiceAction(view.owedChoice!);
+        expect(fallback.kind).toBe("land-entry");
+        expect(botActionRealisation(fallback.kind)).toBe("executor");
+        expect(botActionToMove(fallback, publicState, BOT)).not.toBeNull();
     });
 });
 
