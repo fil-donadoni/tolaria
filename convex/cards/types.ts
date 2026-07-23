@@ -7701,16 +7701,35 @@ export type EffectOp =
      *  `source` is the zone the card is cast FROM (`"graveyard"` — Malcolm; or
      *  `"exile"`). `free` (default false) waives the mana cost entirely
      *  (Malcolm's "without paying its mana cost"); omit it for a pay-normal-cost
-     *  cast. Silent pass (CR 608.2b — no prompt, nothing cast) when `player`
+     *  cast — the paid path prompts for X / additional costs and auto-taps the
+     *  card's real mana cost, treating an unpayable cost as a decline (CR
+     *  601.2g). Silent pass (CR 608.2b — no prompt, nothing cast) when `player`
      *  can't be resolved, the picks binding was never captured, the card is no
      *  longer in `source`, or it is a land (lands are PLAYED, not cast — the
-     *  official Malcolm land ruling). */
+     *  official Malcolm land ruling).
+     *
+     *  Two mutually-exclusive card SOURCES (issue #1478):
+     *   - `card` + `source` — a bare picks ref to a card an earlier Op bound
+     *     (Malcolm's just-discarded card), cast from its graveyard/exile zone.
+     *   - `fromTopOfLibrary: true` — exile the top card of the caster's library
+     *     UNCONDITIONALLY (CR 608.2f) and offer THAT card, cast from exile; a
+     *     decline / unpayable cost leaves it in exile (Chandra, Torch of
+     *     Defiance's +1). `card`/`source` are omitted in this shape.
+     *
+     *  `resultBind` (optional, issue #1478) names a BOOLEAN outcome binding — set
+     *  `true` only when a spell actually reached the stack, `false` on decline /
+     *  silent pass / unmeetable-or-unpayable cost — that a downstream `if`
+     *  predicate reads (Chandra's "If you don't [cast it], Chandra deals 2 damage
+     *  to each opponent": `{ not: { binding: "$cast" } }`). Mirrors `mayPay`'s
+     *  `["yes"]`/`["no"]` payload. */
     | {
           op: "castDuringResolution";
-          card: EffectRef;
+          card?: EffectRef;
           player: EffectPlayerRef;
-          source: "graveyard" | "exile";
+          source?: "graveyard" | "exile";
+          fromTopOfLibrary?: boolean;
           free?: boolean;
+          resultBind?: string;
       }
     /** CR 106.1 (issue #850) — add mana to a player's mana pool (a one-shot
      *  effect that produces mana: a ritual like Dark Ritual "Add {B}{B}{B}").

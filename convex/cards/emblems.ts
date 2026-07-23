@@ -13,7 +13,11 @@
 // ability is collected owner-scoped by `triggers.ts`. See ADR 0058 (loyalty
 // framework, #700) for the planeswalker ultimates that create them.
 
-import type { EmblemDefinition } from "./types";
+import type {
+    EmblemDefinition,
+    GameEvent,
+    PermanentView,
+} from "./types";
 
 const EMBLEM_REGISTRY = new Map<string, EmblemDefinition>();
 
@@ -75,6 +79,37 @@ registerEmblemDefinition({
                 target.controllerId === source.controllerId,
             power: 1,
             toughness: 0,
+        },
+    ],
+});
+
+/** Chandra, Torch of Defiance −7 emblem (KLD, issue #1478 / #1252). The first
+ *  TRIGGERED emblem (CR 114.2a, 113.3): "Whenever you cast a spell, this emblem
+ *  deals 5 damage to any target." Fires on the owner's own SPELL_CAST (CR
+ *  603.2 — `self.controllerId` is the emblem's owner, so `casterId ===
+ *  self.controllerId` scopes it to "you"); the "any target" (CR 115.4) is
+ *  chosen when the trigger goes on the stack via the ability's
+ *  `targetRequirement`, rid onto the emblem trigger item as
+ *  `inlineTargetRequirement` (`buildEmblemTriggerItem`, triggers.ts). */
+export const CHANDRA_TORCH_OF_DEFIANCE_EMBLEM_ID =
+    "chandra-torch-of-defiance-emblem";
+
+registerEmblemDefinition({
+    id: CHANDRA_TORCH_OF_DEFIANCE_EMBLEM_ID,
+    name: "Chandra, Torch of Defiance emblem",
+    text: "Whenever you cast a spell, this emblem deals 5 damage to any target.",
+    triggeredAbilities: [
+        {
+            id: "chandra-torch-of-defiance-emblem-cast",
+            oracleText:
+                "Whenever you cast a spell, this emblem deals 5 damage to any target.",
+            event: "SPELL_CAST",
+            // CR 603.2 — "you cast a spell": the emblem's owner is the caster.
+            matches: (event: GameEvent, self: PermanentView): boolean =>
+                event.type === "SPELL_CAST" &&
+                event.casterId === self.controllerId,
+            targetRequirement: { type: "any", count: 1 },
+            effects: [{ op: "dealDamage", amount: 5, to: { target: 0 } }],
         },
     ],
 });
