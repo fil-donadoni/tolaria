@@ -3,7 +3,17 @@
  *
  * NOT part of `bun run test`. Run it with:
  *   bun run test:blade           → `must` tier, real assertions, BLOCKING
- *   bun run test:blade:stretch   → `stretch` tier, REPORT-ONLY (never fails)
+ *   bun run test:blade:stretch   → `stretch` tier, report-only in CI (the
+ *                                   `blade-stretch` job runs it with
+ *                                   `continue-on-error: true`, so nothing it
+ *                                   does blocks a merge). Every scenario's own
+ *                                   verdict is printed, never asserted — with
+ *                                   one exception: a `beyondBudget` entry's
+ *                                   claim ("still fails at its declared
+ *                                   budget") IS asserted here, so a bot
+ *                                   improvement surfaces as a red stretch
+ *                                   check plus a promotion hint, never as a
+ *                                   red `must` check (issue #1517).
  *
  * The tier is selected by the `BLADE_TIER` env var (default `must`) so both
  * modes share one spec file and one config — see `vitest.blade.config.ts`.
@@ -63,7 +73,13 @@ describe(`blade suite — registry integrity`, () => {
         }
     });
 
-    it("a beyond-budget entry classifies its cause and really does fail at its declared budget", () => {
+    it("a beyond-budget entry classifies its cause with a budget it actually exceeds", () => {
+        // Shape only — cheap, no search. Safe to run in BOTH the blocking
+        // `must` job and the report-only `stretch` job. The behavior-
+        // dependent part (does it really still fail at `budget`?) lives in
+        // the stretch-tier loop below (issue #1517) — running a real ISMCTS
+        // search here, unconditionally, is what let a bot IMPROVEMENT redden
+        // the blocking job.
         for (const s of BLADE_SCENARIOS) {
             if (!s.beyondBudget) continue;
             expect(
@@ -74,26 +90,11 @@ describe(`blade suite — registry integrity`, () => {
                 s.beyondBudget.passesAt.iterations,
                 `${s.label}: passesAt must exceed the declared budget`
             ).toBeGreaterThan(s.budget.iterations);
-            // THE CLAIM ITSELF (issue #1487 review finding #2). The shape
-            // checks above are all satisfied by an entry the bot now solves at
-            // its declared budget — in which case the stretch report keeps
-            // printing a FALSE "beyond budget [...]" verdict, destroying
-            // exactly the honesty the classification exists to provide. So
-            // assert the claim: at `budget`, the entry must genuinely FAIL.
-            // When this goes red the BOT GOT BETTER — delete the entry's
-            // `beyondBudget` block (and consider promoting it to `must`);
-            // never relax this assertion or raise the budget to keep it.
-            //
             // The `note` is deliberately left unasserted. No mechanical check
             // distinguishes "names the missing knowledge" from 20+ characters
             // of filler, and the old `note.length > 20` only pretended to —
-            // the honesty this test now enforces lives in the failure above,
-            // not in a string length.
-            const result = runBladeScenario(s);
-            expect(
-                result.ok,
-                `${s.label}: declares beyondBudget but PASSES at ${s.budget.iterations} iterations — the claim is stale, remove \`beyondBudget\``
-            ).toBe(false);
+            // the honesty check below (stretch tier only) is what actually
+            // enforces the claim, not a string length.
         }
     });
 
@@ -148,6 +149,35 @@ describe(`blade suite — ${TIER} tier`, () => {
                     console.log(
                         `[blade:stretch]   ↳ ${describeBeyondBudget(result.beyondBudget)}`
                     );
+                }
+                if (scenario.beyondBudget) {
+                    // THE CLAIM ITSELF (issue #1487 review finding #2, moved
+                    // off the blocking job by issue #1517). Reuses the
+                    // `result` already computed above — no second search —
+                    // and only ever runs here, in the report-only stretch
+                    // job, never in the blocking must job.
+                    //
+                    // An entry the bot now solves at its declared budget
+                    // means the stretch report would otherwise keep printing
+                    // a FALSE "beyond budget [...]" verdict, destroying
+                    // exactly the honesty the classification exists to
+                    // provide — so surface it as a promotion signal, then
+                    // assert the claim: at `budget`, the entry must
+                    // genuinely FAIL. `continue-on-error` on the stretch job
+                    // means this can go red here without ever blocking a
+                    // merge. When it does, the BOT GOT BETTER — delete the
+                    // entry's `beyondBudget` block (and consider promoting it
+                    // to `must`); never relax this assertion or raise the
+                    // budget to keep it green.
+                    if (result.ok) {
+                        console.log(
+                            `[blade:stretch]   ↳ PROMOTION HINT — "${scenario.label}" now passes at its declared budget (${scenario.budget.iterations} iterations) — consider promoting it to \`must\` and deleting its \`beyondBudget\` block.`
+                        );
+                    }
+                    expect(
+                        result.ok,
+                        `${scenario.label}: declares beyondBudget but PASSES at ${scenario.budget.iterations} iterations — the claim is stale, remove \`beyondBudget\``
+                    ).toBe(false);
                 }
                 return;
             }
