@@ -414,9 +414,7 @@ describe("buildTrace — tolerates a stale-fallback edge (issue #1516)", () => {
         };
         const root: Node = { children: new Map([[edge.key, edge]]) };
 
-        expect(() =>
-            buildTrace(root, state, "p1", 3, staleMove)
-        ).not.toThrow();
+        expect(() => buildTrace(root, state, "p1", 3, staleMove)).not.toThrow();
     });
 
     it("marks the stale-fallback edge unavailable instead of faking a resolved eval", () => {
