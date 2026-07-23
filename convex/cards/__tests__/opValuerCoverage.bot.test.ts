@@ -45,6 +45,14 @@ export const OP_VALUER_BACKFILL: readonly string[] = [
     // casting that card, which the flat OP_VALUERS heuristic can't size without
     // spell-level lookahead — deferred to the bot-AI valuation track (#1254).
     "castDuringResolution",
+    // createTokenCopy (CR 707.2 + CR 111.1, issue #1459): creates token copies
+    // of a RUNTIME source permanent (an announced target or a `ref` to a
+    // permanent bound earlier in the script). The copy's copiable values (P/T,
+    // abilities) are the source's, unknown to the flat static OP_VALUERS
+    // heuristic — sizing it needs the runtime board, so valuation is deferred
+    // to the bot-AI valuation track (#1254), like createToken's runtime-shaped
+    // sibling cases.
+    "createTokenCopy",
 ];
 
 describe("OP_VALUERS coverage guard (PRD #1423, issue #1426)", () => {

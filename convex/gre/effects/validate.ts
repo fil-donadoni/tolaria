@@ -2035,6 +2035,18 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
         },
         optional: { count: isEffectValue, bind: isBindingName },
     },
+    // CR 707.2 + CR 111.1 (issue #1459) — create token COPIES of a runtime
+    // source permanent. `source` is an object selector (an announced target
+    // slot OR a `ref` to an earlier binding in the same script); `controller`
+    // names who gets the copies; `count` is an optional EffectValue (default
+    // 1) for a count-scaled creation; `bind` snapshots the last created copy.
+    createTokenCopy: {
+        required: {
+            source: isObjectSelector,
+            controller: isPlayerRef,
+        },
+        optional: { count: isEffectValue, bind: isBindingName },
+    },
     // CR 114 (issue #1221) — create a command-zone emblem. `emblem` is a
     // non-empty registry key (the closure-bearing definition lives in
     // `convex/cards/emblems.ts`); `controller` (default "controller") is the

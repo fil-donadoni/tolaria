@@ -1338,11 +1338,18 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // 2 migrated out, the rest to FREE / their other blocker), FREE
         // 292->298 / AFK-ready 280->286 (+6). X-only unchanged. Partition:
         // 298+14+156=468.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(468);
+        // #1459 (createTokenCopy Op): the Op shipped and Dance of Many's ETB
+        // closure (its sole consumer — "create a token that's a copy of target
+        // nontoken creature") migrated resolve()->effects[]. The ETB was the
+        // only createTokenCopy-blocked closure, so it drops out of Op-blocked.
+        // Net: total 468->467 (1 migrated), Op-blocked 156->155 (-1). FREE /
+        // AFK-ready / X-only unchanged (the ETB was Op-blocked, not FREE).
+        // Partition: 298+14+155=467.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(467);
         expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(298);
         expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(286);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(156);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(155);
     });
 
     it("surfaces the demonstrated new-Op backlog (a covered primitive leaves it)", () => {

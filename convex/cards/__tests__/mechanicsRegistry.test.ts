@@ -579,7 +579,8 @@ describe("Effect Script Op census (ADR 0045/0046, PRD #826)", () => {
         // `regenerate` (issue #846) SHIPPED — moved to EFFECT_OP_REGISTRY.
         // `createToken` (issue #847) SHIPPED — its plain spec-driven form moved
         // to EFFECT_OP_REGISTRY; the copy form (createTokenCopyOf) split out as
-        // the new `createTokenCopy` backlog stub.
+        // the `createTokenCopy` backlog stub, which itself SHIPPED (issue #1459)
+        // — now COVERED live via EFFECT_OP_REGISTRY, Dance of Many migrated.
         // `gainControl` (issue #848) SHIPPED — moved to EFFECT_OP_REGISTRY (the
         // full ControlChangeCondition duration grammar folded; the EOT+tap-rider
         // form Ray of Command / Magus of the Unseen stays resolve(), issue #730).
@@ -602,11 +603,14 @@ describe("Effect Script Op census (ADR 0045/0046, PRD #826)", () => {
         // two orthogonal Ops (`scryReorder` = the choice-driven look/reorder
         // skin over orderTop; `mill` = the deterministic library→graveyard
         // loop); no longer a backlog reservation.
-        const named = ["createTokenCopy"];
+        // With the wave-1 skins shipped (incl. createTokenCopy, issue #1459),
+        // `lockUntap` is the sole remaining demonstrated backlog reservation.
+        const named = ["lockUntap"];
         const backlog = new Set(EFFECT_OP_BACKLOG.map((r) => r.op));
         for (const op of named) expect(backlog.has(op), op).toBe(true);
-        // …plus low-frequency long-tail reservations beyond the named set.
-        expect(EFFECT_OP_BACKLOG.length).toBeGreaterThan(named.length);
+        // The backlog holds at least the named reservations (plus any
+        // low-frequency long-tail reservations beyond the named set).
+        expect(EFFECT_OP_BACKLOG.length).toBeGreaterThanOrEqual(named.length);
     });
 
     it("isRegisteredEffectOp accepts implemented Ops but rejects planned backlog Ops", () => {
