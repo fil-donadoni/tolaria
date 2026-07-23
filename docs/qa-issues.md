@@ -37,7 +37,6 @@ Crucible of Worlds
 - Starting town non viene considerata come produttrice di mana colorato ai fini di castabilità
 - Erode permette di prendere terre non base con tipo di terra base, ma deve farti prendere SOLO terre base. verifica anche path to exile.
 - Sheoldred's edict deve farti scegliere prima di andare in pila, come le spell modali che abbiamo già sistemato
-- Il trigger di animate dead quando la creatura è morta blocca il gioco.
 
 ## UX da migliorare
 

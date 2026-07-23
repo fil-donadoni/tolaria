@@ -358,6 +358,22 @@ _Avoid_: CPU, computer player, enemy
 The component that computes the **Bot**'s next move. Distinct from authority: the **Brain** only _proposes_ a move; the **GRE** still validates and applies it. Runs client-side, off the authoritative path.
 _Avoid_: AI engine, solver
 
+**Blade Scenario**:
+A hand-curated position where the right play is not a matter of opinion, kept as the **Brain**'s correctness metric. A position qualifies only when the wrong move loses something **forced by the rules** — a creature, the game — never merely "worse on average"; a thin-margin position is not a blade.
+_Avoid_: AI test, benchmark position, puzzle
+
+**Charter Scenario**:
+The four **Blade Scenarios** that define _done_ for the credible-opponent effort: Stifle on one's own punisher trigger, fetchland timing and target, modal choice, and lethal-block defence.
+_Avoid_: Acceptance test, milestone scenario
+
+**Discriminating Pair**:
+Two **Blade Scenarios** identical except for one card, asserting opposite verdicts. Neither proves anything alone — only the pair distinguishes a **Brain** that reads the consequence from one that always, or never, makes the play.
+_Avoid_: A/B test, control pair
+
+**Beyond Budget**:
+A position the **Brain** solves only with more search than a real game grants. Recorded with _why_ — too many candidate moves at one decision, a payoff too far ahead, or a hidden-information coincidence that rarely occurs — because each cause names a missing piece of **Brain** knowledge, not a shortfall of thinking time.
+_Avoid_: Too slow, needs more iterations, timeout
+
 **Determinization**:
 Guessing a concrete possible world for the hidden information (the opponent's **Hand** and the order of the **Library**) so the **Brain** can reason about an otherwise-hidden position as if it were fully known.
 _Avoid_: Sampling, guessing, simulation

@@ -1,0 +1,61 @@
+import { describe, it, expect } from "vitest";
+import { animateDead, grizzlyBears, lightningBolt } from "..";
+import { resolveTopOfStack } from "../../../../gre/state";
+import { checkStateBasedActions } from "../../../../gre/sba";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+    pushSpell,
+} from "../../../__tests__/setup";
+
+describe("REPRO: animate dead host dies", () => {
+    it("resolves the LTB trigger after the host dies to a burn spell", () => {
+        const dead = makeInstance(grizzlyBears.id, {
+            id: "dead",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { graveyard: [dead] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, animateDead.id, "p1", [
+            { type: "graveyard-card", id: "dead", playerId: "p1" },
+        ]);
+        resolveTopOfStack(state);
+        // p2 bolts the reanimated creature
+        pushSpell(state, lightningBolt.id, "p2", [
+            { type: "permanent", id: "dead" },
+        ]);
+        resolveTopOfStack(state);
+        checkStateBasedActions(state);
+        const dump = () => ({
+            stack: state.stack.map((s) => ({
+                trig: s.triggeredAbilityId,
+                src: s.triggerSourceId,
+                card: (s.card as { id?: string }).id,
+            })),
+            bf1: state.players[0].battlefield.map((c) => c.id),
+            gy1: state.players[0].graveyard.map((c) => c.id),
+            prio: state.priorityPlayerId,
+            pending: state.pendingChoice ?? null,
+        });
+        console.log("after SBA:", JSON.stringify(dump(), null, 1));
+        let guard = 0;
+        while (state.stack.length > 0 && guard++ < 10) {
+            const r = resolveTopOfStack(state);
+            console.log(
+                `resolve #${guard}:`,
+                r === null ? "SUSPENDED" : "ok",
+                JSON.stringify(dump())
+            );
+            checkStateBasedActions(state);
+            if (r === null) break;
+        }
+        expect(state.stack.length).toBe(0);
+    });
+});
