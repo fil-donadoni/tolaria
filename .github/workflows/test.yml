@@ -1,0 +1,71 @@
+name: test
+
+# Application + bot vitest suites (issue #1510). Prior to this workflow no CI
+# job ran `bun run test` at all — the green-main invariant (CLAUDE.md §
+# Quality gates) was enforced only by local process (the merge-train), not by
+# CI. This closes that gap.
+#
+# TWO separate jobs, not one job running `bun run test`, mirroring the
+# app/bot project split `vitest.config.ts` documents:
+#
+#   test-app — application suite (rules/GRE/cards/UI, `bun run test:app`).
+#              604 files / 9896 tests, ~46s locally.
+#   test-bot — bot/AI suite (ISMCTS search, evaluation, self-play,
+#              `bun run test:bot`). 52 files / 707 tests, ~105s locally.
+#
+# Both are BLOCKING (no continue-on-error) — unlike blade-stretch, the test
+# suites are not a "working towards it" signal, they are the same zero-red
+# gate `bun run test` enforces locally before every merge.
+
+on:
+    push:
+        branches:
+            - staging
+            - main
+    pull_request:
+        branches:
+            - staging
+            - main
+
+jobs:
+    test-app:
+        name: test (app suite)
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Setup Bun
+              uses: oven-sh/setup-bun@v2
+
+            - name: Install Dependencies
+              run: bun install --frozen-lockfile
+
+            - name: Generate Convex types
+              run: bunx convex codegen --typecheck disable
+              env:
+                  CONVEX_DEPLOYMENT: ${{ secrets.CONVEX_DEPLOYMENT }}
+                  CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
+
+            - name: Application suite
+              run: bun run test:app
+
+    test-bot:
+        name: test (bot suite)
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Setup Bun
+              uses: oven-sh/setup-bun@v2
+
+            - name: Install Dependencies
+              run: bun install --frozen-lockfile
+
+            - name: Generate Convex types
+              run: bunx convex codegen --typecheck disable
+              env:
+                  CONVEX_DEPLOYMENT: ${{ secrets.CONVEX_DEPLOYMENT }}
+                  CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
+
+            - name: Bot suite
+              run: bun run test:bot
