@@ -281,12 +281,22 @@ export const dslChoicePrior: ChoicePriorFn = (state, choice, candidate) => {
 
 let activePriorFn: ChoicePriorFn = dslChoicePrior;
 
+/** Bumped on every `setChoicePriorFn`/`resetChoicePriorFn` call (issue
+ *  #1520). `priorFor` reads the module-level `activePriorFn`, so it is only
+ *  pure ACROSS TIME while nothing swaps the provider — true throughout a real
+ *  search (the provider is never swapped mid-run) but not in a test that
+ *  installs a stub between two calls over the same `(state, choice)`. A
+ *  downstream cache (`choiceCandidates`' one-slot memo) reads this counter
+ *  instead of assuming purity it can't verify. */
+let priorFnGeneration = 0;
+
 /** Install a different prior provider (a stub in a test, or a rollback to
  *  `heuristicChoicePrior`). Returns the previous provider so a caller can
  *  restore it. */
 export function setChoicePriorFn(fn: ChoicePriorFn): ChoicePriorFn {
     const previous = activePriorFn;
     activePriorFn = fn;
+    priorFnGeneration++;
     return previous;
 }
 
@@ -294,6 +304,12 @@ export function setChoicePriorFn(fn: ChoicePriorFn): ChoicePriorFn {
  *  #1433). */
 export function resetChoicePriorFn(): void {
     activePriorFn = dslChoicePrior;
+    priorFnGeneration++;
+}
+
+/** Current prior-provider generation (issue #1520) — see `priorFnGeneration`. */
+export function getChoicePriorGeneration(): number {
+    return priorFnGeneration;
 }
 
 /** Score a choice-node candidate through the currently-installed provider.

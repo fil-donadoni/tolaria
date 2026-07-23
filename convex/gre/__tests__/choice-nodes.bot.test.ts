@@ -7,7 +7,7 @@
 // modal `option-pick` generator (issue #1428) and the `search-library`
 // fetch/tutor generator (CR 701.19, issue #1429).
 
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import type { GameState, PendingChoice } from "../state";
 import { resolveTopOfStack } from "../state";
 import type { CardDefinition, EffectOp, MayPayCost } from "../../cards/types";
@@ -44,6 +44,7 @@ import {
     resetChoicePriorFn,
     setChoicePriorFn,
 } from "../ai/choicePriors";
+import * as choicePriorsModule from "../ai/choicePriors";
 import {
     makeState,
     makePlayer,
@@ -1625,5 +1626,91 @@ describe("dslChoicePrior: OP_VALUERS context-aware (issue #1433)", () => {
         // Giving up REAL material (even second-worst) costs more than giving
         // up a do-nothing card — the prior, not just the hint, says so.
         expect(cheapAccept.prior).toBeGreaterThan(expensiveAccept.prior);
+    });
+});
+
+describe("decidingPlayer / enumerateMoves mirror (issue #1520)", () => {
+    it("decidingPlayer is non-null exactly when enumerateMoves is non-empty for a pendingCompanionPay", () => {
+        // CR 116.2 / 702.139f — a live companion payment is a continuation
+        // the executor drives atomically, not a fresh macro-move (mirrors
+        // pendingCast/pendingTarget/pendingActivation). Before the fix,
+        // `decidingPlayer` didn't gate on `pendingCompanionPay`, so it named
+        // `priorityPlayerId` as the decider while `enumerateMoves` — which DID
+        // gate on it — returned []: a decider with an empty move list,
+        // contradicting the documented invariant and stalling the playout.
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+            priorityPlayerId: "p1",
+            activePlayerId: "p1",
+        });
+        state.pendingCompanionPay = {
+            playerId: "p1",
+            manaCost: { X: 3 },
+            tappedLandIds: [],
+        };
+
+        const pid = decidingPlayer(state);
+        const moves = pid ? enumerateMoves(state, pid) : [];
+        expect(pid === null || moves.length > 0).toBe(true);
+        // Pinned to the actual desired shape, not just the invariant: a
+        // pending companion payment is a non-decision window.
+        expect(pid).toBeNull();
+    });
+
+    it("decidingPlayer stays non-null with a non-empty move list once pendingCompanionPay clears", () => {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+            priorityPlayerId: "p1",
+            activePlayerId: "p1",
+        });
+        const pid = decidingPlayer(state);
+        expect(pid).toBe("p1");
+        expect(enumerateMoves(state, pid!).length).toBeGreaterThan(0);
+    });
+
+    it("mirror holds at a headChoice node too: pendingCompanionPay alongside a live choice yields no decider", () => {
+        const state = stateWithChoice({ kind: "may-pay" });
+        state.pendingCompanionPay = {
+            playerId: "p1",
+            manaCost: { X: 3 },
+            tappedLandIds: [],
+        };
+        const pid = decidingPlayer(state);
+        const moves = pid ? enumerateMoves(state, pid) : [];
+        expect(pid === null || moves.length > 0).toBe(true);
+        expect(pid).toBeNull();
+    });
+});
+
+describe("choice-node candidate generation computed once per node visit (issue #1520)", () => {
+    afterEach(() => vi.restoreAllMocks());
+
+    it("decidingPlayer followed by enumerateMoves runs the generator+priorFor pass exactly once, not twice", () => {
+        const spy = vi.spyOn(choicePriorsModule, "priorFor");
+        const state = stateWithChoice({ kind: "may-pay" });
+
+        const pid = decidingPlayer(state);
+        expect(pid).toBe("p1");
+        const moves = enumerateMoves(state, pid!);
+        expect(moves.length).toBeGreaterThan(0);
+
+        // may-pay with no cost yields exactly the yes/no pair — one full
+        // generate+score pass costs 2 `priorFor` calls. Before the fix,
+        // `decidingPlayer`'s non-emptiness check and `enumerateMoves`' actual
+        // list each ran the generator independently: 4 calls for the same
+        // node visit.
+        expect(spy).toHaveBeenCalledTimes(moves.length);
+    });
+
+    it("repeated choiceCandidates calls for the SAME (state, choice) reuse the memoized result", () => {
+        const spy = vi.spyOn(choicePriorsModule, "priorFor");
+        const state = stateWithChoice({ kind: "may-pay" });
+        const choice = state.pendingChoices![0];
+
+        const first = choiceCandidates(state, choice);
+        const second = choiceCandidates(state, choice);
+
+        expect(second).toBe(first); // same array reference — cache hit
+        expect(spy).toHaveBeenCalledTimes(first.length);
     });
 });

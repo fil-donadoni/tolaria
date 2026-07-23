@@ -49,7 +49,11 @@ import { getEffectivePower } from "../layers";
 import { tryGetDefinition } from "../../cards";
 import type { PendingChoiceKind } from "../types";
 import type { Move } from "../moves";
-import { priorFor, type ChoiceCandidateHint } from "./choicePriors";
+import {
+    getChoicePriorGeneration,
+    priorFor,
+    type ChoiceCandidateHint,
+} from "./choicePriors";
 import {
     libraryTargetWorth,
     permanentWorth,
@@ -526,21 +530,65 @@ export function topKByPrior(
         .map(({ c }) => c);
 }
 
+/** One-slot memo (issue #1520): `decidingPlayer` (`search.ts`) computes a head
+ *  choice's candidates to check non-emptiness, then the caller independently
+ *  recomputes the IDENTICAL candidates a moment later (`keyedMovesFor` /
+ *  `enumerateMoves`) to actually use them — 2x the generator + `priorFor`
+ *  (board-scan) cost at every choice ply, in both tree descent and rollout.
+ *  `choiceCandidates` is documented pure IN A SINGLE-GENERATION window — safe
+ *  to cache on the call's own inputs PROVIDED the two calls bracket no state
+ *  mutation and no `setChoicePriorFn` swap. True of every real call site:
+ *  `decidingPlayer`/`keyedMovesFor`/`enumerateMoves` are always invoked
+ *  back-to-back on the same (unmutated) state within one node visit, and the
+ *  installed provider never changes mid-search. Reference equality (not deep
+ *  equality) is the cheap, correct proxy for "same inputs" under that
+ *  invariant — a fresh determinization or a requeued choice is a distinct
+ *  object and misses the cache, recomputing correctly; `getChoicePriorGeneration`
+ *  additionally guards the test-only pluggability seam (`setChoicePriorFn`),
+ *  so a test that swaps providers between two calls over the same
+ *  `(state, choice)` still observes a fresh computation. */
+let lastCandidatesState: GameState | null = null;
+let lastCandidatesChoice: PendingChoice | null = null;
+let lastCandidatesK: number | null = null;
+let lastCandidatesGeneration: number | null = null;
+let lastCandidatesResult: ChoiceCandidate[] | null = null;
+
 /** The choice node's opened branches: the registered generator's self-pruned
  *  set, scored through the `priorFor` seam and truncated to the top K. Returns
- *  `[]` for a kind with no generator (not an in-tree node). Pure. */
+ *  `[]` for a kind with no generator (not an in-tree node). Pure — and memoized
+ *  on its own inputs (see the note above `lastCandidatesState`) so a node visit
+ *  never pays for the generator + prior pass twice. */
 export function choiceCandidates(
     state: GameState,
     choice: PendingChoice,
     k: number = CHOICE_TOP_K
 ): ChoiceCandidate[] {
+    const generation = getChoicePriorGeneration();
+    if (
+        lastCandidatesResult &&
+        lastCandidatesState === state &&
+        lastCandidatesChoice === choice &&
+        lastCandidatesK === k &&
+        lastCandidatesGeneration === generation
+    ) {
+        return lastCandidatesResult;
+    }
     const generate = CHOICE_CANDIDATE_GENERATORS[choice.kind];
-    if (!generate) return [];
-    const scored = generate(state, choice).map((c) => ({
-        ...c,
-        prior: priorFor(state, choice, c),
-    }));
-    return topKByPrior(scored, k);
+    const result = generate
+        ? topKByPrior(
+              generate(state, choice).map((c) => ({
+                  ...c,
+                  prior: priorFor(state, choice, c),
+              })),
+              k
+          )
+        : [];
+    lastCandidatesState = state;
+    lastCandidatesChoice = choice;
+    lastCandidatesK = k;
+    lastCandidatesGeneration = generation;
+    lastCandidatesResult = result;
+    return result;
 }
 
 /** FIRST-PLAY URGENCY: which not-yet-opened candidate the node opens next.
