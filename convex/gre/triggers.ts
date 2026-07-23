@@ -18,6 +18,7 @@ import type {
     GameEventType,
     PermanentView,
     StateCheckEvent,
+    TargetRequirement,
     TriggeredAbility,
 } from "../cards/types";
 import { tryGetDefinition } from "../cards";
@@ -194,12 +195,21 @@ function emblemAsTriggerSelf(emblem: EmblemInstance): PermanentView {
  *  battlefield permanent is spread in. `emblemSourceId` (the emblem's registry
  *  key) tells `resolveTopOfStack` to resolve the ability from the emblem
  *  registry; `triggerSourceId` pins the emblem instance for LKI. Controlled by
- *  the emblem's owner. Issue #1221. */
+ *  the emblem's owner. Issue #1221.
+ *
+ *  An emblem has no `CardDefinition`, so `raiseTriggerTargetSelection`'s normal
+ *  `findTriggeredAbility` lookup (which reads the CARD registry) can't see a
+ *  targeted emblem ability's `targetRequirement`. Ride it on the stack item via
+ *  `inlineTargetRequirement` — the same seam a reflexive trigger uses (CR
+ *  603.3d) — so a targeting emblem (Chandra's −7: "deals 5 damage to any
+ *  target", issue #1478) gets its target chosen exactly like a card-def
+ *  trigger. Omitted for a non-targeting emblem. */
 function buildEmblemTriggerItem(
     state: GameState,
     emblem: EmblemInstance,
     triggeredAbilityId: string,
-    event: GameEvent
+    event: GameEvent,
+    targetRequirement?: TargetRequirement
 ): StackItem {
     return {
         id: allocInstanceId(state),
@@ -216,6 +226,9 @@ function buildEmblemTriggerItem(
         triggerSourceId: emblem.id,
         triggerEvent: event,
         emblemSourceId: emblem.emblemId,
+        ...(targetRequirement
+            ? { inlineTargetRequirement: targetRequirement }
+            : {}),
     };
 }
 
@@ -375,7 +388,13 @@ export function collectTriggers(
                 if (!ability.matches(event, self, state)) continue;
                 firedThisBatch = true;
                 out.push(
-                    buildEmblemTriggerItem(state, emblem, ability.id, event)
+                    buildEmblemTriggerItem(
+                        state,
+                        emblem,
+                        ability.id,
+                        event,
+                        ability.targetRequirement
+                    )
                 );
             }
         }

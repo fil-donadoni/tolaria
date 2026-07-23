@@ -1436,8 +1436,53 @@ export const OP_EXECUTORS: {
 
         const playerId = resolvePlayerRef(ctx, op.player);
         if (playerId === undefined) return; // CR 608.2b — caster gone, skip
-        const ids = resolvePicks(ctx, op.card);
-        const cardInstanceId = ids && ids.length > 0 ? ids[0] : undefined;
+
+        // Records the terminal outcome exactly once: the internal done-marker
+        // (short-circuits a re-walk, CR 608.3) AND — when the author asked for
+        // one — the boolean OUTCOME binding a downstream `if` reads (issue
+        // #1478, Chandra's "If you don't [cast it], …"). `cast` is true only
+        // when a spell actually reached the stack; a decline, a silent pass, an
+        // unmeetable cost, or an unpayable mana cost all read `false` (mirrors
+        // `mayPay`'s `["yes"]`/`["no"]` boolean payload).
+        const finish = (cast: boolean, marker: string) => {
+            ctx.noteChoice(doneKey, [marker]);
+            if (op.resultBind !== undefined) {
+                ctx.noteChoice(op.resultBind, [cast ? MAYPAY_YES : "no"]);
+            }
+        };
+
+        // Resolve the card to offer and its effective SOURCE zone. Two shapes:
+        //  - `fromTopOfLibrary` (issue #1478, Chandra +1) — exile the top card
+        //    of the caster's library UNCONDITIONALLY as the first thing the Op
+        //    does (CR 608.2f), then offer that exiled card; a decline / can't-
+        //    pay leaves it in exile. The exiled id is persisted under the Op's
+        //    checkpoint so a suspend/resume re-walk reuses it rather than
+        //    exiling a second card (CR 608.3).
+        //  - `card` + `source` (issue #1477, Malcolm) — a bare picks ref to a
+        //    card an earlier Op bound, cast from its graveyard/exile source.
+        let cardInstanceId: string | undefined;
+        let sourceZone: "graveyard" | "exile";
+        if (op.fromTopOfLibrary) {
+            sourceZone = "exile";
+            const exiledKey = `#cdrExiled:${pos}`;
+            const recalled = ctx.recallChoice(exiledKey);
+            if (recalled !== undefined) {
+                cardInstanceId = recalled[0];
+            } else {
+                const topId = ctx.peekLibraryTop(playerId, 1)[0];
+                if (topId === undefined) {
+                    finish(false, "pass"); // empty library — nothing to exile
+                    return;
+                }
+                ctx.moveCardById(playerId, topId, "library", "exile");
+                ctx.noteChoice(exiledKey, [topId]);
+                cardInstanceId = topId;
+            }
+        } else {
+            sourceZone = op.source ?? "exile";
+            const ids = op.card ? resolvePicks(ctx, op.card) : undefined;
+            cardInstanceId = ids && ids.length > 0 ? ids[0] : undefined;
+        }
 
         // Silent pass (CR 608.2b / the Malcolm land ruling): the binding was
         // never captured, the card is no longer in the source zone (empty
@@ -1445,9 +1490,9 @@ export const OP_EXECUTORS: {
         // offered at all — the trigger finishes silently.
         if (
             cardInstanceId === undefined ||
-            !ctx.getChosenCardCastable(playerId, cardInstanceId, op.source)
+            !ctx.getChosenCardCastable(playerId, cardInstanceId, sourceZone)
         ) {
-            ctx.noteChoice(doneKey, ["pass"]);
+            finish(false, "pass");
             return;
         }
 
@@ -1464,7 +1509,7 @@ export const OP_EXECUTORS: {
         if (decision !== "cast") {
             // Declined — the card stays in its source zone, nothing is cast,
             // and (unlike `grantCastFrom*`) no later-in-turn window is stamped.
-            ctx.noteChoice(doneKey, ["decline"]);
+            finish(false, "decline");
             return;
         }
 
@@ -1520,7 +1565,7 @@ export const OP_EXECUTORS: {
                 sacrificeFilter
             );
             if (candidateIds.length === 0) {
-                ctx.noteChoice(doneKey, ["pass"]); // unmeetable — not cast
+                finish(false, "pass"); // unmeetable — not cast
                 return;
             }
             const pickedSac = ctx.requestChoice({
@@ -1558,7 +1603,7 @@ export const OP_EXECUTORS: {
                 targetReq
             );
             if (legal.length === 0) {
-                ctx.noteChoice(doneKey, ["pass"]); // no legal target — not cast
+                finish(false, "pass"); // no legal target — not cast
                 return;
             }
             const candidatePlayerIds = legal
@@ -1589,16 +1634,20 @@ export const OP_EXECUTORS: {
         // spell is spliced onto the stack just BELOW the resolving ability
         // (`castChosenSpell`) so it becomes the new top and resolves next —
         // with NO priority in between (CR 608.2f). `free` waives the mana cost
-        // (Malcolm), `source` is the zone it is cast from.
-        ctx.castChosenSpell(playerId, cardInstanceId, playerId, {
+        // (Malcolm), `sourceZone` is the zone it is cast from. The boolean
+        // return (issue #1478) is `false` when the normal mana cost is
+        // unpayable (CR 117.3 / 601.2g) — the card stays in its source zone and
+        // the outcome binding reads "not cast" so a downstream `if not $cast`
+        // fires (Chandra's 2 damage to each opponent).
+        const cast = ctx.castChosenSpell(playerId, cardInstanceId, playerId, {
             targets: chosenTargets,
             chosenX,
             chosenModeId,
             additionalSacrificeId,
-            sourceZone: op.source,
+            sourceZone,
             free: op.free,
         });
-        ctx.noteChoice(doneKey, ["cast"]);
+        finish(cast, cast ? "cast" : "pass");
     },
     // CR 106.1 (issue #850) — add mana to a player's mana pool. A thin
     // declarative skin over the SpellContext primitive `addManaTo`, ONE

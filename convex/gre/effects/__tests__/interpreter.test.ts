@@ -16438,6 +16438,166 @@ describe("Effect Script Op: castDuringResolution (CR 608.2f, issue #1477)", () =
     });
 });
 
+describe("Effect Script Op: castDuringResolution — exile-top source + paid cast + outcome binding (CR 608.2f, issue #1478)", () => {
+    // The #1478 Op extension, exercised through the REAL resolution path. Shape
+    // is Chandra, Torch of Defiance's +1: exile the top card of the library and
+    // offer it for a PAID inline cast (its real mana cost), binding the outcome
+    // to `$cast`; a decline / can't-pay fires a plain `if not $cast` reflexive
+    // branch (2 damage to the opponent) — NOT bespoke card code. Covers the
+    // three new surfaces: exile-top source, pay-normal-cost, outcome binding
+    // driving the `if`.
+    function chandraShape(id: string): string {
+        return registerScript(id, [
+            {
+                op: "castDuringResolution",
+                player: "controller",
+                fromTopOfLibrary: true,
+                resultBind: "$cast",
+            },
+            {
+                op: "if",
+                predicate: { not: { binding: "$cast" } },
+                then: [
+                    { op: "dealDamage", amount: 2, to: { player: "opponent" } },
+                ],
+            },
+        ]);
+    }
+
+    function topOfLibrary(top: CardInstanceState[], manaPool = 0): GameState {
+        return makeState({
+            players: [
+                makePlayer("p1", {
+                    library: top,
+                    manaPool: { W: 0, U: 0, B: 0, R: 0, G: manaPool, C: 0 },
+                }),
+                makePlayer("p2"),
+            ],
+        });
+    }
+
+    function bearOnTop(id: string): CardInstanceState {
+        return makeInstance(BEAR_ID, {
+            id,
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "library",
+        });
+    }
+
+    it("exiles the top card (exile-top source) and offers a Cast/Decline; accepting PAYS the card's real mana cost and lands it on the stack, binding $cast=true so the reflexive branch does NOT fire", () => {
+        // Bear is {1}{G}; give p1 exactly 2 green floating so the normal cost is
+        // payable (pay-normal-cost mode — `free` omitted).
+        const bear = bearOnTop("topBear");
+        const id = chandraShape("test-op-cdr-top-accept");
+        const state = topOfLibrary([bear], 2);
+        pushSpell(state, id, "p1");
+        // Resolution exiles the top card UNCONDITIONALLY, then suspends on the
+        // Cast/Decline offer (CR 608.2f — not priority; the parent is on stack).
+        expect(resolveTopOfStack(state)).toBeNull();
+        expect(state.players[0].library.some((c) => c.id === "topBear")).toBe(
+            false
+        );
+        expect(state.players[0].exile.some((c) => c.id === "topBear")).toBe(
+            true
+        );
+        const offer = state.pendingChoices![0];
+        expect(offer.kind).toBe("option-pick");
+        expect(offer.options?.map((o) => o.id)).toEqual(["cast", "decline"]);
+
+        // Wire format (new-Op regime): the exiled card survives the projection
+        // in the caster's own exile zone.
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[0].exile.some((c) => c.id === "topBear")).toBe(
+            true
+        );
+
+        // Accept — the bear is cast from exile onto the stack (real spell), its
+        // mana cost paid from the floating pool.
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: offer.stackItemId,
+            step: offer.step,
+            choiceId: offer.choiceId,
+            cardInstanceIds: ["cast"],
+        });
+        expect(state.pendingChoices).toBeUndefined();
+        expect(state.players[0].exile.some((c) => c.id === "topBear")).toBe(
+            false
+        );
+        const onStack = state.stack.find((s) => s.id === "topBear");
+        expect(onStack).toBeDefined();
+        expect(onStack!.castById).toBe("p1");
+        // $cast=true → the reflexive `if not $cast` branch never ran: the
+        // opponent took no damage.
+        expect(state.players[1].life).toBe(20);
+        // The pool was actually spent (paid cast, not free).
+        expect(state.players[0].manaPool.G).toBe(0);
+    });
+
+    it("declining leaves the card exiled and binds $cast=false, so the reflexive branch deals 2 damage to the opponent (Chandra's 'If you don't')", () => {
+        const bear = bearOnTop("declineTop");
+        const id = chandraShape("test-op-cdr-top-decline");
+        const state = topOfLibrary([bear], 2);
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const offer = state.pendingChoices![0];
+        expect(offer.kind).toBe("option-pick");
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: offer.stackItemId,
+            step: offer.step,
+            choiceId: offer.choiceId,
+            cardInstanceIds: ["decline"],
+        });
+        expect(state.pendingChoices).toBeUndefined();
+        // Card stays exiled (not cast, not returned).
+        expect(state.players[0].exile.some((c) => c.id === "declineTop")).toBe(
+            true
+        );
+        expect(state.stack.some((s) => s.id === "declineTop")).toBe(false);
+        // Reflexive 2 damage fired.
+        expect(state.players[1].life).toBe(18);
+    });
+
+    it("accepting with an UNPAYABLE mana cost resolves as a decline (can't-pay): the card stays exiled and $cast=false fires the reflexive 2 damage (CR 601.2g / 'if able')", () => {
+        // No mana available — the bear's {1}{G} cost cannot be paid.
+        const bear = bearOnTop("cantPayTop");
+        const id = chandraShape("test-op-cdr-top-cantpay");
+        const state = topOfLibrary([bear], 0);
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const offer = state.pendingChoices![0];
+        expect(offer.kind).toBe("option-pick");
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: offer.stackItemId,
+            step: offer.step,
+            choiceId: offer.choiceId,
+            cardInstanceIds: ["cast"],
+        });
+        // Cast attempted but unpayable → not cast; card remains in exile.
+        expect(state.pendingChoices).toBeUndefined();
+        expect(state.players[0].exile.some((c) => c.id === "cantPayTop")).toBe(
+            true
+        );
+        expect(state.stack.some((s) => s.id === "cantPayTop")).toBe(false);
+        // $cast=false → reflexive 2 damage.
+        expect(state.players[1].life).toBe(18);
+    });
+
+    it("an EMPTY library exiles nothing, binds $cast=false, and fires the reflexive 2 damage (CR 608.2b)", () => {
+        const id = chandraShape("test-op-cdr-top-empty");
+        const state = topOfLibrary([], 0);
+        pushSpell(state, id, "p1");
+        // Nothing to exile → no Cast/Decline offer, resolution completes.
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+        expect(state.pendingChoices).toBeUndefined();
+        expect(state.stack).toHaveLength(0);
+        expect(state.players[1].life).toBe(18);
+    });
+});
+
 describe("Effect Script choice kind: choose-hand-card + Op: grantCastFromGraveyard (CR 601.3e / 117.6-analog, issue #1344)", () => {
     it("discards the chosen hand card, then grants graveyard cast permission + the free-cast waiver (Malcolm shape, same-player, 'this-turn' window)", () => {
         const handCard = makeInstance(BEAR_ID, {

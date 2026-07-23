@@ -1626,18 +1626,51 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             withoutPayingManaCost: isBoolean,
         },
     },
-    // CR 608.2f (issue #1477) — cast a card as part of this resolution (a "you
-    // may cast" with no duration). `card` is a bare picks ref to the card to
-    // offer; `player` names the caster; `source` is the zone it is cast from;
-    // `free` (optional) waives the mana cost (Malcolm).
+    // CR 608.2f (issue #1477 / #1478) — cast a card as part of this resolution
+    // (a "you may cast" with no duration). `player` names the caster; `free`
+    // (optional) waives the mana cost (Malcolm); `resultBind` (optional) names
+    // a boolean outcome binding a downstream `if` reads (Chandra, issue #1478).
+    // Two mutually-exclusive card SOURCES:
+    //   - `card` (bare picks ref) + `source` ("graveyard"/"exile") — Malcolm.
+    //   - `fromTopOfLibrary: true` — exile + offer the top of the caster's
+    //     library (cast from exile), Chandra's +1. `card`/`source` omitted.
     castDuringResolution: {
         required: {
-            card: isBarePicksRef,
             player: isPlayerRef,
-            source: (v: unknown) => v === "graveyard" || v === "exile",
         },
         optional: {
+            card: isBarePicksRef,
+            source: (v: unknown) => v === "graveyard" || v === "exile",
+            fromTopOfLibrary: (v: unknown) => v === true,
             free: isBoolean,
+            resultBind: isBindingName,
+        },
+        check: (entry) => {
+            const errors: string[] = [];
+            const hasCard = "card" in entry;
+            const fromTop = entry.fromTopOfLibrary === true;
+            if (fromTop) {
+                if (hasCard) {
+                    errors.push(
+                        'field "card" is not valid with "fromTopOfLibrary" (the top-of-library card is the source)'
+                    );
+                }
+                if ("source" in entry) {
+                    errors.push(
+                        'field "source" is not valid with "fromTopOfLibrary" (it is always cast from exile)'
+                    );
+                }
+            } else {
+                if (!hasCard) {
+                    errors.push(
+                        'requires "card" (a bare picks ref) unless "fromTopOfLibrary: true" is set'
+                    );
+                }
+                if (!("source" in entry)) {
+                    errors.push('field "source" is required with "card"');
+                }
+            }
+            return errors;
         },
     },
     // CR 106.1 (issue #850) — add mana to a player's mana pool. `mana` is the
@@ -3463,6 +3496,24 @@ function checkOpListRefs(
                 );
             } else {
                 declared.set(entry.bind, bindingKindOf(entry.op));
+            }
+        }
+
+        // `castDuringResolution.resultBind` (issue #1478) declares a BOOLEAN
+        // outcome binding (the mirror of `mayPay.bind`) under a distinct field
+        // name — the Op already spends `bind`-family semantics on nothing, so a
+        // dedicated field avoids overloading `bind`. Register it as boolean so a
+        // downstream `if { binding }` / `{ not: { binding } }` resolves.
+        if (
+            entry.op === "castDuringResolution" &&
+            typeof entry.resultBind === "string"
+        ) {
+            if (declared.has(entry.resultBind)) {
+                errors.push(
+                    `${at}: resultBind "${entry.resultBind}" re-declares an existing binding — binding names must be unique within a script`
+                );
+            } else {
+                declared.set(entry.resultBind, "boolean");
             }
         }
     });
