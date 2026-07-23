@@ -69,6 +69,14 @@ type GameContext = {
      *  `GameState.monarchId`. Undefined means no one is the monarch yet.
      *  Consumed by `BoardPlayer` / `PlayerLife` to badge the nameplate. */
     monarchId?: string;
+    /** CR 702.131 (Ascend, issue #1460) — the City's Blessing designation: the
+     *  ids of every player who has obtained the city's blessing, forwarded from
+     *  the wire `GameState.cityBlessingIds`. NON-exclusive (both players may
+     *  hold it) and MONOTONIC (never removed once granted, CR 702.131b).
+     *  Undefined/empty means no one has it yet. Consumed by
+     *  {@link PlayerCityBlessingTile} to render the marker tile beside the
+     *  pile column. */
+    cityBlessingIds?: string[];
     /** One-shot look/reveal notifications for this viewer (CR 701.18a look /
      *  701.20 reveal, `SpellContext.notifyReveal`). The projection filters
      *  `pendingReveals` to entries whose `audience` includes this viewer — a

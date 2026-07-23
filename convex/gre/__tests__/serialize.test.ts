@@ -964,6 +964,17 @@ describe("game_state serialize round-trip", () => {
         expect(expanded.monarchReturnWatch).toEqual(state.monarchReturnWatch);
     });
 
+    it("preserves the City's Blessing designation across the round trip (CR 702.131, issue #1460)", () => {
+        const state = freshState();
+        // NON-exclusive: both players may hold it (unlike the monarch scalar).
+        state.cityBlessingIds = ["p1", "p2"];
+        const expanded = expandState(compactState(state));
+        // Plain string array — round-trips verbatim through the generic
+        // optional-key loop. MONOTONIC (CR 702.131b), so losing it across a DB
+        // write would silently un-Ascend a player mid-game.
+        expect(expanded.cityBlessingIds).toEqual(["p1", "p2"]);
+    });
+
     it("preserves combatBlockRestrictions across the round trip", () => {
         const state = freshState();
         state.combatBlockRestrictions = [

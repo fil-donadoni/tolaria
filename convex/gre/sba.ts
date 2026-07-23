@@ -15,6 +15,7 @@ import {
     getEffectiveToughness,
     isSourceTappedLive,
 } from "./layers";
+import { checkAscendCityBlessing } from "./cityBlessing";
 import { isProtectedFromSource } from "./protection";
 import { applyLoseGameReplacements } from "./replacements";
 import { applyStateTriggers } from "./triggers";
@@ -754,6 +755,15 @@ export function checkStateBasedActions(state: GameState): void {
         if (state.gameOver) return;
         if (!acted) break;
     }
+    // CR 702.131a (issue #1460) — the PERMANENT form of Ascend: a continuous
+    // check granting the city's blessing to any player who controls an Ascend
+    // permanent and ten or more permanents. Runs AFTER the fixpoint (it depends
+    // on the settled battlefield count, and being monotonic/idempotent it can
+    // never itself unsettle the loop). Not a literal CR 704 state-based action
+    // — it grants a designation, moving nothing — but this sweep is the engine's
+    // canonical "re-evaluate continuous conditions at every stable point" hook,
+    // exactly where a state-trigger-like check belongs.
+    checkAscendCityBlessing(state);
     // CR 603.3b — triggered abilities that triggered from the SBA-driven zone
     // changes above (an Aura's "when this leaves" LTB, a creature's death
     // trigger from an SBA-lethal move, ...) are put on the stack now, before any

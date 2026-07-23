@@ -1196,6 +1196,12 @@ export const PERSISTED_OPTIONAL_KEYS = [
     // the generic optional-key loop with no per-field compaction needed.
     "monarchId",
     "monarchReturnWatch",
+    // CR 702.131 (Ascend, issue #1460) — the City's Blessing designation.
+    // `cityBlessingIds` is a plain array of player-id strings (no fat card
+    // refs); it round-trips via the generic optional-key loop. MONOTONIC — once
+    // a player is in the set they stay for the rest of the game — so it must
+    // survive every DB write, exactly like `monarchId`.
+    "cityBlessingIds",
     // Cosmetic crown provenance (issue #1305) — a plain string scalar keying
     // the end-step draw tile's themed marker art; round-trips generically.
     "monarchSourceCardId",

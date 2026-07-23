@@ -1822,7 +1822,15 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         name: "Ascend",
         kind: "keyword-ability",
         cr: "702.131",
-        status: "planned",
+        status: "implemented",
+        // Declared as the literal `staticAbilities: ["ascend"]` string. The
+        // engine consumes it in two places (issue #1460): the PERMANENT form is
+        // a continuous check in the SBA sweep (`gre/cityBlessing.ts`
+        // `checkAscendCityBlessing`), and the INSTANT/SORCERY form checks once
+        // on resolution (`finalizeSpellResolution`). Both grant the monotonic
+        // City's Blessing designation (`GameState.cityBlessingIds`,
+        // CR 702.131b — never revoked once obtained).
+        binding: "ascend",
     },
     // 702.132 Assist
     {

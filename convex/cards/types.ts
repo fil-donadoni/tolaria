@@ -2282,6 +2282,12 @@ export interface SpellContext {
      *  Used by the `{ lifeGainedThisTurn: { of } }` EffectValue grammar member
      *  and by imperative "if you gained life this turn" conditions. */
     getLifeGainedThisTurn: (playerId: string) => number;
+    /** CR 702.131b (Ascend, issue #1460) — true iff `playerId` holds the
+     *  city's blessing designation. Reads the monotonic
+     *  `GameState.cityBlessingIds` set (once granted, never revoked). Powers
+     *  the `hasCityBlessing` Effect Script predicate ("if you have the city's
+     *  blessing", Ocelot Pride #1461) and imperative reads alike. */
+    hasCityBlessing: (playerId: string) => boolean;
     /** CR 122 / 603.3 (issue #1189) — how many times (1-indexed, counting
      *  this resolution) the CURRENTLY RESOLVING triggered ability has
      *  resolved this turn. Reads `GameState.abilityResolutionCounts`, keyed
@@ -9387,7 +9393,8 @@ export type EffectPredicate =
     | EffectPicksNonEmptyPredicate
     | EffectTargetIsAnotherPredicate
     | EffectPicksMatchFilterPredicate
-    | EffectBoundMatchesFilterPredicate;
+    | EffectBoundMatchesFilterPredicate
+    | EffectHasCityBlessingPredicate;
 
 /** Boolean-binding predicate: true iff the named boolean binding is true
  *  (`{ binding }`) or false (`{ not: { binding } }`). The binding MUST be a
@@ -9474,6 +9481,18 @@ export interface EffectPicksMatchFilterPredicate {
 export interface EffectBoundMatchesFilterPredicate {
     boundMatchesFilter: EffectRef;
     filter: EffectCardFilter;
+}
+
+/** Has-city's-blessing predicate (Ascend, CR 702.131b — issue #1460): true iff
+ *  the resolved `hasCityBlessing` player holds the city's blessing designation
+ *  (`GameState.cityBlessingIds`). `player` is normally `"controller"` — the
+ *  resolving object's controller ("if you have the city's blessing", Ocelot
+ *  Pride #1461). A pure player-state read (the monotonic designation set), no
+ *  binding/target/zone dependency; reads `false` for an unresolvable player
+ *  ref. The zone-free, retrospective-free analogue of the other player-scoped
+ *  predicates. */
+export interface EffectHasCityBlessingPredicate {
+    hasCityBlessing: EffectPlayerRef;
 }
 
 // `EffectChoiceKind` must stay a subset of the engine's `ZonePickKind` — the
