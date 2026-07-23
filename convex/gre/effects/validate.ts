@@ -4063,7 +4063,13 @@ export function validateAiEffectsScript(def: EffectScriptHost): string[] {
     const errors: string[] = [];
     if (def.aiEffects === undefined) return errors;
     const label = `${def.name} (${def.id}) aiEffects`;
-    validateEffectOpList(def.aiEffects, label, EMPTY_BINDINGS, errors, undefined);
+    validateEffectOpList(
+        def.aiEffects,
+        label,
+        EMPTY_BINDINGS,
+        errors,
+        undefined
+    );
     return errors;
 }
 

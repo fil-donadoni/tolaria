@@ -518,9 +518,7 @@ describe("validateAiEffectsScript / validateAbilityAiEffectsScript — AI-only s
         const errors = validateAiEffectsScript(
             host({
                 resolve: () => {},
-                aiEffects: [
-                    { op: "dealDamage", amount: 3, to: { target: 0 } },
-                ],
+                aiEffects: [{ op: "dealDamage", amount: 3, to: { target: 0 } }],
             })
         );
         expect(errors).toEqual([]);
