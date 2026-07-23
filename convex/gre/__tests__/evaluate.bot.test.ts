@@ -31,10 +31,14 @@ const SPRITES = getCardByName("Scryb Sprites").id; // 1/1 flying
 const MOUNTAIN = getCardByName("Mountain").id;
 const BOP = getCardByName("Birds of Paradise").id; // 0/1 flying mana dork
 const GROWTH = getCardByName("Giant Growth").id; // instant, G (MV 1)
-// A utility creature with a DSL activated ability (a tap "deal damage" pinger):
-// its ability-script value is large relative to its small body, the exact shape
-// that inverted the issue-#149 invariant before review #1440.
-const ARTILLERY = getCardByName("Orcish Artillery").id;
+// A utility creature with a DSL activated ability (a mana-cost regenerate
+// shield): its ability-script value is large relative to its modest body, the
+// exact shape that inverted the issue-#149 invariant before review #1440.
+// (Not Orcish Artillery — issue #1521 corrected `dealDamage`'s self-damage
+// sign, so its "2 damage to any target and 3 to you" ability now nets a
+// realistic small COST rather than the double-counted-as-gain total the old
+// buggy valuer produced; Uthden Troll's ability has no self-directed half.)
+const UTILITY_CREATURE = getCardByName("Uthden Troll").id;
 
 function bear(controllerId: string, id: string) {
     return makeInstance(BEARS, { controllerId, ownerId: controllerId, id });
@@ -395,7 +399,7 @@ describe("cardValue — latent worth + aiValue override (ADR 0018)", () => {
         // the body still discounted latently (0.85×), latent < realized is
         // guaranteed. This case FAILS under the old body-only realized code
         // (latent counts the ability, realized does not) and PASSES now.
-        const onBoard = makeInstance(ARTILLERY, {
+        const onBoard = makeInstance(UTILITY_CREATURE, {
             controllerId: "p1",
             ownerId: "p1",
             id: "b",
@@ -406,12 +410,13 @@ describe("cardValue — latent worth + aiValue override (ADR 0018)", () => {
                 makePlayer("p2"),
             ],
         });
-        const latent = cardValue(state, inHand(ARTILLERY));
+        const latent = cardValue(state, inHand(UTILITY_CREATURE));
         const realized = evaluateCreature(boardState, onBoard);
-        // Non-tautological: the ability worth is real. A 1/2 Orcish Artillery in
+        // Non-tautological: the ability worth is real. A 2/2 Uthden Troll in
         // play out-values a BIGGER vanilla 3/3 Hill Giant precisely because its
-        // realized worth now includes the pinger ability — if the ability value
-        // were dropped, the smaller body would rank below the Giant.
+        // realized worth now includes the regenerate-shield ability — if the
+        // ability value were dropped, the smaller body would rank below the
+        // Giant.
         const giantOnBoard = makeInstance(GIANT, {
             controllerId: "p1",
             ownerId: "p1",

@@ -69,6 +69,63 @@ describe("OP_VALUERS — charter valuers (PRD #1423, issue #1426)", () => {
             expect(v.points).toBe(154); // 7 × 22
             expect(v.tags).not.toContain("board-scaling");
         });
+
+        // Issue #1521 — a player-directed damage Op is not always aimed at
+        // the opponent: a recoil/symmetric rider names the caster's own side.
+        it("a self-directed damage rider is a cost (negative, self-cost)", () => {
+            const op: EffectOp = {
+                op: "dealDamage",
+                amount: 4,
+                to: { player: "controller" },
+            };
+            const v = valueOp(op, cf);
+            expect(v.points).toBe(-88); // -(4 × 22)
+            expect(v.tags).toContain("self-cost");
+        });
+
+        it("an opponent-only burn (via a player ref) stays positive", () => {
+            const op: EffectOp = {
+                op: "dealDamage",
+                amount: 4,
+                to: { player: "opponent" },
+            };
+            const v = valueOp(op, cf);
+            expect(v.points).toBe(88);
+            expect(v.tags).not.toContain("self-cost");
+        });
+
+        it("a symmetric each-player damage script values near neutral", () => {
+            // Earthquake/Flame Rift/Fissure-style: `forEach { set: "players" }`
+            // over `dealDamage` to the `$each` iteration variable hits every
+            // player, including the caster — net contribution ≈ 0, not the
+            // pure-gain value a blanket "damage always helps the caster"
+            // assumption would produce.
+            const script: EffectOp[] = [
+                {
+                    op: "forEach",
+                    select: { set: "players" },
+                    effects: [
+                        {
+                            op: "dealDamage",
+                            amount: 4,
+                            to: { player: { ref: "$each" } },
+                        },
+                    ],
+                },
+            ];
+            const v = valueEffectScript(script, cf);
+            expect(v.points).toBe(0);
+        });
+
+        it("a two-sided recoil script (target + self rider) nets near zero", () => {
+            // Fire and Brimstone-shaped: N damage to an opponent-resolving
+            // target, N damage to the caster — the two legs cancel.
+            const script: EffectOp[] = [
+                { op: "dealDamage", amount: 4, to: { player: "opponent" } },
+                { op: "dealDamage", amount: 4, to: { player: "controller" } },
+            ];
+            expect(valueEffectScript(script, cf).points).toBe(0);
+        });
     });
 
     describe("draw (CR 121.1)", () => {
@@ -186,6 +243,79 @@ describe("OP_VALUERS — charter valuers (PRD #1423, issue #1426)", () => {
             const v = valueOp(op, cf);
             expect(v.points).toBe(-40);
             expect(v.tags).toContain("self-cost");
+        });
+
+        // Issue #1521 — an ANNOUNCED target slot (as opposed to a `$source`/
+        // snapshot-bound ref) is a legal target chosen at cast/activation
+        // time — the target requirement may allow an opponent's permanent —
+        // so it reads as removal, not the caster's own cost.
+        it("an announced-target sacrifice is positive removal, not a cost", () => {
+            const op: EffectOp = {
+                op: "sacrifice",
+                target: { target: 0 },
+            };
+            const v = valueOp(op, cf);
+            expect(v.points).toBe(120);
+            expect(v.tags).toEqual(
+                expect.arrayContaining(["boardRemoval", "targeted"])
+            );
+            expect(v.tags).not.toContain("self-cost");
+        });
+    });
+
+    describe("divideIntoPiles (ADR 0053)", () => {
+        const pileScript = (): {
+            chosenEffect: EffectOp[];
+            otherEffect: EffectOp[];
+        } => ({
+            chosenEffect: [
+                { op: "gainLife", player: "controller", amount: 10 },
+            ],
+            otherEffect: [{ op: "gainLife", player: "controller", amount: 2 }],
+        });
+
+        it("values the BEST pile when the chooser is the caster (self)", () => {
+            const { chosenEffect, otherEffect } = pileScript();
+            const op: EffectOp = {
+                op: "divideIntoPiles",
+                objects: { set: "library-top", player: "controller", count: 4 },
+                divider: "opponent",
+                chooser: "controller",
+                dividePrompt: "Divide",
+                pickPrompt: "Pick",
+                chosenBind: "$chosen",
+                otherBind: "$other",
+                chosenEffect,
+                otherEffect,
+            };
+            const v = valueOp(op, cf);
+            expect(v.points).toBe(80); // max(10, 2) × 8 (LIFE_PER_POINT)
+        });
+
+        it("values the WORST pile (≈ min) when the chooser is the opponent", () => {
+            const { chosenEffect, otherEffect } = pileScript();
+            const op: EffectOp = {
+                op: "divideIntoPiles",
+                objects: {
+                    set: "permanents",
+                    zone: "battlefield",
+                    controller: "controller",
+                },
+                divider: "controller",
+                chooser: "opponent",
+                dividePrompt: "Divide",
+                pickPrompt: "Pick",
+                chosenBind: "$chosen",
+                otherBind: "$other",
+                chosenEffect,
+                otherEffect,
+            };
+            const v = valueOp(op, cf);
+            const chosen = valueEffectScript(chosenEffect, cf).points;
+            const other = valueEffectScript(otherEffect, cf).points;
+            expect(v.points).toBe(Math.min(chosen, other));
+            expect(v.points).toBe(16); // min(80, 16)
+            expect(v.points).toBeLessThanOrEqual((chosen + other) / 2);
         });
     });
 

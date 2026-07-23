@@ -15,12 +15,23 @@
 // implemented Op that is neither valued nor a walker-handled structural
 // construct.
 //
+// Issue #1521 corrected three semantic bugs found by review: `dealDamage`
+// assumed damage aimed at a player is NEVER self-directed (false — recoil/
+// symmetric riders exist), `divideIntoPiles` averaged the two piles instead
+// of taking the adversarial chooser's worst-case split, and `sacrifice`
+// treated every single-target form as the caster's own cost even when the
+// target is an arbitrary announced permanent (potentially the opponent's).
+//
 // Point magnitudes are on `evaluate.ts`'s Forge scale (a 2/2 vanilla ≈ 170, one
 // life ≈ 8, one untapped mana ≈ 12). They are hand-tuned for ORDERING (a burn/
 // removal spell must out-score a do-nothing spell of equal mana value) — the
 // PRD tunes them further against the blade suite in a later slice.
 
-import type { EffectOp, EffectMoveZone } from "../../cards/types";
+import type {
+    EffectOp,
+    EffectMoveZone,
+    EffectPlayerRef,
+} from "../../cards/types";
 import { creatureValueRaw } from "../creatureBody";
 import type { Feature, OpValue, ValueTag } from "./featureBasis";
 import { ZERO_OP_VALUE } from "./featureBasis";
@@ -105,6 +116,20 @@ function isAnnouncedTarget(sel: object): boolean {
     return "target" in sel;
 }
 
+/** True for the `{ ref: "$each" }` forEach iteration variable used as a
+ *  PLAYER ref (issue #1521). Every catalogue card naming a player this way
+ *  does so inside a `forEach { set: "players" }` — an Earthquake / Flame
+ *  Rift / Fissure-style "deals N damage to each player" (CR 120.3), which
+ *  hits the caster too. The walker only evaluates a context-free `forEach`
+ *  body ONCE (a representative member, not once per real player), so a
+ *  valuer that saw this ref and guessed "self" (the generic `isSelf`
+ *  heuristic for an opaque ref) would score the whole symmetric effect as a
+ *  pure self-cost — wrong in the other direction from the bug this guards
+ *  against. Treated as its own case so the caller can score it neutral. */
+function isEachPlayerRef(ref: EffectPlayerRef): boolean {
+    return typeof ref === "object" && "ref" in ref && ref.ref === "$each";
+}
+
 // -------------------------------------------------------------------------
 // Charter-Op valuers (issue #1426). Each is small and reads ONLY the Op shape
 // through the grounding context — never live state directly, so the same
@@ -113,14 +138,28 @@ function isAnnouncedTarget(sel: object): boolean {
 
 const dealDamage: Valuer<"dealDamage"> = (op, ctx) => {
     const { amount, scaling } = ctx.value(op.amount);
-    // A card's own damage is, from its caster's POV, aimed at the opponent /
-    // an opposing creature (CF assumption); an object target is a threat.
+    // A card's own damage to an OBJECT (creature/planeswalker/battle) is,
+    // from its caster's POV, always aimed at a threat — an object can't be
+    // "the caster" the way a player ref can.
     const toPlayer = "player" in op.to;
     const tags: ValueTag[] = tagScaling(scaling, "damage");
     if (!toPlayer && isAnnouncedTarget(op.to)) tags.push("targeted");
-    // loseLife-to-self is impossible here (damage to own face is never a
-    // card's intent) — always a gain for the caster.
-    return { points: amount * DAMAGE_PER_POINT, tags };
+    if (!toPlayer) {
+        return { points: amount * DAMAGE_PER_POINT, tags };
+    }
+    const playerRef = (op.to as { player: EffectPlayerRef }).player;
+    // Issue #1521 — a player-directed damage Op is NOT always aimed at the
+    // opponent: recoil/symmetric riders (Fire and Brimstone's "4 damage to
+    // you", Brothers of Fire's activated ability) name `"controller"` as a
+    // genuine self-cost, and an Earthquake/Flame Rift-style effect names the
+    // `$each` forEach-over-players iteration variable, which hits everyone
+    // (net neutral — see `isEachPlayerRef`).
+    if (isEachPlayerRef(playerRef)) {
+        return { points: 0, tags };
+    }
+    const self = ctx.isSelf(playerRef, "opponent");
+    if (self) tags.push("self-cost");
+    return { points: amount * DAMAGE_PER_POINT * (self ? -1 : 1), tags };
 };
 
 const dealDamageDividedAsChosen: Valuer<"dealDamageDividedAsChosen"> = (
@@ -224,8 +263,22 @@ const sacrifice: Valuer<"sacrifice"> = (op) => {
         // symmetric "each player sacrifices" also hits the caster.
         return { points: SAC_FORCED_VALUE, tags: ["boardRemoval"] };
     }
-    // A single announced/`$source` sacrifice is almost always the CASTER's own
-    // permanent paid as a cost (Kjeldoran Elite Guard, a self-sac ability).
+    // Issue #1521 — a single-permanent sacrifice signs by WHOSE permanent it
+    // is, not a blanket self-cost. `target` covers two distinct shapes
+    // (CR 701.16):
+    //   - an ANNOUNCED target slot (`{ target: N }`) — a legal target chosen
+    //     at cast/activation time, which the target requirement may allow to
+    //     be an opponent's permanent (a targeted removal effect, like
+    //     `destroy`/`exile`) — value it as removal, not a cost.
+    //   - a `$source`/other snapshot-bound ref (Kjeldoran Elite Guard's
+    //     literal self-sac, Phantasmal Mount, a `choice`-selected own
+    //     permanent) — the CASTER's own permanent, a genuine cost.
+    if (op.target && isAnnouncedTarget(op.target)) {
+        return {
+            points: SAC_FORCED_VALUE,
+            tags: ["boardRemoval", "targeted"],
+        };
+    }
     return { points: SAC_SELF_COST, tags: ["boardRemoval", "self-cost"] };
 };
 
@@ -482,9 +535,16 @@ const discardAtRandom: Valuer<"discardAtRandom"> = (op, ctx) => {
 };
 
 const divideIntoPiles: Valuer<"divideIntoPiles"> = (op, ctx) => {
-    // Adversarial (the OTHER player picks which pile the caster gets) — the
-    // simple, orthogonal approximation is the expected value of the two
-    // piles' effects, mirroring `coinFlip`'s even-odds walk.
+    // Issue #1521 — NOT a coin flip: the `chooser` (not the `divider`) picks
+    // which pile runs `chosenEffect` vs. `otherEffect` (ADR 0053), so this is
+    // a MINIMAX pick, not an even-odds draw. When the CASTER is the chooser
+    // (Fact or Fiction: divider="opponent", chooser="controller") they pick
+    // whichever pile serves them best — the BEST case (max). When the
+    // OPPONENT is the chooser (Death or Glory / Stand or Fall / Bend or
+    // Break's forced half: divider="controller", chooser="opponent" — the
+    // adversarial case this issue targets), they hand the caster the split
+    // that serves the caster least — the WORST case (min), always ≤ the
+    // naive average the old code used.
     const chosen = valueEffectScript(op.chosenEffect, ctx);
     const other = valueEffectScript(op.otherEffect, ctx);
     const tags = new Set<ValueTag>([
@@ -492,7 +552,11 @@ const divideIntoPiles: Valuer<"divideIntoPiles"> = (op, ctx) => {
         ...other.tags,
         "disruption",
     ]);
-    return { points: (chosen.points + other.points) / 2, tags: [...tags] };
+    const chooserIsSelf = ctx.isSelf(op.chooser, "opponent");
+    const points = chooserIsSelf
+        ? Math.max(chosen.points, other.points)
+        : Math.min(chosen.points, other.points);
+    return { points, tags: [...tags] };
 };
 
 const emblem: Valuer<"emblem"> = () => ({
