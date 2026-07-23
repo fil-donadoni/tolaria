@@ -243,9 +243,15 @@ export type BladeResult = {
 };
 
 /** One line, ready to print: the classified cause of a beyond-budget entry.
- *  Exported so both the stretch report and its test render it identically. */
+ *  Exported so both the stretch report and its test render it identically.
+ *  `passesAt` is absent for `cause: "valuation"` (issue #1518) — a mis-valued
+ *  subtree that converges AWAY from the right move as budget rises, so there
+ *  is no passing budget to report. */
 export function describeBeyondBudget(b: BeyondBudget): string {
-    return `beyond budget [${b.cause}] — passes at ${b.passesAt.iterations} iterations; ${b.note}`;
+    const passes = b.passesAt
+        ? `passes at ${b.passesAt.iterations} iterations`
+        : "does not pass at any measured budget";
+    return `beyond budget [${b.cause}] — ${passes}; ${b.note}`;
 }
 
 function seedsFor(scenario: BladeScenario): number[] {

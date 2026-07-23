@@ -335,10 +335,10 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // BUDGET (ADR 0070 §2): the production
         // `DEFAULT_BUDGET = { iterations: 400 }`, declared before measuring
         // and left there. The bot does NOT solve this today (see the note),
-        // so the entry is report-only `stretch` — and it carries no
-        // `beyondBudget` block, because there is no budget at which it
-        // passes: more iterations make it WORSE, which is the opposite of a
-        // compute shortfall.
+        // so the entry is report-only `stretch` — with cause `"valuation"`
+        // (issue #1518), the ONE cause with no `passesAt`: more iterations
+        // make it WORSE, not better, so there is no budget at which it
+        // passes to record.
         label: "charter: cracks its fetchland for the only answer to a trigger on the stack",
         spec: {
             cards: [
@@ -369,10 +369,18 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         seeds: [0xb1ade, 1, 2, 3, 4],
         budget: { iterations: 400 },
         tier: "stretch",
+        beyondBudget: {
+            cause: "valuation",
+            // No `passesAt`: measured on eight seeds it chooses `pass` MORE
+            // often as the budget rises — 3/8 correct at 100, 5/8 at 400,
+            // 1/8 at 800, 0/8 at 3200 — so there is no budget at which it
+            // passes to record (issue #1518).
+            note: "The gap is isolated to the fetch ply itself, by a discriminator that changes ONE thing: replace the Polluted Delta with the untapped Island it would fetch, leaving everything else identical (i.e. the exact post-fetch state, one life and one shuffle aside), and the bot Stifles on 8/8 seeds at 100, 400 and 1600. So the valuation of 'keep the 12/12' is already right and the loss is inside the fetch subtree — where the payoff is reached only through the activation, a stack resolution and a search-library choice. Converging AWAY from the right move as visits grow is a mis-valued subtree, not a horizon or a priors shortfall — the missing knowledge is a correct VALUATION term for that subtree. tracked-by: #1499 — this entry stays permanently red until that valuation gap is closed.",
+        },
         expect: {
             moves: [{ kind: "activate-ability", card: "Polluted Delta" }],
         },
-        note: "Charter scenario 2, TIMING half. Passing loses the Phyrexian Dreadnought BY FORCE: the trigger on the stack resolves this priority round, its punisher cost can only be paid by sacrificing the Dreadnought itself (the board's only creature), so every legal answer to the may-pay sacrifices the 12/12 — Stifle is the only answer that keeps it, and a fetchland produces no mana (CR 305.6) so cracking the Delta is the only route to {U} — there is no later turn to defer to. This entry does NOT exercise the choice-node priors: cracking a fetchland is an ordinary enumerated activated-ability move, and `expect` asserts the ROOT move only, so it passes regardless of what the search-library choice then finds — here the seeded Island is in any case the one card the filter can find, so that node has a single legal option and can discriminate nothing. The half that exercises those priors is the fetch TARGET, a separate entry. Do not read this one as covering the fetch charter on its own. NOT SOLVED TODAY, and not for lack of compute: measured on eight seeds it chooses `pass` more often as the budget rises — 3/8 correct at 100, 5/8 at 400, 1/8 at 800, 0/8 at 3200. The gap is isolated to the fetch ply itself, by a discriminator that changes ONE thing: replace the Polluted Delta with the untapped Island it would fetch, leaving everything else identical (i.e. the exact post-fetch state, one life and one shuffle aside), and the bot Stifles on 8/8 seeds at 100, 400 and 1600. So the valuation of 'keep the 12/12' is already right and the loss is inside the fetch subtree — where the payoff is reached only through the activation, a stack resolution and a search-library choice. Converging AWAY from the right move as visits grow is a mis-valued subtree, not a horizon or a priors shortfall, which is why no `beyondBudget` cause is claimed here: none of the three would be honest. tracked-by: #1499 — this entry stays permanently red until that valuation gap is closed.",
+        note: "Charter scenario 2, TIMING half. Passing loses the Phyrexian Dreadnought BY FORCE: the trigger on the stack resolves this priority round, its punisher cost can only be paid by sacrificing the Dreadnought itself (the board's only creature), so every legal answer to the may-pay sacrifices the 12/12 — Stifle is the only answer that keeps it, and a fetchland produces no mana (CR 305.6) so cracking the Delta is the only route to {U} — there is no later turn to defer to. This entry does NOT exercise the choice-node priors: cracking a fetchland is an ordinary enumerated activated-ability move, and `expect` asserts the ROOT move only, so it passes regardless of what the search-library choice then finds — here the seeded Island is in any case the one card the filter can find, so that node has a single legal option and can discriminate nothing. The half that exercises those priors is the fetch TARGET, a separate entry. Do not read this one as covering the fetch charter on its own. NOT SOLVED TODAY, and not for lack of compute — see `beyondBudget` for the classified cause and the measurement.",
     },
     {
         // CHARTER SCENARIO — the MODAL CHOICE (issue #1490, PRD #1423, charter
