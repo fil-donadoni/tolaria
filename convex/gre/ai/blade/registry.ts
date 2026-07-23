@@ -292,6 +292,89 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         },
         note: 'Half 2 of the discriminating pair — PAIRED WITH "discriminating pair: does NOT cast Phyrexian Dreadnought with no out". Neither half is meaningful alone.',
     },
+    {
+        // CHARTER SCENARIO 2, TIMING HALF (issue #1488, PRD #1423, charter
+        // gate #1434).
+        //
+        // Bloodstained Mire is the bot's ONLY permanent and its only mana
+        // source; the hand holds Lightning Bolt ({R}); the deck's only red
+        // source is the single Mountain seeded on top of the library; the
+        // opponent has an untapped Hill Giant (3/3). It is the bot's
+        // precombat main phase and it has no land to play.
+        //
+        // FAIRNESS BY CONSTRUCTION (ADR 0070 §1). No judgement: a fetchland
+        // has NO mana ability (CR 305.6 — a land taps for mana only if it
+        // says so, and this one says "search your library"), so cracking it
+        // is the ONLY way the position can produce {R} this turn. Declining
+        // it leaves Lightning Bolt uncastable for the whole turn BY FORCE —
+        // the Hill Giant lives and the card stays in hand. Not "probably",
+        // not "on average": there is no second red source anywhere.
+        //
+        // NO `setup` (ADR 0070 §4 does not apply): the decision exists the
+        // moment the board is built, so this is a plain `ScenarioSpec` plus a
+        // root-move expectation — the shape a future entry copies when its
+        // position needs no walking forward.
+        //
+        // BUDGET (ADR 0070 §2): declared at the production
+        // `DEFAULT_BUDGET = { iterations: 400 }` BEFORE the position was
+        // tuned, and left there. Measured afterwards on eight seeds: 7/8 at
+        // 400, 8/8 at 800 and at 1600 — so the entry lands `stretch` with its
+        // cause classified below, NOT `must` at a raised budget.
+        label: "charter: cracks its fetchland to cast the spell it can only cast this turn",
+        spec: {
+            cards: [
+                {
+                    name: "Bloodstained Mire",
+                    owner: "me",
+                    zone: "battlefield",
+                },
+                { name: "Lightning Bolt", owner: "me", zone: "hand" },
+                {
+                    name: "Hill Giant",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                // The ONE red source in the deck, on top of the library, and
+                // the only card Bloodstained Mire's "Swamp or Mountain"
+                // filter can find (the synthetic base deck is all Plains).
+                // `libraryCount` is deliberately left unset — it resets the
+                // library AFTER placement (`scenarioBuilder.ts`) and would
+                // erase this Mountain, leaving the fetch nothing to find.
+                {
+                    name: "Mountain",
+                    owner: "me",
+                    zone: "library",
+                    position: 1,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            // No basics: the fetchland must be the only route to mana.
+            landCount: 0,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        // ADR 0070 §3 — a charter entry runs K≥3 seeds.
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "stretch",
+        // ADR 0070 §2 — measured, not guessed. Eight seeds (0xb1ade, 1..7):
+        // `pass` on one seed at 400, the fetch on all eight at 800 and at
+        // 1600. The classification is the point, and it was measured too:
+        // adding a SECOND Hill Giant — one more candidate for the Bolt inside
+        // the fetch subtree, nothing else changed — dropped 400 from 7/8 to
+        // 5/8 while 800 stayed 8/8. The shortfall tracks candidate count, not
+        // depth.
+        beyondBudget: {
+            cause: "branching",
+            passesAt: { iterations: 800 },
+            note: "The fetch only pays off through a sub-decision the search must also get right — which target the Bolt takes after the Mountain arrives — so the activate node's value is an average over mostly-idle continuations, and at 400 one seed never visits the killing line often enough. The missing knowledge is move PRIORS: the bot has no ordering that says 'removal spell → the only creature on the board', so the right continuation competes on equal footing with every other target. Doubling the candidate targets doubles the failure rate at a fixed budget, which is the signature of a priors gap rather than a depth gap.",
+        },
+        expect: {
+            moves: [{ kind: "activate-ability", card: "Bloodstained Mire" }],
+        },
+        note: "Charter scenario 2, TIMING half. Not cracking the fetchland leaves Lightning Bolt uncastable for the whole turn by force — a fetchland produces no mana (CR 305.6) and the Mountain it retrieves is the deck's only red source — so the Hill Giant lives and the card rots in hand. This entry does NOT exercise the choice-node priors: cracking a fetchland is an ordinary enumerated activated-ability move, so it passes even if the search-library priors are wrong; the half that exercises those is the fetch TARGET, a separate entry. Do not read this one as covering the fetch charter on its own.",
+    },
 ];
 
 /** Entries of one tier, in registry order. */
