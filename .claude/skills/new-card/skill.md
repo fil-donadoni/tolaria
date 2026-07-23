@@ -245,13 +245,13 @@ placeholder (and an emblem trigger once crashed the stack row):
 - **Token.** Reuse a `convex/cards/sharedTokens.ts` spec if one fits (it
   already carries `imagePrintId`). Otherwise regenerate the print lockfile so
   the reverse-link resolves the art:
-  ```sh
-  node scripts/fetch-token-prints.mjs --all   # or the specific set file
-  ```
-  or pin `imagePrintId` on the spec. A token made from a `resolve()` closure
-  is invisible to the DSL art guard — pin `imagePrintId` by hand. The guard
-  `convex/cards/__tests__/tokenPrintLookup.test.ts` (#1305) fails CI on any
-  DSL `createToken` with no art.
+    ```sh
+    node scripts/fetch-token-prints.mjs --all   # or the specific set file
+    ```
+    or pin `imagePrintId` on the spec. A token made from a `resolve()` closure
+    is invisible to the DSL art guard — pin `imagePrintId` by hand. The guard
+    `convex/cards/__tests__/tokenPrintLookup.test.ts` (#1305) fails CI on any
+    DSL `createToken` with no art.
 - **Emblem.** Set `imagePrintId` on the `EmblemDefinition` in
   `convex/cards/emblems.ts` — the Scryfall emblem print (`t:emblem`, layout
   `emblem`; the card's own set where present, else a same-characteristics

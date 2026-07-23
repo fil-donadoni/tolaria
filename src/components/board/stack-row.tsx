@@ -161,8 +161,7 @@ export default function StackRow({
     // the stack tile shows the emblem card instead of a raw id / missing image.
     const emblem = tryGetEmblemDefinition(item.card.id);
     const def = tryGetDefinition(item.card.id);
-    const name =
-        designation?.name ?? def?.name ?? emblem?.name ?? item.card.id;
+    const name = designation?.name ?? def?.name ?? emblem?.name ?? item.card.id;
     const oracle = kind
         ? abilityOracleText(item, kind)
         : (def?.oracleText ?? null);

@@ -7,7 +7,7 @@ import CardImage from "~/components/cards/card-image";
  *  `pendingReveals` on its next resolution, but that can be many priority
  *  passes away, so the client times the dialog out on its own; a click (or
  *  Enter/Space/Escape) dismisses it immediately. */
-const REVEAL_NOTIFICATION_MS = 8000;
+const REVEAL_NOTIFICATION_MS = 5000;
 
 /** Transient center-screen popup for a private look or public reveal
  *  (`SpellContext.notifyReveal`, ADR 0026 / CR 701.18a look / CR 701.20
@@ -43,6 +43,26 @@ export default function RevealNotificationOverlay() {
             setDismissed((prev) => new Set(prev).add(activeId));
         }, REVEAL_NOTIFICATION_MS);
         return () => clearTimeout(timer);
+    }, [activeId]);
+
+    // Space / Enter / Escape dismiss from anywhere — the overlay div is never
+    // focused, so its own onKeyDown alone would never fire and Space would fall
+    // through to the global Pass-priority hotkey (`useControllerActions`).
+    // Listening on the CAPTURE phase at window puts us ahead of that bubble
+    // listener; stopPropagation there keeps the keystroke from also passing
+    // priority while a look/reveal is on screen.
+    useEffect(() => {
+        if (activeId === undefined) return;
+        function onKeyDown(e: KeyboardEvent) {
+            if (e.code !== "Space" && e.key !== "Enter" && e.key !== "Escape")
+                return;
+            if (e.repeat) return;
+            e.preventDefault();
+            e.stopPropagation();
+            setDismissed((prev) => new Set(prev).add(activeId!));
+        }
+        window.addEventListener("keydown", onKeyDown, true);
+        return () => window.removeEventListener("keydown", onKeyDown, true);
     }, [activeId]);
 
     if (!active) return null;
@@ -89,7 +109,9 @@ export default function RevealNotificationOverlay() {
                         </div>
                     ))}
                 </div>
-                <p className="text-xs text-text-muted">Click to dismiss</p>
+                <p className="text-xs text-text-muted">
+                    Click or press Space to dismiss
+                </p>
             </Panel>
         </div>
     );

@@ -40,7 +40,10 @@ describe("REPRO: animate dead LTB trigger stuck on stack", () => {
         console.log("legalActions:", JSON.stringify(legalActions(state)));
         for (const pid of ["p1", "p2"]) {
             const moves = enumerateMoves(state, pid);
-            console.log(`moves ${pid}:`, JSON.stringify(moves.map((m) => m.kind)));
+            console.log(
+                `moves ${pid}:`,
+                JSON.stringify(moves.map((m) => m.kind))
+            );
         }
         const proj = projectPublicState(state, 1, "p1");
         console.log("projected stack:", JSON.stringify(proj.stack));

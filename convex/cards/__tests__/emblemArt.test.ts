@@ -115,7 +115,9 @@ describe("emblem art + registration catalogue guard (CR 114)", () => {
                     );
                     continue;
                 }
-                if (tryGetEmblemDefinition(emblemId)?.imagePrintId === undefined) {
+                if (
+                    tryGetEmblemDefinition(emblemId)?.imagePrintId === undefined
+                ) {
                     problems.push(
                         `${card.name} (${card.id}) creates emblem "${emblemId}" which has no imagePrintId — set the Scryfall emblem print id`
                     );

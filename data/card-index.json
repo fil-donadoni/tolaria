@@ -1818,6 +1818,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Crucible of Worlds",
+        "scryfallId": "312a6058-de08-487d-95bd-b3c56807fdd6",
+        "oracleId": "33c722cf-b4bf-431f-aefd-ee96241a7fbf",
+        "firstSet": "5dn"
+    },
+    {
         "name": "Crumble",
         "scryfallId": "d2101f86-8d3c-4ba8-ac42-bd3df0644280",
         "oracleId": "8d6e39b0-a190-40a0-a8e1-ee82f477376f",
@@ -7144,6 +7150,12 @@
         "scryfallId": "e5c66c61-aadf-433b-9958-fc9b44b327b9",
         "oracleId": "48b9c510-03ed-41cb-8c17-16110d447490",
         "firstSet": "leg"
+    },
+    {
+        "name": "Ramunap Excavator",
+        "scryfallId": "90a54d18-8403-441d-a115-ee462fabdabb",
+        "oracleId": "4f819ba4-52ef-4fdd-8e4c-5ae3b2f44db5",
+        "firstSet": "hou"
     },
     {
         "name": "Rapid Fire",

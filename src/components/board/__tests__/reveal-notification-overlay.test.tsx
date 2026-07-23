@@ -81,12 +81,39 @@ describe("RevealNotificationOverlay (private look / public reveal popup)", () =>
         expect(queryByText("You look at this card")).toBeNull();
     });
 
-    it("auto-dismisses after the timeout", () => {
+    it("auto-dismisses after the 5s timeout", () => {
         vi.useFakeTimers();
         const { queryByText } = renderOverlay([LOOK]);
         expect(queryByText("You look at this card")).toBeTruthy();
         act(() => {
-            vi.advanceTimersByTime(8000);
+            vi.advanceTimersByTime(4999);
+        });
+        expect(queryByText("You look at this card")).toBeTruthy();
+        act(() => {
+            vi.advanceTimersByTime(1);
+        });
+        expect(queryByText("You look at this card")).toBeNull();
+    });
+
+    // The overlay div is never focused, so the dismiss key must be handled on a
+    // window-level listener — and must not fall through to the global Space
+    // hotkey (Pass priority) while the popup is up.
+    it("dismisses on Space pressed anywhere and swallows the keystroke", () => {
+        const passSpy = vi.fn();
+        window.addEventListener("keydown", passSpy);
+        const { queryByText } = renderOverlay([LOOK]);
+        act(() => {
+            fireEvent.keyDown(window, { code: "Space", key: " " });
+        });
+        expect(queryByText("You look at this card")).toBeNull();
+        expect(passSpy).not.toHaveBeenCalled();
+        window.removeEventListener("keydown", passSpy);
+    });
+
+    it("dismisses on Escape", () => {
+        const { queryByText } = renderOverlay([LOOK]);
+        act(() => {
+            fireEvent.keyDown(window, { key: "Escape", code: "Escape" });
         });
         expect(queryByText("You look at this card")).toBeNull();
     });

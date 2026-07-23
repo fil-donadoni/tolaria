@@ -19,15 +19,13 @@ Nadu
 Lightning Greaves
 Springheart Nantuko
 Mox Opal
+Mox Diamond
 Teferino
 Teferone
 Fallen Shinobi
-Lutri
 Grist
 Necromancy
 Fable of the mirror-breaker
-Ramunap Excavator
-Crucible of Worlds
 
 # Bug carte
 
@@ -46,7 +44,6 @@ Crucible of Worlds
 - La zona companion mostra la carta croppata, non ha il formato e le dimensioni corrette. deve essere uguale all'emblema, come formato e dimensioni.
 - quando scegli carte da una pile e c'è un filtro attivo, come in Inquisition of Kozilek, stai correttamente mettendo il ring intorno alle valide. mettile anche tutte in prima posizione, come fatto per la ricerca nel grimorio con filtro (es. fetchlands)
 - se cerco nel grimorio con filtro e non ci sono risultati validi, devo comunque vedere il grimorio con tutte le carte disattivate e poi mischiare.
-- il peek con click to dismiss deve accettare anche il tasto space per fare dismiss e comunque deve avere un timer che dopo 5 secondi chiude il dialog
 - Goblin artisans: abbiamo perso l'animazione del coin toss che prima c'era.
 - le abilità loyalty di un planeswalker non devono comparire nel context menu se siamo in una fase non sorcery speed, a meno di abilità che le abilitano a questa velocità.
 - Nel pool draft non puoi trascinare una carta nella colonna delle terre
@@ -55,6 +52,7 @@ Crucible of Worlds
 - Nel deckbuidler limited mancano i pulsanti per aggiungere alcune terre base, dipendentemente dai colori del main penso. in vintage cub non c'è nessun pulsante per aggiungere le terre base
 - aggiungere pulsante Attack with all
 - In draft, a mazzi costruiti, non vedo gli altri giocatori umani per giocarci contro
+- Chromatic armor non mostra il colore attualmente attivo nell'oracle text live
 
 # Bug gameplay
 
