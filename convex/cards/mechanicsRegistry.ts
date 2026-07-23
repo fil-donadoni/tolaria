@@ -330,7 +330,16 @@ const KEYWORD_ACTIONS: MechanicRow[] = [
         name: "Surveil",
         kind: "keyword-action",
         cr: "701.25",
-        status: "planned",
+        status: "implemented",
+        // Surveil N (CR 701.25 — modern CR renumber of 701.44) is the
+        // `scryReorder` Op with `destination: "graveyard"`: look at the top N,
+        // keep any on top in the chosen order and put the rest into the
+        // graveyard. Same single execution path as Scry (the shared
+        // `SpellContext.orderTop` drag-picker), differing only in the
+        // un-kept-card destination. Shipping on the MKM surveil-land cycle
+        // (mkm/colorless.ts) since issue #885; reused by Consider
+        // (mid/blue.ts) and Master of Death (mh2/multicolor.ts).
+        binding: 'scryReorder Op, destination "graveyard" (SpellContext.orderTop)',
     },
     // 701.26 Tap and Untap
     {

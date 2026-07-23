@@ -1674,6 +1674,12 @@
         "firstSet": "lea"
     },
     {
+        "name": "Consider",
+        "scryfallId": "a211d505-4d40-4914-a9da-220770d6ddbc",
+        "oracleId": "4c9bcba6-87b5-4fb3-97ee-6fe5b739337d",
+        "firstSet": "mid"
+    },
+    {
         "name": "Consult the Star Charts",
         "scryfallId": "a16a6555-2e3a-4587-aacd-0307d696b26c",
         "oracleId": "e921839f-9d91-41a9-bc89-016af3c757aa",
@@ -5662,6 +5668,12 @@
         "scryfallId": "bde037b9-4947-4ff7-8ea4-e9f1a7e4ab88",
         "oracleId": "7ca54a23-f8eb-4982-b4ee-7392e2f2a1b3",
         "firstSet": "atq"
+    },
+    {
+        "name": "Master of Death",
+        "scryfallId": "b9775175-6763-4826-afc8-dc520a235c36",
+        "oracleId": "3a16bdda-8499-47e4-b870-b9576f4c1a83",
+        "firstSet": "mh2"
     },
     {
         "name": "Master of the Hunt",
