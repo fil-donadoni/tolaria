@@ -139,6 +139,10 @@ const FIXTURES: Partial<Record<PendingChoiceKind, () => GameState>> = {
         } as Partial<PendingChoice> & Pick<PendingChoice, "kind">),
     "search-library": () =>
         stateWithBotLibrarySearch(["Forest", "Craw Wurm", "Grizzly Bears"]),
+    // CR 705.2 / ADR 0023 (generator added by issue #1511) — a degenerate
+    // single-candidate acknowledge. The outcome is already drawn and persisted;
+    // the search's only legal answer is the ack, which the driver submits.
+    "random-reveal": () => stateWithBotChoice({ kind: "random-reveal" }),
 };
 
 describe("root pending choices route to the ISMCTS search (issue #1506)", () => {
