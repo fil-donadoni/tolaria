@@ -34,13 +34,16 @@
 
 import { getCardByName } from "../../../cards";
 import { activateAbilityOnState } from "../../../game";
+import { enumerateMoves } from "../../moves";
+import type { Move } from "../../moves";
+import { applyMoveInSearch } from "../../search";
 import type { CardInstanceState, GameState, StackItem } from "../../state";
 import {
     emitPermanentEntered,
     processPendingActionTriggers,
     resolveTopOfStack,
 } from "../../state";
-import { seatPlayerId } from "./matcher";
+import { instanceIdsForName, seatPlayerId } from "./matcher";
 import type { BladeScenario, BladeSetupStep, BladeSeat } from "./types";
 
 /** Thrown when a setup step finds no purchase in the real engine. A distinct
@@ -245,6 +248,123 @@ function applyActivate(
     }
 }
 
+/** The set of ids a `cast` step's `target` may denote: a player id for a seat
+ *  (`me`/`opp`), otherwise every instance of the named card in the built state.
+ *  Mirrors the matcher's `targetCandidateIds`, and reuses `instanceIdsForName`
+ *  so an unresolvable card name throws loudly rather than matching nothing. */
+function castTargetIds(state: GameState, target: BladeSeat | string): Set<string> {
+    if (target === "me" || target === "opp") {
+        return new Set([seatPlayerId(state, target)]);
+    }
+    return instanceIdsForName(state, target);
+}
+
+/**
+ * Cast the named card through the REAL move pipeline (issue #1490, ADR 0070 §4),
+ * leaving the spell on the stack unresolved — the RESPONSE position a
+ * `ScenarioSpec` cannot express.
+ *
+ * The no-copy invariant (ADR 0070 §4) is earned exactly as `activate`'s is, but
+ * through a different production seam. There is no ctx-free `castSpellOnState`
+ * to reuse the way `activate` reuses `activateAbilityOnState` — the cast
+ * mutation (`announceCast`, `convex/game.ts`) is an async, ctx-bound handler
+ * that walks a multi-step pendingCast/target flow. So this step composes the two
+ * production functions that DO run pure and synchronous and that the search
+ * itself already depends on:
+ *   - `enumerateMoves` (`gre/moves.ts`) is the production legality gate — it
+ *     returns ONLY legal casts, and ONLY for the seat that holds priority, so
+ *     mana affordability (CR 601.2f), timing (sorcery vs instant speed) and
+ *     legal targets (CR 601.2c) are the real checks. A cast that finds no
+ *     purchase is simply ABSENT from the list, which is what makes the throw
+ *     below honest rather than a hand-rolled legality re-implementation.
+ *   - `applyMoveInSearch` (`gre/search.ts`) is the exact function the search
+ *     replays a chosen cast with, so the position this step reaches is
+ *     byte-for-byte the one the search reasons about after that cast — not a
+ *     setup-side approximation of it.
+ *
+ * The step must resolve to EXACTLY ONE legal cast. It throws when the name
+ * matches no legal cast (wrong seat, no priority, unpayable, no legal target),
+ * when `target`/`x` narrow it to none, and — rather than silently pick one —
+ * when more than one legal cast still matches after narrowing.
+ */
+function applyCast(
+    state: GameState,
+    label: string,
+    step: Extract<BladeSetupStep, { kind: "cast" }>
+): void {
+    const seat = step.by ?? "me";
+    const casterId = seatPlayerId(state, seat);
+    const caster = state.players.find((p) => p.id === casterId);
+    if (!caster) {
+        throw new BladeSetupError(label, step, `no "${seat}" seat in the state.`);
+    }
+    const def = getCardByName(step.card); // throws on an unknown name
+
+    // The production legality gate. Only legal casts for the priority-holder.
+    const legal = enumerateMoves(state, casterId);
+    const isCast = (m: Move): m is Extract<Move, { kind: "cast-spell" }> =>
+        m.kind === "cast-spell";
+    let candidates = legal.filter(isCast).filter((m) =>
+        caster.hand.some(
+            (c) =>
+                c.id === m.cardInstanceId &&
+                (c.card as { id?: string } | undefined)?.id === def.id
+        )
+    );
+    if (candidates.length === 0) {
+        throw new BladeSetupError(
+            label,
+            step,
+            `no legal cast of "${step.card}" by "${seat}" — the engine offered none (check priority, mana, timing, or a legal target).`
+        );
+    }
+
+    if (step.target !== undefined) {
+        const wanted = castTargetIds(state, step.target);
+        candidates = candidates.filter((m) =>
+            m.targets.some((t) => wanted.has(t.id))
+        );
+        if (candidates.length === 0) {
+            throw new BladeSetupError(
+                label,
+                step,
+                `"${step.card}" has no legal cast targeting "${step.target}".`
+            );
+        }
+    }
+
+    if (step.x !== undefined) {
+        candidates = candidates.filter((m) => (m.chosenX ?? 0) === step.x);
+        if (candidates.length === 0) {
+            throw new BladeSetupError(
+                label,
+                step,
+                `"${step.card}" has no legal cast with X = ${step.x}.`
+            );
+        }
+    }
+
+    if (candidates.length > 1) {
+        throw new BladeSetupError(
+            label,
+            step,
+            `${candidates.length} legal casts of "${step.card}" still match — narrow the step with \`target\` and/or \`x\` (X values offered: ${[
+                ...new Set(candidates.map((m) => m.chosenX ?? 0)),
+            ].join(", ")}).`
+        );
+    }
+
+    const before = state.stack.length;
+    applyMoveInSearch(state, casterId, candidates[0]);
+    if (state.stack.length <= before) {
+        throw new BladeSetupError(
+            label,
+            step,
+            `casting "${step.card}" put nothing on the stack (it may have resolved immediately or been countered by a replacement).`
+        );
+    }
+}
+
 /**
  * Apply a scenario's `setup` sequence to a freshly built state, in order.
  * A no-op when the entry declares none. Mutates `state` in place and returns
@@ -267,6 +387,9 @@ export function applyBladeSetup(
                 break;
             case "activate":
                 applyActivate(state, scenario.label, step);
+                break;
+            case "cast":
+                applyCast(state, scenario.label, step);
                 break;
             default: {
                 // Exhaustiveness: a new step kind must be handled here.

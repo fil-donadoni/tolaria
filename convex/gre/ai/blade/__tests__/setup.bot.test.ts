@@ -18,6 +18,7 @@ import {
     findBladeScenario,
 } from "..";
 import { buildStateFromScenario } from "../../../scenarioBuilder";
+import { enumerateMoves } from "../../../moves";
 import type { GameState } from "../../../state";
 import type { ScenarioSpec } from "../../../../debugScenarioSpec";
 
@@ -400,5 +401,158 @@ describe("blade setup — the fetch-target charter entry (issue #1491)", () => {
         // cast Terror, so the Swamp is the only line to the removal.
         expect(me.hand).toHaveLength(1);
         expect(me.battlefield).toHaveLength(1);
+    });
+});
+
+/**
+ * `cast` (issue #1490) — the step that reaches a RESPONSE position: a spell on
+ * the stack that only a real cast can put there.
+ *
+ * Its invariant is the no-copy one (ADR 0070 §4), earned through the production
+ * legality gate `enumerateMoves` (only legal casts, only for the priority
+ * holder) plus the search's own `applyMoveInSearch`. A cast the engine would
+ * not offer is simply absent → the step throws, never hand-builds a StackItem.
+ */
+describe("blade setup — `cast` runs the real cast pipeline (ADR 0070 §4)", () => {
+    function boltBoard(tapped = false): GameState {
+        return build({
+            cards: [
+                { name: "Mountain", owner: "me", zone: "battlefield", tapped },
+                { name: "Lightning Bolt", owner: "me", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+        });
+    }
+
+    it("casts the named spell onto the stack, unresolved, and hands the responder priority", () => {
+        const state = boltBoard();
+        expect(state.stack).toHaveLength(0);
+
+        applyBladeSetup(state, {
+            label: "t",
+            setup: [
+                { kind: "cast", card: "Lightning Bolt", by: "me", target: "opp" },
+            ],
+        });
+
+        expect(state.stack).toHaveLength(1);
+        // The `target` really pinned the cast: Bolt is aimed at the opp seat.
+        expect(state.stack[0].targets?.[0]?.id).toBe(state.players[1].id);
+        // CR 117 — the real cast auto-passes the caster's priority, so the
+        // responder (opp) holds it and may answer. Not a hand-built stack item.
+        expect(state.priorityPlayerId).toBe(state.players[1].id);
+    });
+
+    it("THROWS when the named card is nowhere legal to cast", () => {
+        const state = boltBoard();
+        expect(() =>
+            applyBladeSetup(state, {
+                label: "t",
+                setup: [{ kind: "cast", card: "Counterspell", by: "me" }],
+            })
+        ).toThrow(BladeSetupError);
+        expect(state.stack).toHaveLength(0);
+    });
+
+    it("THROWS when the caster can't pay for it (engine offers no legal cast)", () => {
+        const state = boltBoard(true); // Mountain tapped → no {R}
+        expect(() =>
+            applyBladeSetup(state, {
+                label: "t",
+                setup: [
+                    {
+                        kind: "cast",
+                        card: "Lightning Bolt",
+                        by: "me",
+                        target: "opp",
+                    },
+                ],
+            })
+        ).toThrow(/no legal cast/);
+        expect(state.stack).toHaveLength(0);
+    });
+
+    it("THROWS when `x` matches no legal cast", () => {
+        const state = build({
+            cards: [
+                { name: "Mountain", owner: "me", zone: "battlefield", count: 3 },
+                { name: "Disintegrate", owner: "me", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+        });
+        expect(() =>
+            applyBladeSetup(state, {
+                label: "t",
+                setup: [
+                    {
+                        kind: "cast",
+                        card: "Disintegrate",
+                        by: "me",
+                        target: "opp",
+                        x: 99, // unaffordable
+                    },
+                ],
+            })
+        ).toThrow(/no legal cast with X = 99/);
+    });
+
+    it("THROWS on an ambiguous cast rather than guessing (many X / targets match)", () => {
+        const state = build({
+            cards: [
+                { name: "Mountain", owner: "me", zone: "battlefield", count: 3 },
+                { name: "Disintegrate", owner: "me", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+        });
+        // No `target`/`x`: Disintegrate offers X = 0..2 against both players —
+        // several legal casts. The step refuses to pick one.
+        expect(() =>
+            applyBladeSetup(state, {
+                label: "t",
+                setup: [{ kind: "cast", card: "Disintegrate", by: "me" }],
+            })
+        ).toThrow(/still match/);
+    });
+});
+
+describe("blade setup — the modal-choice charter entry (issue #1490)", () => {
+    const MODAL =
+        "charter: picks the modal mode that survives a lethal red spell";
+
+    it("faces a lethal red spell on the stack with the bot on priority", () => {
+        const scenario = findBladeScenario(MODAL)!;
+        expect(scenario).toBeDefined();
+        const state = buildBladeState(scenario);
+        // A red spell (Disintegrate) is on the stack, unresolved.
+        expect(state.stack).toHaveLength(1);
+        // The bot is "opp" (players[1]); it holds priority to respond.
+        const botId = state.players[1].id;
+        expect(state.priorityPlayerId).toBe(botId);
+        // Lethal by force: 20 damage into a 20-life bot (CR 104.3a).
+        expect(state.players[1].life).toBe(20);
+        expect(state.stack[0].chosenX).toBe(20);
+    });
+
+    it("offers BOTH modes as legal casts — the losing mode is present, not absent", () => {
+        // The whole trap issue #1490 names: a test that passes because the
+        // losing mode was removed (no legal target) proves nothing. Here Counter
+        // (target the red spell) AND Destroy (target the red 1/1) are BOTH legal,
+        // so the bot choosing Counter is a real choice.
+        const scenario = findBladeScenario(MODAL)!;
+        const state = buildBladeState(scenario);
+        const botId = state.players[1].id;
+        const casts = enumerateMoves(state, botId).filter(
+            (m) => m.kind === "cast-spell"
+        );
+        const modes = new Set(
+            casts.map((m) => (m.kind === "cast-spell" ? m.chosenModeId : ""))
+        );
+        expect(modes.has("counter")).toBe(true);
+        expect(modes.has("destroy")).toBe(true);
+        // A one-option list would be a vacuous pass; both modes are offered.
+        expect(casts.length).toBeGreaterThanOrEqual(2);
     });
 });
