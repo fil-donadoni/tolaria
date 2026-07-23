@@ -85,8 +85,9 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // FAIRNESS BY CONSTRUCTION (ADR 0070 §1): there is no judgement in
         // this position. Letting the trigger resolve loses the Dreadnought BY
         // FORCE — the board holds no other creature, so the punisher cost
-        // (total power ≥ 12) is unpayable and every legal answer to the
-        // may-pay sacrifices the 12/12. Countering the trigger keeps a free
+        // (total power ≥ 12) can only be paid with the Dreadnought itself and
+        // every legal answer to the may-pay sacrifices the 12/12. Countering
+        // the trigger keeps a free
         // 12/12 and spends a card the position has nothing else to do with.
         // The wrong move loses a creature outright, not "on average".
         //
@@ -307,8 +308,9 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // CREATURE BY FORCE: if the bot passes, the opponent (empty board,
         // empty hand, no lands) passes and the trigger RESOLVES — the
         // punisher cost, sacrificing creatures with total power 12 or
-        // greater, is unpayable on a board whose only creature is the
-        // Dreadnought itself, so the 12/12 is sacrificed. There is no next
+        // greater, can only be paid by sacrificing the Dreadnought itself
+        // (power 12, and the board's only creature), so EVERY legal answer to
+        // the may-pay sacrifices the 12/12. There is no next
         // turn to defer to: the only window in which the trigger can be
         // answered is this priority round, Stifle is the only answer in the
         // position, and a fetchland has NO mana ability (CR 305.6 — a land
@@ -369,7 +371,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         expect: {
             moves: [{ kind: "activate-ability", card: "Polluted Delta" }],
         },
-        note: "Charter scenario 2, TIMING half. Passing loses the Phyrexian Dreadnought BY FORCE: the trigger on the stack resolves this priority round, its punisher cost is unpayable with no second creature, Stifle is the only answer, and a fetchland produces no mana (CR 305.6) so cracking the Delta is the only route to {U} — there is no later turn to defer to. Unlike the first siting of this entry, it also exercises the fetch's search-library CHOICE node, so it covers the target half of the fetch charter as well as the timing half. NOT SOLVED TODAY, and not for lack of compute: measured on eight seeds it chooses `pass` more often as the budget rises — 3/8 correct at 100, 5/8 at 400, 1/8 at 800, 0/8 at 3200. The gap is isolated to the fetch ply itself, by a discriminator that changes ONE thing: replace the Polluted Delta with the untapped Island it would fetch, leaving everything else identical (i.e. the exact post-fetch state, one life and one shuffle aside), and the bot Stifles on 8/8 seeds at 100, 400 and 1600. So the valuation of 'keep the 12/12' is already right and the loss is inside the fetch subtree — where the payoff is reached only through the activation, a stack resolution and a search-library choice. Converging AWAY from the right move as visits grow is a mis-valued subtree, not a horizon or a priors shortfall, which is why no `beyondBudget` cause is claimed here: none of the three would be honest.",
+        note: "Charter scenario 2, TIMING half. Passing loses the Phyrexian Dreadnought BY FORCE: the trigger on the stack resolves this priority round, its punisher cost is unpayable with no second creature, Stifle is the only answer, and a fetchland produces no mana (CR 305.6) so cracking the Delta is the only route to {U} — there is no later turn to defer to. This entry does NOT exercise the choice-node priors: cracking a fetchland is an ordinary enumerated activated-ability move, and `expect` asserts the ROOT move only, so it passes regardless of what the search-library choice then finds — here the seeded Island is in any case the one card the filter can find, so that node has a single legal option and can discriminate nothing. The half that exercises those priors is the fetch TARGET, a separate entry. Do not read this one as covering the fetch charter on its own. NOT SOLVED TODAY, and not for lack of compute: measured on eight seeds it chooses `pass` more often as the budget rises — 3/8 correct at 100, 5/8 at 400, 1/8 at 800, 0/8 at 3200. The gap is isolated to the fetch ply itself, by a discriminator that changes ONE thing: replace the Polluted Delta with the untapped Island it would fetch, leaving everything else identical (i.e. the exact post-fetch state, one life and one shuffle aside), and the bot Stifles on 8/8 seeds at 100, 400 and 1600. So the valuation of 'keep the 12/12' is already right and the loss is inside the fetch subtree — where the payoff is reached only through the activation, a stack resolution and a search-library choice. Converging AWAY from the right move as visits grow is a mis-valued subtree, not a horizon or a priors shortfall, which is why no `beyondBudget` cause is claimed here: none of the three would be honest. tracked-by: #1499 — this entry stays permanently red until that valuation gap is closed.",
     },
 ];
 
