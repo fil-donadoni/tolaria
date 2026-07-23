@@ -61,7 +61,18 @@ export function projectedToGameState(state: PublicGameState): GameState {
             // Library contents are hidden on the wire, but the simulated draw
             // step / draw spells need cards to take. Rebuild to the wire count
             // with opaque placeholders so draws don't spuriously deck out.
-            library: makeLibraryPlaceholders(p.id, p.library.count),
+            //
+            // EXCEPTION (issue #1506): while a `search-library` choice is live,
+            // the projection legitimately exposes the searched pile face-up to
+            // the chooser (`librarySearch`, CR 401.4 / 701.19) — the same field
+            // the human's picker renders. The search decides that choice at the
+            // root now, and its candidate moves name library INSTANCE IDS the
+            // server must recognise, so the real revealed cards have to be here:
+            // opaque placeholders would yield a submission of fabricated ids
+            // that the server rejects forever.
+            library:
+                p.librarySearch ??
+                makeLibraryPlaceholders(p.id, p.library.count),
         })),
         stack: state.stack,
     } as unknown as GameState;

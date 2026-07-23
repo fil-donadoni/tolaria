@@ -42,6 +42,13 @@ export { advancePhase } from "./phases";
 export { enumerateMoves, planManaPayment, MAX_COMBINATIONS } from "./moves";
 export type { Move, ManaTap } from "./moves";
 
+// Choice-node coverage predicate (PRD #1423, issue #1506). THE single authority
+// on "is this pending-choice kind an in-tree ISMCTS decision node?" — the same
+// registry `enumerateMoves` / `decidingPlayer` consult. Exported so the client
+// bot gate (`buildOwedChoice` → `decideBotAction`) can route a generator-covered
+// root choice to the search instead of answering it with the ADR 0016 heuristic.
+export { hasChoiceCandidateGenerator } from "./ai/choiceCandidates";
+
 // Expected-Input-driven legal action enumeration (ADR 0047, issue #801). The
 // gate's dual: yields the concrete action set for the acting player, derived
 // from the same contract every game mutation is gated through. Pure — usable

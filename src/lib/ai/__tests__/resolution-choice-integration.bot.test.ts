@@ -31,7 +31,7 @@ import { enumerateMoves } from "@convex/gre";
 import { decidingPlayer } from "@convex/gre/search";
 import { projectPublicState } from "@convex/gameProjections";
 import type { CardType } from "@convex/cards/types";
-import { decideBotAction } from "../brain";
+import { decideBotAction, chooseOwedChoiceAction } from "../brain";
 import { buildBotView, botActionToMove } from "../bot-view";
 import { executeMove, type MoveMutations } from "../executor";
 
@@ -191,7 +191,11 @@ describe("bot resolution-choice full path — search-library (ADR 0016, #162)", 
 
         const projected = projectPublicState(state, 1, BOT);
         const view = buildBotView(projected, BOT);
-        const action = decideBotAction(view);
+        // search-library is now a Worker-routed search node (issue #1506); this
+        // path pins the ADR 0016 heuristic (the search's fallback), so it calls
+        // `chooseOwedChoiceAction` directly. The Worker routing itself is
+        // covered by `root-choice-search-routing.bot.test.ts`.
+        const action = chooseOwedChoiceAction(view.owedChoice!);
         expect(action.kind).toBe("resolution-choice");
 
         const move = botActionToMove(action, projected, BOT);
@@ -286,7 +290,9 @@ describe("bot resolution-choice full path — may-pay (ADR 0016, #164)", () => {
         expect(view.owedChoice).toMatchObject({ kind: "may-pay" });
         expect(view.owedChoice?.affordable).toBe(true);
 
-        const action = decideBotAction(view);
+        // may-pay is now Worker-routed (issue #1506); pin the ADR 0016
+        // heuristic (the search's fallback) directly.
+        const action = chooseOwedChoiceAction(view.owedChoice!);
         expect(action).toEqual({ kind: "may-pay", accept: true });
 
         const move = botActionToMove(action, projected, BOT);
@@ -314,7 +320,9 @@ describe("bot resolution-choice full path — may-pay (ADR 0016, #164)", () => {
         const view = buildBotView(projected, BOT);
         expect(view.owedChoice?.affordable).toBe(false);
 
-        const action = decideBotAction(view);
+        // may-pay is now Worker-routed (issue #1506); pin the ADR 0016
+        // heuristic (the search's fallback) directly.
+        const action = chooseOwedChoiceAction(view.owedChoice!);
         expect(action).toEqual({ kind: "may-pay", accept: false });
 
         const move = botActionToMove(action, projected, BOT);
@@ -340,7 +348,15 @@ async function driveBotToStable(state: GameState, max = 12): Promise<string[]> {
     const kinds: string[] = [];
     for (let i = 0; i < max; i++) {
         const projected = projectPublicState(state, i + 1, BOT);
-        const action = decideBotAction(buildBotView(projected, BOT));
+        const view = buildBotView(projected, BOT);
+        // A generator-covered owed choice is Worker-routed by `decideBotAction`
+        // since issue #1506; this helper drives the ADR 0016 heuristic policy,
+        // so it answers an owed choice with `chooseOwedChoiceAction` (the
+        // search's fallback) and only defers to `decideBotAction` for the
+        // non-choice actions (pass / none) that end the drive.
+        const action = view.owedChoice
+            ? chooseOwedChoiceAction(view.owedChoice)
+            : decideBotAction(view);
         if (action.kind === "none" || action.kind === "pass") break;
         const move = botActionToMove(action, projected, BOT);
         if (!move) break;

@@ -19,6 +19,7 @@ import {
     normalizeManaCost,
     isManaCostCovered,
     normalizeMayPayCost,
+    hasChoiceCandidateGenerator,
 } from "@convex/gre";
 import { cardValueById } from "@convex/gre";
 import { manaValue } from "@convex/gre/constants";
@@ -393,6 +394,21 @@ function buildOwedChoice(
 
     return {
         kind: head.kind,
+        // issue #1506 — is this an in-tree ISMCTS decision node the SEARCH must
+        // answer, rather than the ADR 0016 heuristic? `hasChoiceCandidateGenerator`
+        // is the single authority (the same registry `enumerateMoves` and
+        // `decidingPlayer` consult), and the parked-continuation guard mirrors
+        // `enumerateMoves` exactly: with a cast / target / activation / companion
+        // payment mid-flight the enumerator surfaces NO moves for a pending
+        // choice, so routing to the Worker there would stall the bot. Keeping
+        // the two conditions identical is what stops the gate and the enumerator
+        // disagreeing.
+        searchable:
+            hasChoiceCandidateGenerator(head.kind) &&
+            !state.pendingCast &&
+            !state.pendingTarget &&
+            !state.pendingActivation &&
+            !state.pendingCompanionPay,
         min: getPendingChoiceMin(head.count),
         max: getPendingChoiceMax(head.count),
         candidates: candidatesForChoice,
@@ -680,6 +696,9 @@ export function botActionToMove(
         }
         // Realised by the driver directly (Worker search / confirmDamage /
         // attack-tax pay-cancel / no-op), never translated to a Move here.
+        // `search-choice` in particular carries no answer of its own — the
+        // Worker's returned Move IS the submission (issue #1506).
+        case "search-choice":
         case "pass":
         case "declare-attackers":
         case "declare-blockers":
