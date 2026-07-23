@@ -20,6 +20,7 @@ import {
     lethalUnblockedDelta,
     declaredBlockDelta,
 } from "../evaluate";
+import { blockDeltaOf } from "../search";
 import type { GameState } from "../state";
 import {
     makeInstance,
@@ -216,9 +217,144 @@ describe("lethalUnblockedDelta — EXACTLY ZERO off-pattern (ADR 0070 §5)", () 
         });
         expect(lethalUnblockedDelta(state, "spectator")).toBe(0);
     });
+
+    // --- Review regressions (PR #1498). Each of these FIRED at ∓WIN_SCORE
+    // before the guards, i.e. each was a live violation of the ADR 0070 §5
+    // "exactly zero off-pattern" property the term's admission rests on.
+
+    it("is zero after the damage step — `state.combat` survives it, so the term must not re-count damage already dealt", () => {
+        // 4 x 6/4 unblocked into 30: the attack is NOT lethal (30 − 24 = 6).
+        // `state.combat` (confirmed + blockersConfirmed + attackerIds) is torn
+        // down only as END_OF_COMBAT ends (`endCombatStep`, CR 511.3), so at
+        // both post-damage priority windows the pre-guard term compared the
+        // same 24 damage against the ALREADY-REDUCED life of 6 and returned
+        // −WIN_SCORE for a defender that is comfortably alive.
+        const state = position({
+            attackers: Array.from({ length: 4 }, () => ({
+                power: 6,
+                toughness: 4,
+            })),
+            defenderLife: 30,
+        });
+        expect(lethalUnblockedDelta(state, DEFENDER)).toBe(0); // pre-damage: survivable
+        // Damage applied: life drops, combat state persists.
+        state.players[1].life = 6;
+        for (const phase of ["COMBAT_DAMAGE", "END_OF_COMBAT"] as const) {
+            state.phase = phase;
+            expect(lethalUnblockedDelta(state, DEFENDER)).toBe(0);
+            expect(lethalUnblockedDelta(state, ATTACKER)).toBe(0);
+        }
+    });
+
+    it("is zero outside DECLARE_BLOCKERS generally — the term's whole support window", () => {
+        const state = position({
+            attackers: [{ power: 6, toughness: 4 }],
+            defenderLife: 3,
+        });
+        for (const phase of [
+            "DECLARE_ATTACKERS",
+            "FIRST_STRIKE_DAMAGE",
+            "COMBAT_DAMAGE",
+            "END_OF_COMBAT",
+            "POSTCOMBAT_MAIN",
+            "END_STEP",
+        ] as const) {
+            state.phase = phase;
+            expect(lethalUnblockedDelta(state, DEFENDER)).toBe(0);
+        }
+    });
+
+    it("is zero for an attacker recorded in `blockedAttackerIds` whose blocker has since left (CR 509.1h)", () => {
+        // Blocks were locked in, then the blocker was removed. The attacker is
+        // STILL blocked and deals nothing to the player — the damage step reads
+        // exactly this list. Reading `blockerAssignments` alone counted its
+        // full 6 power into 3 life → false −WIN_SCORE.
+        const state = position({
+            attackers: [{ power: 6, toughness: 4 }],
+            defenderLife: 3,
+        });
+        state.combat!.blockedAttackerIds = ["a0"];
+        expect(lethalUnblockedDelta(state, DEFENDER)).toBe(0);
+        expect(lethalUnblockedDelta(state, ATTACKER)).toBe(0);
+    });
+
+    it("is zero under a resolved Fog — `preventAllCombatDamageThisTurn` (CR 615)", () => {
+        const state = position({
+            attackers: Array.from({ length: 4 }, () => ({
+                power: 6,
+                toughness: 4,
+            })),
+            defenderLife: 20,
+        });
+        expect(lethalUnblockedDelta(state, DEFENDER)).toBe(-WIN_SCORE);
+        state.preventAllCombatDamageThisTurn = true;
+        expect(lethalUnblockedDelta(state, DEFENDER)).toBe(0);
+        expect(lethalUnblockedDelta(state, ATTACKER)).toBe(0);
+    });
+
+    it("skips attackers in `assignsNoCombatDamageThisTurn` (CR 510.1c)", () => {
+        const state = position({
+            attackers: Array.from({ length: 4 }, () => ({
+                power: 6,
+                toughness: 4,
+            })),
+            defenderLife: 20,
+        });
+        // One of the four assigns nothing → 18 into 20, no longer lethal.
+        state.assignsNoCombatDamageThisTurn = ["a0"];
+        expect(lethalUnblockedDelta(state, DEFENDER)).toBe(0);
+        // Silenced down to two attackers is likewise nothing (12 into 20).
+        state.assignsNoCombatDamageThisTurn = ["a0", "a1"];
+        expect(lethalUnblockedDelta(state, DEFENDER)).toBe(0);
+    });
+
+    it("skips attackers shielded by `combatDamageImmunity` (CR 615, Ebony Horse)", () => {
+        const state = position({
+            attackers: Array.from({ length: 4 }, () => ({
+                power: 6,
+                toughness: 4,
+            })),
+            defenderLife: 20,
+        });
+        state.combatDamageImmunity = [
+            { instanceId: "a0", duration: { phase: "end-of-turn" } },
+        ];
+        expect(lethalUnblockedDelta(state, DEFENDER)).toBe(0);
+    });
+
+    it("declines to claim lethality while an unspent per-player prevention shield is live (CR 615.1)", () => {
+        const state = position({
+            attackers: Array.from({ length: 4 }, () => ({
+                power: 6,
+                toughness: 4,
+            })),
+            defenderLife: 20,
+        });
+        state.playerDamagePrevention = [
+            {
+                playerId: DEFENDER,
+                match: {},
+                mode: "all",
+                remaining: 1,
+                duration: { phase: "end-of-turn" },
+            },
+        ];
+        expect(lethalUnblockedDelta(state, DEFENDER)).toBe(0);
+        // A shield belonging to the OTHER player is irrelevant — still on-pattern.
+        state.playerDamagePrevention = [
+            {
+                playerId: ATTACKER,
+                match: {},
+                mode: "all",
+                remaining: 1,
+                duration: { phase: "end-of-turn" },
+            },
+        ];
+        expect(lethalUnblockedDelta(state, DEFENDER)).toBe(-WIN_SCORE);
+    });
 });
 
-describe("the term's effect on its two call sites (issue #1489)", () => {
+describe("the term's TWO wiring seams, counted once each (issue #1489)", () => {
     it("evaluate: identical before, WIN_SCORE apart after", () => {
         const noBlock = position({
             attackers: Array.from({ length: 4 }, () => ({
@@ -244,29 +380,59 @@ describe("the term's effect on its two call sites (issue #1489)", () => {
         );
     });
 
-    it("declaredBlockDelta: the block-quality tie-break now prefers surviving", () => {
-        const noBlock = position({
-            attackers: Array.from({ length: 4 }, () => ({
-                power: 6,
-                toughness: 4,
-            })),
-            blockers: [{ power: 2, toughness: 2 }],
-            defenderLife: 20,
-        });
-        const chump = position({
-            attackers: Array.from({ length: 4 }, () => ({
-                power: 6,
-                toughness: 4,
-            })),
-            blockers: [{ power: 2, toughness: 2 }],
-            blocks: { 0: 0 },
-            defenderLife: 20,
-        });
+    it("blockDeltaOf: the ROOT block-quality tie-break now prefers surviving", () => {
+        // `blockDeltaOf` (search.ts) is the lens `selectRootMove` ranks
+        // candidate blocks by. It is where the term is folded for the tie-break
+        // — NOT inside `declaredBlockDelta`, see the double-count guard below.
+        const pre = () =>
+            position({
+                attackers: Array.from({ length: 4 }, () => ({
+                    power: 6,
+                    toughness: 4,
+                })),
+                blockers: [{ power: 2, toughness: 2 }],
+                defenderLife: 20,
+                blockersConfirmed: false,
+            });
+        const noBlock = blockDeltaOf(
+            pre(),
+            { kind: "declare-blockers", assignments: [] },
+            DEFENDER
+        );
+        const chump = blockDeltaOf(
+            pre(),
+            {
+                kind: "declare-blockers",
+                assignments: [{ blockerId: "b0", attackerId: "a0" }],
+            },
+            DEFENDER
+        );
         // Pre-fix these were −192 (die) vs −312 (live): the lethality-blind,
         // linear life clause rated dying HIGHER.
-        expect(declaredBlockDelta(chump, DEFENDER)).toBeGreaterThan(
-            declaredBlockDelta(noBlock, DEFENDER)
-        );
+        expect(chump).toBeGreaterThan(noBlock);
+        expect(noBlock).toBeLessThan(-WIN_SCORE / 2);
+    });
+
+    it("declaredBlockDelta is term-FREE, so `policyValue`'s evaluate + declaredBlockDelta sum cannot double it", () => {
+        // The third, undeclared consumer: `policyValue` (search.ts) returns
+        // `evaluate(probe) + declaredBlockDelta(probe)`. With the term inside
+        // BOTH the rollout default policy saw ±2·WIN_SCORE. It now lives in
+        // `evaluate` and in `blockDeltaOf`, never in `declaredBlockDelta`.
+        const lethal = position({
+            attackers: Array.from({ length: 4 }, () => ({
+                power: 6,
+                toughness: 4,
+            })),
+            blockers: [{ power: 2, toughness: 2 }],
+            defenderLife: 20,
+        });
+        expect(lethalUnblockedDelta(lethal, DEFENDER)).toBe(-WIN_SCORE);
+        // −24 face damage x W_LIFE(8), no creature dies — the pre-term value.
+        expect(declaredBlockDelta(lethal, DEFENDER)).toBe(-192);
+        // The policy sum therefore carries exactly ONE WIN_SCORE, not two.
+        const policySum =
+            evaluate(lethal, DEFENDER) + declaredBlockDelta(lethal, DEFENDER);
+        expect(policySum).toBeGreaterThan(-2 * WIN_SCORE);
     });
 
     it("leaves a non-lethal block's valuation untouched", () => {

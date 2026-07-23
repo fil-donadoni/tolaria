@@ -111,6 +111,11 @@ export function applyDeclareAttackers(
     // The real declaration restrictions (CR 506.3/508.1 — Arboria, propaganda-
     // style taxes, "must attack" requirements). A declaration the engine would
     // reject must not become a searched position.
+    //
+    // This necessarily runs AFTER the move is applied, not before:
+    // `validateDeclaredAttackers` reads `state.combat.attackerIds`, which only
+    // exists once the declaration has been made. On a rejection the whole
+    // `state` is discarded with the throw, so nothing invalid ever escapes.
     const legal = validateDeclaredAttackers(state);
     if (!legal.ok) {
         throw fail(`the declared attack is illegal — ${legal.reason}`);

@@ -23,6 +23,7 @@
 // layer system so static buffs (counters, anthems) are reflected.
 
 import type { CardInstanceState, GameState, PlayerState } from "./state";
+import { isCombatDamageImmune } from "./state";
 import {
     getEffectivePower,
     getEffectiveToughness,
@@ -381,7 +382,22 @@ export function evaluate(state: GameState, playerId: string): number {
 //   * an attacker directed at a planeswalker (CR 508.1a) never touches the
 //     player's life, so it is excluded;
 //   * it fires only once blockers are CONFIRMED — at declare-attackers time
-//     the defender has not yet had its say, and the term stays zero.
+//     the defender has not yet had its say, and the term stays zero;
+//   * its support is the DECLARE_BLOCKERS phase and nothing else: `state.combat`
+//     survives the damage steps, so without a phase guard the term would
+//     re-count damage already dealt against the already-reduced life;
+//   * every engine-modelled way the damage can fail to arrive zeroes it —
+//     `preventAllCombatDamageThisTurn` (Fog), `assignsNoCombatDamageThisTurn`
+//     (CR 510.1c), `combatDamageImmunity` (Ebony Horse), an unspent
+//     `playerDamagePrevention` shield (CR 615.1) — and `blockedAttackerIds`
+//     (CR 509.1h) is consulted, not just the live block graph.
+//
+// WIRED AT EXACTLY TWO SEAMS, each counting it ONCE: `evaluate` (the shared
+// leaf the reward band reads) and `blockDeltaOf` (search.ts — the root
+// block-quality tie-break lens). It is deliberately NOT inside
+// `declaredBlockDelta` itself, because `policyValue` (search.ts) sums
+// `evaluate` AND `declaredBlockDelta`: folding it into the latter would make
+// the rollout default policy see ±2·WIN_SCORE.
 
 /** Invert `blockerAssignments` (blocker → attackers) into attacker → blockers,
  *  in stable listed order, so each attacker's combat can be resolved
@@ -413,6 +429,16 @@ function blockersByAttacker(
 function declaredFaceDamage(
     state: GameState
 ): { defender: PlayerState; attacker: PlayerState; damage: number } | null {
+    // PHASE GUARD (mandatory). `state.combat` — `confirmed`, `blockersConfirmed`
+    // and `attackerIds` included — SURVIVES the damage steps: it is torn down
+    // only as END_OF_COMBAT *ends* (`endCombatStep`, phases.ts, CR 511.3).
+    // Without this guard the term would re-count damage ALREADY APPLIED against
+    // the ALREADY-REDUCED life at every COMBAT_DAMAGE / END_OF_COMBAT leaf,
+    // firing on any attack that took the defender past roughly half its life —
+    // a broad, common-position false `∓WIN_SCORE`. DECLARE_BLOCKERS is the only
+    // PRE-damage phase in which `blockersConfirmed` can be true, so it is the
+    // term's entire support window (CR 509 → 510).
+    if (state.phase !== "DECLARE_BLOCKERS") return null;
     const combat = state.combat;
     if (
         !combat ||
@@ -422,6 +448,10 @@ function declaredFaceDamage(
     ) {
         return null;
     }
+    // CR 615 — a resolved Fog. `applyAllCombatDamage` returns immediately on
+    // this flag (phases.ts), so NO combat damage happens at all this turn and
+    // there is nothing lethal on the table.
+    if (state.preventAllCombatDamageThisTurn) return null;
     const attackerId = state.activePlayerId; // CR 508.1 — active player attacks.
     const attacker = state.players.find((p) => p.id === attackerId);
     const defender = state.players.find((p) => p.id !== attackerId);
@@ -433,9 +463,22 @@ function declaredFaceDamage(
         // CR 508.1a — an attacker aimed at a planeswalker never reaches the
         // player's life (issue #1220).
         if (combat.attackTargets?.[atkId] !== undefined) continue;
+        // CR 509.1h — "blocked" is combat STATE, not the live blocker count.
+        // `blockedAttackerIds` is the engine's authority (written at every
+        // blocker confirmation, read by the damage step itself, phases.ts):
+        // an attacker that became blocked stays blocked and deals NOTHING to
+        // the player even after every blocker has left the battlefield.
+        // Reading `blockerAssignments` alone would count its full power.
+        if (combat.blockedAttackerIds?.includes(atkId)) continue;
         if ((byAttacker.get(atkId) ?? []).length > 0) continue;
         const atk = attacker.battlefield.find((c) => c.id === atkId);
         if (!atk) continue;
+        // CR 510.1c — "assigns no combat damage this turn" (Farrel's Mantle /
+        // Farrel's Zealot). Source-only; the damage step skips it outright.
+        if (state.assignsNoCombatDamageThisTurn?.includes(atk.id)) continue;
+        // CR 615 — Ebony Horse's shield prevents all combat damage BY the
+        // shielded creature as well as to it.
+        if (isCombatDamageImmune(state, atk.id)) continue;
         damage += Math.max(0, getEffectivePower(state, atk));
     }
     return { defender, attacker, damage };
@@ -459,6 +502,23 @@ export function lethalUnblockedDelta(
     const declared = declaredFaceDamage(state);
     if (!declared) return 0;
     const { defender, attacker, damage } = declared;
+    // CR 615.1 — a live per-player prevention shield (Dark Sphere, Scarecrow)
+    // can cut or erase the damage headed at the defender. Whether it MATCHES
+    // depends on the source and its mode, and resolving that would mean running
+    // `applyPlayerDamagePrevention`, which MUTATES state (it decrements
+    // `remaining`) — illegal in a pure term. So the term declines to claim
+    // lethality whenever any unspent shield is registered for the defender:
+    // under-report, never over-fire. (`isCombatDamagePreventedFromSource` needs
+    // no consultation here: it is queried only on the PERMANENT branch of the
+    // damage step — a self-protective property of the creature being dealt
+    // damage — and a PLAYER is never its target.)
+    if (
+        state.playerDamagePrevention?.some(
+            (s) => s.playerId === defender.id && s.remaining > 0
+        )
+    ) {
+        return 0;
+    }
     // CR 704.5a — a player at 0 or less life loses. Damage already locked in
     // that takes the defender there is a loss, one SBA sweep early.
     if (damage <= 0 || damage < defender.life) return 0;
@@ -677,20 +737,18 @@ export function declaredBlockDelta(state: GameState, viewerId: string): number {
     // Defender's view: gains the dead attackers' worth, loses its dead blockers,
     // and takes the unblocked face damage.
     //
-    // …plus the lethal-on-the-table term (issue #1489). MEASURED: this function
-    // is the lens `selectRootMove`'s block-quality tie-break ranks candidate
-    // blocks by (`blockDeltaOf`, search.ts), and the life clause above is LINEAR
-    // and lethality-blind — in the charter position it prices 24 incoming damage
-    // at `24 × W_LIFE = 192` and therefore rates "take it and die" (−192) ABOVE
-    // "chump and live" (−312, the 168-point blocker plus the 18 that still gets
-    // through). The tie-break then actively picks the losing move. The term is
-    // EXACTLY ZERO unless the block leaves damage lethal to the defender, so
-    // every non-lethal block is valued exactly as before; no weight is re-tuned.
+    // NOTE (issue #1489). The lethal-on-the-table term is deliberately NOT
+    // folded in here. MEASURED, this function IS the lens `selectRootMove`'s
+    // block-quality tie-break ranks candidate blocks by (`blockDeltaOf`,
+    // search.ts), and the life clause below is LINEAR and lethality-blind — in
+    // the charter position it prices 24 incoming damage at `24 × W_LIFE = 192`
+    // and therefore rates "take it and die" (−192) ABOVE "chump and live"
+    // (−312). But `policyValue` (search.ts) sums `evaluate` AND
+    // `declaredBlockDelta`, and `evaluate` already carries the term — folding it
+    // here too would show the rollout default policy ±2·WIN_SCORE. So the tie-
+    // break gets it at its own seam, `blockDeltaOf`, where it is counted once.
     const defenderDelta =
-        value(deadAttackers) -
-        value(deadBlockers) -
-        faceDamage * W_LIFE +
-        lethalUnblockedDelta(state, defender.id);
+        value(deadAttackers) - value(deadBlockers) - faceDamage * W_LIFE;
 
     // Cautious multi-block (ADR 0021, issue #229). If the ATTACKER holds castable
     // interaction (a pump or instant removal), a block that only WINS when the
