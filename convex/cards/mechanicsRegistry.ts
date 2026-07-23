@@ -339,7 +339,8 @@ const KEYWORD_ACTIONS: MechanicRow[] = [
         // un-kept-card destination. Shipping on the MKM surveil-land cycle
         // (mkm/colorless.ts) since issue #885; reused by Consider
         // (mid/blue.ts) and Master of Death (mh2/multicolor.ts).
-        binding: 'scryReorder Op, destination "graveyard" (SpellContext.orderTop)',
+        binding:
+            'scryReorder Op, destination "graveyard" (SpellContext.orderTop)',
     },
     // 701.26 Tap and Untap
     {
