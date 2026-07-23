@@ -1140,8 +1140,19 @@ export type CandidateTrace = {
     /** Breakdown of the position this move leads to once its spell/ability has
      *  resolved, from the bot's perspective. The diagnostic field: two target
      *  choices whose `hand`/`power` terms are identical reveal an effect the
-     *  search never simulated. */
+     *  search never simulated. When `unavailable` is true this is the
+     *  UN-resolved root position instead (the probe couldn't apply the move —
+     *  see `unavailable`). */
     eval: PositionBreakdown;
+    /** True when `buildTrace` could not re-apply this edge's move to the root
+     *  world (issue #1516): `rootMoveFor` falls back to the edge's
+     *  determinization-captured move when its key no longer resolves against
+     *  the root world, and that fallback can carry instance ids the root
+     *  world doesn't have (e.g. an opponent-priority choice edge — the
+     *  out-of-scope stable-key gap noted on issue #1516). Applying it then
+     *  throws. `eval` is a fallback (the unresolved root position) rather than
+     *  the real outcome — treat this candidate's `eval` as uninformative. */
+    unavailable?: boolean;
 };
 
 /** What the Brain considered for a single decision. A read-only by-product of
@@ -1179,8 +1190,11 @@ function settleStackForBreakdown(state: GameState): void {
 
 /** Build the DecisionTrace from the grown tree. Each candidate's eval breakdown
  *  re-applies the root move on a fresh clone of `rootState` and settles the
- *  stack — O(root children) clones, once, after the search has finished. */
-function buildTrace(
+ *  stack — O(root children) clones, once, after the search has finished.
+ *  Exported (like `blockDeltaOf`) as a named seam so the stale-fallback guard
+ *  (issue #1516) is unit-testable against a hand-built tree, without needing a
+ *  real search to land on the exact determinization mismatch. */
+export function buildTrace(
     root: Node,
     rootState: GameState,
     botId: string,
@@ -1194,9 +1208,26 @@ function buildTrace(
         // applying those to the root world would probe (or label) a position the
         // bot could not actually reach.
         const move = rootMoveFor(edge, rootState);
-        const probe = cloneGameState(rootState);
-        applyMoveInSearch(probe, botId, move);
-        settleStackForBreakdown(probe);
+        // Guard parity with the sibling probe (`botExtraTurnGrantDelta`, issue
+        // #1516): `rootMoveFor` can still fall back to `edge.move` — captured in
+        // a DIFFERENT determinization — when the edge's key no longer resolves
+        // against the root world (e.g. an opponent-priority choice edge, the
+        // stable-key gap noted out-of-scope on issue #1516). Applying such a
+        // move here can throw (a pending-choice submit naming ids the root
+        // world doesn't have). This trace is a client-side debug by-product of
+        // an ALREADY-SUCCESSFUL search — it must never throw while reporting
+        // it, so tolerate the probe failing and mark the edge `unavailable`
+        // instead of letting the exception escape `searchWithTrace`.
+        let probe = rootState;
+        let unavailable = false;
+        try {
+            probe = cloneGameState(rootState);
+            applyMoveInSearch(probe, botId, move);
+            settleStackForBreakdown(probe);
+        } catch {
+            probe = rootState;
+            unavailable = true;
+        }
         candidates.push({
             label: describeMove(move, rootState),
             move,
@@ -1205,6 +1236,7 @@ function buildTrace(
             meanMargin: edge.visits > 0 ? edge.totalMargin / edge.visits : 0,
             avail: edge.avail,
             eval: evaluateBreakdown(probe, botId),
+            ...(unavailable ? { unavailable: true } : {}),
         });
     }
     candidates.sort(

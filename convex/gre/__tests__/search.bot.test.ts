@@ -8,6 +8,7 @@ import { getCardByName } from "../../cards";
 import {
     search,
     searchWithTrace,
+    buildTrace,
     reward,
     selectRootMove,
     selectRolloutMove,
@@ -26,6 +27,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
+    pushSpell,
 } from "../../cards/__tests__/setup";
 import type { GameState } from "../state";
 
@@ -354,6 +356,121 @@ describe("search — respects the budget bound (issue #112)", () => {
         );
         expect(move).not.toBeNull();
         expect(isLegal(state, "p1", move)).toBe(true);
+    });
+});
+
+describe("buildTrace — tolerates a stale-fallback edge (issue #1516)", () => {
+    // `rootMoveFor` falls back to an edge's DETERMINIZATION-captured move when
+    // its stable key no longer resolves against the root world's own
+    // candidates (an opponent-priority choice edge is the known real-world
+    // trigger, per the fallback's own doc comment) — and that fallback move
+    // can name ids the root world doesn't have. Reproduced directly here
+    // (rather than via a randomized search) so the exact "choice key absent
+    // in root world" condition is forced deterministically: a hand-built
+    // root Edge is keyed for an `option-pick` id ("stale-option") that the
+    // real pending choice's `options` no longer offers, so `rootMoveFor`
+    // falls through to `edge.move` — a `resolution-choice` submitting that
+    // same absent id, which `applyPendingChoiceSubmit` rejects
+    // ("Not a legal choice").
+    function staleFallbackScenario(): { state: GameState; stackId: string } {
+        const state = makeState({
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+        });
+        const stackItem = pushSpell(state, GIANT, "p1");
+        state.pendingChoices = [
+            {
+                stackItemId: stackItem.id,
+                step: 0,
+                choiceId: "p1",
+                playerId: "p1",
+                kind: "option-pick",
+                count: 1,
+                prompt: "Choose a mode",
+                options: [{ id: "real-option", label: "Real" }],
+            },
+        ];
+        return { state, stackId: stackItem.id };
+    }
+
+    it("searchWithTrace-style buildTrace call never throws on a stale fallback", () => {
+        const { state, stackId } = staleFallbackScenario();
+        const staleMove: Move = {
+            kind: "resolution-choice",
+            stackItemId: stackId,
+            step: 0,
+            choiceId: "p1",
+            cardInstanceIds: ["stale-option"],
+        };
+        const edge: Edge = {
+            move: staleMove,
+            key: "option-pick:stale-option",
+            mover: "p1",
+            node: { children: new Map() },
+            visits: 3,
+            totalReward: 1.5,
+            totalMargin: 10,
+            avail: 3,
+        };
+        const root: Node = { children: new Map([[edge.key, edge]]) };
+
+        expect(() => buildTrace(root, state, "p1", 3, staleMove)).not.toThrow();
+    });
+
+    it("marks the stale-fallback edge unavailable instead of faking a resolved eval", () => {
+        const { state, stackId } = staleFallbackScenario();
+        const staleMove: Move = {
+            kind: "resolution-choice",
+            stackItemId: stackId,
+            step: 0,
+            choiceId: "p1",
+            cardInstanceIds: ["stale-option"],
+        };
+        const edge: Edge = {
+            move: staleMove,
+            key: "option-pick:stale-option",
+            mover: "p1",
+            node: { children: new Map() },
+            visits: 3,
+            totalReward: 1.5,
+            totalMargin: 10,
+            avail: 3,
+        };
+        const root: Node = { children: new Map([[edge.key, edge]]) };
+
+        const trace = buildTrace(root, state, "p1", 3, staleMove);
+        expect(trace.candidates).toHaveLength(1);
+        expect(trace.candidates[0]?.unavailable).toBe(true);
+        // Still a well-formed PositionBreakdown (the unresolved-root fallback),
+        // not a crash and not `undefined`.
+        expect(trace.candidates[0]?.eval).toBeDefined();
+        expect(trace.candidates[0]?.visits).toBe(3);
+    });
+
+    it("a NON-stale edge (key resolves against the root world) is unaffected", () => {
+        const { state, stackId } = staleFallbackScenario();
+        const realMove: Move = {
+            kind: "resolution-choice",
+            stackItemId: stackId,
+            step: 0,
+            choiceId: "p1",
+            cardInstanceIds: ["real-option"],
+        };
+        const edge: Edge = {
+            move: realMove,
+            key: "option-pick:real-option",
+            mover: "p1",
+            node: { children: new Map() },
+            visits: 5,
+            totalReward: 3,
+            totalMargin: 20,
+            avail: 5,
+        };
+        const root: Node = { children: new Map([[edge.key, edge]]) };
+
+        const trace = buildTrace(root, state, "p1", 5, realMove);
+        expect(trace.candidates).toHaveLength(1);
+        expect(trace.candidates[0]?.unavailable).toBeUndefined();
     });
 });
 
