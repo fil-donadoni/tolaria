@@ -542,4 +542,32 @@ describe("board battlefield activated-ability parity with the classic board (#27
             abilityId: "ls-reconfigure",
         });
     });
+
+    it("(j) an Aura attached to an ATTACHED Aura still renders (CR 303.4 enchant enchantment)", () => {
+        // Bug: Power Leak ("Enchant enchantment") on Holy Armor on a creature.
+        // The aura cluster was built from DIRECT attachments to a card on this
+        // side only, and an attached card gets no slot of its own — so the
+        // second-level Aura was rendered nowhere: correct in the GRE (it stays
+        // on the battlefield), invisible on the board. The whole attachment
+        // chain must fold into the ROOT host's cluster.
+        const bear = permanent("bear1", "stack-def", { types: ["Creature"] });
+        const armor = permanent("armor1", "equip-def", {
+            types: ["Enchantment"],
+            subtypes: ["Aura"],
+            attachedTo: "bear1",
+        });
+        const leak = permanent("leak1", "equip-def", {
+            types: ["Enchantment"],
+            subtypes: ["Aura"],
+            attachedTo: "armor1",
+        });
+        const me = makePlayer("me", [bear, armor, leak]);
+
+        const { container } = renderSpatial(me, [me]);
+        for (const id of ["bear1", "armor1", "leak1"]) {
+            expect(
+                container.querySelector(`[data-arrow-anchor-permanent="${id}"]`)
+            ).not.toBeNull();
+        }
+    });
 });

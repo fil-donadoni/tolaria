@@ -42,6 +42,7 @@ export default function CardPreviewFace({
     notedMana,
     colorName,
     ownerName,
+    attachedToName,
     milestones,
     size,
     onImageLoaded,
@@ -166,6 +167,13 @@ export default function CardPreviewFace({
                         className={`border-t border-border-subtle pt-2 ${sectionSize} font-semibold text-accent-strong`}
                     >
                         Color: {colorName}
+                    </div>
+                )}
+                {attachedToName && (
+                    <div
+                        className={`border-t border-border-subtle pt-2 ${sectionSize} font-semibold text-accent-strong`}
+                    >
+                        Attached to: {attachedToName}
                     </div>
                 )}
                 {ownerName && (

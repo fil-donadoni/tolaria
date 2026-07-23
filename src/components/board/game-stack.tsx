@@ -53,14 +53,16 @@ export default function GameStack({ stack }: GameStackProps) {
 
     // Display in LIFO order: last cast on top (first row).
     const reversed = [...stack].reverse();
-    const topId = reversed[0]?.id;
 
-    // Default arrows: the TOP item's relationship is lit (QA). Hovering a row
-    // swaps the seed to that row's; leaving restores the top's.
+    // No default seed: EVERY stack item's target arrows are drawn at full
+    // strength as soon as it hits the stack. Seeding the top item dimmed every
+    // other relationship to 14% — with 2+ items on the stack the board read as
+    // having no arrows at all. Hovering a row still isolates its relationship;
+    // leaving clears back to "all lit".
     useEffect(() => {
-        if (!setSeed || !topId) return;
-        setSeed({ nodeId: topId });
-    }, [topId, setSeed]);
+        if (!setSeed) return;
+        return () => setSeed(null);
+    }, [setSeed]);
 
     // The panel moves via CSS transform, which fires no resize/scroll event,
     // so target arrows would keep stale endpoints. Re-anchor them on every
@@ -163,10 +165,10 @@ export default function GameStack({ stack }: GameStackProps) {
                                         });
                                     }}
                                     onHoverSeed={(seeding) => {
-                                        if (!setSeed || !topId) return;
-                                        setSeed({
-                                            nodeId: seeding ? item.id : topId,
-                                        });
+                                        if (!setSeed) return;
+                                        setSeed(
+                                            seeding ? { nodeId: item.id } : null
+                                        );
                                     }}
                                     dimmed={dimmed}
                                     arrived={
@@ -174,7 +176,6 @@ export default function GameStack({ stack }: GameStackProps) {
                                     }
                                     allPlayers={allPlayers}
                                     viewerId={playerId}
-                                    stack={stack}
                                 />
                             );
                         })}

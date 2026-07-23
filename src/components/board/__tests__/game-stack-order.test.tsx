@@ -36,7 +36,10 @@ function makeStackItem(id: string): StackItem {
     } as StackItem;
 }
 
-function renderStack(stack: StackItem[]) {
+function renderStack(
+    stack: StackItem[],
+    allPlayers: React.ContextType<typeof GameContext>["allPlayers"] = []
+) {
     const value = {
         gameId: "game-id" as never,
         playerId: "me",
@@ -45,7 +48,7 @@ function renderStack(stack: StackItem[]) {
         phase: "PRECOMBAT_MAIN",
         turn: 1,
         stackCount: stack.length,
-        allPlayers: [],
+        allPlayers,
         showAllCards: false,
         debugAllActions: false,
         onSwitchGame: () => {},
@@ -151,6 +154,31 @@ describe("GameStack ability-kind detection (#935)", () => {
         expect(img?.getAttribute("src")).not.toContain(
             MONARCH_DESIGNATION.imagePrintId
         );
+    });
+});
+
+describe("GameStack targets are arrows, not text chips (QA)", () => {
+    it("renders no target-name chip for a targeted stack item", () => {
+        // The board-crossing SVG arrows (`board-arrows.tsx`) are the single
+        // representation of "what this targets". A duplicate name chip in the
+        // row said WHAT but never WHERE, so it was dropped — the row must not
+        // print the target's name at all.
+        const item = {
+            ...makeStackItem("bolt"),
+            castById: "me",
+            targets: [{ type: "player" as const, id: "opp" }],
+        } as StackItem;
+        const { container } = renderStack([item], [
+            {
+                id: "opp",
+                name: "Rival",
+                battlefield: [],
+                graveyard: [],
+            },
+        ] as never);
+
+        expect(container.textContent).not.toContain("Rival");
+        expect(container.textContent).not.toContain("→");
     });
 });
 

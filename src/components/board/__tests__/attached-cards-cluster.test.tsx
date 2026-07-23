@@ -106,6 +106,33 @@ describe("AttachedCardsCluster — corner peek-stack + pile dialog", () => {
         ).toBeTruthy();
     });
 
+    it("prints the per-card 'Attached to: X' caption in the pile dialog", () => {
+        // The dialog TITLE names the cluster's host, but with an Aura on an
+        // Aura (Power Leak on Holy Strength) the members do NOT all enchant
+        // that host — each card must state its OWN host in words.
+        const cards = [makeCard("holy"), makeCard("leak")];
+        const hosts: Record<string, string> = {
+            holy: "Grizzly Bears",
+            leak: "Holy Strength",
+        };
+        const { getByText, baseElement } = render(
+            <AttachedCardsCluster
+                cards={cards}
+                renderMember={member}
+                interactiveMembers
+                pileTitle="Attached to Grizzly Bears"
+                pileCaptionFor={(c) => `Attached to: ${hosts[c.id]}`}
+            />
+        );
+        fireEvent.click(getByText("×2"));
+        expect(
+            within(baseElement).getByText("Attached to: Grizzly Bears")
+        ).toBeTruthy();
+        expect(
+            within(baseElement).getByText("Attached to: Holy Strength")
+        ).toBeTruthy();
+    });
+
     it("interactive members (auras) do NOT wrap the sliver in a pile-opening button", () => {
         const cards = [makeCard("au1"), makeCard("au2")];
         const { getAllByRole } = render(

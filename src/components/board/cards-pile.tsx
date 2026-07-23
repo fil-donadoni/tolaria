@@ -9,6 +9,10 @@ import ArrivalGlow from "./arrival-glow";
 import CardBack from "../cards/card-back";
 import CardImage from "../cards/card-image";
 import { COUNTER_TONE_CLASS, getCounterDisplays } from "~/lib/counters";
+import {
+    buildCategorySections,
+    type PileCategory,
+} from "~/lib/categorized-pile";
 
 /** Small counter chips overlaid on a revealed pile card (fan/grid dialog) —
  *  the exile/graveyard pickers need them (Dauthi Voidwalker's void counter is
@@ -105,6 +109,15 @@ type CardsPileProps = {
      *  read the same way as the scry drag picker. Only the library passes this;
      *  every other zone keeps its default order. */
     topOnRight?: boolean;
+    /** Categorized reveal grouping (issue #1364, Atraxa / Niv-Mizzet). When set
+     *  (grid layout only), the pile is split into one labelled section per
+     *  category. Purely visual — legality is still the server-side matching. */
+    categories?: PileCategory[];
+    /** Per-card caption printed UNDER the card in the reveal dialog. Used by the
+     *  attachment cluster for the "Attached to: X" line (CR 303.4 / 301.5), where
+     *  the pile TITLE names one host but individual cards may enchant each other
+     *  (Power Leak on Holy Strength). Return null for cards with no caption. */
+    captionFor?: (card: CardInstance) => string | null;
 };
 
 /** Resolves whether a single card renders face-down. A `faceUpIds` set (ADR
@@ -151,6 +164,7 @@ function FanLayout({
     onClose,
     selectedIds,
     eligibleIds,
+    captionFor,
     topOnRight = false,
 }: {
     cards: CardInstance[];
@@ -164,6 +178,7 @@ function FanLayout({
     onClose: () => void;
     selectedIds?: string[];
     eligibleIds?: ReadonlySet<string>;
+    captionFor?: (card: CardInstance) => string | null;
     /** Library ordering: put the TOP of the library on the RIGHT, each card
      *  overlapping its left neighbour so the topmost sits highest (matches the
      *  scry drag picker). The input is top→bottom; rendering it reversed makes
@@ -274,10 +289,101 @@ function FanLayout({
                             )}
                             <PileCounterChips card={cardInstance} />
                             {action}
+                            {!faceDown && captionFor?.(cardInstance) && (
+                                <span className="absolute -bottom-5 inset-x-0 text-center text-[10px] leading-tight text-text-muted">
+                                    {captionFor(cardInstance)}
+                                </span>
+                            )}
                         </div>
                     );
                 })}
             </div>
+        </div>
+    );
+}
+
+/** One selectable grid card — shared by the flat grid and the per-category
+ *  sections so both render identical affordances (ring, dim, counters, action). */
+function GridCard({
+    cardInstance,
+    isFaceDown,
+    faceUpIds,
+    onCardClick,
+    renderCardAction,
+    onClose,
+    selectedIds,
+    eligibleIds,
+    captionFor,
+}: {
+    cardInstance: CardInstance;
+    isFaceDown: boolean;
+    faceUpIds?: ReadonlySet<string>;
+    onCardClick?: (card: CardInstance) => void;
+    renderCardAction?: (
+        card: CardInstance,
+        onClose: () => void
+    ) => React.ReactNode;
+    onClose: () => void;
+    selectedIds?: string[];
+    eligibleIds?: ReadonlySet<string>;
+    captionFor?: (card: CardInstance) => string | null;
+}) {
+    const faceDown = isCardFaceDown(cardInstance, isFaceDown, faceUpIds);
+    const inner = faceDown ? (
+        <CardBack />
+    ) : (
+        // Grid dialog cards render w-24 sm:w-28 (96–112px) — a mid slot, no
+        // `thumb`; hint at the upper bound.
+        <CardImage card={cardInstance} sizes="112px" includeThumb={false} />
+    );
+    const isEligible = isEligibleCard(cardInstance.id, eligibleIds);
+    const clickable = !faceDown && !!onCardClick && isEligible;
+    const isIneligible = !faceDown && !!onCardClick && !isEligible;
+    const isSelected = selectedIds?.includes(cardInstance.id) ?? false;
+    const action = renderCardAction?.(cardInstance, onClose);
+    const caption = faceDown ? null : captionFor?.(cardInstance);
+    return (
+        <div className="flex w-24 sm:w-28 shrink-0 flex-col gap-1">
+        <div className="relative w-full aspect-5/7">
+            {clickable ? (
+                <button
+                    type="button"
+                    onClick={() => {
+                        onCardClick(cardInstance);
+                        onClose();
+                    }}
+                    className={`w-full h-full bg-transparent border-0 p-0 cursor-pointer rounded ${selectionRing(isSelected)}`}
+                >
+                    {inner}
+                </button>
+            ) : isIneligible ? (
+                <div className="w-full h-full rounded opacity-40">{inner}</div>
+            ) : (
+                inner
+            )}
+            <PileCounterChips card={cardInstance} />
+            {action}
+        </div>
+            {caption && (
+                <span className="text-center text-[10px] leading-tight text-text-muted">
+                    {caption}
+                </span>
+            )}
+        </div>
+    );
+}
+
+/** A category header above a section of the categorized grid (issue #1364).
+ *  Mirrors the picker's ZoneLabel chrome (uppercase, muted) so the reveal reads
+ *  as one labelled group per card type / colour pair. */
+function CategoryHeader({ label, count }: { label: string; count: number }) {
+    return (
+        <div className="w-full flex items-center gap-2 px-1 pt-1">
+            <span className="text-[11px] font-bold tracking-wide uppercase text-text-muted">
+                {label}
+            </span>
+            <span className="text-[10px] text-text-muted/70">×{count}</span>
+            <span className="flex-1 border-t border-border-subtle" />
         </div>
     );
 }
@@ -291,6 +397,8 @@ function GridLayout({
     onClose,
     selectedIds,
     eligibleIds,
+    categories,
+    captionFor,
 }: {
     cards: CardInstance[];
     isFaceDown: boolean;
@@ -303,60 +411,75 @@ function GridLayout({
     onClose: () => void;
     selectedIds?: string[];
     eligibleIds?: ReadonlySet<string>;
+    /** Categorized reveal (issue #1364, Atraxa / Niv-Mizzet) — when present, the
+     *  grid is split into one labelled section per category (in category order)
+     *  plus a trailing "not keepable" section for cards matching none. Omit for
+     *  an ordinary flat grid. */
+    categories?: PileCategory[];
+    captionFor?: (card: CardInstance) => string | null;
 }) {
-    return (
-        <div className="flex flex-wrap gap-2 justify-center py-4 px-2">
-            {cards.map((cardInstance) => {
-                const faceDown = isCardFaceDown(
-                    cardInstance,
-                    isFaceDown,
-                    faceUpIds
-                );
-                const inner = faceDown ? (
-                    <CardBack />
-                ) : (
-                    // Grid dialog cards render w-24 sm:w-28 (96–112px) — a
-                    // mid slot, no `thumb`; hint at the upper bound.
-                    <CardImage
-                        card={cardInstance}
-                        sizes="112px"
-                        includeThumb={false}
-                    />
-                );
-                const isEligible = isEligibleCard(cardInstance.id, eligibleIds);
-                const clickable = !faceDown && !!onCardClick && isEligible;
-                const isIneligible = !faceDown && !!onCardClick && !isEligible;
-                const isSelected =
-                    selectedIds?.includes(cardInstance.id) ?? false;
-                const action = renderCardAction?.(cardInstance, onClose);
-                return (
-                    <div
+    const cardProps = {
+        isFaceDown,
+        faceUpIds,
+        onCardClick,
+        renderCardAction,
+        onClose,
+        selectedIds,
+        eligibleIds,
+        captionFor,
+    };
+
+    if (!categories) {
+        return (
+            <div className="flex flex-wrap gap-2 justify-center py-4 px-2">
+                {cards.map((cardInstance) => (
+                    <GridCard
                         key={cardInstance.id}
-                        className="relative w-24 sm:w-28 aspect-5/7 shrink-0"
-                    >
-                        {clickable ? (
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    onCardClick(cardInstance);
-                                    onClose();
-                                }}
-                                className={`w-full h-full bg-transparent border-0 p-0 cursor-pointer rounded ${selectionRing(isSelected)}`}
-                            >
-                                {inner}
-                            </button>
-                        ) : isIneligible ? (
-                            <div className="w-full h-full rounded opacity-40">
-                                {inner}
-                            </div>
-                        ) : (
-                            inner
-                        )}
-                        <PileCounterChips card={cardInstance} />
-                        {action}
+                        cardInstance={cardInstance}
+                        {...cardProps}
+                    />
+                ))}
+            </div>
+        );
+    }
+
+    const { sections, ungrouped } = buildCategorySections(cards, categories);
+    return (
+        <div className="flex flex-col gap-3 py-4 px-2">
+            {sections.map((section) => (
+                <div key={section.label} className="flex flex-col gap-1.5">
+                    <CategoryHeader
+                        label={section.label}
+                        count={section.cards.length}
+                    />
+                    <div className="flex flex-wrap gap-2 justify-center">
+                        {section.cards.map((cardInstance) => (
+                            <GridCard
+                                key={cardInstance.id}
+                                cardInstance={cardInstance}
+                                {...cardProps}
+                            />
+                        ))}
                     </div>
-                );
-            })}
+                </div>
+            ))}
+            {ungrouped.length > 0 && (
+                <div className="flex flex-col gap-1.5">
+                    <CategoryHeader
+                        label="Not keepable"
+                        count={ungrouped.length}
+                    />
+                    <div className="flex flex-wrap gap-2 justify-center">
+                        {ungrouped.map((cardInstance) => (
+                            <GridCard
+                                key={cardInstance.id}
+                                cardInstance={cardInstance}
+                                {...cardProps}
+                            />
+                        ))}
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
@@ -380,6 +503,8 @@ export default function CardsPile({
     open,
     onOpenChange,
     topOnRight = false,
+    categories,
+    captionFor,
 }: CardsPileProps) {
     // Controlled-open chip mode (#336): the owner drives `open` and supplies the
     // trigger, so this component renders only the dialog.
@@ -546,6 +671,7 @@ export default function CardsPile({
                         onClose={() => setIsOpen(false)}
                         selectedIds={selectedIds}
                         eligibleIds={eligibleIds}
+                        captionFor={captionFor}
                         topOnRight={topOnRight}
                     />
                 ) : (
@@ -558,6 +684,8 @@ export default function CardsPile({
                         onClose={() => setIsOpen(false)}
                         selectedIds={selectedIds}
                         eligibleIds={eligibleIds}
+                        categories={categories}
+                        captionFor={captionFor}
                     />
                 )}
                 {footer && (

@@ -93,11 +93,28 @@ export function useDomAnchorPublisher(
 
         measure();
 
+        // Continuous per-frame re-measure. Event-driven measuring alone is not
+        // enough: the anchored panels move through motion/react LAYOUT flights
+        // (a stack row flies in from the hand via `layoutId`), which fire no
+        // resize/scroll/reposition event. Measuring once at commit time samples
+        // the FLIP start rect — the card's hand position — so every arrow left
+        // the wrong place and never corrected itself. `publish` is a no-op when
+        // a point hasn't moved (identity-preserving state update), so an idle
+        // board costs a handful of `getBoundingClientRect` reads per frame and
+        // zero React renders.
+        let raf = 0;
+        const tick = () => {
+            measure();
+            raf = requestAnimationFrame(tick);
+        };
+        raf = requestAnimationFrame(tick);
+
         const onChange = () => measure();
         window.addEventListener("resize", onChange);
         document.addEventListener("scroll", onChange, true);
         window.addEventListener(ANCHORS_REPOSITION_EVENT, onChange);
         return () => {
+            cancelAnimationFrame(raf);
             window.removeEventListener("resize", onChange);
             document.removeEventListener("scroll", onChange, true);
             window.removeEventListener(ANCHORS_REPOSITION_EVENT, onChange);

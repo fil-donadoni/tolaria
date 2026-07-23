@@ -12,6 +12,7 @@ import {
     RIGHT_GUTTER,
 } from "~/lib/board-layout";
 import { groupBattlefield } from "~/lib/battlefield-stacks";
+import { attachmentLabel } from "~/lib/attachment";
 import SpatialZone, { type SpatialItem } from "./spatial-zone";
 import BoardBattlefieldCard from "./board-battlefield-card";
 import type { CardVisualState } from "./battlefield-card";
@@ -153,25 +154,40 @@ export default function BoardBattlefield({
     // recomputes the nodes and the emerald selection ring appears.
     const { buffer: choiceBuffer } = usePendingChoiceBuffer();
 
+    // Every permanent on either battlefield, by id — the "does this attachment's
+    // host still exist?" oracle. An attachment whose host exists folds into that
+    // host's cluster; an orphan (host gone / `attachedTo` unset) keeps its own
+    // slot so it never vanishes.
+    const hostExistsAnywhere = useMemo(() => {
+        const ids = new Set<string>();
+        for (const p of allPlayers)
+            for (const c of p.battlefield) ids.add(c.id);
+        return ids;
+    }, [allPlayers]);
+
     // Attached auras (CR 303.4) are NOT placed as their own slot in the row —
     // they ride ON their host, overlapping up-and-left, exactly as the classic
     // board renders them. The aura's controller may differ from the host's, so
-    // scan every battlefield for auras whose host sits on this side (matches
-    // `player-battlefield.tsx`'s `attachedAurasByHost`).
+    // the map is built from EVERY battlefield, keyed by host id.
+    //
+    // Keyed by the DIRECT host, never the root of the chain: with "enchant
+    // enchantment" (Power Leak on Holy Strength on a bear) the middle link is
+    // itself attached, so `renderHostWithAuras` recurses and each Aura is drawn
+    // on the object it actually enchants. Flattening the chain onto the root
+    // creature would render Power Leak as if it enchanted the bear — visually
+    // wrong (and it reads that way in the pile dialog title too).
     const attachedAurasByHost = useMemo(() => {
         const map = new Map<string, CardInstance[]>();
-        const hostsOnThisSide = new Set(player.battlefield.map((c) => c.id));
         for (const p of allPlayers) {
             for (const c of p.battlefield) {
                 if (!c.attachedTo) continue;
-                if (!hostsOnThisSide.has(c.attachedTo)) continue;
                 const bucket = map.get(c.attachedTo);
                 if (bucket) bucket.push(c);
                 else map.set(c.attachedTo, [c]);
             }
         }
         return map;
-    }, [player.battlefield, allPlayers]);
+    }, [allPlayers]);
 
     // Hosts on this side that hold one or more cards in exile (Parallax Wave /
     // Banishing Light — projected `exiledByPermanentId`). Those cards render as
@@ -197,16 +213,6 @@ export default function BoardBattlefield({
     // so its slot rides at a raised resting z (below the drag lift's 50).
     const hostHasAttachments = (cardId: string) =>
         attachedAurasByHost.has(cardId) || hostsHoldingExile.has(cardId);
-
-    // Auras whose host exists on the board fold into that host's slot (above);
-    // ungrouped leftovers (host gone / attachedTo unset) still get their own slot
-    // so they never vanish.
-    const hostExistsAnywhere = useMemo(() => {
-        const ids = new Set<string>();
-        for (const p of allPlayers)
-            for (const c of p.battlefield) ids.add(c.id);
-        return ids;
-    }, [allPlayers]);
 
     function renderCard(card: CardInstance) {
         return (
@@ -248,18 +254,37 @@ export default function BoardBattlefield({
      *  click routes to `handleClick` (targeting a specific aura, e.g.
      *  Disenchant). The host itself stays fully interactive (rendered via
      *  `renderCard` at z-10). */
-    function renderHostWithAuras(card: CardInstance): React.ReactNode {
+    function renderHostWithAuras(
+        card: CardInstance,
+        depth = 0
+    ): React.ReactNode {
         const auras = attachedAurasByHost.get(card.id);
-        if (!auras?.length) return renderCard(card);
+        // CR 303.4 allows an Aura on an Aura (Power Leak enchants Holy
+        // Strength, which enchants a creature). Each member is therefore
+        // rendered as a host in its own right, carrying its OWN cluster — so
+        // the second-level Aura is both visible and visibly attached to the
+        // right object. Depth is bounded defensively: a cyclic `attachedTo`
+        // chain must never recurse forever.
+        if (!auras?.length || depth >= 4) return renderCard(card);
         const hostName = tryGetDefinition(card.card.id)?.name ?? "permanent";
         return (
             <div className="relative w-full h-full">
                 <AttachedCardsCluster
                     cards={auras}
-                    renderMember={renderCard}
+                    renderMember={(member) =>
+                        renderHostWithAuras(member, depth + 1)
+                    }
                     interactiveMembers
                     pileTitle={`Attached to ${hostName}`}
+                    pileCaptionFor={(c) => attachmentLabel(c, allPlayers)}
                     onPileCardClick={handleClick}
+                    // A nested level renders its members at 100% of their host
+                    // box — which is already the satellite size — so an Aura on
+                    // an Aura is the SAME size as the Aura it enchants, not a
+                    // compounding thumbnail. The overhang is scaled up to match
+                    // so the absolute step stays constant at every level.
+                    sizePct={depth === 0 ? undefined : 100}
+                    outPct={depth === 0 ? undefined : 20}
                 />
                 {/* Host paints above the peek-stack (which is z-0). */}
                 <div className="relative z-10 w-full h-full">

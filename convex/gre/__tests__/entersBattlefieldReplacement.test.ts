@@ -123,7 +123,11 @@ describe("enters-battlefield replacement (CR 614, issue #1148)", () => {
         const stackItem = pushSpell(state, REDIRECTOR_ID, "p1");
         const ctx = buildSpellContext(state, stackItem);
         const entered = ctx.returnToBattlefield("p1", "victim", "graveyard");
-        expect(entered).toBe(true);
+        // The redirect means the creature never entered the battlefield, so the
+        // primitive reports false: callers gate "if you do" riders and
+        // just-entered snapshots on this, and a true here made `moveZone`'s
+        // `bind` read a permanent sitting in exile (Sneak Attack crash).
+        expect(entered).toBe(false);
         const p1 = state.players[0];
         expect(p1.battlefield.some((c) => c.id === "victim")).toBe(false);
         expect(p1.graveyard).toHaveLength(0);
@@ -145,7 +149,8 @@ describe("enters-battlefield replacement (CR 614, issue #1148)", () => {
         const stackItem = pushSpell(state, REDIRECTOR_ID, "p1");
         const ctx = buildSpellContext(state, stackItem);
         const entered = ctx.putFromLibraryOntoBattlefield("p1", "victim");
-        expect(entered).toBe(true);
+        // Redirected to exile — never entered, so the primitive reports false.
+        expect(entered).toBe(false);
         const p1 = state.players[0];
         expect(p1.battlefield.some((c) => c.id === "victim")).toBe(false);
         expect(p1.library).toHaveLength(0);

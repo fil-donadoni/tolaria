@@ -16,6 +16,7 @@ import {
 import { effectivePower, effectiveToughness } from "~/lib/effective-stats";
 import { getColorOverrideDisplay } from "~/lib/color-override";
 import { getCounterDisplays, type CounterDisplay } from "~/lib/counters";
+import { attachmentHostName } from "~/lib/attachment";
 import {
     computeGraveyardMilestones,
     hasMilestoneWord,
@@ -62,6 +63,13 @@ export type PreviewBodyContent = {
     notedMana?: { mana: Record<string, number>; castableCardId?: string };
     colorName: string | null;
     ownerName: string | null;
+    /** Host this permanent is attached to (CR 303.4 Aura / CR 301.5 Equipment)
+     *  — a card name, or a player name for an "enchant player" Aura. The
+     *  preview prints it as "Attached to: X" so a stacked Aura/Equipment always
+     *  states WHAT it enchants, which the board art alone can't (an Aura
+     *  enchanting an Aura). Absent for a face with no live instance (the
+     *  ORIGINAL face of a copy, emblems, designations). */
+    attachedToName?: string | null;
     /** Live graveyard-progress lookup for the controller of this card, keyed by
      *  ability word (delirium / threshold — see graveyard-milestones.ts). Non-
      *  null only in-game for a card whose oracle text carries such a word; the
@@ -206,6 +214,10 @@ export function buildPreviewBody(
         notedMana: cardInstance?.notedMana,
         colorName: colorDisplay?.name ?? null,
         ownerName,
+        attachedToName:
+            cardInstance && gameCtx
+                ? attachmentHostName(cardInstance, gameCtx.allPlayers)
+                : null,
         milestones,
     };
 }

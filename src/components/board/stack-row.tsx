@@ -52,43 +52,6 @@ const KIND_LABEL: Record<AbilityKind, string> = {
     delayed: "Delayed trigger",
 };
 
-/** Resolve one wire target to a readable name (permanent → card name, player →
- *  seat name, spell → the stack item's name, graveyard card → card name). */
-function targetLabel(
-    target: NonNullable<StackItem["targets"]>[number],
-    allPlayers: Player[],
-    stack: StackItem[]
-): string {
-    switch (target.type) {
-        case "player": {
-            const p = allPlayers.find((x) => x.id === target.id);
-            return p?.name ?? "player";
-        }
-        case "spell": {
-            const item = stack.find((x) => x.id === target.id);
-            return item
-                ? (tryGetDefinition(item.card.id)?.name ?? "spell")
-                : "spell";
-        }
-        case "permanent": {
-            for (const p of allPlayers) {
-                const c = p.battlefield.find((x) => x.id === target.id);
-                if (c) return tryGetDefinition(c.card.id)?.name ?? "permanent";
-            }
-            return "permanent";
-        }
-        case "graveyard-card": {
-            for (const p of allPlayers) {
-                const c = p.graveyard.find((x) => x.id === target.id);
-                if (c) return tryGetDefinition(c.card.id)?.name ?? "card";
-            }
-            return "card";
-        }
-        case "hand-card":
-            return "card";
-    }
-}
-
 function ControllerChip({
     item,
     allPlayers,
@@ -121,7 +84,11 @@ function ControllerChip({
 
 /** One card-forward row of the readable stack list (phase 2, winner B): art
  *  tile + resolve-order badge, name + mana pips + controller chip, chosen-mode
- *  lines, FULL oracle text (never truncated), and one chip per target. */
+ *  lines and FULL oracle text (never truncated).
+ *
+ *  Targets are NOT listed as text chips: the board-crossing SVG arrows
+ *  (`board-arrows.tsx`) are the single representation of "what this targets" —
+ *  a name chip duplicated the information without saying WHERE the target is. */
 export default function StackRow({
     item,
     order,
@@ -133,7 +100,6 @@ export default function StackRow({
     arrived,
     allPlayers,
     viewerId,
-    stack,
 }: {
     item: StackItem;
     /** 1-based resolve order — 1 resolves first (top of stack). */
@@ -147,7 +113,6 @@ export default function StackRow({
     arrived: boolean;
     allPlayers: Player[];
     viewerId: string;
-    stack: StackItem[];
 }) {
     const reduceMotion = useReducedMotion();
     const kind = abilityKindOf(item);
@@ -287,20 +252,6 @@ export default function StackRow({
                     {oracle && !modeLines && (
                         <span className="text-[11px] leading-snug whitespace-pre-line text-text-muted">
                             {formatOracleText(oracle)}
-                        </span>
-                    )}
-
-                    {item.targets && item.targets.length > 0 && (
-                        <span className="flex flex-wrap gap-1">
-                            {item.targets.map((t, ti) => (
-                                <span
-                                    key={`${t.type}:${t.id}:${ti}`}
-                                    className="inline-flex items-center gap-1 rounded-sm bg-accent-soft/40 px-1.5 py-0.5 text-[10px] font-semibold text-accent-strong"
-                                >
-                                    <span aria-hidden>→</span>
-                                    {targetLabel(t, allPlayers, stack)}
-                                </span>
-                            ))}
                         </span>
                     )}
                 </span>

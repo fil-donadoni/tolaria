@@ -30,7 +30,6 @@ Fable of the mirror-breaker
 
 ## Carte rotte
 
-- Il testo Companion di Lutri non compare nella card-preview
 - Starting town non viene considerata come produttrice di mana colorato ai fini di castabilità
 - Erode permette di prendere terre non base con tipo di terra base, ma deve farti prendere SOLO terre base. verifica anche path to exile.
 
@@ -54,19 +53,8 @@ Fable of the mirror-breaker
 # Bug gameplay
 
 - nello scheam database c'è game_states, unica tabella snake_case. mettila in camelCase come le altre
-- Power Leak non rimane in campo. Verifichiamo il comportamento. Aura su Aura non è visibile
 
 # Nuova UI
-
-- lo stack non mostra le frecce che attraversano il board tra carta/abilità in stack e bersagli. il badge con scritto il bersaglio non è assolutamente utile.
-- Non c'è modo di vedere Printed Card nel card-preview. e fai card-preview un po' piu' piccola su desktop
-- Dialog sideboard fa flicker quando la card-preview ha un testo molto lungo, deve avere altezza generalmente maggiore ma anche adattabile con overflow scroll verticale
-- i loyalty counters dei planeswalker devono stare sopra l'svg planeswalker, a forma di scudo loyalty
-- la schermata di game over ha delle scrollbar che compaiono a tratti, molto strano. e manca il pulsante back to lobby
-- le carte in esilio e graveyard non hanno le animazioni di quelle sul battlefield e nella mano. uniforma l'interazione, anche a quelle nelle pile dei dialog
-- lo stack spesso si sovrappone ai dialog di posizionamento carte o altri dialog centrati. bisogna metterlo piu' a destra
-- il box informativo della dichiarazione attaccanti è sempre sovrapposto alle creature da selezionare per l'attacco. va messo in alto a destra
-- il selettore di fasi e' finito a sovrapporsi parzialmente con exile library e graveyard, che hanno dello spazio inutile sotto. abbassa questo blocco per evitare overflow
 
 # Bug bot
 

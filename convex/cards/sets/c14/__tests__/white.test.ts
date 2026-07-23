@@ -60,7 +60,9 @@ describe("Containment Priest (CR 614, issue #1148)", () => {
         const vehicle = pushSpell(state, VEHICLE_SORCERY_ID, "p1");
         const ctx = buildSpellContext(state, vehicle);
         const entered = ctx.returnToBattlefield("p1", "bearGY", "graveyard");
-        expect(entered).toBe(true);
+        // Exiled by the Priest instead of entering, so the primitive reports
+        // false — callers must not treat the creature as a live permanent.
+        expect(entered).toBe(false);
         const p1 = state.players[0];
         expect(p1.battlefield.some((c) => c.id === "bearGY")).toBe(false);
         expect(p1.graveyard).toHaveLength(0);

@@ -7580,10 +7580,17 @@ function putReanimatedOnBattlefield(
     state: GameState,
     card: CardInstanceState,
     controllerId: string
-): void {
+): boolean {
+    // Returns whether the card is actually on the battlefield now. A staging
+    // redirect (Containment Priest → exile, Worms of the Earth → graveyard) or
+    // a deferred entry (shock-land pay-choice) returns false, so callers can
+    // gate any follow-up that assumes a live permanent (moveZone's `bind`
+    // snapshot / `tapped`) instead of crashing on a card that never entered.
     if (stageReanimatedOnBattlefield(state, card, controllerId)) {
         finishReanimatedEntry(state, card);
+        return true;
     }
+    return false;
 }
 
 /** CR 400.7 / 614-batch — return a whole FROZEN graveyard-set (issue #1056
@@ -9143,8 +9150,11 @@ export function buildSpellContext(
                 ]);
                 return entered.length > 0;
             }
-            putReanimatedOnBattlefield(state, card, controllerId ?? playerId);
-            return true;
+            return putReanimatedOnBattlefield(
+                state,
+                card,
+                controllerId ?? playerId
+            );
         },
         // CR 400.7 / 614-batch (issue #1094) — the simultaneous twin of
         // `returnToBattlefield`: splices every entry out of ITS OWN owner's
@@ -9199,8 +9209,7 @@ export function buildSpellContext(
             );
             if (idx === -1) return false;
             const [card] = player.library.splice(idx, 1);
-            putReanimatedOnBattlefield(state, card, playerId);
-            return true;
+            return putReanimatedOnBattlefield(state, card, playerId);
         },
         // CR 400.7 — hand → battlefield (Gaea's Touch). Splice the instance out
         // of the hand and put it onto the same player's battlefield via the
@@ -9215,8 +9224,7 @@ export function buildSpellContext(
             const idx = player.hand.findIndex((c) => c.id === cardInstanceId);
             if (idx === -1) return false;
             const [card] = player.hand.splice(idx, 1);
-            putReanimatedOnBattlefield(state, card, playerId);
-            return true;
+            return putReanimatedOnBattlefield(state, card, playerId);
         },
         // CR 305.2 / 116.2a — PLAY a land from `playerId`'s hand under their
         // control, "if able". Unlike `putFromHandOntoBattlefield` (a free zone

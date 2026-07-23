@@ -20,8 +20,9 @@ import CardsPile from "./cards-pile";
 const STEP_PCT = 3;
 const MAX_PEEK = 5;
 // Corner overhang of the front satellite, and satellite size, as a % of the
-// host box — matches the aura/exile pinning the board used before.
-const BASE_OUT_PCT = 22;
+// host box. A satellite sits close to its host — a tight overhang reads as
+// "attached to THIS card" rather than as a loose neighbour.
+const BASE_OUT_PCT = 12;
 const SIZE_PCT = 58;
 
 type AttachedCardsClusterProps = {
@@ -45,6 +46,21 @@ type AttachedCardsClusterProps = {
      *  specific aura among many can still be targeted (Disenchant) from the
      *  clear reveal. */
     onPileCardClick?: (card: CardInstance) => void;
+    /** Per-card caption in the pile dialog — the "Attached to: X" line (CR
+     *  303.4 / 301.5). The dialog TITLE names this cluster's host, which is not
+     *  the whole story once an Aura enchants an Aura: each card states the
+     *  object IT is attached to. */
+    pileCaptionFor?: (card: CardInstance) => string | null;
+    /** Satellite size as a % of the host box. Defaults to {@link SIZE_PCT}. A
+     *  NESTED cluster (an Aura enchanting an Aura, CR 303.4) passes 100 so its
+     *  members render at the same on-screen size as their host — the nesting
+     *  is read from the overlap, not from a shrinking card. Without this the
+     *  scale compounds (58% of 58%) and the second-level Aura is a thumbnail. */
+    sizePct?: number;
+    /** Corner overhang as a % of the host box. Defaults to
+     *  {@link BASE_OUT_PCT}; a nested cluster passes a larger figure so the
+     *  absolute step stays the same after its 100% sizing. */
+    outPct?: number;
 };
 
 export default function AttachedCardsCluster({
@@ -54,6 +70,9 @@ export default function AttachedCardsCluster({
     pileTitle,
     renderPileAction,
     onPileCardClick,
+    pileCaptionFor,
+    sizePct = SIZE_PCT,
+    outPct = BASE_OUT_PCT,
 }: AttachedCardsClusterProps) {
     const [open, setOpen] = useState(false);
     const n = cards.length;
@@ -69,10 +88,15 @@ export default function AttachedCardsCluster({
                 {/* Paint back-to-front so the first card ends up on top. */}
                 {[...shown].reverse().map((card, ri) => {
                     const i = shown.length - 1 - ri; // 0 = front
-                    const out = BASE_OUT_PCT + i * STEP_PCT;
+                    const out = outPct + i * STEP_PCT;
                     const box = (
+                        // NOT `overflow-hidden`: a member may itself be a host
+                        // (an Aura enchanting an Aura, CR 303.4 — Power Leak on
+                        // Holy Strength), and its own peek-stack overhangs this
+                        // box up-and-left. Clipping it made the second-level
+                        // Aura invisible on the board.
                         <div
-                            className="w-full h-full rounded-sm overflow-hidden shadow-[0_4px_12px_rgba(0,0,0,0.6)]"
+                            className="w-full h-full rounded-sm shadow-[0_4px_12px_rgba(0,0,0,0.6)]"
                             style={{ pointerEvents: "auto" }}
                         >
                             {renderMember(card)}
@@ -85,8 +109,8 @@ export default function AttachedCardsCluster({
                             style={{
                                 top: `-${out}%`,
                                 left: `-${out}%`,
-                                width: `${SIZE_PCT}%`,
-                                height: `${SIZE_PCT}%`,
+                                width: `${sizePct}%`,
+                                height: `${sizePct}%`,
                                 zIndex: 9 - i,
                             }}
                         >
@@ -128,6 +152,7 @@ export default function AttachedCardsCluster({
                 onOpenChange={setOpen}
                 onCardClick={onPileCardClick}
                 renderCardAction={renderPileAction}
+                captionFor={pileCaptionFor}
             />
         </>
     );

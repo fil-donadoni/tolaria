@@ -9,6 +9,8 @@
 
 import { describe, it, expect } from "vitest";
 import { goblinPatrol, goblinCadets, arcLightning, sneakAttack } from "..";
+import { grizzlyBears } from "../../lea/green";
+import { containmentPriest } from "../../c14/white";
 import {
     makeInstance,
     makePlayer,
@@ -483,6 +485,64 @@ describe("Sneak Attack — {R}: put a creature from hand, gain haste, sacrifice 
         expect(
             state.players[0].battlefield.some((c) => c.id === "sneak-perm")
         ).toBe(true);
+    });
+
+    // Regression: putting the creature onto the battlefield is NOT casting it,
+    // so a Containment Priest replacement (CR 614 — "if a nontoken creature
+    // would enter and it wasn't cast, exile it instead") redirects it to
+    // exile. The hand → battlefield primitive used to report the move as a
+    // successful entry regardless, so `moveZone`'s `bind` snapshot then read a
+    // permanent that was actually in exile and threw "Creature N not on
+    // battlefield". The put-onto-battlefield primitives now report the real
+    // destination.
+    it("does not crash when Containment Priest exiles the sneaked-in creature", () => {
+        const sneak = makeInstance(sneakAttack.id, {
+            id: "sneak-perm-priest",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const priest = makeInstance(containmentPriest.id, {
+            id: "priest",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "sneak-bear",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [sneak, priest],
+                    hand: [bear],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        activateSneak(state, sneak);
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("choose-hand-card");
+        expect(() =>
+            applyPendingChoiceSubmit(state, {
+                playerId: "p1",
+                stackItemId: head.stackItemId,
+                step: head.step,
+                choiceId: head.choiceId,
+                cardInstanceIds: ["sneak-bear"],
+            })
+        ).not.toThrow();
+        // Redirected to exile, never touched the battlefield.
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "sneak-bear")
+        ).toBe(false);
+        expect(state.players[0].exile.map((c) => c.id)).toContain("sneak-bear");
+        // Any delayed sacrifice trigger captured no creature (the bear never
+        // entered), so it is a no-op at fire time — the bear stays in exile.
+        fireDelayedTriggers(state, "next-end-step");
+        resolveTopOfStack(state);
+        expect(state.players[0].exile.map((c) => c.id)).toContain("sneak-bear");
     });
 
     it("declining the 'you may' leaves the hand untouched and the delayed trigger (if scheduled) is a no-op at fire time", () => {

@@ -267,6 +267,11 @@ export default function PlayerLibrary({
             // the allow-listed cards. `eligibleIds` is `undefined` for an
             // unfiltered search, so every card stays selectable as before.
             eligibleIds={isLibraryPick ? eligibleIds : undefined}
+            // Categorized reveal (Atraxa, #1364) — group the grid pick into one
+            // labelled section per card type / colour pair. Only the grid pick
+            // (randomBottom / graveyard) carries it; the drag picker path never
+            // sets `categories`.
+            categories={isLookDistributeGridPick ? head!.categories : undefined}
             footer={
                 isLibraryPick ? (
                     <LibrarySearchConfirm min={searchMin} max={searchMax} />
