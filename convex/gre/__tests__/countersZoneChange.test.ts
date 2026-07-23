@@ -12,11 +12,7 @@
 // `countersAtLeave`, which is last-known information only (CR 608.2h).
 
 import { describe, it, expect } from "vitest";
-import {
-    addCounterToCard,
-    removePermanentTo,
-    type GameState,
-} from "../state";
+import { addCounterToCard, removePermanentTo, type GameState } from "../state";
 import {
     makeInstance,
     makePlayer,
@@ -90,5 +86,4 @@ describe("counters cease to exist on a zone change (CR 121.2 / 400.7)", () => {
         expect(gone.counters).toBeUndefined();
         expect(gone.countersAtLeave).toEqual({ "+1/+1": 2 });
     });
-
 });
