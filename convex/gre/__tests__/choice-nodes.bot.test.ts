@@ -52,6 +52,10 @@ import {
 } from "../../cards/__tests__/setup";
 import { crawWurm, grizzlyBears } from "../../cards/sets/lea/green";
 import { forest } from "../../cards/sets/lea/colorless";
+import { lightningBolt } from "../../cards/sets/lea/red";
+import { blackLotus } from "../../cards/sets/lea/colorless";
+import { mindStone } from "../../cards/sets/wth/colorless";
+import { mirrisGuile } from "../../cards/sets/tmp/green";
 
 afterEach(() => resetChoicePriorFn());
 
@@ -1106,6 +1110,64 @@ describe("dslChoicePrior: OP_VALUERS context-aware (issue #1433)", () => {
             creatureCand.hint?.materialGained ?? 0
         );
         expect(diskCand.prior).toBeGreaterThan(creatureCand.prior);
+    });
+
+    it("search-library: three REAL sub-90-point scripts (burn / draw-1 / scry-only) stay strictly ordered by script value — the flat floor no longer collapses them (issue #1513)", () => {
+        // Before the fix, `noncreatureCardWorth` clamped EVERY scripted
+        // noncreature UP to `NONCREATURE_FLOOR` (30) whenever its rescaled
+        // value fell below it — i.e. whenever its raw OP_VALUERS points fell
+        // below 90. All three cards below score under that line (Lightning
+        // Bolt's own 3-damage script is 66 raw points, Mind Stone's
+        // ability-discounted draw is 22.5, Mirri's Guile's ability-discounted
+        // scry is 15), so under the old flat floor they were ALL priced at
+        // 30 — indistinguishable from a do-nothing card, and from each
+        // other. Real, low-cost, already-shipped cards (not synthetic test
+        // fixtures) so the assertion pins the actual catalogue, not a
+        // hand-tuned stand-in.
+        const state = stateWithLibrarySearch([
+            lightningBolt.id, // burn: dealDamage 3 (own spell script)
+            mindStone.id, // draw-1: sacrifice ability draws a card
+            mirrisGuile.id, // scry-only: upkeep ability, may-look-and-reorder
+        ]);
+        const cands = choiceCandidates(state, state.pendingChoices![0]);
+        const boltCand = cands.find((c) => c.key.includes("Lightning Bolt"))!;
+        const stoneCand = cands.find((c) => c.key.includes("Mind Stone"))!;
+        const guileCand = cands.find((c) => c.key.includes("Mirri's Guile"))!;
+        expect(boltCand).toBeDefined();
+        expect(stoneCand).toBeDefined();
+        expect(guileCand).toBeDefined();
+
+        // Strict ordering by script value: burn > draw-1 cantrip > scry-only.
+        expect(boltCand.hint?.materialGained ?? 0).toBeGreaterThan(
+            stoneCand.hint?.materialGained ?? 0
+        );
+        expect(stoneCand.hint?.materialGained ?? 0).toBeGreaterThan(
+            guileCand.hint?.materialGained ?? 0
+        );
+        // And every one of them is strictly ABOVE zero — a real script,
+        // however small, is never a "do-nothing" card.
+        expect(guileCand.hint?.materialGained ?? 0).toBeGreaterThan(0);
+
+        // The prior itself carries the same distinction, and Lightning Bolt
+        // — the strongest real script — leads the ranked candidate set.
+        expect(cands[0].key).toBe("search-library:Lightning Bolt");
+        expect(boltCand.prior).toBeGreaterThan(stoneCand.prior);
+        expect(stoneCand.prior).toBeGreaterThan(guileCand.prior);
+    });
+
+    it("search-library: a card with NO script anywhere (Black Lotus's `effect:`-shorthand mana ability) keeps a non-zero fallback worth (issue #1513)", () => {
+        // The floor still exists — it just applies ONLY to the honest
+        // "no Op maps" fallback, never to a real script. Black Lotus's mana
+        // ability is an imperative `effect:` closure (no `effects[]`/
+        // `aiEffects` DSL script), the documented no-script case
+        // `noncreatureCardWorth` falls back to — it must still price at the
+        // flat floor, not zero — losing the fallback entirely would be its
+        // own bug.
+        const state = stateWithLibrarySearch([blackLotus.id]);
+        const cands = choiceCandidates(state, state.pendingChoices![0]);
+        const lotusCand = cands.find((c) => c.key.includes("Black Lotus"))!;
+        expect(lotusCand).toBeDefined();
+        expect(lotusCand.hint?.materialGained).toBe(30);
     });
 
     it("search-library: a targeted removal script's prior scales with the REAL biggest threat on the opponent's board", () => {
