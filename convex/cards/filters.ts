@@ -76,17 +76,22 @@ export interface PermanentFilter {
      *  permanent"). `false` excludes token instances; `true` keeps only
      *  tokens. Omitted = no constraint. */
     isToken?: boolean;
-    /** "Entered the battlefield this turn" (CR 302.6, issue #1458). `true`
-     *  keeps only permanents whose control-continuity clock started this
+    /** "Entered the battlefield this turn" (CR 400.7, issue #1458). `true`
+     *  keeps only permanents that ENTERED the battlefield during the current
      *  turn (read off `MatchablePermanent.enteredThisTurn`, populated by
-     *  engine call sites from the `isSummoningSick` flag `markEnteredThisTurn`
-     *  already stamps — no new bookkeeping); `false` keeps only permanents
-     *  controlled continuously since before this turn. Omitted = no
-     *  constraint. AND with every other field, including `isToken` (Ocelot
-     *  Pride's "a creature entered the battlefield under your control this
-     *  turn"). Populated by `toPermanentFilter`
+     *  engine call sites from the `enteredOnTurn` stamp `markEnteredThisTurn`
+     *  writes, compared against `GameState.turn`); `false` keeps only
+     *  permanents that were already on the battlefield when the turn began.
+     *  Omitted = no constraint. AND with every other field, including
+     *  `isToken` (Ocelot Pride's "a creature entered the battlefield under
+     *  your control this turn"). Populated by `toPermanentFilter`
      *  (`convex/gre/effects/interpreter.ts`) for the `count`/`forEach`
-     *  battlefield sites. */
+     *  battlefield sites.
+     *
+     *  NOT summoning sickness: `isSummoningSick` stays true across the
+     *  opponent's entire following turn (it clears only at its controller's
+     *  untap step) and is re-set by a control change on a permanent that never
+     *  changed zones — both would be false positives here. */
     enteredThisTurn?: boolean;
     /** Exclude these instance ids from the match set. Used to skip a
      *  permanent's own id when an effect specifies "another permanent"
@@ -230,10 +235,12 @@ export interface MatchablePermanent {
     staticAbilities: ReadonlyArray<string>;
     controllerId?: string;
     isToken?: boolean;
-    /** Live control-continuity flag (CR 302.6, issue #1458) — true iff the
-     *  permanent's summoning-sickness clock started this turn (the engine's
-     *  `isSummoningSick` on `CardInstanceState`, set by `markEnteredThisTurn`).
-     *  Read by `PermanentFilter.enteredThisTurn`. Callers that use that
+    /** Entered-the-battlefield-this-turn flag (CR 400.7, issue #1458) — true
+     *  iff the permanent entered the battlefield during the CURRENT turn
+     *  (the engine's `enteredOnTurn` on `CardInstanceState`, stamped by
+     *  `markEnteredThisTurn`, compared against `GameState.turn` — not
+     *  `isSummoningSick`, which outlives the turn and survives a control
+     *  change). Read by `PermanentFilter.enteredThisTurn`. Callers that use that
      *  filter must populate this field; a caller that doesn't leaves it
      *  undefined (fails closed, mirroring every other optional field here,
      *  e.g. `isToken`). */
@@ -341,9 +348,9 @@ export function matchesPermanentFilter(
         const cardIsToken = card.isToken === true;
         if (filter.isToken !== cardIsToken) return false;
     }
-    // CR 302.6 (issue #1458) — "entered the battlefield this turn", read off
-    // the same control-continuity flag summoning sickness uses. Mirrors
-    // `isToken`'s exact boolean-equality shape.
+    // CR 400.7 (issue #1458) — "entered the battlefield this turn", read off
+    // the real per-permanent entry stamp. Mirrors `isToken`'s exact
+    // boolean-equality shape.
     if (filter.enteredThisTurn !== undefined) {
         const cardEnteredThisTurn = card.enteredThisTurn === true;
         if (filter.enteredThisTurn !== cardEnteredThisTurn) return false;

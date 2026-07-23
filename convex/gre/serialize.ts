@@ -73,6 +73,11 @@ function compactCard(
     if (card.isTapped) out.isTapped = true;
     if (card.isToken) out.isToken = true;
     if (card.isSummoningSick) out.isSummoningSick = true;
+    // CR 400.7 (issue #1458) — the entered-this-turn stamp must survive a
+    // mid-turn stable-point round-trip, or an effect resolving after a save
+    // would stop seeing permanents that entered earlier in the same turn.
+    if (card.enteredOnTurn !== undefined)
+        out.enteredOnTurn = card.enteredOnTurn;
     if (card.echoPending) out.echoPending = true;
     if (card.isAttacking) out.isAttacking = true;
     if (card.isBlocking) out.isBlocking = true;
@@ -356,6 +361,9 @@ function expandCard(
         result.chosenModeId = compact.chosenModeId as string;
     if (compact.isToken) result.isToken = true;
     if (compact.isSummoningSick) result.isSummoningSick = true;
+    if (typeof compact.enteredOnTurn === "number") {
+        result.enteredOnTurn = compact.enteredOnTurn;
+    }
     if (compact.echoPending) result.echoPending = true;
     if (compact.isAttacking) result.isAttacking = true;
     if (compact.isBlocking) result.isBlocking = true;

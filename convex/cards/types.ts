@@ -7075,13 +7075,20 @@ export interface EffectCardFilter {
      *  constraints). */
     manaValueEquals?: number | EffectXValue;
     isToken?: boolean;
-    /** "Entered the battlefield this turn" (CR 302.6, issue #1458) — a
-     *  battlefield permanent matches if its control-continuity clock started
-     *  this turn, read straight off the engine's `isSummoningSick` flag
-     *  (`markEnteredThisTurn`, `gre/state.ts`) — the SAME flag summoning
-     *  sickness and "controlled continuously since your most recent turn
-     *  began" predicates already read (`ctx.isSummoningSick`); no new
-     *  bookkeeping. Battlefield-only, mirroring `isToken`'s own scope exactly:
+    /** "Entered the battlefield this turn" (CR 400.7, issue #1458) — a
+     *  battlefield permanent matches if it ENTERED the battlefield during the
+     *  current turn, read off the engine's per-permanent entry stamp
+     *  `CardInstanceState.enteredOnTurn` (written by `markEnteredThisTurn` /
+     *  `createTokenPermanents`, `gre/state.ts`) compared against
+     *  `GameState.turn`.
+     *
+     *  Deliberately NOT `isSummoningSick`: that flag clears only at its
+     *  CONTROLLER's untap step (so it stays true across the opponent's whole
+     *  turn — an over-count for any effect resolving then), and it is re-set
+     *  by `applyControlChange` on a permanent that never changed zones
+     *  (gaining control is not entering, CR 400.7 / 603.6).
+     *
+     *  Battlefield-only, mirroring `isToken`'s own scope exactly:
      *  `matchesCardFilter` (the hand/library/graveyard hidden-zone matcher)
      *  does not check it — a hidden-zone card has no battlefield clock.
      *  Propagated onto `PermanentFilter.enteredThisTurn` by `toPermanentFilter`

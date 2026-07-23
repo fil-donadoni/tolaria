@@ -246,7 +246,7 @@ function settleEnteredLand(
     }
 
     // CR 302.6 — control-continuity clock (summoning sickness for manlands).
-    markEnteredThisTurn(card);
+    markEnteredThisTurn(card, state.turn);
 
     if (willEnterTapped) card.isTapped = true;
 

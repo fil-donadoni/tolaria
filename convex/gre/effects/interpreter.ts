@@ -536,7 +536,7 @@ function toPermanentFilter(
         excludeSupertypes: filter.excludeSupertype,
         colors: filter.color,
         isToken: filter.isToken,
-        // CR 302.6 (issue #1458) — "entered the battlefield this turn",
+        // CR 400.7 (issue #1458) — "entered the battlefield this turn",
         // propagated 1:1 onto `PermanentFilter.enteredThisTurn`, mirroring
         // `isToken`'s own mapping exactly (battlefield-only, no hidden-zone
         // counterpart in `matchesCardFilter`).

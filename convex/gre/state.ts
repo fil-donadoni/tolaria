@@ -258,6 +258,27 @@ export type CardInstanceState = {
     tapTriggerCommitted?: boolean;
     /** Set when a creature enters the battlefield. Cleared at untap step. Prevents attacking. */
     isSummoningSick?: boolean;
+    /** CR 302.6 / 400.7 (issue #1458) — the turn number (`GameState.turn`) on
+     *  which this permanent ENTERED the battlefield. Stamped unconditionally
+     *  for every permanent by `markEnteredThisTurn` (and directly by
+     *  `createTokenPermanents` for tokens); cleared by
+     *  `resetBattlefieldTransientState` when the object leaves the
+     *  battlefield, because a zone change creates a NEW object.
+     *
+     *  Deliberately NOT the same thing as `isSummoningSick`, which this
+     *  intentionally does not replace:
+     *   - `isSummoningSick` is cleared only in the CONTROLLER's untap step, so
+     *     it stays true across the whole of the opponent's next turn — correct
+     *     for CR 302.6, wrong for "entered this turn".
+     *   - `isSummoningSick` is (re)set by `applyControlChange` /
+     *     `revertControlChange` on a creature that never changed zones —
+     *     gaining control is not entering the battlefield (CR 400.7 / 603.6),
+     *     so those sites must NOT touch this field.
+     *
+     *  Read by `PermanentFilter.enteredThisTurn` (`convex/cards/filters.ts`)
+     *  via `enteredOnTurn === state.turn`. Per-card turn stamping has
+     *  precedent in `phasedOutTurn`. */
+    enteredOnTurn?: number;
     /** CR 702.30a — Echo: true while this permanent still owes its echo cost,
      *  i.e. it came under its controller's control and has not yet had its
      *  first upkeep under that control. Set at ETB for permanents whose
@@ -4294,7 +4315,7 @@ function finalizeSpellResolution(
         // `isCreature`) but becomes meaningful the instant the permanent BECOMES
         // a creature — a manland animated the turn it entered reads sick, while
         // one controlled since a prior turn (flag already cleared) does not.
-        markEnteredThisTurn(item);
+        markEnteredThisTurn(item, state.turn);
         // CR 702.30a — Echo: a permanent that declares the `echo` keyword owes
         // its echo cost on its controller's first upkeep after it comes under
         // control. Flag it here (its entry into play); the echo trigger reads
@@ -7316,9 +7337,19 @@ function unapplyAurasAttachedTo(state: GameState, hostId: string): void {
  *  class-wide control-continuity fix — every animate effect inherits it for
  *  free instead of opting in per card.
  *
- *  Supersedes the former creature-only / `tracksControlContinuity` opt-in. */
-export function markEnteredThisTurn(card: CardInstanceState): void {
+ *  Supersedes the former creature-only / `tracksControlContinuity` opt-in.
+ *
+ *  Also stamps `enteredOnTurn` with the CURRENT turn number (CR 400.7, issue
+ *  #1458) — the real "entered the battlefield this turn" record. The two
+ *  fields are NOT interchangeable: `isSummoningSick` survives the opponent's
+ *  whole turn and is re-set on a control change, so only `enteredOnTurn ===
+ *  state.turn` answers "did this permanent enter this turn?". */
+export function markEnteredThisTurn(
+    card: CardInstanceState,
+    turn: number
+): void {
     card.isSummoningSick = true;
+    card.enteredOnTurn = turn;
 }
 
 /** Undoes the mutations applied by `animateAsCreature`, restoring the
@@ -7377,6 +7408,10 @@ function resetBattlefieldTransientState(card: CardInstanceState): void {
     delete card.dealtDeathtouchDamage;
     delete card.regenerationShields;
     delete card.isSummoningSick;
+    // CR 400.7 (issue #1458) — the entry stamp belongs to the object that was
+    // on the battlefield; the zone change creates a new object, which gets a
+    // fresh stamp from `markEnteredThisTurn` if it re-enters.
+    delete card.enteredOnTurn;
     delete card.isAttacking;
     delete card.isBlocking;
     delete card.hasAttackedThisTurn;
@@ -7508,7 +7543,7 @@ function stageReanimatedOnBattlefield(
     card.attachedTo = undefined;
     // CR 302.6 — start the control-continuity clock for every reanimated /
     // put-onto-battlefield permanent (see `markEnteredThisTurn`).
-    markEnteredThisTurn(card);
+    markEnteredThisTurn(card, state.turn);
     // CR 614.12 / ADR 0051 — a shock land put onto the battlefield by an EFFECT
     // (library tutor / reanimation / put-onto-battlefield), not PLAYED from
     // hand, still gets its "as it enters, you may pay 2 life" choice. Enter it
@@ -11750,11 +11785,14 @@ export function buildSpellContext(
                             ...c,
                             name,
                             colors: STATIC_EFFECT_CTX.getColors(c),
-                            // CR 302.6 (issue #1458) — "entered the
-                            // battlefield this turn", read off the SAME
-                            // isSummoningSick control-continuity flag
-                            // markEnteredThisTurn already stamps.
-                            enteredThisTurn: c.isSummoningSick === true,
+                            // CR 400.7 (issue #1458) — "entered the
+                            // battlefield this turn": the REAL entry stamp
+                            // (`enteredOnTurn`, written by
+                            // `markEnteredThisTurn`) compared against the
+                            // current turn. Deliberately NOT `isSummoningSick`
+                            // — that flag stays true across the opponent's
+                            // whole turn and is re-set on a control change.
+                            enteredThisTurn: c.enteredOnTurn === state.turn,
                         },
                         filter,
                         { supertypesOf: liveSupertypesOf }
@@ -13170,6 +13208,10 @@ export function createTokenPermanents(
             // creation (see `markEnteredThisTurn`); the flag is inert for
             // noncreature tokens until they become creatures.
             isSummoningSick: true,
+            // CR 400.7 (issue #1458) — a token enters the battlefield the
+            // moment it is created, so it carries the real entry stamp too
+            // (see `markEnteredThisTurn`, which every non-token entry uses).
+            enteredOnTurn: state.turn,
             // CR 111 / 707.1 — token provenance link. Records the creating
             // permanent so a source can later identify the tokens it made
             // (Tetravus exiles its own Tetravites to recover +1/+1 counters).

@@ -226,10 +226,10 @@ function isCardFilter(value: unknown): boolean {
         if (k === "isToken") {
             return typeof v === "boolean";
         }
-        // CR 302.6 (issue #1458) — "entered the battlefield this turn", the
-        // SAME isSummoningSick control-continuity flag the engine already
-        // stamps on entry (`markEnteredThisTurn`, no new bookkeeping). Shape
-        // mirrors `isToken` exactly: a plain boolean.
+        // CR 400.7 (issue #1458) — "entered the battlefield this turn", read
+        // off the `enteredOnTurn` entry stamp the engine writes on every
+        // battlefield entry (`markEnteredThisTurn`). Shape mirrors `isToken`
+        // exactly: a plain boolean.
         if (k === "enteredThisTurn") {
             return typeof v === "boolean";
         }
