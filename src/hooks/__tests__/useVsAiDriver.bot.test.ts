@@ -22,6 +22,7 @@ vi.mock("@convex/_generated/api", () => ({
     api: {
         game: {
             getPublicState: "getPublicState",
+            getGame: "getGame",
             playCard: "playCard",
             summonCompanion: "summonCompanion",
             announceCast: "announceCast",
@@ -44,8 +45,16 @@ vi.mock("@convex/_generated/api", () => ({
 }));
 
 vi.mock("convex/react", () => ({
-    useQuery: (_ref: unknown, args: unknown) =>
-        args === "skip" ? undefined : currentState,
+    useQuery: (ref: unknown, args: unknown) =>
+        args === "skip"
+            ? undefined
+            : // issue #1509 — the driver now also queries `getGame` to source the
+              // bot's own decklist (ownDeck). These tests don't exercise ownDeck,
+              // so return undefined for it: ownDeck stays undefined and the driver
+              // behaves exactly as pre-#1509 (placeholder library path).
+              ref === "getGame"
+              ? undefined
+              : currentState,
     useMutation: (ref: unknown) => (args: unknown) => {
         calls.push({ ref, args });
         return Promise.resolve(null);
