@@ -11,6 +11,10 @@ import { renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
 import type { CardInstance, Player } from "~/types/game";
 import { GameContext } from "~/hooks/useGameContext";
+import {
+    AttackSequenceContext,
+    type AttackSequence,
+} from "~/hooks/useAttackSequence";
 import { useBattlefieldVisualState } from "../useBattlefieldVisualState";
 
 vi.mock("~/hooks/usePendingChoiceBuffer", () => ({
@@ -158,5 +162,88 @@ describe("useBattlefieldVisualState — attack a planeswalker (#1220, CR 508.1a)
         const { result } = renderForOpponent(me, opp);
 
         expect(result.current.canInteract(oppCreature)).toBe(false);
+    });
+});
+
+// "Attack with all" destination sequence (design 2026-07-23) — the current
+// attacker reads with the dedicated pulsing emerald ring on the OWN board.
+function seq(overrides: Partial<AttackSequence> = {}): AttackSequence {
+    return {
+        active: true,
+        order: ["atk1", "atk2"],
+        index: 0,
+        currentAttackerId: "atk1",
+        begin: () => {},
+        advance: () => {},
+        reset: () => {},
+        ...overrides,
+    };
+}
+
+function renderOwnBoardWithSequence(
+    me: Player,
+    opp: Player,
+    s: AttackSequence
+) {
+    const ctx = {
+        gameId: "game-id" as never,
+        playerId: "me",
+        activePlayerId: "me",
+        priorityPlayerId: "me",
+        phase: "DECLARE_ATTACKERS",
+        turn: 1,
+        stackCount: 0,
+        allPlayers: [me, opp],
+        showAllCards: false,
+        debugAllActions: false,
+        combat: {
+            attackerIds: ["atk1", "atk2"],
+            confirmed: false,
+            blockerAssignments: {},
+            blockersConfirmed: false,
+        },
+    } as unknown as NonNullable<Ctx>;
+    const wrapper = ({ children }: { children: ReactNode }) => (
+        <GameContext value={ctx}>
+            <AttackSequenceContext value={s}>{children}</AttackSequenceContext>
+        </GameContext>
+    );
+    return renderHook(() => useBattlefieldVisualState(me), { wrapper });
+}
+
+describe("useBattlefieldVisualState — attack-with-all current-attacker ring", () => {
+    it("the current sequence attacker reads with the dedicated pulsing ring", () => {
+        const atk1 = creature({ id: "atk1" });
+        const atk2 = creature({ id: "atk2" });
+        const me = player("me", [atk1, atk2]);
+        const opp = player("opp", [planeswalker()]);
+        const { result } = renderOwnBoardWithSequence(me, opp, seq());
+
+        const vs = result.current.getVisualState(atk1);
+        expect(vs.ringClass).toContain("animate-pulse");
+        expect(vs.ringClass).toContain("signal-self");
+        // The non-current attacker keeps the plain declared ring, not the pulse.
+        expect(result.current.getVisualState(atk2).ringClass).not.toContain(
+            "animate-pulse"
+        );
+    });
+
+    it("the pulse follows the cursor to the next attacker", () => {
+        const atk1 = creature({ id: "atk1" });
+        const atk2 = creature({ id: "atk2" });
+        const me = player("me", [atk1, atk2]);
+        const opp = player("opp", [planeswalker()]);
+        const { result } = renderOwnBoardWithSequence(
+            me,
+            opp,
+            seq({ index: 1, currentAttackerId: "atk2" })
+        );
+
+        expect(result.current.getVisualState(atk2).ringClass).toContain(
+            "animate-pulse"
+        );
+        expect(result.current.getVisualState(atk1).ringClass).not.toContain(
+            "animate-pulse"
+        );
     });
 });

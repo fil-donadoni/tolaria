@@ -2,8 +2,8 @@ import { useMemo } from "react";
 import type { CardInstance, Player } from "~/types/game";
 import { useGameContext } from "~/hooks/useGameContext";
 import { usePendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
-import { getDefinition } from "@convex/cards";
-import { globalAttackProhibitionReason } from "@convex/cards/attackRestrictions";
+import { isEligibleAttacker } from "~/lib/attacker-eligibility";
+import { useAttackSequence } from "~/hooks/useAttackSequence";
 import {
     isCreature,
     isPlaneswalker,
@@ -55,6 +55,7 @@ export function useBattlefieldVisualState(player: Player) {
         allPlayers,
     } = useGameContext();
     const bufferCtx = usePendingChoiceBuffer();
+    const attackSequence = useAttackSequence();
     const isMe = player.id === playerId;
 
     // CR 602.5b (issue #947) — viewer-visible board snapshot fed to a mana
@@ -328,41 +329,17 @@ export function useBattlefieldVisualState(player: Player) {
         }
 
         if (isSelectingAttackers && isCreature(card)) {
+            // An already-declared attacker stays clickable (to deselect).
             if (selectedAttackerIds.includes(card.id)) return true;
-            if (card.staticAbilities?.includes("defender")) return false;
-            if (card.isTapped) return false;
-            // CR 702.10b — haste lets a creature attack ignoring summoning
-            // sickness. Mirrors the server gate in
-            // `combat.ts` `validateAttackerEligibility` (#937); tapped-ness
-            // above is unaffected by haste.
-            const hasHaste = card.staticAbilities?.includes("haste") ?? false;
-            if (card.isSummoningSick && !hasHaste) return false;
-            const attackDef = getDefinition(card.card.id);
-            if (attackDef.staticEffects) {
-                const defender = allPlayers.find((p) => p.id !== player.id);
-                for (const eff of attackDef.staticEffects) {
-                    if (eff.kind !== "attack-restriction") continue;
-                    if (
-                        !eff.predicate(
-                            card as never,
-                            (defender?.battlefield ?? []) as never
-                        )
-                    )
-                        return false;
-                }
-            }
-            // CR 508.1c — battlefield-scanned global attack restrictions
-            // declared by OTHER permanents (Moat, Akron Legionnaire). Mirrors
-            // the server gate in `validateAttackerEligibility` so the UI grays
-            // out creatures the server would reject (#481).
-            if (
-                globalAttackProhibitionReason(card as never, {
-                    players: allPlayers as never,
-                }) !== undefined
-            ) {
-                return false;
-            }
-            return true;
+            // Otherwise defer to the shared eligibility predicate — the single
+            // authority the "Attack with all" button also uses, so what the
+            // board grays out and what the button declares can't drift.
+            const defender = allPlayers.find((p) => p.id !== player.id);
+            return isEligibleAttacker(
+                card,
+                defender?.battlefield ?? [],
+                allPlayers
+            );
         }
 
         if (isSelectingBlockers && isCreature(card)) {
@@ -530,7 +507,17 @@ export function useBattlefieldVisualState(player: Player) {
         // not a `ringClass` (glow can't be a Tailwind ring). Set below when the
         // faded valid-target branch would otherwise have fired.
         let targetGlow = false;
-        if (pendingBlockerId === card.id) {
+        // "Attack with all" destination sequence (design 2026-07-23) — the
+        // attacker currently choosing its target reads with a DEDICATED
+        // pulsing emerald ring, distinct from the static red "declared" ring
+        // below, so the player can tell "already declared" from "now assigning
+        // this one's target". Highest priority during the sequence.
+        const isCurrentSequenceAttacker =
+            attackSequence.active &&
+            attackSequence.currentAttackerId === card.id;
+        if (isCurrentSequenceAttacker) {
+            ringClass = "ring-2 ring-signal-self animate-pulse rounded-sm";
+        } else if (pendingBlockerId === card.id) {
             ringClass = "ring-2 ring-signal-pending rounded-sm";
         } else if (
             card.isAttacking &&

@@ -1,0 +1,233 @@
+// "Attack with all" button (design 2026-07-23). Drives the real
+// `useControllerActions` hook: the button declares every eligible creature,
+// then either confirms immediately (no defending planeswalker) or opens the
+// destination sequence (≥1 planeswalker). Kept as a focused renderHook test so
+// the branch logic is exercised without the full pod render.
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { renderHook, act } from "@testing-library/react";
+import type { ReactNode } from "react";
+import type { CardInstance, Player } from "~/types/game";
+import { GameContext } from "~/hooks/useGameContext";
+import {
+    AttackSequenceContext,
+    type AttackSequence,
+} from "~/hooks/useAttackSequence";
+
+const calls: { ref: string; args: unknown }[] = [];
+vi.mock("convex/react", () => ({
+    useMutation: (ref: string) => (args: unknown) => {
+        calls.push({ ref, args });
+        return Promise.resolve(null);
+    },
+}));
+vi.mock("@convex/_generated/api", () => {
+    const names = [
+        "cancelCast",
+        "cancelActivation",
+        "confirmAttackers",
+        "toggleAttacker",
+        "confirmBlockers",
+        "confirmDamage",
+        "passPriority",
+        "autoTapForPayment",
+        "autoTapForAttackTax",
+        "cancelAttackTax",
+        "endTurn",
+        "cancelAutoPass",
+        "submitMayPay",
+        "submitLandEntryChoice",
+        "submitDrawReplacementPay",
+    ];
+    const game: Record<string, string> = {};
+    for (const n of names) game[n] = n;
+    return { api: { game } };
+});
+const PLAIN_DEF = { id: "plain", name: "T", staticEffects: [] };
+vi.mock("@convex/cards", () => ({ getDefinition: () => PLAIN_DEF }));
+vi.mock("@convex/cards/attackRestrictions", () => ({
+    globalAttackProhibitionReason: () => undefined,
+}));
+vi.mock("~/hooks/usePendingChoiceBuffer", () => ({
+    usePendingChoiceBuffer: () => ({
+        buffer: [],
+        toggle: vi.fn(),
+        clear: vi.fn(),
+        submit: vi.fn(),
+        isPending: false,
+        lastError: null,
+        reportError: vi.fn(),
+        dismissError: vi.fn(),
+    }),
+}));
+
+import { useControllerActions } from "../useControllerActions";
+
+function creature(overrides: Partial<CardInstance> = {}): CardInstance {
+    return {
+        id: "c1",
+        card: { id: "plain" },
+        controllerId: "me",
+        ownerId: "me",
+        zone: "battlefield",
+        isTapped: false,
+        isSummoningSick: false,
+        types: ["Creature"],
+        subtypes: [],
+        staticAbilities: [],
+        ...overrides,
+    } as CardInstance;
+}
+function planeswalker(): CardInstance {
+    return creature({
+        id: "pw1",
+        controllerId: "opp",
+        ownerId: "opp",
+        types: ["Planeswalker"],
+        counters: { loyalty: 4 },
+    } as Partial<CardInstance>);
+}
+function player(id: string, battlefield: CardInstance[]): Player {
+    return {
+        id,
+        name: id,
+        life: 20,
+        hand: [],
+        library: { count: 0 },
+        graveyard: [],
+        exile: [],
+        battlefield,
+        manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
+    } as Player;
+}
+
+function makeSequence(overrides: Partial<AttackSequence> = {}): AttackSequence {
+    return {
+        active: false,
+        order: [],
+        index: 0,
+        currentAttackerId: undefined,
+        begin: vi.fn(),
+        advance: vi.fn(),
+        reset: vi.fn(),
+        ...overrides,
+    };
+}
+
+function renderCtrl(me: Player, opp: Player, seq: AttackSequence) {
+    const ctx = {
+        gameId: "game-id",
+        playerId: "me",
+        activePlayerId: "me",
+        priorityPlayerId: "me",
+        phase: "DECLARE_ATTACKERS",
+        turn: 1,
+        stackCount: 0,
+        allPlayers: [me, opp],
+        combat: {
+            attackerIds: [],
+            confirmed: false,
+            blockerAssignments: {},
+            blockersConfirmed: false,
+        },
+        showAllCards: false,
+        debugAllActions: false,
+    } as unknown as NonNullable<React.ContextType<typeof GameContext>>;
+    const wrapper = ({ children }: { children: ReactNode }) => (
+        <GameContext value={ctx}>
+            <AttackSequenceContext value={seq}>
+                {children}
+            </AttackSequenceContext>
+        </GameContext>
+    );
+    return renderHook(() => useControllerActions(), { wrapper });
+}
+
+function findAction(
+    result: { current: ReturnType<typeof useControllerActions> },
+    key: string
+) {
+    return result.current.actions.find((a) => a.key === key);
+}
+
+describe("useControllerActions — Attack with all (design 2026-07-23)", () => {
+    beforeEach(() => {
+        calls.length = 0;
+    });
+
+    it("shows the button labelled with the eligible count", () => {
+        const me = player("me", [
+            creature({ id: "a" }),
+            creature({ id: "b" }),
+            creature({ id: "tapped", isTapped: true }),
+        ]);
+        const opp = player("opp", []);
+        const { result } = renderCtrl(me, opp, makeSequence());
+        expect(findAction(result, "attack-with-all")?.label).toBe(
+            "Attack with all (2)"
+        );
+    });
+
+    it("hides the button when no creature is eligible", () => {
+        const me = player("me", [creature({ id: "tapped", isTapped: true })]);
+        const opp = player("opp", []);
+        const { result } = renderCtrl(me, opp, makeSequence());
+        expect(findAction(result, "attack-with-all")).toBeUndefined();
+    });
+
+    it("with no defending planeswalker: declares all then confirms immediately", async () => {
+        const me = player("me", [creature({ id: "a" }), creature({ id: "b" })]);
+        const opp = player("opp", []);
+        const seq = makeSequence();
+        const { result } = renderCtrl(me, opp, seq);
+
+        await act(async () => {
+            await findAction(result, "attack-with-all")!.onClick();
+        });
+
+        const toggles = calls.filter((c) => c.ref === "toggleAttacker");
+        expect(
+            toggles.map(
+                (c) => (c.args as { cardInstanceId: string }).cardInstanceId
+            )
+        ).toEqual(["a", "b"]);
+        expect(calls.some((c) => c.ref === "confirmAttackers")).toBe(true);
+        expect(seq.begin).not.toHaveBeenCalled();
+    });
+
+    it("with a defending planeswalker: declares all then opens the sequence", async () => {
+        const me = player("me", [creature({ id: "a" }), creature({ id: "b" })]);
+        const opp = player("opp", [planeswalker()]);
+        const seq = makeSequence();
+        const { result } = renderCtrl(me, opp, seq);
+
+        await act(async () => {
+            await findAction(result, "attack-with-all")!.onClick();
+        });
+
+        expect(calls.filter((c) => c.ref === "toggleAttacker")).toHaveLength(2);
+        expect(calls.some((c) => c.ref === "confirmAttackers")).toBe(false);
+        expect(seq.begin).toHaveBeenCalledWith(["a", "b"]);
+    });
+
+    it("during the sequence: shows Assign-target progress + Cancel, hides Confirm", () => {
+        const me = player("me", [creature({ id: "a" }), creature({ id: "b" })]);
+        const opp = player("opp", [planeswalker()]);
+        const seq = makeSequence({
+            active: true,
+            order: ["a", "b"],
+            index: 0,
+            currentAttackerId: "a",
+        });
+        const { result } = renderCtrl(me, opp, seq);
+
+        expect(findAction(result, "assign-attack-target-next")?.label).toBe(
+            "Assign target (1/2)"
+        );
+        expect(findAction(result, "cancel-attack-sequence")).toBeDefined();
+        expect(findAction(result, "confirm-attackers")).toBeUndefined();
+        expect(findAction(result, "attack-with-all")).toBeUndefined();
+
+        act(() => findAction(result, "assign-attack-target-next")!.onClick());
+        expect(seq.advance).toHaveBeenCalledTimes(1);
+    });
+});

@@ -2,8 +2,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { useGameContext } from "~/hooks/useGameContext";
+import { useAttackSequence } from "~/hooks/useAttackSequence";
 import { usePendingChoicePrimaryAction } from "~/hooks/usePendingChoicePrimaryAction";
 import { isEditableTarget } from "~/lib/editable-target";
+import { eligibleAttackerIds } from "~/lib/attacker-eligibility";
+import { isPlaneswalker } from "~/lib/card-utils";
 import {
     computeHasPriority,
     isAssigningDamage as isAssigningDamageFn,
@@ -67,6 +70,7 @@ export function useControllerActions(): ControllerState {
     const cancelCast = useMutation(api.game.cancelCast);
     const cancelActivation = useMutation(api.game.cancelActivation);
     const confirmAttackers = useMutation(api.game.confirmAttackers);
+    const toggleAttacker = useMutation(api.game.toggleAttacker);
     const confirmBlockers = useMutation(api.game.confirmBlockers);
     const confirmDamage = useMutation(api.game.confirmDamage);
     const passPriority = useMutation(api.game.passPriority);
@@ -120,6 +124,61 @@ export function useControllerActions(): ControllerState {
 
     const selectedAttackerIds = combat?.attackerIds ?? [];
     const blockerCount = Object.keys(combat?.blockerAssignments ?? {}).length;
+
+    // "Attack with all" (design 2026-07-23). The declaring player is always
+    // this viewer while `isSelectingAttackers` (they hold priority as the
+    // active player); the opponent is the sole other seat.
+    const attackSequence = useAttackSequence();
+    const activePlayer = allPlayers.find((p) => p.id === playerId);
+    const opponent = allPlayers.find((p) => p.id !== playerId);
+    const eligibleIds = useMemo(
+        () =>
+            isSelectingAttackers && activePlayer && opponent
+                ? eligibleAttackerIds(activePlayer, opponent, allPlayers)
+                : [],
+        [isSelectingAttackers, activePlayer, opponent, allPlayers]
+    );
+    const defenderHasPlaneswalker =
+        opponent?.battlefield.some((c) => isPlaneswalker(c)) ?? false;
+
+    // Declare every eligible creature vs. the defending player. With no
+    // defending planeswalker there is no destination to choose, so confirm
+    // immediately; otherwise open the per-attacker destination sequence.
+    const handleAttackAll = useCallback(async () => {
+        if (isBusy || eligibleIds.length === 0) return;
+        setIsBusy(true);
+        try {
+            const already = new Set(combat?.attackerIds ?? []);
+            for (const id of eligibleIds) {
+                if (already.has(id)) continue;
+                await toggleAttacker({
+                    gameId,
+                    playerId,
+                    cardInstanceId: id,
+                });
+            }
+            if (!defenderHasPlaneswalker) {
+                await confirmAttackers({ gameId, playerId });
+            } else {
+                attackSequence.begin(eligibleIds);
+            }
+        } catch {
+            // Benign race (priority moved, cap rejected a surplus toggle).
+            // Ignore — not actionable.
+        } finally {
+            setIsBusy(false);
+        }
+    }, [
+        isBusy,
+        eligibleIds,
+        combat,
+        defenderHasPlaneswalker,
+        toggleAttacker,
+        confirmAttackers,
+        attackSequence,
+        gameId,
+        playerId,
+    ]);
 
     // Every multi-target source THIS player is responsible for (CR 702.21j-k
     // can split authority between attacker and defender) must have its full
@@ -226,6 +285,11 @@ export function useControllerActions(): ControllerState {
                     if (pendingChoiceAction.canConfirm) {
                         pendingChoiceAction.confirm();
                     }
+                } else if (isSelectingAttackers && attackSequence.active) {
+                    // Destination sequence up: Space keeps the current attacker
+                    // on the player and advances, mirroring the "Assign target"
+                    // button — never confirms mid-sequence.
+                    attackSequence.advance();
                 } else if (isSelectingAttackers) {
                     confirmAttackers({ gameId, playerId });
                 } else if (isSelectingBlockers) {
@@ -280,6 +344,7 @@ export function useControllerActions(): ControllerState {
         pendingChoiceAction,
         autoTap,
         isSelectingAttackers,
+        attackSequence,
         isSelectingBlockers,
         isAssigningDamage,
         allDamageAssigned,
@@ -332,6 +397,26 @@ export function useControllerActions(): ControllerState {
             disabled: isBusy,
             onClick: runBusy(() => cancelAttackTax({ gameId, playerId })),
         });
+    } else if (isSelectingAttackers && attackSequence.active) {
+        // "Attack with all" destination sequence (design 2026-07-23): the
+        // primary button keeps the current attacker on the defending player and
+        // advances to the next; Confirm is intentionally withheld until the
+        // sequence completes. A planeswalker click (handled on the board)
+        // redirects + advances instead.
+        actions.push({
+            key: "assign-attack-target-next",
+            label: `Assign target (${attackSequence.index + 1}/${attackSequence.order.length})`,
+            tone: "primary",
+            disabled: isBusy,
+            onClick: () => attackSequence.advance(),
+        });
+        actions.push({
+            key: "cancel-attack-sequence",
+            label: "Cancel",
+            tone: "destructive",
+            disabled: isBusy,
+            onClick: () => attackSequence.reset(),
+        });
     } else if (isSelectingAttackers) {
         actions.push({
             key: "confirm-attackers",
@@ -343,6 +428,15 @@ export function useControllerActions(): ControllerState {
             disabled: isBusy,
             onClick: runBusy(() => confirmAttackers({ gameId, playerId })),
         });
+        if (eligibleIds.length > 0) {
+            actions.push({
+                key: "attack-with-all",
+                label: `Attack with all (${eligibleIds.length})`,
+                tone: "primary",
+                disabled: isBusy,
+                onClick: handleAttackAll,
+            });
+        }
         actions.push({
             key: "pass-turn-attackers",
             label: "Pass Turn",
