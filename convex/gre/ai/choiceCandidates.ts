@@ -325,7 +325,10 @@ const drawReplacementCandidates: ChoiceCandidateGenerator = (state, choice) => {
  *  #1511, the exact pathology PRD #1423 exists to remove). Registering the
  *  degenerate ack here lets the search descend past the reveal with the
  *  already-determinized outcome, exactly like every other choice kind. */
-const randomRevealAckCandidates: ChoiceCandidateGenerator = (_state, choice) => [
+const randomRevealAckCandidates: ChoiceCandidateGenerator = (
+    _state,
+    choice
+) => [
     {
         key: "random-reveal:ack",
         move: {

@@ -628,9 +628,7 @@ export function botActionToMove(
                 // must travel alongside `sacrificeIds` or the submit throws
                 // ("select cards to discard") and the driver loops forever
                 // re-answering the same choice.
-                ...(action.discardIds
-                    ? { discardIds: action.discardIds }
-                    : {}),
+                ...(action.discardIds ? { discardIds: action.discardIds } : {}),
             };
         }
         case "land-entry": {

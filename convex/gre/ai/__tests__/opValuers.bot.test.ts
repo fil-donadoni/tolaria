@@ -444,10 +444,8 @@ describe("OP_VALUERS — representative backfilled valuers (issue #1430)", () =>
             const v = valueOp(op, cf);
             expect(v.points).toBe(55);
             expect(v.points).toBeGreaterThan(
-                valueOp(
-                    { op: "draw", player: "controller", count: 1 },
-                    cf
-                ).points // 45 — CARD_VALUE
+                valueOp({ op: "draw", player: "controller", count: 1 }, cf)
+                    .points // 45 — CARD_VALUE
             );
             expect(v.tags).toEqual(
                 expect.arrayContaining(["cardAdvantage", "board-scaling"])

@@ -64,7 +64,12 @@ function engineMutations(state: GameState): MoveMutations {
         confirmDamage: reject,
         declareMulligan: reject,
         submitResolutionChoice: reject,
-        submitMayPay: async ({ playerId, accept, sacrificeIds, discardIds }) => {
+        submitMayPay: async ({
+            playerId,
+            accept,
+            sacrificeIds,
+            discardIds,
+        }) => {
             applyMayPaySubmit(state, {
                 playerId,
                 accept,
