@@ -83,6 +83,63 @@ export type BladeExpectation =
       };
 
 /**
+ * One step of a blade entry's `setup` — a small declarative move applied to
+ * the BUILT state, through the REAL engine, before the search starts
+ * (issue #1487, ADR 0070 §4).
+ *
+ * A `ScenarioSpec` can only describe a board. A position whose decision is a
+ * trigger on the stack (or a live pending choice) does not exist the moment
+ * the board is built; `setup` walks it forward to that decision.
+ *
+ * THE INVARIANT: a step that finds no purchase in the real engine THROWS
+ * (`BladeSetupError`, `setup.ts`). There is NO fallback that builds the state
+ * "as if" — a silent fallback would run the search on a position other than
+ * the one written, which is the whole failure mode this shape exists to avoid.
+ */
+export type BladeSetupStep =
+    /** Make the named battlefield permanent's enters-the-battlefield trigger
+     *  fire, through the engine's own emitter + trigger collection/placement
+     *  (CR 603.2/603.6). The trigger ends up on the stack UNRESOLVED, so the
+     *  seat with priority may respond to it — the Stifle-on-its-own-trigger
+     *  shape. Throws when the name matches no (or more than one) battlefield
+     *  permanent, or when it puts nothing on the stack. */
+    | { kind: "etb-trigger"; card: string; controller?: BladeSeat }
+    /** Resolve the top of the stack through the real `resolveTopOfStack`
+     *  (CR 608). Throws on an empty stack. */
+    | { kind: "resolve-top" };
+
+/**
+ * Why a blade entry only passes ABOVE its declared budget (ADR 0070 §2).
+ *
+ * Each cause names a MISSING PIECE OF BOT KNOWLEDGE, which is the whole point
+ * of classifying: "needs more iterations" names a compute shortfall that
+ * buying more compute never fixes (linear depth against exponential
+ * branching), and is never an accepted verdict.
+ */
+export type BeyondBudgetCause =
+    /** Too many candidate moves at one decision — the right move is in the
+     *  set but never gets enough visits. Missing knowledge: move PRIORS. */
+    | "branching"
+    /** The payoff lands beyond the rollout horizon, so the line scores the
+     *  same as the blunder. Missing knowledge: VALUATION of the pattern. */
+    | "horizon"
+    /** The refutation depends on a card the determinizer only occasionally
+     *  deals into the hidden zone. Missing knowledge: an OPPONENT MODEL. */
+    | "hidden-information";
+
+/** A recorded beyond-budget verdict: the entry passes, but only above its
+ *  declared (production-range) budget. `stretch` tier only — raising the
+ *  budget to turn an entry green is not a legitimate move (ADR 0070 §2). */
+export type BeyondBudget = {
+    cause: BeyondBudgetCause;
+    /** The budget at which it WAS observed to pass, for the record. */
+    passesAt: { iterations: number };
+    /** Which piece of bot knowledge is missing — prose, printed verbatim by
+     *  the stretch report. */
+    note: string;
+};
+
+/**
  * One blade scenario. THIS IS THE SHAPE EVERY LATER SCENARIO COPIES — keep
  * new entries to these fields and let the registry stay a flat, readable list.
  */
@@ -93,6 +150,10 @@ export type BladeScenario = {
     /** The board, in the exact `ScenarioSpec` vocabulary the Debug panel and
      *  `buildStateFromScenario` already speak (issue #1424). */
     spec: ScenarioSpec;
+    /** Optional engine-real steps applied to the built board before the
+     *  search starts (issue #1487, ADR 0070 §4). Each step runs through the
+     *  real engine and THROWS if it finds no purchase. */
+    setup?: BladeSetupStep[];
     /** Seat the bot plays. Must be the seat that holds priority in the built
      *  state, or the search returns `null` (nothing owed). */
     bot: BladeSeat;
@@ -104,6 +165,11 @@ export type BladeScenario = {
      *  satisfy the expectation. */
     seeds?: number[];
     tier: BladeTier;
+    /** Recorded when the entry only passes ABOVE `budget` (ADR 0070 §2). The
+     *  stretch report prints the cause; the registry-integrity suite rejects
+     *  it on a `must` entry, because a `must` entry passes at its declared,
+     *  production-range budget by definition. */
+    beyondBudget?: BeyondBudget;
     expect: BladeExpectation;
     /** Optional prose: why this position is a blade, what the bot used to do
      *  wrong, which issue it guards. */
