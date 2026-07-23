@@ -16,6 +16,7 @@ import LibrarySearchConfirm from "./library-search-confirm";
 import LibraryOrderPicker from "./library-order/library-order-picker";
 import { buildLibraryPileModel } from "~/lib/library-knowledge";
 import { orderLibrarySearchCards } from "~/lib/library-search-order";
+import { canAddCategorizedPick } from "@convex/gre/categorizedPick";
 
 export default function PlayerLibrary({
     player,
@@ -178,6 +179,16 @@ export default function PlayerLibrary({
     const searchMax =
         typeof searchCount === "number" ? searchCount : searchCount.max;
 
+    // Categorized keep (issue #1364, Atraxa): the choice carries the resolved
+    // `categories`, so "at most one card per category, each card claimable by
+    // only ONE category" gates the click through the SAME bipartite matching
+    // the server validates the submit with (`convex/gre/categorizedPick.ts`) —
+    // never a re-derived client rule, which would drift and either offer a
+    // pick the server rejects or hide one it would accept. A plain count cap
+    // is not enough here: with two creatures revealed the second is illegal
+    // even though the cap (the maximum matching) may be far higher.
+    const categories = isLibraryPick ? head!.categories : undefined;
+
     const onCardClick = isLibraryPick
         ? (card: { id: string }) => {
               if (eligibleIds && !eligibleIds.has(card.id)) return;
@@ -188,10 +199,18 @@ export default function PlayerLibrary({
               if (bufferCtx.buffer.length >= searchMax) {
                   if (searchMax === 1) {
                       // Replace the current pick: clear then add in one event;
-                      // React applies the functional updates in order.
+                      // React applies the functional updates in order. A
+                      // single eligible card is always a legal categorized
+                      // pick, so the category gate below is moot here.
                       bufferCtx.clear();
                       bufferCtx.toggle(card.id);
                   }
+                  return;
+              }
+              if (
+                  categories &&
+                  !canAddCategorizedPick(categories, bufferCtx.buffer, card.id)
+              ) {
                   return;
               }
               bufferCtx.toggle(card.id);
@@ -294,6 +313,10 @@ export default function PlayerLibrary({
                           ? head.count
                           : head.count.min,
                   eligibleIds: head.eligibleIds,
+                  // Categorized keep (Atraxa, #1364) — only set for a
+                  // `revealAndCategorize` choice; the ordinary dig leaves it
+                  // undefined and the picker behaves exactly as before.
+                  categories: head.categories,
               }
             : undefined;
 

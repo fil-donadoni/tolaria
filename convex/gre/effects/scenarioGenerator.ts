@@ -580,6 +580,13 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // the migrated cards' suspension/resume tests (per-Op regime).
             req.skip ??= `Op "digToHand" suspends for a look-distribute pick — covered by the Op's interpreter tests`;
             return;
+        case "revealAndCategorize":
+            // Same shape as `digToHand` (issue #1364): the Op suspends on a
+            // live categorized look-distribute pick, which a canned scenario
+            // cannot submit. Explicit skip; execution coverage is the Op's own
+            // interpreter tests plus the categorizedPick matching unit tests.
+            req.skip ??= `Op "revealAndCategorize" suspends for a categorized look-distribute pick — covered by the Op's interpreter tests`;
+            return;
         case "counter":
             // `counter` targets a SPELL on the stack (issue #806); the canned
             // generator seeds only players and battlefield permanents, not a
@@ -1802,6 +1809,14 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     // scenario can assert). Kept for the 1:1 coverage guard; the look / keep /
     // bottom is covered by the Op's own interpreter tests.
     digToHand() {
+        return null;
+    },
+    // `revealAndCategorize` (CR 701.20a / 401.4, issue #1364) — never reached:
+    // `analyseOp` skips every script carrying it (it suspends on a live
+    // categorized look-distribute pick). Kept for the 1:1 coverage guard; the
+    // reveal / per-category keep / bottom split is covered by the Op's own
+    // interpreter tests and `categorizedPick`'s matching unit tests.
+    revealAndCategorize() {
         return null;
     },
     // `putBack` (CR 401.4, issue #1046) — never reached: `analyseOp` skips

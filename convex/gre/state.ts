@@ -1986,6 +1986,17 @@ export type PendingChoice = {
      *  two-zone drag picker — an ordering UI for a random outcome would be a
      *  lie. Undefined/absent = the rest is ordered (Impulse, Stock Up). */
     randomizeRest?: boolean;
+    /** `look-distribute` only (issue #1364, Atraxa, Grand Unifier) — a
+     *  CATEGORIZED keep: at most one of the revealed cards per category, and a
+     *  card that qualifies for several categories may be kept for only ONE of
+     *  them. Each entry is a display label plus the revealed instance ids
+     *  matching that category. A keep-set is legal exactly when an injective
+     *  card → category assignment exists (the bipartite matching in
+     *  `gre/categorizedPick.ts`); `count.max` is that matching's size. The
+     *  backend rejects an unmatchable submission; the frontend gates each
+     *  click through the SAME helper, so the two never disagree. Undefined =
+     *  an ordinary uncategorized dig (Impulse, Narset). */
+    categories?: { label: string; cardIds: string[] }[];
     /** For `kind: "choose-damage-target"` only — the player ids that are legal
      *  damage targets (CR 115.4 — "any target" includes players). The chooser's
      *  submission carries either a damageable permanent id (from `candidateIds`)
@@ -11373,6 +11384,7 @@ export function buildSpellContext(
             }
             if (req.destination) entry.destination = req.destination;
             if (req.randomizeRest) entry.randomizeRest = true;
+            if (req.categories) entry.categories = req.categories;
             if (req.putOnTop) entry.putOnTop = true;
             state.pendingChoices = [...(state.pendingChoices ?? []), entry];
             return undefined;

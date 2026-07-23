@@ -18476,3 +18476,291 @@ describe("Effect Script Op: reflexiveTrigger (CR 603.3c)", () => {
         expect(state.players[0].hand.length).toBe(handBefore + 2);
     });
 });
+
+// --- revealAndCategorize Op: reveal a shared top-N window, keep at most one
+// card per category (CR 701.20a + CR 401.4, issue #1364) ---------------------
+// The gap `digToHand` could not close: ONE reveal window, SEVERAL independent
+// category-scoped picks against it, each card claimable by only one category.
+// Atraxa, Grand Unifier is the canonical instance (look 10, one per card type,
+// optional, random bottom, public reveal).
+const RC_ARTIFACT_ID = "test-effects-rc-artifact";
+registerTokenDefinition({
+    id: RC_ARTIFACT_ID,
+    name: RC_ARTIFACT_ID,
+    rarity: "common",
+    manaCost: { X: 2 },
+    types: ["Artifact"],
+});
+const RC_ARTIFACT_CREATURE_ID = "test-effects-rc-artifact-creature";
+registerTokenDefinition({
+    id: RC_ARTIFACT_CREATURE_ID,
+    name: RC_ARTIFACT_CREATURE_ID,
+    rarity: "common",
+    manaCost: { X: 3 },
+    types: ["Artifact", "Creature"],
+    power: 1,
+    toughness: 1,
+});
+
+describe("Effect Script Op: revealAndCategorize (CR 701.20a / 401.4, issue #1364)", () => {
+    /** Atraxa's category list, trimmed to the types these fixtures use. */
+    const TYPE_CATEGORIES = [
+        { label: "Artifact", filter: { type: "Artifact" as const } },
+        { label: "Creature", filter: { type: "Creature" as const } },
+        { label: "Instant", filter: { type: "Instant" as const } },
+        { label: "Land", filter: { type: "Land" as const } },
+    ];
+
+    const atraxaOp = (extra: Record<string, unknown> = {}): EffectOp =>
+        ({
+            op: "revealAndCategorize",
+            player: "controller",
+            look: 10,
+            reveal: "window",
+            optional: true,
+            randomBottom: true,
+            categories: TYPE_CATEGORIES,
+            ...extra,
+        }) as EffectOp;
+
+    /** A library from [instanceId, definitionId] pairs, top-first. */
+    const libOf = (cards: [string, string][]) =>
+        cards.map(([cid, defId]) =>
+            makeInstance(defId, {
+                id: cid,
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "library",
+            })
+        );
+
+    const submitKeep = (state: GameState, keep: string[]) => {
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: keep,
+        });
+    };
+
+    const boardWith = (cards: [string, string][]) =>
+        makeState({
+            players: [
+                makePlayer("p1", { library: libOf(cards) }),
+                makePlayer("p2"),
+            ],
+        });
+
+    it("suspends on a look-distribute choice carrying the resolved categories", () => {
+        const id = registerScript("test-op-rc-suspend", [atraxaOp()]);
+        const state = boardWith([
+            ["bear", BEAR_ID],
+            ["land", NC_LAND_ID],
+            ["inst", NC_INSTANT_ID],
+        ]);
+        pushSpell(state, id, "p1");
+        expect(resolveTopOfStack(state)).toBeNull();
+
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("look-distribute");
+        // The WHOLE revealed window is shown; the categories name which
+        // revealed ids belong to each.
+        expect(head.candidateIds).toEqual(["bear", "land", "inst"]);
+        expect(head.categories).toEqual([
+            { label: "Artifact", cardIds: [] },
+            { label: "Creature", cardIds: ["bear"] },
+            { label: "Instant", cardIds: ["inst"] },
+            { label: "Land", cardIds: ["land"] },
+        ]);
+        // Three distinct categories are satisfiable → max 3; "you may" → min 0.
+        expect(head.count).toEqual({ min: 0, max: 3 });
+        // A card in no category would not be hand-eligible; here all three are.
+        expect(head.eligibleIds).toEqual(["bear", "inst", "land"]);
+    });
+
+    it("Atraxa: keeps one card per type and bottoms the rest", () => {
+        const id = registerScript("test-op-rc-atraxa", [atraxaOp()]);
+        const state = boardWith([
+            ["bear", BEAR_ID],
+            ["land", NC_LAND_ID],
+            ["inst", NC_INSTANT_ID],
+            ["bear2", BEAR_ID],
+            ["deep", BEAR_ID],
+        ]);
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        submitKeep(state, ["bear", "land", "inst"]);
+
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        expect(state.players[0].hand.map((c) => c.id)).toEqual(
+            expect.arrayContaining(["bear", "land", "inst"])
+        );
+        // The unkept revealed cards go to the BOTTOM — the library keeps them,
+        // it does not lose them.
+        expect(state.players[0].library.map((c) => c.id).sort()).toEqual([
+            "bear2",
+            "deep",
+        ]);
+    });
+
+    it("caps the keep at the maximum MATCHING, not the category count", () => {
+        // Three creatures revealed under four categories: only ONE is keepable
+        // (a single Creature seat). Offering more would be a pick that cannot
+        // be made (CR 608.2b).
+        const id = registerScript("test-op-rc-cap", [atraxaOp()]);
+        const state = boardWith([
+            ["c1", BEAR_ID],
+            ["c2", BEAR_ID],
+            ["c3", BEAR_ID],
+        ]);
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.pendingChoices![0].count).toEqual({ min: 0, max: 1 });
+    });
+
+    it("rejects a submission that cannot seat each kept card in its own category", () => {
+        const id = registerScript("test-op-rc-illegal", [atraxaOp()]);
+        const state = boardWith([
+            ["c1", BEAR_ID],
+            ["c2", BEAR_ID],
+            ["land", NC_LAND_ID],
+        ]);
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        // Two plain creatures compete for the single Creature seat.
+        expect(() => submitKeep(state, ["c1", "c2"])).toThrow(
+            /different category/
+        );
+        // …but one creature plus the land is fine.
+        submitKeep(state, ["c1", "land"]);
+        expect(state.players[0].hand.map((c) => c.id)).toEqual(
+            expect.arrayContaining(["c1", "land"])
+        );
+    });
+
+    it("counts a multi-type card for only ONE category (Gatherer ruling)", () => {
+        // An artifact creature plus a plain creature: the max is 2, and the
+        // legal assignment is artifact-creature→Artifact, creature→Creature —
+        // the augmenting path a greedy walk would miss.
+        const id = registerScript("test-op-rc-multitype", [atraxaOp()]);
+        const state = boardWith([
+            ["ac", RC_ARTIFACT_CREATURE_ID],
+            ["bear", BEAR_ID],
+        ]);
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.pendingChoices![0].count).toEqual({ min: 0, max: 2 });
+        submitKeep(state, ["ac", "bear"]);
+        expect(state.players[0].hand.map((c) => c.id)).toEqual(
+            expect.arrayContaining(["ac", "bear"])
+        );
+    });
+
+    it("keeps nothing when the player declines (the optional 'you may')", () => {
+        const id = registerScript("test-op-rc-decline", [atraxaOp()]);
+        const state = boardWith([
+            ["bear", BEAR_ID],
+            ["land", NC_LAND_ID],
+        ]);
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        submitKeep(state, []);
+        expect(state.players[0].hand).toHaveLength(0);
+        expect(state.players[0].library.map((c) => c.id).sort()).toEqual([
+            "bear",
+            "land",
+        ]);
+    });
+
+    it("auto-resolves without prompting when no revealed card matches a category", () => {
+        // Only an Artifact category, only creatures revealed: zero-branch pick,
+        // so the Op never suspends (the Arena auto-resolve default).
+        const id = registerScript("test-op-rc-nomatch", [
+            atraxaOp({
+                categories: [
+                    { label: "Artifact", filter: { type: "Artifact" } },
+                ],
+            }),
+        ]);
+        const state = boardWith([
+            ["c1", BEAR_ID],
+            ["c2", BEAR_ID],
+        ]);
+        pushSpell(state, id, "p1");
+        // Resolves in ONE pass — no pending choice raised.
+        expect(resolveTopOfStack(state)).not.toBeNull();
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        expect(state.players[0].hand).toHaveLength(0);
+        expect(state.players[0].library).toHaveLength(2);
+    });
+
+    it("a card matching no category can only be bottomed, never kept", () => {
+        const id = registerScript("test-op-rc-ineligible", [
+            atraxaOp({
+                categories: [{ label: "Land", filter: { type: "Land" } }],
+            }),
+        ]);
+        const state = boardWith([
+            ["bear", BEAR_ID],
+            ["land", NC_LAND_ID],
+        ]);
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.pendingChoices![0].eligibleIds).toEqual(["land"]);
+        expect(() => submitKeep(state, ["bear"])).toThrow(/not eligible/);
+    });
+
+    it("survives the wire projection: the chooser sees the window and its categories", () => {
+        // The categorized pick is driven entirely from the PROJECTED choice —
+        // a category list stripped by the projection would leave the client
+        // unable to gate clicks, so assert it through `projectPublicState`.
+        const id = registerScript("test-op-rc-wire", [atraxaOp()]);
+        const state = boardWith([
+            ["bear", BEAR_ID],
+            ["land", NC_LAND_ID],
+            ["art", RC_ARTIFACT_ID],
+        ]);
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+
+        const projected = projectPublicState(state, 1, "p1");
+        const head = projected.pendingChoices![0];
+        expect(head.kind).toBe("look-distribute");
+        expect(head.categories).toEqual([
+            { label: "Artifact", cardIds: ["art"] },
+            { label: "Creature", cardIds: ["bear"] },
+            { label: "Instant", cardIds: [] },
+            { label: "Land", cardIds: ["land"] },
+        ]);
+        expect(head.randomizeRest).toBe(true);
+        // The revealed window is exposed face-up to the chooser as `libraryPeek`
+        // — exactly the looked-at cards, never the whole library.
+        expect(projected.players[0].libraryPeek!.map((c) => c.id)).toEqual([
+            "bear",
+            "land",
+            "art",
+        ]);
+    });
+
+    it("round-trips the choice through serialization (the DB write)", () => {
+        const id = registerScript("test-op-rc-serialize", [atraxaOp()]);
+        const state = boardWith([
+            ["bear", BEAR_ID],
+            ["land", NC_LAND_ID],
+        ]);
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+
+        const restored = expandState(compactState(state));
+        expect(restored.pendingChoices![0].categories).toEqual(
+            state.pendingChoices![0].categories
+        );
+        // The restored state still finishes the pick correctly.
+        submitKeep(restored, ["bear", "land"]);
+        expect(restored.players[0].hand.map((c) => c.id)).toEqual(
+            expect.arrayContaining(["bear", "land"])
+        );
+    });
+});

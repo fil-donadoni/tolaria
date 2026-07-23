@@ -810,3 +810,66 @@ describe("decideBotAction resolves an owed mid-resolution choice (ADR 0016)", ()
         });
     });
 });
+
+// A CATEGORIZED look-distribute (Atraxa, Grand Unifier — issue #1364) carries
+// a constraint the count bounds cannot express: at most one card per category,
+// and a card qualifying for several categories may be kept for only ONE of
+// them. `max` is the maximum MATCHING, so the ordinary `slice(0, max)` greedy
+// would submit three creatures for a max of three — the server rejects it and
+// a rejected submission freezes the bot (the recurring "bot stalls on a new
+// choice mechanic" class). These pin the categorized branch.
+describe("chooseResolution: categorized look-distribute (Atraxa, issue #1364)", () => {
+    const owedCategorized = (
+        overrides: Partial<OwedChoice> = {}
+    ): OwedChoice => ({
+        kind: "look-distribute",
+        min: 0,
+        max: 3,
+        candidates: [
+            { id: "bomb", value: 200 }, // creature
+            { id: "bear", value: 120 }, // creature
+            { id: "bolt", value: 90 }, // instant
+            { id: "swamp", value: 8 }, // land
+        ],
+        categories: [
+            { label: "Creature", cardIds: ["bomb", "bear"] },
+            { label: "Instant", cardIds: ["bolt"] },
+            { label: "Land", cardIds: ["swamp"] },
+        ],
+        ...overrides,
+    });
+
+    it("takes the best card of each category, never two of one", () => {
+        const picks = chooseResolution(owedCategorized());
+        // Value order is bomb > bear > bolt > swamp; "bear" is skipped because
+        // the Creature seat is already taken by "bomb".
+        expect(picks).toEqual(["bomb", "bolt", "swamp"]);
+    });
+
+    it("submits only ONE card when every candidate shares a single category", () => {
+        const picks = chooseResolution(
+            owedCategorized({
+                max: 1,
+                candidates: [
+                    { id: "c1", value: 100 },
+                    { id: "c2", value: 90 },
+                ],
+                categories: [{ label: "Creature", cardIds: ["c1", "c2"] }],
+            })
+        );
+        expect(picks).toEqual(["c1"]);
+    });
+
+    it("respects `max` even when more categories are satisfiable", () => {
+        const picks = chooseResolution(owedCategorized({ max: 2 }));
+        expect(picks).toEqual(["bomb", "bolt"]);
+    });
+
+    it("leaves the uncategorized dig untouched (Impulse / Narset)", () => {
+        // No `categories` → the plain greedy, exactly as before.
+        const picks = chooseResolution(
+            owedCategorized({ categories: undefined, max: 2 })
+        );
+        expect(picks).toEqual(["bomb", "bear"]);
+    });
+});

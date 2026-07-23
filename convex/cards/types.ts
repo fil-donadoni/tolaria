@@ -3126,6 +3126,13 @@ export interface SpellContext {
          *  order) instead of the two-zone drag picker. Raised by the
          *  `digToHand` Op when `randomBottom` is set (Narset). */
         randomizeRest?: boolean;
+        /** `look-distribute` only (issue #1364, Atraxa) — a CATEGORIZED keep:
+         *  at most one revealed card per category, each card claimable by only
+         *  one category. Each entry names a category and the revealed ids that
+         *  match it. Legality is the bipartite matching in
+         *  `gre/categorizedPick.ts`; `count.max` is that matching's size. Omit
+         *  for an ordinary uncategorized dig (Impulse, Narset). */
+        categories?: { label: string; cardIds: string[] }[];
         /** Client-routing hint for a `choose-hand-card` pick whose destination is
          *  the TOP of the chooser's library, in chosen order (Brainstorm's
          *  `putBack`, CR 401.4). Purely a UI discriminator — the submit path and
@@ -8373,6 +8380,63 @@ export type EffectOp =
            *  Omit for a purely private look/dig (Impulse, Domain, Brainstorm-
            *  style card selection), where nothing is shown to the opponent. */
           reveal?: "window" | "kept";
+      }
+    /** CR 701.20a reveal + CR 401.4 (issue #1364) — reveal a fixed top-N
+     *  window ONCE, then keep AT MOST ONE card per category from that single
+     *  shared window, and send everything unkept to `destination`.
+     *
+     *  Atraxa, Grand Unifier: "reveal the top ten cards of your library. For
+     *  each card type, you may put a card of that type from among the revealed
+     *  cards into your hand. Put the rest on the bottom of your library in a
+     *  random order."
+     *
+     *  The CATEGORIZED half is what `digToHand` cannot express: `digToHand`
+     *  has ONE `filter` and ONE `take`, and calling it several times in
+     *  sequence does not share a window (each call re-peeks the CURRENT
+     *  library top, which has already moved). Here the window is peeked once
+     *  and every category picks out of that same revealed set, each card
+     *  claimable by AT MOST ONE category (Gatherer: a card with several card
+     *  types may be chosen for only one of them) — so the legal keep-sets are
+     *  exactly those admitting an injective card → category assignment, a
+     *  bipartite matching computed by the shared leaf module
+     *  `gre/categorizedPick.ts` (the same code gates the client's clicks and
+     *  validates the submit, so the two can never disagree).
+     *
+     *  Everything else is deliberately `digToHand`'s vocabulary, same
+     *  semantics, so the two Ops read as siblings: `reveal` (CR 701.20a public
+     *  reveal vs. a private CR 401.4 look), `optional` ("you MAY"),
+     *  `destination`, `randomBottom`, `prompt`. It SUSPENDS on a single
+     *  `look-distribute` choice carrying the resolved categories. */
+    | {
+          op: "revealAndCategorize";
+          player: EffectPlayerRef;
+          /** How many top cards to reveal/look at (Atraxa: 10). */
+          look: EffectValue;
+          /** The categories, in display order. Each is a label (shown in the
+           *  picker) plus the `EffectCardFilter` deciding which revealed cards
+           *  belong to it. Atraxa lists the eight card types verbatim from its
+           *  reminder text; Niv-Mizzet Reborn's ten exact-colour pairs are the
+           *  other intended shape. A revealed card matching NO category can
+           *  only be sent to `destination` — never kept. */
+          categories: { label: string; filter: EffectCardFilter }[];
+          /** "You MAY put …" — keeping fewer than the maximum (including
+           *  nothing) is allowed. Default false = keep as many as the matching
+           *  permits. Atraxa is `true`. */
+          optional?: boolean;
+          /** Where the unkept revealed cards go — `"library-bottom"` (default,
+           *  Atraxa) or `"graveyard"`. Identical to `digToHand`'s field. */
+          destination?: LibraryDestination;
+          /** "…on the bottom of your library in a RANDOM order" (Atraxa) — no
+           *  player ordering pick, no `markKnown` (CR 401.4's random order is
+           *  unobservable for face-down library cards, so no knowledge is
+           *  granted). Identical to `digToHand`'s field. */
+          randomBottom?: boolean;
+          /** CR 701.20a — `"window"` publicly reveals the whole looked-at
+           *  window (Atraxa's "reveal the top ten cards"); `"kept"` reveals
+           *  only the cards actually kept. Omit for a private look. */
+          reveal?: "window" | "kept";
+          /** Optional prompt header on the pick. */
+          prompt?: string;
       }
     /** CR 401.4 (issue #1046) — put N cards from a hand on top of a library,
      *  in the player's chosen order ("put N cards from your hand on top of

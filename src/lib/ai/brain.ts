@@ -24,6 +24,10 @@
 
 import type { PendingChoiceKind } from "@convex/gre";
 import type { Color } from "@convex/cards/types";
+import {
+    canAddCategorizedPick,
+    type PickCategory,
+} from "@convex/gre/categorizedPick";
 
 /** The minimal slice of game state the bot needs to decide. Built on the
  *  driving client from the full state (the bot's hand is visible to the human's
@@ -187,6 +191,13 @@ export type OwedChoice = {
      *  library card name when visible to the bot, else a guaranteed-registered
      *  fallback. Undefined for every other choice kind. */
     nameCardDefault?: string;
+    /** `look-distribute` only (issue #1364, Atraxa) — the CATEGORIZED keep:
+     *  at most one card per category, each card claimable by only one of them.
+     *  When present, `max` alone does NOT describe a legal submission (three
+     *  creatures under a max of three is illegal), so the greedy must test each
+     *  addition through `canAddCategorizedPick`. Undefined for an ordinary dig,
+     *  where the count bounds are the whole story. */
+    categories?: PickCategory[];
 };
 
 /** A bot decision, realised by the executor through EXISTING mutations only
@@ -572,10 +583,29 @@ export function chooseResolution(choice: OwedChoice): string[] {
         // `max`; for an OPTIONAL dig (min 0) the bot still digs when a card is
         // worth taking rather than declining. The bot submits only the hand
         // picks (empty `secondZoneIds`), so the engine auto-bottoms the rest.
-        case "look-distribute":
-            return bestFirst(candidates)
-                .slice(0, max)
-                .map((c) => c.id);
+        // A CATEGORIZED look-distribute (Atraxa, issue #1364) adds a constraint
+        // the count bounds cannot express: at most one card per category, each
+        // card claimable by only one of them. `max` is the maximum matching, so
+        // a blind `slice(0, max)` would hand the server three creatures for a
+        // max of three — rejected, and a rejected submission freezes the bot.
+        // Walk the value order instead and take each card only while the set
+        // stays matchable, through the SAME helper the server validates with.
+        case "look-distribute": {
+            if (!choice.categories) {
+                return bestFirst(candidates)
+                    .slice(0, max)
+                    .map((c) => c.id);
+            }
+            const cats = choice.categories;
+            const picks: string[] = [];
+            for (const candidate of bestFirst(candidates)) {
+                if (picks.length >= max) break;
+                if (canAddCategorizedPick(cats, picks, candidate.id)) {
+                    picks.push(candidate.id);
+                }
+            }
+            return picks;
+        }
 
         // Aladdin's Lamp (CR 614): look at the top X, keep the single best
         // card to draw — the rest are bottomed at random by the engine.

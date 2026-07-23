@@ -413,6 +413,14 @@ function buildOwedChoice(
         // (`discardCount`) so the bot supplies a legal `discardIds`. Undefined
         // for a plain yes/no or auto-resolving pay.
         ...mayPayDiscardPick(head),
+        // issue #1364 (Atraxa) — a CATEGORIZED look-distribute constrains the
+        // keep beyond the count bounds (at most one card per category, each
+        // card claimable by only one), so the policy must test each addition
+        // rather than blindly take `max` best-valued cards; an over-picked
+        // submission is rejected server-side, which freezes the bot. Undefined
+        // for an ordinary dig.
+        categories:
+            head.kind === "look-distribute" ? head.categories : undefined,
         // issue #242 — the discard heuristic needs the board's mana picture to
         // protect scarce lands and rank spells by castability.
         manaSituation:

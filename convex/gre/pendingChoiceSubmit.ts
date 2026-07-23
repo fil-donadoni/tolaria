@@ -22,6 +22,7 @@ import {
     type CardInstanceState,
     type GameState,
 } from "./state";
+import { isCategorizedPickLegal } from "./categorizedPick";
 import {
     computeHardSkipFilters,
     drainAutoPasses,
@@ -736,6 +737,22 @@ export function applyPendingChoiceSubmit(
                 !head.eligibleIds.includes(id)
             ) {
                 throw new Error("Card is not eligible to put into your hand");
+            }
+        }
+        // Categorized keep (issue #1364, Atraxa): at most one card per
+        // category, and a card qualifying for several categories may be kept
+        // for only ONE of them — so the hand picks are legal exactly when an
+        // injective card → category assignment exists. Greedy checking is
+        // unsound here (an artifact creature seated as "Creature" can strand a
+        // plain creature), so this runs the same bipartite matching the client
+        // gates its clicks with.
+        if (head.kind === "look-distribute" && head.categories) {
+            if (
+                !isCategorizedPickLegal(head.categories, args.cardInstanceIds)
+            ) {
+                throw new Error(
+                    "Those cards can't each be kept for a different category"
+                );
             }
         }
         if (head.kind === "order-top" || head.kind === "look-distribute") {

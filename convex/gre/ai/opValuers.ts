@@ -390,6 +390,20 @@ const digMatchingToHand: Valuer<"digMatchingToHand"> = () => ({
     tags: ["cardAdvantage", "board-scaling"],
 });
 
+// CR 701.20a / 401.4 (issue #1364, Atraxa) — a categorized reveal-and-keep.
+// Its ceiling is one card per category, but the REAL yield is capped by how
+// many distinct categories the revealed window happens to represent, which is
+// unknowable at scoring time (the library is hidden). Value it at the number
+// of categories, damped: a nine-category Atraxa reliably nets ~3-4 cards off a
+// ten-card window, not nine. Never scaling — `look`/`categories` are literals.
+const CATEGORIZED_KEEP_YIELD = 0.4; // categories → expected cards actually kept
+const revealAndCategorize: Valuer<"revealAndCategorize"> = (op) => ({
+    points: Math.round(
+        op.categories.length * CATEGORIZED_KEEP_YIELD * CARD_SELECTION_VALUE
+    ),
+    tags: ["cardAdvantage"],
+});
+
 const digToHand: Valuer<"digToHand"> = (op, ctx) => {
     const { amount, scaling } = op.take
         ? ctx.value(op.take)
@@ -670,6 +684,7 @@ export const OP_VALUERS: {
     reflexiveTrigger,
     digMatchingToHand,
     digToHand,
+    revealAndCategorize,
     discard,
     discardAtRandom,
     divideIntoPiles,

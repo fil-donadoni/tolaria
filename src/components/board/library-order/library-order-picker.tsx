@@ -21,6 +21,10 @@
 // (ordered) as `secondZoneIds`.
 import { useCallback, useMemo, useRef, useState } from "react";
 import type { LibraryDestination } from "@convex/gre/types";
+import {
+    canAddCategorizedPick,
+    type PickCategory,
+} from "@convex/gre/categorizedPick";
 import { SLOT_SPRING } from "~/lib/board-motion";
 import { Minus, Hand, Layers, Skull } from "lucide-react";
 import { useMinimizedChoice } from "~/hooks/useMinimizedChoice";
@@ -155,8 +159,18 @@ export default function LibraryOrderPicker({
      *  submit with fewer than `keep` in hand. `eligibleIds`, when present,
      *  restricts which looked-at cards may enter the HAND zone (Narset's
      *  "noncreature, nonland" filter) — a non-eligible card is bounced back to
-     *  the BOTTOM if dragged onto the hand side. */
-    distribute?: { keep: number; min?: number; eligibleIds?: string[] };
+     *  the BOTTOM if dragged onto the hand side. `categories` (issue #1364,
+     *  Atraxa) is the CATEGORIZED keep: at most one card per category and each
+     *  card claimable by only one of them, so a drag onto the hand that would
+     *  leave no injective card → category assignment is bounced back to the
+     *  BOTTOM. Legality runs through the shared `categorizedPick` matching the
+     *  server validates the submit with, never a re-derived client rule. */
+    distribute?: {
+        keep: number;
+        min?: number;
+        eligibleIds?: string[];
+        categories?: PickCategory[];
+    };
     /** `putBack` mode (Brainstorm, CR 401.4): the LEFT zone is the HAND (source
      *  pool), the RIGHT zone the TOP OF LIBRARY — pull EXACTLY `keep` cards onto
      *  the top and order them (right = topmost). The top zone is HARD-CAPPED at
@@ -220,6 +234,7 @@ export default function LibraryOrderPicker({
     // The array ref is stable across renders (from the projected choice), so the
     // drop-resolution memo below keys on it directly and builds the Set inside.
     const eligibleIds = distribute?.eligibleIds;
+    const categories = distribute?.categories;
 
     const defById = useMemo(
         () => Object.fromEntries(lookedAt.map((c) => [c.instanceId, c.defId])),
@@ -317,6 +332,17 @@ export default function LibraryOrderPicker({
         ) {
             destZone = "second";
         }
+        // Categorized keep (Atraxa, issue #1364): a card whose addition would
+        // leave the hand pile unmatchable (a second creature with nothing else
+        // to seat it) is bounced back to the BOTTOM. `top0` already excludes
+        // the dragged card, so a within-hand reorder is never blocked.
+        if (
+            destZone === "top" &&
+            categories !== undefined &&
+            !canAddCategorizedPick(categories, top0, drag.id)
+        ) {
+            destZone = "second";
+        }
         const destArr = destZone === "second" ? second0 : top0;
         const dropIndex = insertionIndex(
             hit,
@@ -372,6 +398,7 @@ export default function LibraryOrderPicker({
         detachRight,
         topCap,
         eligibleIds,
+        categories,
     ]);
 
     // ---- Gesture (mirrors the hand's activation feel; no cast branch) ----

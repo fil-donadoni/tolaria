@@ -1,6 +1,5 @@
 # Carte cubo da creare
 
-Atraxa
 Sin
 Doomsday
 Thassa's Oracle
@@ -34,7 +33,6 @@ Fable of the mirror-breaker
 - Il testo Companion di Lutri non compare nella card-preview
 - Starting town non viene considerata come produttrice di mana colorato ai fini di castabilità
 - Erode permette di prendere terre non base con tipo di terra base, ma deve farti prendere SOLO terre base. verifica anche path to exile.
-- Sheoldred's edict deve farti scegliere prima di andare in pila, come le spell modali che abbiamo già sistemato
 
 ## UX da migliorare
 
@@ -50,7 +48,6 @@ Fable of the mirror-breaker
 - Nella sideboard del pool draft le carte sono ancora separate con offset esagerato. disponile come il maindeck
 - Anche nel deckbuilder devo poter spostare le carte tra una colonna e l'altras
 - Nel deckbuidler limited mancano i pulsanti per aggiungere alcune terre base, dipendentemente dai colori del main penso. in vintage cub non c'è nessun pulsante per aggiungere le terre base
-- aggiungere pulsante Attack with all
 - In draft, a mazzi costruiti, non vedo gli altri giocatori umani per giocarci contro
 - Chromatic armor non mostra il colore attualmente attivo nell'oracle text live
 

@@ -865,6 +865,25 @@ function isRevealScope(value: unknown): boolean {
     return value === "window" || value === "kept";
 }
 
+/** The `categories` list of a `revealAndCategorize` Op (issue #1364, Atraxa):
+ *  a NON-EMPTY ordered array of `{ label, filter }` pairs and nothing else —
+ *  `label` a non-empty display string (what the picker shows above the
+ *  category), `filter` an ordinary `EffectCardFilter` deciding which revealed
+ *  cards belong to it. Kept strict (exactly those two keys, both required) so
+ *  the grammar stays frozen, ADR 0045. */
+function isPickCategoryList(value: unknown): boolean {
+    if (!Array.isArray(value) || value.length === 0) return false;
+    return value.every((entry) => {
+        if (typeof entry !== "object" || entry === null || Array.isArray(entry))
+            return false;
+        const keys = Object.keys(entry).sort();
+        if (keys.length !== 2 || keys[0] !== "filter" || keys[1] !== "label")
+            return false;
+        const e = entry as { label: unknown; filter: unknown };
+        return isNonEmptyString(e.label) && isCardFilter(e.filter);
+    });
+}
+
 /** The `mode` discriminator of a `preventDamage` Op (issue #845, CR 615): the
  *  three prevention-shield shapes folded here. */
 function isPreventDamageMode(value: unknown): boolean {
@@ -2201,6 +2220,25 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             // CR 701.20a — public reveal of the looked-at window ("window") or
             // only the kept cards ("kept"); omit for a private look (CR 401.4).
             reveal: isRevealScope,
+        },
+    },
+    // CR 701.20a + CR 401.4 (issue #1364) — reveal a fixed top-N window once,
+    // keep at most ONE card per category out of that shared window, bottom the
+    // rest. Atraxa, Grand Unifier. `categories` is a non-empty ordered list of
+    // `{ label, filter }` pairs (the label is what the picker shows); the rest
+    // of the vocabulary is `digToHand`'s, with identical semantics.
+    revealAndCategorize: {
+        required: {
+            player: isPlayerRef,
+            look: isEffectValue,
+            categories: isPickCategoryList,
+        },
+        optional: {
+            optional: isBoolean,
+            destination: isLibraryDestination,
+            randomBottom: isBoolean,
+            reveal: isRevealScope,
+            prompt: isNonEmptyString,
         },
     },
     // CR 401.4 (issue #1046) — put N cards from a hand on top of a library,

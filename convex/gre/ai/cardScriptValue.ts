@@ -57,17 +57,42 @@ export function dslSpellScriptOpValue(
     ctx: GroundingContext = contextFreeGrounding()
 ): OpValue | undefined {
     const script = effectiveScript(def);
-    if (!script) return undefined;
-    return valueEffectScript(script, ctx);
+    if (script) return valueEffectScript(script, ctx);
+    return modesScriptOpValue(def, ctx);
+}
+
+/** A CAST-TIME modal spell (CR 601.2b–c / 700.2, `modes[]`) carries its
+ *  resolution in per-mode Effect Scripts, not in a card-level `effects[]` —
+ *  so the plain script reader above finds nothing. Value it the same way the
+ *  `optionChoice` walker values a resolution-time modal: worth its BEST mode,
+ *  since the chooser picks it (`opValuers.ts` `valueOp`). Modes authored as
+ *  `resolve()` closures contribute nothing (no script to walk); `undefined`
+ *  when NO mode carries a script, which keeps the `aiValue` / `base + MV`
+ *  fallback for a fully-imperative modal card. */
+function modesScriptOpValue(
+    def: CardDefinition,
+    ctx: GroundingContext
+): OpValue | undefined {
+    const modeScripts = (def.modes ?? [])
+        .map((mode) => effectiveScript(mode))
+        .filter((s): s is EffectOp[] => s !== undefined);
+    if (modeScripts.length === 0) return undefined;
+    let best: OpValue | undefined;
+    for (const script of modeScripts) {
+        const value = valueEffectScript(script, ctx);
+        if (!best || value.points > best.points) best = value;
+    }
+    return best;
 }
 
 /** The DSL spell-script value of a NON-CREATURE card (context-free): its real
  *  `effects[]` script if present, else its `aiEffects` shadow script (issue
  *  #1431) — either walked identically through `OP_VALUERS`. `undefined` when
  *  the card carries neither (a bare `resolve()` / `effect`-shorthand /
- *  legacy-`modes[]` card — those fall back to `aiValue`/`base + MV`; a DSL
- *  modal spell instead nests its modes in an `optionChoice` Op INSIDE
- *  `effects[]`, valued by the walker). */
+ *  `modes[]` card whose every mode is a `resolve()` closure — those fall back
+ *  to `aiValue`/`base + MV`). A modal spell is valued at its BEST mode either
+ *  way: a cast-time `modes[]` card via `modesScriptOpValue` below, a
+ *  resolution-time `optionChoice` Op via the walker. */
 export function dslSpellScriptValue(def: CardDefinition): number | undefined {
     return dslSpellScriptOpValue(def)?.points;
 }

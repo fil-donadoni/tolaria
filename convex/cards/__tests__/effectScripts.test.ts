@@ -17,7 +17,9 @@ import type { CardDefinition } from "../types";
 /** Every ability site (activated + triggered) on a card that can carry an
  *  Effect Script, tagged with the owning card's label (ADR 0045, issue #803).
  *  Modes carry their own per-mode resolution site; those are spell-site scripts
- *  validated by `validateEffectScript`, so they are not re-walked here. */
+ *  swept separately by `modeSites` below (a mode's script lives on
+ *  `mode.effects`, NOT on `card.effects`, so the card-level
+ *  `validateEffectScript` pass returns early and never reaches them). */
 function abilitySites(card: CardDefinition): {
     ability: { id: string; effects?: unknown };
     label: string;
@@ -50,6 +52,36 @@ function abilitySites(card: CardDefinition): {
     return [...activated, ...triggered];
 }
 
+/** Every cast-time MODE site (CR 700.2 / 601.2c `modes[]`) on a card that
+ *  carries an Effect Script, wrapped as a synthetic spell-site host so
+ *  `validateEffectScript` walks it: a mode resolves like a spell (no
+ *  `$source` permanent, no firing `$event`), and its `effects` are mutually
+ *  exclusive with the mode's own `resolve` — exactly the spell-site rules. */
+function modeSites(card: CardDefinition): {
+    host: CardDefinition;
+    label: string;
+    effects: unknown;
+}[] {
+    return (card.modes ?? [])
+        .filter((mode) => mode.effects !== undefined)
+        .map((mode) => ({
+            host: {
+                ...card,
+                id: `${card.id}#${mode.id}`,
+                name: `${card.name} mode "${mode.id}"`,
+                effects: mode.effects,
+                // The card-level authoring fields belong to the CARD, not to
+                // this mode — only the mode's own `resolve` would conflict.
+                resolve: mode.resolve,
+                resolveSteps: undefined,
+                effect: undefined,
+                modes: undefined,
+            } as CardDefinition,
+            label: `${card.name} (${card.id}) mode "${mode.id}"`,
+            effects: mode.effects,
+        }));
+}
+
 describe("Effect Script catalogue sweep (ADR 0045)", () => {
     const cards = getAllCards();
     const dslCards = cards.filter((c) => c.effects !== undefined);
@@ -71,6 +103,13 @@ describe("Effect Script catalogue sweep (ADR 0045)", () => {
                     s.triggerEventType
                 )
             )
+        );
+        expect(errors).toEqual([]);
+    });
+
+    it("every cast-time mode-site Effect Script passes validation (CR 700.2 modes[], issue #1274)", () => {
+        const errors = cards.flatMap((card) =>
+            modeSites(card).flatMap(({ host }) => validateEffectScript(host))
         );
         expect(errors).toEqual([]);
     });
@@ -110,6 +149,10 @@ describe("Effect Script catalogue sweep (ADR 0045)", () => {
     });
 
     it("the sweep is not vacuous — at least one DSL-only card at each site is in the catalogue", () => {
+        const modeDslOwners = cards
+            .filter((c) => modeSites(c).length > 0)
+            .map((c) => c.name);
+        expect(modeDslOwners).toContain("Sheoldred's Edict");
         expect(dslCards.length).toBeGreaterThanOrEqual(1);
         expect(dslCards.map((c) => c.name)).toContain("Lava Spike");
         // Ability sites (issue #803): a triggered and an activated DSL card.

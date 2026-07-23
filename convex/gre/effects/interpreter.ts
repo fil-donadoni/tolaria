@@ -94,6 +94,10 @@ import type {
 } from "../../cards/types";
 import type { LibraryDestination } from "../types";
 import { getEventFieldRow } from "../../cards/mechanicsRegistry";
+import {
+    categorizedEligibleIds,
+    maxCategorizedPicks,
+} from "../categorizedPick";
 
 type OpOf<K extends EffectOp["op"]> = Extract<EffectOp, { op: K }>;
 
@@ -2289,6 +2293,123 @@ export const OP_EXECUTORS: {
             playerId,
             topIds,
             pickSet,
+            randomBottom,
+            chosenBottom,
+            destination
+        );
+    },
+    // CR 701.20a + CR 401.4 (issue #1364) — reveal a fixed top-N window ONCE,
+    // keep AT MOST ONE card per category out of that single shared window, and
+    // send everything unkept to `destination`. Atraxa, Grand Unifier.
+    //
+    // Structurally `digToHand` with a categorized keep instead of a single
+    // filter+take, and it reuses digToHand's whole tail verbatim (the same
+    // `look-distribute` choice, the same `bottomLookedAtCards` split, the same
+    // reveal/markKnownToAll protocol) — only the ELIGIBILITY and the COUNT
+    // CEILING differ. The categories are resolved against the revealed window
+    // here (each `EffectCardFilter` → the matching revealed ids) and carried on
+    // the choice, so the client renders them and gates clicks through the same
+    // `categorizedPick` matching the submit path validates with. `count.max` is
+    // the maximum matching, NOT the category count: with ten revealed lands and
+    // eight categories only ONE card can be kept, and offering eight would be a
+    // pick that cannot be made (CR 608.2b).
+    revealAndCategorize(ctx, op) {
+        const playerId = resolvePlayerRef(ctx, op.player);
+        if (playerId === undefined) return; // CR 608.2b — player gone, skip
+        const look = resolveValue(ctx, op.look);
+        if (look === undefined || look <= 0) return;
+        const topIds = ctx.peekLibraryTop(playerId, look);
+        if (topIds.length === 0) return; // empty library — no look, no suspend
+        const randomBottom = op.randomBottom === true;
+        const destination = op.destination ?? "library-bottom";
+        // Resolve each category against the revealed window. A revealed card
+        // matching no category is never hand-eligible — it can only be sent to
+        // `destination` (the same role `digToHand`'s filtered-out cards play).
+        const byId = new Map(
+            ctx.getLibraryCards(playerId).map((c) => [c.id, c])
+        );
+        const categories = op.categories.map((category) => ({
+            label: category.label,
+            cardIds: topIds.filter((id) => {
+                const card = byId.get(id);
+                return (
+                    card !== undefined &&
+                    matchesCardFilter(ctx, card, category.filter)
+                );
+            }),
+        }));
+        const eligible = categorizedEligibleIds(categories);
+        const keep = maxCategorizedPicks(categories);
+        // Nothing keepable (no revealed card matched any category): no real
+        // choice — skip straight to the bottom/graveyard split rather than
+        // prompting an empty picker (the Arena auto-resolve default). The
+        // public reveal still fires, on this single-execution no-suspend path,
+        // so it never double-pops.
+        if (keep === 0) {
+            if (op.reveal === "window") {
+                ctx.notifyReveal(
+                    [...ctx.allPlayerIds],
+                    topIds,
+                    ctx.sourceCardId,
+                    "reveal"
+                );
+            }
+            bottomLookedAtCards(
+                ctx,
+                playerId,
+                topIds,
+                new Set(),
+                randomBottom,
+                [],
+                destination
+            );
+            return;
+        }
+        const picks = ctx.requestChoice({
+            playerId,
+            // Fixed choiceId, unique per Op position (the pipeline keys on
+            // `step:choiceId` and `step` IS this Op's checkpointed position).
+            choiceId: "reveal-categorize",
+            kind: "look-distribute",
+            zone: "library",
+            candidateIds: topIds,
+            eligibleIds: eligible,
+            categories,
+            // "You MAY put a card of that type" (Atraxa) — min 0. A mandatory
+            // categorize keeps as many as the matching allows.
+            count: { min: op.optional === true ? 0 : keep, max: keep },
+            destination,
+            randomizeRest: randomBottom ? true : undefined,
+            prompt:
+                op.prompt ??
+                "Put up to one card of each category into your hand.",
+        });
+        if (picks === undefined) return "suspend"; // enqueued — wait
+        // CR 701.20a, fired ONCE here on the resumed pass (everything above
+        // re-runs on resume, so a reveal placed there would double-pop). Only
+        // the KEPT cards get the persistent known-to-all grant — an unkept card
+        // heading to a random bottom must not stay leaked by a stale stamp.
+        if (op.reveal !== undefined && picks.length > 0) {
+            ctx.markKnownToAll(playerId, picks);
+        }
+        if (op.reveal !== undefined) {
+            ctx.notifyReveal(
+                [...ctx.allPlayerIds],
+                op.reveal === "window" ? topIds : picks,
+                ctx.sourceCardId,
+                "reveal"
+            );
+        }
+        for (const id of picks)
+            ctx.moveCardById(playerId, id, "library", "hand");
+        const chosenBottom = randomBottom
+            ? []
+            : ctx.readOrderedSecond("reveal-categorize");
+        bottomLookedAtCards(
+            ctx,
+            playerId,
+            topIds,
+            new Set(picks),
             randomBottom,
             chosenBottom,
             destination

@@ -17,10 +17,16 @@
 //
 // This guard encodes the invariant catalogue-wide so a regression (re-adding a
 // resolution-time mode pick to a modal spell) fails CI: every card whose oracle
-// text is a CR 700.2 modal MUST resolve its mode declaratively — the cast-time
-// `modes` framework, or the `optionChoice` DSL Op in `effects[]` (the accepted
-// same-target modal, explicitly out of scope for #1274) — never a bare
-// card-level `resolve()` / `resolveSteps`.
+// text is a CR 700.2 modal MUST pick its mode at CAST via the `modes`
+// framework — never a bare card-level `resolve()` / `resolveSteps`, and never
+// a card-level `optionChoice` DSL Op in `effects[]` either.
+//
+// The `optionChoice` carve-out is CLOSED (Sheoldred's Edict). It was first
+// allowed as a "same-target modal" narrowing, but it has the same defect as the
+// closure: `optionChoice` runs at RESOLUTION, so the spell still sits on the
+// stack with its mode hidden and the opponent still responds blind. The Op
+// itself stays legal everywhere else — an ability site, or a genuine
+// resolution-time sub-choice (CR 608.2) that is not a CR 700.2 mode.
 
 import { describe, it, expect } from "vitest";
 import { getAllCards } from "..";
@@ -46,19 +52,23 @@ describe("modal spells choose their mode at cast (issue #1274, CR 601.2b–c / 7
         expect(modalCards.length).toBeGreaterThan(5);
     });
 
-    it("no modal spell picks its mode via a resolution-time closure — it uses `modes` or the `optionChoice` DSL Op", () => {
-        const offenders = modalCards.filter((c) => {
-            const hasModes = Array.isArray(c.modes) && c.modes.length > 0;
-            const hasEffects = Array.isArray(c.effects) && c.effects.length > 0;
-            // A modal spell resolved declaratively (cast-time modes, or the
-            // optionChoice DSL Op in effects) is fine. A bare card-level
-            // resolve()/resolveSteps on a modal spell IS the bug — its only way
-            // to branch on a mode is a resolution-time requestOptionChoice.
-            return !hasModes && !hasEffects;
-        });
+    it("every modal spell picks its mode at cast via the `modes` framework", () => {
+        const offenders = modalCards.filter(
+            (c) => !Array.isArray(c.modes) || c.modes.length === 0
+        );
         expect(
             offenders.map((c) => c.name),
-            "modal spells must declare `modes` (cast-time, CR 601.2c) or use the optionChoice DSL Op — never a card-level resolve() that picks the mode at resolution"
+            "modal spells must declare `modes` (cast-time, CR 601.2c) — never a card-level resolve() or a card-level optionChoice Op, both of which pick the mode at resolution with the spell already on the stack"
+        ).toEqual([]);
+    });
+
+    it("no modal spell hides its mode behind a card-level `optionChoice` Op (resolution-time)", () => {
+        const offenders = modalCards.filter((c) =>
+            (c.effects ?? []).some((op) => op.op === "optionChoice")
+        );
+        expect(
+            offenders.map((c) => c.name),
+            "a CR 700.2 mode is chosen as the spell is cast (CR 601.2b) — move these modes onto the `modes` framework; optionChoice stays legal for ability sites and non-mode resolution-time sub-choices (CR 608.2)"
         ).toEqual([]);
     });
 
