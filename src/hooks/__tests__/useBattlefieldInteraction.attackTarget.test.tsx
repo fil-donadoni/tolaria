@@ -70,6 +70,10 @@ vi.mock("~/hooks/usePendingChoiceBuffer", () => ({
 
 // Import AFTER mocks are registered.
 import { useBattlefieldInteraction } from "../useBattlefieldInteraction";
+import {
+    AttackSequenceContext,
+    type AttackSequence,
+} from "~/hooks/useAttackSequence";
 
 function creature(overrides: Partial<CardInstance> = {}): CardInstance {
     return {
@@ -181,5 +185,97 @@ describe("useBattlefieldInteraction — attack a planeswalker (#1220, CR 508.1a)
 
         result.current.handleClick(pw);
         expect(toggleAttacker).not.toHaveBeenCalled();
+    });
+});
+
+// "Attack with all" destination sequence (design 2026-07-23) — while the
+// sequence is active, a planeswalker click targets the CURRENT sequence
+// attacker (not the last-declared heuristic) and advances the cursor.
+describe("useBattlefieldInteraction — attack-with-all sequence routing", () => {
+    beforeEach(() => toggleAttacker.mockClear());
+
+    function seq(overrides: Partial<AttackSequence> = {}): AttackSequence {
+        return {
+            active: true,
+            order: ["atk1", "atk2"],
+            index: 0,
+            currentAttackerId: "atk1",
+            begin: vi.fn(),
+            advance: vi.fn(),
+            reset: vi.fn(),
+            ...overrides,
+        };
+    }
+
+    function renderWithSequence(
+        me: Player,
+        opp: Player,
+        s: AttackSequence,
+        combatOverrides: Record<string, unknown> = {}
+    ) {
+        const ctx = {
+            gameId: "game-id",
+            playerId: "me",
+            activePlayerId: "me",
+            priorityPlayerId: "me",
+            phase: "DECLARE_ATTACKERS",
+            turn: 1,
+            stackCount: 0,
+            allPlayers: [me, opp],
+            showAllCards: false,
+            debugAllActions: false,
+            combat: {
+                attackerIds: ["atk1", "atk2"],
+                confirmed: false,
+                blockerAssignments: {},
+                blockersConfirmed: false,
+                ...combatOverrides,
+            },
+        } as unknown as NonNullable<React.ContextType<typeof GameContext>>;
+        const wrapper = ({ children }: { children: ReactNode }) => (
+            <GameContext value={ctx}>
+                <AttackSequenceContext value={s}>
+                    {children}
+                </AttackSequenceContext>
+            </GameContext>
+        );
+        return renderHook(() => useBattlefieldInteraction(opp), { wrapper });
+    }
+
+    it("targets the current sequence attacker and advances", () => {
+        const pw = planeswalker();
+        const me = player("me", []);
+        const opp = player("opp", [pw]);
+        const s = seq({ index: 1, currentAttackerId: "atk2" });
+        const { result } = renderWithSequence(me, opp, s);
+
+        result.current.handleClick(pw);
+
+        expect(toggleAttacker).toHaveBeenCalledWith({
+            gameId: "game-id",
+            playerId: "me",
+            cardInstanceId: "atk2",
+            planeswalkerId: "pw1",
+        });
+        expect(s.advance).toHaveBeenCalledTimes(1);
+    });
+
+    it("does NOT re-toggle an attacker already on that planeswalker (would de-target it)", () => {
+        // The server reads a repeat `planeswalkerId` for an attacker already
+        // attacking that planeswalker as a toggle-OFF back to the defending
+        // player. Confirming the existing target mid-sequence must be a no-op
+        // mutation — but must still advance the cursor.
+        const pw = planeswalker();
+        const me = player("me", []);
+        const opp = player("opp", [pw]);
+        const s = seq({ index: 0, currentAttackerId: "atk1" });
+        const { result } = renderWithSequence(me, opp, s, {
+            attackTargets: { atk1: "pw1" },
+        });
+
+        result.current.handleClick(pw);
+
+        expect(toggleAttacker).not.toHaveBeenCalled();
+        expect(s.advance).toHaveBeenCalledTimes(1);
     });
 });

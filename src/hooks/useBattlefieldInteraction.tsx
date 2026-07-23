@@ -3,6 +3,7 @@ import type { CardInstance, Player } from "~/types/game";
 import type { ManaCost } from "~/types/cards";
 import { useGameContext } from "~/hooks/useGameContext";
 import { usePendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
+import { useAttackSequence } from "~/hooks/useAttackSequence";
 import { useBattlefieldVisualState } from "~/hooks/useBattlefieldVisualState";
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
@@ -124,6 +125,7 @@ export function useBattlefieldInteraction(player: Player) {
     const activateAbility = useMutation(api.game.activateAbility);
     const activateManaAbility = useMutation(api.game.activateManaAbility);
     const bufferCtx = usePendingChoiceBuffer();
+    const attackSequence = useAttackSequence();
 
     // Board-coupled visual state (combat rings, tap, damage, legal-target
     // highlight) and the interaction predicate live in the shared visual-state
@@ -452,23 +454,38 @@ export function useBattlefieldInteraction(player: Player) {
         }
         if (isAttackTargetBoard && isPlaneswalker(card)) {
             // CR 508.1a (issue #1220) — direct a declared attacker at this
-            // planeswalker. Pick the most-recently declared attacker not already
-            // attacking it (retargeting from the player or another planeswalker);
-            // repeated clicks pile attackers onto the planeswalker. Re-declaring
-            // the attacker on the own board sends it back to the player.
+            // planeswalker. During the "Attack with all" destination sequence
+            // (design 2026-07-23) the attacker is the one the cursor is on;
+            // after retargeting, advance to the next attacker. Outside the
+            // sequence, pick the most-recently declared attacker not already
+            // attacking it (retargeting from the player or another
+            // planeswalker); repeated clicks pile attackers onto the
+            // planeswalker.
             const targets = combat?.attackTargets ?? {};
-            const attackerId = [...(combat?.attackerIds ?? [])]
-                .reverse()
-                .find((id) => targets[id] !== card.id);
+            const attackerId = attackSequence.active
+                ? attackSequence.currentAttackerId
+                : [...(combat?.attackerIds ?? [])]
+                      .reverse()
+                      .find((id) => targets[id] !== card.id);
             if (!attackerId) return;
-            guardMutation(
-                toggleAttacker({
-                    gameId,
-                    playerId,
-                    cardInstanceId: attackerId,
-                    planeswalkerId: card.id,
-                })
-            );
+            // The server treats a repeat `planeswalkerId` for an attacker
+            // ALREADY on that planeswalker as a toggle-OFF (target reverts to
+            // the defending player). Mid-sequence that would silently undo the
+            // very choice the click expresses — reachable when the attacker was
+            // manually pointed at this planeswalker before "Attack with all".
+            // Confirming the existing target is a no-op mutation, then advance.
+            const alreadyOnThisPw = targets[attackerId] === card.id;
+            if (!alreadyOnThisPw) {
+                guardMutation(
+                    toggleAttacker({
+                        gameId,
+                        playerId,
+                        cardInstanceId: attackerId,
+                        planeswalkerId: card.id,
+                    })
+                );
+            }
+            if (attackSequence.active) attackSequence.advance();
             return;
         }
         if (isSelectingBlockers && isCreature(card)) {

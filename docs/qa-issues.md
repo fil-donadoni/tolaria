@@ -62,3 +62,5 @@ Fable of the mirror-breaker
 
 - casta wild growth su terra avversaria
 - cerca di tappare per mana un everflowing chalice senza counters e continua a fallire nel castare una spell, rinunciando.
+- continua a castare vision charm con la mode di cambio tipo terra base, senza motivo
+- casta flash of insight con X = 0, inutile

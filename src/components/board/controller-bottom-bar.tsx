@@ -7,6 +7,7 @@ import { Button } from "~/components/ui/button";
 import ActionButton from "./action-button";
 import ControllerPhaseSheet from "./controller-phase-sheet";
 import PauseMenuButton from "./pause-menu-button";
+import AttackAllConfirmDialog from "./attack-all-confirm-dialog";
 
 /** Portrait controller (#335). On a narrow portrait viewport the desktop
  *  right-edge pod collapses to this FIXED BOTTOM ACTION BAR: a current-phase
@@ -25,7 +26,7 @@ export default function ControllerBottomBar({
     onOpenMenu: () => void;
 }) {
     const { phase, turn, activePlayerId, playerId } = useGameContext();
-    const { cue, actions } = useControllerActions();
+    const { cue, actions, attackAllConfirm } = useControllerActions();
     const [sheetOpen, setSheetOpen] = useState(false);
 
     const isMyTurn = activePlayerId === playerId;
@@ -123,6 +124,8 @@ export default function ControllerBottomBar({
             {sheetOpen && (
                 <ControllerPhaseSheet onClose={() => setSheetOpen(false)} />
             )}
+
+            <AttackAllConfirmDialog confirm={attackAllConfirm} />
         </>
     );
 }
