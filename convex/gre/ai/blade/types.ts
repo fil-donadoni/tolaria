@@ -106,7 +106,28 @@ export type BladeSetupStep =
     | { kind: "etb-trigger"; card: string; controller?: BladeSeat }
     /** Resolve the top of the stack through the real `resolveTopOfStack`
      *  (CR 608). Throws on an empty stack. */
-    | { kind: "resolve-top" };
+    | { kind: "resolve-top" }
+    /** Activate the named battlefield permanent's activated ability through
+     *  the REAL activation path (`activateAbilityOnState`, `convex/game.ts` —
+     *  the exact function the `activateAbility` mutation calls), so every
+     *  legality check and every cost is the one a live game applies (CR 602).
+     *  The ability ends up on the stack UNRESOLVED; pair it with a
+     *  `resolve-top` step to reach the decision its resolution opens (a
+     *  fetchland's live search-library choice, CR 701.19).
+     *
+     *  `ability` names the ability id and may be omitted when the card has
+     *  exactly one stack-using activated ability. Throws when the name matches
+     *  no (or more than one) battlefield permanent, when the ability id is
+     *  ambiguous or unknown, when the real path rejects the activation, and
+     *  when the activation does not reach the stack (an ability whose costs
+     *  need further input — mana payment, a cost choice, target selection —
+     *  is not a position `setup` can walk forward on its own). */
+    | {
+          kind: "activate";
+          card: string;
+          ability?: string;
+          controller?: BladeSeat;
+      };
 
 /**
  * Why a blade entry only passes ABOVE its declared budget (ADR 0070 §2).

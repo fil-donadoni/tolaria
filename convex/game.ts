@@ -9636,6 +9636,623 @@ export const exileFromLibrary = mutation({
     },
 });
 
+/**
+ * The PURE activation path (CR 602 — activating an activated ability), lifted
+ * verbatim out of the `activateAbility` mutation below so it can be driven
+ * WITHOUT a Convex `ctx`: the blade suite's engine-real `setup` steps need to
+ * reach a position whose pending decision is produced by a real activation
+ * (ADR 0070 §4 — a fetchland's live search-library choice), and a hand-built
+ * approximation of that path is exactly the silent-divergence class the ADR
+ * rejects.
+ *
+ * THE MUTATION CALLS THIS FUNCTION — there is no second copy. Everything the
+ * mutation still owns is I/O: fetch the row, clone the state, persist. Every
+ * legality check, every cost payment, every stack push lives here.
+ *
+ * Mutates `state` in place. The three former early-return points (targeted
+ * ability → `pendingTarget`; deferred payment → `pendingActivation`; committed
+ * → stack) all persisted the SAME `seq + 1` snapshot, so collapsing them into
+ * a plain `return` costs nothing: the caller saves once, whichever way it
+ * returned. Throws on any illegal activation, exactly as before.
+ */
+export function activateAbilityOnState(
+    state: GameState,
+    args: {
+        playerId: string;
+        cardInstanceId: string;
+        abilityId: string;
+        /** If true, the activator keeps priority after the ability hits the stack. */
+        keepPriority?: boolean;
+        /** Value chosen for X at activation time (CR 107.3 / 601.2b). */
+        chosenX?: number;
+    }
+): void {
+    assertGameNotOver(state);
+    assertExpectedInput(state, {
+        playerId: args.playerId,
+        expect: "priority",
+    });
+    assertNoPendingChoices(state);
+
+    if (state.priorityPlayerId !== args.playerId) {
+        throw new Error("You don't have priority");
+    }
+    if (state.pendingCast) {
+        throw new Error("Another spell is already being cast");
+    }
+    if (state.pendingActivation) {
+        throw new Error("Another ability is already being activated");
+    }
+
+    const player = getPlayer(state, args.playerId);
+    // CR 602.1 — by default only the source's controller activates an
+    // activated ability, so look on the activator's own battlefield first.
+    // For "any player may activate" abilities (CR 113.3c, Ifh-Bíff Efreet)
+    // the source can live on another player's battlefield; fall back to a
+    // global search and gate it on the resolved ability's flag below.
+    let card = player.battlefield.find((c) => c.id === args.cardInstanceId);
+    if (!card) {
+        for (const p of state.players) {
+            const found = p.battlefield.find(
+                (c) => c.id === args.cardInstanceId
+            );
+            if (found) {
+                card = found;
+                break;
+            }
+        }
+    }
+    // CR 113.6 / 602.5b — a graveyard-source activated ability (Ashen
+    // Ghoul's `activateFromGraveyard`). When the source is on no
+    // battlefield, look for it in a graveyard; the `activateFromGraveyard`
+    // flag on the resolved ability gates whether it may be activated there.
+    let fromGraveyard = false;
+    if (!card) {
+        for (const p of state.players) {
+            const found = p.graveyard.find((c) => c.id === args.cardInstanceId);
+            if (found) {
+                card = found;
+                fromGraveyard = true;
+                break;
+            }
+        }
+    }
+    // CR 113.6 / 702.29a — a hand-source activated ability (Cycling's
+    // `activateFromHand`). When the source is on no battlefield and in no
+    // graveyard, look for it in a hand; the `activateFromHand` flag on the
+    // resolved ability gates whether it may be activated there. Only the
+    // owner's OWN hand is searched (a card is never in an opponent's hand
+    // from this player's perspective, and CR 702.29a scopes it to "your
+    // hand").
+    let fromHand = false;
+    if (!card) {
+        const found = player.hand.find((c) => c.id === args.cardInstanceId);
+        if (found) {
+            card = found;
+            fromHand = true;
+        }
+    }
+    if (!card) throw new Error("Card not on battlefield");
+
+    const cardId = (card.card as { id?: string }).id;
+    if (!cardId) throw new Error("Card has no definition");
+
+    const resolved = resolveActivatedAbility(card, args.abilityId);
+    if (!resolved) throw new Error("Ability not found");
+    const ability = resolved.ability;
+    // CR 113.6 — the source is in a graveyard: legal only for an ability
+    // that opts in via `activateFromGraveyard`, and only its owner may
+    // activate it (CR 602.1 — "from YOUR graveyard"). The battlefield
+    // controller-only checks below are skipped for this branch.
+    if (fromGraveyard) {
+        if (!ability.activateFromGraveyard) {
+            throw new Error(
+                "This ability can't be activated from the graveyard"
+            );
+        }
+        if (card.ownerId !== args.playerId) {
+            throw new Error("You do not own this card");
+        }
+    } else if (fromHand) {
+        // CR 113.6 / 702.29a — the source is in a hand: legal only for an
+        // ability that opts in via `activateFromHand` (Cycling), and only
+        // its owner may activate it (CR 702.29a — "from your hand"). The
+        // battlefield controller-only checks below are skipped.
+        if (!ability.activateFromHand) {
+            throw new Error("This ability can't be activated from your hand");
+        }
+        if (card.ownerId !== args.playerId) {
+            throw new Error("You do not own this card");
+        }
+    } else if (ability.activateFromHand || ability.activateFromGraveyard) {
+        // CR 113.6 / 702.29a — the source was located on the battlefield
+        // (neither `fromHand` nor `fromGraveyard`), but this ability
+        // functions ONLY from the hand (Cycling) or graveyard (Ashen
+        // Ghoul). A permanent can never pay its discard-this / graveyard
+        // cost, so activating it here is illegal — reject before any cost
+        // is locked. The client already omits it from the battlefield menu
+        // (`getStackAbilities`); this is the authoritative backstop.
+        throw new Error("This ability can't be activated from the battlefield");
+    } else if (ability.activatableByEnchantedController) {
+        // CR 602.1 — "Only the controller of the enchanted creature may
+        // activate this ability" (FEM Merseine). The Aura's host decides
+        // who may activate, regardless of who controls the Aura.
+        const hostId = card.attachedTo;
+        const host = hostId
+            ? state.players
+                  .flatMap((p) => p.battlefield)
+                  .find((c) => c.id === hostId)
+            : undefined;
+        if (!host || host.controllerId !== args.playerId) {
+            throw new Error(
+                "Only the controller of the enchanted creature may activate this ability"
+            );
+        }
+    } else if (ability.activatableByOpponentsOnly) {
+        if (card.controllerId === args.playerId) {
+            throw new Error("Only your opponents may activate this ability");
+        }
+    } else if (
+        // CR 602.1 — enforce the controller-only default unless the ability
+        // is explicitly "any player may activate". `card.controllerId` is
+        // the source's controller; only that player may activate otherwise.
+        !ability.activatableByAnyPlayer &&
+        card.controllerId !== args.playerId
+    ) {
+        throw new Error("You do not control this permanent");
+    }
+    const grantedSourceCardId = resolved.grantedSourceCardId;
+    if (!ability.useStack) {
+        throw new Error("Use tapUntap for mana abilities");
+    }
+    // CR 602.1 / 605.1a (issue #1124) — a turn-scoped "can't activate
+    // abilities that aren't mana abilities" lock (Abeyance). Every ability
+    // reaching this point is non-mana (the check above already rejected
+    // `useStack: false`), so no separate mana-ability exemption is needed.
+    if (state.cannotActivateAbilitiesThisTurn?.includes(args.playerId)) {
+        throw new Error(
+            "You can't activate abilities that aren't mana abilities this turn"
+        );
+    }
+    // CR 602.5 — phase-restricted activated abilities ("activate only
+    // during combat" etc.) are illegal outside their declared phase
+    // allow-list. Mirrors spell-level `castPhaseRestriction`.
+    if (
+        ability.activationPhaseRestriction &&
+        !ability.activationPhaseRestriction.includes(state.phase)
+    ) {
+        throw new Error("Ability cannot be activated during this phase");
+    }
+
+    // CR 602.2b: if the ability has targets, choose them before paying
+    // costs. Mana availability is deferred to finalizeTargetSelection
+    // (which enters pendingActivation when the pool doesn't cover the
+    // cost — mirrors the spell announceCast flow).
+    const baseTargetReq = ability.getTargetRequirement
+        ? ability.getTargetRequirement(card, state)
+        : ability.targetRequirement;
+    // CR 612.6 — a color-targeted ability follows its source's active
+    // color-word changes (Sleight of Mind on a Circle of Protection
+    // retargets its "<color> source of your choice"). The substituted
+    // filter flows into both getLegalTargets and the stored pendingTarget.
+    const effectiveTargetReq =
+        baseTargetReq && baseTargetReq.colorFilter !== undefined
+            ? {
+                  ...baseTargetReq,
+                  colorFilter: substituteColorFilter(
+                      card,
+                      baseTargetReq.colorFilter
+                  ),
+              }
+            : baseTargetReq;
+    if (effectiveTargetReq) {
+        if (state.pendingTarget) {
+            throw new Error("Target selection is in progress");
+        }
+        if (ability.cost.tap && card.isTapped) {
+            throw new Error("Card is already tapped");
+        }
+        // CR 302.1 — creatures with summoning sickness cannot pay a {T}
+        // cost on an activated ability (mana or otherwise).
+        if (ability.cost.tap && isTapLockedBySummoningSickness(card)) {
+            throw new Error("Creature has summoning sickness");
+        }
+        if (ability.cost.removeCounter) {
+            const have = card.counters?.[ability.cost.removeCounter.type] ?? 0;
+            if (have < ability.cost.removeCounter.count) {
+                throw new Error("Not enough counters to pay activation cost");
+            }
+        }
+        // CR 118.4 — a life-payment cost is illegal unless the player has
+        // at least that much life. Validated up-front on the targeted path
+        // too, before entering pendingTarget.
+        if (
+            ability.cost.life !== undefined &&
+            player.life < ability.cost.life
+        ) {
+            throw new Error("Not enough life");
+        }
+        if (
+            ability.canActivate !== undefined &&
+            !ability.canActivate(card, state)
+        ) {
+            throw new Error("Ability cannot be activated right now");
+        }
+        // CR 606 — a targeted loyalty ability (Liliana of the Veil's "-2:
+        // target player sacrifices a creature") is validated up-front, before
+        // entering target selection, so an illegal loyalty ability never
+        // opens a target prompt. Paid later at `finalizeTargetSelection`.
+        assertLoyaltyActivationLegal(state, card, ability);
+        // CR 107.3 / 601.2b — chosenX must accompany abilities with X in
+        // their mana cost. Stashed on pendingTarget; finalizeTargetSelection
+        // forwards it to pendingActivation / the stack item.
+        const targetHasXInCost =
+            ability.cost.mana?.X !== undefined &&
+            typeof ability.cost.mana.X === "string";
+        // CR 107.3 — Reflecting Mirror derives X from the targeted spell's
+        // mana value rather than letting the player choose it. The value
+        // can only be computed once the spell target is known, so it is
+        // resolved in finalizeTargetSelection, not here.
+        const xIsDerived = ability.cost.xFromTargetSpellMv !== undefined;
+        if (
+            targetHasXInCost &&
+            !xIsDerived &&
+            (args.chosenX === undefined || args.chosenX < 0)
+        ) {
+            throw new Error("This ability requires a chosen X value");
+        }
+        const targetChosenX =
+            targetHasXInCost && !xIsDerived ? args.chosenX : undefined;
+        // CR 202.2 / 702.16b: the source's colors come from the
+        // permanent owning the activated ability.
+        const abilitySourceColors = STATIC_EFFECT_CTX.getColors(card);
+        const legal = getLegalTargets(
+            state,
+            effectiveTargetReq,
+            abilitySourceColors,
+            args.playerId,
+            targetChosenX,
+            card.types,
+            card.subtypes,
+            // Source is an activated ability, not a spell (CR 113.3).
+            false
+        );
+        if (legal.length === 0) {
+            throw new Error("No legal targets available");
+        }
+        let abilityCount = resolveTargetCount(
+            effectiveTargetReq.count,
+            targetChosenX
+        );
+        // CR 601.2d / 120.4 — divide-as-you-choose budget for an activated
+        // ability (Arc Mage). Mirrors the spell-cast path: resolve the total
+        // against the chosen X, cap an open-ended `{ min }` count at the
+        // total (each target needs ≥ 1 point), and carry the total on
+        // pendingTarget so the client drives the per-target stepper UI.
+        const abilityDivideTotal = effectiveTargetReq.divideAsChosen
+            ? resolveDivideTotal(
+                  effectiveTargetReq.divideAsChosen.total,
+                  targetChosenX
+              )
+            : undefined;
+        if (
+            abilityDivideTotal !== undefined &&
+            typeof abilityCount === "object" &&
+            abilityCount.max === undefined
+        ) {
+            abilityCount = {
+                min: abilityCount.min,
+                max: abilityDivideTotal,
+            };
+        }
+        state.pendingTarget = {
+            playerId: args.playerId,
+            cardInstanceId: card.id,
+            targetType: effectiveTargetReq.type,
+            count: abilityCount,
+            selected: [],
+            keepPriority: args.keepPriority,
+            kind: "ability",
+            abilityId: args.abilityId,
+            ...(abilityDivideTotal !== undefined
+                ? { divideTotal: abilityDivideTotal }
+                : {}),
+            ...(targetChosenX !== undefined ? { chosenX: targetChosenX } : {}),
+            ...(grantedSourceCardId ? { grantedSourceCardId } : {}),
+            // Same shared filter builder as the spell-cast path
+            // (`pendingTargetFiltersFromRequirement`), so the three
+            // pending-target builders can never drift (CR 601.2c) — this
+            // includes `spellStackKind` for a "counter target ability"
+            // activated ability (CR 113 / 701.5a).
+            ...pendingTargetFiltersFromRequirement(
+                effectiveTargetReq,
+                targetChosenX
+            ),
+        };
+
+        return;
+    }
+
+    // Pay costs (CR 602.1). Up-front checks before we mutate anything:
+    if (ability.cost.tap && card.isTapped) {
+        throw new Error("Card is already tapped");
+    }
+    // CR 302.1 — creatures with summoning sickness cannot pay a {T} cost.
+    if (ability.cost.tap && isTapLockedBySummoningSickness(card)) {
+        throw new Error("Creature has summoning sickness");
+    }
+    // CR 122.6 — counter-removal cost: source must have enough counters
+    // of the declared type. Validated up-front so we never enter a
+    // pendingActivation that can't be paid.
+    if (ability.cost.removeCounter) {
+        const have = card.counters?.[ability.cost.removeCounter.type] ?? 0;
+        if (have < ability.cost.removeCounter.count) {
+            throw new Error("Not enough counters to pay activation cost");
+        }
+    }
+    // CR 118.3 — "discard the last card you drew this turn" additional
+    // cost (Jandor's Ring): the player must have drawn a card this turn
+    // that is still in hand. Validated up-front so we never enter a
+    // pendingActivation that can't be paid.
+    if (ability.cost.discardLastDrawn && !canPayDiscardLastDrawn(player)) {
+        throw new Error("No card drawn this turn left to discard");
+    }
+    // CR 118.3 — "discard a card at random" cost (Coral Helm): illegal with
+    // an empty hand. Validated up-front.
+    if (ability.cost.discardAtRandom && player.hand.length === 0) {
+        throw new Error("No card in hand to discard");
+    }
+    // CR 602.1 / 118.3 — "discard a card matching <filter>" cost
+    // (Survival of the Fittest): illegal unless at least `count` matching
+    // cards are in the activating player's hand. Validated up-front so we
+    // never enter a pendingActivation that can't be paid.
+    if (ability.cost.discardFilter) {
+        const candidates = player.hand.filter((c) =>
+            handCardMatchesFilter(c, ability.cost.discardFilter!.filter)
+        );
+        if (candidates.length < ability.cost.discardFilter.count) {
+            throw new Error(
+                "Not enough matching cards in hand to pay the discard cost"
+            );
+        }
+    }
+    // CR 118.4 — a life-payment cost is illegal unless the player has at
+    // least that much life. Validated up-front so we never enter a
+    // pendingActivation that can't be paid (fetch lands: {T}, Pay 1 life,
+    // Sacrifice — the life leg was previously unpaid on the stack path).
+    if (ability.cost.life !== undefined && player.life < ability.cost.life) {
+        throw new Error("Not enough life");
+    }
+    // CR 602.1 / 118.5 — "sacrifice a permanent matching <filter>": the
+    // activation is illegal if no matching permanent is on the activating
+    // player's battlefield. Validated up-front so we never enter a
+    // pendingActivation that can't be paid.
+    if (ability.cost.sacrificeFilter) {
+        const candidates = player.battlefield.filter((c) =>
+            matchesPermanentFilter(c, ability.cost.sacrificeFilter!, {
+                supertypesOf: liveSupertypesOf,
+            })
+        );
+        if (candidates.length === 0) {
+            throw new Error("No legal permanent to pay the sacrifice cost");
+        }
+    }
+    // CR 602.1 / 118.5 — "exile N cards from a single graveyard" (Night
+    // Soil): illegal unless one graveyard holds enough matching cards.
+    // Validated up-front so we never enter an unpayable pendingActivation.
+    if (ability.cost.exileFromGraveyard) {
+        const { count, cardType, owner } = ability.cost.exileFromGraveyard;
+        if (
+            !canPayExileFromGraveyard(
+                state,
+                count,
+                cardType,
+                owner === "you" ? player.id : undefined
+            )
+        ) {
+            throw new Error(
+                "No single graveyard has enough cards to pay the exile cost"
+            );
+        }
+    }
+    // CR 602.1 / 118.8 — "tap N untapped permanents matching <filter> you
+    // control": illegal unless at least N matching untapped permanents
+    // (other than the source) are available.
+    if (ability.cost.tapOtherFilter) {
+        const candidates = tapOtherCandidates(
+            player,
+            card.id,
+            ability.cost.tapOtherFilter.filter
+        );
+        if (candidates.length < ability.cost.tapOtherFilter.count) {
+            throw new Error(
+                "Not enough untapped permanents to pay the tap cost"
+            );
+        }
+    }
+    // CR 602.5 — activated abilities may declare a custom precondition
+    // (e.g. Clockwork Beast: "Activate only if it has fewer than seven
+    // +1/+0 counters on it.") read against current source state.
+    if (
+        ability.canActivate !== undefined &&
+        !ability.canActivate(card, state)
+    ) {
+        throw new Error("Ability cannot be activated right now");
+    }
+    assertActivationTimingLegal(state, card, ability);
+    // CR 606 — a non-targeted loyalty ability (Liliana's "+1", Garruk's
+    // "-4") is validated up-front here; it has no mana/tap/sacrifice
+    // component, so it commits inline below (paid via `payLoyaltyCost`).
+    assertLoyaltyActivationLegal(state, card, ability);
+    // CR 107.3 / 601.2b — chosenX is required for abilities whose mana
+    // cost has X. Validate up-front; pass to normalizeManaCost so the
+    // generic portion includes X * (the chosen value).
+    const hasXInCost =
+        ability.cost.mana?.X !== undefined &&
+        typeof ability.cost.mana.X === "string";
+    if (hasXInCost && (args.chosenX === undefined || args.chosenX < 0)) {
+        throw new Error("This ability requires a chosen X value");
+    }
+    const chosenX = hasXInCost ? args.chosenX : undefined;
+    const manaCost = resolveAbilityManaCost(state, card, ability, {
+        chosenX,
+    });
+    if (manaCost) {
+        applyCostModifiers(manaCost, getCostModifiers(state, card, "ability"));
+    }
+    // CR 601.2f / 118.5 — board-wide static NON-mana additional cost
+    // (Drought). Gate on affordability at announcement; pip count comes from
+    // the ability's PRINTED activation cost.
+    assertStaticAdditionalCostAffordable(
+        state,
+        ability.cost.mana,
+        card,
+        player,
+        "ability"
+    );
+
+    // Enter a pendingActivation payment phase that mirrors pendingCast
+    // when (a) mana isn't yet covered, OR (b) the ability has a
+    // sacrifice-a-filtered-permanent cost that still needs a choice
+    // (CR 602.1 / 118.5). In the payment phase the player taps lands and
+    // picks the sacrifice (selectActivationCost); auto-commit applies the
+    // deferred tap/sacrifice and pushes the ability on the stack.
+    // Tap/sacrifice are DEFERRED so cancel leaves the source untouched.
+    const manaUncovered =
+        !!manaCost &&
+        !isManaCostCovered(
+            player.manaPool,
+            manaCost,
+            getManaSubstitutions(state, player.id)
+        );
+    // CR 602.1 / 118.5 / 701.21a — unified filtered sacrifice (own cost +
+    // Drought). A non-fungible board defers so the player chooses; a
+    // fungible board auto-resolves and commits inline.
+    const activationSac = buildActivationSacrificeSelection(
+        state,
+        ability,
+        card,
+        player,
+        tryGetDefinition((card.card as { id?: string }).id ?? "")?.name ??
+            "Sacrifice"
+    );
+    const needsSacrificeChoice =
+        !!activationSac && !isSacrificeSelectionComplete(activationSac);
+    const needsExileChoice = !!ability.cost.exileFromGraveyard;
+    const needsTapOtherChoice = !!ability.cost.tapOtherFilter;
+    const needsDiscardChoice = !!ability.cost.discardFilter;
+    if (
+        manaUncovered ||
+        needsSacrificeChoice ||
+        needsExileChoice ||
+        needsTapOtherChoice ||
+        needsDiscardChoice
+    ) {
+        const pending = buildPendingActivation({
+            playerId: args.playerId,
+            cardInstanceId: card.id,
+            abilityId: args.abilityId,
+            ability,
+            manaCost,
+            chosenX,
+            keepPriority: args.keepPriority,
+            grantedSourceCardId,
+            fromGraveyard,
+            fromHand,
+            ...(activationSac ? { sacrificeSelection: activationSac } : {}),
+        });
+        state.pendingActivation = pending;
+        // CR 302.1 — a {T}-cost ability still needs the source untapped at
+        // commit; deferral keeps it untapped now, so re-check at commit.
+        // When mana is already covered and the source has a {T} cost but no
+        // sacrifice choice, this branch isn't reached (mana covered path).
+        // tryAutoCommitPendingActivation handles the eventual commit (after
+        // the sacrifice pick) including when mana is already covered.
+        tryAutoCommitPendingActivation(state, args.playerId);
+
+        return;
+    }
+
+    // Mana already covered (or no mana cost) — commit immediately.
+    if (ability.cost.tap) {
+        card.isTapped = true;
+    }
+    // CR 106.10 — noted-mana battery (Jeweled Amulet / Ice Cauldron):
+    // snapshot the pool before payment so the per-colour delta becomes the
+    // mana noted on the source at resolve (mirrors the deferred-commit and
+    // targeted-ability paths).
+    const poolBeforePayment =
+        ability.noteManaSpent && manaCost ? { ...player.manaPool } : undefined;
+    if (manaCost) {
+        payManaCost(
+            player.manaPool,
+            manaCost,
+            getManaSubstitutions(state, player.id)
+        );
+        commitLandsForCost(player, manaCost);
+    }
+    const notedManaSpent = poolBeforePayment
+        ? manaSpentDelta(poolBeforePayment, player.manaPool)
+        : undefined;
+    if (ability.cost.removeCounter) {
+        payRemoveCounterCost(card, ability.cost.removeCounter);
+    }
+    if (ability.cost.discardLastDrawn) {
+        payDiscardLastDrawn(state, player);
+    }
+    if (ability.cost.discardAtRandom) {
+        payDiscardAtRandomCost(state, player.id, ability.cost.discardAtRandom);
+    }
+    // CR 118.4 — pay the life cost (fetch lands: "Pay 1 life"). Validated
+    // up-front; deducted here as the ability goes on the stack.
+    if (ability.cost.life !== undefined) {
+        player.life -= ability.cost.life;
+    }
+    // CR 606.5 — pay a non-targeted loyalty ability's signed loyalty cost as
+    // it goes on the stack (Liliana's "+1", Garruk's "-4"). No-op otherwise.
+    payLoyaltyCost(card, ability);
+    if (ability.cost.sacrifice) {
+        removePermanentTo(state, card.id, "graveyard", "sacrifice");
+    }
+    // CR 702.29a / 118.3 — the Cycling "Discard this card" cost: discard the
+    // source from hand as the ability commits, routed through the shared
+    // choke point so CARD_DISCARDED fires (Marauding Mako). Runs BEFORE the
+    // stack-item clone below (the card object persists after the move).
+    if (ability.cost.discardThis) {
+        discardToGraveyard(state, player.id, card.id);
+    }
+    // CR 601.2f / 118.5 / 701.21a — apply the auto-resolved filtered
+    // sacrifice (Drought / fungible own cost) as the ability commits.
+    const immediateSacSnapshot = sacrificeSnapshotFromSelection(
+        activationSac,
+        state
+    );
+
+    // Put ability on stack (clone card state as a virtual stack item)
+    const stackItem: StackItem = {
+        ...structuredClone(card),
+        zone: "stack" as const,
+        castById: args.playerId,
+        abilityId: args.abilityId,
+        ...(chosenX !== undefined ? { chosenX } : {}),
+        ...(grantedSourceCardId ? { grantedSourceCardId } : {}),
+        ...(immediateSacSnapshot
+            ? { additionalSacrificeSnapshot: immediateSacSnapshot }
+            : {}),
+        ...(notedManaSpent ? { notedManaSpent } : {}),
+    };
+    state.stack.push(stackItem);
+    recordActivation(state, card, args.abilityId, !!ability.cost.tap);
+    state.passCount = 0;
+    state.priorityPlayerId = getOpponentId(state, args.playerId);
+    state.singleShotAutoPass = args.keepPriority ? undefined : args.playerId;
+    drainAutoPasses(state);
+    // CR 603.3 — flush ABILITY_ACTIVATED queued by recordActivation so the
+    // "non-tap ability activated" punisher lands on top of the freshly
+    // pushed ability (resolves first). No-op for {T} abilities.
+    processPendingActionTriggers(state);
+}
+
 /** Activate a non-mana ability on a permanent (CR 602.2). Pays costs and puts ability on stack. */
 export const activateAbility = mutation({
     args: {
@@ -9655,621 +10272,9 @@ export const activateAbility = mutation({
         if (!gameState) throw new Error("Game not found");
 
         const state = structuredClone(gameState.state) as GameState;
-        assertGameNotOver(state);
-        assertExpectedInput(state, {
-            playerId: args.playerId,
-            expect: "priority",
-        });
-        assertNoPendingChoices(state);
-
-        if (state.priorityPlayerId !== args.playerId) {
-            throw new Error("You don't have priority");
-        }
-        if (state.pendingCast) {
-            throw new Error("Another spell is already being cast");
-        }
-        if (state.pendingActivation) {
-            throw new Error("Another ability is already being activated");
-        }
-
-        const player = getPlayer(state, args.playerId);
-        // CR 602.1 — by default only the source's controller activates an
-        // activated ability, so look on the activator's own battlefield first.
-        // For "any player may activate" abilities (CR 113.3c, Ifh-Bíff Efreet)
-        // the source can live on another player's battlefield; fall back to a
-        // global search and gate it on the resolved ability's flag below.
-        let card = player.battlefield.find((c) => c.id === args.cardInstanceId);
-        if (!card) {
-            for (const p of state.players) {
-                const found = p.battlefield.find(
-                    (c) => c.id === args.cardInstanceId
-                );
-                if (found) {
-                    card = found;
-                    break;
-                }
-            }
-        }
-        // CR 113.6 / 602.5b — a graveyard-source activated ability (Ashen
-        // Ghoul's `activateFromGraveyard`). When the source is on no
-        // battlefield, look for it in a graveyard; the `activateFromGraveyard`
-        // flag on the resolved ability gates whether it may be activated there.
-        let fromGraveyard = false;
-        if (!card) {
-            for (const p of state.players) {
-                const found = p.graveyard.find(
-                    (c) => c.id === args.cardInstanceId
-                );
-                if (found) {
-                    card = found;
-                    fromGraveyard = true;
-                    break;
-                }
-            }
-        }
-        // CR 113.6 / 702.29a — a hand-source activated ability (Cycling's
-        // `activateFromHand`). When the source is on no battlefield and in no
-        // graveyard, look for it in a hand; the `activateFromHand` flag on the
-        // resolved ability gates whether it may be activated there. Only the
-        // owner's OWN hand is searched (a card is never in an opponent's hand
-        // from this player's perspective, and CR 702.29a scopes it to "your
-        // hand").
-        let fromHand = false;
-        if (!card) {
-            const found = player.hand.find((c) => c.id === args.cardInstanceId);
-            if (found) {
-                card = found;
-                fromHand = true;
-            }
-        }
-        if (!card) throw new Error("Card not on battlefield");
-
-        const cardId = (card.card as { id?: string }).id;
-        if (!cardId) throw new Error("Card has no definition");
-
-        const resolved = resolveActivatedAbility(card, args.abilityId);
-        if (!resolved) throw new Error("Ability not found");
-        const ability = resolved.ability;
-        // CR 113.6 — the source is in a graveyard: legal only for an ability
-        // that opts in via `activateFromGraveyard`, and only its owner may
-        // activate it (CR 602.1 — "from YOUR graveyard"). The battlefield
-        // controller-only checks below are skipped for this branch.
-        if (fromGraveyard) {
-            if (!ability.activateFromGraveyard) {
-                throw new Error(
-                    "This ability can't be activated from the graveyard"
-                );
-            }
-            if (card.ownerId !== args.playerId) {
-                throw new Error("You do not own this card");
-            }
-        } else if (fromHand) {
-            // CR 113.6 / 702.29a — the source is in a hand: legal only for an
-            // ability that opts in via `activateFromHand` (Cycling), and only
-            // its owner may activate it (CR 702.29a — "from your hand"). The
-            // battlefield controller-only checks below are skipped.
-            if (!ability.activateFromHand) {
-                throw new Error(
-                    "This ability can't be activated from your hand"
-                );
-            }
-            if (card.ownerId !== args.playerId) {
-                throw new Error("You do not own this card");
-            }
-        } else if (ability.activateFromHand || ability.activateFromGraveyard) {
-            // CR 113.6 / 702.29a — the source was located on the battlefield
-            // (neither `fromHand` nor `fromGraveyard`), but this ability
-            // functions ONLY from the hand (Cycling) or graveyard (Ashen
-            // Ghoul). A permanent can never pay its discard-this / graveyard
-            // cost, so activating it here is illegal — reject before any cost
-            // is locked. The client already omits it from the battlefield menu
-            // (`getStackAbilities`); this is the authoritative backstop.
-            throw new Error(
-                "This ability can't be activated from the battlefield"
-            );
-        } else if (ability.activatableByEnchantedController) {
-            // CR 602.1 — "Only the controller of the enchanted creature may
-            // activate this ability" (FEM Merseine). The Aura's host decides
-            // who may activate, regardless of who controls the Aura.
-            const hostId = card.attachedTo;
-            const host = hostId
-                ? state.players
-                      .flatMap((p) => p.battlefield)
-                      .find((c) => c.id === hostId)
-                : undefined;
-            if (!host || host.controllerId !== args.playerId) {
-                throw new Error(
-                    "Only the controller of the enchanted creature may activate this ability"
-                );
-            }
-        } else if (ability.activatableByOpponentsOnly) {
-            if (card.controllerId === args.playerId) {
-                throw new Error(
-                    "Only your opponents may activate this ability"
-                );
-            }
-        } else if (
-            // CR 602.1 — enforce the controller-only default unless the ability
-            // is explicitly "any player may activate". `card.controllerId` is
-            // the source's controller; only that player may activate otherwise.
-            !ability.activatableByAnyPlayer &&
-            card.controllerId !== args.playerId
-        ) {
-            throw new Error("You do not control this permanent");
-        }
-        const grantedSourceCardId = resolved.grantedSourceCardId;
-        if (!ability.useStack) {
-            throw new Error("Use tapUntap for mana abilities");
-        }
-        // CR 602.1 / 605.1a (issue #1124) — a turn-scoped "can't activate
-        // abilities that aren't mana abilities" lock (Abeyance). Every ability
-        // reaching this point is non-mana (the check above already rejected
-        // `useStack: false`), so no separate mana-ability exemption is needed.
-        if (state.cannotActivateAbilitiesThisTurn?.includes(args.playerId)) {
-            throw new Error(
-                "You can't activate abilities that aren't mana abilities this turn"
-            );
-        }
-        // CR 602.5 — phase-restricted activated abilities ("activate only
-        // during combat" etc.) are illegal outside their declared phase
-        // allow-list. Mirrors spell-level `castPhaseRestriction`.
-        if (
-            ability.activationPhaseRestriction &&
-            !ability.activationPhaseRestriction.includes(state.phase)
-        ) {
-            throw new Error("Ability cannot be activated during this phase");
-        }
-
-        // CR 602.2b: if the ability has targets, choose them before paying
-        // costs. Mana availability is deferred to finalizeTargetSelection
-        // (which enters pendingActivation when the pool doesn't cover the
-        // cost — mirrors the spell announceCast flow).
-        const baseTargetReq = ability.getTargetRequirement
-            ? ability.getTargetRequirement(card, state)
-            : ability.targetRequirement;
-        // CR 612.6 — a color-targeted ability follows its source's active
-        // color-word changes (Sleight of Mind on a Circle of Protection
-        // retargets its "<color> source of your choice"). The substituted
-        // filter flows into both getLegalTargets and the stored pendingTarget.
-        const effectiveTargetReq =
-            baseTargetReq && baseTargetReq.colorFilter !== undefined
-                ? {
-                      ...baseTargetReq,
-                      colorFilter: substituteColorFilter(
-                          card,
-                          baseTargetReq.colorFilter
-                      ),
-                  }
-                : baseTargetReq;
-        if (effectiveTargetReq) {
-            if (state.pendingTarget) {
-                throw new Error("Target selection is in progress");
-            }
-            if (ability.cost.tap && card.isTapped) {
-                throw new Error("Card is already tapped");
-            }
-            // CR 302.1 — creatures with summoning sickness cannot pay a {T}
-            // cost on an activated ability (mana or otherwise).
-            if (ability.cost.tap && isTapLockedBySummoningSickness(card)) {
-                throw new Error("Creature has summoning sickness");
-            }
-            if (ability.cost.removeCounter) {
-                const have =
-                    card.counters?.[ability.cost.removeCounter.type] ?? 0;
-                if (have < ability.cost.removeCounter.count) {
-                    throw new Error(
-                        "Not enough counters to pay activation cost"
-                    );
-                }
-            }
-            // CR 118.4 — a life-payment cost is illegal unless the player has
-            // at least that much life. Validated up-front on the targeted path
-            // too, before entering pendingTarget.
-            if (
-                ability.cost.life !== undefined &&
-                player.life < ability.cost.life
-            ) {
-                throw new Error("Not enough life");
-            }
-            if (
-                ability.canActivate !== undefined &&
-                !ability.canActivate(card, state)
-            ) {
-                throw new Error("Ability cannot be activated right now");
-            }
-            // CR 606 — a targeted loyalty ability (Liliana of the Veil's "-2:
-            // target player sacrifices a creature") is validated up-front, before
-            // entering target selection, so an illegal loyalty ability never
-            // opens a target prompt. Paid later at `finalizeTargetSelection`.
-            assertLoyaltyActivationLegal(state, card, ability);
-            // CR 107.3 / 601.2b — chosenX must accompany abilities with X in
-            // their mana cost. Stashed on pendingTarget; finalizeTargetSelection
-            // forwards it to pendingActivation / the stack item.
-            const targetHasXInCost =
-                ability.cost.mana?.X !== undefined &&
-                typeof ability.cost.mana.X === "string";
-            // CR 107.3 — Reflecting Mirror derives X from the targeted spell's
-            // mana value rather than letting the player choose it. The value
-            // can only be computed once the spell target is known, so it is
-            // resolved in finalizeTargetSelection, not here.
-            const xIsDerived = ability.cost.xFromTargetSpellMv !== undefined;
-            if (
-                targetHasXInCost &&
-                !xIsDerived &&
-                (args.chosenX === undefined || args.chosenX < 0)
-            ) {
-                throw new Error("This ability requires a chosen X value");
-            }
-            const targetChosenX =
-                targetHasXInCost && !xIsDerived ? args.chosenX : undefined;
-            // CR 202.2 / 702.16b: the source's colors come from the
-            // permanent owning the activated ability.
-            const abilitySourceColors = STATIC_EFFECT_CTX.getColors(card);
-            const legal = getLegalTargets(
-                state,
-                effectiveTargetReq,
-                abilitySourceColors,
-                args.playerId,
-                targetChosenX,
-                card.types,
-                card.subtypes,
-                // Source is an activated ability, not a spell (CR 113.3).
-                false
-            );
-            if (legal.length === 0) {
-                throw new Error("No legal targets available");
-            }
-            let abilityCount = resolveTargetCount(
-                effectiveTargetReq.count,
-                targetChosenX
-            );
-            // CR 601.2d / 120.4 — divide-as-you-choose budget for an activated
-            // ability (Arc Mage). Mirrors the spell-cast path: resolve the total
-            // against the chosen X, cap an open-ended `{ min }` count at the
-            // total (each target needs ≥ 1 point), and carry the total on
-            // pendingTarget so the client drives the per-target stepper UI.
-            const abilityDivideTotal = effectiveTargetReq.divideAsChosen
-                ? resolveDivideTotal(
-                      effectiveTargetReq.divideAsChosen.total,
-                      targetChosenX
-                  )
-                : undefined;
-            if (
-                abilityDivideTotal !== undefined &&
-                typeof abilityCount === "object" &&
-                abilityCount.max === undefined
-            ) {
-                abilityCount = {
-                    min: abilityCount.min,
-                    max: abilityDivideTotal,
-                };
-            }
-            state.pendingTarget = {
-                playerId: args.playerId,
-                cardInstanceId: card.id,
-                targetType: effectiveTargetReq.type,
-                count: abilityCount,
-                selected: [],
-                keepPriority: args.keepPriority,
-                kind: "ability",
-                abilityId: args.abilityId,
-                ...(abilityDivideTotal !== undefined
-                    ? { divideTotal: abilityDivideTotal }
-                    : {}),
-                ...(targetChosenX !== undefined
-                    ? { chosenX: targetChosenX }
-                    : {}),
-                ...(grantedSourceCardId ? { grantedSourceCardId } : {}),
-                // Same shared filter builder as the spell-cast path
-                // (`pendingTargetFiltersFromRequirement`), so the three
-                // pending-target builders can never drift (CR 601.2c) — this
-                // includes `spellStackKind` for a "counter target ability"
-                // activated ability (CR 113 / 701.5a).
-                ...pendingTargetFiltersFromRequirement(
-                    effectiveTargetReq,
-                    targetChosenX
-                ),
-            };
-
-            const nextSeq = gameState.seq + 1;
-            await saveGameState(ctx, args.gameId, nextSeq, state, gameState);
-            return;
-        }
-
-        // Pay costs (CR 602.1). Up-front checks before we mutate anything:
-        if (ability.cost.tap && card.isTapped) {
-            throw new Error("Card is already tapped");
-        }
-        // CR 302.1 — creatures with summoning sickness cannot pay a {T} cost.
-        if (ability.cost.tap && isTapLockedBySummoningSickness(card)) {
-            throw new Error("Creature has summoning sickness");
-        }
-        // CR 122.6 — counter-removal cost: source must have enough counters
-        // of the declared type. Validated up-front so we never enter a
-        // pendingActivation that can't be paid.
-        if (ability.cost.removeCounter) {
-            const have = card.counters?.[ability.cost.removeCounter.type] ?? 0;
-            if (have < ability.cost.removeCounter.count) {
-                throw new Error("Not enough counters to pay activation cost");
-            }
-        }
-        // CR 118.3 — "discard the last card you drew this turn" additional
-        // cost (Jandor's Ring): the player must have drawn a card this turn
-        // that is still in hand. Validated up-front so we never enter a
-        // pendingActivation that can't be paid.
-        if (ability.cost.discardLastDrawn && !canPayDiscardLastDrawn(player)) {
-            throw new Error("No card drawn this turn left to discard");
-        }
-        // CR 118.3 — "discard a card at random" cost (Coral Helm): illegal with
-        // an empty hand. Validated up-front.
-        if (ability.cost.discardAtRandom && player.hand.length === 0) {
-            throw new Error("No card in hand to discard");
-        }
-        // CR 602.1 / 118.3 — "discard a card matching <filter>" cost
-        // (Survival of the Fittest): illegal unless at least `count` matching
-        // cards are in the activating player's hand. Validated up-front so we
-        // never enter a pendingActivation that can't be paid.
-        if (ability.cost.discardFilter) {
-            const candidates = player.hand.filter((c) =>
-                handCardMatchesFilter(c, ability.cost.discardFilter!.filter)
-            );
-            if (candidates.length < ability.cost.discardFilter.count) {
-                throw new Error(
-                    "Not enough matching cards in hand to pay the discard cost"
-                );
-            }
-        }
-        // CR 118.4 — a life-payment cost is illegal unless the player has at
-        // least that much life. Validated up-front so we never enter a
-        // pendingActivation that can't be paid (fetch lands: {T}, Pay 1 life,
-        // Sacrifice — the life leg was previously unpaid on the stack path).
-        if (
-            ability.cost.life !== undefined &&
-            player.life < ability.cost.life
-        ) {
-            throw new Error("Not enough life");
-        }
-        // CR 602.1 / 118.5 — "sacrifice a permanent matching <filter>": the
-        // activation is illegal if no matching permanent is on the activating
-        // player's battlefield. Validated up-front so we never enter a
-        // pendingActivation that can't be paid.
-        if (ability.cost.sacrificeFilter) {
-            const candidates = player.battlefield.filter((c) =>
-                matchesPermanentFilter(c, ability.cost.sacrificeFilter!, {
-                    supertypesOf: liveSupertypesOf,
-                })
-            );
-            if (candidates.length === 0) {
-                throw new Error("No legal permanent to pay the sacrifice cost");
-            }
-        }
-        // CR 602.1 / 118.5 — "exile N cards from a single graveyard" (Night
-        // Soil): illegal unless one graveyard holds enough matching cards.
-        // Validated up-front so we never enter an unpayable pendingActivation.
-        if (ability.cost.exileFromGraveyard) {
-            const { count, cardType, owner } = ability.cost.exileFromGraveyard;
-            if (
-                !canPayExileFromGraveyard(
-                    state,
-                    count,
-                    cardType,
-                    owner === "you" ? player.id : undefined
-                )
-            ) {
-                throw new Error(
-                    "No single graveyard has enough cards to pay the exile cost"
-                );
-            }
-        }
-        // CR 602.1 / 118.8 — "tap N untapped permanents matching <filter> you
-        // control": illegal unless at least N matching untapped permanents
-        // (other than the source) are available.
-        if (ability.cost.tapOtherFilter) {
-            const candidates = tapOtherCandidates(
-                player,
-                card.id,
-                ability.cost.tapOtherFilter.filter
-            );
-            if (candidates.length < ability.cost.tapOtherFilter.count) {
-                throw new Error(
-                    "Not enough untapped permanents to pay the tap cost"
-                );
-            }
-        }
-        // CR 602.5 — activated abilities may declare a custom precondition
-        // (e.g. Clockwork Beast: "Activate only if it has fewer than seven
-        // +1/+0 counters on it.") read against current source state.
-        if (
-            ability.canActivate !== undefined &&
-            !ability.canActivate(card, state)
-        ) {
-            throw new Error("Ability cannot be activated right now");
-        }
-        assertActivationTimingLegal(state, card, ability);
-        // CR 606 — a non-targeted loyalty ability (Liliana's "+1", Garruk's
-        // "-4") is validated up-front here; it has no mana/tap/sacrifice
-        // component, so it commits inline below (paid via `payLoyaltyCost`).
-        assertLoyaltyActivationLegal(state, card, ability);
-        // CR 107.3 / 601.2b — chosenX is required for abilities whose mana
-        // cost has X. Validate up-front; pass to normalizeManaCost so the
-        // generic portion includes X * (the chosen value).
-        const hasXInCost =
-            ability.cost.mana?.X !== undefined &&
-            typeof ability.cost.mana.X === "string";
-        if (hasXInCost && (args.chosenX === undefined || args.chosenX < 0)) {
-            throw new Error("This ability requires a chosen X value");
-        }
-        const chosenX = hasXInCost ? args.chosenX : undefined;
-        const manaCost = resolveAbilityManaCost(state, card, ability, {
-            chosenX,
-        });
-        if (manaCost) {
-            applyCostModifiers(
-                manaCost,
-                getCostModifiers(state, card, "ability")
-            );
-        }
-        // CR 601.2f / 118.5 — board-wide static NON-mana additional cost
-        // (Drought). Gate on affordability at announcement; pip count comes from
-        // the ability's PRINTED activation cost.
-        assertStaticAdditionalCostAffordable(
-            state,
-            ability.cost.mana,
-            card,
-            player,
-            "ability"
-        );
-
-        // Enter a pendingActivation payment phase that mirrors pendingCast
-        // when (a) mana isn't yet covered, OR (b) the ability has a
-        // sacrifice-a-filtered-permanent cost that still needs a choice
-        // (CR 602.1 / 118.5). In the payment phase the player taps lands and
-        // picks the sacrifice (selectActivationCost); auto-commit applies the
-        // deferred tap/sacrifice and pushes the ability on the stack.
-        // Tap/sacrifice are DEFERRED so cancel leaves the source untouched.
-        const manaUncovered =
-            !!manaCost &&
-            !isManaCostCovered(
-                player.manaPool,
-                manaCost,
-                getManaSubstitutions(state, player.id)
-            );
-        // CR 602.1 / 118.5 / 701.21a — unified filtered sacrifice (own cost +
-        // Drought). A non-fungible board defers so the player chooses; a
-        // fungible board auto-resolves and commits inline.
-        const activationSac = buildActivationSacrificeSelection(
-            state,
-            ability,
-            card,
-            player,
-            tryGetDefinition((card.card as { id?: string }).id ?? "")?.name ??
-                "Sacrifice"
-        );
-        const needsSacrificeChoice =
-            !!activationSac && !isSacrificeSelectionComplete(activationSac);
-        const needsExileChoice = !!ability.cost.exileFromGraveyard;
-        const needsTapOtherChoice = !!ability.cost.tapOtherFilter;
-        const needsDiscardChoice = !!ability.cost.discardFilter;
-        if (
-            manaUncovered ||
-            needsSacrificeChoice ||
-            needsExileChoice ||
-            needsTapOtherChoice ||
-            needsDiscardChoice
-        ) {
-            const pending = buildPendingActivation({
-                playerId: args.playerId,
-                cardInstanceId: card.id,
-                abilityId: args.abilityId,
-                ability,
-                manaCost,
-                chosenX,
-                keepPriority: args.keepPriority,
-                grantedSourceCardId,
-                fromGraveyard,
-                fromHand,
-                ...(activationSac ? { sacrificeSelection: activationSac } : {}),
-            });
-            state.pendingActivation = pending;
-            // CR 302.1 — a {T}-cost ability still needs the source untapped at
-            // commit; deferral keeps it untapped now, so re-check at commit.
-            // When mana is already covered and the source has a {T} cost but no
-            // sacrifice choice, this branch isn't reached (mana covered path).
-            // tryAutoCommitPendingActivation handles the eventual commit (after
-            // the sacrifice pick) including when mana is already covered.
-            tryAutoCommitPendingActivation(state, args.playerId);
-
-            const nextSeq = gameState.seq + 1;
-            await saveGameState(ctx, args.gameId, nextSeq, state, gameState);
-            return;
-        }
-
-        // Mana already covered (or no mana cost) — commit immediately.
-        if (ability.cost.tap) {
-            card.isTapped = true;
-        }
-        // CR 106.10 — noted-mana battery (Jeweled Amulet / Ice Cauldron):
-        // snapshot the pool before payment so the per-colour delta becomes the
-        // mana noted on the source at resolve (mirrors the deferred-commit and
-        // targeted-ability paths).
-        const poolBeforePayment =
-            ability.noteManaSpent && manaCost
-                ? { ...player.manaPool }
-                : undefined;
-        if (manaCost) {
-            payManaCost(
-                player.manaPool,
-                manaCost,
-                getManaSubstitutions(state, player.id)
-            );
-            commitLandsForCost(player, manaCost);
-        }
-        const notedManaSpent = poolBeforePayment
-            ? manaSpentDelta(poolBeforePayment, player.manaPool)
-            : undefined;
-        if (ability.cost.removeCounter) {
-            payRemoveCounterCost(card, ability.cost.removeCounter);
-        }
-        if (ability.cost.discardLastDrawn) {
-            payDiscardLastDrawn(state, player);
-        }
-        if (ability.cost.discardAtRandom) {
-            payDiscardAtRandomCost(
-                state,
-                player.id,
-                ability.cost.discardAtRandom
-            );
-        }
-        // CR 118.4 — pay the life cost (fetch lands: "Pay 1 life"). Validated
-        // up-front; deducted here as the ability goes on the stack.
-        if (ability.cost.life !== undefined) {
-            player.life -= ability.cost.life;
-        }
-        // CR 606.5 — pay a non-targeted loyalty ability's signed loyalty cost as
-        // it goes on the stack (Liliana's "+1", Garruk's "-4"). No-op otherwise.
-        payLoyaltyCost(card, ability);
-        if (ability.cost.sacrifice) {
-            removePermanentTo(state, card.id, "graveyard", "sacrifice");
-        }
-        // CR 702.29a / 118.3 — the Cycling "Discard this card" cost: discard the
-        // source from hand as the ability commits, routed through the shared
-        // choke point so CARD_DISCARDED fires (Marauding Mako). Runs BEFORE the
-        // stack-item clone below (the card object persists after the move).
-        if (ability.cost.discardThis) {
-            discardToGraveyard(state, player.id, card.id);
-        }
-        // CR 601.2f / 118.5 / 701.21a — apply the auto-resolved filtered
-        // sacrifice (Drought / fungible own cost) as the ability commits.
-        const immediateSacSnapshot = sacrificeSnapshotFromSelection(
-            activationSac,
-            state
-        );
-
-        // Put ability on stack (clone card state as a virtual stack item)
-        const stackItem: StackItem = {
-            ...structuredClone(card),
-            zone: "stack" as const,
-            castById: args.playerId,
-            abilityId: args.abilityId,
-            ...(chosenX !== undefined ? { chosenX } : {}),
-            ...(grantedSourceCardId ? { grantedSourceCardId } : {}),
-            ...(immediateSacSnapshot
-                ? { additionalSacrificeSnapshot: immediateSacSnapshot }
-                : {}),
-            ...(notedManaSpent ? { notedManaSpent } : {}),
-        };
-        state.stack.push(stackItem);
-        recordActivation(state, card, args.abilityId, !!ability.cost.tap);
-        state.passCount = 0;
-        state.priorityPlayerId = getOpponentId(state, args.playerId);
-        state.singleShotAutoPass = args.keepPriority
-            ? undefined
-            : args.playerId;
-        drainAutoPasses(state);
-        // CR 603.3 — flush ABILITY_ACTIVATED queued by recordActivation so the
-        // "non-tap ability activated" punisher lands on top of the freshly
-        // pushed ability (resolves first). No-op for {T} abilities.
-        processPendingActionTriggers(state);
+        // The whole rules path lives in `activateAbilityOnState` (above); the
+        // mutation is I/O only. No copy of it survives here.
+        activateAbilityOnState(state, args);
 
         const nextSeq = gameState.seq + 1;
         await saveGameState(ctx, args.gameId, nextSeq, state, gameState);
