@@ -19335,3 +19335,190 @@ describe("Effect Script Op: revealAndCategorize (CR 701.20a / 401.4, issue #1364
         );
     });
 });
+
+// New Op (issue #1459, Dance of Many) → full per-Op regime: interpreter
+// coverage of BOTH source shapes an Effect Script can produce (an announced
+// target slot + a `ref` to a permanent bound earlier in the same script),
+// count behaviour, and a wire-format assertion through `projectPublicState`.
+// The Op reads a RUNTIME source permanent and drives the SAME copy machinery
+// Clone uses (`SpellContext.createTokenCopyOf` → `applyCopy`, CR 707.2 —
+// copiable values only), so a copy is not a JSON-pure token spec — which is
+// exactly why it is its own Op and not a flag on `createToken`.
+describe("Effect Script Op: createTokenCopy (CR 707.2 + CR 111.1, issue #1459)", () => {
+    it("creates a token that's a copy of the announced target permanent (Dance of Many)", () => {
+        const id = registerScript("test-op-ctc-target", [
+            {
+                op: "createTokenCopy",
+                source: { target: 0 },
+                controller: "controller",
+            },
+        ]);
+        const bear = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "ctc-bear",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        const item = pushSpell(state, id, "p1", [
+            { type: "permanent", id: "ctc-bear" },
+        ]);
+        resolveTopOfStack(state);
+        // A fresh token copy under the resolving controller (p1).
+        expect(state.players[0].battlefield.length).toBe(1);
+        const copy = state.players[0].battlefield[0];
+        expect(copy.isToken).toBe(true);
+        // CR 707.2 — copiable characteristics of the source printed onto the
+        // token: BEAR_ID is a 2/5, and the copy presents the source's def id.
+        expect(copy.card.id).toBe(BEAR_ID);
+        expect(getEffectivePower(state, copy)).toBe(2);
+        expect(getEffectiveToughness(state, copy)).toBe(5);
+        // Provenance stamped (the leave-linkage Dance of Many's triggers rely
+        // on) — the resolving spell's source instance.
+        expect(copy.createdBy).toBe(item.id);
+    });
+
+    it("creates a token copy of a permanent bound earlier in the same script (createToken → copy bind chain, Ocelot Pride)", () => {
+        // createToken snapshots the token it made into `$tok`; createTokenCopy
+        // then reads that binding as its runtime source — the "copy the token
+        // you just made" shape, no announced target needed.
+        const id = registerScript("test-op-ctc-ref", [
+            {
+                op: "createToken",
+                token: {
+                    name: "Soldier",
+                    types: ["Creature"],
+                    subtypes: ["Soldier"],
+                    power: 1,
+                    toughness: 1,
+                },
+                controller: "controller",
+                bind: "$tok",
+            },
+            {
+                op: "createTokenCopy",
+                source: { ref: "$tok" },
+                controller: "controller",
+            },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        // The original bound token + its copy — two 1/1 Soldiers.
+        expect(state.players[0].battlefield.length).toBe(2);
+        for (const tok of state.players[0].battlefield) {
+            expect(tok.isToken).toBe(true);
+            expect(getEffectivePower(state, tok)).toBe(1);
+            expect(getEffectiveToughness(state, tok)).toBe(1);
+            expect(tok.subtypes).toContain("Soldier");
+        }
+    });
+
+    it("creates `count` copies (count-scaled, CR 707.1)", () => {
+        const id = registerScript("test-op-ctc-count", [
+            {
+                op: "createTokenCopy",
+                source: { target: 0 },
+                controller: "controller",
+                count: 3,
+            },
+        ]);
+        const bear = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "ctc-bear-n",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "ctc-bear-n" }]);
+        resolveTopOfStack(state);
+        expect(state.players[0].battlefield.length).toBe(3);
+        for (const copy of state.players[0].battlefield) {
+            expect(copy.card.id).toBe(BEAR_ID);
+        }
+    });
+
+    it("creates nothing for a non-positive count (CR 707.1)", () => {
+        const id = registerScript("test-op-ctc-zero", [
+            {
+                op: "createTokenCopy",
+                source: { target: 0 },
+                controller: "controller",
+                count: 0,
+            },
+        ]);
+        const bear = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "ctc-bear-0",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "ctc-bear-0" }]);
+        resolveTopOfStack(state);
+        expect(state.players[0].battlefield.length).toBe(0);
+    });
+
+    it("skips the copy when the announced source is missing at resolution (CR 608.2b)", () => {
+        const id = registerScript("test-op-ctc-gone", [
+            {
+                op: "createTokenCopy",
+                source: { target: 0 },
+                controller: "controller",
+            },
+            // A trailing Op proves the script continues after the skip.
+            { op: "gainLife", player: "controller", amount: 2 },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1", []); // no legal source survives to resolution
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+        expect(state.players[0].battlefield.length).toBe(0);
+        expect(state.players[0].life).toBe(22);
+    });
+
+    it("the copied characteristics survive projection (wire format)", () => {
+        const id = registerScript("test-op-ctc-wire", [
+            {
+                op: "createTokenCopy",
+                source: { target: 0 },
+                controller: "controller",
+            },
+        ]);
+        const bear = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "ctc-bear-w",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "ctc-bear-w" }]);
+        resolveTopOfStack(state);
+        const copyId = state.players[0].battlefield[0].id;
+        // The projection strips `card.card` to `{ id }`; the copy stores its
+        // copied identity on `card.id` (the source's def id) and its P/T on the
+        // instance, so both survive the wire.
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === copyId
+        )!;
+        expect(slim.card.id).toBe(BEAR_ID);
+        expect(getEffectivePower(projected, slim)).toBe(2);
+        expect(getEffectiveToughness(projected, slim)).toBe(5);
+    });
+});

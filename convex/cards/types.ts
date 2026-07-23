@@ -8682,6 +8682,35 @@ export type EffectOp =
           count?: EffectValue;
           bind?: string;
       }
+    /** CR 707.2 + CR 111.1 (issue #1459) — create one or more tokens that are
+     *  COPIES of a runtime source permanent. The copy sibling of `createToken`:
+     *  where `createToken` takes a JSON-pure token spec, this Op reads a LIVE
+     *  source permanent and drives the same copy machinery Clone uses
+     *  (`applyCopy`, via `SpellContext.createTokenCopyOf`), stamping the
+     *  copiable characteristics of the source onto a fresh token — which is
+     *  exactly why it is a distinct Op, not a flag on `createToken`. `source`
+     *  is an `EffectObjectSelector`: an announced target slot (`{ target: N }`
+     *  — Dance of Many's "create a token that's a copy of target nontoken
+     *  creature"), OR a `ref` to a permanent bound earlier in the SAME script
+     *  (`{ ref: "$token" }` — "copy the token you just made", the `createToken`
+     *  → `createTokenCopy` bind chain Ocelot Pride #1461 needs). `controller`
+     *  names who gets the copies (the resolving `"controller"` by default; an
+     *  announced target-slot / relative player). `count` is an optional
+     *  EffectValue (default 1; a literal / ref / count for a count-scaled
+     *  creation); a non-positive count creates nothing (CR 707.1). The copy is
+     *  stamped with the resolving source's `createdBy` provenance (the same
+     *  leave-linkage Dance of Many's exile/sacrifice triggers rely on). Skipped
+     *  when the controller cannot be resolved, the count is non-positive /
+     *  unresolved, or the source has left the battlefield (CR 608.2b — the copy
+     *  fizzles). `bind` (mirrors `createToken`'s own bind) snapshots the LAST
+     *  created copy so a follow-up Op in the same script can act on it. */
+    | {
+          op: "createTokenCopy";
+          source: EffectObjectSelector;
+          controller: EffectPlayerRef;
+          count?: EffectValue;
+          bind?: string;
+      }
     /** CR 114 (issue #1221) — create an emblem in the command zone. A thin
      *  declarative skin over the single SpellContext primitive `createEmblem`,
      *  one execution path (ADR 0045). `emblem` is a KEY into the emblem registry

@@ -877,23 +877,24 @@ export const danceOfMany: CardDefinition = {
             // DIVERGENCE note above: the "nontoken" clause is not expressible as
             // a `TargetRequirement` (no token filter field).
             targetRequirement: { type: "Creature", count: 1 },
-            // NOT DSL-migratable (ADR 0045): Dance of Many creates a copy token
-            // (createToken Op, still `planned`), exiles/sacrifices specific
-            // permanents, and pays an upkeep tax — none expressible with the
-            // current Op vocabulary; all are factory-built triggers with no
-            // `effects[]` site. Stays resolve().
-            resolve: (ctx: SpellContext) => {
-                // CR 707.2 — copy the chosen creature's copiable values onto a
-                // fresh token. The target was locked at stack placement
-                // (CR 603.3d); read it from `ctx.targets[0]`.
-                const target = ctx.targets[0];
-                if (!target) return; // CR 608.2b — no legal target → no token
-                ctx.createTokenCopyOf(
-                    target.id,
-                    ctx.controller,
-                    ctx.sourceInstanceId
-                );
-            },
+            // DSL-migrated (ADR 0045, issue #1459): "create a token that's a
+            // copy of target nontoken creature" is now a single `createTokenCopy`
+            // Op (CR 707.2). `source: { target: 0 }` reads the announced target
+            // locked at stack placement (CR 603.3d); the Op drives the SAME
+            // `createTokenCopyOf` → `applyCopy` copy path this card used
+            // imperatively, stamping the resolving source's `createdBy`
+            // provenance (this enchantment) so the leave-linkage triggers below
+            // can find their token. A gone target creates no token (CR 608.2b —
+            // the Op skips on an unresolvable source). The two leave triggers +
+            // upkeep tax below still need `createdBy`-scoped scans / an upkeep
+            // cost, so they stay resolve() (see their own notes).
+            effects: [
+                {
+                    op: "createTokenCopy",
+                    source: { target: 0 },
+                    controller: "controller",
+                },
+            ],
         }),
         leftTrigger({
             id: "dance-of-many-exile-token",
