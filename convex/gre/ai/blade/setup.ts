@@ -43,6 +43,7 @@ import {
     processPendingActionTriggers,
     resolveTopOfStack,
 } from "../../state";
+import { applyDeclareAttackers } from "./combatSetup";
 import { instanceIdsForName, seatPlayerId } from "./matcher";
 import type { BladeScenario, BladeSetupStep, BladeSeat } from "./types";
 
@@ -390,6 +391,15 @@ export function applyBladeSetup(
                 break;
             case "cast":
                 applyCast(state, scenario.label, step);
+                break;
+            case "declare-attackers":
+                // Logic in `combatSetup.ts`; this file keeps only the dispatch.
+                applyDeclareAttackers(
+                    state,
+                    step,
+                    (detail) =>
+                        new BladeSetupError(scenario.label, step, detail)
+                );
                 break;
             default: {
                 // Exhaustiveness: a new step kind must be handled here.
