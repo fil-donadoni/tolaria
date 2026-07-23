@@ -899,6 +899,18 @@ function analyseOp(op: EffectOp, req: Requirements): void {
                 return;
             }
             return;
+        case "createTokenCopy":
+            // CR 707.2 + CR 111.1 (issue #1459) — creates token COPIES of a
+            // RUNTIME source permanent (an announced target slot or a `ref` to
+            // a permanent bound earlier in the same script). The canned
+            // generator seeds neither an announced-target source nor a bound
+            // copyable permanent, so it cannot set up a determinate source to
+            // assert the resulting copy's copiable characteristics against.
+            // Explicit skip — covered by the Op's own interpreter + wire-format
+            // tests (both source shapes + count; per-Op regime,
+            // `.claude/rules/gre-development.md`).
+            req.skip ??= `Op "createTokenCopy" copies a runtime source permanent (announced target / ref) the canned generator does not model — covered by the Op's interpreter tests`;
+            return;
         case "emblem":
             // CR 114 (issue #1221) — creating an emblem appends one command-zone
             // object owned by the resolved controller, a deterministic
@@ -1990,6 +2002,16 @@ const OP_ASSERTORS: Record<string, Assertor> = {
                 };
             },
         };
+    },
+    // `createTokenCopy` (CR 707.2 + CR 111.1, issue #1459) — never reached:
+    // `analyseOp` skips every script with this Op (it copies a RUNTIME source
+    // permanent — an announced target slot or a `ref` to a permanent bound
+    // earlier in the script — which the canned generator seeds no determinate
+    // copyable source for). Kept for the 1:1 coverage guard; the Op's own
+    // interpreter + wire-format tests (both source shapes + count) are the
+    // behavioural guarantor.
+    createTokenCopy() {
+        return null;
     },
     // `emblem` (CR 114, issue #1221) — a deterministic same-resolution outcome:
     // one command-zone emblem with the named key appears in `GameState.emblems`,

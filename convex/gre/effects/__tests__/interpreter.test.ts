@@ -24,6 +24,9 @@ import {
     resolveTopOfStack,
     removePermanentTo,
     exileWithAttachments,
+    markEnteredThisTurn,
+    applyControlChange,
+    createTokenPermanents,
 } from "../../state";
 import type { CardInstanceState, GameState, StackItem } from "../../state";
 import {
@@ -6431,6 +6434,451 @@ describe("EffectCardFilter.manaValueEquals (issue #1083)", () => {
         expect(state.pendingChoices![0].candidateIds).toEqual([
             "mvEqualsFixedBear",
         ]);
+    });
+});
+
+describe("EffectCardFilter.enteredThisTurn (CR 400.7, issue #1458)", () => {
+    // The clause reads the REAL entry stamp `CardInstanceState.enteredOnTurn`
+    // (written by `markEnteredThisTurn` / `createTokenPermanents`) compared
+    // against `GameState.turn` — deliberately NOT `isSummoningSick`, which
+    // diverges in two demonstrable ways covered below: it survives the
+    // opponent's whole turn (cleared only at its controller's untap step) and
+    // it is re-set by a control change on a permanent that never changed
+    // zones. Every test here drives the stamp through the real entry helper,
+    // never by hand-setting a flag. Per the per-Op regime, this is the
+    // clause's OWN test (it introduces a new `EffectCardFilter` field); a
+    // later card (Ocelot Pride, issue #1461) that reuses it rides free.
+
+    /** Marks `card` as having entered on `turn` through the real engine
+     *  helper — the only supported way to produce the stamp. */
+    function enteredOn(
+        card: CardInstanceState,
+        turn: number
+    ): CardInstanceState {
+        markEnteredThisTurn(card, turn);
+        return card;
+    }
+
+    it('draws a card for each creature that entered the battlefield this turn ("count" construct)', () => {
+        const id = registerScript("test-entered-this-turn-count", [
+            {
+                op: "draw",
+                player: "controller",
+                count: {
+                    count: {
+                        zone: "battlefield",
+                        controller: "controller",
+                        filter: { type: "Creature", enteredThisTurn: true },
+                    },
+                },
+            },
+        ]);
+        const fresh = ["freshA", "freshB"].map((cid) =>
+            enteredOn(
+                makeInstance(BEAR_ID, {
+                    id: cid,
+                    controllerId: "p1",
+                    ownerId: "p1",
+                }),
+                1
+            )
+        );
+        // Entered a PRIOR turn: no stamp for the current turn. Summoning
+        // sickness is deliberately left true — under the old, wrong predicate
+        // this creature would have counted.
+        const stale = makeInstance(BEAR_ID, {
+            id: "staleC",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: true,
+        });
+        const lib = Array.from({ length: 5 }, (_, i) =>
+            makeInstance(BEAR_ID, {
+                id: `entered-lib-${i}`,
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "library",
+            })
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [...fresh, stale],
+                    library: lib,
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        // 2 creatures entered this turn → draw 2, NOT 3 — the pre-existing
+        // (still summoning-sick) creature is excluded.
+        expect(state.players[0].hand).toHaveLength(2);
+        expect(state.players[0].library).toHaveLength(3);
+    });
+
+    it('destroys only creatures that entered the battlefield this turn ("forEach" construct)', () => {
+        const id = registerScript("test-entered-this-turn-foreach", [
+            {
+                op: "forEach",
+                select: {
+                    set: "permanents",
+                    zone: "battlefield",
+                    filter: { type: "Creature", enteredThisTurn: true },
+                },
+                effects: [{ op: "destroy", target: { ref: "$each" } }],
+            },
+        ]);
+        const fresh = enteredOn(
+            makeInstance(BEAR_ID, {
+                id: "etfA",
+                controllerId: "p2",
+                ownerId: "p2",
+            }),
+            1
+        );
+        const stale = makeInstance(BEAR_ID, {
+            id: "etfB",
+            controllerId: "p2",
+            ownerId: "p2",
+            isSummoningSick: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [fresh, stale] }),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[1].battlefield.map((c) => c.id)).toEqual(["etfB"]);
+        expect(state.players[1].graveyard.map((c) => c.id)).toEqual(["etfA"]);
+    });
+
+    it("composes with isToken — matches only a TOKEN that also entered this turn", () => {
+        const id = registerScript("test-entered-this-turn-istoken", [
+            {
+                op: "forEach",
+                select: {
+                    set: "permanents",
+                    zone: "battlefield",
+                    filter: { isToken: true, enteredThisTurn: true },
+                },
+                effects: [{ op: "destroy", target: { ref: "$each" } }],
+            },
+        ]);
+        // Four permutations on the same battlefield: token/nontoken crossed
+        // with entered-this-turn/stale. Only the token+entered-this-turn
+        // permanent should be destroyed.
+        const freshToken = enteredOn(
+            makeInstance(BEAR_ID, {
+                id: "itA-freshToken",
+                controllerId: "p2",
+                ownerId: "p2",
+                isToken: true,
+            }),
+            1
+        );
+        const staleToken = makeInstance(BEAR_ID, {
+            id: "itB-staleToken",
+            controllerId: "p2",
+            ownerId: "p2",
+            isToken: true,
+            isSummoningSick: true,
+        });
+        const freshNonToken = enteredOn(
+            makeInstance(BEAR_ID, {
+                id: "itC-freshNonToken",
+                controllerId: "p2",
+                ownerId: "p2",
+                isToken: false,
+            }),
+            1
+        );
+        const staleNonToken = makeInstance(BEAR_ID, {
+            id: "itD-staleNonToken",
+            controllerId: "p2",
+            ownerId: "p2",
+            isToken: false,
+            isSummoningSick: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    battlefield: [
+                        freshToken,
+                        staleToken,
+                        freshNonToken,
+                        staleNonToken,
+                    ],
+                }),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[1].battlefield.map((c) => c.id).sort()).toEqual([
+            "itB-staleToken",
+            "itC-freshNonToken",
+            "itD-staleNonToken",
+        ]);
+        expect(state.players[1].graveyard.map((c) => c.id)).toEqual([
+            "itA-freshToken",
+        ]);
+    });
+
+    it("wire format — the count draw honours enteredThisTurn after projectPublicState", () => {
+        const id = registerScript("test-entered-this-turn-wire", [
+            {
+                op: "draw",
+                player: "controller",
+                count: {
+                    count: {
+                        zone: "battlefield",
+                        controller: "controller",
+                        filter: { type: "Creature", enteredThisTurn: true },
+                    },
+                },
+            },
+        ]);
+        const fresh = enteredOn(
+            makeInstance(BEAR_ID, {
+                id: "wireFresh",
+                controllerId: "p1",
+                ownerId: "p1",
+            }),
+            1
+        );
+        const stale = makeInstance(BEAR_ID, {
+            id: "wireStale",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: true,
+        });
+        const lib = [
+            makeInstance(BEAR_ID, {
+                id: "wire-lib-0",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "library",
+            }),
+        ];
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [fresh, stale],
+                    library: lib,
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].hand).toHaveLength(1);
+        const projected = projectPublicState(state, 1, "p1");
+        // The projection strips fat battlefield fields, but the DRAW OUTCOME
+        // (already applied server-side) survives onto the wire as a plain
+        // hand-count — the same wire-format convention every other `count`
+        // test in this suite uses.
+        expect(projected.players[0].hand).toHaveLength(1);
+    });
+
+    it("divergence (a) — a permanent that entered on the PRIOR turn is excluded while the OPPONENT is the active player", () => {
+        // CR 302.6: `isSummoningSick` is cleared only in the CONTROLLER's
+        // untap step, so a permanent that entered on p1's turn 1 is STILL
+        // summoning-sick throughout p2's turn 2. Reading that flag would
+        // over-count here; the entry stamp does not.
+        const id = registerScript("test-entered-this-turn-prior-turn", [
+            {
+                op: "draw",
+                player: "controller",
+                count: {
+                    count: {
+                        zone: "battlefield",
+                        controller: "controller",
+                        filter: { type: "Creature", enteredThisTurn: true },
+                    },
+                },
+            },
+        ]);
+        const lastTurn = enteredOn(
+            makeInstance(BEAR_ID, {
+                id: "priorTurnBear",
+                controllerId: "p1",
+                ownerId: "p1",
+            }),
+            1
+        );
+        const thisTurn = enteredOn(
+            makeInstance(BEAR_ID, {
+                id: "thisTurnBear",
+                controllerId: "p1",
+                ownerId: "p1",
+            }),
+            2
+        );
+        const lib = Array.from({ length: 3 }, (_, i) =>
+            makeInstance(BEAR_ID, {
+                id: `prior-lib-${i}`,
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "library",
+            })
+        );
+        const state = makeState({
+            turn: 2,
+            activePlayerId: "p2",
+            priorityPlayerId: "p2",
+            players: [
+                makePlayer("p1", {
+                    battlefield: [lastTurn, thisTurn],
+                    library: lib,
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        // The divergence is only meaningful while the stale permanent is
+        // still flagged summoning-sick — assert the precondition.
+        expect(lastTurn.isSummoningSick).toBe(true);
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].hand.map((c) => c.id)).toHaveLength(1);
+    });
+
+    it("divergence (b) — a creature whose CONTROL changed this turn (no zone change) is excluded", () => {
+        // CR 400.7 / 603.6: gaining control is not entering the battlefield.
+        // `applyControlChange` re-sets `isSummoningSick` on a permanent that
+        // never left the battlefield, so reading that flag would wrongly
+        // match a creature stolen this turn.
+        const id = registerScript("test-entered-this-turn-control-change", [
+            {
+                op: "draw",
+                player: "controller",
+                count: {
+                    count: {
+                        zone: "battlefield",
+                        controller: "controller",
+                        filter: { type: "Creature", enteredThisTurn: true },
+                    },
+                },
+            },
+        ]);
+        const stolen = enteredOn(
+            makeInstance(BEAR_ID, {
+                id: "stolenBear",
+                controllerId: "p2",
+                ownerId: "p2",
+            }),
+            1
+        );
+        const thief = makeInstance(BEAR_ID, {
+            id: "thiefSource",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const lib = Array.from({ length: 3 }, (_, i) =>
+            makeInstance(BEAR_ID, {
+                id: `ctrl-lib-${i}`,
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "library",
+            })
+        );
+        const state = makeState({
+            turn: 2,
+            players: [
+                makePlayer("p1", { battlefield: [thief], library: lib }),
+                makePlayer("p2", { battlefield: [stolen] }),
+            ],
+        });
+        applyControlChange(state, "stolenBear", "p1", "thiefSource");
+        // Precondition: the control change DID flag summoning sickness (the
+        // false-positive source) but left the entry stamp untouched.
+        expect(stolen.controllerId).toBe("p1");
+        expect(stolen.isSummoningSick).toBe(true);
+        expect(stolen.enteredOnTurn).toBe(1);
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        // `thiefSource` has no stamp either → nothing entered this turn.
+        expect(state.players[0].hand).toHaveLength(0);
+    });
+
+    it("(c) — a NON-CREATURE permanent / token that entered this turn is included (Treasure-token shape)", () => {
+        // The actual Ocelot Pride shape (issue #1461): the clause must work
+        // for artifact tokens, not just creatures. `createTokenPermanents`
+        // stamps `enteredOnTurn` on creation, exactly like a non-token entry.
+        const id = registerScript("test-entered-this-turn-noncreature", [
+            {
+                op: "draw",
+                player: "controller",
+                count: {
+                    count: {
+                        zone: "battlefield",
+                        controller: "controller",
+                        filter: { type: "Artifact", enteredThisTurn: true },
+                    },
+                },
+            },
+        ]);
+        const staleArtifact = makeInstance(BEAR_ID, {
+            id: "staleArtifact",
+            controllerId: "p1",
+            ownerId: "p1",
+            types: ["Artifact"],
+            isSummoningSick: true,
+        });
+        const lib = Array.from({ length: 3 }, (_, i) =>
+            makeInstance(BEAR_ID, {
+                id: `noncreature-lib-${i}`,
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "library",
+            })
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [staleArtifact],
+                    library: lib,
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        createTokenPermanents(
+            state,
+            { name: "Treasure", types: ["Artifact"], subtypes: ["Treasure"] },
+            "p1"
+        );
+        const token = state.players[0].battlefield.find(
+            (c) => c.id !== "staleArtifact"
+        )!;
+        expect(token.enteredOnTurn).toBe(state.turn);
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        // Only the freshly created Treasure token counts.
+        expect(state.players[0].hand).toHaveLength(1);
+    });
+
+    it("the entry stamp survives a serialize round-trip (mid-turn stable point)", () => {
+        // `enteredOnTurn` lives on CardInstanceState, whose persistence is an
+        // explicit whitelist in `compactCard`/`expandCard` (the GameState-key
+        // drift guard does not cover it) — so it needs its own round-trip.
+        const entered = enteredOn(
+            makeInstance(BEAR_ID, {
+                id: "roundTripBear",
+                controllerId: "p1",
+                ownerId: "p1",
+            }),
+            1
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [entered] }),
+                makePlayer("p2"),
+            ],
+        });
+        const restored = expandState(compactState(state));
+        expect(restored.players[0].battlefield[0].enteredOnTurn).toBe(1);
     });
 });
 
@@ -18885,5 +19333,192 @@ describe("Effect Script Op: revealAndCategorize (CR 701.20a / 401.4, issue #1364
         expect(restored.players[0].hand.map((c) => c.id)).toEqual(
             expect.arrayContaining(["bear", "land"])
         );
+    });
+});
+
+// New Op (issue #1459, Dance of Many) → full per-Op regime: interpreter
+// coverage of BOTH source shapes an Effect Script can produce (an announced
+// target slot + a `ref` to a permanent bound earlier in the same script),
+// count behaviour, and a wire-format assertion through `projectPublicState`.
+// The Op reads a RUNTIME source permanent and drives the SAME copy machinery
+// Clone uses (`SpellContext.createTokenCopyOf` → `applyCopy`, CR 707.2 —
+// copiable values only), so a copy is not a JSON-pure token spec — which is
+// exactly why it is its own Op and not a flag on `createToken`.
+describe("Effect Script Op: createTokenCopy (CR 707.2 + CR 111.1, issue #1459)", () => {
+    it("creates a token that's a copy of the announced target permanent (Dance of Many)", () => {
+        const id = registerScript("test-op-ctc-target", [
+            {
+                op: "createTokenCopy",
+                source: { target: 0 },
+                controller: "controller",
+            },
+        ]);
+        const bear = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "ctc-bear",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        const item = pushSpell(state, id, "p1", [
+            { type: "permanent", id: "ctc-bear" },
+        ]);
+        resolveTopOfStack(state);
+        // A fresh token copy under the resolving controller (p1).
+        expect(state.players[0].battlefield.length).toBe(1);
+        const copy = state.players[0].battlefield[0];
+        expect(copy.isToken).toBe(true);
+        // CR 707.2 — copiable characteristics of the source printed onto the
+        // token: BEAR_ID is a 2/5, and the copy presents the source's def id.
+        expect(copy.card.id).toBe(BEAR_ID);
+        expect(getEffectivePower(state, copy)).toBe(2);
+        expect(getEffectiveToughness(state, copy)).toBe(5);
+        // Provenance stamped (the leave-linkage Dance of Many's triggers rely
+        // on) — the resolving spell's source instance.
+        expect(copy.createdBy).toBe(item.id);
+    });
+
+    it("creates a token copy of a permanent bound earlier in the same script (createToken → copy bind chain, Ocelot Pride)", () => {
+        // createToken snapshots the token it made into `$tok`; createTokenCopy
+        // then reads that binding as its runtime source — the "copy the token
+        // you just made" shape, no announced target needed.
+        const id = registerScript("test-op-ctc-ref", [
+            {
+                op: "createToken",
+                token: {
+                    name: "Soldier",
+                    types: ["Creature"],
+                    subtypes: ["Soldier"],
+                    power: 1,
+                    toughness: 1,
+                },
+                controller: "controller",
+                bind: "$tok",
+            },
+            {
+                op: "createTokenCopy",
+                source: { ref: "$tok" },
+                controller: "controller",
+            },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        // The original bound token + its copy — two 1/1 Soldiers.
+        expect(state.players[0].battlefield.length).toBe(2);
+        for (const tok of state.players[0].battlefield) {
+            expect(tok.isToken).toBe(true);
+            expect(getEffectivePower(state, tok)).toBe(1);
+            expect(getEffectiveToughness(state, tok)).toBe(1);
+            expect(tok.subtypes).toContain("Soldier");
+        }
+    });
+
+    it("creates `count` copies (count-scaled, CR 707.1)", () => {
+        const id = registerScript("test-op-ctc-count", [
+            {
+                op: "createTokenCopy",
+                source: { target: 0 },
+                controller: "controller",
+                count: 3,
+            },
+        ]);
+        const bear = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "ctc-bear-n",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "ctc-bear-n" }]);
+        resolveTopOfStack(state);
+        expect(state.players[0].battlefield.length).toBe(3);
+        for (const copy of state.players[0].battlefield) {
+            expect(copy.card.id).toBe(BEAR_ID);
+        }
+    });
+
+    it("creates nothing for a non-positive count (CR 707.1)", () => {
+        const id = registerScript("test-op-ctc-zero", [
+            {
+                op: "createTokenCopy",
+                source: { target: 0 },
+                controller: "controller",
+                count: 0,
+            },
+        ]);
+        const bear = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "ctc-bear-0",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "ctc-bear-0" }]);
+        resolveTopOfStack(state);
+        expect(state.players[0].battlefield.length).toBe(0);
+    });
+
+    it("skips the copy when the announced source is missing at resolution (CR 608.2b)", () => {
+        const id = registerScript("test-op-ctc-gone", [
+            {
+                op: "createTokenCopy",
+                source: { target: 0 },
+                controller: "controller",
+            },
+            // A trailing Op proves the script continues after the skip.
+            { op: "gainLife", player: "controller", amount: 2 },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1", []); // no legal source survives to resolution
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+        expect(state.players[0].battlefield.length).toBe(0);
+        expect(state.players[0].life).toBe(22);
+    });
+
+    it("the copied characteristics survive projection (wire format)", () => {
+        const id = registerScript("test-op-ctc-wire", [
+            {
+                op: "createTokenCopy",
+                source: { target: 0 },
+                controller: "controller",
+            },
+        ]);
+        const bear = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "ctc-bear-w",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "ctc-bear-w" }]);
+        resolveTopOfStack(state);
+        const copyId = state.players[0].battlefield[0].id;
+        // The projection strips `card.card` to `{ id }`; the copy stores its
+        // copied identity on `card.id` (the source's def id) and its P/T on the
+        // instance, so both survive the wire.
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === copyId
+        )!;
+        expect(slim.card.id).toBe(BEAR_ID);
+        expect(getEffectivePower(projected, slim)).toBe(2);
+        expect(getEffectiveToughness(projected, slim)).toBe(5);
     });
 });

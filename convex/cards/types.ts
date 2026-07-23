@@ -7075,6 +7075,31 @@ export interface EffectCardFilter {
      *  constraints). */
     manaValueEquals?: number | EffectXValue;
     isToken?: boolean;
+    /** "Entered the battlefield this turn" (CR 400.7, issue #1458) — a
+     *  battlefield permanent matches if it ENTERED the battlefield during the
+     *  current turn, read off the engine's per-permanent entry stamp
+     *  `CardInstanceState.enteredOnTurn` (written by `markEnteredThisTurn` /
+     *  `createTokenPermanents`, `gre/state.ts`) compared against
+     *  `GameState.turn`.
+     *
+     *  Deliberately NOT `isSummoningSick`: that flag clears only at its
+     *  CONTROLLER's untap step (so it stays true across the opponent's whole
+     *  turn — an over-count for any effect resolving then), and it is re-set
+     *  by `applyControlChange` on a permanent that never changed zones
+     *  (gaining control is not entering, CR 400.7 / 603.6).
+     *
+     *  Battlefield-only, mirroring `isToken`'s own scope exactly:
+     *  `matchesCardFilter` (the hand/library/graveyard hidden-zone matcher)
+     *  does not check it — a hidden-zone card has no battlefield clock.
+     *  Propagated onto `PermanentFilter.enteredThisTurn` by `toPermanentFilter`
+     *  for the `count` construct and `forEach { set: "permanents" }` (and any
+     *  future battlefield `choice`, since both route through the same
+     *  `ctx.getBattlefieldIds`). Composes with every other clause, including
+     *  `isToken` — Ocelot Pride's "a creature entered the battlefield under
+     *  your control this turn" is `{ isToken: true, enteredThisTurn: true }`
+     *  for its token-only variant, or `enteredThisTurn: true` alone for any
+     *  creature. */
+    enteredThisTurn?: boolean;
     excludeType?: CardType | CardType[];
     /** Match cards by exact printed name (CR 201.2 — "each other card named
      *  Accumulated Knowledge", Relentless Rats' "cards named ~", issue #985). A
@@ -8653,6 +8678,35 @@ export type EffectOp =
     | {
           op: "createToken";
           token: EffectTokenSpec;
+          controller: EffectPlayerRef;
+          count?: EffectValue;
+          bind?: string;
+      }
+    /** CR 707.2 + CR 111.1 (issue #1459) — create one or more tokens that are
+     *  COPIES of a runtime source permanent. The copy sibling of `createToken`:
+     *  where `createToken` takes a JSON-pure token spec, this Op reads a LIVE
+     *  source permanent and drives the same copy machinery Clone uses
+     *  (`applyCopy`, via `SpellContext.createTokenCopyOf`), stamping the
+     *  copiable characteristics of the source onto a fresh token — which is
+     *  exactly why it is a distinct Op, not a flag on `createToken`. `source`
+     *  is an `EffectObjectSelector`: an announced target slot (`{ target: N }`
+     *  — Dance of Many's "create a token that's a copy of target nontoken
+     *  creature"), OR a `ref` to a permanent bound earlier in the SAME script
+     *  (`{ ref: "$token" }` — "copy the token you just made", the `createToken`
+     *  → `createTokenCopy` bind chain Ocelot Pride #1461 needs). `controller`
+     *  names who gets the copies (the resolving `"controller"` by default; an
+     *  announced target-slot / relative player). `count` is an optional
+     *  EffectValue (default 1; a literal / ref / count for a count-scaled
+     *  creation); a non-positive count creates nothing (CR 707.1). The copy is
+     *  stamped with the resolving source's `createdBy` provenance (the same
+     *  leave-linkage Dance of Many's exile/sacrifice triggers rely on). Skipped
+     *  when the controller cannot be resolved, the count is non-positive /
+     *  unresolved, or the source has left the battlefield (CR 608.2b — the copy
+     *  fizzles). `bind` (mirrors `createToken`'s own bind) snapshots the LAST
+     *  created copy so a follow-up Op in the same script can act on it. */
+    | {
+          op: "createTokenCopy";
+          source: EffectObjectSelector;
           controller: EffectPlayerRef;
           count?: EffectValue;
           bind?: string;

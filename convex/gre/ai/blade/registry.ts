@@ -374,6 +374,122 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         },
         note: "Charter scenario 2, TIMING half. Passing loses the Phyrexian Dreadnought BY FORCE: the trigger on the stack resolves this priority round, its punisher cost can only be paid by sacrificing the Dreadnought itself (the board's only creature), so every legal answer to the may-pay sacrifices the 12/12 — Stifle is the only answer that keeps it, and a fetchland produces no mana (CR 305.6) so cracking the Delta is the only route to {U} — there is no later turn to defer to. This entry does NOT exercise the choice-node priors: cracking a fetchland is an ordinary enumerated activated-ability move, and `expect` asserts the ROOT move only, so it passes regardless of what the search-library choice then finds — here the seeded Island is in any case the one card the filter can find, so that node has a single legal option and can discriminate nothing. The half that exercises those priors is the fetch TARGET, a separate entry. Do not read this one as covering the fetch charter on its own. NOT SOLVED TODAY, and not for lack of compute: measured on eight seeds it chooses `pass` more often as the budget rises — 3/8 correct at 100, 5/8 at 400, 1/8 at 800, 0/8 at 3200. The gap is isolated to the fetch ply itself, by a discriminator that changes ONE thing: replace the Polluted Delta with the untapped Island it would fetch, leaving everything else identical (i.e. the exact post-fetch state, one life and one shuffle aside), and the bot Stifles on 8/8 seeds at 100, 400 and 1600. So the valuation of 'keep the 12/12' is already right and the loss is inside the fetch subtree — where the payoff is reached only through the activation, a stack resolution and a search-library choice. Converging AWAY from the right move as visits grow is a mis-valued subtree, not a horizon or a priors shortfall, which is why no `beyondBudget` cause is claimed here: none of the three would be honest. tracked-by: #1499 — this entry stays permanently red until that valuation gap is closed.",
     },
+    {
+        // CHARTER SCENARIO — the MODAL CHOICE (issue #1490, PRD #1423, charter
+        // gate #1434). The root decision under test is the MODE of a modal
+        // spell (CR 700.2): the bot holds Blue Elemental Blast — "Choose one —
+        // Counter target red spell. • Destroy target red permanent." — and
+        // must pick the mode the board calls for.
+        //
+        // THE POSITION. It is the opponent's turn (players[0] = "me" is the
+        // active opponent; the BOT is "opp" = players[1]). The opponent casts
+        // Disintegrate for X = 20 at the bot through the REAL cast pipeline
+        // (the `cast` setup step, below), so a RED SPELL LETHAL TO THE BOT sits
+        // on the stack, unresolved, with the bot holding priority to respond.
+        // The opponent's board also holds Mons's Goblin Raiders, an irrelevant
+        // red 1/1. The bot holds Blue Elemental Blast and an untapped Island
+        // for its {U}.
+        //
+        // BOTH MODES ARE LEGAL THROUGHOUT (the trap ADR 0070 §1 / issue #1490
+        // names): Counter has a legal target (Disintegrate, a red spell on the
+        // stack) and Destroy has a legal target (Mons's Goblin Raiders, a red
+        // permanent). The Mountains and the Island are colourless (CR 202.2),
+        // so they are not red-permanent targets — Destroy's ONLY target is the
+        // 1/1. The wrong mode is therefore LEGAL-AND-LOSING, never illegal:
+        // the engine never removes it, so the bot choosing Counter is a real
+        // choice, not the only option left.
+        //
+        // FAIRNESS BY CONSTRUCTION (ADR 0070 §1). The wrong mode loses THE GAME
+        // by force, not on average. Counter: Disintegrate is countered, the bot
+        // survives. Destroy (or pass): the 20-damage Disintegrate resolves into
+        // a bot at 20 life → 0 life → the bot loses to the state-based action
+        // (CR 104.3a / 704.5a). Destroy's entire accomplishment is a 1/1
+        // removed while the bot dies. No judgement, no rollout margin.
+        //
+        // BUDGET (ADR 0070 §2): the production `DEFAULT_BUDGET = { iterations:
+        // 400 }`, declared before measuring. Measured at authoring time to
+        // choose Counter on ALL FIVE seeds below at 400 — the forced loss lands
+        // on the VERY NEXT resolution, well inside the rollout horizon, so the
+        // bot sees it without extra compute. It is therefore a `must` entry,
+        // not `stretch`: unlike the fetchland TIMING half (#1488, tracked-by
+        // #1499) and the lethal-block charter (#1489), whose losses sit deeper
+        // in a subtree the rollout mis-values, this loss is one ply away. So it
+        // does NOT cross-confirm those defects — imminent death DOES enter the
+        // evaluation here, because it is imminent.
+        //
+        // SHOWN TO BITE (ADR 0070 §1). The green is driven by the forced GAME
+        // loss, not by the bot reflexively countering any red spell. The
+        // discriminator changes ONE thing — the setup cast's `x` from 20 to 10,
+        // so Disintegrate deals 10 (a bot at 20 SURVIVES; the wrong mode is no
+        // longer losing). Measured: the bot then chooses `pass` on all five
+        // seeds at 400 instead of Counter, and `expect: { moves: [Counter] }`
+        // goes red on every seed. The entry passes ONLY while the threat is
+        // lethal — exactly the property it is meant to assert.
+        //
+        // SETUP (ADR 0070 §4): the `cast` step runs Disintegrate onto the stack
+        // through `enumerateMoves` (the production legality gate) +
+        // `applyMoveInSearch` (the search's own cast application) — a spell the
+        // engine really cast, not a hand-built StackItem the engine could never
+        // have produced. It throws if the cast finds no purchase.
+        label: "charter: picks the modal mode that survives a lethal red spell",
+        spec: {
+            cards: [
+                // The active opponent's kill spell and the 21 Mountains that
+                // pay {X}{R} at X = 20 (20 generic + {R}) — the ONLY route to a
+                // 20-damage Disintegrate, so the setup cast is forced to the
+                // lethal size.
+                { name: "Disintegrate", owner: "me", zone: "hand" },
+                {
+                    name: "Mountain",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 21,
+                },
+                // The irrelevant red 1/1 — Destroy's only legal target, so that
+                // mode stays legal-and-losing rather than illegal.
+                {
+                    name: "Mons's Goblin Raiders",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                // The bot: Blue Elemental Blast and the {U} to cast it.
+                { name: "Blue Elemental Blast", owner: "opp", zone: "hand" },
+                { name: "Island", owner: "opp", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+        },
+        setup: [
+            {
+                kind: "cast",
+                card: "Disintegrate",
+                by: "me",
+                target: "opp",
+                x: 20,
+            },
+        ],
+        bot: "opp",
+        // ADR 0070 §3 — a charter entry runs K≥3 seeds. If the right mode is
+        // forced by the rules, it holds on any seed.
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        budget: { iterations: 400 },
+        tier: "must",
+        expect: {
+            // Countering the lethal Disintegrate. A `cast-spell` of Blue
+            // Elemental Blast whose target is the red spell can only be the
+            // Counter mode (Destroy targets a permanent, never a spell) — so
+            // this both names the card and pins the mode.
+            moves: [
+                {
+                    kind: "cast-spell",
+                    card: "Blue Elemental Blast",
+                    target: "Disintegrate",
+                },
+            ],
+        },
+        note: "Charter scenario (the modal choice). The wrong mode loses THE GAME by force: Blue Elemental Blast's Destroy mode removes only Mons's Goblin Raiders (a red 1/1) while the 20-damage Disintegrate resolves into the bot at 20 life and kills it (CR 104.3a); only the Counter mode — targeting the red spell on the stack — survives. Both modes are legal throughout (Counter targets the spell, Destroy the 1/1; the colourless Mountains/Island are not red-permanent targets), so the losing mode is offered and rejected, never absent. Chosen correctly on all five seeds at the production 400 budget — the loss is one resolution away, inside the rollout horizon — so this is `must`, and it does NOT cross-confirm the deeper-subtree death defects (#1488/#1499, #1489): imminent death enters the evaluation here precisely because it is imminent. Shown to bite by making the threat non-lethal (setup X 20→10): the bot then passes on all five seeds and the expectation goes red.",
+    },
 ];
 
 /** Entries of one tier, in registry order. */

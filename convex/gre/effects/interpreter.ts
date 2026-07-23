@@ -536,6 +536,11 @@ function toPermanentFilter(
         excludeSupertypes: filter.excludeSupertype,
         colors: filter.color,
         isToken: filter.isToken,
+        // CR 400.7 (issue #1458) — "entered the battlefield this turn",
+        // propagated 1:1 onto `PermanentFilter.enteredThisTurn`, mirroring
+        // `isToken`'s own mapping exactly (battlefield-only, no hidden-zone
+        // counterpart in `matchesCardFilter`).
+        enteredThisTurn: filter.enteredThisTurn,
         // issue #1085 — `PermanentFilter.name` has no dynamic-ref form (no
         // shipped card needs a battlefield-scoped bound-name filter yet, the
         // same asymmetry `excludeColor` notes above); only a FIXED literal
@@ -2610,6 +2615,40 @@ export const OP_EXECUTORS: {
                 type: "permanent",
                 id: ids[ids.length - 1],
             });
+        }
+    },
+    // CR 707.2 + CR 111.1 (issue #1459) — create token COPIES of a runtime
+    // source permanent. The copy sibling of `createToken` (ADR 0045): the
+    // source is read live and the same copy machinery Clone uses
+    // (`SpellContext.createTokenCopyOf` → `applyCopy`) stamps its copiable
+    // characteristics onto a fresh token — a runtime object read no JSON-pure
+    // token spec can express, which is why it is its own Op. `source` resolves
+    // through `resolveObjectRef` (an announced target slot OR a `ref` to a
+    // permanent bound earlier in the same script — the createToken→copy bind
+    // chain). The resolving source's instance id is passed as `createdBy` so
+    // the token carries provenance (Dance of Many's leave-linkage). Skipped
+    // when the controller can't be resolved, the count is non-positive /
+    // unresolved (CR 707.1 — creates nothing), or the source has left the
+    // battlefield (CR 608.2b — the copy fizzles).
+    createTokenCopy(ctx, op) {
+        const controllerId = resolvePlayerRef(ctx, op.controller);
+        if (controllerId === undefined) return;
+        const count = op.count === undefined ? 1 : resolveValue(ctx, op.count);
+        if (count === undefined || count <= 0) return;
+        const source = resolveObjectRef(ctx, op.source);
+        if (!source || source.type !== "permanent") return;
+        let lastId: string | undefined;
+        for (let i = 0; i < count; i++) {
+            lastId = ctx.createTokenCopyOf(
+                source.id,
+                controllerId,
+                ctx.sourceInstanceId
+            );
+        }
+        // issue #1202 — snapshot the LAST created copy so a follow-up Op can act
+        // on the specific just-created permanent (mirrors `createToken`'s bind).
+        if (op.bind && lastId !== undefined) {
+            bindSnapshot(ctx, op.bind, { type: "permanent", id: lastId });
         }
     },
     // CR 114 (issue #1221) — create a command-zone emblem owned by the resolved

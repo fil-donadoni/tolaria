@@ -93,9 +93,10 @@ const OP_SEQUENCE = [
     // createToken SHIPPED (issue #847) — the plain spec-driven `createToken`
     // primitive is now COVERED live via EFFECT_OP_REGISTRY. Only that form was
     // folded; the copy form (`createTokenCopyOf`) is a distinct capability
-    // (reads a runtime source creature + drives the copy machinery), split out
-    // as the `createTokenCopy` backlog Op below.
-    ["createTokenCopy", ["createTokenCopyOf"]],
+    // (reads a runtime source creature + drives the copy machinery), which
+    // SHIPPED separately as the `createTokenCopy` Op (issue #847 split →
+    // issue #1459) — now COVERED live via EFFECT_OP_REGISTRY, so it is dropped
+    // from the future-plan sequence (Dance of Many migrated as the consumer).
     ["gainControl", ["gainControl"]],
     ["optionChoice", ["requestOptionChoice"]],
     // addMana SHIPPED (issue #850) — addManaTo / addMana are now COVERED live
