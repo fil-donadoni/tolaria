@@ -76,6 +76,18 @@ export interface PermanentFilter {
      *  permanent"). `false` excludes token instances; `true` keeps only
      *  tokens. Omitted = no constraint. */
     isToken?: boolean;
+    /** "Entered the battlefield this turn" (CR 302.6, issue #1458). `true`
+     *  keeps only permanents whose control-continuity clock started this
+     *  turn (read off `MatchablePermanent.enteredThisTurn`, populated by
+     *  engine call sites from the `isSummoningSick` flag `markEnteredThisTurn`
+     *  already stamps — no new bookkeeping); `false` keeps only permanents
+     *  controlled continuously since before this turn. Omitted = no
+     *  constraint. AND with every other field, including `isToken` (Ocelot
+     *  Pride's "a creature entered the battlefield under your control this
+     *  turn"). Populated by `toPermanentFilter`
+     *  (`convex/gre/effects/interpreter.ts`) for the `count`/`forEach`
+     *  battlefield sites. */
+    enteredThisTurn?: boolean;
     /** Exclude these instance ids from the match set. Used to skip a
      *  permanent's own id when an effect specifies "another permanent"
      *  (CR 109.2) or "permanents other than ~". */
@@ -218,6 +230,14 @@ export interface MatchablePermanent {
     staticAbilities: ReadonlyArray<string>;
     controllerId?: string;
     isToken?: boolean;
+    /** Live control-continuity flag (CR 302.6, issue #1458) — true iff the
+     *  permanent's summoning-sickness clock started this turn (the engine's
+     *  `isSummoningSick` on `CardInstanceState`, set by `markEnteredThisTurn`).
+     *  Read by `PermanentFilter.enteredThisTurn`. Callers that use that
+     *  filter must populate this field; a caller that doesn't leaves it
+     *  undefined (fails closed, mirroring every other optional field here,
+     *  e.g. `isToken`). */
+    enteredThisTurn?: boolean;
     colors?: ReadonlyArray<Color>;
     power?: number;
     toughness?: number;
@@ -320,6 +340,13 @@ export function matchesPermanentFilter(
     if (filter.isToken !== undefined) {
         const cardIsToken = card.isToken === true;
         if (filter.isToken !== cardIsToken) return false;
+    }
+    // CR 302.6 (issue #1458) — "entered the battlefield this turn", read off
+    // the same control-continuity flag summoning sickness uses. Mirrors
+    // `isToken`'s exact boolean-equality shape.
+    if (filter.enteredThisTurn !== undefined) {
+        const cardEnteredThisTurn = card.enteredThisTurn === true;
+        if (filter.enteredThisTurn !== cardEnteredThisTurn) return false;
     }
     if (filter.isAttacking !== undefined) {
         const cardIsAttacking = card.isAttacking === true;

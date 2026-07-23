@@ -7075,6 +7075,24 @@ export interface EffectCardFilter {
      *  constraints). */
     manaValueEquals?: number | EffectXValue;
     isToken?: boolean;
+    /** "Entered the battlefield this turn" (CR 302.6, issue #1458) — a
+     *  battlefield permanent matches if its control-continuity clock started
+     *  this turn, read straight off the engine's `isSummoningSick` flag
+     *  (`markEnteredThisTurn`, `gre/state.ts`) — the SAME flag summoning
+     *  sickness and "controlled continuously since your most recent turn
+     *  began" predicates already read (`ctx.isSummoningSick`); no new
+     *  bookkeeping. Battlefield-only, mirroring `isToken`'s own scope exactly:
+     *  `matchesCardFilter` (the hand/library/graveyard hidden-zone matcher)
+     *  does not check it — a hidden-zone card has no battlefield clock.
+     *  Propagated onto `PermanentFilter.enteredThisTurn` by `toPermanentFilter`
+     *  for the `count` construct and `forEach { set: "permanents" }` (and any
+     *  future battlefield `choice`, since both route through the same
+     *  `ctx.getBattlefieldIds`). Composes with every other clause, including
+     *  `isToken` — Ocelot Pride's "a creature entered the battlefield under
+     *  your control this turn" is `{ isToken: true, enteredThisTurn: true }`
+     *  for its token-only variant, or `enteredThisTurn: true` alone for any
+     *  creature. */
+    enteredThisTurn?: boolean;
     excludeType?: CardType | CardType[];
     /** Match cards by exact printed name (CR 201.2 — "each other card named
      *  Accumulated Knowledge", Relentless Rats' "cards named ~", issue #985). A

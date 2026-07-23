@@ -11750,6 +11750,11 @@ export function buildSpellContext(
                             ...c,
                             name,
                             colors: STATIC_EFFECT_CTX.getColors(c),
+                            // CR 302.6 (issue #1458) — "entered the
+                            // battlefield this turn", read off the SAME
+                            // isSummoningSick control-continuity flag
+                            // markEnteredThisTurn already stamps.
+                            enteredThisTurn: c.isSummoningSick === true,
                         },
                         filter,
                         { supertypesOf: liveSupertypesOf }

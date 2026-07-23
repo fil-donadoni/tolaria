@@ -536,6 +536,11 @@ function toPermanentFilter(
         excludeSupertypes: filter.excludeSupertype,
         colors: filter.color,
         isToken: filter.isToken,
+        // CR 302.6 (issue #1458) — "entered the battlefield this turn",
+        // propagated 1:1 onto `PermanentFilter.enteredThisTurn`, mirroring
+        // `isToken`'s own mapping exactly (battlefield-only, no hidden-zone
+        // counterpart in `matchesCardFilter`).
+        enteredThisTurn: filter.enteredThisTurn,
         // issue #1085 — `PermanentFilter.name` has no dynamic-ref form (no
         // shipped card needs a battlefield-scoped bound-name filter yet, the
         // same asymmetry `excludeColor` notes above); only a FIXED literal

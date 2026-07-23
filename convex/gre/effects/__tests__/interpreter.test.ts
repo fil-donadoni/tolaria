@@ -6434,6 +6434,226 @@ describe("EffectCardFilter.manaValueEquals (issue #1083)", () => {
     });
 });
 
+describe("EffectCardFilter.enteredThisTurn (CR 302.6, issue #1458)", () => {
+    // `isSummoningSick` is the engine's existing control-continuity flag
+    // (`markEnteredThisTurn`, gre/state.ts) — no new bookkeeping is added
+    // here, only a DSL-reachable filter clause reading it. Per the per-Op
+    // regime, this is the clause's OWN test (it introduces a new
+    // `EffectCardFilter` field, not merely a new card reusing one); a later
+    // card (Ocelot Pride, issue #1461) that reuses it rides free.
+
+    it('draws a card for each creature that entered the battlefield this turn ("count" construct)', () => {
+        const id = registerScript("test-entered-this-turn-count", [
+            {
+                op: "draw",
+                player: "controller",
+                count: {
+                    count: {
+                        zone: "battlefield",
+                        controller: "controller",
+                        filter: { type: "Creature", enteredThisTurn: true },
+                    },
+                },
+            },
+        ]);
+        const fresh = ["freshA", "freshB"].map((cid) =>
+            makeInstance(BEAR_ID, {
+                id: cid,
+                controllerId: "p1",
+                ownerId: "p1",
+                isSummoningSick: true,
+            })
+        );
+        const stale = makeInstance(BEAR_ID, {
+            id: "staleC",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: false,
+        });
+        const lib = Array.from({ length: 5 }, (_, i) =>
+            makeInstance(BEAR_ID, {
+                id: `entered-lib-${i}`,
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "library",
+            })
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [...fresh, stale],
+                    library: lib,
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        // 2 creatures entered this turn (isSummoningSick) → draw 2, NOT 3 —
+        // the stale (pre-existing) creature is excluded.
+        expect(state.players[0].hand).toHaveLength(2);
+        expect(state.players[0].library).toHaveLength(3);
+    });
+
+    it('destroys only creatures that entered the battlefield this turn ("forEach" construct)', () => {
+        const id = registerScript("test-entered-this-turn-foreach", [
+            {
+                op: "forEach",
+                select: {
+                    set: "permanents",
+                    zone: "battlefield",
+                    filter: { type: "Creature", enteredThisTurn: true },
+                },
+                effects: [{ op: "destroy", target: { ref: "$each" } }],
+            },
+        ]);
+        const fresh = makeInstance(BEAR_ID, {
+            id: "etfA",
+            controllerId: "p2",
+            ownerId: "p2",
+            isSummoningSick: true,
+        });
+        const stale = makeInstance(BEAR_ID, {
+            id: "etfB",
+            controllerId: "p2",
+            ownerId: "p2",
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [fresh, stale] }),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[1].battlefield.map((c) => c.id)).toEqual(["etfB"]);
+        expect(state.players[1].graveyard.map((c) => c.id)).toEqual(["etfA"]);
+    });
+
+    it("composes with isToken — matches only a TOKEN that also entered this turn", () => {
+        const id = registerScript("test-entered-this-turn-istoken", [
+            {
+                op: "forEach",
+                select: {
+                    set: "permanents",
+                    zone: "battlefield",
+                    filter: { isToken: true, enteredThisTurn: true },
+                },
+                effects: [{ op: "destroy", target: { ref: "$each" } }],
+            },
+        ]);
+        // Four permutations on the same battlefield: token/nontoken crossed
+        // with entered-this-turn/stale. Only the token+entered-this-turn
+        // permanent should be destroyed.
+        const freshToken = makeInstance(BEAR_ID, {
+            id: "itA-freshToken",
+            controllerId: "p2",
+            ownerId: "p2",
+            isToken: true,
+            isSummoningSick: true,
+        });
+        const staleToken = makeInstance(BEAR_ID, {
+            id: "itB-staleToken",
+            controllerId: "p2",
+            ownerId: "p2",
+            isToken: true,
+            isSummoningSick: false,
+        });
+        const freshNonToken = makeInstance(BEAR_ID, {
+            id: "itC-freshNonToken",
+            controllerId: "p2",
+            ownerId: "p2",
+            isToken: false,
+            isSummoningSick: true,
+        });
+        const staleNonToken = makeInstance(BEAR_ID, {
+            id: "itD-staleNonToken",
+            controllerId: "p2",
+            ownerId: "p2",
+            isToken: false,
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    battlefield: [
+                        freshToken,
+                        staleToken,
+                        freshNonToken,
+                        staleNonToken,
+                    ],
+                }),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[1].battlefield.map((c) => c.id).sort()).toEqual([
+            "itB-staleToken",
+            "itC-freshNonToken",
+            "itD-staleNonToken",
+        ]);
+        expect(state.players[1].graveyard.map((c) => c.id)).toEqual([
+            "itA-freshToken",
+        ]);
+    });
+
+    it("wire format — the count draw honours enteredThisTurn after projectPublicState", () => {
+        const id = registerScript("test-entered-this-turn-wire", [
+            {
+                op: "draw",
+                player: "controller",
+                count: {
+                    count: {
+                        zone: "battlefield",
+                        controller: "controller",
+                        filter: { type: "Creature", enteredThisTurn: true },
+                    },
+                },
+            },
+        ]);
+        const fresh = makeInstance(BEAR_ID, {
+            id: "wireFresh",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: true,
+        });
+        const stale = makeInstance(BEAR_ID, {
+            id: "wireStale",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: false,
+        });
+        const lib = [
+            makeInstance(BEAR_ID, {
+                id: "wire-lib-0",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "library",
+            }),
+        ];
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [fresh, stale],
+                    library: lib,
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].hand).toHaveLength(1);
+        const projected = projectPublicState(state, 1, "p1");
+        // The projection strips fat battlefield fields, but the DRAW OUTCOME
+        // (already applied server-side) survives onto the wire as a plain
+        // hand-count — the same wire-format convention every other `count`
+        // test in this suite uses.
+        expect(projected.players[0].hand).toHaveLength(1);
+    });
+});
+
 describe("Effect Script Op: animate (CR 208.2 / 611.1, issue #1317)", () => {
     // A LAND (not the BEAR_ID creature fixture) becomes a creature — the
     // canonical Earthbend N shape (Badgermole Cub, tla/green.ts): base 0/0,
