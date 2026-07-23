@@ -137,20 +137,51 @@ color/variant, do not fork the layout.
 - Space = Next during the sequence.
 - A "Cancel" controller action resets the sequence (`active=false`); the
   attackers stay declared vs. the defending player and the user falls back to
-  free retargeting. Pass Turn is unchanged.
+  free retargeting. Pass Turn is unchanged, and stays available throughout the
+  sequence.
+
+### 7. Space hotkey + confirmation
+
+During `DECLARE_ATTACKERS` the Space hotkey means **"Attack with all"**, not
+"Skip Attack". Precedence, in order:
+
+1. The confirmation dialog is up → Space belongs to the dialog's focused
+   button; the hook does nothing.
+2. The destination sequence is active → Space advances the cursor (§6).
+3. At least one creature is eligible → Space opens the **confirmation dialog**;
+   it dispatches nothing on its own.
+4. Otherwise (nothing can attack) → Space calls `confirmAttackers`, i.e. the
+   old Skip Attack, which is the only thing it can mean.
+
+The dialog lives in `src/components/board/attack-all-confirm-dialog.tsx` (a
+`GameDialog` with Attack and Cancel actions) and gates **only the Space path**.
+The pod's own "Attack with all" button stays immediate — a click is already
+deliberate, whereas Space is the same reflex keystroke that used to skip the
+attack, and a whole board declared by accident is not recoverable once
+confirmed. It is rendered by whichever controller surface is mounted (pod or
+bottom bar); exactly one mounts, so it never doubles. The dialog's `open` is
+additionally gated on "still declaring attackers, sequence inactive, ≥1
+eligible" so a phase change cannot strand it open.
 
 ## Testing
 
 - `useControllerActions` test: button appears in DECLARE_ATTACKERS for the
   active player; declares all eligible creatures; 0-PW defender → immediate
-  confirm; ≥1-PW defender → sequence starts.
+  confirm; ≥1-PW defender → sequence starts; a server-rejected creature neither
+  aborts the run nor enters the sequence order.
+- Space hotkey: opens the confirmation (dispatching nothing) with ≥1 eligible
+  creature; confirming declares; cancelling dispatches nothing; falls back to
+  `confirmAttackers` with 0 eligible; advances the sequence when one is active.
 - `useBattlefieldInteraction.attackTarget.test.tsx`: while the sequence is
   active, clicking a planeswalker targets `order[index]`, not the last-declared
-  attacker; `index` advances.
+  attacker; `index` advances; an attacker already on that planeswalker is NOT
+  re-toggled.
 - `useBattlefieldVisualState.attackTarget.test.tsx`: the current attacker
   carries the dedicated ring flag; it moves with `index`.
-- Eligibility parity: the client "all" set equals the set the server accepts via
-  `validateAttackerEligibility` (shared predicate — assert no divergence).
+- Eligibility: the client "all" set is the shared predicate's, driving both the
+  board's gray-out and the button (they cannot drift from each other); the
+  documented subset vs. the server is covered by the rejection-tolerance test
+  rather than by a parity assertion.
 
 ## Out of scope
 

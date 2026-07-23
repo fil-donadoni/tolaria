@@ -8,6 +8,7 @@ import ControllerCueBadge from "./controller-cue-badge";
 import ControllerPhasePanel from "./controller-phase-panel";
 import HotkeysLegend from "./hotkeys-legend";
 import PauseMenuButton from "./pause-menu-button";
+import AttackAllConfirmDialog from "./attack-all-confirm-dialog";
 
 /** Collapsed controller pod (#331, variant H). Replaces the old left phase
  *  rail + bottom-right action bar with ONE surface docked to the board's right
@@ -23,7 +24,7 @@ export default function ControllerPod({
     onOpenMenu: () => void;
 }) {
     const { phase, turn, activePlayerId, playerId } = useGameContext();
-    const { cue, actions } = useControllerActions();
+    const { cue, actions, attackAllConfirm } = useControllerActions();
     const [expanded, setExpanded] = useState(false);
 
     const isMyTurn = activePlayerId === playerId;
@@ -119,6 +120,8 @@ export default function ControllerPod({
             {expanded && (
                 <ControllerPhasePanel onClose={() => setExpanded(false)} />
             )}
+
+            <AttackAllConfirmDialog confirm={attackAllConfirm} />
         </div>
     );
 }

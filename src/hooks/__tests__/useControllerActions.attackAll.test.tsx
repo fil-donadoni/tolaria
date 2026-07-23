@@ -97,6 +97,7 @@ function player(id: string, battlefield: CardInstance[]): Player {
     return {
         id,
         name: id,
+        bgColor: "#000",
         life: 20,
         hand: [],
         library: { count: 0 },
@@ -297,6 +298,84 @@ describe("useControllerActions — Attack with all (design 2026-07-23)", () => {
                 )
         ).toEqual(["b"]);
         expect(seq.begin).toHaveBeenCalledWith(["a", "b"]);
+    });
+
+    it("Space offers Attack with all behind a confirmation instead of skipping", async () => {
+        const me = player("me", [creature({ id: "a" }), creature({ id: "b" })]);
+        const opp = player("opp", []);
+        const seq = makeSequence();
+        const { result } = renderCtrl(me, opp, seq);
+
+        expect(result.current.attackAllConfirm.open).toBe(false);
+        act(() => {
+            window.dispatchEvent(
+                new KeyboardEvent("keydown", { code: "Space" })
+            );
+        });
+
+        // Dialog up, nothing dispatched yet — Space must never declare or skip
+        // the attack on its own.
+        expect(result.current.attackAllConfirm.open).toBe(true);
+        expect(result.current.attackAllConfirm.eligibleCount).toBe(2);
+        expect(calls).toHaveLength(0);
+
+        await act(async () => {
+            result.current.attackAllConfirm.confirm();
+        });
+        expect(calls.filter((c) => c.ref === "toggleAttacker")).toHaveLength(2);
+        expect(result.current.attackAllConfirm.open).toBe(false);
+    });
+
+    it("cancelling the Space confirmation dispatches nothing", () => {
+        const me = player("me", [creature({ id: "a" })]);
+        const opp = player("opp", []);
+        const { result } = renderCtrl(me, opp, makeSequence());
+
+        act(() => {
+            window.dispatchEvent(
+                new KeyboardEvent("keydown", { code: "Space" })
+            );
+        });
+        act(() => result.current.attackAllConfirm.cancel());
+
+        expect(result.current.attackAllConfirm.open).toBe(false);
+        expect(calls).toHaveLength(0);
+    });
+
+    it("Space still skips the attack when no creature is eligible", () => {
+        const me = player("me", [creature({ id: "tapped", isTapped: true })]);
+        const opp = player("opp", []);
+        const { result } = renderCtrl(me, opp, makeSequence());
+
+        act(() => {
+            window.dispatchEvent(
+                new KeyboardEvent("keydown", { code: "Space" })
+            );
+        });
+
+        expect(result.current.attackAllConfirm.open).toBe(false);
+        expect(calls.some((c) => c.ref === "confirmAttackers")).toBe(true);
+    });
+
+    it("Space advances the destination sequence rather than re-offering the dialog", () => {
+        const me = player("me", [creature({ id: "a" }), creature({ id: "b" })]);
+        const opp = player("opp", [planeswalker()]);
+        const seq = makeSequence({
+            active: true,
+            order: ["a", "b"],
+            index: 0,
+            currentAttackerId: "a",
+        });
+        const { result } = renderCtrl(me, opp, seq);
+
+        act(() => {
+            window.dispatchEvent(
+                new KeyboardEvent("keydown", { code: "Space" })
+            );
+        });
+
+        expect(seq.advance).toHaveBeenCalledTimes(1);
+        expect(result.current.attackAllConfirm.open).toBe(false);
     });
 
     it("with every creature rejected, neither confirms nor opens a sequence", async () => {

@@ -36,6 +36,19 @@ export type ControllerAction = {
     pill?: boolean;
 };
 
+/** Space-triggered "Attack with all" confirmation (design 2026-07-23). During
+ *  DECLARE_ATTACKERS the Space hotkey offers to attack with everything rather
+ *  than skipping the attack, so it is gated behind an explicit dialog — Space
+ *  is easy to hit by reflex expecting the old "Skip Attack". The pod's own
+ *  button stays immediate: a click is already deliberate. */
+export type AttackAllConfirm = {
+    open: boolean;
+    /** How many creatures the confirmation is about to send in. */
+    eligibleCount: number;
+    confirm: () => void;
+    cancel: () => void;
+};
+
 export type ControllerState = {
     /** Plain priority cue for the collapsed pod header. */
     cue: ControllerCue;
@@ -43,6 +56,9 @@ export type ControllerState = {
     actions: ControllerAction[];
     isAutoPass: boolean;
     isQueuedEndTurn: boolean;
+    /** Drives the Space-triggered Attack-with-all confirmation dialog, which
+     *  the mounted controller surface (pod or bottom bar) renders. */
+    attackAllConfirm: AttackAllConfirm;
 };
 
 /** Hook holding ALL of the controller's mutations, derived priority state,
@@ -142,6 +158,7 @@ export function useControllerActions(): ControllerState {
     );
     const defenderHasPlaneswalker =
         opponent?.battlefield.some((c) => isPlaneswalker(c)) ?? false;
+    const [attackAllConfirmOpen, setAttackAllConfirmOpen] = useState(false);
 
     // Declare every eligible creature vs. the defending player. With no
     // defending planeswalker there is no destination to choose, so confirm
@@ -301,12 +318,22 @@ export function useControllerActions(): ControllerState {
                     if (pendingChoiceAction.canConfirm) {
                         pendingChoiceAction.confirm();
                     }
+                } else if (attackAllConfirmOpen) {
+                    // The confirmation dialog owns the keyboard while it is up
+                    // — let its own focused button handle Space.
                 } else if (isSelectingAttackers && attackSequence.active) {
                     // Destination sequence up: Space keeps the current attacker
                     // on the player and advances, mirroring the "Assign target"
                     // button — never confirms mid-sequence.
                     attackSequence.advance();
+                } else if (isSelectingAttackers && eligibleIds.length > 0) {
+                    // Space offers "Attack with all" rather than skipping the
+                    // attack — but behind a confirmation, since it is the same
+                    // reflex keystroke that used to mean "Skip Attack".
+                    setAttackAllConfirmOpen(true);
                 } else if (isSelectingAttackers) {
+                    // Nothing can attack, so the only thing Space can mean is
+                    // skipping the attack step.
                     confirmAttackers({ gameId, playerId });
                 } else if (isSelectingBlockers) {
                     confirmBlockers({ gameId, playerId });
@@ -361,6 +388,8 @@ export function useControllerActions(): ControllerState {
         autoTap,
         isSelectingAttackers,
         attackSequence,
+        attackAllConfirmOpen,
+        eligibleIds,
         isSelectingBlockers,
         isAssigningDamage,
         allDamageAssigned,
@@ -567,5 +596,22 @@ export function useControllerActions(): ControllerState {
         cue = "opponent";
     }
 
-    return { cue, actions, isAutoPass, isQueuedEndTurn };
+    // The dialog is only meaningful while attackers are being declared with
+    // something able to attack — a phase change or the last eligible creature
+    // leaving the board must not strand it open.
+    const attackAllConfirm: AttackAllConfirm = {
+        open:
+            attackAllConfirmOpen &&
+            isSelectingAttackers &&
+            !attackSequence.active &&
+            eligibleIds.length > 0,
+        eligibleCount: eligibleIds.length,
+        confirm: () => {
+            setAttackAllConfirmOpen(false);
+            void handleAttackAll();
+        },
+        cancel: () => setAttackAllConfirmOpen(false),
+    };
+
+    return { cue, actions, isAutoPass, isQueuedEndTurn, attackAllConfirm };
 }
