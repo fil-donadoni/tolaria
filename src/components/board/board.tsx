@@ -371,6 +371,7 @@ export default function Board({
                 emblems: state.emblems,
                 phasedOutCards,
                 monarchId: state.monarchId,
+                cityBlessingIds: state.cityBlessingIds,
                 pendingReveals: state.pendingReveals,
                 recentArrivals,
                 showAllCards,

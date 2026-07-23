@@ -1271,6 +1271,12 @@ function isPredicate(value: unknown): boolean {
     if (keys.length === 1 && keys[0] === "targetIsAnother") {
         return isTargetRef(obj.targetIsAnother);
     }
+    // hasCityBlessing form (Ascend, CR 702.131b — issue #1460) — a single key
+    // holding the player whose city's-blessing designation to read (normally
+    // "controller"). A pure player-state predicate, no binding/target/zone.
+    if (keys.length === 1 && keys[0] === "hasCityBlessing") {
+        return isPlayerRef(obj.hasCityBlessing);
+    }
     // picksMatchFilter form (issue #1343) — a `choice` Op's picks binding
     // (bare picks ref, same shape as `picksNonEmpty`), plus `player` (whose
     // graveyard to resolve the picks against) and `filter` (the card shape

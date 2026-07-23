@@ -366,6 +366,15 @@ function evalPredicate(ctx: SpellContext, pred: EffectPredicate): boolean {
             );
         });
     }
+    // hasCityBlessing (Ascend, CR 702.131b — issue #1460) — true iff the
+    // resolved player holds the city's blessing designation. A pure
+    // player-state read via the `hasCityBlessing` primitive (the monotonic
+    // `GameState.cityBlessingIds` set); `false` for an unresolvable player ref.
+    if ("hasCityBlessing" in pred) {
+        const playerId = resolvePlayerRef(ctx, pred.hasCityBlessing);
+        if (!playerId) return false;
+        return ctx.hasCityBlessing(playerId);
+    }
     const left = resolveValue(ctx, pred.left);
     const right = resolveValue(ctx, pred.right);
     if (left === undefined || right === undefined) return false;

@@ -52,6 +52,11 @@ import {
     solveSmartAutoTap,
 } from "./autoTap";
 import { applyPlayLand, enqueueLandEntryChoice } from "./playLand";
+import {
+    ASCEND_KEYWORD,
+    grantCityBlessingIfThreshold,
+    hasCityBlessing,
+} from "./cityBlessing";
 import { checkStateBasedActions } from "./sba";
 import { getExtraLandDrops, getLegalTargets } from "./rules";
 import { resolveEntersTapped } from "../cards/entersTapped";
@@ -3032,6 +3037,18 @@ export type GameState = {
      *  the exiled creature — which this engine's 2-player scope makes exact
      *  ("an opponent" has only one possible value). */
     monarchReturnWatch?: MonarchReturnWatch[];
+    /** CR 702.131 — the City's Blessing designation (Ascend, issue #1460).
+     *  The ids of every player who has ever obtained the city's blessing.
+     *  Modeled on `monarchId` (a player designation held in game state, not on
+     *  any object) but with two CR-driven differences: (1) it is a SET, not a
+     *  single scalar — the blessing is not exclusive, both players can hold it
+     *  at once (CR 702.131b); (2) it is MONOTONIC — once a player is added they
+     *  are NEVER removed, because "you have the city's blessing for the rest of
+     *  the game" (CR 702.131b): dropping below ten permanents does not revoke
+     *  it. Written exclusively through `grantCityBlessing` (idempotent add);
+     *  read through `hasCityBlessing` (`gre/cityBlessing.ts`). Undefined /
+     *  empty means no one has the blessing yet (every game starts that way). */
+    cityBlessingIds?: string[];
     /** CR 303.4f — Auras that have left their origin zone but have NOT yet
      *  entered the battlefield because their controller still owes a "choose
      *  what to enchant" pick (a `choose-aura-host` PendingChoice is queued for
@@ -4406,6 +4423,16 @@ function finalizeSpellResolution(
         // trigger condition (Lutri, the Spellchaser).
         emitPermanentEntered(state, item, { wasCast: true });
     } else {
+        // CR 702.131c (issue #1460) — the INSTANT/SORCERY form of Ascend is
+        // part of the spell's resolution: "if you control ten or more
+        // permanents, you get the city's blessing." Checked ONCE here, as the
+        // spell finishes resolving, for the spell's controller. Reads the card
+        // def's `ascend` keyword; the permanent form is handled continuously by
+        // the SBA sweep instead. A copy still checks (it resolves like the
+        // original) before it ceases to exist below.
+        if (cardDef?.staticAbilities?.includes(ASCEND_KEYWORD)) {
+            grantCityBlessingIfThreshold(state, item.castById);
+        }
         // CR 707.10 / 112.5 — a copy of an instant/sorcery spell is not a real
         // card: once it finishes resolving it simply ceases to exist instead
         // of being put into a graveyard.
@@ -9951,6 +9978,14 @@ export function buildSpellContext(
         // effects.
         getLifeGainedThisTurn(playerId: string): number {
             return state.lifeGainedThisTurn?.[playerId] ?? 0;
+        },
+        // CR 702.131b (issue #1460) — true iff `playerId` holds the city's
+        // blessing (Ascend). Powers the `hasCityBlessing` Effect Script
+        // predicate ("if you have the city's blessing", Ocelot Pride #1461)
+        // from both the DSL and imperative effects. A pure read of the
+        // monotonic `cityBlessingIds` designation set.
+        hasCityBlessing(playerId: string): boolean {
+            return hasCityBlessing(state, playerId);
         },
         // CR 122 / 603.3 (issue #1189) — how many times the CURRENTLY
         // RESOLVING triggered ability has resolved this turn, counting this
