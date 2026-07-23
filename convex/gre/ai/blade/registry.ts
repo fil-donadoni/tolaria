@@ -138,6 +138,89 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         note: "Charter scenario 1. Letting the trigger resolve loses the 12/12 by force (CR 118) — no judgement involved. Guards the choice-node traversal of issue #1425: before it, the playout halted at the may-pay and scored the losing line with the Dreadnought still alive.",
     },
     {
+        // CHARTER SCENARIO 2 — the FETCH TARGET (issue #1491, PRD #1423,
+        // charter gate #1434). The only charter entry whose root decision is a
+        // CHOICE NODE: the live search-library choice of a cracked fetchland
+        // (CR 701.19), reached by activating Polluted Delta through the real
+        // activation path and resolving its ability (`setup` below).
+        //
+        // FAIRNESS BY CONSTRUCTION (ADR 0070 §1). The position is deliberately
+        // narrow so that exactly one answer is FORCED, with no plan-quality
+        // judgement in it. The bot's only land in play is a Mountain and its
+        // only card in hand is Terror ({1}{B}). The library holds exactly one
+        // Island and one Swamp the Delta can find (the rest is Plains, which
+        // it cannot). Fetching the Swamp makes Terror castable THIS main
+        // phase and the opponent's Hill Giant dies — by the rules, not on
+        // average. Fetching the Island leaves {W}-less, {B}-less mana: Terror
+        // is uncastable, the 3/3 lives, and the card in hand is dead. The
+        // wrong pick loses a creature-kill outright.
+        //
+        // NOT a "which land does my plan want" position on purpose: a
+        // realistic manabase decision pays off two or three turns later, past
+        // what the search can see, which would make this a beyond-budget entry
+        // rather than a blade.
+        //
+        // BUDGET (ADR 0070 §2): declared at the production 400. Measured at
+        // authoring time to resolve correctly at 100, 200 and 400 iterations
+        // across all five seeds below.
+        //
+        // SETUP (ADR 0070 §4): `activate` runs `activateAbilityOnState`
+        // (`convex/game.ts`) — the exact function the `activateAbility`
+        // mutation calls, extracted for this entry so no second copy of the
+        // activation path exists. The {T} / Pay 1 life / Sacrifice cost is
+        // really paid (the bot is at 19 and the Delta is in the graveyard),
+        // and `resolve-top` resolves the ability through `resolveTopOfStack`,
+        // which is what OPENS the choice. Nothing about the pending decision
+        // is hand-built.
+        //
+        // SHOWN TO BITE (ADR 0070 §1): see the PR for #1491 — truncating the
+        // choice node's candidate set to a single prior-ranked lead
+        // (`CHOICE_TOP_K` 8 → 1, `choiceCandidates.ts`), so the prior — which
+        // does not distinguish two basic lands — decides instead of the
+        // search, flips the answer to Island on all five seeds and the entry
+        // goes red.
+        label: "charter: fetches the land that makes its removal castable",
+        spec: {
+            cards: [
+                { name: "Polluted Delta", owner: "me", zone: "battlefield" },
+                // The generic half of Terror's {1}{B}. Deliberately a colour
+                // that pays no coloured pip of anything in hand, so the fetch
+                // is the ONLY source of the {B}.
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Terror", owner: "me", zone: "hand" },
+                // The two — and only two — cards Polluted Delta can find.
+                { name: "Island", owner: "me", zone: "library" },
+                { name: "Swamp", owner: "me", zone: "library" },
+                {
+                    name: "Hill Giant",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            // NO `libraryCount`: it would refill both libraries with basics
+            // matching the board's colours (Swamps and Mountains here), which
+            // would flood the fetch pool and destroy the two-candidate
+            // decision. The synthetic base deck's leftover Plains are inert —
+            // Polluted Delta cannot find them.
+        },
+        setup: [
+            { kind: "activate", card: "Polluted Delta" },
+            { kind: "resolve-top" },
+        ],
+        bot: "me",
+        budget: { iterations: 400 },
+        // ADR 0070 §3 — K≥3 seeds on a charter entry.
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "resolution-choice", card: "Swamp" }],
+        },
+        note: "Charter scenario 2 (the fetch target). Fetching the Island instead of the Swamp loses the Hill Giant kill BY FORCE: the bot's only other land is a Mountain, so Terror ({1}{B}) is uncastable without the Swamp and the 3/3 survives with the removal stranded in hand. The root decision is the live search-library choice (CR 701.19), reached by really activating and resolving the fetchland.",
+    },
+    {
         // DISCRIMINATING PAIR, HALF 1 of 2 (issue #1487).
         // PAIRED WITH: "discriminating pair: casts Phyrexian Dreadnought WITH
         // an out (Stifle)". NEITHER ENTRY PROVES ANYTHING ALONE — a bot that
