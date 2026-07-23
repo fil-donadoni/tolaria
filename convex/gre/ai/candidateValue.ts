@@ -50,10 +50,14 @@ export function permanentWorth(
 }
 
 /** No-script flat floor — the v1 heuristic's flat noncreature prior (issue
- *  #1425), preserved as the honest fallback for a card the DSL layer has no
+ *  #1425), preserved as the honest fallback for a card the DSL layer has NO
  *  opinion on (issue #1433: "heuristics may remain as fallback where no Op
- *  maps"). Also the floor a real script can never read BELOW — a script the
- *  current Op vocabulary undervalues never scores worse than "unknown". */
+ *  maps"). Issue #1513: this floor must NEVER be applied to a card that DOES
+ *  carry a real/shadow script — doing so flattened every sub-90-Forge-point
+ *  script (a cantrip, a scry spell) to the same worth as a do-nothing card,
+ *  silently reintroducing the "every noncreature priced flat" bug class
+ *  #1433 was built to remove. A scripted card is ordered by its OWN value,
+ *  full stop — see `noncreatureCardWorth` below. */
 const NONCREATURE_FLOOR = 30;
 
 /** Rescales OP_VALUERS' Forge-scale points (`opValuers.ts`'s currency — a
@@ -106,18 +110,21 @@ export function scriptOpValueOf(
  *  spell-script PLUS ability-script value (context-free by default — the
  *  card's worth before it's cast; a context-aware caller passes its own
  *  `GroundingContext`) when the card has a real/shadow script anywhere on
- *  it, rescaled onto this module's currency and floored at the v1 flat
- *  prior. */
+ *  it, rescaled onto this module's currency. Issue #1513: the floor is the
+ *  NO-SCRIPT fallback ONLY — a scripted card is never clamped up to it, so a
+ *  66-Forge-point burn spell, a 45-point cantrip and a 10-point scry-only
+ *  spell stay strictly ordered by their OWN value instead of all collapsing
+ *  to the same worth as an unscripted card the moment their rescaled value
+ *  dips below the floor (every real script here was previously
+ *  indistinguishable from a do-nothing card below the 90-Forge-point line —
+ *  `NONCREATURE_FLOOR / NONCREATURE_SCRIPT_SCALE`). */
 export function noncreatureCardWorth(
     card: CardInstanceState,
     ctx?: GroundingContext
 ): number {
     const scripted = scriptOpValueOf(card, ctx);
     if (!scripted) return NONCREATURE_FLOOR;
-    return Math.max(
-        NONCREATURE_FLOOR,
-        scripted.points * NONCREATURE_SCRIPT_SCALE
-    );
+    return scripted.points * NONCREATURE_SCRIPT_SCALE;
 }
 
 /** Latent worth of a prospective card (hand/library — not yet in play):
