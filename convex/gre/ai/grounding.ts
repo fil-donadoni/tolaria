@@ -71,7 +71,8 @@ export function contextFreeGrounding(): GroundingContext {
         if ("ref" in v) return { amount: CF_ASSUMED_REF, scaling: false };
         if ("count" in v) return { amount: CF_ASSUMED_COUNT, scaling: true };
         // counters / manaValue / domain / kickerCount / escaped /
-        // abilityResolutionCount — dynamic reads off runtime state.
+        // abilityResolutionCount / lifeGainedThisTurn — dynamic reads off
+        // runtime state.
         if ("escaped" in v || "abilityResolutionCount" in v)
             return { amount: 1, scaling: false };
         return { amount: CF_ASSUMED_REF, scaling: true };

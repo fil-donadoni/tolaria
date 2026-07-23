@@ -378,6 +378,16 @@ function resolveValueAgainstBoard(
     if ("X" in v) return CF_ASSUMED_X_FALLBACK;
     if ("counters" in v || "escaped" in v || "kickerCount" in v) return 0;
     if ("abilityResolutionCount" in v) return 1;
+    // lifeGainedThisTurn (CR 119.3, issue #1457) — a per-turn tally genuinely
+    // resolvable off the live board, unlike the object-scoped reads below.
+    // Only the `"controller"` selector is resolvable pre-cast (the caster IS
+    // the perspective player); an `opponent` / announced-slot / ref selector
+    // needs an announcement that doesn't exist yet at a choice node.
+    if ("lifeGainedThisTurn" in v) {
+        return v.lifeGainedThisTurn.of === "controller"
+            ? (state.lifeGainedThisTurn?.[perspectivePlayerId] ?? 0)
+            : CF_ASSUMED_REF_FALLBACK;
+    }
     // ref / manaValue / domain — object- or player-scoped reads with no
     // resolvable object/announcement pre-cast.
     return CF_ASSUMED_REF_FALLBACK;

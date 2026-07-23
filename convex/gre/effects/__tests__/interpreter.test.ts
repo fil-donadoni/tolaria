@@ -15439,6 +15439,129 @@ describe("Effect Script value: domain (CR 702 preamble ability word, issue #1066
     });
 });
 
+describe("Effect Script value: lifeGainedThisTurn (CR 119.3, issue #1457)", () => {
+    it("gates an `if` branch on 'you gained life this turn' (the CR 603.4 predicate shape)", () => {
+        const id = registerScript("test-val-lgtt-if", [
+            {
+                op: "if",
+                predicate: {
+                    left: { lifeGainedThisTurn: { of: "controller" } },
+                    op: "ge",
+                    right: 1,
+                },
+                then: [
+                    { op: "dealDamage", amount: 3, to: { player: "opponent" } },
+                ],
+            },
+        ]);
+        const state = makeState();
+        state.lifeGainedThisTurn = { p1: 2 };
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(17); // 20 - 3, branch taken
+    });
+
+    it("the predicate is FALSE when no life was gained this turn", () => {
+        const id = registerScript("test-val-lgtt-if-none", [
+            {
+                op: "if",
+                predicate: {
+                    left: { lifeGainedThisTurn: { of: "controller" } },
+                    op: "ge",
+                    right: 1,
+                },
+                then: [
+                    { op: "dealDamage", amount: 3, to: { player: "opponent" } },
+                ],
+                else: [
+                    { op: "dealDamage", amount: 1, to: { player: "opponent" } },
+                ],
+            },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(19); // else branch — 20 - 1
+    });
+
+    it("gaining 0 life does NOT satisfy the predicate (CR 119.3 — a zero gain is not a life gain)", () => {
+        const id = registerScript("test-val-lgtt-zero", [
+            {
+                op: "gainLife",
+                player: "controller",
+                amount: 0,
+            },
+            {
+                op: "if",
+                predicate: {
+                    left: { lifeGainedThisTurn: { of: "controller" } },
+                    op: "ge",
+                    right: 1,
+                },
+                then: [
+                    { op: "dealDamage", amount: 3, to: { player: "opponent" } },
+                ],
+            },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.lifeGainedThisTurn).toBeUndefined();
+        expect(state.players[1].life).toBe(20); // branch not taken
+    });
+
+    it("reads back a gain made EARLIER IN THE SAME SCRIPT, and works as a plain magnitude", () => {
+        const id = registerScript("test-val-lgtt-amount", [
+            { op: "gainLife", player: "controller", amount: 4 },
+            {
+                op: "dealDamage",
+                amount: { lifeGainedThisTurn: { of: "controller" } },
+                to: { player: "opponent" },
+            },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(24);
+        expect(state.players[1].life).toBe(16); // 20 - 4
+    });
+
+    it('reads a NON-controller player via `of: "opponent"` (player-scoped selector)', () => {
+        const id = registerScript("test-val-lgtt-opponent", [
+            {
+                op: "gainLife",
+                player: "controller",
+                amount: { lifeGainedThisTurn: { of: "opponent" } },
+            },
+        ]);
+        const state = makeState();
+        state.lifeGainedThisTurn = { p2: 5 };
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(25); // 20 + p2's 5
+    });
+
+    it("survives the wire projection (the tally is a top-level GameState field)", () => {
+        const id = registerScript("test-val-lgtt-wire", [
+            {
+                op: "dealDamage",
+                amount: { lifeGainedThisTurn: { of: "controller" } },
+                to: { player: "opponent" },
+            },
+        ]);
+        const state = makeState();
+        state.lifeGainedThisTurn = { p1: 3 };
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(17); // 20 - 3
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[1].life).toBe(17);
+        // The tally itself crosses the wire, so a client-side predicate reads
+        // the SAME number the server's intervening-if does.
+        expect(projected.lifeGainedThisTurn).toEqual({ p1: 3 });
+    });
+});
+
 describe("Effect Script value: abilityResolutionCount (CR 122 / 603.3, issue #1189)", () => {
     // A synthetic Landfall-shaped source: "At the beginning of your upkeep,
     // you gain 1 life. If this is the second time this ability has resolved

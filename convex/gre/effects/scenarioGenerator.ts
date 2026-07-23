@@ -298,6 +298,15 @@ function analyseValue(value: EffectValue, req: Requirements): void {
         req.skip ??= `amount reads the resolving triggered ability's per-turn resolution count — not modelled by the canned single-shot generator`;
         return;
     }
+    // lifeGainedThisTurn (CR 119.3, issue #1457): the amount reads how much
+    // life a player has gained this turn. The canned generator opens a fresh
+    // turn and never gains life before the spell resolves, so it cannot size a
+    // declared outcome; skip-with-reason — the value member's own interpreter
+    // test is the behavioural guarantor (new-construct regime).
+    if ("lifeGainedThisTurn" in value) {
+        req.skip ??= `amount reads a player's life gained this turn — the canned generator does not gain life before resolving`;
+        return;
+    }
     req.countSets.push(value.count);
     // A count set's own controller may itself be a ref — unmodelable.
     const c = value.count.controller;
@@ -1171,6 +1180,7 @@ function predictAmount(value: EffectValue): number | null {
     if ("ref" in value) return null; // skipped earlier — defensive
     if ("counters" in value) return null; // skipped earlier — defensive
     if ("domain" in value) return null; // skipped earlier — defensive
+    if ("lifeGainedThisTurn" in value) return null; // skipped earlier
     return COUNT_SET_SIZE;
 }
 

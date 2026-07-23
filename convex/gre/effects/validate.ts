@@ -709,6 +709,26 @@ function isAbilityResolutionCountValue(value: unknown): boolean {
     );
 }
 
+/** `{ lifeGainedThisTurn: { of } }` — SHAPE of the per-turn life-gain value
+ *  construct (CR 119.3, issue #1457, twelfth EffectValue member). `of` is a
+ *  PLAYER selector (`EffectPlayerRef`) — like `domain`'s, and UNLIKE
+ *  `counters`/`manaValue`'s object `of`: life gained is a per-PLAYER scalar.
+ *  Family-checked as a PLAYER position by the ordered ref pass (the
+ *  `keyHint === "lifeGainedThisTurn"` case in `collectRefUses`, needed for the
+ *  same `of`-key collision reason `domain` documents). No other keys are
+ *  permitted (no `times` — no card scales this the way Wandering Stream scales
+ *  Domain). */
+function isLifeGainedThisTurnValue(value: unknown): boolean {
+    if (typeof value !== "object" || value === null) return false;
+    const keys = Object.keys(value);
+    if (keys.length !== 1 || keys[0] !== "lifeGainedThisTurn") return false;
+    const spec = (value as { lifeGainedThisTurn: unknown }).lifeGainedThisTurn;
+    if (typeof spec !== "object" || spec === null) return false;
+    const s = spec as Record<string, unknown>;
+    if (!Object.keys(s).every((k) => k === "of")) return false;
+    return isPlayerRef(s.of);
+}
+
 /** A numeric Op parameter (ADR 0045 value grammar): a positive-int literal,
  *  a `ref`, a `count`, the chosen-cost `X` (issue #852), a `counters` count
  *  on a selected object (issue #1015), a selected object's `manaValue` (issue
@@ -726,7 +746,8 @@ function isEffectValue(value: unknown): boolean {
         isManaValueValue(value) ||
         isDomainValue(value) ||
         isEscapedValue(value) ||
-        isAbilityResolutionCountValue(value)
+        isAbilityResolutionCountValue(value) ||
+        isLifeGainedThisTurnValue(value)
     );
 }
 
@@ -2698,6 +2719,19 @@ function collectRefUses(value: unknown, keyHint: string, out: RefUse[]): void {
         keyHint === "domain" &&
         keys.includes("of") &&
         keys.every((k) => k === "of" || k === "times")
+    ) {
+        collectRefUses(obj.of, "player", out);
+        return;
+    }
+    // lifeGainedThisTurn — { lifeGainedThisTurn: { of } } (CR 119.3, issue
+    // #1457): `of` is a PLAYER position, same as `domain`'s and for the same
+    // reason. Handled before the generic recursion so a ref under it isn't
+    // mis-tagged "object" by the `of`-key convention `counters`/`manaValue`
+    // established.
+    if (
+        keyHint === "lifeGainedThisTurn" &&
+        keys.length === 1 &&
+        keys[0] === "of"
     ) {
         collectRefUses(obj.of, "player", out);
         return;

@@ -755,7 +755,14 @@ export function buildTriggerStateView(
      *  abilities" lock (CR 602.1, issue #1124) — forwarded from the wire
      *  `GameState.cannotActivateAbilitiesThisTurn` so `getStackAbilities` can
      *  hide the affected controller's non-mana abilities as a UI hint. */
-    cannotActivateAbilitiesThisTurn?: ReadonlyArray<string>
+    cannotActivateAbilitiesThisTurn?: ReadonlyArray<string>,
+    /** Life gained by each player this turn (CR 119.3 tally, issue #1457) —
+     *  forwarded from the wire `GameState.lifeGainedThisTurn` (it survives
+     *  `projectPublicState`'s `...state` spread untouched) so a client-side
+     *  `canActivate` / condition predicate can answer "if you gained life this
+     *  turn" with the SAME number the server's intervening-if reads. Dropping
+     *  it here would make any such affordance permanently invisible. */
+    lifeGainedThisTurn?: Readonly<Record<string, number>>
 ): TriggerStateView {
     return {
         players: players.map((p) => ({
@@ -790,6 +797,7 @@ export function buildTriggerStateView(
         })),
         activePlayerId,
         cannotActivateAbilitiesThisTurn,
+        lifeGainedThisTurn,
     };
 }
 
