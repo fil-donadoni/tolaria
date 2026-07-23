@@ -365,6 +365,115 @@ describe("CardPreview — Arena click model (#332)", () => {
         ).toBeNull();
     });
 
+    // Portal ≠ React tree: all three preview surfaces are portal'd to
+    // document.body but stay REACT descendants of the card instance, so their
+    // events used to bubble into the card's own handlers — clicking the
+    // `Printed card` toggle also tapped the card and synthesized the left-click
+    // `contextmenu` that opens the activated-ability menu. The context menu
+    // must fire from the CARD INSTANCE only, never from the preview area.
+    describe("preview surfaces never drive the card's own interactions", () => {
+        function renderWithCardHandlers() {
+            const onClick = vi.fn();
+            const onContextMenu = vi.fn();
+            const onPointerDown = vi.fn();
+            const utils = render(
+                <GameContext value={GAME_CTX}>
+                    {/* Mirrors the real nesting: the card's click/context-menu
+                        affordances wrap CardPreview (ActivatableAbilityMenu's
+                        ContextMenuTrigger, the hand card's cast onClick). */}
+                    <div
+                        data-slot="context-menu-trigger"
+                        onClick={onClick}
+                        onContextMenu={onContextMenu}
+                        onPointerDown={onPointerDown}
+                    >
+                        <CardPreview cardId="bolt" cardName="Lightning Bolt">
+                            <div>face</div>
+                        </CardPreview>
+                    </div>
+                </GameContext>
+            );
+            return { ...utils, onClick, onContextMenu, onPointerDown };
+        }
+
+        it("a click on the dock's printed toggle does not reach the card", () => {
+            const { container, onClick, onContextMenu, onPointerDown } =
+                renderWithCardHandlers();
+            const root = container.querySelector(
+                "[data-slot=context-menu-trigger]"
+            )!.firstElementChild as HTMLElement;
+
+            hoverEnter(root);
+            dwellPast();
+            expect(dock()).toBeTruthy();
+
+            const toggle = document.querySelector(
+                '[data-card-preview-dock] [data-preview-mode="printed"]'
+            ) as HTMLElement;
+            act(() => {
+                fireEvent.pointerDown(toggle, { button: 0 });
+                toggle.click();
+            });
+
+            // The toggle still works…
+            expect(
+                document.querySelector(
+                    '[data-card-preview-dock] img[alt*="(printed)"]'
+                )
+            ).toBeTruthy();
+            // …and the card saw nothing.
+            expect(onClick).not.toHaveBeenCalled();
+            expect(onPointerDown).not.toHaveBeenCalled();
+            expect(onContextMenu).not.toHaveBeenCalled();
+        });
+
+        it("a click on the pinned preview's printed toggle does not reach the card", () => {
+            const { container, onClick, onContextMenu, onPointerDown } =
+                renderWithCardHandlers();
+            const root = container.querySelector(
+                "[data-slot=context-menu-trigger]"
+            )!.firstElementChild as HTMLElement;
+
+            rightPress(root);
+            release();
+            onPointerDown.mockClear();
+            expect(anchored()).toBeTruthy();
+
+            const toggle = document.querySelector(
+                '[data-card-preview-anchored] [data-preview-mode="printed"]'
+            ) as HTMLElement;
+            act(() => {
+                fireEvent.pointerDown(toggle, { button: 0 });
+                toggle.click();
+            });
+
+            expect(
+                document.querySelector(
+                    '[data-card-preview-anchored] img[alt*="(printed)"]'
+                )
+            ).toBeTruthy();
+            expect(anchored()).toBeTruthy();
+            expect(onClick).not.toHaveBeenCalled();
+            expect(onPointerDown).not.toHaveBeenCalled();
+            expect(onContextMenu).not.toHaveBeenCalled();
+        });
+
+        it("a right-click inside a preview surface does not reach the card", () => {
+            const { container, onContextMenu } = renderWithCardHandlers();
+            const root = container.querySelector(
+                "[data-slot=context-menu-trigger]"
+            )!.firstElementChild as HTMLElement;
+
+            rightPress(root);
+            release();
+            const panel = anchored() as HTMLElement;
+            act(() => {
+                fireEvent.contextMenu(panel);
+            });
+            expect(onContextMenu).not.toHaveBeenCalled();
+        });
+    });
+
     // Spatial-board flattening: CardTilt3D wraps the card in
     // `transform-style: preserve-3d` around an `overflow-hidden` box, which
     // flattens the subtree so a real right-click hit-tests to the flattening

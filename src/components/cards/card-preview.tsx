@@ -9,6 +9,7 @@ import { releasePreview, requestOpenPreview } from "./card-preview-singleton";
 import CardPreviewBody from "./card-preview-body";
 import CardPreviewDock from "./card-preview-dock";
 import CardPreviewAnchored from "./card-preview-anchored";
+import { previewSurfaceIsolationProps } from "./preview-surface-isolation";
 
 const OVERLAY_WIDTH = 128 * 2;
 /** Desktop hover-intent (phase 2): dwell this long on a card and the dock
@@ -284,12 +285,20 @@ export default function CardPreview({
                 createPortal(
                     <div
                         className="fixed inset-0 z-modal flex items-center justify-center bg-scrim backdrop-blur-sm"
-                        onTouchStart={(e) => e.stopPropagation()}
+                        // Portal'd, yet a REACT descendant of the card — isolate
+                        // every pointer/mouse event so the card instance's own
+                        // handlers (tap, cast, ability context menu) never fire
+                        // from inside the preview area.
+                        {...previewSurfaceIsolationProps}
                         onTouchEnd={(e) => {
+                            e.stopPropagation();
                             e.preventDefault();
                             dismissOverlay();
                         }}
-                        onClick={dismissOverlay}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            dismissOverlay();
+                        }}
                     >
                         <div
                             className="flex flex-col rounded-2xl shadow-2xl bg-surface overflow-hidden max-h-[90vh] max-w-[90vw]"

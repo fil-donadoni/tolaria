@@ -91,7 +91,7 @@ export default function CardPreviewBody({
                 <img
                     src={content.printedImageSrc}
                     alt={`${content.displayName} (printed)`}
-                    className="w-full"
+                    className="w-full rounded-2xl"
                     onLoad={onImageLoaded}
                 />
             </div>

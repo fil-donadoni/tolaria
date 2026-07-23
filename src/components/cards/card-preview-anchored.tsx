@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import CardPreviewBody, {
     type CardPreviewBodyProps,
 } from "./card-preview-body";
+import { previewSurfaceIsolationProps } from "./preview-surface-isolation";
 
 // Beside-the-card preview placement for surfaces that are NOT the in-game board
 // (the lobby and the deck builder). Whereas the board docks the preview in its
@@ -97,6 +98,10 @@ export default function CardPreviewAnchored({
             // Interactive: the pinned preview hosts the Live text / Printed
             // card toggle, so it must receive clicks. `CardPreview`'s
             // outside-pointerdown dismiss treats this panel as "inside".
+            // The panel is portal'd but still a REACT descendant of the card,
+            // so its events must be isolated or the card's context menu / tap
+            // fires from inside the preview area.
+            {...previewSurfaceIsolationProps}
             className="pointer-events-auto fixed z-modal flex flex-col rounded-2xl shadow-2xl bg-surface overflow-hidden"
             style={{
                 top: position.top,

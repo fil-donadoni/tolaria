@@ -2,6 +2,7 @@ import { createPortal } from "react-dom";
 import CardPreviewBody, {
     type CardPreviewBodyProps,
 } from "./card-preview-body";
+import { previewSurfaceIsolationProps } from "./preview-surface-isolation";
 
 // Issue #332 — in-game desktop card preview is a FIXED panel docked to the
 // board's RIGHT column, the side that already hosts the libraries/piles and the
@@ -66,6 +67,10 @@ export default function CardPreviewDock({
             <div
                 className="card-preview-dock pointer-events-auto flex max-h-full flex-col overflow-hidden rounded-2xl bg-surface"
                 style={{ width }}
+                // Portal'd, but still a REACT descendant of the card instance:
+                // isolate its events so the card's context menu / tap only ever
+                // fires from the card itself, not from the preview area.
+                {...previewSurfaceIsolationProps}
                 onPointerEnter={onPointerEnter}
                 onPointerLeave={onPointerLeave}
             >
