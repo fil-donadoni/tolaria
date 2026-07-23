@@ -605,6 +605,7 @@ export default function Board({
                                         <TargetSelectionBanner
                                             pendingTarget={pendingTarget}
                                             me={me}
+                                            stack={stackItems}
                                             gameId={gameId}
                                             playerId={viewerId}
                                         />

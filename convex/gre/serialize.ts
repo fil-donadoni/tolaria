@@ -881,6 +881,13 @@ function compactStackItem(item: StackItem): CompactCard {
     }
     if (item.triggerSourceId) base.triggerSourceId = item.triggerSourceId;
     if (item.triggerEvent) base.triggerEvent = item.triggerEvent;
+    // CR 114 — an emblem-sourced trigger resolves its effect from the emblem
+    // registry keyed by `emblemSourceId` (`resolveTopOfStack`, state.ts). It
+    // must survive a save/load while the trigger sits on the stack awaiting
+    // target selection / priority — else the reloaded item fails the
+    // `emblemSourceId` guard and resolves dealing NOTHING (Chandra, Torch of
+    // Defiance −7 emblem: "deal 5 damage to any target" silently dealt 0).
+    if (item.emblemSourceId) base.emblemSourceId = item.emblemSourceId;
     // CR 122 / 603.3 (issue #1189) — the per-item "already tallied" guard
     // must survive a DB round-trip while a suspended triggered ability
     // (Scythecat Cub's target pick) sits on the stack, or a save/resume would
@@ -992,6 +999,9 @@ function expandStackItem(compact: CompactCard): StackItem {
     }
     if (compact.triggerEvent) {
         item.triggerEvent = compact.triggerEvent as StackItem["triggerEvent"];
+    }
+    if (compact.emblemSourceId) {
+        item.emblemSourceId = compact.emblemSourceId as string;
     }
     if (compact.abilityResolutionRecorded) {
         item.abilityResolutionRecorded =

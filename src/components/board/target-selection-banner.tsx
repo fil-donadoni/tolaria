@@ -2,8 +2,9 @@ import { useState } from "react";
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
-import type { PendingTarget, Player } from "~/types/game";
-import { getDefinition } from "@convex/cards";
+import type { PendingTarget, Player, StackItem } from "~/types/game";
+import { getDefinition, tryGetDefinition } from "@convex/cards";
+import { tryGetEmblemDefinition } from "@convex/cards/emblems";
 import { useDraggable } from "~/hooks/useDraggable";
 import { useDivideBuffer } from "~/hooks/useDivideBuffer";
 import { Panel } from "~/components/ui/panel";
@@ -97,11 +98,13 @@ function describeTargetProgress(
 export default function TargetSelectionBanner({
     pendingTarget,
     me,
+    stack,
     gameId,
     playerId,
 }: {
     pendingTarget: PendingTarget;
     me: Player | undefined;
+    stack: StackItem[];
     gameId: Id<"games">;
     playerId: string;
 }) {
@@ -127,13 +130,26 @@ export default function TargetSelectionBanner({
         pendingTarget.kind === "ability"
             ? me?.battlefield.find((c) => c.id === pendingTarget.cardInstanceId)
             : undefined;
+    // A triggered ability chooses its target as it goes on the stack (CR
+    // 603.3d): `cardInstanceId` is the trigger's STACK-ITEM id. Resolve its
+    // source name from the stack — card registry first, then the emblem
+    // registry (an emblem-sourced trigger's `card.id` is an emblem KEY absent
+    // from the card registry; without this the banner read the generic
+    // "spell", the confusing label that led players to Cancel Chandra's emblem
+    // trigger into a 0-damage resolve).
+    const triggerSource =
+        pendingTarget.kind === "trigger"
+            ? stack.find((s) => s.id === pendingTarget.cardInstanceId)
+            : undefined;
+    const triggerSourceName = triggerSource
+        ? (tryGetDefinition(triggerSource.card.id)?.name ??
+          tryGetEmblemDefinition(triggerSource.card.id)?.name)
+        : undefined;
     const cardName = cardInHand
         ? getDefinition(cardInHand.card.id).name
         : sourcePermanent
           ? getDefinition(sourcePermanent.card.id).name
-          : isCopyRetarget
-            ? "Copy"
-            : "spell";
+          : (triggerSourceName ?? (isCopyRetarget ? "Copy" : "spell"));
     const targetLabel = formatTargetLabel(
         pendingTarget.targetType,
         pendingTarget.zone,

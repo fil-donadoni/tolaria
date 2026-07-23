@@ -22,6 +22,7 @@ import {
 } from "../../../../gre/triggers";
 import { raiseTriggerTargetSelection } from "../../../../gre/rules";
 import { finalizeTargetSelection } from "../../../../game";
+import { compactState, expandState } from "../../../../gre/serialize";
 import { projectPublicState } from "../../../../gameProjections";
 import { CHANDRA_TORCH_OF_DEFIANCE_EMBLEM_ID } from "../../../emblems";
 import type { GameEvent, TargetSelection } from "../../../types";
@@ -259,5 +260,55 @@ describe("Chandra, Torch of Defiance — −7 emblem (targeted triggered emblem,
         // p2 casting does NOT fire p1's emblem (CR 114.3 owner-scoped "you").
         const p2Cast: GameEvent = { ...spellCast, casterId: "p2" } as GameEvent;
         expect(collectTriggers(state, [p2Cast])).toHaveLength(0);
+    });
+
+    // Real-play regression (serialize round-trip): in the browser the target is
+    // chosen in the `selectTarget` mutation, the state is SAVED, then RELOADED
+    // for resolution. The emblem trigger resolves its effect from the emblem
+    // registry keyed by `emblemSourceId` — which was dropped by the DB
+    // round-trip, so the reloaded trigger dealt 0 damage ("flusso perfetto ma
+    // niente danni") even with a target selected. The in-memory GRE test above
+    // never round-trips, so it masked this. Round-trip between target-lock and
+    // resolution to pin it.
+    it("deals 5 damage after a serialize round-trip (target locked, then save/load)", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [chandraOnBattlefield(7)] }),
+                makePlayer("p2"),
+            ],
+        });
+        activate(state, MINUS7);
+        const spellCast: GameEvent = {
+            type: "SPELL_CAST",
+            casterId: "p1",
+            spellInstanceId: "s1",
+            spellCardId: elvishArchers.id,
+            spellTypes: ["Creature"],
+            spellSubtypes: [],
+            spellColors: ["G"],
+            priorSpellCount: 0,
+        } as GameEvent;
+        placeTriggersOnStack(state, collectTriggers(state, [spellCast]));
+        expect(raiseTriggerTargetSelection(state)).toBe(true);
+        state.pendingTarget!.selected = [{ type: "player", id: "p2" }];
+        finalizeTargetSelection(
+            state,
+            state.pendingTarget!,
+            state.pendingTarget!.playerId
+        );
+
+        // The emblem trigger is now on the stack with its target LOCKED — save
+        // and reload before resolving, exactly as the mutation boundary does.
+        const reloaded = expandState(compactState(state));
+        const emblemTrigger = reloaded.stack.find(
+            (s) => s.emblemSourceId === CHANDRA_TORCH_OF_DEFIANCE_EMBLEM_ID
+        );
+        expect(emblemTrigger).toBeDefined();
+        expect(emblemTrigger!.emblemSourceId).toBe(
+            CHANDRA_TORCH_OF_DEFIANCE_EMBLEM_ID
+        );
+
+        resolveTopOfStack(reloaded);
+        expect(reloaded.players[1].life).toBe(15);
     });
 });

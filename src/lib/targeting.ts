@@ -84,12 +84,17 @@ function pendingGuardSource(
             };
         }
     }
-    // Source not located (e.g. copy on the stack): be conservative — treat as a
-    // spell with no subtypes so unfiltered shroud still greys the candidate.
+    // Source not located here: a `trigger` source (incl. an emblem-sourced
+    // trigger, whose id is a stack-item id never in hand/battlefield) is a
+    // triggered ABILITY, not a spell (CR 113.3) — reporting `isSpell: true`
+    // would let a "spells only" guard wrongly grey its legal targets. Only a
+    // cast / (copy-)retarget source is a spell. Types/subtypes stay empty
+    // (the server is authoritative on legality; this gate is a UX convenience).
     return {
         types: [],
         subtypes: [],
-        isSpell: kind !== "ability",
+        isSpell:
+            kind === "cast" || kind === "retarget" || kind === "copy-retarget",
         controllerId: sourceControllerId,
     };
 }

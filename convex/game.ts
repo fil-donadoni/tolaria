@@ -7588,6 +7588,35 @@ export const confirmTargets = mutation({
     },
 });
 
+/** CR 603.3c/603.3d — resolve a cancel of a `kind:"trigger"` pending target.
+ *  A triggered ability chooses its target(s) as it goes on the stack; it is
+ *  NOT part of a cast to abort. Cancelling must never leave the trigger on the
+ *  stack with `targets: undefined` to resolve doing nothing — an emblem's
+ *  "deal 5 damage to any target" would silently deal 0. A MANDATORY target
+ *  (min > 0) that the player declines removes the trigger from the stack
+ *  entirely (CR 603.3c — no legal target chosen); an "up to" target (min 0)
+ *  resolves with no target (`targets: []`). Then chain to any other
+ *  still-untargeted trigger of the same batch; otherwise a fresh priority
+ *  round begins with the active player. Pure over `GameState` for testability. */
+export function cancelTriggerTargetSelection(state: GameState): void {
+    const pt = state.pendingTarget;
+    if (!pt || pt.kind !== "trigger") return;
+    const min = typeof pt.count === "number" ? pt.count : pt.count.min;
+    if (min > 0) {
+        const idx = state.stack.findIndex((s) => s.id === pt.cardInstanceId);
+        if (idx !== -1) state.stack.splice(idx, 1);
+    } else {
+        const trig = state.stack.find((s) => s.id === pt.cardInstanceId);
+        if (trig) trig.targets = [];
+    }
+    state.pendingTarget = undefined;
+    if (!raiseTriggerTargetSelection(state)) {
+        state.priorityPlayerId = state.activePlayerId;
+        state.passCount = 0;
+        drainAutoPasses(state);
+    }
+}
+
 /** Cancel target selection and abort the cast. */
 export const cancelTarget = mutation({
     args: {
@@ -7611,14 +7640,29 @@ export const cancelTarget = mutation({
             throw new Error("Not your pending target selection");
         }
 
+        const cancelKind = state.pendingTarget.kind;
+
+        // CR 603.3c/603.3d — a triggered ability chooses its target(s) as it
+        // goes on the stack; a triggered target is NOT part of a cast to abort.
+        if (cancelKind === "trigger") {
+            cancelTriggerTargetSelection(state);
+            await saveGameState(
+                ctx,
+                args.gameId,
+                gameState.seq + 1,
+                state,
+                gameState
+            );
+            return;
+        }
+
         // CR 707.10b / 114.6 — declining a copy-retarget OR an original-spell
         // retarget (Reflecting Mirror) is not aborting a cast: the targeted
         // spell stays on the stack with its current targets and a fresh
         // priority round begins (the copying / retargeting effect has already
         // resolved).
-        const retargetKind = state.pendingTarget.kind;
         const wasRetarget =
-            retargetKind === "copy-retarget" || retargetKind === "retarget";
+            cancelKind === "copy-retarget" || cancelKind === "retarget";
         state.pendingTarget = undefined;
         if (wasRetarget) {
             state.priorityPlayerId = state.activePlayerId;

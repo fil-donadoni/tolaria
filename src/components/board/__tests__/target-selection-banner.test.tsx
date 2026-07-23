@@ -22,13 +22,27 @@ vi.mock("@convex/_generated/api", () => ({
     api: { game: { cancelTarget: {}, confirmTargets: {} } },
 }));
 
+const CARD_NAMES: Record<string, string> = {
+    "73c07c87-0e44-4a5a-92b7-728350cd02de": "Arcum's Whistle",
+    "some-spell": "Lightning Bolt",
+};
+
 vi.mock("@convex/cards", () => ({
-    getDefinition: (id: string) =>
-        id === "73c07c87-0e44-4a5a-92b7-728350cd02de"
-            ? { id, name: "Arcum's Whistle" }
-            : id === "some-spell"
-              ? { id, name: "Lightning Bolt" }
-              : { id, name: `Card ${id}` },
+    getDefinition: (id: string) => ({
+        id,
+        name: CARD_NAMES[id] ?? `Card ${id}`,
+    }),
+    // Non-throwing lookup: undefined for a non-card id (e.g. an emblem key), so
+    // the banner falls through to the emblem registry.
+    tryGetDefinition: (id: string) =>
+        CARD_NAMES[id] ? { id, name: CARD_NAMES[id] } : undefined,
+}));
+
+vi.mock("@convex/cards/emblems", () => ({
+    tryGetEmblemDefinition: (id: string) =>
+        id === "chandra-torch-of-defiance-emblem"
+            ? { id, name: "Chandra, Torch of Defiance emblem" }
+            : undefined,
 }));
 
 import TargetSelectionBanner from "../target-selection-banner";
@@ -85,6 +99,7 @@ describe("TargetSelectionBanner source-name resolution", () => {
                     cardInstanceId: "whistle-inst",
                 })}
                 me={me}
+                stack={[]}
                 gameId={"g1" as never}
                 playerId="me"
             />
@@ -115,11 +130,45 @@ describe("TargetSelectionBanner source-name resolution", () => {
                     cardInstanceId: "hand1",
                 })}
                 me={me}
+                stack={[]}
                 gameId={"g1" as never}
                 playerId="me"
             />
         );
 
         expect(screen.getByText("Lightning Bolt")).toBeTruthy();
+    });
+
+    it("emblem-sourced trigger (kind: 'trigger') → names the emblem, not 'spell'", () => {
+        const stack = [
+            {
+                id: "emb-trig",
+                card: { id: "chandra-torch-of-defiance-emblem" },
+                controllerId: "me",
+                ownerId: "me",
+                zone: "stack",
+                isTapped: false,
+                types: [],
+                emblemSourceId: "chandra-torch-of-defiance-emblem",
+            } as never,
+        ];
+        render(
+            <TargetSelectionBanner
+                pendingTarget={pending({
+                    kind: "trigger",
+                    cardInstanceId: "emb-trig",
+                    targetType: "any",
+                })}
+                me={player()}
+                stack={stack}
+                gameId={"g1" as never}
+                playerId="me"
+            />
+        );
+
+        expect(
+            screen.getByText("Chandra, Torch of Defiance emblem")
+        ).toBeTruthy();
+        expect(screen.queryByText("spell")).toBeNull();
     });
 });
