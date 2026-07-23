@@ -63,23 +63,37 @@ describe(`blade suite — registry integrity`, () => {
         }
     });
 
-    it("a beyond-budget entry classifies its cause and names the missing knowledge", () => {
+    it("a beyond-budget entry classifies its cause and really does fail at its declared budget", () => {
         for (const s of BLADE_SCENARIOS) {
             if (!s.beyondBudget) continue;
             expect(
                 ["branching", "horizon", "hidden-information"],
                 `${s.label}: unknown beyond-budget cause`
             ).toContain(s.beyondBudget.cause);
-            // "needs more iterations" is never an accepted verdict — the note
-            // has to say what the bot does not KNOW.
-            expect(
-                s.beyondBudget.note.length,
-                `${s.label}: beyond-budget note must state the missing knowledge`
-            ).toBeGreaterThan(20);
             expect(
                 s.beyondBudget.passesAt.iterations,
                 `${s.label}: passesAt must exceed the declared budget`
             ).toBeGreaterThan(s.budget.iterations);
+            // THE CLAIM ITSELF (issue #1487 review finding #2). The shape
+            // checks above are all satisfied by an entry the bot now solves at
+            // its declared budget — in which case the stretch report keeps
+            // printing a FALSE "beyond budget [...]" verdict, destroying
+            // exactly the honesty the classification exists to provide. So
+            // assert the claim: at `budget`, the entry must genuinely FAIL.
+            // When this goes red the BOT GOT BETTER — delete the entry's
+            // `beyondBudget` block (and consider promoting it to `must`);
+            // never relax this assertion or raise the budget to keep it.
+            //
+            // The `note` is deliberately left unasserted. No mechanical check
+            // distinguishes "names the missing knowledge" from 20+ characters
+            // of filler, and the old `note.length > 20` only pretended to —
+            // the honesty this test now enforces lives in the failure above,
+            // not in a string length.
+            const result = runBladeScenario(s);
+            expect(
+                result.ok,
+                `${s.label}: declares beyondBudget but PASSES at ${s.budget.iterations} iterations — the claim is stale, remove \`beyondBudget\``
+            ).toBe(false);
         }
     });
 
