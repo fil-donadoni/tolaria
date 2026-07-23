@@ -275,3 +275,32 @@ When adding/modifying cards in `convex/cards/sets/`:
   Wurm (`rtr/green.ts`) is the reference shape. (An array-`event` ability
   cannot read `$event` in an Effect Script — a trigger whose effect must
   inspect the firing event stays scalar `event` + imperative `resolve`.)
+- **Token / emblem art is mandatory setup — never ship a card that makes a
+  token or emblem without wiring its art (CR 114 / 111).** A missing image
+  renders a bare text placeholder (or, for an emblem trigger, once crashed
+  `<StackRow>` — Chandra, Torch of Defiance) and is silent server-side. The
+  standard procedure, by mechanism:
+    - **Tokens (`createToken`).** Prefer a shared spec from
+      `convex/cards/sharedTokens.ts` (already carries `imagePrintId`). A new
+      token gets art either by regenerating the lockfile —
+      `node scripts/fetch-token-prints.mjs --all` (or the specific set file),
+      which reverse-links the source card's Scryfall `all_parts` into
+      `convex/cards/generated/token-prints.json` — or by pinning
+      `imagePrintId` explicitly on the spec. The DSL guard
+      `convex/cards/__tests__/tokenPrintLookup.test.ts` (issue #1305) fails CI
+      on any DSL `createToken` with no resolvable art (add to
+      `NO_PRINTED_TOKEN_ALLOWLIST` only for a genuine no-printed-token case).
+      **Blind spot:** a token created from a `resolve()` closure
+      (`ctx.createToken(...)`) is invisible to that guard — pin `imagePrintId`
+      on the spec by hand (see `ncc/colorless.ts`).
+    - **Emblems (`{ op: "emblem" }`).** Set `imagePrintId` on the
+      `EmblemDefinition` in `convex/cards/emblems.ts` — the Scryfall emblem
+      print (`t:emblem`, layout `emblem`; the card's own set where present,
+      else a same-characteristics substitute, per the token/emblem art rule).
+      `convex/cards/__tests__/emblemArt.test.ts` fails CI on any registered
+      emblem (or emblem a shipped card creates) with no `imagePrintId`,
+      unregistered id, or a triggered ability missing `oracleText`.
+    - **Art match rule.** Token/emblem art = the associated token of the
+      card's OWN printing where it exists, else a same-characteristics
+      substitute — sanity-check the era (a modern reprint's art on an
+      old-border card is a mismatch).

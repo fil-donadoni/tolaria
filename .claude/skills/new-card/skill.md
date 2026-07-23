@@ -236,6 +236,29 @@ lockfile is out of sync — both directions: implemented-but-not-indexed
 (stale → incremental backfill above) and indexed-but-not-implemented
 (pollution → full reset). Never hand-edit the lockfile.
 
+### Step 8b — Token / emblem art (mandatory when the card makes one)
+
+If the card creates a **token** (`createToken`) or an **emblem**
+(`{ op: "emblem" }`), wire its art — a missing image renders a bare
+placeholder (and an emblem trigger once crashed the stack row):
+
+- **Token.** Reuse a `convex/cards/sharedTokens.ts` spec if one fits (it
+  already carries `imagePrintId`). Otherwise regenerate the print lockfile so
+  the reverse-link resolves the art:
+  ```sh
+  node scripts/fetch-token-prints.mjs --all   # or the specific set file
+  ```
+  or pin `imagePrintId` on the spec. A token made from a `resolve()` closure
+  is invisible to the DSL art guard — pin `imagePrintId` by hand. The guard
+  `convex/cards/__tests__/tokenPrintLookup.test.ts` (#1305) fails CI on any
+  DSL `createToken` with no art.
+- **Emblem.** Set `imagePrintId` on the `EmblemDefinition` in
+  `convex/cards/emblems.ts` — the Scryfall emblem print (`t:emblem`, layout
+  `emblem`; the card's own set where present, else a same-characteristics
+  substitute). `convex/cards/__tests__/emblemArt.test.ts` fails CI on a
+  registered/created emblem with no `imagePrintId`, an unregistered id, or a
+  triggered ability missing `oracleText`.
+
 ## Validation checklist
 
 - [ ] ManaCost matches Scryfall oracle
@@ -250,6 +273,7 @@ lockfile is out of sync — both directions: implemented-but-not-indexed
 - [ ] All matching `CardPrint` stubs in `convex/cards/sets/<code>/<colour>.ts` uncommented (Step 7b)
 - [ ] Frontend wiring walked (Step 7c): any affordability/target/instance-field the card adds is preserved through `buildTriggerStateView` / `projectPublicState`, and a new cost shape (if any) is added to the affordability catalogue sweep + gated in `getStackAbilities`
 - [ ] `data/card-index.json` refreshed via incremental `backfill-card-index.ts` (Step 8) — `bun run check:index` passes
+- [ ] If the card makes a token/emblem (Step 8b): `imagePrintId` wired (shared spec, lockfile refresh, or explicit) — `tokenPrintLookup.test.ts` / `emblemArt.test.ts` pass
 
 The deck builder's card list is computed in-memory from the colour-split set
 modules `convex/cards/sets/<code>/<colour>.ts` on every query call (see

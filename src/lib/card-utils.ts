@@ -28,6 +28,7 @@ import {
     handCardMatchesFilter,
 } from "@convex/gre/alternativeCost";
 import { getDefinition, tryGetDefinition } from "@convex/cards";
+import { tryGetEmblemDefinition } from "@convex/cards/emblems";
 import { getColorsFromCost } from "@convex/cards/colors";
 import {
     controlsLandWithSupertype,
@@ -1300,16 +1301,28 @@ export function getTriggeredAbilityOracleText(
     }>
 ): string | null {
     if (triggeredAbilityId === "storm") return STORM_TRIGGER_ORACLE_TEXT;
-    const cardDef = getDefinition(cardId);
-    const ability = cardDef.triggeredAbilities?.find(
+    // `tryGetDefinition` (not throwing): an emblem-sourced trigger's
+    // `card.id` is an emblem KEY, absent from the card registry (CR 114 —
+    // emblems live in `EMBLEM_REGISTRY`, resolved just below), so a hard
+    // `getDefinition` here crashes the stack row (StackRow → this fn).
+    const cardDef = tryGetDefinition(cardId);
+    const ability = cardDef?.triggeredAbilities?.find(
         (a) => a.id === triggeredAbilityId
     );
     if (ability?.oracleText) return ability.oracleText;
+    // CR 114 — an emblem's triggered ability is registered in the emblem
+    // registry, not the card registry; resolve its text there so an emblem
+    // trigger (Chandra, Torch of Defiance −7) shows its oracle text on the
+    // stack instead of throwing.
+    const emblemAbility = tryGetEmblemDefinition(
+        cardId
+    )?.triggeredAbilities?.find((a) => a.id === triggeredAbilityId);
+    if (emblemAbility?.oracleText) return emblemAbility.oracleText;
     for (const grant of grantedTriggeredAbilities ?? []) {
         if (grant.abilityId !== triggeredAbilityId) continue;
-        const tmpl = getDefinition(
+        const tmpl = tryGetDefinition(
             grant.sourceCardId
-        ).triggeredGrantTemplates?.find((a) => a.id === triggeredAbilityId);
+        )?.triggeredGrantTemplates?.find((a) => a.id === triggeredAbilityId);
         if (tmpl?.oracleText) return tmpl.oracleText;
     }
     return null;

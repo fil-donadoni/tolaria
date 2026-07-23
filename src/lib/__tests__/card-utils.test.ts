@@ -20,6 +20,7 @@ import {
     getAnyPlayerStackAbilities,
     buildTriggerStateView,
     getAbilityOracleText,
+    getTriggeredAbilityOracleText,
     getDelayedTriggerOracleText,
     getDisplayAbilities,
     shouldShowOracleText,
@@ -44,6 +45,7 @@ import {
 import type { CardInstance, PendingCast, Player } from "~/types/game";
 import type { CardDefinition } from "@convex/cards/types";
 import { getDefinition } from "@convex/cards";
+import { CHANDRA_TORCH_OF_DEFIANCE_EMBLEM_ID } from "@convex/cards/emblems";
 import { CLUE_TOKEN_SPEC } from "@convex/cards/abilities/tokens/clueToken";
 import { dismember } from "@convex/cards/sets/nph/black";
 import { gitaxianProbe } from "@convex/cards/sets/nph/blue";
@@ -1174,6 +1176,35 @@ describe("getAbilityOracleText", () => {
 });
 
 // ---------------------------------------------------------------------------
+// getTriggeredAbilityOracleText — emblem source (CR 114)
+// ---------------------------------------------------------------------------
+
+describe("getTriggeredAbilityOracleText — emblem source (CR 114)", () => {
+    // Regression: an emblem-sourced trigger's `card.id` is an emblem KEY, not a
+    // card registry id, so a hard `getDefinition` threw "Card not found" and
+    // crashed <StackRow>. The oracle text must resolve from the emblem registry.
+    it("resolves Chandra, Torch of Defiance emblem trigger text without throwing", () => {
+        expect(() =>
+            getTriggeredAbilityOracleText(
+                CHANDRA_TORCH_OF_DEFIANCE_EMBLEM_ID,
+                "chandra-torch-of-defiance-emblem-cast"
+            )
+        ).not.toThrow();
+        expect(
+            getTriggeredAbilityOracleText(
+                CHANDRA_TORCH_OF_DEFIANCE_EMBLEM_ID,
+                "chandra-torch-of-defiance-emblem-cast"
+            )
+        ).toBe(
+            "Whenever you cast a spell, this emblem deals 5 damage to any target."
+        );
+    });
+
+    it("returns null (no throw) for an unknown emblem id", () => {
+        expect(getTriggeredAbilityOracleText("no-such-emblem", "x")).toBeNull();
+    });
+});
+
 // getDelayedTriggerOracleText (delayed triggered ability, CR 603.7a, #935)
 // ---------------------------------------------------------------------------
 

@@ -16,6 +16,10 @@ const TREASURE_TOKEN: TokenSpec = {
     name: "Treasure",
     types: ["Artifact"],
     subtypes: ["Treasure"],
+    // Canonical Treasure print (shared with `sharedTokens.ts`). This token is
+    // created from a `resolve()` closure, invisible to the DSL `createToken`
+    // art guard, so the art must be pinned explicitly here (CR 111.10j).
+    imagePrintId: "284ec798-2725-4741-8748-578c259d0623",
     activatedAbilities: [
         {
             id: "treasure-sacrifice-mana",
@@ -37,6 +41,9 @@ const ROGUE_TOKEN: TokenSpec = {
     power: 2,
     toughness: 2,
     colors: ["B"],
+    // SNC 2/2 black Rogue token print. Created from a `resolve()` closure
+    // (invisible to the DSL createToken art guard), so pin the art here.
+    imagePrintId: "06e503b9-a822-4c42-b478-1f598bc5941d",
 };
 
 // Currency Converter (#791 — the concrete vehicle for the per-source exile

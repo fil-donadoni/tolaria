@@ -1,5 +1,6 @@
 import { tryGetDefinition } from "@convex/cards";
 import { tryGetStateDesignation } from "@convex/cards/designations";
+import { tryGetEmblemDefinition } from "@convex/cards/emblems";
 import { motion, useReducedMotion } from "motion/react";
 import type { Player, StackItem } from "~/types/game";
 import {
@@ -155,8 +156,13 @@ export default function StackRow({
     // (`card.id` is ""). Render its marker-card art + name and label it a plain
     // triggered ability rather than the internal "Delayed trigger".
     const designation = tryGetStateDesignation(item.designationId);
+    // CR 114 — an emblem-sourced trigger's `card.id` is an emblem KEY, absent
+    // from the card registry; resolve its name/art from the emblem registry so
+    // the stack tile shows the emblem card instead of a raw id / missing image.
+    const emblem = tryGetEmblemDefinition(item.card.id);
     const def = tryGetDefinition(item.card.id);
-    const name = designation?.name ?? def?.name ?? item.card.id;
+    const name =
+        designation?.name ?? def?.name ?? emblem?.name ?? item.card.id;
     const oracle = kind
         ? abilityOracleText(item, kind)
         : (def?.oracleText ?? null);
@@ -171,6 +177,7 @@ export default function StackRow({
     const imageId =
         item.designationImagePrintId ??
         designation?.imagePrintId ??
+        emblem?.imagePrintId ??
         resolveCardImageId(item.card.id);
 
     return (

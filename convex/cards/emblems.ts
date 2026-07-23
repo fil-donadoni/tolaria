@@ -45,6 +45,13 @@ export function isRegisteredEmblem(id: string): boolean {
     return EMBLEM_REGISTRY.has(id);
 }
 
+/** Every registered emblem definition — the catalogue-wide art/registration
+ *  guard (`__tests__/emblemArt.test.ts`) sweeps this to assert each emblem
+ *  ships with `imagePrintId` and renderable triggered-ability text. */
+export function getAllEmblemDefinitions(): EmblemDefinition[] {
+    return [...EMBLEM_REGISTRY.values()];
+}
+
 // ─────────────────────────────────────────────────────────────────────────
 // Shipped emblems
 // ─────────────────────────────────────────────────────────────────────────
@@ -94,6 +101,11 @@ registerEmblemDefinition({
     id: CHANDRA_TORCH_OF_DEFIANCE_EMBLEM_ID,
     name: "Chandra, Torch of Defiance emblem",
     text: "Whenever you cast a spell, this emblem deals 5 damage to any target.",
+    // Scryfall print of the emblem card (set `tkld`, layout `emblem`) — the
+    // KLD-era emblem printing matching Chandra's own set, per the token/emblem
+    // art rule (the card's own printing where present). Rendered by the
+    // command-zone UI.
+    imagePrintId: "50ce1db3-417c-4c22-84e5-c463addde476",
     triggeredAbilities: [
         {
             id: "chandra-torch-of-defiance-emblem-cast",
