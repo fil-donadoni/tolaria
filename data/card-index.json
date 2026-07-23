@@ -6342,6 +6342,12 @@
         "firstSet": "voc"
     },
     {
+        "name": "Ocelot Pride",
+        "scryfallId": "89cf6f57-230f-497e-a14e-ad1e8737fd42",
+        "oracleId": "b4ce2c8f-a19c-461e-8a2e-0ec2bd3ebca3",
+        "firstSet": "mh3"
+    },
+    {
         "name": "Old Man of the Sea",
         "scryfallId": "d10f8a05-78b0-42a7-adcd-83f6bafe5417",
         "oracleId": "cce84cf1-5574-43b0-9d75-72e6451403a7",

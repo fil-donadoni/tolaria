@@ -2038,3 +2038,52 @@ describe("validateAbilityEffectScript — $event.<field> refs (ADR 0049, issue #
         expect(errors.join("\n")).toContain("triggered-ability site");
     });
 });
+
+describe("validateEffectScript — createTokenCopy `source` is an OBJECT position (issue #1459 / #1461)", () => {
+    it("accepts a forEach `$each` snapshot as the copy source", () => {
+        // Ocelot Pride's shape: iterate the tokens you control that entered
+        // this turn and copy each one. `source` must be classified as an
+        // object position by the ordered ref pass — otherwise the bare
+        // `$each` binding name is parsed as a `<binding>.<property>` numeric
+        // ref and reported as a malformed ref.
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "forEach",
+                        select: {
+                            set: "permanents",
+                            zone: "battlefield",
+                            controller: "controller",
+                            filter: { isToken: true, enteredThisTurn: true },
+                        },
+                        effects: [
+                            {
+                                op: "createTokenCopy",
+                                source: { ref: "$each" },
+                                controller: "controller",
+                            },
+                        ],
+                    },
+                ],
+            })
+        );
+        expect(errors).toEqual([]);
+    });
+
+    it("still rejects an undefined binding in the source position", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "createTokenCopy",
+                        source: { ref: "$nope" },
+                        controller: "controller",
+                    } as EffectOp,
+                ],
+            })
+        );
+        expect(errors.length).toBeGreaterThan(0);
+        expect(errors.join("\n")).toContain("undefined binding");
+    });
+});
