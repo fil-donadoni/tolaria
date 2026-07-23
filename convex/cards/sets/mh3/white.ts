@@ -6,6 +6,7 @@
 import { PERMANENT_TYPES } from "../../types";
 import type { CardDefinition, SpellContext } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
+import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 
 // Guide of Souls — {W} Creature — Human Cleric, 1/2 (MH3, issue #1194).
 // "Whenever another creature you control enters, you gain 1 life and get {E}
@@ -238,5 +239,117 @@ export const phelia: CardDefinition = {
                 }
             },
         },
+    ],
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Ocelot Pride — {W} Creature — Cat, 1/1 (MH3, issue #1461).
+// "First strike, lifelink
+//  Ascend
+//  At the beginning of your end step, if you gained life this turn, create a
+//  1/1 white Cat creature token. Then if you have the city's blessing, for
+//  each token you control that entered this turn, create a token that's a
+//  copy of it."
+//
+// The integration test for four capability tickets, all shipped:
+//   * #1457 — `GameState.lifeGainedThisTurn` + the CR 603.4 intervening-if
+//     ("if you gained life this turn"), checked at trigger time AND re-checked
+//     immediately before resolution (CR 603.4d). Same shape as Crested
+//     Sunmare (`hou/white.ts`), narrowed to `scope: "your"` (CR 500.1 — the
+//     controller's own end step).
+//   * #1458 — the `EffectCardFilter.enteredThisTurn` clause, which reads the
+//     real per-permanent `CardInstanceState.enteredOnTurn` stamp against
+//     `GameState.turn`. ANDed with `isToken: true` here — "each TOKEN you
+//     control that entered this turn" (CR 111.1 / 400.7).
+//   * #1459 — the `createTokenCopy` Op (CR 707.2 / 111.1), reading its runtime
+//     source from a `ref` rather than an announced target.
+//   * #1460 — Ascend (CR 702.131) and the City's Blessing designation, gated
+//     declaratively by the `{ hasCityBlessing: "controller" }` predicate.
+//
+// ORDERING (the crux). The Cat token created by the FIRST Op is itself "a
+// token you control that entered this turn", so the second clause copies it
+// too — the `forEach` runs AFTER `createToken`, so the Cat is already on the
+// battlefield (with its `enteredOnTurn` stamp) when the set is selected. No
+// cascade: `execForEach` selects its member set exactly ONCE at construct
+// entry and freezes it (`#forEach:<pos>:set`, CR 608.2i — "information is
+// determined only once, as the effect is applied"), so the copies the body
+// creates — which are themselves tokens that entered this turn — are never
+// added to the set being iterated. Asserted directly in the test file.
+//
+// No `resolve()` anywhere: the whole card is an Effect Script (ADR 0045).
+export const OCELOT_PRIDE_ID = "89cf6f57-230f-497e-a14e-ad1e8737fd42";
+
+export const ocelotPride: CardDefinition = {
+    id: OCELOT_PRIDE_ID,
+    name: "Ocelot Pride",
+    rarity: "mythic",
+    oracleText:
+        "First strike, lifelink\nAscend (If you control ten or more permanents, you get the city's blessing for the rest of the game.)\nAt the beginning of your end step, if you gained life this turn, create a 1/1 white Cat creature token. Then if you have the city's blessing, for each token you control that entered this turn, create a token that's a copy of it.",
+    manaCost: { W: 1 },
+    types: ["Creature"],
+    subtypes: ["Cat"],
+    power: 1,
+    toughness: 1,
+    // CR 702.7 / 702.15 / 702.131 — all three resolve to `implemented`
+    // Mechanics Registry rows. Ascend's permanent form is a continuous check
+    // in the SBA sweep (`gre/cityBlessing.ts`).
+    staticAbilities: ["first strike", "lifelink", "ascend"],
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "ocelot-pride-end-step",
+            oracleText:
+                "At the beginning of your end step, if you gained life this turn, create a 1/1 white Cat creature token. Then if you have the city's blessing, for each token you control that entered this turn, create a token that's a copy of it.",
+            phase: "END_STEP",
+            scope: "your",
+            // CR 603.4 / 603.4d intervening-if — mirrored into `matches` by
+            // the factory (trigger time) and re-evaluated by the engine right
+            // before resolution. A zero/absent tally is false.
+            interveningIf: (_event, self, state) =>
+                (state?.lifeGainedThisTurn?.[self.controllerId] ?? 0) > 0,
+            effects: [
+                // CR 111 / 707.1 — the unconditional half; the intervening-if
+                // above is the only gate.
+                {
+                    op: "createToken",
+                    token: {
+                        name: "Cat",
+                        types: ["Creature"],
+                        subtypes: ["Cat"],
+                        power: 1,
+                        toughness: 1,
+                        colors: ["W"],
+                    },
+                    controller: "controller",
+                },
+                {
+                    // "Then if you have the city's blessing …" (CR 702.131b).
+                    op: "if",
+                    predicate: { hasCityBlessing: "controller" },
+                    then: [
+                        {
+                            op: "forEach",
+                            select: {
+                                set: "permanents",
+                                zone: "battlefield",
+                                controller: "controller",
+                                filter: {
+                                    isToken: true,
+                                    enteredThisTurn: true,
+                                },
+                            },
+                            effects: [
+                                {
+                                    // CR 707.2 — a token that's a copy of the
+                                    // current member of the FROZEN set.
+                                    op: "createTokenCopy",
+                                    source: { ref: "$each" },
+                                    controller: "controller",
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        }),
     ],
 };

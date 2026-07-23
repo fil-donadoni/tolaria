@@ -6,7 +6,11 @@ import type {
     GameState,
     StackItem,
 } from "../../../../gre/state";
-import { resolveTopOfStack } from "../../../../gre/state";
+import {
+    createTokenPermanents,
+    resolveTopOfStack,
+} from "../../../../gre/state";
+import { getDefinition } from "../../../index";
 import { applyMayPaySubmit } from "../../../../gre/pendingChoiceSubmit";
 import { collectTriggers } from "../../../../gre/triggers";
 import { raiseTriggerTargetSelection } from "../../../../gre/rules";
@@ -14,7 +18,11 @@ import { finalizeTargetSelection } from "../../../../game";
 import { PERMANENT_TYPES } from "../../../types";
 import { fireDelayedTriggers } from "../../../../gre/phases";
 import { projectPublicState } from "../../../../gameProjections";
-import { guideOfSouls, phelia } from "../white";
+import { guideOfSouls, ocelotPride, phelia } from "../white";
+import {
+    grantCityBlessing,
+    hasCityBlessing,
+} from "../../../../gre/cityBlessing";
 import { balduvianBears } from "../../ice/green";
 import { forest } from "../../lea/colorless";
 
@@ -675,5 +683,266 @@ describe("Phelia — delayed-trigger controller/owner branch (issue #1320)", () 
             (c) => c.id === "own2"
         );
         expect(returned).toBeDefined();
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Ocelot Pride — {W} 1/1 Cat (MH3, issue #1461). The integration test for four
+// capability tickets shipped just before it: the `lifeGainedThisTurn` CR 603.4
+// intervening-if (#1457), the `enteredThisTurn` card-filter clause (#1458),
+// the `createTokenCopy` Op (#1459) and Ascend / the City's Blessing (#1460).
+// ─────────────────────────────────────────────────────────────────────────────
+
+const OCELOT_ID = ocelotPride.id;
+
+const endStepEvent = (playerId: string): StackItem["triggerEvent"] =>
+    ({
+        type: "PHASE_BEGIN" as const,
+        phase: "END_STEP" as const,
+        activePlayerId: playerId,
+    }) as StackItem["triggerEvent"];
+
+/** p1's board: Ocelot Pride alone; p1's end step, turn 3. */
+function ocelotSetup(): GameState {
+    const ocelot = makeInstance(OCELOT_ID, {
+        id: "ocelot",
+        controllerId: "p1",
+        ownerId: "p1",
+    });
+    return makeState({
+        phase: "END_STEP",
+        activePlayerId: "p1",
+        turn: 3,
+        players: [
+            makePlayer("p1", { battlefield: [ocelot] }),
+            makePlayer("p2"),
+        ],
+    });
+}
+
+/** Creates a REAL token on p1's battlefield (a synthesized token definition,
+ *  exactly as `createToken` would), then re-stamps `enteredOnTurn` so the test
+ *  can place it in this turn or a previous one. Real tokens (not hand-built
+ *  instances) matter here: `createTokenCopy` copies the SOURCE's copiable
+ *  characteristics off its card definition (CR 707.2). */
+function makeBoardToken(
+    state: GameState,
+    name: string,
+    enteredOnTurn: number
+): CardInstanceState {
+    const [id] = createTokenPermanents(
+        state,
+        {
+            name,
+            types: ["Creature"],
+            subtypes: [name],
+            power: 1,
+            toughness: 1,
+        },
+        "p1"
+    );
+    const token = state.players[0].battlefield.find((c) => c.id === id)!;
+    token.enteredOnTurn = enteredOnTurn;
+    return token;
+}
+
+/** Puts Ocelot Pride's end-step trigger on the stack and resolves it. */
+function resolveOcelotTrigger(state: GameState): void {
+    const source = state.players
+        .flatMap((p) => p.battlefield)
+        .find((c) => c.id === "ocelot")!;
+    state.stack.push({
+        ...source,
+        zone: "stack",
+        castById: source.controllerId,
+        triggeredAbilityId: "ocelot-pride-end-step",
+        triggerSourceId: source.id,
+        triggerEvent: endStepEvent(state.activePlayerId),
+        targets: [],
+    });
+    resolveTopOfStack(state);
+}
+
+/** Every non-Ocelot permanent p1 controls (i.e. the tokens on the board). */
+const p1Tokens = (state: GameState) =>
+    state.players[0].battlefield.filter((c) => c.id !== "ocelot");
+
+const catTokens = (state: GameState) =>
+    p1Tokens(state).filter((c) => c.subtypes?.includes("Cat"));
+
+describe("Ocelot Pride — shape (MH3, issue #1461)", () => {
+    it("pins the real Scryfall id, cost, stats and keywords", () => {
+        expect(ocelotPride.id).toBe("89cf6f57-230f-497e-a14e-ad1e8737fd42");
+        expect(ocelotPride.manaCost).toEqual({ W: 1 });
+        expect(ocelotPride.types).toEqual(["Creature"]);
+        expect(ocelotPride.subtypes).toEqual(["Cat"]);
+        expect(ocelotPride.power).toBe(1);
+        expect(ocelotPride.toughness).toBe(1);
+        expect(ocelotPride.staticAbilities).toContain("first strike");
+        expect(ocelotPride.staticAbilities).toContain("lifelink");
+        expect(ocelotPride.staticAbilities).toContain("ascend");
+    });
+
+    it("is DSL-first: one Effect Script trigger, no resolve() anywhere", () => {
+        expect(ocelotPride.triggeredAbilities).toHaveLength(1);
+        const trig = ocelotPride.triggeredAbilities![0];
+        expect(trig.effects).toBeDefined();
+        expect(trig.resolve).toBeUndefined();
+        expect(trig.resolveSteps).toBeUndefined();
+        expect(ocelotPride.resolve).toBeUndefined();
+    });
+});
+
+describe("Ocelot Pride — intervening-if 'if you gained life this turn' (CR 603.4)", () => {
+    it("does not even trigger when no life was gained this turn", () => {
+        const state = ocelotSetup();
+        const triggers = collectTriggers(state, [
+            endStepEvent("p1") as never,
+        ]).filter((t) => t.triggeredAbilityId === "ocelot-pride-end-step");
+        expect(triggers).toHaveLength(0);
+    });
+
+    it("triggers on YOUR end step once life was gained (CR 500.1 scope)", () => {
+        const state = ocelotSetup();
+        state.lifeGainedThisTurn = { p1: 3 };
+        expect(
+            collectTriggers(state, [endStepEvent("p1") as never]).filter(
+                (t) => t.triggeredAbilityId === "ocelot-pride-end-step"
+            )
+        ).toHaveLength(1);
+        // …but NOT on the opponent's end step ("your end step").
+        expect(
+            collectTriggers(state, [endStepEvent("p2") as never]).filter(
+                (t) => t.triggeredAbilityId === "ocelot-pride-end-step"
+            )
+        ).toHaveLength(0);
+    });
+
+    it("fizzles on resolution if the life gain is gone by then (CR 603.4d)", () => {
+        const state = ocelotSetup();
+        state.lifeGainedThisTurn = { p1: 2 };
+        const source = state.players[0].battlefield[0];
+        state.stack.push({
+            ...source,
+            zone: "stack",
+            castById: "p1",
+            triggeredAbilityId: "ocelot-pride-end-step",
+            triggerSourceId: source.id,
+            triggerEvent: endStepEvent("p1"),
+            targets: [],
+        });
+        // The tally is cleared while the trigger sits on the stack.
+        state.lifeGainedThisTurn = {};
+        resolveTopOfStack(state);
+        expect(p1Tokens(state)).toHaveLength(0);
+    });
+});
+
+describe("Ocelot Pride — no city's blessing: exactly one Cat token (CR 111.1)", () => {
+    it("creates a single 1/1 white Cat and copies nothing", () => {
+        const state = ocelotSetup();
+        makeBoardToken(state, "Soldier", state.turn);
+        state.lifeGainedThisTurn = { p1: 1 };
+        resolveOcelotTrigger(state);
+        const cats = catTokens(state);
+        expect(cats).toHaveLength(1);
+        expect(cats[0].isToken).toBe(true);
+        expect(cats[0].power).toBe(1);
+        expect(cats[0].toughness).toBe(1);
+        // CR 110.5 — the token's colour is encoded as a synthetic mana cost on
+        // the synthesized token definition.
+        expect(getDefinition(cats[0].card.id as string).manaCost).toEqual({
+            W: 1,
+        });
+        // The pre-existing token was NOT copied — the blessing gate is closed
+        // (even though it DID enter this turn).
+        expect(p1Tokens(state)).toHaveLength(2);
+
+        // The Cat survives the wire projection (CR 111 — it is board-visible).
+        const projected = projectPublicState(state, 1, "p1");
+        const slimCats = projected.players[0].battlefield.filter(
+            (c) => c.id !== "ocelot" && c.subtypes?.includes("Cat")
+        );
+        expect(slimCats).toHaveLength(1);
+    });
+});
+
+describe("Ocelot Pride — with the city's blessing (CR 702.131b / 707.2)", () => {
+    it("copies every token that entered this turn, INCLUDING the Cat just created", () => {
+        // Board: one token that entered THIS turn (copied) and one that
+        // entered a PREVIOUS turn (not copied — the #1458 clause reads the
+        // real `enteredOnTurn` stamp against `state.turn`).
+        const state = ocelotSetup();
+        makeBoardToken(state, "Soldier", state.turn);
+        makeBoardToken(state, "Goblin", state.turn - 2);
+        state.lifeGainedThisTurn = { p1: 5 };
+        grantCityBlessing(state, "p1");
+        expect(hasCityBlessing(state, "p1")).toBe(true);
+
+        resolveOcelotTrigger(state);
+
+        // 2 pre-existing tokens + the new Cat + 2 copies (Cat + fresh-token).
+        expect(p1Tokens(state)).toHaveLength(5);
+        // Two Cats: the created one and its copy.
+        expect(catTokens(state)).toHaveLength(2);
+        // The stale (previous-turn) token was NOT copied — still exactly one.
+        expect(
+            p1Tokens(state).filter((c) => c.subtypes?.includes("Goblin"))
+        ).toHaveLength(1);
+        // The fresh token WAS copied — now two.
+        expect(
+            p1Tokens(state).filter((c) => c.subtypes?.includes("Soldier"))
+        ).toHaveLength(2);
+    });
+
+    it("does NOT cascade: the copies the loop creates are not themselves copied (CR 608.2i)", () => {
+        // The frozen-set property is the crux of this card. Every copy the
+        // `forEach` body creates is ALSO "a token you control that entered
+        // this turn", so a set re-selected per iteration would loop forever
+        // (or at least double). `execForEach` selects its members ONCE at
+        // construct entry and persists them, so the final count is exactly
+        // `2 * (tokens that entered this turn, including the new Cat)`.
+        const state = ocelotSetup();
+        makeBoardToken(state, "Soldier", state.turn);
+        makeBoardToken(state, "Goblin", state.turn);
+        makeBoardToken(state, "Zombie", state.turn);
+        state.lifeGainedThisTurn = { p1: 1 };
+        grantCityBlessing(state, "p1");
+
+        resolveOcelotTrigger(state);
+
+        // Frozen set = { fresh-a, fresh-b, fresh-c, new Cat } = 4 members →
+        // 4 copies. Total tokens = 3 pre-existing + 1 Cat + 4 copies = 8.
+        // A cascading (re-selected) set would produce strictly more.
+        expect(p1Tokens(state)).toHaveLength(8);
+        expect(catTokens(state)).toHaveLength(2);
+        // Every permanent p1 controls that is a token entered this turn — all
+        // of them, since the copies are stamped on creation too.
+        expect(
+            p1Tokens(state).filter((c) => c.enteredOnTurn === state.turn)
+        ).toHaveLength(8);
+    });
+
+    it("copies only YOUR tokens — an opponent's fresh token is untouched (CR 109.5)", () => {
+        const state = ocelotSetup();
+        createTokenPermanents(
+            state,
+            {
+                name: "Soldier",
+                types: ["Creature"],
+                subtypes: ["Soldier"],
+                power: 1,
+                toughness: 1,
+            },
+            "p2"
+        );
+        state.lifeGainedThisTurn = { p1: 1 };
+        grantCityBlessing(state, "p1");
+
+        resolveOcelotTrigger(state);
+
+        // Only the new Cat + its own copy on p1's side.
+        expect(p1Tokens(state)).toHaveLength(2);
+        expect(state.players[1].battlefield).toHaveLength(1);
     });
 });

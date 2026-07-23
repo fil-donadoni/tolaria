@@ -2763,7 +2763,16 @@ function collectRefUses(value: unknown, keyHint: string, out: RefUse[]): void {
                       ? "picks"
                       : keyHint === "target" ||
                           keyHint === "to" ||
-                          keyHint === "of"
+                          keyHint === "of" ||
+                          // `createTokenCopy`'s `source` (issue #1459) — the
+                          // runtime permanent being copied, an
+                          // `EffectObjectSelector` exactly like `target`
+                          // (Ocelot Pride's `{ ref: "$each" }`, issue #1461).
+                          // The only other `source` field in the vocabulary
+                          // (`moveZone`'s zone discriminator) is a string
+                          // literal, never a `{ ref }` object, so it never
+                          // reaches this branch.
+                          keyHint === "source"
                         ? "object"
                         : "number",
         });
