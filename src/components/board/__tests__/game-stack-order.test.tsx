@@ -38,7 +38,9 @@ function makeStackItem(id: string): StackItem {
 
 function renderStack(
     stack: StackItem[],
-    allPlayers: React.ContextType<typeof GameContext>["allPlayers"] = []
+    allPlayers: NonNullable<
+        React.ContextType<typeof GameContext>
+    >["allPlayers"] = []
 ) {
     const value = {
         gameId: "game-id" as never,
