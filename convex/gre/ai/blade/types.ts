@@ -181,15 +181,27 @@ export type BeyondBudgetCause =
     | "horizon"
     /** The refutation depends on a card the determinizer only occasionally
      *  deals into the hidden zone. Missing knowledge: an OPPONENT MODEL. */
-    | "hidden-information";
+    | "hidden-information"
+    /** A subtree is mis-valued outright — not merely reached too rarely
+     *  (`horizon`) but scored WRONG once reached, so more search converges
+     *  AWAY from the right move instead of towards it. Missing knowledge:
+     *  a correct VALUATION term for the pattern (issue #1518). Unlike the
+     *  other three causes, this one has no budget at which it passes — see
+     *  `BeyondBudget.passesAt`. */
+    | "valuation";
 
 /** A recorded beyond-budget verdict: the entry passes, but only above its
  *  declared (production-range) budget. `stretch` tier only — raising the
  *  budget to turn an entry green is not a legitimate move (ADR 0070 §2). */
 export type BeyondBudget = {
     cause: BeyondBudgetCause;
-    /** The budget at which it WAS observed to pass, for the record. */
-    passesAt: { iterations: number };
+    /** The budget at which it WAS observed to pass, for the record. Absent
+     *  only for `cause: "valuation"` — a mis-valued subtree converges AWAY
+     *  from the right move as the budget rises, so there is no budget to
+     *  record (issue #1518). Every other cause names a genuine compute
+     *  shortfall that more search eventually clears, so it must carry the
+     *  budget that clears it. */
+    passesAt?: { iterations: number };
     /** Which piece of bot knowledge is missing — prose, printed verbatim by
      *  the stretch report. */
     note: string;

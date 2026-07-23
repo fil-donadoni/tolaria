@@ -36,11 +36,14 @@ ever meet.
 
 A position that needs more is recorded as `stretch` **with its cause
 classified** — too many candidates at one decision, a payoff beyond the rollout
-horizon, or a hidden-information coincidence that rarely occurs in a
-determinized world. The classification is the point: each cause names a missing
-piece of knowledge (priors, valuation, opponent model), whereas "needs more
-iterations" names a compute shortfall that buying more compute never fixes —
-linear depth against exponential branching.
+horizon, a hidden-information coincidence that rarely occurs in a determinized
+world, or a subtree that is mis-valued outright (`"valuation"`, issue #1518;
+unlike the other three, it names a position with no passing budget at all —
+more search converges AWAY from the right move, so `passesAt` is omitted
+rather than guessed). The classification is the point: each cause names a
+missing piece of knowledge (priors, horizon, opponent model, valuation),
+whereas "needs more iterations" names a compute shortfall that buying more
+compute never fixes — linear depth against exponential branching.
 
 Measured at authoring time: the charter Stifle position resolves correctly at
 100 iterations across five seeds, so the constraint costs nothing on the

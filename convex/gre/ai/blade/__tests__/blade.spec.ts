@@ -83,13 +83,26 @@ describe(`blade suite — registry integrity`, () => {
         for (const s of BLADE_SCENARIOS) {
             if (!s.beyondBudget) continue;
             expect(
-                ["branching", "horizon", "hidden-information"],
+                ["branching", "horizon", "hidden-information", "valuation"],
                 `${s.label}: unknown beyond-budget cause`
             ).toContain(s.beyondBudget.cause);
-            expect(
-                s.beyondBudget.passesAt.iterations,
-                `${s.label}: passesAt must exceed the declared budget`
-            ).toBeGreaterThan(s.budget.iterations);
+            if (s.beyondBudget.passesAt) {
+                expect(
+                    s.beyondBudget.passesAt.iterations,
+                    `${s.label}: passesAt must exceed the declared budget`
+                ).toBeGreaterThan(s.budget.iterations);
+            } else {
+                // Omitting `passesAt` is only honest for `cause: "valuation"`
+                // (issue #1518) — a mis-valued subtree that converges AWAY
+                // from the right move as budget rises, so there is no passing
+                // budget to record. The other three causes name a genuine
+                // compute shortfall that more search eventually clears, so
+                // they must carry the budget that clears it.
+                expect(
+                    s.beyondBudget.cause,
+                    `${s.label}: omitting passesAt is only valid for cause "valuation"`
+                ).toBe("valuation");
+            }
             // The `note` is deliberately left unasserted. No mechanical check
             // distinguishes "names the missing knowledge" from 20+ characters
             // of filler, and the old `note.length > 20` only pretended to —
