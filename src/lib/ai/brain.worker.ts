@@ -12,6 +12,7 @@ import type { PublicGameState } from "@convex/gameProjections";
 import type { Move, SearchBudget, DecisionTrace } from "@convex/gre";
 import { searchWithTrace, DEFAULT_BUDGET } from "@convex/gre";
 import { projectedToGameState } from "./state-adapter";
+import type { OwnDeckList } from "./state-adapter";
 
 export type BrainRequest = {
     id: number;
@@ -20,6 +21,10 @@ export type BrainRequest = {
     /** Difficulty-scaled search budget (issue #114). Plain numbers only, so it
      *  survives the structured-clone `postMessage` hop. Omitted → default. */
     budget?: SearchBudget;
+    /** The bot's own decklist (issue #1509) — plain arrays/strings, so it
+     *  survives the structured-clone `postMessage` hop. Wires real card
+     *  identities into the bot's simulated library. Omitted → placeholders. */
+    ownDeck?: OwnDeckList;
 };
 export type BrainResponse = {
     id: number;
@@ -31,10 +36,10 @@ export type BrainResponse = {
 };
 
 self.onmessage = (e: MessageEvent<BrainRequest>) => {
-    const { id, state, botId, budget } = e.data;
+    const { id, state, botId, budget, ownDeck } = e.data;
     const seed = (Math.random() * 0x100000000) | 0;
     const { move, trace } = searchWithTrace(
-        projectedToGameState(state),
+        projectedToGameState(state, ownDeck),
         botId,
         budget ?? DEFAULT_BUDGET,
         seed

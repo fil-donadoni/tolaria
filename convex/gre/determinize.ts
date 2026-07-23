@@ -25,10 +25,16 @@
 // PURE: clones via `cloneGameState`, draws only from the injected `rng`, never
 // mutates the input. Given the same `rng` sequence it returns the same world.
 //
-// NOTE on the production projection: the bot consults its OWN wire viewpoint,
-// where hidden zones arrive as counts with no identities (the adapter drops
-// them). On such a state the hidden pools are empty, so determinize is a
-// faithful no-op — the bot simply searches without inventing opponent cards.
+// NOTE on the production projection: the bot consults its OWN wire viewpoint.
+//   * The OBSERVER's library — since issue #1509 the state adapter rebuilds it
+//     from the bot's real decklist (own-deck content is public to its owner),
+//     so `determinizeObserver`'s shuffle does real work here: it hides the
+//     ORDER the bot must not know while keeping the content the bot legitimately
+//     does, re-sampling a plausible draw/fetch order every ISMCTS iteration.
+//   * The OPPONENT's hidden zones still arrive as counts with no identities (the
+//     adapter fills them with opaque placeholders, not real cards), so pooling
+//     and re-dealing them is a faithful no-op — the bot searches without
+//     inventing specific opponent cards.
 // Fed a full-information state (as the unit tests do), it re-deals for real.
 
 import type { CardInstanceState, GameState, PlayerState } from "./state";

@@ -17,7 +17,7 @@
 // hook exposes `thinking` so the board can show a "thinking" indicator that
 // clears the moment the bot acts.
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
@@ -53,6 +53,22 @@ export function useVsAiDriver(
         api.game.getPublicState,
         botId ? { gameId, playerId: botId } : "skip"
     );
+    // The bot's OWN decklist, wired into the search adapter so its simulated
+    // library carries real card identities (issue #1509): fetch/tutor subtrees
+    // then search the real fetchable cards instead of worthless placeholders.
+    // Own-deck content is public knowledge to its owner (only the ORDER is
+    // hidden — `determinize` reshuffles it), so reading it here is legitimate;
+    // in a vs-AI game both seats belong to the same user regardless.
+    const game = useQuery(api.game.getGame, { gameId });
+    const ownDeck = useMemo(() => {
+        if (!botId || !game) return undefined;
+        const seat = game.players.find((p) => p.id === botId);
+        if (!seat) return undefined;
+        return {
+            playerId: botId,
+            cardIds: seat.deck.cards.map((c) => c.cardId),
+        };
+    }, [game, botId]);
     const [thinking, setThinking] = useState(false);
 
     const mutations: MoveMutations = {
@@ -210,7 +226,7 @@ export function useVsAiDriver(
             // server move path is untouched — this only tunes how hard the
             // client-side brain thinks.
             const budget = budgetFor(getStoredDifficulty());
-            void consultBrain(botState, botId, budget)
+            void consultBrain(botState, botId, budget, ownDeck)
                 .then(({ move, trace }) => {
                     // Surface the reasoning to the Debug panel (client-only).
                     setLatestAiTrace(trace);
@@ -249,7 +265,7 @@ export function useVsAiDriver(
         // `mutations` is rebuilt each render but its callables are stable; depend
         // on the state version and bot id only.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [gameId, botId, botState]);
+    }, [gameId, botId, botState, ownDeck]);
 
     return { thinking };
 }

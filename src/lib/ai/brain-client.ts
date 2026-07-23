@@ -14,6 +14,7 @@ import type { PublicGameState } from "@convex/gameProjections";
 import type { Move, SearchBudget, DecisionTrace } from "@convex/gre";
 import { searchWithTrace, DEFAULT_BUDGET } from "@convex/gre";
 import { projectedToGameState } from "./state-adapter";
+import type { OwnDeckList } from "./state-adapter";
 import type { BrainRequest, BrainResponse } from "./brain.worker";
 
 /** The Brain's reply: the chosen move plus the read-only DecisionTrace of what
@@ -56,13 +57,14 @@ function getWorker(): Worker | null {
 export function consultBrain(
     state: PublicGameState,
     botId: string,
-    budget: SearchBudget = DEFAULT_BUDGET
+    budget: SearchBudget = DEFAULT_BUDGET,
+    ownDeck?: OwnDeckList
 ): Promise<BrainResult> {
     const w = getWorker();
     if (!w) {
         const seed = (Math.random() * 0x100000000) | 0;
         const { move, trace } = searchWithTrace(
-            projectedToGameState(state),
+            projectedToGameState(state, ownDeck),
             botId,
             budget,
             seed
@@ -71,7 +73,7 @@ export function consultBrain(
     }
 
     const id = nextId++;
-    const request: BrainRequest = { id, state, botId, budget };
+    const request: BrainRequest = { id, state, botId, budget, ownDeck };
     return new Promise<BrainResult>((resolve) => {
         pending.set(id, resolve);
         w.postMessage(request);
