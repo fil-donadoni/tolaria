@@ -152,7 +152,17 @@ export type BladeSetupStep =
           by?: BladeSeat;
           target?: BladeSeat | string;
           x?: number;
-      };
+      }
+    /** Declare the active player's attack (CR 508.1) and pass priority forward
+     *  until the DEFENDER owes the block declaration — the position a
+     *  "block or die" entry (issue #1489) asserts on, which does not exist the
+     *  moment the board is built. `cards` restricts the attack to creatures
+     *  with those names; omitted, every legal attacker is sent. Runs through
+     *  `applyMoveInSearch`, the engine's own move-application chokepoint (see
+     *  `combatSetup.ts`), and throws when no creature may legally attack, when
+     *  the declaration fails the real restriction checks, or when the position
+     *  never reaches an open declare-blockers window. */
+    | { kind: "declare-attackers"; cards?: string[] };
 
 /**
  * Why a blade entry only passes ABOVE its declared budget (ADR 0070 §2).

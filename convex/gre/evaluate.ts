@@ -23,6 +23,7 @@
 // layer system so static buffs (counters, anthems) are reflected.
 
 import type { CardInstanceState, GameState, PlayerState } from "./state";
+import { isCombatDamageImmune } from "./state";
 import {
     getEffectivePower,
     getEffectiveToughness,
@@ -333,8 +334,197 @@ export function evaluate(state: GameState, playerId: string): number {
     return (
         margin +
         dangerClock(state, playerId) +
-        declaredCombatDelta(state, me.id)
+        declaredCombatDelta(state, me.id) +
+        lethalUnblockedDelta(state, playerId)
     );
+}
+
+// --- Lethal-on-the-table term (issue #1489, ADR 0070 §5) -------------------
+//
+// MEASURED, not assumed. At a `declare-blockers` leaf the pre-existing
+// evaluation is BYTE-IDENTICAL for "chump-block and live" and "take it and
+// die":
+//
+//   * `declaredCombatDelta` is zero by construction once blockers are
+//     confirmed (it scores a combat *pending* blocks);
+//   * `dangerClock` is the STEADY-STATE race term — it never reads
+//     `state.combat`, so a declared attack and a declared block move it not at
+//     all;
+//   * the material terms are the PRE-damage snapshot: nothing has died and no
+//     life has been lost yet.
+//
+// So the leaf carried NO signal at all for the one decision that decides the
+// game, and the choice fell entirely to whether a rollout happened to reach
+// the damage step — noise, and demonstrably non-monotonic in the budget (the
+// charter position blocks on 5/5 seeds at 100 iterations and DECLINES on 3/5
+// at the production 400).
+//
+// The fix is a term with NARROW SUPPORT (ADR 0070 §5), not a re-weight: it is
+// EXACTLY ZERO unless a confirmed block leaves combat damage lethal to the
+// defending player, so it cannot degrade any position that does not exhibit
+// the pattern. No global weight (`W_LIFE`, `W_CLOCK`, `BLOCK_CAUTION_FRACTION`)
+// is touched.
+//
+// Its MAGNITUDE is terminal-scale on purpose, and that too is measured rather
+// than picked: the open reward band saturates at `MATERIAL_FULL = 500`
+// (`search.ts`), and the charter position already sits at ≈ −1000, so ANY
+// sub-terminal penalty — 500, 5 000, 20 000 — maps to the identical saturated
+// reward and would be invisible. A term that cannot move the reward is not a
+// fix. `WIN_SCORE` puts the leaf in the LOST band, where the surviving
+// material margin still discriminates (issue #138), which is exactly the
+// semantics the position deserves: unblocked lethal damage with blockers
+// already locked in IS a loss (CR 510.1c/704.5a), one step before the SBA
+// records it.
+//
+// Deliberately CONSERVATIVE (it under-reports rather than over-fires):
+//   * blocked attackers contribute nothing, so trample damage through a chump
+//     is not counted — same simplification `declaredBlockDelta` already makes;
+//   * an attacker directed at a planeswalker (CR 508.1a) never touches the
+//     player's life, so it is excluded;
+//   * it fires only once blockers are CONFIRMED — at declare-attackers time
+//     the defender has not yet had its say, and the term stays zero;
+//   * its support is the DECLARE_BLOCKERS phase and nothing else: `state.combat`
+//     survives the damage steps, so without a phase guard the term would
+//     re-count damage already dealt against the already-reduced life;
+//   * every engine-modelled way the damage can fail to arrive zeroes it —
+//     `preventAllCombatDamageThisTurn` (Fog), `assignsNoCombatDamageThisTurn`
+//     (CR 510.1c), `combatDamageImmunity` (Ebony Horse), an unspent
+//     `playerDamagePrevention` shield (CR 615.1) — and `blockedAttackerIds`
+//     (CR 509.1h) is consulted, not just the live block graph.
+//
+// WIRED AT EXACTLY TWO SEAMS, each counting it ONCE: `evaluate` (the shared
+// leaf the reward band reads) and `blockDeltaOf` (search.ts — the root
+// block-quality tie-break lens). It is deliberately NOT inside
+// `declaredBlockDelta` itself, because `policyValue` (search.ts) sums
+// `evaluate` AND `declaredBlockDelta`: folding it into the latter would make
+// the rollout default policy see ±2·WIN_SCORE.
+
+/** Invert `blockerAssignments` (blocker → attackers) into attacker → blockers,
+ *  in stable listed order, so each attacker's combat can be resolved
+ *  independently. Shared by `declaredBlockDelta` and `declaredFaceDamage` so
+ *  the two can never disagree about who is blocked. */
+function blockersByAttacker(
+    combat: NonNullable<GameState["combat"]>,
+    defender: PlayerState
+): Map<string, CardInstanceState[]> {
+    const out = new Map<string, CardInstanceState[]>();
+    for (const [blockerId, atkIds] of Object.entries(
+        combat.blockerAssignments
+    )) {
+        const blocker = defender.battlefield.find((c) => c.id === blockerId);
+        if (!blocker) continue;
+        for (const atkId of atkIds) {
+            const list = out.get(atkId) ?? [];
+            list.push(blocker);
+            out.set(atkId, list);
+        }
+    }
+    return out;
+}
+
+/** The combat damage a CONFIRMED block leaves headed at the defending PLAYER's
+ *  life, plus who that player is. `null` when no block is confirmed — the one
+ *  shape both consumers below need, so "which attacker is unblocked" is
+ *  computed in exactly one place. Pure. */
+function declaredFaceDamage(
+    state: GameState
+): { defender: PlayerState; attacker: PlayerState; damage: number } | null {
+    // PHASE GUARD (mandatory). `state.combat` — `confirmed`, `blockersConfirmed`
+    // and `attackerIds` included — SURVIVES the damage steps: it is torn down
+    // only as END_OF_COMBAT *ends* (`endCombatStep`, phases.ts, CR 511.3).
+    // Without this guard the term would re-count damage ALREADY APPLIED against
+    // the ALREADY-REDUCED life at every COMBAT_DAMAGE / END_OF_COMBAT leaf,
+    // firing on any attack that took the defender past roughly half its life —
+    // a broad, common-position false `∓WIN_SCORE`. DECLARE_BLOCKERS is the only
+    // PRE-damage phase in which `blockersConfirmed` can be true, so it is the
+    // term's entire support window (CR 509 → 510).
+    if (state.phase !== "DECLARE_BLOCKERS") return null;
+    const combat = state.combat;
+    if (
+        !combat ||
+        !combat.confirmed ||
+        !combat.blockersConfirmed ||
+        combat.attackerIds.length === 0
+    ) {
+        return null;
+    }
+    // CR 615 — a resolved Fog. `applyAllCombatDamage` returns immediately on
+    // this flag (phases.ts), so NO combat damage happens at all this turn and
+    // there is nothing lethal on the table.
+    if (state.preventAllCombatDamageThisTurn) return null;
+    const attackerId = state.activePlayerId; // CR 508.1 — active player attacks.
+    const attacker = state.players.find((p) => p.id === attackerId);
+    const defender = state.players.find((p) => p.id !== attackerId);
+    if (!attacker || !defender) return null;
+
+    const byAttacker = blockersByAttacker(combat, defender);
+    let damage = 0;
+    for (const atkId of combat.attackerIds) {
+        // CR 508.1a — an attacker aimed at a planeswalker never reaches the
+        // player's life (issue #1220).
+        if (combat.attackTargets?.[atkId] !== undefined) continue;
+        // CR 509.1h — "blocked" is combat STATE, not the live blocker count.
+        // `blockedAttackerIds` is the engine's authority (written at every
+        // blocker confirmation, read by the damage step itself, phases.ts):
+        // an attacker that became blocked stays blocked and deals NOTHING to
+        // the player even after every blocker has left the battlefield.
+        // Reading `blockerAssignments` alone would count its full power.
+        if (combat.blockedAttackerIds?.includes(atkId)) continue;
+        if ((byAttacker.get(atkId) ?? []).length > 0) continue;
+        const atk = attacker.battlefield.find((c) => c.id === atkId);
+        if (!atk) continue;
+        // CR 510.1c — "assigns no combat damage this turn" (Farrel's Mantle /
+        // Farrel's Zealot). Source-only; the damage step skips it outright.
+        if (state.assignsNoCombatDamageThisTurn?.includes(atk.id)) continue;
+        // CR 615 — Ebony Horse's shield prevents all combat damage BY the
+        // shielded creature as well as to it.
+        if (isCombatDamageImmune(state, atk.id)) continue;
+        damage += Math.max(0, getEffectivePower(state, atk));
+    }
+    return { defender, attacker, damage };
+}
+
+/**
+ * The lethal-on-the-table term (issue #1489). EXACTLY ZERO unless a CONFIRMED
+ * block leaves combat damage that is lethal to the defending player; on that
+ * pattern it is `∓WIN_SCORE` from `viewerId`'s point of view (negative for the
+ * player about to die, positive for the one about to win). See the block
+ * comment above for the measurement it was designed against, why the magnitude
+ * has to be terminal-scale, and the deliberate under-reporting.
+ *
+ * Pure. Exported so the narrowness of its support is unit-testable in
+ * isolation (ADR 0070 §5): pattern present → non-zero, pattern absent → 0.
+ */
+export function lethalUnblockedDelta(
+    state: GameState,
+    viewerId: string
+): number {
+    const declared = declaredFaceDamage(state);
+    if (!declared) return 0;
+    const { defender, attacker, damage } = declared;
+    // CR 615.1 — a live per-player prevention shield (Dark Sphere, Scarecrow)
+    // can cut or erase the damage headed at the defender. Whether it MATCHES
+    // depends on the source and its mode, and resolving that would mean running
+    // `applyPlayerDamagePrevention`, which MUTATES state (it decrements
+    // `remaining`) — illegal in a pure term. So the term declines to claim
+    // lethality whenever any unspent shield is registered for the defender:
+    // under-report, never over-fire. (`isCombatDamagePreventedFromSource` needs
+    // no consultation here: it is queried only on the PERMANENT branch of the
+    // damage step — a self-protective property of the creature being dealt
+    // damage — and a PLAYER is never its target.)
+    if (
+        state.playerDamagePrevention?.some(
+            (s) => s.playerId === defender.id && s.remaining > 0
+        )
+    ) {
+        return 0;
+    }
+    // CR 704.5a — a player at 0 or less life loses. Damage already locked in
+    // that takes the defender there is a loss, one SBA sweep early.
+    if (damage <= 0 || damage < defender.life) return 0;
+    if (viewerId === defender.id) return -WIN_SCORE;
+    if (viewerId === attacker.id) return WIN_SCORE;
+    return 0;
 }
 
 // --- Smart auto-tap source quality (issue #794, PRD #472 / ADR 0034) --------
@@ -501,18 +691,7 @@ export function declaredBlockDelta(state: GameState, viewerId: string): number {
 
     // Invert blockerId → attackerIds into attackerId → blockers (in stable
     // listed order) so each attacker's combat can be resolved independently.
-    const blockersByAttacker = new Map<string, CardInstanceState[]>();
-    for (const [blockerId, atkIds] of Object.entries(
-        combat.blockerAssignments
-    )) {
-        const blocker = defender.battlefield.find((c) => c.id === blockerId);
-        if (!blocker) continue;
-        for (const atkId of atkIds) {
-            const list = blockersByAttacker.get(atkId) ?? [];
-            list.push(blocker);
-            blockersByAttacker.set(atkId, list);
-        }
-    }
+    const byAttacker = blockersByAttacker(combat, defender);
 
     // This block resolves THIS turn, before cleanup, so a temporary combat-trick
     // buff already on a creature IS live for the exchange (ADR 0021, issue #229).
@@ -529,7 +708,7 @@ export function declaredBlockDelta(state: GameState, viewerId: string): number {
     for (const atkId of combat.attackerIds) {
         const atk = attacker.battlefield.find((c) => c.id === atkId);
         if (!atk) continue;
-        const blockers = blockersByAttacker.get(atkId) ?? [];
+        const blockers = byAttacker.get(atkId) ?? [];
         if (blockers.length === 0) {
             faceDamage += Math.max(0, getEffectivePower(state, atk));
             continue;
@@ -557,6 +736,17 @@ export function declaredBlockDelta(state: GameState, viewerId: string): number {
         cards.reduce((sum, c) => sum + evaluateCreature(state, c), 0);
     // Defender's view: gains the dead attackers' worth, loses its dead blockers,
     // and takes the unblocked face damage.
+    //
+    // NOTE (issue #1489). The lethal-on-the-table term is deliberately NOT
+    // folded in here. MEASURED, this function IS the lens `selectRootMove`'s
+    // block-quality tie-break ranks candidate blocks by (`blockDeltaOf`,
+    // search.ts), and the life clause below is LINEAR and lethality-blind — in
+    // the charter position it prices 24 incoming damage at `24 × W_LIFE = 192`
+    // and therefore rates "take it and die" (−192) ABOVE "chump and live"
+    // (−312). But `policyValue` (search.ts) sums `evaluate` AND
+    // `declaredBlockDelta`, and `evaluate` already carries the term — folding it
+    // here too would show the rollout default policy ±2·WIN_SCORE. So the tie-
+    // break gets it at its own seam, `blockDeltaOf`, where it is counted once.
     const defenderDelta =
         value(deadAttackers) - value(deadBlockers) - faceDamage * W_LIFE;
 
@@ -569,7 +759,7 @@ export function declaredBlockDelta(state: GameState, viewerId: string): number {
     // keeps blockers back / single-blocks when the attacker is loaded, and
     // blocks normally when the attacker is tapped out / empty-handed (no
     // castable interaction → zero penalty, current behavior).
-    const caution = cautiousBlockPenalty(state, attacker, blockersByAttacker);
+    const caution = cautiousBlockPenalty(state, attacker, byAttacker);
     const defenderDeltaHedged = defenderDelta - caution;
 
     return viewerId === defender.id
@@ -695,8 +885,11 @@ export function materialMargin(state: GameState, playerId: string): number {
  *  the search itself. `margin` is the pre-terminal material difference
  *  (sum(self) − sum(opp)); `danger` is the signed Danger Clock term (ADR 0018,
  *  positive = the player holds the faster clock); `total` is the full
- *  `evaluate(state, playerId)`. In an open position `total = margin + danger`;
- *  in a terminal one the win/loss offset dominates and `danger` is omitted. */
+ *  `evaluate(state, playerId)`. In an open position `total = margin + danger`
+ *  plus whatever the narrow combat terms contribute — `declaredCombatDelta`
+ *  (a combat pending blocks) or `lethalUnblockedDelta` (a confirmed block that
+ *  leaves lethal damage, issue #1489), each zero off its own pattern; in a
+ *  terminal one the win/loss offset dominates and `danger` is omitted. */
 export type PositionBreakdown = {
     self: EvalTerms;
     opp: EvalTerms;

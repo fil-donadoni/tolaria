@@ -490,6 +490,92 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         },
         note: "Charter scenario (the modal choice). The wrong mode loses THE GAME by force: Blue Elemental Blast's Destroy mode removes only Mons's Goblin Raiders (a red 1/1) while the 20-damage Disintegrate resolves into the bot at 20 life and kills it (CR 104.3a); only the Counter mode — targeting the red spell on the stack — survives. Both modes are legal throughout (Counter targets the spell, Destroy the 1/1; the colourless Mountains/Island are not red-permanent targets), so the losing mode is offered and rejected, never absent. Chosen correctly on all five seeds at the production 400 budget — the loss is one resolution away, inside the rollout horizon — so this is `must`, and it does NOT cross-confirm the deeper-subtree death defects (#1488/#1499, #1489): imminent death enters the evaluation here precisely because it is imminent. Shown to bite by making the threat non-lethal (setup X 20→10): the bot then passes on all five seeds and the expectation goes red.",
     },
+    {
+        // CHARTER SCENARIO 4 (issue #1489, PRD #1423, charter gate #1434) — the
+        // only charter entry that is an EVALUATION fix rather than a
+        // choice-node fix.
+        //
+        // Four Craw Wurms (6/4) are attacking; the bot defends at 20 life with
+        // one Grizzly Bears (2/2) untapped and an empty hand and board
+        // otherwise.
+        //
+        // FAIRNESS BY CONSTRUCTION (ADR 0070 §1): 4 × 6 = 24 unblocked damage
+        // against 20 life. Declining to block is lethal BY FORCE — CR 510.1c
+        // deals it, CR 704.5a loses the game on the next SBA sweep, and the
+        // position holds no instant, no mana and no life gain that could
+        // change it. Blocking ANY one Wurm drops the incoming damage to 18 and
+        // the bot lives at 2. There is no "probably" and no "on average" here:
+        // one move loses the game outright, the other does not.
+        //
+        // …and it is a MATERIALLY LOSING block, which is the whole point: the
+        // 2/2 dies to the 6/4 and kills nothing. Material says "don't throw the
+        // creature away"; survival says "you must". Before the fix this entry
+        // guards, material won.
+        //
+        // WHAT IT GUARDS (the measurement, issue #1489): at a declare-blockers
+        // leaf the evaluation was BYTE-IDENTICAL for both moves — −1086.0 for
+        // "chump" and for "take it" alike (margin −951.0, danger clock −135.0
+        // in both). `declaredCombatDelta` is zero once blockers are confirmed,
+        // the Danger Clock is steady-state and never reads `state.combat`, and
+        // the material terms are the pre-damage snapshot. Worse, the
+        // block-quality tie-break (`selectRootMove`) ranks blocks by
+        // `declaredBlockDelta`, whose life clause is LINEAR and
+        // lethality-blind: it priced the 24 incoming damage at 24 × W_LIFE =
+        // 192 and therefore rated "die" (−192) ABOVE "chump and live" (−312).
+        // The narrow-support `lethalUnblockedDelta` term (`evaluate.ts`) fixes
+        // both sites; it is exactly zero in any position where a confirmed
+        // block does not leave lethal damage on the table.
+        //
+        // BITE PROOF (ADR 0070 §1): red before the fix — at the declared 400
+        // iterations the bot declined to block on 3 of these 5 seeds
+        // (0xb1ade, 2, 4) and died. Non-monotonic in the budget, too: it
+        // blocked on 5/5 at 100 iterations and 2/5 at 400, which is the
+        // signature of a leaf carrying no signal at all and the choice falling
+        // to rollout noise. Green on 5/5 seeds at 100 AND 400 after.
+        //
+        // BUDGET (ADR 0070 §2): the production `DEFAULT_BUDGET` itself.
+        // SETUP (ADR 0070 §4): the attack is declared and priority walked to
+        // the block window by the ENGINE (`applyMoveInSearch`), never by a
+        // hand-seeded `combat.attackerIds`.
+        label: "charter: chump-blocks to survive lethal (block or die)",
+        spec: {
+            cards: [
+                {
+                    name: "Craw Wurm",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                    count: 4,
+                },
+                {
+                    name: "Grizzly Bears",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "DECLARE_ATTACKERS",
+            turn: 3,
+            // No lands for either seat: no mana, no castable answer, so the
+            // block is the ONLY thing that can change the outcome (and the
+            // cautious-block penalty, which needs castable interaction in the
+            // attacker's hand, is structurally zero here).
+            landCount: 0,
+            libraryCount: 20,
+        },
+        setup: [{ kind: "declare-attackers" }],
+        // The DEFENDER is the bot: `me` (players[0]) is the active player and
+        // attacks, `decidingPlayer` hands the open block window to `opp`.
+        bot: "opp",
+        budget: { iterations: 400 },
+        // ADR 0070 §3 — a charter entry runs K≥3 seeds.
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "declare-blockers", card: "Grizzly Bears" }],
+        },
+        note: "Charter scenario 4 (evaluation, not choice-node). NOT blocking loses the game by force: 4 x Craw Wurm = 24 unblocked damage into 20 life (CR 510.1c / 704.5a), with no instant, mana or life gain in the position. Any single block leaves 18 and the bot lives at 2, at the cost of the 2/2 — a materially losing block that survival requires. Guards `lethalUnblockedDelta` (issue #1489): before it, the leaf evaluation was identical for both moves and the block-quality tie-break actively preferred dying.",
+    },
 ];
 
 /** Entries of one tier, in registry order. */
