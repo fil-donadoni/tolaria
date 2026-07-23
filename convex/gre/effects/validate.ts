@@ -1443,6 +1443,12 @@ const DELAYED_TIMINGS = new Set([
     // watched permanent's PERMANENT_LEFT, not a step boundary. Requires
     // `watch`; rejects `targetPlayer` (checked below).
     "leaves-battlefield",
+    // Indefinite instance leave-watch (CR 603.7a / 603.10, issue #1470) — the
+    // same `watch` + PERMANENT_LEFT machinery with NO "this turn" bound: it is
+    // excluded from the CLEANUP purge (phases.ts), so it survives end of turn
+    // and still fires on a later turn (earthbend N's return clause). Requires
+    // `watch`; rejects `targetPlayer`, exactly like its this-turn twin.
+    "leaves-battlefield-indefinite",
     // Repeating combat-event watch (CR 603.7d / 603.10, issue #884) — fires
     // once per BLOCKERS_CONFIRMED event for the rest of the turn (Battle
     // Cry). Rejects both `targetPlayer` and `watch` (checked below), like the
@@ -2412,18 +2418,22 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
                     `field "targetPlayer" is only valid with the player-scoped timings "next-draw-step" / "next-main-phase"`
                 );
             }
-            // CR 603.7a / 603.10 (issue #731) — the instance leave-watch timing
-            // fires on a specific watched permanent, so it demands `watch`; the
-            // phase-boundary timings fire at a step and reject it.
-            const leaveWatch = entry.timing === "leaves-battlefield";
+            // CR 603.7a / 603.10 (issues #731 / #1470) — BOTH instance
+            // leave-watch timings fire on a specific watched permanent, so
+            // both demand `watch`; the phase-boundary timings fire at a step
+            // and reject it. The two differ only in their turn bound (the
+            // CLEANUP purge, phases.ts), never in their required fields.
+            const leaveWatch =
+                entry.timing === "leaves-battlefield" ||
+                entry.timing === "leaves-battlefield-indefinite";
             if (leaveWatch && !("watch" in entry)) {
                 errors.push(
-                    `timing "leaves-battlefield" is instance-scoped (CR 603.7a) — field "watch" is required`
+                    `timing "${String(entry.timing)}" is instance-scoped (CR 603.7a) — field "watch" is required`
                 );
             }
             if (!leaveWatch && "watch" in entry) {
                 errors.push(
-                    `field "watch" is only valid with the instance leave-watch timing "leaves-battlefield"`
+                    `field "watch" is only valid with the instance leave-watch timings "leaves-battlefield" / "leaves-battlefield-indefinite"`
                 );
             }
             return errors;

@@ -24,17 +24,23 @@ import { tappedTrigger } from "../../abilities/triggers/tappedTrigger";
 // put on the stack). No new Op for the keyword itself (primitive-reuse
 // mandate).
 //
-// DEFERRED (tracked-by: #1362) — the reminder text's third sentence, "When it
-// dies or is exiled, return it to the battlefield tapped.", is not built
-// here: it needs an INDEFINITE instance-leave-watch delayed trigger (CR
-// 603.7a), but the engine's only leave-watch timing (`"leaves-battlefield"`,
-// `gre/triggers.ts`) is explicitly THIS-TURN-scoped (purged at CLEANUP,
-// `gre/phases.ts`) — the exact gap `sets/lci/black.ts` (Deep-Cavern Bat)
-// already stopped-and-issued as #1362 (Guard B,
-// gre-development.md § documented-divergence-needs-issue). The golden path
-// (animate + counters) is faithful; the land simply stays a normal
-// 0/0-plus-counters creature-land if it's later killed or exiled, instead of
-// springing back tapped.
+// The reminder text's THIRD sentence — "When it dies or is exiled, return it
+// to the battlefield tapped." — is a delayed triggered ability (CR 603.7a)
+// watching that one land for the rest of the game, built as a third
+// `delayedTrigger` Op with the INDEFINITE instance leave-watch timing
+// `leaves-battlefield-indefinite` (issue #1470): the same `watch` +
+// PERMANENT_LEFT machinery as `leaves-battlefield`, minus the CLEANUP purge,
+// so the watch survives end of turn. Its body is TWO `moveZone`
+// return-a-departed-object Ops (issue #1469) — one `from: "graveyard"` (dies)
+// and one `from: "exile"` (exiled, or a `graveyardDestinationFor` graveyard →
+// exile redirect), both `tapped: true` (CR 110.5a) and both under the land's
+// OWNER's control (earthbend has no controller-override clause). Exactly one
+// can find the card, the other is a CR 608.2b no-op — as is the whole body if
+// the land has since moved on (regenerated, or scooped out of the graveyard).
+// The land comes back as a NEW object (CR 400.7): a plain land, no +1/+1
+// counters, no haste, no animation — `resetBattlefieldTransientState`
+// (`gre/state.ts`) reverts the indefinite animation and strips the granted
+// keyword at the shared reanimation-entry chokepoint.
 //
 // The mana-doubling clause ("Whenever you tap a creature for mana, add an
 // additional {G}") reuses the pre-existing Wild-Growth-style triggered-mana-
@@ -60,7 +66,7 @@ export const badgermoleCub: CardDefinition = {
         enteredTrigger({
             id: "badgermole-cub-earthbend",
             oracleText:
-                "When this creature enters, earthbend 1. (Target land you control becomes a 0/0 creature with haste that's still a land. Put a +1/+1 counter on it.)",
+                "When this creature enters, earthbend 1. (Target land you control becomes a 0/0 creature with haste that's still a land. Put a +1/+1 counter on it. When it dies or is exiled, return it to the battlefield tapped.)",
             scope: "self",
             targetRequirement: { type: "Land", count: 1, controller: "you" },
             effects: [
@@ -78,6 +84,30 @@ export const badgermoleCub: CardDefinition = {
                     counter: "+1/+1",
                     count: 1,
                     target: { target: 0 },
+                },
+                {
+                    op: "delayedTrigger",
+                    timing: "leaves-battlefield-indefinite",
+                    oracleText:
+                        "When it dies or is exiled, return it to the battlefield tapped.",
+                    watch: { target: 0 },
+                    capture: { $land: { target: 0 } },
+                    effects: [
+                        {
+                            op: "moveZone",
+                            target: { ref: "$land" },
+                            from: "graveyard",
+                            to: "battlefield",
+                            tapped: true,
+                        },
+                        {
+                            op: "moveZone",
+                            target: { ref: "$land" },
+                            from: "exile",
+                            to: "battlefield",
+                            tapped: true,
+                        },
+                    ],
                 },
             ],
         }),

@@ -1918,6 +1918,22 @@ describe("resolvePreviewAbilities (#156)", () => {
             state: "granted",
         });
     });
+
+    // Frontend wiring walk (issue #1470) — earthbend N's return clause is
+    // built, so the ability's reminder text is no longer truncated. The card
+    // preview's structured ability panel reads the TRIGGER's own oracleText
+    // through this reducer, so the restored sentence must appear here.
+    it("renders Badgermole Cub's FULL earthbend reminder text (issue #1470)", () => {
+        const BADGERMOLE_CUB_ID = "340c5799-4964-44dd-8c48-8f3f3aba5211";
+        const { triggered } = getDisplayAbilities(BADGERMOLE_CUB_ID);
+        const earthbendLine = triggered.find((t) =>
+            t.oracleText.includes("earthbend 1")
+        );
+        expect(earthbendLine).toBeDefined();
+        expect(earthbendLine!.oracleText).toContain(
+            "When it dies or is exiled, return it to the battlefield tapped."
+        );
+    });
 });
 
 // ---------------------------------------------------------------------------

@@ -381,10 +381,17 @@ export function collectTriggers(
         }
     }
 
-    // CR 603.7a / 603.10 (issue #731) — instance leave-watch delayed triggers.
-    // A `timing: "leaves-battlefield"` delayed trigger fires when its watched
-    // instance leaves the battlefield ("when THAT creature leaves the
-    // battlefield this turn, …"). Match each pending watch against the
+    // CR 603.7a / 603.10 (issues #731 / #1470) — instance leave-watch delayed
+    // triggers. A `timing: "leaves-battlefield"` delayed trigger fires when its
+    // watched instance leaves the battlefield ("when THAT creature leaves the
+    // battlefield this turn, …"); `"leaves-battlefield-indefinite"` is the same
+    // firing condition with no turn bound (earthbend N — "when it dies or is
+    // exiled, return it to the battlefield tapped"), so it matches HERE
+    // identically and diverges only at the CLEANUP purge (phases.ts). Either
+    // way the departure is ANY zone change off the battlefield —
+    // `PERMANENT_LEFT` is emitted for dies AND exile, including a
+    // `graveyardDestinationFor` graveyard → exile redirect, exactly once per
+    // departure. Match each pending watch against the
     // PERMANENT_LEFT ids in this same event batch, push the matched triggers
     // onto the stack (as delayed-trigger StackItems, resolved through the
     // inline-body path), and remove the fired instances from the pending list
@@ -393,7 +400,8 @@ export function collectTriggers(
         const remaining: DelayedTriggerInstance[] = [];
         for (const t of state.delayedTriggers) {
             const fires =
-                t.timing === "leaves-battlefield" &&
+                (t.timing === "leaves-battlefield" ||
+                    t.timing === "leaves-battlefield-indefinite") &&
                 t.watchInstanceId !== undefined &&
                 recentlyLeft.has(t.watchInstanceId);
             if (fires) {

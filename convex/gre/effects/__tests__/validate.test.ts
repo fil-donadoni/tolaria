@@ -1642,6 +1642,55 @@ describe("validateEffectScript — delayedTrigger Op (CR 603.7, ADR 0048)", () =
             power.some((e) => /only ".controller" property captures/.test(e))
         ).toBe(true);
     });
+
+    // CR 603.7a / 603.10 (issue #1470) — the INDEFINITE instance leave-watch
+    // shares every field rule with its this-turn twin; it differs only at the
+    // CLEANUP purge (phases.ts), which the validator never sees.
+    it("accepts the indefinite leave-watch timing with a watch, and requires the watch", () => {
+        const ok = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "delayedTrigger",
+                        timing: "leaves-battlefield-indefinite",
+                        oracleText:
+                            "When it dies or is exiled, return it to the battlefield tapped.",
+                        watch: { target: 0 },
+                        capture: { $land: { target: 0 } },
+                        effects: [
+                            {
+                                op: "moveZone",
+                                target: { ref: "$land" },
+                                from: "graveyard",
+                                to: "battlefield",
+                                tapped: true,
+                            },
+                        ],
+                    },
+                ],
+            })
+        );
+        expect(ok).toEqual([]);
+        const missing = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "delayedTrigger",
+                        timing: "leaves-battlefield-indefinite",
+                        oracleText: "x",
+                        effects: [
+                            { op: "gainLife", player: "controller", amount: 1 },
+                        ],
+                    },
+                ],
+            })
+        );
+        expect(
+            missing.some((e) =>
+                /"leaves-battlefield-indefinite" is instance-scoped/.test(e)
+            )
+        ).toBe(true);
+    });
 });
 
 // --- delayedTrigger LIST-valued capture (ADR 0049, issue #866) --------------

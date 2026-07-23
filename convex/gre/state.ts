@@ -7259,10 +7259,56 @@ export function markEnteredThisTurn(card: CardInstanceState): void {
     card.isSummoningSick = true;
 }
 
+/** Undoes the mutations applied by `animateAsCreature`, restoring the
+ *  permanent to its pre-animation shape (CR 208.2 / 611.1). Safe to call on a
+ *  card with no `animation` record (returns immediately). Called from the
+ *  duration purge (`tickAllDurations`, phases.ts) when a bounded animation
+ *  expires, and from `resetBattlefieldTransientState` when the object leaves
+ *  the battlefield — an INDEFINITE animation (CR 611.2b) has no duration to
+ *  tick, so the zone change is its only end (CR 400.7, issue #1470). */
+export function revertAnimation(card: CardInstanceState): void {
+    const anim = card.animation;
+    if (!anim) return;
+    if (anim.addedSubtype !== undefined) {
+        const idx = card.subtypes.indexOf(anim.addedSubtype);
+        if (idx !== -1) {
+            card.subtypes = [
+                ...card.subtypes.slice(0, idx),
+                ...card.subtypes.slice(idx + 1),
+            ];
+        }
+    }
+    // CR 208.2, 611.1: remove exactly the types the animation added — the
+    // creature type and any `additionalTypes` (e.g. "Artifact" for Mishra's
+    // Factory) — restoring the permanent's original type line.
+    const typesToRemove = [
+        ...(anim.addedCreatureType ? (["Creature"] as CardType[]) : []),
+        ...(anim.addedTypes ?? []),
+    ];
+    for (const t of typesToRemove) {
+        const idx = card.types.indexOf(t);
+        if (idx !== -1) {
+            card.types = [
+                ...card.types.slice(0, idx),
+                ...card.types.slice(idx + 1),
+            ];
+        }
+    }
+    card.power = anim.savedPower;
+    card.toughness = anim.savedToughness;
+    card.animation = undefined;
+    // CR 704.5g: damage marked on a permanent that's no longer a creature
+    // is irrelevant but harmless — cleared at CLEANUP regardless.
+}
+
 /** CR 400.7 — when a card moves from the battlefield to a non-graveyard /
  *  non-exile zone (hand, library), it becomes a new object with no memory of
  *  its previous existence. Strips battlefield-only transient fields so the
- *  same instance, if it later returns to play, ETBs cleanly. */
+ *  same instance, if it later returns to play, ETBs cleanly. Also the shared
+ *  chokepoint every reanimation-style ENTRY funnels through
+ *  (`putReanimatedOnBattlefield`), so a card coming back from the graveyard /
+ *  exile — where the historical state is deliberately preserved — is cleaned
+ *  here instead. */
 function resetBattlefieldTransientState(card: CardInstanceState): void {
     card.isTapped = false;
     delete card.damageMarked;
@@ -7275,11 +7321,29 @@ function resetBattlefieldTransientState(card: CardInstanceState): void {
     delete card.hasBlockedThisTurn;
     delete card.damagedBySources;
     delete card.controlChanges;
+    // CR 400.7 / 611.2b (issue #1470) — an INDEFINITE animation (earthbend N's
+    // "becomes a 0/0 creature with haste that's still a land") mutates the
+    // instance IN PLACE (`types`, `subtypes`, `power`, `toughness`), so merely
+    // dropping the bookkeeping record would leave the new object permanently
+    // stuck as a 0/0 creature-land. Revert the mutation, and splice the
+    // animation-granted keywords (haste) back out of `staticAbilities` the way
+    // the CLEANUP duration purge does (phases.ts) — `grantedStaticAbilities` is
+    // only the provenance record, the ability itself lives on the array. Both
+    // run BEFORE the matching deletes below, while the provenance is readable.
+    revertAnimation(card);
+    for (const grant of card.grantedStaticAbilities ?? []) {
+        const idx = card.staticAbilities.indexOf(grant.ability);
+        if (idx !== -1) {
+            card.staticAbilities = [
+                ...card.staticAbilities.slice(0, idx),
+                ...card.staticAbilities.slice(idx + 1),
+            ];
+        }
+    }
     delete card.grantedStaticAbilities;
     delete card.grantedActivatedAbilities;
     delete card.grantedTriggeredAbilities;
     delete card.removedKeywords;
-    delete card.animation;
     delete card.chosenMana;
     delete card.manaCounterRemoval;
     delete card.lifePaidThisTap;
