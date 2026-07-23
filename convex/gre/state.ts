@@ -6299,6 +6299,21 @@ export function removePermanentTo(
     // leaving card; LTB-triggers on the aura itself (Animate Dead) read this
     // payload to identify the host they need to sacrifice.
     const lkiAttachedTo = initial.card.attachedTo;
+    // CR 603.10 (issue #1350) — the REVERSE link: every permanent attached TO
+    // the leaver, snapshotted before the attachment SBA (CR 704.5m) detaches
+    // them. A trigger living on the ATTACHMENT (Skullclamp — "whenever
+    // equipped creature dies") can't read `self.attachedTo` at fire time
+    // because the SBA has already cleared it, so it reads this payload
+    // instead. Collected across all battlefields: control-change effects can
+    // put an Equipment and its host under different controllers.
+    const lkiAttachments: string[] = [];
+    for (const player of state.players) {
+        for (const card of player.battlefield) {
+            if (card.id !== cardId && card.attachedTo === cardId) {
+                lkiAttachments.push(card.id);
+            }
+        }
+    }
     const lkiTypes: ReadonlyArray<CardType> = [...initial.card.types];
     // CR 205.3 (issue #1191) — snapshot subtypes alongside types so a
     // subtype-scoped LTB trigger ("whenever you sacrifice a Clue") can filter
@@ -6423,6 +6438,9 @@ export function removePermanentTo(
             subtypes: lkiSubtypes,
             wasAura: lkiWasAura,
             attachedToBeforeLeave: lkiAttachedTo,
+            ...(lkiAttachments.length > 0
+                ? { attachmentsBeforeLeave: lkiAttachments }
+                : {}),
             toZone,
             ...(cause ? { cause } : {}),
             ...(causerControllerId ? { causerControllerId } : {}),

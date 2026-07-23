@@ -3,36 +3,80 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-// import type { CardDefinition } from "../../types";
+import { AURA_AFFECTS_HOST } from "../../types";
+import type { CardDefinition } from "../../types";
+import {
+    leftTrigger,
+    wasAttachedToLeaver,
+} from "../../abilities/triggers/leftTrigger";
 
 // Skullclamp — "Equipped creature gets +1/-1.\nWhenever equipped creature
-// dies, draw two cards.\nEquip {1}." (issue #1306, parent PRD #620.) New
-// home set (DST, Darksteel — the true first paper printing) — first stub
-// registered here. The static +1/-1 (layer 7c, `AURA_AFFECTS_HOST`) and the
-// plain Equip {1} ability (the generic `attach` Op, ADR 0065 — see Lion
-// Sash, `neo/white.ts`, for the identical `{ op: "attach", target: {
-// target: 0 } }` shell) are BOTH cleanly expressible with the Equipment
-// attach machinery that shipped via #1311. STOP-AND-ISSUE on the THIRD
-// clause: "whenever equipped creature dies, draw two cards" needs
-// last-known information from the EQUIPMENT's perspective — which
-// permanents were attached to the creature that just died — and that
-// snapshot field does not exist yet. `LeavingPermanent` (`convex/cards/
-// abilities/triggers/leftTrigger.ts`) only carries `attachedToBeforeLeave`
-// (the LEAVING object's own host — the reverse direction, used by Animate
-// Dead), never the set of things that WERE attached TO it. ADR 0065
-// documents the missing field by name (`attachmentsBeforeLeave:
-// string[]`) and scopes it to #1350 ([engine] #776b Equipped-creature-dies
-// last-known + Skullclamp), which explicitly ships Skullclamp as its own
-// tracer once the field lands. Never ship a silent partial (CLAUDE.md) —
-// shipping only the static+Equip third would misrepresent the card's
-// headline effect. Stop-and-issue per gre-development.md; tracked-by: #1350
-// export const skullclamp: CardDefinition = {
-//     id: "55318397-de3c-47ea-a088-72a24df5c8fa",
-//     name: "Skullclamp",
-//     rarity: "rare",
-//     manaCost: { X: 1 },
-//     types: ["Artifact"],
-//     subtypes: ["Equipment"],
-// };
-
-export {};
+// dies, draw two cards.\nEquip {1}." (issue #1306, parent PRD #620; the
+// engine half is #1350.) All three clauses are DSL/declarative:
+//
+//  - +1/-1 is a flat layer-7c `pt-buff` gated by the canonical
+//    `AURA_AFFECTS_HOST` predicate (reads `source.attachedTo === target.id` —
+//    Equipment and Auras share the plumbing, see Cori-Steel Cutter).
+//  - Equip {1} (CR 702.6e) is the generic `attach` Op on a sorcery-speed-only
+//    activated ability targeting a creature you control — the same shell Lion
+//    Sash's Reconfigure and Cori-Steel Cutter's Equip use (ADR 0065).
+//  - "Whenever equipped creature dies" is a `leftTrigger` on toZone
+//    "graveyard" + a Creature filter (CR 700.4's definition of "dies"). It
+//    can NOT test `self.attachedTo` at fire time: the attachment SBA
+//    (CR 704.5m) detaches the Equipment the instant its host leaves, so the
+//    link has to come from last-known information. That is the
+//    `attachmentsBeforeLeave` payload added by #1350 (the reverse direction of
+//    the pre-existing `attachedToBeforeLeave`, which carries the LEAVER's own
+//    host), read via the shared `wasAttachedToLeaver` condition helper so any
+//    future "whenever equipped/enchanted creature dies" card reuses it.
+export const skullclamp: CardDefinition = {
+    id: "55318397-de3c-47ea-a088-72a24df5c8fa",
+    name: "Skullclamp",
+    rarity: "rare",
+    oracleText:
+        "Equipped creature gets +1/-1.\nWhenever equipped creature dies, draw two cards.\nEquip {1}",
+    manaCost: { generic: 1 },
+    types: ["Artifact"],
+    subtypes: ["Equipment"],
+    staticEffects: [
+        {
+            kind: "pt-buff",
+            applies: AURA_AFFECTS_HOST,
+            power: 1,
+            toughness: -1,
+        },
+    ],
+    triggeredAbilities: [
+        leftTrigger({
+            id: "skullclamp-equipped-dies",
+            oracleText: "Whenever equipped creature dies, draw two cards.",
+            // CR 700.4 — "dies" = put into a graveyard from the battlefield.
+            // `any-other` (not `yours`): the equipped creature can be under an
+            // opponent's control (Skullclamp equips only creatures you
+            // control, but a control-change effect can move the host away
+            // while the Equipment stays put — CR 301.5c keeps it attached).
+            scope: "any-other",
+            toZone: "graveyard",
+            filter: { types: "Creature" },
+            condition: wasAttachedToLeaver,
+            effects: [{ op: "draw", player: "controller", count: 2 }],
+        }),
+    ],
+    activatedAbilities: [
+        {
+            // CR 702.6e — Equip is sorcery-speed-only and targets a creature
+            // its controller controls.
+            id: "skullclamp-equip",
+            oracleText: "Equip {1}",
+            cost: { mana: { generic: 1 } },
+            sorcerySpeedOnly: true,
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                controller: "you",
+            },
+            useStack: true,
+            effects: [{ op: "attach", target: { target: 0 } }],
+        },
+    ],
+};

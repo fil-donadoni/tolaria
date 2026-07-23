@@ -55,6 +55,12 @@ export interface LeavingPermanent {
      *  to another permanent. Read by Animate Dead's LTB to sacrifice the
      *  reanimated creature. */
     attachedToBeforeLeave?: string;
+    /** Instance ids of the permanents that were attached TO the leaving
+     *  permanent immediately before departure (CR 603.10, issue #1350) — its
+     *  Auras and Equipment. The reverse direction of `attachedToBeforeLeave`.
+     *  Read by `wasAttachedToLeaver` for the "whenever equipped creature
+     *  dies" shape (Skullclamp). */
+    attachmentsBeforeLeave?: ReadonlyArray<string>;
 }
 
 export interface LeftTriggerArgs {
@@ -203,6 +209,22 @@ export function wasSacrificed(event: PermanentLeftEvent): boolean {
     return event.cause === "sacrifice";
 }
 
+/** CR 603.10 `condition` helper (issue #1350): true when `self` — the ability's
+ *  own source, an Aura or Equipment — was ATTACHED TO the permanent that just
+ *  left the battlefield. The canonical "whenever equipped/enchanted creature
+ *  dies, ..." shape (Skullclamp), which cannot test `self.attachedTo`: the
+ *  attachment SBA (CR 704.5m) has already detached the Equipment by the time
+ *  the trigger's `matches` runs, so the answer must come from the departure's
+ *  last-known-information payload. Combine with `scope: "any-other"` +
+ *  `toZone: "graveyard"` + `filter: { types: "Creature" }` for "dies"
+ *  (CR 700.4). */
+export function wasAttachedToLeaver(
+    event: PermanentLeftEvent,
+    self: PermanentView
+): boolean {
+    return event.attachmentsBeforeLeave?.includes(self.id) ?? false;
+}
+
 /** Builds a `TriggeredAbility` listening to `PERMANENT_LEFT` (CR 603.10).
  *  See module header for the design rationale; see ADR 0002 for the factory
  *  contract this conforms to. */
@@ -259,6 +281,7 @@ export function leftTrigger(args: LeftTriggerArgs): TriggeredAbility {
                           types: event.types,
                           toZone: event.toZone,
                           attachedToBeforeLeave: event.attachedToBeforeLeave,
+                          attachmentsBeforeLeave: event.attachmentsBeforeLeave,
                       });
                   },
               }),

@@ -5617,6 +5617,16 @@ export interface PermanentLeftEvent {
      *  Animate Dead's LTB-trigger to identify the reanimated creature to
      *  sacrifice. Undefined for non-Aura permanents or unattached Auras. */
     attachedToBeforeLeave?: string;
+    /** CR 603.10 (issue #1350) — instance ids of the permanents that were
+     *  ATTACHED TO the leaving permanent at the moment it left (its Auras and
+     *  Equipment). The reverse direction of `attachedToBeforeLeave`: that
+     *  field is the leaving object's own host, this one is the set of things
+     *  it was hosting. Read by a trigger living on the ATTACHMENT that fires
+     *  when its host dies (Skullclamp — "whenever equipped creature dies,
+     *  draw two cards"), which cannot use `self.attachedTo` because the
+     *  attachment SBA (CR 704.5m, `sba.ts`) detaches it. Omitted when nothing
+     *  was attached. */
+    attachmentsBeforeLeave?: ReadonlyArray<string>;
     /** Destination zone of the move. */
     toZone: "graveyard" | "exile" | "hand" | "library";
     /** Why the permanent left the battlefield (CR 603.10). `"sacrifice"` is set

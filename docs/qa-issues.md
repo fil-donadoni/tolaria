@@ -13,6 +13,7 @@ Laelia
 Troll of Kazad-dum
 Bitter Triumph
 Pyrogoyf
+Broadside Bombardiers
 Nadu
 Lightning Greaves
 Springheart Nantuko
@@ -35,6 +36,7 @@ Fable of the mirror-breaker
 
 ## UX da migliorare
 
+- Arch lightning sullo stack, mentre targetta 2 creature e un giocatore, mostra solo la freccia verso il giocatore
 - Le frecce di target di Arc mage sono sbagliate. Ho targettato una creature e un giocatore, vedo una freccia dalla creatura primo bersaglio al giocatore secondo bersaglio invece di 2 frecce che partono da arc mage e vanno verso la creatura e il giocatore
 - staff of the storyteller non è stata implementata nella sua prima edizione ma in una ristampa. correggi, trova altri casi simili e fai in modo che non ricapiti.
 - chrome mox: il counter I\* non è chiaro come interfaccia, e la carta imprintata deve essere attaccata a lui, stile banishing light. questo vale per tutte le carte con imprint.
