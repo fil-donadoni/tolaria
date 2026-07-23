@@ -46,6 +46,39 @@ const LATENT_DISCOUNT = 0.85; // latent creature worth = discounted realized
 const NONCREATURE_BASE = 8; // base latent worth of a non-creature card (MV 0)
 const W_NC_MV = 10; // per mana value, non-creature latent worth
 
+// Issue #1508 — bound on a NON-CREATURE's DSL spell-script value. Context-free
+// grounding (`gre/ai/grounding.ts`) always takes the `if` walker's `then`
+// branch (a card's own effect is assumed to happen), so a spell whose real
+// payoff is gated behind a rare/near-never-true condition — an alternate win
+// condition (`winGame`, WIN_GAME_VALUE = 100000, Coalition Victory), or a
+// "prevent ALL damage" effect modeled as a very large literal `preventDamage`
+// amount (Glyph of Destruction / Indestructible Aura, amount: 9999 ×
+// LIFE_PER_POINT = ~80000) — gets valued as if its huge payoff were certain.
+// That raw scalar feeds straight into `evaluate.ts`'s unweighted `hand` term,
+// and the reward band saturates at a material margin of only ±500
+// (`MATERIAL_FULL`, `gre/search.ts`) — a SINGLE such card in hand pins the
+// reward at the band edge regardless of anything else in play, so losing a
+// creature (or any other real material swing) reads as free.
+//
+// Capping the SCRIPT-DERIVED component here — not the raw `OP_VALUERS`
+// magnitude (kept at its full scale so `if`/`optionChoice`'s "pick the best
+// mode" comparisons and ordering assertions stay meaningful) and not the
+// creature body (a genuinely huge creature, e.g. Worldspine Wurm, is real
+// signal that must NOT be squashed) — is the narrowest fix: every consumer of
+// a non-creature's latent worth (the Hand term, the Bot Drafter pick
+// heuristic, the board-permanent term for a non-creature/non-land permanent)
+// goes through this one `latentValue` composition, so one bound here closes
+// off the whole "a card's own effect assumed certain" saturation class rather
+// than patching `winGame` alone. Comfortably above every real catalogue
+// script's context-free value (Ashes to Ashes tops out around 460) is NOT the
+// goal — the goal is staying well clear of `MATERIAL_FULL` (500) so a single
+// hand card, even at the cap, still leaves headroom for a creature dying (a
+// ~170-200 point swing) to move the reward. Reusing `EXTRA_TURN_VALUE` (300,
+// `ai/opValuers.ts` — already documented there as "the biggest single-Op
+// swing in the basis") keeps the bound tied to an existing, principled
+// magnitude rather than an arbitrary new number.
+const MAX_LATENT_SCRIPT_VALUE = 300;
+
 /** Latent worth from a card's raw characteristics (ADR 0018), with the
  *  DSL-derived semantic layer wired in (PRD #1423, issue #1426), and the
  *  `aiEffects` shadow-script mechanism (issue #1431). Precedence, highest
@@ -113,7 +146,12 @@ export function latentValue(chars: {
     // applies before the blind fallback.
     const fallback = NONCREATURE_BASE + chars.manaValue * W_NC_MV;
     if (chars.dslSpellValue !== undefined) {
-        return Math.max(fallback, chars.dslSpellValue);
+        // Clamp BEFORE the floor comparison (issue #1508) — an ordinary
+        // script's value is always well under the cap, so this is a no-op for
+        // every real card except the rare "if always assumes then" / literal
+        // sentinel-amount outliers the cap exists to bound.
+        const bounded = Math.min(chars.dslSpellValue, MAX_LATENT_SCRIPT_VALUE);
+        return Math.max(fallback, bounded);
     }
     if (chars.aiValue !== undefined) return chars.aiValue;
     return fallback;
