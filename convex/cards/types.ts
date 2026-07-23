@@ -9722,9 +9722,10 @@ export interface CardDefinition {
      *  script (`convex/gre/ai/opValuers.ts`) walks this one too, yielding the
      *  identical `{ points, tags }` shape a real script would — but it is
      *  NEVER executed (`getAbilityEffectFn`/the interpreter never reads this
-     *  field; only the context-free valuer does). Precedence (highest first):
-     *  a real `effects[]` script, then this `aiEffects` sketch, then the
-     *  scalar `aiValue` override, then the `base + MV` fallback
+     *  field; only the context-free valuer does). Precedence (highest first,
+     *  PRD #1423, issue #1512): the scalar `aiValue` override wins outright
+     *  when set, then a real `effects[]` script, then this `aiEffects`
+     *  sketch, then the `base + MV` fallback
      *  (`convex/gre/cardValue.ts` `latentValue`). Mutually exclusive in
      *  PRACTICE with `effects` (a card with a real script doesn't need a
      *  shadow one) though not enforced structurally — the catalogue guard
