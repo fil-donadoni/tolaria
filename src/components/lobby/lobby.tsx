@@ -7,6 +7,7 @@ import { useCurrentUser } from "~/hooks/useCurrentUser";
 import { canEditPresets } from "~/lib/adminGating";
 import { usePageVisible } from "~/hooks/usePageVisible";
 import { useUserDecks, useUserDeckMutations } from "~/hooks/useUserDecks";
+import { useMyLimitedEvents } from "~/hooks/useLimitedEvent";
 import {
     deckPayload,
     filterDecksByFormat,
@@ -41,6 +42,7 @@ import LobbyFooter from "~/components/legal/lobby-footer";
 import ActionButton from "~/components/board/action-button";
 import DashboardTopBar from "./dashboard-top-bar";
 import DashboardPlayBox from "./dashboard-play-box";
+import DashboardLimitedBox from "./dashboard-limited-box";
 import VsAiSetupDialog from "./vs-ai-setup-dialog";
 import DeckList from "./deck-list";
 import DeckFormatFilter from "./deck-format-filter";
@@ -94,6 +96,9 @@ function Lobby() {
         api.game.myActiveGame,
         pageVisible ? {} : "skip"
     );
+    // First-class Limited dashboard box (issue #1582): reuses the my-events
+    // query wired in by #1589 for its quick re-entry list — no new query.
+    const myLimitedEvents = useMyLimitedEvents();
 
     const presetLobbyDecks = useMemo<LobbyDeck[]>(
         () => (presetDecks ?? []).map((d) => toPresetLobbyDeck(d)),
@@ -218,6 +223,17 @@ function Lobby() {
             return { gameId: targetGameId, playerId: user._id };
         });
 
+    const handleBrowseLimitedEvents = () => {
+        void navigate({ to: "/limited" });
+    };
+
+    const handleOpenLimitedEvent = (eventId: Id<"limitedEvents">) => {
+        void navigate({
+            to: "/limited/$eventId",
+            params: { eventId },
+        });
+    };
+
     const handleFocusDeck = (presetId: string) => {
         void navigate({ to: "/decks/$slug", params: { slug: presetId } });
     };
@@ -337,7 +353,8 @@ function Lobby() {
     if (
         presetDecks === undefined ||
         userDecks === undefined ||
-        user === undefined
+        user === undefined ||
+        myLimitedEvents === undefined
     ) {
         return <LoadingScreen />;
     }
@@ -392,16 +409,6 @@ function Lobby() {
             <div className="relative z-10 mx-auto flex max-w-6xl flex-col gap-6 px-6 py-8">
                 <DashboardTopBar />
 
-                <div className="flex justify-end">
-                    <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => void navigate({ to: "/limited" })}
-                    >
-                        Limited Events
-                    </Button>
-                </div>
-
                 {activeGame && user && (
                     <ActiveGameNotice
                         activeGame={activeGame}
@@ -411,19 +418,29 @@ function Lobby() {
 
                 {actionError && <Banner tone="danger">{actionError}</Banner>}
 
-                <DashboardPlayBox
-                    selectedDeck={selectedDeck}
-                    openGames={openGames}
-                    onCreateVsAi={() => setVsAiOpen(true)}
-                    onCreateSolo={handleCreateSolo}
-                    onCreateMultiplayer={handleCreate}
-                    onJoin={handleJoin}
-                    onChangeDeck={handleChangeDeck}
-                    matchFormat={matchFormat}
-                    onMatchFormatChange={handleMatchFormatChange}
-                    busy={isBusy}
-                    hasActiveGame={!!activeGame}
-                />
+                {/* Constructed + Limited play boxes, equal visual weight,
+                    same shared Panel language (issue #1582). One column on
+                    narrow viewports, side-by-side from `lg` up. */}
+                <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                    <DashboardPlayBox
+                        selectedDeck={selectedDeck}
+                        openGames={openGames}
+                        onCreateVsAi={() => setVsAiOpen(true)}
+                        onCreateSolo={handleCreateSolo}
+                        onCreateMultiplayer={handleCreate}
+                        onJoin={handleJoin}
+                        onChangeDeck={handleChangeDeck}
+                        matchFormat={matchFormat}
+                        onMatchFormatChange={handleMatchFormatChange}
+                        busy={isBusy}
+                        hasActiveGame={!!activeGame}
+                    />
+                    <DashboardLimitedBox
+                        events={myLimitedEvents}
+                        onBrowse={handleBrowseLimitedEvents}
+                        onOpen={handleOpenLimitedEvent}
+                    />
+                </div>
 
                 <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
                     <Panel className="flex max-h-[28rem] flex-col">
