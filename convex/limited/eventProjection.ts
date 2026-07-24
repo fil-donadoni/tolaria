@@ -62,6 +62,18 @@ export interface HumanDeckView {
     colors: string[];
 }
 
+/** A seat's compact deck summary (issue #1583): deck colors plus the maindeck
+ *  and sideboard COUNTS — never the card list. Deliberately UNGATED (like
+ *  `hasDeck`): colors + counts leak nothing about what a seat drafted or
+ *  built, so the compact "Review the Table" summary renders one per seat for
+ *  EVERY viewer, while the full card list (`pool`/`humanDeck`) stays
+ *  admin-gated below. */
+export interface DeckSummaryView {
+    colors: string[];
+    maindeckCount: number;
+    sideboardCount: number;
+}
+
 export interface LimitedEventSeatView {
     seatIndex: number;
     userId?: string;
@@ -88,8 +100,19 @@ export interface LimitedEventSeatView {
      *  seat (see `autoBuiltDeck` on `convex/limitedEvents.ts`'s wire shape
      *  instead, computed on demand rather than stored), for a human seat
      *  with no deck submitted yet, or whenever the event isn't `completed`
-     *  yet (the SAME full-disclosure-at-completion gate as `pool` above). */
+     *  yet (the SAME full-disclosure-at-completion gate as `pool` above).
+     *  Admin-gated (issue #1583): another seat's built deck is a debug detail
+     *  populated only for an admin viewer — a non-admin only ever receives
+     *  their OWN seat's `humanDeck`. */
     humanDeck: HumanDeckView | null;
+    /** Compact per-seat deck summary (issue #1583) — colors + maindeck /
+     *  sideboard COUNTS, never the card list. UNGATED (populated for every
+     *  seat that has a deck, any viewer): it's what the compact review
+     *  summary shows in place of the raw card lists. A human seat's is derived
+     *  here from `humanDecksBySeat`; a bot seat's is filled by the query shell
+     *  (`convex/limitedEvents.ts`'s `projectEventForViewer`) from its
+     *  Auto-Built deck (`autoBuiltDeck`), so it projects to `null` here. */
+    deckSummary: DeckSummaryView | null;
     /** Draft only: the pack currently in front of THIS seat. Populated ONLY
      *  for the viewer's own seat — another seat's current pack is exactly
      *  the hidden information a Draft protects (PRD #1107 story 15). `null`
@@ -172,22 +195,25 @@ export interface LimitedEventView {
  *  performs itself. Both default to "nothing complete, no decks known" so
  *  this stays call-compatible with every caller written before #1116.
  *
- *  Full-disclosure reveal (PRD #1107 story 26): once `completed` is true,
- *  EVERY seat's `pool` is exposed to EVERY viewer — participant or not — the
- *  same "strip during, reveal after" flip for `humanDeck`. This is
- *  deliberately broader than "only the event's own participants": the PRD's
- *  framing ("As a student of the game, I want all Pools revealed... so I can
- *  review what the table drafted") is a post-mortem study feature, not a
- *  participant perk — hidden-information discipline exists only to protect a
- *  LIVE draft/build from signal leakage, which is moot once every seat's
- *  deck is locked in. */
+ *  Admin-gated full-disclosure reveal (issue #1583, narrowing PRD #1107 story
+ *  26): once `completed` is true, every OTHER seat's `pool` and `humanDeck`
+ *  are exposed ONLY to an admin viewer (`isAdmin`). These lists exist to debug
+ *  the bot drafter / deckbuilder, so they're admin-only debug detail — a
+ *  non-admin never receives another seat's pool or deck contents on the wire,
+ *  completed or not. A viewer ALWAYS keeps their OWN seat's data (`isViewer`),
+ *  admin or not. Every viewer still gets each seat's compact `deckSummary`
+ *  (colors + counts) and `poolCount` — the summary the redesigned review
+ *  renders in place of the raw lists. (Before #1583 the reveal was
+ *  unconditional at completion; the hidden-information discipline that
+ *  protects a LIVE draft/build is unchanged.) */
 export function projectLimitedEvent(
     event: LimitedEventRow,
     viewerUserId: string | null,
     completed = false,
     seatsWithDeck = 0,
     humanDecksBySeat: ReadonlyMap<number, HumanDeckView> = new Map(),
-    hasDeckBySeat: ReadonlySet<number> = new Set()
+    hasDeckBySeat: ReadonlySet<number> = new Set(),
+    isAdmin = false
 ): LimitedEventView {
     return {
         _id: event._id,
@@ -208,7 +234,13 @@ export function projectLimitedEvent(
         seats: event.seats.map((seat) => {
             const isViewer =
                 viewerUserId !== null && seat.userId === viewerUserId;
-            const poolRevealed = isViewer || completed;
+            // Debug detail (pool card list + built deck) reveals for the
+            // viewer's OWN seat always, and for any OTHER seat only to an
+            // admin at a completed event (issue #1583).
+            const detailRevealed = isViewer || (completed && isAdmin);
+            const humanDeckForSeat = seat.isBot
+                ? null
+                : (humanDecksBySeat.get(seat.seatIndex) ?? null);
             return {
                 seatIndex: seat.seatIndex,
                 userId: seat.userId,
@@ -216,11 +248,19 @@ export function projectLimitedEvent(
                 isBot: seat.isBot ?? false,
                 isViewer,
                 poolCount: seat.pool ? seat.pool.length : null,
-                pool: poolRevealed ? (seat.pool ?? null) : null,
+                pool: detailRevealed ? (seat.pool ?? null) : null,
                 humanDeck:
-                    completed && !seat.isBot
-                        ? (humanDecksBySeat.get(seat.seatIndex) ?? null)
-                        : null,
+                    completed && detailRevealed ? humanDeckForSeat : null,
+                // Ungated compact summary — colors + counts only, for every
+                // seat that has a submitted human deck. Bot seats are filled
+                // by the query shell from `autoBuiltDeck` (null here).
+                deckSummary: humanDeckForSeat
+                    ? {
+                          colors: humanDeckForSeat.colors,
+                          maindeckCount: humanDeckForSeat.cards.length,
+                          sideboardCount: humanDeckForSeat.sideboard.length,
+                      }
+                    : null,
                 currentPack: isViewer ? (seat.currentPack ?? null) : null,
                 packQueueCount: isViewer ? (seat.packQueue?.length ?? 0) : null,
                 pickDeadline: isViewer ? (seat.pickDeadline ?? null) : null,

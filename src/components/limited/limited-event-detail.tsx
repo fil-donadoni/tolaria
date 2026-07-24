@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import type { Id } from "@convex/_generated/dataModel";
 import { useCurrentUser } from "~/hooks/useCurrentUser";
+import { canViewLimitedReviewDetail } from "~/lib/adminGating";
 import {
     useLimitedEvent,
     useLimitedEventMutations,
@@ -269,7 +270,10 @@ export default function LimitedEventDetail({
                     </>
                 )}
 
-                <LimitedReviewPanel event={event} />
+                <LimitedReviewPanel
+                    event={event}
+                    isAdmin={canViewLimitedReviewDetail(user)}
+                />
             </PanelBody>
 
             <GameDialog
