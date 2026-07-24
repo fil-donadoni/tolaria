@@ -49,7 +49,7 @@ import { EFFECT_AFFECTS_SELF } from "../../types";
 // creature (deathtouch / lifelink / "damage from a red source") is evaluated
 // against Pyrogoyf, not the entering Lhurgoyf. The damage amount and target
 // are correct; only the source identity diverges, and only for that branch.
-// tracked-by: #1528
+// tracked-by: #1565
 export const pyrogoyf: CardDefinition = {
     id: "f60be310-4461-4b84-95f0-b2095108bd79",
     name: "Pyrogoyf",
