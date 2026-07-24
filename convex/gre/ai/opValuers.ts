@@ -74,6 +74,7 @@ const PREVENT_DAMAGE_FLAT_VALUE = 70; // Fog-style / two-way shield, no scalar a
 const REGENERATE_VALUE = 60; // a one-shot destroy-proof shield
 const RESTRICT_CASTING_VALUE = 20; // a turn-scoped "can't cast" denial
 const RESTRICT_ACTIVATION_VALUE = 15; // a turn-scoped "can't activate" denial
+const GRANT_CAST_TIMING_VALUE = 8; // a "cast as though flash" self-grant (tempo)
 const RESTRICT_COMBAT_VALUE = 45; // a targeted "can't attack/block" soft removal
 const SET_BASE_PT_VALUE = 45; // a base-P/T set (CR 613.4b) — mostly a shrink/neutralize
 const PUT_BACK_PER_CARD = 5; // Brainstorm-style card-selection upside, per card
@@ -713,6 +714,13 @@ const restrictCasting: Valuer<"restrictCasting"> = () => ({
     tags: ["disruption"],
 });
 
+const grantCastTiming: Valuer<"grantCastTiming"> = () => ({
+    // A "cast sorcery spells as though they had flash" self-grant (Teferi +1) —
+    // a modest tempo/flexibility gain, not board impact. Valued low.
+    points: GRANT_CAST_TIMING_VALUE,
+    tags: ["tempo"],
+});
+
 const restrictCombat: Valuer<"restrictCombat"> = (op) => {
     // "cant-be-blocked" (CR 509.1b) is the evasion side — an offensive buff to
     // YOUR creature (it connects), not disruption of an opponent's board. Value
@@ -839,6 +847,7 @@ export const OP_VALUERS: {
     preventRegeneration,
     restrictActivation,
     restrictCasting,
+    grantCastTiming,
     restrictCombat,
     reveal,
     lookRandomHand,

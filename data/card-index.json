@@ -9054,6 +9054,12 @@
         "firstSet": "inv"
     },
     {
+        "name": "Teferi, Time Raveler",
+        "scryfallId": "5cb76266-ae50-4bbc-8f96-d98f309b02d3",
+        "oracleId": "ae7604bb-4818-45a3-960c-cf3d83f15964",
+        "firstSet": "war"
+    },
+    {
         "name": "Teferi's Care",
         "scryfallId": "031b1cc1-4468-4bc5-85c0-c22dce131225",
         "oracleId": "6c5c7b26-9cd6-4f29-bbb2-a0745153ee5d",

@@ -2950,6 +2950,15 @@ export type GameState = {
      *  by creatures with flying or islandwalk. Cleared at the start of that
      *  player's next turn (via advanceTurn). */
     islandSanctuaryProtection?: string;
+    /** CR 601.3e (Teferi, Time Raveler +1) — per-player "you may cast spells of
+     *  these types as though they had flash" grants. Each entry lets `playerId`
+     *  cast a spell whose printed types intersect `cardTypes` (omitted/empty =
+     *  every spell) at instant speed. Honored by the shared cast gate
+     *  (`hasCastTimingFlashGrant`, `convex/cards/castRestrictions.ts`) that both
+     *  `getLegalActions` and the client read. Cleared at the START of that
+     *  player's next turn (via `advanceTurn`) — the "until your next turn"
+     *  boundary, mirroring `islandSanctuaryProtection`, NOT CLEANUP. */
+    castTimingFlashGrants?: { playerId: string; cardTypes?: CardType[] }[];
     /** Player whose creatures must all attack this combat if able (CR 508.1d,
      *  Siren's Call). Checked in `getRequiredAttackerIds` alongside the
      *  per-creature `mustAttackThisTurn`. Cleared at CLEANUP. */
@@ -10894,6 +10903,16 @@ export function buildSpellContext(
 
         setIslandSanctuaryProtection(playerId: string): void {
             state.islandSanctuaryProtection = playerId;
+        },
+
+        grantCastTiming(playerId: string, cardTypes?: CardType[]): void {
+            // CR 601.3e — "you may cast <spells> as though they had flash".
+            // Append a grant; a repeated grant this turn (two Teferis) simply
+            // stacks — the reader matches on the first covering entry. Cleared
+            // at the grantee's next turn start in `advanceTurn`.
+            const list = state.castTimingFlashGrants ?? [];
+            list.push(cardTypes ? { playerId, cardTypes } : { playerId });
+            state.castTimingFlashGrants = list;
         },
 
         addDamageCapShield(playerId: string, maxDamage: number): void {

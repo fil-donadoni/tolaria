@@ -2556,6 +2556,13 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         note: "Impose a turn-scoped per-player \"can't activate abilities that aren't mana abilities\" restriction (CR 602.1 / 605.1a, issue #1124 — Abeyance: \"target player can't cast instant or sorcery spells, and that player can't activate abilities that aren't mana abilities\"). A thin declarative skin over the single SpellContext primitive `restrictAbilityActivation`, one execution path (ADR 0045): `player` names whom to lock. Adds the player id to `state.cannotActivateAbilitiesThisTurn`, enforced directly by the `activateAbility` mutation (`convex/game.ts`) — the ONLY mutation that handles non-mana (`useStack: true`) abilities (mana abilities go through the separate `tapUntap` mutation and are structurally exempt, so the restriction needs no explicit mana-ability carve-out) — and cleared unconditionally at CLEANUP (CR 514.2). Mirrored as a UI hint in `getStackAbilities` (`src/lib/card-utils.ts`) via the wire-projected `TriggerStateView.cannotActivateAbilitiesThisTurn`.",
     },
     {
+        op: "grantCastTiming",
+        status: "implemented",
+        cr: "601.3e",
+        binding: "SpellContext.grantCastTiming",
+        note: 'Grant a per-player casting-TIMING permission — "you may cast <spells> as though they had flash" (CR 601.3e, Teferi, Time Raveler +1: "Until your next turn, you may cast sorcery spells as though they had flash"). A thin declarative skin over the single SpellContext primitive `grantCastTiming`, one execution path (ADR 0045): `player` names the grantee, `cardTypes` (optional) narrows the grant to those printed card types (Teferi: `["Sorcery"]`); omitted grants flash for every spell. Adds an entry to `state.castTimingFlashGrants`, honored by the SHARED cast gate `hasCastTimingFlashGrant` (convex/cards/castRestrictions.ts) that both the GRE `getLegalActions` (via the `castTimingBaseLegal` timing helper) and the client legal-actions view read. The INVERSE of `restrictCasting` (a class forbid) and of the `cast-timing-lock` static (a sorcery-speed lock, which OVERRIDES this permission per CR 101.2). Cleared at the START of the grantee\'s next turn (via `advanceTurn`) — the "until your next turn" boundary, mirroring `islandSanctuaryProtection`, NOT the CLEANUP boundary the turn-scoped `restrictCasting`/`grantGraveyardPlay` use. Powers Teferi, Time Raveler (war/multicolor.ts); the sorcery-speed-lock half of the same card is the `cast-timing-lock` StaticEffect (no Op — a battlefield static).',
+    },
+    {
         op: "grantGraveyardPlay",
         status: "implemented",
         cr: "305.1 / 601",

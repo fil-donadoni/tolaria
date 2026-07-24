@@ -100,6 +100,73 @@ export interface CastRestrictionStateView {
         playerId: string;
         cardTypes?: readonly CardType[];
     }>;
+    /** CR 601.3e (Teferi, Time Raveler +1) — per-player "cast spells of these
+     *  types as though they had flash" grants. Read by `hasCastTimingFlashGrant`
+     *  to widen a sorcery-speed card's timing window. Survives the wire
+     *  projection (`projectPublicState` spreads it), so the client's cast gate
+     *  reads it too. An omitted/empty `cardTypes` grants flash for every spell. */
+    castTimingFlashGrants?: ReadonlyArray<{
+        playerId: string;
+        cardTypes?: readonly CardType[];
+    }>;
+}
+
+/** Scans EVERY permanent on the battlefield for `cast-timing-lock` static
+ *  effects (CR 601.3a — Teferi, Time Raveler's static: "Each opponent can cast
+ *  spells only any time they could cast a sorcery") and returns `true` when one
+ *  restricts `casterId` to sorcery-speed casting. The TIMING analogue of
+ *  `castProhibitionReason` (which forbids a CLASS of spell). Used by the GRE
+ *  (`getLegalActions`), the cast mutation, and the client so all three agree.
+ *  The lock narrows WHEN a spell can be cast; the caller (`getLegalActions`)
+ *  combines it with the phase/stack/priority timing check it already has. */
+export function isCastTimingSorcerySpeedLocked(
+    casterId: string,
+    state: CastRestrictionStateView
+): boolean {
+    for (const player of state.players) {
+        for (const source of player.battlefield) {
+            const cardId = (source.card as { id?: string }).id;
+            if (!cardId) continue;
+            const def = tryGetDefinition(cardId);
+            if (!def?.staticEffects) continue;
+            for (const effect of def.staticEffects) {
+                if (effect.kind !== "cast-timing-lock") continue;
+                if (
+                    effect.locks(
+                        casterId,
+                        source,
+                        state as never,
+                        CAST_RESTRICTION_CTX
+                    )
+                ) {
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
+}
+
+/** CR 601.3e — `true` when `casterId` holds a `castTimingFlashGrant` (Teferi's
+ *  +1) covering `spell`: an entry for that player whose `cardTypes` intersect
+ *  the spell's printed types (or an entry with no `cardTypes`, covering every
+ *  spell). Lets the caller treat an otherwise sorcery-speed spell as if it had
+ *  flash. */
+export function hasCastTimingFlashGrant(
+    casterId: string,
+    spell: PermanentView,
+    state: CastRestrictionStateView
+): boolean {
+    const grants = state.castTimingFlashGrants;
+    if (!grants) return false;
+    const printedTypes = CAST_RESTRICTION_CTX.getPrintedTypes(spell);
+    for (const g of grants) {
+        if (g.playerId !== casterId) continue;
+        if (!g.cardTypes || g.cardTypes.some((t) => printedTypes.includes(t))) {
+            return true;
+        }
+    }
+    return false;
 }
 
 /** Scans EVERY permanent on the battlefield for `cast-restriction` static
