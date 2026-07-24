@@ -1357,9 +1357,20 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // 467->469 (+2 new closures), Op-blocked 155->157 (+2). FREE /
         // AFK-ready / X-only unchanged (neither closure is migratable).
         // Partition: 298+14+157=469.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(469);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(298);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(286);
+        //
+        // #1528 (Cube FREE wave 3 — graveyard CDA + stack interaction): Pyrogoyf
+        // (m3c/red.ts) is a BRAND-NEW catalogue card, not a migration. Its
+        // enter-trigger `resolve()` deals damage to an announced target, so the
+        // static clause-mapper reads it as dealDamage-mappable (FREE) and it
+        // ships with a per-card test (m3c/__tests__/red.test.ts → AFK-ready) —
+        // even though the closure itself stays `resolve()` (the damage AMOUNT is
+        // the entering creature's power read off the firing $event, no
+        // EffectValue member). Net: total 469->470 (+1 new closure), FREE
+        // 298->299, AFK-ready 286->287. X-only / Op-blocked unchanged.
+        // Partition: 299+14+157=470.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(470);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(299);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(287);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
         expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(157);
     });
