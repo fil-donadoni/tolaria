@@ -269,11 +269,20 @@ describe("projectLimitedEvent — completion full-disclosure reveal (issue #1116
         expect(view.seats.find((s) => s.seatIndex === 1)!.pool).toBeNull();
     });
 
-    // --- Direction 2: AFTER completion — every seat's Pool AND humanDeck
-    // (human seats only) are revealed, to ANY viewer (participant or not).
-    // This is the "reveals at completion" half of the mandatory test.
-    it("after completion: every OTHER seat's pool is revealed too", () => {
-        const view = projectLimitedEvent(row(), "user1", true, 2, humanDecks);
+    // --- Direction 2: AFTER completion — the debug detail (pool card list +
+    // built deck) reveals for another seat ONLY to an ADMIN viewer (issue
+    // #1583). The viewer's OWN seat always reveals, admin or not. This is the
+    // "reveals at completion, for admins" half of the mandatory test.
+    it("after completion: an ADMIN viewer sees every OTHER seat's pool", () => {
+        const view = projectLimitedEvent(
+            row(),
+            "user1",
+            true,
+            2,
+            humanDecks,
+            new Set<number>(),
+            true // isAdmin
+        );
         expect(view.completed).toBe(true);
         expect(view.seatsWithDeck).toBe(2);
         const other = view.seats.find((s) => s.seatIndex === 1)!;
@@ -282,7 +291,18 @@ describe("projectLimitedEvent — completion full-disclosure reveal (issue #1116
         ]);
     });
 
-    it("after completion: a human seat's submitted deck is revealed via humanDeck", () => {
+    it("after completion: a NON-ADMIN viewer never receives another seat's pool or humanDeck (issue #1583)", () => {
+        const view = projectLimitedEvent(row(), "user1", true, 2, humanDecks);
+        const own = view.seats.find((s) => s.seatIndex === 0)!;
+        const other = view.seats.find((s) => s.seatIndex === 1)!;
+        // Own seat still fully visible.
+        expect(own.pool).not.toBeNull();
+        // Every OTHER seat's card list stays stripped for a non-admin.
+        expect(other.pool).toBeNull();
+        expect(other.humanDeck).toBeNull();
+    });
+
+    it("after completion: a viewer sees their OWN seat's submitted deck via humanDeck (admin not required)", () => {
         const view = projectLimitedEvent(row(), "user1", true, 2, humanDecks);
         const seat0 = view.seats.find((s) => s.seatIndex === 0)!;
         expect(seat0.humanDeck).toEqual({
@@ -292,11 +312,39 @@ describe("projectLimitedEvent — completion full-disclosure reveal (issue #1116
         });
     });
 
-    it("after completion: a human seat with no entry in humanDecksBySeat reveals humanDeck: null (never throws)", () => {
-        const view = projectLimitedEvent(row(), "user1", true, 1, humanDecks);
+    it("after completion: an ADMIN viewer sees another seat's submitted deck via humanDeck", () => {
+        // Deck lives on seat 0; the ADMIN viewer is seated at seat 1.
+        const view = projectLimitedEvent(
+            row(),
+            "user2",
+            true,
+            2,
+            humanDecks,
+            new Set<number>(),
+            true // isAdmin
+        );
+        const seat0 = view.seats.find((s) => s.seatIndex === 0)!;
+        expect(seat0.isViewer).toBe(false);
+        expect(seat0.humanDeck).toEqual({
+            cards: [{ cardId: "c1", cardName: "Card One" }],
+            sideboard: [{ cardId: "c2", cardName: "Card Two" }],
+            colors: ["W"],
+        });
+    });
+
+    it("after completion: a human seat with no entry in humanDecksBySeat reveals humanDeck: null to an admin (never throws)", () => {
+        const view = projectLimitedEvent(
+            row(),
+            "user1",
+            true,
+            1,
+            humanDecks,
+            new Set<number>(),
+            true
+        );
         const seat1 = view.seats.find((s) => s.seatIndex === 1)!;
         expect(seat1.humanDeck).toBeNull();
-        expect(seat1.pool).not.toBeNull(); // pool itself still reveals regardless
+        expect(seat1.pool).not.toBeNull(); // pool still reveals to the admin
     });
 
     it("after completion: a bot seat's humanDeck is always null (its deck is autoBuiltDeck, computed elsewhere)", () => {
@@ -306,13 +354,21 @@ describe("projectLimitedEvent — completion full-disclosure reveal (issue #1116
                 { seatIndex: 1, isBot: true, nickname: "Bot 2", pool: [] },
             ],
         });
-        const view = projectLimitedEvent(withBot, "user1", true, 1);
+        const view = projectLimitedEvent(
+            withBot,
+            "user1",
+            true,
+            1,
+            new Map(),
+            new Set<number>(),
+            true
+        );
         const botSeat = view.seats.find((s) => s.seatIndex === 1)!;
         expect(botSeat.isBot).toBe(true);
         expect(botSeat.humanDeck).toBeNull();
     });
 
-    it("after completion: reveal reaches a NON-PARTICIPANT viewer too (post-mortem study, not participant-gated)", () => {
+    it("after completion: a NON-PARTICIPANT non-admin viewer receives NO pool/deck contents (issue #1583)", () => {
         const view = projectLimitedEvent(
             row(),
             "outsider",
@@ -321,18 +377,58 @@ describe("projectLimitedEvent — completion full-disclosure reveal (issue #1116
             humanDecks
         );
         expect(view.seats.every((s) => !s.isViewer)).toBe(true);
+        expect(view.seats.every((s) => s.pool === null)).toBe(true);
+        expect(view.seats.every((s) => s.humanDeck === null)).toBe(true);
+    });
+
+    it("after completion: a NON-PARTICIPANT ADMIN viewer sees every seat's pool/deck (post-mortem study)", () => {
+        const view = projectLimitedEvent(
+            row(),
+            "outsider-admin",
+            true,
+            2,
+            humanDecks,
+            new Set<number>(),
+            true
+        );
+        expect(view.seats.every((s) => !s.isViewer)).toBe(true);
         expect(view.seats.every((s) => s.pool !== null)).toBe(true);
         expect(
             view.seats.find((s) => s.seatIndex === 0)!.humanDeck
         ).not.toBeNull();
     });
 
-    it("after completion: reveal reaches a null (unauthenticated/defensive) viewer too", () => {
+    it("after completion: a null (unauthenticated/defensive) viewer — never admin — receives no pool contents", () => {
         const view = projectLimitedEvent(row(), null, true, 2, humanDecks);
-        expect(view.seats.every((s) => s.pool !== null)).toBe(true);
+        expect(view.seats.every((s) => s.pool === null)).toBe(true);
     });
 
-    it("for a DRAFT event, the revealed pool's array order IS the seat's pick order — never reordered by the projection", () => {
+    it("every viewer still gets each seat's compact deckSummary (colors + counts), admin or not (issue #1583)", () => {
+        const view = projectLimitedEvent(
+            row(),
+            "outsider",
+            true,
+            2,
+            humanDecks
+        );
+        const seat0 = view.seats.find((s) => s.seatIndex === 0)!;
+        // seat 0 has a submitted human deck — its summary is exposed even to a
+        // non-admin non-participant, though its card list (pool/humanDeck) is not.
+        expect(seat0.deckSummary).toEqual({
+            colors: ["W"],
+            maindeckCount: 1,
+            sideboardCount: 1,
+        });
+        expect(seat0.pool).toBeNull();
+        expect(seat0.humanDeck).toBeNull();
+        // seat 1 has no human deck in the map — pure projection leaves its
+        // summary null (the query shell fills a bot seat's from autoBuiltDeck).
+        expect(
+            view.seats.find((s) => s.seatIndex === 1)!.deckSummary
+        ).toBeNull();
+    });
+
+    it("for a DRAFT event, the admin-revealed pool's array order IS the seat's pick order — never reordered by the projection", () => {
         const draft = row({
             type: "draft",
             packSlots: ["lea", "lea"],
@@ -362,7 +458,15 @@ describe("projectLimitedEvent — completion full-disclosure reveal (issue #1116
             ],
             draftCompletedAt: 999,
         });
-        const view = projectLimitedEvent(draft, "someone-else", true, 1);
+        const view = projectLimitedEvent(
+            draft,
+            "someone-else",
+            true,
+            1,
+            new Map(),
+            new Set<number>(),
+            true // admin — the debug pick-order detail is admin-gated (#1583)
+        );
         const seat = view.seats.find((s) => s.seatIndex === 0)!;
         expect(seat.pool!.map((c) => c.cardName)).toEqual([
             "First Pick",
@@ -622,11 +726,19 @@ describe("projectLimitedEvent — selectedPickId (ADR 0060, issue #1248)", () =>
             ],
         });
 
-        const view = projectLimitedEvent(event, "outsider-user", true, 2);
+        const view = projectLimitedEvent(
+            event,
+            "outsider-admin",
+            true,
+            2,
+            new Map(),
+            new Set<number>(),
+            true // admin — so the pool reveals and the contrast below holds
+        );
         const alice = view.seats.find((s) => s.seatIndex === 0)!;
         expect(alice.selectedPickId).toBeNull();
-        // The Pool itself DOES reveal post-completion — proves the strip is
-        // specific to `selectedPickId`, not an accidental full lockdown.
+        // The Pool itself DOES reveal post-completion to an admin — proves the
+        // strip is specific to `selectedPickId`, not an accidental full lockdown.
         expect(alice.pool).not.toBeNull();
     });
 

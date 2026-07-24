@@ -28,3 +28,17 @@ export function canCreateLimitedEvents(
 ): boolean {
     return user?.isAdmin === true;
 }
+
+/**
+ * Whether the "Review the Table" surface should expose another seat's debug
+ * detail — its built deck list and pick order (issue #1583). Cosmetic only:
+ * the server projection (`projectLimitedEvent`) already populates another
+ * seat's `pool`/`humanDeck` ONLY for an admin, so a non-admin has nothing to
+ * disclose there anyway; this predicate keeps the toggle from rendering for a
+ * bot seat's (ungated, vs-AI) `autoBuiltDeck`, which every viewer receives.
+ */
+export function canViewLimitedReviewDetail(
+    user: AdminGateUser | null | undefined
+): boolean {
+    return user?.isAdmin === true;
+}

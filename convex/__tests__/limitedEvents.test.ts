@@ -1192,9 +1192,59 @@ describe("Limited Event completion + full-disclosure review (issue #1116): seale
         expect(completion.completed).toBe(true);
         expect(completion.seatsWithDeck).toBe(3);
 
-        // 9. The "reveals at completion" direction: EVERY seat's Pool AND
-        // human Deck are now readable by ANY participant — Alice's view,
-        // Bob's view, AND a non-participant outsider's view all agree.
+        // 9a. The "reveals at completion, admin-gated" direction (issue
+        // #1583): an ADMIN viewer sees EVERY seat's Pool AND human Deck. The
+        // bot seat's Deck travels through `autoBuiltDeck` elsewhere
+        // (`convex/limitedEvents.ts`'s `projectEventForViewer`), never through
+        // `humanDeck` — this pure-projection seam only ever reports `null`
+        // there for a bot seat.
+        const adminView = projectLimitedEvent(
+            event,
+            "admin-outsider",
+            completion.completed,
+            completion.seatsWithDeck,
+            humanDecksBySeat,
+            new Set<number>(),
+            true // isAdmin
+        );
+        expect(adminView.completed).toBe(true);
+        expect(adminView.seatsWithDeck).toBe(3);
+        expect(adminView.seats.find((s) => s.seatIndex === 0)!.pool).toEqual(
+            aliceSeat.pool
+        );
+        expect(adminView.seats.find((s) => s.seatIndex === 1)!.pool).toEqual(
+            bobSeat.pool
+        );
+        expect(adminView.seats.find((s) => s.seatIndex === 2)!.pool).toEqual(
+            botSeat.pool
+        );
+        expect(
+            adminView.seats.find((s) => s.seatIndex === 0)!.humanDeck
+        ).toEqual({
+            cards: aliceDeck.cards,
+            sideboard: aliceDeck.sideboard,
+            colors: ["R"],
+        });
+        expect(
+            adminView.seats.find((s) => s.seatIndex === 1)!.humanDeck
+        ).toEqual({
+            cards: bobDeck.cards,
+            sideboard: bobDeck.sideboard,
+            colors: ["U"],
+        });
+        expect(
+            adminView.seats.find((s) => s.seatIndex === 2)!.humanDeck
+        ).toBeNull();
+
+        // 9b. A NON-ADMIN viewer at the same completed event keeps ONLY their
+        // own seat's Pool/Deck; every OTHER seat's contents stay stripped —
+        // but each seat's compact `deckSummary` (colors + counts) is exposed
+        // to everyone, admin or not.
+        const nonAdminOwnSeat: Record<string, number> = {
+            user1: 0,
+            user2: 1,
+            "outsider-user": -1, // no seat
+        };
         for (const viewerId of ["user1", "user2", "outsider-user"]) {
             view = projectLimitedEvent(
                 event,
@@ -1204,31 +1254,31 @@ describe("Limited Event completion + full-disclosure review (issue #1116): seale
                 humanDecksBySeat
             );
             expect(view.completed).toBe(true);
-            expect(view.seatsWithDeck).toBe(3);
-
-            const aliceView = view.seats.find((s) => s.seatIndex === 0)!;
-            const bobView = view.seats.find((s) => s.seatIndex === 1)!;
-            const botView = view.seats.find((s) => s.seatIndex === 2)!;
-
-            expect(aliceView.pool).toEqual(aliceSeat.pool);
-            expect(bobView.pool).toEqual(bobSeat.pool);
-            expect(botView.pool).toEqual(botSeat.pool);
-
-            expect(aliceView.humanDeck).toEqual({
-                cards: aliceDeck.cards,
-                sideboard: aliceDeck.sideboard,
+            const ownIndex = nonAdminOwnSeat[viewerId];
+            for (const seatView of view.seats) {
+                if (seatView.seatIndex === ownIndex) {
+                    expect(seatView.pool).not.toBeNull();
+                } else {
+                    // Another seat's card list — never on a non-admin's wire.
+                    expect(seatView.pool).toBeNull();
+                    expect(seatView.humanDeck).toBeNull();
+                }
+            }
+            // Human seats' summaries survive for every viewer.
+            expect(
+                view.seats.find((s) => s.seatIndex === 0)!.deckSummary
+            ).toEqual({
                 colors: ["R"],
+                maindeckCount: aliceDeck.cards.length,
+                sideboardCount: aliceDeck.sideboard.length,
             });
-            expect(bobView.humanDeck).toEqual({
-                cards: bobDeck.cards,
-                sideboard: bobDeck.sideboard,
+            expect(
+                view.seats.find((s) => s.seatIndex === 1)!.deckSummary
+            ).toEqual({
                 colors: ["U"],
+                maindeckCount: bobDeck.cards.length,
+                sideboardCount: bobDeck.sideboard.length,
             });
-            // The bot seat's Deck travels through `autoBuiltDeck` elsewhere
-            // (`convex/limitedEvents.ts`'s `projectEventForViewer`), never
-            // through `humanDeck` — this pure-projection seam only ever
-            // reports `null` here for a bot seat.
-            expect(botView.humanDeck).toBeNull();
         }
     });
 });

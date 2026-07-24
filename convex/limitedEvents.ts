@@ -15,7 +15,12 @@ import {
     type QueryCtx,
 } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
-import { assertIsAdmin, getCurrentUser, getCurrentUserId } from "./auth";
+import {
+    assertIsAdmin,
+    getCurrentUser,
+    getCurrentUserId,
+    isAdminUser,
+} from "./auth";
 import {
     getCardByName,
     getPrintingsForCard,
@@ -169,13 +174,27 @@ const limitedEventSeatViewValidator = v.object({
     isViewer: v.boolean(),
     poolCount: v.union(v.number(), v.null()),
     // Full Pool contents: the viewer's own seat ALWAYS, every other seat ONLY
-    // once the event is `completed` (issue #1116 full-disclosure reveal —
-    // see `projectLimitedEvent`'s doc comment). For a DRAFT event, array
-    // order IS the seat's pick order (no separate field).
+    // for an ADMIN viewer once the event is `completed` (issue #1583 admin-
+    // gated debug detail, narrowing #1116 — see `projectLimitedEvent`'s doc
+    // comment). For a DRAFT event, array order IS the seat's pick order (no
+    // separate field).
     pool: v.union(v.array(limitedPoolCardValidator), v.null()),
     // This seat's submitted `limited` Deck (issue #1116) — `null` for a bot
-    // seat (its deck is `autoBuiltDeck` below instead) or before `completed`.
+    // seat (its deck is `autoBuiltDeck` below instead), before `completed`, or
+    // for another seat when the viewer isn't an admin (issue #1583).
     humanDeck: v.union(humanDeckValidator, v.null()),
+    // Compact deck summary (issue #1583) — colors + maindeck/sideboard counts,
+    // never the card list. Ungated: populated for every seat that has a deck
+    // (human: submitted; bot: Auto-Build computable), so the compact review
+    // summary renders for every viewer without leaking any seat's contents.
+    deckSummary: v.union(
+        v.object({
+            colors: v.array(v.string()),
+            maindeckCount: v.number(),
+            sideboardCount: v.number(),
+        }),
+        v.null()
+    ),
     currentPack: v.union(v.array(draftPackCardValidator), v.null()),
     packQueueCount: v.union(v.number(), v.null()),
     pickDeadline: v.union(v.number(), v.null()),
@@ -481,7 +500,11 @@ async function loadEventChallenges(
 async function projectEventForViewer(
     ctx: QueryCtx,
     event: Doc<"limitedEvents">,
-    viewerUserId: string | null
+    viewerUserId: string | null,
+    // Whether the viewer is an admin (issue #1583) — threads through to
+    // `projectLimitedEvent`'s admin-gated debug-detail reveal so another seat's
+    // pool/deck contents are populated on the wire ONLY for an admin.
+    isAdmin = false
 ): Promise<EventViewWithAutoBuild> {
     const eventContext: AutoBuildEventContext = {
         type: event.type,
@@ -503,7 +526,8 @@ async function projectEventForViewer(
         completion.completed,
         completion.seatsWithDeck,
         humanDecksBySeat,
-        completion.hasDeckBySeat
+        completion.hasDeckBySeat,
+        isAdmin
     );
     const resolveBasicLand = resolveBasicLandFor(event.packSlots[0] ?? "");
     // Challenges (issue #1577) only exist for a `started` event — skip the
@@ -515,15 +539,30 @@ async function projectEventForViewer(
     const viewerChallenges = projectViewerChallenges(challenges, viewerUserId);
     return {
         ...base,
-        seats: base.seats.map((seatView, i) => ({
-            ...seatView,
-            autoBuiltDeck: computeBotAutoBuiltDeck(
+        seats: base.seats.map((seatView, i) => {
+            const autoBuiltDeck = computeBotAutoBuiltDeck(
                 event.seats[i],
                 eventContext,
                 getAutoBuildCardMeta,
                 resolveBasicLand
-            ),
-        })),
+            );
+            return {
+                ...seatView,
+                autoBuiltDeck,
+                // Bot seats have no `humanDeck`, so `projectLimitedEvent`
+                // leaves `deckSummary` null for them — fill it from the
+                // Auto-Built deck here (colors + counts only, still ungated).
+                deckSummary:
+                    seatView.deckSummary ??
+                    (autoBuiltDeck
+                        ? {
+                              colors: autoBuiltDeck.colors,
+                              maindeckCount: autoBuiltDeck.cards.length,
+                              sideboardCount: autoBuiltDeck.sideboard.length,
+                          }
+                        : null),
+            };
+        }),
         viewerIncomingChallenges: viewerChallenges.incoming,
         viewerOutgoingChallenge: viewerChallenges.outgoing,
     };
@@ -623,7 +662,9 @@ export const myLimitedEvents = query({
     args: {},
     returns: v.array(limitedEventViewValidator),
     handler: async (ctx) => {
-        const userId = await getCurrentUserId(ctx);
+        const user = await getCurrentUser(ctx);
+        const userId = user._id;
+        const isAdmin = isAdminUser(user);
         const events = await ctx.db
             .query("limitedEvents")
             .order("desc")
@@ -631,7 +672,9 @@ export const myLimitedEvents = query({
         return Promise.all(
             events
                 .filter((event) => event.seats.some((s) => s.userId === userId))
-                .map((event) => projectEventForViewer(ctx, event, userId))
+                .map((event) =>
+                    projectEventForViewer(ctx, event, userId, isAdmin)
+                )
         );
     },
 });
@@ -650,10 +693,10 @@ export const getLimitedEvent = query({
     args: { eventId: v.id("limitedEvents") },
     returns: v.union(v.null(), limitedEventViewValidator),
     handler: async (ctx, args) => {
-        const userId = await getCurrentUserId(ctx);
+        const user = await getCurrentUser(ctx);
         const event = await ctx.db.get(args.eventId);
         if (!event) return null;
-        return projectEventForViewer(ctx, event, userId);
+        return projectEventForViewer(ctx, event, user._id, isAdminUser(user));
     },
 });
 

@@ -1,16 +1,20 @@
 import type { LimitedEventView } from "~/hooks/useLimitedEvent";
 import LimitedReviewSeat from "./limited-review-seat";
 
-/** "Review the Table" — the post-mortem study surface (PRD #1107 story 26,
- *  issue #1116): once an event is `completed` (every seat has a Deck,
- *  `convex/limited/completion.ts`), the server projection exposes every
- *  seat's Pool and built Deck to every viewer — this renders that full
- *  disclosure. Renders nothing before completion; the caller doesn't need to
- *  gate on `event.completed` itself. */
+/** "Review the Table" — the post-completion summary surface (PRD #1107 story
+ *  26, issue #1116; redesigned issue #1583). Once an event is `completed`
+ *  (every seat has a Deck, `convex/limited/completion.ts`), this renders one
+ *  compact summary row per seat (colors + maindeck/sideboard counts). The full
+ *  deck list + pick order is admin-only debug detail, collapsed behind a
+ *  per-seat disclosure (`LimitedReviewSeat`) — the server projection only
+ *  sends another seat's pool/deck contents to an admin. Renders nothing before
+ *  completion; the caller doesn't need to gate on `event.completed` itself. */
 export default function LimitedReviewPanel({
     event,
+    isAdmin,
 }: {
     event: LimitedEventView;
+    isAdmin: boolean;
 }) {
     if (!event.completed) return null;
 
@@ -20,7 +24,9 @@ export default function LimitedReviewPanel({
                 Review the Table
             </h3>
             <p className="mb-3 text-xs text-text-muted">
-                Every seat&apos;s Pool and built Deck is now visible for study.
+                {isAdmin
+                    ? "Every seat, at a glance. Expand a seat for its deck list and pick order."
+                    : "Every seat's deck, at a glance."}
             </p>
             <div className="flex flex-col gap-3">
                 {event.seats.map((seat) => (
@@ -28,6 +34,7 @@ export default function LimitedReviewPanel({
                         key={seat.seatIndex}
                         seat={seat}
                         eventType={event.type}
+                        isAdmin={isAdmin}
                     />
                 ))}
             </div>
