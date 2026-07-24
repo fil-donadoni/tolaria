@@ -5,18 +5,23 @@ import LimitedEventSeatList from "./limited-event-seat-list";
 /** Collapsible "Seats" section shown while a Draft is in progress (PRD #1107,
  *  ADR 0054/0055). During the pick phase the per-seat roster is noise — the
  *  drafter is watching the Booster, not the table — so it collapses behind a
- *  compact summary (seat count + decks-in progress) and stays closed by
- *  default. Outside an active draft (open events, Sealed, a finished draft)
- *  the roster renders inline instead — see `LimitedEventDetail`. */
+ *  compact summary (just the seat count) and stays closed by default.
+ *  Outside an active draft (open events, Sealed, a finished draft) the
+ *  roster renders inline instead — see `LimitedEventDetail`.
+ *
+ *  No "N/seatCount decks in" progress here (issue #1580): a Deck cannot
+ *  exist before the Pool is final, and this component is ONLY ever mounted
+ *  while a Draft is still running (`LimitedEventDetail`'s `draftInProgress`
+ *  gate) — i.e. exactly when that count would always read "0/seatCount" and
+ *  misread as live progress. Per-seat readiness is still visible once
+ *  expanded (`LimitedEventSeatRow`'s "Ready" badge), it's just not
+ *  aggregated into this collapsed summary. */
 export default function LimitedEventSeatsDisclosure({
     event,
 }: {
     event: LimitedEventView;
 }) {
     const [open, setOpen] = useState(false);
-    const summary = event.completed
-        ? "every seat has a deck"
-        : `${event.seatsWithDeck}/${event.seatCount} decks in`;
 
     return (
         <div className="rounded-sm border border-border-subtle/30">
@@ -28,7 +33,6 @@ export default function LimitedEventSeatsDisclosure({
             >
                 <span className="font-semibold">Seats · {event.seatCount}</span>
                 <span className="flex items-center gap-2 text-text-disabled">
-                    {summary}
                     <span
                         className={`transition-transform ${open ? "rotate-90" : ""}`}
                         aria-hidden

@@ -104,8 +104,16 @@ export default function LimitedEventDetail({
                             #1116): "completed" is reached exactly when every
                             seat has a deck (humans submitted, bots auto-built)
                             — visible here, and it's the same flag that gates
-                            `LimitedReviewPanel` below. */}
-                        {event.status === "started" && (
+                            `LimitedReviewPanel` below. Gated on `isPoolFinal`
+                            rather than merely `status === "started"` (issue
+                            #1580): a deck cannot exist before the Pool is
+                            final, so the "N/seatCount decks in" counter would
+                            otherwise misread as live progress while a Draft
+                            is still running — this branch happens to only
+                            render when `!draftInProgress` today, but the
+                            explicit `isPoolFinal` gate keeps the invariant
+                            true even if that branching ever changes. */}
+                        {isPoolFinal && (
                             <p className="text-xs text-text-muted">
                                 {event.completed
                                     ? "Event completed — every seat has a deck."

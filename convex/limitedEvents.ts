@@ -177,6 +177,12 @@ const limitedEventSeatViewValidator = v.object({
     // Selected Card (ADR 0060, issue #1248) — owner-only, same discipline as
     // `currentPack`/`pickDeadline`/`poolArrangement` above.
     selectedPickId: v.union(v.string(), v.null()),
+    // Deck-ready indicator (issue #1580) — true once THIS seat has a deck
+    // (human: submitted; bot: Auto-Build computable). Always visible for
+    // every seat, unlike `pool`/`humanDeck`/`autoBuiltDeck`: it's a readiness
+    // flag, not the deck's contents, so it identifies the blocking seat
+    // without leaking what anyone drafted or built.
+    hasDeck: v.boolean(),
     // Auto-Build + vs-AI hookup (issue #1115): a bot seat's playable Limited
     // deck once its Pool is final (`isEventPoolFinal`), else `null` — always
     // `null` for a human seat (they build their own via the pool-scoped
@@ -436,7 +442,8 @@ async function projectEventForViewer(
         viewerUserId,
         completion.completed,
         completion.seatsWithDeck,
-        humanDecksBySeat
+        humanDecksBySeat,
+        completion.hasDeckBySeat
     );
     const resolveBasicLand = resolveBasicLandFor(event.packSlots[0] ?? "");
     return {
@@ -807,9 +814,7 @@ export const setPoolArrangementEntry = mutation({
         // `undefined`/omitted leaves any existing override untouched. The
         // literal "lands" pins the card into the Lands column regardless of
         // its own type (issue #1573).
-        column: v.optional(
-            v.union(v.number(), v.literal("lands"), v.null())
-        ),
+        column: v.optional(v.union(v.number(), v.literal("lands"), v.null())),
     },
     returns: v.null(),
     handler: async (ctx, args) => {

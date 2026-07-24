@@ -2,9 +2,14 @@ import type { LimitedEventSeatView } from "~/hooks/useLimitedEvent";
 
 /** One Seat row in a Limited Event's Seat list (PRD #1107, ADR 0054/0055).
  *  Shows the occupant (human nickname, Bot Drafter placeholder, or "Open"),
- *  and — once the event has started — the Pool card count. Never renders
- *  Pool contents itself: those are hidden for every seat but the viewer's own
- *  (`LimitedPoolView` reads `pool` directly for that one seat). */
+ *  and — once the event has started — the Pool card count and a deck-ready
+ *  badge (issue #1580: `seat.hasDeck` — human seats once their deck is
+ *  submitted, bot seats once their deck is Auto-Built). The badge is a pure
+ *  readiness flag, safe to show for EVERY seat (identifies who the table is
+ *  waiting on) — it never leaks deck CONTENTS, which stay hidden for every
+ *  seat but the viewer's own until the event completes (`LimitedPoolView`
+ *  reads `pool` directly for that one seat; this row never renders Pool
+ *  contents itself). */
 export default function LimitedEventSeatRow({
     seat,
 }: {
@@ -38,6 +43,11 @@ export default function LimitedEventSeatRow({
                 {seat.isViewer && (
                     <span className="rounded-sm border border-accent/50 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-accent-strong">
                         You
+                    </span>
+                )}
+                {seat.hasDeck && (
+                    <span className="rounded-sm border border-success/50 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-success">
+                        Ready
                     </span>
                 )}
             </div>

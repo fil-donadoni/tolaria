@@ -34,6 +34,14 @@ export interface EventCompletionResult {
      *  readout while the event is still in progress. */
     seatsWithDeck: number;
     seatsTotal: number;
+    /** Per-seat "has a deck" readiness (issue #1580) — the seat-index set a
+     *  caller threads into `projectLimitedEvent`'s `hasDeckBySeat` param so
+     *  each seat row can show a ready indicator WITHOUT leaking WHICH deck
+     *  (contents stay gated on `completed`, same as `pool`/`humanDeck`). A
+     *  bot seat is a member as soon as the Pool is final (mirrors
+     *  `seatsWithDeck`'s "bots free" rule above); a human seat is a member
+     *  once `hasHumanDeck(seatIndex)` reports a real submitted deck. */
+    hasDeckBySeat: ReadonlySet<number>;
 }
 
 /** Computes whether `seats` have all reached "has a deck" (issue #1116 AC:
@@ -53,19 +61,29 @@ export function computeEventCompletion(
 ): EventCompletionResult {
     const seatsTotal = seats.length;
     if (seatsTotal === 0) {
-        return { completed: false, seatsWithDeck: 0, seatsTotal: 0 };
+        return {
+            completed: false,
+            seatsWithDeck: 0,
+            seatsTotal: 0,
+            hasDeckBySeat: new Set(),
+        };
     }
     const poolFinal = isEventPoolFinal(eventContext);
     let seatsWithDeck = 0;
+    const hasDeckBySeat = new Set<number>();
     for (const seat of seats) {
         const hasDeck =
             poolFinal && (seat.isBot ? true : hasHumanDeck(seat.seatIndex));
-        if (hasDeck) seatsWithDeck++;
+        if (hasDeck) {
+            seatsWithDeck++;
+            hasDeckBySeat.add(seat.seatIndex);
+        }
     }
     return {
         completed: seatsWithDeck === seatsTotal,
         seatsWithDeck,
         seatsTotal,
+        hasDeckBySeat,
     };
 }
 

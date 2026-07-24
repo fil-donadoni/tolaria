@@ -130,7 +130,11 @@ describe("PoolDeckBuilderForm — Add Basic bar (issue #1576)", () => {
                 eventId={"event-1" as never}
                 seatIndex={0}
                 pool={[
-                    { scryfallId: "s1", cardId: BOLT_ID, cardName: "Lightning Bolt" },
+                    {
+                        scryfallId: "s1",
+                        cardId: BOLT_ID,
+                        cardName: "Lightning Bolt",
+                    },
                 ]}
                 existingDeck={null}
                 poolArrangement={null}
