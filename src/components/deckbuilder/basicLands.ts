@@ -1,4 +1,4 @@
-import { tryGetDefinition } from "@convex/cards";
+import { tryGetCardByName, tryGetDefinition } from "@convex/cards";
 import type { LimitedPoolCard } from "@convex/limited/eventTypes";
 
 /** The five Basic land subtypes, in WUBRG order — the only card names a
@@ -14,14 +14,22 @@ export const BASIC_LAND_SUBTYPES = [
 export type BasicLandSubtype = (typeof BASIC_LAND_SUBTYPES)[number];
 
 /**
- * The cardId to use for each Basic subtype the drafted Pack Source actually
- * printed — sourced from the seat's own opened Pool, never a hardcoded id.
- * Real boosters carry basics on the common sheet (verified for LEA, PRD
- * #1107), so a Sealed Pool almost always includes at least one copy of every
- * subtype; a subtype genuinely absent from the Pool (no booster happened to
- * open one) is simply not offered — "unlimited basics" is bounded by "the
- * drafted set actually prints this land", never invented from an unrelated
- * set. `null` for a subtype not found in the Pool.
+ * The cardId to use for each Basic subtype, ALWAYS one per subtype (issue
+ * #1576): a Limited deck always needs access to all five basics regardless
+ * of what the drafted set happened to print into this particular Pool —
+ * a Vintage Cube worklist prints no basics at all (PRD #1107's Cube capstone
+ * cluster), yet the bar must still offer every one of them. Two-tier lookup:
+ *
+ * 1. **Pool-sourced printing preferred** — if the seat's own opened Pool
+ *    contains a copy of this Basic subtype, its cardId is used so the added
+ *    land matches the drafted set's own art/printing (mirrors
+ *    `resolveBasicLandFor` in `convex/limitedEvents.ts`).
+ * 2. **Catalogue fallback** — otherwise resolve the subtype's canonical
+ *    `CardDefinition` by name (`tryGetCardByName`, basic land names ARE their
+ *    subtype names, CR 305.6) from the card registry, independent of Pool
+ *    contents. Every basic land name is a real, always-registered
+ *    `CardDefinition` (LEA `colorless.ts`), so this only returns `null` in a
+ *    pathological catalogue-missing case.
  */
 export function resolveBasicLandCardIds(
     pool: readonly LimitedPoolCard[]
@@ -40,6 +48,11 @@ export function resolveBasicLandCardIds(
             if (result[subtype] === null && def.subtypes?.includes(subtype)) {
                 result[subtype] = card.cardId;
             }
+        }
+    }
+    for (const subtype of BASIC_LAND_SUBTYPES) {
+        if (result[subtype] === null) {
+            result[subtype] = tryGetCardByName(subtype)?.id ?? null;
         }
     }
     return result;
