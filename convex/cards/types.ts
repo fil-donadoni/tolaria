@@ -3584,6 +3584,14 @@ export interface SpellContext {
             destination: LibraryDestination;
             prompt?: string;
             choiceId?: string;
+            /** CR 701.20 fateseal (issue #1532) — the player who MAKES the
+             *  top/bottom decision when it is NOT the library owner
+             *  (`playerId`). Jace, the Mind Sculptor's +2 looks at the TARGET
+             *  player's library and the CONTROLLER decides. Omitted/equal to
+             *  `playerId` = the library owner chooses (ordinary Scry / Surveil),
+             *  the original behavior. Reuses the `PendingChoice.zoneOwnerId`
+             *  chooser≠zone-owner seam (Fact or Fiction / Demonic Hordes). */
+            chooserId?: string;
         }
     ) => boolean;
 
@@ -8371,6 +8379,19 @@ export type EffectOp =
           count: EffectValue;
           destination: LibraryDestination;
           prompt?: string;
+          /** CR 701.20 fateseal (issue #1532) — the player who MAKES the
+           *  top/bottom decision, when it is NOT the library's owner. Jace, the
+           *  Mind Sculptor's +2 "Look at the top card of TARGET player's
+           *  library. You may put that card on the bottom …" is fateseal: the
+           *  ability's CONTROLLER decides, looking at the target player's
+           *  library. Set `player: { target: 0 }` (whose library) + `chooser:
+           *  "controller"` (who decides). The order-top PendingChoice is raised
+           *  for `chooser` with `zoneOwnerId` = the library owner (the same
+           *  chooser≠zone-owner seam Fact or Fiction / Demonic Hordes use), so
+           *  the peek is exposed to the chooser and the un-kept card bottoms in
+           *  the owner's library. Omitted = the library owner chooses (ordinary
+           *  Scry / Surveil / Ponder). */
+          chooser?: EffectPlayerRef;
       }
     /** CR 701.17 (issue #885) — mill: move the top `count` cards of a player's
      *  library into their graveyard. A thin declarative skin over the existing

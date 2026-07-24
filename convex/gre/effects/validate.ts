@@ -2232,7 +2232,11 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             count: isEffectValue,
             destination: isLibraryDestination,
         },
-        optional: { prompt: isNonEmptyString },
+        // `chooser` (issue #1532, fateseal) — the player who MAKES the top/bottom
+        // decision, when that is not the library's owner (Jace, the Mind
+        // Sculptor's +2 fateseal: the controller looks at TARGET player's
+        // library). Omitted = the library owner chooses (ordinary Scry/Surveil).
+        optional: { prompt: isNonEmptyString, chooser: isPlayerRef },
     },
     // CR 701.17 (issue #885) — mill: move the top `count` cards of a player's
     // library into their graveyard (deterministic; no choice). `player` names
