@@ -27,6 +27,12 @@ import type { LimitedPoolCard } from "./eventTypes";
 export interface SeatLookup {
     seatIndex: number;
     userId?: string;
+    /** Bot-drafter seat (issue #1115) — a challenge (issue #1577) may target
+     *  only a seated HUMAN, so the challenge gate reads this. Optional so every
+     *  pre-existing plain-data fixture stays structurally compatible. */
+    isBot?: boolean;
+    /** Display name of the seat's occupant, when known. */
+    nickname?: string;
     pool?: readonly LimitedPoolCard[];
 }
 

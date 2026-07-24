@@ -118,6 +118,10 @@ import {
     assertLimitedSeatOwnership,
     resolvePoolFromEvent,
 } from "./limited/poolResolution";
+import {
+    assertChallengeableSeat,
+    assertSameEventDeck,
+} from "./limited/challenge";
 import type {
     ActivatedAbility,
     CardDefinition,
@@ -2594,7 +2598,11 @@ export const listOpenGames = query({
             .withIndex("by_status", (q) => q.eq("status", "waiting"))
             .collect();
         const mine = waiting.filter(
-            (g) => !g.players.some((p) => p.id === userId)
+            // Limited Event challenges (issue #1577) are PRIVATE to their two
+            // paired seats — surfaced on the event page, never in the public
+            // open-games lobby.
+            (g) =>
+                !g.limitedChallenge && !g.players.some((p) => p.id === userId)
         );
         return Promise.all(
             mine.map(async (g) => {
@@ -2729,6 +2737,105 @@ export const createGame = mutation({
             players: toGamePlayers([player]),
             createdAt: now,
             updatedAt: now,
+        });
+
+        await ctx.db.patch(matchId, { currentGameId: gameId });
+
+        return gameId;
+    },
+});
+
+/**
+ * Challenge another human seat in a Limited Event (issue #1577). Reuses the
+ * exact `createGame` waiting-Match primitive (`buildMatchPlayers` /
+ * `toGamePlayers`, ADR 0029) — a challenge is just a `waiting` 2-player Match
+ * BOUND to an event and ADDRESSED to a specific opponent seat, which the
+ * challenged player completes via `joinGame` (event-aware branch below). It is
+ * NOT a new game mode: once accepted it is an ordinary 2-player Match.
+ *
+ * SECURITY: identity is derived from `ctx.auth` (CLAUDE.md § Player identity);
+ * the challenger's own seat is taken from their AUTHENTICATED deck's
+ * `limitedSeatId` and re-checked with `assertLimitedSeatOwnership`, never a
+ * client claim. The paired decks are validated to share the event both here
+ * (challenger) and at accept time (challenged) — `assertSameEventDeck`.
+ */
+export const challengeLimitedSeat = mutation({
+    args: {
+        eventId: v.id("limitedEvents"),
+        challengedSeatIndex: v.number(),
+        deck: deckValidator,
+        name: v.optional(v.string()),
+        bgColor: v.optional(v.string()),
+    },
+    handler: async (ctx, args) => {
+        const user = await getCurrentUser(ctx);
+        // A challenge is only ever between two Limited decks bound to THIS
+        // event — reject a non-Limited or foreign-event deck up front (the same
+        // rule the accept side enforces, `assertSameEventDeck`).
+        assertSameEventDeck(args.deck.limitedEventId, args.eventId);
+        if (!args.deck.limitedSeatId)
+            throw new Error("Challenge requires your Limited deck's seat.");
+        // #155 (match-scoped): at most one active match per user — a pending
+        // challenge counts, so a challenger can have only one outstanding.
+        if (await findActiveMatchForUser(ctx, user._id))
+            throw new Error(ACTIVE_GAME_MESSAGE);
+        const event = await ctx.db.get(args.eventId);
+        // Challenger owns the seat they claim (same gate `userDecks.create`
+        // uses — one seat-ownership authority, keyed off the AUTHENTICATED id).
+        assertLimitedSeatOwnership(event, args.deck.limitedSeatId, user._id);
+        const challengerSeatIndex = Number(args.deck.limitedSeatId);
+        // Target must be a seated human opponent (not a bot, not empty, not
+        // self). `event` non-null past `assertLimitedSeatOwnership`.
+        const challenged = assertChallengeableSeat(
+            event,
+            args.challengedSeatIndex,
+            user._id
+        );
+        // Authoritative deck legality gate (ADR 0036) — the challenger's deck
+        // must be legal against its own seat's Pool before any row is written.
+        assertDeckLegal(
+            args.deck,
+            undefined,
+            await loadBanlistOverrides(ctx, args.deck.format),
+            await loadLimitedPoolResolver(ctx, args.deck, user._id)
+        );
+        const now = Date.now();
+        const challengedLabel =
+            challenged.nickname ?? `Seat ${challenged.seatIndex + 1}`;
+        const player: PlayerInput = {
+            id: user._id,
+            name: user.nickname,
+            bgColor: args.bgColor ?? PLAYER_COLORS[0],
+            deck: args.deck,
+        };
+        const limitedChallenge = {
+            challengerSeatIndex,
+            challengedUserId: challenged.userId!,
+            challengedSeatIndex: challenged.seatIndex,
+        };
+
+        const matchId = await ctx.db.insert("matches", {
+            // Bo1 — a Limited challenge has no sideboarding flow (out of scope).
+            bestOf: 1,
+            status: "waiting",
+            players: buildMatchPlayers([player]),
+            currentGameNumber: 1,
+            createdAt: now,
+            updatedAt: now,
+            limitedEventId: args.eventId,
+            limitedChallenge,
+        });
+
+        const gameId = await ctx.db.insert("games", {
+            name: args.name ?? `${user.nickname} vs ${challengedLabel}`,
+            matchId,
+            gameNumber: 1,
+            status: "waiting",
+            players: toGamePlayers([player]),
+            createdAt: now,
+            updatedAt: now,
+            limitedEventId: args.eventId,
+            limitedChallenge,
         });
 
         await ctx.db.patch(matchId, { currentGameId: gameId });
@@ -2907,6 +3014,18 @@ export const joinGame = mutation({
         if (game.players.length >= 2) throw new Error("Game is full");
         if (game.players.some((p) => p.id === user._id))
             throw new Error("Cannot join a game you are already in");
+        // Limited Event challenge (issue #1577): a challenge Game is PRIVATE to
+        // the two paired seats — only the addressed opponent may accept it, and
+        // only with a deck from the SAME event (the "reject pairing decks from
+        // different events" AC). A non-challenge open game skips both checks.
+        if (game.limitedChallenge) {
+            if (user._id !== game.limitedChallenge.challengedUserId)
+                throw new Error("This challenge is not addressed to you.");
+            assertSameEventDeck(
+                args.deck.limitedEventId,
+                game.limitedEventId ?? ""
+            );
+        }
         // Authoritative deck legality gate (ADR 0036): the joiner's deck must be
         // legal for its declared format before the Match flips to "playing".
         // The DB banlist override (PRD #1138, issue #1144) is loaded first so a

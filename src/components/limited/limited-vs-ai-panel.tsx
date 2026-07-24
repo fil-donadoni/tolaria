@@ -86,7 +86,7 @@ export default function LimitedVsAiPanel({
     return (
         <div className="mt-4 border-t border-border-accent/20 pt-4">
             <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-text-muted">
-                Play vs the Table
+                Play vs Bots
             </h3>
             {!myDeck && (
                 <p className="text-sm text-text-muted">

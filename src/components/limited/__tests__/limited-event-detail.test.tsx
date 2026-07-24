@@ -60,6 +60,8 @@ function makeEvent(overrides: Partial<LimitedEventView>): LimitedEventView {
         completed: false,
         seatCount: 2,
         seatsWithDeck: 0,
+        viewerIncomingChallenges: [],
+        viewerOutgoingChallenge: null,
         packSlots: ["lea"],
         seats: [
             {
