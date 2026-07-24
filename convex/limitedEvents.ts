@@ -58,6 +58,7 @@ import {
     DEFAULT_SEALED_BOOSTER_COUNT,
     fillBotSeats,
     generateSealedPools,
+    releaseSeat,
     type ResolveCardMeta,
 } from "./limited/eventLogic";
 import {
@@ -636,14 +637,22 @@ export const myLimitedEvents = query({
 });
 
 /** One event, projected for the current viewer — strips every other seat's
- *  Pool (PRD #1107 story 15/26, ADR 0054/0055). */
+ *  Pool (PRD #1107 story 15/26, ADR 0054/0055). Returns `null` (never throws)
+ *  when the id doesn't resolve — a bad id, OR the event's creator just
+ *  `cancelLimitedEvent`'d it out from under a live viewer (issue #1579): this
+ *  query is a single-document REACTIVE subscription (unlike the delete-preset
+ *  flow, which is list-based and simply drops the row), so a viewer still on
+ *  the detail page when it's deleted gets a re-push of this same query — a
+ *  thrown error there has no ErrorBoundary to land in (none exists app-wide)
+ *  and would hard-crash their page. `null` lets `LimitedEventDetail` render a
+ *  "no longer exists" state instead. */
 export const getLimitedEvent = query({
     args: { eventId: v.id("limitedEvents") },
-    returns: limitedEventViewValidator,
+    returns: v.union(v.null(), limitedEventViewValidator),
     handler: async (ctx, args) => {
         const userId = await getCurrentUserId(ctx);
         const event = await ctx.db.get(args.eventId);
-        if (!event) throw new Error("Event not found");
+        if (!event) return null;
         return projectEventForViewer(ctx, event, userId);
     },
 });
@@ -762,6 +771,59 @@ export const joinLimitedEvent = mutation({
             seats: asDbSeats(seats),
             updatedAt: Date.now(),
         });
+        return null;
+    },
+});
+
+/** An occupant leaves their Seat while the event is still OPEN (issue #1579):
+ *  the Seat returns to unclaimed (`releaseSeat`), so anyone else — including
+ *  the same user later — can `joinLimitedEvent` it again. Rejected once the
+ *  event has `started` (mirrors `joinLimitedEvent`'s guard — a Seat mid-Draft
+ *  or holding a dealt Sealed Pool can't just vanish; CLAUDE.md issue #1579's
+ *  "out of scope: dropping from a started event") and for a caller who holds
+ *  no Seat here (`releaseSeat` throws, defense-in-depth beyond the UI gate). */
+export const leaveLimitedEvent = mutation({
+    args: { eventId: v.id("limitedEvents") },
+    returns: v.null(),
+    handler: async (ctx, args) => {
+        const user = await getCurrentUser(ctx);
+        const event = await ctx.db.get(args.eventId);
+        if (!event) throw new Error("Event not found");
+        if (event.status !== "open") {
+            throw new Error("This event has already started.");
+        }
+        const seats = releaseSeat(event.seats, user._id);
+        await ctx.db.patch(args.eventId, {
+            seats: asDbSeats(seats),
+            updatedAt: Date.now(),
+        });
+        return null;
+    },
+});
+
+/** The event's creator cancels the whole event while it's still OPEN (issue
+ *  #1579): a hard delete, same as an admin's preset delete
+ *  (`decks.deletePreset`) — an open event that never started carries no
+ *  Pool/Draft state worth keeping around, so there's nothing to archive.
+ *  Removing the row drops it from `listOpenLimitedEvents` (by_status index)
+ *  and every occupant's `myLimitedEvents` reactively. Rejected once the
+ *  event has `started` (an in-progress/completed event's Pools/decks are
+ *  real player work — cancelling it is a different, undesigned, action) and
+ *  for anyone but the creator. */
+export const cancelLimitedEvent = mutation({
+    args: { eventId: v.id("limitedEvents") },
+    returns: v.null(),
+    handler: async (ctx, args) => {
+        const user = await getCurrentUser(ctx);
+        const event = await ctx.db.get(args.eventId);
+        if (!event) throw new Error("Event not found");
+        if (event.createdBy !== user._id) {
+            throw new Error("Only the event's creator can cancel it.");
+        }
+        if (event.status !== "open") {
+            throw new Error("This event has already started.");
+        }
+        await ctx.db.delete(args.eventId);
         return null;
     },
 });

@@ -25,6 +25,13 @@ export default function PoolDeckBuilder({
         return <LoadingScreen message="Loading your Pool..." />;
     }
 
+    // A started event (the only way this route is reachable — it needs a
+    // dealt Pool) can never be `cancelLimitedEvent`'d (issue #1579's
+    // open-status guard), so `null` here only means a stale/bad id.
+    if (event === null) {
+        return <LoadingScreen message="This event no longer exists." />;
+    }
+
     const viewerSeat = event.seats.find((s) => s.isViewer);
     if (!viewerSeat || event.status !== "started" || !viewerSeat.pool) {
         return (

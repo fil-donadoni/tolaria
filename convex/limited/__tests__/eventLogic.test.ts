@@ -12,6 +12,7 @@ import {
     generateSealedPools,
     MAX_SEATS,
     MIN_SEATS,
+    releaseSeat,
     type GetBoosterConfig,
     type ResolveCardMeta,
 } from "../eventLogic";
@@ -83,6 +84,43 @@ describe("assignFreeSeat (PRD #1107 story 7)", () => {
         const seats = buildEmptySeats(2);
         const before = JSON.stringify(seats);
         assignFreeSeat(seats, "user1", "Alice");
+        expect(JSON.stringify(seats)).toBe(before);
+    });
+});
+
+describe("releaseSeat (issue #1579)", () => {
+    it("clears userId/nickname off the occupant's seat", () => {
+        const seats = assignFreeSeat(buildEmptySeats(3), "user1", "Alice");
+        const after = releaseSeat(seats, "user1");
+        expect(after[0].userId).toBeUndefined();
+        expect(after[0].nickname).toBeUndefined();
+        expect(after[0].seatIndex).toBe(0);
+    });
+
+    it("leaves every other seat untouched", () => {
+        let seats = assignFreeSeat(buildEmptySeats(3), "user1", "Alice");
+        seats = assignFreeSeat(seats, "user2", "Bob");
+        const after = releaseSeat(seats, "user1");
+        expect(after[1]).toMatchObject({ userId: "user2", nickname: "Bob" });
+    });
+
+    it("frees the seat for a later assignFreeSeat call", () => {
+        let seats = assignFreeSeat(buildEmptySeats(2), "user1", "Alice");
+        seats = assignFreeSeat(seats, "user2", "Bob");
+        seats = releaseSeat(seats, "user1");
+        const after = assignFreeSeat(seats, "user3", "Carol");
+        expect(after[0]).toMatchObject({ userId: "user3", nickname: "Carol" });
+    });
+
+    it("rejects a user who holds no seat in this event", () => {
+        const seats = buildEmptySeats(2);
+        expect(() => releaseSeat(seats, "user1")).toThrow(/do not have a seat/);
+    });
+
+    it("does not mutate the input array (pure)", () => {
+        const seats = assignFreeSeat(buildEmptySeats(2), "user1", "Alice");
+        const before = JSON.stringify(seats);
+        releaseSeat(seats, "user1");
         expect(JSON.stringify(seats)).toBe(before);
     });
 });

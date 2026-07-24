@@ -43,6 +43,7 @@ import {
     buildEmptySeats,
     fillBotSeats,
     generateSealedPools,
+    releaseSeat,
     type ResolveCardMeta,
 } from "../limited/eventLogic";
 import {
@@ -1915,5 +1916,124 @@ describe("checked-in Vintage Cube Pick Rating seed (PRD #1296 Slice D, issue #12
         // Bombs are taken in a strict majority of bomb packs (dominance weight
         // steers the bot toward curated bombs; not a per-pack absolute).
         expect(bombTakenPacks * 2).toBeGreaterThan(bombPacks);
+    });
+});
+
+describe("Limited Event leave/cancel (issue #1579): leaveLimitedEvent + cancelLimitedEvent's exact mutation-shell paths", () => {
+    /** Mirrors `leaveLimitedEvent`'s handler body exactly: OPEN-only guard,
+     *  then `releaseSeat` (which itself throws if the caller holds no Seat).
+     *  No convex-test harness (project convention, see this file's header) —
+     *  this drives the same pure sequence the mutation calls, in the same
+     *  order. */
+    function applyLeaveLimitedEvent(
+        event: LimitedEventRow,
+        callerUserId: string
+    ): LimitedEventRow {
+        if (event.status !== "open") {
+            throw new Error("This event has already started.");
+        }
+        return {
+            ...event,
+            seats: releaseSeat(event.seats, callerUserId),
+            updatedAt: event.updatedAt + 1,
+        };
+    }
+
+    /** Mirrors `cancelLimitedEvent`'s handler body exactly: creator-only
+     *  ownership guard, then OPEN-only guard, then a hard delete — modeled
+     *  here as returning `null` (the row no longer exists). */
+    function applyCancelLimitedEvent(
+        event: LimitedEventRow,
+        callerUserId: string
+    ): LimitedEventRow | null {
+        if (event.createdBy !== callerUserId) {
+            throw new Error("Only the event's creator can cancel it.");
+        }
+        if (event.status !== "open") {
+            throw new Error("This event has already started.");
+        }
+        return null;
+    }
+
+    function openTwoSeatEvent(): LimitedEventRow {
+        let seats = buildEmptySeats(2);
+        seats = assignFreeSeat(seats, "user1", "Alice");
+        return {
+            _id: "leave-cancel-event-1",
+            createdBy: "creator1",
+            type: "sealed",
+            status: "open",
+            seatCount: 2,
+            packSlots: ["lea"],
+            sealedBoosterCount: 6,
+            seats,
+            createdAt: 0,
+            updatedAt: 0,
+        };
+    }
+
+    describe("leaveLimitedEvent", () => {
+        it("an occupant leaving an OPEN event frees their Seat — visible to any viewer through projectLimitedEvent", () => {
+            const event = openTwoSeatEvent();
+            const after = applyLeaveLimitedEvent(event, "user1");
+            expect(after.seats[0].userId).toBeUndefined();
+            expect(after.seats[0].nickname).toBeUndefined();
+
+            // Wire-format check (seat-open transition IS viewer-visible,
+            // gre-development.md's card testing convention): a
+            // NON-participant's projection also sees the Seat open again.
+            const view = projectLimitedEvent(after, "outsider-user");
+            expect(view.seats[0].userId).toBeUndefined();
+            expect(view.seats[0].nickname).toBeUndefined();
+        });
+
+        it("the freed Seat can be re-joined by a different user", () => {
+            const event = openTwoSeatEvent();
+            const left = applyLeaveLimitedEvent(event, "user1");
+            const rejoined = {
+                ...left,
+                seats: assignFreeSeat(left.seats, "user2", "Bob"),
+            };
+            expect(rejoined.seats[0]).toMatchObject({
+                userId: "user2",
+                nickname: "Bob",
+            });
+        });
+
+        it("rejects leaving a STARTED event", () => {
+            const event = { ...openTwoSeatEvent(), status: "started" as const };
+            expect(() => applyLeaveLimitedEvent(event, "user1")).toThrow(
+                /already started/
+            );
+        });
+
+        it("rejects a caller who holds no Seat in this event", () => {
+            const event = openTwoSeatEvent();
+            expect(() => applyLeaveLimitedEvent(event, "no-such-user")).toThrow(
+                /do not have a seat/
+            );
+        });
+    });
+
+    describe("cancelLimitedEvent", () => {
+        it("the creator cancelling an OPEN event removes it entirely", () => {
+            const event = openTwoSeatEvent();
+            const after = applyCancelLimitedEvent(event, "creator1");
+            expect(after).toBeNull();
+        });
+
+        it("rejects a non-creator caller", () => {
+            const event = openTwoSeatEvent();
+            expect(() => applyCancelLimitedEvent(event, "user1")).toThrow(
+                /Only the event's creator/
+            );
+        });
+
+        it("rejects cancelling a STARTED event, even by the creator", () => {
+            const event = { ...openTwoSeatEvent(), status: "started" as const };
+            expect(() => applyCancelLimitedEvent(event, "creator1")).toThrow(
+                /already started/
+            );
+        });
     });
 });
