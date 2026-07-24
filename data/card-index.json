@@ -10636,5 +10636,29 @@
         "scryfallId": "152a72b1-a7b7-4e5c-8558-fab97465f549",
         "oracleId": "bc7b90b1-3517-4e5d-9bd8-68b4d8a259fd",
         "firstSet": "ice"
+    },
+    {
+        "name": "Kappa Cannoneer",
+        "scryfallId": "85a89077-b384-4fca-9d26-7297962c1541",
+        "oracleId": "7fffbe7f-ad78-4bb6-a611-c37e495c6ee0",
+        "firstSet": "nec"
+    },
+    {
+        "name": "Death-Greeter's Champion",
+        "scryfallId": "7cb2b582-1c45-4bb2-8aef-59a71a5a9e94",
+        "oracleId": "81abb451-5ee0-4f90-bacc-a8ff69726a27",
+        "firstSet": "moc"
+    },
+    {
+        "name": "Inti, Seneschal of the Sun",
+        "scryfallId": "fa7a55aa-ae61-4933-b7a4-dcc55dac6fcd",
+        "oracleId": "176f5ba8-6e7b-4234-a298-b6164f51656f",
+        "firstSet": "lci"
+    },
+    {
+        "name": "Ragavan, Nimble Pilferer",
+        "scryfallId": "a9738cda-adb1-47fb-9f4c-ecd930228c4d",
+        "oracleId": "37108cd4-bbab-4ce3-9ed6-f60e8422e703",
+        "firstSet": "mh2"
     }
 ]

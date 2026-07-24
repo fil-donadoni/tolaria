@@ -1345,11 +1345,23 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // Net: total 468->467 (1 migrated), Op-blocked 156->155 (-1). FREE /
         // AFK-ready / X-only unchanged (the ETB was Op-blocked, not FREE).
         // Partition: 298+14+155=467.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(467);
+        //
+        // #1527 (Cube FREE wave 3 — keyword-residue creatures): two BRAND-NEW
+        // catalogue cards, not migrations, each a `resolve()` closure composing
+        // the impulse-draw protocol (`peekLibraryTop` + `exileFaceDown` +
+        // `grantCastFromExile`, no Op skin — same documented shape as Robber of
+        // the Rich / Headliner Scarlett): Ragavan, Nimble Pilferer's
+        // combat-damage trigger (mh2/red.ts) and Inti, Seneschal of the Sun's
+        // discard-impulse trigger (lci/red.ts). Both land in Op-blocked
+        // (blocked on `exileFaceDown`, which has no Op skin). Net: total
+        // 467->469 (+2 new closures), Op-blocked 155->157 (+2). FREE /
+        // AFK-ready / X-only unchanged (neither closure is migratable).
+        // Partition: 298+14+157=469.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(469);
         expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(298);
         expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(286);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(155);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(157);
     });
 
     it("surfaces the demonstrated new-Op backlog (a covered primitive leaves it)", () => {
