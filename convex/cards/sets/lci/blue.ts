@@ -5,15 +5,20 @@
 
 import type { CardDefinition, GameEvent, PermanentView } from "../../types";
 
-// TODO(issue #679 stub — Tishana's Tidebinder). The core "counter target
-// activated OR triggered ability" engine gap is now CLOSED: Stifle (scg/blue)
-// ships the `spellStackKind: "ability"` stack-object kind (keeps any ability,
-// activated or triggered) and `ctx.counter` vanishes a countered triggered
-// ability (CR 113.7a). What still blocks Tishana specifically is the rest of
-// its text — an ETB trigger that ALSO conditionally puts a +1/+1 counter on it
-// when the countered ability's source was an artifact/creature/planeswalker —
-// which needs a source-type-conditioned follow-up Op, not just the counter.
-// Keep tracked stub until that rider is expressible.
+// TODO(Tishana's Tidebinder — tracked-by: #1562, split out of #1528, parent
+// PRD #1525). The core "counter up to one target activated OR triggered
+// ability" engine gap is CLOSED: Stifle (scg/blue) ships the
+// `spellStackKind: "ability"` stack-object kind (any ability, activated or
+// triggered) and `ctx.counter` vanishes a countered triggered ability
+// (CR 113.7a). What still blocks Tishana is the RIDER — "If an ability of an
+// artifact, creature, or planeswalker is countered this way, that permanent
+// loses all abilities for as long as this creature remains on the
+// battlefield." That is a continuous layer-6 ability-loss (kind:
+// "ability-loss", the Titania's Song mechanic) applied to a RUNTIME-CHOSEN
+// single permanent for a duration tied to Tidebinder's presence — and neither
+// the card-declared `StaticAbilityLoss.applies` path (read at apply time, not
+// parameterised by a recorded target id) nor any `SpellContext` primitive can
+// grant that today. Keep tracked stub until #1562 lands.
 // export const tishanasTidebinder: CardDefinition = {
 //     id: "907b3d1d-8c85-4707-80b5-c4d832df9846",
 //     name: "Tishana's Tidebinder",
