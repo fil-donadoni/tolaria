@@ -5,7 +5,7 @@
 // Draft path (an Arrangement present, even empty — the continuous
 // main-by-default seed via `splitPoolByArrangement`).
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, cleanup } from "@testing-library/react";
+import { render, cleanup, fireEvent } from "@testing-library/react";
 import PoolDeckBuilderForm from "../pool-deck-builder-form";
 
 const navigate = vi.fn();
@@ -116,5 +116,52 @@ describe("PoolDeckBuilderForm — continuous draft→build seed (ADR 0060, issue
         );
         expect(getByText(/^Maindeck 1/)).toBeTruthy();
         expect(getByText(/^Pool \(Sideboard\) 1/)).toBeTruthy();
+    });
+});
+
+// All-five-basics-always-offered + autosave wiring (issue #1576).
+const MOUNTAIN_ID = "eace2c85-976c-425e-9800-5a6ccbd91b56"; // catalogue Mountain
+
+describe("PoolDeckBuilderForm — Add Basic bar (issue #1576)", () => {
+    it("offers all five basics for a Pool with no basics at all (Vintage-Cube-style seat), adds to the Maindeck, and persists through the autosave path", async () => {
+        setup();
+        const { getByText } = render(
+            <PoolDeckBuilderForm
+                eventId={"event-1" as never}
+                seatIndex={0}
+                pool={[
+                    { scryfallId: "s1", cardId: BOLT_ID, cardName: "Lightning Bolt" },
+                ]}
+                existingDeck={null}
+                poolArrangement={null}
+            />
+        );
+
+        // All five buttons render even though the Pool opened no basics.
+        for (const subtype of [
+            "Plains",
+            "Island",
+            "Swamp",
+            "Mountain",
+            "Forest",
+        ]) {
+            expect(getByText(`+ ${subtype}`)).toBeTruthy();
+        }
+
+        expect(getByText(/^Maindeck 0/)).toBeTruthy();
+        fireEvent.click(getByText("+ Mountain"));
+        expect(getByText(/^Maindeck 1/)).toBeTruthy();
+
+        // Unmount triggers the flush-on-unmount effect cleanup, driving the
+        // debounced autosave immediately rather than waiting out the timer.
+        cleanup();
+
+        expect(createMock).toHaveBeenCalledTimes(1);
+        const payload = createMock.mock.calls[0][0] as {
+            cards: { cardId: string; cardName: string }[];
+        };
+        expect(payload.cards).toEqual([
+            { cardId: MOUNTAIN_ID, cardName: "Mountain" },
+        ]);
     });
 });
