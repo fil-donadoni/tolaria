@@ -99,17 +99,19 @@ beforeEach(() => {
     localStorage.setItem("tolaria:matchFormat", "3");
 });
 
-async function renderLobby() {
+async function renderLobby(myLimitedEvents: unknown[] = []) {
     // `api` is mocked to `{}`, so queries can't be distinguished by reference;
-    // route by per-render call order instead. The lobby issues exactly three
+    // route by per-render call order instead. The lobby issues exactly four
     // useQuery calls per render, in this order: presetDecks, openGames,
-    // activeGame (currentUser/userDecks go through mocked hooks).
+    // activeGame, myLimitedEvents (issue #1582 — via `useMyLimitedEvents`;
+    // currentUser/userDecks go through mocked hooks).
     let queryCall = 0;
     useQueryMock.mockImplementation(() => {
         const idx = queryCall++;
-        if (idx % 3 === 0) return PRESET_DECKS;
-        if (idx % 3 === 1) return [];
-        return null;
+        if (idx % 4 === 0) return PRESET_DECKS;
+        if (idx % 4 === 1) return [];
+        if (idx % 4 === 2) return null;
+        return myLimitedEvents;
     });
     let mutCall = 0;
     useMutationMock.mockImplementation(() => {
@@ -194,5 +196,62 @@ describe("Lobby vs-AI two-step flow", () => {
         expect(document.querySelectorAll('[data-slot^="dialog"]').length).toBe(
             0
         );
+    });
+});
+
+// First-class Limited dashboard box (issue #1582): a Limited box sits
+// alongside the constructed Play box with equal visual weight (both render
+// through the same shared Panel), the old secondary "Limited Events" button
+// is gone, and a seated event's status hint reaches the box through
+// `useMyLimitedEvents` — the real hook wiring, not a hand-built prop.
+describe("Lobby dashboard Limited box (issue #1582)", () => {
+    it("renders the Limited box alongside the Play box, stacked via a responsive grid", async () => {
+        const { getByText, getByRole, container } = await renderLobby();
+        expect(getByText("Play")).toBeTruthy();
+        expect(getByRole("heading", { name: "Limited" })).toBeTruthy();
+        expect(getByText("Browse / Create Events")).toBeTruthy();
+        // Same grid wrapper drives the narrow-viewport stack (grid-cols-1)
+        // and the wide side-by-side layout (lg:grid-cols-2).
+        const grid = container.querySelector(
+            ".grid.grid-cols-1.lg\\:grid-cols-2"
+        );
+        expect(grid).toBeTruthy();
+        expect(grid?.children.length).toBe(2);
+    });
+
+    it("removes the old secondary 'Limited Events' button (no duplicate entry point)", async () => {
+        const { queryByText } = await renderLobby();
+        expect(queryByText("Limited Events")).toBeNull();
+    });
+
+    it("navigates to the Limited events page from the box's Browse action", async () => {
+        const { getByText } = await renderLobby();
+        fireEvent.click(getByText("Browse / Create Events"));
+        expect(navigate).toHaveBeenCalledWith({ to: "/limited" });
+    });
+
+    it("lists a seated event with its status hint and navigates to its detail on click", async () => {
+        const { getByText } = await renderLobby([
+            {
+                _id: "event-1",
+                createdBy: "admin-1",
+                type: "sealed",
+                status: "started",
+                completed: true,
+                seatCount: 2,
+                seatsWithDeck: 2,
+                packSlots: ["lea"],
+                seats: [],
+                createdAt: 0,
+                updatedAt: 0,
+            },
+        ]);
+        expect(getByText("Your Events")).toBeTruthy();
+        expect(getByText("ready to play")).toBeTruthy();
+        fireEvent.click(getByText(/sealed/));
+        expect(navigate).toHaveBeenCalledWith({
+            to: "/limited/$eventId",
+            params: { eventId: "event-1" },
+        });
     });
 });
