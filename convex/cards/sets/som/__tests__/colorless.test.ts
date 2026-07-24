@@ -84,14 +84,12 @@ describe("Mox Opal (SOM #179, issue #1530, Metalcraft)", () => {
                 ownerId: "p1",
             })
         );
-        const oppArtifacts = Array.from(
-            { length: opponentArtifacts },
-            (_, i) =>
-                makeInstance(moxOpal.id, {
-                    id: `opp-art${i}`,
-                    controllerId: "p2",
-                    ownerId: "p2",
-                })
+        const oppArtifacts = Array.from({ length: opponentArtifacts }, (_, i) =>
+            makeInstance(moxOpal.id, {
+                id: `opp-art${i}`,
+                controllerId: "p2",
+                ownerId: "p2",
+            })
         );
         const state = makeState({
             players: [
@@ -138,9 +136,7 @@ describe("Mox Opal (SOM #179, issue #1530, Metalcraft)", () => {
     it("canActivate is true with 3 artifacts controlled (Mox Opal counts toward its own threshold)", () => {
         const { state, mox } = boardWithArtifacts(3);
         const ability = moxOpal.activatedAbilities![0];
-        expect(ability.canActivate!(mox, state as TriggerStateView)).toBe(
-            true
-        );
+        expect(ability.canActivate!(mox, state as TriggerStateView)).toBe(true);
     });
 
     it("only counts artifacts the SAME controller controls — an opponent's artifacts don't count", () => {

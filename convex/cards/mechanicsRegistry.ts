@@ -2345,7 +2345,8 @@ const ABILITY_WORDS: MechanicRow[] = [
         kind: "ability-word",
         cr: "702 preamble",
         status: "implemented",
-        binding: "hasMetalcraft (cards/types.ts) — an activated mana ability's canActivate gate",
+        binding:
+            "hasMetalcraft (cards/types.ts) — an activated mana ability's canActivate gate",
         note: 'Issue #1530 — "you control three or more artifacts" board-state condition (SOM/NPH block ability word). Shared helper `hasMetalcraft(state, controllerId)` (cards/types.ts, mirrors `countDomain`\'s shape) counts live battlefield permanents whose `types` include "Artifact" for the given controller. First consumer: Mox Opal\'s tap-mana ability (`som/colorless.ts`) gates via `canActivate: (source, state) => hasMetalcraft(state, source.controllerId)` — the SAME `canActivate` gate Chrome Mox\'s imprint check already proves is enforced by every real consumer of a tap mana ability (`getManaTapOptionsDetailed` / `hasManaAbility` / `getActivatedManaAbility`, issue #947), not merely a card-shaped closure with no engine teeth.',
     },
 ];

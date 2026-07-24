@@ -174,9 +174,9 @@ describe("Lavaspur Boots (OTJ #243, issue #1530)", () => {
         expect(
             state.players[1].graveyard.some((c) => c.id === "removal1")
         ).toBe(true);
-        expect(
-            state.players[0].battlefield.some((c) => c.id === "bear1")
-        ).toBe(true);
+        expect(state.players[0].battlefield.some((c) => c.id === "bear1")).toBe(
+            true
+        );
     });
 
     it("Ward e2e: paying the ward cost lets the removal resolve and destroy the equipped creature", () => {
@@ -206,12 +206,12 @@ describe("Lavaspur Boots (OTJ #243, issue #1530)", () => {
         // back on top of the stack and now resolves normally.
         expect(state.stack).toHaveLength(1);
         resolveTopOfStack(state);
-        expect(
-            state.players[0].battlefield.some((c) => c.id === "bear1")
-        ).toBe(false);
-        expect(
-            state.players[0].graveyard.some((c) => c.id === "bear1")
-        ).toBe(true);
+        expect(state.players[0].battlefield.some((c) => c.id === "bear1")).toBe(
+            false
+        );
+        expect(state.players[0].graveyard.some((c) => c.id === "bear1")).toBe(
+            true
+        );
     });
 
     it("an UNEQUIPPED creature has no ward — targeting it fires no trigger", () => {
