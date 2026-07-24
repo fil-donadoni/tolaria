@@ -124,9 +124,13 @@ export default function LimitedEventDetail({
                 )}
 
                 <div className="flex justify-end gap-2">
-                    {event.status === "open" && (
-                        <LimitedShareInviteButton eventId={eventId} />
-                    )}
+                    {/* Available for the whole lifetime of the event (issue
+                        #1578) — previously gated to `status === "open"`,
+                        which meant a started event's direct link could no
+                        longer be recovered in-app once the "your events"
+                        list's own View button had already been used to get
+                        here (or by anyone who lost the original invite). */}
+                    <LimitedShareInviteButton eventId={eventId} />
                     {canJoin && (
                         <ActionButton
                             onClick={handleJoin}

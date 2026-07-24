@@ -5,6 +5,7 @@ import { useCurrentUser } from "~/hooks/useCurrentUser";
 import {
     useDraftableSets,
     useLimitedEventMutations,
+    useMyLimitedEvents,
     useOpenLimitedEvents,
 } from "~/hooks/useLimitedEvent";
 import { canCreateLimitedEvents } from "~/lib/adminGating";
@@ -13,6 +14,7 @@ import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
 import LoadingScreen from "~/components/ui/loading-screen";
 import LimitedEventList from "./limited-event-list";
+import LimitedMyEventsList from "./limited-my-events-list";
 import CreateLimitedEventDialog, {
     type CreateLimitedEventPayload,
 } from "./create-limited-event-dialog";
@@ -24,6 +26,7 @@ export default function LimitedEventsPage() {
     const navigate = useNavigate();
     const user = useCurrentUser();
     const events = useOpenLimitedEvents();
+    const myEvents = useMyLimitedEvents();
     const draftableSets = useDraftableSets();
     const { create, join } = useLimitedEventMutations();
 
@@ -36,6 +39,7 @@ export default function LimitedEventsPage() {
 
     if (
         events === undefined ||
+        myEvents === undefined ||
         draftableSets === undefined ||
         user === undefined
     ) {
@@ -100,6 +104,11 @@ export default function LimitedEventsPage() {
                             </Button>
                         </div>
                     )}
+
+                    <LimitedMyEventsList
+                        events={myEvents}
+                        onOpen={handleOpen}
+                    />
 
                     <LimitedEventList
                         events={events}
