@@ -1,10 +1,7 @@
 import { getDefinition } from "@convex/cards";
 import { manaValue } from "@convex/gre/constants";
 import type { DeckCard } from "~/types/game";
-import {
-    fixedColumnDescriptors,
-    resolveDisplayColumn,
-} from "~/components/limited/limitedPoolColumns";
+import { groupIntoFixedColumns } from "~/components/limited/limitedPoolColumns";
 
 export interface DeckPileGroup {
     key: string;
@@ -81,25 +78,18 @@ export function groupDeckIntoFixedColumns(
     cards: DeckCard[],
     columnOf: (cardId: string) => number | "lands" | undefined
 ): DeckColumn[] {
-    const byColumn = new Map<number | "lands", DeckCard[]>();
-    for (const descriptor of fixedColumnDescriptors()) {
-        byColumn.set(descriptor.column, []);
-    }
-
-    for (const card of cards) {
-        const key = resolveDisplayColumn(card, columnOf(card.cardId));
-        byColumn.get(key)!.push(card);
-    }
-
-    const sortInPlace = (arr: DeckCard[]) =>
-        arr.sort(
-            (a, b) =>
-                a.cardName.localeCompare(b.cardName) ||
-                a.cardId.localeCompare(b.cardId)
-        );
-
-    return fixedColumnDescriptors().map((descriptor) => ({
-        ...descriptor,
-        cards: sortInPlace(byColumn.get(descriptor.column)!),
+    const columns = groupIntoFixedColumns(
+        cards,
+        (card) => card,
+        (card) => columnOf(card.cardId),
+        (a, b) =>
+            a.cardName.localeCompare(b.cardName) ||
+            a.cardId.localeCompare(b.cardId)
+    );
+    return columns.map((column) => ({
+        key: column.key,
+        label: column.label,
+        column: column.column,
+        cards: column.items,
     }));
 }

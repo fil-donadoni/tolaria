@@ -8,10 +8,7 @@
 // Column-id parsing is DELEGATED to `parseColumnDropId` (`limitedDraftDrag.ts`)
 // — the two surfaces never fork column-id parsing (issue #1581 unifies them
 // fully later).
-import {
-    parseColumnDropId,
-    SIDEBOARD_DROP_ID,
-} from "~/components/limited/limitedDraftDrag";
+import { resolvePoolDropTarget } from "~/components/limited/limitedDraftDrag";
 import type { DropZoneId } from "~/components/lobby/deck-builder/dnd-types";
 
 /** The Sideboard drop-zone id shared with the pre-#1575 surface. The limited
@@ -49,10 +46,17 @@ export function resolveDeckbuilderDragAction(
 ): DeckbuilderDragAction | null {
     if (!source || !destId) return null;
 
-    if (
-        destId === DECKBUILDER_SIDEBOARD_DROP_ID ||
-        destId === SIDEBOARD_DROP_ID
-    ) {
+    // The deckbuilder's own Sideboard zone id (`"side"`) is the one drop id the
+    // shared `resolvePoolDropTarget` doesn't know; normalize it to a Sideboard
+    // target, then delegate every other id (columns + the shared
+    // `SIDEBOARD_DROP_ID`) to the ONE shared parser (issue #1581).
+    const target =
+        destId === DECKBUILDER_SIDEBOARD_DROP_ID
+            ? ({ kind: "sideboard" } as const)
+            : resolvePoolDropTarget(destId);
+    if (target === null) return null;
+
+    if (target.kind === "sideboard") {
         // Only a Maindeck card can move TO the Sideboard; a Sideboard card
         // dropped back on the Sideboard is a no-op.
         return source.kind === "main"
@@ -60,10 +64,7 @@ export function resolveDeckbuilderDragAction(
             : null;
     }
 
-    const column = parseColumnDropId(destId);
-    if (column === null) return null;
-
     return source.kind === "main"
-        ? { type: "setColumn", cardId: source.cardId, column }
-        : { type: "toMaindeck", cardId: source.cardId, column };
+        ? { type: "setColumn", cardId: source.cardId, column: target.column }
+        : { type: "toMaindeck", cardId: source.cardId, column: target.column };
 }

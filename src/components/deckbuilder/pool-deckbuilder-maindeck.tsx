@@ -1,15 +1,21 @@
 import { useMemo } from "react";
 import type { DeckCard } from "~/types/game";
 import { groupDeckIntoFixedColumns } from "~/components/lobby/deckGrouping";
-import PoolDeckbuilderColumn from "./pool-deckbuilder-column";
+import PoolColumnPile, {
+    type PoolPileTile,
+} from "~/components/limited/pool-column-pile";
+import type { CardDragData } from "~/components/lobby/deck-builder/dnd-types";
 
 /**
- * The limited deckbuilder's Maindeck (issue #1575): the SAME fixed
- * Mana-Value column set as the draft Pool (`limitedPoolColumns.ts` /
- * `groupDeckIntoFixedColumns`), every column an individual drop target so a
- * card can be dragged between columns to record a manual override. Each
- * card's column honours the seat's Pool Arrangement (`columnOf`) — the manual
- * arrangement built during the draft carries straight over here (ADR 0060).
+ * The limited deckbuilder's Maindeck (issue #1575; unified surface, issue
+ * #1581): the SAME fixed Mana-Value column set as the draft Pool, rendered
+ * through the SHARED `PoolColumnPile` / `PoolCardTile` the draft phase also
+ * uses — every column an individual drop target so a card can be dragged
+ * between columns to record a manual override. Each card's column honours the
+ * seat's Pool Arrangement (`columnOf`) — the manual arrangement built during
+ * the draft carries straight over here (ADR 0060). The deckbuilder's own
+ * `cardId`-keyed drag payload (`CardDragData`, `kind: "main"`) and
+ * click-to-sideboard gesture are passed as tile props.
  */
 export default function PoolDeckbuilderMaindeck({
     title,
@@ -33,6 +39,30 @@ export default function PoolDeckbuilderMaindeck({
         [cards, columnOf]
     );
 
+    const columnTiles = useMemo(
+        () =>
+            columns.map((column) => ({
+                key: column.key,
+                label: column.label,
+                column: column.column,
+                tiles: column.cards.map(
+                    (card, idx): PoolPileTile => ({
+                        key: `${card.cardId}:${idx}`,
+                        cardId: card.cardId,
+                        dragId: `main:${column.column}:${card.cardId}:${idx}`,
+                        dragData: {
+                            kind: "main",
+                            cardId: card.cardId,
+                            cardName: card.cardName,
+                        } satisfies CardDragData,
+                        title: `Remove ${card.cardName} (drag to move zone)`,
+                        onClick: () => onRemove(card.cardId),
+                    })
+                ),
+            })),
+        [columns, onRemove]
+    );
+
     return (
         <div className="flex h-full flex-col">
             <div className="flex items-baseline gap-2 px-3 pt-3 text-sm md:px-4">
@@ -52,11 +82,12 @@ export default function PoolDeckbuilderMaindeck({
                 column stays a drop target a Sideboard card can be dragged
                 into (mirrors the draft Pool's always-present columns). */}
             <div className="flex flex-1 items-start gap-3 overflow-auto p-3 md:gap-6 md:p-4">
-                {columns.map((column) => (
-                    <PoolDeckbuilderColumn
+                {columnTiles.map((column) => (
+                    <PoolColumnPile
                         key={column.key}
-                        column={column}
-                        onRemove={onRemove}
+                        label={column.label}
+                        column={column.column}
+                        tiles={column.tiles}
                     />
                 ))}
             </div>

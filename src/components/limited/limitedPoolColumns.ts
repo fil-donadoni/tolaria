@@ -90,41 +90,74 @@ export function fixedColumnDescriptors(): {
     return descriptors;
 }
 
-function sortEntries(entries: PoolColumnEntry[]): PoolColumnEntry[] {
-    return entries.sort(
-        (a, b) =>
-            a.card.cardName.localeCompare(b.card.cardName) ||
-            a.poolIndex - b.poolIndex
-    );
+/** One fixed column of arbitrary items `T` — the single generic column shape
+ *  both surfaces' grouping produces (issue #1581). `groupPoolIntoColumns`
+ *  (draft Pool) and `groupDeckIntoFixedColumns` (limited deckbuilder) are thin
+ *  adapters that map `items` into their own field name (`entries` / `cards`)
+ *  — the bucketing/order/label authority is single-sourced here. */
+export interface FixedColumn<T> {
+    /** Stable React key AND the column's drag-drop identity suffix. */
+    key: string;
+    label: string;
+    /** Column identity a manual override / drop targets — a numbered
+     *  Mana-Value column, or `"lands"`. */
+    column: number | "lands";
+    items: T[];
+}
+
+/** The ONE grouping engine (issue #1581): buckets any `T` items into the fixed
+ *  column set (Lands + MV 0..MAX_POOL_COLUMN, every column always present so
+ *  it stays a valid drop target even when empty). A card's column honours a
+ *  manual override (`overrideOf`) via `resolveDisplayColumn`; items in a
+ *  column are ordered by `compare`. Both the draft Pool and the limited
+ *  deckbuilder call THIS — they never fork the bucketing/ordering math. */
+export function groupIntoFixedColumns<T>(
+    items: readonly T[],
+    cardOf: (item: T) => CardIdentifiable,
+    overrideOf: (item: T) => number | "lands" | undefined,
+    compare: (a: T, b: T) => number
+): FixedColumn<T>[] {
+    const byColumn = new Map<number | "lands", T[]>();
+    for (const descriptor of fixedColumnDescriptors()) {
+        byColumn.set(descriptor.column, []);
+    }
+
+    for (const item of items) {
+        const key = resolveDisplayColumn(cardOf(item), overrideOf(item));
+        byColumn.get(key)!.push(item);
+    }
+
+    return fixedColumnDescriptors().map((descriptor) => ({
+        ...descriptor,
+        items: byColumn.get(descriptor.column)!.slice().sort(compare),
+    }));
 }
 
 /** Groups every MAINDECK placement (`sideboard: false`) into the fixed
  *  column set — Lands plus MV 0..MAX_POOL_COLUMN — ADR 0060's "fixed
  *  Mana-Value columns": every column always renders, even empty, so a
  *  column with no card in it today is still a valid drop target for a
- *  manual override. */
+ *  manual override. A thin adapter over the shared `groupIntoFixedColumns`
+ *  engine (issue #1581). */
 export function groupPoolIntoColumns(
     placements: readonly ResolvedPlacement[]
 ): PoolColumn[] {
-    const byColumn = new Map<number | "lands", PoolColumnEntry[]>();
-    byColumn.set("lands", []);
-    for (let n = 0; n <= MAX_POOL_COLUMN; n++) byColumn.set(n, []);
-
-    for (const placement of placements) {
-        if (placement.sideboard) continue;
-        const key = resolveDisplayColumn(
-            placement.card,
-            placement.columnOverride
-        );
-        byColumn.get(key)!.push({
-            poolIndex: placement.poolIndex,
-            card: placement.card,
-        });
-    }
-
-    return fixedColumnDescriptors().map((descriptor) => ({
-        ...descriptor,
-        entries: sortEntries(byColumn.get(descriptor.column)!),
+    const columns = groupIntoFixedColumns(
+        placements.filter((p) => !p.sideboard),
+        (p) => p.card,
+        (p) => p.columnOverride,
+        (a, b) =>
+            a.card.cardName.localeCompare(b.card.cardName) ||
+            a.poolIndex - b.poolIndex
+    );
+    return columns.map((column) => ({
+        key: column.key,
+        label: column.label,
+        column: column.column,
+        entries: column.items.map((p) => ({
+            poolIndex: p.poolIndex,
+            card: p.card,
+        })),
     }));
 }
 
@@ -134,9 +167,12 @@ export function groupPoolIntoColumns(
 export function sideboardEntries(
     placements: readonly ResolvedPlacement[]
 ): PoolColumnEntry[] {
-    return sortEntries(
-        placements
-            .filter((p) => p.sideboard)
-            .map((p) => ({ poolIndex: p.poolIndex, card: p.card }))
-    );
+    return placements
+        .filter((p) => p.sideboard)
+        .map((p) => ({ poolIndex: p.poolIndex, card: p.card }))
+        .sort(
+            (a, b) =>
+                a.card.cardName.localeCompare(b.card.cardName) ||
+                a.poolIndex - b.poolIndex
+        );
 }
