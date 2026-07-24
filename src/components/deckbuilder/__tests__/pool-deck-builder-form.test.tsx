@@ -5,7 +5,7 @@
 // Draft path (an Arrangement present, even empty — the continuous
 // main-by-default seed via `splitPoolByArrangement`).
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, cleanup, fireEvent } from "@testing-library/react";
+import { render, cleanup, fireEvent, within } from "@testing-library/react";
 import PoolDeckBuilderForm from "../pool-deck-builder-form";
 
 const navigate = vi.fn();
@@ -46,7 +46,7 @@ function setup() {
 }
 
 describe("PoolDeckBuilderForm — continuous draft→build seed (ADR 0060, issue #1247)", () => {
-    it("Sealed (poolArrangement: null): every Pool card still starts in the Sideboard — the pre-#1247 default, unchanged", () => {
+    it("Sealed (eventType 'sealed'): every Pool card still starts in the Sideboard — the pre-#1247 default, unchanged", () => {
         setup();
         const { getByText } = render(
             <PoolDeckBuilderForm
@@ -54,7 +54,8 @@ describe("PoolDeckBuilderForm — continuous draft→build seed (ADR 0060, issue
                 seatIndex={0}
                 pool={POOL}
                 existingDeck={null}
-                poolArrangement={null}
+                eventType="sealed"
+                poolArrangement={[]}
             />
         );
         expect(getByText(/^Maindeck 0/)).toBeTruthy();
@@ -69,6 +70,7 @@ describe("PoolDeckBuilderForm — continuous draft→build seed (ADR 0060, issue
                 seatIndex={0}
                 pool={POOL}
                 existingDeck={null}
+                eventType="draft"
                 poolArrangement={[]}
             />
         );
@@ -84,6 +86,7 @@ describe("PoolDeckBuilderForm — continuous draft→build seed (ADR 0060, issue
                 seatIndex={0}
                 pool={POOL}
                 existingDeck={null}
+                eventType="draft"
                 poolArrangement={[{ poolIndex: 1, sideboard: true }]}
             />
         );
@@ -111,11 +114,38 @@ describe("PoolDeckBuilderForm — continuous draft→build seed (ADR 0060, issue
                     isLegal: true,
                     reasons: [],
                 }}
+                eventType="draft"
                 poolArrangement={[]}
             />
         );
         expect(getByText(/^Maindeck 1/)).toBeTruthy();
         expect(getByText(/^Pool \(Sideboard\) 1/)).toBeTruthy();
+    });
+});
+
+// Draft-phase manual COLUMN arrangement carries over into the deckbuilder's
+// starting layout (issue #1575 AC3) — and, because the form reads the LIVE
+// seat Pool Arrangement, the same rendering is what a page reload produces
+// (AC2). Bolt is MV 1 by default; the Arrangement pins it to MV 6.
+describe("PoolDeckBuilderForm — draft column arrangement carry-over (issue #1575)", () => {
+    it("renders a Maindeck card under the manual column its Pool Arrangement recorded, not its auto column", () => {
+        setup();
+        const { container } = render(
+            <PoolDeckBuilderForm
+                eventId={"event-1" as never}
+                seatIndex={0}
+                pool={POOL}
+                existingDeck={null}
+                eventType="draft"
+                poolArrangement={[{ poolIndex: 0, column: 6 }]}
+            />
+        );
+        const mv6 = container.querySelector('[data-column="6"]') as HTMLElement;
+        const mv1 = container.querySelector('[data-column="1"]') as HTMLElement;
+        expect(mv6).toBeTruthy();
+        expect(within(mv6).getByTitle(/Remove Lightning Bolt/)).toBeTruthy();
+        // ...and it is NOT in its auto MV 1 column.
+        expect(within(mv1).queryByTitle(/Remove Lightning Bolt/)).toBeNull();
     });
 });
 
@@ -137,7 +167,8 @@ describe("PoolDeckBuilderForm — Add Basic bar (issue #1576)", () => {
                     },
                 ]}
                 existingDeck={null}
-                poolArrangement={null}
+                eventType="sealed"
+                poolArrangement={[]}
             />
         );
 

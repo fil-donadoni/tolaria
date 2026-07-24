@@ -134,3 +134,47 @@ export function findMovablePoolIndex(
     );
     return hit ? hit.poolIndex : null;
 }
+
+/** The manual Mana-Value column override recorded for each `cardId` present
+ *  in `pool`, keyed by Card ID (issue #1575). The limited deckbuilder groups
+ *  its Maindeck by `cardId`-keyed `DeckCard`s — it lost the per-copy
+ *  `poolIndex` identity the draft Pool keeps — so it looks a card's column up
+ *  by id, treating duplicate copies as interchangeable (the same convention
+ *  `findMovablePoolIndex` above and `deckSideboard.ts` already use). When two
+ *  copies carry divergent overrides the higher `poolIndex` wins (last write);
+ *  a card with no override is absent from the map (auto column). */
+export function columnOverridesByCardId(
+    pool: readonly LimitedPoolCard[],
+    arrangement: readonly PoolArrangementEntry[] | undefined
+): Map<string, number | "lands"> {
+    const byCardId = new Map<string, number | "lands">();
+    for (const placement of resolvePoolPlacements(pool, arrangement)) {
+        if (placement.columnOverride !== undefined) {
+            byCardId.set(placement.card.cardId, placement.columnOverride);
+        }
+    }
+    return byCardId;
+}
+
+/** Resolves a `cardId`-keyed deckbuilder column drag back to the `poolIndex`
+ *  `setPoolArrangementEntry` keys its column override on (issue #1575). Prefers
+ *  a copy currently in the Maindeck (`sideboard: false`) — the copy the player
+ *  is looking at when they drag between columns — then falls back to ANY copy
+ *  of that card, so a column drag still records even for a card the Arrangement
+ *  happens to have parked in the Sideboard (duplicate copies are
+ *  interchangeable). `null` for a card that isn't in the Pool at all (a Basic
+ *  land added from the bar — it has no `poolIndex`, so its column can't be
+ *  overridden and the drag is a no-op). */
+export function findColumnOverrideablePoolIndex(
+    pool: readonly LimitedPoolCard[],
+    arrangement: readonly PoolArrangementEntry[] | undefined,
+    cardId: string
+): number | null {
+    const placements = resolvePoolPlacements(pool, arrangement);
+    const inMain = placements.find(
+        (p) => p.card.cardId === cardId && !p.sideboard
+    );
+    if (inMain) return inMain.poolIndex;
+    const any = placements.find((p) => p.card.cardId === cardId);
+    return any ? any.poolIndex : null;
+}

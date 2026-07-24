@@ -46,17 +46,16 @@ export default function PoolDeckBuilder({
             pool={viewerSeat.pool}
             existingDeck={existingDeck}
             // Continuous draft→build (ADR 0060, issue #1247): a DRAFT event
-            // seeds the working deck from its Pool Arrangement — an array
-            // (even an empty one, for a player who never moved a card) means
-            // "resolve every card via the continuous main-by-default rule."
-            // `null` (Sealed — no draft phase ever built an Arrangement) is
-            // the signal `PoolDeckBuilderForm` uses to fall back to the
-            // pre-#1247 "everything starts in the Sideboard" default.
-            poolArrangement={
-                event.type === "draft"
-                    ? (viewerSeat.poolArrangement ?? [])
-                    : null
-            }
+            // seeds the working deck from its Pool Arrangement (the continuous
+            // main-by-default rule); a SEALED event has no draft phase, so it
+            // falls back to the pre-#1247 "everything starts in the Sideboard"
+            // default. `eventType` drives that seed choice.
+            eventType={event.type}
+            // The LIVE seat Pool Arrangement (issue #1575): the Maindeck⇄
+            // Sideboard seed AND the per-card manual column overrides, read
+            // reactively so a column drag persisted via setPoolArrangementEntry
+            // reflects back and survives reload. Empty for an unarranged seat.
+            poolArrangement={viewerSeat.poolArrangement ?? []}
         />
     );
 }

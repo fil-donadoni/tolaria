@@ -7,7 +7,12 @@ import type {
 } from "@convex/limited/eventTypes";
 import { validateDeck } from "@convex/formats";
 import { poolFromLimitedPoolCards } from "@convex/limited/poolResolution";
-import { splitPoolByArrangement } from "@convex/limited/poolArrangement";
+import {
+    columnOverridesByCardId,
+    findColumnOverrideablePoolIndex,
+    splitPoolByArrangement,
+} from "@convex/limited/poolArrangement";
+import { useLimitedEventMutations } from "~/hooks/useLimitedEvent";
 import { useUserDeckMutations } from "~/hooks/useUserDecks";
 import type { UserLobbyDeck } from "~/lib/deckTypes";
 import { computeDeckColors } from "~/lib/deckColors";
@@ -79,12 +84,18 @@ interface PoolDeckBuilderFormProps {
     seatIndex: number;
     pool: readonly LimitedPoolCard[];
     existingDeck: UserLobbyDeck | null;
-    /** The seat's Pool Arrangement (ADR 0060, issue #1247), or `null` for a
-     *  Sealed event (which never builds one). An array — even empty —
-     *  selects the continuous-draft seed (`continuousWorkingDeck`); `null`
-     *  falls back to the pre-#1247 all-Sideboard default. Ignored once
-     *  `existingDeck` is set (a saved deck is always the source of truth). */
-    poolArrangement: PoolArrangementEntry[] | null;
+    /** Draft vs Sealed — decides the initial working-deck SEED when there's no
+     *  saved deck yet: a Draft carries its Pool Arrangement over
+     *  (`continuousWorkingDeck`, ADR 0060 issue #1247), a Sealed event has no
+     *  draft phase so every card starts in the Sideboard (`defaultWorkingDeck`,
+     *  pre-#1247 default). Ignored once `existingDeck` is set. */
+    eventType: "draft" | "sealed";
+    /** The seat's LIVE Pool Arrangement (ADR 0060, issue #1247/#1575) — the
+     *  Maindeck⇄Sideboard split seed AND the per-card manual column overrides.
+     *  Read live (not just at seed time) so a column drag persisted via
+     *  `setPoolArrangementEntry` reflects back reactively AND survives reload
+     *  (issue #1575). Empty for a seat nobody has arranged yet. */
+    poolArrangement: PoolArrangementEntry[];
 }
 
 /**
@@ -102,10 +113,12 @@ export default function PoolDeckBuilderForm({
     seatIndex,
     pool,
     existingDeck,
+    eventType,
     poolArrangement,
 }: PoolDeckBuilderFormProps) {
     const navigate = useNavigate();
     const { create, update } = useUserDeckMutations();
+    const { setPoolArrangementEntry } = useLimitedEventMutations();
 
     const [deck, setDeck] = useState<WorkingDeck>(() => {
         if (existingDeck) {
@@ -115,7 +128,7 @@ export default function PoolDeckBuilderForm({
                 sideboard: existingDeck.sideboard ?? [],
             };
         }
-        return poolArrangement !== null
+        return eventType === "draft"
             ? continuousWorkingDeck(pool, poolArrangement)
             : defaultWorkingDeck(pool);
     });
@@ -259,6 +272,37 @@ export default function PoolDeckBuilderForm({
         [updateDeck]
     );
 
+    // Per-card manual Mana-Value column overrides (issue #1575), read LIVE
+    // from the seat's Pool Arrangement so a persisted column drag reflects
+    // back reactively and carries the draft-phase arrangement over.
+    const columnOverrides = useMemo(
+        () => columnOverridesByCardId(pool, poolArrangement),
+        [pool, poolArrangement]
+    );
+    const columnOf = useCallback(
+        (cardId: string) => columnOverrides.get(cardId),
+        [columnOverrides]
+    );
+
+    // Column drag: persist the override on the seat's Pool Arrangement (the
+    // SAME store + mutation the draft Pool uses, ADR 0060). Resolves the
+    // `cardId`-keyed UI action back to a `poolIndex`; a Basic land added from
+    // the bar has no `poolIndex`, so its column can't be overridden (no-op).
+    const handleSetColumn = useCallback(
+        (cardId: string, column: number | "lands") => {
+            const poolIndex = findColumnOverrideablePoolIndex(
+                pool,
+                poolArrangement,
+                cardId
+            );
+            if (poolIndex === null) return;
+            void setPoolArrangementEntry({ eventId, poolIndex, column }).catch(
+                () => {}
+            );
+        },
+        [pool, poolArrangement, setPoolArrangementEntry, eventId]
+    );
+
     const handleDone = useCallback(async () => {
         await flush();
         void navigate({ to: "/limited/$eventId", params: { eventId } });
@@ -313,6 +357,8 @@ export default function PoolDeckBuilderForm({
                 sideCards={deck.sideboard}
                 onMoveToSideboard={handleMainClick}
                 onMoveToMaindeck={handleSideClick}
+                columnOf={columnOf}
+                onSetColumn={handleSetColumn}
                 mainEmptyMessage="Move Pool cards here (or add Basics above) to build your deck."
                 sideEmptyMessage="Every remaining Pool card lives here until moved to the Maindeck."
             />

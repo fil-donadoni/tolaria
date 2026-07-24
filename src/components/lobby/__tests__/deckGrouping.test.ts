@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { groupDeckIntoPiles } from "../deckGrouping";
+import { groupDeckIntoFixedColumns, groupDeckIntoPiles } from "../deckGrouping";
 
 const LIGHTNING_BOLT = {
     cardId: "d573ef03-4730-45aa-93dd-e45ac1dbaf4a",
@@ -67,5 +67,67 @@ describe("groupDeckIntoPiles", () => {
         const piles = groupDeckIntoPiles([PLAINS, PLAINS, PLAINS]);
         expect(piles).toHaveLength(1);
         expect(piles[0].key).toBe("lands");
+    });
+});
+
+// The limited deckbuilder's fixed-column grouping (issue #1575) — parity with
+// the draft Pool: every column always present (a stable drop target even when
+// empty), a card's column honouring a manual per-card override.
+const NONE = () => undefined;
+
+describe("groupDeckIntoFixedColumns (issue #1575)", () => {
+    it("always renders the full fixed column set (Lands + MV 0..7), even for an empty deck", () => {
+        const columns = groupDeckIntoFixedColumns([], NONE);
+        expect(columns.map((c) => c.key)).toEqual([
+            "lands",
+            "mv-0",
+            "mv-1",
+            "mv-2",
+            "mv-3",
+            "mv-4",
+            "mv-5",
+            "mv-6",
+            "mv-7",
+        ]);
+        expect(columns.every((c) => c.cards.length === 0)).toBe(true);
+    });
+
+    it("labels the top column MV 7+ and exposes each column's drop identity", () => {
+        const columns = groupDeckIntoFixedColumns([], NONE);
+        expect(columns.find((c) => c.column === 7)!.label).toBe("MV 7+");
+        expect(columns.find((c) => c.column === "lands")!.label).toBe("Lands");
+    });
+
+    it("buckets each card by its auto column when there's no override", () => {
+        const columns = groupDeckIntoFixedColumns(
+            [LIGHTNING_BOLT, SERRA_ANGEL, PLAINS, MOX_PEARL],
+            NONE
+        );
+        const at = (col: number | "lands") =>
+            columns.find((c) => c.column === col)!.cards.map((c) => c.cardName);
+        expect(at("lands")).toEqual(["Plains"]);
+        expect(at(0)).toEqual(["Mox Pearl"]);
+        expect(at(1)).toEqual(["Lightning Bolt"]);
+        expect(at(5)).toEqual(["Serra Angel"]);
+    });
+
+    it("honours a manual override — a card moves out of its auto column", () => {
+        const override = (cardId: string) =>
+            cardId === LIGHTNING_BOLT.cardId ? (6 as const) : undefined;
+        const columns = groupDeckIntoFixedColumns([LIGHTNING_BOLT], override);
+        expect(columns.find((c) => c.column === 1)!.cards).toHaveLength(0);
+        expect(
+            columns.find((c) => c.column === 6)!.cards.map((c) => c.cardName)
+        ).toEqual(["Lightning Bolt"]);
+    });
+
+    it("pins a non-land card into Lands when the override says 'lands'", () => {
+        const override = () => "lands" as const;
+        const columns = groupDeckIntoFixedColumns([LIGHTNING_BOLT], override);
+        expect(
+            columns
+                .find((c) => c.column === "lands")!
+                .cards.map((c) => c.cardName)
+        ).toEqual(["Lightning Bolt"]);
     });
 });
