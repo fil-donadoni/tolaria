@@ -15172,6 +15172,130 @@ describe("Effect Script Op: digToHand destination + bind (issue #1101)", () => {
     });
 });
 
+describe("Effect Script Op: scryReorder — fateseal chooser (CR 701.20, issue #1532)", () => {
+    // Jace, the Mind Sculptor +2: the CONTROLLER looks at the TARGET player's
+    // library and decides top/bottom. The new `chooser` param raises the
+    // order-top choice for the chooser with `zoneOwnerId` = the library owner.
+    const fatesealScript = () =>
+        registerScript(
+            `test-op-fateseal-${crypto.randomUUID().slice(0, 8)}`,
+            [
+                {
+                    op: "scryReorder",
+                    player: { target: 0 },
+                    chooser: "controller",
+                    count: 1,
+                    destination: "library-bottom",
+                },
+            ],
+            { targetRequirement: { type: "player", count: 1 } }
+        );
+
+    const oppLibrary = (ids: string[]) =>
+        ids.map((id) =>
+            makeInstance(BEAR_ID, {
+                id,
+                controllerId: "p2",
+                ownerId: "p2",
+                zone: "library",
+            })
+        );
+
+    it("raises the order-top choice for the CHOOSER (controller), not the library owner", () => {
+        const id = fatesealScript();
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { library: oppLibrary(["x", "y", "z"]) }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]);
+        expect(resolveTopOfStack(state)).toBeNull(); // suspended
+        const head = state.pendingChoices![0];
+        expect(head.playerId).toBe("p1"); // controller chooses
+        expect(head.zoneOwnerId).toBe("p2"); // over the opponent's library
+        expect(head.kind).toBe("order-top");
+        expect(head.candidateIds).toEqual(["x"]);
+    });
+
+    it("wire format: the peek is exposed to the chooser (controller), not to the library owner", () => {
+        const id = fatesealScript();
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { library: oppLibrary(["x", "y", "z"]) }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        expect(
+            projectPublicState(state, 1, "p1").players[1].libraryPeek?.map(
+                (c) => c.id
+            )
+        ).toEqual(["x"]);
+        expect(
+            projectPublicState(state, 1, "p2").players[1].libraryPeek
+        ).toBeUndefined();
+    });
+
+    it("bottoming sends the owner's top card to the bottom of the owner's library", () => {
+        const id = fatesealScript();
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { library: oppLibrary(["x", "y", "z"]) }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: [],
+            secondZoneIds: ["x"],
+        });
+        expect(state.players[1].library.map((c) => c.id)).toEqual([
+            "y",
+            "z",
+            "x",
+        ]);
+    });
+
+    it("without a chooser, an ordinary Scry keeps the library owner as the chooser (regression)", () => {
+        const id = registerScript("test-op-scry-owner", [
+            {
+                op: "scryReorder",
+                player: "controller",
+                count: 1,
+                destination: "library-bottom",
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: [
+                        makeInstance(BEAR_ID, {
+                            id: "s1",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "library",
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const head = state.pendingChoices![0];
+        expect(head.playerId).toBe("p1");
+        expect(head.zoneOwnerId).toBeUndefined(); // owner chooses — no split
+    });
+});
+
 describe("Effect Script Op: putBack (CR 401.4, issue #1046)", () => {
     const handOf = (owner: "p1" | "p2", ids: string[]) =>
         ids.map((cid) =>

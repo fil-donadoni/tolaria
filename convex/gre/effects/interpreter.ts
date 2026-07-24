@@ -2129,9 +2129,19 @@ export const OP_EXECUTORS: {
         if (playerId === undefined) return; // CR 608.2b — player gone, skip
         const count = resolveValue(ctx, op.count);
         if (count === undefined || count <= 0) return;
+        // Fateseal (issue #1532) — when `chooser` names a player other than the
+        // library owner, the CONTROLLER decides top/bottom while looking at the
+        // TARGET player's library (Jace, the Mind Sculptor +2). Skip the whole
+        // effect if the chooser is gone (CR 608.2b). Undefined = owner chooses.
+        const chooserId =
+            op.chooser === undefined
+                ? undefined
+                : resolvePlayerRef(ctx, op.chooser);
+        if (op.chooser !== undefined && chooserId === undefined) return;
         const applied = ctx.orderTop(playerId, count, {
             destination: op.destination,
             prompt: op.prompt,
+            chooserId,
         });
         if (!applied) return "suspend"; // enqueued the order-top choice — wait
     },

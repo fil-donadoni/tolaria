@@ -12283,11 +12283,26 @@ export function buildSpellContext(
                 destination: LibraryDestination;
                 prompt?: string;
                 choiceId?: string;
+                // Fateseal (issue #1532) — the player who MAKES the top/bottom
+                // decision when it is NOT the library owner (`playerId`). Jace,
+                // the Mind Sculptor's +2 looks at the TARGET player's library
+                // and the CONTROLLER decides. Omitted/equal to `playerId` = the
+                // library owner chooses (ordinary Scry / Surveil), byte-for-byte
+                // the original behavior. Reuses the established chooser≠zone-
+                // owner seam (`PendingChoice.zoneOwnerId`, used by Fact or
+                // Fiction / Demonic Hordes) so no submit/projection change is
+                // needed — the peek is exposed to the chooser, the library ops
+                // still run against `playerId`'s library.
+                chooserId?: string;
             }
         ): boolean {
             const player = getPlayer(state, playerId);
             const topIds = player.library.slice(0, n).map((c) => c.id);
             if (topIds.length === 0) return true;
+            // The library owner is always `playerId`; the CHOOSER is `chooserId`
+            // when it names a different player (fateseal), else the owner.
+            const chooserId = opts.chooserId ?? playerId;
+            const foreignChooser = chooserId !== playerId;
             const step = item.resolutionStep ?? 0;
             const choiceId = opts.choiceId ?? `order-top-${item.id}`;
             const key = `${step}:${choiceId}`;
@@ -12297,7 +12312,11 @@ export function buildSpellContext(
                     stackItemId: item.id,
                     step,
                     choiceId,
-                    playerId,
+                    playerId: chooserId,
+                    // CR 701.20 fateseal — the chooser looks into another
+                    // player's library; `zoneOwnerId` names whose library the
+                    // submit/projection/legal-action paths operate on.
+                    ...(foreignChooser ? { zoneOwnerId: playerId } : {}),
                     kind: "order-top",
                     zone: "library",
                     destination: opts.destination,
@@ -12336,13 +12355,15 @@ export function buildSpellContext(
                         player.library.push(c); // true bottom (CR 701.22)
                     }
                 }
-                // ADR 0026 — the controller looked at these cards and PLACED
-                // them at the bottom in a chosen order (CR 701.22 "in any
-                // order"), so their position is certain: they stay known
-                // (face-up in the controller's bottom-of-library view) until an
-                // uncertainty event (shuffle) clears them. The projection
-                // exposes them as the contiguous known run from the bottom.
-                grantKnowledge(state, playerId, second, playerId);
+                // ADR 0026 — the CHOOSER looked at these cards and PLACED them
+                // at the bottom in a chosen order (CR 701.22 "in any order"), so
+                // their position is certain: they stay known (face-up in the
+                // chooser's bottom-of-library view) until an uncertainty event
+                // (shuffle) clears them. The projection exposes them as the
+                // contiguous known run from the bottom. For fateseal the chooser
+                // (Jace's controller) knows the OWNER's (`playerId`) bottomed
+                // card; ordinary Scry has chooser === owner.
+                grantKnowledge(state, playerId, second, chooserId);
             }
             // After removing the un-kept cards, the kept cards are exactly the top
             // `storedTop.length` of the library — reorder them to the chosen order.
@@ -12359,11 +12380,12 @@ export function buildSpellContext(
                     return card;
                 });
                 player.library.unshift(...reordered);
-                // ADR 0026 — the controller has seen and arranged the kept
-                // cards; they stay known (face-up on top) until a shuffle or a
-                // draw moves them. Graveyard'd cards (surveil) are not marked
-                // here — the graveyard is public anyway.
-                grantKnowledge(state, playerId, storedTop, playerId);
+                // ADR 0026 — the chooser has seen and arranged the kept cards;
+                // they stay known (face-up on top) until a shuffle or a draw
+                // moves them. Graveyard'd cards (surveil) are not marked here —
+                // the graveyard is public anyway. For fateseal the chooser
+                // (Jace's controller) knows the OWNER's kept-on-top card.
+                grantKnowledge(state, playerId, storedTop, chooserId);
             }
             return true;
         },
