@@ -5401,6 +5401,33 @@ export const EFFECT_AFFECTS_SELF: StaticKeywordGrant["applies"] = (
     source
 ) => target.id === source.id;
 
+/** Metalcraft (CR 702 preamble ability word, Mechanics Registry `metalcraft`
+ *  row) — true when `controllerId` controls three or more artifacts (Mox
+ *  Opal's "Activate only if you control three or more artifacts."). Mirrors
+ *  `countDomain`'s shape: a shared board-scan helper (not a per-card closure)
+ *  so a future Metalcraft card reuses this rather than re-deriving the count.
+ *  Counts EVERY permanent whose live `types` include "Artifact" and whose
+ *  `controllerId` matches — the scanning permanent itself included, so a
+ *  metalcraft-conditioned mana rock counts toward its own threshold exactly
+ *  like the printed ruling intends. Reads `TriggerStateView`, the same
+ *  minimal live-board shape `canActivate` predicates receive (issue #947,
+ *  `getManaTapOptionsDetailed` / `hasManaAbility`). */
+export function hasMetalcraft(
+    state: TriggerStateView,
+    controllerId: string
+): boolean {
+    let count = 0;
+    for (const player of state.players) {
+        for (const permanent of player.battlefield) {
+            if (permanent.controllerId !== controllerId) continue;
+            if (!permanent.types.includes("Artifact")) continue;
+            count++;
+            if (count >= 3) return true;
+        }
+    }
+    return false;
+}
+
 /** CR 702.151b — "Attaching an Equipment with reconfigure to another
  *  creature causes the Equipment to stop being a creature until it becomes
  *  unattached." Canonical `applies` for a Reconfigure permanent's own

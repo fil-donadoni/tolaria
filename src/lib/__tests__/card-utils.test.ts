@@ -56,6 +56,7 @@ import { dauthiVoidwalker } from "@convex/cards/sets/mh2/black";
 import { viviOrnitier } from "@convex/cards/sets/fin";
 import { metallicRebuke } from "@convex/cards/sets/aer/blue";
 import { millstone } from "@convex/cards/sets/atq/colorless";
+import { moxOpal } from "@convex/cards/sets/som/colorless";
 import {
     redManaBattery,
     greatWall,
@@ -2991,5 +2992,60 @@ describe("Millstone fixture sanity (Improvise payment tests use it as a plain ar
         });
         expect(hasManaAbility(card)).toBe(false);
         expect(card.types?.includes("Artifact")).toBe(true);
+    });
+});
+
+// Mox Opal's Metalcraft gate (issue #1530) — a NEW `canActivate` predicate
+// shape (a battlefield-wide artifact count, unlike Chrome Mox's per-instance
+// imprint counters or Fellwar Stone's dynamic colour chooser). Frontend
+// wiring analysis (CLAUDE.md): the gate reads `state.players[].battlefield[]
+// .types`/`controllerId`, both fields `buildTriggerStateView` already
+// preserves (issue #947's `hasManaAbility` client mirror), so this drives the
+// SURFACE assertion through the REAL reducer rather than a hand-built view.
+describe("Mox Opal Metalcraft gate through buildTriggerStateView (issue #1530, #947)", () => {
+    function board(artifactCount: number) {
+        const mox = makeCardInstance({
+            id: "mox",
+            card: { id: moxOpal.id },
+            controllerId: "p1",
+            ownerId: "p1",
+            types: ["Artifact"],
+        });
+        const others = Array.from({ length: artifactCount - 1 }, (_, i) =>
+            makeCardInstance({
+                id: `art${i}`,
+                card: { id: moxOpal.id },
+                controllerId: "p1",
+                ownerId: "p1",
+                types: ["Artifact"],
+            })
+        );
+        return buildTriggerStateView([
+            {
+                id: "p1",
+                life: 20,
+                hand: [],
+                battlefield: [mox, ...others],
+            },
+            { id: "p2", life: 20, hand: [], battlefield: [] },
+        ]);
+    }
+
+    it("hasManaAbility is false with fewer than 3 artifacts controlled", () => {
+        const card = makeCardInstance({
+            id: "mox",
+            card: { id: moxOpal.id },
+            types: ["Artifact"],
+        });
+        expect(hasManaAbility(card, board(2))).toBe(false);
+    });
+
+    it("hasManaAbility is true with 3+ artifacts controlled, via the real buildTriggerStateView reducer", () => {
+        const card = makeCardInstance({
+            id: "mox",
+            card: { id: moxOpal.id },
+            types: ["Artifact"],
+        });
+        expect(hasManaAbility(card, board(3))).toBe(true);
     });
 });

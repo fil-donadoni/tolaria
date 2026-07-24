@@ -5202,6 +5202,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Lavaspur Boots",
+        "scryfallId": "e50709de-e6ef-4dbc-af1e-290fed279f34",
+        "oracleId": "63bfb9ca-d9d5-4c17-be39-82eb115bc20c",
+        "firstSet": "otj"
+    },
+    {
         "name": "Ledger Shredder",
         "scryfallId": "7ea4b5bc-18a4-45db-a56a-ab3f8bd2fb0d",
         "oracleId": "e9117015-1050-44dd-a46b-e7ffe2085fae",
@@ -5302,6 +5308,12 @@
         "scryfallId": "d573ef03-4730-45aa-93dd-e45ac1dbaf4a",
         "oracleId": "4457ed35-7c10-48c8-9776-456485fdf070",
         "firstSet": "lea"
+    },
+    {
+        "name": "Lightning Greaves",
+        "scryfallId": "61a28870-cf78-4323-9d82-cee764067764",
+        "oracleId": "ca204b66-8d0c-431a-8d34-282f7c2d17da",
+        "firstSet": "mrd"
     },
     {
         "name": "Liliana of the Veil",
@@ -6082,6 +6094,12 @@
         "scryfallId": "92bcd1ce-19b1-4d78-8b09-95242ca08d76",
         "oracleId": "0677f49e-f8bf-4349-af52-2ccde9287c2e",
         "firstSet": "lea"
+    },
+    {
+        "name": "Mox Opal",
+        "scryfallId": "6be9b1d5-9ab8-4adb-ba54-2c0117e842fa",
+        "oracleId": "de2440de-e948-4811-903c-0bbe376ff64d",
+        "firstSet": "som"
     },
     {
         "name": "Mox Pearl",

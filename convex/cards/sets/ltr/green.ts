@@ -7,16 +7,20 @@
 
 // Delighted Halfling — "{T}: Add {C}.\n{T}: Add one mana of any color. Spend
 // this mana only to cast a legendary spell, and that spell can't be
-// countered." STOP-AND-ISSUE (tracked-by: #675): the {C} ability is trivial,
-// but the second ability needs TWO capabilities this engine doesn't have —
+// countered." STOP-AND-ISSUE, re-audited and re-confirmed by issue #1530
+// (tracked-by: #1559 — supersedes the stale #675 reference, which never
+// analyzed this card specifically): the {C} ability is trivial, but the
+// second ability needs TWO capabilities this engine doesn't have —
 // (1) `ManaRestriction` (`convex/gre/types.ts`) only has `creature-spell` /
 // `artifact-spell` / `cumulative-upkeep` variants, keyed off a spell's card
 // TYPES; a `legendary-spell` variant would need to key off the SUPERTYPE
 // "Legendary" instead, which `restrictionAllowsSpell`'s `spellTypes: readonly
 // string[]` parameter doesn't carry today; and (2) "that spell can't be
 // countered" has no existing rider on spent restricted mana at all — no
-// primitive makes a spell paid for with specific mana uncounterable. Left as
-// a tracked stub pending both.
+// primitive makes a spell paid for with specific mana uncounterable
+// (`counter()` in `gre/state.ts` only reads the STATIC per-definition
+// `cantBeCountered`, never a per-cast/per-payment dynamic flag). Left as a
+// tracked stub pending both — see #1559 for the concrete engine-change plan.
 // export const delightedHalfling: CardDefinition = {
 //     id: "71384418-173a-4f77-adab-56e52fa23692",
 //     name: "Delighted Halfling",
