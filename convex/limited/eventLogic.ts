@@ -69,6 +69,33 @@ export function assignFreeSeat(
     );
 }
 
+/** Clears `userId`/`nickname` off the Seat the given user occupies, returning
+ *  it to the unclaimed state `assignFreeSeat` looks for (issue #1579: an
+ *  occupant leaving an OPEN event's Seat). Throws if the user holds no Seat
+ *  in this event — the mutation is the only caller and it must not silently
+ *  no-op on a stale/duplicate leave. Never touches a Bot Seat (`isBot` Seats
+ *  have no `userId` to match against a real user's id). */
+export function releaseSeat(
+    seats: readonly LimitedEventSeat[],
+    userId: string
+): LimitedEventSeat[] {
+    const index = seats.findIndex((seat) => seat.userId === userId);
+    if (index === -1) {
+        throw new Error("You do not have a seat in this event.");
+    }
+    return seats.map((seat, i) => {
+        if (i !== index) return seat;
+        // Drop userId/nickname only — back to the unclaimed state
+        // `assignFreeSeat` matches on. Every other field is preserved
+        // (defense-in-depth: while OPEN nothing else populates a Seat, but
+        // this stays correct if that ever changes).
+        const rest = { ...seat };
+        delete rest.userId;
+        delete rest.nickname;
+        return rest;
+    });
+}
+
 /** Fills every still-empty Seat with a Bot Drafter placeholder at event start
  *  (PRD #1107 story 8) — a draft/sealed pod never stalls waiting for missing
  *  humans. A seat already claimed (human or, idempotently, an existing bot)

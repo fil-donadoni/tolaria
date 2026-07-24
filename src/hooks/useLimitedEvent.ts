@@ -14,9 +14,15 @@ export type DraftableSetInfo = FunctionReturnType<
     typeof api.limitedEvents.listLimitedDraftableSets
 >[number];
 
+// Sourced from a list query (`v.array(limitedEventViewValidator)`, always
+// non-null elements) rather than `getLimitedEvent` directly — that query now
+// returns `LimitedEventView | null` (issue #1579: a cancelled event a viewer
+// is still looking at), and deriving from it here would make every list
+// consumer (`LimitedEventList`, `LimitedMyEventsList`, …) fight a spurious
+// `| null` in their element type. Same validator underneath either way.
 export type LimitedEventView = FunctionReturnType<
-    typeof api.limitedEvents.getLimitedEvent
->;
+    typeof api.limitedEvents.listOpenLimitedEvents
+>[number];
 
 export type LimitedEventSeatView = LimitedEventView["seats"][number];
 
@@ -37,10 +43,12 @@ export function useMyLimitedEvents(): LimitedEventView[] | undefined {
 }
 
 /** One event, projected for the current viewer (own Pool visible, every
- *  other seat's stripped). `undefined` id skips the query. */
+ *  other seat's stripped). `undefined` id skips the query (still loading);
+ *  `null` means the id doesn't resolve to a live event — a bad id, or the
+ *  creator cancelled it (issue #1579) while this viewer had it open. */
 export function useLimitedEvent(
     eventId: Id<"limitedEvents"> | undefined
-): LimitedEventView | undefined {
+): LimitedEventView | null | undefined {
     return useQuery(
         api.limitedEvents.getLimitedEvent,
         eventId ? { eventId } : "skip"
@@ -50,6 +58,9 @@ export function useLimitedEvent(
 export function useLimitedEventMutations() {
     const create = useMutation(api.limitedEvents.createLimitedEvent);
     const join = useMutation(api.limitedEvents.joinLimitedEvent);
+    // Leave a Seat / cancel a whole event, both OPEN-only (issue #1579).
+    const leave = useMutation(api.limitedEvents.leaveLimitedEvent);
+    const cancel = useMutation(api.limitedEvents.cancelLimitedEvent);
     const start = useMutation(api.limitedEvents.startLimitedEvent);
     const submitPick = useMutation(api.limitedEvents.submitPick);
     // Pool Arrangement persistence (ADR 0060, issue #1247).
@@ -62,6 +73,8 @@ export function useLimitedEventMutations() {
     return {
         create,
         join,
+        leave,
+        cancel,
         start,
         submitPick,
         setPoolArrangementEntry,
