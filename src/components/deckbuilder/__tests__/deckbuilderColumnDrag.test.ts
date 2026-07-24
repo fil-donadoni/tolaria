@@ -30,9 +30,9 @@ describe("resolveDeckbuilderDragAction (issue #1575)", () => {
     });
 
     it("Maindeck card → another Mana-Value column records a manual override, staying in the deck", () => {
-        expect(
-            resolveDeckbuilderDragAction(mainCard, columnDropId(5))
-        ).toEqual({ type: "setColumn", cardId: "bolt", column: 5 });
+        expect(resolveDeckbuilderDragAction(mainCard, columnDropId(5))).toEqual(
+            { type: "setColumn", cardId: "bolt", column: 5 }
+        );
     });
 
     it("Maindeck card → the Lands column pins it into Lands (issue #1573 parity)", () => {
@@ -42,9 +42,9 @@ describe("resolveDeckbuilderDragAction (issue #1575)", () => {
     });
 
     it("Sideboard card → a Maindeck column moves it into the deck AND pins the column", () => {
-        expect(
-            resolveDeckbuilderDragAction(sideCard, columnDropId(2))
-        ).toEqual({ type: "toMaindeck", cardId: "bolt", column: 2 });
+        expect(resolveDeckbuilderDragAction(sideCard, columnDropId(2))).toEqual(
+            { type: "toMaindeck", cardId: "bolt", column: 2 }
+        );
     });
 
     it("Sideboard card → the Lands column moves it in and pins Lands", () => {

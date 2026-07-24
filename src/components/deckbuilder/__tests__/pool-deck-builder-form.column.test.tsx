@@ -41,10 +41,7 @@ vi.mock("../pool-deckbuilder-surface", () => ({
         <div>
             <button
                 onClick={() =>
-                    props.onSetColumn(
-                        "d573ef03-4730-45aa-93dd-e45ac1dbaf4a",
-                        6
-                    )
+                    props.onSetColumn("d573ef03-4730-45aa-93dd-e45ac1dbaf4a", 6)
                 }
                 type="button"
             >
@@ -52,10 +49,7 @@ vi.mock("../pool-deckbuilder-surface", () => ({
             </button>
             <button
                 onClick={() =>
-                    props.onSetColumn(
-                        "eace2c85-976c-425e-9800-5a6ccbd91b56",
-                        4
-                    )
+                    props.onSetColumn("eace2c85-976c-425e-9800-5a6ccbd91b56", 4)
                 }
                 type="button"
             >

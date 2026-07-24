@@ -58,9 +58,9 @@ describe("findColumnOverrideablePoolIndex (issue #1575)", () => {
         const arrangement: PoolArrangementEntry[] = [
             { poolIndex: 0, sideboard: true },
         ];
-        expect(
-            findColumnOverrideablePoolIndex(pool, arrangement, "bolt")
-        ).toBe(1);
+        expect(findColumnOverrideablePoolIndex(pool, arrangement, "bolt")).toBe(
+            1
+        );
     });
 
     it("falls back to any copy when every copy is in the Sideboard", () => {
@@ -68,9 +68,9 @@ describe("findColumnOverrideablePoolIndex (issue #1575)", () => {
         const arrangement: PoolArrangementEntry[] = [
             { poolIndex: 0, sideboard: true },
         ];
-        expect(
-            findColumnOverrideablePoolIndex(pool, arrangement, "bolt")
-        ).toBe(0);
+        expect(findColumnOverrideablePoolIndex(pool, arrangement, "bolt")).toBe(
+            0
+        );
     });
 
     it("returns null for a card not in the Pool (a Basic land added from the bar)", () => {

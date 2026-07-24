@@ -125,7 +125,9 @@ describe("groupDeckIntoFixedColumns (issue #1575)", () => {
         const override = () => "lands" as const;
         const columns = groupDeckIntoFixedColumns([LIGHTNING_BOLT], override);
         expect(
-            columns.find((c) => c.column === "lands")!.cards.map((c) => c.cardName)
+            columns
+                .find((c) => c.column === "lands")!
+                .cards.map((c) => c.cardName)
         ).toEqual(["Lightning Bolt"]);
     });
 });

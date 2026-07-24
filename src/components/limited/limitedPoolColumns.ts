@@ -75,8 +75,11 @@ export function fixedColumnDescriptors(): {
     label: string;
     column: number | "lands";
 }[] {
-    const descriptors: { key: string; label: string; column: number | "lands" }[] =
-        [{ key: "lands", label: "Lands", column: "lands" }];
+    const descriptors: {
+        key: string;
+        label: string;
+        column: number | "lands";
+    }[] = [{ key: "lands", label: "Lands", column: "lands" }];
     for (let n = 0; n <= MAX_POOL_COLUMN; n++) {
         descriptors.push({
             key: `mv-${n}`,

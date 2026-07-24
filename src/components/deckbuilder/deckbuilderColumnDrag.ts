@@ -49,7 +49,10 @@ export function resolveDeckbuilderDragAction(
 ): DeckbuilderDragAction | null {
     if (!source || !destId) return null;
 
-    if (destId === DECKBUILDER_SIDEBOARD_DROP_ID || destId === SIDEBOARD_DROP_ID) {
+    if (
+        destId === DECKBUILDER_SIDEBOARD_DROP_ID ||
+        destId === SIDEBOARD_DROP_ID
+    ) {
         // Only a Maindeck card can move TO the Sideboard; a Sideboard card
         // dropped back on the Sideboard is a no-op.
         return source.kind === "main"

@@ -128,7 +128,10 @@ export default function PoolDeckbuilderSurface({
             const data = source.data as CardDragData | undefined;
             if (!data) return;
             const action = resolveDeckbuilderDragAction(
-                { kind: data.kind === "side" ? "side" : "main", cardId: data.cardId },
+                {
+                    kind: data.kind === "side" ? "side" : "main",
+                    cardId: data.cardId,
+                },
                 typeof target.id === "string" ? target.id : String(target.id)
             );
             if (!action) return;

@@ -22,9 +22,7 @@ function card(id: string, name = id): DeckCard {
 const NO_OVERRIDE = () => undefined;
 
 function renderSurface(
-    props: Partial<
-        Parameters<typeof PoolDeckbuilderSurface>[0]
-    > = {}
+    props: Partial<Parameters<typeof PoolDeckbuilderSurface>[0]> = {}
 ) {
     return render(
         <PoolDeckbuilderSurface
