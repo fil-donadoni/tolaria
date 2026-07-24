@@ -8,6 +8,8 @@ import type {
     PermanentView,
     TriggerStateView,
 } from "../../types";
+import { PERMANENT_TYPES } from "../../types";
+import { ELDRAZI_SPAWN_TOKEN } from "../../sharedTokens";
 
 // Fanatic of Rhonas — {1}{G} Creature — Snake Druid, 1/4.
 // "{T}: Add {G}. Ferocious — {T}: Add {G}{G}{G}{G}. Activate only if you
@@ -56,6 +58,45 @@ export const fanaticOfRhonas: CardDefinition = {
                 }
                 return false;
             },
+        },
+    ],
+};
+
+// Malevolent Rumble — {1}{G} Sorcery (Cube FREE wave 3, issue #1531/#1525).
+// "Reveal the top four cards of your library. You may put a permanent card
+// from among them into your hand. Put the rest into your graveyard. Create a
+// 0/1 colorless Eldrazi Spawn creature token with 'Sacrifice this token: Add
+// {C}.'" (CR 701.20a reveal, CR 401.4 dig, CR 707.2 token creation.) Fully
+// free — a `digToHand` Op (issue #984/#1101) with `reveal: "window"`
+// (Reviving Vapors precedent) and `filter: { type: PERMANENT_TYPES }` (any of
+// the six permanent card types, CR 300.1) expresses "a permanent card"
+// exactly; `destination: "graveyard"` sends the rest there (Reviving Vapors'
+// own `graveyard` leg). The Eldrazi Spawn is the shared
+// `ELDRAZI_SPAWN_TOKEN` spec (`sharedTokens.ts`), pinned to its own printed
+// Scryfall art.
+export const malevolentRumble: CardDefinition = {
+    id: "a178cfe8-f9fa-4255-88d0-54a0bed079f5",
+    rarity: "common",
+    name: "Malevolent Rumble",
+    oracleText:
+        'Reveal the top four cards of your library. You may put a permanent card from among them into your hand. Put the rest into your graveyard. Create a 0/1 colorless Eldrazi Spawn creature token with "Sacrifice this token: Add {C}."',
+    manaCost: { X: 1, G: 1 },
+    types: ["Sorcery"],
+    effects: [
+        {
+            op: "digToHand",
+            player: "controller",
+            look: 4,
+            take: 1,
+            optional: true,
+            filter: { type: [...PERMANENT_TYPES] },
+            destination: "graveyard",
+            reveal: "window",
+        },
+        {
+            op: "createToken",
+            token: ELDRAZI_SPAWN_TOKEN,
+            controller: "controller",
         },
     ],
 };
