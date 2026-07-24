@@ -244,23 +244,106 @@ export const quandrixCharm: CardDefinition = {
     ],
 };
 
-// Lorehold Charm — {R}{W} Instant. "Choose one — Each opponent sacrifices a
-// nontoken artifact of their choice. / Return target artifact or creature
-// card with mana value 2 or less from your graveyard to the battlefield. /
-// Creatures you control get +1/+1 and gain trample until end of turn." (CR
-// 700.2 modal, already supported by `optionChoice`.) Blocked: modes 2 (a
-// graveyard reanimation with `manaValueAtMost: 2`) and 3 (a mass pump +
-// trample grant) are both free with existing Ops, but mode 1 needs a
-// `nontoken` field on `EffectCardFilter`, which doesn't exist — and a card
-// can't ship with only 2 of its 3 modes (issue #920).
-// tracked-by: #920
-// export const loreholdCharm: CardDefinition = {
-//     id: "5fe70295-e550-4577-a341-dab6c25aabfd",
-//     name: "Lorehold Charm",
-//     rarity: "uncommon",
-//     manaCost: { W: 1, R: 1 },
-//     types: ["Instant"],
-// };
+// Lorehold Charm — {R}{W} Instant (Cube FREE wave 3, issue #1529). "Choose
+// one — • Each opponent sacrifices a nontoken artifact of their choice. •
+// Return target artifact or creature card with mana value 2 or less from
+// your graveyard to the battlefield. • Creatures you control get +1/+1 and
+// gain trample until end of turn." (CR 700.2 modal.) Modes have different
+// target shapes (modes 1 and 3 have none, mode 2 targets a graveyard card) —
+// same cross-mode-target gap as Witherbloom Charm above; uses the legacy
+// `modes` mechanism. UNBLOCKED (was `tracked-by: #920`): that stub predated
+// `EffectCardFilter.isToken` (issue #920 itself shipped the field it cited as
+// missing) — mode 1's "nontoken artifact" filter is exactly
+// `{ type: "Artifact", isToken: false }`, the Sheoldred's Edict precedent
+// (`one/black.ts`). Mode 2's mv-capped graveyard reanimation mirrors Sevinne's
+// Reclamation's `targetRequirement` (`c19/white.ts`) plus the Reanimate
+// `moveZone` reanimation body (`tmp/black.ts`). Mode 3 is a `forEach`-driven
+// mass `pump` + `grantAbility` (Sandstorm Salvager precedent, `big/green.ts`).
+// All three modes compose from already-shipped Ops — no new Op or construct
+// needed.
+export const loreholdCharm: CardDefinition = {
+    id: "5fe70295-e550-4577-a341-dab6c25aabfd",
+    rarity: "uncommon",
+    name: "Lorehold Charm",
+    oracleText:
+        "Choose one —\n• Each opponent sacrifices a nontoken artifact of their choice.\n• Return target artifact or creature card with mana value 2 or less from your graveyard to the battlefield.\n• Creatures you control get +1/+1 and gain trample until end of turn.",
+    manaCost: { W: 1, R: 1 },
+    types: ["Instant"],
+    modes: [
+        {
+            id: "sacrifice-artifact",
+            label: "Each opponent sacrifices a nontoken artifact of their choice.",
+            oracleText:
+                "Each opponent sacrifices a nontoken artifact of their choice.",
+            effects: [
+                {
+                    op: "choice",
+                    kind: "sacrifice-permanents",
+                    player: "opponent",
+                    zone: "battlefield",
+                    filter: { type: "Artifact", isToken: false },
+                    count: 1,
+                    prompt: "Sacrifice a nontoken artifact of your choice.",
+                    bind: "$sac",
+                },
+                { op: "sacrifice", permanents: { ref: "$sac" } },
+            ],
+        },
+        {
+            id: "reanimate",
+            label: "Return target artifact or creature card with mana value 2 or less from your graveyard to the battlefield.",
+            oracleText:
+                "Return target artifact or creature card with mana value 2 or less from your graveyard to the battlefield.",
+            targetRequirement: {
+                type: ["Artifact", "Creature"],
+                count: 1,
+                zone: "graveyard",
+                controller: "you",
+                mvFilter: { max: 2 },
+            },
+            effects: [
+                {
+                    op: "moveZone",
+                    target: { target: 0 },
+                    to: "battlefield",
+                    controller: "controller",
+                },
+            ],
+        },
+        {
+            id: "pump-trample",
+            label: "Creatures you control get +1/+1 and gain trample until end of turn.",
+            oracleText:
+                "Creatures you control get +1/+1 and gain trample until end of turn.",
+            effects: [
+                {
+                    op: "forEach",
+                    select: {
+                        set: "permanents",
+                        zone: "battlefield",
+                        controller: "controller",
+                        filter: { type: "Creature" },
+                    },
+                    effects: [
+                        {
+                            op: "pump",
+                            target: { ref: "$each" },
+                            power: 1,
+                            toughness: 1,
+                            duration: { phase: "end-of-turn" },
+                        },
+                        {
+                            op: "grantAbility",
+                            ability: "trample",
+                            target: { ref: "$each" },
+                            duration: { phase: "end-of-turn" },
+                        },
+                    ],
+                },
+            ],
+        },
+    ],
+};
 
 // Vicious Rivalry — {2}{B}{G} Sorcery. "As an additional cost to cast this
 // spell, pay X life. Destroy all artifacts and creatures with mana value X or

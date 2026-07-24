@@ -6,6 +6,7 @@ import {
     witherbloomCharm,
     silverquillCharm,
     quandrixCharm,
+    loreholdCharm,
 } from "../multicolor";
 import {
     makeInstance,
@@ -23,6 +24,7 @@ import {
     getEffectivePower,
     getEffectiveToughness,
 } from "../../../../gre/layers";
+import { getLegalTargets } from "../../../../gre/rules";
 import { registerTokenDefinition } from "../../..";
 
 const CREATURE_ID = "6914c5a8-2114-41c5-a471-ca97524d622f"; // Sabretooth Tiger
@@ -605,5 +607,206 @@ describe("Quandrix Charm (CR 700.2 modal — counter-unless-pay, destroy enchant
         )!;
         expect(getEffectivePower(projected, slim)).toBe(5);
         expect(getEffectiveToughness(projected, slim)).toBe(5);
+    });
+});
+
+// Lorehold Charm ships via the legacy `modes` mechanism (like its Witherbloom/
+// Silverquill/Quandrix siblings above), which the auto-generated canned-
+// scenario smoke sweep does NOT reach — `effectScriptSmoke.test.ts`'s
+// `collectDslSites` deliberately skips `modes[].effects` (per-Op coverage is
+// only proven for the site shapes the generator scenario-izes). So, despite
+// every mode composing from already-exercised Ops (`choice`/`sacrifice`,
+// `moveZone`, `forEach`+`pump`+`grantAbility`), this card has ZERO resolve-
+// through-the-stack coverage without a hand-written test — the same gap the
+// three sibling Charms above already close for themselves.
+describe("Lorehold Charm (CR 700.2 modal — edict sacrifice, graveyard reanimation, or mass pump; issue #1529)", () => {
+    it("declares three modes; only the reanimate mode targets (a graveyard card, CR 700.2d)", () => {
+        expect(loreholdCharm.modes).toHaveLength(3);
+        const reanimate = loreholdCharm.modes!.find(
+            (m) => m.id === "reanimate"
+        )!;
+        expect(reanimate.targetRequirement).toMatchObject({
+            type: ["Artifact", "Creature"],
+            zone: "graveyard",
+            controller: "you",
+            mvFilter: { max: 2 },
+        });
+        expect(
+            loreholdCharm.modes!.find((m) => m.id === "sacrifice-artifact")!
+                .targetRequirement
+        ).toBeUndefined();
+        expect(
+            loreholdCharm.modes!.find((m) => m.id === "pump-trample")!
+                .targetRequirement
+        ).toBeUndefined();
+    });
+
+    it("sacrifice-artifact mode: each opponent sacrifices a NONTOKEN artifact of their choice, the token is not a candidate (CR 701.16 / issue #920)", () => {
+        const nontoken = makeInstance(ARTIFACT_ID, {
+            id: "nontoken-art",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const token = makeInstance(ARTIFACT_ID, {
+            id: "token-art",
+            controllerId: "p2",
+            ownerId: "p2",
+            isToken: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [nontoken, token] }),
+            ],
+        });
+        const item = pushSpell(state, loreholdCharm.id, "p1");
+        item.chosenModeId = "sacrifice-artifact";
+        expect(resolveTopOfStack(state)).toBeNull(); // suspended on the opponent's pick
+
+        // The choice belongs to the OPPONENT (CR 701.16a) and only the
+        // nontoken artifact is a legal candidate (`isToken: false`).
+        const head = state.pendingChoices![0];
+        expect(head.playerId).toBe("p2");
+        expect(head.zone).toBe("battlefield");
+        expect(head.filter).toMatchObject({
+            types: "Artifact",
+            isToken: false,
+        });
+
+        applyPendingChoiceSubmit(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["nontoken-art"],
+        });
+
+        // Only the nontoken artifact was sacrificed; the token survives.
+        expect(state.players[1].battlefield.map((c) => c.id)).toEqual([
+            "token-art",
+        ]);
+        expect(
+            state.players[1].graveyard.some((c) => c.id === "nontoken-art")
+        ).toBe(true);
+        expect(state.stack).toHaveLength(0);
+    });
+
+    it("reanimate mode: mvFilter restricts legal graveyard targets to mana value 2 or less (CR 400.7)", () => {
+        // Black Lotus (mv 0) is legal; Sabretooth Tiger ({2}{R}, mv 3) is not.
+        const lotus = makeInstance(ARTIFACT_ID, {
+            id: "gy-lotus",
+            zone: "graveyard",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const tiger = makeInstance(CREATURE_ID, {
+            id: "gy-tiger",
+            zone: "graveyard",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { graveyard: [lotus, tiger] }),
+                makePlayer("p2"),
+            ],
+        });
+        const legal = getLegalTargets(
+            state,
+            loreholdCharm.modes!.find((m) => m.id === "reanimate")!
+                .targetRequirement!,
+            [],
+            "p1"
+        );
+        const ids = legal.map((t) => t.id);
+        expect(ids).toContain("gy-lotus");
+        expect(ids).not.toContain("gy-tiger");
+    });
+
+    it("reanimate mode: returns the targeted mv <= 2 card from your graveyard to the battlefield (CR 400.7)", () => {
+        const lotus = makeInstance(ARTIFACT_ID, {
+            id: "gy-lotus-2",
+            zone: "graveyard",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { graveyard: [lotus] }),
+                makePlayer("p2"),
+            ],
+        });
+        const item = pushSpell(state, loreholdCharm.id, "p1", [
+            { type: "graveyard-card", id: "gy-lotus-2", playerId: "p1" },
+        ]);
+        item.chosenModeId = "reanimate";
+        resolveTopOfStack(state);
+
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "gy-lotus-2")
+        ).toBe(true);
+        expect(
+            state.players[0].graveyard.some((c) => c.id === "gy-lotus-2")
+        ).toBe(false);
+    });
+
+    it("pump-trample mode: creatures you control get +1/+1 and trample until end of turn; the opponent's creature is untouched (CR 613.4c layer 7c)", () => {
+        const mine1 = makeInstance(CREATURE_ID, {
+            id: "mine-1",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const mine2 = makeInstance(CREATURE_ID, {
+            id: "mine-2",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const theirs = makeInstance(CREATURE_ID, {
+            id: "theirs",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [mine1, mine2] }),
+                makePlayer("p2", { battlefield: [theirs] }),
+            ],
+        });
+        const item = pushSpell(state, loreholdCharm.id, "p1");
+        item.chosenModeId = "pump-trample";
+        resolveTopOfStack(state);
+
+        const mine1After = state.players[0].battlefield.find(
+            (c) => c.id === "mine-1"
+        )!;
+        const mine2After = state.players[0].battlefield.find(
+            (c) => c.id === "mine-2"
+        )!;
+        const theirsAfter = state.players[1].battlefield.find(
+            (c) => c.id === "theirs"
+        )!;
+
+        // Sabretooth Tiger is base 2/1 — both of ours become 3/2 with trample.
+        expect(getEffectivePower(state, mine1After)).toBe(3);
+        expect(getEffectiveToughness(state, mine1After)).toBe(2);
+        expect(mine1After.staticAbilities).toContain("trample");
+        expect(getEffectivePower(state, mine2After)).toBe(3);
+        expect(getEffectiveToughness(state, mine2After)).toBe(2);
+        expect(mine2After.staticAbilities).toContain("trample");
+
+        // The opponent's creature is untouched — "creatures YOU control".
+        expect(getEffectivePower(state, theirsAfter)).toBe(2);
+        expect(getEffectiveToughness(state, theirsAfter)).toBe(1);
+        expect(theirsAfter.staticAbilities ?? []).not.toContain("trample");
+
+        // Wire format: the mass pump and the granted keyword survive the
+        // projection (CR 613.4c layer 7c is a board-visible effect).
+        const projected = projectPublicState(state, 1, "p1");
+        const slimMine1 = projected.players[0].battlefield.find(
+            (c) => c.id === "mine-1"
+        )!;
+        expect(getEffectivePower(projected, slimMine1)).toBe(3);
+        expect(getEffectiveToughness(projected, slimMine1)).toBe(2);
+        expect(slimMine1.staticAbilities).toContain("trample");
     });
 });

@@ -5448,6 +5448,12 @@
         "firstSet": "lea"
     },
     {
+        "name": "Lorehold Charm",
+        "scryfallId": "5fe70295-e550-4577-a341-dab6c25aabfd",
+        "oracleId": "a5729f11-6cde-4830-b882-ab4c5251c1a9",
+        "firstSet": "sos"
+    },
+    {
         "name": "Lórien Revealed",
         "scryfallId": "0ce44270-a684-4489-9077-521456e6dfaa",
         "oracleId": "66f28905-c7fc-4ada-8fa0-199626d9bedb",
