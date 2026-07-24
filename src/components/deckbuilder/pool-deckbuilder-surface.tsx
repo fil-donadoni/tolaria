@@ -9,13 +9,17 @@ import {
 import { PointerActivationConstraints } from "@dnd-kit/dom";
 import type { DeckCard } from "~/types/game";
 import CardImage from "~/components/cards/card-image";
-import DeckPileArea from "~/components/lobby/deck-builder/deck-pile-area";
 import CardZoomSlider from "~/components/lobby/deck-builder/card-zoom-slider";
 import { useCardZoom } from "~/components/lobby/deck-builder/useCardZoom";
 import { useSplitRatio } from "~/components/lobby/deck-builder/useSplitRatio";
+import { groupDeckIntoPiles } from "~/components/lobby/deckGrouping";
 import PoolSplitDivider from "~/components/deckbuilder/pool-split-divider";
 import PoolDeckbuilderMaindeck from "~/components/deckbuilder/pool-deckbuilder-maindeck";
 import { resolveDeckbuilderDragAction } from "~/components/deckbuilder/deckbuilderColumnDrag";
+import PoolSideboardPile, {
+    type PoolSideboardGroup,
+} from "~/components/limited/pool-sideboard-pile";
+import type { PoolPileTile } from "~/components/limited/pool-column-pile";
 import type { CardDragData } from "~/components/lobby/deck-builder/dnd-types";
 
 const CARD_BASE = "min(7.5rem, 17vw, 9dvh)";
@@ -149,6 +153,34 @@ export default function PoolDeckbuilderSurface({
         [onMoveToSideboard, onMoveToMaindeck, onSetColumn]
     );
 
+    // Sideboard cards, bucketed by Mana Value into the SAME dynamic piles as
+    // before (`groupDeckIntoPiles`), then mapped to the shared
+    // `PoolSideboardPile` groups — the deckbuilder's `cardId`-keyed
+    // `kind: "side"` drag payload + click-to-maindeck gesture as tile props
+    // (issue #1581).
+    const sideGroups = useMemo<PoolSideboardGroup[]>(
+        () =>
+            groupDeckIntoPiles(sideCards).map((pile) => ({
+                key: pile.key,
+                label: pile.label,
+                tiles: pile.cards.map(
+                    (card, idx): PoolPileTile => ({
+                        key: `${pile.key}:${card.cardId}:${idx}`,
+                        cardId: card.cardId,
+                        dragId: `side:${pile.key}:${card.cardId}:${idx}`,
+                        dragData: {
+                            kind: "side",
+                            cardId: card.cardId,
+                            cardName: card.cardName,
+                        } satisfies CardDragData,
+                        title: `Remove ${card.cardName} (drag to move zone)`,
+                        onClick: () => onMoveToMaindeck(card.cardId),
+                    })
+                ),
+            })),
+        [sideCards, onMoveToMaindeck]
+    );
+
     return (
         <div
             className="flex flex-1 flex-col overflow-hidden"
@@ -190,13 +222,12 @@ export default function PoolDeckbuilderSurface({
                         className="min-h-0 min-w-0 flex-1 overflow-hidden"
                         style={zoomVars(sideZoom.value)}
                     >
-                        <DeckPileArea
+                        <PoolSideboardPile
                             title={sideTitle}
-                            zone="side"
-                            grouped
-                            cards={sideCards}
-                            onRemove={onMoveToMaindeck}
+                            count={sideCards.length}
+                            groups={sideGroups}
                             emptyMessage={sideEmptyMessage}
+                            className="h-full overflow-auto p-3 md:p-4"
                             headerRight={
                                 <CardZoomSlider
                                     value={sideZoom.value}

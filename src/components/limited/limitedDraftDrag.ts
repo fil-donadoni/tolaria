@@ -30,15 +30,35 @@ export interface PoolDragData {
 
 export type DraftDragData = BoosterDragData | PoolDragData;
 
-/** Where a drag landed — the Sideboard, or a specific column: a numbered
- *  Mana-Value column, or `"lands"` (ADR 0060, issue #1573: a committed
- *  non-drag Pick lands in its own MV column by default; landing via a drag
- *  onto a SPECIFIC column always names that exact column explicitly,
- *  whether or not it happens to equal the card's own auto column — Lands
- *  included, any card type can be manually pinned there). */
-export type DraftDropTarget =
+/** Where a drop landed on the shared Pool surface — the Sideboard, or a
+ *  specific column: a numbered Mana-Value column, or `"lands"`. The ONE
+ *  drop-target type both the draft Pool and the limited deckbuilder resolve to
+ *  (issue #1581), covering column, Lands, and Sideboard destinations
+ *  uniformly. (ADR 0060, issue #1573: a committed non-drag Pick lands in its
+ *  own MV column by default; landing via a drag onto a SPECIFIC column always
+ *  names that exact column explicitly, whether or not it happens to equal the
+ *  card's own auto column — Lands included, any card type can be manually
+ *  pinned there). */
+export type PoolDropTarget =
     | { kind: "sideboard" }
     | { kind: "column"; column: number | "lands" };
+
+/** @deprecated Alias kept for the draft-Pool call sites — use `PoolDropTarget`
+ *  (the shared name, issue #1581). */
+export type DraftDropTarget = PoolDropTarget;
+
+/** Resolves a drop-target DOM id to the shared `PoolDropTarget` it names — the
+ *  Sideboard (`SIDEBOARD_DROP_ID`) or a fixed column (`columnDropId`) — or
+ *  `null` for any unrecognized id. The single "what does this destination
+ *  MEAN" parser both surfaces' drag resolvers delegate to (issue #1581). */
+export function resolvePoolDropTarget(
+    dest: string | undefined
+): PoolDropTarget | null {
+    if (!dest) return null;
+    if (dest === SIDEBOARD_DROP_ID) return { kind: "sideboard" };
+    const column = parseColumnDropId(dest);
+    return column !== null ? { kind: "column", column } : null;
+}
 
 /** What a resolved drop MEANS — `limited-draft-table.tsx` maps this to the
  *  actual mutation call(s) (`submitPick` / `setPoolArrangementEntry`). */
@@ -73,15 +93,9 @@ export function resolveDraftDragAction(
     data: DraftDragData | undefined,
     dest: string | undefined
 ): DraftDragAction | null {
-    if (!data || !dest) return null;
+    if (!data) return null;
 
-    let target: DraftDropTarget | null = null;
-    if (dest === SIDEBOARD_DROP_ID) {
-        target = { kind: "sideboard" };
-    } else {
-        const column = parseColumnDropId(dest);
-        if (column !== null) target = { kind: "column", column };
-    }
+    const target = resolvePoolDropTarget(dest);
     if (target === null) return null;
 
     return data.kind === "booster"
