@@ -12,14 +12,11 @@ Gut
 Laelia
 Troll of Kazad-dum
 Bitter Triumph
-Pyrogoyf
 Broadside Bombardiers
 Nadu
 Lightning Greaves
 Springheart Nantuko
-Mox Opal
 Mox Diamond
-Teferino
 Teferone
 Fallen Shinobi
 Grist
@@ -45,11 +42,6 @@ Fable of the mirror-breaker
 - se cerco nel grimorio con filtro e non ci sono risultati validi, devo comunque vedere il grimorio con tutte le carte disattivate e poi mischiare.
 - Goblin artisans: abbiamo perso l'animazione del coin toss che prima c'era.
 - le abilità loyalty di un planeswalker non devono comparire nel context menu se siamo in una fase non sorcery speed, a meno di abilità che le abilitano a questa velocità.
-- Nel pool draft non puoi trascinare una carta nella colonna delle terre
-- Nella sideboard del pool draft le carte sono ancora separate con offset esagerato. disponile come il maindeck
-- Anche nel deckbuilder devo poter spostare le carte tra una colonna e l'altras
-- Nel deckbuidler limited mancano i pulsanti per aggiungere alcune terre base, dipendentemente dai colori del main penso. in vintage cub non c'è nessun pulsante per aggiungere le terre base. devo poterle sempre aggiungere tutte
-- In draft, a mazzi costruiti, non vedo gli altri giocatori umani per giocarci contro
 - Chromatic armor non mostra il colore attualmente attivo nell'oracle text live
 
 # Bug gameplay
