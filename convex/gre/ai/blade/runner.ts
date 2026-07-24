@@ -22,7 +22,7 @@
 import { getCardByName } from "../../../cards";
 import { createInitialGameState, type PlayerInput } from "../../setup";
 import { buildStateFromScenario } from "../../scenarioBuilder";
-import { searchWithTrace } from "../../search";
+import { decidingPlayer, searchWithTrace } from "../../search";
 import type { GameState } from "../../state";
 import type { Move } from "../../moves";
 import {
@@ -34,6 +34,40 @@ import {
 import { findBladeScenario } from "./registry";
 import { applyBladeSetup } from "./setup";
 import type { BeyondBudget, BladeScenario } from "./types";
+
+/** Thrown when a blade entry's declared `bot` seat does not hold the
+ *  decision at search start (issue #1522) — modeled on `BladeSetupError`
+ *  (`setup.ts`): a distinct class so a caller can tell an AUTHORING mistake
+ *  (the entry names the wrong seat, or a `setup` sequence that leaves the
+ *  built position with no decision owed at all) from an actual bot result.
+ *  Before this check, the same mistake reached `searchWithTrace`, which
+ *  returns `move: null` for a seat that owes nothing — indistinguishable
+ *  from a bot that legitimately has no move, and reported as "chose [no
+ *  move]" against whatever `expect` demanded. That is exactly the kind of
+ *  position `setup.ts`'s own header promises to throw on rather than
+ *  silently mismeasure — this closes the one gap that promise didn't yet
+ *  cover: a position built to spec but handed to the WRONG decider. */
+export class BladeDeciderError extends Error {
+    constructor(
+        label: string,
+        declaredBot: BladeScenario["bot"],
+        state: GameState,
+        actualDeciderId: string | null
+    ) {
+        const describe = (id: string | null): string => {
+            if (id === null) return "no one (nothing is owed)";
+            if (id === seatPlayerId(state, "me")) return `"me" (${id})`;
+            if (id === seatPlayerId(state, "opp")) return `"opp" (${id})`;
+            return id;
+        };
+        super(
+            `Blade scenario "${label}": declares bot "${declaredBot}", but at ` +
+                `search start the decision belongs to ${describe(actualDeciderId)} — ` +
+                `check the entry's \`bot\` seat or its \`setup\` sequence.`
+        );
+        this.name = "BladeDeciderError";
+    }
+}
 
 /** The one seed every blade entry uses unless it declares its own. Fixed
  *  forever — changing it re-rolls the whole suite. */
@@ -311,6 +345,23 @@ export function runBladeScenario(scenario: BladeScenario): BladeResult {
         // state, but rebuilding keeps each seed's run provably independent.
         const state = buildBladeState(scenario);
         const botId = seatPlayerId(state, scenario.bot);
+        // AUTHORING CHECK (issue #1522): the declared `bot` seat must be the
+        // one `searchWithTrace` would actually run for — the exact window
+        // `decidingPlayer` defines (priority, an open declare-blockers/
+        // attackers window, a live `pendingChoices` head). A mismatch means
+        // the entry is malformed (wrong `bot`, or a `setup` sequence that
+        // leaves nothing owed) — throw here, loudly, rather than let the
+        // search return `move: null` and report a misleading "chose [no
+        // move]" against the entry's `expect`.
+        const decider = decidingPlayer(state);
+        if (decider !== botId) {
+            throw new BladeDeciderError(
+                scenario.label,
+                scenario.bot,
+                state,
+                decider
+            );
+        }
         const { move } = searchWithTrace(
             state,
             botId,

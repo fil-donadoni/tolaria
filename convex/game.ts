@@ -3470,10 +3470,57 @@ export const summonCompanion = mutation({
     },
 });
 
-/** Resolves an activated ability id on a battlefield card. Returns the
- *  template and, when the ability was granted to this permanent by another
- *  card (CR 113.1, e.g. Zombie Master's "{B}: Regenerate ~" grant), the
- *  granting card def id. Returns null if no matching ability exists. */
+/** Every activated ability actually available on this permanent POST-LAYER
+ *  (CR 611.1b / 613.1f, layer 6): native abilities from its `CardDefinition`
+ *  — dropped entirely while `abilitiesSuppressedBy` holds a "loses all
+ *  abilities" suppression (Titania's Song) — PLUS every ability granted to it
+ *  by another source's continuous static effect (CR 113.1, e.g. Zombie
+ *  Master's "{B}: Regenerate ~"), already materialized onto
+ *  `grantedActivatedAbilities` by `applySourceStaticEffects`. This is the
+ *  effective set `resolveActivatedAbility` (below) looks a single id up in —
+ *  exported so a caller that needs the WHOLE set, not one id (the blade
+ *  harness's `setup` `activate` step, issue #1522), resolves the exact same
+ *  post-layer list instead of re-deriving one from the static
+ *  `CardDefinition` alone, which would miss every statically-granted ability
+ *  and wrongly offer a statically-suppressed one. */
+export function getEffectiveActivatedAbilities(card: CardInstanceState): Array<{
+    ability: NonNullable<
+        ReturnType<typeof getDefinition>["activatedAbilities"]
+    >[number];
+    grantedSourceCardId?: string;
+}> {
+    const cardId = (card.card as { id?: string }).id;
+    const suppressed = (card.abilitiesSuppressedBy?.length ?? 0) > 0;
+    const out: Array<{
+        ability: NonNullable<
+            ReturnType<typeof getDefinition>["activatedAbilities"]
+        >[number];
+        grantedSourceCardId?: string;
+    }> = [];
+    if (cardId && !suppressed) {
+        for (const ability of getDefinition(cardId).activatedAbilities ?? []) {
+            out.push({ ability });
+        }
+    }
+    for (const grant of card.grantedActivatedAbilities ?? []) {
+        const tmpl = getDefinition(grant.sourceCardId).grantTemplates?.find(
+            (a) => a.id === grant.abilityId
+        );
+        if (tmpl) {
+            out.push({
+                ability: tmpl,
+                grantedSourceCardId: grant.sourceCardId,
+            });
+        }
+    }
+    return out;
+}
+
+/** Resolves an activated ability id on a battlefield card against its
+ *  post-layer effective set ({@link getEffectiveActivatedAbilities}). Returns
+ *  the template and, when the ability was granted to this permanent by
+ *  another card (CR 113.1), the granting card def id. Returns null if no
+ *  matching ability exists. */
 function resolveActivatedAbility(
     card: CardInstanceState,
     abilityId: string
@@ -3483,30 +3530,11 @@ function resolveActivatedAbility(
     >[number];
     grantedSourceCardId?: string;
 } | null {
-    const cardId = (card.card as { id?: string }).id;
-    // CR 613.1f — a permanent that "loses all abilities" (Titania's Song) has
-    // no native activated abilities while suppressed. Abilities granted by
-    // another source (`grantedActivatedAbilities`) are not the permanent's own
-    // and are unaffected.
-    const suppressed = (card.abilitiesSuppressedBy?.length ?? 0) > 0;
-    if (cardId && !suppressed) {
-        const native = getDefinition(cardId).activatedAbilities?.find(
-            (a) => a.id === abilityId
-        );
-        if (native) return { ability: native };
-    }
-    const grant = card.grantedActivatedAbilities?.find(
-        (g) => g.abilityId === abilityId
+    return (
+        getEffectiveActivatedAbilities(card).find(
+            (r) => r.ability.id === abilityId
+        ) ?? null
     );
-    if (grant) {
-        const tmpl = getDefinition(grant.sourceCardId).grantTemplates?.find(
-            (a) => a.id === abilityId
-        );
-        if (tmpl) {
-            return { ability: tmpl, grantedSourceCardId: grant.sourceCardId };
-        }
-    }
-    return null;
 }
 
 /** Throws a descriptive Error if the activated ability's CR 602.5 timing

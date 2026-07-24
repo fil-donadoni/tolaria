@@ -32,7 +32,7 @@ import {
     matchesMove,
     seatPlayerId,
 } from "../matcher";
-import { runBladeScenario } from "../runner";
+import { BladeDeciderError, runBladeScenario } from "../runner";
 import type { BladeScenario } from "../types";
 
 // ────────────────────────────────────────────────────────────────────────
@@ -445,5 +445,30 @@ describe("runBladeScenario — seeds (issue #1427)", () => {
                 })
             )
         ).toThrow(/no instance of it exists/i);
+    });
+});
+
+describe("runBladeScenario — decider authoring check (issue #1522)", () => {
+    // LAND_SPEC is "me"'s own main phase with priority: only "me" owes a
+    // decision (play the Forest, or pass). Declaring `bot: "opp"` is an
+    // authoring mistake the runner used to mask — `searchWithTrace` for a
+    // seat that owes nothing just returns `move: null`, which then failed
+    // the entry as "chose [no move]" against whatever `expect` demanded,
+    // rather than surfacing the real bug (the entry names the wrong seat).
+    it("throws BladeDeciderError when the declared bot does not hold the decision", () => {
+        const misauthored: BladeScenario = {
+            ...landScenario({ moves: [{ kind: "pass" }] }),
+            bot: "opp",
+        };
+        expect(() => runBladeScenario(misauthored)).toThrow(BladeDeciderError);
+        expect(() => runBladeScenario(misauthored)).toThrow(
+            /declares bot "opp".*decision belongs to "me"/s
+        );
+    });
+
+    it("does not throw when the declared bot does hold the decision", () => {
+        expect(() =>
+            runBladeScenario(landScenario({ moves: ANY_LEGAL }))
+        ).not.toThrow();
     });
 });

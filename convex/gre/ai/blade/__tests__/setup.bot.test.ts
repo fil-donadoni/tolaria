@@ -21,6 +21,7 @@ import { buildStateFromScenario } from "../../../scenarioBuilder";
 import { enumerateMoves } from "../../../moves";
 import type { GameState } from "../../../state";
 import type { ScenarioSpec } from "../../../../debugScenarioSpec";
+import { getCardByName } from "../../../../cards";
 
 const DREADNOUGHT = "Phyrexian Dreadnought";
 const CHARTER = "charter: Stifles its own Phyrexian Dreadnought trigger";
@@ -377,6 +378,85 @@ describe("blade setup — `activate` runs the real activation path (ADR 0070 §4
                 setup: [{ kind: "activate", card: "Jayemdae Tome" }],
             })
         ).toThrow(/put nothing on the stack/);
+    });
+});
+
+/**
+ * `activate` resolves POST-LAYER abilities (issue #1522, CR 611.1b/613.1f
+ * layer 6) — not the static `CardDefinition` alone. Two directions:
+ *   - a native ability another permanent's continuous static effect GRANTED
+ *     to this instance must be activatable, even though it never appears on
+ *     the target's own printed `CardDefinition`;
+ *   - a native ability a "loses all abilities" continuous effect SUPPRESSES
+ *     must still be rejected, exactly as `activateAbilityOnState`'s own
+ *     `resolveActivatedAbility` check rejects it in a live game.
+ */
+describe("blade setup — `activate` resolves post-layer abilities (issue #1522)", () => {
+    const MASTER = "Zombie Master";
+    const ZOMBIE = "Scathe Zombies";
+
+    it("activates an ability GRANTED by another permanent's static effect, absent from the target's own CardDefinition", () => {
+        const state = build({
+            cards: [
+                { name: MASTER, owner: "me", zone: "battlefield" },
+                {
+                    name: ZOMBIE,
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            // Both cards are black — a Swamp per seat (CR 202.2 color-match
+            // seeding, `scenarioBuilder.ts`) pays the granted "{B}: Regenerate".
+            landCount: 1,
+        });
+        const zombie = state.players[0].battlefield.find(
+            (c) => c.power === 2 && c.toughness === 2
+        )!;
+        // The grant lands on the INSTANCE (`applySourceStaticEffects`,
+        // replayed once per source by `buildStateFromScenario`) — confirm the
+        // fixture actually exercises the granted path, not a coincidental
+        // native one.
+        expect(zombie.grantedActivatedAbilities?.length).toBeGreaterThan(0);
+        expect((getCardByName(ZOMBIE).activatedAbilities ?? []).length).toBe(0);
+        // `activate` only walks a position whose costs commit immediately
+        // (setup.ts's own documented scope); pre-fund the {B} so this fixture
+        // isolates the ABILITY-LOOKUP fix (issue #1522) from the separate,
+        // pre-existing "mana already covered" limitation on the step.
+        state.players[0].manaPool.B = 1;
+
+        applyBladeSetup(state, {
+            label: "t",
+            setup: [{ kind: "activate", card: ZOMBIE }],
+        });
+
+        expect(state.stack).toHaveLength(1);
+        expect(state.stack[0].abilityId).toBe("zombie-master-regenerate");
+    });
+
+    it("STILL THROWS via the real path when the ability is statically suppressed (CR 613.1f)", () => {
+        const state = build({
+            cards: [{ name: DELTA, owner: "me", zone: "battlefield" }],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+        });
+        const delta = state.players[0].battlefield.find(
+            (c) => (c.card as { id?: string }).id !== undefined
+        )!;
+        // Simulate a "loses all abilities" continuous effect (Titania's Song
+        // shape) already applied to this permanent — the same field
+        // `applySourceStaticEffects` writes for a live suppression source.
+        delta.abilitiesSuppressedBy = ["some-suppressing-source-id"];
+
+        expect(() =>
+            applyBladeSetup(state, {
+                label: "t",
+                setup: [{ kind: "activate", card: DELTA }],
+            })
+        ).toThrow(/no stack-using activated ability/);
+        expect(state.stack).toHaveLength(0);
     });
 });
 
