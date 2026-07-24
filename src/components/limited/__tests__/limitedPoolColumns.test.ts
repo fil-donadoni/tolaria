@@ -97,12 +97,8 @@ describe("groupPoolIntoColumns (ADR 0060, issue #1248)", () => {
         ]);
         const columns = groupPoolIntoColumns(placements);
 
-        expect(columns.find((c) => c.key === "lands")!.entries).toHaveLength(
-            0
-        );
-        expect(columns.find((c) => c.key === "mv-3")!.entries).toHaveLength(
-            1
-        );
+        expect(columns.find((c) => c.key === "lands")!.entries).toHaveLength(0);
+        expect(columns.find((c) => c.key === "mv-3")!.entries).toHaveLength(1);
     });
 
     it("a Sideboard placement never appears in any Pool column", () => {

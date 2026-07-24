@@ -814,9 +814,7 @@ export const setPoolArrangementEntry = mutation({
         // `undefined`/omitted leaves any existing override untouched. The
         // literal "lands" pins the card into the Lands column regardless of
         // its own type (issue #1573).
-        column: v.optional(
-            v.union(v.number(), v.literal("lands"), v.null())
-        ),
+        column: v.optional(v.union(v.number(), v.literal("lands"), v.null())),
     },
     returns: v.null(),
     handler: async (ctx, args) => {
