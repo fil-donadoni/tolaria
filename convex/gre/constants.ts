@@ -814,6 +814,29 @@ export function hasManaAbility(
     );
 }
 
+/** Whether a permanent counts as ONE available untapped mana source for the
+ *  bot's coarse, color-blind mana proxy (the `evaluate` mana / flexibility
+ *  terms, `hasCastableInstant`, and the held-interaction predictor). A source
+ *  counts only if it is UNTAPPED and can ACTUALLY produce mana (CR 605.1a): a
+ *  basic-land subtype (`getBasicLandMana`) or an activated mana ability
+ *  (`!useStack && manaProduced|manaChoices`). A land with NO mana ability does
+ *  NOT count even though `isLand` is true — a fetchland (CR 305.6: its only
+ *  ability is "search your library", never a mana ability) or a Maze of Ith.
+ *
+ *  Fixes the pre-#1499 predicate `isLand(perm) || hasManaAbility(perm)`, which
+ *  counted every untapped land as a source: a fetchland's controller was
+ *  over-valued by one `W_MANA`, so cracking the fetchland read as a pure life
+ *  loss with no mana gain (the phantom source it sacrificed was already
+ *  counted, and the real source it fetched merely replaced that phantom). That
+ *  mis-valued the entire fetch subtree — the bot converged AWAY from a forced
+ *  crack as search deepened (issue #1499). The delta versus the old predicate
+ *  is EXACTLY ZERO for any position whose untapped lands all have a mana
+ *  ability (every ordinary board), and non-zero only when a non-mana land is
+ *  present — the narrow support ADR 0070 §5 asks for. Pure. */
+export function isUntappedManaSource(card: CardInstanceState): boolean {
+    return !card.isTapped && hasManaAbility(card);
+}
+
 /** Returns true if a card carries an activated ability that is NOT a mana
  *  ability (CR 605.1a) — i.e. a "dual-purpose" source that can do something
  *  beyond tapping for mana: a manland's animate (`{1}: becomes a 2/2`, on the

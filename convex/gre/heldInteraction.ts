@@ -24,7 +24,7 @@
 // PURE and prediction-only: nothing here changes how a spell actually resolves.
 
 import type { GameState, PlayerState, CardInstanceState } from "./state";
-import { isLand, hasManaAbility, manaValue } from "./constants";
+import { isUntappedManaSource, manaValue } from "./constants";
 import { getInstanceManaCost, getInstanceAiCombatHint } from "../cards/index";
 
 /** A pump the held interaction can apply to a single creature this combat. */
@@ -48,7 +48,9 @@ export type HeldInteraction = {
 export function availableManaFor(player: PlayerState): number {
     let mana = 0;
     for (const perm of player.battlefield) {
-        if (!perm.isTapped && (isLand(perm) || hasManaAbility(perm))) {
+        // CR 605.1a / 305.6 — count only sources that can actually produce
+        // mana; a fetchland (no mana ability) is not one (issue #1499).
+        if (isUntappedManaSource(perm)) {
             mana += 1;
         }
     }
