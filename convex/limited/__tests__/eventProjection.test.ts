@@ -488,6 +488,69 @@ describe("projectLimitedEvent — poolArrangement (ADR 0060, issue #1247)", () =
     });
 });
 
+describe("projectLimitedEvent — hasDeck per-seat readiness (issue #1580)", () => {
+    it("defaults every seat's hasDeck to false when a caller passes no hasDeckBySeat (backward compatible)", () => {
+        const view = projectLimitedEvent(row(), "user1");
+        expect(view.seats.every((s) => s.hasDeck === false)).toBe(true);
+    });
+
+    it("marks exactly the seats present in hasDeckBySeat as ready", () => {
+        const view = projectLimitedEvent(
+            row(),
+            "user1",
+            false,
+            1,
+            new Map(),
+            new Set([1])
+        );
+        expect(view.seats.find((s) => s.seatIndex === 0)!.hasDeck).toBe(false);
+        expect(view.seats.find((s) => s.seatIndex === 1)!.hasDeck).toBe(true);
+    });
+
+    it("surfaces hasDeck for a NON-viewer seat too — it's a readiness flag, not the deck's contents", () => {
+        const view = projectLimitedEvent(
+            row(),
+            "user1",
+            false,
+            1,
+            new Map(),
+            new Set([1])
+        );
+        const other = view.seats.find((s) => s.seatIndex === 1)!;
+        expect(other.isViewer).toBe(false);
+        expect(other.hasDeck).toBe(true);
+        // The flag is visible, but the deck's CONTENTS stay hidden pre-
+        // completion — proves the readiness signal never leaks the pool.
+        expect(other.pool).toBeNull();
+        expect(other.humanDeck).toBeNull();
+    });
+
+    it("hasDeck stays readable before AND after completion — unlike pool/humanDeck, it's never itself gated on completed", () => {
+        const beforeCompletion = projectLimitedEvent(
+            row(),
+            "outsider",
+            false,
+            1,
+            new Map(),
+            new Set([0])
+        );
+        const afterCompletion = projectLimitedEvent(
+            row(),
+            "outsider",
+            true,
+            2,
+            new Map(),
+            new Set([0, 1])
+        );
+        expect(
+            beforeCompletion.seats.find((s) => s.seatIndex === 0)!.hasDeck
+        ).toBe(true);
+        expect(
+            afterCompletion.seats.find((s) => s.seatIndex === 1)!.hasDeck
+        ).toBe(true);
+    });
+});
+
 describe("projectLimitedEvent — selectedPickId (ADR 0060, issue #1248)", () => {
     it("preserves the viewer's own seat's Selected Card", () => {
         const event = row({

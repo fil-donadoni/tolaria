@@ -46,7 +46,6 @@ describe("LimitedEventSeatsDisclosure (F3)", () => {
         );
         // Compact summary is visible…
         expect(getByText("Seats · 2")).toBeTruthy();
-        expect(getByText("0/2 decks in")).toBeTruthy();
         // …but the seat roster (nickname "Alice") is not rendered yet.
         expect(queryByText("Alice")).toBeNull();
     });
@@ -60,10 +59,27 @@ describe("LimitedEventSeatsDisclosure (F3)", () => {
         expect(getByText("Alice")).toBeTruthy();
     });
 
-    it("summarises completion once every seat has a deck", () => {
-        const { getByText } = render(
+    // Issue #1580: a Deck cannot exist before the Pool is final, and this
+    // component is ONLY ever mounted while a Draft is still running — so no
+    // "N/seatCount decks in" (or completion) text should ever render here,
+    // regardless of the (always-zero-in-practice) seatsWithDeck/completed
+    // values a caller might pass.
+    it("never renders a decks-in counter or completion text while collapsed OR expanded", () => {
+        const { getByRole, queryByText } = render(
+            <LimitedEventSeatsDisclosure event={view(0)} />
+        );
+        expect(queryByText(/decks in/)).toBeNull();
+        expect(queryByText(/every seat has a deck/)).toBeNull();
+        fireEvent.click(getByRole("button"));
+        expect(queryByText(/decks in/)).toBeNull();
+        expect(queryByText(/every seat has a deck/)).toBeNull();
+    });
+
+    it("even if a caller (incorrectly) passes completed: true, no completion summary is rendered", () => {
+        const { queryByText } = render(
             <LimitedEventSeatsDisclosure event={view(2, true)} />
         );
-        expect(getByText("every seat has a deck")).toBeTruthy();
+        expect(queryByText(/every seat has a deck/)).toBeNull();
+        expect(queryByText(/decks in/)).toBeNull();
     });
 });

@@ -122,6 +122,17 @@ export interface LimitedEventSeatView {
      *  so it is never revealed even after `completed` (unlike `pool`). `null`
      *  for a non-viewer seat or when nothing is selected. */
     selectedPickId: string | null;
+    /** Deck-ready indicator (issue #1580): true once THIS seat has a deck —
+     *  a human seat once its `limited` deck is submitted, a bot seat once
+     *  its Auto-Built deck is computable (Pool final). Deliberately visible
+     *  for EVERY seat, always (not gated on `completed`/`isViewer`) — unlike
+     *  `pool`/`humanDeck`/`autoBuiltDeck`, this is a pure readiness FLAG, not
+     *  the deck's contents, so surfacing it never leaks what another seat
+     *  drafted or built; it only answers "is the table still waiting on
+     *  this seat". Caller-computed, same injection discipline as
+     *  `completed`/`seatsWithDeck` (`computeEventCompletion`'s
+     *  `hasDeckBySeat`). */
+    hasDeck: boolean;
 }
 
 export interface LimitedEventView {
@@ -175,7 +186,8 @@ export function projectLimitedEvent(
     viewerUserId: string | null,
     completed = false,
     seatsWithDeck = 0,
-    humanDecksBySeat: ReadonlyMap<number, HumanDeckView> = new Map()
+    humanDecksBySeat: ReadonlyMap<number, HumanDeckView> = new Map(),
+    hasDeckBySeat: ReadonlySet<number> = new Set()
 ): LimitedEventView {
     return {
         _id: event._id,
@@ -216,6 +228,7 @@ export function projectLimitedEvent(
                     ? (seat.poolArrangement ?? null)
                     : null,
                 selectedPickId: isViewer ? (seat.selectedPickId ?? null) : null,
+                hasDeck: hasDeckBySeat.has(seat.seatIndex),
             };
         }),
     };

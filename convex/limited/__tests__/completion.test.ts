@@ -121,3 +121,65 @@ describe("computeEventCompletion (issue #1116)", () => {
         expect(result.seatsWithDeck).toBe(2);
     });
 });
+
+// Per-seat readiness (issue #1580): `hasDeckBySeat` is the seat-index set a
+// caller threads into `projectLimitedEvent` so each seat row can show a
+// "Ready" indicator identifying the blocking seat, without leaking WHICH
+// deck (that stays gated on `completed` elsewhere).
+describe("computeEventCompletion — hasDeckBySeat (issue #1580)", () => {
+    it("is empty while the pool isn't final yet, even for a bot seat", () => {
+        const seats: CompletionSeatLookup[] = [
+            { seatIndex: 0 },
+            { seatIndex: 1, isBot: true },
+        ];
+        const result = computeEventCompletion(seats, sealedOpen, () => true);
+        expect(result.hasDeckBySeat.size).toBe(0);
+    });
+
+    it("is empty while a Draft's picks are still in progress, even if every human already has a deck", () => {
+        const seats: CompletionSeatLookup[] = [
+            { seatIndex: 0 },
+            { seatIndex: 1, isBot: true },
+        ];
+        const result = computeEventCompletion(
+            seats,
+            draftInProgress,
+            () => true
+        );
+        expect(result.hasDeckBySeat.size).toBe(0);
+    });
+
+    it("a bot seat is a member as soon as the Pool is final", () => {
+        const seats: CompletionSeatLookup[] = [{ seatIndex: 0, isBot: true }];
+        const result = computeEventCompletion(seats, sealedStarted, () => {
+            throw new Error("no human seats exist here");
+        });
+        expect(result.hasDeckBySeat.has(0)).toBe(true);
+    });
+
+    it("a human seat is a member only once hasHumanDeck reports true — identifies the exact blocking seat", () => {
+        const seats: CompletionSeatLookup[] = [
+            { seatIndex: 0 },
+            { seatIndex: 1 },
+            { seatIndex: 2, isBot: true },
+        ];
+        const result = computeEventCompletion(
+            seats,
+            sealedStarted,
+            (seatIndex) => seatIndex === 0
+        );
+        expect(result.hasDeckBySeat.has(0)).toBe(true); // human, submitted
+        expect(result.hasDeckBySeat.has(1)).toBe(false); // human, blocking
+        expect(result.hasDeckBySeat.has(2)).toBe(true); // bot, free
+        expect(result.hasDeckBySeat.size).toBe(2);
+    });
+
+    it("agrees in size with seatsWithDeck", () => {
+        const seats: CompletionSeatLookup[] = [
+            { seatIndex: 0 },
+            { seatIndex: 1, isBot: true },
+        ];
+        const result = computeEventCompletion(seats, draftDone, () => true);
+        expect(result.hasDeckBySeat.size).toBe(result.seatsWithDeck);
+    });
+});
