@@ -67,6 +67,11 @@ import {
     type LimitedEventView,
 } from "./limited/eventProjection";
 import type { LimitedEventSeat } from "./limited/eventTypes";
+import {
+    projectViewerChallenges,
+    type ChallengeGame,
+    type ViewerChallenges,
+} from "./limited/challenge";
 import { upsertPoolArrangementEntry } from "./limited/poolArrangement";
 import {
     getBoosterConfig,
@@ -214,6 +219,24 @@ const limitedEventViewValidator = v.object({
     // "N/seatCount decks in" progress, live even before `completed`.
     seatsWithDeck: v.number(),
     seats: v.array(limitedEventSeatViewValidator),
+    // Pending human-vs-human challenges relevant to THIS viewer (issue #1577) —
+    // viewer-scoped, same privacy discipline as the per-seat Pool: challenges
+    // ADDRESSED to the viewer (`viewerIncomingChallenges`, accepted with their
+    // own Limited deck) and the viewer's OWN outstanding challenge
+    // (`viewerOutgoingChallenge`, at most one). Never another seat's pairing.
+    viewerIncomingChallenges: v.array(
+        v.object({
+            gameId: v.string(),
+            challengerSeatIndex: v.number(),
+        })
+    ),
+    viewerOutgoingChallenge: v.union(
+        v.object({
+            gameId: v.string(),
+            challengedSeatIndex: v.number(),
+        }),
+        v.null()
+    ),
     createdAt: v.number(),
     updatedAt: v.number(),
 });
@@ -367,6 +390,12 @@ interface SeatViewWithAutoBuild extends LimitedEventSeatView {
 
 interface EventViewWithAutoBuild extends Omit<LimitedEventView, "seats"> {
     seats: SeatViewWithAutoBuild[];
+    // Viewer-scoped pending challenges (issue #1577) — injected by the query
+    // shell (`projectEventForViewer`), not by the pure `projectLimitedEvent`,
+    // because challenges live in the `games` table, not the event row (mirrors
+    // how `autoBuiltDeck` is zipped in here rather than in `eventProjection`).
+    viewerIncomingChallenges: ViewerChallenges["incoming"];
+    viewerOutgoingChallenge: ViewerChallenges["outgoing"];
 }
 
 /** Every submitted `limited` Deck tied to `eventId`, keyed by `seatIndex`
@@ -418,6 +447,36 @@ async function loadHumanDecksBySeat(
  *  and threads BOTH the completion flag and the human-deck map into
  *  `projectLimitedEvent` — the single call that decides the full-disclosure
  *  reveal (`pool`/`humanDeck` exposed for every seat once `completed`). */
+/** Every PENDING (`waiting`) challenge Game bound to `eventId` (issue #1577),
+ *  flattened to `ChallengeGame[]` for the viewer-scoped projection. Uses the
+ *  `by_limited_event` index (`convex/schema.ts`) so this is a bounded read.
+ *  Only ever called for a `started` event (a challenge can't exist before the
+ *  Pool is final), so the list queries over `open` events pay nothing. The
+ *  challenger is the sole seated player in the waiting Game (`players[0]`). */
+async function loadEventChallenges(
+    ctx: QueryCtx,
+    eventId: Id<"limitedEvents">
+): Promise<ChallengeGame[]> {
+    const games = await ctx.db
+        .query("games")
+        .withIndex("by_limited_event", (q) => q.eq("limitedEventId", eventId))
+        .collect();
+    const challenges: ChallengeGame[] = [];
+    for (const game of games) {
+        if (game.status !== "waiting" || !game.limitedChallenge) continue;
+        const challengerUserId = game.players[0]?.id;
+        if (!challengerUserId) continue;
+        challenges.push({
+            gameId: game._id,
+            challengerUserId,
+            challengerSeatIndex: game.limitedChallenge.challengerSeatIndex,
+            challengedUserId: game.limitedChallenge.challengedUserId,
+            challengedSeatIndex: game.limitedChallenge.challengedSeatIndex,
+        });
+    }
+    return challenges;
+}
+
 async function projectEventForViewer(
     ctx: QueryCtx,
     event: Doc<"limitedEvents">,
@@ -446,6 +505,13 @@ async function projectEventForViewer(
         completion.hasDeckBySeat
     );
     const resolveBasicLand = resolveBasicLandFor(event.packSlots[0] ?? "");
+    // Challenges (issue #1577) only exist for a `started` event — skip the
+    // games read entirely for `open` events (the lobby list's common case).
+    const challenges =
+        event.status === "started"
+            ? await loadEventChallenges(ctx, event._id)
+            : [];
+    const viewerChallenges = projectViewerChallenges(challenges, viewerUserId);
     return {
         ...base,
         seats: base.seats.map((seatView, i) => ({
@@ -457,6 +523,8 @@ async function projectEventForViewer(
                 resolveBasicLand
             ),
         })),
+        viewerIncomingChallenges: viewerChallenges.incoming,
+        viewerOutgoingChallenge: viewerChallenges.outgoing,
     };
 }
 

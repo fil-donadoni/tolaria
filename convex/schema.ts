@@ -198,6 +198,20 @@ export default defineSchema({
         winner: v.optional(v.string()),
         solo: v.optional(v.boolean()),
         vsAi: v.optional(v.boolean()),
+        /** Limited Event this Match is a challenge within (issue #1577) — set
+         *  only for a human-vs-human event challenge (`challengeLimitedSeat`),
+         *  absent for every other Match. Binds the pairing to one event so the
+         *  two seats' decks are validated to share it. */
+        limitedEventId: v.optional(v.string()),
+        /** Pending challenge metadata (issue #1577) — who challenged whom, by
+         *  seat, within `limitedEventId`. Present alongside `limitedEventId`. */
+        limitedChallenge: v.optional(
+            v.object({
+                challengerSeatIndex: v.number(),
+                challengedUserId: v.string(),
+                challengedSeatIndex: v.number(),
+            })
+        ),
         createdAt: v.number(),
         updatedAt: v.number(),
     }).index("by_status", ["status"]),
@@ -246,11 +260,25 @@ export default defineSchema({
          * (`${userId}-p2`) is driven by the client-side AI brain rather than by
          * the human. The viewer stays pinned to the human's seat. */
         vsAi: v.optional(v.boolean()),
+        /** Limited Event this Game is a challenge within (issue #1577) — mirror
+         *  of the owning Match's `limitedEventId`. Indexed (`by_limited_event`)
+         *  so the event page can surface a seat's pending challenges. */
+        limitedEventId: v.optional(v.string()),
+        /** Pending challenge metadata (issue #1577) — mirror of the Match's
+         *  `limitedChallenge`; `joinGame` reads it to gate the accept. */
+        limitedChallenge: v.optional(
+            v.object({
+                challengerSeatIndex: v.number(),
+                challengedUserId: v.string(),
+                challengedSeatIndex: v.number(),
+            })
+        ),
         createdAt: v.number(),
         updatedAt: v.number(),
     })
         .index("by_status", ["status"])
-        .index("by_match", ["matchId"]),
+        .index("by_match", ["matchId"])
+        .index("by_limited_event", ["limitedEventId"]),
     // Format banlists (PRD #1138, ADR 0057, issue #1141) — the full OFFICIAL
     // banlist by oracle name, including cards not yet implemented in the
     // engine (e.g. Parallax Tide for Premodern). Names only — NO cardId is

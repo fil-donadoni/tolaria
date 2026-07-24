@@ -16,6 +16,7 @@ import LimitedEventSeatsDisclosure from "./limited-event-seats-disclosure";
 import LimitedDraftTable from "./limited-draft-table";
 import LimitedSeatPoolPanel from "./limited-seat-pool-panel";
 import LimitedVsAiPanel from "./limited-vs-ai-panel";
+import LimitedChallengePanel from "./limited-challenge-panel";
 import LimitedReviewPanel from "./limited-review-panel";
 import LimitedShareInviteButton from "./limited-share-invite-button";
 
@@ -181,11 +182,18 @@ export default function LimitedEventDetail({
                     )}
 
                 {isPoolFinal && viewerSeat && (
-                    <LimitedVsAiPanel
-                        eventId={eventId}
-                        event={event}
-                        viewerSeatIndex={viewerSeat.seatIndex}
-                    />
+                    <>
+                        <LimitedChallengePanel
+                            eventId={eventId}
+                            event={event}
+                            viewerSeatIndex={viewerSeat.seatIndex}
+                        />
+                        <LimitedVsAiPanel
+                            eventId={eventId}
+                            event={event}
+                            viewerSeatIndex={viewerSeat.seatIndex}
+                        />
+                    </>
                 )}
 
                 <LimitedReviewPanel event={event} />
