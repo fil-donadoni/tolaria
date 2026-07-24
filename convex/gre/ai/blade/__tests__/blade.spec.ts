@@ -24,8 +24,8 @@ import {
     BLADE_SCENARIOS,
     bladeScenariosForTier,
     describeBeyondBudget,
+    findBladeScenario,
     runBladeScenario,
-    type BladeScenario,
     type BladeTier,
 } from "..";
 
@@ -205,15 +205,38 @@ describe("blade suite — determinism (acceptance criterion, #1427)", () => {
     // chosen move — same machine, same run, and (because the base state, the
     // shuffle seed and the iteration budget are all fixed constants) any other
     // machine too.
-    const probe: BladeScenario | undefined = scenarios[0] ?? BLADE_SCENARIOS[0];
+    //
+    // Probed across three SHAPES (issue #1522), not just the first registry
+    // entry (`scenarios[0]`, which never happened to exercise `setup` or a
+    // choice-node root): a PLAIN spec-only entry exercises the base build
+    // path alone; a SETUP-BEARING entry exercises `applyBladeSetup`'s own
+    // engine calls (`emitPermanentEntered` / `processPendingActionTriggers`,
+    // CR 603.6/603.2); a CHOICE-NODE-ROOT entry exercises the search's
+    // choice-candidate path (`choiceCandidates.ts`, the live search-library
+    // choice of a cracked fetchland, CR 701.19). Each is a DIFFERENT place a
+    // stray `Date.now()`/object-iteration-order/`Math.random` could leak in —
+    // a regression confined to one shape would have stayed invisible behind
+    // a single-entry probe.
+    const PROBE_LABELS = [
+        // Plain — no `setup`.
+        "positive-control: plays its only land on an empty board",
+        // Setup-bearing — an `etb-trigger` step walks the board forward.
+        "charter: Stifles its own Phyrexian Dreadnought trigger",
+        // Choice-node root — the chosen move IS a `resolution-choice`.
+        "charter: fetches the land that makes its removal castable",
+    ] as const;
 
-    it("re-running a scenario yields the identical chosen move", () => {
-        if (!probe) return;
-        const first = runBladeScenario(probe);
-        const second = runBladeScenario(probe);
-        expect(second.seeds.map((s) => s.move)).toEqual(
-            first.seeds.map((s) => s.move)
-        );
-        expect(second.ok).toBe(first.ok);
-    });
+    it.each(PROBE_LABELS)(
+        "re-running %s yields the identical chosen move",
+        (label) => {
+            const probe = findBladeScenario(label);
+            expect(probe, `registry entry "${label}" not found`).toBeDefined();
+            const first = runBladeScenario(probe!);
+            const second = runBladeScenario(probe!);
+            expect(second.seeds.map((s) => s.move)).toEqual(
+                first.seeds.map((s) => s.move)
+            );
+            expect(second.ok).toBe(first.ok);
+        }
+    );
 });
