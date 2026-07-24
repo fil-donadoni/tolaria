@@ -16,11 +16,7 @@ import {
     getEffectivePower,
     getEffectiveToughness,
 } from "../../../../gre/layers";
-import {
-    mineCollapse,
-    blazingRootwalla,
-    ragavanNimblePilferer,
-} from "../red";
+import { mineCollapse, blazingRootwalla, ragavanNimblePilferer } from "../red";
 
 // Mine Collapse — {3}{R} Instant. "If it's your turn, you may sacrifice a
 // Mountain rather than pay this spell's mana cost. Mine Collapse deals 5 damage

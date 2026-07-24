@@ -201,44 +201,70 @@ export const ragavanNimblePilferer: CardDefinition = {
     toughness: 1,
     dash: { id: "dash", description: "Dash {1}{R}", mana: { X: 1, R: 1 } },
     triggeredAbilities: [
-        damageDealtTrigger({
-            id: "ragavan-combat-damage",
-            oracleText:
-                "Whenever Ragavan, Nimble Pilferer deals combat damage to a player, create a Treasure token and exile the top card of that player's library. Until end of turn, you may cast that card.",
-            source: "self",
-            target: { kind: "player", player: { relation: "any" } },
-            isCombat: true,
-            resolve: (ctx, _event, damage) => {
-                if (damage.target.type !== "player") return;
-                const damagedPlayerId = damage.target.id;
-                // CR 707.2 — the shared Treasure token spec (art + sac-for-
-                // mana ability already wired).
-                ctx.createToken(TREASURE_TOKEN, ctx.controller);
-                const top = ctx.peekLibraryTop(damagedPlayerId, 1);
-                if (top.length === 0) return; // empty library
-                const cardId = top[0];
-                // CR 406.3 — exiled hidden to the opponent, known to
-                // controller (Robber of the Rich / Headliner Scarlett
-                // precedent).
-                ctx.exileFaceDown(
-                    damagedPlayerId,
-                    cardId,
-                    "library",
-                    ctx.controller
-                );
-                // Cross-player grant (Robber of the Rich shape): the card
-                // stays owned by (and exiled in) the DAMAGED player's zone
-                // (CR 400.7), but the ATTACKING player (Ragavan's
-                // controller) is granted cast permission "until end of
-                // turn".
-                ctx.grantCastFromExile(
-                    cardId,
-                    ctx.controller,
-                    damagedPlayerId,
-                    "this-turn"
-                );
-            },
-        }),
+        {
+            ...damageDealtTrigger({
+                id: "ragavan-combat-damage",
+                oracleText:
+                    "Whenever Ragavan, Nimble Pilferer deals combat damage to a player, create a Treasure token and exile the top card of that player's library. Until end of turn, you may cast that card.",
+                source: "self",
+                target: { kind: "player", player: { relation: "any" } },
+                isCombat: true,
+                resolve: (ctx, _event, damage) => {
+                    if (damage.target.type !== "player") return;
+                    const damagedPlayerId = damage.target.id;
+                    // CR 707.2 — the shared Treasure token spec (art + sac-for-
+                    // mana ability already wired).
+                    ctx.createToken(TREASURE_TOKEN, ctx.controller);
+                    const top = ctx.peekLibraryTop(damagedPlayerId, 1);
+                    if (top.length === 0) return; // empty library
+                    const cardId = top[0];
+                    // CR 406.3 — exiled hidden to the opponent, known to
+                    // controller (Robber of the Rich / Headliner Scarlett
+                    // precedent).
+                    ctx.exileFaceDown(
+                        damagedPlayerId,
+                        cardId,
+                        "library",
+                        ctx.controller
+                    );
+                    // Cross-player grant (Robber of the Rich shape): the card
+                    // stays owned by (and exiled in) the DAMAGED player's zone
+                    // (CR 400.7), but the ATTACKING player (Ragavan's
+                    // controller) is granted cast permission "until end of
+                    // turn".
+                    ctx.grantCastFromExile(
+                        cardId,
+                        ctx.controller,
+                        damagedPlayerId,
+                        "this-turn"
+                    );
+                },
+            }),
+            // aiEffects (PRD #1423, issue #1431/#1519) — this ability is a
+            // bare `resolve()` closure (a cross-player impulse-draw + a
+            // Treasure token; no Op skin exists for the cross-player exile
+            // grant — see the PROTOCOL note above the card), so the bot's
+            // `cardValueById`/`latentValue` value model has nothing to walk
+            // without a shadow script. Sketch: a Treasure token
+            // (`createToken`, valued flat via `NONCREATURE_TOKEN_VALUE`) plus
+            // an impulse-drawn card — `digToHand`/`digMatchingToHand` is this
+            // codebase's own precedent for valuing "look at N, keep 1"
+            // impulse draw (`CARD_SELECTION_VALUE`, `gre/ai/opValuers.ts`),
+            // standing in for the exile-and-may-cast upside even though the
+            // real effect casts from exile rather than hand.
+            aiEffects: [
+                {
+                    op: "createToken",
+                    token: {
+                        name: "Treasure",
+                        types: ["Artifact"],
+                        subtypes: ["Treasure"],
+                    },
+                    controller: "controller",
+                },
+                { op: "digToHand", player: "controller", look: 1 },
+            ],
+        },
         dashTrigger("Ragavan, Nimble Pilferer"),
     ],
 };

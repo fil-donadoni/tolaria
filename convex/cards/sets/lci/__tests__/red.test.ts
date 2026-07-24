@@ -38,7 +38,10 @@ function pushAttackTrigger(state: GameState, inti: CardInstanceState) {
     });
 }
 
-function boardWithAttackingInti(): { state: GameState; inti: CardInstanceState } {
+function boardWithAttackingInti(): {
+    state: GameState;
+    inti: CardInstanceState;
+} {
     const inti = makeInstance(intiSeneschalOfTheSun.id, {
         id: "inti",
         controllerId: "p1",
@@ -92,7 +95,11 @@ describe("Inti, Seneschal of the Sun (CR 603.3c reflexive trigger + impulse draw
         const { state, inti } = boardWithAttackingInti();
         const top = getCardByName("Grizzly Bears");
         state.players[0].library = [
-            makeInstance(top.id, { id: "own-top", ownerId: "p1", zone: "library" }),
+            makeInstance(top.id, {
+                id: "own-top",
+                ownerId: "p1",
+                zone: "library",
+            }),
         ];
         pushAttackTrigger(state, inti);
         resolveTopOfStack(state); // suspends at the choice

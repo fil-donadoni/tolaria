@@ -62,7 +62,10 @@ describe("Death-Greeter's Champion (Dash + Backup 1 + double strike, CR 702.109/
             ownerId: "p1",
         });
         const state = makeState({
-            players: [makePlayer("p1", { battlefield: [source] }), makePlayer("p2")],
+            players: [
+                makePlayer("p1", { battlefield: [source] }),
+                makePlayer("p2"),
+            ],
         });
         pushBackupEtb(state, source, "champ1");
         const after = state.players[0].battlefield.find(
@@ -109,7 +112,10 @@ describe("Death-Greeter's Champion (Dash + Backup 1 + double strike, CR 702.109/
             dashed: true,
         });
         const state = makeState({
-            players: [makePlayer("p1", { battlefield: [source] }), makePlayer("p2")],
+            players: [
+                makePlayer("p1", { battlefield: [source] }),
+                makePlayer("p2"),
+            ],
         });
         state.stack.push({
             ...source,
@@ -129,9 +135,9 @@ describe("Death-Greeter's Champion (Dash + Backup 1 + double strike, CR 702.109/
         const after = state.players[0].battlefield.find(
             (c) => c.id === "champ3"
         )!;
-        expect(after.grantedStaticAbilities?.some((g) => g.ability === "haste")).toBe(
-            true
-        );
+        expect(
+            after.grantedStaticAbilities?.some((g) => g.ability === "haste")
+        ).toBe(true);
         expect(state.delayedTriggers ?? []).toHaveLength(1);
     });
 });

@@ -115,31 +115,43 @@ export const intiSeneschalOfTheSun: CardDefinition = {
                 },
             ],
         },
-        discardTrigger({
-            id: "inti-discard-impulse",
-            oracleText:
-                "Whenever you discard one or more cards, exile the top card of your library. You may play that card until your next end step.",
-            scope: "your",
-            resolve: (ctx, _event, discardingPlayerId) => {
-                const top = ctx.peekLibraryTop(discardingPlayerId, 1);
-                if (top.length === 0) return; // empty library
-                const cardId = top[0];
-                // CR 406.3 — exiled hidden to the opponent, known to
-                // controller (Ragavan / Robber of the Rich precedent).
-                ctx.exileFaceDown(
-                    discardingPlayerId,
-                    cardId,
-                    "library",
-                    discardingPlayerId
-                );
-                ctx.grantCastFromExile(
-                    cardId,
-                    discardingPlayerId,
-                    undefined,
-                    "this-turn"
-                );
-            },
-        }),
+        {
+            ...discardTrigger({
+                id: "inti-discard-impulse",
+                oracleText:
+                    "Whenever you discard one or more cards, exile the top card of your library. You may play that card until your next end step.",
+                scope: "your",
+                resolve: (ctx, _event, discardingPlayerId) => {
+                    const top = ctx.peekLibraryTop(discardingPlayerId, 1);
+                    if (top.length === 0) return; // empty library
+                    const cardId = top[0];
+                    // CR 406.3 — exiled hidden to the opponent, known to
+                    // controller (Ragavan / Robber of the Rich precedent).
+                    ctx.exileFaceDown(
+                        discardingPlayerId,
+                        cardId,
+                        "library",
+                        discardingPlayerId
+                    );
+                    ctx.grantCastFromExile(
+                        cardId,
+                        discardingPlayerId,
+                        undefined,
+                        "this-turn"
+                    );
+                },
+            }),
+            // aiEffects (PRD #1423, issue #1431/#1519) — bare `resolve()`
+            // closure (impulse-draw off the controller's own library, the
+            // Ragavan/Robber of the Rich PROTOCOL, no Op skin), so the bot's
+            // value model has nothing to walk without a shadow script.
+            // `digToHand` is this codebase's own precedent for valuing
+            // "look at N, keep 1" impulse draw (`CARD_SELECTION_VALUE`,
+            // `gre/ai/opValuers.ts`), standing in for the exile-and-may-cast
+            // upside even though the real effect casts from exile rather
+            // than hand.
+            aiEffects: [{ op: "digToHand", player: "controller", look: 1 }],
+        },
     ],
 };
 

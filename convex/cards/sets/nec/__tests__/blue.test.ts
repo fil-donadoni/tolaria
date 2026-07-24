@@ -43,7 +43,10 @@ describe("Kappa Cannoneer (Improvise + Ward + self/artifact ETB anthem, CR 702.1
         expect(kappaCannoneer.manaCost).toEqual({ X: 5, U: 1 });
         expect(kappaCannoneer.power).toBe(4);
         expect(kappaCannoneer.toughness).toBe(4);
-        expect(kappaCannoneer.staticAbilities).toEqual(["improvise", "ward {4}"]);
+        expect(kappaCannoneer.staticAbilities).toEqual([
+            "improvise",
+            "ward {4}",
+        ]);
         const ward = kappaCannoneer.triggeredAbilities?.find(
             (a) => a.id === "ward"
         );
@@ -58,7 +61,10 @@ describe("Kappa Cannoneer (Improvise + Ward + self/artifact ETB anthem, CR 702.1
             ownerId: "p1",
         });
         const state = makeState({
-            players: [makePlayer("p1", { battlefield: [kappa] }), makePlayer("p2")],
+            players: [
+                makePlayer("p1", { battlefield: [kappa] }),
+                makePlayer("p2"),
+            ],
         });
         pushArtifactEtb(state, kappa, {
             instanceId: "kappa",
@@ -78,7 +84,10 @@ describe("Kappa Cannoneer (Improvise + Ward + self/artifact ETB anthem, CR 702.1
             ownerId: "p1",
         });
         const state = makeState({
-            players: [makePlayer("p1", { battlefield: [kappa] }), makePlayer("p2")],
+            players: [
+                makePlayer("p1", { battlefield: [kappa] }),
+                makePlayer("p2"),
+            ],
         });
         pushArtifactEtb(state, kappa, {
             instanceId: "some-other-artifact",
