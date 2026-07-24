@@ -21,10 +21,7 @@ import {
     makeState,
     pushSpell,
 } from "../../../__tests__/setup";
-import {
-    resolveTopOfStack,
-    type GameState,
-} from "../../../../gre/state";
+import { resolveTopOfStack, type GameState } from "../../../../gre/state";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { projectPublicState } from "../../../../gameProjections";
 import { getDefinition, registerTokenDefinition } from "../../..";

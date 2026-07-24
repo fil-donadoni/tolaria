@@ -18,7 +18,7 @@ export const thrabenInspector: CardDefinition = {
     rarity: "common",
     name: "Thraben Inspector",
     oracleText:
-        "When this creature enters, investigate. (Create a Clue token. It's an artifact with \"{2}, Sacrifice this token: Draw a card.\")",
+        'When this creature enters, investigate. (Create a Clue token. It\'s an artifact with "{2}, Sacrifice this token: Draw a card.")',
     manaCost: { W: 1 },
     types: ["Creature"],
     subtypes: ["Human", "Soldier"],
