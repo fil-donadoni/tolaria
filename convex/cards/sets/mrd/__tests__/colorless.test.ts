@@ -5,14 +5,21 @@ import {
     talismanOfProgress,
     talismanOfDominance,
     chromeMox,
+    lightningGreaves,
 } from "../colorless";
 import { balduvianBears } from "../../ice/green";
+import { grizzlyBears } from "../../lea/green";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { tapSourceIntoPayment } from "../../../../game";
 import { projectPublicState } from "../../../../gameProjections";
-import { resolveTopOfStack } from "../../../../gre/state";
+import {
+    type CardInstanceState,
+    type GameState,
+    type StackItem,
+    resolveTopOfStack,
+} from "../../../../gre/state";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
-import type { GameState, StackItem } from "../../../../gre/state";
+import { isGuardedAgainst } from "../../../../gre/permanentGuard";
 
 // Talisman cycle (issue #675) — same painland shape as ICE's Adarkar Wastes
 // cycle (`convex/cards/sets/ice/__tests__/colorless.test.ts`): one choice
@@ -231,5 +238,139 @@ describe("Chrome Mox ({0} Artifact — imprint exile + colour-gated mana, CR 603
             )!;
             expect(slim.counters?.["imprint-G"]).toBe(1);
         }
+    });
+});
+
+// Lightning Greaves (issue #1530, parent PRD #1525). "Equipped creature has
+// haste and shroud. Equip {0}." The Equip spine (`attach` Op) is Skullclamp's
+// (`dst/colorless.ts`); haste is the same `keyword-grant` combo Cori-Steel
+// Cutter (`tdm/red.ts`) proves. Shroud's real enforcement is the
+// `permanent-guard` staticEffect `isGuardedAgainst` reads LIVE off
+// `attachedTo` (no materialization step needed, unlike `keyword-grant`) — the
+// same shape Sterling Grove (`inv/multicolor.ts`) proves for a GRANTED (not
+// self-printed) shroud.
+function equipGreavesTo(
+    state: GameState,
+    greavesId: string,
+    targetId: string
+): void {
+    const greaves = state.players
+        .flatMap((p) => p.battlefield)
+        .find((c) => c.id === greavesId)!;
+    state.stack.push({
+        ...greaves,
+        zone: "stack",
+        castById: greaves.controllerId,
+        abilityId: "lightning-greaves-equip",
+        targets: [{ type: "permanent", id: targetId }],
+    } as StackItem);
+    resolveTopOfStack(state);
+}
+
+describe("Lightning Greaves (MRD #199, issue #1530)", () => {
+    function setup(): {
+        state: GameState;
+        greaves: CardInstanceState;
+        bear: CardInstanceState;
+    } {
+        const greaves = makeInstance(lightningGreaves.id, {
+            id: "greaves1",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear1",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [greaves, bear] }),
+                makePlayer("p2"),
+            ],
+        });
+        return {
+            state,
+            greaves: state.players[0].battlefield[0],
+            bear: state.players[0].battlefield[1],
+        };
+    }
+
+    it("definition sanity — cost, types, equip cost, DSL-only", () => {
+        expect(lightningGreaves.manaCost).toEqual({ generic: 2 });
+        expect(lightningGreaves.types).toEqual(["Artifact"]);
+        expect(lightningGreaves.subtypes).toEqual(["Equipment"]);
+        const equip = lightningGreaves.activatedAbilities![0];
+        expect(equip.cost).toEqual({ mana: {} });
+        expect(equip.sorcerySpeedOnly).toBe(true);
+        expect(equip.resolve).toBeUndefined();
+        const grants = (lightningGreaves.staticEffects ?? [])
+            .filter((e) => e.kind === "keyword-grant")
+            .map((e) => (e as { keyword: string }).keyword);
+        expect(grants).toEqual(["haste", "shroud"]);
+        const guard = lightningGreaves.staticEffects?.find(
+            (e) => e.kind === "permanent-guard"
+        );
+        expect((guard as { cantBeTargeted?: boolean }).cantBeTargeted).toBe(
+            true
+        );
+    });
+
+    it("grants haste to the equipped creature (staticAbilities materialized on attach)", () => {
+        const { state } = setup();
+        equipGreavesTo(state, "greaves1", "bear1");
+        const bear = state.players[0].battlefield.find(
+            (c) => c.id === "bear1"
+        )!;
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "greaves1")!
+                .attachedTo
+        ).toBe("bear1");
+        expect(bear.staticAbilities).toContain("haste");
+        expect(bear.staticAbilities).toContain("shroud");
+    });
+
+    it("shroud is REAL enforcement — the equipped creature can't be targeted (CR 702.18), even by its own controller", () => {
+        const { state } = setup();
+        equipGreavesTo(state, "greaves1", "bear1");
+        const bear = state.players[0].battlefield.find(
+            (c) => c.id === "bear1"
+        )!;
+        const oppSrc = { isSpell: true, controllerId: "p2" } as const;
+        const ownSrc = { isSpell: true, controllerId: "p1" } as const;
+        expect(isGuardedAgainst(state, bear, "cantBeTargeted", oppSrc)).toBe(
+            true
+        );
+        // CR 702.18 shroud is unfiltered — unlike hexproof it blocks the
+        // permanent's OWN controller too.
+        expect(isGuardedAgainst(state, bear, "cantBeTargeted", ownSrc)).toBe(
+            true
+        );
+    });
+
+    it("unattached creatures are NOT guarded (shroud is attach-scoped, AURA_AFFECTS_HOST)", () => {
+        const { state } = setup();
+        const bear = state.players[0].battlefield.find(
+            (c) => c.id === "bear1"
+        )!;
+        expect(bear.staticAbilities ?? []).not.toContain("shroud");
+        const oppSrc = { isSpell: true, controllerId: "p2" } as const;
+        expect(isGuardedAgainst(state, bear, "cantBeTargeted", oppSrc)).toBe(
+            false
+        );
+    });
+
+    it("the haste grant and shroud guard survive projection (wire format)", () => {
+        const { state } = setup();
+        equipGreavesTo(state, "greaves1", "bear1");
+        const projected = projectPublicState(state, 1, "p2");
+        const slimBear = projected.players[0].battlefield.find(
+            (c) => c.id === "bear1"
+        )!;
+        expect(slimBear.staticAbilities).toContain("haste");
+        const oppSrc = { isSpell: true, controllerId: "p2" } as const;
+        expect(
+            isGuardedAgainst(projected, slimBear, "cantBeTargeted", oppSrc)
+        ).toBe(true);
     });
 });

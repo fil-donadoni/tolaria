@@ -3,6 +3,7 @@
 // (no coloured cost) live here per the colour-split convention.
 
 import type { CardDefinition, SpellContext } from "../../types";
+import { AURA_AFFECTS_HOST } from "../../types";
 import { makeTalisman } from "../../abilities";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 
@@ -175,6 +176,72 @@ export const aetherSpellbomb: CardDefinition = {
             cost: { mana: { X: 1 }, sacrifice: true },
             useStack: true,
             effects: [{ op: "draw", player: "controller", count: 1 }],
+        },
+    ],
+};
+
+// Lightning Greaves — {2} Artifact — Equipment (Vintage Cube FREE wave 3,
+// issue #1530, parent PRD #1525). "Equipped creature has haste and shroud.
+// Equip {0}." Precedent: Skullclamp (`dst/colorless.ts`) proves the Equip
+// spine (`attach` Op, sorcery-speed-only targeted activated ability);
+// Cori-Steel Cutter (`tdm/red.ts`) proves the `keyword-grant` P/T+keyword
+// combo (there: +1/+1, trample, haste, all `AURA_AFFECTS_HOST`-scoped); this
+// card's own haste grant is the identical `keyword-grant` shape.
+//
+// Shroud (CR 702.18) is NOT itself a keyword-grant-only effect — every
+// printed-shroud card in this catalogue (Blastoderm, `nem/green.ts`; the
+// Mechanics Registry `shroud` row) pairs the `staticAbilities: ["shroud"]`
+// reminder string with a `permanent-guard` staticEffect (`cantBeTargeted:
+// true`) that `isGuardedAgainst` (`gre/permanentGuard.ts`) actually reads —
+// the reminder string alone is decorative and enforces nothing. Sterling
+// Grove (`inv/multicolor.ts`) is the precedent for a GRANTED (not
+// self-printed) shroud: it pairs a `keyword-grant` (the reminder string) with
+// a `permanent-guard` (the real enforcement), BOTH scoped by the same
+// predicate — here `AURA_AFFECTS_HOST` instead of Sterling Grove's
+// enchantment-group filter, since Lightning Greaves grants to its equipped
+// HOST specifically (CR 303.4-style attach relationship), not a battlefield-
+// wide group.
+export const lightningGreaves: CardDefinition = {
+    id: "61a28870-cf78-4323-9d82-cee764067764",
+    name: "Lightning Greaves",
+    rarity: "uncommon",
+    oracleText: "Equipped creature has haste and shroud.\nEquip {0}",
+    manaCost: { generic: 2 },
+    types: ["Artifact"],
+    subtypes: ["Equipment"],
+    staticEffects: [
+        {
+            kind: "keyword-grant",
+            applies: AURA_AFFECTS_HOST,
+            keyword: "haste",
+        },
+        {
+            kind: "keyword-grant",
+            applies: AURA_AFFECTS_HOST,
+            keyword: "shroud",
+        },
+        {
+            kind: "permanent-guard",
+            id: "lightning-greaves-shroud",
+            applies: AURA_AFFECTS_HOST,
+            cantBeTargeted: true,
+        },
+    ],
+    activatedAbilities: [
+        {
+            // CR 702.6e — Equip is sorcery-speed-only and targets a creature
+            // its controller controls. Equip {0} — no mana cost.
+            id: "lightning-greaves-equip",
+            oracleText: "Equip {0}",
+            cost: { mana: {} },
+            sorcerySpeedOnly: true,
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                controller: "you",
+            },
+            useStack: true,
+            effects: [{ op: "attach", target: { target: 0 } }],
         },
     ],
 };

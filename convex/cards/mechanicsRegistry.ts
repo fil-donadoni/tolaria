@@ -2339,6 +2339,15 @@ const ABILITY_WORDS: MechanicRow[] = [
         binding: "SpellContext.getDomain / EffectValue { domain: { of } }",
         note: "The number of basic land types among lands a player controls (0–5, CR 305.6 — a dual land contributes several), issue #1066. Reused by four sites: the `{ domain: { of } }` EffectValue grammar member (Tribal Flames, Wandering Stream, Ordered Migration, Worldly Counsel, Power Armor's pump), the shared `countDomain` helper feeding `StaticPTCDA.compute` closures (Kavu Scout, Wayfaring Giant, Exotic Curse, Strength of Unity), the dynamic `StaticAttackManaTax.costPerAttacker` function (Collective Restraint), and Coalition Victory's `winGame`-gating `if` predicate.",
     },
+    {
+        id: "metalcraft",
+        name: "Metalcraft",
+        kind: "ability-word",
+        cr: "702 preamble",
+        status: "implemented",
+        binding: "hasMetalcraft (cards/types.ts) — an activated mana ability's canActivate gate",
+        note: 'Issue #1530 — "you control three or more artifacts" board-state condition (SOM/NPH block ability word). Shared helper `hasMetalcraft(state, controllerId)` (cards/types.ts, mirrors `countDomain`\'s shape) counts live battlefield permanents whose `types` include "Artifact" for the given controller. First consumer: Mox Opal\'s tap-mana ability (`som/colorless.ts`) gates via `canActivate: (source, state) => hasMetalcraft(state, source.controllerId)` — the SAME `canActivate` gate Chrome Mox\'s imprint check already proves is enforced by every real consumer of a tap mana ability (`getManaTapOptionsDetailed` / `hasManaAbility` / `getActivatedManaAbility`, issue #947), not merely a card-shaped closure with no engine teeth.',
+    },
 ];
 
 /** Named mechanics reused across a specific SET's cards, censused for the
