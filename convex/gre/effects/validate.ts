@@ -1649,6 +1649,16 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     // CR 602.1 / 605.1a (issue #1124) — a turn-scoped per-player "can't
     // activate non-mana abilities" lock (Abeyance). `player` names whom to lock.
     restrictActivation: { required: { player: isPlayerRef } },
+    // CR 601.3e (Teferi, Time Raveler +1) — grant a per-player "cast as though
+    // it had flash" timing permission. `player` names the grantee; `cardTypes`
+    // (optional) narrows the grant to those card types (Teferi: ["Sorcery"]);
+    // omitted grants flash for every spell.
+    grantCastTiming: {
+        required: { player: isPlayerRef },
+        optional: {
+            cardTypes: (v: unknown) => isStringArray(v, TOKEN_CARD_TYPES),
+        },
+    },
     // CR 305.1-analog / 601 (issue #1149) — grant a turn-scoped, player-wide
     // graveyard play/cast permission (Yawgmoth's Will). `player` names the
     // grantee; `zones` (optional, defaults to both) narrows to "land" and/or

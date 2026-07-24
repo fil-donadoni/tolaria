@@ -2899,6 +2899,17 @@ function advanceTurn(state: GameState): void {
     ) {
         state.islandSanctuaryProtection = undefined;
     }
+    // Teferi, Time Raveler +1 (CR 601.3e) — a "cast as though it had flash"
+    // grant lasts "until your next turn"; drop the grantee's entries the moment
+    // their own next turn begins (same boundary as islandSanctuaryProtection).
+    if (state.castTimingFlashGrants) {
+        state.castTimingFlashGrants = state.castTimingFlashGrants.filter(
+            (g) => g.playerId !== state.activePlayerId
+        );
+        if (state.castTimingFlashGrants.length === 0) {
+            state.castTimingFlashGrants = undefined;
+        }
+    }
     // Storm (CR 702.40a, ADR 0052) — "this turn" resets at the start of each
     // turn, by any player. A general primitive: future "spells cast this
     // turn" mechanics (prowess/magecraft/Aetherflux-style) read this same

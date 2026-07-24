@@ -422,6 +422,12 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // state.cannotCastSpellsThisTurn (asserted below).
             analysePlayer(op.player, req, false);
             return;
+        case "grantCastTiming":
+            // CR 601.3e (Teferi +1) — a per-player "cast as though flash" grant;
+            // the deterministic outcome is the player id landing in
+            // state.castTimingFlashGrants (asserted below).
+            analysePlayer(op.player, req, false);
+            return;
         case "restrictActivation":
             // CR 602.1 / 605.1a (issue #1124) — a turn-scoped ability-activation
             // lock on a player; the deterministic outcome is the player id
@@ -1338,6 +1344,28 @@ const OP_ASSERTORS: Record<string, Assertor> = {
                 return {
                     ok: locked && !wasLocked,
                     detail: `locked=${locked} (was ${wasLocked})`,
+                };
+            },
+        };
+    },
+    // `grantCastTiming` (CR 601.3e, Teferi +1) — a deterministic same-resolution
+    // state change: the named player's id lands in state.castTimingFlashGrants
+    // (the per-player "cast as though flash" grant the shared cast gate reads).
+    grantCastTiming(rawOp, _scenario, pre) {
+        const op = rawOp as Extract<EffectOp, { op: "grantCastTiming" }>;
+        const pid = assertionPlayerId(op.player);
+        const wasGranted =
+            pre.castTimingFlashGrants?.some((e) => e.playerId === pid) ?? false;
+        return {
+            label: `grantCastTiming grants player ${pid} flash-timing this turn`,
+            check: (post) => {
+                const granted =
+                    post.castTimingFlashGrants?.some(
+                        (e) => e.playerId === pid
+                    ) ?? false;
+                return {
+                    ok: granted && !wasGranted,
+                    detail: `granted=${granted} (was ${wasGranted})`,
                 };
             },
         };

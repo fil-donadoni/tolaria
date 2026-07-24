@@ -1368,6 +1368,15 @@ export const OP_EXECUTORS: {
         if (playerId === undefined) return;
         ctx.restrictAbilityActivation(playerId);
     },
+    // CR 601.3e (Teferi, Time Raveler +1) — grant a per-player casting-timing
+    // permission: `player` may cast spells whose printed types intersect
+    // `cardTypes` (omitted = every spell) as though they had flash, until their
+    // next turn. Skipped when the player is gone (CR 608.2b).
+    grantCastTiming(ctx, op) {
+        const playerId = resolvePlayerRef(ctx, op.player);
+        if (playerId === undefined) return;
+        ctx.grantCastTiming(playerId, op.cardTypes);
+    },
     // CR 305.1-analog / 601 (issue #1149) — grant a turn-scoped, player-wide
     // permission to play lands and/or cast spells from OWN graveyard
     // (Yawgmoth's Will). `zones` defaults to BOTH lands and spells when

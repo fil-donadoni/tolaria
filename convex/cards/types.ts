@@ -2784,6 +2784,16 @@ export interface SpellContext {
      *  which only ever handles non-mana (`useStack: true`) abilities — mana
      *  abilities go through `tapUntap` and are structurally unaffected. */
     restrictAbilityActivation: (playerId: string) => void;
+    /** CR 601.3e — grants `playerId` a per-player casting-timing permission:
+     *  they may cast spells whose printed types intersect `cardTypes` as though
+     *  they had flash (Teferi, Time Raveler's +1: "Until your next turn, you
+     *  may cast sorcery spells as though they had flash"). Adds an entry to
+     *  `state.castTimingFlashGrants`, honored by the shared cast gate
+     *  (`hasCastTimingFlashGrant`) and cleared at the start of that player's
+     *  next turn (via `advanceTurn`), NOT at CLEANUP — mirroring
+     *  `islandSanctuaryProtection`'s "until your next turn" boundary. `cardTypes`
+     *  omitted grants flash for every spell. */
+    grantCastTiming: (playerId: string, cardTypes?: CardType[]) => void;
     /** CR 305.1-analog / 601 (issue #1149) — grants `playerId` a turn-scoped,
      *  player-wide permission to play lands and/or cast spells from their OWN
      *  graveyard (Yawgmoth's Will: "Until end of turn, you may play lands and
@@ -5305,6 +5315,39 @@ export interface StaticCastRestriction {
     oracleText: string;
 }
 
+/** Battlefield-scanned, PLAYER-scoped casting-TIMING lock (CR 601.3a —
+ *  "a player can cast spells only any time they could cast a sorcery"). The
+ *  timing analogue of `StaticCastRestriction`: rather than forbidding a CLASS
+ *  of spell outright, it narrows the affected player's casting-timing window to
+ *  sorcery speed for EVERY spell (even instants / flash cards), the way Teferi,
+ *  Time Raveler's static — "Each opponent can cast spells only any time they
+ *  could cast a sorcery" — locks its controller's opponents.
+ *
+ *  Like `cast-restriction` it is a read-time gate (never mutates a permanent,
+ *  so it carries no per-instance flag and auto-reverts when the source leaves
+ *  play) evaluated by the shared cast gate (`isCastTimingSorcerySpeedLocked`,
+ *  `convex/cards/castRestrictions.ts`) that both `getLegalActions` and the cast
+ *  mutation call. A lock BEATS any flash the spell has or a
+ *  `grantCastTiming` permission — a "can cast only when" restriction overrides
+ *  a permission (CR 101.2). */
+export interface StaticCastTimingLock {
+    kind: "cast-timing-lock";
+    id: string;
+    /** Returns `true` when `caster` is restricted to sorcery-speed casting by
+     *  `source` (note the same inverted polarity as
+     *  `StaticCastRestriction.forbids` / `StaticGlobalAttackRestriction.forbids`).
+     *  `caster` = id of the player attempting to cast.
+     *  `source` = the permanent carrying this effect (Teferi). */
+    locks: (
+        caster: string,
+        source: PermanentView,
+        state: StaticEffectStateView,
+        ctx: StaticEffectContext
+    ) => boolean;
+    /** Oracle text displayed as the restriction reason. */
+    oracleText: string;
+}
+
 export type StaticEffect =
     | StaticPTBuff
     | StaticPTCDA
@@ -5339,7 +5382,8 @@ export type StaticEffect =
     | StaticCombatDamagePrevention
     | StaticKeywordRemove
     | StaticAbilityLoss
-    | StaticCastRestriction;
+    | StaticCastRestriction
+    | StaticCastTimingLock;
 
 /** Canonical aura predicate: "this static effect applies to my host". Shared
  *  by every aura's `applies` callback (CR 303.4 — auras affect their enchanted
@@ -7709,6 +7753,27 @@ export type EffectOp =
      *  and cleared at CLEANUP (CR 514.2). Skipped when the player cannot be
      *  resolved (CR 608.2b). */
     | { op: "restrictActivation"; player: EffectPlayerRef }
+    /** CR 601.3e (Teferi, Time Raveler +1: "Until your next turn, you may cast
+     *  sorcery spells as though they had flash") — grant `player` a per-player
+     *  casting-timing PERMISSION: they may cast spells whose printed types
+     *  intersect `cardTypes` at instant speed (as though they had flash). A
+     *  thin declarative skin over `SpellContext.grantCastTiming`, one execution
+     *  path (ADR 0045). The player's id is added to
+     *  `state.castTimingFlashGrants`, read by the shared cast gate
+     *  (`hasCastTimingFlashGrant`, `convex/cards/castRestrictions.ts`) that
+     *  both the GRE `getLegalActions` and the client legal-actions view honor.
+     *  Cleared at the START of that player's next turn (via `advanceTurn`) —
+     *  the "until your next turn" boundary (CR 514.2 analogue), NOT CLEANUP,
+     *  mirroring `islandSanctuaryProtection`. `cardTypes` narrows the grant to
+     *  the listed card types (Teferi: `["Sorcery"]`); omitted grants flash for
+     *  every spell. Skipped when the player cannot be resolved (CR 608.2b). The
+     *  inverse of `restrictCasting` (a timing lock) — a permission, not a
+     *  restriction; a sorcery-speed LOCK on the same player overrides it. */
+    | {
+          op: "grantCastTiming";
+          player: EffectPlayerRef;
+          cardTypes?: CardType[];
+      }
     /** CR 305.1-analog / 601 (issue #1149) — grant `player` a turn-scoped,
      *  player-wide permission to play lands and/or cast spells from their OWN
      *  graveyard (Yawgmoth's Will: "Until end of turn, you may play lands and

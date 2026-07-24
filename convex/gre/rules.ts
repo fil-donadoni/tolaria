@@ -30,7 +30,11 @@ import {
 import { STATIC_EFFECT_CTX } from "./layers";
 import { isProtectedFromColors } from "./protection";
 import { isGuardedAgainst, playerHasShroud } from "./permanentGuard";
-import { castProhibitionReason } from "../cards/castRestrictions";
+import {
+    castProhibitionReason,
+    isCastTimingSorcerySpeedLocked,
+    hasCastTimingFlashGrant,
+} from "../cards/castRestrictions";
 import { tapManaBonusUnits } from "./tapManaBonus";
 import { PHYREXIAN_LIFE_PER_PIP, phyrexianPipCount } from "./phyrexian";
 import { matchesPermanentFilter } from "../cards/filters";
@@ -264,6 +268,35 @@ const ALL_HAND_ACTIONS: CardAction[] = [
 ];
 
 /** Returns the list of legal actions for a card in a player's hand. */
+/** CR 601.3a / 307.1 + the per-player casting-timing modifiers (Teferi, Time
+ *  Raveler). Base TIMING legality for `casterId` casting `card` — the
+ *  player-aware replacement for the raw `hasInstantSpeed(card) ? true :
+ *  isSorceryTiming(state)` split:
+ *   - a sorcery-speed LOCK on the caster (Teferi's static: "Each opponent can
+ *     cast spells only any time they could cast a sorcery") forces sorcery
+ *     timing, beating the spell's own flash AND any granted flash — a "can cast
+ *     only when" restriction overrides a permission (CR 101.2);
+ *   - otherwise an instant-speed card, OR a card the caster holds a flash GRANT
+ *     for (Teferi's +1: "cast sorcery spells as though they had flash"), is
+ *     castable any time the caster has priority;
+ *   - else sorcery timing is required. */
+function castTimingBaseLegal(
+    state: GameState,
+    casterId: string,
+    card: CardInstanceState
+): boolean {
+    if (isCastTimingSorcerySpeedLocked(casterId, state)) {
+        return isSorceryTiming(state);
+    }
+    if (
+        hasInstantSpeed(card) ||
+        hasCastTimingFlashGrant(casterId, card, state)
+    ) {
+        return true;
+    }
+    return isSorceryTiming(state);
+}
+
 export function getLegalActions(
     state: GameState,
     player: PlayerState,
@@ -350,7 +383,7 @@ export function getLegalActions(
         player.graveyard.some((c) => c.id === card.id) &&
         hasFlashback(card);
     if (isFlashbackCast) {
-        const baseLegal = hasInstantSpeed(card) ? true : isSorceryTiming(state);
+        const baseLegal = castTimingBaseLegal(state, caster.id, card);
         // CR 702.34a — the mana portion may be absent (Lava Dart pays only a
         // sacrifice); an empty cost is always affordable.
         const flashbackMana = getFlashbackCost(card) ?? {};
@@ -383,7 +416,7 @@ export function getLegalActions(
         player.graveyard.some((c) => c.id === card.id) &&
         hasEscape(state, card);
     if (isEscapeCast) {
-        const baseLegal = hasInstantSpeed(card) ? true : isSorceryTiming(state);
+        const baseLegal = castTimingBaseLegal(state, caster.id, card);
         if (
             baseLegal &&
             passesCastPhaseRestriction(state, card) &&
@@ -411,7 +444,7 @@ export function getLegalActions(
         player.graveyard.some((c) => c.id === card.id) &&
         canCastFromGraveyardByPermission(state, player, card);
     if (isPermissionCast) {
-        const baseLegal = hasInstantSpeed(card) ? true : isSorceryTiming(state);
+        const baseLegal = castTimingBaseLegal(state, caster.id, card);
         if (
             baseLegal &&
             passesCastPhaseRestriction(state, card) &&
@@ -449,7 +482,7 @@ export function getLegalActions(
         player.graveyard.some((c) => c.id === card.id) &&
         card.castableFromGraveyardBy === casterId;
     if (isGraveyardGrantCast) {
-        const baseLegal = hasInstantSpeed(card) ? true : isSorceryTiming(state);
+        const baseLegal = castTimingBaseLegal(state, caster.id, card);
         const costOverride = card.castFromGraveyardWithoutPayingManaCost
             ? {}
             : (getInstanceManaCost(card) ?? {});
@@ -484,7 +517,7 @@ export function getLegalActions(
         player.graveyard.some((c) => c.id === card.id) &&
         canCastPermanentFromGraveyardByPermission(state, player, card);
     if (isPermanentPermissionCast) {
-        const baseLegal = hasInstantSpeed(card) ? true : isSorceryTiming(state);
+        const baseLegal = castTimingBaseLegal(state, caster.id, card);
         if (
             baseLegal &&
             passesCastPhaseRestriction(state, card) &&
@@ -538,7 +571,7 @@ export function getLegalActions(
         !types.includes("Land") &&
         card.castFromExileWithoutPayingManaCost === true;
     if (isFreeExileCast) {
-        const baseLegal = hasInstantSpeed(card) ? true : isSorceryTiming(state);
+        const baseLegal = castTimingBaseLegal(state, caster.id, card);
         if (
             baseLegal &&
             passesCastPhaseRestriction(state, card) &&
@@ -553,11 +586,11 @@ export function getLegalActions(
 
     // "Cast" is for all non-land cards
     if (!types.includes("Land")) {
-        const baseLegal = hasInstantSpeed(card)
-            ? // Instants can be cast anytime a player has priority
-              true
-            : // Sorcery-speed: main phase, empty stack, active player has priority
-              isSorceryTiming(state);
+        // Per-player timing (CR 601.3a/e): instant-speed / flash-granted →
+        // anytime with priority; sorcery-speed → main phase, empty stack,
+        // active player has priority; a sorcery-speed LOCK (Teferi's static)
+        // forces the latter even for instants. See `castTimingBaseLegal`.
+        const baseLegal = castTimingBaseLegal(state, caster.id, card);
         if (
             baseLegal &&
             passesCastPhaseRestriction(state, card) &&
