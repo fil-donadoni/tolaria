@@ -54,8 +54,11 @@ export function columnDropId(column: number | "lands"): string {
 
 /** Parses a column drop-target id back to its column identity (a numeric
  *  Mana-Value column, or the literal `"lands"`), or `null` for any
- *  unrecognized id (not a valid column-override target). */
-function parseColumnDropTarget(dest: string): number | "lands" | null {
+ *  unrecognized id (not a valid column-override target). Exported so the
+ *  limited deckbuilder's own drag resolver (`deckbuilderColumnDrag.ts`, issue
+ *  #1575) parses column drop ids through the SAME code as the draft Pool —
+ *  the two surfaces never fork column-id parsing (issue #1581 unifies them). */
+export function parseColumnDropId(dest: string): number | "lands" | null {
     if (!dest.startsWith(COLUMN_PREFIX)) return null;
     const raw = dest.slice(COLUMN_PREFIX.length);
     if (raw === "lands") return "lands";
@@ -76,7 +79,7 @@ export function resolveDraftDragAction(
     if (dest === SIDEBOARD_DROP_ID) {
         target = { kind: "sideboard" };
     } else {
-        const column = parseColumnDropTarget(dest);
+        const column = parseColumnDropId(dest);
         if (column !== null) target = { kind: "column", column };
     }
     if (target === null) return null;

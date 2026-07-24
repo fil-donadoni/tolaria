@@ -27,11 +27,19 @@ export interface PoolColumn {
     entries: PoolColumnEntry[];
 }
 
-function isLandCard(card: LimitedPoolCard): boolean {
+/** Any card identifiable by its Card ID — a `LimitedPoolCard` or a plain
+ *  `DeckCard` alike. The column model only ever needs the id to look the
+ *  card up in the registry, so the deckbuilder (`DeckCard[]`, no `scryfallId`)
+ *  reuses `resolveDisplayColumn` unchanged (issue #1575). */
+interface CardIdentifiable {
+    cardId: string;
+}
+
+function isLandCard(card: CardIdentifiable): boolean {
     return getDefinition(card.cardId).types.includes("Land");
 }
 
-function autoColumnFor(card: LimitedPoolCard): number {
+function autoColumnFor(card: CardIdentifiable): number {
     return Math.min(
         manaValue(getDefinition(card.cardId).manaCost),
         MAX_POOL_COLUMN
@@ -43,9 +51,10 @@ function autoColumnFor(card: LimitedPoolCard): number {
  *  numeric override clamped into the fixed 0..MAX_POOL_COLUMN range — else
  *  `"lands"` for a Land card, else its own Mana Value (clamped the same
  *  way). Exported for the drag-resolution seam (`limitedDraftDrag.ts`) to
- *  compare a drop target against a card's OWN auto column. */
+ *  compare a drop target against a card's OWN auto column, and reused by the
+ *  limited deckbuilder's fixed-column grouping (issue #1575). */
 export function resolveDisplayColumn(
-    card: LimitedPoolCard,
+    card: CardIdentifiable,
     columnOverride: number | "lands" | undefined
 ): number | "lands" {
     if (columnOverride !== undefined) {
@@ -53,6 +62,29 @@ export function resolveDisplayColumn(
         return Math.min(Math.max(columnOverride, 0), MAX_POOL_COLUMN);
     }
     return isLandCard(card) ? "lands" : autoColumnFor(card);
+}
+
+/** The fixed column set — Lands first, then MV 0..MAX_POOL_COLUMN — as
+ *  `{ key, label, column }` descriptors, in render order. The single
+ *  authority both `groupPoolIntoColumns` (draft Pool) and the limited
+ *  deckbuilder's `groupDeckIntoFixedColumns` (issue #1575) build their
+ *  columns from, so the two surfaces never fork the column identities /
+ *  labels (issue #1581 unifies them fully later). */
+export function fixedColumnDescriptors(): {
+    key: string;
+    label: string;
+    column: number | "lands";
+}[] {
+    const descriptors: { key: string; label: string; column: number | "lands" }[] =
+        [{ key: "lands", label: "Lands", column: "lands" }];
+    for (let n = 0; n <= MAX_POOL_COLUMN; n++) {
+        descriptors.push({
+            key: `mv-${n}`,
+            label: n === MAX_POOL_COLUMN ? `MV ${n}+` : `MV ${n}`,
+            column: n,
+        });
+    }
+    return descriptors;
 }
 
 function sortEntries(entries: PoolColumnEntry[]): PoolColumnEntry[] {
@@ -87,23 +119,10 @@ export function groupPoolIntoColumns(
         });
     }
 
-    const columns: PoolColumn[] = [
-        {
-            key: "lands",
-            label: "Lands",
-            column: "lands",
-            entries: sortEntries(byColumn.get("lands")!),
-        },
-    ];
-    for (let n = 0; n <= MAX_POOL_COLUMN; n++) {
-        columns.push({
-            key: `mv-${n}`,
-            label: n === MAX_POOL_COLUMN ? `MV ${n}+` : `MV ${n}`,
-            column: n,
-            entries: sortEntries(byColumn.get(n)!),
-        });
-    }
-    return columns;
+    return fixedColumnDescriptors().map((descriptor) => ({
+        ...descriptor,
+        entries: sortEntries(byColumn.get(descriptor.column)!),
+    }));
 }
 
 /** Every SIDEBOARD placement (`sideboard: true`), sorted for stable display —

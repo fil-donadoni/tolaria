@@ -14,10 +14,9 @@ import CardZoomSlider from "~/components/lobby/deck-builder/card-zoom-slider";
 import { useCardZoom } from "~/components/lobby/deck-builder/useCardZoom";
 import { useSplitRatio } from "~/components/lobby/deck-builder/useSplitRatio";
 import PoolSplitDivider from "~/components/deckbuilder/pool-split-divider";
-import type {
-    CardDragData,
-    DropZoneId,
-} from "~/components/lobby/deck-builder/dnd-types";
+import PoolDeckbuilderMaindeck from "~/components/deckbuilder/pool-deckbuilder-maindeck";
+import { resolveDeckbuilderDragAction } from "~/components/deckbuilder/deckbuilderColumnDrag";
+import type { CardDragData } from "~/components/lobby/deck-builder/dnd-types";
 
 const CARD_BASE = "min(7.5rem, 17vw, 9dvh)";
 
@@ -40,6 +39,14 @@ export interface PoolDeckbuilderSurfaceProps {
     onMoveToSideboard: (cardId: string) => void;
     /** Move a card from the Sideboard to the Maindeck (click or drag). */
     onMoveToMaindeck: (cardId: string) => void;
+    /** Manual Mana-Value column override for a Maindeck Card ID (the seat's
+     *  Pool Arrangement), or `undefined` for the card's auto column (issue
+     *  #1575). */
+    columnOf: (cardId: string) => number | "lands" | undefined;
+    /** Record a manual column override for `cardId` — fired when a Maindeck
+     *  card is dragged to another column, or a Sideboard card is dragged
+     *  onto a specific column (issue #1575). */
+    onSetColumn: (cardId: string, column: number | "lands") => void;
     mainTitle?: string;
     sideTitle?: string;
     mainEmptyMessage: string;
@@ -60,6 +67,8 @@ export default function PoolDeckbuilderSurface({
     sideCards,
     onMoveToSideboard,
     onMoveToMaindeck,
+    columnOf,
+    onSetColumn,
     mainTitle = "Maindeck",
     sideTitle = "Pool (Sideboard)",
     mainEmptyMessage,
@@ -118,14 +127,23 @@ export default function PoolDeckbuilderSurface({
             if (!source || !target) return;
             const data = source.data as CardDragData | undefined;
             if (!data) return;
-            const dest = target.id as DropZoneId;
-            if (data.kind === "main" && dest === "side") {
-                onMoveToSideboard(data.cardId);
-            } else if (data.kind === "side" && dest === "main") {
-                onMoveToMaindeck(data.cardId);
+            const action = resolveDeckbuilderDragAction(
+                { kind: data.kind === "side" ? "side" : "main", cardId: data.cardId },
+                typeof target.id === "string" ? target.id : String(target.id)
+            );
+            if (!action) return;
+            if (action.type === "toSideboard") {
+                onMoveToSideboard(action.cardId);
+            } else if (action.type === "setColumn") {
+                onSetColumn(action.cardId, action.column);
+            } else {
+                // toMaindeck: move into the deck AND pin to the dropped-on
+                // column, in one gesture.
+                onMoveToMaindeck(action.cardId);
+                onSetColumn(action.cardId, action.column);
             }
         },
-        [onMoveToSideboard, onMoveToMaindeck]
+        [onMoveToSideboard, onMoveToMaindeck, onSetColumn]
     );
 
     return (
@@ -147,11 +165,10 @@ export default function PoolDeckbuilderSurface({
                         className="min-h-0 min-w-0 flex-1 overflow-hidden md:flex-none md:shrink-0 md:grow-0 md:basis-[var(--split-main)]"
                         style={zoomVars(mainZoom.value)}
                     >
-                        <DeckPileArea
+                        <PoolDeckbuilderMaindeck
                             title={mainTitle}
-                            zone="main"
-                            grouped
                             cards={mainCards}
+                            columnOf={columnOf}
                             onRemove={onMoveToSideboard}
                             emptyMessage={mainEmptyMessage}
                             headerRight={

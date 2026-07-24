@@ -6,6 +6,8 @@
 import { describe, it, expect } from "vitest";
 import type { LimitedPoolCard, PoolArrangementEntry } from "../eventTypes";
 import {
+    columnOverridesByCardId,
+    findColumnOverrideablePoolIndex,
     findMovablePoolIndex,
     resolvePoolPlacements,
     splitPoolByArrangement,
@@ -15,6 +17,69 @@ import {
 function card(cardId: string, cardName = cardId): LimitedPoolCard {
     return { scryfallId: `s-${cardId}`, cardId, cardName };
 }
+
+// Real registry ids — the deckbuilder column helpers resolve a card's auto
+// column via the card registry, but `columnOverridesByCardId` /
+// `findColumnOverrideablePoolIndex` only read the RECORDED override + card
+// id, so synthetic ids are fine here (no registry lookup on this path).
+describe("columnOverridesByCardId (issue #1575)", () => {
+    it("maps each cardId that has a recorded column override, skipping auto-column cards", () => {
+        const pool = [card("bolt"), card("plains"), card("goblin")];
+        const arrangement: PoolArrangementEntry[] = [
+            { poolIndex: 0, column: 5 },
+            { poolIndex: 1, column: "lands" },
+            // poolIndex 2 (goblin) has no override → absent from the map.
+        ];
+        const map = columnOverridesByCardId(pool, arrangement);
+        expect(map.get("bolt")).toBe(5);
+        expect(map.get("plains")).toBe("lands");
+        expect(map.has("goblin")).toBe(false);
+    });
+
+    it("is empty for an untouched (undefined) arrangement", () => {
+        const pool = [card("bolt")];
+        expect(columnOverridesByCardId(pool, undefined).size).toBe(0);
+    });
+
+    it("last copy wins when two copies of one card carry divergent overrides", () => {
+        const pool = [card("bolt"), card("bolt")];
+        const arrangement: PoolArrangementEntry[] = [
+            { poolIndex: 0, column: 1 },
+            { poolIndex: 1, column: 6 },
+        ];
+        expect(columnOverridesByCardId(pool, arrangement).get("bolt")).toBe(6);
+    });
+});
+
+describe("findColumnOverrideablePoolIndex (issue #1575)", () => {
+    it("returns the poolIndex of a Maindeck copy in preference to a Sideboard one", () => {
+        const pool = [card("bolt"), card("bolt")];
+        // poolIndex 0 is sideboarded; poolIndex 1 stays in the Maindeck.
+        const arrangement: PoolArrangementEntry[] = [
+            { poolIndex: 0, sideboard: true },
+        ];
+        expect(
+            findColumnOverrideablePoolIndex(pool, arrangement, "bolt")
+        ).toBe(1);
+    });
+
+    it("falls back to any copy when every copy is in the Sideboard", () => {
+        const pool = [card("bolt")];
+        const arrangement: PoolArrangementEntry[] = [
+            { poolIndex: 0, sideboard: true },
+        ];
+        expect(
+            findColumnOverrideablePoolIndex(pool, arrangement, "bolt")
+        ).toBe(0);
+    });
+
+    it("returns null for a card not in the Pool (a Basic land added from the bar)", () => {
+        const pool = [card("bolt")];
+        expect(
+            findColumnOverrideablePoolIndex(pool, [], "mountain")
+        ).toBeNull();
+    });
+});
 
 describe("upsertPoolArrangementEntry (ADR 0060, issue #1247)", () => {
     it("adds a fresh sideboard entry for a previously-untouched poolIndex", () => {
