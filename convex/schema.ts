@@ -437,7 +437,13 @@ export default defineSchema({
                     v.array(
                         v.object({
                             poolIndex: v.number(),
-                            column: v.optional(v.number()),
+                            // A numeric Mana-Value column override, OR the
+                            // literal "lands" to pin the card into the Lands
+                            // column regardless of its own type (issue
+                            // #1573).
+                            column: v.optional(
+                                v.union(v.number(), v.literal("lands"))
+                            ),
                             sideboard: v.optional(v.boolean()),
                         })
                     )

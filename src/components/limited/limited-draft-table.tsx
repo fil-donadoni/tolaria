@@ -128,9 +128,13 @@ export default function LimitedDraftTable({
         }
     };
 
-    // Commits the Pick and overrides its Mana-Value column to exactly the
-    // one it was dropped on — a Booster→Pool-column drag.
-    const handlePickToColumn = async (pickId: string, column: number) => {
+    // Commits the Pick and overrides its column to exactly the one it was
+    // dropped on — a Booster→Pool-column drag (a numbered Mana-Value
+    // column, or "lands" — issue #1573).
+    const handlePickToColumn = async (
+        pickId: string,
+        column: number | "lands"
+    ) => {
         if (pending) return;
         setPending(true);
         setError(null);

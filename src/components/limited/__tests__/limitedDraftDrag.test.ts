@@ -44,8 +44,13 @@ describe("resolveDraftDragAction (ADR 0060, issue #1248)", () => {
         });
     });
 
-    it("Booster → the Lands pile is a no-op (Lands is display-only, never a column-override target)", () => {
-        expect(resolveDraftDragAction(booster, columnDropId(null))).toBeNull();
+    it("Booster → the Lands pile resolves to commitPick targeting Lands (issue #1573)", () => {
+        const action = resolveDraftDragAction(booster, columnDropId("lands"));
+        expect(action).toEqual({
+            type: "commitPick",
+            pickId: "r0-p0-c1",
+            target: { kind: "column", column: "lands" },
+        });
     });
 
     it("Pool card → Sideboard resolves to moveArrangement with sideboard: true", () => {
@@ -63,6 +68,24 @@ describe("resolveDraftDragAction (ADR 0060, issue #1248)", () => {
             type: "moveArrangement",
             poolIndex: 3,
             target: { kind: "column", column: 5 },
+        });
+    });
+
+    it("Pool card → the Lands pile resolves to moveArrangement naming the Lands column (issue #1573)", () => {
+        const action = resolveDraftDragAction(poolCard, columnDropId("lands"));
+        expect(action).toEqual({
+            type: "moveArrangement",
+            poolIndex: 3,
+            target: { kind: "column", column: "lands" },
+        });
+    });
+
+    it("Pool card → back to a Mana-Value column from Lands resolves symmetrically, clearing the Lands override", () => {
+        const action = resolveDraftDragAction(poolCard, columnDropId(2));
+        expect(action).toEqual({
+            type: "moveArrangement",
+            poolIndex: 3,
+            target: { kind: "column", column: 2 },
         });
     });
 
@@ -87,9 +110,18 @@ describe("columnDropId", () => {
 
     it("the Lands column id is distinct from every numbered column id", () => {
         const ids = new Set([
-            columnDropId(null),
+            columnDropId("lands"),
             ...Array.from({ length: 8 }, (_, n) => columnDropId(n)),
         ]);
         expect(ids.size).toBe(9);
+    });
+
+    it("the Lands column id round-trips through the resolver too", () => {
+        const action = resolveDraftDragAction(poolCard, columnDropId("lands"));
+        expect(action).toEqual({
+            type: "moveArrangement",
+            poolIndex: 3,
+            target: { kind: "column", column: "lands" },
+        });
     });
 });

@@ -29,7 +29,9 @@ export interface PlainPoolCard {
 export interface ArrangementPatch {
     poolIndex: number;
     sideboard?: boolean;
-    column?: number | null;
+    /** A numeric Mana-Value column override, the literal `"lands"` to pin
+     *  into Lands, or `null` to explicitly clear back to auto. */
+    column?: number | "lands" | null;
 }
 
 /** Folds `patch` into `arrangement`, returning a NEW array (arrangement
@@ -65,9 +67,10 @@ export interface ResolvedPlacement {
     poolIndex: number;
     card: LimitedPoolCard;
     sideboard: boolean;
-    /** Manual Mana-Value column override, if the Arrangement records one for
-     *  this card. Absent = auto (the card's own mana value). */
-    columnOverride?: number;
+    /** Manual column override, if the Arrangement records one for this card
+     *  — a numeric Mana-Value column, or `"lands"`. Absent = auto (a Land
+     *  card's own type, else the card's own mana value). */
+    columnOverride?: number | "lands";
 }
 
 /** Resolves every card in `pool` against `arrangement` (`undefined` = an

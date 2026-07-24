@@ -71,6 +71,40 @@ describe("groupPoolIntoColumns (ADR 0060, issue #1248)", () => {
         expect(columns.find((c) => c.key === "mv-2")!.entries).toHaveLength(1);
     });
 
+    it("a manual 'lands' override moves a non-Land card into Lands — column placement is player organization, not a rules statement (issue #1573)", () => {
+        const pool = [poolCard(BOLT_ID, "Lightning Bolt")];
+        const placements = resolvePoolPlacements(pool, [
+            { poolIndex: 0, column: "lands" },
+        ]);
+        const columns = groupPoolIntoColumns(placements);
+
+        expect(columns.find((c) => c.key === "mv-1")!.entries).toHaveLength(0);
+        expect(
+            columns
+                .find((c) => c.key === "lands")!
+                .entries.map((e) => e.poolIndex)
+        ).toEqual([0]);
+    });
+
+    it("moving a 'lands'-pinned card back to a Mana-Value column resolves symmetrically", () => {
+        const pool = [poolCard(BOLT_ID, "Lightning Bolt")];
+        // Simulates the second drag: override set to "lands", then moved
+        // back to column 3 (the arrangement entry itself would be
+        // re-upserted server-side — here we assert the pure display
+        // resolution for the post-move override value).
+        const placements = resolvePoolPlacements(pool, [
+            { poolIndex: 0, column: 3 },
+        ]);
+        const columns = groupPoolIntoColumns(placements);
+
+        expect(columns.find((c) => c.key === "lands")!.entries).toHaveLength(
+            0
+        );
+        expect(columns.find((c) => c.key === "mv-3")!.entries).toHaveLength(
+            1
+        );
+    });
+
     it("a Sideboard placement never appears in any Pool column", () => {
         const pool = [poolCard(BOLT_ID, "Lightning Bolt")];
         const placements = resolvePoolPlacements(pool, [
@@ -112,6 +146,12 @@ describe("resolveDisplayColumn", () => {
         expect(
             resolveDisplayColumn(poolCard(BOLT_ID, "Lightning Bolt"), -1)
         ).toBe(0);
+    });
+
+    it("a 'lands' override wins for a non-Land card, regardless of its own type (issue #1573)", () => {
+        expect(
+            resolveDisplayColumn(poolCard(BOLT_ID, "Lightning Bolt"), "lands")
+        ).toBe("lands");
     });
 });
 

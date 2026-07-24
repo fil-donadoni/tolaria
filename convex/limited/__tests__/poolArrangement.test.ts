@@ -33,6 +33,25 @@ describe("upsertPoolArrangementEntry (ADR 0060, issue #1247)", () => {
         expect(next).toEqual([{ poolIndex: 0, column: 4 }]);
     });
 
+    it("adds a fresh 'lands' column-override entry (issue #1573: any card can be manually pinned into Lands)", () => {
+        const next = upsertPoolArrangementEntry([], {
+            poolIndex: 0,
+            column: "lands",
+        });
+        expect(next).toEqual([{ poolIndex: 0, column: "lands" }]);
+    });
+
+    it("moving a 'lands'-pinned card back to a Mana-Value column clears the override symmetrically", () => {
+        const existing: PoolArrangementEntry[] = [
+            { poolIndex: 0, column: "lands" },
+        ];
+        const next = upsertPoolArrangementEntry(existing, {
+            poolIndex: 0,
+            column: 3,
+        });
+        expect(next).toEqual([{ poolIndex: 0, column: 3 }]);
+    });
+
     it("merges a patch into an existing entry, preserving the untouched dimension", () => {
         const existing: PoolArrangementEntry[] = [{ poolIndex: 1, column: 3 }];
         // Only patches `sideboard` — `column: 3` must survive untouched.
@@ -141,6 +160,15 @@ describe("resolvePoolPlacements / splitPoolByArrangement (ADR 0060, issue #1247)
         const placements = resolvePoolPlacements(pool, arrangement);
         expect(placements[2].columnOverride).toBe(0);
         expect(placements[2].sideboard).toBe(false);
+    });
+
+    it("carries a 'lands' column override through as columnOverride (issue #1573)", () => {
+        const arrangement: PoolArrangementEntry[] = [
+            { poolIndex: 0, column: "lands" },
+        ];
+        const placements = resolvePoolPlacements(pool, arrangement);
+        expect(placements[0].columnOverride).toBe("lands");
+        expect(placements[0].sideboard).toBe(false);
     });
 });
 

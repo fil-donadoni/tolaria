@@ -108,11 +108,12 @@ const draftPackCardValidator = v.object({
     pickId: v.string(),
 });
 
-// Pool Arrangement (ADR 0060, issue #1247) — see `PoolArrangementEntry`'s doc
-// comment in `convex/limited/eventTypes.ts`.
+// Pool Arrangement (ADR 0060, issue #1247; Lands as a manual column target,
+// issue #1573) — see `PoolArrangementEntry`'s doc comment in
+// `convex/limited/eventTypes.ts`.
 const poolArrangementEntryValidator = v.object({
     poolIndex: v.number(),
-    column: v.optional(v.number()),
+    column: v.optional(v.union(v.number(), v.literal("lands"))),
     sideboard: v.optional(v.boolean()),
 });
 
@@ -803,8 +804,12 @@ export const setPoolArrangementEntry = mutation({
         poolIndex: v.number(),
         sideboard: v.optional(v.boolean()),
         // `null` explicitly clears a manual column override back to auto;
-        // `undefined`/omitted leaves any existing override untouched.
-        column: v.optional(v.union(v.number(), v.null())),
+        // `undefined`/omitted leaves any existing override untouched. The
+        // literal "lands" pins the card into the Lands column regardless of
+        // its own type (issue #1573).
+        column: v.optional(
+            v.union(v.number(), v.literal("lands"), v.null())
+        ),
     },
     returns: v.null(),
     handler: async (ctx, args) => {

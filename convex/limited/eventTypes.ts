@@ -95,8 +95,13 @@ export type LimitedEventStatus = "open" | "started";
  *  migration. */
 export interface PoolArrangementEntry {
     poolIndex: number;
-    /** Manual override of the auto Mana-Value column. Absent = auto. */
-    column?: number;
+    /** Manual override of the auto Mana-Value column, OR the literal
+     *  `"lands"` to pin the card into the Lands column regardless of its own
+     *  type (issue #1573: column placement is player organization, not a
+     *  rules statement — any card can be manually parked in Lands). Absent =
+     *  auto (a Land card's own type routes it to Lands; every other card
+     *  routes to its own Mana Value). */
+    column?: number | "lands";
     /** true = Sideboard, false/absent = Maindeck. */
     sideboard?: boolean;
 }

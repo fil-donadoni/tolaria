@@ -19,12 +19,11 @@ export interface PoolColumn {
      *  `columnDropId` (`limitedDraftDrag.ts`). */
     key: string;
     label: string;
-    /** Numeric column identity a manual override can target — `null` for the
-     *  Lands column, which is never a drop target for a column override
-     *  (ADR 0060, issue #1248: overriding a card'S column always names an
-     *  explicit Mana Value; "pin this into Lands" is out of scope — a Land
-     *  can still be overridden INTO a numbered column, just not the reverse). */
-    column: number | null;
+    /** Column identity a manual override can target — a numbered Mana-Value
+     *  column, or `"lands"` for the Lands column (issue #1573: any card can
+     *  be manually pinned into Lands, symmetric with a Land card being
+     *  overridden into a numbered column). */
+    column: number | "lands";
     entries: PoolColumnEntry[];
 }
 
@@ -39,17 +38,18 @@ function autoColumnFor(card: LimitedPoolCard): number {
     );
 }
 
-/** Resolves ONE card's fixed display column (ADR 0060): a manual override
- *  (clamped into the fixed 0..MAX_POOL_COLUMN range) if the Arrangement
- *  records one, else `"lands"` for a Land card, else its own Mana Value
- *  (clamped the same way). Exported for the drag-resolution seam
- *  (`limitedDraftDrag.ts`) to compare a drop target against a card's OWN
- *  auto column. */
+/** Resolves ONE card's fixed display column (ADR 0060, issue #1573): a
+ *  manual override if the Arrangement records one — `"lands"` verbatim, or a
+ *  numeric override clamped into the fixed 0..MAX_POOL_COLUMN range — else
+ *  `"lands"` for a Land card, else its own Mana Value (clamped the same
+ *  way). Exported for the drag-resolution seam (`limitedDraftDrag.ts`) to
+ *  compare a drop target against a card's OWN auto column. */
 export function resolveDisplayColumn(
     card: LimitedPoolCard,
-    columnOverride: number | undefined
+    columnOverride: number | "lands" | undefined
 ): number | "lands" {
     if (columnOverride !== undefined) {
+        if (columnOverride === "lands") return "lands";
         return Math.min(Math.max(columnOverride, 0), MAX_POOL_COLUMN);
     }
     return isLandCard(card) ? "lands" : autoColumnFor(card);
@@ -91,7 +91,7 @@ export function groupPoolIntoColumns(
         {
             key: "lands",
             label: "Lands",
-            column: null,
+            column: "lands",
             entries: sortEntries(byColumn.get("lands")!),
         },
     ];
