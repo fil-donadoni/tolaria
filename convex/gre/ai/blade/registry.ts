@@ -247,15 +247,16 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         bot: "me",
         budget: { iterations: 400 },
         seeds: [0xb1ade, 1, 2],
-        // Passes at its declared production-range budget TODAY — but the pair
-        // is promoted as a UNIT or not at all (ADR 0070 §1: a `forbidden`
-        // entry that a never-cast bot also satisfies asserts nothing on its
-        // own). Its partner is beyond budget, so both stay report-only.
-        tier: "stretch",
+        // Passes at its declared production-range budget. The pair is promoted
+        // as a UNIT (ADR 0070 §1: a `forbidden` entry that a never-cast bot
+        // also satisfies asserts nothing on its own); its partner now passes at
+        // 400 too (its stale `beyondBudget` cleaned up under #1499), so both
+        // are `must`.
+        tier: "must",
         expect: {
             forbidden: [{ kind: "cast-spell", card: "Phyrexian Dreadnought" }],
         },
-        note: 'Half 1 of the discriminating pair — PAIRED WITH "discriminating pair: casts Phyrexian Dreadnought WITH an out (Stifle)". Neither half is meaningful alone. Passes at 400 iterations across 3 seeds; held at `stretch` until its partner passes at a production-range budget.',
+        note: 'Half 1 of the discriminating pair — PAIRED WITH "discriminating pair: casts Phyrexian Dreadnought WITH an out (Stifle)". Neither half is meaningful alone. Both halves pass at 400 iterations across 3 seeds.',
     },
     {
         // DISCRIMINATING PAIR, HALF 2 of 2 (issue #1487).
@@ -279,16 +280,18 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         bot: "me",
         budget: { iterations: 400 },
         seeds: [0xb1ade, 1, 2],
-        tier: "stretch",
-        // ADR 0070 §2 — measured, not guessed: `pass` at 400 and at 800 on all
-        // three seeds; `cast Phyrexian Dreadnought` on all three at 1600. The
-        // budget below STAYS at the production 400; raising it to turn the
-        // entry green is exactly the move the ADR forbids.
-        beyondBudget: {
-            cause: "horizon",
-            passesAt: { iterations: 1600 },
-            note: "The cast only pays off once the surviving 12/12 converts to damage, several plies past the rollout horizon; nearer the leaf the protected line scores the same as passing. The missing knowledge is VALUATION — the bot has no term for 'a threat I hold the answer to protect', so 4x the production budget is needed to reach the payoff by search alone.",
-        },
+        // ADR 0070 §2 — measured, not guessed: `cast Phyrexian Dreadnought` on
+        // all three seeds at 400, 800, 1600 and 3200 (monotone, no
+        // converge-away). Once beyond budget with cause `horizon` (it needed
+        // 1600 when authored), it is now solved at the production 400 — the
+        // valuation cluster that reshaped this area (#1509 / #1520 / #1521)
+        // brought the payoff inside the production budget, leaving this entry's
+        // `beyondBudget` a STALE claim. This board has only basic Islands (no
+        // fetchland), so the mana-proxy fix of #1499 does not touch its
+        // valuation — measured identical before and after; the stale hint was
+        // simply tracked to #1499 and is cleaned up here. Promoted to `must`
+        // with its partner.
+        tier: "must",
         expect: {
             moves: [{ kind: "cast-spell", card: "Phyrexian Dreadnought" }],
         },
@@ -334,11 +337,28 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         //
         // BUDGET (ADR 0070 §2): the production
         // `DEFAULT_BUDGET = { iterations: 400 }`, declared before measuring
-        // and left there. The bot does NOT solve this today (see the note),
-        // so the entry is report-only `stretch` — with cause `"valuation"`
-        // (issue #1518), the ONE cause with no `passesAt`: more iterations
-        // make it WORSE, not better, so there is no budget at which it
-        // passes to record.
+        // and left there. The bot SOLVES this at 400 (K=5 seeds) and remains
+        // correct at 1600 and 3200 — monotone in budget, no converge-away
+        // residue — so it is a blocking `must` entry.
+        //
+        // WHAT WAS WRONG, AND THE FIX (issue #1499). The bot used to converge
+        // AWAY from the crack as search deepened (measured 3/8 correct at 100,
+        // 5/8 at 400, 1/8 at 800, 0/8 at 3200) — the signature of a MIS-VALUED
+        // subtree. Root cause: the bot's coarse mana proxy counted EVERY
+        // untapped land as a mana source (`isLand(perm) || hasManaAbility`),
+        // so the Polluted Delta — a fetchland with NO mana ability (CR 305.6)
+        // — was scored as a usable {U} source it is not. Cracking it then read
+        // as a PURE 1-life loss with no offsetting gain: the phantom source it
+        // sacrificed was already counted, and the real Island it fetched merely
+        // replaced that phantom (the post-fetch mana term was byte-identical).
+        // The leaf value of the fetch node was −8 (the life) versus passing;
+        // more rollouts only reached that mis-valued leaf more reliably. The
+        // fix scores a source only if it can ACTUALLY produce mana
+        // (`isUntappedManaSource`, `constants.ts`): the Delta stops counting,
+        // so the crack now correctly reads as +W_MANA (a real source arrives) +
+        // flexibility (Stifle becomes castable) − 1 life = a net GAIN, and the
+        // subtree is valued correctly. Its support is exactly zero on any board
+        // whose untapped lands all produce mana (ADR 0070 §5).
         label: "charter: cracks its fetchland for the only answer to a trigger on the stack",
         spec: {
             cards: [
@@ -368,19 +388,11 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // ADR 0070 §3 — a charter entry runs K≥3 seeds.
         seeds: [0xb1ade, 1, 2, 3, 4],
         budget: { iterations: 400 },
-        tier: "stretch",
-        beyondBudget: {
-            cause: "valuation",
-            // No `passesAt`: measured on eight seeds it chooses `pass` MORE
-            // often as the budget rises — 3/8 correct at 100, 5/8 at 400,
-            // 1/8 at 800, 0/8 at 3200 — so there is no budget at which it
-            // passes to record (issue #1518).
-            note: "The gap is isolated to the fetch ply itself, by a discriminator that changes ONE thing: replace the Polluted Delta with the untapped Island it would fetch, leaving everything else identical (i.e. the exact post-fetch state, one life and one shuffle aside), and the bot Stifles on 8/8 seeds at 100, 400 and 1600. So the valuation of 'keep the 12/12' is already right and the loss is inside the fetch subtree — where the payoff is reached only through the activation, a stack resolution and a search-library choice. Converging AWAY from the right move as visits grow is a mis-valued subtree, not a horizon or a priors shortfall — the missing knowledge is a correct VALUATION term for that subtree. tracked-by: #1499 — this entry stays permanently red until that valuation gap is closed.",
-        },
+        tier: "must",
         expect: {
             moves: [{ kind: "activate-ability", card: "Polluted Delta" }],
         },
-        note: "Charter scenario 2, TIMING half. Passing loses the Phyrexian Dreadnought BY FORCE: the trigger on the stack resolves this priority round, its punisher cost can only be paid by sacrificing the Dreadnought itself (the board's only creature), so every legal answer to the may-pay sacrifices the 12/12 — Stifle is the only answer that keeps it, and a fetchland produces no mana (CR 305.6) so cracking the Delta is the only route to {U} — there is no later turn to defer to. This entry does NOT exercise the choice-node priors: cracking a fetchland is an ordinary enumerated activated-ability move, and `expect` asserts the ROOT move only, so it passes regardless of what the search-library choice then finds — here the seeded Island is in any case the one card the filter can find, so that node has a single legal option and can discriminate nothing. The half that exercises those priors is the fetch TARGET, a separate entry. Do not read this one as covering the fetch charter on its own. NOT SOLVED TODAY, and not for lack of compute — see `beyondBudget` for the classified cause and the measurement.",
+        note: "Charter scenario 2, TIMING half. Passing loses the Phyrexian Dreadnought BY FORCE: the trigger on the stack resolves this priority round, its punisher cost can only be paid by sacrificing the Dreadnought itself (the board's only creature), so every legal answer to the may-pay sacrifices the 12/12 — Stifle is the only answer that keeps it, and a fetchland produces no mana (CR 305.6) so cracking the Delta is the only route to {U} — there is no later turn to defer to. This entry does NOT exercise the choice-node priors: cracking a fetchland is an ordinary enumerated activated-ability move, and `expect` asserts the ROOT move only, so it passes regardless of what the search-library choice then finds — here the seeded Island is in any case the one card the filter can find, so that node has a single legal option and can discriminate nothing. The half that exercises those priors is the fetch TARGET, a separate entry. Do not read this one as covering the fetch charter on its own. SOLVED by issue #1499: the mana proxy no longer counts a no-mana-ability fetchland as a usable source, so cracking the Delta is valued as the net GAIN it is instead of a pure life loss — see the entry's header comment for the mis-valuation and the fix.",
     },
     {
         // CHARTER SCENARIO — the MODAL CHOICE (issue #1490, PRD #1423, charter
@@ -418,12 +430,14 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // 400 }`, declared before measuring. Measured at authoring time to
         // choose Counter on ALL FIVE seeds below at 400 — the forced loss lands
         // on the VERY NEXT resolution, well inside the rollout horizon, so the
-        // bot sees it without extra compute. It is therefore a `must` entry,
-        // not `stretch`: unlike the fetchland TIMING half (#1488, tracked-by
-        // #1499) and the lethal-block charter (#1489), whose losses sit deeper
-        // in a subtree the rollout mis-values, this loss is one ply away. So it
-        // does NOT cross-confirm those defects — imminent death DOES enter the
-        // evaluation here, because it is imminent.
+        // bot sees it without extra compute. It is a `must` entry because the
+        // loss is one ply away — imminent death DOES enter the evaluation here,
+        // because it is imminent. (The fetchland TIMING half (#1488) and the
+        // lethal-block charter (#1489) were once `stretch` for the opposite
+        // reason — a loss deeper in a subtree the rollout mis-valued — both now
+        // fixed by a narrow valuation term, #1499 / #1489, and promoted to
+        // `must`; this entry never depended on that defect, so it was `must`
+        // from the start.)
         //
         // SHOWN TO BITE (ADR 0070 §1). The green is driven by the forced GAME
         // loss, not by the bot reflexively countering any red spell. The

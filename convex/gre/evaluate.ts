@@ -33,7 +33,7 @@ import {
 import {
     isCreature,
     isLand,
-    hasManaAbility,
+    isUntappedManaSource,
     hasNonManaActivatedAbility,
     getProducibleColors,
     manaValue,
@@ -199,7 +199,9 @@ function hasInstantTiming(card: CardInstanceState): boolean {
 function availableManaFor(player: PlayerState): number {
     let n = 0;
     for (const perm of player.battlefield) {
-        if (!perm.isTapped && (isLand(perm) || hasManaAbility(perm))) n += 1;
+        // CR 605.1a / 305.6 — a source counts only if it can actually produce
+        // mana. A fetchland (no mana ability) is NOT a source (issue #1499).
+        if (isUntappedManaSource(perm)) n += 1;
     }
     for (const c of ["W", "U", "B", "R", "G", "C"] as const) {
         n += player.manaPool[c] ?? 0;
@@ -559,8 +561,10 @@ function untappedSourceQuality(state: GameState, playerId: string): number {
     if (!me) return 0;
     let bonus = 0;
     for (const perm of me.battlefield) {
-        if (perm.isTapped) continue;
-        if (!(isLand(perm) || hasManaAbility(perm))) continue;
+        // CR 605.1a / 305.6 — score only sources that can produce mana; a
+        // fetchland (no mana ability) is not one, even though `isLand` is true
+        // and its search ability makes it "dual-purpose" (issue #1499).
+        if (!isUntappedManaSource(perm)) continue;
         // Only score a source with a real definition — a token without one
         // (`getProducibleColors` reads the throwing `getDefinition`) contributes
         // nothing to source quality.
