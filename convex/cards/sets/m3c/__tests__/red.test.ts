@@ -198,7 +198,10 @@ describe("Pyrogoyf (CR 604.3 all-graveyards CDA P/T, CR 603.3d targeted enter-da
         // Power = 2 distinct types (Creature, Land) — lethal to a 2/2, which
         // dies to the CR 704.5g lethal-damage SBA after the trigger resolves.
         expect(getEffectivePower(state, goyf)).toBe(2);
-        fireEnterTrigger(state, goyf, "goyf", { type: "permanent", id: "bear" });
+        fireEnterTrigger(state, goyf, "goyf", {
+            type: "permanent",
+            id: "bear",
+        });
         const p2 = state.players[1];
         expect(p2.battlefield.find((c) => c.id === "bear")).toBeUndefined();
         expect(p2.graveyard.map((c) => c.id)).toContain("bear");
@@ -253,7 +256,9 @@ describe("Pyrogoyf trigger matches predicate (CR 603.2 — this or another Lhurg
 
     function stateWith(rows: CardInstanceState[]): TriggerStateView {
         return {
-            players: [{ id: "p1", life: 20, battlefield: rows, hand: { length: 0 } }],
+            players: [
+                { id: "p1", life: 20, battlefield: rows, hand: { length: 0 } },
+            ],
         } as unknown as TriggerStateView;
     }
 

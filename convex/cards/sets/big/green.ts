@@ -88,6 +88,42 @@ export const sandstormSalvager: CardDefinition = {
     ],
 };
 
+// Vaultborn Tyrant — {5}{G}{G} Creature — Dinosaur, 6/6 (Cube FREE wave 3,
+// issue #1531/#1525). "Trample\nWhenever this creature or another creature
+// you control with power 4 or greater enters, you gain 3 life and draw a
+// card.\nWhen this creature dies, if it's not a token, create a token that's
+// a copy of it, except it's an artifact in addition to its other types."
+// The ETB half is free (`enteredTrigger` scope "yours" + a power>=4
+// condition, the Kavu Lair/mh3 Fungusaur-style precedent already used
+// elsewhere in this file's sibling sets — the payout is always THIS
+// permanent's own controller, so it stays on the `effects[]` site, unlike
+// Kavu Lair's cross-player payout). The dies half is NOT free: since the
+// copy's characteristics are static (this card's own printed stats never
+// vary), it does not need `createTokenCopy`'s runtime source lookup — a
+// plain `createToken` with a hand-authored spec matching Vaultborn Tyrant
+// plus the added Artifact type would do, EXCEPT the token must also carry
+// this card's own two triggered abilities (CR 707.2 copies printed
+// abilities too) and `TokenSpec`/`EffectTokenSpec` have NO
+// `triggeredAbilities` field at all (`convex/cards/types.ts`) — the exact
+// gap already tracked for the Pest token (Pest Infestation,
+// `sets/c21/green.ts`). Shipping the token without its triggers would
+// silently drop "you gain 3 life and draw a card" on every subsequent ETB
+// and would let a SECOND copy fire off the first token's own death (no
+// "if it's not a token" self-check without the trigger existing at all) —
+// a partial ship that misrepresents the card. Stop-and-issue per
+// gre-development.md; tracked stub.
+// tracked-by: #1357
+// export const vaultbornTyrant: CardDefinition = {
+//     id: "62b3f560-262b-4bc3-9aef-535fd7082c28",
+//     name: "Vaultborn Tyrant",
+//     rarity: "mythic",
+//     manaCost: { X: 5, G: 2 },
+//     types: ["Creature"],
+//     subtypes: ["Dinosaur"],
+//     power: 6,
+//     toughness: 6,
+// };
+
 // Ancient Cornucopia — "Whenever you cast a spell that's one or more colors,
 // you may gain 1 life for each of that spell's colors. Do this only once
 // each turn.\n{T}: Add one mana of any color." STOP-AND-ISSUE

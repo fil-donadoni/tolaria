@@ -3,7 +3,11 @@
 // token-scoped activated ability (issue #778) — live in ONE place and every
 // producer creates the identical token (one synthesized definition, shared art).
 
-import type { ActivatedAbilityContext, TokenSpec } from "./types";
+import type {
+    ActivatedAbilityContext,
+    EffectTokenSpec,
+    TokenSpec,
+} from "./types";
 
 /** Treasure token (issue #778 / #1265). "Artifact — Treasure" with "{T},
  *  Sacrifice this artifact: Add one mana of any color." (CR 707.2.)
@@ -34,4 +38,33 @@ export const TREASURE_TOKEN: TokenSpec = {
     ],
     // Real printed Treasure token art (tcmr, Commander Legends tokens).
     imagePrintId: "284ec798-2725-4741-8748-578c259d0623",
+};
+
+/** Eldrazi Spawn token (CR 707.2, issue #1531). "0/1 colorless Eldrazi Spawn
+ *  creature token with 'Sacrifice this token: Add {C}.'" — a mana ability
+ *  shaped like `TREASURE_TOKEN`'s (`cost.sacrifice`, `useStack: false`, CR
+ *  605.3a), minus the tap leg and the color choice (a single fixed colorless
+ *  mana). Typed `EffectTokenSpec` (JSON-pure, ADR 0046) rather than
+ *  `TokenSpec` — its only consumer is Malevolent Rumble's DSL `createToken`
+ *  Op (`sets/mh3/green.ts`), so the ability body is `effects: [{ op:
+ *  "addMana" }]`, not an imperative closure. Any future Eldrazi Spawn
+ *  producer shares this one spec/definition. */
+export const ELDRAZI_SPAWN_TOKEN: EffectTokenSpec = {
+    name: "Eldrazi Spawn",
+    types: ["Creature"],
+    subtypes: ["Eldrazi", "Spawn"],
+    power: 0,
+    toughness: 1,
+    activatedAbilities: [
+        {
+            id: "eldrazi-spawn-sacrifice-mana",
+            oracleText: "Sacrifice this token: Add {C}.",
+            cost: { sacrifice: true },
+            useStack: false,
+            effects: [{ op: "addMana", mana: { C: 1 } }],
+        },
+    ],
+    // Real printed Eldrazi Spawn token art (Malevolent Rumble's own MH3
+    // printing's `all_parts` token link).
+    imagePrintId: "e32795e1-5548-43ef-8cd6-c605a19ef708",
 };

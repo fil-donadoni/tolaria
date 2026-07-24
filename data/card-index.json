@@ -5562,6 +5562,12 @@
         "firstSet": "lci"
     },
     {
+        "name": "Malevolent Rumble",
+        "scryfallId": "a178cfe8-f9fa-4255-88d0-54a0bed079f5",
+        "oracleId": "d30d8968-ec24-4155-97e2-28efd52c8810",
+        "firstSet": "mh3"
+    },
+    {
         "name": "Mana Clash",
         "scryfallId": "72955141-d990-459f-adbe-7d3d0f5f6c95",
         "oracleId": "a2f5a5fd-14dc-48e8-bdb0-984a83288023",
@@ -9232,6 +9238,12 @@
         "scryfallId": "3df8c148-e87d-4043-9d8b-ec72bf8b6d5d",
         "oracleId": "edd8d1e8-be43-4c38-bb3a-83081fbaf0b5",
         "firstSet": "lrw"
+    },
+    {
+        "name": "Thraben Inspector",
+        "scryfallId": "d140c3b7-ca78-483d-baeb-307b624fea8b",
+        "oracleId": "caa02547-66e3-4e27-a2d3-5e94f3e7a069",
+        "firstSet": "soi"
     },
     {
         "name": "Throne of Bone",
