@@ -30,7 +30,9 @@ export default function LimitedPoolCardTile({
     /** Position in an overlaid deckbuilder-style pile (ADR 0060). When set,
      *  the tile renders `absolute` at the staggered `top` offset so only a
      *  sliver of each lower card shows; the topmost (visible) card reads as
-     *  the primary target. Omitted for the flat Sideboard column. */
+     *  the primary target. Passed by both the mana-value columns
+     *  (`LimitedPoolPile`) and the Sideboard column (`LimitedPoolSideboard`,
+     *  issue #1574) — every Pool tile renders as a pile. */
     stackIndex?: number;
 }) {
     const data: PoolDragData = {

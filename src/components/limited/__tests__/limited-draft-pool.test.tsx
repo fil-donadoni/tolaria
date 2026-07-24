@@ -198,6 +198,35 @@ describe("LimitedDraftPool through projectLimitedEvent (ADR 0060, issue #1247)",
         expect(bolts[0].style.top).not.toEqual(bolts[1].style.top);
     });
 
+    it("stacks the Sideboard column's cards as the SAME overlaid deckbuilder-style pile as the mana-value columns (issue #1574)", () => {
+        // Both Bolts sideboarded → the Sideboard column must render an
+        // overlaid pile identical in style to `LimitedPoolPile`: each tile
+        // `absolute` at a staggered `top` offset, not a spaced flex list.
+        const view = projectLimitedEvent(
+            eventRow([
+                { poolIndex: 0, sideboard: true },
+                { poolIndex: 1, sideboard: true },
+            ]),
+            "user1"
+        );
+        const own = view.seats.find((s) => s.seatIndex === 0)!;
+
+        const { getAllByTitle } = render(
+            <LimitedDraftPool
+                eventId={"event-1" as never}
+                pool={own.pool!}
+                arrangement={own.poolArrangement}
+            />
+        );
+
+        const bolts = getAllByTitle(/Remove Lightning Bolt/) as HTMLElement[];
+        expect(bolts).toHaveLength(2);
+        for (const bolt of bolts) expect(bolt.className).toContain("absolute");
+        expect(bolts[0].style.top).toContain("* 0");
+        expect(bolts[1].style.top).toContain("* 1");
+        expect(bolts[0].style.top).not.toEqual(bolts[1].style.top);
+    });
+
     it("moving a Sideboard card back to the Pool persists sideboard: false at its resolved poolIndex", () => {
         const view = projectLimitedEvent(
             eventRow([{ poolIndex: 2, sideboard: true }]), // Plains sideboarded
