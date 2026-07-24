@@ -1242,7 +1242,11 @@ describe("Limited Event Pool Arrangement (ADR 0060, issue #1247): setPoolArrange
     function applySetPoolArrangementEntry(
         event: LimitedEventRow,
         callerUserId: string,
-        args: { poolIndex: number; sideboard?: boolean; column?: number | null }
+        args: {
+            poolIndex: number;
+            sideboard?: boolean;
+            column?: number | "lands" | null;
+        }
     ): LimitedEventRow {
         const seatIndex = event.seats.findIndex(
             (s) => s.userId === callerUserId
@@ -1385,6 +1389,38 @@ describe("Limited Event Pool Arrangement (ADR 0060, issue #1247): setPoolArrange
         });
         expect(event.seats[0].poolArrangement).toEqual([
             { poolIndex: 0, column: 3, sideboard: true },
+        ]);
+    });
+
+    // Issue #1573: a "lands" column entry — the shape the schema.ts and
+    // `setPoolArrangementEntry`'s own mutation-args validators now both
+    // accept (`v.union(v.number(), v.literal("lands"))`) — persists and
+    // round-trips through `projectLimitedEvent`, the exact wire the client
+    // receives, symmetrically with a numbered column.
+    it("a 'lands' column entry persists and round-trips through projectLimitedEvent, and a later numbered-column edit clears it symmetrically", () => {
+        let event = eventWithTwoSealedSeats();
+        event = applySetPoolArrangementEntry(event, "user1", {
+            poolIndex: 0,
+            column: "lands",
+        });
+        expect(event.seats[0].poolArrangement).toEqual([
+            { poolIndex: 0, column: "lands" },
+        ]);
+
+        const aliceView = projectLimitedEvent(event, "user1");
+        const aliceOwn = aliceView.seats.find((s) => s.seatIndex === 0)!;
+        expect(aliceOwn.poolArrangement).toEqual([
+            { poolIndex: 0, column: "lands" },
+        ]);
+
+        // Dragging the same card back to a numbered column is symmetric —
+        // it overwrites the "lands" override, it doesn't stack with it.
+        event = applySetPoolArrangementEntry(event, "user1", {
+            poolIndex: 0,
+            column: 2,
+        });
+        expect(event.seats[0].poolArrangement).toEqual([
+            { poolIndex: 0, column: 2 },
         ]);
     });
 });

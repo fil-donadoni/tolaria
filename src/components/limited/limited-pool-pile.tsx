@@ -7,10 +7,10 @@ import LimitedPoolCardTile from "./limited-pool-card-tile";
 
 /**
  * One fixed Mana-Value column (or the Lands column) of the draft-time Pool
- * (ADR 0060, issue #1248): a `useDroppable` drop target — the Lands column
- * registers too (a consistent visual affordance) but is never a valid
- * column-override TARGET, see `resolveDraftDragAction`'s doc comment — plus
- * every card currently resolved into it.
+ * (ADR 0060, issue #1248; Lands as a drop target, issue #1573): a
+ * `useDroppable` drop target — the Lands column is a valid column-override
+ * TARGET exactly like every numbered column, see `resolveDraftDragAction` —
+ * plus every card currently resolved into it.
  */
 export default function LimitedPoolPile({
     poolColumn,
