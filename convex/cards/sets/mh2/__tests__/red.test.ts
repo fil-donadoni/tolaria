@@ -16,7 +16,11 @@ import {
     getEffectivePower,
     getEffectiveToughness,
 } from "../../../../gre/layers";
-import { mineCollapse, blazingRootwalla } from "../red";
+import {
+    mineCollapse,
+    blazingRootwalla,
+    ragavanNimblePilferer,
+} from "../red";
 
 // Mine Collapse — {3}{R} Instant. "If it's your turn, you may sacrifice a
 // Mountain rather than pay this spell's mana cost. Mine Collapse deals 5 damage
@@ -219,5 +223,114 @@ describe("Fury — targeted triggered ability with divide-as-you-choose (CR 603.
         expect(raiseTriggerTargetSelection(state)).toBe(false);
         expect(state.stack.find((s) => s.id === "fury-trig")).toBeUndefined();
         expect(state.pendingTarget).toBeUndefined();
+    });
+});
+
+// Ragavan, Nimble Pilferer — {R} Legendary Creature — Monkey Pirate, 2/1
+// (MH2 138, issue #1527). "Whenever Ragavan deals combat damage to a player,
+// create a Treasure token and exile the top card of that player's library.
+// Until end of turn, you may cast that card. Dash {1}{R}." The
+// impulse-draw-off-an-opponent protocol (Robber of the Rich precedent) +
+// Dash (already proven by the synthetic probe in gre/__tests__/dash.test.ts
+// and reused by Death-Greeter's Champion, moc/red.ts) — no new Op, so only
+// the resolve() closure itself is pinned here per the card testing
+// convention.
+describe("Ragavan, Nimble Pilferer (combat-damage impulse + Dash, CR 702.109a)", () => {
+    it("is a {R} 2/1 Legendary Creature — Monkey Pirate with a dash mana leg", () => {
+        expect(ragavanNimblePilferer.manaCost).toEqual({ R: 1 });
+        expect(ragavanNimblePilferer.power).toBe(2);
+        expect(ragavanNimblePilferer.toughness).toBe(1);
+        expect(ragavanNimblePilferer.subtypes).toEqual(["Monkey", "Pirate"]);
+        expect(ragavanNimblePilferer.dash).toEqual({
+            id: "dash",
+            description: "Dash {1}{R}",
+            mana: { X: 1, R: 1 },
+        });
+    });
+
+    function ragavanDealsDamage(state: GameState): void {
+        const trig: StackItem = {
+            ...state.players[0].battlefield[0],
+            id: "ragavan-trig",
+            zone: "stack",
+            castById: "p1",
+            triggeredAbilityId: "ragavan-combat-damage",
+            triggerSourceId: "ragavan",
+            triggerEvent: {
+                type: "DAMAGE_DEALT",
+                sourceInstanceId: "ragavan",
+                sourceControllerId: "p1",
+                target: { type: "player", id: "p2" },
+                amount: 2,
+                isCombat: true,
+            } as StackItem["triggerEvent"],
+            targets: [],
+        };
+        state.stack.push(trig);
+        resolveTopOfStack(state);
+    }
+
+    it("creates a Treasure, exiles the damaged player's top card, and grants a this-turn cast permission", () => {
+        const ragavan = makeInstance(ragavanNimblePilferer.id, {
+            id: "ragavan",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const oppTop = makeInstance(mineCollapse.id, {
+            id: "opp-top",
+            ownerId: "p2",
+            zone: "library",
+        });
+        const state = makeState({
+            turn: 3,
+            players: [
+                makePlayer("p1", { battlefield: [ragavan] }),
+                makePlayer("p2", { library: [oppTop] }),
+            ],
+        });
+        ragavanDealsDamage(state);
+
+        // A Treasure token entered the battlefield under Ragavan's controller.
+        const treasures = state.players[0].battlefield.filter((c) =>
+            c.subtypes.includes("Treasure")
+        );
+        expect(treasures).toHaveLength(1);
+
+        // The DAMAGED player's (p2's) top card is exiled into P2's OWN exile
+        // zone (CR 400.7), library now empty.
+        expect(state.players[1].library).toHaveLength(0);
+        expect(state.players[1].exile).toHaveLength(1);
+        const exiled = state.players[1].exile[0];
+        expect(exiled.id).toBe("opp-top");
+
+        // Cross-player grant: RAGAVAN's controller (p1) may cast it, "this
+        // turn" only (revoked at the CURRENT turn's cleanup).
+        expect(exiled.castableFromExileBy).toBe("p1");
+        expect(exiled.castableFromExileUntilTurn).toBe(3);
+
+        // CR 406.3 — hidden to the opponent (p2, the exile's own owner),
+        // known only to Ragavan's controller (p1).
+        expect(exiled.knownTo).toEqual(["p1"]);
+    });
+
+    it("no-ops (still creates the Treasure) when the damaged player's library is empty", () => {
+        const ragavan = makeInstance(ragavanNimblePilferer.id, {
+            id: "ragavan",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [ragavan] }),
+                makePlayer("p2", { library: [] }),
+            ],
+        });
+        ragavanDealsDamage(state);
+        expect(
+            state.players[0].battlefield.some((c) =>
+                c.subtypes.includes("Treasure")
+            )
+        ).toBe(true);
+        expect(state.players[1].exile).toHaveLength(0);
     });
 });

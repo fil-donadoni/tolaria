@@ -2,6 +2,9 @@
 import type { CardDefinition } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { evokeTrigger } from "../../abilities/evoke";
+import { dashTrigger } from "../../abilities/dash";
+import { damageDealtTrigger } from "../../abilities/triggers/damageDealtTrigger";
+import { TREASURE_TOKEN } from "../../sharedTokens";
 
 // Mine Collapse — {3}{R} Instant. "If it's your turn, you may sacrifice a
 // Mountain rather than pay this spell's mana cost. Mine Collapse deals 5 damage
@@ -166,6 +169,77 @@ export const blazingRootwalla: CardDefinition = {
                 },
             ],
         },
+    ],
+};
+
+// Ragavan, Nimble Pilferer — {R} Legendary Creature — Monkey Pirate, 2/1
+// (MH2 138, Vintage Cube FREE wave 3: keyword-residue creatures, issue
+// #1527, closes #917 residue). "Whenever Ragavan, Nimble Pilferer deals
+// combat damage to a player, create a Treasure token and exile the top card
+// of that player's library. Until end of turn, you may cast that card.
+// Dash {1}{R}."
+//
+// PROTOCOL (impulse-draw off an opponent's library — no Op skin, precedent:
+// Elkin Bottle / Ice Cauldron, ice/colorless.ts; the cross-player exile-and-
+// grant shape specifically mirrors Robber of the Rich, eld/red.ts, almost
+// line for line): composes `createToken` + `peekLibraryTop` +
+// `exileFaceDown` + `grantCastFromExile(..., "this-turn")`, sourced from the
+// DAMAGED player's library rather than the caster's own. Dash is the SAME
+// factory-composed shape as Death-Greeter's Champion (moc/red.ts):
+// `CardDefinition.dash` + `dashTrigger(name)`.
+export const ragavanNimblePilferer: CardDefinition = {
+    id: "a9738cda-adb1-47fb-9f4c-ecd930228c4d", // MH2 138
+    name: "Ragavan, Nimble Pilferer",
+    rarity: "mythic",
+    oracleText:
+        "Whenever Ragavan, Nimble Pilferer deals combat damage to a player, create a Treasure token and exile the top card of that player's library. Until end of turn, you may cast that card.\nDash {1}{R} (You may cast this spell for its dash cost. If you do, it gains haste, and it's returned from the battlefield to its owner's hand at the beginning of the next end step.)",
+    manaCost: { R: 1 },
+    types: ["Creature"],
+    supertypes: ["Legendary"],
+    subtypes: ["Monkey", "Pirate"],
+    power: 2,
+    toughness: 1,
+    dash: { id: "dash", description: "Dash {1}{R}", mana: { X: 1, R: 1 } },
+    triggeredAbilities: [
+        damageDealtTrigger({
+            id: "ragavan-combat-damage",
+            oracleText:
+                "Whenever Ragavan, Nimble Pilferer deals combat damage to a player, create a Treasure token and exile the top card of that player's library. Until end of turn, you may cast that card.",
+            source: "self",
+            target: { kind: "player", player: { relation: "any" } },
+            isCombat: true,
+            resolve: (ctx, _event, damage) => {
+                if (damage.target.type !== "player") return;
+                const damagedPlayerId = damage.target.id;
+                // CR 707.2 — the shared Treasure token spec (art + sac-for-
+                // mana ability already wired).
+                ctx.createToken(TREASURE_TOKEN, ctx.controller);
+                const top = ctx.peekLibraryTop(damagedPlayerId, 1);
+                if (top.length === 0) return; // empty library
+                const cardId = top[0];
+                // CR 406.3 — exiled hidden to the opponent, known to
+                // controller (Robber of the Rich / Headliner Scarlett
+                // precedent).
+                ctx.exileFaceDown(
+                    damagedPlayerId,
+                    cardId,
+                    "library",
+                    ctx.controller
+                );
+                // Cross-player grant (Robber of the Rich shape): the card
+                // stays owned by (and exiled in) the DAMAGED player's zone
+                // (CR 400.7), but the ATTACKING player (Ragavan's
+                // controller) is granted cast permission "until end of
+                // turn".
+                ctx.grantCastFromExile(
+                    cardId,
+                    ctx.controller,
+                    damagedPlayerId,
+                    "this-turn"
+                );
+            },
+        }),
+        dashTrigger("Ragavan, Nimble Pilferer"),
     ],
 };
 
