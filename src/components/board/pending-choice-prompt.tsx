@@ -325,22 +325,18 @@ export default function PendingChoicePrompt({
                                                     // CR 702.88c — decline:
                                                     // the card remains exiled
                                                     // (no zone change).
-                                                    await submitReboundDecline(
-                                                        {
-                                                            gameId,
-                                                            playerId,
-                                                        }
-                                                    );
+                                                    await submitReboundDecline({
+                                                        gameId,
+                                                        playerId,
+                                                    });
                                                 } else {
                                                     // CR 702.35d — decline:
                                                     // send the card to the
                                                     // graveyard.
-                                                    await submitMadnessDecline(
-                                                        {
-                                                            gameId,
-                                                            playerId,
-                                                        }
-                                                    );
+                                                    await submitMadnessDecline({
+                                                        gameId,
+                                                        playerId,
+                                                    });
                                                 }
                                             } finally {
                                                 setIsBusy(false);

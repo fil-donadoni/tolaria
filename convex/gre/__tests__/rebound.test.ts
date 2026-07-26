@@ -90,9 +90,7 @@ describe("Rebound capability (CR 702.88)", () => {
             resolveTopOfStack(state);
 
             const player = getPlayer(state, "p1");
-            expect(player.graveyard.some((c) => c.id === item.id)).toBe(
-                false
-            );
+            expect(player.graveyard.some((c) => c.id === item.id)).toBe(false);
             const exiled = player.exile.find((c) => c.id === item.id);
             expect(exiled).toBeDefined();
             expect(exiled!.reboundExiled).toBe(true);
@@ -121,9 +119,7 @@ describe("Rebound capability (CR 702.88)", () => {
             // machinery engaged at all.
             expect(state.delayedTriggers ?? []).toHaveLength(0);
             const player = getPlayer(state, "p1");
-            expect(player.battlefield.some((c) => c.id === item.id)).toBe(
-                true
-            );
+            expect(player.battlefield.some((c) => c.id === item.id)).toBe(true);
             expect(player.exile.some((c) => c.id === item.id)).toBe(false);
         });
     });
@@ -221,9 +217,9 @@ describe("Rebound capability (CR 702.88)", () => {
             );
             expect(src.zone).toBe("exile");
             expect(castRawManaCost(state, src.card!, src.zone)).toEqual({});
-            expect(getLegalActions(state, getPlayer(state, "p1"), exiled)).toContain(
-                "cast"
-            );
+            expect(
+                getLegalActions(state, getPlayer(state, "p1"), exiled)
+            ).toContain("cast");
         });
     });
 
@@ -251,9 +247,7 @@ describe("Rebound capability (CR 702.88)", () => {
             const player = getPlayer(state, "p1");
             const exiled = player.exile.find((c) => c.id === item.id);
             expect(exiled).toBeDefined(); // CR 702.88c — remains exiled
-            expect(player.graveyard.some((c) => c.id === item.id)).toBe(
-                false
-            );
+            expect(player.graveyard.some((c) => c.id === item.id)).toBe(false);
             expect(exiled!.reboundExiled).toBeUndefined();
             expect(exiled!.castableFromExileBy).toBeUndefined();
             expect(state.reboundCastWindow).toBeUndefined();
@@ -295,7 +289,11 @@ describe("Rebound capability (CR 702.88)", () => {
             expect(state.pendingChoices ?? []).toHaveLength(0);
             expect(state.reboundCastWindow).toBeUndefined();
 
-            const moved = removeFromZone(getPlayer(state, "p1"), item.id, "exile");
+            const moved = removeFromZone(
+                getPlayer(state, "p1"),
+                item.id,
+                "exile"
+            );
             expect(moved.reboundExiled).toBeUndefined();
             expect(moved.castableFromExileBy).toBeUndefined();
             const stackItem: StackItem = {
