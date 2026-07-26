@@ -568,6 +568,42 @@ _Avoid_: Card Value (that's the gameplay **Brain**'s evaluation term), tier, gra
 The always-available fallback scoring a **Bot Drafter** uses when no **Pick Rating** exists (and as the tie-breaking layer when one does): card quality (shared with the **Brain**'s **Card Value**, extracted to a server-usable module) adjusted by **Rarity**, the seat's color commitment, and mana-curve needs.
 _Avoid_: Bot logic (too broad), default rating
 
+**Archetype**:
+A named strategy a **Pool** can be built toward within one **Pack Source** scope (`reanimator`, `artifacts`, `jeskai-tempo`). A card declares the Archetypes it belongs to; a **Seat**'s accumulated **Pool** therefore has a measurable commitment per Archetype, which biases later **Picks**. Coarse-grained on purpose — it steers colours and plan, not card-to-card fit (that is **Capability**).
+_Avoid_: Deck type, strategy, colour pair (an Archetype is not its colours)
+
+**Capability**:
+A named property from a small closed vocabulary that a card either **provides** or **requires** (`value-on-death`, `reanimatable`, `value-on-attack`). Fit between two cards is **computed**, never enumerated: a card requiring `value-on-death` (Flash) is served by any card providing it (Worldspine Wurm) and by no other. Absence of a match is itself the veto — Animate Dead requires `reanimatable`, which Worldspine Wurm does not provide, so the pair scores nothing despite sharing an **Archetype**. Authoring cost is one declaration per card, not one per pair.
+_Avoid_: Tag (too vague — an **Archetype** is also a tag), synergy edge, keyword (that is CR 702)
+
+**Combo Edge**:
+An explicit, signed, directed link between two specific cards, used only for the closed two-card loop no **Capability** vocabulary can express (Painter's Servant + Grindstone). Deliberately capped in number — the escape hatch, not the model. Everything expressible as **Capability** must be a Capability.
+_Avoid_: Synergy, combo (bare — a combo in the domain sense may well be Capability-derived)
+
+**Card Profile**:
+The per-card, per-**Pack Source** scope authored record a **Bot Drafter** reads beyond its **Pick Rating**: its **Archetypes**, the **Capabilities** it provides, the Capabilities it requires. Sibling of the **Pick Rating** — same scope keying, same DB-over-seed layering, same **Admin** editability.
+_Avoid_: Card metadata (too generic), card tags
+
+**Colour Commitment**:
+How far a **Seat**'s **Pool** has already invested in each colour, and therefore how strongly a **Bot Drafter** should prefer that colour in later **Picks**. Measured from **coloured pips in mana costs**, not from card count and not from mana sources: a `{U}{U}` spell commits twice as hard as a `{4}{U}` one, and a dual land does not commit at all — it _follows_ commitment rather than creating it, so a strong land early never marries a seat to a colour pair.
+_Avoid_: Colour identity (CR 903.4, a different thing), on-colour (that is the derived verdict, not the measure)
+
+**Castability**:
+Whether a **Seat**'s **Pool** can actually cast a card, measured as its coloured pip requirement against the mana sources the Pool already holds for those colours. A triple-pipped bomb in a Pool with two sources of that colour is worth less to a **Bot Drafter** than its raw power says. Distinct from **Colour Commitment**: commitment is where the seat is going, castability is what it can pay for.
+_Avoid_: Playability (broader — includes curve and role), fixing
+
+**Fixing Value**:
+What a mana source is worth to a **Seat** right now — driven by **deficit**, not by **Colour Commitment**. A source's value is the pip demand its **Pool** already has for the colours it produces, minus the sources it already holds for them. A Temur pool heavy in `{R}` pips but short on red sources values Volcanic Island above Tropical Island, though both are on-colour. Capped, so a large deficit cannot make a basic land rival a genuine bomb.
+_Avoid_: Mana fixing (the card property), colour fit
+
+**Draft Signal**:
+What the cards still present in a passed-around pack say about which colours the neighbouring **Seats** are not taking — the read that lets a drafter change colours mid-round rather than committing on the first **Pick**. Requires a **Seat**'s history of packs seen, not just its **Pool**. Recognised in the domain but **not yet acted on** by the **Bot Drafter**.
+_Avoid_: Signal (bare — overloaded), cut, open colour (that is the conclusion drawn from a Signal)
+
+**Draft Lab**:
+A developer surface that runs a whole **Draft** in the browser and shows, for every **Pick**, the score breakdown of every candidate in the pack. Client-only and never persisted — it imports the same pure modules the server picks with, so it cannot drift from real **Bot Drafter** behaviour. The sibling of the gameplay **Brain**'s decision trace, applied to drafting. Two modes: a **synthetic** draft from any seed (all seats bots, full visibility on every seat — the tuning instrument), and a **replay** of a real completed **Limited Event**, reconstructed from its seed plus the human **Seat**'s append-ordered **Pool** with no extra stored data. A replay diverges the moment retuned weights change a bot **Pick**; the divergence point is shown, never hidden.
+_Avoid_: Draft replay (that is one of its two modes), draft debugger, simulator (it is also a replay tool)
+
 **Draft**:
 The classic booster draft flow of a **Limited Event**: three **Boosters** per **Seat**; each round every seat **Picks** one card and passes the rest to the adjacent seat (left, then right, then left per booster). Picking is **synchronous**: seats pick in parallel, a passed pack queues at the receiving seat, and an optional per-pick timer (on/off only — when on, each pick within a pack gets progressively less time, following the official Wizards booster-draft schedule) fires an **Auto-Pick** on expiry so an absent human never freezes the table. **Bot Drafters** pick instantly.
 _Avoid_: Rochester/Winston (other draft variants, out of scope for now)

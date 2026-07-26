@@ -93,21 +93,84 @@ describe("LimitedEventDetail — share/invite reachable post-start (issue #1578)
         expect(screen.getByText("Share invite link")).toBeTruthy();
     });
 
-    it("still shows the share/invite button once the event has STARTED", () => {
+    it("still shows the link button once the event has STARTED — as a plain event link, not an invite", () => {
         eventMock.mockReturnValue(makeEvent({ status: "started" }));
 
         render(<LimitedEventDetail eventId={"event-1" as never} />);
 
-        expect(screen.getByText("Share invite link")).toBeTruthy();
+        expect(screen.getByText("Copy event link")).toBeTruthy();
+        expect(screen.queryByText("Share invite link")).toBe(null);
     });
 
-    it("still shows the share/invite button once the event is COMPLETED", () => {
+    it("still shows the link button once the event is COMPLETED", () => {
         eventMock.mockReturnValue(
             makeEvent({ status: "started", completed: true })
         );
 
         render(<LimitedEventDetail eventId={"event-1" as never} />);
 
-        expect(screen.getByText("Share invite link")).toBeTruthy();
+        expect(screen.getByText("Copy event link")).toBeTruthy();
+    });
+});
+
+describe("LimitedEventDetail — start hint follows the Start button", () => {
+    const HINT = /You can start the event at any time/;
+
+    it("shows the hint to the creator while the event is still open", () => {
+        eventMock.mockReturnValue(
+            makeEvent({ status: "open", createdBy: "user-1" })
+        );
+
+        render(<LimitedEventDetail eventId={"event-1" as never} />);
+
+        expect(screen.getByText(HINT)).toBeTruthy();
+    });
+
+    it("hides the hint for a non-creator (no Start button to explain)", () => {
+        eventMock.mockReturnValue(
+            makeEvent({ status: "open", createdBy: "someone-else" })
+        );
+
+        render(<LimitedEventDetail eventId={"event-1" as never} />);
+
+        expect(screen.queryByText(HINT)).toBe(null);
+    });
+
+    it("hides the hint once the event has started", () => {
+        eventMock.mockReturnValue(
+            makeEvent({ status: "started", createdBy: "user-1" })
+        );
+
+        render(<LimitedEventDetail eventId={"event-1" as never} />);
+
+        expect(screen.queryByText(HINT)).toBe(null);
+    });
+});
+
+describe("LimitedEventDetail — header (format name + phase chip)", () => {
+    it("titles the page with the event's format name, not the raw type/packSlots", () => {
+        eventMock.mockReturnValue(
+            makeEvent({
+                type: "draft",
+                status: "started",
+                packSlots: ["vintage-cube", "vintage-cube", "vintage-cube"],
+            })
+        );
+
+        render(<LimitedEventDetail eventId={"event-1" as never} />);
+
+        expect(screen.getByText("Vintage Cube Draft")).toBeTruthy();
+        expect(screen.queryByText(/VINTAGE-CUBE, VINTAGE-CUBE/)).toBe(null);
+    });
+
+    it("shows the PHASE (drafting) rather than the raw DB status (started)", () => {
+        eventMock.mockReturnValue(
+            makeEvent({ type: "draft", status: "started", packSlots: ["lea"] })
+        );
+
+        render(<LimitedEventDetail eventId={"event-1" as never} />);
+
+        expect(screen.getByText("drafting")).toBeTruthy();
+        expect(screen.queryByText(/started/)).toBe(null);
     });
 });

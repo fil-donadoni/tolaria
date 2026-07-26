@@ -164,7 +164,7 @@ describe("LimitedVsAiPanel (issue #1115)", () => {
                 },
             },
         ]);
-        const { getByText } = render(
+        const { getByText, getByAltText } = render(
             <LimitedVsAiPanel
                 eventId={"event-1" as never}
                 event={event}
@@ -173,7 +173,10 @@ describe("LimitedVsAiPanel (issue #1115)", () => {
         );
 
         expect(getByText("Bot 2")).toBeTruthy();
-        expect(getByText("R/G")).toBeTruthy();
+        // Deck colors render as mana symbols (project rule: never letters) —
+        // one <img alt="{R}"> per color, not an "R/G" string.
+        expect(getByAltText("{R}")).toBeTruthy();
+        expect(getByAltText("{G}")).toBeTruthy();
 
         fireEvent.click(getByText("Play"));
 

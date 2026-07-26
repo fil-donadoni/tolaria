@@ -248,7 +248,7 @@ describe("Lobby dashboard Limited box (issue #1582)", () => {
         ]);
         expect(getByText("Your Events")).toBeTruthy();
         expect(getByText("ready to play")).toBeTruthy();
-        fireEvent.click(getByText(/sealed/));
+        fireEvent.click(getByText("Limited Edition Alpha Sealed"));
         expect(navigate).toHaveBeenCalledWith({
             to: "/limited/$eventId",
             params: { eventId: "event-1" },

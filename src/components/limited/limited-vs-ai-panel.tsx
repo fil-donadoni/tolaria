@@ -9,7 +9,7 @@ import { useUserDecks } from "~/hooks/useUserDecks";
 import type { LimitedEventView } from "~/hooks/useLimitedEvent";
 import { deckPayload } from "~/lib/deckTypes";
 import { storeSession } from "~/lib/session";
-import ActionButton from "~/components/board/action-button";
+import LimitedOpponentTile from "./limited-opponent-tile";
 
 /** "Play vs the Table" (PRD #1107 stories 24-25, ADR 0054/0055, issue
  *  #1115): once the viewer has built their own Limited deck for this event
@@ -45,11 +45,16 @@ export default function LimitedVsAiPanel({
     );
     if (botSeats.length === 0) return null;
 
-    const myDeck = userDecks?.find(
+    // Only a LEGAL deck can start a Match — `createGame`'s gate rejects
+    // anything else server-side, and the event's own `hasDeck` flag is
+    // existence-only, so a 30-card walk-away would otherwise show live Play
+    // buttons that always error.
+    const savedDeck = userDecks?.find(
         (d) =>
             d.limitedEventId === eventId &&
             d.limitedSeatId === String(viewerSeatIndex)
     );
+    const myDeck = savedDeck?.isLegal ? savedDeck : undefined;
 
     const handlePlay = async (seat: (typeof botSeats)[number]) => {
         if (pendingSeat !== null || !user || !myDeck || !seat.autoBuiltDeck)
@@ -90,8 +95,9 @@ export default function LimitedVsAiPanel({
             </h3>
             {!myDeck && (
                 <p className="text-sm text-text-muted">
-                    Build your deck to play against the table&apos;s Bot
-                    Drafters.
+                    {savedDeck
+                        ? "Finish your deck — it isn't legal for Limited yet."
+                        : "Build your deck to play against the table's Bot Drafters."}
                 </p>
             )}
             {error && (
@@ -100,29 +106,18 @@ export default function LimitedVsAiPanel({
                 </Banner>
             )}
             {myDeck && (
-                <ul className="flex flex-col gap-2">
+                <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2 xl:grid-cols-3">
                     {botSeats.map((seat) => (
-                        <li
+                        <LimitedOpponentTile
                             key={seat.seatIndex}
-                            className="flex items-center justify-between gap-2"
-                        >
-                            <span className="text-sm text-text">
-                                {seat.nickname ?? `Bot ${seat.seatIndex + 1}`}
-                                {seat.autoBuiltDeck && (
-                                    <span className="ml-2 text-xs text-text-muted">
-                                        {seat.autoBuiltDeck.colors.join("/")}
-                                    </span>
-                                )}
-                            </span>
-                            <ActionButton
-                                onClick={() => void handlePlay(seat)}
-                                label="Play"
-                                tone="primary"
-                                disabled={pendingSeat !== null}
-                            />
-                        </li>
+                            name={seat.nickname ?? `Bot ${seat.seatIndex + 1}`}
+                            colors={seat.autoBuiltDeck?.colors}
+                            actionLabel="Play"
+                            onAction={() => void handlePlay(seat)}
+                            disabled={pendingSeat !== null}
+                        />
                     ))}
-                </ul>
+                </div>
             )}
         </div>
     );

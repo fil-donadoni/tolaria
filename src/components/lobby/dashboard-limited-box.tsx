@@ -1,9 +1,10 @@
 import type { Id } from "@convex/_generated/dataModel";
 import type { LimitedEventView } from "~/hooks/useLimitedEvent";
-import { limitedEventStatusHint } from "~/lib/limitedEventStatus";
+import { limitedEventName } from "~/lib/limitedEventName";
 import { cn } from "~/lib/utils";
 import { Panel, PanelHeader, PanelBody } from "~/components/ui/panel";
 import ActionButton from "~/components/board/action-button";
+import LimitedStatusBadge from "~/components/limited/limited-status-badge";
 
 /** First-class Limited box on the lobby dashboard (issue #1582), given equal
  *  visual weight to `DashboardPlayBox` via the SAME shared Panel component
@@ -47,7 +48,6 @@ export default function DashboardLimitedBox({
                         <div className="flex flex-col gap-2">
                             {events.map((event) => {
                                 const id = event._id as Id<"limitedEvents">;
-                                const status = limitedEventStatusHint(event);
                                 return (
                                     <button
                                         key={event._id}
@@ -57,15 +57,10 @@ export default function DashboardLimitedBox({
                                             "border-border-subtle bg-surface-elevated text-text hover:border-border-accent/60"
                                         )}
                                     >
-                                        <span className="flex items-center gap-2 font-medium capitalize">
-                                            {event.type} —{" "}
-                                            {event.packSlots
-                                                .join(", ")
-                                                .toUpperCase()}
+                                        <span className="flex items-center gap-2 font-medium">
+                                            {limitedEventName(event)}
                                         </span>
-                                        <span className="rounded-sm border border-accent/40 bg-accent/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-accent">
-                                            {status}
-                                        </span>
+                                        <LimitedStatusBadge event={event} />
                                     </button>
                                 );
                             })}

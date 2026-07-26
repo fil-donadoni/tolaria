@@ -21,7 +21,9 @@ afterEach(() => {
 
 describe("LimitedShareInviteButton (issue #1245)", () => {
     it("copies the event URL (origin + /limited/<eventId>) via the shared copyText helper", () => {
-        render(<LimitedShareInviteButton eventId={"event-42" as never} />);
+        render(
+            <LimitedShareInviteButton eventId={"event-42" as never} canInvite />
+        );
 
         fireEvent.click(screen.getByText("Share invite link"));
 
@@ -31,11 +33,51 @@ describe("LimitedShareInviteButton (issue #1245)", () => {
     });
 
     it("toggles the label to 'Link copied!' after sharing", () => {
-        render(<LimitedShareInviteButton eventId={"event-42" as never} />);
+        render(
+            <LimitedShareInviteButton eventId={"event-42" as never} canInvite />
+        );
 
         fireEvent.click(screen.getByText("Share invite link"));
 
         expect(screen.getByText("Link copied!")).toBeTruthy();
         expect(screen.queryByText("Share invite link")).toBe(null);
+    });
+});
+
+describe("LimitedShareInviteButton — label follows what the link can do", () => {
+    it("reads 'Share invite link' while the event can still take a new player", () => {
+        render(
+            <LimitedShareInviteButton eventId={"event-42" as never} canInvite />
+        );
+
+        expect(screen.getByText("Share invite link")).toBeTruthy();
+        expect(screen.queryByText("Copy event link")).toBe(null);
+    });
+
+    it("reads 'Copy event link' once the event has started (no one can join, no spectators)", () => {
+        render(
+            <LimitedShareInviteButton
+                eventId={"event-42" as never}
+                canInvite={false}
+            />
+        );
+
+        expect(screen.getByText("Copy event link")).toBeTruthy();
+        expect(screen.queryByText("Share invite link")).toBe(null);
+    });
+
+    it("still copies the same URL when it is no longer an invite (issue #1578 recovery)", () => {
+        render(
+            <LimitedShareInviteButton
+                eventId={"event-42" as never}
+                canInvite={false}
+            />
+        );
+
+        fireEvent.click(screen.getByText("Copy event link"));
+
+        expect(copyText).toHaveBeenCalledWith(
+            `${window.location.origin}/limited/event-42`
+        );
     });
 });

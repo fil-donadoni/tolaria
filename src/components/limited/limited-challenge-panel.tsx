@@ -10,6 +10,7 @@ import type { LimitedEventView } from "~/hooks/useLimitedEvent";
 import { deckPayload } from "~/lib/deckTypes";
 import { storeSession } from "~/lib/session";
 import ActionButton from "~/components/board/action-button";
+import LimitedOpponentTile from "./limited-opponent-tile";
 
 /** Challenge a human seat (issue #1577): once the viewer has built their own
  *  Limited deck for this event, they can challenge another SEATED HUMAN who
@@ -36,11 +37,16 @@ export default function LimitedChallengePanel({
     const [pending, setPending] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const myDeck = userDecks?.find(
+    // Legal-only, same as `LimitedVsAiPanel`: `challengeLimitedSeat` /
+    // `joinGame` re-validate server-side, so an illegal deck must not be
+    // offered a Challenge or Accept button here (the event's `hasDeck` flag is
+    // existence-only — a player can walk out of the builder under 40 cards).
+    const savedDeck = userDecks?.find(
         (d) =>
             d.limitedEventId === eventId &&
             d.limitedSeatId === String(viewerSeatIndex)
     );
+    const myDeck = savedDeck?.isLegal ? savedDeck : undefined;
 
     // Human opponents with a deck of their own — the only seats a challenge can
     // pair with (a bot seat is handled by `LimitedVsAiPanel`, and a seat with
@@ -152,29 +158,24 @@ export default function LimitedChallengePanel({
 
             {!myDeck && incoming.length > 0 && (
                 <p className="text-sm text-text-muted">
-                    Build your deck to accept this challenge.
+                    {savedDeck
+                        ? "Finish your deck — it isn't legal for Limited yet."
+                        : "Build your deck to accept this challenge."}
                 </p>
             )}
 
             {myDeck && !outgoing && opponentSeats.length > 0 && (
-                <ul className="flex flex-col gap-2">
+                <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2 xl:grid-cols-3">
                     {opponentSeats.map((seat) => (
-                        <li
+                        <LimitedOpponentTile
                             key={seat.seatIndex}
-                            className="flex items-center justify-between gap-2"
-                        >
-                            <span className="text-sm text-text">
-                                {seat.nickname ?? `Seat ${seat.seatIndex + 1}`}
-                            </span>
-                            <ActionButton
-                                onClick={() => handleChallenge(seat.seatIndex)}
-                                label="Challenge"
-                                tone="primary"
-                                disabled={pending}
-                            />
-                        </li>
+                            name={seat.nickname ?? `Seat ${seat.seatIndex + 1}`}
+                            actionLabel="Challenge"
+                            onAction={() => handleChallenge(seat.seatIndex)}
+                            disabled={pending}
+                        />
                     ))}
-                </ul>
+                </div>
             )}
         </div>
     );

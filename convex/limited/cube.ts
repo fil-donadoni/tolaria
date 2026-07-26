@@ -23,23 +23,14 @@ import { VINTAGE_CUBE_NAMES } from "../cubes/vintageCubeNames";
 import { tryGetCardByName } from "../cards";
 import { makeRng } from "../gre/rng";
 
-/** Reserved Pack Source key that the draft pipeline recognizes as the cube
- *  (never a real set code — `getBoosterConfig` returns null for it, and
- *  `isDraftableSet`/`generateRoundPacks` special-case it BEFORE any per-set
- *  Booster Config lookup). */
-export const CUBE_SOURCE_KEY = "vintage-cube";
-
-/** Human-facing Pack Source label (all UI text is English, CLAUDE.md). */
-export const CUBE_DISPLAY_NAME = "Vintage Cube";
+// The cube's identity (key, display name, predicate) lives in the dependency-
+// free `cubeSource.ts` so UI code can name the source without pulling the pool
+// (and, through it, the whole card registry) into the client bundle. Re-
+// exported here so this module remains the one import site for cube semantics.
+export { CUBE_SOURCE_KEY, CUBE_DISPLAY_NAME, isCubeSource } from "./cubeSource";
 
 /** Cards per cube pack (a real cube deals random 15-card boosters). */
 export const CUBE_PACK_SIZE = 15;
-
-/** Whether `setCode` names the cube source (case-insensitive, mirroring the
- *  set-code case handling in `registry.ts`'s `getBoosterConfig`). */
-export function isCubeSource(setCode: string): boolean {
-    return setCode.toLowerCase() === CUBE_SOURCE_KEY;
-}
 
 /** The canonical Vintage Cube list as card NAMES — the single source of truth
  *  `convex/cubes/vintageCubeNames.ts` (`VINTAGE_CUBE_NAMES`), generated from

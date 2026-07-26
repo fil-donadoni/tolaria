@@ -7,24 +7,33 @@ import {
     useLimitedEvent,
     useLimitedEventMutations,
 } from "~/hooks/useLimitedEvent";
-import { Panel, PanelHeader, PanelBody } from "~/components/ui/panel";
+import { PanelHeader, PanelBody } from "~/components/ui/panel";
 import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
 import GameDialog from "~/components/ui/game-dialog";
 import LoadingScreen from "~/components/ui/loading-screen";
 import ActionButton from "~/components/board/action-button";
-import LimitedEventSeatList from "./limited-event-seat-list";
+import LimitedTablePanel from "./limited-table-panel";
 import LimitedEventSeatsDisclosure from "./limited-event-seats-disclosure";
 import LimitedDraftTable from "./limited-draft-table";
-import LimitedSeatPoolPanel from "./limited-seat-pool-panel";
+import LimitedYourDeckPanel from "./limited-your-deck-panel";
 import LimitedVsAiPanel from "./limited-vs-ai-panel";
 import LimitedChallengePanel from "./limited-challenge-panel";
 import LimitedReviewPanel from "./limited-review-panel";
 import LimitedShareInviteButton from "./limited-share-invite-button";
+import LimitedEventPageFrame from "./limited-event-page-frame";
+import LimitedEventToolbar from "./limited-event-toolbar";
+import { limitedEventName } from "~/lib/limitedEventName";
+import { useAutoOpenLimitedBuilder } from "~/hooks/useAutoOpenLimitedBuilder";
 
-/** One Limited Event's detail page (PRD #1107, ADR 0054/0055): the Seat list,
- *  a Join button (open events, no seat yet), a Start button (the event's
- *  creator, while open), and — once started — the viewer's own Pool. */
+/** One Limited Event's detail page (PRD #1107, ADR 0054/0055). It shows what
+ *  the event's phase makes actionable, and nothing else:
+ *  - OPEN — the table, plus Join / Start / Leave / Cancel.
+ *  - DRAFTING — the Booster, with the table collapsed behind a summary.
+ *  - POOL FINAL, no deck yet — deck building (the player is sent straight to
+ *    the builder; this page keeps the way back into it).
+ *  - DECK IN — the table's build progress and the match lobby (challenges,
+ *    vs-AI), which is what a finished builder actually wants next. */
 export default function LimitedEventDetail({
     eventId,
 }: {
@@ -44,6 +53,16 @@ export default function LimitedEventDetail({
     const [confirmLeave, setConfirmLeave] = useState(false);
     const [confirmCancel, setConfirmCancel] = useState(false);
 
+    // Computed before the loading/deleted early returns because the auto-open
+    // effect below must run on every render (hooks can't sit behind a return).
+    const viewerSeat =
+        user && event
+            ? event.seats.find((s) => s.userId === user._id)
+            : undefined;
+    // End of the Draft (or start of a Sealed event) IS the start of deck
+    // building — go there instead of parking on a read-only Pool.
+    useAutoOpenLimitedBuilder(eventId, event, viewerSeat);
+
     if (event === undefined || user === undefined) {
         return <LoadingScreen />;
     }
@@ -56,7 +75,7 @@ export default function LimitedEventDetail({
     // ErrorBoundary exists to catch a thrown error).
     if (event === null) {
         return (
-            <Panel size="wide">
+            <LimitedEventPageFrame>
                 <PanelHeader title="Limited Event" />
                 <PanelBody>
                     <Banner tone="info">
@@ -72,13 +91,10 @@ export default function LimitedEventDetail({
                         ← Back to Limited Events
                     </Button>
                 </PanelBody>
-            </Panel>
+            </LimitedEventPageFrame>
         );
     }
 
-    const viewerSeat = user
-        ? event.seats.find((s) => s.userId === user._id)
-        : undefined;
     const isCreator = user !== null && event.createdBy === user._id;
     const canJoin = event.status === "open" && !viewerSeat;
     const canStart = event.status === "open" && isCreator;
@@ -136,60 +152,32 @@ export default function LimitedEventDetail({
     };
 
     return (
-        <Panel size="wide">
-            <PanelHeader
-                title="Limited Event"
-                subtitle={`${event.type} — ${event.packSlots.join(", ").toUpperCase()} — ${event.status}`}
-            />
+        <LimitedEventPageFrame>
+            {/* The format IS the title (issue: the old header spent three rows
+                on "LIMITED EVENT" + a flourish subtitle reading
+                "draft — VINTAGE-CUBE, VINTAGE-CUBE, VINTAGE-CUBE — started").
+                `limitedEventName` collapses the repeated pack sources to
+                "Vintage Cube Draft"; the phase moves into the toolbar chip. */}
+            <PanelHeader title={limitedEventName(event)} />
             <PanelBody>
-                <Button
-                    variant="link"
-                    size="sm"
-                    onClick={handleBack}
-                    className="self-start"
-                >
-                    ← Back to Limited Events
-                </Button>
+                <LimitedEventToolbar event={event} onBack={handleBack} />
 
                 {error && <Banner tone="danger">{error}</Banner>}
 
+                {/* The build-progress bar is gated on `isPoolFinal` (issue
+                    #1580): a deck cannot exist before the Pool is final, so
+                    the "N/seatCount decks in" counter would otherwise misread
+                    as live progress while a Draft is still running. */}
                 {draftInProgress ? (
                     <LimitedEventSeatsDisclosure event={event} />
                 ) : (
-                    <>
-                        <LimitedEventSeatList event={event} />
-
-                        {/* Event completion status (PRD #1107 story 26, issue
-                            #1116): "completed" is reached exactly when every
-                            seat has a deck (humans submitted, bots auto-built)
-                            — visible here, and it's the same flag that gates
-                            `LimitedReviewPanel` below. Gated on `isPoolFinal`
-                            rather than merely `status === "started"` (issue
-                            #1580): a deck cannot exist before the Pool is
-                            final, so the "N/seatCount decks in" counter would
-                            otherwise misread as live progress while a Draft
-                            is still running — this branch happens to only
-                            render when `!draftInProgress` today, but the
-                            explicit `isPoolFinal` gate keeps the invariant
-                            true even if that branching ever changes. */}
-                        {isPoolFinal && (
-                            <p className="text-xs text-text-muted">
-                                {event.completed
-                                    ? "Event completed — every seat has a deck."
-                                    : `${event.seatsWithDeck}/${event.seatCount} decks in.`}
-                            </p>
-                        )}
-                    </>
+                    <LimitedTablePanel
+                        event={event}
+                        showProgress={isPoolFinal}
+                    />
                 )}
 
                 <div className="flex justify-end gap-2">
-                    {/* Available for the whole lifetime of the event (issue
-                        #1578) — previously gated to `status === "open"`,
-                        which meant a started event's direct link could no
-                        longer be recovered in-app once the "your events"
-                        list's own View button had already been used to get
-                        here (or by anyone who lost the original invite). */}
-                    <LimitedShareInviteButton eventId={eventId} />
                     {canLeave && (
                         <ActionButton
                             onClick={() => setConfirmLeave(true)}
@@ -224,41 +212,42 @@ export default function LimitedEventDetail({
                     )}
                 </div>
 
-                <div className="text-right text-sm italic">
-                    You can start the event at any time. The free seats will be
-                    managed by bots, both for draft and for gameplay
-                </div>
+                {/* Explains the Start button next to it — so it belongs to
+                    whoever can actually press it, and only while pressing it
+                    is possible. It used to render unconditionally, which left
+                    a started event telling every viewer they could still
+                    start it. */}
+                {canStart && (
+                    <div className="text-right text-sm italic">
+                        You can start the event at any time. The free seats will
+                        be managed by bots, both for draft and for gameplay
+                    </div>
+                )}
 
-                {event.status === "started" &&
-                    event.type === "sealed" &&
-                    viewerSeat?.pool && (
-                        <LimitedSeatPoolPanel
-                            eventId={eventId}
-                            pool={viewerSeat.pool}
-                        />
-                    )}
+                {draftInProgress && viewerSeat && (
+                    <LimitedDraftTable
+                        eventId={eventId}
+                        seat={viewerSeat}
+                        round={event.draftRound ?? 0}
+                        totalRounds={event.packSlots.length}
+                    />
+                )}
 
-                {event.status === "started" &&
-                    event.type === "draft" &&
-                    !event.draftCompletedAt &&
-                    viewerSeat && (
-                        <LimitedDraftTable
-                            eventId={eventId}
-                            seat={viewerSeat}
-                            round={event.draftRound ?? 0}
-                            totalRounds={event.packSlots.length}
-                        />
-                    )}
-
-                {event.status === "started" &&
-                    event.type === "draft" &&
-                    event.draftCompletedAt &&
-                    viewerSeat?.pool && (
-                        <LimitedSeatPoolPanel
-                            eventId={eventId}
-                            pool={viewerSeat.pool}
-                        />
-                    )}
+                {/* The viewer's deck + the builder entry point, in EVERY
+                    post-Pool state (never gated on `hasDeck`: that flag is
+                    existence-only, so gating hid the builder from a player who
+                    left it below the 40-card minimum and stranded them). The
+                    Pool itself is no longer mirrored here read-only — the
+                    builder shows the same cards and lets the player act on
+                    them, and `useAutoOpenLimitedBuilder` has usually taken
+                    them straight there already. */}
+                {isPoolFinal && viewerSeat && (
+                    <LimitedYourDeckPanel
+                        eventId={eventId}
+                        seatIndex={viewerSeat.seatIndex}
+                        poolCount={viewerSeat.poolCount}
+                    />
+                )}
 
                 {isPoolFinal && viewerSeat && (
                     <>
@@ -279,6 +268,20 @@ export default function LimitedEventDetail({
                     event={event}
                     isAdmin={canViewLimitedReviewDetail(user)}
                 />
+
+                {/* Page-footer utilities. The link stays available for the
+                    whole lifetime of the event (issue #1578) — gating it to
+                    `status === "open"` meant a started event's direct link
+                    could no longer be recovered in-app — but it is not an
+                    event ACTION, so it sits down here rather than in the
+                    Join/Start/Leave row. `canInvite` keeps the label honest:
+                    only an open event can actually take a new player. */}
+                <div className="mt-2 flex justify-end border-t border-border-accent/20 pt-3">
+                    <LimitedShareInviteButton
+                        eventId={eventId}
+                        canInvite={event.status === "open"}
+                    />
+                </div>
             </PanelBody>
 
             <GameDialog
@@ -322,6 +325,6 @@ export default function LimitedEventDetail({
                     />
                 </div>
             </GameDialog>
-        </Panel>
+        </LimitedEventPageFrame>
     );
 }

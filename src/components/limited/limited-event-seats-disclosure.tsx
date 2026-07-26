@@ -14,7 +14,7 @@ import LimitedEventSeatList from "./limited-event-seat-list";
  *  while a Draft is still running (`LimitedEventDetail`'s `draftInProgress`
  *  gate) — i.e. exactly when that count would always read "0/seatCount" and
  *  misread as live progress. Per-seat readiness is still visible once
- *  expanded (`LimitedEventSeatRow`'s "Ready" badge), it's just not
+ *  expanded (`LimitedSeatTile`'s ready dot), it's just not
  *  aggregated into this collapsed summary. */
 export default function LimitedEventSeatsDisclosure({
     event,

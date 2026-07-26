@@ -73,7 +73,7 @@ describe("DashboardLimitedBox (issue #1582)", () => {
         );
         expect(screen.getByText("Your Events")).toBeTruthy();
         expect(screen.getByText("open")).toBeTruthy();
-        fireEvent.click(screen.getByText(/draft/));
+        fireEvent.click(screen.getByText("Limited Edition Alpha Draft"));
         expect(onOpen).toHaveBeenCalledWith("event-open");
     });
 
@@ -143,6 +143,8 @@ describe("DashboardLimitedBox (issue #1582)", () => {
                 onOpen={vi.fn()}
             />
         );
-        expect(screen.getAllByText(/sealed/).length).toBe(2);
+        expect(screen.getAllByText("Limited Edition Alpha Sealed").length).toBe(
+            2
+        );
     });
 });

@@ -1,4 +1,5 @@
 import type { LimitedEventView } from "~/hooks/useLimitedEvent";
+import { limitedEventName } from "~/lib/limitedEventName";
 import ActionButton from "~/components/board/action-button";
 import { Button } from "@/components/ui/button";
 
@@ -34,8 +35,8 @@ export default function LimitedEventListItem({
     return (
         <div className="flex items-center justify-between rounded-sm border border-border-subtle/40 px-4 py-3">
             <div className="flex flex-col gap-0.5">
-                <span className="text-sm font-medium capitalize text-text">
-                    {event.type} — {event.packSlots.join(", ").toUpperCase()}
+                <span className="text-sm font-medium text-text">
+                    {limitedEventName(event)}
                 </span>
                 <span className="text-xs text-text-muted">
                     {filledSeats}/{event.seatCount} seats filled · {statusLabel}
