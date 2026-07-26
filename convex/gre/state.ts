@@ -14208,9 +14208,7 @@ export function validateManaSpendOrder(
     manaPool: Record<string, number>
 ): void {
     if (spendOrder.length !== choice.generic) {
-        throw new Error(
-            `Spend order must name exactly ${choice.generic} mana`
-        );
+        throw new Error(`Spend order must name exactly ${choice.generic} mana`);
     }
     const counts: Record<string, number> = {};
     for (const color of spendOrder) {

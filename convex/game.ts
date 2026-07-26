@@ -2330,31 +2330,6 @@ export function tryAutoCommitPendingCast(
     // parked prompt before the pool is spent.
     state.pendingCast.manaSpendChoice = undefined;
 
-    // CR 601.2g — an ambiguous generic-mana payment PARKS awaiting the caster's
-    // choice of which mana pays the generic cost. Evaluated once every other
-    // cost/choice gate above has cleared and mana is covered, so the pool
-    // reflects only the generic portion still owed. Both the manual
-    // floating-pool path and the auto-tap overproduction path converge here.
-    // When no order was supplied (the plain resume path) and the choice is
-    // meaningful, stash it on `pendingCast` and return without committing;
-    // `resolveManaSpendChoice` supplies a valid order and re-enters here. The
-    // ambiguity is evaluated over the spell's spendable pool (restricted mana
-    // folded in, mirroring the coverage check above).
-    if (!genericSpendOrder) {
-        const ambiguity = genericSpendAmbiguityForPayment(
-            spendablePoolForSpell(player, castTypes, castInstanceId),
-            state.pendingCast.manaCost,
-            getManaSubstitutions(state, player.id)
-        );
-        if (ambiguity) {
-            state.pendingCast.manaSpendChoice = ambiguity;
-            return null;
-        }
-    }
-    // The choice is settled (auto-pick or a supplied order) — clear any stale
-    // parked prompt before the pool is spent.
-    state.pendingCast.manaSpendChoice = undefined;
-
     // CR 106.4 / 202.3 — cast-path mana-spent tracking (Soul Burn). Snapshot
     // the pool before payment so the per-colour delta becomes `notedManaSpent`
     // on the stack item (mirrors the activated-ability `noteManaSpent` path).

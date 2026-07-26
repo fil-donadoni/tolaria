@@ -129,9 +129,12 @@ describe("genericSpendAmbiguityForPayment (CR 601.2g — finalize-point bridge)"
     it("returns null when there is no generic cost", () => {
         // {U}: colored only — no generic choice.
         expect(
-            genericSpendAmbiguityForPayment({ ...emptyPool(), U: 1, G: 1 }, {
-                U: 1,
-            })
+            genericSpendAmbiguityForPayment(
+                { ...emptyPool(), U: 1, G: 1 },
+                {
+                    U: 1,
+                }
+            )
         ).toBe(null);
     });
 
@@ -152,10 +155,13 @@ describe("genericSpendAmbiguityForPayment (CR 601.2g — finalize-point bridge)"
         // {1}{U} with pool {U:1,G:1}: the U pip eats the only U, leaving {G:1}
         // for the {1} generic → a single source, no choice.
         expect(
-            genericSpendAmbiguityForPayment({ ...emptyPool(), U: 1, G: 1 }, {
-                X: 1,
-                U: 1,
-            })
+            genericSpendAmbiguityForPayment(
+                { ...emptyPool(), U: 1, G: 1 },
+                {
+                    X: 1,
+                    U: 1,
+                }
+            )
         ).toBe(null);
     });
 
