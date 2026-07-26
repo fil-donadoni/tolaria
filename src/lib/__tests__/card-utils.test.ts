@@ -40,9 +40,15 @@ import {
     pendingCastSourceCard,
     pendingCastHasImprovise,
     pendingCastRemainingGeneric,
+    activeManaSpendChoice,
     type DisplayAbilities,
 } from "../card-utils";
-import type { CardInstance, PendingCast, Player } from "~/types/game";
+import type {
+    CardInstance,
+    PendingActivation,
+    PendingCast,
+    Player,
+} from "~/types/game";
 import type { CardDefinition } from "@convex/cards/types";
 import { getDefinition } from "@convex/cards";
 import { CHANDRA_TORCH_OF_DEFIANCE_EMBLEM_ID } from "@convex/cards/emblems";
@@ -2981,6 +2987,64 @@ describe("pendingCastSourceCard / pendingCastHasImprovise / pendingCastRemaining
         expect(
             pendingCastRemainingGeneric({ ...pendingCast, manaCost: { U: 1 } })
         ).toBe(0);
+    });
+});
+
+// CR 601.2g (issue #1445) — the prompt-visibility predicate for the
+// generic-mana spend choice (`ManaSpendChoiceDialog` in board.tsx). Mirrors
+// the server's `findActiveManaSpendChoice` (convex/game.ts) so the board
+// renders the prompt exactly when the server has one parked for the viewer.
+describe("activeManaSpendChoice (CR 601.2g)", () => {
+    const pendingCast: PendingCast = {
+        playerId: "p1",
+        cardInstanceId: "spell-1",
+        manaCost: { generic: 1 },
+        tappedLandIds: [],
+        manaSpendChoice: { generic: 1, candidateColors: ["U", "G"] },
+    };
+    const pendingActivation: PendingActivation = {
+        playerId: "p1",
+        cardInstanceId: "art-1",
+        abilityId: "tap-for-white",
+        manaCost: { generic: 1 },
+        tappedLandIds: [],
+        tapSource: false,
+        sacrificeSource: false,
+        manaSpendChoice: { generic: 1, candidateColors: ["W", "B"] },
+    };
+
+    it("surfaces a parked pendingCast.manaSpendChoice for its own player", () => {
+        expect(activeManaSpendChoice(pendingCast, undefined, "p1")).toEqual({
+            container: "cast",
+            choice: { generic: 1, candidateColors: ["U", "G"] },
+        });
+    });
+
+    it("surfaces a parked pendingActivation.manaSpendChoice for its own player", () => {
+        expect(
+            activeManaSpendChoice(undefined, pendingActivation, "p1")
+        ).toEqual({
+            container: "activation",
+            choice: { generic: 1, candidateColors: ["W", "B"] },
+        });
+    });
+
+    it("returns null for the opponent (not the parked choice's own player)", () => {
+        expect(activeManaSpendChoice(pendingCast, undefined, "p2")).toBeNull();
+    });
+
+    it("returns null when pendingCast has no manaSpendChoice parked", () => {
+        expect(
+            activeManaSpendChoice(
+                { ...pendingCast, manaSpendChoice: undefined },
+                undefined,
+                "p1"
+            )
+        ).toBeNull();
+    });
+
+    it("returns null with no pendingCast/pendingActivation at all", () => {
+        expect(activeManaSpendChoice(undefined, undefined, "p1")).toBeNull();
     });
 });
 

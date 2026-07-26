@@ -1172,3 +1172,63 @@ describe("companion slot wire projection (CR 702.139c, ADR 0064, issue #1391)", 
         expect(owner.companion).toBeUndefined();
     });
 });
+
+// CR 601.2g (issue #1445) — the parked generic-mana spend choice must survive
+// the wire: `pendingCast`/`pendingActivation` are NOT in either projection's
+// `Omit<...>` list, so they ride the trailing `...state` spread untouched —
+// but a dropped field is exactly the class of bug this test guards against
+// (gre-development.md "Frontend wiring analysis": a wire-strip is silent
+// server-side and only shows up as a missing prompt client-side).
+describe("manaSpendChoice survives the wire (CR 601.2g, issue #1445)", () => {
+    it("preserves pendingCast.manaSpendChoice through projectPublicState", () => {
+        const state = makeState({
+            pendingCast: {
+                playerId: "p1",
+                cardInstanceId: "spell1",
+                manaCost: { generic: 1 },
+                tappedLandIds: [],
+                manaSpendChoice: { generic: 1, candidateColors: ["U", "G"] },
+            },
+        } as unknown as Partial<GameState>);
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.pendingCast?.manaSpendChoice).toEqual({
+            generic: 1,
+            candidateColors: ["U", "G"],
+        });
+    });
+
+    it("preserves pendingActivation.manaSpendChoice through projectPublicState", () => {
+        const state = makeState({
+            pendingActivation: {
+                playerId: "p1",
+                cardInstanceId: "art1",
+                abilityId: "tap-for-white",
+                manaCost: { generic: 1 },
+                tappedLandIds: [],
+                manaSpendChoice: { generic: 1, candidateColors: ["W", "B"] },
+            },
+        } as unknown as Partial<GameState>);
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.pendingActivation?.manaSpendChoice).toEqual({
+            generic: 1,
+            candidateColors: ["W", "B"],
+        });
+    });
+
+    it("preserves manaSpendChoice through the full debug projection too", () => {
+        const state = makeState({
+            pendingCast: {
+                playerId: "p1",
+                cardInstanceId: "spell1",
+                manaCost: { generic: 2 },
+                tappedLandIds: [],
+                manaSpendChoice: { generic: 2, candidateColors: ["R", "G"] },
+            },
+        } as unknown as Partial<GameState>);
+        const projected = projectFullState(state, 1);
+        expect(projected.pendingCast?.manaSpendChoice).toEqual({
+            generic: 2,
+            candidateColors: ["R", "G"],
+        });
+    });
+});
