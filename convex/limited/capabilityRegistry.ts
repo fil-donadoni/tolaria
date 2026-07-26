@@ -8,10 +8,10 @@
 // `provides` — never authored as an enumerated pair. Absence of a match is
 // itself the veto (ADR 0072's Worldspine Wurm / Animate Dead example): a
 // reanimation spell REQUIRES `reanimatable`, Worldspine Wurm does not
-// PROVIDE it (CR: "When Worldspine Wurm dies, shuffle it into its owner's
-// library" — it is never sitting in the graveyard to reanimate), so the
-// pair scores nothing even though both cards sit in a "cheat a fatty into
-// play" archetype.
+// PROVIDE it (oracle text: "When Worldspine Wurm is put into a graveyard
+// from anywhere, shuffle it into its owner's library" — it is never sitting
+// in the graveyard to reanimate), so the pair scores nothing even though
+// both cards sit in a "cheat a fatty into play" archetype.
 //
 // This is the SINGLE authority on Capability names, the same authority-plus-
 // CI-guard shape `convex/cards/mechanicsRegistry.ts` (ADR 0046) already
@@ -84,17 +84,17 @@ export const CAPABILITY_REGISTRY: CapabilityRow[] = [
     {
         id: "value-on-etb",
         description:
-            "PROVIDES: an enters-the-battlefield trigger or immediate static effect that pays off even if the permanent leaves play again right away (draws cards, deals damage, creates tokens) — independent of the permanent sticking around. REQUIRES: a cheat-into-play effect that only guarantees the permanent briefly touches the battlefield (Show and Tell) requires this from its target.",
+            "PROVIDES: an enters-the-battlefield trigger or immediate static effect that pays off even if the permanent leaves play again right away (draws cards, deals damage, creates tokens) — independent of the permanent sticking around. REQUIRES: a cheat-into-play effect that only guarantees the permanent briefly touches the battlefield (Sneak Attack — '{R}: You may put a creature card from your hand onto the battlefield... Sacrifice the creature at the beginning of the next end step', usg/red.ts — one attack and it is gone) requires this from its target; Show and Tell, by contrast, puts its target into play PERMANENTLY (no sacrifice/return clause) and does not require this.",
     },
     {
         id: "value-on-attack",
         description:
-            "PROVIDES: an attack trigger or attack-scaling effect that pays off the instant the permanent attacks, independent of whether it survives past that combat (token creation, direct damage, a forced-sacrifice trigger) — the Worldspine Wurm shape (ADR 0072): it creates its wurm tokens on attack, so it is still a great target for an effect that sacrifices it at the next cleanup step. REQUIRES: a one-combat cheat effect (Sneak Attack — sacrifices its target at the beginning of the next end step, AFTER one attack) requires this from its target; Emrakul, the Aeons Torn does not provide it, so the pair scores nothing.",
+            "PROVIDES: an attack trigger or attack-scaling effect that pays off the instant the permanent attacks, independent of whether it survives past that combat (token creation, direct damage, a forced-sacrifice trigger) — Emrakul, the Aeons Torn's Annihilator 6 (CR 702.86, 'Whenever this creature attacks, defending player sacrifices six permanents'; tracked stub, tracked-by #1301) is the canonical case, ADR 0072's own worked example ('a fine reanimation and Sneak Attack target') — even a one-combat cheat gets full value from it. REQUIRES: a one-combat cheat effect (Sneak Attack — sacrifices its target at the beginning of the next end step, AFTER one attack) requires this from its target; Griselbrand does NOT provide it — its only ability is 'Pay 7 life: Draw seven cards' (avr/black.ts), an activated ability usable any time, not gated on attacking — so the pair scores nothing despite Griselbrand being a fine reanimation target on its own stats. (Worldspine Wurm's payoff fires on DEATH, not attack — see `value-on-death`.)",
     },
     {
         id: "value-on-death",
         description:
-            "PROVIDES: a death trigger, or an effect elsewhere keyed off this permanent dying / being put into a graveyard from the battlefield, that pays off regardless of the cause of death (draws cards, creates tokens, deals damage) — good sacrifice/removal-trade fodder. REQUIRES: an effect that wants to sacrifice or trade away permanents profitably requires this from its fodder.",
+            "PROVIDES: a death trigger, or an effect elsewhere keyed off this permanent dying / being put into a graveyard from the battlefield, that pays off regardless of the cause of death (draws cards, creates tokens, deals damage) — the Worldspine Wurm shape (ADR 0072's Flash pairing): 'When this creature dies, create three 5/5 green Wurm creature tokens with trample' (rtr/green.ts) fires no matter how it died, making it an excellent Flash target — even though it ALSO shuffles itself out of the graveyard afterward, so it does NOT provide `reanimatable` (see that row). REQUIRES: an effect that wants to sacrifice or trade away permanents profitably requires this from its fodder.",
     },
     {
         id: "value-on-cast",
