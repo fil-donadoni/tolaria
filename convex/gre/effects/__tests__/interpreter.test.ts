@@ -211,7 +211,10 @@ describe("Effect Script Op: tapUntap { bind } — live-target power snapshot (CR
     ];
 
     it("taps the creature and deals its power to its own controller", () => {
-        const id = registerScript("test-tapuntap-bind-backlash", backlashScript);
+        const id = registerScript(
+            "test-tapuntap-bind-backlash",
+            backlashScript
+        );
         const bear = makeInstance(BEAR_ID, {
             controllerId: "p2",
             id: "blbear",
@@ -304,10 +307,7 @@ describe("Effect Script Op: tapUntap { bind } — live-target power snapshot (CR
     });
 
     it("controller damage + tapped state survive projection (wire format)", () => {
-        const id = registerScript(
-            "test-tapuntap-bind-wire",
-            backlashScript
-        );
+        const id = registerScript("test-tapuntap-bind-wire", backlashScript);
         const bear = makeInstance(BEAR_ID, {
             controllerId: "p2",
             id: "wirebear",
