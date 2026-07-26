@@ -104,6 +104,10 @@ export function useVsAiDriver(
     // like `confirmDamage`.
     const autoTapForAttackTax = useMutation(api.game.autoTapForAttackTax);
     const cancelAttackTax = useMutation(api.game.cancelAttackTax);
+    // CR 601.2g (issue #1446) — the parked generic-spend choice mutation. Kept
+    // OUT of `MoveMutations` for the same reason: it isn't Move-realised, it
+    // lives outside `pendingChoices[]`, and is driven directly.
+    const resolveManaSpendChoice = useMutation(api.game.resolveManaSpendChoice);
 
     const inFlight = useRef(false);
     const lastSignature = useRef<string | null>(null);
@@ -169,6 +173,26 @@ export function useVsAiDriver(
                     ? autoTapForAttackTax
                     : cancelAttackTax;
             void mutation({ gameId, playerId: botId }).catch(() => {
+                lastSignature.current = null;
+            });
+            return;
+        }
+
+        // CR 601.2g (issue #1446) — the parked generic-spend choice: the gate
+        // already picked a deterministic flexibility-preserving `spendOrder`
+        // (`chooseManaSpendOrder`), so realise it straight through (no Worker,
+        // no search), mirroring the attack-tax short-circuit above.
+        if (
+            botActionRealisation(action.kind) === "mana-spend" &&
+            action.kind === "resolve-mana-spend"
+        ) {
+            if (inFlight.current) return;
+            lastSignature.current = signature;
+            void resolveManaSpendChoice({
+                gameId,
+                playerId: botId,
+                spendOrder: action.spendOrder,
+            }).catch(() => {
                 lastSignature.current = null;
             });
             return;

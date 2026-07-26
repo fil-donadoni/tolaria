@@ -93,6 +93,32 @@ export type BotView = {
      *  which the pre-game mulligan branch handles via its own hand heuristic.
      *  Undefined when no choice is owed. */
     owedChoice?: OwedChoice;
+    /** CR 601.2g — the parked generic-mana spend choice (#1444) currently
+     *  awaiting the bot as PAYER of its own parked cast/activation. Rides
+     *  outside `pendingChoices[]` (mirroring the attack-tax park), so it is its
+     *  own `BotView` field rather than an `OwedChoice`. Undefined unless the bot
+     *  itself owes the choice. */
+    manaSpendChoice?: ManaSpendChoiceView;
+};
+
+/** The parked generic-mana spend choice (#1444/#1446), reduced to what the
+ *  deterministic flexibility heuristic needs. Built by `buildBotView` from the
+ *  bot's own visible hand + mana pool. */
+export type ManaSpendChoiceView = {
+    /** How much generic mana is still owed (CR 601.2g). */
+    generic: number;
+    /** The pool colors the generic may legally be drawn from, in canonical
+     *  W,U,B,R,G,C order (mirrors `GenericSpendAmbiguity.candidateColors`). */
+    candidateColors: string[];
+    /** The bot's current pool amount for each candidate color — caps how much
+     *  of that color the spend order may draw. */
+    poolCounts: Record<string, number>;
+    /** Heuristic usefulness score per candidate color (issue #1446): the total
+     *  colored pips of that color required among the bot's OTHER remaining
+     *  hand spells this turn. The color scoring HIGHEST is the one worth
+     *  protecting — `chooseManaSpendOrder` drains it LAST, spending the most
+     *  disposable (least useful) color first to preserve flexibility. */
+    colorUsefulness: Record<string, number>;
 };
 
 /** A choosable card as the bot sees it on its projected view (ADR 0016). Carries
@@ -228,6 +254,9 @@ export type OwedChoice = {
  *   - `search-choice`     → the Worker search picks the answer to the owed
  *                           pending choice and the executor submits it through
  *                           whichever mutation that Move names (issue #1506)
+ *   - `resolve-mana-spend` → `resolveManaSpendChoice` (CR 601.2g, issue #1446;
+ *                           the parked generic-spend choice, driven directly —
+ *                           not a Move, mirrors `pay-attack-tax`)
  *   - `none`              → the bot owes no action right now; do nothing. */
 export type BotAction =
     | {
@@ -258,6 +287,13 @@ export type BotAction =
     | { kind: "confirm-combat-damage" }
     | { kind: "pay-attack-tax" }
     | { kind: "cancel-attack-tax" }
+    | {
+          /** CR 601.2g (issue #1446) — the deterministic flexibility-preserving
+           *  answer to a parked generic-spend choice: one color per owed generic
+           *  pip, drawn from `ManaSpendChoiceView.candidateColors`. */
+          kind: "resolve-mana-spend";
+          spendOrder: string[];
+      }
     | { kind: "pass" }
     | { kind: "none" };
 
@@ -289,6 +325,7 @@ export type BotActionRealisation =
     | "worker"
     | "confirm-damage"
     | "attack-tax"
+    | "mana-spend"
     | "none";
 
 export function botActionRealisation(
@@ -305,6 +342,11 @@ export function botActionRealisation(
         case "pay-attack-tax":
         case "cancel-attack-tax":
             return "attack-tax";
+        // CR 601.2g (issue #1446) — the parked generic-spend choice is resolved
+        // by a direct mutation (`resolveManaSpendChoice`), like the attack-tax
+        // park above: it lives outside `pendingChoices[]`, so no Worker search.
+        case "resolve-mana-spend":
+            return "mana-spend";
         case "keep":
         case "mull":
         case "mulligan-bottom":
@@ -860,11 +902,52 @@ export function chooseOwedChoiceAction(choice: OwedChoice): BotAction {
     };
 }
 
-/** The rest of the gate, once no pending choice is owed: the attack-mana tax,
- *  the combat declarations and the ordinary priority window. Split out of
- *  {@link decideBotAction} when the choice branch grew its own entry point
- *  (issue #1506); the ordering is unchanged. */
+/** CR 601.2g (issue #1446) — the deterministic flexibility-preserving answer to
+ *  a parked generic-spend choice: build a color order of length `generic`
+ *  (one entry per owed generic pip), spending the MOST-DISPOSABLE candidate
+ *  color first (ascending `colorUsefulness`, `candidateColors`' own canonical
+ *  W,U,B,R,G,C order breaking ties via the stable sort) so the pool retains as
+ *  much of the color(s) the bot's other remaining hand spells still need. Each
+ *  color is drawn only up to its `poolCounts` amount, spilling into the next
+ *  least-useful color once exhausted — always a legal multiset (⊆ pool) of
+ *  exactly `generic` entries, so `resolveManaSpendChoice` never rejects it.
+ *  Deterministic and side-effect free. */
+export function chooseManaSpendOrder(choice: ManaSpendChoiceView): string[] {
+    const { generic, candidateColors, poolCounts, colorUsefulness } = choice;
+    const order = [...candidateColors].sort(
+        (a, b) => (colorUsefulness[a] ?? 0) - (colorUsefulness[b] ?? 0)
+    );
+    const remaining = { ...poolCounts };
+    const spendOrder: string[] = [];
+    for (const color of order) {
+        while (spendOrder.length < generic && (remaining[color] ?? 0) > 0) {
+            spendOrder.push(color);
+            remaining[color] = (remaining[color] ?? 0) - 1;
+        }
+        if (spendOrder.length >= generic) break;
+    }
+    return spendOrder;
+}
+
+/** The rest of the gate, once no pending choice is owed: the parked mana-spend
+ *  choice, the attack-mana tax, the combat declarations and the ordinary
+ *  priority window. Split out of {@link decideBotAction} when the choice
+ *  branch grew its own entry point (issue #1506); the ordering is unchanged. */
 function decideNonChoiceAction(view: BotView): BotAction {
+    // CR 601.2g (issue #1446) — the parked generic-spend choice: a cast or
+    // activated ability the bot itself is paying for parked because the
+    // payer's choice of which pooled color covers the remaining generic is
+    // meaningful (CR 601.2g). The payer holds priority but the parked
+    // cast/activation blocks passing, so this MUST resolve first — the same
+    // "resolve the park before anything else" class as the attack-tax branch
+    // below, closed here the same way (a direct mutation, no Worker/search).
+    if (view.manaSpendChoice) {
+        return {
+            kind: "resolve-mana-spend",
+            spendOrder: chooseManaSpendOrder(view.manaSpendChoice),
+        };
+    }
+
     // CR 508.1c/1g — the parked per-attacker MANA attack tax (Propaganda /
     // Collective Restraint). The bot declared a taxed attack and now owes the
     // tax: pay it (auto-tap) when it can plausibly cover it, else cancel the
