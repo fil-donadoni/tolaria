@@ -68,6 +68,15 @@ export const laeliaTheBladeReforged: CardDefinition = {
                     "this-turn"
                 );
             },
+            // aiEffects (PRD #1423, issue #1431/#1519) — bare `resolve()`
+            // closure (own-library impulse-draw; no Op skin exists for the
+            // exile-and-grant-cast protocol — see the PROTOCOL note above),
+            // so the bot's value model has nothing to walk without a shadow
+            // script. Same sketch as Ragavan's combat-damage ability
+            // (mh2/red.ts) minus the Treasure token: `digToHand` is this
+            // codebase's precedent for valuing "look at N, keep 1" impulse
+            // draw, standing in for the exile-and-may-cast upside.
+            aiEffects: [{ op: "digToHand", player: "controller", look: 1 }],
         },
         cardsExiledTrigger({
             id: "laelia-cards-exiled",

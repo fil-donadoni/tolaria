@@ -1385,11 +1385,22 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // by issue #1600. Net: total 470->466 (-4 closures), FREE 299->295 (-4),
         // AFK-ready 287->283 (-4). X-only / Op-blocked unchanged. Partition:
         // 295+14+157=466.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(466);
+        //
+        // #1558 (CARDS_EXILED event + Laelia, the Blade Reforged, c21/red.ts):
+        // Laelia is a BRAND-NEW catalogue card, not a migration. Its
+        // attack-trigger ability is a `resolve()` closure composing the same
+        // impulse-draw protocol as Ragavan / Inti above (`peekLibraryTop` +
+        // `exileFaceDown` + `grantCastFromExile`, no Op skin) — lands in
+        // Op-blocked, same as those siblings (her second ability, the
+        // CARDS_EXILED counter trigger, ships as a real `effects: EffectOp[]`
+        // script and isn't a closure at all). Net: total 466->467 (+1 new
+        // closure), Op-blocked 157->158 (+1). FREE / AFK-ready / X-only
+        // unchanged. Partition: 295+14+158=467.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(467);
         expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(295);
         expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(283);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(157);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(158);
     });
 
     it("surfaces the demonstrated new-Op backlog (a covered primitive leaves it)", () => {
