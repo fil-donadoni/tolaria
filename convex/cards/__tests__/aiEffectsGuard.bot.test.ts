@@ -414,11 +414,6 @@ const AI_EFFECTS_ALLOWLIST: readonly AllowlistEntry[] = [
         note: "no honest shadow script: pre-existing resolve() card, backfill tracked by #1436",
     },
     {
-        cardId: "96794470-31ea-478f-b11c-dc8342a508e2",
-        name: "Liberate",
-        note: "no honest shadow script: pre-existing resolve() card, backfill tracked by #1436",
-    },
-    {
         cardId: "72955141-d990-459f-adbe-7d3d0f5f6c95",
         name: "Mana Clash",
         note: "no honest shadow script: pre-existing resolve() card, backfill tracked by #1436",
@@ -1454,12 +1449,6 @@ const ABILITY_AI_EFFECTS_ALLOWLIST: readonly AbilityAllowlistEntry[] = [
         cardId: "3eb27381-505d-4e47-bf66-9e7ba91a5075",
         name: "Firebreathing",
         abilityId: "firebreathing-pump",
-        note: "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519",
-    },
-    {
-        cardId: "5bb3cb5c-8d66-4f5e-a9a9-917e6045f024",
-        name: "Flickerwisp",
-        abilityId: "flickerwisp-etb",
         note: "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519",
     },
     {

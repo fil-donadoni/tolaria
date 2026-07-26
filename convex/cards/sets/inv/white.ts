@@ -3,12 +3,11 @@
 // Scryfall oracle text is authoritative (ADR 0004).
 //
 // Free tranche (issue #1069, parent PRD #1063): 25 of the 41 candidate free
-// White cards ship as active `CardDefinition`s below — 24 DSL Effect Scripts
-// (ADR 0045) + 1 `resolve()` card with a RECORDED precedent already shipped
-// elsewhere in the catalogue (Liberate: Flickerwisp's "flicker" exile +
-// delayed-return idiom, eve/white.ts — DSL-first budget ~0-1 `resolve()` per
-// tranche, ADR 0045). (Restrain migrated resolve()->effects[] via the
-// `markAssignsNoCombatDamage` Op, CR 510.1c.) Holy Day is NOT a new card here —
+// White cards ship as active `CardDefinition`s below, all 25 as DSL Effect
+// Scripts (ADR 0045). (Restrain migrated resolve()->effects[] via the
+// `markAssignsNoCombatDamage` Op, CR 510.1c. Liberate migrated resolve()
+// ->effects[] via the exile(bind)+delayedTrigger "blink" idiom, issue
+// #1401/#1403.) Holy Day is NOT a new card here —
 // it was first printed in Legends and already ships from `leg/white.ts`; no
 // duplicate `CardDefinition`/lockfile row for the same oracleId. The
 // remaining 16 candidates need engine capabilities that do not exist yet
@@ -19,7 +18,7 @@
 // (#1066, #1067); the 2 split cards (Stand // Deliver, Wax // Wane) are
 // out-of-scope (ADR 0010/0041, unmodelled `split` layout) and carry no stub.
 
-import type { CardDefinition, Color, SpellContext } from "../../types";
+import type { CardDefinition, Color } from "../../types";
 import {
     AURA_AFFECTS_HOST,
     countDomain,
@@ -520,29 +519,19 @@ export const harshJudgment: CardDefinition = {
     ],
 };
 
-// ─────────────────────────────────────────────────────────────────────────
-// Protocol cards (resolve(), precedent-justified — ADR 0045 escape hatch)
-// ─────────────────────────────────────────────────────────────────────────
-
 const LIBERATE_ID = "96794470-31ea-478f-b11c-dc8342a508e2";
 
 // Liberate — "Exile target creature you control. Return that card to the
 // battlefield under its owner's control at the beginning of the next end
-// step."
-// NOT DSL-migratable (ADR 0045): the DSL `moveZone` Op has no exile-zone
-// branch — `resolveObjectRef` recovers a graveyard-card source (CR 400.7)
-// but has no equivalent recovery for a card sitting in exile, so a
-// `delayedTrigger` body can't express "return THAT (exiled) card to the
-// battlefield" declaratively.
-// Blocked on: missing exile-zone object recovery in `moveZone`/
-// `resolveObjectRef` (see Flickerwisp, eve/white.ts, and Krovikan
-// Vampire/Seraph, ice/white.ts, for the same established "flicker idiom":
-// `exile` + `scheduleDelayedTrigger` ("next-end-step") + a card-level
-// `delayedTriggers[]` entry that calls `returnToBattlefield(owner, id,
-// "exile")`). Unlike Flickerwisp (which chooses its target via an ETB
-// `choice` substitute), Liberate is a plain targeted instant, so the real
-// announced target (`ctx.targets[0]`) drives the exile directly — no choice
-// step needed.
+// step." Migrated to the DSL "blink" idiom (issue #1401 / #1403): `exile`
+// the announced target with a `bind`, then a `delayedTrigger` captures that
+// bound ref (`resolveCaptureSource` reads the snapshot's instance id — a
+// serializable payload value, ADR 0048) and the delayed body's `moveZone`
+// resolves it back via `resolveObjectRef`'s exile-zone fallback, returning
+// the card under its OWNER's control by default (no explicit `controller` —
+// matches "under its owner's control"). `from: "exile"` pins the #1469
+// RETURN-A-DEPARTED-OBJECT recovery path explicitly (Mechanics Registry
+// `moveZone` note).
 export const liberate: CardDefinition = {
     id: LIBERATE_ID,
     rarity: "uncommon",
@@ -552,38 +541,22 @@ export const liberate: CardDefinition = {
     manaCost: { X: 1, W: 1 },
     types: ["Instant"],
     targetRequirement: { type: "Creature", count: 1, controller: "you" },
-    resolve: (ctx: SpellContext) => {
-        const t = ctx.targets[0];
-        if (t?.type !== "permanent") return;
-        const ownerId = ctx.getOwnerId(t.id);
-        if (ownerId === undefined) return; // CR 608.2b — target left
-        ctx.exile(t);
-        ctx.scheduleDelayedTrigger(
-            LIBERATE_ID,
-            "liberate-return",
-            "next-end-step",
-            {
-                cardId: t.id,
-                ownerId,
-            }
-        );
-    },
-    delayedTriggers: [
+    effects: [
+        { op: "exile", target: { target: 0 }, bind: "$c" },
         {
-            id: "liberate-return",
+            op: "delayedTrigger",
+            timing: "next-end-step",
             oracleText:
                 "Return that card to the battlefield under its owner's control at the beginning of the next end step.",
-            timing: "next-end-step",
-            // NOT DSL-migratable (ADR 0045): same exile-zone recovery gap as
-            // the card-level resolve() above — see that comment.
-            resolve: (ctx, payload) => {
-                if (!payload.cardId || !payload.ownerId) return;
-                ctx.returnToBattlefield(
-                    payload.ownerId,
-                    payload.cardId,
-                    "exile"
-                );
-            },
+            capture: { $c: { ref: "$c" } },
+            effects: [
+                {
+                    op: "moveZone",
+                    target: { ref: "$c" },
+                    from: "exile",
+                    to: "battlefield",
+                },
+            ],
         },
     ],
 };

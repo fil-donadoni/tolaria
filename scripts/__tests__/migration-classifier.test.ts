@@ -1368,9 +1368,26 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // EffectValue member). Net: total 469->470 (+1 new closure), FREE
         // 298->299, AFK-ready 286->287. X-only / Op-blocked unchanged.
         // Partition: 299+14+157=470.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(470);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(299);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(287);
+        //
+        // #1403 (flicker-card DSL migration, exile(bind)+delayedTrigger+moveZone
+        // "blink" idiom, issue #1401): Liberate (inv/white.ts) and Flickerwisp
+        // (eve/white.ts) each dropped TWO `resolve()` closures apiece — the
+        // card/ETB-trigger `resolve()` AND its paired old-style
+        // `delayedTriggers[]` entry's own `resolve()` — replaced by a single
+        // `effects: EffectOp[]` script per card (no card-level `delayedTriggers[]`
+        // left at all; the delayed body is now inline on a `delayedTrigger` Op).
+        // Both cards' closures were previously classified FREE + AFK-ready (each
+        // had a per-card test). Krovikan Vampire (ice/black.ts) / Seraph
+        // (ice/white.ts) were re-assessed and NOT migrated here — same-shaped
+        // oracle text but a structurally different idiom (CR 603.7c graveyard
+        // reanimation off a death trigger, not exile), blocked on a separate,
+        // still-open gap (no `CREATURE_DIED` `EVENT_FIELD_REGISTRY` row) tracked
+        // by issue #1600. Net: total 470->466 (-4 closures), FREE 299->295 (-4),
+        // AFK-ready 287->283 (-4). X-only / Op-blocked unchanged. Partition:
+        // 295+14+157=466.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(466);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(295);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(283);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
         expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(157);
     });
