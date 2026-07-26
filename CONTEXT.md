@@ -492,6 +492,30 @@ _Avoid_: Commander (a different singleton mechanic), pet, sidekick
 The single per-**Player** holder for a declared **Companion**, distinct from every in-game **Zone** (it is _outside the game_, not the **Battlefield**/**Hand**/**Exile**). Holds at most one card, is revealed to both **Players**, and tracks whether the once-per-**Game** {3} summon has been spent. Not a general "outside the game" **Zone** — it models a **Companion** and nothing else.
 _Avoid_: Command zone, outside-game zone (reserved for a future general zone)
 
+**Column Layout**:
+The per-**Zone** (**Maindeck** / **Sideboard**) arrangement of a **Deck** into vertical **Columns** while it is being built. Owns the **Grouping**, the ordered **Column** list (including any manual Columns and the mandatory **Catch-All Column**), and the within-Column **Ordering**. It does **not** own the Zone's build-time filter — that is a momentary tool, never persisted, so a saved Layout can never hide part of a **Deck** from its author. Each Zone owns its own Layout independently — the Maindeck may be grouped by **Mana Value** while the Sideboard is grouped by colour. Presentation and deck-intent only: a Layout never changes which cards are in the Deck, and is never a **Deck Legality** input.
+_Avoid_: View, grouping (that's one field of it), sort order, arrangement (reserved for **Pool Arrangement**)
+
+**Column**:
+One vertical bucket of a **Column Layout**, with a stable namespaced id (`mv:5`, `color:R`, `custom:…`) and a label. A **generated** Column carries a predicate and is produced by the current **Grouping**; a **manual** Column carries no predicate — cards reach it only by **Card Pin** — is user-created and user-labelled, and lives in every Grouping of its **Zone**. A Column may be deleted **only while empty**. A card lands in the first Column that claims it: a `custom` **Card Pin**, else the Pin for the current **Grouping**, else a generated Column's predicate, else the **Catch-All Column**.
+_Avoid_: Pile (that's the in-game stack of cards), category, bucket
+
+**Catch-All Column**:
+The mandatory last **Column** of every **Column Layout**, holding every card no other Column claims. Cannot be deleted, has no predicate, and is what makes deleting a **Column** safe — a card whose Column no longer exists is always visible somewhere.
+_Avoid_: Other, misc, default column (it is not a fallback default — it is a real Column)
+
+**Grouping**:
+The rule that generates a **Column Layout**'s predicate-carrying **Columns** — by **Mana Value**, colour, card type, or none. Switching Grouping regenerates the generated Columns; manual **Columns** and every **Card Pin** survive untouched, because Column ids are namespaced per Grouping.
+_Avoid_: Group by, sort (see **Ordering**), filter
+
+**Ordering**:
+The rule that sorts cards **inside** a **Column** (name, **Mana Value**, colour, rarity). Orthogonal to **Grouping**, which decides which Columns exist — "Columns by colour, ordered by Mana Value" is one Layout, not two.
+_Avoid_: Sort by (ambiguous with Grouping), order
+
+**Card Pin**:
+A user's manual override placing one card in a chosen **Column**, recorded per **Grouping** namespace (`{ mv: "mv:5", color: null, … }`) plus an optional `custom` pin. A Pin is **never erased by a Grouping switch** — it simply does not apply while its namespace isn't the active **Grouping** — so the arrangement built during a **Draft** survives an exploratory look at the **Pool** by colour. A `custom` Pin outranks every other rule.
+_Avoid_: Column override (the pre-unification name), assignment, manual placement
+
 **Format**:
 A named set of deck-construction constraints a **Deck** is built under, chosen at deck creation and **immutable** thereafter. Determines which **Sets** are legal, the **Maindeck**/**Sideboard** size bounds, and the copy/category limits. Three exist: **Freeform** (no constraints), **Alpha 40** (Alpha/Beta only, ≥40 main, no sideboard, rarity- and category-based limits), **Old School** (Alpha/Beta/Arabian Nights/Antiquities/Legends/The Dark, ≥60 main, ≤15 sideboard, 4-copy + **Restricted**/**Banned** lists). A **Format** constrains deck authoring only — it is **not** a property of a **Game**, and two **Players** may bring **Decks** of different **Formats** to the same **Match**.
 _Avoid_: Mode, ruleset (overloaded — see **Format Ruleset**), variant
@@ -600,6 +624,14 @@ _Avoid_: Mana fixing (the card property), colour fit
 What the cards still present in a passed-around pack say about which colours the neighbouring **Seats** are not taking — the read that lets a drafter change colours mid-round rather than committing on the first **Pick**. Requires a **Seat**'s history of packs seen, not just its **Pool**. Recognised in the domain but **not yet acted on** by the **Bot Drafter**.
 _Avoid_: Signal (bare — overloaded), cut, open colour (that is the conclusion drawn from a Signal)
 
+**Pick Invariant**:
+An assertion about how a **Bot Drafter**'s scoring must _respond_, never about which card it must choose: adding Flash to a **Pool** may not lower Worldspine Wurm's score; a mana source is worth more to a Pool short of that colour than to one already served. Holds for any positive weighting, so retuning never turns one red — only a broken model does (a miscensused **Capability**, an inverted deficit, a term not reading the Pool it claims to). The backbone of drafting correctness, precisely because a **Pick** is a free choice with no rules-forced right answer, unlike a gameplay move.
+_Avoid_: Golden pick (promises a truth that does not exist), expected pick
+
+**Anchor Pick**:
+A small, deliberately separate set of absolute expected **Picks** where competent drafters agree and the condition is stated tightly enough to remove doubt — Black Lotus is taken from a pack containing no other Power Nine. Openly an **opinion**, not a **Pick Invariant**: it guards the base sanity of the **Bot Drafter** against gross breakage, and when one goes red the answer is a decision (accept the new behaviour and restate the anchor, or revert), never an automatic code fix. Most valuable for the **Vintage Cube**, where card power varies wildly; a set or block environment is tuned through **Pick Ratings** instead, where anchors matter less.
+_Avoid_: Invariant (an Anchor is the opposite kind of claim), regression test
+
 **Draft Lab**:
 A developer surface that runs a whole **Draft** in the browser and shows, for every **Pick**, the score breakdown of every candidate in the pack. Client-only and never persisted — it imports the same pure modules the server picks with, so it cannot drift from real **Bot Drafter** behaviour. The sibling of the gameplay **Brain**'s decision trace, applied to drafting. Two modes: a **synthetic** draft from any seed (all seats bots, full visibility on every seat — the tuning instrument), and a **replay** of a real completed **Limited Event**, reconstructed from its seed plus the human **Seat**'s append-ordered **Pool** with no extra stored data. A replay diverges the moment retuned weights change a bot **Pick**; the divergence point is shown, never hidden.
 _Avoid_: Draft replay (that is one of its two modes), draft debugger, simulator (it is also a replay tool)
@@ -629,7 +661,8 @@ The set of **Card Prints** a **Seat** owns for deckbuilding in a **Limited Event
 _Avoid_: Card pool (redundant), collection
 
 **Pool Arrangement**:
-The **Seat**-scoped, server-persisted layout of a **Seat**'s **Pool** into fixed **Mana Value** columns plus a **Sideboard** column, with a per-card manual column override (a card pinned to a chosen column stays there, Draftmancer/MTGO-style). It is built up **during the Draft** — each **Pick** lands by default in its Mana Value column — and carries unchanged into the post-draft **Deck**-build: draft and deckbuild are one continuous surface, the build view merely dropping the active **Booster**. Distinct from the **Pool** itself (the authoritative card multiset on the Seat): the Arrangement is presentation/deck-intent over that multiset, never the legality authority.
+The **Seat**-scoped, server-persisted form of a **Column Layout** for a **Limited Event**: which of the **Seat**'s **Pool** cards sit in the **Maindeck** vs the **Sideboard**, plus each card's **Card Pins**. It is built up **during the Draft** — each **Pick** lands by default in the **Column** its **Mana Value** claims — and carries unchanged into the post-draft **Deck**-build: draft and deckbuild are one continuous surface, the build view merely dropping the active **Booster**. Distinct from the **Pool** itself (the authoritative card multiset on the Seat): the Arrangement is presentation/deck-intent over that multiset, never the legality authority. It is keyed by **Pool index**, not by **Card ID**, so two copies of the same card can sit in different **Columns**.
+_Avoid_: Pool layout, seat layout
 
 **Auto-Build**:
 The server-side construction of a **Limited**-legal **Deck** from a **Bot Drafter**'s **Pool** at the end of a **Limited Event**: pick the two strongest colors, ~17 spells + 17 lands, curve-aware. A bot's auto-built Deck is playable — a **User** can start a **vs-AI Game** against any bot **Seat**'s deck, closing the study loop (draft, then test your deck against the table's).

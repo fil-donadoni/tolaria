@@ -2910,6 +2910,13 @@ export const createSoloGame = mutation({
         /** When true the second seat is driven by the AI brain (ADR 0001).
          *  Still structurally a solo game — no new game mode or move surface. */
         vsAi: v.optional(v.boolean()),
+        /** Limited Event this playtest belongs to ("Play vs the Table", PRD
+         *  #1107 story 25). Binds the solo/vs-AI Match to the event exactly the
+         *  way `challengeLimitedSeat` binds a human-vs-human one, so the client
+         *  can return to the EVENT lobby when the Match ends instead of the
+         *  general lobby. Accepted only when the caller's OWN deck belongs to
+         *  that event (`assertSameEventDeck`) — never a client-claimed binding. */
+        limitedEventId: v.optional(v.id("limitedEvents")),
         // Bo1 | Bo3 (PRD #387). Defaults to Bo1.
         bestOf: bestOfValidator,
     },
@@ -2918,6 +2925,11 @@ export const createSoloGame = mutation({
         // #155 (match-scoped): one active match per user (see createGame).
         if (await findActiveMatchForUser(ctx, user._id))
             throw new Error(ACTIVE_GAME_MESSAGE);
+        // An event binding is only legitimate when seat 1's deck IS that
+        // event's deck — the ownership of that seat is re-checked below by
+        // `loadLimitedPoolResolver`/`assertLimitedSeatOwnership`.
+        if (args.limitedEventId)
+            assertSameEventDeck(args.deck.limitedEventId, args.limitedEventId);
         const deck2 = args.deck2 ?? args.deck;
         // Authoritative deck legality gate (ADR 0036): both seats' decks must be
         // legal before the solo/vs-AI Match starts. Each deck's own DB banlist
@@ -2971,6 +2983,7 @@ export const createSoloGame = mutation({
             playDrawChooserId: tossWinnerId,
             solo: true,
             vsAi: args.vsAi === true ? true : undefined,
+            limitedEventId: args.limitedEventId,
             createdAt: now,
             updatedAt: now,
         });
@@ -2983,6 +2996,7 @@ export const createSoloGame = mutation({
             players: toGamePlayers(allPlayers),
             solo: true,
             vsAi: args.vsAi === true ? true : undefined,
+            limitedEventId: args.limitedEventId,
             createdAt: now,
             updatedAt: now,
         });

@@ -261,6 +261,21 @@ describe("projectMatch (wire format, PRD #387)", () => {
         expect(opp.ready).toBe(false);
     });
 
+    // The event binding MUST survive the projection: the client decides where
+    // "Back to Lobby" lands from it (`lobbyHrefForMatch`), so a dropped field
+    // sends an event player back to the general lobby.
+    it("carries limitedEventId to the wire for an event Match", () => {
+        const proj = projectMatch(
+            matchDoc({ limitedEventId: "event_1" }),
+            "p1"
+        );
+        expect(proj.limitedEventId).toBe("event_1");
+    });
+
+    it("leaves limitedEventId undefined for an ordinary Match", () => {
+        expect(projectMatch(matchDoc(), "p1").limitedEventId).toBeUndefined();
+    });
+
     it("Solo reveals both seats' deck copies", () => {
         const proj = projectMatch(
             matchDoc({

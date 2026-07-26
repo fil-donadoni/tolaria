@@ -43,6 +43,7 @@ Fable of the mirror-breaker
 - Goblin artisans: abbiamo perso l'animazione del coin toss che prima c'era.
 - le abilità loyalty di un planeswalker non devono comparire nel context menu se siamo in una fase non sorcery speed, a meno di abilità che le abilitano a questa velocità.
 - Chromatic armor non mostra il colore attualmente attivo nell'oracle text live
+- premere space dopo aver dichiarato almeno un attaccante corrisponde a Confirm attacks, non ad Attack with all
 
 # Bug gameplay
 
@@ -56,3 +57,5 @@ Fable of the mirror-breaker
 - cerca di tappare per mana un everflowing chalice senza counters e continua a fallire nel castare una spell, rinunciando.
 - continua a castare vision charm con la mode di cambio tipo terra base, senza motivo
 - casta flash of insight con X = 0, inutile
+- casta sheoldred's edict senza alcuna creatura o planeswalker sul mio board
+- casta damnation su board vuoto

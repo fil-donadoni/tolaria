@@ -38,6 +38,16 @@ export default function GameRoute() {
         if (session.gameId) void leaveGame({ gameId: session.gameId });
         clearSession();
         setSession({ gameId: null, playerId: null });
+        // A withdrawn Limited Event challenge returns to that event's lobby —
+        // the general lobby would strand the player away from their pool and
+        // the other seats. Non-event games fall through to the effect above,
+        // which sends them to "/".
+        if (game?.limitedEventId)
+            void navigate({
+                to: "/limited/$eventId",
+                params: { eventId: game.limitedEventId },
+                replace: true,
+            });
     };
 
     const handleSwitchGame = (gameId: Id<"games">, playerId: string) => {

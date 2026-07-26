@@ -2,7 +2,7 @@
 // to be gated on `match.status === "finished" || match === null`, so any other
 // Match state (meta still loading, an "active"/unknown status) rendered a
 // game-over screen with no action at all and stranded the player on the board.
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, cleanup } from "@testing-library/react";
 import type { PublicMatch } from "@convex/matches";
 import type { GameOver, Player } from "~/types/game";
@@ -71,5 +71,50 @@ describe("GameOverDialog — Back to Lobby", () => {
     it("offers Back to Lobby on any other Match status (the stranded case)", () => {
         renderOver(makeMatch("active"));
         expect(leaveButton()).toBeTruthy();
+    });
+});
+
+// Leaving a Match played INSIDE a Limited Event returns to the EVENT lobby —
+// the general lobby strands the player away from their pool and the seats they
+// still have to play. `window.location` is stubbed because jsdom refuses a real
+// navigation.
+describe("GameOverDialog — leaving an event Match", () => {
+    const originalLocation = window.location;
+    let href = "";
+
+    beforeEach(() => {
+        href = "";
+        Object.defineProperty(window, "location", {
+            configurable: true,
+            value: {
+                ...originalLocation,
+                set href(next: string) {
+                    href = next;
+                },
+                get href() {
+                    return href;
+                },
+            },
+        });
+    });
+
+    afterEach(() => {
+        Object.defineProperty(window, "location", {
+            configurable: true,
+            value: originalLocation,
+        });
+    });
+
+    it("returns to the event lobby when the Match is event-bound", () => {
+        const match = makeMatch("finished");
+        renderOver({ ...match, limitedEventId: "ev_1" });
+        leaveButton()!.click();
+        expect(href).toBe("/limited/ev_1");
+    });
+
+    it("returns to the general lobby for an ordinary Match", () => {
+        renderOver(makeMatch("finished"));
+        leaveButton()!.click();
+        expect(href).toBe("/");
     });
 });

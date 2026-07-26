@@ -18,7 +18,7 @@ globs:
 
 - Import types from `convex/` (source of truth) — never define local game types
 - Import constants/helpers from `convex/gre/constants.ts` — no local copies
-- Frontend NEVER imports from `convex/gre/` engine modules — only via public mutations in `convex/game.ts`
+- Frontend MAY import pure engine modules from `convex/gre/` and `convex/limited/` — the client-side Brain and the Draft Lab both do, and sharing the module is what keeps client and server from drifting. What the frontend never has is **authority**: no client-side engine run produces persisted or trusted state. Every real move goes through a public mutation in `convex/game.ts` and is re-validated server-side (ADR 0074)
 
 ## After changes
 

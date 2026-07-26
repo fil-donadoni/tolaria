@@ -122,7 +122,18 @@ src/                           # Frontend (React + Vite)
     └── useGameState.ts        # Wrapper on Convex useQuery
 ```
 
-**Key boundary**: Frontend never imports from `convex/gre/` — it communicates only via public mutations in `convex/game.ts`.
+**Key boundary — authority, not imports** (ADR 0074): the frontend **may** import
+pure engine modules from `convex/gre/` and `convex/limited/`, and does so
+routinely — the vs-AI **Brain** runs client-side (`searchWithTrace`, `evaluate`,
+`layers`, `resolveTopOfStack` on a local clone), and the **Draft Lab** runs
+whole drafts in-browser off `botDrafter.ts`/`draftEngine.ts`. Sharing the module
+is exactly what stops client and server drifting apart.
+
+What the frontend never has is **authority**: no client-side engine run ever
+produces state that is persisted or trusted. Every real move goes through a
+public mutation in `convex/game.ts`, the server re-validates it, and the client
+is a view plus a local simulator. Client-side engine use is confined to
+simulation, derivation and display.
 
 ## Card Definition System
 

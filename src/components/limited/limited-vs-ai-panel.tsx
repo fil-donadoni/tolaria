@@ -74,6 +74,10 @@ export default function LimitedVsAiPanel({
                     sideboard: seat.autoBuiltDeck.sideboard,
                 },
                 vsAi: true,
+                // Binds the playtest to this event so ending it returns to the
+                // EVENT lobby, not the general one (`lobbyHrefForMatch`). The
+                // server re-checks the binding against the viewer's own deck.
+                limitedEventId: eventId,
             });
             storeSession(gameId, `${user._id}-p1`);
             void navigate({ to: "/game" });

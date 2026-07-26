@@ -4,6 +4,7 @@ import GameDialog from "~/components/ui/game-dialog";
 import TitleTreatment from "~/components/ui/title-treatment";
 import { Button } from "~/components/ui/button";
 import { clearSession } from "~/lib/session";
+import { lobbyHrefForMatch } from "~/lib/matchNavigation";
 import type { GameOver, Player } from "~/types/game";
 import SideboardingDialog from "./sideboarding-dialog";
 
@@ -101,7 +102,10 @@ export default function GameOverDialog({
     const handleLeave = () => {
         // Clear the session so the lobby is reachable (PRD #387 user story 32).
         clearSession();
-        window.location.href = "/";
+        // A Match played INSIDE a Limited Event (a seat challenge or a "Play vs
+        // the Table" playtest) returns to that event's lobby, not the general
+        // one — the event page is where the next opponent is picked.
+        window.location.href = lobbyHrefForMatch(match);
     };
 
     // Bo3 interstitial → Sideboarding step. The dialog owns submitSideboard +

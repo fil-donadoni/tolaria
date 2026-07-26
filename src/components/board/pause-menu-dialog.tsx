@@ -6,6 +6,7 @@ import type { PublicMatch } from "@convex/matches";
 import GameDialog from "~/components/ui/game-dialog";
 import { Button } from "~/components/ui/button";
 import { clearSession } from "~/lib/session";
+import { lobbyHrefForMatch } from "~/lib/matchNavigation";
 
 type Step = "menu" | "confirm-concede" | "confirm-forfeit";
 
@@ -61,10 +62,11 @@ export default function PauseMenuDialog({
         try {
             await forfeitMatch({ matchId: match.matchId, playerId });
             // Forfeiting ends the Match; drop the session and return to lobby so
-            // no orphaned active Match is left behind (#396).
+            // no orphaned active Match is left behind (#396). An event Match
+            // returns to its OWN event lobby (`lobbyHrefForMatch`).
             clearSession();
             handleOpenChange(false);
-            window.location.href = "/";
+            window.location.href = lobbyHrefForMatch(match);
         } finally {
             setIsBusy(false);
         }

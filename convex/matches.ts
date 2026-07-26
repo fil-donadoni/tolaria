@@ -475,6 +475,10 @@ export type PublicMatch = {
     winner?: string;
     solo: boolean;
     vsAi: boolean;
+    /** Limited Event this Match belongs to (issue #1577 challenge, or a "Play
+     *  vs the Table" playtest). On the wire so the client can return to the
+     *  EVENT lobby when the Match ends rather than the general lobby. */
+    limitedEventId?: string;
     players: PublicMatchPlayer[];
 };
 
@@ -496,6 +500,7 @@ export function projectMatch(
         winner: match.winner,
         solo,
         vsAi: match.vsAi === true,
+        limitedEventId: match.limitedEventId,
         players: match.players.map((p) => {
             const own =
                 solo || p.id === viewerId || p.id.startsWith(`${viewerId}-`);
