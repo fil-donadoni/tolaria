@@ -57,6 +57,8 @@ const PENDING_CHOICE_KIND_LABELS: Record<PendingChoiceKind, string> = {
     "pick-pile": "Choose a pile",
     // reflexive Madness cast-choice (CR 702.35d)
     "madness-cast": "Madness",
+    // reflexive Rebound cast-choice (CR 702.88a)
+    "rebound-cast": "Rebound",
     // draw-reveal pay-choice (CR 614, issue #735 — Zur's Weirding)
     "draw-replacement": "Pay life",
 };

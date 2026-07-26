@@ -282,6 +282,7 @@ export type BotAction =
     | { kind: "name-card"; cardName: string }
     | { kind: "random-reveal-ack" }
     | { kind: "madness-decline" }
+    | { kind: "rebound-decline" }
     | { kind: "declare-attackers" }
     | { kind: "declare-blockers" }
     | { kind: "confirm-combat-damage" }
@@ -357,6 +358,7 @@ export function botActionRealisation(
         case "name-card":
         case "random-reveal-ack":
         case "madness-decline":
+        case "rebound-decline":
             return "executor";
         // issue #1506 — `search-choice` (a generator-covered pending choice) IS
         // a search node (PRD #1423): `decidingPlayer` names the bot and
@@ -743,6 +745,8 @@ export function chooseResolution(choice: OwedChoice): string[] {
         // reaching here). Reaching any via `chooseResolution` is a bug.
         // `madness-cast` (CR 702.35d) also has its own dedicated path in
         // `decideBotAction` (the bot declines): never resolved here.
+        // `rebound-cast` (CR 702.88a) mirrors it — its own dedicated path in
+        // `decideBotAction` (the bot declines): never resolved here.
         case "may-pay":
         case "land-entry-tapped":
         case "draw-replacement":
@@ -750,6 +754,7 @@ export function chooseResolution(choice: OwedChoice): string[] {
         case "random-reveal":
         case "name-card":
         case "madness-cast":
+        case "rebound-cast":
             throw new Error(
                 `chooseResolution: "${kind}" is not resolved here (use the dedicated path)`
             );
@@ -887,6 +892,14 @@ export function chooseOwedChoiceAction(choice: OwedChoice): BotAction {
         // exile for the madness cost is a real value decision deferred to a
         // later slice (ADR 0016); declining is always legal and never stalls.
         return { kind: "madness-decline" };
+    }
+    if (choice.kind === "rebound-cast") {
+        // CR 702.88a — the reflexive Rebound cast-choice: the bot's minimal
+        // policy is to DECLINE, mirroring Madness. Casting again for free
+        // (picking a fresh target) is a real value decision deferred to a
+        // later slice (ADR 0016); declining is always legal and never stalls
+        // (unlike Madness, the card simply stays exiled — CR 702.88c).
+        return { kind: "rebound-decline" };
     }
     if (choice.kind === "draw-replacement") {
         // CR 614 / issue #735 — Zur's Weirding "any other player may pay N

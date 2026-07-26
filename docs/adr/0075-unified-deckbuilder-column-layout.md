@@ -92,11 +92,11 @@ the way back. Manual Columns live in every Grouping of their Zone, so a
 
 ### 4. Persistence: layout on the deck, view preferences on the user
 
-| Data                                             | Home                                                       |
-| ------------------------------------------------ | ---------------------------------------------------------- |
-| Column Layout (manual Columns + Card Pins)       | `userDecks.layout` · `limitedEvents.poolArrangement`       |
-| Grouping, Ordering, zoom, split, basic-land art  | `localStorage` (per user, applied to every deck)           |
-| Zone filter                                      | nowhere — momentary                                        |
+| Data                                            | Home                                                 |
+| ----------------------------------------------- | ---------------------------------------------------- |
+| Column Layout (manual Columns + Card Pins)      | `userDecks.layout` · `limitedEvents.poolArrangement` |
+| Grouping, Ordering, zoom, split, basic-land art | `localStorage` (per user, applied to every deck)     |
+| Zone filter                                     | nowhere — momentary                                  |
 
 Constructed Pins are keyed by `cardId` (four Lightning Bolts pin together —
 always what is wanted); Limited Pins stay keyed by `poolIndex`, because the

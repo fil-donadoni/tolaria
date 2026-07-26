@@ -94,6 +94,7 @@ export function useVsAiDriver(
             api.game.submitDrawReplacementPay
         ),
         submitMadnessDecline: useMutation(api.game.submitMadnessDecline),
+        submitReboundDecline: useMutation(api.game.submitReboundDecline),
         submitNameCard: useMutation(api.game.submitNameCard),
         submitRandomRevealAck: useMutation(api.game.submitRandomRevealAck),
         passPriority: useMutation(api.game.passPriority),

@@ -78,6 +78,7 @@ function engineMutations(state: GameState): MoveMutations {
             });
         },
         submitMadnessDecline: reject,
+        submitReboundDecline: reject,
         submitDrawReplacementPay: reject,
         submitLandEntryChoice: reject,
         submitNameCard: reject,
