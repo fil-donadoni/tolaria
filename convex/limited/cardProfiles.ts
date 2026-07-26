@@ -78,7 +78,10 @@ export function getCardProfileFile(scope: string): CardProfileFile | null {
 /** Looks up a single card's profile within one named scope's checked-in seed
  *  file. `null` when the scope has no checked-in file, or the file has no
  *  entry for this card — mirrors `pickRatings.ts`'s `getPickRating`. */
-export function getCardProfile(scope: string, cardId: string): CardProfile | null {
+export function getCardProfile(
+    scope: string,
+    cardId: string
+): CardProfile | null {
     const file = getCardProfileFile(scope);
     if (!file) return null;
     const profile = file.profiles[cardId];
@@ -90,13 +93,33 @@ export function getCardProfile(scope: string, cardId: string): CardProfile | nul
  *  touches `ctx.db`/the `cardProfiles` table directly, mirroring
  *  `cardRatings.ts`'s `GetDbRating`. `scope` is always already lowercased by
  *  the caller (`resolveEventCardProfile` normalizes before calling). */
-export type GetDbProfile = (scope: string, cardId: string) => CardProfile | null;
+export type GetDbProfile = (
+    scope: string,
+    cardId: string
+) => CardProfile | null;
 
 /** The lookup shape a (future) Bot Drafter call site would inject into its
  *  scorer — `cardId -> CardProfile | null`, mirroring `botDrafter.ts`'s
  *  `GetPickRating` shape. Not consumed anywhere yet (issue #1608's
  *  acceptance: `botDrafter.ts` is untouched by this slice). */
 export type GetCardProfile = (cardId: string) => CardProfile | null;
+
+/** Resolves ONE `(scope, cardId)` pair to its checked-in SEED profile, or
+ *  `null` — the same shape `getCardProfile` already has. Exists as its own
+ *  named type (rather than inlining `typeof getCardProfile`) so
+ *  `resolveEventCardProfile`'s optional third parameter is independently
+ *  injectable, mirroring `GetDbProfile`'s "never touch the real source
+ *  directly" discipline. Defaults to the real `getCardProfile` in
+ *  `resolveEventCardProfile`, so production behavior is unchanged; a test
+ *  can inject a fake one to exercise the seed layer even while this slice
+ *  ships zero checked-in seed data (`CHECKED_IN_CARD_PROFILES` is `{}` —
+ *  see that const's doc comment). Without this seam the middle layering
+ *  outcome ("seed row present, no DB row") is structurally untestable until
+ *  a real Vintage Cube census file exists. */
+export type GetSeedProfile = (
+    scope: string,
+    cardId: string
+) => CardProfile | null;
 
 /** Builds the layered `GetCardProfile` a (future) Limited Event call site
  *  would inject into the scorer (PRD #1607 slice 4) — same shape and same
@@ -106,12 +129,24 @@ export type GetCardProfile = (cardId: string) => CardProfile | null;
  *  `scopes` is the event's DISTINCT pack-source identities (its
  *  `packSlots`, deduped). Normalized to lowercase here, once.
  *
+ *  `getSeedProfile` defaults to the real checked-in-file lookup
+ *  (`getCardProfile` above) — a caller never has to pass it. It exists as an
+ *  explicit parameter (rather than a hardcoded call to `getCardProfile`,
+ *  which is how `cardRatings.ts`'s `resolveEventPickRating` calls
+ *  `pickRatings.ts`'s `getPickRating`) because THIS module ships zero
+ *  checked-in seed data this slice (`CHECKED_IN_CARD_PROFILES` is `{}`):
+ *  `cardRatings.bot.test.ts` can prove real seed-fallback/override behavior
+ *  by reading an entry out of the real `lea.json`, but there is no
+ *  equivalent real Card Profile seed row to read yet. Injecting the seed
+ *  lookup lets the layering itself — not the (still-empty) seed content —
+ *  be proven directly.
+ *
  *  Resolution order per card, mirroring `resolveEventPickRating` exactly:
  *
  *    1. Database `(scope, cardId)` for ANY of the event's scopes — checked
  *       first, across every scope, before falling to the seed layer at all.
- *    2. Seed file `getCardProfile(scope, cardId)` for ANY of the event's
- *       scopes — the checked-in-file layer.
+ *    2. Seed `getSeedProfile(scope, cardId)` for ANY of the event's scopes
+ *       — the checked-in-file layer.
  *    3. `null` — no profile anywhere; a (future) scorer treats this
  *       identically to an unprofiled card contributing zero Capability/
  *       Archetype terms (ADR 0072 Consequences).
@@ -123,7 +158,8 @@ export type GetCardProfile = (cardId: string) => CardProfile | null;
  *  `lea`, even for a shared `cardId`). */
 export function resolveEventCardProfile(
     scopes: readonly string[],
-    getDbProfile: GetDbProfile
+    getDbProfile: GetDbProfile,
+    getSeedProfile: GetSeedProfile = getCardProfile
 ): GetCardProfile {
     const normalizedScopes = Array.from(
         new Set(scopes.map((scope) => scope.toLowerCase()))
@@ -135,7 +171,7 @@ export function resolveEventCardProfile(
             if (dbProfile !== null) return dbProfile;
         }
         for (const scope of normalizedScopes) {
-            const seedProfile = getCardProfile(scope, cardId);
+            const seedProfile = getSeedProfile(scope, cardId);
             if (seedProfile !== null) return seedProfile;
         }
         return null;

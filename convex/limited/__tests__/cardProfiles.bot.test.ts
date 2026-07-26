@@ -11,6 +11,7 @@ import {
     getCardProfileFile,
     validateCardProfileFile,
     type GetDbProfile,
+    type GetSeedProfile,
     type CardProfile,
     type CardProfileFile,
 } from "../cardProfiles";
@@ -20,6 +21,19 @@ import {
 function fakeDb(
     rows: Record<string, Record<string, CardProfile>>
 ): GetDbProfile {
+    return (scope, cardId) => rows[scope]?.[cardId] ?? null;
+}
+
+/** Builds a `GetSeedProfile` from a plain `(scope, cardId) -> CardProfile`
+ *  map — the test-side stand-in for `cardProfiles.ts`'s checked-in seed
+ *  file lookup. This slice ships zero real checked-in Card Profile data
+ *  (`CHECKED_IN_CARD_PROFILES` is `{}`), so `resolveEventCardProfile`'s
+ *  seed layer is otherwise untestable — injecting a fake one here is what
+ *  proves the layering itself, independent of the (still-empty) real seed
+ *  content. */
+function fakeSeed(
+    rows: Record<string, Record<string, CardProfile>>
+): GetSeedProfile {
     return (scope, cardId) => rows[scope]?.[cardId] ?? null;
 }
 
@@ -35,7 +49,10 @@ function profile(overrides: Partial<CardProfile> = {}): CardProfile {
 
 describe("resolveEventCardProfile (ADR 0072, issue #1608): the layering boundary", () => {
     it("a database row is returned when present", () => {
-        const dbProfile = profile({ archetypes: ["reanimator"], provides: ["reanimatable"] });
+        const dbProfile = profile({
+            archetypes: ["reanimator"],
+            provides: ["reanimatable"],
+        });
         const getProfileFn = resolveEventCardProfile(
             ["vintage-cube"],
             fakeDb({ "vintage-cube": { "worldspine-wurm": dbProfile } })
@@ -43,30 +60,56 @@ describe("resolveEventCardProfile (ADR 0072, issue #1608): the layering boundary
         expect(getProfileFn("worldspine-wurm")).toEqual(dbProfile);
     });
 
-    it("absent from the database -> falls back to the seed layer (null today, this slice ships no seed file)", () => {
-        const getProfileFn = resolveEventCardProfile(["vintage-cube"], fakeDb({}));
-        expect(getProfileFn("worldspine-wurm")).toBeNull();
+    it("absent from the database -> falls back to a PRESENT seed row (the middle layering outcome)", () => {
+        // Default `getSeedProfile` (real `getCardProfile`) always returns
+        // null this slice, since `CHECKED_IN_CARD_PROFILES` ships empty —
+        // inject a fake seed layer so this outcome is provably exercised,
+        // not merely "empty DB + empty seed -> null" relabeled.
+        const seedProfile = profile({
+            archetypes: ["reanimator"],
+            provides: ["reanimatable"],
+        });
+        const getProfileFn = resolveEventCardProfile(
+            ["vintage-cube"],
+            fakeDb({}),
+            fakeSeed({ "vintage-cube": { "worldspine-wurm": seedProfile } })
+        );
+        expect(getProfileFn("worldspine-wurm")).toEqual(seedProfile);
     });
 
     it("absent from BOTH the database and the seed -> null", () => {
-        const getProfileFn = resolveEventCardProfile(["vintage-cube"], fakeDb({}));
+        const getProfileFn = resolveEventCardProfile(
+            ["vintage-cube"],
+            fakeDb({}),
+            fakeSeed({})
+        );
         expect(getProfileFn("not-a-real-card-id")).toBeNull();
     });
 
-    it("a database row OVERRIDES what the seed layer would have returned for the same (scope, cardId)", () => {
-        // This slice ships no checked-in seed data, so `getCardProfile`
-        // always returns null for every scope — assert the DB layer wins
-        // regardless, which is the override behavior `resolveEventPickRating`
-        // exhibits once a seed file exists. Not a self-fulfilling check:
-        // `getCardProfile("vintage-cube", ...)` is called for real inside
-        // `resolveEventCardProfile` and must not clobber the DB result.
-        expect(getCardProfile("vintage-cube", "worldspine-wurm")).toBeNull();
+    it("a database row BEATS a PRESENT seed row for the same (scope, cardId)", () => {
+        const seedProfile = profile({ archetypes: ["artifacts"] });
         const dbProfile = profile({ archetypes: ["reanimator"] });
         const getProfileFn = resolveEventCardProfile(
             ["vintage-cube"],
-            fakeDb({ "vintage-cube": { "worldspine-wurm": dbProfile } })
+            fakeDb({ "vintage-cube": { "worldspine-wurm": dbProfile } }),
+            fakeSeed({ "vintage-cube": { "worldspine-wurm": seedProfile } })
         );
         expect(getProfileFn("worldspine-wurm")).toEqual(dbProfile);
+        expect(getProfileFn("worldspine-wurm")).not.toEqual(seedProfile);
+    });
+
+    it("with no `getSeedProfile` injected, defaults to the real checked-in seed lookup (`getCardProfile`)", () => {
+        // Regression: `resolveEventCardProfile(scopes, getDbProfile)` (two
+        // args, the production call shape) must still resolve exactly like
+        // today — this slice ships no checked-in data, so the default
+        // seed layer is a no-op and the result is byte-for-byte the same
+        // as calling `getCardProfile` directly.
+        expect(getCardProfile("vintage-cube", "worldspine-wurm")).toBeNull();
+        const getProfileFn = resolveEventCardProfile(
+            ["vintage-cube"],
+            fakeDb({})
+        );
+        expect(getProfileFn("worldspine-wurm")).toBeNull();
     });
 
     it("a multi-scope event resolves a profile from ANY of its distinct scopes", () => {
@@ -161,6 +204,9 @@ describe("getCardProfileFile / getCardProfile — seed layer (this slice ships z
 describe("validateCardProfileFile — pure validator (issue #1608)", () => {
     it("an empty profiles map validates clean", () => {
         const file: CardProfileFile = { scope: "vintage-cube", profiles: {} };
-        expect(validateCardProfileFile(file)).toEqual({ valid: true, errors: [] });
+        expect(validateCardProfileFile(file)).toEqual({
+            valid: true,
+            errors: [],
+        });
     });
 });

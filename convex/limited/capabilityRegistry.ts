@@ -23,13 +23,28 @@
 // and `death-trigger`, which no longer match each other; the model then
 // degrades to nothing while every test stays green.
 //
-// The vocabulary MUST stay small (~15-25 rows, ADR 0072 Consequences) to
-// stay meaningful — growth is the signal to check whether a proposed
-// Capability is really a Combo Edge (an explicit, signed, two-card loop —
-// Painter's Servant + Grindstone) or really an Archetype (a coarse named
-// strategy like `reanimator`/`artifacts`/`jeskai-tempo`) instead. This slice
-// ships the registry and its guard ONLY — no `cardProfiles` row references
-// any of these names yet (zero behaviour change, issue #1608's acceptance).
+// EVERY row must be reachable from BOTH sides of the provides/requires
+// match (ADR 0072: "fit is computed by matching one card's `requires`
+// against another's `provides`") — someone can PROVIDE it, someone can
+// REQUIRE it, and each row's `description` says which side is which. A row
+// documenting only one direction (a `REQUIRES:`-only clause describing the
+// requiring card itself, or a `PROVIDES:`-only standalone card-quality tag
+// with no relational requirer) can never match anything and is dead weight
+// — cut it, don't keep it "for coverage" (issue #1608 review, findings 2+3).
+// A standalone card-quality attribute (is this removal cheap, is this
+// creature evasive) belongs to ADR 0073's derivable quality scale, not this
+// relational vocabulary — this registry models RELATIONSHIPS between an
+// enabler card and a payoff card, not one card's own goodness.
+//
+// The vocabulary stays small (ADR 0072 Consequences: growth beyond
+// ~15-25 rows is the signal to check whether a proposed Capability is
+// really a Combo Edge — an explicit, signed, two-card loop, Painter's
+// Servant + Grindstone — or really an Archetype, a coarse named strategy
+// like `reanimator`/`artifacts`/`jeskai-tempo` — instead). There is no
+// LOWER bound: a smaller, fully-participating vocabulary is the correct
+// outcome, never padded to hit a row-count target. This slice ships the
+// registry and its guard ONLY — no `cardProfiles` row references any of
+// these names yet (zero behaviour change, issue #1608's acceptance).
 
 /** One row of the closed Capability vocabulary. `id` is the exact string a
  *  `cardProfiles` row's `provides`/`requires` array carries (kebab-case,
@@ -57,17 +72,12 @@ export const CAPABILITY_REGISTRY: CapabilityRow[] = [
     {
         id: "self-mills",
         description:
-            "PROVIDES: puts one or more cards from the top of a library into a graveyard (its own or a target player's) without choosing which cards — mill, self-mill, or a fetch land's crack-back — the RANDOM graveyard-fueling enabler for reanimator/graveyard-scaling strategies.",
+            "PROVIDES: puts one or more cards from the top of a library into a graveyard (its own or a target player's) without choosing which cards — mill, self-mill, or a fetch land's crack-back — the RANDOM graveyard-fueling enabler for reanimator strategies. REQUIRES: a card whose own cost or effect scales with graveyard size (delve, threshold, flashback, escape) declares this directly in ITS OWN `requires` array — there is no separate 'graveyard-scaling' capability name; the requiring card names its enabler(s) directly (this row, and/or `discard-outlet` below).",
     },
     {
         id: "discard-outlet",
         description:
-            "PROVIDES: lets its controller (or another player) put a SPECIFIC, chosen card from hand into a graveyard on demand (looting, discard-for-effect, cycling) — the reliable enabler that gets a KNOWN reanimation/flashback target into the graveyard on purpose, distinct from self-mills' random top-of-library dump.",
-    },
-    {
-        id: "graveyard-scaling",
-        description:
-            "REQUIRES: a spell or ability whose cost or effect gets measurably better as more cards sit in its controller's graveyard (delve, threshold, flashback, escape) — requires self-mills or discard-outlet in the pool to reach its full value.",
+            "PROVIDES: lets its controller (or another player) put a SPECIFIC, chosen card from hand into a graveyard on demand (looting, discard-for-effect, cycling) — the reliable enabler that gets a KNOWN reanimation/flashback target into the graveyard on purpose, distinct from self-mills' random top-of-library dump. REQUIRES: same discipline as `self-mills` — a graveyard-scaling card requires this directly, by name, in its own `requires` array.",
     },
 
     // ── Cheat-into-play cluster (ADR 0072's motivating example) ─────────
@@ -94,55 +104,9 @@ export const CAPABILITY_REGISTRY: CapabilityRow[] = [
 
     // ── Artifacts cluster ────────────────────────────────────────────────
     {
-        id: "artifact-payoff",
-        description:
-            "REQUIRES: an effect that scales with the number of artifacts its controller controls, or that specifically cares about casting/having artifacts (Metalcraft, an artifact-count trigger, an artifact tutor) — requires a critical mass of cheap-artifact permanents in the pool to reach its threshold.",
-    },
-    {
         id: "cheap-artifact",
         description:
-            "PROVIDES: a low mana-value artifact whose primary draft value is filling the artifact-count column for artifact-payoff cards (Moxen, Signets, cantrip artifacts) rather than its standalone rate — the enabler artifact-payoff requires.",
-    },
-
-    // ── Mana base cluster ────────────────────────────────────────────────
-    {
-        id: "fast-mana",
-        description:
-            "PROVIDES: produces mana at a rate faster than one land per turn would (a 0-2 mana rock/dork/ritual available before turn two, or a land that taps for two or more) — acceleration toward an above-curve play; a ramp/ritual-combo archetype needs a critical mass of this in the pool.",
-    },
-    {
-        id: "mana-fixing",
-        description:
-            "PROVIDES: produces or fetches mana of more than one colour, or specifically a colour outside its own colour identity (dual/fetch lands, a mana rock/dork that taps for multiple colours, colour-flexible search) — castability support for a multicolour pool.",
-    },
-
-    // ── Tempo / control cluster ──────────────────────────────────────────
-    {
-        id: "evasive-clock",
-        description:
-            "PROVIDES: a creature that reliably deals combat damage against an opponent with blockers (flying, unblockable, menace, intimidate, a protection-based evasion) at an efficient rate — the aggressive-deck enabler that closes a game on a short clock.",
-    },
-    {
-        id: "cheap-interaction",
-        description:
-            "PROVIDES: removal, a counterspell, or a combat trick costing two mana or less that answers a wide swath of threats — the tempo-deck enabler that keeps the board clear without falling behind on mana.",
-    },
-    {
-        id: "sweeper",
-        description:
-            "PROVIDES: a single spell or ability that answers three or more opposing creatures/permanents at once — the control-deck stabilizer against a wide board.",
-    },
-    {
-        id: "draws-cards",
-        description:
-            "PROVIDES: a permanent or repeatable-ability source of NET card advantage beyond a one-for-one replacement (draws more cards, over more than a single use, than it or its activation costs) — the control/value-deck payoff for surviving to the midgame.",
-    },
-
-    // ── Combo / toolbox cluster ──────────────────────────────────────────
-    {
-        id: "tutor",
-        description:
-            "PROVIDES: searches the library for one specific, named or criteria-matched card and puts it into hand, onto the battlefield, or another zone — the combo/toolbox enabler that finds a specific payoff (a Combo Edge partner or a reanimation target) on demand.",
+            "PROVIDES: a low mana-value artifact whose primary draft value is filling the artifact-count column for an artifact-count payoff (Moxen, Signets, cantrip artifacts) rather than its standalone rate. REQUIRES: an artifact-count/Metalcraft payoff card (its cost or effect scales with artifacts controlled) declares this directly, by name, in ITS OWN `requires` array — there is no separate 'artifact-payoff' capability name, matching the `self-mills`/`discard-outlet` discipline above.",
     },
 ];
 

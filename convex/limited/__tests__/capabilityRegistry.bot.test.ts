@@ -10,7 +10,6 @@ import { describe, it, expect } from "vitest";
 import {
     CAPABILITY_REGISTRY,
     isRegisteredCapability,
-    type CapabilityRow,
 } from "../capabilityRegistry";
 import {
     getAllCheckedInCardProfileFiles,
@@ -19,9 +18,26 @@ import {
 } from "../cardProfiles";
 
 describe("Capability Registry (ADR 0072, issue #1608)", () => {
-    it("is a closed vocabulary in the 15-25 row range (ADR 0072 Consequences)", () => {
-        expect(CAPABILITY_REGISTRY.length).toBeGreaterThanOrEqual(15);
+    it("stays small — growth past ~25 rows is the signal to check Combo Edge/Archetype instead (ADR 0072 Consequences)", () => {
+        // No LOWER bound: a smaller, fully-participating vocabulary is the
+        // correct outcome (issue #1608 review, findings 2+3) — never padded
+        // to hit a row-count target.
+        expect(CAPABILITY_REGISTRY.length).toBeGreaterThan(0);
         expect(CAPABILITY_REGISTRY.length).toBeLessThanOrEqual(25);
+    });
+
+    it("every row documents BOTH a PROVIDES and a REQUIRES side (ADR 0072's two-sided matching requirement)", () => {
+        // The structural check for the findings-2/3 bug class: a row
+        // documenting only one direction (a `REQUIRES:`-only clause
+        // describing the requiring card itself, or a `PROVIDES:`-only
+        // standalone card-quality tag with no relational requirer) can
+        // never match anything under "fit is computed by matching one
+        // card's `requires` against another's `provides`" and must not be
+        // in this registry.
+        for (const row of CAPABILITY_REGISTRY) {
+            expect(row.description, `row "${row.id}"`).toContain("PROVIDES:");
+            expect(row.description, `row "${row.id}"`).toContain("REQUIRES:");
+        }
     });
 
     it("every row has a unique id", () => {
@@ -157,18 +173,13 @@ describe("Catalogue-wide sweep — every checked-in Card Profile file (issue #16
         const files = getAllCheckedInCardProfileFiles();
         for (const file of files) {
             const result = validateCardProfileFile(file);
-            expect(result.errors, `errors in scope "${file.scope}"`).toEqual([]);
+            expect(result.errors, `errors in scope "${file.scope}"`).toEqual(
+                []
+            );
         }
     });
 
     it("this slice ships no checked-in Card Profile data (zero behaviour change, issue #1608)", () => {
         expect(getAllCheckedInCardProfileFiles()).toEqual([]);
-    });
-});
-
-describe("CapabilityRow shape (type-level sanity)", () => {
-    it("every row matches the CapabilityRow interface shape", () => {
-        const check: CapabilityRow[] = CAPABILITY_REGISTRY;
-        expect(check.length).toBe(CAPABILITY_REGISTRY.length);
     });
 });
