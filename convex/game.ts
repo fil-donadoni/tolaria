@@ -16,6 +16,7 @@ import { resolveBladeLoadState } from "./gre/ai/blade/runner";
 import {
     type CardInstanceState,
     type GameState,
+    type GenericSpendAmbiguity,
     type ManaSubstitution,
     type PendingActivation,
     type PendingCast,
@@ -34,6 +35,8 @@ import {
     getBasicLandMana,
     payManaCost,
     manaSpentDelta,
+    genericSpendAmbiguityForPayment,
+    validateManaSpendOrder,
     payManaCostForSpell,
     spendablePoolForSpell,
     addRestrictedManaToPool,
@@ -1812,7 +1815,8 @@ export function buildPendingActivation(opts: {
  *  the source card name on commit, or null if nothing was committed. */
 export function tryAutoCommitPendingActivation(
     state: GameState,
-    playerId: string
+    playerId: string,
+    genericSpendOrder?: readonly string[]
 ): { cardInstanceId: string; abilityId: string; cardName?: string } | null {
     const pa = state.pendingActivation;
     if (!pa || pa.playerId !== playerId) return null;
@@ -1907,6 +1911,28 @@ export function tryAutoCommitPendingActivation(
         return null;
     }
 
+    // CR 601.2g — an ambiguous generic-mana payment PARKS awaiting the
+    // activator's choice of which mana pays the generic cost. Evaluated once
+    // every other cost/choice gate above has cleared and mana is covered, so the
+    // pool reflects only the generic portion still owed. When no order was
+    // supplied (the caller is the plain resume path) and the choice is
+    // meaningful, stash it on `pendingActivation` and return without committing;
+    // `resolveManaSpendChoice` supplies a valid order and re-enters here.
+    if (!genericSpendOrder) {
+        const ambiguity = genericSpendAmbiguityForPayment(
+            player.manaPool,
+            pa.manaCost,
+            getManaSubstitutions(state, player.id)
+        );
+        if (ambiguity) {
+            pa.manaSpendChoice = ambiguity;
+            return null;
+        }
+    }
+    // The choice is settled (auto-pick or a supplied order) — clear any stale
+    // parked prompt before the pool is spent.
+    pa.manaSpendChoice = undefined;
+
     // CR 106.10 — noted-mana battery (Jeweled Amulet / Ice Cauldron). Snapshot
     // the pool before payment so the per-colour delta becomes the noted mana.
     const poolBeforePayment = pa.noteManaSpent
@@ -1915,7 +1941,8 @@ export function tryAutoCommitPendingActivation(
     payManaCost(
         player.manaPool,
         pa.manaCost,
-        getManaSubstitutions(state, player.id)
+        getManaSubstitutions(state, player.id),
+        genericSpendOrder
     );
     const notedManaSpent = poolBeforePayment
         ? manaSpentDelta(poolBeforePayment, player.manaPool)
@@ -2212,7 +2239,8 @@ function payAlternativeCostHandChoice(
 
 export function tryAutoCommitPendingCast(
     state: GameState,
-    playerId: string
+    playerId: string,
+    genericSpendOrder?: readonly string[]
 ): { cardInstanceId: string; cardName: string | undefined } | null {
     if (!state.pendingCast || state.pendingCast.playerId !== playerId) {
         return null;
@@ -2278,6 +2306,54 @@ export function tryAutoCommitPendingCast(
     if (castAltHand && !castAltHand.pickedCardIds) {
         return null;
     }
+    // CR 601.2g — an ambiguous generic-mana payment PARKS awaiting the caster's
+    // choice of which mana pays the generic cost. Evaluated once every other
+    // cost/choice gate above has cleared and mana is covered (manual floating
+    // pool and auto-tap overproduction converge here). With no order supplied
+    // (plain resume path) and a meaningful choice, stash it on `pendingCast`
+    // and return without putting the spell on the stack; `resolveManaSpendChoice`
+    // supplies a valid order and re-enters here. The ambiguity is checked on the
+    // spell's spendable pool (folds any eligible restricted mana), matching the
+    // coverage check above.
+    if (!genericSpendOrder) {
+        const ambiguity = genericSpendAmbiguityForPayment(
+            spendablePoolForSpell(player, castTypes, castInstanceId),
+            state.pendingCast.manaCost,
+            getManaSubstitutions(state, player.id)
+        );
+        if (ambiguity) {
+            state.pendingCast.manaSpendChoice = ambiguity;
+            return null;
+        }
+    }
+    // The choice is settled (auto-pick or a supplied order) — clear any stale
+    // parked prompt before the pool is spent.
+    state.pendingCast.manaSpendChoice = undefined;
+
+    // CR 601.2g — an ambiguous generic-mana payment PARKS awaiting the caster's
+    // choice of which mana pays the generic cost. Evaluated once every other
+    // cost/choice gate above has cleared and mana is covered, so the pool
+    // reflects only the generic portion still owed. Both the manual
+    // floating-pool path and the auto-tap overproduction path converge here.
+    // When no order was supplied (the plain resume path) and the choice is
+    // meaningful, stash it on `pendingCast` and return without committing;
+    // `resolveManaSpendChoice` supplies a valid order and re-enters here. The
+    // ambiguity is evaluated over the spell's spendable pool (restricted mana
+    // folded in, mirroring the coverage check above).
+    if (!genericSpendOrder) {
+        const ambiguity = genericSpendAmbiguityForPayment(
+            spendablePoolForSpell(player, castTypes, castInstanceId),
+            state.pendingCast.manaCost,
+            getManaSubstitutions(state, player.id)
+        );
+        if (ambiguity) {
+            state.pendingCast.manaSpendChoice = ambiguity;
+            return null;
+        }
+    }
+    // The choice is settled (auto-pick or a supplied order) — clear any stale
+    // parked prompt before the pool is spent.
+    state.pendingCast.manaSpendChoice = undefined;
 
     // CR 106.4 / 202.3 — cast-path mana-spent tracking (Soul Burn). Snapshot
     // the pool before payment so the per-colour delta becomes `notedManaSpent`
@@ -2290,7 +2366,8 @@ export function tryAutoCommitPendingCast(
         state.pendingCast.manaCost,
         castTypes,
         getManaSubstitutions(state, player.id),
-        castInstanceId
+        castInstanceId,
+        genericSpendOrder
     );
     const castNotedManaSpent = castPoolBeforePayment
         ? manaSpentDelta(castPoolBeforePayment, player.manaPool)
@@ -6445,6 +6522,83 @@ export const selectSacrifice = mutation({
                 }
                 finalizeConfirmAttackers(state);
             }
+        }
+
+        await saveGameState(
+            ctx,
+            args.gameId,
+            gameState.seq + 1,
+            state,
+            gameState
+        );
+    },
+});
+
+/** The generic-spend choice (CR 601.2g) currently awaiting `playerId`, and which
+ *  in-flight park (cast / activation) holds it. At most one is active — mirrors
+ *  `findActiveSacrificeSelection`. */
+export function findActiveManaSpendChoice(
+    state: GameState,
+    playerId: string
+): {
+    choice: GenericSpendAmbiguity;
+    container: "cast" | "activation";
+} | null {
+    const pc = state.pendingCast;
+    if (pc && pc.playerId === playerId && pc.manaSpendChoice) {
+        return { choice: pc.manaSpendChoice, container: "cast" };
+    }
+    const pa = state.pendingActivation;
+    if (pa && pa.playerId === playerId && pa.manaSpendChoice) {
+        return { choice: pa.manaSpendChoice, container: "activation" };
+    }
+    return null;
+}
+
+/** CR 601.2g — the player chooses which mana in their pool pays a generic cost
+ *  when the choice is meaningful. `spendOrder` is a colour multiset, one entry
+ *  per point of the owed generic: its length must equal `generic`, every element
+ *  must be one of the parked `candidateColors`, and the multiset must be ⊆ the
+ *  current pool. On a valid order the parked cast/activation resumes through the
+ *  same finalize path (`tryAutoCommitPendingCast` / `tryAutoCommitPendingActivation`),
+ *  spending mana in the chosen order and putting the spell/ability on the stack. */
+export const resolveManaSpendChoice = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+        spendOrder: v.array(v.string()),
+    },
+    handler: async (ctx, args) => {
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
+
+        const state = structuredClone(gameState.state) as GameState;
+        assertGameNotOver(state);
+        // The choice is paid inside the payer's priority window (the parked cast
+        // /activation holds priority), so it expects `priority` — same as the
+        // cast/activation sacrifice pick (ADR 0047).
+        assertExpectedInput(state, {
+            playerId: args.playerId,
+            expect: "priority",
+        });
+
+        const active = findActiveManaSpendChoice(state, args.playerId);
+        if (!active) throw new Error("No mana-spend choice awaiting you");
+        const { choice, container } = active;
+
+        // Validate the order against the parked choice + current pool (CR 601.2g).
+        const player = getPlayer(state, args.playerId);
+        validateManaSpendOrder(choice, args.spendOrder, player.manaPool);
+
+        // Resume the parked finalize with the chosen order.
+        if (container === "cast") {
+            tryAutoCommitPendingCast(state, args.playerId, args.spendOrder);
+        } else {
+            tryAutoCommitPendingActivation(
+                state,
+                args.playerId,
+                args.spendOrder
+            );
         }
 
         await saveGameState(
