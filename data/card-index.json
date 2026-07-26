@@ -624,6 +624,12 @@
         "firstSet": "leg"
     },
     {
+        "name": "Backlash",
+        "scryfallId": "dadf030d-5451-43fc-bf0c-c1629fdf88ec",
+        "oracleId": "3db9bf7b-da4e-428f-aa5d-a0cd1afeb16c",
+        "firstSet": "inv"
+    },
+    {
         "name": "Bad Moon",
         "scryfallId": "43572906-ea74-4411-a549-5dc401591d2a",
         "oracleId": "fc5d3341-cbce-49e5-93cc-8add92479dca",

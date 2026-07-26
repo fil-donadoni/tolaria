@@ -2063,11 +2063,16 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     // CR 701.26 (issue #842) — tap/untap a permanent. `action` selects the
     // direction; `target` is an object selector (announced slot, `$source`, or
     // a forEach `$each`). No amount — a permanent is tapped or it isn't.
+    // Optional `bind` (issue #1416) snapshots the permanent's power/toughness/
+    // controller as last-known information (CR 608.2h) WITHOUT a zone change —
+    // a normal "snapshot" binding, like destroy/exile (Backlash reads
+    // `$bound.power` for a trailing dealDamage).
     tapUntap: {
         required: {
             action: isTapUntapAction,
             target: isObjectSelector,
         },
+        optional: { bind: isBindingName },
     },
     // CR 302.6 / 502.1 (PRD #795) — arm a one-shot "doesn't untap next untap
     // step" flag. `target` is an object selector (announced slot, `$source`, or

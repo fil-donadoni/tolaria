@@ -2803,6 +2803,13 @@ export const OP_EXECUTORS: {
         } else {
             ctx.untap(target);
         }
+        // issue #1416 — capture the tapped/untapped permanent's
+        // power/toughness/controller as last-known information (CR 608.2h)
+        // WITHOUT a zone change, via the same snapshot path destroy/exile use.
+        // Backlash: taps a creature, then deals `$bound.power` damage to its
+        // `$bound.controller`. Read here while the permanent is still on the
+        // battlefield (tap/untap never moves it).
+        if (op.bind) bindSnapshot(ctx, op.bind, target);
     },
     // CR 302.6 / 502.1 (PRD #795) — arm a one-shot "doesn't untap during its
     // controller's next untap step" flag on a permanent. A thin adapter over

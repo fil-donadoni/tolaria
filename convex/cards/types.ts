@@ -8287,11 +8287,21 @@ export type EffectOp =
      *  `forEach` set (`{ ref: "$each" }`). Skipped when the referenced
      *  permanent is gone (CR 608.2b — the spell does as much as it can); the
      *  primitives themselves no-op when the permanent is already in the
-     *  requested state (CR 701.26a/b). */
+     *  requested state (CR 701.26a/b).
+     *
+     *  `bind` (issue #1416) snapshots the tapped/untapped permanent's
+     *  power/toughness/controller as last-known information (CR 608.2h) via
+     *  the same `bindSnapshot` path `destroy`/`exile`/`moveZone` use, WITHOUT
+     *  a zone change — Backlash ("Tap target untapped creature. That creature
+     *  deals damage equal to its power to its controller.") reads `$bound.power`
+     *  for a trailing `dealDamage` to `{ ref: "$bound.controller" }`. The
+     *  snapshot is a normal `"snapshot"` binding (bindingKindOf's default), so
+     *  `$bound.power`/`.toughness`/`.controller` refs validate. */
     | {
           op: "tapUntap";
           action: "tap" | "untap";
           target: EffectObjectSelector;
+          bind?: string;
       }
     /** CR 302.6 / 502.1 (PRD #795) — a permanent "doesn't untap during its
      *  controller's next untap step" (Barl's Cage, Elvish Hunter, the Homarid
