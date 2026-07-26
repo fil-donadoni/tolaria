@@ -1580,6 +1580,22 @@ export interface SpellContext {
         amount: number,
         unpreventable?: boolean
     ) => void;
+    /** CR 120.1 — deals `amount` damage to a player FROM an explicit
+     *  battlefield permanent (`sourceInstanceId`), rather than from the
+     *  resolving stack item. The named permanent is stamped as the damage
+     *  source, so source-keyed rules — infect (life-loss vs poison), lifelink
+     *  (its controller gains life), source-colour prevention/protection, "a
+     *  source deals damage" triggers — all key off THAT permanent's identity,
+     *  not the spell's. Routes through the same CR 614 replacement → CR 615
+     *  prevention pipeline as `dealDamage`. Used by Backlash ("that creature
+     *  deals damage equal to its power to its controller"), the declarative
+     *  skin being `dealDamage`'s optional `source` field. No-op when the
+     *  permanent has left the battlefield (CR 608.2b) or `amount <= 0`. */
+    dealDamageFromPermanent: (
+        sourceInstanceId: string,
+        playerId: string,
+        amount: number
+    ) => void;
     /** Generic Fight primitive (CR 701.12-style mutual damage). The resolving
      *  ability's source permanent (`sourceInstanceId`) and `target` each deal
      *  damage equal to their power to the other, simultaneously, through the
@@ -7713,6 +7729,22 @@ export type EffectOp =
           op: "dealDamage";
           amount: EffectValue;
           to: EffectObjectSelector | { player: EffectPlayerRef };
+          /** CR 120.1 — the source of the damage. By default (omitted) the
+           *  damage is sourced from the resolving spell/ability (the stack
+           *  item), which is correct for the vast majority of "deal N damage"
+           *  cards. When set, it names a bound PERMANENT (e.g. a `$c` snapshot
+           *  from a preceding `tapUntap`/`destroy` bind) that is the CR-120.1
+           *  source instead — Backlash ("Tap target untapped creature. THAT
+           *  creature deals damage equal to its power to its controller"): the
+           *  tapped CREATURE is the source, not the B/R spell, so
+           *  infect/lifelink, source-colour prevention/protection and "a source
+           *  deals damage" triggers all key off the creature's identity (CR
+           *  120.1). Routed through the permanent-source pipeline
+           *  (`SpellContext.dealDamageFromPermanent` →
+           *  `dealDamageFromPermanentToPlayer`); only meaningful with a
+           *  `{ player: … }` recipient. No-op if the named permanent has left
+           *  the battlefield (CR 608.2b). */
+          source?: EffectObjectSelector;
           /** CR 615 — when true, the damage skips prevention shields (Urza's
            *  Rage's kicked mode: "the damage can't be prevented"). Omitted/false
            *  is the default preventable path every other `dealDamage` card
@@ -8287,11 +8319,21 @@ export type EffectOp =
      *  `forEach` set (`{ ref: "$each" }`). Skipped when the referenced
      *  permanent is gone (CR 608.2b — the spell does as much as it can); the
      *  primitives themselves no-op when the permanent is already in the
-     *  requested state (CR 701.26a/b). */
+     *  requested state (CR 701.26a/b).
+     *
+     *  `bind` (issue #1416) snapshots the tapped/untapped permanent's
+     *  power/toughness/controller as last-known information (CR 608.2h) via
+     *  the same `bindSnapshot` path `destroy`/`exile`/`moveZone` use, WITHOUT
+     *  a zone change — Backlash ("Tap target untapped creature. That creature
+     *  deals damage equal to its power to its controller.") reads `$bound.power`
+     *  for a trailing `dealDamage` to `{ ref: "$bound.controller" }`. The
+     *  snapshot is a normal `"snapshot"` binding (bindingKindOf's default), so
+     *  `$bound.power`/`.toughness`/`.controller` refs validate. */
     | {
           op: "tapUntap";
           action: "tap" | "untap";
           target: EffectObjectSelector;
+          bind?: string;
       }
     /** CR 302.6 / 502.1 (PRD #795) — a permanent "doesn't untap during its
      *  controller's next untap step" (Barl's Cage, Elvish Hunter, the Homarid

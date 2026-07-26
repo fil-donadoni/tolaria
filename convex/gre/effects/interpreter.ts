@@ -1286,6 +1286,21 @@ export const OP_EXECUTORS: {
         if ("player" in op.to) {
             const playerId = resolvePlayerRef(ctx, op.to.player);
             if (playerId === undefined) return;
+            // CR 120.1 (issue #1416) — when `source` names a bound permanent,
+            // THAT permanent is the damage source, not the resolving stack
+            // item. Backlash: the tapped creature (`$c`) deals its power to its
+            // controller — so infect/lifelink/source-colour prevention and
+            // "a source deals damage" triggers key off the creature, not the
+            // B/R spell. Routed through the permanent-source pipeline.
+            if (op.source) {
+                const src = resolveObjectRef(ctx, op.source);
+                // CR 608.2b — a source that has left the battlefield deals no
+                // damage (the permanent-source primitive is player-only).
+                if (src && src.type === "permanent") {
+                    ctx.dealDamageFromPermanent(src.id, playerId, amount);
+                }
+                return;
+            }
             ctx.dealDamage(
                 { type: "player", id: playerId },
                 amount,
@@ -2803,6 +2818,13 @@ export const OP_EXECUTORS: {
         } else {
             ctx.untap(target);
         }
+        // issue #1416 — capture the tapped/untapped permanent's
+        // power/toughness/controller as last-known information (CR 608.2h)
+        // WITHOUT a zone change, via the same snapshot path destroy/exile use.
+        // Backlash: taps a creature, then deals `$bound.power` damage to its
+        // `$bound.controller`. Read here while the permanent is still on the
+        // battlefield (tap/untap never moves it).
+        if (op.bind) bindSnapshot(ctx, op.bind, target);
     },
     // CR 302.6 / 502.1 (PRD #795) — arm a one-shot "doesn't untap during its
     // controller's next untap step" flag on a permanent. A thin adapter over

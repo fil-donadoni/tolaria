@@ -2502,6 +2502,7 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         status: "implemented",
         cr: "120.1",
         binding: "SpellContext.dealDamage",
+        note: "CR 120 — deal `amount` damage to an announced target, a forEach member, or a relative/bound player. By default the CR-120.1 source is the resolving stack item (SpellContext.dealDamage). Optional `source` (issue #1416) names a bound PERMANENT that is the source instead — routed through SpellContext.dealDamageFromPermanent → dealDamageFromPermanentToPlayer (gre/state.ts), so infect/lifelink/source-colour prevention/protection and 'a source deals damage' triggers key off that permanent's identity, not the spell's. Backlash: the tapped creature (`$c`) deals its power to its controller.",
     },
     {
         op: "dealDamageDividedAsChosen",
@@ -2749,7 +2750,7 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         cr: "701.26",
         mechanicId: "tap-and-untap",
         binding: "SpellContext.tap / untap",
-        note: 'Tap or untap a permanent (CR 701.26, issue #842). A thin declarative skin over two SpellContext primitives, one execution path (ADR 0045): `action: "tap"` → tap (Icy Manipulator\'s "tap target artifact, creature, or land"), `action: "untap"` → untap (Twiddle\'s untap mode). `target` is an announced slot, the resolving source (`$source` — a permanent tapping itself), or a forEach `$each` (a mass tap). No amount — a permanent is tapped or it isn\'t; the primitives no-op when the permanent is already in the requested state (CR 701.26a/b) and are skipped when it has left the battlefield (CR 608.2b). Subsumes the tap / untap closures the migration classifier folds here (~68 blocked closures at ship time). `tapAllLands` (Mana Short, Drain Power — a whole-player tap, not a permanent target) stays resolve() by design; it is not a `tap`-on-a-selected-permanent skin.',
+        note: 'Tap or untap a permanent (CR 701.26, issue #842). A thin declarative skin over two SpellContext primitives, one execution path (ADR 0045): `action: "tap"` → tap (Icy Manipulator\'s "tap target artifact, creature, or land"), `action: "untap"` → untap (Twiddle\'s untap mode). `target` is an announced slot, the resolving source (`$source` — a permanent tapping itself), or a forEach `$each` (a mass tap). No amount — a permanent is tapped or it isn\'t; the primitives no-op when the permanent is already in the requested state (CR 701.26a/b) and are skipped when it has left the battlefield (CR 608.2b). Optional `bind` (issue #1416) snapshots the permanent\'s power/toughness/controller as last-known information (CR 608.2h) via the shared `bindSnapshot` path — WITHOUT a zone change — so a live target\'s power survives for a trailing effect (Backlash: `$bound.power` damage to `$bound.controller`). Subsumes the tap / untap closures the migration classifier folds here (~68 blocked closures at ship time). `tapAllLands` (Mana Short, Drain Power — a whole-player tap, not a permanent target) stays resolve() by design; it is not a `tap`-on-a-selected-permanent skin.',
     },
     {
         op: "skipNextUntap",

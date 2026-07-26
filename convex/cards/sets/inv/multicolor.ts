@@ -1114,6 +1114,40 @@ export const agonizingDemise: CardDefinition = {
     ],
 };
 
+// Backlash — {1}{B}{R} Instant. "Tap target untapped creature. That
+// creature deals damage equal to its power to its controller." (CR 701.26a
+// tap; CR 120.1 damage; CR 608.2h last-known information.) `tapUntap`'s
+// `bind: "$c"` snapshots the tapped creature's power/controller AT TAP TIME
+// (issue #1416) — no zone change, the creature stays on the battlefield —
+// so the trailing `dealDamage` reads `$c.power` for the amount and sends it
+// to the creature's own controller (`{ ref: "$c.controller" }`). Crucially
+// the CREATURE is the CR-120.1 damage SOURCE, not this B/R spell:
+// `dealDamage`'s `source: { ref: "$c" }` routes the damage through the
+// permanent-source pipeline (`dealDamageFromPermanent`), so infect (poison
+// vs life loss), lifelink (the creature's controller gains life), source-
+// colour prevention/protection and "a source deals damage" triggers all key
+// off the creature's identity. Reusing `$c` (still on the battlefield after
+// the tap) as the source resolves it back to the live tapped creature.
+export const backlash: CardDefinition = {
+    id: "dadf030d-5451-43fc-bf0c-c1629fdf88ec",
+    rarity: "uncommon",
+    name: "Backlash",
+    oracleText:
+        "Tap target untapped creature. That creature deals damage equal to its power to its controller.",
+    manaCost: { X: 1, B: 1, R: 1 },
+    types: ["Instant"],
+    targetRequirement: { type: "Creature", count: 1, tappedFilter: "untapped" },
+    effects: [
+        { op: "tapUntap", action: "tap", target: { target: 0 }, bind: "$c" },
+        {
+            op: "dealDamage",
+            amount: { ref: "$c.power" },
+            to: { player: { ref: "$c.controller" } },
+            source: { ref: "$c" },
+        },
+    ],
+};
+
 // Blazing Specter — {2}{B}{R} Creature — Specter, 2/2. "Flying, haste.
 // Whenever this creature deals combat damage to a player, that player
 // discards a card." (CR 702.9b flying, CR 702.10b haste, CR 510.4/603.2
@@ -1468,14 +1502,6 @@ export const viciousKavu: CardDefinition = {
 // Deferred (engine capability gaps) — BR (issue #1077, tracked-by #1120
 // unless otherwise noted)
 // ─────────────────────────────────────────────────────────────────────────
-
-// Backlash — {1}{B}{R} Instant. "Tap target untapped creature. That
-// creature deals damage equal to its power to its controller." tracked-by:
-// #1120 (no Op binds/snapshots a LIVE target's power without a zone change
-// — `tapUntap` has no `bind` field, and the `ref` grammar's `power` read
-// only resolves off a snapshot `destroy`/`exile`/`moveZone` produced. This
-// card taps, it doesn't move or destroy, so nothing captures the tapped
-// creature's power for the trailing `dealDamage`.)
 
 // Cauldron Dance — {4}{B}{R} Instant. "Cast this spell only during combat.
 // Return target creature card from your graveyard to the battlefield. That

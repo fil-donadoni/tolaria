@@ -1630,9 +1630,13 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     // (Urza's Rage's kicked mode: "the damage can't be prevented"); CR 614
     // replacement and CR 702.16 protection are unaffected. Omitted/false is
     // the default preventable path every other `dealDamage` card uses.
+    // CR 120.1 (issue #1416) — optional `source` names a bound PERMANENT that
+    // is the damage source instead of the resolving stack item (Backlash: the
+    // tapped creature deals the damage). An object selector (a `$c`-style bind
+    // ref); routed through the permanent-source player-damage pipeline.
     dealDamage: {
         required: { amount: isEffectValue, to: isDamageRecipient },
-        optional: { unpreventable: isBoolean },
+        optional: { unpreventable: isBoolean, source: isObjectSelector },
     },
     // CR 601.2d / 120.4 — divide-as-you-choose damage over the announced target
     // group (Arc Lightning, Fiery Justice, Meteor Shower). `total` mirrors the
@@ -2063,11 +2067,16 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     // CR 701.26 (issue #842) — tap/untap a permanent. `action` selects the
     // direction; `target` is an object selector (announced slot, `$source`, or
     // a forEach `$each`). No amount — a permanent is tapped or it isn't.
+    // Optional `bind` (issue #1416) snapshots the permanent's power/toughness/
+    // controller as last-known information (CR 608.2h) WITHOUT a zone change —
+    // a normal "snapshot" binding, like destroy/exile (Backlash reads
+    // `$bound.power` for a trailing dealDamage).
     tapUntap: {
         required: {
             action: isTapUntapAction,
             target: isObjectSelector,
         },
+        optional: { bind: isBindingName },
     },
     // CR 302.6 / 502.1 (PRD #795) — arm a one-shot "doesn't untap next untap
     // step" flag. `target` is an object selector (announced slot, `$source`, or

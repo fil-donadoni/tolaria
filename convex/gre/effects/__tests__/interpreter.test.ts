@@ -183,6 +183,152 @@ describe("Effect Script Op: dealDamage (CR 120.1)", () => {
     });
 });
 
+describe("Effect Script Op: tapUntap { bind } — live-target power snapshot (CR 701.26a / 608.2h, Backlash, issue #1416)", () => {
+    // Backlash ("Tap target untapped creature. That creature deals damage
+    // equal to its power to its controller.") reads a LIVE target's power
+    // WITHOUT a zone change: `bind` writes a power/toughness/controller
+    // snapshot (last-known information, CR 608.2h) via the same `bindSnapshot`
+    // path destroy/exile use, then a trailing `dealDamage` sends `$bound.power`
+    // to `{ ref: "$bound.controller" }`. Crucially `dealDamage`'s `source:
+    // { ref: "$c" }` makes the tapped CREATURE the CR-120.1 damage SOURCE, not
+    // the resolving B/R spell; its controller is the recipient.
+
+    // Backlash's exact effect script — the tap-with-bind then the
+    // creature-SOURCED dealDamage to the bound controller.
+    const backlashScript: EffectOp[] = [
+        {
+            op: "tapUntap",
+            action: "tap",
+            target: { target: 0 },
+            bind: "$c",
+        },
+        {
+            op: "dealDamage",
+            amount: { ref: "$c.power" },
+            to: { player: { ref: "$c.controller" } },
+            source: { ref: "$c" },
+        },
+    ];
+
+    it("taps the creature and deals its power to its own controller", () => {
+        const id = registerScript(
+            "test-tapuntap-bind-backlash",
+            backlashScript
+        );
+        const bear = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            id: "blbear",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "blbear" }]);
+        resolveTopOfStack(state);
+        // BEAR_ID is a 2/5; power 2 → its controller (p2) takes 2, NOT the
+        // resolving player (p1). The creature itself is now tapped.
+        expect(state.players[1].battlefield[0].isTapped).toBe(true);
+        expect(state.players[1].life).toBe(18);
+        expect(state.players[0].life).toBe(20);
+    });
+
+    it("the tapped CREATURE is the CR-120.1 damage source, not the resolving spell (lifelink discriminator)", () => {
+        // A lifelink creature deals the self-damage. Because the CREATURE is
+        // the source (CR 120.1) and lifelink is ITS instance ability (the B/R
+        // Backlash spell has no lifelink), the source's controller (p2, who is
+        // ALSO the recipient) gains life equal to the damage (CR 702.15b) —
+        // so p2 nets 20 - 2 + 2 = 20. Under the OLD spell-sourced code the
+        // source would be the Backlash stack item, which has no lifelink, so
+        // p2 would just take 2 → 18. This assertion FAILS on the old code and
+        // PASSES with the creature-sourced fix — the necessary-and-SUFFICIENT
+        // check the earlier life-total-only test lacked.
+        const id = registerScript(
+            "test-tapuntap-bind-lifelink-source",
+            backlashScript
+        );
+        const lifelinker = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            id: "llbear",
+            staticAbilities: ["lifelink"],
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [lifelinker] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "llbear" }]);
+        resolveTopOfStack(state);
+        // Damage AND simultaneous lifelink gain both keyed off the creature.
+        expect(state.players[1].life).toBe(20);
+        expect(state.players[0].life).toBe(20);
+    });
+
+    it("reads the tap-time snapshot power — a later pump does not change the damage (LKI, CR 608.2h)", () => {
+        const id = registerScript("test-tapuntap-bind-lki", [
+            {
+                op: "tapUntap",
+                action: "tap",
+                target: { target: 0 },
+                bind: "$c",
+            },
+            // Bumps LIVE power to 5 AFTER the bind; `$c.power` must still be
+            // the snapshotted 2 (CR 608.2h) — the snapshot is not re-read.
+            {
+                op: "pump",
+                target: { target: 0 },
+                power: 3,
+                toughness: 0,
+                duration: { phase: "end-of-turn" },
+            },
+            {
+                op: "dealDamage",
+                amount: { ref: "$c.power" },
+                to: { player: { ref: "$c.controller" } },
+                source: { ref: "$c" },
+            },
+        ]);
+        const bear = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            id: "lkibear",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "lkibear" }]);
+        resolveTopOfStack(state);
+        // Snapshot power 2, not the pumped live 5.
+        expect(state.players[1].life).toBe(18);
+    });
+
+    it("controller damage + tapped state survive projection (wire format)", () => {
+        const id = registerScript("test-tapuntap-bind-wire", backlashScript);
+        const bear = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            id: "wirebear",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "wirebear" }]);
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[1].life).toBe(18);
+        const slimBear = projected.players[1].battlefield.find(
+            (c) => c.id === "wirebear"
+        )!;
+        expect(slimBear.isTapped).toBe(true);
+    });
+});
+
 describe("Effect Script value grammar: X (chosen cost, CR 107.3 / 601.2b, issue #852)", () => {
     // `{ X: true }` is the fifth EffectValue member — a thin skin over
     // SpellContext.getX() (the value announced for {X} at cast time,
