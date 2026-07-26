@@ -3,27 +3,87 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-// TODO(tracked-by: #1558) — Laelia, the Blade Reforged: re-audited for
-// issue #1527 (Cube FREE wave 3: keyword-residue creatures). Its FIRST
-// ability ("exile the top card of your library, you may play that card this
-// turn") is now free — the impulse-draw protocol (no Op skin, precedent
-// Elkin Bottle / Ice Cauldron, ice/colorless.ts) shipped for Ragavan /
-// Inti / Robber of the Rich covers it. Still blocked on the SECOND ability:
-// "whenever one or more cards are put into exile from your library and/or
-// graveyard" has no matching `GameEventType` — confirmed by re-grep, no
-// engine call site emits any such event (a genuinely new capability, not a
-// keyword). Stop-and-issue per gre-development.md rather than shipping
-// half the card; split to #1558 rather than a `resolve()` workaround.
-// export const laeliaTheBladeReforged: CardDefinition = {
-//     id: "a3bb2881-e8fb-4fba-a9f9-d93e6ca24378",
-//     name: "Laelia, the Blade Reforged",
-//     rarity: "rare",
-//     manaCost: { X: 2, R: 1 },
-//     types: ["Creature"],
-//     supertypes: ["Legendary"],
-//     subtypes: ["Spirit", "Warrior"],
-//     power: 2,
-//     toughness: 2,
-// };
+import type { CardDefinition, SpellContext } from "../../types";
+import { cardsExiledTrigger } from "../../abilities/triggers/cardsExiledTrigger";
 
-export {};
+// Laelia, the Blade Reforged — {2}{R} Legendary Creature — Spirit Warrior,
+// 2/2, haste (issue #1558, closing the residue split from #1527's Cube FREE
+// wave 3). "Haste. Whenever Laelia attacks, exile the top card of your
+// library. You may play that card this turn. Whenever one or more cards are
+// put into exile from your library and/or your graveyard, put a +1/+1
+// counter on Laelia."
+//
+// ABILITY 1 — PROTOCOL (impulse-draw off your own library — no Op skin,
+// precedent: Elkin Bottle / Ice Cauldron, ice/colorless.ts; the SAME idiom
+// shipped for Ragavan / Robber of the Rich / Headliner Scarlett): composes
+// `peekLibraryTop` + `exileFaceDown` + `grantCastFromExile(..., "this-turn")`.
+//
+// ABILITY 2 — `cardsExiledTrigger` (issue #1558's new `CARDS_EXILED` event,
+// `cards/types.ts` / `state.ts`): fires once per exile OCCURRENCE from
+// Laelia's controller's library and/or graveyard (CR 603.3b / 608.2i — the
+// official ruling: once per occurrence, never once per card). Notably this
+// fires off Laelia's OWN first ability — attacking impulse-exiles a card
+// from her controller's library, which is itself a qualifying occurrence —
+// the card's core growth loop (attack → exile → +1/+1 counter).
+export const laeliaTheBladeReforged: CardDefinition = {
+    id: "a3bb2881-e8fb-4fba-a9f9-d93e6ca24378",
+    name: "Laelia, the Blade Reforged",
+    rarity: "rare",
+    oracleText:
+        "Haste\nWhenever Laelia attacks, exile the top card of your library. You may play that card this turn.\nWhenever one or more cards are put into exile from your library and/or your graveyard, put a +1/+1 counter on Laelia.",
+    manaCost: { X: 2, R: 1 },
+    types: ["Creature"],
+    supertypes: ["Legendary"],
+    subtypes: ["Spirit", "Warrior"],
+    power: 2,
+    toughness: 2,
+    staticAbilities: ["haste"],
+    triggeredAbilities: [
+        {
+            id: "laelia-attack",
+            oracleText:
+                "Whenever Laelia attacks, exile the top card of your library. You may play that card this turn.",
+            event: "ATTACKERS_DECLARED",
+            matches: (event, self) =>
+                event.type === "ATTACKERS_DECLARED" &&
+                event.attackerIds.includes(self.id),
+            resolve: (ctx: SpellContext) => {
+                const top = ctx.peekLibraryTop(ctx.controller, 1);
+                if (top.length === 0) return; // empty library
+                const cardId = top[0];
+                // CR 406.3 — the impulse idiom exiles face down (a no-op
+                // secrecy distinction here, since it's the controller's own
+                // top card, but keeps this identical to the shared sibling
+                // cards' shape).
+                ctx.exileFaceDown(
+                    ctx.controller,
+                    cardId,
+                    "library",
+                    ctx.controller
+                );
+                ctx.grantCastFromExile(
+                    cardId,
+                    ctx.controller,
+                    undefined,
+                    "this-turn"
+                );
+            },
+        },
+        cardsExiledTrigger({
+            id: "laelia-cards-exiled",
+            oracleText:
+                "Whenever one or more cards are put into exile from your library and/or your graveyard, put a +1/+1 counter on Laelia, the Blade Reforged.",
+            scope: "you",
+            fromZones: ["library", "graveyard"],
+            effects: [
+                {
+                    op: "counters",
+                    action: "add",
+                    counter: "+1/+1",
+                    target: { ref: "$source" },
+                    count: 1,
+                },
+            ],
+        }),
+    ],
+};

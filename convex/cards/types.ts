@@ -5593,7 +5593,8 @@ export type GameEventType =
     | "COUNTER_REMOVED"
     | "COUNTER_ADDED"
     | "BECAME_TARGET"
-    | "TOKENS_CREATED";
+    | "TOKENS_CREATED"
+    | "CARDS_EXILED";
 
 /** Damage event emitted whenever a source inflicts damage on a target
  *  (CR 120.3). Used by "whenever ~ deals damage" triggers. The
@@ -6203,6 +6204,44 @@ export interface TokensCreatedEvent {
     subtypes: ReadonlyArray<string>;
 }
 
+/** Exile-to-zone meta-trigger event (issue #1558, CR 400.1 / 603.3b / 608.2i)
+ *  — emitted ONCE per exile OCCURRENCE (a single primitive call / resolving
+ *  instruction that moves one or more cards into exile), NOT once per card.
+ *  Mirrors `TokensCreatedEvent`'s already-established "one event per call"
+ *  batching discipline (issue #1345) — the official Laelia, the Blade
+ *  Reforged ruling states the same rule explicitly: "This ability triggers
+ *  only once for each time cards are put into exile this way, no matter how
+ *  many cards were exiled at the same time." Every card in `cards` moved to
+ *  exile in the SAME occurrence (a mill-then-exile redirect, an
+ *  `exileWithAttachments` host+Auras bundle, a `moveZone` dump). Each entry
+ *  carries its own `fromZone` because a batch is not required to share a
+ *  single source (a hypothetical "exile a card from your hand and a card
+ *  from your library" effect would still be one occurrence, two different
+ *  `fromZone`s) — Laelia's "from your library and/or your graveyard" clause
+ *  discriminates per card on this field, not on the batch as a whole. */
+export interface CardsExiledEvent {
+    type: "CARDS_EXILED";
+    /** Cards exiled by this single occurrence. Always >= 1 entries — no
+     *  emitting primitive calls `emitCardsExiled` with an empty batch. */
+    cards: ReadonlyArray<{
+        /** Instance id of the exiled card, now in exile. */
+        cardInstanceId: string;
+        /** Card definition id, so type-based filters can run without
+         *  re-reading the exile zone. */
+        cardId?: string;
+        /** Zone the card was exiled FROM (CR 400.1 zone taxonomy). */
+        fromZone: "library" | "graveyard" | "battlefield" | "hand" | "stack";
+        /** Owner of the exiled card (CR 400.2 — constant across zone
+         *  changes). For a library/graveyard/hand source this is also that
+         *  zone's owner (each player owns exactly one of each), so "cards put
+         *  into exile from YOUR library" reads as `fromZone === "library" &&
+         *  ownerId === self.controllerId`. For a battlefield source this is
+         *  the exiled permanent's owner, which may differ from whoever
+         *  controlled it at the moment it left. */
+        ownerId: string;
+    }>;
+}
+
 export type GameEvent =
     | DamageDealtEvent
     | PhaseBeginEvent
@@ -6226,7 +6265,8 @@ export type GameEvent =
     | CounterRemovedEvent
     | CounterAddedEvent
     | BecameTargetEvent
-    | TokensCreatedEvent;
+    | TokensCreatedEvent
+    | CardsExiledEvent;
 
 /** Read-only window over the live `GameState` exposed to `matches()` for
  *  state triggers (CR 603.8). Kept narrow on purpose so card definitions can
