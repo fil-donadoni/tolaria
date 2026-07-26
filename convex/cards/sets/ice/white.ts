@@ -1980,9 +1980,20 @@ export const seraph: CardDefinition = {
             scope: "any-other",
             condition: (event, self) =>
                 event.damagedBySources.includes(self.id),
-            // NOT DSL-migratable yet (ADR 0048): the delayed capture is the
-            // trigger-EVENT's dead creature (deadCreature.id) — the tracked
-            // $event.<field> grammar gap. Stays resolve().
+            // NOT DSL-migratable yet — RE-ASSESSED (issue #1403/#1600): the
+            // `$event.<field>` capture grammar gap this comment used to cite
+            // (ADR 0048) shipped via ADR 0049/issue #865, but the ACTUAL
+            // blocker is narrower and still open — `CREATURE_DIED` has no row
+            // in `EVENT_FIELD_REGISTRY` (`convex/cards/mechanicsRegistry.ts`)
+            // censusing the dying creature's instance id, so a
+            // `delayedTrigger` capture can't read `deadCreature.id` off the
+            // firing event declaratively yet (the "stop-and-issue on an
+            // uncensused mechanic" rule — `.claude/rules/gre-development.md`
+            // — applies; a migration PR does not invent the registry row
+            // inline). This is NOT the same idiom as Liberate/Flickerwisp's
+            // exile-based "blink" (#1401/#1403) — this is a CR 603.7c
+            // GRAVEYARD reanimation off a death trigger, a structurally
+            // different capture source. tracked-by: #1600. Stays resolve().
             resolve: (ctx, _event, deadCreature) => {
                 ctx.scheduleDelayedTrigger(
                     SERAPH_ID,
@@ -1996,16 +2007,14 @@ export const seraph: CardDefinition = {
             },
         }),
     ],
-    // NOT DSL-migratable (ADR 0045): `runDelayedTriggerBody`'s automatic
-    // payload→binding seed (interpreter.ts) only produces a player binding
-    // (`ctx.allPlayerIds.includes(value)`) or a LIVE-permanent snapshot
-    // (`ctx.getOwnerId(value) !== undefined`, battlefield-scoped) — it has no
-    // graveyard-card binding shape. `deadId` here names a card already in the
-    // graveyard by fire time, so the auto-seed produces no binding for it at
-    // all and an `effects[]` body's `{ ref: "$deadId" }` would silently skip
-    // (CR 608.2b false-positive, not the real "object left" case). Blocked
-    // on: a graveyard-card-aware payload binding for inline delayed-trigger
-    // bodies. No tracking issue filed yet.
+    // NOT DSL-migratable (ADR 0045; re-assessed issue #1600): the trigger
+    // above is itself still blocked on the `CREATURE_DIED` event-field
+    // registry gap, so this delayed body has nothing declarative to key off
+    // yet regardless. `runDelayedTriggerBody`'s payload→binding auto-seed
+    // (interpreter.ts) DID since gain a graveyard/exile departed-object
+    // fallback (issue #1470) — worth re-checking once the trigger-level gap
+    // above closes, since that half of this comment's original blocker may
+    // already be moot. tracked-by: #1600.
     delayedTriggers: [
         {
             id: "seraph-reanimate",
