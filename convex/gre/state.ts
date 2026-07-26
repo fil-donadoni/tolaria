@@ -8352,16 +8352,20 @@ function resolveStormTrigger(
  *  `"until-next-end-step"` window). This is a general, turn-boundary-aware
  *  window distinct from `"this-turn"`:
  *
- *  - If it's currently `playerId`'s own turn and their CLEANUP step hasn't
- *    started yet (i.e. their END_STEP for THIS turn is still upcoming or in
- *    progress), the grant expires at THIS turn's cleanup — identical to
- *    `"this-turn"`. This is Inti's own golden path: an attack-triggered
- *    discard always fires before that same turn's end step.
- *  - If it's currently `playerId`'s own turn but CLEANUP has already begun
- *    (a rare edge — e.g. a CR 514.3 hand-size discard trigger firing during
- *    their own cleanup), their end step for THIS turn is over; the grant
- *    targets their NEXT turn (`state.turn + 2`, skipping the intervening
- *    opponent turn in this engine's 2-player alternation).
+ *  - If it's currently `playerId`'s own turn and their END_STEP for THIS
+ *    turn has NOT yet begun (phase is still before END_STEP — e.g. a
+ *    precombat-main / combat trigger), the grant expires at THIS turn's
+ *    cleanup — identical to `"this-turn"`. This is Inti's own golden path:
+ *    an attack-triggered discard always fires before that same turn's end
+ *    step.
+ *  - If it's currently `playerId`'s own turn and their END_STEP for THIS
+ *    turn has ALREADY begun or passed (phase is `END_STEP` or `CLEANUP`),
+ *    "next end step" EXCLUDES the one in progress/just-finished (CR 514.2 —
+ *    "next" means a subsequent one) — the grant targets their NEXT turn's
+ *    end step (`state.turn + 2`, skipping the intervening opponent turn in
+ *    this engine's 2-player alternation). This covers both the in-progress
+ *    END_STEP case (a grant created BY an end-step trigger itself) and the
+ *    rarer CR 514.3 hand-size-discard-during-cleanup edge.
  *  - Otherwise (currently the OTHER player's turn), `playerId`'s own end
  *    step already passed earlier this round; the very next turn
  *    (`state.turn + 1`) is theirs again.
@@ -8372,7 +8376,9 @@ function resolveStormTrigger(
  *  turn number here is sufficient; no new state field is needed. */
 function untilNextEndStepTurn(state: GameState, playerId: string): number {
     const isOwnTurn = state.activePlayerId === playerId;
-    if (isOwnTurn && state.phase !== "CLEANUP") {
+    const ownEndStepNotYetStarted =
+        isOwnTurn && state.phase !== "END_STEP" && state.phase !== "CLEANUP";
+    if (ownEndStepNotYetStarted) {
         return state.turn;
     }
     return isOwnTurn ? state.turn + 2 : state.turn + 1;

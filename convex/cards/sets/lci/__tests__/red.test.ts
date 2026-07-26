@@ -304,4 +304,56 @@ describe("Inti, Seneschal of the Sun — until-next-end-step off-turn windows (C
         // opponent turn (6) and targets p1's own NEXT turn (7).
         expect(exiled.castableFromExileUntilTurn).toBe(7);
     });
+
+    it("a discard during the controller's OWN END_STEP (in progress, not yet CLEANUP) grants a window targeting their NEXT end step — not this turn's cleanup", () => {
+        // Regression for the exact off-by-one the pre-merge review caught:
+        // the old code's `state.phase !== "CLEANUP"` guard treated an
+        // in-progress END_STEP as "not yet started", stamping
+        // `castableFromExileUntilTurn = state.turn` — immediately revoked by
+        // THIS turn's own cleanup one step later, collapsing the window to
+        // zero. CR 514.2's "next end step" EXCLUDES the one currently in
+        // progress, so an END_STEP-time grant must behave identically to the
+        // CLEANUP-time grant above: target the controller's NEXT turn.
+        const inti = makeInstance(intiSeneschalOfTheSun.id, {
+            id: "inti",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const top = makeInstance(grizzlyBears.id, {
+            id: "top-card",
+            ownerId: "p1",
+            zone: "library",
+        });
+        const state = makeState({
+            turn: 5,
+            activePlayerId: "p1",
+            phase: "END_STEP", // an end-step trigger (e.g. a hand-size
+            // discard replacement or another end-step-timed effect) fires
+            // the discard WHILE p1's own end step for turn 5 is in progress
+            // — it has started but CLEANUP has not.
+            players: [
+                makePlayer("p1", { battlefield: [inti], library: [top] }),
+                makePlayer("p2"),
+            ],
+        });
+        const exiled = resolveIntiDiscardImpulse(state, inti, "p1");
+
+        // Turn 5's own end step is already under way — "next" end step
+        // skips it and the intervening opponent turn (6), landing on p1's
+        // own NEXT turn (7). (Buggy code would return 5 here.)
+        expect(exiled.castableFromExileUntilTurn).toBe(7);
+
+        // THIS turn's (turn 5) cleanup — immediately following the very
+        // END_STEP the grant was created in — must NOT revoke it.
+        finalizeCleanup(state);
+        expect(exiled.castableFromExileBy).toBe("p1");
+        expect(exiled.castableFromExileUntilTurn).toBe(7);
+
+        // Advance to turn 7 (p1's own next turn) — THAT turn's cleanup is
+        // where the grant finally expires.
+        state.turn = 7;
+        finalizeCleanup(state);
+        expect(exiled.castableFromExileBy).toBeUndefined();
+        expect(exiled.castableFromExileUntilTurn).toBeUndefined();
+    });
 });
