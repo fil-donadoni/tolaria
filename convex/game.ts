@@ -155,6 +155,7 @@ import {
     pendingTargetFiltersFromRequirement,
     raiseTriggerTargetSelection,
     solvePhyrexianSplit,
+    siblingControllerIdFor,
 } from "./gre/rules";
 import {
     PHYREXIAN_LIFE_PER_PIP,
@@ -7593,6 +7594,17 @@ export const selectTarget = mutation({
             // exclude-instance/power/toughness/mv/controller) — the Phelia
             // bug class. A new filter added to the registry is enforced at
             // both sites at once — no field-by-field drift possible here.
+            // CR 601.2c same-controller cross-slot constraint (issue #1104,
+            // Barrin's Spite) — the sibling's live controllerId from what's
+            // already in `pt.selected`, resolved through the SAME
+            // `siblingControllerIdFor` helper `getLegalTargets` uses (ADR
+            // 0068 "lower once, check everywhere" — the offered set and the
+            // accepted set can't diverge).
+            const siblingControllerId = siblingControllerIdFor(
+                state,
+                pt.sameController,
+                pt.selected
+            );
             const filterCtx: TargetFilterCtx = {
                 state,
                 sourceColors: [],
@@ -7600,6 +7612,7 @@ export const selectTarget = mutation({
                 sourceSubtypes: [],
                 chooserId: args.playerId,
                 activePlayerId: state.activePlayerId,
+                siblingControllerId,
             };
             const filterViolation = checkPermanentTargetFilters(
                 filterCtx,
@@ -7625,6 +7638,7 @@ export const selectTarget = mutation({
                     powerFilter: pt.powerFilter,
                     toughnessFilter: pt.toughnessFilter,
                     mvFilter: pt.mvFilter,
+                    sameController: pt.sameController,
                 }
             );
             if (filterViolation) throw new Error(filterViolation);

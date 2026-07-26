@@ -344,6 +344,15 @@ export interface TargetFilterCtx {
     chooserId?: string;
     activePlayerId: string;
     sourceIsSpell?: boolean;
+    /** CR 601.2c (issue #1104) — the live controllerId of an ALREADY-CHOSEN
+     *  sibling target under a `sameController`-constrained requirement
+     *  (Barrin's Spite), or undefined when no sibling has been picked yet /
+     *  the requirement isn't `sameController`-constrained / the sibling has
+     *  since left the battlefield. Computed by the caller via
+     *  `siblingControllerIdFor`, THREADED IN rather than derived here — the
+     *  registry's per-candidate `checks.permanent` has no access to
+     *  `selected`/`alreadySelected`, only this ctx. */
+    siblingControllerId?: string;
 }
 
 /** One filter's full contract: `lower` resolves the requirement field to its
@@ -716,6 +725,54 @@ const toughnessFilterDescriptor = defineFilter<{
     },
 });
 
+// CR 601.2c (issue #1104) — cross-slot same-controller constraint spanning
+// two-or-more announced target slots of ONE requirement ("choose two target
+// creatures controlled by the same player", Barrin's Spite). Unlike every
+// other descriptor in this file, its legality does NOT depend solely on
+// `value` (the static per-requirement `sameController: true`) — it depends
+// on a SIBLING pick, threaded in via `ctx.siblingControllerId`
+// (`siblingControllerIdFor`, below). `undefined` sibling (the FIRST pick in
+// the pair, or the sibling has since left the battlefield, CR 608.2b)
+// imposes no constraint — a same-controller pair only becomes checkable
+// once one half is chosen, exactly like every other "nothing to compare
+// yet" default in this registry.
+const sameControllerDescriptor = defineFilter<boolean>({
+    lower: (req) => req.sameController,
+    checks: {
+        permanent: (card, value, ctx) => {
+            if (!value) return null;
+            if (ctx.siblingControllerId === undefined) return null;
+            return card.controllerId === ctx.siblingControllerId
+                ? null
+                : "Must target a creature controlled by the same player as the other chosen target";
+        },
+    },
+});
+
+/** Resolves the LIVE controllerId a `sameController`-constrained
+ *  requirement's NEXT pick must match (CR 601.2c, issue #1104), from
+ *  whatever has already been chosen under the SAME requirement. Undefined
+ *  when `sameController` isn't set, nothing has been picked yet (the first
+ *  pick in the pair is unconstrained), or the first picked permanent has
+ *  since left the battlefield (CR 608.2b — no constraint to enforce against
+ *  a departed sibling). Shared by `getLegalTargets` (the offered set) and
+ *  `selectTarget` (the accepted set, `game.ts`) so the two can never diverge
+ *  (ADR 0068 "lower once, check everywhere"). */
+export function siblingControllerIdFor(
+    state: GameState,
+    sameController: boolean | undefined,
+    selected: ReadonlyArray<{ type: string; id: string }>
+): string | undefined {
+    if (!sameController) return undefined;
+    const sibling = selected.find((t) => t.type === "permanent");
+    if (!sibling) return undefined;
+    for (const player of state.players) {
+        const card = player.battlefield.find((c) => c.id === sibling.id);
+        if (card) return card.controllerId;
+    }
+    return undefined;
+}
+
 // CR 202.3 — mana-value filter, X-resolved at `lower` time.
 const mvFilterDescriptor = defineFilter<{
     min?: number;
@@ -944,6 +1001,7 @@ export const PERMANENT_FILTER_KEYS = [
     "powerFilter",
     "toughnessFilter",
     "mvFilter",
+    "sameController",
 ] as const;
 
 export type PermanentFilterKey = (typeof PERMANENT_FILTER_KEYS)[number];
@@ -1023,6 +1081,7 @@ export const REGISTRY = {
         spellWouldDestroyLandYouControlDescriptor as FilterDescriptor<unknown>,
     playerAttackedThisTurn:
         playerAttackedThisTurnDescriptor as FilterDescriptor<unknown>,
+    sameController: sameControllerDescriptor as FilterDescriptor<unknown>,
 } satisfies Record<FilterKey, FilterDescriptor<unknown>>;
 
 /** The requirement-derived filter VALUES for the permanent kind — the
@@ -1049,6 +1108,7 @@ export type PermanentFilterValues = Partial<{
     powerFilter: { min?: number; max?: number };
     toughnessFilter: { min?: number; max?: number };
     mvFilter: { min?: number; max?: number; equals?: number };
+    sameController: boolean;
 }>;
 
 /** Runs every SET filter in `values` against `candidate` through the

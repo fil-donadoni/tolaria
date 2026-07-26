@@ -230,6 +230,23 @@ function readBinding(ctx: SpellContext, name: string): string[] | undefined {
     return ctx.recallChoice(name);
 }
 
+/** Resolves an `EffectCardFilter.name` bare ref (issue #1085 / #1104) to a
+ *  string. The referenced binding's first stored value is EITHER a `nameCard`
+ *  Op's chosen NAME (issue #1085, a picks-family binding that stores the name
+ *  string directly) OR a `choice` Op's chosen INSTANCE ID (issue #1104,
+ *  Lobotomy's "the chosen card") — the two share the identical single-element
+ *  `string[]` binding shape, distinguished only by what the earlier Op wrote.
+ *  `ctx.getCardName` resolves an id to its live name by scanning every zone;
+ *  a stored value that ISN'T a live instance id (the `nameCard` case — a
+ *  plain name string never collides with a real id) simply misses that
+ *  lookup and falls through unresolved, so the raw string is used as-is. One
+ *  runtime path serves both binding shapes with no static discriminant. */
+function resolveNameRef(ctx: SpellContext, ref: string): string | undefined {
+    const picked = readBinding(ctx, ref)?.[0];
+    if (picked === undefined) return undefined;
+    return ctx.getCardName(picked) ?? picked;
+}
+
 /** The fixed `choiceId` an `optionChoice` Op (issue #849) hands to
  *  `requestOptionChoice`. It need not be author-supplied nor unique across Ops:
  *  `requestOptionChoice` folds the Op's checkpointed pre-order position
@@ -609,16 +626,23 @@ function matchesCardFilter(
         if (have < (filter.hasCounter.min ?? 1)) return false;
     }
     // CR 201.2 — exact printed-name match ("each other card named Accumulated
-    // Knowledge", issue #985): a FIXED literal, or (issue #1085) a bare
-    // `{ ref: "$binding" }` naming a `nameCard` Op's chosen-name binding
+    // Knowledge", issue #985): a FIXED literal, or a bare `{ ref: "$binding" }`
+    // naming EITHER (issue #1085) a `nameCard` Op's chosen-name binding
     // (Desperate Research's "put all of them with THAT name into your
-    // hand"). Fail-closed when the card shape carries no name, OR when the
-    // ref names an uncaptured binding (the naming Op was skipped, CR 608.2b).
+    // hand") OR (issue #1104) a `choice` Op's picks binding — "all cards with
+    // the same name as the CHOSEN CARD" (Lobotomy), where the earlier Op
+    // bound the card itself, not just its name. `resolveNameRef` unifies both:
+    // it treats the binding's first stored string as an instance id first
+    // (`ctx.getCardName`), falling back to the raw string as a literal name
+    // when that lookup misses — which is exactly what a `nameCard` binding's
+    // stored NAME does (it's never a live instance id). Fail-closed when the
+    // card shape carries no name, OR when the ref names an uncaptured binding
+    // (the naming/choice Op was skipped, CR 608.2b).
     if (filter.name !== undefined) {
         const wanted =
             typeof filter.name === "string"
                 ? filter.name
-                : readBinding(ctx, filter.name.ref)?.[0];
+                : resolveNameRef(ctx, filter.name.ref);
         if (wanted === undefined || card.name !== wanted) return false;
     }
     const types = asFilterArray(filter.type);
@@ -1805,6 +1829,31 @@ export const OP_EXECUTORS: {
     //    permanent to any zone but the hand needs LTB semantics — that is
     //    `destroy`/`exile`, not `moveZone`).
     moveZone(ctx, op) {
+        // CR 400.7 (issue #1104) — the FOURTH shape: a filter-driven bulk
+        // sweep across one or more zones, no player choice. Checked before
+        // the `cards`/whole-zone/target discriminators below (this shape
+        // carries neither `cards` nor `target`, but IS distinguished from the
+        // whole-zone shape by its `fromZones` array + required `filter`).
+        if ("fromZones" in op) {
+            const playerId = resolvePlayerRef(ctx, op.player);
+            if (playerId === undefined) return;
+            for (const zone of op.fromZones) {
+                const cards =
+                    zone === "hand"
+                        ? ctx.getHandCards(playerId)
+                        : zone === "library"
+                          ? ctx.getLibraryCards(playerId)
+                          : zone === "graveyard"
+                            ? ctx.getGraveyardCards(playerId)
+                            : ctx.getExileCards(playerId);
+                for (const card of cards) {
+                    if (matchesCardFilter(ctx, card, op.filter)) {
+                        ctx.moveCardById(playerId, card.id, zone, op.to);
+                    }
+                }
+            }
+            return;
+        }
         if ("cards" in op) {
             const playerId = resolvePlayerRef(ctx, op.player);
             if (playerId === undefined) return;

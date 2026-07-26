@@ -716,8 +716,12 @@ function computeChoiceExposure(
  *  for a `revealsHand` flag: `"controller"` reveals that permanent's
  *  controller's hand (permanents live in their controller's battlefield array,
  *  so the array owner IS the controller); `"all-players"` reveals every
- *  player's hand. Read live from the battlefield so the reveal ends the instant
- *  the source leaves play — no stale flag, no `GameState` field. */
+ *  player's hand; `"opponents"` (issue #1104, Seer's Vision) reveals every
+ *  OTHER player's hand — the flipped-polarity mirror of `"controller"`, not a
+ *  new mechanism (2-player games have exactly one "other" player, so this
+ *  reveals precisely the controller's one opponent). Read live from the
+ *  battlefield so the reveal ends the instant the source leaves play — no
+ *  stale flag, no `GameState` field. */
 function computeHandRevealedPlayers(state: GameState): Set<string> {
     const revealed = new Set<string>();
     for (const player of state.players) {
@@ -731,6 +735,12 @@ function computeHandRevealedPlayers(state: GameState): Set<string> {
                 // Maximal reveal — every hand is exposed; nothing more to add.
                 for (const p of state.players) revealed.add(p.id);
                 return revealed;
+            }
+            if (scope === "opponents") {
+                for (const p of state.players) {
+                    if (p.id !== player.id) revealed.add(p.id);
+                }
+                continue;
             }
             revealed.add(player.id);
         }

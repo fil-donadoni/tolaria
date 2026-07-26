@@ -6,6 +6,7 @@ import {
     matchesTargetRequirement,
     matchesTargetExclusions,
     matchesTargetController,
+    matchesSameController,
     matchesSpellTypeFilter,
     matchesSpellExcludeTypeFilter,
     matchesSpellCreaturePtFilter,
@@ -187,6 +188,21 @@ describe("matchesTargetController (CR 109.3 / 102.1, #904)", () => {
     it("'any' / undefined accepts any controller", () => {
         expect(matchesTargetController("p2", "p1", "p1", "any")).toBe(true);
         expect(matchesTargetController("p2", "p1", "p1", undefined)).toBe(true);
+    });
+});
+
+describe("matchesSameController (CR 601.2c, issue #1104 — Barrin's Spite)", () => {
+    it("imposes no constraint when sameController is unset", () => {
+        expect(matchesSameController("p2", undefined, "p1")).toBe(true);
+    });
+    it("imposes no constraint when nothing has been picked yet (siblingControllerId undefined)", () => {
+        expect(matchesSameController("p2", true, undefined)).toBe(true);
+    });
+    it("accepts a candidate sharing the sibling's controller", () => {
+        expect(matchesSameController("p1", true, "p1")).toBe(true);
+    });
+    it("rejects a candidate controlled by a DIFFERENT player than the sibling", () => {
+        expect(matchesSameController("p2", true, "p1")).toBe(false);
     });
 });
 

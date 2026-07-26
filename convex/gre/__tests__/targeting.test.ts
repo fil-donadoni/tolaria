@@ -15,6 +15,7 @@ import {
     matchesBattlefieldController,
     spellMatchesCreaturePtFilter,
     spellMatchesExcludeTypeFilter,
+    siblingControllerIdFor,
 } from "../rules";
 import { isGuardedAgainst, playerHasShroud } from "../permanentGuard";
 import {
@@ -2195,12 +2196,13 @@ describe("checkCardTargetFilters — shared offered/accepted gate (ADR 0068, iss
 describe("target-filter registry — FilterKey exhaustiveness keystone (ADR 0068, issue #1411)", () => {
     it("REGISTRY is non-empty and covers every filter migrated by T1-T3", () => {
         const keys = Object.keys(REGISTRY);
-        // 18 permanent + 8 spell-only + 1 player-only (T1 + T2 + T3) — see
+        // 19 permanent + 8 spell-only + 1 player-only (T1 + T2 + T3) — see
         // PERMANENT_FILTER_KEYS / SPELL_ONLY_FILTER_KEYS / PLAYER_ONLY_FILTER_KEYS
         // in targetFilters.ts. Card-kind reuses `controller`/`mvFilter`, both
         // already counted under the permanent set — no additional keys.
-        // (`requireAbilityAny` joined the permanent set with Minsc & Boo.)
-        expect(keys.length).toBe(27);
+        // (`requireAbilityAny` joined the permanent set with Minsc & Boo;
+        // `sameController` joined it with Barrin's Spite, issue #1104.)
+        expect(keys.length).toBe(28);
     });
 
     it("every registered filter has a `lower` function and at least one `checks` predicate", () => {
@@ -2239,6 +2241,168 @@ describe("target-filter registry — FilterKey exhaustiveness keystone (ADR 0068
                 `REGISTRY should not have "${structural}"`
             ).toBe(false);
         }
+    });
+});
+
+// ---------------------------------------------------------------------------
+// sameController — CR 601.2c cross-slot constraint (issue #1104, Barrin's
+// Spite: "Choose two target creatures controlled by the same player").
+// Offered set (`getLegalTargets`) and accepted set (`checkPermanentTargetFilters`
+// — the exact function `selectTarget` in game.ts calls, ADR 0068, no
+// convex-test harness) both routed through `siblingControllerIdFor`.
+// ---------------------------------------------------------------------------
+
+describe("getLegalTargets: sameController (CR 601.2c, issue #1104)", () => {
+    it("the FIRST pick is unconstrained — every creature from either player is legal", () => {
+        const bear1 = makeCard({ id: "bear1", card: CREATURE });
+        const bear2 = makeCard({
+            id: "bear2",
+            card: CREATURE,
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeGameState({
+            players: [
+                makePlayer({ id: "p1", battlefield: [bear1] }),
+                makePlayer({ id: "p2", battlefield: [bear2] }),
+            ],
+        });
+        const req: TargetRequirement = {
+            type: "Creature",
+            count: 2,
+            sameController: true,
+        };
+        // No `alreadySelected` — nothing to compare against yet.
+        const targets = getLegalTargets(state, req);
+        expect(targets.map((t) => t.id).sort()).toEqual(["bear1", "bear2"]);
+    });
+
+    it("the SECOND pick is restricted to the first pick's live controller", () => {
+        const bear1 = makeCard({ id: "bear1", card: CREATURE });
+        const bear2 = makeCard({
+            id: "bear2",
+            card: CREATURE,
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const bear3 = makeCard({ id: "bear3", card: CREATURE });
+        const state = makeGameState({
+            players: [
+                makePlayer({ id: "p1", battlefield: [bear1, bear3] }),
+                makePlayer({ id: "p2", battlefield: [bear2] }),
+            ],
+        });
+        const req: TargetRequirement = {
+            type: "Creature",
+            count: 2,
+            sameController: true,
+        };
+        // bear1 (p1) already picked — the sameController filter now excludes
+        // p2's bear2 from the offered set. (Self-exclusion of an
+        // already-picked id for a multi-count SAME requirement is a separate,
+        // pre-existing concern this filter does not address — `getLegalTargets`
+        // reports every controller-matching candidate, bear1 included.)
+        const targets = getLegalTargets(
+            state,
+            req,
+            [],
+            undefined,
+            undefined,
+            [],
+            [],
+            undefined,
+            [{ type: "permanent", id: "bear1" }]
+        );
+        expect(targets.map((t) => t.id).sort()).toEqual(["bear1", "bear3"]);
+    });
+
+    it("siblingControllerIdFor: undefined when unset, when nothing selected, or when the sibling left the battlefield", () => {
+        const state = makeGameState();
+        expect(siblingControllerIdFor(state, undefined, [])).toBeUndefined();
+        expect(siblingControllerIdFor(state, true, [])).toBeUndefined();
+        expect(
+            siblingControllerIdFor(state, true, [
+                { type: "permanent", id: "gone" },
+            ])
+        ).toBeUndefined();
+    });
+
+    it("siblingControllerIdFor resolves the first selected permanent's live controller", () => {
+        const bear1 = makeCard({
+            id: "bear1",
+            card: CREATURE,
+            controllerId: "p2",
+        });
+        const state = makeGameState({
+            players: [
+                makePlayer({ id: "p1" }),
+                makePlayer({ id: "p2", battlefield: [bear1] }),
+            ],
+        });
+        expect(
+            siblingControllerIdFor(state, true, [
+                { type: "permanent", id: "bear1" },
+            ])
+        ).toBe("p2");
+    });
+});
+
+describe("checkPermanentTargetFilters — sameController (ADR 0068, issue #1104, selectTarget authority)", () => {
+    it("accepts a second target sharing the first's controller", () => {
+        const bear2 = makeCard({
+            id: "bear2",
+            card: CREATURE,
+            controllerId: "p1",
+        });
+        const ctx: TargetFilterCtx = {
+            state: makeGameState(),
+            sourceColors: [],
+            sourceTypes: [],
+            sourceSubtypes: [],
+            activePlayerId: "p1",
+            siblingControllerId: "p1",
+        };
+        expect(
+            checkPermanentTargetFilters(ctx, bear2, { sameController: true })
+        ).toBeNull();
+    });
+
+    it("rejects a second target controlled by a DIFFERENT player — the exact CR 601.2c gate selectTarget runs", () => {
+        const bear2 = makeCard({
+            id: "bear2",
+            card: CREATURE,
+            controllerId: "p2",
+        });
+        const ctx: TargetFilterCtx = {
+            state: makeGameState(),
+            sourceColors: [],
+            sourceTypes: [],
+            sourceSubtypes: [],
+            activePlayerId: "p1",
+            siblingControllerId: "p1",
+        };
+        const violation = checkPermanentTargetFilters(ctx, bear2, {
+            sameController: true,
+        });
+        expect(violation).not.toBeNull();
+    });
+
+    it("imposes no constraint when siblingControllerId is undefined (first pick)", () => {
+        const bear2 = makeCard({
+            id: "bear2",
+            card: CREATURE,
+            controllerId: "p2",
+        });
+        const ctx: TargetFilterCtx = {
+            state: makeGameState(),
+            sourceColors: [],
+            sourceTypes: [],
+            sourceSubtypes: [],
+            activePlayerId: "p1",
+        };
+        expect(
+            checkPermanentTargetFilters(ctx, bear2, { sameController: true })
+        ).toBeNull();
     });
 });
 

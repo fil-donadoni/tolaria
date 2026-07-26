@@ -4923,6 +4923,156 @@ describe("Effect Script Op: discard — bulk whole-hand shape (CR 701.9, issue #
     });
 });
 
+// issue #1104 — the FOURTH moveZone shape: a filter-driven bulk sweep across
+// one or more zones (Lobotomy's "search that player's graveyard, hand, and
+// library for all cards with the same name as the chosen card and exile
+// them"), plus the new `EffectCardFilter.name` picks-ref resolution
+// (`resolveNameRef`) that makes the "same name" clause expressible at all —
+// a `choice` Op's picks binding stores an INSTANCE ID, resolved to its live
+// name via `SpellContext.getCardName` (distinct from `nameCard`'s own
+// name-string binding, issue #1085).
+describe("Effect Script Op: moveZone — fromZones/filter shape (CR 400.7, issue #1104)", () => {
+    const cardsIn = (
+        zone: "hand" | "library" | "graveyard",
+        owner: "p1" | "p2",
+        entries: { id: string; cardId: string }[]
+    ) =>
+        entries.map((e) =>
+            makeInstance(e.cardId, {
+                id: e.id,
+                controllerId: owner,
+                ownerId: owner,
+                zone,
+            })
+        );
+
+    it("sweeps graveyard + hand + library for cards sharing the CHOSEN CARD's name and exiles them all (Lobotomy)", () => {
+        const id = registerScript(
+            "test-op-movezone-fromzones-lobotomy",
+            [
+                { op: "reveal", player: { target: 0 }, zone: "hand" },
+                {
+                    op: "choice",
+                    kind: "choose-hand-card",
+                    player: "controller",
+                    zone: "hand",
+                    zoneOwnerId: { target: 0 },
+                    filter: { excludeSupertype: "Basic" },
+                    count: 1,
+                    prompt: "Choose a card other than a basic land card",
+                    bind: "$chosen",
+                },
+                {
+                    op: "moveZone",
+                    player: { target: 0 },
+                    fromZones: ["graveyard", "hand", "library"],
+                    filter: { name: { ref: "$chosen" } },
+                    to: "exile",
+                },
+                { op: "libraryLook", action: "shuffle", player: { target: 0 } },
+            ],
+            { targetRequirement: { type: "player", count: 1 } }
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    hand: [
+                        // Two copies of the same card in hand — the pick
+                        // itself, plus a duplicate that must ALSO be swept.
+                        ...cardsIn("hand", "p2", [
+                            { id: "hb1", cardId: BEAR_ID },
+                            { id: "hb2", cardId: BEAR_ID },
+                        ]),
+                        // A basic land — excluded from the choice, and
+                        // (correctly) never a name match anyway.
+                        ...cardsIn("hand", "p2", [
+                            { id: "hl1", cardId: LAND_ID },
+                        ]),
+                    ],
+                    graveyard: cardsIn("graveyard", "p2", [
+                        { id: "gb1", cardId: BEAR_ID },
+                    ]),
+                    library: cardsIn("library", "p2", [
+                        { id: "lb1", cardId: BEAR_ID },
+                        { id: "ll1", cardId: LAND_ID },
+                    ]),
+                }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]);
+        expect(resolveTopOfStack(state)).toBeNull(); // suspended on the choice
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["hb1"],
+        });
+
+        // Every BEAR_ID card across all three zones is exiled — the chosen
+        // card itself (hb1), its hand duplicate (hb2), the graveyard copy
+        // (gb1), and the library copy (lb1). Non-matching cards (the basic
+        // lands) are untouched, still in their original zones.
+        const p2 = state.players[1];
+        expect(p2.exile.map((c) => c.id).sort()).toEqual([
+            "gb1",
+            "hb1",
+            "hb2",
+            "lb1",
+        ]);
+        expect(p2.hand.map((c) => c.id)).toEqual(["hl1"]);
+        expect(p2.graveyard).toHaveLength(0);
+        expect(p2.library.map((c) => c.id)).toEqual(["ll1"]);
+        expect(state.stack).toHaveLength(0);
+    });
+
+    it("wire format — the exiled cards are visible to both viewers post-sweep", () => {
+        const id = registerScript(
+            "test-op-movezone-fromzones-wire",
+            [
+                {
+                    op: "moveZone",
+                    player: { target: 0 },
+                    fromZones: ["hand", "graveyard"],
+                    filter: { name: BEAR_ID },
+                    to: "exile",
+                },
+            ],
+            { targetRequirement: { type: "player", count: 1 } }
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    hand: cardsIn("hand", "p2", [
+                        { id: "wb1", cardId: BEAR_ID },
+                    ]),
+                    graveyard: cardsIn("graveyard", "p2", [
+                        { id: "wb2", cardId: BEAR_ID },
+                    ]),
+                }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        expect(state.players[1].exile.map((c) => c.id).sort()).toEqual([
+            "wb1",
+            "wb2",
+        ]);
+        // Exile is a public zone (CR 400.2) — both viewers see the real cards
+        // on the wire, not nulled slots.
+        for (const viewerId of ["p1", "p2"]) {
+            const projected = projectPublicState(state, 1, viewerId);
+            expect(projected.players[1].exile.map((c) => c.id).sort()).toEqual([
+                "wb1",
+                "wb2",
+            ]);
+        }
+    });
+});
+
 // issue #1125 — the tutor-to-top template: choice(search-library) →
 // libraryLook(shuffle) → moveZone(cards, from: "library", to: "library-top").
 // The permanent test for the new destination (per gre-development.md's "a

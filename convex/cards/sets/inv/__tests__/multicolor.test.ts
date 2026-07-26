@@ -74,6 +74,9 @@ import {
     thunderscapeMaster,
     sterlingGrove,
     revivingVapors,
+    barrinsSpite,
+    lobotomy,
+    seersVision,
 } from "../multicolor";
 import {
     makeInstance,
@@ -2850,5 +2853,240 @@ describe("Reviving Vapors (CR 401.4 look, issue #1101)", () => {
         expect(projected.players[0].graveyard.map((c) => c.id)).toEqual(
             expect.arrayContaining(["bin1", "bin2"])
         );
+    });
+});
+
+// ===========================================================================
+// UB engine gaps, closed (issue #1104, parent #1076)
+// ===========================================================================
+
+describe("Barrin's Spite (CR 601.2c sameController cross-slot targeting + optionChoice sac-or-bounce, issue #1104)", () => {
+    it("targetRequirement declares the cross-slot same-controller constraint", () => {
+        expect(barrinsSpite.targetRequirement).toEqual({
+            type: "Creature",
+            count: 2,
+            sameController: true,
+        });
+    });
+
+    it("mode 'sacrifice the first creature': the first is sacrificed, the second returns to its owner's hand", () => {
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bs-bear",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const zombies = makeInstance(scatheZombies.id, {
+            id: "bs-zombies",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear, zombies] }),
+            ],
+        });
+        pushSpell(state, barrinsSpite.id, "p1", [
+            { type: "permanent", id: "bs-bear" },
+            { type: "permanent", id: "bs-zombies" },
+        ]);
+        expect(resolveTopOfStack(state)).toBeNull(); // suspended on optionChoice
+        expect(state.pendingChoices![0].playerId).toBe("p2"); // their controller
+        submitChoice(state, ["sac-first"]);
+        expect(state.players[1].battlefield.map((c) => c.id)).toEqual([]);
+        expect(state.players[1].graveyard.map((c) => c.id)).toContain(
+            "bs-bear"
+        );
+        expect(state.players[1].hand.map((c) => c.id)).toContain("bs-zombies");
+        expect(state.stack).toHaveLength(0);
+    });
+
+    it("mode 'sacrifice the second creature': the second is sacrificed, the first returns to its owner's hand", () => {
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bs2-bear",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const zombies = makeInstance(scatheZombies.id, {
+            id: "bs2-zombies",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear, zombies] }),
+            ],
+        });
+        pushSpell(state, barrinsSpite.id, "p1", [
+            { type: "permanent", id: "bs2-bear" },
+            { type: "permanent", id: "bs2-zombies" },
+        ]);
+        expect(resolveTopOfStack(state)).toBeNull();
+        submitChoice(state, ["sac-second"]);
+        expect(state.players[1].graveyard.map((c) => c.id)).toContain(
+            "bs2-zombies"
+        );
+        expect(state.players[1].hand.map((c) => c.id)).toContain("bs2-bear");
+        expect(state.stack).toHaveLength(0);
+    });
+});
+
+describe("Lobotomy (CR 201.2 dynamic same-name filter + CR 400.7 multi-zone sweep, issue #1104)", () => {
+    it("reveals the target's hand, sweeps graveyard+hand+library for cards sharing the chosen card's name, exiles them, then shuffles", () => {
+        const bearHand1 = makeInstance(grizzlyBears.id, {
+            id: "lb-hand1",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const bearHand2 = makeInstance(grizzlyBears.id, {
+            id: "lb-hand2",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const islandHand = makeInstance(island.id, {
+            id: "lb-island",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const bearGy = makeInstance(grizzlyBears.id, {
+            id: "lb-gy",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "graveyard",
+        });
+        const bearLib = makeInstance(grizzlyBears.id, {
+            id: "lb-lib",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "library",
+        });
+        const zombiesLib = makeInstance(scatheZombies.id, {
+            id: "lb-lib2",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "library",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    hand: [bearHand1, bearHand2, islandHand],
+                    graveyard: [bearGy],
+                    library: [bearLib, zombiesLib],
+                }),
+            ],
+        });
+        pushSpell(state, lobotomy.id, "p1", [{ type: "player", id: "p2" }]);
+        expect(resolveTopOfStack(state)).toBeNull(); // suspended on the choice
+
+        // Wire format: the leading `reveal` Op made p2's hand known to every
+        // player BEFORE the choice suspends — the caster's own view already
+        // shows the real cards, not nulled slots.
+        const revealedProjection = projectPublicState(state, 1, "p1");
+        expect(
+            revealedProjection.players[1].hand.map((c) => c?.id).sort()
+        ).toEqual(["lb-hand1", "lb-hand2", "lb-island"]);
+        // The basic land is excluded from the choice's candidate allow-list
+        // (`excludeSupertype: "Basic"`, CR 201.3's "other than a basic land
+        // card").
+        expect(state.pendingChoices![0].candidateIds?.sort()).toEqual([
+            "lb-hand1",
+            "lb-hand2",
+        ]);
+
+        submitChoice(state, ["lb-hand1"]);
+
+        // Every Grizzly Bears across all three zones is exiled — the chosen
+        // card itself, its hand duplicate, the graveyard copy, and the
+        // library copy. The non-matching cards (basic land, Scathe Zombies)
+        // are untouched.
+        expect(state.players[1].exile.map((c) => c.id).sort()).toEqual(
+            ["lb-gy", "lb-hand1", "lb-hand2", "lb-lib"].sort()
+        );
+        expect(state.players[1].hand.map((c) => c.id)).toEqual(["lb-island"]);
+        expect(state.players[1].graveyard).toHaveLength(0);
+        expect(state.players[1].library.map((c) => c.id)).toEqual(["lb-lib2"]);
+        expect(state.stack).toHaveLength(0);
+    });
+});
+
+describe("Seer's Vision (CR 702-adjacent opponents-hand-reveal static + sac-for-discard ability, issue #1104)", () => {
+    it("card definition declares the opponents-scoped hand-reveal static", () => {
+        expect(seersVision.revealsHand).toBe("opponents");
+    });
+
+    it("wire format — the CONTROLLER sees their opponent's hand revealed", () => {
+        const sv = makeInstance(seersVision.id, {
+            id: "sv-perm",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const oppCard = makeInstance(grizzlyBears.id, {
+            id: "sv-hand1",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [sv] }),
+                makePlayer("p2", { hand: [oppCard] }),
+            ],
+        });
+        const asController = projectPublicState(state, 1, "p1");
+        expect(asController.players[1].hand.map((c) => c?.id)).toEqual([
+            "sv-hand1",
+        ]);
+    });
+
+    it("wire format — the static ends the instant the source leaves the battlefield", () => {
+        const oppCard = makeInstance(grizzlyBears.id, {
+            id: "sv-gone-hand1",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"), // no Seer's Vision on the battlefield
+                makePlayer("p2", { hand: [oppCard] }),
+            ],
+        });
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[1].hand).toEqual([null]);
+    });
+
+    it("Sacrifice: look at target player's hand, choose a card, that player discards it", () => {
+        const sv = makeInstance(seersVision.id, {
+            id: "sv-activate",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const handCard = makeInstance(grizzlyBears.id, {
+            id: "sv-discard-me",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [sv] }),
+                makePlayer("p2", { hand: [handCard] }),
+            ],
+        });
+        resolveActivated(state, sv, "seers-vision-discard", [
+            { type: "player", id: "p2" },
+        ]);
+        expect(state.pendingChoices).toBeDefined();
+        submitChoice(state, ["sv-discard-me"]);
+        expect(state.players[1].hand).toHaveLength(0);
+        expect(state.players[1].graveyard.map((c) => c.id)).toContain(
+            "sv-discard-me"
+        );
+        expect(state.stack).toHaveLength(0);
     });
 });
