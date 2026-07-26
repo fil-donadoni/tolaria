@@ -32,6 +32,7 @@ import type {
     BotView,
     ChoiceCandidate,
     ManaSituation,
+    ManaSpendChoiceView,
     OwedChoice,
 } from "./brain";
 
@@ -120,6 +121,63 @@ function buildManaSituation(
         landsInPlay: battlefield.filter((c) => handCardIsLand(c.types)).length,
         landsInHand: hand.filter((c) => handCardIsLand(c.types)).length,
         producibleColors: producibleColors(battlefield),
+    };
+}
+
+/** CR 601.2g (issue #1444/#1446) — read the parked generic-mana spend choice
+ *  awaiting the bot as PAYER of its own cast/activation. `pendingCast` /
+ *  `pendingActivation` ride the wire un-slimmed (`PublicGameState` only omits
+ *  `players`/`stack`/`phasedOut`/`pendingTriggerBatch`), so this is a direct
+ *  read, mirroring `payment-banner.tsx`'s `pendingCast.sacrificeSelection` and
+ *  the attack-tax park above. Undefined unless the bot itself owes the choice. */
+function buildManaSpendChoiceView(
+    state: PublicGameState,
+    botId: string
+): ManaSpendChoiceView | undefined {
+    const pc = state.pendingCast;
+    const pa = state.pendingActivation;
+    const parked =
+        pc && pc.playerId === botId && pc.manaSpendChoice
+            ? { choice: pc.manaSpendChoice, sourceId: pc.cardInstanceId }
+            : pa && pa.playerId === botId && pa.manaSpendChoice
+              ? { choice: pa.manaSpendChoice, sourceId: pa.cardInstanceId }
+              : undefined;
+    if (!parked) return undefined;
+
+    const bot = state.players.find((p) => p.id === botId);
+    const pool = (bot?.manaPool ?? {}) as Record<string, number>;
+    const poolCounts: Record<string, number> = {};
+    for (const color of parked.choice.candidateColors) {
+        poolCounts[color] = pool[color] ?? 0;
+    }
+
+    // Issue #1446 flexibility heuristic input: how much the bot's OTHER
+    // remaining hand spells (excluding the card currently being cast, when
+    // it's still sitting in hand) need each candidate color — the color that
+    // scores HIGHEST here is the one worth protecting.
+    const hand = (bot?.hand ?? []).filter(
+        (c): c is NonNullable<typeof c> => c !== null
+    );
+    const colorUsefulness: Record<string, number> = {};
+    for (const card of hand) {
+        if (card.id === parked.sourceId) continue;
+        if (handCardIsLand(card.types)) continue;
+        const def = tryGetDefinition(card.card.id);
+        if (!def?.manaCost) continue;
+        const norm = normalizeManaCost(def.manaCost);
+        for (const color of parked.choice.candidateColors) {
+            const pips = norm[color] ?? 0;
+            if (pips > 0) {
+                colorUsefulness[color] = (colorUsefulness[color] ?? 0) + pips;
+            }
+        }
+    }
+
+    return {
+        generic: parked.choice.generic,
+        candidateColors: parked.choice.candidateColors,
+        poolCounts,
+        colorUsefulness,
     };
 }
 
@@ -553,6 +611,9 @@ export function buildBotView(state: PublicGameState, botId: string): BotView {
     // for ANY bot-owed head choice except `mulligan-bottom` (handled above).
     view.owedChoice = buildOwedChoice(state, botId);
 
+    // CR 601.2g (issue #1444/#1446) — the parked generic-mana spend choice.
+    view.manaSpendChoice = buildManaSpendChoiceView(state, botId);
+
     return view;
 }
 
@@ -710,6 +771,7 @@ export function botActionToMove(
         case "confirm-combat-damage":
         case "pay-attack-tax":
         case "cancel-attack-tax":
+        case "resolve-mana-spend":
         case "none":
             return null;
         default:
