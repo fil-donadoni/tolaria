@@ -2722,6 +2722,122 @@ describe("Effect Script Op: exile (CR 701.13)", () => {
     });
 });
 
+// The BLINK primitive (issue #1401) — a NEW construct combination: an
+// `exile` Op's `bind` snapshot, resolved by a LATER `moveZone { ref, to:
+// "battlefield" }` Op with NO explicit `from`, in the SAME script/resolution.
+// `resolveObjectRef` learns the exile-zone fallback and `moveZone` re-derives
+// the actual source zone at execution time (see both Ops' own describe
+// blocks above and the Mechanics Registry `moveZone` note). This is the
+// Op-combination's own permanent test (PRD #795) — any later card wiring
+// this shape (Liberate, Flickerwisp, Krovikan Vampire/Seraph — tracked by
+// the migration ticket #1403) inherits this coverage free.
+describe("Effect Script: blink — exile(bind) + moveZone(ref, battlefield) in one resolution (CR 400.7/608.2h, issue #1401)", () => {
+    const BLINK_ETB_ID = "test-blink-etb-bear";
+    registerTokenDefinition({
+        id: BLINK_ETB_ID,
+        name: BLINK_ETB_ID,
+        rarity: "common",
+        manaCost: { G: 1 },
+        types: ["Creature"],
+        subtypes: ["Bear"],
+        power: 2,
+        toughness: 2,
+        triggeredAbilities: [
+            {
+                id: "blink-etb-gain",
+                oracleText: "When this creature enters, you gain 1 life.",
+                event: "PERMANENT_ENTERED",
+                matches: (event, self) =>
+                    event.type === "PERMANENT_ENTERED" &&
+                    event.instanceId === self.id,
+                effects: [{ op: "gainLife", player: "controller", amount: 1 }],
+            },
+        ],
+    });
+
+    it("exiles the target and returns it to the battlefield as a NEW object in one resolution", () => {
+        const id = registerScript("test-op-blink-exile-return", [
+            { op: "exile", target: { target: 0 }, bind: "$c" },
+            { op: "moveZone", target: { ref: "$c" }, to: "battlefield" },
+        ]);
+        const bear = makeInstance(BLINK_ETB_ID, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id: "blinkBear",
+            isSummoningSick: false,
+            counters: { "+1/+1": 2 },
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bear] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "blinkBear" }]);
+        resolveTopOfStack(state);
+        // Landed back on the battlefield, never resting in exile at any
+        // point a later query could observe (both Ops ran in the SAME
+        // resolution).
+        expect(state.players[0].exile).toHaveLength(0);
+        const after = state.players[0].battlefield.find(
+            (c) => c.id === "blinkBear"
+        );
+        expect(after).toBeDefined();
+        // CR 400.7 — the zone change creates a NEW object: summoning
+        // sickness is reset and counters are dropped.
+        expect(after!.isSummoningSick).toBe(true);
+        expect(after!.counters ?? {}).toEqual({});
+        // CR 603.6 — the re-entry is a real PERMANENT_ENTERED event: the
+        // creature's own ETB triggered ability lands on the stack.
+        expect(state.stack).toHaveLength(1);
+        expect(state.stack[0].triggeredAbilityId).toBe("blink-etb-gain");
+        resolveTopOfStack(state); // resolve the ETB trigger itself
+        expect(state.players[0].life).toBe(21);
+    });
+
+    it("the blink survives projection (wire format)", () => {
+        const id = registerScript("test-op-blink-exile-return-wire", [
+            { op: "exile", target: { target: 0 }, bind: "$c" },
+            { op: "moveZone", target: { ref: "$c" }, to: "battlefield" },
+        ]);
+        const bear = makeInstance(BEAR_ID, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id: "blinkBearWire",
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bear] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1", [
+            { type: "permanent", id: "blinkBearWire" },
+        ]);
+        resolveTopOfStack(state);
+        expect(state.players[0].exile).toHaveLength(0);
+        expect(state.players[0].battlefield.map((c) => c.id)).toContain(
+            "blinkBearWire"
+        );
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[0].exile).toHaveLength(0);
+        expect(projected.players[0].battlefield.map((c) => c.id)).toContain(
+            "blinkBearWire"
+        );
+    });
+
+    it("is a no-op when the announced target is missing (CR 608.2b) — no exile, no return", () => {
+        const id = registerScript("test-op-blink-missing", [
+            { op: "exile", target: { target: 0 }, bind: "$c" },
+            { op: "moveZone", target: { ref: "$c" }, to: "battlefield" },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1", []); // no target survives to resolution
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+    });
+});
+
 describe("Effect Script value grammar: isPermanentCard (CR 205/110.1, issue #1311)", () => {
     // `.isPermanentCard` is a NEW ref property (SNAP_IS_PERMANENT_CARD) — a
     // thin skin over SpellContext.isPermanentCard, captured at `bind` time
