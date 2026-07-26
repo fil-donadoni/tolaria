@@ -533,6 +533,59 @@ export default defineSchema({
         // (`setCardRating`/`clearCardRating`) — `(scope, cardId)` is this
         // table's natural primary key.
         .index("by_scope_and_card", ["scope", "cardId"]),
+    // Bot Drafter Card Profiles (ADR 0072 "Card synergy as computed
+    // Capability matching, not enumerated card pairs", PRD #1607 slice 1,
+    // issue #1608). A STRUCTURAL CLONE of `cardRatings` above — same
+    // `(scope, cardId)` key, same Pack Source scope string space (a
+    // Draftable Set code or `CUBE_SOURCE_KEY`), same `by_scope`/index
+    // shape — carrying ADR 0072's synergy model instead of a 0-5 rating:
+    // which Archetype(s) a card steers toward (`reanimator`, `artifacts`,
+    // `jeskai-tempo`), which Capabilities it PROVIDES/REQUIRES from the
+    // closed `capabilityRegistry.ts` vocabulary, and optional signed Combo
+    // Edge weights to specific partner cards. Layered over an optional
+    // checked-in seed file by the pure read seam
+    // `convex/limited/cardProfiles.ts`'s `resolveEventCardProfile` —
+    // mirrors `cardRatings.ts`'s `resolveEventPickRating` exactly. THIS
+    // SLICE IS A DATA FOUNDATION ONLY: no call site reads this table yet
+    // (`convex/limited/botDrafter.ts` is unchanged) and no Admin write
+    // mutation exists here either — both are later PRD #1607 slices.
+    cardProfiles: defineTable({
+        scope: v.string(),
+        cardId: v.string(),
+        // Free-text named strategies (ADR 0072) — deliberately NOT gated by
+        // a closed registry the way `provides`/`requires` are; see
+        // `CardProfile`'s doc comment in `cardProfiles.ts`.
+        archetypes: v.array(v.string()),
+        // Capability ids this card PROVIDES/REQUIRES — each string MUST be
+        // a row of `CAPABILITY_REGISTRY` (`capabilityRegistry.ts`), checked
+        // by `cardProfiles.ts`'s `validateCardProfileFile` for the seed
+        // layer (the database layer gets the same check once an Admin
+        // write mutation exists, mirroring `setCardRating`'s
+        // `isValidRating` gate).
+        provides: v.array(v.string()),
+        requires: v.array(v.string()),
+        // The Combo Edge escape hatch (ADR 0072): an explicit, signed,
+        // directed pair reserved for a closed two-card loop no Capability
+        // vocabulary can express (Painter's Servant + Grindstone).
+        // OPTIONAL — most cards carry none.
+        comboEdges: v.optional(
+            v.array(v.object({ cardId: v.string(), weight: v.number() }))
+        ),
+        // LLM-seeded rows start `false`; a human reviewer flips it to
+        // `true`. Load-bearing for a LATER slice's scoring (ADR 0072: an
+        // unreviewed row's contribution is applied at HALF the contextual
+        // cap) — this slice only carries the field, it does not consume it.
+        reviewed: v.boolean(),
+    })
+        // Every profile for one scope — the shape the read path loads once
+        // per distinct event scope (`resolveEventCardProfile`'s caller),
+        // mirroring `cardRatings`'s `by_scope`.
+        .index("by_scope", ["scope"])
+        // Point lookup target for the (future) Admin write mutations and
+        // for `resolveEventCardProfile`'s per-card DB read closure —
+        // `(scope, cardId)` is this table's natural primary key, mirroring
+        // `cardRatings`'s `by_scope_and_card`.
+        .index("by_scope_card", ["scope", "cardId"]),
     debugScenarios: defineTable({
         // Authorship provenance for interactively-saved rows only (set by
         // `saveDebugScenario` from the current admin). OPTIONAL because scenarios
