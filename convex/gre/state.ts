@@ -8635,6 +8635,28 @@ export function buildSpellContext(
                 }
             }
         },
+        dealDamageFromPermanent(
+            sourceInstanceId: string,
+            playerId: string,
+            amount: number
+        ) {
+            // CR 120.1 — the CR-120.1 source is the named battlefield
+            // permanent, not the resolving stack item. Backlash: the tapped
+            // creature (LKI-snapshot `$c`) deals its power to its controller.
+            // Delegates to the shared permanent-source pipeline (CR 614
+            // replacement → CR 615 prevention → infect/lifelink/protection all
+            // keyed off the permanent's identity via `describeDamageSource`).
+            // No-op when the source has left the battlefield (CR 608.2b).
+            const found = findOnBattlefield(state, sourceInstanceId);
+            if (!found) return;
+            dealDamageFromPermanentToPlayer(
+                state,
+                found.card,
+                found.card.controllerId,
+                playerId,
+                amount
+            );
+        },
         fight(target: TargetSelection) {
             // CR 701.12 mutual damage: the resolving ability's source permanent
             // and the target creature each deal damage equal to their power to

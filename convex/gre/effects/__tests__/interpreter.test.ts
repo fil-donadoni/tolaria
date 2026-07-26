@@ -189,23 +189,29 @@ describe("Effect Script Op: tapUntap { bind } — live-target power snapshot (CR
     // WITHOUT a zone change: `bind` writes a power/toughness/controller
     // snapshot (last-known information, CR 608.2h) via the same `bindSnapshot`
     // path destroy/exile use, then a trailing `dealDamage` sends `$bound.power`
-    // to `{ ref: "$bound.controller" }`. The tapped creature is the damage
-    // SOURCE (CR 120.1); its controller is the recipient.
+    // to `{ ref: "$bound.controller" }`. Crucially `dealDamage`'s `source:
+    // { ref: "$c" }` makes the tapped CREATURE the CR-120.1 damage SOURCE, not
+    // the resolving B/R spell; its controller is the recipient.
+
+    // Backlash's exact effect script — the tap-with-bind then the
+    // creature-SOURCED dealDamage to the bound controller.
+    const backlashScript: EffectOp[] = [
+        {
+            op: "tapUntap",
+            action: "tap",
+            target: { target: 0 },
+            bind: "$c",
+        },
+        {
+            op: "dealDamage",
+            amount: { ref: "$c.power" },
+            to: { player: { ref: "$c.controller" } },
+            source: { ref: "$c" },
+        },
+    ];
 
     it("taps the creature and deals its power to its own controller", () => {
-        const id = registerScript("test-tapuntap-bind-backlash", [
-            {
-                op: "tapUntap",
-                action: "tap",
-                target: { target: 0 },
-                bind: "$c",
-            },
-            {
-                op: "dealDamage",
-                amount: { ref: "$c.power" },
-                to: { player: { ref: "$c.controller" } },
-            },
-        ]);
+        const id = registerScript("test-tapuntap-bind-backlash", backlashScript);
         const bear = makeInstance(BEAR_ID, {
             controllerId: "p2",
             id: "blbear",
@@ -222,6 +228,38 @@ describe("Effect Script Op: tapUntap { bind } — live-target power snapshot (CR
         // resolving player (p1). The creature itself is now tapped.
         expect(state.players[1].battlefield[0].isTapped).toBe(true);
         expect(state.players[1].life).toBe(18);
+        expect(state.players[0].life).toBe(20);
+    });
+
+    it("the tapped CREATURE is the CR-120.1 damage source, not the resolving spell (lifelink discriminator)", () => {
+        // A lifelink creature deals the self-damage. Because the CREATURE is
+        // the source (CR 120.1) and lifelink is ITS instance ability (the B/R
+        // Backlash spell has no lifelink), the source's controller (p2, who is
+        // ALSO the recipient) gains life equal to the damage (CR 702.15b) —
+        // so p2 nets 20 - 2 + 2 = 20. Under the OLD spell-sourced code the
+        // source would be the Backlash stack item, which has no lifelink, so
+        // p2 would just take 2 → 18. This assertion FAILS on the old code and
+        // PASSES with the creature-sourced fix — the necessary-and-SUFFICIENT
+        // check the earlier life-total-only test lacked.
+        const id = registerScript(
+            "test-tapuntap-bind-lifelink-source",
+            backlashScript
+        );
+        const lifelinker = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            id: "llbear",
+            staticAbilities: ["lifelink"],
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [lifelinker] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "llbear" }]);
+        resolveTopOfStack(state);
+        // Damage AND simultaneous lifelink gain both keyed off the creature.
+        expect(state.players[1].life).toBe(20);
         expect(state.players[0].life).toBe(20);
     });
 
@@ -246,6 +284,7 @@ describe("Effect Script Op: tapUntap { bind } — live-target power snapshot (CR
                 op: "dealDamage",
                 amount: { ref: "$c.power" },
                 to: { player: { ref: "$c.controller" } },
+                source: { ref: "$c" },
             },
         ]);
         const bear = makeInstance(BEAR_ID, {
@@ -265,19 +304,10 @@ describe("Effect Script Op: tapUntap { bind } — live-target power snapshot (CR
     });
 
     it("controller damage + tapped state survive projection (wire format)", () => {
-        const id = registerScript("test-tapuntap-bind-wire", [
-            {
-                op: "tapUntap",
-                action: "tap",
-                target: { target: 0 },
-                bind: "$c",
-            },
-            {
-                op: "dealDamage",
-                amount: { ref: "$c.power" },
-                to: { player: { ref: "$c.controller" } },
-            },
-        ]);
+        const id = registerScript(
+            "test-tapuntap-bind-wire",
+            backlashScript
+        );
         const bear = makeInstance(BEAR_ID, {
             controllerId: "p2",
             id: "wirebear",

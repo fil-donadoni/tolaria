@@ -2502,6 +2502,7 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         status: "implemented",
         cr: "120.1",
         binding: "SpellContext.dealDamage",
+        note: "CR 120 — deal `amount` damage to an announced target, a forEach member, or a relative/bound player. By default the CR-120.1 source is the resolving stack item (SpellContext.dealDamage). Optional `source` (issue #1416) names a bound PERMANENT that is the source instead — routed through SpellContext.dealDamageFromPermanent → dealDamageFromPermanentToPlayer (gre/state.ts), so infect/lifelink/source-colour prevention/protection and 'a source deals damage' triggers key off that permanent's identity, not the spell's. Backlash: the tapped creature (`$c`) deals its power to its controller.",
     },
     {
         op: "dealDamageDividedAsChosen",
