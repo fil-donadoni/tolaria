@@ -14005,15 +14005,23 @@ export function payDiscardAtRandomCost(
  *  `from`-color mana may be spent to satisfy `to`-color requirements. */
 export type ManaSubstitution = { from: string; to: string };
 
-/** Deducts mana cost from pool. Colored first, then generic (greedy: highest
- *  pool first). When `substitutions` are supplied (CR 609.4b), a colored
- *  requirement the exact color can't fully cover is topped up from
- *  substitutable colors before the generic phase. Mirrors the coverage logic
- *  in `isManaCostCovered`, so payment only runs after coverage is confirmed. */
+/** Deducts mana cost from pool. Colored first, then generic. When
+ *  `substitutions` are supplied (CR 609.4b), a colored requirement the exact
+ *  color can't fully cover is topped up from substitutable colors before the
+ *  generic phase. Mirrors the coverage logic in `isManaCostCovered`, so payment
+ *  only runs after coverage is confirmed.
+ *
+ *  Generic phase (CR 601.2g — the player chooses which mana pays a generic
+ *  cost): when `genericSpendOrder` is omitted, the historical greedy default is
+ *  used (highest pool first) — this path is byte-identical for every existing
+ *  caller. When supplied, that ordered color list is spent first for the
+ *  generic portion (any residual falls back to the greedy default so payment
+ *  always completes). */
 export function payManaCost(
     manaPool: Record<string, number>,
     cost: ManaCost,
-    substitutions: ManaSubstitution[] = []
+    substitutions: ManaSubstitution[] = [],
+    genericSpendOrder?: readonly string[]
 ): void {
     // Pay colored/colorless costs from their exact color, clamping at the
     // available amount so substitution can cover any shortfall (CR 609.4b).
@@ -14038,12 +14046,20 @@ export function payManaCost(
         }
     }
 
-    // Pay generic with colors that have the most mana available
+    // Pay generic. Default: colors that have the most mana available (greedy).
+    // With an explicit spend order (CR 601.2g), honor it first, then fall back
+    // to the greedy order for any residual so payment always completes.
     let generic = (cost.X as number | undefined) ?? 0;
     if (generic > 0) {
-        const sorted = [...MANA_COLORS].sort(
+        const greedy = [...MANA_COLORS].sort(
             (a, b) => (manaPool[b] ?? 0) - (manaPool[a] ?? 0)
         );
+        const sorted = genericSpendOrder
+            ? [
+                  ...genericSpendOrder,
+                  ...greedy.filter((c) => !genericSpendOrder.includes(c)),
+              ]
+            : greedy;
         for (const color of sorted) {
             const available = manaPool[color] ?? 0;
             const take = Math.min(available, generic);
@@ -14054,6 +14070,75 @@ export function payManaCost(
             }
         }
     }
+}
+
+/** The result of a meaningful generic-spend choice (CR 601.2g): how much
+ *  generic mana is owed, and the colors in the pool the player may draw it
+ *  from. `null` from `genericSpendAmbiguity` means "no meaningful choice —
+ *  auto-pick". */
+export interface GenericSpendAmbiguity {
+    generic: number;
+    candidateColors: string[];
+}
+
+/** CR 601.2g — when paying a generic mana cost the player chooses which mana in
+ *  their pool to spend. This detects whether that choice is *meaningful* and so
+ *  worth prompting for. It must be evaluated AFTER all colored/colorless
+ *  requirements are paid, so `pool` and `generic` reflect only the generic
+ *  portion still owed.
+ *
+ *  Returns `null` (auto-pick, no prompt) unless BOTH hold:
+ *    1. the generic amount can be drawn from ≥2 distinct colors present in
+ *       `pool`, AND
+ *    2. ≥2 spend choices leave a DIFFERENT set of remaining colors — the
+ *       leftover-set-differs rule. e.g. `{U:1,G:1}` paying `{1}` can leave
+ *       either `{G}` or `{U}` → ambiguous; `{U:2,G:2}` paying `{1}` always
+ *       leaves `{U,G}` → null; `{U:1}` paying `{1}` has a single color → null.
+ *
+ *  Deterministic: enumerates the reachable fully-drained color subsets (≤ 6
+ *  colors ⇒ ≤ 64 subsets). When ambiguous, `candidateColors` lists every color
+ *  present in the pool (canonical W,U,B,R,G,C order) — each is a legal source
+ *  the player may draw the generic from. */
+export function genericSpendAmbiguity(
+    pool: Record<string, number>,
+    generic: number
+): GenericSpendAmbiguity | null {
+    if (generic <= 0) return null;
+    const present = MANA_COLORS.filter((c) => (pool[c] ?? 0) > 0);
+    // Condition 1: the generic must be drawable from ≥2 distinct colors.
+    if (present.length < 2) return null;
+    const total = present.reduce((sum, c) => sum + (pool[c] ?? 0), 0);
+    // Everything is consumed ⇒ a single (empty) leftover ⇒ no meaningful choice.
+    if (generic >= total) return null;
+
+    // Condition 2 (leftover-set-differs): enumerate which subsets D of the
+    // present colors can be FULLY drained while spending exactly `generic`,
+    // without draining any color outside D. Each reachable D yields the leftover
+    // color set (present \ D); ≥2 distinct leftover sets ⇒ the choice matters.
+    const leftoverSets = new Set<string>();
+    const n = present.length;
+    for (let mask = 0; mask < 1 << n; mask++) {
+        let drained = 0;
+        // Headroom = how much can be removed from the NON-drained colors while
+        // leaving each with ≥1 (i.e. without draining them): Σ (pool[c] - 1).
+        let headroomOutside = 0;
+        for (let i = 0; i < n; i++) {
+            const amt = pool[present[i]] ?? 0;
+            if (mask & (1 << i)) drained += amt;
+            else headroomOutside += amt - 1;
+        }
+        if (drained > generic) continue; // can't afford to fully drain D
+        const residual = generic - drained;
+        if (residual > headroomOutside) continue; // residual would drain more
+        let key = "";
+        for (let i = 0; i < n; i++) {
+            if (!(mask & (1 << i))) key += present[i];
+        }
+        leftoverSets.add(key);
+        if (leftoverSets.size >= 2) break;
+    }
+    if (leftoverSets.size < 2) return null;
+    return { generic, candidateColors: present };
 }
 
 /** Per-colour delta between a mana pool snapshot taken BEFORE a payment and the
