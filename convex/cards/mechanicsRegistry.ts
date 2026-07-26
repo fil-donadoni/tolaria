@@ -1474,7 +1474,9 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         name: "Rebound",
         kind: "keyword-ability",
         cr: "702.88",
-        status: "planned",
+        status: "implemented",
+        binding: "convex/gre/rebound.ts",
+        note: "Cost-system / keyword-cast capability (engine infra, NOT an Effect Script Op), the twin of Flashback/Madness: convex/gre/rebound.ts (hasRebound / markReboundExiled / openReboundCastWindow / declineRebound) + CardInstanceState.reboundExiled. finalizeSpellResolution (state.ts) exiles a resolving spell that has rebound AND was cast from hand (StackItem.reboundFromHand, stamped at cast-commit by reboundCastStackFlags in game.ts) instead of graveyarding it (CR 702.88a), and schedules a caster-scoped next-upkeep DelayedTriggerInstance (reboundCardInstanceId). fireDelayedTriggers (phases.ts) builds a reflexive Cast/Decline StackItem (buildReboundReflexiveTrigger, triggers.ts — mirrors buildMadnessReflexiveTrigger) instead of running an Effect Script; resolveTopOfStack resolves it by opening the caster's single cast window (openReboundCastWindow sets castableFromExileBy + castFromExileWithoutPayingManaCost + raises a BLOCKING `rebound-cast` pending choice — Cast/Decline, sharing the Madness Model A plumbing). Accept: the client fires the ordinary announceCast on the exiled card (castRawManaCost's existing free-cast-waiver branch waives the mana cost); the exile recast has castFromZone === 'exile' so the from-hand gate never re-stamps reboundFromHand, AND finalizeSpellResolution deletes the flag off the card the instant it consumes it (the SAME object is re-pushed onto the stack by the recast, so a stale flag would silently re-trigger the redirect) — no second rebound (CR 702.88d) — and it resolves to the graveyard normally. Decline: submitReboundDecline → declineRebound leaves the card in exile permanently (CR 702.88c). The vs-AI bot always declines (brain.ts / submit-rebound-decline), mirroring Madness's minimal policy. Used by Ephemerate (mh1/white.ts).",
     },
     // 702.89 Umbra Armor
     {

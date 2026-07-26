@@ -171,6 +171,36 @@ export function buildMadnessReflexiveTrigger(
     };
 }
 
+/** CR 702.88a — builds the synthetic reflexive triggered ability StackItem a
+ *  fired Rebound delayed trigger puts on the stack ("At the beginning of your
+ *  next upkeep, you may cast this spell from exile..."). Engine-owned: it
+ *  carries no card-def ability, only the `reboundTrigger` marker (the exiled
+ *  card's id), which `resolveTopOfStack` reads to open the caster's cast
+ *  window. Controlled by the card's caster (its owner in every shipped
+ *  case — Rebound has no "control change" variant). Mirrors
+ *  `buildMadnessReflexiveTrigger`; called from `fireDelayedTriggers`
+ *  (phases.ts) instead of `collectTriggers`, since Rebound's window opens at
+ *  a scheduled phase boundary rather than immediately off a discard event. */
+export function buildReboundReflexiveTrigger(
+    state: GameState,
+    card: CardInstanceState,
+    casterId: string
+): StackItem {
+    return {
+        id: allocInstanceId(state),
+        card: { id: (card.card as { id?: string }).id ?? "" },
+        controllerId: casterId,
+        ownerId: casterId,
+        zone: "stack",
+        types: [],
+        subtypes: [],
+        staticAbilities: [],
+        isTapped: false,
+        castById: casterId,
+        reboundTrigger: card.id,
+    };
+}
+
 /** CR 114 (issue #1221) — a source-less synthetic `PermanentView` standing in
  *  for a command-zone emblem, passed as `self` to an emblem triggered ability's
  *  `matches` predicate. `controllerId`/`ownerId` are the emblem's owner

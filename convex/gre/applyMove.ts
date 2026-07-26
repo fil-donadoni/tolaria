@@ -200,12 +200,13 @@ export function applyMoveForSearch(
         case "name-card":
         case "random-reveal-ack":
         case "madness-decline":
+        case "rebound-decline":
             // No board change worth modelling for a 1-ply leaf: passing keeps
             // the position; a mulligan / resolution-choice / may-pay /
-            // land-entry / random-reveal-ack / madness-decline pick's value is
-            // not material here (these are brain-resolved and never reach the
-            // search anyway — `enumerateMoves` returns [] while a choice is
-            // pending).
+            // land-entry / random-reveal-ack / madness-decline / rebound-decline
+            // pick's value is not material here (these are brain-resolved and
+            // never reach the search anyway — `enumerateMoves` returns [] while
+            // a choice is pending).
             return next;
 
         case "play-land": {

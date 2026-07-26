@@ -101,6 +101,8 @@ export function describeMove(move: Move, state: GameState): string {
             return "acknowledge coin flip";
         case "madness-decline":
             return "decline madness cast (to graveyard)";
+        case "rebound-decline":
+            return "decline rebound cast (remains exiled)";
         case "play-land":
             return `play ${instanceName(state, move.cardInstanceId)}`;
         case "summon-companion":

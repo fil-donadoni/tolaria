@@ -47,21 +47,34 @@ export const giverOfRunes: CardDefinition = {
     ],
 };
 
-// TODO(issue #676 stub — Rebound, CR 702.88, is `planned` in
-// mechanicsRegistry.ts: no "cast this from exile next upkeep without paying
-// its cost" primitive exists. Rebound is the entire second half of
-// Ephemerate's value (cast it twice); omitting it would misrepresent the
-// card. The blink itself ("exile target creature you control, then return
-// it") is also not directly an Op — `moveZone`'s `to: "battlefield"` is only
-// reachable from a graveyard card, not a same-effect exile-then-return. Stop-
-// and-issue per gre-development.md; tracked stub.
-// export const ephemerate: CardDefinition = {
-//     id: "2da5f3f8-5eef-498f-ba2c-2f3fbc3745aa",
-//     name: "Ephemerate",
-//     rarity: "common",
-//     manaCost: { W: 1 },
-//     types: ["Instant"],
-// };
+// Ephemerate — {W} Instant (issue #1402, closes the #676 stub). "Exile target
+// creature you control, then return it to the battlefield under its owner's
+// control. Rebound." Rebound (CR 702.88) shipped as reusable engine infra
+// (`convex/gre/rebound.ts`, Mechanics Registry `rebound` now `implemented`) —
+// see that module for the full timing model. The blink itself is the #1401
+// "exile(bind) + moveZone(ref, battlefield)" idiom, the SAME-resolution shape
+// (no `delayedTrigger` wrapper — unlike Liberate/Flickerwisp, which delay the
+// return to the next end step, Ephemerate's oracle text has no such delay):
+// `exile` the announced target with a `bind`, then an immediate `moveZone`
+// resolves the bound ref back via `resolveObjectRef`'s exile-zone fallback,
+// returning the card under its OWNER's control by default (no explicit
+// `controller` — matches "under its owner's control"). Cast again from exile
+// at the caster's next upkeep (Rebound), the fresh copy picks a NEW target.
+export const ephemerate: CardDefinition = {
+    id: "2da5f3f8-5eef-498f-ba2c-2f3fbc3745aa",
+    name: "Ephemerate",
+    rarity: "common",
+    oracleText:
+        "Exile target creature you control, then return it to the battlefield under its owner's control. Rebound. (If you cast this spell from your hand, instead of putting it into your graveyard as it resolves, exile it. At the beginning of your next upkeep, you may cast this card from exile without paying its mana cost.)",
+    manaCost: { W: 1 },
+    types: ["Instant"],
+    staticAbilities: ["rebound"],
+    targetRequirement: { type: "Creature", count: 1, controller: "you" },
+    effects: [
+        { op: "exile", target: { target: 0 }, bind: "$c" },
+        { op: "moveZone", target: { ref: "$c" }, to: "battlefield" },
+    ],
+};
 
 // TODO(issue #676 stub — Overload, CR 702.96, is `planned` in
 // mechanicsRegistry.ts: no alternative-cost "change target to each" primitive

@@ -130,6 +130,16 @@ export type Move =
           kind: "madness-decline";
       }
     | {
+          /** Decline a reflexive `rebound-cast` pending choice (CR 702.88c),
+           *  realised through the dedicated `submitReboundDecline` mutation. No
+           *  data travels; the choice identity is read from the active pending
+           *  choice. The ACCEPT ("Cast") is a normal `cast-spell` move on the
+           *  exiled card, never this — the bot's minimal policy always
+           *  declines, mirroring `madness-decline`. Unlike Madness, declining
+           *  leaves the card exiled (no zone change, CR 702.88c). */
+          kind: "rebound-decline";
+      }
+    | {
           /** Name a card for a `name-card` pending choice (CR 202.3 / ADR 0016)
            *  — the bot's legal default when it is targeted by a name-a-card
            *  effect (Petra Sphinx). Realised through the dedicated

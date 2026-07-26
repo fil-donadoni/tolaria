@@ -89,6 +89,7 @@ import {
     markMadnessExiled,
     openMadnessCastWindow,
 } from "./madness";
+import { markReboundExiled, openReboundCastWindow } from "./rebound";
 import { isProtectedFromSource } from "./protection";
 import { isGuardedAgainst } from "./permanentGuard";
 import { getEffectiveBlockGraph } from "./banding";
@@ -972,6 +973,17 @@ export type CardInstanceState = {
      *  cleared by `openMadnessCastWindow` when that trigger resolves. Absent once
      *  the card is castable (window open) or has been binned. Persisted. */
     madnessTriggerPending?: boolean;
+    /** CR 702.88a — true iff this card was exiled by Rebound (a hand-cast
+     *  rebound spell redirected from the graveyard at resolution, see
+     *  `markReboundExiled`, gre/rebound.ts). Rides alongside
+     *  `castableFromExileBy` once the reflexive trigger opens the caster's
+     *  cast window; distinguishes a rebound exile (free recast, CR 702.88a)
+     *  from an Ice-Cauldron-style exile cast (normal cost). Cleared when the
+     *  card is cast to the stack (`removeFromZone`) or when the caster
+     *  declines the window (`declineRebound`) — either way the card "remains
+     *  exiled" (CR 702.88c) but is no longer rebound-tracked. Persisted so it
+     *  survives a DB round-trip. */
+    reboundExiled?: boolean;
     /** CR 702.74a — true iff this permanent was cast for its Evoke cost. Set
      *  on the stack item at cast commit (`convex/game.ts`, when the chosen
      *  alternative cost === `CardDefinition.evoke`) and rides onto the
@@ -1354,6 +1366,15 @@ export type StackItem = CardInstanceState & {
      *  cast window on that card. Distinct from `triggeredAbilityId` (no card-def
      *  ability lookup — the reflexive ability is engine-owned). */
     madnessTrigger?: string;
+    /** CR 702.88a — set on the synthetic reflexive triggered ability a fired
+     *  Rebound delayed trigger puts on the stack (`buildReboundReflexiveTrigger`,
+     *  triggers.ts). Holds the id of the still-exiled rebound card. On
+     *  resolution (`resolveTopOfStackInner`) `openReboundCastWindow` opens the
+     *  caster's single Cast/Decline window on that card. Mirrors
+     *  `madnessTrigger`; distinct because Rebound schedules through the
+     *  DELAYED TRIGGER infra (next-upkeep) rather than an immediate
+     *  event-driven collection. */
+    reboundTrigger?: string;
     /** CR 114 (issue #1221) — set on a triggered ability that fired from a
      *  command-zone emblem (`buildEmblemTriggerItem`, triggers.ts). Holds the
      *  emblem's `emblemId`; `resolveTopOfStack` reads it to resolve the
@@ -1480,6 +1501,14 @@ export type StackItem = CardInstanceState & {
      *  graveyard" clause (Sevinne's Reclamation). The cast site also sets
      *  `exileOnResolve` so the flashback card is exiled as it leaves the stack. */
     castFromGraveyard?: boolean;
+    /** CR 702.88a — true iff this spell has Rebound AND was cast from HAND
+     *  (stamped at cast-commit by `reboundCastStackFlags`, game.ts — the
+     *  gate that makes CR 702.88d "free": an exile recast never carries this
+     *  flag, so it can't rebound again). Read by `finalizeSpellResolution`
+     *  (state.ts): when set, the resolving non-permanent spell is exiled
+     *  instead of graveyarded and a caster-scoped next-upkeep delayed
+     *  trigger is scheduled. */
+    reboundFromHand?: boolean;
     /** Acting Player (ADR 0037): the player who answers this item's resolution
      *  choices, split off from the controller (`castById`) for a controlled
      *  cast (Word of Command — the controller of WoC decides for the opponent
@@ -1533,7 +1562,12 @@ export type DelayedTriggerInstance = {
     oracleText?: string;
     /** For `next-draw-step` and `next-main-phase`: the player whose
      *  draw/main phase fires this trigger (CR 504 / CR 505). Undefined for the
-     *  global-boundary timings. */
+     *  global-boundary timings (which fire on ANY player's step) UNLESS the
+     *  scheduling mechanism is itself caster-scoped — CR 702.88a Rebound's
+     *  "at the beginning of YOUR next upkeep" sets it on an otherwise-global
+     *  `next-upkeep` instance for exactly this reason (`fireDelayedTriggers`'
+     *  match check honors `targetPlayerId` whenever present, regardless of
+     *  timing). */
     targetPlayerId?: string;
     /** For the `leaves-battlefield` timing (CR 603.7a / 603.10): the specific
      *  instance whose `PERMANENT_LEFT` event fires this delayed trigger ("when
@@ -1541,6 +1575,16 @@ export type DelayedTriggerInstance = {
      *  phase-boundary timing. A pending leave-watch expires unfired at CLEANUP
      *  (the "this turn" bound, CR 514.2). */
     watchInstanceId?: string;
+    /** CR 702.88a (Rebound) — marks this delayed trigger as the rebound
+     *  reflexive Cast/Decline window rather than a generic scheduled effect.
+     *  Holds the instance id of the exiled rebound card (in the
+     *  `controller`'s exile). When set, `fireDelayedTriggers` (phases.ts)
+     *  builds a `buildReboundReflexiveTrigger` StackItem (triggers.ts)
+     *  instead of the generic `buildDelayedTriggerStackItem` path — casting a
+     *  spell is not an Op, so this can't run through `delayedEffects` like
+     *  every other delayed trigger. Undefined for every non-rebound
+     *  instance. */
+    reboundCardInstanceId?: string;
 };
 
 /** Tracks an in-progress spell cast during the payment phase (CR 601.2). */
@@ -2498,6 +2542,19 @@ export type GameState = {
      *  Persisted so an owner who saves mid-decision resumes with the window open.
      *  At most one is open at a time (reflexive triggers resolve one by one). */
     madnessCastWindow?: { cardId: string; ownerId: string };
+    /** CR 702.88a — the currently-open Rebound cast window. Set when a
+     *  reflexive rebound trigger resolves (`openReboundCastWindow`,
+     *  gre/rebound.ts): the caster may cast the named exiled card again for
+     *  free while they hold priority; declining leaves it exiled
+     *  (`declineRebound`, CR 702.88c — unlike Madness, NOT a graveyard bin).
+     *  Cleared on cast or decline. Persisted so a caster who saves
+     *  mid-decision resumes with the window open. At most one is open at a
+     *  time (reflexive triggers resolve one by one). Mirrors
+     *  `madnessCastWindow`; a distinct field rather than a shared one because
+     *  the two windows are independently schedulable (a rebound trigger can
+     *  fire turns after its spell resolved, unlike Madness's immediate
+     *  discard-time trigger). */
+    reboundCastWindow?: { cardId: string; ownerId: string };
     /** Active spell payment in progress (CR 601.2). */
     pendingCast?: PendingCast;
     /** Active activated-ability payment in progress (CR 602.1). Mutually
@@ -3755,6 +3812,23 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
         return top;
     }
 
+    // CR 702.88a — the reflexive Rebound cast-trigger, fired by the delayed
+    // trigger infra at the caster's next upkeep. Engine-owned (no card-def
+    // ability), mirroring the Madness branch above: open the caster's single
+    // Cast/Decline window on the still-exiled card, then leave the stack. If
+    // the card is no longer in the caster's exile (an intervening effect
+    // moved it), the trigger simply does nothing (CR 603.10
+    // last-known-information).
+    if (top.reboundTrigger) {
+        const owner = getPlayer(state, top.ownerId);
+        const card = owner.exile.find((c) => c.id === top.reboundTrigger);
+        if (card && card.reboundExiled) {
+            openReboundCastWindow(state, card, top.ownerId);
+        }
+        state.stack.pop();
+        return top;
+    }
+
     const cardId = (top.card as { id?: string }).id;
     // Unknown ids (e.g. synthetic test fixtures) collapse to the vanilla
     // ETB-or-graveyard path. Production stack items always carry registry
@@ -4227,6 +4301,7 @@ function resetStackTransientState(item: StackItem): void {
     delete item.triggerEvent;
     delete item.abilityResolutionRecorded;
     delete item.madnessTrigger;
+    delete item.reboundTrigger;
     delete item.emblemSourceId;
     delete item.stormSnapshot;
     delete item.stormCopiesRemaining;
@@ -4240,6 +4315,7 @@ function resetStackTransientState(item: StackItem): void {
     delete item.exileOnResolve;
     delete item.shuffleIntoLibraryOnResolve;
     delete item.castFromGraveyard;
+    delete item.reboundFromHand;
     delete item.actingPlayerId;
 }
 
@@ -4509,6 +4585,45 @@ function finalizeSpellResolution(
             // identically to a normal post-search shuffle.
             seededShuffle(state, owner.library);
             clearKnowledge(owner.library, null);
+            return;
+        }
+        // CR 702.88a — Rebound: a spell cast from HAND (the from-hand gate,
+        // `reboundFromHand`, is stamped ONLY at a hand-cast commit —
+        // `reboundCastStackFlags`, game.ts) is exiled instead of graveyarded
+        // as it resolves, and a caster-scoped `next-upkeep` delayed trigger
+        // is scheduled for its reflexive Cast/Decline window. Checked before
+        // `exileOnResolve` — the two redirects are mutually exclusive in
+        // practice (no shipped card combines Rebound with a self-exile
+        // instruction).
+        if (item.reboundFromHand) {
+            // CR 702.88d — the flag is consumed HERE, not just gated at the
+            // cast site: this same CardInstanceState object is the one the
+            // later exile recast re-pushes onto the stack (`removeFromZone`
+            // clears `reboundExiled` but nothing sets/reads `reboundFromHand`
+            // again), so a stale `true` left on it would silently re-exile
+            // the recast and rebound forever. Deleting it here is what makes
+            // "no second rebound" actually hold.
+            delete item.reboundFromHand;
+            markReboundExiled(item);
+            item.zone = "exile";
+            owner.exile.push(item);
+            state.nextDelayedSeq = (state.nextDelayedSeq ?? 0) + 1;
+            state.delayedTriggers = [
+                ...(state.delayedTriggers ?? []),
+                {
+                    id: `delayed-${state.nextDelayedSeq}`,
+                    sourceCardId: (item.card as { id?: string }).id ?? "",
+                    triggerId: "rebound",
+                    controller: item.castById,
+                    timing: "next-upkeep",
+                    // CR 702.88a — "at the beginning of YOUR next upkeep":
+                    // caster-scoped, unlike the global (any-upkeep) Ice Age
+                    // cantrip rider.
+                    targetPlayerId: item.castById,
+                    payload: {},
+                    reboundCardInstanceId: item.id,
+                },
+            ];
             return;
         }
         // CR 608.2 — a spell that instructs "Exile <this spell>" as part of its
@@ -13837,6 +13952,11 @@ export function removeFromZone(
     // behind (it is no longer a discarded-and-exiled card once it is on the
     // stack); clear it so a later bounce/exile never re-reads it.
     delete card.madnessExiled;
+    // CR 702.88a — a rebound card recast from exile leaves the rebound marker
+    // behind (it is no longer a rebound-exiled card once it is on the stack —
+    // and CR 702.88d means it can never rebound again regardless); clear it
+    // so a later bounce/exile never re-reads it.
+    delete card.reboundExiled;
     return card;
 }
 

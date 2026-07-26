@@ -279,6 +279,17 @@ export type DividePilesKind = "divide-piles" | "pick-pile";
  *  cast by accidentally passing priority. */
 export type MadnessCastChoiceKind = "madness-cast";
 
+/** Reflexive Rebound cast-choice (CR 702.88a). A yes/no-shaped decision —
+ *  "cast this spell again from exile without paying its mana cost, or leave
+ *  it exiled" — raised when the rebound reflexive trigger resolves
+ *  (`openReboundCastWindow`, gre/rebound.ts). A PARALLEL family to
+ *  `MadnessCastChoiceKind` (same stackless shape, same Cast/Decline UI, same
+ *  Model A plumbing) — kept as its own kind rather than folded into
+ *  `madness-cast` to avoid renaming shipped code (gre-development.md §
+ *  DSL-first authoring). Unlike Madness's decline (→ graveyard), Rebound's
+ *  decline leaves the card exiled (CR 702.88c) — no zone change. */
+export type ReboundCastChoiceKind = "rebound-cast";
+
 /** Draw-replacement pay-choice (CR 614, ADR 0061 — Zur's Weirding). When an
  *  affected player would draw under an interactive draw replacement, the
  *  would-be-drawn card is revealed and any OTHER player may pay life to put it
@@ -304,4 +315,5 @@ export type PendingChoiceKind =
     | RandomRevealKind
     | DividePilesKind
     | MadnessCastChoiceKind
+    | ReboundCastChoiceKind
     | DrawReplacementChoiceKind;

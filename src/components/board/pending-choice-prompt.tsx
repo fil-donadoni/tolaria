@@ -58,6 +58,7 @@ export default function PendingChoicePrompt({
         api.game.submitDrawReplacementPay
     );
     const submitMadnessDecline = useMutation(api.game.submitMadnessDecline);
+    const submitReboundDecline = useMutation(api.game.submitReboundDecline);
     const announceCast = useMutation(api.game.announceCast);
     const submitNameCard = useMutation(api.game.submitNameCard);
     const submitResolutionChoice = useMutation(api.game.submitResolutionChoice);
@@ -88,6 +89,13 @@ export default function PendingChoicePrompt({
         isMadnessCast && choice.cost
             ? formatOracleText(mayPayCostLabel(choice.cost))
             : null;
+    // CR 702.88a — reflexive Rebound cast-choice: same two-button Cast/Decline
+    // UI as Madness above (Cast fires the ordinary announceCast, which
+    // consumes this choice; Decline routes through its own mutation — the
+    // card remains exiled rather than binning to the graveyard). Rebound's
+    // recast is always free, so there is no cost to display.
+    const isReboundCast = choice.kind === "rebound-cast";
+    const isReflexiveCastChoice = isMadnessCast || isReboundCast;
     // ADR 0053 pile division (`divide-piles` / `pick-pile`) is NOT handled here:
     // the chooser's surface is owned by `PileDivisionPicker` (this component
     // returns null for the chooser of those kinds, above); the non-chooser gets
@@ -265,7 +273,7 @@ export default function PendingChoicePrompt({
                                     />
                                 </div>
                             )}
-                            {isMadnessCast ? (
+                            {isReflexiveCastChoice ? (
                                 <div className="flex gap-2 mt-1">
                                     <Button
                                         type="button"
@@ -280,10 +288,12 @@ export default function PendingChoicePrompt({
                                                 return;
                                             setIsBusy(true);
                                             try {
-                                                // CR 702.35d — accept: cast the
-                                                // exiled card via the ordinary cast
-                                                // path (consumes this choice server-
-                                                // side, then runs targets/mana).
+                                                // CR 702.35d / 702.88a — accept:
+                                                // cast the exiled card via the
+                                                // ordinary cast path (consumes
+                                                // this choice server-side, then
+                                                // runs targets/mana — Rebound's
+                                                // recast pays no mana).
                                                 await announceCast({
                                                     gameId,
                                                     playerId,
@@ -311,12 +321,27 @@ export default function PendingChoicePrompt({
                                             if (isBusy) return;
                                             setIsBusy(true);
                                             try {
-                                                // CR 702.35d — decline: send the card
-                                                // to the graveyard.
-                                                await submitMadnessDecline({
-                                                    gameId,
-                                                    playerId,
-                                                });
+                                                if (isReboundCast) {
+                                                    // CR 702.88c — decline:
+                                                    // the card remains exiled
+                                                    // (no zone change).
+                                                    await submitReboundDecline(
+                                                        {
+                                                            gameId,
+                                                            playerId,
+                                                        }
+                                                    );
+                                                } else {
+                                                    // CR 702.35d — decline:
+                                                    // send the card to the
+                                                    // graveyard.
+                                                    await submitMadnessDecline(
+                                                        {
+                                                            gameId,
+                                                            playerId,
+                                                        }
+                                                    );
+                                                }
                                             } finally {
                                                 setIsBusy(false);
                                             }

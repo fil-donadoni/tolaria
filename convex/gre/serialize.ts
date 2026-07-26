@@ -293,6 +293,12 @@ function compactCard(
     if (card.madnessTriggerPending) {
         out.madnessTriggerPending = card.madnessTriggerPending;
     }
+    // CR 702.88a — the rebound-exile marker on a resolved-from-hand card must
+    // survive a save/load so the reflexive cast window stays consistent while
+    // it awaits its next-upkeep delayed trigger (possibly turns away).
+    if (card.reboundExiled) {
+        out.reboundExiled = card.reboundExiled;
+    }
     // CR 702.74a — the Evoke cast marker must survive a save/load between the
     // cast committing and the "sacrifice if evoked" trigger resolving.
     if (card.evoked) {
@@ -590,6 +596,10 @@ function expandCard(
     // CR 702.35d — restore the pending-reflexive-trigger marker.
     if (compact.madnessTriggerPending) {
         result.madnessTriggerPending = compact.madnessTriggerPending as boolean;
+    }
+    // CR 702.88a — restore the rebound-exile marker.
+    if (compact.reboundExiled) {
+        result.reboundExiled = compact.reboundExiled as boolean;
     }
     // CR 702.74a — restore the Evoke cast marker.
     if (compact.evoked) {
@@ -906,6 +916,9 @@ function compactStackItem(item: StackItem): CompactCard {
     // CR 702.35d — the reflexive Madness cast-trigger marker (the exiled card's
     // id) must survive a save/load while the trigger sits on the stack.
     if (item.madnessTrigger) base.madnessTrigger = item.madnessTrigger;
+    // CR 702.88a — the reflexive Rebound cast-trigger marker (the exiled card's
+    // id) must survive a save/load while the trigger sits on the stack.
+    if (item.reboundTrigger) base.reboundTrigger = item.reboundTrigger;
     // Storm (CR 702.40, ADR 0052) — the cast-trigger's detached snapshot and
     // remaining-copies counter must survive a save/load while the trigger
     // sits on the stack awaiting priority (or a per-copy retarget answer).
@@ -963,6 +976,10 @@ function compactStackItem(item: StackItem): CompactCard {
     // cast from a graveyard" resolution (Sevinne's Reclamation) survives a DB
     // round-trip mid-resolution.
     if (item.castFromGraveyard) base.castFromGraveyard = item.castFromGraveyard;
+    // CR 702.88a — persist the Rebound from-hand marker so the exile
+    // redirect + delayed-trigger scheduling survives a DB round-trip
+    // mid-resolution.
+    if (item.reboundFromHand) base.reboundFromHand = item.reboundFromHand;
     // Acting Player (ADR 0037): persist the controlled-cast override so a
     // suspended Word of Command resolution survives a DB round-trip.
     if (item.actingPlayerId) base.actingPlayerId = item.actingPlayerId;
@@ -1018,6 +1035,10 @@ function expandStackItem(compact: CompactCard): StackItem {
     // CR 702.35d — restore the reflexive Madness cast-trigger marker.
     if (compact.madnessTrigger) {
         item.madnessTrigger = compact.madnessTrigger as string;
+    }
+    // CR 702.88a — restore the reflexive Rebound cast-trigger marker.
+    if (compact.reboundTrigger) {
+        item.reboundTrigger = compact.reboundTrigger as string;
     }
     // Storm (CR 702.40, ADR 0052) — rehydrate the cast-trigger's detached
     // snapshot (recursing through this same expander) and remaining-copies
@@ -1088,6 +1109,9 @@ function expandStackItem(compact: CompactCard): StackItem {
     if (compact.castFromGraveyard) {
         item.castFromGraveyard = compact.castFromGraveyard as boolean;
     }
+    if (compact.reboundFromHand) {
+        item.reboundFromHand = compact.reboundFromHand as boolean;
+    }
     // CR 702.138e — rehydrate the escaped marker mid-resolution so the resulting
     // permanent still reads as having escaped.
     if (compact.escaped) {
@@ -1157,6 +1181,11 @@ export const PERSISTED_OPTIONAL_KEYS = [
     // owner owes a cast-or-decline decision (itself a stable save point), so it
     // must survive the DB round-trip. Undefined at a fully-resolved point.
     "madnessCastWindow",
+    // CR 702.88a — the open Rebound cast window. Transiently set only while
+    // its caster owes a cast-or-decline decision (itself a stable save
+    // point), so it must survive the DB round-trip. Undefined at a
+    // fully-resolved point.
+    "reboundCastWindow",
     "damageDealtToPlayerThisTurn",
     "artifactDamageToPlayerThisTurn",
     // CR 119.3 per-turn life-gain tally (issue #1457) — read by "if you gained

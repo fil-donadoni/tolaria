@@ -165,3 +165,37 @@ describe("PendingChoicePrompt — madness-cast (CR 702.35d)", () => {
         expect(getByText(/Waiting for/)).toBeTruthy();
     });
 });
+
+describe("PendingChoicePrompt — rebound-cast (CR 702.88a)", () => {
+    // Parallel to madness-cast above: same two-button Cast/Decline UI, no
+    // cost symbols shown (Rebound's recast is always free — `cost` is
+    // omitted, unlike Madness's `{}`).
+    const reboundChoice = (playerId: string): PendingChoice =>
+        ({
+            stackItemId: "",
+            step: 0,
+            choiceId: "rebound-cast-c1",
+            playerId,
+            kind: "rebound-cast",
+            cardInstanceId: "c1",
+            subjectCardId: "ephemerate",
+            count: 1,
+            prompt: "Cast Ephemerate again from exile without paying its mana cost, or leave it exiled?",
+        }) as PendingChoice;
+
+    it("renders Cast + Decline buttons for the caster", () => {
+        const { getByText } = renderPrompt(reboundChoice("me"), "me");
+        expect(getByText("Cast")).toBeTruthy();
+        expect(getByText("Decline")).toBeTruthy();
+    });
+
+    it("shows only the waiting banner (no buttons) for the opponent", () => {
+        const { queryByText, getByText } = renderPrompt(
+            reboundChoice("opponent"),
+            "me"
+        );
+        expect(queryByText("Cast")).toBeNull();
+        expect(queryByText("Decline")).toBeNull();
+        expect(getByText(/Waiting for/)).toBeTruthy();
+    });
+});

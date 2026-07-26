@@ -2736,6 +2736,12 @@
         "firstSet": "ody"
     },
     {
+        "name": "Ephemerate",
+        "scryfallId": "2da5f3f8-5eef-498f-ba2c-2f3fbc3745aa",
+        "oracleId": "0fd57894-b917-41c8-a394-360d1d31b236",
+        "firstSet": "mh1"
+    },
+    {
         "name": "Equinox",
         "scryfallId": "840c6586-a7a9-4ae8-96be-a995a0693eb6",
         "oracleId": "0fa2cb01-476e-4e82-94e6-9639e53a7743",

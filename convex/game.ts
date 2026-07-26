@@ -115,6 +115,11 @@ import {
     declineMadness,
     consumeMadnessCastChoice,
 } from "./gre/madness";
+import {
+    hasRebound,
+    declineRebound,
+    consumeReboundCastChoice,
+} from "./gre/rebound";
 import { assertDeckLegal, type ResolvePool } from "./formats";
 import { loadBanlistOverrides } from "./banlists";
 import {
@@ -1611,6 +1616,23 @@ export function graveyardCastStackFlags(
     return { castFromGraveyard: true };
 }
 
+/** CR 702.88a — the stack-item flag a Rebound cast adds: `reboundFromHand`,
+ *  read by `finalizeSpellResolution` (state.ts) to redirect the resolving
+ *  spell to exile (instead of the graveyard) and schedule its next-upkeep
+ *  reflexive Cast/Decline trigger. Gated on BOTH the card having rebound AND
+ *  the cast originating from HAND — this single gate is what makes CR
+ *  702.88d free: the later exile recast has `zone === "exile"`, so it never
+ *  re-stamps the flag and can never rebound again. Empty for every other
+ *  cast (a card with no rebound, or a rebound card recast from exile/
+ *  graveyard). Exported for symmetry with `flashbackStackFlags` / a future
+ *  integration test. */
+export function reboundCastStackFlags(
+    card: CardInstanceState,
+    zone: CastFromZone
+): { reboundFromHand?: true } {
+    return zone === "hand" && hasRebound(card) ? { reboundFromHand: true } : {};
+}
+
 /** The mana cost a cast pays: the Escape cost or Flashback cost when cast from
  *  the graveyard (CR 702.138a / 702.34a — "rather than paying its mana cost"),
  *  the card's normal printed mana cost under the BROAD graveyard-cast
@@ -2488,6 +2510,7 @@ export function tryAutoCommitPendingCast(
         // lands on the stack item once mana is covered / the picker completes.
         ...(state.pendingCast.dashed ? { dashed: true } : {}),
         ...graveyardCastStackFlags(state, spellCard, castFromZone),
+        ...reboundCastStackFlags(spellCard, castFromZone),
     };
     state.stack.push(stackItem);
 
@@ -4926,6 +4949,7 @@ export function finalizeTargetSelection(
             ...(isEvokeCost ? { evoked: true } : {}),
             ...(isDashCost ? { dashed: true } : {}),
             ...graveyardCastStackFlags(state, card, castZone),
+            ...reboundCastStackFlags(card, castZone),
         };
         state.stack.push(stackItem);
         state.passCount = 0;
@@ -5239,6 +5263,10 @@ export const announceCast = mutation({
         // window's own card, cast by its owner, consumes it; any other action
         // leaves the choice pending (the owner can still Decline it).
         consumeMadnessCastChoice(state, args.playerId, args.cardInstanceId);
+        // CR 702.88a — the caster accepted the reflexive Rebound cast-choice
+        // by casting the exiled card: same early-consume shape as Madness
+        // above, so the pending choice doesn't block the priority gate below.
+        consumeReboundCastChoice(state, args.playerId, args.cardInstanceId);
 
         assertExpectedInput(state, {
             playerId: args.playerId,
@@ -5943,6 +5971,7 @@ export const announceCast = mutation({
                     ? { additionalSacrificeSnapshot }
                     : {}),
                 ...graveyardCastStackFlags(state, card, castFromZone),
+                ...reboundCastStackFlags(card, castFromZone),
             };
             state.stack.push(stackItem);
             state.passCount = 0;
@@ -9552,6 +9581,51 @@ export const submitMadnessDecline = mutation({
         }
 
         declineMadness(state);
+        // CR 117.3c — the reflexive ability is done; priority returns to the
+        // active player. Drain any standing auto-pass so the game settles (and,
+        // during a CR 514.3 cleanup window, leaves CLEANUP to the next turn).
+        state.priorityPlayerId = state.activePlayerId;
+        state.passCount = 0;
+        drainAutoPasses(state);
+        checkStateBasedActions(state);
+
+        const nextSeq = gameState.seq + 1;
+        await saveGameState(ctx, args.gameId, nextSeq, state, gameState);
+        await finalizeGameOver(ctx, args.gameId, nextSeq, state);
+    },
+});
+
+/** CR 702.88c — declines a reflexive `rebound-cast` choice: the card "remains
+ *  exiled" — NO zone change, unlike Madness's decline (which bins to the
+ *  graveyard). The ACCEPT ("Cast") is NOT here — the client fires the
+ *  ordinary `announceCast` on the exiled card, which consumes the choice and
+ *  runs the normal (free) cast flow. This mutation is the decline-only
+ *  counterpart, mirroring `submitMadnessDecline`. */
+export const submitReboundDecline = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+    },
+    handler: async (ctx, args) => {
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
+
+        const state = structuredClone(gameState.state) as GameState;
+        assertGameNotOver(state);
+        assertExpectedInput(state, {
+            playerId: args.playerId,
+            expect: "choice",
+        });
+        const head = state.pendingChoices?.[0];
+        if (
+            !head ||
+            head.kind !== "rebound-cast" ||
+            head.playerId !== args.playerId
+        ) {
+            throw new Error("No rebound cast choice to decline");
+        }
+
+        declineRebound(state);
         // CR 117.3c — the reflexive ability is done; priority returns to the
         // active player. Drain any standing auto-pass so the game settles (and,
         // during a CR 514.3 cleanup window, leaves CLEANUP to the next turn).

@@ -62,6 +62,7 @@ import {
     collectTriggers,
     buildDelayedTriggerStackItem,
     buildMonarchDrawStackItem,
+    buildReboundReflexiveTrigger,
     placeTriggersOnStack,
 } from "./triggers";
 import { hasAnyLegalBlock, getRequiredAttackerIds } from "./combat";
@@ -1752,6 +1753,26 @@ export function fireDelayedTriggers(
     state.delayedTriggers = remaining.length > 0 ? remaining : undefined;
     if (firing.length === 0) return;
     for (const t of firing) {
+        // CR 702.88a — Rebound's reflexive Cast/Decline trigger is NOT a
+        // generic scheduled effect (casting a spell is not an Op): build the
+        // dedicated reflexive StackItem instead of running `delayedEffects`.
+        // The card may have left the caster's exile since scheduling (an
+        // intervening effect) — in that case there is nothing to build; the
+        // trigger simply doesn't fire (CR 603.10 last-known-information),
+        // mirroring the same check `resolveTopOfStackInner`'s madness/rebound
+        // branches make when the trigger RESOLVES.
+        if (t.reboundCardInstanceId) {
+            const owner = getPlayer(state, t.controller);
+            const card = owner.exile.find(
+                (c) => c.id === t.reboundCardInstanceId && c.reboundExiled
+            );
+            if (card) {
+                state.stack.push(
+                    buildReboundReflexiveTrigger(state, card, t.controller)
+                );
+            }
+            continue;
+        }
         state.stack.push(buildDelayedTriggerStackItem(state, t));
     }
     state.priorityPlayerId = state.activePlayerId;

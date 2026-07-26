@@ -760,6 +760,20 @@ export function botActionToMove(
             }
             return { kind: "madness-decline" };
         }
+        case "rebound-decline": {
+            // CR 702.88c — routes through `submitReboundDecline` (decline the
+            // reflexive Rebound cast-choice — the card remains exiled). No
+            // data travels; the server reads the head choice and validates it.
+            const head = state.pendingChoices?.[0];
+            if (
+                !head ||
+                head.kind !== "rebound-cast" ||
+                head.playerId !== botId
+            ) {
+                return null;
+            }
+            return { kind: "rebound-decline" };
+        }
         // Realised by the driver directly (Worker search / confirmDamage /
         // attack-tax pay-cancel / no-op), never translated to a Move here.
         // `search-choice` in particular carries no answer of its own — the

@@ -130,7 +130,12 @@ export type ChoiceAction =
     /** Decline a reflexive `madness-cast` choice (`submitMadnessDecline`,
      *  CR 702.35d) — the card goes to the graveyard. The ACCEPT ("Cast") is a
      *  normal cast action on the exiled card, not a choice action. */
-    | { kind: "submit-madness-decline" };
+    | { kind: "submit-madness-decline" }
+    /** Decline a reflexive `rebound-cast` choice (`submitReboundDecline`, CR
+     *  702.88c) — the card remains exiled (no zone change, unlike Madness's
+     *  decline). The ACCEPT ("Cast") is a normal cast action on the exiled
+     *  card, not a choice action. */
+    | { kind: "submit-rebound-decline" };
 
 /** Actions legal while the game waits for `target` input — mid-cast /
  *  mid-activation target selection (CR 601.2c / 602.2b). */
@@ -309,6 +314,14 @@ function choiceActions(
     // card, enumerated as a priority-window `cast-spell` move, not here.
     if (head.kind === "madness-cast") {
         return [wrap({ kind: "submit-madness-decline" })];
+    }
+
+    // CR 702.88a — reflexive Rebound cast-choice: the only choice-action is to
+    // DECLINE (the card remains exiled). The ACCEPT ("Cast") is a normal cast
+    // of the exiled card, enumerated as a priority-window `cast-spell` move,
+    // not here. Mirrors `madness-cast` above.
+    if (head.kind === "rebound-cast") {
+        return [wrap({ kind: "submit-rebound-decline" })];
     }
 
     const submit = (cardInstanceIds: string[]): LegalAction =>
