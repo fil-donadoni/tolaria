@@ -577,8 +577,10 @@ const KEYWORD_ACTIONS: MechanicRow[] = [
         name: "Incubate",
         kind: "keyword-action",
         cr: "701.53",
-        status: "planned",
-        note: "Both engine gaps confirmed in #924 are now CLOSED by #1210: (1) permanent-level transform/DFC machinery (CardDefinition.backFace / TokenSpec.backFace, the transformed/transformedFrom face flag, transformPermanent, the `transform` Effect Op — CR 712, ADR 0067); (2) TokenSpec/EffectTokenSpec.entersWith.counters for dynamic counters-at-creation (token-scoped activatedAbilities already shipped, issue #778/#1191). Still `planned`: Incubate N itself as a keyword action (create-token-with-backFace-and-counters composition) and the Incubator token definition are not yet wired to a card — left for #924. Blocks Sunfall (convex/cards/sets/mom/white.ts, stub id 32e29c7d-ed4b-4eff-b3c2-d99e5b63ef8d).",
+        status: "implemented",
+        binding:
+            "createToken Op + makeIncubatorTokenSpec/incubateOp (cards/abilities/tokens/incubatorToken.ts)",
+        note: 'Both engine gaps confirmed in #924 were CLOSED by #1210: (1) permanent-level transform/DFC machinery (CardDefinition.backFace / TokenSpec.backFace, the transformed/transformedFrom face flag, transformPermanent, the `transform` Effect Op — CR 712, ADR 0067); (2) TokenSpec/EffectTokenSpec.entersWith.counters for dynamic counters-at-creation (token-scoped activatedAbilities already shipped, issue #778/#1191). #924 wires the remaining composition: `incubateOp(N)` is `{ op: "createToken", token: makeIncubatorTokenSpec(N), controller }` — a front-face colorless Artifact "Incubator" token with N +1/+1 counters and "{2}: Transform this artifact.", whose backFace is a 0/0 colorless Phyrexian artifact creature token. N accepts any `EffectValue` (a literal or a dynamic `count` construct), unblocking Sunfall\'s "Incubate X, where X is the number of creatures exiled this way" (convex/cards/sets/mom/white.ts).',
     },
     // 701.54 The Ring Tempts You
     {
