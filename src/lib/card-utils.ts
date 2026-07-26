@@ -1,4 +1,11 @@
-import type { CardInstance, ManaPool, PendingCast, Player } from "~/types/game";
+import type {
+    CardInstance,
+    GenericSpendAmbiguity,
+    ManaPool,
+    PendingActivation,
+    PendingCast,
+    Player,
+} from "~/types/game";
 import type { CardType, Color, ManaCost } from "~/types/cards";
 import type { Phase } from "@convex/gre/types";
 import type {
@@ -100,6 +107,39 @@ export function pendingCastHasImprovise(
  *  never offers a tap the mutation would reject. */
 export function pendingCastRemainingGeneric(pendingCast: PendingCast): number {
     return pendingCast.manaCost.X ?? 0;
+}
+
+/** CR 601.2g — the generic-mana spend choice (if any) parked on THIS viewer's
+ *  `pendingCast`/`pendingActivation`, and which container holds it. Mirrors
+ *  the server's `findActiveManaSpendChoice` (convex/game.ts) over the
+ *  wire-projected state, so the board can decide whether to render
+ *  `ManaSpendChoiceDialog` without a round trip. `manaSpendChoice` is only
+ *  ever set once every OTHER payment gate (sacrifice/exile/alt-cost pickers)
+ *  has cleared — it is the LAST finalize-point check
+ *  (`tryAutoCommitPendingCast`/`tryAutoCommitPendingActivation`) — so at most
+ *  one container is realistically active at a time; the cast-before-activation
+ *  check order below is just a stable pick, not a real race. */
+export function activeManaSpendChoice(
+    pendingCast: PendingCast | undefined,
+    pendingActivation: PendingActivation | undefined,
+    viewerId: string
+):
+    | { container: "cast"; choice: GenericSpendAmbiguity }
+    | { container: "activation"; choice: GenericSpendAmbiguity }
+    | null {
+    if (pendingCast?.playerId === viewerId && pendingCast.manaSpendChoice) {
+        return { container: "cast", choice: pendingCast.manaSpendChoice };
+    }
+    if (
+        pendingActivation?.playerId === viewerId &&
+        pendingActivation.manaSpendChoice
+    ) {
+        return {
+            container: "activation",
+            choice: pendingActivation.manaSpendChoice,
+        };
+    }
+    return null;
 }
 
 /** CR 302.1 — a creature with summoning sickness cannot pay the {T} or {Q}

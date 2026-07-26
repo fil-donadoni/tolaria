@@ -59,6 +59,8 @@ import ExileCostDialog from "./exile-cost-dialog";
 import CastExileCostDialog from "./cast-exile-cost-dialog";
 import DiscardCostDialog from "./discard-cost-dialog";
 import CastAlternativeHandCostDialog from "./cast-alternative-hand-cost-dialog";
+import ManaSpendChoiceDialog from "./mana-spend-choice-dialog";
+import { activeManaSpendChoice } from "~/lib/card-utils";
 import { isGraveyardTargetForViewer } from "~/lib/graveyard-targets";
 import PaymentBanner from "./payment-banner";
 import SacrificeBanner from "./sacrifice-banner";
@@ -311,6 +313,15 @@ export default function Board({
     const turn = activePlayer?.turnsTaken ?? state.turn ?? 1;
     const pendingCast = state.pendingCast;
     const pendingActivation = state.pendingActivation;
+    // CR 601.2g — the generic-mana spend choice (if any) parked on THIS
+    // viewer's pendingCast/pendingActivation; renders ManaSpendChoiceDialog
+    // ahead of the ordinary PaymentBanner below (it is the LAST finalize-point
+    // gate, so mana is already tapped/floating by the time it's set).
+    const manaSpendChoice = activeManaSpendChoice(
+        pendingCast,
+        pendingActivation,
+        viewerId
+    );
     const autoPassPlayers = state.autoPassPlayers;
     const queuedEndTurn = state.queuedEndTurn;
     const combat = state.combat;
@@ -642,13 +653,27 @@ export default function Board({
                                         ))}
                                     {pendingCast &&
                                         pendingCast.playerId === viewerId &&
-                                        // CR 702.34a / 118.5 — the flashback "exile X
+                                        // CR 601.2g — the generic-mana spend
+                                        // choice is the LAST payment gate
+                                        // (mana is already tapped/floating by
+                                        // the time it's set), so it takes
+                                        // precedence over every other picker
+                                        // below and the payment banner.
+                                        (manaSpendChoice?.container ===
+                                        "cast" ? (
+                                            <ManaSpendChoiceDialog
+                                                choice={manaSpendChoice.choice}
+                                                container="cast"
+                                                gameId={gameId}
+                                                playerId={viewerId}
+                                            />
+                                        ) : // CR 702.34a / 118.5 — the flashback "exile X
                                         // blue cards from your graveyard" cost (Flash of
                                         // Insight) needs a dedicated card picker before
                                         // the payment banner takes over.
-                                        (pendingCast.exileFromGraveyardChoice &&
-                                        !pendingCast.exileFromGraveyardChoice
-                                            .pickedCardIds ? (
+                                        pendingCast.exileFromGraveyardChoice &&
+                                          !pendingCast.exileFromGraveyardChoice
+                                              .pickedCardIds ? (
                                             <CastExileCostDialog
                                                 choice={
                                                     pendingCast.exileFromGraveyardChoice
@@ -685,13 +710,23 @@ export default function Board({
                                     {pendingActivation &&
                                         pendingActivation.playerId ===
                                             viewerId &&
-                                        // CR 602.1 / 118.5 — the exile-from-graveyard
+                                        // CR 601.2g — same precedence rule as
+                                        // the cast branch above.
+                                        (manaSpendChoice?.container ===
+                                        "activation" ? (
+                                            <ManaSpendChoiceDialog
+                                                choice={manaSpendChoice.choice}
+                                                container="activation"
+                                                gameId={gameId}
+                                                playerId={viewerId}
+                                            />
+                                        ) : // CR 602.1 / 118.5 — the exile-from-graveyard
                                         // cost (Night Soil) needs a dedicated card
                                         // picker before the payment banner takes over.
-                                        (pendingActivation.exileFromGraveyardChoice &&
-                                        !pendingActivation
-                                            .exileFromGraveyardChoice
-                                            .pickedCardIds ? (
+                                        pendingActivation.exileFromGraveyardChoice &&
+                                          !pendingActivation
+                                              .exileFromGraveyardChoice
+                                              .pickedCardIds ? (
                                             <ExileCostDialog
                                                 choice={
                                                     pendingActivation.exileFromGraveyardChoice
