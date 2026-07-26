@@ -928,6 +928,19 @@ function resolveObjectRef(
     if (ownerId && ctx.getHandCards(ownerId).some((c) => c.id === id)) {
         return { type: "hand-card", id, playerId: ownerId };
     }
+    // CR 608.2h (issue #1401) — the "blink" shape: an `exile` Op's own `bind`
+    // snapshots the card BEFORE it moves (see `exile` below), so the ref
+    // still names it after it lands in exile. Neither battlefield presence
+    // nor the hand fallback above find it there, so check exile last before
+    // giving up. Returned as the generic "card sitting in a non-battlefield
+    // zone" carrier (`graveyard-card` — see `moveZone`'s target-shape
+    // comment); `moveZone`'s `to: "battlefield"` branch re-derives the
+    // ACTUAL zone (exile vs. graveyard) at the point it calls
+    // `returnToBattlefield`, so this carrier choice is not mis-zoned.
+    const exileOwnerId = ctx.getExileCardOwner(id);
+    if (exileOwnerId) {
+        return { type: "graveyard-card", id, playerId: exileOwnerId };
+    }
     return undefined;
 }
 
@@ -1937,6 +1950,21 @@ export const OP_EXECUTORS: {
         if (target.type === "graveyard-card") {
             const owner = target.playerId;
             if (owner === undefined) return; // CR 608.2b — zone owner unknown
+            // issue #1401 — the "blink" shape: `resolveObjectRef`'s own
+            // exile-zone fallback (above) resolves an `exile` Op's bind
+            // directly, with no explicit `from`, so `recoveredZone` is still
+            // sitting at its "graveyard" default. Re-derive it from where the
+            // card is ACTUALLY sitting so `returnToBattlefield`/`moveCardById`
+            // below target the right pile — a real graveyard-card target
+            // (the historical inferred/#1469-explicit paths) leaves this a
+            // no-op since it's already found there.
+            if (
+                recoveredZone === "graveyard" &&
+                ctx.getGraveyardCardOwner(target.id) === undefined &&
+                ctx.getExileCardOwner(target.id) !== undefined
+            ) {
+                recoveredZone = "exile";
+            }
             // Snapshot BEFORE the move (issue #680) — a later `ref` reads the
             // reanimated card's mana value even after it changes zone/id
             // context (Reanimate: "lose life equal to that card's mana
@@ -1968,10 +1996,11 @@ export const OP_EXECUTORS: {
                 }
                 return;
             }
-            // A plain graveyard → hand/library/exile/graveyard move by id
-            // (Raise Dead, Grave Robbers). `battlefield` was handled above, so
-            // the destination here is a MovableZone.
-            ctx.moveCardById(owner, target.id, "graveyard", op.to);
+            // A plain graveyard/exile → hand/library/exile/graveyard move by
+            // id (Raise Dead, Grave Robbers). `battlefield` was handled
+            // above, so the destination here is a MovableZone; `recoveredZone`
+            // (re-derived above) is the source, not a hardcoded "graveyard".
+            ctx.moveCardById(owner, target.id, recoveredZone, op.to);
         }
     },
     // CR 613.4c (issue #840) — a temporary P/T modification expiring at a phase
