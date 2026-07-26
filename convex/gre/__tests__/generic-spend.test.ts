@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { genericSpendAmbiguity, payManaCost } from "../state";
+import {
+    genericSpendAmbiguity,
+    genericSpendAmbiguityForPayment,
+    payManaCost,
+} from "../state";
 
 // ---------------------------------------------------------------------------
 // Generic-mana spend — core primitives (CR 601.2g: the player chooses which
@@ -118,5 +122,59 @@ describe("payManaCost generic spend-order (CR 601.2g)", () => {
         payManaCost(pool, { X: 1, W: 1 }, [], ["U"]);
         expect(pool.W).toBe(0); // colored W consumed
         expect(pool.U).toBe(1); // 1 generic from U
+    });
+});
+
+describe("genericSpendAmbiguityForPayment (CR 601.2g — finalize-point bridge)", () => {
+    it("returns null when there is no generic cost", () => {
+        // {U}: colored only — no generic choice.
+        expect(
+            genericSpendAmbiguityForPayment(
+                { ...emptyPool(), U: 1, G: 1 },
+                {
+                    U: 1,
+                }
+            )
+        ).toBe(null);
+    });
+
+    it("flags the ambiguous case AFTER colored pips are settled", () => {
+        // {1}{W} with pool {W:1,U:1,G:1}: the W pip settles first, leaving
+        // {U:1,G:1} to pay the {1} generic → spend U leaves {G}, spend G leaves
+        // {U}: meaningful choice.
+        const result = genericSpendAmbiguityForPayment(
+            { ...emptyPool(), W: 1, U: 1, G: 1 },
+            { X: 1, W: 1 }
+        );
+        expect(result).not.toBe(null);
+        expect(result!.generic).toBe(1);
+        expect(result!.candidateColors).toEqual(["U", "G"]);
+    });
+
+    it("returns null when the colored phase drains a would-be candidate", () => {
+        // {1}{U} with pool {U:1,G:1}: the U pip eats the only U, leaving {G:1}
+        // for the {1} generic → a single source, no choice.
+        expect(
+            genericSpendAmbiguityForPayment(
+                { ...emptyPool(), U: 1, G: 1 },
+                {
+                    X: 1,
+                    U: 1,
+                }
+            )
+        ).toBe(null);
+    });
+
+    it("does not mutate the pool it inspects (simulation only)", () => {
+        const pool = { ...emptyPool(), U: 1, G: 1 };
+        genericSpendAmbiguityForPayment(pool, { X: 1 });
+        expect(pool).toEqual({ ...emptyPool(), U: 1, G: 1 });
+    });
+
+    it("returns null for the trivial single-color pool", () => {
+        // {1} with only U in pool → auto-pick, no park.
+        expect(
+            genericSpendAmbiguityForPayment({ ...emptyPool(), U: 2 }, { X: 1 })
+        ).toBe(null);
     });
 });

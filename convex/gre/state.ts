@@ -1671,6 +1671,16 @@ export type PendingCast = {
      *  untaps the artifact. Mirrors `tappedLandIds`'s rollback-tracking shape,
      *  kept as a separate list since these taps never add to the mana pool. */
     improviseTappedArtifactIds?: string[];
+    /** CR 601.2g — an ambiguous generic-mana payment parked awaiting the caster's
+     *  choice of which mana in the pool pays the generic cost. Set at the payment
+     *  finalize point (`tryAutoCommitPendingCast`) when
+     *  `genericSpendAmbiguityForPayment` returns non-null and no spend order was
+     *  supplied; the cast is NOT put on the stack until `resolveManaSpendChoice`
+     *  supplies a valid order and resumes the commit. `generic` is the amount
+     *  owed; `candidateColors` are the pool colors the caster may draw it from.
+     *  Rides inside `pendingCast` (mirroring `sacrificeSelection`), so it is
+     *  persisted with the parent and needs no separate serialize key. */
+    manaSpendChoice?: GenericSpendAmbiguity;
 };
 
 /** Tracks an in-progress activated-ability payment (CR 602.1, 602.2b).
@@ -1795,6 +1805,14 @@ export type PendingActivation = {
      *  the manaPool delta (which colours paid the cost) and writes it onto the
      *  resulting stack item as `notedManaSpent`. */
     noteManaSpent?: boolean;
+    /** CR 601.2g — an ambiguous generic-mana payment parked awaiting the
+     *  activator's choice of which mana pays the generic cost. Mirrors
+     *  `PendingCast.manaSpendChoice`: set at the activation finalize point
+     *  (`tryAutoCommitPendingActivation`) when
+     *  `genericSpendAmbiguityForPayment` returns non-null and no order was
+     *  supplied, cleared and resumed by `resolveManaSpendChoice`. Rides inside
+     *  `pendingActivation`, so it is persisted with the parent. */
+    manaSpendChoice?: GenericSpendAmbiguity;
 };
 
 /** Tracks the {3} payment for the `summon-companion` special action (CR
@@ -14017,11 +14035,16 @@ export type ManaSubstitution = { from: string; to: string };
  *  caller. When supplied, that ordered color list is spent first for the
  *  generic portion (any residual falls back to the greedy default so payment
  *  always completes). */
-export function payManaCost(
+/** Pays the colored/colorless requirements of `cost` from `manaPool` (mutating),
+ *  topping up any shortfall from substitutable colors (CR 609.4b). The generic
+ *  portion (`cost.X`) is deliberately left untouched — split out of
+ *  `payManaCost` so the generic-spend ambiguity check (CR 601.2g,
+ *  `genericSpendAmbiguityForPayment`) can simulate the colored phase on a pool
+ *  clone and evaluate the *remaining* pool against the generic still owed. */
+function payColoredRequirements(
     manaPool: Record<string, number>,
     cost: ManaCost,
-    substitutions: ManaSubstitution[] = [],
-    genericSpendOrder?: readonly string[]
+    substitutions: ManaSubstitution[] = []
 ): void {
     // Pay colored/colorless costs from their exact color, clamping at the
     // available amount so substitution can cover any shortfall (CR 609.4b).
@@ -14045,6 +14068,16 @@ export function payManaCost(
             need -= take;
         }
     }
+}
+
+export function payManaCost(
+    manaPool: Record<string, number>,
+    cost: ManaCost,
+    substitutions: ManaSubstitution[] = [],
+    genericSpendOrder?: readonly string[]
+): void {
+    // Pay the colored/colorless requirements first (CR 601.2g pays generic last).
+    payColoredRequirements(manaPool, cost, substitutions);
 
     // Pay generic. Default: colors that have the most mana available (greedy).
     // With an explicit spend order (CR 601.2g), honor it first, then fall back
@@ -14139,6 +14172,56 @@ export function genericSpendAmbiguity(
     }
     if (leftoverSets.size < 2) return null;
     return { generic, candidateColors: present };
+}
+
+/** CR 601.2g — detect an ambiguous generic-mana payment at a payment FINALIZE
+ *  point (spell cast / activated ability), where the pool may still owe both
+ *  colored and generic mana. Simulates the colored/colorless phase on a clone of
+ *  `manaPool` (so nothing is committed), then evaluates `genericSpendAmbiguity`
+ *  on the residual pool against the generic still owed (`cost.X`). Returns the
+ *  ambiguity (`{ generic, candidateColors }`) when the player's choice of which
+ *  mana pays the generic is meaningful, or `null` to auto-pick. Both the manual
+ *  floating-pool path and the auto-tap overproduction path converge here — the
+ *  pool passed in already reflects every floated/tapped source. */
+export function genericSpendAmbiguityForPayment(
+    manaPool: Record<string, number>,
+    cost: ManaCost,
+    substitutions: ManaSubstitution[] = []
+): GenericSpendAmbiguity | null {
+    const generic = (cost.X as number | undefined) ?? 0;
+    if (generic <= 0) return null;
+    const residual = { ...manaPool };
+    payColoredRequirements(residual, cost, substitutions);
+    return genericSpendAmbiguity(residual, generic);
+}
+
+/** CR 601.2g — validate a player-supplied generic-spend order against the parked
+ *  choice and the current pool. `spendOrder` is a colour multiset, one entry per
+ *  point of the generic owed. Throws (with a player-facing reason) when the order
+ *  is illegal; returns silently when valid. Rules: length must equal
+ *  `choice.generic`; every element must be one of `choice.candidateColors`; and
+ *  the multiset must be ⊆ `manaPool`. Pure — no state mutation — so it is shared
+ *  by the `resolveManaSpendChoice` mutation and tested directly. */
+export function validateManaSpendOrder(
+    choice: GenericSpendAmbiguity,
+    spendOrder: readonly string[],
+    manaPool: Record<string, number>
+): void {
+    if (spendOrder.length !== choice.generic) {
+        throw new Error(`Spend order must name exactly ${choice.generic} mana`);
+    }
+    const counts: Record<string, number> = {};
+    for (const color of spendOrder) {
+        if (!choice.candidateColors.includes(color)) {
+            throw new Error(`${color} is not a valid mana source`);
+        }
+        counts[color] = (counts[color] ?? 0) + 1;
+    }
+    for (const [color, needed] of Object.entries(counts)) {
+        if (needed > (manaPool[color] ?? 0)) {
+            throw new Error(`Not enough ${color} mana in pool`);
+        }
+    }
 }
 
 /** Per-colour delta between a mana pool snapshot taken BEFORE a payment and the
@@ -14264,13 +14347,14 @@ export function payManaCostForSpell(
     cost: Record<string, number>,
     spellTypes: readonly string[],
     substitutions: ManaSubstitution[] = [],
-    spellCardId?: string
+    spellCardId?: string,
+    genericSpendOrder?: readonly string[]
 ): void {
     const eligible = (player.restrictedMana ?? []).filter((r) =>
         restrictedUnitAllowsSpell(r, spellTypes, spellCardId)
     );
     if (eligible.length === 0) {
-        payManaCost(player.manaPool, cost, substitutions);
+        payManaCost(player.manaPool, cost, substitutions, genericSpendOrder);
         return;
     }
 
@@ -14284,7 +14368,7 @@ export function payManaCostForSpell(
             (restrictedByColor[r.color] ?? 0) + r.amount;
     }
     const before = { ...merged };
-    payManaCost(merged, cost, substitutions);
+    payManaCost(merged, cost, substitutions, genericSpendOrder);
 
     for (const color of MANA_COLORS) {
         const consumed = (before[color] ?? 0) - (merged[color] ?? 0);

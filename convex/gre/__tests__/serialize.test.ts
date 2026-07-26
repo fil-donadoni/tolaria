@@ -78,6 +78,45 @@ describe("game_state serialize round-trip", () => {
         });
     });
 
+    // CR 601.2g — a parked generic-spend choice nests under the already-persisted
+    // pendingCast key, so it must survive the compact/expand round trip so a
+    // save/load reloads mid-payment awaiting the same colour choice (issue #1444).
+    it("preserves a parked manaSpendChoice on pendingCast", () => {
+        const state = freshState();
+        state.pendingCast = {
+            playerId: "p1",
+            cardInstanceId: "cast-inst",
+            manaCost: { X: 1 },
+            tappedLandIds: [],
+            manaSpendChoice: { generic: 1, candidateColors: ["U", "G"] },
+        } as unknown as NonNullable<GameState["pendingCast"]>;
+        const expanded = expandState(compactState(state));
+        expect(expanded.pendingCast?.manaSpendChoice).toEqual({
+            generic: 1,
+            candidateColors: ["U", "G"],
+        });
+    });
+
+    // CR 601.2g — same parked choice, activation side (pendingActivation).
+    it("preserves a parked manaSpendChoice on pendingActivation", () => {
+        const state = freshState();
+        state.pendingActivation = {
+            playerId: "p1",
+            cardInstanceId: "act-inst",
+            abilityId: "a1",
+            manaCost: { X: 2 },
+            tappedLandIds: [],
+            tapSource: false,
+            sacrificeSource: false,
+            manaSpendChoice: { generic: 2, candidateColors: ["U", "R", "G"] },
+        } as unknown as NonNullable<GameState["pendingActivation"]>;
+        const expanded = expandState(compactState(state));
+        expect(expanded.pendingActivation?.manaSpendChoice).toEqual({
+            generic: 2,
+            candidateColors: ["U", "R", "G"],
+        });
+    });
+
     // CR 702.139 (ADR 0064) — the companion slot round-trips: `instance` is
     // compacted/expanded exactly like every other card, `used` survives
     // verbatim.
