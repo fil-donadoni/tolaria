@@ -19,6 +19,7 @@ import type {
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { raiseTriggerTargetSelection } from "../../../../gre/rules";
 import { finalizeTargetSelection } from "../../../../game";
+import { finalizeCleanup } from "../../../../gre/phases";
 
 const grizzlyBears = getCardByName("Grizzly Bears");
 
@@ -161,8 +162,37 @@ describe("Inti, Seneschal of the Sun (CR 603.3c reflexive trigger + impulse draw
     });
 });
 
+/** Pushes Inti's "whenever you discard" impulse-draw trigger
+ *  (`inti-discard-impulse`) onto the stack for `discardingPlayerId` and
+ *  resolves it, returning the exiled card. `state.activePlayerId` /
+ *  `state.phase` are read directly off `state` (set by the caller before
+ *  invoking this helper) to drive the `"until-next-end-step"` window's
+ *  turn-boundary branches (issue #1557). */
+function resolveIntiDiscardImpulse(
+    state: GameState,
+    inti: CardInstanceState,
+    discardingPlayerId: string
+): CardInstanceState {
+    state.stack.push({
+        ...inti,
+        zone: "stack",
+        castById: discardingPlayerId,
+        triggeredAbilityId: "inti-discard-impulse",
+        triggerSourceId: inti.id,
+        triggerEvent: {
+            type: "CARD_DISCARDED",
+            playerId: discardingPlayerId,
+            cardInstanceId: "some-other-card",
+        } as StackItem["triggerEvent"],
+        targets: [],
+    });
+    resolveTopOfStack(state);
+    const owner = state.players.find((p) => p.id === discardingPlayerId)!;
+    return owner.exile[owner.exile.length - 1];
+}
+
 describe("Inti, Seneschal of the Sun — discard-triggered impulse draw", () => {
-    it("exiles the controller's own top library card and grants a this-turn cast permission", () => {
+    it("exiles the controller's own top library card and grants an until-next-end-step cast permission", () => {
         const inti = makeInstance(intiSeneschalOfTheSun.id, {
             id: "inti",
             controllerId: "p1",
@@ -175,32 +205,155 @@ describe("Inti, Seneschal of the Sun — discard-triggered impulse draw", () => 
         });
         const state = makeState({
             turn: 2,
+            // Default activePlayerId "p1" (setup.ts) + phase
+            // "PRECOMBAT_MAIN" — the golden path: Inti's controller's own
+            // end step for THIS turn hasn't happened yet, so the window
+            // expires at THIS turn's cleanup, same as the old "this-turn"
+            // shape (issue #1557's exact-equivalence case).
             players: [
                 makePlayer("p1", { battlefield: [inti], library: [top] }),
                 makePlayer("p2"),
             ],
         });
-        state.stack.push({
-            ...inti,
-            zone: "stack",
-            castById: "p1",
-            triggeredAbilityId: "inti-discard-impulse",
-            triggerSourceId: inti.id,
-            triggerEvent: {
-                type: "CARD_DISCARDED",
-                playerId: "p1",
-                cardInstanceId: "some-other-card",
-            } as StackItem["triggerEvent"],
-            targets: [],
-        });
-        resolveTopOfStack(state);
+        const exiled = resolveIntiDiscardImpulse(state, inti, "p1");
 
         expect(state.players[0].library).toHaveLength(0);
         expect(state.players[0].exile).toHaveLength(1);
-        const exiled = state.players[0].exile[0];
         expect(exiled.id).toBe("top-card");
         expect(exiled.castableFromExileBy).toBe("p1");
         expect(exiled.castableFromExileUntilTurn).toBe(2);
         expect(exiled.knownTo).toEqual(["p1"]);
+    });
+});
+
+// CR 514.2 (issue #1557) — the general "until your next end step" window.
+// Inti's own golden path (attack-triggered discard, always resolving before
+// that same turn's end step) is covered above and stays numerically
+// identical to the old "this-turn" shape. These cases prove the DIVERGENT
+// branches: a discard landing OUTSIDE Inti's controller's own turn/combat
+// step, where "your next end step" spans past the CURRENT turn's cleanup.
+describe("Inti, Seneschal of the Sun — until-next-end-step off-turn windows (CR 514.2, issue #1557)", () => {
+    it("a discard on the OPPONENT's turn grants a window that survives THIS turn's cleanup and expires at the controller's own next turn", () => {
+        const inti = makeInstance(intiSeneschalOfTheSun.id, {
+            id: "inti",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const top = makeInstance(grizzlyBears.id, {
+            id: "top-card",
+            ownerId: "p1",
+            zone: "library",
+        });
+        const state = makeState({
+            turn: 3,
+            activePlayerId: "p2", // it's the OPPONENT's turn — an
+            // instant-speed effect discards a card for Inti's controller
+            // (p1) mid-combat, outside p1's own attack step.
+            players: [
+                makePlayer("p1", { battlefield: [inti], library: [top] }),
+                makePlayer("p2"),
+            ],
+        });
+        const exiled = resolveIntiDiscardImpulse(state, inti, "p1");
+
+        // p1's own end step for "now" already passed (earlier, on p1's
+        // prior turn) — the window targets p1's very next turn (turn 4,
+        // immediately following the current opponent turn).
+        expect(exiled.castableFromExileUntilTurn).toBe(4);
+
+        // CR 514.2 — the CURRENT turn's (turn 3, the opponent's) cleanup
+        // must NOT revoke the grant: it's not yet p1's next end step.
+        finalizeCleanup(state);
+        expect(exiled.castableFromExileBy).toBe("p1");
+        expect(exiled.castableFromExileUntilTurn).toBe(4);
+
+        // Advance to turn 4 (p1's own next turn) — THAT turn's cleanup is
+        // where the grant finally expires, spanning past the turn-3
+        // cleanup entirely.
+        state.turn = 4;
+        finalizeCleanup(state);
+        expect(exiled.castableFromExileBy).toBeUndefined();
+        expect(exiled.castableFromExileUntilTurn).toBeUndefined();
+    });
+
+    it("a discard during the controller's OWN cleanup (end step already past) grants a window targeting their next turn, skipping the intervening opponent turn", () => {
+        const inti = makeInstance(intiSeneschalOfTheSun.id, {
+            id: "inti",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const top = makeInstance(grizzlyBears.id, {
+            id: "top-card",
+            ownerId: "p1",
+            zone: "library",
+        });
+        const state = makeState({
+            turn: 5,
+            activePlayerId: "p1",
+            phase: "CLEANUP", // CR 514.3 edge case: a hand-size discard
+            // trigger firing during the controller's own cleanup — their
+            // end step for turn 5 is already over.
+            players: [
+                makePlayer("p1", { battlefield: [inti], library: [top] }),
+                makePlayer("p2"),
+            ],
+        });
+        const exiled = resolveIntiDiscardImpulse(state, inti, "p1");
+
+        // Turn 5's own end step is over; the window skips the intervening
+        // opponent turn (6) and targets p1's own NEXT turn (7).
+        expect(exiled.castableFromExileUntilTurn).toBe(7);
+    });
+
+    it("a discard during the controller's OWN END_STEP (in progress, not yet CLEANUP) grants a window targeting their NEXT end step — not this turn's cleanup", () => {
+        // Regression for the exact off-by-one the pre-merge review caught:
+        // the old code's `state.phase !== "CLEANUP"` guard treated an
+        // in-progress END_STEP as "not yet started", stamping
+        // `castableFromExileUntilTurn = state.turn` — immediately revoked by
+        // THIS turn's own cleanup one step later, collapsing the window to
+        // zero. CR 514.2's "next end step" EXCLUDES the one currently in
+        // progress, so an END_STEP-time grant must behave identically to the
+        // CLEANUP-time grant above: target the controller's NEXT turn.
+        const inti = makeInstance(intiSeneschalOfTheSun.id, {
+            id: "inti",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const top = makeInstance(grizzlyBears.id, {
+            id: "top-card",
+            ownerId: "p1",
+            zone: "library",
+        });
+        const state = makeState({
+            turn: 5,
+            activePlayerId: "p1",
+            phase: "END_STEP", // an end-step trigger (e.g. a hand-size
+            // discard replacement or another end-step-timed effect) fires
+            // the discard WHILE p1's own end step for turn 5 is in progress
+            // — it has started but CLEANUP has not.
+            players: [
+                makePlayer("p1", { battlefield: [inti], library: [top] }),
+                makePlayer("p2"),
+            ],
+        });
+        const exiled = resolveIntiDiscardImpulse(state, inti, "p1");
+
+        // Turn 5's own end step is already under way — "next" end step
+        // skips it and the intervening opponent turn (6), landing on p1's
+        // own NEXT turn (7). (Buggy code would return 5 here.)
+        expect(exiled.castableFromExileUntilTurn).toBe(7);
+
+        // THIS turn's (turn 5) cleanup — immediately following the very
+        // END_STEP the grant was created in — must NOT revoke it.
+        finalizeCleanup(state);
+        expect(exiled.castableFromExileBy).toBe("p1");
+        expect(exiled.castableFromExileUntilTurn).toBe(7);
+
+        // Advance to turn 7 (p1's own next turn) — THAT turn's cleanup is
+        // where the grant finally expires.
+        state.turn = 7;
+        finalizeCleanup(state);
+        expect(exiled.castableFromExileBy).toBeUndefined();
+        expect(exiled.castableFromExileUntilTurn).toBeUndefined();
     });
 });
