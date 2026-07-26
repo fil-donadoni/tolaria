@@ -65,8 +65,8 @@ const getCardEvalMeta: GetCardEvalMeta = (scryfallId) => {
     };
 };
 
-const botChoosePick: ChooseBotPick = (seat, pack) =>
-    chooseBotPick(pack, seat.pool ?? [], getCardEvalMeta);
+const botChoosePick: ChooseBotPick = (seat, pack, packsSeen) =>
+    chooseBotPick(pack, seat.pool ?? [], getCardEvalMeta, { packsSeen });
 
 const getAutoBuildCardMeta: GetAutoBuildCardMeta = (scryfallId) => {
     const meta = resolveDeckCardMeta(scryfallId);

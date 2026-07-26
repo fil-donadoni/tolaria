@@ -436,10 +436,19 @@ export function applyPick(
  *  #1113, ADR 0054). Injected — like `GetBoosterConfig`/`ResolveCardMeta` —
  *  so this module stays decoupled from the concrete Pick Heuristic
  *  (`convex/limited/botDrafter.ts`'s `chooseBotPick`), which owns the actual
- *  scoring. Returns the `pickId` of the card to take from `pack`. */
+ *  scoring. Returns the `pickId` of the card to take from `pack`.
+ *
+ *  `packsSeen` is every pack this seat has been shown so far, oldest first,
+ *  with `pack` itself as the last entry (ADR 0073 / issue #1609). Nothing
+ *  reads it yet — Draft Signal reading is a later slice of PRD #1607 — but it
+ *  is threaded now so the reader lands without touching every call site a
+ *  second time. Today's history is what THIS run can account for (a mutation
+ *  sees only the seats it is handed; a persisted per-seat seen-log is the
+ *  Draft Signals slice's own change), never a fabricated one. */
 export type ChooseBotPick = (
     seat: LimitedEventSeat,
-    pack: readonly DraftPackCard[]
+    pack: readonly DraftPackCard[],
+    packsSeen: readonly (readonly DraftPackCard[])[]
 ) => string;
 
 /** Result of running every pending Bot Drafter pick to exhaustion. */
@@ -502,6 +511,12 @@ export function runBotAutoPicks(
     let remaining = draftPacksRemaining;
     let completed = alreadyCompleted;
     const timerUpdates: SeatTimerUpdate[] = [];
+    // Per-seat pack history for `ChooseBotPick`'s `packsSeen` (ADR 0073):
+    // every pack this loop has shown a given seat, oldest first. Scoped to
+    // this run — the only history a pure engine call can honestly account for
+    // (a persisted cross-mutation seen-log is the Draft Signals slice's own
+    // change). Unread by today's scorer; wired so the reader lands once.
+    const packsSeenBySeat = new Map<number, (readonly DraftPackCard[])[]>();
 
     for (let i = 0; i < MAX_AUTO_PICK_ITERATIONS; i++) {
         if (completed) break;
@@ -511,7 +526,11 @@ export function runBotAutoPicks(
         if (seatIndex === -1) break;
 
         const seat = curSeats[seatIndex];
-        const pickId = chooseBotPick(seat, seat.currentPack!);
+        const pack = seat.currentPack!;
+        const seen = packsSeenBySeat.get(seatIndex) ?? [];
+        seen.push(pack);
+        packsSeenBySeat.set(seatIndex, seen);
+        const pickId = chooseBotPick(seat, pack, seen);
         const result = applyPick(
             curSeats,
             round,
@@ -592,5 +611,7 @@ export function resolveAutoPickTimeout(
         return seat.selectedPickId;
     }
 
-    return chooseBotPick(seat, seat.currentPack);
+    // `packsSeen` (ADR 0073) is the one pack this timeout can account for —
+    // the pack in front of the seat. Unread by today's scorer.
+    return chooseBotPick(seat, seat.currentPack, [seat.currentPack]);
 }

@@ -1,13 +1,13 @@
 // Pick Rating layer (ADR 0054/0055, PRD #1107 story 28, issue #1117): an
 // OPTIONAL per-set data file (0-5 scale, Draftmancer-style, hand-curated or
 // community-imported) that REFINES the Bot Drafter's picks when present.
-// Rating DOMINATES ordering over the always-present Pick Heuristic
-// (`botDrafter.ts`'s `scoreCandidate`), which stays the tie-breaker among
-// equally-rated cards AND the sole scorer for any card with no rating entry
-// — ratings REFINE, never GATE. A Draftable Set with no checked-in ratings
-// file (or a card missing from one) drafts on the heuristic exactly as
-// before `chooseBotPick` gained its optional `getPickRating` parameter (see
-// `botDrafter.ts`'s `scoreCandidateWithRating`).
+// A rating ANCHORS ordering: it is the base term of `botDrafter.ts`'s
+// `scoreCandidate`, and no contextual term can overturn a rating-point gap
+// (the contextual sum is capped below the rating spread, ADR 0073). A card
+// with no rating entry falls back to the quality heuristic mapped onto the
+// SAME 0–5 scale (`heuristicAsRating`) — ratings REFINE, never GATE, and a
+// Draftable Set with no checked-in ratings file (or a card missing from one)
+// still drafts.
 //
 // Same "small hand-maintained registry, no `fs` at runtime" shape as
 // `registry.ts`'s `CHECKED_IN_BOOSTER_CONFIGS` — Convex functions run in a
@@ -74,8 +74,8 @@ export function getPickRatingFile(setCode: string): PickRatingFile | null {
 
 /** Looks up a single card's rating within one named set's file. `null` when
  *  the set has no checked-in file, or the file has no entry for this card —
- *  both cases fall back to the heuristic identically (see `botDrafter.ts`'s
- *  `scoreCandidateWithRating`). */
+ *  both cases fall back to the quality heuristic identically (see
+ *  `botDrafter.ts`'s `heuristicAsRating`). */
 export function getPickRating(setCode: string, cardId: string): number | null {
     const file = getPickRatingFile(setCode);
     if (!file) return null;
