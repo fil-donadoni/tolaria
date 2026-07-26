@@ -8,7 +8,7 @@ import {
     useMyLimitedEvents,
     useOpenLimitedEvents,
 } from "~/hooks/useLimitedEvent";
-import { canCreateLimitedEvents } from "~/lib/adminGating";
+import { canCreateLimitedEvents } from "~/lib/limitedGating";
 import { Panel, PanelHeader, PanelBody } from "~/components/ui/panel";
 import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
@@ -20,8 +20,8 @@ import CreateLimitedEventDialog, {
 } from "./create-limited-event-dialog";
 
 /** Limited Events lobby (PRD #1107, ADR 0054/0055, issue #1110): lists open
- *  events, lets any user join a free Seat, and — for an admin — opens the
- *  Create Event dialog. */
+ *  events, lets any user join a free Seat, and lets any signed-in user open
+ *  the Create Event dialog to host their own table. */
 export default function LimitedEventsPage() {
     const navigate = useNavigate();
     const user = useCurrentUser();

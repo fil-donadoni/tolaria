@@ -224,6 +224,11 @@ export default function LimitedEventDetail({
                     )}
                 </div>
 
+                <div className="text-right text-sm italic">
+                    You can start the event at any time. The free seats will be
+                    managed by bots, both for draft and for gameplay
+                </div>
+
                 {event.status === "started" &&
                     event.type === "sealed" &&
                     viewerSeat?.pool && (

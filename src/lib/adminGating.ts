@@ -19,17 +19,6 @@ export function canEditPresets(
 }
 
 /**
- * Whether the Limited Events page should expose the "Create Event" control
- * (PRD #1107 story 1, ADR 0054/0055). Same predicate as `canEditPresets` —
- * cosmetic only, the server re-gates `createLimitedEvent` via `assertIsAdmin`.
- */
-export function canCreateLimitedEvents(
-    user: AdminGateUser | null | undefined
-): boolean {
-    return user?.isAdmin === true;
-}
-
-/**
  * Whether the "Review the Table" surface should expose another seat's debug
  * detail — its built deck list and pick order (issue #1583). Cosmetic only:
  * the server projection (`projectLimitedEvent`) already populates another

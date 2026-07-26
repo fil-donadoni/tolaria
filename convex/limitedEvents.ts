@@ -15,12 +15,7 @@ import {
     type QueryCtx,
 } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
-import {
-    assertIsAdmin,
-    getCurrentUser,
-    getCurrentUserId,
-    isAdminUser,
-} from "./auth";
+import { getCurrentUser, getCurrentUserId, isAdminUser } from "./auth";
 import {
     getCardByName,
     getPrintingsForCard,
@@ -702,11 +697,13 @@ export const getLimitedEvent = query({
 
 // --- Mutations ---------------------------------------------------------------
 
-/** Admin-gated (PRD #1107 story 1-6): creates an event with `seatCount` empty
- *  Seats. Every `packSlots` entry must resolve to a currently-Draftable Set —
- *  defense-in-depth behind the admin UI's picker (`listLimitedDraftableSets`
- *  is the reason surfaced there; this is the server-side gate the client
- *  can't bypass). */
+/** Any authenticated user creates an event with `seatCount` empty Seats (PRD
+ *  #1107 story 1-6; the original admin gate was lifted — hosting a table is a
+ *  normal player action, and the creator already owns it via `createdBy` for
+ *  `startLimitedEvent`/`cancelLimitedEvent`). Every `packSlots` entry must
+ *  resolve to a currently-Draftable Set — defense-in-depth behind the create
+ *  dialog's picker (`listLimitedDraftableSets` is the reason surfaced there;
+ *  this is the server-side gate the client can't bypass). */
 export const createLimitedEvent = mutation({
     args: {
         type: eventTypeValidator,
@@ -722,7 +719,7 @@ export const createLimitedEvent = mutation({
     },
     returns: v.id("limitedEvents"),
     handler: async (ctx, args) => {
-        const admin = await assertIsAdmin(ctx);
+        const creator = await getCurrentUser(ctx);
 
         if (args.packSlots.length === 0) {
             throw new Error(
@@ -783,7 +780,7 @@ export const createLimitedEvent = mutation({
         const seats = buildEmptySeats(args.seatCount);
         const now = Date.now();
         return await ctx.db.insert("limitedEvents", {
-            createdBy: admin._id,
+            createdBy: creator._id,
             type: args.type,
             status: "open",
             seatCount: args.seatCount,
