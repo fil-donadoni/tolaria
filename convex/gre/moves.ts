@@ -423,6 +423,18 @@ function enumerateTargetTuples(
             continue;
         }
         for (const combo of combinations(legal, size)) {
+            // CR 601.2c (issue #1104) — a `sameController`-constrained
+            // requirement's per-candidate legality is unconstrained in
+            // isolation (checked by `getLegalTargets` above, correctly:
+            // nothing to compare against for a lone candidate); the
+            // constraint is COMBINATORIAL — every permanent in the combo
+            // must share one live controller. `combinations` has no notion
+            // of that relation, so it's enforced as a post-filter here,
+            // mirroring the single-authority check `selectTarget` runs
+            // per-pick (`sameControllerDescriptor`, `gre/targetFilters.ts`).
+            if (effReq.sameController && !comboSharesController(state, combo)) {
+                continue;
+            }
             tuples.push(combo);
             if (tuples.length >= MAX_COMBINATIONS) return tuples;
         }
@@ -431,6 +443,32 @@ function enumerateTargetTuples(
     // requirement is optional (min 0); otherwise getLegalActions wouldn't have
     // offered "cast". Guard anyway so we never emit an unfulfillable move.
     return tuples.length > 0 ? tuples : min === 0 ? [[]] : [];
+}
+
+/** CR 601.2c (issue #1104) — true iff every PERMANENT-type target in `combo`
+ *  shares one live controllerId (Barrin's Spite's "two target creatures
+ *  controlled by the same player"). A combo of size ≤ 1, or one with no
+ *  permanent members, trivially passes (nothing to compare). */
+function comboSharesController(
+    state: GameState,
+    combo: TargetSelection[]
+): boolean {
+    let controllerId: string | undefined;
+    for (const t of combo) {
+        if (t.type !== "permanent") continue;
+        let found: string | undefined;
+        for (const p of state.players) {
+            const card = p.battlefield.find((c) => c.id === t.id);
+            if (card) {
+                found = card.controllerId;
+                break;
+            }
+        }
+        if (found === undefined) return false; // CR 608.2b — shouldn't happen
+        if (controllerId === undefined) controllerId = found;
+        else if (controllerId !== found) return false;
+    }
+    return true;
 }
 
 function enumerateCastMoves(

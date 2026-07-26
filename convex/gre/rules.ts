@@ -72,6 +72,7 @@ import {
     lowerPlayerFilters,
     checkCardTargetFilters,
     lowerCardFilters,
+    siblingControllerIdFor,
     type TargetFilterCtx,
     type PermanentFilterValues,
 } from "./targetFilters";
@@ -100,6 +101,7 @@ export {
     spellMatchesExcludeTypeFilter,
     spellMatchesCreaturePtFilter,
     spellWouldDestroyLandControlledBy,
+    siblingControllerIdFor,
     type TargetFilterCtx,
     type PermanentFilterValues,
     type SpellFilterValues,
@@ -1376,9 +1378,28 @@ export function getLegalTargets(
     /** Source subtypes + spell-vs-ability, for `cantBeTargeted` guards that
      *  narrow by them ("Aura spells", "spells only" — CR 109.5 / 113.3). */
     sourceSubtypes: readonly string[] = [],
-    sourceIsSpell?: boolean
+    sourceIsSpell?: boolean,
+    /** CR 601.2c (issue #1104) — targets already chosen under THIS SAME
+     *  requirement, for a `sameController`-constrained multi-count pick
+     *  (Barrin's Spite). Every existing call site scans for the WHOLE legal
+     *  set up front (nothing chosen yet), so this defaults to empty — a
+     *  `sameController` constraint then imposes no restriction on the
+     *  offered set (correct: the FIRST pick of the pair is unconstrained by
+     *  itself). Threaded through so a future incremental-pick caller (or a
+     *  bot enumerator) CAN narrow the offered set to the sibling's
+     *  controller once one half is chosen. */
+    alreadySelected: readonly TargetSelection[] = []
 ): TargetSelection[] {
     const targets: TargetSelection[] = [];
+
+    // CR 601.2c same-controller cross-slot constraint (issue #1104) — the
+    // sibling's live controllerId, if one applies (see `siblingControllerIdFor`
+    // doc). Computed ONCE, not per-candidate.
+    const siblingControllerId = siblingControllerIdFor(
+        state,
+        requirement.sameController,
+        alreadySelected
+    );
 
     const reqTypes = Array.isArray(requirement.type)
         ? requirement.type
@@ -1544,6 +1565,7 @@ export function getLegalTargets(
                     chooserId: casterId,
                     activePlayerId: state.activePlayerId,
                     sourceIsSpell,
+                    siblingControllerId,
                 };
                 if (
                     checkPermanentTargetFilters(filterCtx, card, {
@@ -1565,6 +1587,7 @@ export function getLegalTargets(
                         powerFilter,
                         toughnessFilter,
                         mvFilter,
+                        sameController: requirement.sameController,
                     })
                 ) {
                     continue;

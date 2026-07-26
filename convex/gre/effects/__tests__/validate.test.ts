@@ -2223,3 +2223,147 @@ describe("validateEffectScript — createTokenCopy `source` is an OBJECT positio
         expect(errors.join("\n")).toContain("undefined binding");
     });
 });
+
+// issue #1104 — the moveZone FOURTH shape: a filter-driven bulk sweep across
+// one or more zones (Lobotomy). Permanent schema coverage for the new
+// "fromZones" discriminator.
+describe("validateEffectScript — moveZone fromZones/filter shape (issue #1104)", () => {
+    it("accepts a well-formed fromZones sweep", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "choice",
+                        kind: "choose-hand-card",
+                        player: "controller",
+                        zone: "hand",
+                        zoneOwnerId: { target: 0 },
+                        count: 1,
+                        prompt: "Choose a card",
+                        bind: "$chosen",
+                    },
+                    {
+                        op: "moveZone",
+                        player: { target: 0 },
+                        fromZones: ["graveyard", "hand", "library"],
+                        filter: { name: { ref: "$chosen" } },
+                        to: "exile",
+                    } as EffectOp,
+                ],
+            })
+        );
+        expect(errors).toEqual([]);
+    });
+
+    it('requires "player" alongside fromZones', () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "moveZone",
+                        fromZones: ["hand"],
+                        filter: { name: "Bear" },
+                        to: "exile",
+                    } as EffectOp,
+                ],
+            })
+        );
+        expect(errors.join("\n")).toContain(
+            'field "player" is required with "fromZones"'
+        );
+    });
+
+    it('requires "filter" alongside fromZones', () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "moveZone",
+                        player: "controller",
+                        fromZones: ["hand"],
+                        to: "exile",
+                    } as EffectOp,
+                ],
+            })
+        );
+        expect(errors.join("\n")).toContain(
+            'field "filter" is required with "fromZones"'
+        );
+    });
+
+    it("rejects fromZones combined with target or cards", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "moveZone",
+                        target: { target: 0 },
+                        player: "controller",
+                        fromZones: ["hand"],
+                        filter: { name: "Bear" },
+                        to: "exile",
+                    } as EffectOp,
+                ],
+            })
+        );
+        expect(errors.join("\n")).toContain(
+            'at most one of "target" / "cards" / "fromZones"'
+        );
+    });
+
+    it('rejects to: "battlefield" and to: "library-top" for the fromZones shape', () => {
+        for (const to of ["battlefield", "library-top"]) {
+            const errors = validateEffectScript(
+                host({
+                    effects: [
+                        {
+                            op: "moveZone",
+                            player: "controller",
+                            fromZones: ["hand"],
+                            filter: { name: "Bear" },
+                            to,
+                        } as EffectOp,
+                    ],
+                })
+            );
+            expect(errors.join("\n")).toContain(
+                `to: "${to}" is not valid with "fromZones"`
+            );
+        }
+    });
+
+    it("rejects an empty fromZones array", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "moveZone",
+                        player: "controller",
+                        fromZones: [],
+                        filter: { name: "Bear" },
+                        to: "exile",
+                    } as EffectOp,
+                ],
+            })
+        );
+        expect(errors.length).toBeGreaterThan(0);
+    });
+
+    it('rejects "filter" on a shape other than fromZones', () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "moveZone",
+                        target: { target: 0 },
+                        filter: { name: "Bear" },
+                        to: "hand",
+                    } as EffectOp,
+                ],
+            })
+        );
+        expect(errors.join("\n")).toContain(
+            'field "filter" is only valid with "fromZones"'
+        );
+    });
+});

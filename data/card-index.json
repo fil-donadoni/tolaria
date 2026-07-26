@@ -744,6 +744,12 @@
         "firstSet": "drk"
     },
     {
+        "name": "Barrin's Spite",
+        "scryfallId": "6d8ec4dc-c74a-4d49-856e-95703675fe9b",
+        "oracleId": "68b038ef-71c4-4ca5-9821-57bf85831bb7",
+        "firstSet": "inv"
+    },
+    {
         "name": "Barrowgoyf",
         "scryfallId": "f979fc86-2c7e-49b3-965e-607a203cbfb1",
         "oracleId": "74c0164c-130f-4572-9066-626c77f6e2ff",
@@ -5436,6 +5442,12 @@
         "firstSet": "inv"
     },
     {
+        "name": "Lobotomy",
+        "scryfallId": "ff307dbb-4ab6-457b-be56-47106864bf61",
+        "oracleId": "a7ebe748-c3de-402f-8a6e-236a6413c0f8",
+        "firstSet": "inv"
+    },
+    {
         "name": "Loran of the Third Path",
         "scryfallId": "59faa45d-868b-4bc7-934c-0e077642e129",
         "oracleId": "b3d81980-76f2-44e2-b1c9-01e30c726312",
@@ -7948,6 +7960,12 @@
         "scryfallId": "df608b59-cc07-4e1d-b6d6-f15e69b15b92",
         "oracleId": "ca00eb17-e5c3-42c8-a665-431f5f95b67f",
         "firstSet": "leg"
+    },
+    {
+        "name": "Seer's Vision",
+        "scryfallId": "0c94618a-808c-4b3c-8f34-45e64d0414d3",
+        "oracleId": "f5276e83-ca3f-4755-9239-e44d91a446fd",
+        "firstSet": "inv"
     },
     {
         "name": "Segovian Leviathan",

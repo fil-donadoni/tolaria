@@ -2314,6 +2314,14 @@ export type PendingTarget = {
      *  `"active"` restricts to the active player's permanents (Arcum's
      *  Whistle). */
     controller?: "you" | "opponent" | "any" | "active";
+    /** CR 601.2c (issue #1104) — cross-slot same-controller constraint
+     *  (Barrin's Spite: "two target creatures controlled by the same
+     *  player"). Propagated from TargetRequirement.sameController through
+     *  `lowerPermanentFilters` (ADR 0068's generic per-key lower loop — no
+     *  per-construction-site edit needed). Read by `selectTarget`
+     *  (`game.ts`) alongside `selected` to compute the sibling's live
+     *  controllerId via `siblingControllerIdFor`. */
+    sameController?: boolean;
     /** Targets already selected. */
     selected: TargetSelection[];
     /** Divide-as-you-choose budget (CR 601.2d / 120.4). When set, this spell

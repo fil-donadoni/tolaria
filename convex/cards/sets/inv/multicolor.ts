@@ -907,35 +907,166 @@ export const vodalianZombie: CardDefinition = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────
-// Deferred (engine capability gaps) — UB (issue #1076)
+// UB engine gaps, closed (issue #1104, parent #1076)
 // ─────────────────────────────────────────────────────────────────────────
 
 // Barrin's Spite — {2}{U}{B} Sorcery. "Choose two target creatures
 // controlled by the same player. Their controller chooses and sacrifices
-// one of them. Return the other to its owner's hand." tracked-by: #1104 (no
-// `TargetRequirement` field expresses a constraint BETWEEN two announced
-// target slots — only per-slot filters against the CASTER exist. The
-// consequence half is otherwise free: `optionChoice` with `player: {
-// controllerOf: { target: 0 } }` and two modes — sac target 0 / bounce
-// target 1, or vice versa — composes entirely from shipped Ops. Only the
-// "controlled by the same player" TARGETING constraint is missing.)
+// one of them. Return the other to its owner's hand." (CR 601.2c cross-slot
+// same-controller constraint, issue #1104 gap 1.) `targetRequirement.
+// sameController: true` is the new TargetRequirement field spanning both
+// announced slots — checked at both legality-scan (`getLegalTargets`) and
+// selection (`selectTarget`) via the single-authority target-filter
+// registry (ADR 0068, `gre/targetFilters.ts`). The consequence is entirely
+// pre-existing DSL: `optionChoice` with `player: { controllerOf: { target:
+// 0 } }` (their controller — both targets share one, so either slot names
+// them) and two modes — sacrifice target 0 / bounce target 1, or vice
+// versa.
+export const barrinsSpite: CardDefinition = {
+    id: "6d8ec4dc-c74a-4d49-856e-95703675fe9b",
+    name: "Barrin's Spite",
+    rarity: "rare",
+    oracleText:
+        "Choose two target creatures controlled by the same player. Their controller chooses and sacrifices one of them. Return the other to its owner's hand.",
+    manaCost: { X: 2, U: 1, B: 1 },
+    types: ["Sorcery"],
+    targetRequirement: { type: "Creature", count: 2, sameController: true },
+    effects: [
+        {
+            op: "optionChoice",
+            player: { controllerOf: { target: 0 } },
+            prompt: "Choose which creature to sacrifice",
+            modes: [
+                {
+                    id: "sac-first",
+                    label: "Sacrifice the first creature; return the second to its owner's hand",
+                    effects: [
+                        { op: "sacrifice", target: { target: 0 } },
+                        { op: "moveZone", target: { target: 1 }, to: "hand" },
+                    ],
+                },
+                {
+                    id: "sac-second",
+                    label: "Sacrifice the second creature; return the first to its owner's hand",
+                    effects: [
+                        { op: "sacrifice", target: { target: 1 } },
+                        { op: "moveZone", target: { target: 0 }, to: "hand" },
+                    ],
+                },
+            ],
+        },
+    ],
+};
 
 // Lobotomy — {2}{U}{B} Sorcery. "Target player reveals their hand, then you
 // choose a card other than a basic land card from it. Search that player's
 // graveyard, hand, and library for all cards with the same name as the
-// chosen card and exile them. Then that player shuffles." tracked-by: #1104
-// (`EffectCardFilter.name` matches only a literal string — there is no way
-// to filter by a NAME READ BACK from an earlier `choice` pick, and no single
-// Op sweeps graveyard + hand + library simultaneously for a name match.)
+// chosen card and exile them. Then that player shuffles." (CR 201.2 dynamic
+// same-name filter + CR 400.7 multi-zone sweep, issue #1104 gap 2.) The
+// `choice(zone: "hand", zoneOwnerId: { target: 0 })` Op is the shipped
+// Thoughtseize/Duress template — it reveals the target's hand to the chooser
+// AND records the pick in one step (no separate `reveal` Op needed).
+// `EffectCardFilter.name`'s bare-ref form now ALSO accepts a `choice`
+// binding (not just `nameCard`'s own name-string binding) — `resolveNameRef`
+// resolves the picked INSTANCE ID to its live name via the new
+// `SpellContext.getCardName`. `moveZone`'s new FOURTH shape (`fromZones` +
+// `filter`, no prior choice needed) sweeps all three zones — graveyard,
+// hand, library — in one filtered pass to `exile`.
+export const lobotomy: CardDefinition = {
+    id: "ff307dbb-4ab6-457b-be56-47106864bf61",
+    name: "Lobotomy",
+    rarity: "uncommon",
+    oracleText:
+        "Target player reveals their hand, then you choose a card other than a basic land card from it. Search that player's graveyard, hand, and library for all cards with the same name as the chosen card and exile them. Then that player shuffles.",
+    manaCost: { X: 2, U: 1, B: 1 },
+    types: ["Sorcery"],
+    targetRequirement: { type: "player", count: 1 },
+    effects: [
+        // CR 701.20a — "reveals their hand" is a PUBLIC reveal to every
+        // player (not merely exposed to the chooser for the duration of the
+        // pick, which the `choice` Op's own transient exposure would give
+        // for free) — an explicit `reveal` Op, same as every other
+        // Thoughtseize-family "target player reveals their hand" card.
+        {
+            op: "reveal",
+            player: { target: 0 },
+            zone: "hand",
+        },
+        {
+            op: "choice",
+            kind: "choose-hand-card",
+            player: "controller",
+            zone: "hand",
+            zoneOwnerId: { target: 0 },
+            filter: { excludeSupertype: "Basic" },
+            count: 1,
+            prompt: "Choose a card other than a basic land card",
+            bind: "$chosen",
+        },
+        {
+            op: "moveZone",
+            player: { target: 0 },
+            fromZones: ["graveyard", "hand", "library"],
+            filter: { name: { ref: "$chosen" } },
+            to: "exile",
+        },
+        {
+            op: "libraryLook",
+            action: "shuffle",
+            player: { target: 0 },
+        },
+    ],
+};
 
 // Seer's Vision — {2}{U}{B} Enchantment. "Your opponents play with their
 // hands revealed. Sacrifice this enchantment: Look at target player's hand
 // and choose a card from it. That player discards that card. Activate only
-// as a sorcery." tracked-by: #1104 (no primitive tracks a PERSISTENT
-// "plays with hand revealed" continuous condition — `reveal` is a one-shot
-// Op, not a continuous one. Same root-cause gap already flagged inline,
-// uncommented, for Enduring Renewal `ice/white.ts`, issue #628 — never
-// given its own tracking issue until now.)
+// as a sorcery." (CR 702-adjacent persistent hand-reveal, issue #1104 gap
+// 3.) `revealsHand` already shipped a "controller"/"all-players" continuous
+// hand-reveal static (issue #735, Enduring Renewal / Zur's Weirding); the
+// new `"opponents"` scope is the flipped-polarity generalization this card
+// needs, not a new mechanism — it reveals every OTHER player's hand to the
+// controller (2-player: exactly the one opponent), surfaced by
+// `gameProjections.ts`'s existing `computeHandRevealedPlayers`. The
+// sac-for-value ability is ordinary shipped DSL (`choice` + `discard`).
+export const seersVision: CardDefinition = {
+    id: "0c94618a-808c-4b3c-8f34-45e64d0414d3",
+    name: "Seer's Vision",
+    rarity: "uncommon",
+    oracleText:
+        "Your opponents play with their hands revealed.\nSacrifice this enchantment: Look at target player's hand and choose a card from it. That player discards that card. Activate only as a sorcery.",
+    manaCost: { X: 2, U: 1, B: 1 },
+    types: ["Enchantment"],
+    revealsHand: "opponents",
+    activatedAbilities: [
+        {
+            id: "seers-vision-discard",
+            oracleText:
+                "Sacrifice this enchantment: Look at target player's hand and choose a card from it. That player discards that card. Activate only as a sorcery.",
+            cost: { sacrifice: true },
+            targetRequirement: { type: "player", count: 1 },
+            sorcerySpeedOnly: true,
+            useStack: true,
+            effects: [
+                {
+                    op: "choice",
+                    kind: "choose-hand-card",
+                    player: "controller",
+                    zone: "hand",
+                    zoneOwnerId: { target: 0 },
+                    count: 1,
+                    prompt: "Choose a card",
+                    bind: "$chosen",
+                },
+                {
+                    op: "discard",
+                    player: { target: 0 },
+                    cards: { ref: "$chosen" },
+                },
+            ],
+        },
+    ],
+};
 
 // ─────────────────────────────────────────────────────────────────────────
 // Free tranche — BR (issue #1077, parent PRD #1063)

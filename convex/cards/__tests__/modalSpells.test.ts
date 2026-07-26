@@ -35,11 +35,21 @@ import type { CardDefinition } from "../types";
 /** A CR 700.2 modal spell is one whose oracle text OPENS with a "Choose one —"
  *  / "Choose two —" / "Choose one or more —" (etc.) instruction. Matching the
  *  first line only avoids false positives from an activated/triggered ability
- *  that happens to contain "choose one" lower in the text. */
+ *  that happens to contain "choose one" lower in the text. The trailing em-dash
+ *  is REQUIRED (issue #1104 fix — Barrin's Spite: "Choose two target creatures
+ *  controlled by the same player." is a CR 601.2c target-COUNT instruction, not
+ *  a CR 700.2 mode list, and has no "—" bullet separator; every genuine modal
+ *  spell's first line does, e.g. Pyroblast's "Choose one —\n• Counter target
+ *  spell if it's blue.\n• ..."). Without the dash, ANY oracle text that merely
+ *  opens with "Choose two/three/…" (a target count, not a mode) false-positives
+ *  here — the dash is what actually distinguishes a mode LIST from a target
+ *  count, matching this file's own doc comment above. */
 function isModalSpell(card: CardDefinition): boolean {
     if (!card.oracleText) return false;
     const firstLine = card.oracleText.split("\n")[0].trim();
-    return /^Choose (one|two|three|one or more|two or more)\b/.test(firstLine);
+    return /^Choose (one|two|three|one or more|two or more)\s*—/.test(
+        firstLine
+    );
 }
 
 describe("modal spells choose their mode at cast (issue #1274, CR 601.2b–c / 700.2)", () => {

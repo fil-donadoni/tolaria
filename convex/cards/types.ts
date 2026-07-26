@@ -509,6 +509,22 @@ export interface TargetRequirement {
      *  "another" via a dynamic `getTargetRequirement(source)` instead, and has
      *  no `triggerSourceId` to read); ignored elsewhere. */
     excludeSource?: boolean;
+    /** CROSS-SLOT same-controller constraint spanning the announced target
+     *  slots of THIS requirement (CR 601.2c, issue #1104 — Barrin's Spite:
+     *  "Choose two target creatures controlled by the same player"). Every
+     *  other filter on this interface constrains a slot against the CASTER
+     *  or a static value; this is the one relational constraint spanning
+     *  slots against EACH OTHER. Checked at BOTH legality-scan
+     *  (`getLegalTargets`) and target-selection time (`selectTarget`,
+     *  `game.ts`) through the SAME single-authority target-filter registry
+     *  (ADR 0068, `gre/targetFilters.ts`): once one target of the pair is
+     *  chosen, every LATER pick under this requirement must share that
+     *  first pick's LIVE controller (`siblingControllerIdFor`). The FIRST
+     *  pick is unconstrained by itself (nothing to compare against yet) —
+     *  legal like any other candidate. Meaningful only for `count >= 2`
+     *  permanent-kind requirements; ignored for player/spell/graveyard
+     *  targets and a `count: 1` requirement (nothing to compare). */
+    sameController?: boolean;
 }
 
 /** "For as long as" condition on a conditional control change (CR 611.2b).
@@ -3268,7 +3284,14 @@ export interface SpellContext {
      *  (CR 108.1 / 201.1). Resolves the instance's definition id to its printed
      *  name. Returns undefined if the id isn't on any player's
      *  library/hand/graveyard/exile/battlefield or its definition is unknown.
-     *  Used to compare a revealed card against a named card (Petra Sphinx). */
+     *  Used to compare a revealed card against a named card (Petra Sphinx).
+     *  Also powers `EffectCardFilter.name`'s picks-ref resolution (issue
+     *  #1104, `resolveNameRef` in `gre/effects/interpreter.ts`): the
+     *  instance id a `choice` Op bound (Lobotomy's "the chosen card")
+     *  resolves to a name here, distinct from the `nameCard` Op's own
+     *  binding shape which stores the name STRING directly (never a live
+     *  instance id, so this lookup harmlessly misses and the caller falls
+     *  back to the raw string). */
     getCardName: (cardInstanceId: string) => string | undefined;
 
     /** Reveals ONE card chosen uniformly at random from `playerId`'s hand
@@ -7199,13 +7222,21 @@ export interface EffectCardFilter {
     /** Match cards by exact printed name (CR 201.2 — "each other card named
      *  Accumulated Knowledge", Relentless Rats' "cards named ~", issue #985). A
      *  FIXED literal name (matched case-sensitively against the registry
-     *  name), OR (issue #1085) a bare `{ ref: "$binding" }` naming a `nameCard`
-     *  Op's chosen-name binding — "put all of them with THAT name into your
-     *  hand" (Desperate Research, CR 201.3 "chooses a card name"). The bare
-     *  ref is a NAME-family binding (validator-checked, mirrors the picks/
-     *  boolean bare-binding families); an uncaptured binding (the naming Op
-     *  was skipped, CR 608.2b) fails the filter closed — nothing matches.
-     *  ANDed with every other field. */
+     *  name), OR a bare `{ ref: "$binding" }` naming EITHER (issue #1085) a
+     *  `nameCard` Op's chosen-name binding — "put all of them with THAT name
+     *  into your hand" (Desperate Research, CR 201.3 "chooses a card name") —
+     *  OR (issue #1104) a `choice` Op's picks binding — "all cards with the
+     *  same name as the CHOSEN CARD" (Lobotomy: "you choose a card ... Search
+     *  ... for all cards with the same name as the chosen card"). Both share
+     *  the identical picks-family bare-binding shape (validator-checked,
+     *  mirrors the boolean bare-binding family); the interpreter resolves
+     *  either at read time (`resolveNameRef`, `gre/effects/interpreter.ts`) —
+     *  a `choice` binding's stored value is an INSTANCE ID (resolved to a
+     *  live name via `SpellContext.getCardName`), a `nameCard` binding's is
+     *  the name STRING already (never a live id, so the id lookup misses and
+     *  the raw string is used as-is). An uncaptured binding (the naming/
+     *  choice Op was skipped, CR 608.2b) fails the filter closed — nothing
+     *  matches. ANDed with every other field. */
     name?: string | EffectRef;
     /** "With a <type> counter on it" (CR 122.6, issue #1156 — Dauthi
      *  Voidwalker: "an exiled card ... with a void counter on it"). Matches
@@ -8166,6 +8197,40 @@ export type EffectOp =
           op: "moveZone";
           player: EffectPlayerRef;
           from: MovableZone;
+          to: MovableZone;
+      }
+    /** CR 400.7 (issue #1104) — the FOURTH `moveZone` shape: a FILTER-DRIVEN
+     *  bulk sweep across one or more zones, no player choice at all. Every
+     *  card in `player`'s listed `fromZones` matching `filter` moves to `to`
+     *  — "Search that player's graveyard, hand, and library for all cards
+     *  with the same name as the chosen card and exile them" (Lobotomy). The
+     *  "generalize, don't add" continuation of the `cards`-shape's
+     *  single-zone SEARCH sweep (issue #677) in two directions at once: (a) a
+     *  `filter` decides membership instead of a prior `choice`'s picks — the
+     *  filter's own `name` field (issue #1104's `resolveNameRef`) is what
+     *  makes "the SAME NAME as the card chosen by an earlier Op" expressible
+     *  at all; (b) MULTIPLE zones are swept in ONE pass instead of one Op per
+     *  zone. Each listed zone is read via the SAME zone-scoped card readers
+     *  (`getHandCards` / `getLibraryCards` / `getGraveyardCards`) the
+     *  `choice` Op's candidate precompute already uses, filtered through the
+     *  SAME `matchesCardFilter` matcher every other filter site shares, and
+     *  each match moves via the SAME `moveCardById` primitive the `cards`
+     *  shape's non-battlefield branch already calls — no new SpellContext
+     *  primitive. Discriminated from the `cards` shape by carrying
+     *  `fromZones` (plural, no prior `choice` binding required) instead of
+     *  `cards`, and from the whole-zone shape by carrying `filter` (an
+     *  UNFILTERED bulk zone move already has its own shape above).
+     *  Restricted to the four PLAIN zones on `to` (no `to: "battlefield"`
+     *  reanimation branch — a filtered bulk graveyard→battlefield sweep is
+     *  the existing `forEach { set: "graveyard" }` idiom, not this shape; no
+     *  `to: "library-top"` — meaningless with no ordered pick list). Skipped
+     *  when `player` cannot be resolved (CR 608.2b); a zone with zero
+     *  matches simply contributes nothing (no error). */
+    | {
+          op: "moveZone";
+          player: EffectPlayerRef;
+          fromZones: MovableZone[];
+          filter: EffectCardFilter;
           to: MovableZone;
       }
     /** CR 613.4c (layer 7c, issue #840) — a temporary P/T modification that
@@ -10241,8 +10306,15 @@ export interface CardDefinition {
      *  - `"controller"` — reveal the controller's own hand (Enduring Renewal,
      *    "Play with your hand revealed").
      *  - `"all-players"` — reveal every player's hand (Zur's Weirding, "Players
-     *    play with their hands revealed"). */
-    revealsHand?: "controller" | "all-players";
+     *    play with their hands revealed").
+     *  - `"opponents"` (issue #1104) — reveal every OTHER player's hand to the
+     *    controller (Seer's Vision, "Your opponents play with their hands
+     *    revealed") — the mirror image of `"controller"`: the flipped-polarity
+     *    case that generalizes this same field rather than adding a new one
+     *    (ADR 0045 "generalize, don't add"). In a 2-player game this reveals
+     *    exactly the one opponent's hand, functionally identical to CR's
+     *    "opponents" (plural) scope. */
+    revealsHand?: "controller" | "all-players" | "opponents";
     /** Continuous draw-event replacement (CR 614, ADR 0061) that intercepts
      *  EVERY card draw an affected player would take, one card at a time, at
      *  the single suspend-capable draw seam (`planDrawStep` in `gre/state.ts`).

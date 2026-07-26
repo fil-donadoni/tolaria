@@ -13,6 +13,7 @@ import {
     matchesTargetRequirement,
     matchesTargetExclusions,
     matchesTargetController,
+    matchesSameController,
     wantsPermanentTarget,
     isTapLockedBySummoningSickness,
     getLandManaColor,
@@ -84,6 +85,30 @@ export function useBattlefieldVisualState(player: Player) {
         !!pendingTarget &&
         pendingTarget.playerId === playerId &&
         wantsPermanentTarget(pendingTarget.targetType);
+
+    // CR 601.2c (issue #1104) — the live controllerId of whatever's already
+    // selected under a `sameController`-constrained requirement (Barrin's
+    // Spite's "two target creatures controlled by the same player"),
+    // resolved by scanning BOTH battlefields for the first selected
+    // permanent (`pendingTarget.selected` carries no controllerId of its
+    // own). Undefined when the requirement isn't `sameController`-
+    // constrained or nothing has been picked yet — no constraint.
+    const siblingControllerId =
+        pendingTarget?.sameController && pendingTarget.selected.length > 0
+            ? (() => {
+                  const sibling = pendingTarget.selected.find(
+                      (t) => t.type === "permanent"
+                  );
+                  if (!sibling) return undefined;
+                  for (const p of allPlayers) {
+                      const card = p.battlefield.find(
+                          (c) => c.id === sibling.id
+                      );
+                      if (card) return card.controllerId;
+                  }
+                  return undefined;
+              })()
+            : undefined;
 
     const activeChoice = pendingChoices?.[0];
     const isViewerChoosing =
@@ -419,6 +444,11 @@ export function useBattlefieldVisualState(player: Player) {
                 pendingTarget.playerId,
                 activePlayerId,
                 pendingTarget.controller
+            ) &&
+            matchesSameController(
+                card.controllerId,
+                pendingTarget.sameController,
+                siblingControllerId
             );
 
         const isTargetSelected =

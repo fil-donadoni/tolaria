@@ -961,6 +961,17 @@ function isMovableZone(value: unknown): boolean {
     );
 }
 
+/** A non-empty array of `MovableZone` values (issue #1104) — the `moveZone`
+ *  FOURTH shape's `fromZones`, one or more zones swept in a single filtered
+ *  bulk pass (Lobotomy's "graveyard, hand, and library"). */
+function isMovableZoneArray(value: unknown): boolean {
+    return (
+        Array.isArray(value) &&
+        value.length > 0 &&
+        value.every((v) => isMovableZone(v))
+    );
+}
+
 function isBoolean(value: unknown): boolean {
     return typeof value === "boolean";
 }
@@ -1817,15 +1828,24 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             player: isPlayerRef,
             from: isMovableZone,
             tapped: isBoolean,
+            // issue #1104 — the FOURTH shape: a filter-driven bulk sweep
+            // across one or more zones (Lobotomy).
+            fromZones: isMovableZoneArray,
+            filter: isCardFilter,
         },
         check: (entry) => {
             const hasTarget = "target" in entry;
             const hasCards = "cards" in entry;
-            const hasBulk = !hasTarget && !hasCards;
+            const hasFromZones = "fromZones" in entry;
+            const hasBulk = !hasTarget && !hasCards && !hasFromZones;
             const errors: string[] = [];
-            if (hasTarget && hasCards) {
+            if (
+                (hasTarget && hasCards) ||
+                (hasTarget && hasFromZones) ||
+                (hasCards && hasFromZones)
+            ) {
                 errors.push(
-                    'at most one of "target" or "cards" may be present (omit both for the whole-zone bulk mode, issue #1279)'
+                    'at most one of "target" / "cards" / "fromZones" may be present (omit all three for the whole-zone bulk mode, issue #1279)'
                 );
             }
             if (hasCards) {
@@ -1924,6 +1944,49 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
                         `to: "${entry.to}" is not valid for the whole-zone bulk mode — only "library" / "hand" / "graveyard" / "exile"`
                     );
                 }
+            }
+            // issue #1104 — the FOURTH shape: a filter-driven bulk sweep
+            // across one or more zones (Lobotomy). Required `player` +
+            // `filter`; none of the single-object fields make sense (no
+            // single object to snapshot/tap/reassign control of — mirrors
+            // the whole-zone bulk shape's own restrictions exactly).
+            // Restricted to the four PLAIN zones on `to` for the same reason
+            // the whole-zone shape is: no `to: "battlefield"` reanimation
+            // branch (that's the `forEach { set: "graveyard" }` idiom) and no
+            // `to: "library-top"` (meaningless with no ordered pick list).
+            if (hasFromZones) {
+                if (!("player" in entry)) {
+                    errors.push('field "player" is required with "fromZones"');
+                }
+                if (!("filter" in entry)) {
+                    errors.push('field "filter" is required with "fromZones"');
+                }
+                if ("bind" in entry) {
+                    errors.push(
+                        'field "bind" is not valid with "fromZones" — there is no single object to snapshot'
+                    );
+                }
+                if ("controller" in entry) {
+                    errors.push(
+                        'field "controller" is not valid with "fromZones"'
+                    );
+                }
+                if ("tapped" in entry) {
+                    errors.push('field "tapped" is not valid with "fromZones"');
+                }
+                if ("from" in entry) {
+                    errors.push(
+                        'field "from" is not valid with "fromZones" — use "fromZones" itself (plural, no singular "from")'
+                    );
+                }
+                if (entry.to === "battlefield" || entry.to === "library-top") {
+                    errors.push(
+                        `to: "${entry.to}" is not valid with "fromZones" — only "library" / "hand" / "graveyard" / "exile"`
+                    );
+                }
+            }
+            if ("filter" in entry && !hasFromZones) {
+                errors.push('field "filter" is only valid with "fromZones"');
             }
             if ("controller" in entry && entry.to !== "battlefield") {
                 errors.push(

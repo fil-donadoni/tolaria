@@ -508,6 +508,24 @@ export function matchesTargetController(
     }
 }
 
+/** CR 601.2c — client mirror of the server's cross-slot same-controller gate
+ *  (`sameControllerDescriptor` / `siblingControllerIdFor` in
+ *  `convex/gre/targetFilters.ts`, issue #1104 — Barrin's Spite). Keeps a
+ *  wrong-controller permanent from reading as clickable for the SECOND (or
+ *  later) pick of a `sameController`-constrained requirement; the server
+ *  remains the authority and rejects it regardless. `siblingControllerId` is
+ *  the live controller of whatever's already selected under this SAME
+ *  requirement (undefined for the first pick, or when the requirement isn't
+ *  `sameController`-constrained) — no constraint, every candidate passes. */
+export function matchesSameController(
+    controllerId: string,
+    sameController: boolean | undefined,
+    siblingControllerId: string | undefined
+): boolean {
+    if (!sameController || siblingControllerId === undefined) return true;
+    return controllerId === siblingControllerId;
+}
+
 /** CR 109.1 / 601.2c — client mirror of the server's target-exclusion gates
  *  (`selectTarget` in convex/game.ts): `excludeTypes` ("nonland permanent") and
  *  `excludeInstanceIds` ("other than ~" / a triggered ability's reflexive
