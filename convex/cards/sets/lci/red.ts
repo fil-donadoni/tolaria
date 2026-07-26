@@ -31,17 +31,12 @@ import { discardTrigger } from "../../abilities/triggers/discardTrigger";
 // this ability N times, not once for "one or more cards") — unobservable
 // here since Inti's OWN ability 1 above only ever discards exactly one card
 // at a time, the only golden path this catalogue produces today.
-// SIMPLIFICATION (flagged): the play-permission window is granted via
-// `grantCastFromExile(..., "this-turn")` (revoked at the CURRENT turn's
-// CLEANUP) rather than the printed "until your next end step". For THIS
-// card's actual trigger source (Inti's own attack-step discard, always
-// resolving before that same turn's end step), the two are equivalent —
-// CLEANUP falls immediately after that turn's end step either way. The
-// divergence would only show if some OTHER effect discarded on Inti's
-// behalf outside its own attack step (e.g. an opponent's-turn instant-speed
-// discard), where "your next end step" could span into a later turn;
-// `grantCastFromExile` has no such general window yet (only "this-turn" /
-// "while-exiled", CR 514.2 / 608.2g). tracked-by: #1557
+// The play-permission window is granted via
+// `grantCastFromExile(..., "until-next-end-step")` (issue #1557) — exact
+// CR 514.2 turn-boundary semantics for "you may play that card until your
+// next end step", including the off-turn case (some other effect discarding
+// on Inti's behalf outside its own attack step, e.g. an opponent's-turn
+// instant-speed discard).
 export const intiSeneschalOfTheSun: CardDefinition = {
     id: "fa7a55aa-ae61-4933-b7a4-dcc55dac6fcd", // LCI 156
     name: "Inti, Seneschal of the Sun",
@@ -137,7 +132,7 @@ export const intiSeneschalOfTheSun: CardDefinition = {
                         cardId,
                         discardingPlayerId,
                         undefined,
-                        "this-turn"
+                        "until-next-end-step"
                     );
                 },
             }),

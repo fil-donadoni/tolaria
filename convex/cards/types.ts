@@ -2190,6 +2190,14 @@ export interface SpellContext {
      *      Headliner Scarlett, Expressive Iteration). The permission is revoked
      *      at the CLEANUP step of the turn it was granted, while the card stays
      *      exiled.
+     *    - "until-next-end-step" (issue #1557): "you may play that card
+     *      until your next end step" (Inti, Seneschal of the Sun). Unlike
+     *      "this-turn", this window is relative to `playerId` and can span
+     *      PAST the current turn's cleanup when the grant is created outside
+     *      `playerId`'s own turn/combat step (e.g. an opponent's-turn
+     *      instant-speed discard) — see `untilNextEndStepTurn` in
+     *      `gre/state.ts`. Stamps an absolute turn number, same underlying
+     *      field (`castableFromExileUntilTurn`) as "this-turn".
      *
      *  `opts.withoutPayingManaCost` (CR 601.3e / 117.6, issue #1156) —
      *  ALSO waives the card's mana cost entirely (Dauthi Voidwalker: "you
@@ -2202,7 +2210,7 @@ export interface SpellContext {
         cardInstanceId: string,
         playerId: string,
         zoneOwnerId?: string,
-        window?: "this-turn" | "while-exiled",
+        window?: "this-turn" | "while-exiled" | "until-next-end-step",
         opts?: { withoutPayingManaCost?: boolean }
     ) => void;
     /** Play-from-graveyard grant for a SPECIFIC card (CR 601.3e /
@@ -2227,6 +2235,8 @@ export interface SpellContext {
      *      the card stays in the graveyard.
      *    - "this-turn": an impulse window, revoked at the CLEANUP step of
      *      the turn it was granted, while the card stays in the graveyard.
+     *    - "until-next-end-step" (issue #1557): mirrors
+     *      `grantCastFromExile`'s same-named window — see its doc comment.
      *
      *  `opts.withoutPayingManaCost` (CR 601.3e / 117.6-analog, issue #1344)
      *  — ALSO waives the card's mana cost entirely, stamping {@link
@@ -2238,7 +2248,7 @@ export interface SpellContext {
     grantCastFromGraveyard: (
         cardInstanceId: string,
         playerId: string,
-        window?: "this-turn" | "while-in-graveyard",
+        window?: "this-turn" | "while-in-graveyard" | "until-next-end-step",
         opts?: { withoutPayingManaCost?: boolean }
     ) => void;
     /** Value chosen for X at cast-time (CR 107.3, 601.2b). 0 if the spell

@@ -8346,6 +8346,38 @@ function resolveStormTrigger(
     return top;
 }
 
+/** CR 514.2 / 608.2g (issue #1557) — resolve the absolute turn number of
+ *  `playerId`'s NEXT end step, for a "you may play/cast that card until your
+ *  next end step" grant (`grantCastFromExile` / `grantCastFromGraveyard`'s
+ *  `"until-next-end-step"` window). This is a general, turn-boundary-aware
+ *  window distinct from `"this-turn"`:
+ *
+ *  - If it's currently `playerId`'s own turn and their CLEANUP step hasn't
+ *    started yet (i.e. their END_STEP for THIS turn is still upcoming or in
+ *    progress), the grant expires at THIS turn's cleanup — identical to
+ *    `"this-turn"`. This is Inti's own golden path: an attack-triggered
+ *    discard always fires before that same turn's end step.
+ *  - If it's currently `playerId`'s own turn but CLEANUP has already begun
+ *    (a rare edge — e.g. a CR 514.3 hand-size discard trigger firing during
+ *    their own cleanup), their end step for THIS turn is over; the grant
+ *    targets their NEXT turn (`state.turn + 2`, skipping the intervening
+ *    opponent turn in this engine's 2-player alternation).
+ *  - Otherwise (currently the OTHER player's turn), `playerId`'s own end
+ *    step already passed earlier this round; the very next turn
+ *    (`state.turn + 1`) is theirs again.
+ *
+ *  The revocation sweep (`finalizeCleanup`, `phases.ts`) only compares
+ *  `state.turn >= card.castableFromExileUntilTurn` — it doesn't care whose
+ *  turn the expiry number belongs to — so returning the correct absolute
+ *  turn number here is sufficient; no new state field is needed. */
+function untilNextEndStepTurn(state: GameState, playerId: string): number {
+    const isOwnTurn = state.activePlayerId === playerId;
+    if (isOwnTurn && state.phase !== "CLEANUP") {
+        return state.turn;
+    }
+    return isOwnTurn ? state.turn + 2 : state.turn + 1;
+}
+
 /** Builds a SpellContext with primitives bound to the current game state. */
 export function buildSpellContext(
     state: GameState,
@@ -10048,7 +10080,10 @@ export function buildSpellContext(
             cardInstanceId: string,
             playerId: string,
             zoneOwnerId?: string,
-            window: "this-turn" | "while-exiled" = "while-exiled",
+            window:
+                | "this-turn"
+                | "while-exiled"
+                | "until-next-end-step" = "while-exiled",
             opts?: {
                 /** CR 601.3e / 117.6 (issue #1156) — also waive the card's
                  *  mana cost entirely (Dauthi Voidwalker: "you may play it
@@ -10075,12 +10110,22 @@ export function buildSpellContext(
             //   - "this-turn": an impulse window (Headliner Scarlett, Expressive
             //     Iteration — "play that card this turn"). Stamps the current
             //     turn number so the CLEANUP step revokes it at end of turn.
+            //   - "until-next-end-step" (issue #1557): "you may play that
+            //     card until your next end step" (Inti, Seneschal of the
+            //     Sun) — a boundary that can span PAST the current turn's
+            //     cleanup when the grant is created outside `playerId`'s own
+            //     turn/combat step. See `untilNextEndStepTurn` above.
             const owner = getPlayer(state, zoneOwnerId ?? playerId);
             const card = owner.exile.find((c) => c.id === cardInstanceId);
             if (!card) return;
             card.castableFromExileBy = playerId;
             if (window === "this-turn") {
                 card.castableFromExileUntilTurn = state.turn;
+            } else if (window === "until-next-end-step") {
+                card.castableFromExileUntilTurn = untilNextEndStepTurn(
+                    state,
+                    playerId
+                );
             } else {
                 delete card.castableFromExileUntilTurn;
             }
@@ -10093,7 +10138,10 @@ export function buildSpellContext(
         grantCastFromGraveyard(
             cardInstanceId: string,
             playerId: string,
-            window: "this-turn" | "while-in-graveyard" = "while-in-graveyard",
+            window:
+                | "this-turn"
+                | "while-in-graveyard"
+                | "until-next-end-step" = "while-in-graveyard",
             opts?: {
                 /** CR 601.3e / 117.6-analog (issue #1344) — also waive the
                  *  card's mana cost entirely (Malcolm, Alluring Scoundrel:
@@ -10128,12 +10176,20 @@ export function buildSpellContext(
             //     own doc comment for the documented divergence from the
             //     stricter Oracle ruling). Stamps the current turn number so
             //     the CLEANUP step revokes it at end of turn.
+            //   - "until-next-end-step" (issue #1557): mirrors the exile
+            //     primitive's same-named window — see `untilNextEndStepTurn`
+            //     above.
             const owner = getPlayer(state, playerId);
             const card = owner.graveyard.find((c) => c.id === cardInstanceId);
             if (!card || card.types.includes("Land")) return;
             card.castableFromGraveyardBy = playerId;
             if (window === "this-turn") {
                 card.castableFromGraveyardUntilTurn = state.turn;
+            } else if (window === "until-next-end-step") {
+                card.castableFromGraveyardUntilTurn = untilNextEndStepTurn(
+                    state,
+                    playerId
+                );
             } else {
                 delete card.castableFromGraveyardUntilTurn;
             }
