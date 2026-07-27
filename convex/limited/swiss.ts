@@ -288,8 +288,15 @@ export function pairRound(
     previousRounds: readonly SwissRound[],
     rng: () => number
 ): SwissPairing[] {
-    if (seats.length < 2) {
-        throw new Error("pairRound: need at least 2 seats to pair a round");
+    if (seats.length < MIN_SEATS) {
+        throw new Error(
+            `pairRound: need at least ${MIN_SEATS} seats to pair a round`
+        );
+    }
+    if (seats.length > MAX_SEATS) {
+        throw new Error(
+            `pairRound: seats must not exceed ${MAX_SEATS} — backtrackMatch's exhaustive enumeration is only cheap up to this bound`
+        );
     }
     if (new Set(seats).size !== seats.length) {
         throw new Error("pairRound: seats must not contain duplicates");

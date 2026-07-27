@@ -30,9 +30,7 @@ function normalizedPair(pairing: SwissPairing): [number, number] {
  *  to fabricate the fractional scores the bracket-displacement fixtures
  *  below rely on. */
 function decidedRound(
-    results: Array<
-        [seatA: number, seatB: number, winnerSeat: number | "draw"]
-    >
+    results: Array<[seatA: number, seatB: number, winnerSeat: number | "draw"]>
 ): SwissRound {
     return {
         pairings: results.map(([seatA, seatB, winnerSeat]) => ({
@@ -127,13 +125,20 @@ describe("pairRound — basic shape", () => {
         );
     });
 
+    it("rejects more than MAX_SEATS (8) seats — backtrackMatch's exhaustive enumeration is only cheap up to that bound", () => {
+        const seats = Array.from({ length: 9 }, (_, i) => i);
+        expect(() => pairRound(seats, [], makeRng(1))).toThrow(
+            /must not exceed 8/
+        );
+    });
+
     it("rejects previousRounds with an undecided pairing", () => {
         const undecided: SwissRound = {
             pairings: [{ seatA: 0, seatB: 1 }],
         };
-        expect(() =>
-            pairRound([0, 1, 2, 3], [undecided], makeRng(1))
-        ).toThrow(/undecided pairing/);
+        expect(() => pairRound([0, 1, 2, 3], [undecided], makeRng(1))).toThrow(
+            /undecided pairing/
+        );
     });
 });
 
@@ -147,9 +152,7 @@ describe("pairRound — no-repeat pairing across a full event (PRD story 30)", (
 
             const previousRounds: SwissRound[] = [];
             const seenPairs = new Set<string>();
-            const byeCounts = new Map<number, number>(
-                seats.map((s) => [s, 0])
-            );
+            const byeCounts = new Map<number, number>(seats.map((s) => [s, 0]));
 
             for (let round = 0; round < rounds; round++) {
                 const pairings = pairRound(seats, previousRounds, rng);
