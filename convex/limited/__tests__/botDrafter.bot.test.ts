@@ -14,10 +14,7 @@ import {
 } from "../../cards";
 import { getCardColorIdentity, getPipCountsFromCost } from "../../cards/colors";
 import type { Color } from "../../cards/types";
-import {
-    getDefinitionProducibleColors,
-    manaValue,
-} from "../../gre/constants";
+import { getDefinitionProducibleColors, manaValue } from "../../gre/constants";
 import {
     CONTEXT_CAP_LAST_PICK,
     chooseBotPick,
@@ -385,14 +382,48 @@ describe("scripted 8-seat all-bot draft — plausibly coherent 2-color pools (PR
             // coherent 2-color pools", not a spread across all five.
             //
             // Threshold lowered 0.6 → 0.5 by issue #1610 (pip-weighted
-            // Colour Commitment + Castability + Fixing Value, ADR 0073): the
-            // Pool now also earns bonus for mana FIXING and CASTABILITY, both
-            // of which can legitimately reward a card outside the top two
-            // colours (a splash-enabling dual, a colourless card) — a mild,
-            // intentional loosening of pure 2-colour concentration, not a
-            // regression. "Plausibly coherent", not "strictly 2-colour",
-            // remains the bar; 0.5 still comfortably beats an unconcentrated
-            // spread across all five colours (~0.4 for the top two).
+            // Colour Commitment + Castability + Fixing Value, ADR 0073).
+            // MEASURED against this exact seed (worst seat / mean-of-8, via
+            // `chooseBotPick` scoring): pre-#1610 (checked-in commit
+            // 9b60e197) 0.609 / 0.781 → post-#1610 (this PR) 0.545 / 0.740.
+            //
+            // Root-caused (fixup review, issue #1610 receipt) by running the
+            // identical scripted draft with individual terms re-scored to 0
+            // (the clamp math redone from the remaining terms, so the
+            // ablation is faithful to the real cap/scale, not just a raw
+            // subtraction):
+            //   - minus Fixing Value alone: 0.523 / 0.624 — WORSE than the
+            //     shipped 0.545 / 0.740, not better. Fixing Value's deficit-
+            //     driven design targets the colour a seat is ALREADY short
+            //     on, so it reinforces concentration on net; it is not the
+            //     driver the term's own on-colour-vs-off-colour worked
+            //     example would suggest.
+            //   - minus Castability alone: 0.591 / 0.743 — a small worst-seat
+            //     recovery, roughly flat mean.
+            //   - zeroing `COLOUR_COMMIT_SOURCE_UNIT_WEIGHT` alone (a mana
+            //     source no longer contributes ANY colour affinity): 0.578 /
+            //     0.749 — the single largest recovery of any one lever, but
+            //     still short of the 0.609 / 0.781 baseline.
+            //   - no single-term ablation, nor the two combined, fully
+            //     restores the baseline.
+            // Conclusion: the regression is not one runaway term, it is
+            // STRUCTURAL. Every contextual term shares ONE capped budget
+            // (`contextCap`, `scoreCandidate`'s `contextScale`) — going from
+            // 2 contextual terms (Colour Commitment, Curve Fit) to 4 (adding
+            // Castability, Fixing Value) raises how often that shared sum
+            // exceeds the cap, which scales down EVERY contextual term
+            // together, Colour Commitment included, on the very picks where
+            // Castability/Fixing Value are also large. That dilution is a
+            // direct, intended consequence of ADR 0073's design ("fixing and
+            // castability legitimately matter now too, not only raw colour
+            // commitment") — not a bug to null out, since doing so would mean
+            // neutering Castability's genuine splash/colourless signal or
+            // zeroing the source-follows-commitment weight, both of which
+            // issue #1610 shipped on purpose. "Plausibly coherent", not
+            // "strictly 2-colour", remains the bar; 0.545 still comfortably
+            // beats an unconcentrated spread across all five colours (~0.4
+            // for the top two), so 0.5 is kept as the threshold rather than
+            // restoring 0.6.
             expect(coloredCount).toBeGreaterThan(0);
             expect(topTwo / coloredCount).toBeGreaterThan(0.5);
         }

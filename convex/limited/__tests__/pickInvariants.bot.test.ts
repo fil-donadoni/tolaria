@@ -22,8 +22,10 @@
 //     than to one already served in it (issue #1610)
 //   * a candidate the Pool cannot cast may not outscore an otherwise
 //     identical castable one (issue #1610)
+//   * a candidate needing TWO colours is only as castable as its
+//     WORST-served colour, never its best (issue #1610)
 //   * a mana source raises Colour Commitment strictly less than a
-//     double-pipped spell of the same colour (issue #1610)
+//     single-pipped spell of the same colour (issue #1610)
 //
 // Every one of these holds for ANY positive weighting: retuning
 // `COLOUR_COMMIT_RATING_PER_UNIT`, the curve weight, the cap endpoints or the
@@ -38,10 +40,7 @@
 import { describe, it, expect } from "vitest";
 import { getCardByName } from "../../cards";
 import { getCardColorIdentity, getPipCountsFromCost } from "../../cards/colors";
-import {
-    getDefinitionProducibleColors,
-    manaValue,
-} from "../../gre/constants";
+import { getDefinitionProducibleColors, manaValue } from "../../gre/constants";
 import {
     CONTEXT_CAP_FIRST_PICK,
     CONTEXT_CAP_LAST_PICK,
@@ -106,6 +105,7 @@ const blueFiller = metaOf("Grizzly Bears", {
 const forest = metaOf("Forest");
 const mountain = metaOf("Mountain");
 const island = metaOf("Island");
+const swamp = metaOf("Swamp");
 /** The PRD's own worked Fixing Value example (ADR 0073): "a Temur pool heavy
  *  in {R} pips and short on red sources values Volcanic Island over Tropical
  *  Island though both are on-colour duals." */
@@ -246,11 +246,30 @@ describe("Pick Invariant — the score IS its breakdown (ADR 0073)", () => {
         // (nothing to pay for), not of any specific Pool card, so it is
         // exercised separately (`castability responds in the right
         // direction` below) rather than folded into this general sweep.
+        //
+        // The candidate carries an ARTIFICIAL `producedColors: ["U"]` —
+        // Grizzly Bears itself prints no mana ability — so Fixing Value is
+        // genuinely non-zero here too. Without it every real green two-drop
+        // in the registry produces no mana, Fixing Value trivially stays 0
+        // for a `producedColors: []` candidate, and this sweep would never
+        // actually exercise that term's provenance. Likewise the Pool gets a
+        // `forest` (a real, non-zero-pip source) so Castability lands in its
+        // normal (non-maxed, non-excluded) branch instead of staying 0.
+        const candidate: CardEvalMeta = {
+            ...greenTwoDrop,
+            producedColors: ["U"],
+        };
         const pool = [
             ...(Array(6).fill(greenTwoDrop) as CardEvalMeta[]),
             mountain,
+            forest, // gives Castability a real source to read (non-zero, non-maxed)
+            ...(Array(2).fill(blueFiller) as CardEvalMeta[]), // U pip demand Fixing Value relieves
         ];
-        const trace = scoreCandidate(greenTwoDrop, pool, null);
+        const trace = scoreCandidate(candidate, pool, null);
+        // Both terms must actually be non-zero, or this sweep would exercise
+        // nothing beyond what the ORIGINAL scenario already covered.
+        expect(termValue(trace, "castability")).toBeGreaterThan(0);
+        expect(termValue(trace, "fixingValue")).toBeGreaterThan(0);
         for (const term of trace.terms.filter((t) =>
             isContextualTerm(t.term)
         )) {
@@ -462,13 +481,36 @@ describe("Pick Invariant — colour commitment responds in the right direction",
         }
     });
 
-    it("a Pool MANA SOURCE raises a same-colour candidate's Commitment term strictly LESS than a double-pipped spell of that colour does", () => {
-        // The load-bearing half of "mana sources contribute at a lower
-        // weight than spells" (ADR 0073, issue #1610): a dual land FOLLOWS
-        // commitment, it never CREATES it. Holds for ANY positive per-unit
-        // weighting as long as a mana source's per-colour contribution stays
-        // below a single pip's — the design constraint the constants encode,
-        // not a specific tuned number.
+    it("a Pool MANA SOURCE raises a same-colour candidate's Commitment term strictly LESS than a SINGLE-pipped spell of that colour does", () => {
+        // The precise load-bearing claim of "mana sources contribute at a
+        // LOWER weight than spells" (ADR 0073, issue #1610): a source's
+        // per-colour contribution must stay below what even ONE coloured pip
+        // is worth, not merely below what a double-pipped spell is worth. A
+        // comparison against a double-pipped spell (see the weaker sibling
+        // assertion below) only bites once the source weighs more than TWO
+        // full pips — it would tolerate a source worth anywhere up to ~2
+        // pips without ever reddening, which is not the design constraint
+        // the constants are supposed to encode. Holds for ANY
+        // `COLOUR_COMMIT_SOURCE_UNIT_WEIGHT` strictly below 1 (a single
+        // pip's weight) — reddens the instant a source is worth a full pip
+        // or more, which is exactly the property under test.
+        const basePool = Array(5).fill(greenFiller) as CardEvalMeta[];
+        const afterSource = termValue(
+            scoreCandidate(redThreeDrop, [...basePool, mountain], 3),
+            "colourCommitment"
+        );
+        const afterSinglePipSpell = termValue(
+            scoreCandidate(redThreeDrop, [...basePool, redFiller], 3),
+            "colourCommitment"
+        );
+        expect(afterSource).toBeLessThan(afterSinglePipSpell);
+    });
+
+    it("(weaker bound, kept for regression coverage) a Pool MANA SOURCE raises a same-colour candidate's Commitment term strictly LESS than a DOUBLE-pipped spell of that colour does", () => {
+        // Strictly implied by the single-pip invariant above whenever it
+        // holds, but kept as its own assertion: it was the ORIGINAL
+        // invariant here and a future reader comparing this file's history
+        // should still see it pass in isolation.
         const doubleRedPipSpell: CardEvalMeta = {
             ...redThreeDrop,
             pips: { R: 2 },
@@ -644,6 +686,39 @@ describe("Pick Invariant — castability responds in the right direction (ADR 00
         const castableScore = scoreCandidate(castableU, pool, 3).score;
         const uncastableScore = scoreCandidate(uncastableB, pool, 3).score;
         expect(uncastableScore).toBeLessThanOrEqual(castableScore);
+    });
+
+    it("a candidate needing TWO colours is only as castable as its WORST-served colour, never its best", () => {
+        // Castability takes the MINIMUM coverage ratio across every colour a
+        // candidate needs (`castabilityTerm`'s `worstColour`/`worstRatio`),
+        // not an average or a MAX — a candidate needing `{U}{B}` with a
+        // blue-rich Pool and ZERO black sources is not meaningfully castable,
+        // however well the Pool covers blue. This is the binding constraint a
+        // max-across-colours mistake would silently drop: under a MAX, one
+        // fully-sourced colour alone would carry the whole term to its
+        // ceiling regardless of what the other required colour has, which is
+        // exactly what leaving BOTH colours sourced does today — so a MIN
+        // and a MAX implementation only disagree on the single-colour-short
+        // case this test isolates. Direction-only: the Pool's black sources
+        // move from zero to fully-served while the candidate's demand is
+        // held fixed, so this asserts a direction, not a tuned number.
+        const twoColourCandidate: CardEvalMeta = {
+            ...greenTwoDrop,
+            colors: ["U", "B"],
+            pips: { U: 1, B: 1 },
+            producedColors: [],
+        };
+        const oneColourSourced: CardEvalMeta[] = [island, island, island]; // U fully served, B untouched
+        const bothColoursSourced: CardEvalMeta[] = [...oneColourSourced, swamp];
+        const oneSourcedCastability = termValue(
+            scoreCandidate(twoColourCandidate, oneColourSourced, 3),
+            "castability"
+        );
+        const bothSourcedCastability = termValue(
+            scoreCandidate(twoColourCandidate, bothColoursSourced, 3),
+            "castability"
+        );
+        expect(oneSourcedCastability).toBeLessThan(bothSourcedCastability);
     });
 });
 

@@ -19,11 +19,17 @@
 //         + curveFit         × contextScale -- curve needs
 //
 // ── Colour splits into three derived questions (ADR 0073, issue #1610) ─────
-// `CardEvalMeta.colors` is mana-cost-derived (CR 202.2), so a dual land, a
-// Mox, a Signet all read `colors: []` — the mana base used to be INVISIBLE to
-// this scorer, not merely underweighted. `pips` (coloured pip COUNT,
-// `cards/colors.ts#getPipCountsFromCost`) and `producedColors` (what a card
-// actually PRODUCES, `gre/constants.ts#getDefinitionProducibleColors`)
+// `CardEvalMeta.colors` (`getCardColorIdentity`) reads `colors: []` for a
+// MOX or a SIGNET — a printed, colourless mana cost, so the cost-derived
+// branch (CR 202.2) sees no coloured symbol — even though the card plainly
+// produces coloured mana. It is NOT blind to a dual land's mana base the
+// same way: with no printed mana cost at all, `getCardColorIdentity` falls
+// back to the land's subtypes, so a Volcanic Island already reads
+// `colors: ["U","R"]`. Either way, this scorer used to read colour
+// PRODUCTION nowhere at all — only pip demand — so a mana source's identity
+// was effectively invisible to it regardless of shape. `pips` (coloured pip
+// COUNT, `cards/colors.ts#getPipCountsFromCost`) and `producedColors` (what a
+// card actually PRODUCES, `gre/constants.ts#getDefinitionProducibleColors`)
 // fix that, and back three distinct terms:
 //
 //   - Colour Commitment: `{U}{U}` commits twice as hard as `{4}{U}` — driven
@@ -129,11 +135,18 @@ export interface CardEvalMeta {
      *  ADR 0073 asks for. */
     pips: Partial<Record<Color, number>>;
     /** Colours of mana this card could produce as a source
-     *  (`gre/constants.ts#getDefinitionProducibleColors`, CR 106.4) —
-     *  DISTINCT from `colors`: a dual land, a Mox, a Signet all have
-     *  `colors: []` (no coloured mana cost) yet a non-empty
-     *  `producedColors`. Castability and Fixing Value read this to find the
-     *  Pool's mana SOURCES; a card with no mana ability yields `[]`. */
+     *  (`gre/constants.ts#getDefinitionProducibleColors`, CR 106.4) — the
+     *  canonical "is this a mana source" signal Castability and Fixing Value
+     *  read, DISTINCT from `colors` for a different reason per card shape.
+     *  A Mox or a Signet (a printed, colourless mana COST) has `colors: []`
+     *  yet a non-empty `producedColors`, so `colors` alone would miss it
+     *  entirely. A dual land (no printed mana cost at all) already gets a
+     *  non-empty `colors` from `getCardColorIdentity`'s land-subtype
+     *  fallback — a Volcanic Island reads `colors: ["U","R"]`, not `[]` —
+     *  but the colour terms below still read `producedColors` for it too, so
+     *  one signal serves both card shapes uniformly instead of branching on
+     *  which kind of source a card is. A card with no mana ability yields
+     *  `[]`. */
     producedColors: Color[];
 }
 
@@ -617,8 +630,13 @@ function castabilityTerm(
             term: "castability",
             value: CASTABILITY_MAX_RATING,
             rawValue: CASTABILITY_MAX_RATING,
+            // Deliberately empty, not a provenance gap: this bonus is a
+            // property of the CANDIDATE alone (it has no coloured pip to pay
+            // for), never of any specific Pool card, so there is no Pool
+            // card to name — unlike every other non-zero contextual term,
+            // which always points at the Pool cards that earned it.
             sources: [],
-            note: "no coloured pip requirement — trivially castable",
+            note: "no coloured pip requirement — trivially castable (a property of the candidate alone, not any Pool card, so no provenance to name)",
         };
     }
 

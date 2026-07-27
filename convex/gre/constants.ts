@@ -415,59 +415,6 @@ export function getProducibleColors(card: CardInstanceState): Set<Color> {
     return colors;
 }
 
-/** Definition-level twin of `getProducibleColors` (CR 106.4 — "could
- *  produce"), for a `CardDefinition` that is NOT on a battlefield — deck/pool
- *  analysis and mana-source classification with no game in progress (issue
- *  #1619, PRD #1617). Unions the same two sources as the instance-level
- *  function, minus the instance-only concerns that don't apply off a
- *  battlefield: basic-land subtypes straight off `CardDefinition.subtypes`
- *  (CR 305.6 — no text-change substitution to apply, there is no instance to
- *  rewrite) and `activatedAbilities` via the shared
- *  `producibleColorsFromAbilities` leaf (no suppression effect can be in
- *  play off a battlefield either). Colourless ({C}) excluded (CR 202.2,
- *  106.1b). `getProducibleColors` is expressed in terms of this function —
- *  keep them in sync by construction, not by convention. */
-export function getDefinitionProducibleColors(
-    cardDef: CardDefinition
-): Set<Color> {
-    const colors = new Set<Color>();
-    // CR 305.6 — intrinsic basic-land subtype abilities, definition subtypes
-    // (no text-change substitution — that's an instance-only rewrite).
-    for (const subtype of cardDef.subtypes ?? []) {
-        const color = LAND_SUBTYPE_MANA[subtype];
-        if (color && color !== "C") colors.add(color);
-    }
-    for (const c of producibleColorsFromAbilities(cardDef.activatedAbilities))
-        colors.add(c);
-    return colors;
-}
-
-/** Colors of mana a single permanent COULD produce when tapped (CR 106.4 —
- *  "could produce"). Unions every source of mana the card knows about:
- *  basic-land subtypes (CR 305.6), fixed `manaProduced` abilities, and
- *  `manaChoices` abilities (dual lands / Talisman-style choosers). Colorless
- *  ({C}) is excluded — "a land an opponent controls could produce" (Fellwar
- *  Stone) cares only about coloured mana, and {C} is not a colour (CR 202.2,
- *  106.1b). Abilities lost to a suppression effect (Titania's Song) don't
- *  function, so they contribute nothing. Used by Fellwar Stone's
- *  `getManaChoices` to read opponents' mana bases. Expressed in terms of
- *  `getDefinitionProducibleColors` for the ability-list union, with the two
- *  instance-only concerns layered on top: ability suppression (short-circuits
- *  to empty) and text-change-aware basic-land mana (`getBasicLandMana`,
- *  which reads the substitution-rewritten `subtypes`, not the definition's
- *  printed ones) — issue #1619. */
-export function getProducibleColors(card: CardInstanceState): Set<Color> {
-    const colors = new Set<Color>();
-    if (abilitiesSuppressed(card)) return colors;
-    // CR 305.6 — intrinsic basic-land subtype abilities (text-change aware).
-    const intrinsic = getBasicLandMana(card);
-    if (intrinsic && intrinsic !== "C") colors.add(intrinsic);
-    const cardDef = getDefinition(card.card.id as string);
-    for (const c of producibleColorsFromAbilities(cardDef.activatedAbilities))
-        colors.add(c);
-    return colors;
-}
-
 /** Board-conditional mana CHOICES for a card's tap mana ability (CR 106.1 /
  *  605.1a) — the choice analog of `getDynamicManaProduced`. Returns the list of
  *  mana options the activator may pick from, computed from every player's

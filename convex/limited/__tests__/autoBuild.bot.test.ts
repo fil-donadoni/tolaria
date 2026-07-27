@@ -13,10 +13,7 @@ import {
     tryGetDefinition,
 } from "../../cards";
 import { getCardColorIdentity, getPipCountsFromCost } from "../../cards/colors";
-import {
-    getDefinitionProducibleColors,
-    manaValue,
-} from "../../gre/constants";
+import { getDefinitionProducibleColors, manaValue } from "../../gre/constants";
 import { makeRng } from "../../gre/rng";
 import { validateDeck, type Pool, type ResolvePool } from "../../formats";
 import {
