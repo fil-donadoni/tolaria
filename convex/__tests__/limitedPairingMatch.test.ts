@@ -103,6 +103,12 @@ function makeCtx(userId: string, seeds: Row[]): Stub {
                     return {
                         collect: async () => rows,
                         first: async () => rows[0] ?? null,
+                        // `limitedSeatStore`'s payload read (the off-row Pool
+                        // store) uses `.unique()`.
+                        unique: async () => {
+                            if (rows.length > 1) throw new Error("not unique");
+                            return rows[0] ?? null;
+                        },
                         order: () => ordered,
                     };
                 },
@@ -704,5 +710,64 @@ describe("recording the result — the full path to the standings (issue #1645)"
         await finishGame(stub.ctx, gameId, "alice");
 
         expect(pairingOf(stub, "event-n").result).toBeUndefined();
+    });
+});
+
+// The scoring exploit this PR would otherwise open (issue #1645 review):
+// `forfeitMatch` used to check only `matchBelongsToUser` — that the caller is
+// IN the Match — and then forfeited whichever seat the CLIENT named. Now that a
+// forfeited pairing Match records a `source: "played"` standings row, either
+// seat could have written itself a free 2-0 by naming the OPPONENT.
+// `convex/__tests__/seatOwnership.test.ts` covers the sibling `concede` and the
+// predicate itself; this asserts the standings consequence.
+describe("forfeitMatch — the caller must own the seat they forfeit (issue #1645 review)", () => {
+    it("refuses a forfeit naming the OPPONENT's seat, and records no standings row", async () => {
+        const fx = playingEvent({
+            eventId: "event-x",
+            seed: 828,
+            matchFormat: "bo3",
+        });
+        const stub = makeCtx("alice", fx.seeds);
+        const gameId = await runStart(stub.ctx, {
+            eventId: "event-x",
+            deck: fx.deckForSeat(0),
+        });
+        const asBob = asUser(stub, "bob");
+        await runJoin(asBob, { gameId, deck: fx.deckForSeat(1) });
+        const matchId = stub.doc(gameId).matchId as string;
+
+        // Bob tries to forfeit ALICE — a free 2-0 for himself.
+        await expect(
+            runForfeit(asBob, { matchId, playerId: "alice" })
+        ).rejects.toThrow(/cannot act as another player/i);
+
+        expect(pairingOf(stub, "event-x").result).toBeUndefined();
+        expect(stub.doc(matchId).status).not.toBe("finished");
+        const standings = standingsOf(stub, "event-x", "bob");
+        expect(standings.find((r) => r.seatIndex === 1)!.points).toBe(0);
+    });
+
+    it("still lets a player forfeit their OWN seat", async () => {
+        const fx = playingEvent({
+            eventId: "event-y",
+            seed: 929,
+            matchFormat: "bo3",
+        });
+        const stub = makeCtx("alice", fx.seeds);
+        const gameId = await runStart(stub.ctx, {
+            eventId: "event-y",
+            deck: fx.deckForSeat(0),
+        });
+        const asBob = asUser(stub, "bob");
+        await runJoin(asBob, { gameId, deck: fx.deckForSeat(1) });
+        const matchId = stub.doc(gameId).matchId as string;
+
+        await runForfeit(asBob, { matchId, playerId: "bob" });
+
+        expect(pairingOf(stub, "event-y").result).toEqual({
+            winsA: 2,
+            winsB: 0,
+            source: "played",
+        });
     });
 });

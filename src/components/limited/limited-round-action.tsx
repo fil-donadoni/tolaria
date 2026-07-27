@@ -58,9 +58,20 @@ export default function LimitedRoundAction({
         `Seat ${(pairing.opponentSeatIndex ?? 0) + 1}`;
 
     // The pairing's Match addressed TO the viewer, if the opponent started it.
-    const incoming = (event.viewerIncomingChallenges ?? []).find(
-        (c) => c.challengerSeatIndex === pairing.opponentSeatIndex
-    );
+    //
+    // Identified by the pairing's OWN `matchId`, never by the challenger's seat
+    // alone: `viewerIncomingChallenges` carries every `waiting` challenge in the
+    // event, and a FREE challenge the same seat sent during deckbuild is still
+    // `waiting` when the phase flips to `playing`. Matching on the seat offered
+    // that stale challenge as the round Match — accepting it joins an
+    // UNRECORDED game and burns the single-active-Match slot the real pairing
+    // needs. Both sides of this comparison are server-derived.
+    const incoming =
+        pairing.matchId === null
+            ? undefined
+            : (event.viewerIncomingChallenges ?? []).find(
+                  (c) => c.matchId === pairing.matchId
+              );
     const resumable =
         activeGame && pairing.matchId !== null
             ? activeGame.matchId === pairing.matchId

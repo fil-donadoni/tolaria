@@ -46,6 +46,10 @@ import {
     computeBotAutoBuiltDeck,
     type ResolveBasicLand,
 } from "../limited/autoBuild";
+import {
+    projectViewerChallenges,
+    type ChallengeGame,
+} from "../limited/challenge";
 import { computeEventCompletion } from "../limited/completion";
 import type { LimitedPairing } from "../limited/eventTypes";
 import {
@@ -359,6 +363,30 @@ const byeViewerPairingEvent = (): LimitedEventRow =>
         result: { winsA: 2, winsB: 0, source: "bye" },
     }));
 
+/** Two pending challenge Games in the event: one addressed TO the viewer
+ *  (`incoming`) and one the viewer sent (`outgoing`), so BOTH viewer-scoped
+ *  challenge fields are non-empty for the validator case below. An empty list
+ *  is the blind spot that let `matchId` (issue #1645 review) be added to
+ *  `ViewerIncomingChallenge` without the validator noticing. */
+const pendingChallenges = (): ChallengeGame[] => [
+    {
+        gameId: "g-in",
+        matchId: "m-in",
+        challengerUserId: "user2",
+        challengerSeatIndex: 1,
+        challengedUserId: "user1",
+        challengedSeatIndex: 0,
+    },
+    {
+        gameId: "g-out",
+        matchId: "m-out",
+        challengerUserId: "user1",
+        challengerSeatIndex: 0,
+        challengedUserId: "user3",
+        challengedSeatIndex: 2,
+    },
+];
+
 /** `projectEventForViewer`'s composition, minus its three DB reads — the value
  *  the three queries actually hand to Convex's return validation: the pure
  *  projection, plus the query shell's `autoBuiltDeck`/`deckSummary` zip and its
@@ -366,7 +394,8 @@ const byeViewerPairingEvent = (): LimitedEventRow =>
 function queryReturnValue(
     event: LimitedEventRow,
     viewerUserId: string | null,
-    isAdmin = false
+    isAdmin = false,
+    challenges: ChallengeGame[] = []
 ): unknown {
     const eventContext = {
         type: event.type,
@@ -388,6 +417,7 @@ function queryReturnValue(
         isAdmin
     );
     const resolveBasicLand = resolveBasicLandFor(event.packSlots[0]);
+    const viewerChallenges = projectViewerChallenges(challenges, viewerUserId);
     return {
         ...base,
         seats: base.seats.map((seatView, i) => {
@@ -411,8 +441,12 @@ function queryReturnValue(
                         : null),
             };
         }),
-        viewerIncomingChallenges: [],
-        viewerOutgoingChallenge: null,
+        // Through the REAL reducer, so a field the projection adds and the
+        // validator doesn't declare fails here exactly as it fails in
+        // production (issue #1645 review added `matchId` this way). An EMPTY
+        // challenge list can never catch that — hence the populated case below.
+        viewerIncomingChallenges: viewerChallenges.incoming,
+        viewerOutgoingChallenge: viewerChallenges.outgoing,
     };
 }
 
@@ -449,6 +483,16 @@ describe("limitedEventViewValidator accepts what the queries actually return (is
         [
             "getLimitedEvent (seated viewer), viewer holds the BYE",
             () => queryReturnValue(byeViewerPairingEvent(), "user1"),
+        ],
+        [
+            "getLimitedEvent (seated viewer), pending challenges POPULATED",
+            () =>
+                queryReturnValue(
+                    playingEvent(),
+                    "user1",
+                    false,
+                    pendingChallenges()
+                ),
         ],
     ];
 
@@ -501,6 +545,26 @@ describe("limitedEventViewValidator accepts what the queries actually return (is
         expect(bye.opponentSeatIndex).toBeNull();
         expect(bye.opponentNickname).toBeNull();
         expect(bye.outcome).toBe("win");
+    });
+
+    it("declares the incoming challenge's matchId — the field the #1645 review added", () => {
+        // The populated case above is only worth anything if the fixture
+        // really fills both challenge fields — assert that, then name the
+        // field so the regression reads as itself.
+        const value = queryReturnValue(
+            playingEvent(),
+            "user1",
+            false,
+            pendingChallenges()
+        ) as {
+            viewerIncomingChallenges: { matchId: string }[];
+            viewerOutgoingChallenge: unknown;
+        };
+        expect(value.viewerIncomingChallenges).toEqual([
+            { gameId: "g-in", matchId: "m-in", challengerSeatIndex: 1 },
+        ]);
+        expect(value.viewerOutgoingChallenge).not.toBeNull();
+        expect(validationErrors(value, viewValidatorJson)).toEqual([]);
     });
 
     it("would REJECT a projection field the validator doesn't declare", () => {

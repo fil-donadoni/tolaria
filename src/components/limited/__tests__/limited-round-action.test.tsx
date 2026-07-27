@@ -204,7 +204,11 @@ describe("LimitedRoundAction — the opponent's side (PRD story 10)", () => {
             [{ seatA: 1, seatB: 0, matchId: "match-1" }],
             {
                 viewerIncomingChallenges: [
-                    { gameId: "game-7", challengerSeatIndex: 1 },
+                    {
+                        gameId: "game-7",
+                        matchId: "match-1",
+                        challengerSeatIndex: 1,
+                    },
                 ],
             }
         );
@@ -222,13 +226,66 @@ describe("LimitedRoundAction — the opponent's side (PRD story 10)", () => {
     it("ignores a challenge from a seat that is NOT the viewer's pairing", () => {
         const event = projectedEvent([{ seatA: 0, seatB: 2 }], {
             viewerIncomingChallenges: [
-                { gameId: "game-9", challengerSeatIndex: 1 },
+                {
+                    gameId: "game-9",
+                    matchId: "match-9",
+                    challengerSeatIndex: 1,
+                },
             ],
         });
         renderPanel(event);
 
         expect(screen.queryByText("Accept Match")).toBeNull();
         expect(screen.getByText("Start Match")).toBeTruthy();
+    });
+
+    // The stale-free-challenge bug (issue #1645 review). A FREE challenge sent
+    // by the paired opponent during deckbuild is still `waiting` when the phase
+    // auto-flips to `playing` (#1648 owns hiding free play server-side), so it
+    // arrives in `viewerIncomingChallenges` carrying the SAME
+    // `challengerSeatIndex` as the round pairing. Offering it as the round
+    // Match joins an UNRECORDED game and burns the single-active-Match slot the
+    // real pairing needs.
+    it("does NOT offer a stale free challenge from the paired seat as the round Match", () => {
+        const event = projectedEvent([{ seatA: 1, seatB: 0 }], {
+            viewerIncomingChallenges: [
+                {
+                    gameId: "game-free",
+                    matchId: "match-free",
+                    challengerSeatIndex: 1,
+                },
+            ],
+        });
+        renderPanel(event);
+
+        expect(screen.queryByText("Accept Match")).toBeNull();
+        expect(screen.getByText("Start Match")).toBeTruthy();
+    });
+
+    it("accepts the PAIRING's Match, not the free challenge, when both are pending", async () => {
+        const event = projectedEvent(
+            [{ seatA: 1, seatB: 0, matchId: "match-1" }],
+            {
+                viewerIncomingChallenges: [
+                    {
+                        gameId: "game-free",
+                        matchId: "match-free",
+                        challengerSeatIndex: 1,
+                    },
+                    {
+                        gameId: "game-7",
+                        matchId: "match-1",
+                        challengerSeatIndex: 1,
+                    },
+                ],
+            }
+        );
+        renderPanel(event);
+
+        fireEvent.click(screen.getByText("Accept Match"));
+
+        await waitFor(() => expect(joinGame).toHaveBeenCalled());
+        expect(joinGame.mock.calls[0][0]).toMatchObject({ gameId: "game-7" });
     });
 
     it("waits for the opponent once the viewer started a human pairing", () => {

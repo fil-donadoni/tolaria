@@ -3,6 +3,7 @@ import type { GenericMutationCtx, GenericQueryCtx } from "convex/server";
 import type { DataModel, Doc, Id } from "./_generated/dataModel";
 import { auth } from "./auth";
 import { query } from "./_generated/server";
+import { seatBelongsToUser } from "./gameLifecycle";
 
 // ---------------------------------------------------------------------------
 // Match orchestration (ADR 0029 / PRD #387). A Match is a best-of-N set of
@@ -425,9 +426,7 @@ export function matchBelongsToUser(
     match: { players: { id: string }[] },
     userId: string
 ): boolean {
-    return match.players.some(
-        (p) => p.id === userId || p.id.startsWith(`${userId}-`)
-    );
+    return match.players.some((p) => seatBelongsToUser(p.id, userId));
 }
 
 /** The user's current active Match, or null. Scans only the small active set

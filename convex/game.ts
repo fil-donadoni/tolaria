@@ -266,7 +266,7 @@ import {
     applyNameCardSubmit,
     applyRandomRevealAck,
 } from "./gre/pendingChoiceSubmit";
-import { gameBelongsToUser } from "./gameLifecycle";
+import { assertSeatOwnership, gameBelongsToUser } from "./gameLifecycle";
 import {
     allSeatsReady,
     applySideboard,
@@ -3857,6 +3857,14 @@ export const forfeitMatch = mutation({
         if (!match) throw new Error("Match not found");
         if (!matchBelongsToUser(match, user._id))
             throw new Error("You are not part of this match");
+        // SECURITY (issue #1645 review): `matchBelongsToUser` only proves the
+        // caller is IN this Match — it does not prove they own the seat they
+        // named. Without this, either seat of a 2-player pairing Match could
+        // forfeit AS the OPPONENT and write itself a `source: "played"` win in
+        // the Limited standings (and in a solo bot pairing, forfeiting as
+        // `-p2` would be a one-call 2-0). Solo play is unaffected: one user
+        // legitimately drives both `-p1` and `-p2`.
+        assertSeatOwnership(args.playerId, user._id);
 
         // Idempotent: an already-finished Match needs nothing.
         if (match.status === "finished") return;
@@ -10344,13 +10352,21 @@ export const cancelAutoPass = mutation({
     },
 });
 
-/** CR 104.3a: a player can concede the game at any time. That player loses. */
+/** CR 104.3a: a player can concede the game at any time. That player loses.
+ *
+ *  SECURITY (issue #1645 review): a concede WRITES A RESULT — through
+ *  `finalizeGameOver` it can decide a Match and, for a round pairing, a
+ *  standings row. So the caller must own the seat they named: `getPlayer`
+ *  proves the seat is in THIS game, `assertSeatOwnership` proves it is THEIRS.
+ *  Without the second check any authenticated user could concede on behalf of
+ *  their opponent (or of a stranger's game entirely). */
 export const concede = mutation({
     args: {
         gameId: v.id("games"),
         playerId: v.string(),
     },
     handler: async (ctx, args) => {
+        const user = await getCurrentUser(ctx);
         const gameState = await getLatestGameState(ctx, args.gameId);
         if (!gameState) throw new Error("Game not found");
 
@@ -10358,6 +10374,7 @@ export const concede = mutation({
         assertGameNotOver(state);
 
         getPlayer(state, args.playerId);
+        assertSeatOwnership(args.playerId, user._id);
         const winnerId = getOpponentId(state, args.playerId);
 
         state.gameOver = {

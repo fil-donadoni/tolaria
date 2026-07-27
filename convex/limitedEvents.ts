@@ -401,6 +401,12 @@ export const limitedEventViewValidator = v.object({
     viewerIncomingChallenges: v.array(
         v.object({
             gameId: v.string(),
+            // The owning Match (issue #1645 review) — how the round-pairing
+            // affordance tells its OWN Match from a stale free challenge sent
+            // by the same seat. Must stay in step with
+            // `ViewerIncomingChallenge`: a projected field missing here fails
+            // all three event queries at runtime, invisibly to tsc.
+            matchId: v.string(),
             challengerSeatIndex: v.number(),
         })
     ),
@@ -790,8 +796,15 @@ async function loadEventChallenges(
         if (game.status !== "waiting" || !game.limitedChallenge) continue;
         const challengerUserId = game.players[0]?.id;
         if (!challengerUserId) continue;
+        // `games.matchId` is optional only for pre-Match legacy rows; every
+        // challenge Game (`challengeLimitedSeat`, `startPairingMatch`) inserts
+        // one. Skipping a match-less row keeps `ChallengeGame.matchId` a plain
+        // `string` — the value the round affordance compares the pairing's own
+        // `matchId` against, which must never be undefined.
+        if (!game.matchId) continue;
         challenges.push({
             gameId: game._id,
+            matchId: game.matchId,
             challengerUserId,
             challengerSeatIndex: game.limitedChallenge.challengerSeatIndex,
             challengedUserId: game.limitedChallenge.challengedUserId,
