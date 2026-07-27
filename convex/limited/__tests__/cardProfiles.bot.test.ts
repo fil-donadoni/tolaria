@@ -191,15 +191,20 @@ describe("resolveEventCardProfile (ADR 0072, issue #1608): the layering boundary
     });
 });
 
-describe("getCardProfileFile / getCardProfile — seed layer (this slice ships zero checked-in data)", () => {
-    it("returns null for every scope — no checked-in Card Profile file ships with this slice", () => {
-        expect(getCardProfileFile("vintage-cube")).toBeNull();
+describe("getCardProfileFile / getCardProfile — seed layer", () => {
+    // Issue #1608 shipped this layer with zero checked-in data; the Vintage
+    // Cube census (issue #1614) is its first real content. The property
+    // under test is unchanged: a scope WITHOUT a checked-in file resolves to
+    // `null` rather than borrowing another scope's census.
+    it("resolves the Vintage Cube's checked-in census, and null for a scope that ships none", () => {
+        expect(getCardProfileFile("vintage-cube")).not.toBeNull();
         expect(getCardProfileFile("lea")).toBeNull();
         expect(getCardProfileFile("not-a-real-scope")).toBeNull();
     });
 
-    it("getCardProfile falls through to null for every (scope, cardId)", () => {
-        expect(getCardProfile("vintage-cube", "black-lotus")).toBeNull();
+    it("getCardProfile falls through to null for a cardId the census does not profile", () => {
+        expect(getCardProfile("vintage-cube", "not-a-real-card")).toBeNull();
+        expect(getCardProfile("lea", "not-a-real-card")).toBeNull();
     });
 });
 

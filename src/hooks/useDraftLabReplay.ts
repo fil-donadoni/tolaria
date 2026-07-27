@@ -64,6 +64,11 @@ import {
     resolveEventPickRating,
     type ScopedCardRating,
 } from "@convex/limited/cardRatingsCore";
+import {
+    buildDbProfileLookup,
+    resolveEventCardProfile,
+    type ScopedCardProfile,
+} from "@convex/limited/cardProfilesCore";
 
 export interface UseDraftLabReplayResult {
     /** Every completed Draft event the current user occupies a Seat in —
@@ -82,8 +87,9 @@ export interface UseDraftLabReplayResult {
      *  `ratingsLoading`). */
     result: ReplayResult | null;
     /** True once an event with a visible `seed` is selected but this file's
-     *  own `cardRatings` scope read hasn't resolved (and been snapshotted)
-     *  for THAT event yet. The panel uses this to show a "loading" state
+     *  own scope reads — `cardRatings` AND `cardProfiles`, the two DB layers
+     *  the real event was drafted under — haven't both resolved (and been
+     *  snapshotted) for THAT event yet. The panel uses this to show a "loading" state
      *  instead of a misleading blank gap between selecting an event and
      *  `result` appearing. Always `false` when no event is selected or the
      *  selected event has no seed — there is nothing to wait for either
@@ -122,6 +128,19 @@ export function useDraftLabReplay(): UseDraftLabReplayResult {
         canReconstruct ? { scopes: selectedEvent.packSlots } : "skip"
     );
 
+    // …and the SAME treatment for the second scoring layer the real event was
+    // drafted under (PRD #1607, ADR 0072): `convex/limitedEvents.ts`'s
+    // `loadEventCardProfile` folds any admin-edited `cardProfiles` row over
+    // the checked-in census before injecting `GetCardProfile` into
+    // `chooseBotPick`. Recomputing a replayed pick WITHOUT that layer
+    // reintroduces finding 2 verbatim, just on the Card Profile axis: a
+    // permanently spurious `firstDivergedPickIndex` on any deployment
+    // carrying an edited profile. Read-only, same as the ratings read.
+    const scopeCardProfiles = useQuery(
+        api.limited.cardProfiles.listScopeCardProfiles,
+        canReconstruct ? { scopes: selectedEvent.packSlots } : "skip"
+    );
+
     // SNAPSHOT, keyed to the event it was read for — see the module doc
     // comment. Adjusted DURING RENDER, not via `useEffect` (see the module
     // doc comment for why): reset to `null` the instant the selection
@@ -135,6 +154,7 @@ export function useDraftLabReplay(): UseDraftLabReplayResult {
     const [ratingsSnapshot, setRatingsSnapshot] = useState<{
         eventId: string;
         rows: readonly ScopedCardRating[];
+        profileRows: readonly ScopedCardProfile[];
     } | null>(null);
 
     if (ratingsSnapshot && ratingsSnapshot.eventId !== selectedEventId) {
@@ -142,11 +162,13 @@ export function useDraftLabReplay(): UseDraftLabReplayResult {
     } else if (
         canReconstruct &&
         scopeCardRatings !== undefined &&
+        scopeCardProfiles !== undefined &&
         (!ratingsSnapshot || ratingsSnapshot.eventId !== selectedEvent._id)
     ) {
         setRatingsSnapshot({
             eventId: selectedEvent._id,
             rows: scopeCardRatings,
+            profileRows: scopeCardProfiles,
         });
     }
 
@@ -163,6 +185,10 @@ export function useDraftLabReplay(): UseDraftLabReplayResult {
         const packSlots = selectedEvent.packSlots;
         const getDbRating = buildDbRatingLookup(ratingsSnapshot.rows);
         const getPickRating = resolveEventPickRating(packSlots, getDbRating);
+        const getCardProfile = resolveEventCardProfile(
+            packSlots,
+            buildDbProfileLookup(ratingsSnapshot.profileRows)
+        );
         const seatInputs: ReplayEventSeatInput[] = selectedEvent.seats.map(
             (s) => ({
                 seatIndex: s.seatIndex,
@@ -175,7 +201,8 @@ export function useDraftLabReplay(): UseDraftLabReplayResult {
             packSlots,
             seatInputs,
             draftLabGetCardEvalMeta,
-            getPickRating
+            getPickRating,
+            getCardProfile
         );
     }, [selectedEvent, ratingsSnapshot]);
 

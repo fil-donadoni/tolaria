@@ -53,6 +53,7 @@ import {
     type GetCardEvalMeta,
     type GetPickRating,
 } from "@convex/limited/botDrafter";
+import type { GetCardProfile } from "@convex/limited/cardProfilesCore";
 import type {
     DraftPackCard,
     LimitedEventSeat,
@@ -164,7 +165,17 @@ export function reconstructDraftReplay(
     packSlots: readonly string[],
     seats: readonly ReplayEventSeatInput[],
     getCardEvalMeta: GetCardEvalMeta,
-    getPickRating: GetPickRating
+    getPickRating: GetPickRating,
+    /** The event's LAYERED Card Profile lookup (PRD #1607, ADR 0072) — the
+     *  second scoring layer `chooseBotPick` reads, alongside `getPickRating`.
+     *  Omit ONLY to recompute deliberately profile-blind; every real caller
+     *  passes the same `resolveEventCardProfile(packSlots, …)` lookup
+     *  `convex/limitedEvents.ts`'s `loadEventCardProfile` built when the
+     *  event was actually drafted, because a recomputed pick scored WITHOUT
+     *  the layer the historical pick was scored WITH diverges for reasons
+     *  that have nothing to do with the scorer changing — the whole point of
+     *  `firstDivergedPickIndex`. */
+    getCardProfile?: GetCardProfile
 ): ReplayResult {
     const seatShells: LimitedEventSeat[] = seats.map((s) => ({
         seatIndex: s.seatIndex,
@@ -226,7 +237,7 @@ export function reconstructDraftReplay(
                 pack,
                 seat.pool ?? [],
                 getCardEvalMeta,
-                { packsSeen, getPickRating }
+                { packsSeen, getPickRating, getCardProfile }
             );
             const recomputedPackCard = pack.find(
                 (c) => c.pickId === recomputedPickId

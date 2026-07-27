@@ -50,6 +50,7 @@ import LobbyBackground from "./lobby-background";
 import ActiveGameNotice from "./active-game-notice";
 import BanlistAdminPanel from "./banlist-admin-panel";
 import PickRatingAdminPanel from "./pick-rating-admin-panel";
+import CardProfileAdminPanel from "./card-profile-admin-panel";
 
 function Lobby() {
     const navigate = useNavigate();
@@ -515,6 +516,7 @@ function Lobby() {
 
                 <BanlistAdminPanel />
                 <PickRatingAdminPanel />
+                <CardProfileAdminPanel />
 
                 <LobbyFooter />
             </div>
