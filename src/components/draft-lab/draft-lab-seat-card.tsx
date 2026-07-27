@@ -1,6 +1,14 @@
 // One seat's summary tile in the Draft Lab table view (issue #1612: "table
 // view: all 8 seats, each with its current pack and the pick it made").
 // Clicking a tile focuses that seat's candidate breakdown.
+//
+// Pack CONTENTS, not just size (issue #1612 fixup, pre-merge review): the
+// scope bullet reads "each with its current pack", which the tile satisfied
+// only with a bare card count ("pack 14") — the pick target names themselves
+// were invisible outside the focused seat's detail view. Rendered here as a
+// compact wrapped name list; the focused seat (`DraftLabFocusPanel`) remains
+// the place for the full per-candidate breakdown, so this stays terse on
+// purpose.
 import type { LimitedEventSeat } from "@convex/limited/eventTypes";
 import type { DraftLabPickRecord } from "@/lib/limited/draftLabEngine";
 import type { GetCardProfile } from "@convex/limited/cardProfiles";
@@ -41,6 +49,14 @@ export default function DraftLabSeatCard({
                 pool {seat.pool?.length ?? 0} · pack{" "}
                 {seat.currentPack?.length ?? 0}
             </span>
+            {seat.currentPack && seat.currentPack.length > 0 && (
+                <span
+                    className="text-[10px] leading-tight text-text-disabled"
+                    title={seat.currentPack.map((c) => c.cardName).join(", ")}
+                >
+                    {seat.currentPack.map((c) => c.cardName).join(", ")}
+                </span>
+            )}
             {lastPickCard ? (
                 <span className="flex items-center gap-1 text-[10px] text-text-disabled">
                     took {lastPickCard.cardName}

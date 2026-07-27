@@ -3,6 +3,19 @@
 // controls"). Pack Source options come from `listDraftableSets()` — the SAME
 // live Draftability computation the real Limited Event creation flow uses —
 // so the Lab can never offer a source the server would refuse to deal.
+//
+// Draftable-only filter (issue #1612 fixup, pre-merge review): the real
+// dialog (`create-limited-event-dialog.tsx#isSourceSelectable`) and the
+// server (`limitedEvents.ts#createLimitedEvent`, via `isDraftableSet`) both
+// gate on `draftable` — a set below the ≥80% coverage floor is listed by
+// `listDraftableSets()` for INFORMATIONAL reasons (Incompleteness UI) but
+// can't actually be dealt. Filtering here keeps that same golden-path
+// invariant the file's own header already claims. Memoized (`useMemo`) since
+// `listDraftableSets()` recomputes the Draftability sweep on every call and
+// this component re-renders every `AUTO_PLAY_INTERVAL_MS` (350ms) during
+// auto-play — the Booster Config catalogue doesn't change within a session,
+// so there is nothing to recompute after the first render.
+import { useMemo } from "react";
 import { listDraftableSets } from "@convex/limited/registry";
 import { CUBE_SOURCE_KEY, CUBE_DISPLAY_NAME } from "@convex/limited/cubeSource";
 import type { DraftLabState } from "@/lib/limited/draftLabEngine";
@@ -34,7 +47,10 @@ export default function DraftLabControls({
     onStep: () => void;
     onToggleAutoPlay: () => void;
 }) {
-    const sources = listDraftableSets();
+    const sources = useMemo(
+        () => listDraftableSets().filter((s) => s.draftable),
+        []
+    );
     const canStep = !!state && !state.completed && !isAutoPlaying;
     const canAutoPlay = !!state && !state.completed;
 

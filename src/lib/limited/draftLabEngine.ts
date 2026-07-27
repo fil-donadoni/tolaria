@@ -28,6 +28,7 @@ import { resolveEventPickRating } from "@convex/limited/cardRatings";
 import {
     resolveEventCardProfile,
     type GetCardProfile,
+    type GetDbProfile,
 } from "@convex/limited/cardProfiles";
 import type {
     DraftPackCard,
@@ -98,15 +99,28 @@ export function buildDraftLabPickRating(
 }
 
 /** Builds the Lab's layered Card Profile lookup (`resolveEventCardProfile`,
- *  `convex/limited/cardProfiles.ts`) the same way — DB layer always `null`,
- *  seed layer live. Surfaces `reviewed` (issue #1612: "surface unreviewed
- *  profiles visibly") for every card the Lab shows, independent of whether
- *  the scorer itself reads Card Profiles yet (PRD #1607 slice 4 is separate
- *  from this slice). */
+ *  `convex/limited/cardProfiles.ts`) the same way `buildDraftLabPickRating`
+ *  layers Pick Ratings, with one difference (issue #1612 fixup): the DB
+ *  layer is now a REAL read, not a permanent `() => null`. `getDbProfile`
+ *  defaults to `() => null` so a caller that genuinely has no live data
+ *  (a unit test, e.g.) gets the pre-fixup seed-only behavior unchanged; the
+ *  Lab's own caller (`useDraftLab.ts`) passes a `GetDbProfile` built from a
+ *  live `useQuery(api.limited.cardProfiles.listScopeCardProfiles, …)`
+ *  result via `buildDbProfileLookup` — a READ, never a mutation/action, so
+ *  ADR 0074's "the Draft Lab writes nothing" guarantee is untouched.
+ *  Surfaces `reviewed` (issue #1612: "surface unreviewed profiles visibly")
+ *  for every card the Lab shows, independent of whether the scorer itself
+ *  reads Card Profiles yet (PRD #1607 slice 4 is separate from this slice).
+ *  Determinism (issue #1612's "same seed ⇒ same draft"): this function's
+ *  output only ever feeds `DraftLabProfileBadge` — the display layer — never
+ *  `stepDraftLab`/`chooseBotPick`'s pick decision, so a `useQuery` result
+ *  changing (or arriving late, `undefined` while loading) cannot make a
+ *  replayed draft diverge; it can only change what a badge shows. */
 export function buildDraftLabCardProfile(
-    packSlots: readonly string[]
+    packSlots: readonly string[],
+    getDbProfile: GetDbProfile = () => null
 ): GetCardProfile {
-    return resolveEventCardProfile(packSlots, () => null);
+    return resolveEventCardProfile(packSlots, getDbProfile);
 }
 
 /** Standard packSlots for a Draft table off one Pack Source (issue #1612's

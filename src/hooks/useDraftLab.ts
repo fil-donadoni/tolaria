@@ -1,10 +1,20 @@
 // React state wrapper around the pure Draft Lab engine (issue #1612, ADR
 // 0074). Owns the session — seed/source inputs, the current `DraftLabState`,
 // which seat is focused, and auto-play — all client-side `useState`, never a
-// Convex mutation/query. Auto-play is a plain `setInterval` calling the same
+// Convex MUTATION/action. Auto-play is a plain `setInterval` calling the same
 // `stepDraftLab` the manual "Step" button calls, so stepping and auto-playing
 // are the exact same code path (issue #1612: "step and auto-play controls").
+//
+// The ONE exception to "no Convex" (issue #1612 fixup): a single read-only
+// `useQuery` for Card Profiles (`api.limited.cardProfiles.listScopeCardProfiles`)
+// feeds the DB layer `buildDraftLabCardProfile` was previously permanently
+// hardwired to `() => null` for. ADR 0074 forbids WRITES ("it writes
+// nothing"), not reads — `draft-lab-no-mutation.test.ts` enforces exactly
+// that narrower bar (no write-shaped mutation/action hook or `ctx.db.` write
+// call anywhere on this surface), and this file adds none of those.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useQuery } from "convex/react";
+import { api } from "@convex/_generated/api";
 import {
     DRAFT_LAB_SEAT_COUNT,
     buildDraftLabCardProfile,
@@ -15,7 +25,10 @@ import {
     type DraftLabState,
 } from "@/lib/limited/draftLabEngine";
 import { CUBE_SOURCE_KEY } from "@convex/limited/cubeSource";
-import type { GetCardProfile } from "@convex/limited/cardProfiles";
+import {
+    buildDbProfileLookup,
+    type GetCardProfile,
+} from "@convex/limited/cardProfiles";
 
 /** Arbitrary, memorable default — any seed the user types behaves
  *  identically (issue #1612: "generate a draft from an arbitrary seed"). */
@@ -50,9 +63,23 @@ export function useDraftLab(): UseDraftLabResult {
         () => buildDraftLabPickRating(packSlots),
         [packSlots]
     );
+
+    // Live DB-layer Card Profiles for the current Pack Source scope(s) — a
+    // read-only query, `undefined` while the first response hasn't landed
+    // yet (`buildDbProfileLookup(undefined ?? [])` degrades to "no DB rows",
+    // the SAME empty-layer behavior the seed-only path already had, so a
+    // slow/loading query never breaks rendering, only delays a badge).
+    const scopeCardProfiles = useQuery(
+        api.limited.cardProfiles.listScopeCardProfiles,
+        { scopes: packSlots }
+    );
     const getCardProfile = useMemo(
-        () => buildDraftLabCardProfile(packSlots),
-        [packSlots]
+        () =>
+            buildDraftLabCardProfile(
+                packSlots,
+                buildDbProfileLookup(scopeCardProfiles ?? [])
+            ),
+        [packSlots, scopeCardProfiles]
     );
 
     const start = useCallback(() => {

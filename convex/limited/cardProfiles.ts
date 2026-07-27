@@ -13,17 +13,26 @@
 // `resolveEventCardProfile` (the READ path) is PURE — no `ctx`, no DB
 // access — handed an already-scoped `GetDbProfile` closure exactly like
 // `resolveEventPickRating` is handed `GetDbRating`; the actual `ctx.db` read
-// happens in whichever thin mutation/query shell later wires this up
-// (out of scope for this slice — see the module doc below).
+// happens in the thin `listScopeCardProfiles` query below, mirroring how
+// `cardRatings.ts` co-locates its pure read-side core with the Convex
+// function shell that feeds it real rows.
 //
-// THIS SLICE IS A DATA FOUNDATION ONLY (issue #1608's acceptance): no call
-// site reads `GetCardProfile` yet. `convex/limited/botDrafter.ts` is
-// UNCHANGED — wiring `resolveEventCardProfile` into `chooseBotPick` is a
-// LATER PRD #1607 slice (slice 4, "Archetype + Capability + Combo Edge
-// terms"), once the scorer itself understands a unified 0-5 scale (slice 2,
-// ADR 0073) it can spend a Capability-match contribution on.
+// THIS SLICE IS STILL A DATA FOUNDATION for the SCORER (issue #1608's
+// acceptance): no call site feeds `GetCardProfile` into `chooseBotPick` yet.
+// `convex/limited/botDrafter.ts` is UNCHANGED — wiring `resolveEventCardProfile`
+// into `chooseBotPick` is a LATER PRD #1607 slice (slice 4, "Archetype +
+// Capability + Combo Edge terms"), once the scorer itself understands a
+// unified 0-5 scale (slice 2, ADR 0073) it can spend a Capability-match
+// contribution on. `listScopeCardProfiles` (issue #1612 fixup) exists so a
+// DISPLAY-only consumer — the Draft Lab's `DraftLabProfileBadge` — can read
+// real `cardProfiles` rows instead of being permanently wired to a `() =>
+// null` DB layer; it is a read-only query (no mutation, no write), so it
+// does not touch ADR 0074's "the Draft Lab writes nothing" guarantee.
 import { isRegisteredCapability } from "./capabilityRegistry";
 import { tryGetDefinition } from "../cards";
+import { v } from "convex/values";
+import { query } from "../_generated/server";
+import { getCurrentUserId } from "../auth";
 
 /** One `(scope, cardId)` Card Profile row — the shape both the `cardProfiles`
  *  table (`convex/schema.ts`) and any checked-in seed file share. `provides`/
@@ -230,3 +239,98 @@ export function validateCardProfileFile(
 export function getAllCheckedInCardProfileFiles(): CardProfileFile[] {
     return Object.values(CHECKED_IN_CARD_PROFILES);
 }
+
+// ─────────────────────────────────────────────────────────────────────────
+// Read-only query (issue #1612 fixup): a real `cardProfiles` DB layer for a
+// DISPLAY-only consumer (the Draft Lab). No write mutation exists here — the
+// Admin write boundary this module's header comment defers is still a later
+// PRD #1607 slice.
+// ─────────────────────────────────────────────────────────────────────────
+
+/** One `cardProfiles` row as `listScopeCardProfiles` ships it — a
+ *  `CardProfile` plus the `(scope, cardId)` key it was read under, so a
+ *  caller can fold several scopes' rows into one lookup without a second
+ *  round trip per scope. */
+export interface ScopedCardProfile extends CardProfile {
+    scope: string;
+    cardId: string;
+}
+
+/** Turns a flat `listScopeCardProfiles` result (below) into the
+ *  `GetDbProfile` closure `resolveEventCardProfile` wants — pure, no `ctx`.
+ *  `listScopeCardProfiles` itself returns the flat row list, not a closure
+ *  (a `useQuery` result has to be plain serializable data); this is the one
+ *  shared "rows -> lookup" step every caller of that query needs, so it
+ *  lives here once instead of being hand-rolled per caller — today that's
+ *  `useDraftLab.ts`, folding a live `useQuery` result into
+ *  `buildDraftLabCardProfile`. Case-insensitive on `scope`, matching
+ *  `resolveEventCardProfile`'s own normalization. */
+export function buildDbProfileLookup(
+    rows: readonly ScopedCardProfile[]
+): GetDbProfile {
+    const byKey = new Map<string, CardProfile>();
+    for (const row of rows) {
+        byKey.set(`${row.scope.toLowerCase()}::${row.cardId}`, row);
+    }
+    return (scope: string, cardId: string): CardProfile | null =>
+        byKey.get(`${scope.toLowerCase()}::${cardId}`) ?? null;
+}
+
+const scopedCardProfileValidator = v.object({
+    scope: v.string(),
+    cardId: v.string(),
+    archetypes: v.array(v.string()),
+    provides: v.array(v.string()),
+    requires: v.array(v.string()),
+    comboEdges: v.optional(
+        v.array(v.object({ cardId: v.string(), weight: v.number() }))
+    ),
+    reviewed: v.boolean(),
+});
+
+/** Every `cardProfiles` row for a set of scopes — the ONE place this module
+ *  touches `ctx.db` directly, mirroring `cardRatings.ts`'s
+ *  `listScopeCardRatings`. Unlike that editor query, this is NOT admin-gated
+ *  (`getCurrentUserId`, not `assertIsAdmin`): the Draft Lab is a synthetic
+ *  developer surface any authenticated user can open (issue #1612), and
+ *  reading a Card Profile to render an "unreviewed" badge is informational,
+ *  not an Admin-only capability — the SAME "any authenticated user, not
+ *  admin-gated" call `listLimitedDraftableSets` already makes for its own
+ *  informational read. Read-only: no `insert`/`patch`/`delete` anywhere in
+ *  this handler, so it carries no write surface for
+ *  `draft-lab-no-mutation.test.ts` to catch.
+ *
+ *  `scopes` is the caller's distinct pack-source identities (mirrors
+ *  `resolveEventCardProfile`'s own `scopes` parameter); normalized to
+ *  lowercase here, once. Uses the `by_scope` index per scope — bounded, never
+ *  a full-table scan — the same access pattern
+ *  `limitedEvents.ts#loadEventPickRating` uses for `cardRatings`. */
+export const listScopeCardProfiles = query({
+    args: { scopes: v.array(v.string()) },
+    returns: v.array(scopedCardProfileValidator),
+    handler: async (ctx, { scopes }): Promise<ScopedCardProfile[]> => {
+        await getCurrentUserId(ctx);
+        const normalizedScopes = Array.from(
+            new Set(scopes.map((scope) => scope.toLowerCase()))
+        );
+        const rows: ScopedCardProfile[] = [];
+        for (const scope of normalizedScopes) {
+            const scopeRows = await ctx.db
+                .query("cardProfiles")
+                .withIndex("by_scope", (q) => q.eq("scope", scope))
+                .collect();
+            for (const row of scopeRows) {
+                rows.push({
+                    scope: row.scope,
+                    cardId: row.cardId,
+                    archetypes: row.archetypes,
+                    provides: row.provides,
+                    requires: row.requires,
+                    comboEdges: row.comboEdges,
+                    reviewed: row.reviewed,
+                });
+            }
+        }
+        return rows;
+    },
+});
