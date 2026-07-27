@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import type { Id } from "@convex/_generated/dataModel";
+import { arePoolsDealt } from "@convex/limited/eventStatus";
 import type { LimitedEventView } from "~/hooks/useLimitedEvent";
 
 /** Session-scoped marker so the auto-open fires ONCE per event per tab. The
@@ -48,7 +49,7 @@ export function useAutoOpenLimitedBuilder(
 
     const poolIsFinal =
         event != null &&
-        event.status === "started" &&
+        arePoolsDealt(event.status) &&
         (event.type === "sealed" || event.draftCompletedAt !== undefined);
     const shouldOpen =
         poolIsFinal && viewerSeat !== undefined && !viewerSeat.hasDeck;

@@ -41,6 +41,7 @@ import {
     curveBucket,
 } from "./botDrafter";
 import type { LimitedPoolCard } from "./eventTypes";
+import { arePoolsDealt, type LimitedEventStatus } from "./eventStatus";
 
 /** The printed characteristics Auto-Build needs beyond `botDrafter.ts`'s own
  *  `CardEvalMeta` — adds `isLand` (CR 305), the split between "spell" and
@@ -303,19 +304,25 @@ export function autoBuildDeck(
  *  depends on `Doc<"limitedEvents">`. */
 export interface AutoBuildEventContext {
     type: "sealed" | "draft";
-    status: "open" | "started";
+    status: LimitedEventStatus;
     draftCompletedAt?: number;
 }
 
 /** True once a Seat's Pool is FINAL and safe to Auto-Build against (PRD
  *  #1107 stories 24/25, ADR 0054/0055 decision 3): a Sealed event's Pool is
- *  dealt IN FULL the instant `startLimitedEvent` runs (`status: "started"`
- *  is already the whole Pool — no further growth), while a Draft's Pool only
+ *  dealt IN FULL the instant `startLimitedEvent` runs (Pools dealt already
+ *  means the whole Pool — no further growth), while a Draft's Pool only
  *  stabilizes once every pack is picked through (`draftCompletedAt`) —
  *  Auto-Building mid-draft would build against a Pool that is about to keep
- *  growing, silently stale a moment later. */
+ *  growing, silently stale a moment later.
+ *
+ *  The gate is `arePoolsDealt`, NOT `status === "started"` (ADR 0076, issue
+ *  #1640): a Pool is never un-dealt, so it stays final through the play phase
+ *  and past the event's end. A literal comparison here would have made every
+ *  bot seat's Auto-Built deck — the deck its round pairings are played and
+ *  evaluated against — disappear the instant the rounds started. */
 export function isEventPoolFinal(event: AutoBuildEventContext): boolean {
-    if (event.status !== "started") return false;
+    if (!arePoolsDealt(event.status)) return false;
     return event.type === "sealed" || event.draftCompletedAt !== undefined;
 }
 

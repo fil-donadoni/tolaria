@@ -84,7 +84,12 @@ describe("LimitedEventsPage — your events section (issue #1578)", () => {
 
         expect(screen.getByText("Your Events")).toBeTruthy();
         expect(screen.getByText(/sealed/i)).toBeTruthy();
-        expect(screen.getByText(/started/)).toBeTruthy();
+        // The row shows the derived PHASE, not the raw `status` enum (ADR
+        // 0076): a started Sealed event with no decks in yet is
+        // "deckbuilding". "started" is a DB state; the phase is what the
+        // player is actually doing — and with four lifecycle statuses the raw
+        // enum would report a running event as "completed".
+        expect(screen.getByText(/deckbuilding/)).toBeTruthy();
     });
 
     it("navigates to the event detail page when its View button is clicked", () => {

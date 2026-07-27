@@ -1,6 +1,7 @@
 import type { LimitedEventView } from "~/hooks/useLimitedEvent";
 import { Button } from "@/components/ui/button";
 import LimitedStatusBadge from "./limited-status-badge";
+import LimitedMatchFormatBadge from "./limited-match-format-badge";
 
 /** One-line meta row under the event title: the way back on the left, the
  *  event's phase on the right.
@@ -24,7 +25,12 @@ export default function LimitedEventToolbar({
             <Button variant="link" size="sm" onClick={onBack} className="px-0">
                 ← Back to Limited Events
             </Button>
-            <LimitedStatusBadge event={event} />
+            <span className="flex items-center gap-1.5">
+                {/* Match Format (PRD #1628 story 1-2): what kind of event this
+                    is, readable before a single pack is opened. */}
+                <LimitedMatchFormatBadge event={event} />
+                <LimitedStatusBadge event={event} />
+            </span>
         </div>
     );
 }

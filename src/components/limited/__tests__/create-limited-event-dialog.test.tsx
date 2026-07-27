@@ -384,3 +384,144 @@ describe("CreateLimitedEventDialog — Incompleteness Notice (ADR 0059, PRD #124
         expect(screen.queryByRole("status")).toBe(null);
     });
 });
+
+// Match Format + Round Deadline (PRD #1628 stories 1-4, ADR 0076, issue
+// #1640). Both are chosen at CREATION and fixed for the event's life, so the
+// assertions run against the real `onCreate` payload the dialog submits — a
+// hand-built payload would mask exactly the kind of wiring gap (a control that
+// renders but never reaches the mutation) this discipline exists to catch.
+describe("CreateLimitedEventDialog — Match Format (PRD #1628 stories 1-2)", () => {
+    it("offers Bo1 / Bo3 for every event type, defaulting to Bo3", () => {
+        renderDialog();
+        expect(
+            screen.getByRole("radiogroup", { name: "Match Format" })
+        ).toBeTruthy();
+        expect(
+            screen.getByRole("radio", { name: "Bo3" }).getAttribute("aria-checked")
+        ).toBe("true");
+        expect(
+            screen.getByRole("radio", { name: "Bo1" }).getAttribute("aria-checked")
+        ).toBe("false");
+    });
+
+    it("still offers the Match Format once Draft is selected", () => {
+        renderDialog();
+        fireEvent.click(screen.getByRole("radio", { name: "Draft" }));
+        expect(
+            screen.getByRole("radiogroup", { name: "Match Format" })
+        ).toBeTruthy();
+    });
+
+    it("submits matchFormat: 'bo3' when the creator configures nothing", () => {
+        const onCreate = vi.fn();
+        renderDialog({ onCreate });
+        fireEvent.click(screen.getByText("Create Event"));
+        expect(onCreate).toHaveBeenCalledWith(
+            expect.objectContaining({ matchFormat: "bo3" })
+        );
+    });
+
+    it("submits matchFormat: 'bo1' once Bo1 is picked", () => {
+        const onCreate = vi.fn();
+        renderDialog({ onCreate });
+        fireEvent.click(screen.getByRole("radio", { name: "Bo1" }));
+        expect(
+            screen.getByRole("radio", { name: "Bo1" }).getAttribute("aria-checked")
+        ).toBe("true");
+
+        fireEvent.click(screen.getByText("Create Event"));
+        expect(onCreate).toHaveBeenCalledWith(
+            expect.objectContaining({ matchFormat: "bo1" })
+        );
+    });
+});
+
+describe("CreateLimitedEventDialog — Round Deadline (PRD #1628 stories 3-4)", () => {
+    it("defaults the deadline to Off, with no minutes field shown", () => {
+        renderDialog();
+        expect(
+            screen.getByRole("radiogroup", { name: "Round Deadline" })
+        ).toBeTruthy();
+        expect(
+            screen
+                .getByRole("radio", { name: "Round Deadline Off" })
+                .getAttribute("aria-checked")
+        ).toBe("true");
+        expect(
+            screen.queryByRole("spinbutton", { name: "Minutes per Round" })
+        ).toBe(null);
+    });
+
+    it("omits roundDeadlineMinutes entirely while the deadline is Off (story 4)", () => {
+        const onCreate = vi.fn();
+        renderDialog({ onCreate });
+        fireEvent.click(screen.getByText("Create Event"));
+        const payload = onCreate.mock.calls[0][0];
+        expect(payload.roundDeadlineMinutes).toBeUndefined();
+    });
+
+    it("reveals a minutes field, pre-filled with a real round length, when switched On", () => {
+        renderDialog();
+        fireEvent.click(
+            screen.getByRole("radio", { name: "Round Deadline On" })
+        );
+
+        const minutes = screen.getByRole("spinbutton", {
+            name: "Minutes per Round",
+        }) as HTMLInputElement;
+        expect(minutes.value).toBe("50");
+    });
+
+    it("submits the configured deadline in minutes (story 3)", () => {
+        const onCreate = vi.fn();
+        renderDialog({ onCreate });
+        fireEvent.click(
+            screen.getByRole("radio", { name: "Round Deadline On" })
+        );
+        fireEvent.change(
+            screen.getByRole("spinbutton", { name: "Minutes per Round" }),
+            { target: { value: "25" } }
+        );
+
+        fireEvent.click(screen.getByText("Create Event"));
+        expect(onCreate).toHaveBeenCalledWith(
+            expect.objectContaining({ roundDeadlineMinutes: 25 })
+        );
+    });
+
+    it("clamps a typed deadline into the range the mutation accepts", () => {
+        const onCreate = vi.fn();
+        renderDialog({ onCreate });
+        fireEvent.click(
+            screen.getByRole("radio", { name: "Round Deadline On" })
+        );
+        const minutes = screen.getByRole("spinbutton", {
+            name: "Minutes per Round",
+        });
+
+        // 0 is below the floor — clamped up, never submitted as-is (the server
+        // would reject it).
+        fireEvent.change(minutes, { target: { value: "0" } });
+        fireEvent.click(screen.getByText("Create Event"));
+        expect(onCreate).toHaveBeenCalledWith(
+            expect.objectContaining({ roundDeadlineMinutes: 1 })
+        );
+    });
+
+    it("drops the deadline again when switched back Off (the typed value is not resurrected)", () => {
+        const onCreate = vi.fn();
+        renderDialog({ onCreate });
+        const off = screen.getByRole("radio", { name: "Round Deadline Off" });
+        const on = screen.getByRole("radio", { name: "Round Deadline On" });
+        fireEvent.click(on);
+        fireEvent.change(
+            screen.getByRole("spinbutton", { name: "Minutes per Round" }),
+            { target: { value: "25" } }
+        );
+        fireEvent.click(off);
+
+        fireEvent.click(screen.getByText("Create Event"));
+        const payload = onCreate.mock.calls[0][0];
+        expect(payload.roundDeadlineMinutes).toBeUndefined();
+    });
+});

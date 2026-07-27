@@ -24,6 +24,11 @@ import LimitedShareInviteButton from "./limited-share-invite-button";
 import LimitedEventPageFrame from "./limited-event-page-frame";
 import LimitedEventToolbar from "./limited-event-toolbar";
 import { limitedEventName } from "~/lib/limitedEventName";
+import {
+    arePoolsDealt,
+    areDraftPicksLegal,
+    isSeatingOpen,
+} from "@convex/limited/eventStatus";
 import { useAutoOpenLimitedBuilder } from "~/hooks/useAutoOpenLimitedBuilder";
 
 /** One Limited Event's detail page (PRD #1107, ADR 0054/0055). It shows what
@@ -95,26 +100,33 @@ export default function LimitedEventDetail({
         );
     }
 
+    // Every phase question routes through `convex/limited/eventStatus.ts`
+    // rather than comparing `event.status` literally (ADR 0076): with four
+    // lifecycle members a raw `=== "started"` is a bug waiting for the play
+    // phase to ship.
+    const seatingOpen = isSeatingOpen(event.status);
     const isCreator = user !== null && event.createdBy === user._id;
-    const canJoin = event.status === "open" && !viewerSeat;
-    const canStart = event.status === "open" && isCreator;
+    const canJoin = seatingOpen && !viewerSeat;
+    const canStart = seatingOpen && isCreator;
     // An occupant can leave their own Seat; the creator can cancel the whole
     // event — both OPEN-only (issue #1579's out-of-scope note: dropping from
     // a started event is a different, undesigned, concession/replacement
     // policy). Independent of each other: the creator, if ALSO seated, sees
     // both actions.
-    const canLeave = event.status === "open" && !!viewerSeat;
-    const canCancel = event.status === "open" && isCreator;
+    const canLeave = seatingOpen && !!viewerSeat;
+    const canCancel = seatingOpen && isCreator;
     // Mirrors `isEventPoolFinal` (`convex/limited/autoBuild.ts`, issue
     // #1115): the point at which every bot seat's Pool — and therefore its
-    // Auto-Built deck — is final and the vs-AI hookup can offer it.
+    // Auto-Built deck — is final and the vs-AI hookup can offer it. Stays true
+    // through the play phase and past the event's end — a Pool is never
+    // un-dealt.
     const isPoolFinal =
-        event.status === "started" &&
+        arePoolsDealt(event.status) &&
         (event.type === "sealed" || event.draftCompletedAt !== undefined);
     // During an active draft the per-seat roster is noise (the drafter watches
     // the Booster, not the table), so it collapses behind a "Seats" summary.
     const draftInProgress =
-        event.status === "started" &&
+        areDraftPicksLegal(event.status) &&
         event.type === "draft" &&
         !event.draftCompletedAt;
 
@@ -279,7 +291,7 @@ export default function LimitedEventDetail({
                 <div className="mt-2 flex justify-end border-t border-border-accent/20 pt-3">
                     <LimitedShareInviteButton
                         eventId={eventId}
-                        canInvite={event.status === "open"}
+                        canInvite={seatingOpen}
                     />
                 </div>
             </PanelBody>
