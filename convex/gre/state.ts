@@ -8317,10 +8317,22 @@ function requestCopyRetargetOn(state: GameState, copy: StackItem): void {
             ? req.excludeSupertypes
             : [req.excludeSupertypes]
         : undefined;
-    // Inline mvFilter "X" resolution (mirrors rules.resolveMvFilter;
-    // duplicated to avoid a state ↔ rules import cycle).
-    const resolveMv = (v: number | "X" | undefined): number | undefined =>
-        v === undefined ? undefined : v === "X" ? (copy.chosenX ?? 0) : v;
+    // Inline mvFilter "X"/"sourcePower" resolution (mirrors
+    // rules.resolveMvFilter; duplicated to avoid a state ↔ rules import
+    // cycle). A copy-retarget's source is the spell COPY on the stack, not a
+    // battlefield permanent — issue #1378's `"sourcePower"` sentinel has no
+    // live power to read here, so it falls back to 0, same as every other
+    // unthreaded `resolveMvFilter` caller (CR 608.2b convention).
+    const resolveMv = (
+        v: number | "X" | "sourcePower" | undefined
+    ): number | undefined =>
+        v === undefined
+            ? undefined
+            : v === "X"
+              ? (copy.chosenX ?? 0)
+              : v === "sourcePower"
+                ? 0
+                : v;
     const mvFilter = req.mvFilter
         ? {
               ...(req.mvFilter.min !== undefined

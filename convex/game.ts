@@ -7634,15 +7634,16 @@ export const selectTarget = mutation({
             ) {
                 throw new Error("Card type mismatch for graveyard target");
             }
-            // CR 109.3 / 102.1 / 202.3 — every CARD-kind filter (`controller`
-            // — the graveyard's OWNER, anti-spoof #904's card-flavored twin
-            // — and `mvFilter`), routed through the SINGLE shared authority
-            // — the target-filter registry (ADR 0068 / issue #1410, T3).
-            // `getLegalTargets` runs the SAME `checkCardTargetFilters` per
-            // candidate, so the offered set and the accepted set can't
-            // diverge. This ALSO fixes a real latent gap: this branch never
-            // implemented `controller: "active"` before this slice, while
-            // `getLegalTargets` already did.
+            // CR 109.3 / 102.1 / 202.3 / 109.1 — every CARD-kind filter
+            // (`controller` — the graveyard's OWNER, anti-spoof #904's
+            // card-flavored twin — `mvFilter`, and `excludeTypes` — issue
+            // #1378's "nonland permanent card" gate), routed through the
+            // SINGLE shared authority — the target-filter registry (ADR 0068
+            // / issue #1410, T3). `getLegalTargets` runs the SAME
+            // `checkCardTargetFilters` per candidate, so the offered set and
+            // the accepted set can't diverge. This ALSO fixes a real latent
+            // gap: this branch never implemented `controller: "active"`
+            // before this slice, while `getLegalTargets` already did.
             const cardFilterCtx: TargetFilterCtx = {
                 state,
                 sourceColors: [],
@@ -7657,6 +7658,7 @@ export const selectTarget = mutation({
                 {
                     controller: pt.controller,
                     mvFilter: pt.mvFilter,
+                    excludeTypes: pt.excludeTypes,
                 }
             );
             if (cardFilterViolation) throw new Error(cardFilterViolation);
@@ -10346,6 +10348,13 @@ export function activateAbilityOnState(
         // CR 202.2 / 702.16b: the source's colors come from the
         // permanent owning the activated ability.
         const abilitySourceColors = STATIC_EFFECT_CTX.getColors(card);
+        // Issue #1378 — the activating permanent's LIVE effective power (CR
+        // 613 layer 7c), for a `mvFilter` bound of `"sourcePower"`. Read the
+        // same way the ability's own `dealDamage`-style effects would
+        // (`getEffectivePower`); an activated ability's source is always the
+        // on-battlefield `card` itself (unlike a triggered ability's
+        // separately-tracked `triggerSourceId`).
+        const abilitySourcePower = getEffectivePower(state, card);
         const legal = getLegalTargets(
             state,
             effectiveTargetReq,
@@ -10355,7 +10364,9 @@ export function activateAbilityOnState(
             card.types,
             card.subtypes,
             // Source is an activated ability, not a spell (CR 113.3).
-            false
+            false,
+            [],
+            abilitySourcePower
         );
         if (legal.length === 0) {
             throw new Error("No legal targets available");
@@ -10406,7 +10417,8 @@ export function activateAbilityOnState(
             // activated ability (CR 113 / 701.5a).
             ...pendingTargetFiltersFromRequirement(
                 effectiveTargetReq,
-                targetChosenX
+                targetChosenX,
+                abilitySourcePower
             ),
         };
 

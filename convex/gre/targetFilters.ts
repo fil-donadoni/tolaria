@@ -69,17 +69,25 @@ export function hasColor(card: CardInstanceState, color: Color): boolean {
     return STATIC_EFFECT_CTX.getColors(card).includes(color);
 }
 
-/** Resolves a TargetRequirement.mvFilter's `"X"` placeholders against the
- *  announced chosenX so downstream code only sees numeric bounds.
- *  Used by getLegalTargets and selectTarget validation. */
+/** Resolves a TargetRequirement.mvFilter's `"X"` / `"sourcePower"`
+ *  placeholders against the announced chosenX / source's live effective power
+ *  so downstream code only sees numeric bounds. `sourcePower` (issue #1378)
+ *  is the announcing trigger/ability source's CURRENT effective power (CR
+ *  613 layer 7c) — see the field's doc comment on `TargetRequirement.mvFilter`
+ *  (`cards/types.ts`) for the CR 603.3d snapshot-timing rationale. Used by
+ *  getLegalTargets and selectTarget validation. */
 export function resolveMvFilter(
     filter: TargetRequirement["mvFilter"] | undefined,
-    chosenX: number | undefined
+    chosenX: number | undefined,
+    sourcePower?: number
 ): { min?: number; max?: number; equals?: number } | undefined {
     if (!filter) return undefined;
-    const resolveOne = (v: number | "X" | undefined): number | undefined => {
+    const resolveOne = (
+        v: number | "X" | "sourcePower" | undefined
+    ): number | undefined => {
         if (v === undefined) return undefined;
         if (v === "X") return chosenX ?? 0;
+        if (v === "sourcePower") return sourcePower ?? 0;
         return v;
     };
     return {
@@ -362,7 +370,16 @@ export interface TargetFilterCtx {
  *  `undefined` is skipped; a filter whose value is present but whose
  *  candidate kind is absent from `checks` excludes that candidate. */
 export interface FilterDescriptor<V> {
-    lower(req: TargetRequirement, chosenX?: number): V | undefined;
+    /** `sourcePower` (issue #1378) is the announcing trigger/ability source's
+     *  live effective power, threaded through ONLY for `mvFilterDescriptor`'s
+     *  `"sourcePower"` placeholder — every other descriptor ignores the extra
+     *  argument (TS function-type compatibility permits a narrower-arity
+     *  implementation). */
+    lower(
+        req: TargetRequirement,
+        chosenX?: number,
+        sourcePower?: number
+    ): V | undefined;
     checks: Partial<{
         permanent: (
             candidate: CardInstanceState,
@@ -535,10 +552,23 @@ const excludeSupertypesDescriptor = defineFilter<string[]>({
 });
 
 // CR 109.1 — type-exclude filter ("nonland permanent", "nonartifact").
+// Also checked for a CARD-kind (graveyard/hand) candidate (issue #1378, T3
+// follow-up): a graveyard-zone `targetRequirement` has no negation on its own
+// STRUCTURAL `type` field (a plain OR-membership test — CR 300.1's dual-typed
+// permanents, e.g. a land Creature, would otherwise slip past a POSITIVE
+// "Creature"/"Artifact"/... list even under a "nonland" restriction), so
+// `excludeTypes: "Land"` needs the SAME registry gate here that it already has
+// for `checks.permanent` — the Phelia "nonland permanent" idiom (Guardian
+// Scalelord's graveyard reanimation target) only works catalogue-wide once a
+// `card` candidate can be excluded by type too.
 const excludeTypesDescriptor = defineFilter<CardType[]>({
     lower: (req) => arr(req.excludeTypes),
     checks: {
         permanent: (card, value) =>
+            value.some((t) => card.types.includes(t))
+                ? `Target must not be ${value.join(" or ")}`
+                : null,
+        card: (card, value) =>
             value.some((t) => card.types.includes(t))
                 ? `Target must not be ${value.join(" or ")}`
                 : null,
@@ -779,7 +809,8 @@ const mvFilterDescriptor = defineFilter<{
     max?: number;
     equals?: number;
 }>({
-    lower: (req, chosenX) => resolveMvFilter(req.mvFilter, chosenX),
+    lower: (req, chosenX, sourcePower) =>
+        resolveMvFilter(req.mvFilter, chosenX, sourcePower),
     checks: {
         permanent: (card, value) =>
             matchesMvFilter(value, mvOfPermanent(card))
@@ -1145,11 +1176,12 @@ export function checkPermanentTargetFilters(
  *  key's output IS the corresponding `PendingTarget` field, by construction. */
 export function lowerPermanentFilters(
     req: TargetRequirement,
-    chosenX: number | undefined
+    chosenX: number | undefined,
+    sourcePower?: number
 ): PermanentFilterValues {
     const out: Record<string, unknown> = {};
     for (const key of PERMANENT_FILTER_KEYS) {
-        const value = REGISTRY[key].lower(req, chosenX);
+        const value = REGISTRY[key].lower(req, chosenX, sourcePower);
         if (value !== undefined) out[key] = value;
     }
     return out as PermanentFilterValues;
@@ -1242,11 +1274,12 @@ export function checkSpellTargetFilters(
  *  stays always-active (see the descriptor's doc comment). */
 export function lowerSpellFilters(
     req: TargetRequirement,
-    chosenX: number | undefined
+    chosenX: number | undefined,
+    sourcePower?: number
 ): SpellFilterValues {
     const out: Record<string, unknown> = {};
     for (const key of SPELL_FILTER_KEYS) {
-        const value = REGISTRY[key].lower(req, chosenX);
+        const value = REGISTRY[key].lower(req, chosenX, sourcePower);
         if (value !== undefined) out[key] = value;
     }
     return out as SpellFilterValues;
@@ -1312,11 +1345,12 @@ export function checkPlayerTargetFilters(
  *  output IS the corresponding `PendingTarget` field, by construction. */
 export function lowerPlayerFilters(
     req: TargetRequirement,
-    chosenX: number | undefined
+    chosenX: number | undefined,
+    sourcePower?: number
 ): PlayerFilterValues {
     const out: Record<string, unknown> = {};
     for (const key of PLAYER_FILTER_KEYS) {
-        const value = REGISTRY[key].lower(req, chosenX);
+        const value = REGISTRY[key].lower(req, chosenX, sourcePower);
         if (value !== undefined) out[key] = value;
     }
     return out as PlayerFilterValues;
@@ -1324,18 +1358,26 @@ export function lowerPlayerFilters(
 
 // ─── T3 card-kind gate (ADR 0068 / issue #1410) ─────────────────────────────
 // "card" candidates are graveyard (and, if a future card ever needs it, hand)
-// targets (CR 109.2 / 400.7 — Regrowth-style recursion). Both filter keys
-// here are cross-kind (`controller`, `mvFilter`), already registered by
-// `PERMANENT_FILTER_KEYS` — there is no card-ONLY filter today (the CardType
-// filter graveyard targets use is the requirement's own STRUCTURAL `type`
-// field, not a registry filter — see the ADR's `StructuralKey` list).
+// targets (CR 109.2 / 400.7 — Regrowth-style recursion). All three filter
+// keys here are cross-kind (`controller`, `mvFilter`, `excludeTypes` — issue
+// #1378), already registered by `PERMANENT_FILTER_KEYS` — there is no
+// card-ONLY filter today (the POSITIVE CardType filter graveyard targets use
+// is the requirement's own STRUCTURAL `type` field, not a registry filter —
+// see the ADR's `StructuralKey` list; `excludeTypes` is its NEGATIVE
+// counterpart and, unlike `type`, DOES route through the registry).
 
 /** The full ordered set of filter keys a `type: "card"`-zone (graveyard)
  *  candidate is checked against. `controller` first, matching the
- *  pre-refactor check order (owner-relationship, then mana value). NOT
+ *  pre-refactor check order (owner-relationship, then mana value); `excludeTypes`
+ *  (issue #1378) appended last — a purely additive check order change, so
+ *  every pre-existing violation message still wins over it. NOT
  *  `keyof Omit<TargetRequirement, StructuralKey>` yet — T4's keystone
  *  (ADR 0068). */
-export const CARD_FILTER_KEYS = ["controller", "mvFilter"] as const;
+export const CARD_FILTER_KEYS = [
+    "controller",
+    "mvFilter",
+    "excludeTypes",
+] as const;
 
 export type CardFilterKey = (typeof CARD_FILTER_KEYS)[number];
 
@@ -1345,6 +1387,7 @@ export type CardFilterKey = (typeof CARD_FILTER_KEYS)[number];
 export type CardFilterValues = Partial<{
     controller: TargetRequirement["controller"];
     mvFilter: { min?: number; max?: number; equals?: number };
+    excludeTypes: CardType[];
 }>;
 
 /** Runs every SET filter in `values` against `candidate` (a graveyard card)
@@ -1384,11 +1427,12 @@ export function checkCardTargetFilters(
  *  output IS the corresponding `PendingTarget` field, by construction. */
 export function lowerCardFilters(
     req: TargetRequirement,
-    chosenX: number | undefined
+    chosenX: number | undefined,
+    sourcePower?: number
 ): CardFilterValues {
     const out: Record<string, unknown> = {};
     for (const key of CARD_FILTER_KEYS) {
-        const value = REGISTRY[key].lower(req, chosenX);
+        const value = REGISTRY[key].lower(req, chosenX, sourcePower);
         if (value !== undefined) out[key] = value;
     }
     return out as CardFilterValues;
