@@ -60,7 +60,7 @@ export default function DraftLabReplayPanel() {
                         <p className="text-[11px] text-text-disabled">
                             {isAdmin
                                 ? "This event has no recorded seed and can't be reconstructed."
-                                : "Replay reconstruction needs this event's seed, which is only exposed to an admin viewer — even once the event is complete — because it can regenerate every seat's Pool (issue #1613 fixup). Ask an admin to open this replay."}
+                                : "Replay reconstruction needs this event's seed, which is only exposed to an admin viewer — even once the event is complete — because it can regenerate every seat's Pool. Ask an admin to open this replay."}
                         </p>
                     )}
 
