@@ -10,7 +10,9 @@ import {
     buildCardRatingRow,
     listScopeCards,
     buildScopeCardRatings,
+    buildDbRatingLookup,
     type GetDbRating,
+    type ScopedCardRating,
 } from "../cardRatings";
 import {
     getPickRating,
@@ -453,6 +455,62 @@ describe("buildScopeCardRatings — layering annotation (PRD #1296 Slice C, issu
         ];
         const rows = buildScopeCardRatings("lea", cards, fakeDb({}));
         expect(rows.map((r) => r.cardId)).toEqual(["a", "b", "c"]);
+    });
+});
+
+describe("buildDbRatingLookup (issue #1613 fixup, pre-merge review finding 2)", () => {
+    it("turns flat scoped rows into a (scope, cardId) -> rating lookup", () => {
+        const rows: ScopedCardRating[] = [
+            { scope: "lea", cardId: "black-lotus", rating: 5 },
+            { scope: "lea", cardId: "sol-ring", rating: 4 },
+        ];
+        const getDbRating = buildDbRatingLookup(rows);
+        expect(getDbRating("lea", "black-lotus")).toBe(5);
+        expect(getDbRating("lea", "sol-ring")).toBe(4);
+    });
+
+    it("returns null for a (scope, cardId) pair with no row", () => {
+        const getDbRating = buildDbRatingLookup([]);
+        expect(getDbRating("lea", "black-lotus")).toBeNull();
+    });
+
+    it("is case-insensitive on scope, matching resolveEventPickRating's own normalization", () => {
+        const rows: ScopedCardRating[] = [
+            { scope: "lea", cardId: "card-x", rating: 3 },
+        ];
+        const getDbRating = buildDbRatingLookup(rows);
+        expect(getDbRating("LEA", "card-x")).toBe(3);
+    });
+
+    it("a row for one scope never leaks into a lookup call for a different scope", () => {
+        const rows: ScopedCardRating[] = [
+            { scope: "ice", cardId: "shared-card-id", rating: 5 },
+        ];
+        const getDbRating = buildDbRatingLookup(rows);
+        expect(getDbRating("lea", "shared-card-id")).toBeNull();
+    });
+
+    it("preserves a rating of exactly 0 (not falsy/absent)", () => {
+        const rows: ScopedCardRating[] = [
+            { scope: "lea", cardId: "never-play-this", rating: 0 },
+        ];
+        const getDbRating = buildDbRatingLookup(rows);
+        expect(getDbRating("lea", "never-play-this")).toBe(0);
+    });
+
+    it("composes with resolveEventPickRating exactly like the server's own loadEventPickRating map does — the replay's recomputed pick now agrees with the historical one when a rating was edited", () => {
+        const leaRatings = getPickRatingFile("lea")!;
+        const [cardId, seedRating] = Object.entries(leaRatings.ratings)[0];
+        const dbOverride = seedRating === 1 ? 2 : 1;
+        const rows: ScopedCardRating[] = [
+            { scope: "lea", cardId, rating: dbOverride },
+        ];
+        const getPickRatingFn = resolveEventPickRating(
+            ["lea"],
+            buildDbRatingLookup(rows)
+        );
+        expect(getPickRatingFn(cardId)).toBe(dbOverride);
+        expect(getPickRatingFn(cardId)).not.toBe(seedRating);
     });
 });
 

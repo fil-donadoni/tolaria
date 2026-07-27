@@ -2,7 +2,11 @@
 // only to admins; the predicate is pure and unit-tested so the gate can't
 // silently regress (the server still enforces it via assertIsAdmin).
 import { describe, it, expect } from "vitest";
-import { canEditPresets, canViewLimitedReviewDetail } from "../adminGating";
+import {
+    canEditPresets,
+    canViewLimitedReviewDetail,
+    canViewDraftReplay,
+} from "../adminGating";
 
 describe("canEditPresets (ADR 0033)", () => {
     it("allows a user flagged isAdmin: true", () => {
@@ -39,5 +43,24 @@ describe("canViewLimitedReviewDetail (issue #1583)", () => {
 
     it("hides when signed out (null)", () => {
         expect(canViewLimitedReviewDetail(null)).toBe(false);
+    });
+});
+
+describe("canViewDraftReplay (issue #1613 fixup)", () => {
+    it("allows a user flagged isAdmin: true", () => {
+        expect(canViewDraftReplay({ isAdmin: true })).toBe(true);
+    });
+
+    it("hides for a non-admin user", () => {
+        expect(canViewDraftReplay({ isAdmin: false })).toBe(false);
+        expect(canViewDraftReplay({})).toBe(false);
+    });
+
+    it("hides while the user is loading (undefined)", () => {
+        expect(canViewDraftReplay(undefined)).toBe(false);
+    });
+
+    it("hides when signed out (null)", () => {
+        expect(canViewDraftReplay(null)).toBe(false);
     });
 });

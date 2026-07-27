@@ -31,3 +31,20 @@ export function canViewLimitedReviewDetail(
 ): boolean {
     return user?.isAdmin === true;
 }
+
+/**
+ * Whether the Draft Lab replay surface should treat this viewer as able to
+ * see a completed Draft event's reconstruction (issue #1613 fixup). Cosmetic
+ * only: the server projection (`eventProjection.ts`'s `projectLimitedEvent`)
+ * already exposes a completed Draft event's `seed` ONLY to an admin viewer —
+ * a non-admin's `LimitedEventView.seed` is always `null` regardless of what
+ * this predicate returns. It exists so `DraftLabReplayPanel` can tell a
+ * non-admin WHY the replay is unavailable instead of showing the same "no
+ * recorded seed" message a genuinely seed-less event would (a silently
+ * misleading degrade otherwise).
+ */
+export function canViewDraftReplay(
+    user: AdminGateUser | null | undefined
+): boolean {
+    return user?.isAdmin === true;
+}
