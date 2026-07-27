@@ -90,7 +90,7 @@ describe("Sylvan Library (draw step: single 0–N topdeck pick, CR 118.4/119.4)"
             drawStepEvent
         );
         // Step 0 — "you may draw two additional cards".
-        answerChoice(state, ["draw"]);
+        answerChoice(state, ["yes"]);
         const p1 = () => state.players[0];
         // Drew l0, l1 exactly once (library 3 → 1, hand 2 → 4).
         expect(p1().library.length).toBe(1);
@@ -98,7 +98,7 @@ describe("Sylvan Library (draw step: single 0–N topdeck pick, CR 118.4/119.4)"
         // A SINGLE ranged topdeck pick; restricted to cards drawn this turn
         // (x9 excluded). Range is 0..N where N = min(2, drawn-this-turn-in-hand).
         const head = state.pendingChoices?.[0];
-        expect(head?.choiceId).toBe("sylvan-pick");
+        expect(head?.choiceId).toBe("ranged-topdeck");
         expect(head?.kind).toBe("choose-hand-card");
         expect(head?.candidateIds).toEqual(["h0", "l0", "l1"]);
         expect(head?.count).toEqual({ min: 0, max: 2 });
@@ -125,7 +125,7 @@ describe("Sylvan Library (draw step: single 0–N topdeck pick, CR 118.4/119.4)"
             "sylvan-library-draw-step",
             drawStepEvent
         );
-        answerChoice(state, ["draw"]); // draw l0, l1 → N = 2
+        answerChoice(state, ["yes"]); // draw l0, l1 → N = 2
         answerChoice(state, ["h0", "l0"]); // topdeck both
         const p1 = state.players[0];
         expect(p1.life).toBe(20); // pay 0
@@ -147,7 +147,7 @@ describe("Sylvan Library (draw step: single 0–N topdeck pick, CR 118.4/119.4)"
             "sylvan-library-draw-step",
             drawStepEvent
         );
-        answerChoice(state, ["draw"]); // draw l0, l1 → N = 2
+        answerChoice(state, ["yes"]); // draw l0, l1 → N = 2
         answerChoice(state, ["h0", "l0"]); // topdeck both
         const lib = state.players[0].library;
         expect(lib.map((c) => c.id)).toEqual(["l0", "h0"]);
@@ -178,7 +178,7 @@ describe("Sylvan Library (draw step: single 0–N topdeck pick, CR 118.4/119.4)"
             "sylvan-library-draw-step",
             drawStepEvent
         );
-        answerChoice(state, ["draw"]); // N = 2
+        answerChoice(state, ["yes"]); // N = 2
         answerChoice(state, []); // topdeck none — pay 4 × 2 = 8
         const p1 = state.players[0];
         expect(p1.life).toBe(12);
@@ -199,7 +199,7 @@ describe("Sylvan Library (draw step: single 0–N topdeck pick, CR 118.4/119.4)"
             "sylvan-library-draw-step",
             drawStepEvent
         );
-        answerChoice(state, ["decline"]);
+        answerChoice(state, ["no"]);
         const p1 = state.players[0];
         expect(p1.hand.map((c) => c.id)).toEqual(["h0"]);
         expect(p1.library.length).toBe(2);
@@ -224,7 +224,7 @@ describe("Sylvan Library (draw step: single 0–N topdeck pick, CR 118.4/119.4)"
             "sylvan-library-draw-step",
             drawStepEvent
         );
-        answerChoice(state, ["draw"]); // draws l0 only (lib had 1)
+        answerChoice(state, ["yes"]); // draws l0 only (lib had 1)
         const head = state.pendingChoices?.[0];
         // drawn-this-turn-in-hand = [h0, l0] → N = min(2, 2) = 2 here, but if
         // only one remained the range max would be 1. Assert the range shape.
@@ -249,7 +249,7 @@ describe("Sylvan Library (draw step: single 0–N topdeck pick, CR 118.4/119.4)"
             "sylvan-library-draw-step",
             drawStepEvent
         );
-        answerChoice(state, ["draw"]); // N = 2
+        answerChoice(state, ["yes"]); // N = 2
         const head = state.pendingChoices?.[0];
         expect(head?.count).toEqual({ min: 1, max: 2 });
         answerChoice(state, ["l0"]); // topdeck one, keep one → pay 4 (6 → 2)
@@ -273,7 +273,7 @@ describe("Sylvan Library (draw step: single 0–N topdeck pick, CR 118.4/119.4)"
             "sylvan-library-draw-step",
             drawStepEvent
         );
-        answerChoice(state, ["draw"]); // N = 2
+        answerChoice(state, ["yes"]); // N = 2
         const head = state.pendingChoices?.[0];
         expect(head?.count).toEqual({ min: 2, max: 2 });
         answerChoice(state, ["h0", "l0"]); // all topdecked → pay 0
@@ -309,7 +309,10 @@ describe("Sylvan Library (draw step: single 0–N topdeck pick, CR 118.4/119.4)"
                 cardInstanceIds: ids,
             });
         };
-        submit(["draw"]); // option-pick: draw two (l0, l1)
+        applyMayPaySubmit(state, {
+            playerId: state.pendingChoices![0].playerId,
+            accept: true,
+        }); // may-pay: draw two (l0, l1)
         // A card NOT drawn this turn is rejected by the candidateIds allow-list.
         expect(() => submit(["l2"])).toThrow();
         // Picking more than N (max 2) is rejected by the range guard.
@@ -336,7 +339,7 @@ describe("Sylvan Library (draw step: single 0–N topdeck pick, CR 118.4/119.4)"
             "sylvan-library-draw-step",
             drawStepEvent
         );
-        answerChoice(state, ["draw"]);
+        answerChoice(state, ["yes"]);
         answerChoice(state, ["l0"]); // topdeck l0; keep one of N → pay 4
         const projected = projectPublicState(state, 1, "p1");
         expect(projected.players[0].life).toBe(16);

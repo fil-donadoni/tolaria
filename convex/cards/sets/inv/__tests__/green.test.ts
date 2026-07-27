@@ -255,9 +255,10 @@ describe("Fertile Ground (CR 603.2 tapped-for-mana trigger, additional mana of c
     });
 });
 
-// resolve() card — see the card's own justification comment (event-field
-// player ref: the recipient is the ENTERING creature's controller, not
-// Kavu Lair's).
+// DSL effects[] card (issue #1283) — the recipient is the ENTERING
+// creature's controller, read via `{ ref: "$event.controllerId" }`, not
+// Kavu Lair's own controller. External-behavior test kept as-is; it exercises
+// the same outcome regardless of resolve()/effects[] internals.
 describe("Kavu Lair (CR 603.6a ETB, power 4+ creature, controller draws)", () => {
     it("the entering creature's OWN controller draws, even when it isn't Kavu Lair's controller", () => {
         const lair = makeInstance(kavuLair.id, {

@@ -1983,6 +1983,55 @@ describe("Effect Script Op: restrictActivation (CR 602.1 / 605.1a, issue #1124)"
     });
 });
 
+// New Op (issue #1283) → full per-Op regime: interpreter coverage of the
+// construct combinations it participates in (controller / announced player
+// slot), plus a wire-format assertion through projectPublicState.
+describe("Effect Script Op: setIslandSanctuaryProtection (CR 508.1c, issue #1283)", () => {
+    it("sets state.islandSanctuaryProtection to the resolving controller", () => {
+        const id = registerScript("test-op-island-sanctuary-controller", [
+            { op: "setIslandSanctuaryProtection", player: "controller" },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.islandSanctuaryProtection).toBe("p1");
+    });
+
+    it("sets it on the announced player target", () => {
+        const id = registerScript(
+            "test-op-island-sanctuary-target",
+            [{ op: "setIslandSanctuaryProtection", player: { target: 0 } }],
+            { targetRequirement: { type: "player", count: 1 } }
+        );
+        const state = makeState();
+        pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        expect(state.islandSanctuaryProtection).toBe("p2");
+    });
+
+    it("a later resolution overwrites the earlier protected player", () => {
+        const id = registerScript("test-op-island-sanctuary-overwrite", [
+            { op: "setIslandSanctuaryProtection", player: "opponent" },
+        ]);
+        const state = makeState();
+        state.islandSanctuaryProtection = "p1";
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.islandSanctuaryProtection).toBe("p2");
+    });
+
+    it("the protection survives projection (wire format) and gates combat.ts attack legality", () => {
+        const id = registerScript("test-op-island-sanctuary-wire", [
+            { op: "setIslandSanctuaryProtection", player: "controller" },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.islandSanctuaryProtection).toBe("p1");
+    });
+});
+
 // New Op (issue #1149) → full per-Op regime: interpreter coverage of the
 // construct combinations it participates in (default zones / narrowed zones /
 // maxManaValue / idempotent merge), plus a wire-format assertion through
@@ -15910,6 +15959,241 @@ describe("Effect Script Op: putBack (CR 401.4, issue #1046)", () => {
         });
         expect(state.players[1].library.map((c) => c.id)).toContain("a");
         expect(state.players[1].hand.map((c) => c.id)).toEqual(["b"]);
+    });
+});
+
+// New Op (issue #1283) → full per-Op regime: interpreter coverage of the
+// construct combinations it participates in (pool clamp, CR 119.4 life
+// clamp, suspend/resume checkpoint), plus a wire-format assertion through
+// projectPublicState.
+describe("Effect Script Op: rangedTopdeck (CR 118.4 / 121.1, issue #1283)", () => {
+    const handOf = (owner: "p1" | "p2", ids: string[]) =>
+        ids.map((cid) =>
+            makeInstance(BEAR_ID, {
+                id: cid,
+                controllerId: owner,
+                ownerId: owner,
+                zone: "hand",
+            })
+        );
+
+    it("suspends with a choose-hand-card PendingChoice scoped to the drawn-this-turn pool", () => {
+        const id = registerScript("test-op-rangedtopdeck-scope", [
+            {
+                op: "rangedTopdeck",
+                player: "controller",
+                pool: "drawn-this-turn",
+                max: 2,
+                costPerKept: 4,
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: handOf("p1", ["h0", "old"]),
+                    drawnThisTurn: ["h0"],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        expect(resolveTopOfStack(state)).toBeNull(); // suspended
+        const head = state.pendingChoices![0];
+        expect(head.choiceId).toBe("ranged-topdeck");
+        expect(head.kind).toBe("choose-hand-card");
+        // "old" was NOT drawn this turn — excluded from the candidate pool.
+        expect(head.candidateIds).toEqual(["h0"]);
+        expect(head.count).toEqual({ min: 0, max: 1 }); // n = min(2, pool=1)
+        expect(head.putOnTop).toBe(true);
+        expect(state.stack).toHaveLength(1); // CR 608.3 — stays on the stack
+    });
+
+    it("moves picked cards to the library top and charges costPerKept life for the NOT-picked pool members", () => {
+        const id = registerScript("test-op-rangedtopdeck-commit", [
+            {
+                op: "rangedTopdeck",
+                player: "controller",
+                pool: "drawn-this-turn",
+                max: 2,
+                costPerKept: 4,
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: handOf("p1", ["h0", "h1"]),
+                    drawnThisTurn: ["h0", "h1"],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const head = state.pendingChoices![0];
+        expect(head.count).toEqual({ min: 0, max: 2 });
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["h1"], // topdeck h1, keep h0 → pay 4 life
+        });
+        expect(state.players[0].library[0]?.id).toBe("h1");
+        expect(state.players[0].hand.map((c) => c.id)).toEqual(["h0"]);
+        expect(state.players[0].life).toBe(16);
+        expect(state.stack).toHaveLength(0);
+    });
+
+    // CR 119.4 — a player can't be asked to keep more cards than they can
+    // afford: min = max(0, n − floor(life / costPerKept)).
+    it("CR 119.4 forces a higher min when life can't cover keeping the whole pool", () => {
+        const id = registerScript("test-op-rangedtopdeck-clamp", [
+            {
+                op: "rangedTopdeck",
+                player: "controller",
+                pool: "drawn-this-turn",
+                max: 2,
+                costPerKept: 4,
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: handOf("p1", ["h0", "h1"]),
+                    drawnThisTurn: ["h0", "h1"],
+                    life: 3, // floor(3/4) = 0 keepable — both must be topdecked
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.pendingChoices![0].count).toEqual({ min: 2, max: 2 });
+    });
+
+    it("clamps max to the pool size when fewer than `max` cards were drawn this turn", () => {
+        const id = registerScript("test-op-rangedtopdeck-pool-clamp", [
+            {
+                op: "rangedTopdeck",
+                player: "controller",
+                pool: "drawn-this-turn",
+                max: 2,
+                costPerKept: 4,
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: handOf("p1", ["h0"]),
+                    drawnThisTurn: ["h0"],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.pendingChoices![0].count).toEqual({ min: 0, max: 1 });
+    });
+
+    it("no-ops (never suspends) when the drawn-this-turn pool is empty; a later Op still runs", () => {
+        const id = registerScript("test-op-rangedtopdeck-empty", [
+            {
+                op: "rangedTopdeck",
+                player: "controller",
+                pool: "drawn-this-turn",
+                max: 2,
+                costPerKept: 4,
+            },
+            { op: "gainLife", player: "controller", amount: 3 },
+        ]);
+        const state = makeState({
+            players: [makePlayer("p1", { hand: handOf("p1", ["stale"]) })],
+        });
+        pushSpell(state, id, "p1");
+        expect(resolveTopOfStack(state)).not.toBeNull(); // no suspension
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        expect(state.players[0].life).toBe(23); // the trailing Op ran
+    });
+
+    it("an Op before the rangedTopdeck never re-runs on resume (CR 608.3 checkpoint)", () => {
+        const id = registerScript("test-op-rangedtopdeck-checkpoint", [
+            { op: "draw", player: "controller", count: 2 },
+            {
+                op: "rangedTopdeck",
+                player: "controller",
+                pool: "drawn-this-turn",
+                max: 2,
+                costPerKept: 4,
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: [0, 1].map((i) =>
+                        makeInstance(BEAR_ID, {
+                            id: `lib${i}`,
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "library",
+                        })
+                    ),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state); // draws 2, suspends on the ranged pick
+        expect(state.players[0].hand).toHaveLength(2);
+        const head = state.pendingChoices![0];
+        const drawn = state.players[0].hand.map((c) => c.id);
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: [drawn[0], drawn[1]], // topdeck both, pay 0
+        });
+        // 2 drawn, both topdecked → 0 in hand. NOT re-drawn on resume (the
+        // Brainstorm-class replay bug the checkpoint prevents).
+        expect(state.players[0].hand).toHaveLength(0);
+        expect(state.players[0].life).toBe(20); // both topdecked — pay 0
+    });
+
+    it("wire format: the life change and known top-of-library run survive projection, hidden from the opponent", () => {
+        const id = registerScript("test-op-rangedtopdeck-wire", [
+            {
+                op: "rangedTopdeck",
+                player: "controller",
+                pool: "drawn-this-turn",
+                max: 2,
+                costPerKept: 4,
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: handOf("p1", ["h0", "h1"]),
+                    drawnThisTurn: ["h0", "h1"],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["h0"], // topdeck h0, keep h1 → pay 4
+        });
+        const casterView = projectPublicState(state, 1, "p1");
+        expect(casterView.players[0].life).toBe(16);
+        const known = casterView.players[0].library.known ?? [];
+        expect(known.map((k) => k.card.id)).toEqual(["h0"]);
+        const oppView = projectPublicState(state, 1, "p2");
+        expect(oppView.players[0].library.known ?? []).toEqual([]);
     });
 });
 

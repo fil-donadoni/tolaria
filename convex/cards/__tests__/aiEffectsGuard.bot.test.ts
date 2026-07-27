@@ -1836,12 +1836,6 @@ const ABILITY_AI_EFFECTS_ALLOWLIST: readonly AbilityAllowlistEntry[] = [
         note: "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519",
     },
     {
-        cardId: "c15e8a42-89de-42bc-8d5f-33426d207c3a",
-        name: "Island Sanctuary",
-        abilityId: "island-sanctuary-draw-choice",
-        note: "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519",
-    },
-    {
         cardId: "9964d8d8-dc97-4e5f-9f52-173f7e2c37fd",
         name: "Ivory Cup",
         abilityId: "ivory-cup-life",
@@ -1911,12 +1905,6 @@ const ABILITY_AI_EFFECTS_ALLOWLIST: readonly AbilityAllowlistEntry[] = [
         cardId: "7dd9b214-d9fe-4c2e-b45b-7145ad98c408",
         name: "Karplusan Yeti",
         abilityId: "karplusan-yeti-fight",
-        note: "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519",
-    },
-    {
-        cardId: "f4581b53-23a0-4ca6-a77c-97d79e7a6570",
-        name: "Kavu Lair",
-        abilityId: "kavu-lair-power-4",
         note: "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519",
     },
     {
@@ -2793,12 +2781,6 @@ const ABILITY_AI_EFFECTS_ALLOWLIST: readonly AbilityAllowlistEntry[] = [
         cardId: "f1e0f9ec-2b06-4bda-8b80-a716d82d1f13",
         name: "Sunken City",
         abilityId: "sunken-city-upkeep",
-        note: "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519",
-    },
-    {
-        cardId: "f486df00-7c4a-4ff0-bb0b-c8b5432ac742",
-        name: "Sylvan Library",
-        abilityId: "sylvan-library-draw-step",
         note: "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519",
     },
     {

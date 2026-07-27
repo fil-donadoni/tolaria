@@ -86,6 +86,8 @@ const ANIMATE_DISCOUNT = 0.7; // an animated permanent isn't a "real" creature c
 const EMBLEM_VALUE = 150; // a durable, uncounterable ultimate-style effect
 const EXTRA_TURN_VALUE = 300; // CR 500.7 — an entire additional turn
 const WIN_GAME_VALUE = 100000; // CR 104.2a — an alternate win condition
+const ISLAND_SANCTUARY_PROTECTION_VALUE = 20; // player-wide "can't be attacked except by flying/islandwalk" — ground-only, tempered protection
+const RANGED_TOPDECK_PER_CARD = 3; // Sylvan Library-style selection upside per pool card, smaller than putBack since it's an optional life-gated pick, not a free reorder
 
 // --- Backfill-Op point weights (issue #1515) --------------------------------
 // castDuringResolution (CR 608.2f) and createTokenCopy (CR 707.2 + CR 111.1)
@@ -672,6 +674,19 @@ const putBack: Valuer<"putBack"> = (op, ctx) => {
     };
 };
 
+// Sylvan Library's ranged 0..N "drawn this turn" topdeck-or-pay pick — a
+// card-SELECTION upside over the `max` pool (smaller per-card than `putBack`
+// since it's gated behind an optional per-card life cost, not a free
+// reorder). The life the player MIGHT pay is not netted out (an approximate,
+// context-free heuristic like every other valuer here).
+const rangedTopdeck: Valuer<"rangedTopdeck"> = (op, ctx) => {
+    const { amount, scaling } = ctx.value(op.max);
+    return {
+        points: amount * RANGED_TOPDECK_PER_CARD,
+        tags: tagScaling(scaling, "cardAdvantage"),
+    };
+};
+
 const regenerate: Valuer<"regenerate"> = (op) => ({
     points: REGENERATE_VALUE,
     tags: isAnnouncedTarget(op.target)
@@ -740,6 +755,17 @@ const restrictCombat: Valuer<"restrictCombat"> = (op) => {
             : ["boardRemoval"],
     };
 };
+
+// Island Sanctuary's player-scoped "can't be attacked except by flying/
+// islandwalk" protection — a broad defensive effect, but tempered vs.
+// `restrictCombat`'s per-creature `cant-attack` (RESTRICT_COMBAT_VALUE)
+// because it only stops GROUND attackers, not evasive ones.
+const setIslandSanctuaryProtection: Valuer<
+    "setIslandSanctuaryProtection"
+> = () => ({
+    points: ISLAND_SANCTUARY_PROTECTION_VALUE,
+    tags: ["protection"],
+});
 
 const reveal: Valuer<"reveal"> = () => ZERO_OP_VALUE;
 
@@ -843,12 +869,14 @@ export const OP_VALUERS: {
     preventDamage,
     markAssignsNoCombatDamage,
     putBack,
+    rangedTopdeck,
     regenerate,
     preventRegeneration,
     restrictActivation,
     restrictCasting,
     grantCastTiming,
     restrictCombat,
+    setIslandSanctuaryProtection,
     reveal,
     lookRandomHand,
     scryReorder,

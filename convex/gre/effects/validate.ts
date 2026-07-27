@@ -893,6 +893,15 @@ function isDigMatchingDestination(value: unknown): boolean {
     return value === "exile" || value === "graveyard";
 }
 
+/** The `pool` candidate-set discriminator of a `rangedTopdeck` Op (issue
+ *  #1283) — only `"drawn-this-turn"` today (Sylvan Library's "cards in your
+ *  hand drawn this turn"). A single-member enum kept as an explicit check
+ *  (not a bare literal comparison inline) so a future second pool shape is a
+ *  one-line addition here, mirroring `isRevealScope` / `isLibraryDestination`. */
+function isRangedTopdeckPool(value: unknown): boolean {
+    return value === "drawn-this-turn";
+}
+
 /** The `reveal` scope of a `digToHand` Op (CR 701.20a) — makes the look a
  *  PUBLIC reveal: `"window"` reveals the whole looked-at window before the
  *  keep/order choice ("Reveal the top N"), `"kept"` reveals only the cards put
@@ -2709,6 +2718,27 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
                 v === "cant-be-blocked",
             target: isObjectSelector,
         },
+    },
+    // CR 508.1c (issue #1283) — Island Sanctuary's player-scoped "can't be
+    // attacked except by flying/islandwalk" protection. `player` is the
+    // protected player; no other fields.
+    setIslandSanctuaryProtection: {
+        required: { player: isPlayerRef },
+    },
+    // CR 118.4 / 121.1 (issue #1283) — a single ranged 0..N "drawn this turn"
+    // hand pick with a per-NOT-chosen life cost (Sylvan Library). `pool` is
+    // the candidate-set discriminator (only `"drawn-this-turn"` today); `max`
+    // is the "choose N" cap; `costPerKept` is the life paid per pool member
+    // NOT put on top. No `bind` — the pick is consumed internally, mirroring
+    // `putBack`.
+    rangedTopdeck: {
+        required: {
+            player: isPlayerRef,
+            pool: isRangedTopdeckPool,
+            max: isEffectValue,
+            costPerKept: isEffectValue,
+        },
+        optional: { prompt: isNonEmptyString },
     },
     // CR 201.3 / 202.3 (issue #1085) — "chooses a card name" as part of
     // resolution. `bind` is REQUIRED (a name choice nothing reads back is

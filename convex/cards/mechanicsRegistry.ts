@@ -3021,6 +3021,21 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         binding: "SpellContext.lookRandomHandCard / notifyReveal",
         note: "CR 701.18a look (Urza's Bauble) — \"Look at a card at random in target player's hand\". The PRIVATE-look counterpart the `reveal` Op's note called out as NOT folded (a single-knower look, vs `reveal`'s all-players CR 701.20 grant). Folds two SpellContext primitives, one execution path (ADR 0045): `lookRandomHandCard` (a private sibling of the public `revealRandomHandCard` — same seeded-PRNG pick, but `grantKnowledge` to the looker ALONE so only they see the real card on the wire) and `notifyReveal` (the transient look dialog, audience = the looker). `player` is the hand owner (an announced target slot on Urza's Bauble); `looker` (optional) defaults to the resolving controller (CR 113.7). No-op on an empty hand (CR 608.2b). Distinct from Word of Command's private full-hand look, which stays resolve() for its control-transfer protocol (ADR 0037). A library-top positional reveal (Caustic Bronco-class) is still a separate future Op.",
     },
+    {
+        op: "setIslandSanctuaryProtection",
+        status: "implemented",
+        cr: "508.1",
+        binding: "SpellContext.setIslandSanctuaryProtection",
+        note: 'Island Sanctuary\'s player-scoped "until your next turn, you can\'t be attacked except by creatures with flying and/or islandwalk" protection (CR 508.1c, issue #1283). A thin declarative skin over the single SpellContext primitive `setIslandSanctuaryProtection`, one execution path (ADR 0045): sets `state.islandSanctuaryProtection` to `player`\'s id, read by the attack-declaration legality check (`gre/combat.ts`) and cleared at the START of that player\'s next turn (`gre/phases.ts`) — mirroring `grantCastTiming`\'s "until your next turn" boundary, NOT CLEANUP. Distinct from `restrictCombat`, which is PERMANENT-scoped (a target creature can\'t attack/block/be-blocked) with no "except by" qualifier — this is a PLAYER-scoped protection with the flying/islandwalk carve-out baked into the primitive itself. No other printed card shares this exact shape, so the Op stays a single-purpose skin rather than a generalized "can\'t be attacked except by …" grammar. Skipped when the player cannot be resolved (CR 608.2b).',
+    },
+    {
+        op: "rangedTopdeck",
+        status: "implemented",
+        cr: "118.4",
+        binding:
+            "SpellContext.getDrawnThisTurnIds / getHandIds / getLife / requestChoice / moveHandCardToLibraryTop / loseLife",
+        note: 'Sylvan Library\'s single ranged 0..N "cards drawn this turn" hand pick, with a per-NOT-chosen life cost (CR 118.4 pay-or-put-back, CR 121.1 draw-adjacent, CR 119.4 can\'t-pay-life-you-don\'t-have clamp, issue #1283). A thin declarative COMPOSITION over existing SpellContext primitives — no new primitive (ADR 0045 "generalize, don\'t add"): `pool` names the candidate set (only `"drawn-this-turn"` today — `getDrawnThisTurnIds` filtered to still being in hand); `max` is the "choose N" cap (Sylvan Library\'s printed "choose two", CR 608.2b-clamped to the pool size); `costPerKept` is the life paid PER pool member NOT put on top — the card\'s printed "pay 4 life or put the card on top of your library" per-card choice is collapsed into ONE ranged pick because the two options are reachable-outcome-identical (keep both = pay 8, topdeck both = pay 0, mix = pay 4). The Op computes the CR 119.4 floor(life / costPerKept) clamp itself before raising a `choose-hand-card` `requestChoice` (a fixed `"ranged-topdeck"` choiceId, mirroring `putBack`\'s `"put-back"`), moves each picked card to the library top via `moveHandCardToLibraryTop` (mirrors `putBack`), and charges `loseLife` for the pool members NOT picked. SUSPENDS like `choice` / `putBack`: the pick is consumed internally (no `bind`), and — because `runOpList` checkpoints THIS Op\'s own pre-order position — an earlier Op in the same script (the "draw two" `draw` Op that precedes it) is skipped on resume (CR 608.3), the exact isolation the card\'s OLD `resolveSteps` split used to need by hand.',
+    },
 ];
 
 /** Demand-driven Op backlog (PRD #826, playbook #809). Every row is a

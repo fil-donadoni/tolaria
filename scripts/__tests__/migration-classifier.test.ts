@@ -1396,11 +1396,23 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // script and isn't a closure at all). Net: total 466->467 (+1 new
         // closure), Op-blocked 157->158 (+1). FREE / AFK-ready / X-only
         // unchanged. Partition: 295+14+158=467.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(467);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(295);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(283);
+        //
+        // #1283 (misc DSL Op gaps — Kavu Lair inv/green.ts, Island Sanctuary
+        // lea/white.ts, Sylvan Library leg/green.ts): three resolve() closures
+        // migrated to `effects: EffectOp[]`. Kavu Lair became expressible today
+        // via `{ ref: "$event.controllerId" }` (no engine change); Island
+        // Sanctuary and Sylvan Library got two new Ops shipped this PR
+        // (`setIslandSanctuaryProtection`, `rangedTopdeck`), both thin
+        // skins/compositions over pre-existing SpellContext primitives — so the
+        // classifier had already scored them FREE, not Op-blocked. Net: total
+        // 467->464 (-3 closures), FREE 295->293 (-2), AFK-ready 283->282 (-1),
+        // Op-blocked 158->157 (-1, one of the three carried a per-card test in
+        // the Op-blocked bucket). X-only unchanged. Partition: 293+14+157=464.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(464);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(293);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(282);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(158);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(157);
     });
 
     it("surfaces the demonstrated new-Op backlog (a covered primitive leaves it)", () => {

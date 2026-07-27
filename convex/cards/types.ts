@@ -9628,6 +9628,54 @@ export type EffectOp =
           op: "restrictCombat";
           restriction: "cant-attack" | "cant-block" | "cant-be-blocked";
           target: EffectObjectSelector;
+      }
+    /** CR 508.1c (issue #1283) — Island Sanctuary's player-scoped "until your
+     *  next turn, you can't be attacked except by creatures with flying
+     *  and/or islandwalk" protection. A thin declarative skin over the single
+     *  SpellContext primitive `setIslandSanctuaryProtection`, one execution
+     *  path (ADR 0045): sets `state.islandSanctuaryProtection` to `player`'s
+     *  id, read by the attack-declaration legality check
+     *  (`convex/gre/combat.ts`) and cleared at the START of that player's
+     *  next turn (`convex/gre/phases.ts`) — mirroring `grantCastTiming`'s
+     *  "until your next turn" boundary, NOT CLEANUP. Distinct from
+     *  `restrictCombat`, which is PERMANENT-scoped (a target creature can't
+     *  attack/block/be-blocked) with no "except by" qualifier — this is a
+     *  PLAYER-scoped protection with the flying/islandwalk carve-out baked
+     *  into the primitive itself. No other printed card shares this exact
+     *  shape, so the Op stays a single-purpose skin rather than a
+     *  generalized "can't be attacked except by …" grammar (ADR 0045
+     *  "generalize, don't add" — nothing else to generalize against yet).
+     *  Skipped when the player cannot be resolved (CR 608.2b). */
+    | { op: "setIslandSanctuaryProtection"; player: EffectPlayerRef }
+    /** CR 118.4 / 121.1 (issue #1283) — Sylvan Library's single ranged 0..N
+     *  "cards drawn this turn" hand pick, with a per-NOT-chosen life cost. A
+     *  thin declarative composition over EXISTING SpellContext primitives —
+     *  `getDrawnThisTurnIds` / `getHandIds` / `getLife` / `requestChoice` /
+     *  `moveHandCardToLibraryTop` / `loseLife` — no new primitive (ADR 0045
+     *  "generalize, don't add"). `pool` names the candidate set (only
+     *  `"drawn-this-turn"` today — the cards `player` drew this turn that are
+     *  still in their hand); `max` is the "choose N" cap (Sylvan Library's
+     *  printed "choose two", CR 608.2b-clamped to the pool size); `costPerKept`
+     *  is the life paid PER pool member NOT put on top (CR 118.4's "pay 4 …
+     *  or put the card on top", collapsed into ONE ranged pick because the two
+     *  printed per-card options are reachable-outcome-identical — keep both =
+     *  pay 8, topdeck both = pay 0, mix = pay 4 — see the card's own comment).
+     *  CR 119.4 — the raised choice's `min` is
+     *  `max(0, n - floor(life / costPerKept))` so a player is never asked to
+     *  keep more cards than they can afford, computed by the Op itself before
+     *  raising the `choose-hand-card` pick. SUSPENDS like `choice` /
+     *  `putBack`: the pick is consumed internally (no `bind`), and — because
+     *  `runOpList` checkpoints THIS Op's own pre-order position — an earlier
+     *  Op in the same script (the "draw two" that precedes it) is skipped on
+     *  resume (CR 608.3), the exact isolation the old `resolveSteps` split
+     *  used to need by hand. */
+    | {
+          op: "rangedTopdeck";
+          player: EffectPlayerRef;
+          pool: "drawn-this-turn";
+          max: EffectValue;
+          costPerKept: EffectValue;
+          prompt?: string;
       };
 
 /** A PREDEFINED predicate form for the `if` construct (ADR 0045, issue #806).
