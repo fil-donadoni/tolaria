@@ -139,6 +139,7 @@ import {
     unbindPairingMatch,
 } from "./limited/pairingMatch";
 import type { LimitedRound } from "./limited/eventTypes";
+import type { AdvanceRoundResult } from "./limited/rounds";
 import { areRoundsRunning } from "./limited/eventStatus";
 import {
     bestOfForMatchFormat,
@@ -561,8 +562,11 @@ function asDbRounds(
  * document is what makes two players finishing their pairings
  * near-simultaneously safe — whichever mutation commits second re-reads the
  * state the first one just wrote, so a round is never advanced twice and
- * never skipped. Neither step ever throws: this runs inside the transaction
- * that finishes the Match, and a throw here would roll that completion back.
+ * never skipped. Recording itself never throws (`recordPlayedPairing` is a
+ * pure refusal-by-return, never a throw). Advancing is wrapped in its own
+ * try/catch below (issue #1646 review finding 2) so it can't throw either:
+ * this runs inside the transaction that finishes the Match, and an uncaught
+ * throw here would roll that completion back and lose the result.
  */
 async function recordLimitedPairingResult(
     ctx: MutationCtx,
@@ -582,7 +586,31 @@ async function recordLimitedPairingResult(
     });
     if (!rounds) return;
 
-    const advance = await cascadeEventRounds(ctx, event, rounds, now);
+    // The pairing result itself must land no matter what happens next:
+    // `cascadeEventRounds` is defence in depth ON TOP of an already-decided
+    // Match (`roundsForSeatCount` throws outside `MIN_SEATS..MAX_SEATS`,
+    // `pairRound` throws on an infeasible no-repeat matching), and this
+    // function runs inside the SAME transaction that just finished the Match
+    // — an uncaught throw here would roll back `finalizeGameOver`/
+    // `forfeitMatch`'s own writes too, losing the result the docstring above
+    // promises never happens (issue #1646 review finding 2). So the
+    // round-advance step is best-effort: on failure it's skipped, the
+    // pairing result is still recorded via `finalRounds = rounds`, and the
+    // event is left exactly as it was — round-not-advanced, never
+    // half-advanced — for the next recorded pairing (or an operator) to
+    // retry. Genuinely unreachable today — the reviewer brute-forced
+    // `pairRound` over every played-outcome history for seat counts 2-8 and
+    // found zero infeasible pairings — this is defence in depth, kept
+    // deliberately small.
+    let advance: AdvanceRoundResult = { kind: "unchanged" };
+    try {
+        advance = await cascadeEventRounds(ctx, event, rounds, now);
+    } catch (err) {
+        console.error(
+            `recordLimitedPairingResult: cascadeEventRounds failed for event ${event._id} — the pairing result was recorded without advancing the round`,
+            err
+        );
+    }
     const finalRounds = advance.kind === "unchanged" ? rounds : advance.rounds;
 
     await ctx.db.patch(event._id, {
@@ -3156,7 +3184,11 @@ export const startPairingMatch = mutation({
         let gameId: Id<"games">;
 
         if (opponentSeat.isBot) {
-            const botDeck = resolveSeatAutoBuiltDeck(event, opponentSeatIndex);
+            const botDeck = await resolveSeatAutoBuiltDeck(
+                ctx,
+                event,
+                opponentSeatIndex
+            );
             if (!botDeck)
                 throw new Error("Your opponent's deck is not ready yet.");
             // Same seat model as `createSoloGame({ vsAi: true })` (ADR 0001):

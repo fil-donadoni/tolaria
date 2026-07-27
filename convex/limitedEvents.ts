@@ -20,6 +20,7 @@ import {
     deleteSeats,
     ensureSeatsMigrated,
     eventHasInlinePayload,
+    hydrateSeat,
     hydrateSeats,
     saveSeatPayload,
     saveSeats,
@@ -683,10 +684,10 @@ function resolveBasicLandFor(setCode: string): ResolveBasicLand {
     };
 }
 
-/** ONE seat's Auto-Built deck, resolved straight off the stored event row
- *  (issue #1115's `computeBotAutoBuiltDeck` wired with this module's two
- *  registry resolvers). `null` for a seat that has none — a human seat, a seat
- *  that doesn't exist, or an event whose Pool isn't final yet.
+/** ONE seat's Auto-Built deck (issue #1115's `computeBotAutoBuiltDeck` wired
+ *  with this module's two registry resolvers). `null` for a seat that has
+ *  none — a human seat, a seat that doesn't exist, or an event whose Pool
+ *  isn't final yet.
  *
  *  EXPORTED for `convex/game.ts`'s `startPairingMatch` (issue #1645): a round
  *  Match against a bot seat must be played against the deck the SERVER derives
@@ -695,12 +696,22 @@ function resolveBasicLandFor(setCode: string): ResolveBasicLand {
  *  but a pairing Match's result lands in the standings — so its opponent
  *  decklist can never come from the client. The import direction is
  *  `game.ts -> limitedEvents.ts` only; this module imports nothing from
- *  `game.ts`. */
-export function resolveSeatAutoBuiltDeck(
+ *  `game.ts`.
+ *
+ *  MUST hydrate before reading the seat (issue #1646 review finding 1):
+ *  `event.seats[].pool` is absent on every row `saveSeats` writes since the
+ *  `limitedSeats` child-row split (`convex/limitedSeatStore.ts`) — reading
+ *  the raw `event.seats` here silently evaluates every bot seat as an empty
+ *  Pool and `computeBotAutoBuiltDeck` returns `null`. Same hydration idiom as
+ *  `buildSeatStrengthResolver` above; the single-seat form (`hydrateSeat`) is
+ *  enough here because only one seat's deck is ever read per call. */
+export async function resolveSeatAutoBuiltDeck(
+    ctx: QueryCtx,
     event: Doc<"limitedEvents">,
     seatIndex: number
-): AutoBuiltDeck | null {
-    const seat = event.seats.find((s) => s.seatIndex === seatIndex);
+): Promise<AutoBuiltDeck | null> {
+    const hydratedSeats = await hydrateSeat(ctx, event, seatIndex);
+    const seat = hydratedSeats.find((s) => s.seatIndex === seatIndex);
     if (!seat) return null;
     return computeBotAutoBuiltDeck(
         seat,
