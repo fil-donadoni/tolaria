@@ -128,6 +128,24 @@ function appTestFiles(): string[] {
 
 const IMPORT_RE = /(?:from|import)\s*\(?\s*["']([^"']+)["']/g;
 
+/** Type-only imports (`import type { X } from "…"` / `export type … from "…"`)
+ *  are ERASED at compile time: the module is never loaded, so it costs the
+ *  application worker nothing and cannot drag a heavy bot module into the app
+ *  suite's CPU race — the one thing this guard exists to prevent. Stripping
+ *  them lets a UI component test type its props off a bot module's exported
+ *  type (`PickTerm` from `botDrafter`) without being exiled to the bot suite,
+ *  where a jsdom render test does not belong.
+ *
+ *  Deliberately conservative: only the statement form is stripped. An inline
+ *  `import { type X, y }` still loads the module for `y`, and even the
+ *  all-inline-type form stays flagged rather than parsed heuristically. */
+function stripTypeOnlyImports(source: string): string {
+    return source.replace(
+        /\b(?:import|export)\s+type\s+[^;]*?from\s*["'][^"']+["']/g,
+        ""
+    );
+}
+
 /** Resolves an import specifier to a repo-relative, extensionless path.
  *  Returns null for a bare package specifier (nothing to check). */
 function resolveSpecifier(fromFile: string, spec: string): string | null {
@@ -158,7 +176,9 @@ describe("bot-suite boundary (vitest.config.ts subsystem split)", () => {
 
         for (const file of appTestFiles()) {
             if (ALLOWLIST.has(file)) continue;
-            const source = fs.readFileSync(path.join(REPO_ROOT, file), "utf-8");
+            const source = stripTypeOnlyImports(
+                fs.readFileSync(path.join(REPO_ROOT, file), "utf-8")
+            );
             const hits = new Set<string>();
             for (const m of source.matchAll(IMPORT_RE)) {
                 const resolved = resolveSpecifier(file, m[1]);
@@ -204,5 +224,26 @@ describe("bot-suite boundary (vitest.config.ts subsystem split)", () => {
                 `allowlisted file no longer imports any bot module — drop the entry: ${file}`
             ).toBe(true);
         }
+    });
+
+    it("skips type-only imports but still flags a value import of the same module", () => {
+        // Built at runtime, never written as a literal: this file is itself
+        // walked by the scan above, and a literal specifier here would make the
+        // guard flag its own fixture.
+        const MOD = `@convex/limited/${"botDrafter"}`;
+        const typeOnly = `import type { PickTerm } from "${MOD}";`;
+        const value = `import { scorePack } from "${MOD}";`;
+
+        const hitsFor = (source: string) =>
+            [...stripTypeOnlyImports(source).matchAll(IMPORT_RE)]
+                .map((m) =>
+                    resolveSpecifier("src/components/x/y.test.tsx", m[1])
+                )
+                .filter((r): r is string => r !== null && isBotModule(r));
+
+        // erased at compile time — the bot module never loads in the app worker
+        expect(hitsFor(typeOnly)).toEqual([]);
+        // loads the module at runtime — still a boundary violation
+        expect(hitsFor(value)).toEqual(["convex/limited/botDrafter"]);
     });
 });
