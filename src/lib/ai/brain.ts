@@ -994,7 +994,11 @@ export function chooseManaSpendOrder(choice: ManaSpendChoiceView): string[] {
  *  to what is actually available so an under-supplied view can never emit an
  *  illegal submission. Pure and deterministic (issue #1336). */
 export function chooseCastExileCost(choice: CastExileChoiceView): string[] {
-    const n = Math.min(choice.required, choice.maximum, choice.candidateIds.length);
+    const n = Math.min(
+        choice.required,
+        choice.maximum,
+        choice.candidateIds.length
+    );
     return choice.candidateIds.slice(0, Math.max(0, n));
 }
 

@@ -1254,7 +1254,9 @@ export function genericManaShortfall(
     card: CardInstanceState,
     cost: Record<string, number>
 ): number {
-    const leftover = coloredCostLeftover(player, card, cost, { payWith: false });
+    const leftover = coloredCostLeftover(player, card, cost, {
+        payWith: false,
+    });
     if (leftover === null) return Infinity;
     return Math.max(0, (cost.X ?? 0) - leftover);
 }

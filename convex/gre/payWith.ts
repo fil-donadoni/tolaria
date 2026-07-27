@@ -38,7 +38,9 @@ import { tryGetDefinition } from "../cards";
 export function spellHasDelve(card: CardInstanceState): boolean {
     const cardId = (card.card as { id?: string }).id;
     if (!cardId) return false;
-    return tryGetDefinition(cardId)?.staticAbilities?.includes("delve") ?? false;
+    return (
+        tryGetDefinition(cardId)?.staticAbilities?.includes("delve") ?? false
+    );
 }
 
 /** CR 702.66a — the cards in `player`'s graveyard that may be exiled to pay for

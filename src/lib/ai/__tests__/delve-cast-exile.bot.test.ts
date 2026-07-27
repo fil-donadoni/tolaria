@@ -120,7 +120,10 @@ describe("bot dispatch for the delve cast cost (CR 702.66)", () => {
         const state = parkedDelveCast({ min: 0, max: 7 });
         const view = buildBotView(projectPublicState(state, 1, BOT), BOT);
         const action = decideBotAction(view);
-        expect(action).toEqual({ kind: "cast-exile-cost", cardInstanceIds: [] });
+        expect(action).toEqual({
+            kind: "cast-exile-cost",
+            cardInstanceIds: [],
+        });
     });
 
     it("never emits more picks than the graveyard holds", () => {
