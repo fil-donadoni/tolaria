@@ -47,6 +47,7 @@ import {
     type ResolveBasicLand,
 } from "../limited/autoBuild";
 import { computeEventCompletion } from "../limited/completion";
+import type { LimitedPairing } from "../limited/eventTypes";
 import {
     projectLimitedEvent,
     type LimitedEventRow,
@@ -311,6 +312,50 @@ function playingEvent(): LimitedEventRow {
     };
 }
 
+/** `playingEvent()` with the VIEWER's own pairing (seat 0) rewritten.
+ *
+ *  Every other fixture leaves seat 0's pairing UNDECIDED, so inside
+ *  `viewerPairingValidator`'s object branch only the `null` side of
+ *  `result`/`gameWins`/`gameLosses`/`outcome` and `isBye: false` was ever
+ *  walked — a wrong TYPE on those, or a too-narrow `outcome` literal union,
+ *  would have passed. These two fixtures walk the populated side. */
+function playingEventWithViewerPairing(
+    rewrite: (pairing: LimitedPairing) => LimitedPairing
+): LimitedEventRow {
+    const event = playingEvent();
+    const round = event.rounds![0];
+    return {
+        ...event,
+        rounds: [
+            {
+                ...round,
+                pairings: round.pairings.map((p) =>
+                    p.seatA === 0 || p.seatB === 0 ? rewrite(p) : p
+                ),
+            },
+        ],
+    };
+}
+
+/** Viewer's pairing PLAYED to a decision — populates `result`, `gameWins`,
+ *  `gameLosses` and an `outcome` literal. */
+const decidedViewerPairingEvent = (): LimitedEventRow =>
+    playingEventWithViewerPairing((p) => ({
+        // Normalised so the viewer is `seatA` — the seat-A-relative flip in
+        // `projectViewerPairing` then makes the expected values unambiguous.
+        seatA: 0,
+        seatB: p.seatA === 0 ? p.seatB : p.seatA,
+        result: { winsA: 2, winsB: 1, source: "played" },
+    }));
+
+/** Viewer holds the BYE — the one-sided shape (`opponentSeatIndex`/
+ *  `opponentNickname` null, `isBye: true`, `outcome: "win"`). */
+const byeViewerPairingEvent = (): LimitedEventRow =>
+    playingEventWithViewerPairing(() => ({
+        seatA: 0,
+        result: { winsA: 2, winsB: 0, source: "bye" },
+    }));
+
 /** `projectEventForViewer`'s composition, minus its three DB reads — the value
  *  the three queries actually hand to Convex's return validation: the pure
  *  projection, plus the query shell's `autoBuiltDeck`/`deckSummary` zip and its
@@ -394,6 +439,14 @@ describe("limitedEventViewValidator accepts what the queries actually return (is
             "getLimitedEvent (non-seated viewer), play phase open",
             () => queryReturnValue(playingEvent(), "someone-else"),
         ],
+        [
+            "getLimitedEvent (seated viewer), viewer's pairing DECIDED",
+            () => queryReturnValue(decidedViewerPairingEvent(), "user1"),
+        ],
+        [
+            "getLimitedEvent (seated viewer), viewer holds the BYE",
+            () => queryReturnValue(byeViewerPairingEvent(), "user1"),
+        ],
     ];
 
     for (const [label, build] of cases) {
@@ -415,6 +468,36 @@ describe("limitedEventViewValidator accepts what the queries actually return (is
                 viewValidatorJson
             )
         ).toEqual([]);
+    });
+
+    it("the DECIDED and BYE fixtures really populate the nullable pairing fields", () => {
+        // Guards the two fixtures above from silently degenerating back into
+        // the undecided shape — which would make them duplicates of the other
+        // cases and re-open the `null`-only blind spot they exist to close.
+        const decided = (
+            queryReturnValue(decidedViewerPairingEvent(), "user1") as {
+                viewerPairing: Record<string, unknown>;
+            }
+        ).viewerPairing;
+        expect(decided.isBye).toBe(false);
+        expect(decided.result).toEqual({
+            winsA: 2,
+            winsB: 1,
+            source: "played",
+        });
+        expect(decided.gameWins).toBe(2);
+        expect(decided.gameLosses).toBe(1);
+        expect(decided.outcome).toBe("win");
+
+        const bye = (
+            queryReturnValue(byeViewerPairingEvent(), "user1") as {
+                viewerPairing: Record<string, unknown>;
+            }
+        ).viewerPairing;
+        expect(bye.isBye).toBe(true);
+        expect(bye.opponentSeatIndex).toBeNull();
+        expect(bye.opponentNickname).toBeNull();
+        expect(bye.outcome).toBe("win");
     });
 
     it("would REJECT a projection field the validator doesn't declare", () => {

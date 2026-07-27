@@ -10,6 +10,8 @@
 // is then asserted THROUGH `projectLimitedEvent`, the seam the client actually
 // receives — never a hand-built view.
 import { describe, it, expect } from "vitest";
+import type { Id } from "../_generated/dataModel";
+import type { MutationCtx } from "../_generated/server";
 import { startLimitedEvent } from "../limitedEvents";
 import { resolveDeckCardMeta, tryGetDefinition } from "../cards";
 import { getCardColorIdentity, getPipCountsFromCost } from "../cards/colors";
@@ -449,29 +451,133 @@ describe("an all-bot table reaches the play phase (issue #1644)", () => {
         }
     });
 
-    it("startLimitedEvent itself opens the play phase, in BOTH branches", () => {
-        // The assertion that actually goes red on the shipped bug. The three
-        // tests above prove the table is complete and that the open WOULD
-        // succeed — but `openPlayPhaseIfReady` is a `ctx.db`-bound mutation
-        // helper with no pure core to call, so what has to be pinned is the
-        // CALL: if `startLimitedEvent` doesn't make it, no later mutation will.
-        //
-        // Introspects the REGISTERED mutation's own handler (`_handler`, the
-        // function Convex deploys) rather than re-reading the file, so this
-        // can't drift from what actually ships.
-        const handler = (
+    // ── The behavioural assertion: RUN the real mutation ────────────────────
+    //
+    // The three tests above prove the table is complete and that the open
+    // WOULD succeed — but they call `computeEventCompletion`/`openPlayPhase`
+    // directly, so every one of them stays green if `startLimitedEvent` never
+    // calls `openPlayPhaseIfReady`. What has to be pinned is the CALL, and the
+    // only sound way to pin a call is to make it: this drives the REGISTERED
+    // mutation's own handler (`_handler`, the function Convex deploys) against
+    // a stub `MutationCtx`, the same idiom `limitedDeckbuild.test.ts` and
+    // `limitedChallenge.test.ts` use for `loadLimitedPoolResolver`, and asserts
+    // the DOCUMENT the mutation leaves behind.
+    //
+    // `startLimitedEvent` touches exactly four ctx surfaces: `auth`
+    // (`getCurrentUser`), `db.get`/`db.patch` (the event row and the caller's
+    // user row), `db.query` (`loadHumanDecksBySeat` on `userDecks`,
+    // `loadEventPickRating` on `cardRatings` — both empty here, which is the
+    // real state of an all-bot table with no rating overrides), and
+    // `scheduler.runAfter` (a no-op: these events have no pick timer).
+
+    interface StubCtxHandle {
+        ctx: MutationCtx;
+        /** The stored event row, as the mutation's own `db.patch` left it. */
+        row: () => Record<string, unknown>;
+    }
+
+    function makeStubCtx(event: Record<string, unknown>): StubCtxHandle {
+        const docs = new Map<string, Record<string, unknown>>([
+            [event._id as string, { ...event }],
+            ["user1", { _id: "user1", nickname: "Alice" }],
+        ]);
+        const ctx = {
+            // `getCurrentUser` -> `auth.getUserId` -> `ctx.auth
+            // .getUserIdentity()`, whose `subject` is `<userId>|<sessionId>`.
+            auth: {
+                getUserIdentity: async () => ({ subject: "user1|session1" }),
+            },
+            db: {
+                get: async (id: string) => docs.get(id) ?? null,
+                patch: async (id: string, patch: Record<string, unknown>) => {
+                    docs.set(id, { ...docs.get(id), ...patch });
+                },
+                // Both indexed reads (`userDecks`, `cardRatings`) are empty for
+                // an all-bot table nobody has rated.
+                query: () => ({
+                    withIndex: () => ({ collect: async () => [] }),
+                }),
+            },
+            scheduler: { runAfter: async () => undefined },
+        };
+        return {
+            ctx: ctx as unknown as MutationCtx,
+            row: () => docs.get(event._id as string)!,
+        };
+    }
+
+    const runStartLimitedEvent = async (ctx: MutationCtx, eventId: string) =>
+        await (
             startLimitedEvent as unknown as {
-                _handler: (...a: never[]) => unknown;
+                _handler: (
+                    ctx: MutationCtx,
+                    args: { eventId: Id<"limitedEvents"> }
+                ) => Promise<null>;
             }
-        )._handler;
-        const body = String(handler);
-        // The draft branch terminates at the handler's FIRST `return null`
-        // (every earlier exit throws), so this splits the two branches.
-        const draftBranchEnd = body.indexOf("return null");
-        expect(draftBranchEnd).toBeGreaterThan(-1);
-        expect(body.slice(0, draftBranchEnd)).toContain(
-            "openPlayPhaseIfReady("
+        )._handler(ctx, { eventId: eventId as Id<"limitedEvents"> });
+
+    /** An UNSTARTED all-bot table: `createLimitedEvent`'s output, seats still
+     *  free (`startLimitedEvent` is what turns them into Bot Drafters). */
+    function unstartedAllBotEvent(
+        id: string,
+        type: "sealed" | "draft"
+    ): Record<string, unknown> {
+        return {
+            _id: id,
+            createdBy: "user1",
+            type,
+            status: "open",
+            seatCount: 8,
+            packSlots: type === "draft" ? ["lea", "lea", "lea"] : ["lea"],
+            ...(type === "sealed" ? { sealedBoosterCount: 6 } : {}),
+            matchFormat: "bo3",
+            seats: buildEmptySeats(8),
+            createdAt: 0,
+            updatedAt: 0,
+        };
+    }
+
+    function expectOpenedRoundOne(row: Record<string, unknown>) {
+        expect(row.status).toBe("playing");
+        expect(row.currentRound).toBe(1);
+        const rounds = row.rounds as LimitedEventRow["rounds"];
+        expect(rounds).toHaveLength(1);
+        const pairings = rounds![0].pairings;
+        expect(pairings).toHaveLength(4);
+        // Every pairing is bot-vs-bot, so the whole round is decided in the
+        // same transaction that opened it.
+        expect(pairings.filter((p) => p.result === undefined)).toHaveLength(0);
+    }
+
+    it("startLimitedEvent opens the play phase for an all-bot SEALED table", async () => {
+        const { ctx, row } = makeStubCtx(
+            unstartedAllBotEvent("event-run-sealed", "sealed")
         );
-        expect(body.slice(draftBranchEnd)).toContain("openPlayPhaseIfReady(");
+        await runStartLimitedEvent(ctx, "event-run-sealed");
+        expectOpenedRoundOne(row());
+    });
+
+    it("startLimitedEvent opens the play phase for an all-bot DRAFT table", async () => {
+        const { ctx, row } = makeStubCtx(
+            unstartedAllBotEvent("event-run-draft", "draft")
+        );
+        await runStartLimitedEvent(ctx, "event-run-draft");
+        // `runBotAutoPicks` drives the whole draft inside this one mutation.
+        expect(row().draftCompletedAt).toEqual(expect.any(Number));
+        expectOpenedRoundOne(row());
+    });
+
+    it("leaves a table with a HUMAN seat in the deckbuild phase (the call self-gates)", async () => {
+        // The negative control for the two above: `openPlayPhaseIfReady` is
+        // called unconditionally, so this pins that calling it is SAFE — a
+        // seat that still owes a deck must not be paired.
+        const event = unstartedAllBotEvent("event-run-human", "sealed");
+        event.seats = assignFreeSeat(buildEmptySeats(8), "user1", "Alice");
+        const { ctx, row } = makeStubCtx(event);
+        await runStartLimitedEvent(ctx, "event-run-human");
+
+        expect(row().status).toBe("started");
+        expect(row().currentRound).toBeUndefined();
+        expect(row().rounds).toBeUndefined();
     });
 });
