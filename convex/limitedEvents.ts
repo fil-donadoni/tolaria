@@ -57,6 +57,12 @@ import {
     type GetDbRating,
 } from "./limited/cardRatings";
 import {
+    resolveEventCardProfile,
+    type CardProfile,
+    type GetCardProfile,
+    type GetDbProfile,
+} from "./limited/cardProfiles";
+import {
     assignFreeSeat,
     buildEmptySeats,
     DEFAULT_SEALED_BOOSTER_COUNT,
@@ -411,12 +417,24 @@ const getCardEvalMeta: GetCardEvalMeta = (scryfallId) => {
  *  into `chooseBotPick` — every bot-pick path in this module
  *  (`startLimitedEvent`, `submitPick`, `autoPickSeatTimeout`) goes through
  *  THIS adapter, so the parameter is threaded once for all three. Nothing
- *  reads it yet: Draft Signal reading is a later slice of PRD #1607. */
-function makeBotChoosePick(getPickRating: GetPickRating): ChooseBotPick {
+ *  reads it yet: Draft Signal reading is a later slice of PRD #1607.
+ *
+ *  `getCardProfile` (ADR 0072, issue #1611) is the SECOND layered lookup built
+ *  once per mutation call, by `loadEventCardProfile` below — it feeds the
+ *  scorer's three synergy terms (Archetype Fit, Capability Fit, Combo Edge).
+ *  For a scope with no `cardProfiles` rows and no seed file it resolves `null`
+ *  for every card and all three terms contribute exactly 0, which is ADR
+ *  0072's stated "set and block environments keep working with no profiles
+ *  authored at all". */
+function makeBotChoosePick(
+    getPickRating: GetPickRating,
+    getCardProfile: GetCardProfile
+): ChooseBotPick {
     return (seat, pack, packsSeen) =>
         chooseBotPick(pack, seat.pool ?? [], getCardEvalMeta, {
             packsSeen,
             getPickRating,
+            getCardProfile,
         });
 }
 
@@ -449,6 +467,43 @@ async function loadEventPickRating(
     const getDbRating: GetDbRating = (scope, cardId) =>
         dbRatings.get(`${scope}::${cardId}`) ?? null;
     return resolveEventPickRating(scopes, getDbRating);
+}
+
+/** Loads this event's Card Profile layer (ADR 0072, PRD #1607 slice 4, issue
+ *  #1611) — the exact sibling of `loadEventPickRating` above, one table over:
+ *  every `cardProfiles` row for each of the event's DISTINCT `packSlots`
+ *  scopes, folded into the layered `GetCardProfile` via
+ *  `resolveEventCardProfile` (database rows over the checked-in seed file).
+ *  The only place this module touches the `cardProfiles` table directly, and
+ *  the only thing that makes the scorer's three synergy terms non-zero in a
+ *  real Limited Event. Uses the `by_scope` index, so it is bounded per scope
+ *  and cheap even for a multi-round Draft on a single set. */
+async function loadEventCardProfile(
+    ctx: QueryCtx | MutationCtx,
+    packSlots: readonly string[]
+): Promise<GetCardProfile> {
+    const scopes = Array.from(
+        new Set(packSlots.map((scope) => scope.toLowerCase()))
+    );
+    const dbProfiles = new Map<string, CardProfile>();
+    for (const scope of scopes) {
+        const rows = await ctx.db
+            .query("cardProfiles")
+            .withIndex("by_scope", (q) => q.eq("scope", scope))
+            .collect();
+        for (const row of rows) {
+            dbProfiles.set(`${scope}::${row.cardId}`, {
+                archetypes: row.archetypes,
+                provides: row.provides,
+                requires: row.requires,
+                comboEdges: row.comboEdges,
+                reviewed: row.reviewed,
+            });
+        }
+    }
+    const getDbProfile: GetDbProfile = (scope, cardId) =>
+        dbProfiles.get(`${scope}::${cardId}`) ?? null;
+    return resolveEventCardProfile(scopes, getDbProfile);
 }
 
 /** Resolves a drawn card's Scryfall id to the printed characteristics
@@ -1025,7 +1080,14 @@ export const startLimitedEvent = mutation({
                 ctx,
                 event.packSlots
             );
-            const botChoosePick = makeBotChoosePick(getPickRating);
+            const getCardProfile = await loadEventCardProfile(
+                ctx,
+                event.packSlots
+            );
+            const botChoosePick = makeBotChoosePick(
+                getPickRating,
+                getCardProfile
+            );
             const dealt = startDraft(
                 seats,
                 event.packSlots,
@@ -1246,7 +1308,8 @@ export const submitPick = mutation({
         // the draft never stalls on a seat nobody drives (PRD #1107 story
         // 27). A no-op when no bot seat currently holds a pack.
         const getPickRating = await loadEventPickRating(ctx, event.packSlots);
-        const botChoosePick = makeBotChoosePick(getPickRating);
+        const getCardProfile = await loadEventCardProfile(ctx, event.packSlots);
+        const botChoosePick = makeBotChoosePick(getPickRating, getCardProfile);
         const afterBots = runBotAutoPicks(
             result.seats,
             result.draftRound,
@@ -1318,7 +1381,8 @@ export const autoPickSeatTimeout = internalMutation({
         }
 
         const getPickRating = await loadEventPickRating(ctx, event.packSlots);
-        const botChoosePick = makeBotChoosePick(getPickRating);
+        const getCardProfile = await loadEventCardProfile(ctx, event.packSlots);
+        const botChoosePick = makeBotChoosePick(getPickRating, getCardProfile);
         const pickId = resolveAutoPickTimeout(
             event.seats,
             args.seatIndex,

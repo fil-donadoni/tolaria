@@ -49,6 +49,7 @@ export default function DraftLabRoute() {
                         onSourceKeyChange={lab.setSourceKey}
                         state={lab.state}
                         isAutoPlaying={lab.isAutoPlaying}
+                        canStart={lab.canStart}
                         onStart={lab.start}
                         onStep={lab.step}
                         onToggleAutoPlay={lab.toggleAutoPlay}

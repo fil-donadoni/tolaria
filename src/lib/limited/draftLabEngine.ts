@@ -15,6 +15,13 @@
 // the previous `DraftLabState` — so replaying the same seed from a fresh
 // `initDraftLab` always produces a byte-identical `DraftLabState` sequence
 // (`draftLabEngine.test.ts`).
+//
+// That property survived issue #1611 making Card Profiles SCORE-BEARING only
+// because the profile rows are SNAPSHOTTED into `DraftLabState` at
+// `initDraftLab` (`cardProfileRows`) instead of being read from a live
+// `useQuery` closure per step — otherwise a draft's picks would depend on
+// whether the query had resolved when Start was pressed. See that field's doc
+// comment; `useDraftLab.ts` additionally gates Start until the query lands.
 import { startDraft, applyPick } from "@convex/limited/draftEngine";
 import { getRuntimeBoosterConfig } from "@convex/limited/registry";
 import {
@@ -26,9 +33,11 @@ import {
 } from "@convex/limited/botDrafter";
 import { resolveEventPickRating } from "@convex/limited/cardRatings";
 import {
+    buildDbProfileLookup,
     resolveEventCardProfile,
     type GetCardProfile,
     type GetDbProfile,
+    type ScopedCardProfile,
 } from "@convex/limited/cardProfiles";
 import type {
     DraftPackCard,
@@ -84,6 +93,23 @@ export interface DraftLabState {
      *  (`draftEngine.ts`). */
     packsSeenBySeat: ReadonlyMap<number, readonly (readonly DraftPackCard[])[]>;
     pickLog: readonly DraftLabPickRecord[];
+    /** SNAPSHOT of the `cardProfiles` DB rows this session scores with (ADR
+     *  0072, issue #1611) — taken ONCE, at `initDraftLab`, and never read
+     *  from a live query again for the rest of the run.
+     *
+     *  This is a determinism requirement, not an optimisation. Card Profiles
+     *  became SCORE-BEARING in issue #1611: they now feed Archetype Fit,
+     *  Capability Fit and Combo Edge, so passing `useDraftLab.ts`'s live
+     *  `useQuery` result straight into `stepDraftLab` would make the pick
+     *  sequence depend on WHEN that query resolved — a draft started before
+     *  the rows landed would score the first N picks with no profiles and the
+     *  rest with them, and the same seed would replay differently. Freezing
+     *  the rows into the session state at Start restores issue #1612's "same
+     *  seed ⇒ same draft, every run" acceptance: `stepDraftLab` is once again
+     *  a pure function of `(state, getPickRating)` alone. `useDraftLab.ts`
+     *  additionally GATES Start until the query has resolved, so the snapshot
+     *  is never an accidentally-empty one. */
+    cardProfileRows: readonly ScopedCardProfile[];
 }
 
 /** Builds the Lab's layered Pick Rating lookup for a set of pack sources
@@ -109,13 +135,17 @@ export function buildDraftLabPickRating(
  *  result via `buildDbProfileLookup` — a READ, never a mutation/action, so
  *  ADR 0074's "the Draft Lab writes nothing" guarantee is untouched.
  *  Surfaces `reviewed` (issue #1612: "surface unreviewed profiles visibly")
- *  for every card the Lab shows, independent of whether the scorer itself
- *  reads Card Profiles yet (PRD #1607 slice 4 is separate from this slice).
- *  Determinism (issue #1612's "same seed ⇒ same draft"): this function's
- *  output only ever feeds `DraftLabProfileBadge` — the display layer — never
- *  `stepDraftLab`/`chooseBotPick`'s pick decision, so a `useQuery` result
- *  changing (or arriving late, `undefined` while loading) cannot make a
- *  replayed draft diverge; it can only change what a badge shows. */
+ *  for every card the Lab shows.
+ *
+ *  Determinism (issue #1612's "same seed ⇒ same draft") — UPDATED by issue
+ *  #1611. Card Profiles are now SCORE-BEARING (Archetype Fit, Capability Fit,
+ *  Combo Edge), so this lookup no longer feeds only the badge: `stepDraftLab`
+ *  passes one into `scorePack`/`chooseBotPick`. What keeps the replay
+ *  deterministic is that the scoring lookup is built from
+ *  `DraftLabState.cardProfileRows` — a SNAPSHOT frozen at `initDraftLab` —
+ *  and never from a live `useQuery` result mid-run. A late-arriving query can
+ *  therefore still change what a badge shows before the next Start, but can
+ *  never change a pick inside a running draft. */
 export function buildDraftLabCardProfile(
     packSlots: readonly string[],
     getDbProfile: GetDbProfile = () => null
@@ -145,7 +175,8 @@ function createBotSeats(seatCount: number): LimitedEventSeat[] {
 export function initDraftLab(
     seed: number,
     packSlots: readonly string[],
-    seatCount: number = DRAFT_LAB_SEAT_COUNT
+    seatCount: number = DRAFT_LAB_SEAT_COUNT,
+    cardProfileRows: readonly ScopedCardProfile[] = []
 ): DraftLabState {
     const seats = createBotSeats(seatCount);
     const dealt = startDraft(
@@ -164,6 +195,7 @@ export function initDraftLab(
         completed: false,
         packsSeenBySeat: new Map(),
         pickLog: [],
+        cardProfileRows,
     };
 }
 
@@ -198,6 +230,16 @@ export function stepDraftLab(
     const seatIndex = findNextActingSeat(state.seats);
     if (seatIndex === -1) return { ...state, completed: true };
 
+    // Built from the session's SNAPSHOT (`state.cardProfileRows`), never from
+    // a live query result — see `DraftLabState.cardProfileRows`. Rebuilt per
+    // step so `stepDraftLab` stays a pure function of its arguments (a cached
+    // closure would have to live outside the state it is derived from); the
+    // cost is one Map build over a bounded row set per pick.
+    const getCardProfile = buildDraftLabCardProfile(
+        state.packSlots,
+        buildDbProfileLookup(state.cardProfileRows)
+    );
+
     const seat = state.seats[seatIndex];
     const pack = seat.currentPack!;
     const seenSoFar = state.packsSeenBySeat.get(seatIndex) ?? [];
@@ -216,13 +258,14 @@ export function stepDraftLab(
     const traces = scorePack(pack, poolMeta, draftLabGetCardEvalMeta, {
         packsSeen,
         getPickRating,
+        getCardProfile,
         pickNumber: seatPickNumber,
     });
     const chosenPickId = chooseBotPick(
         pack,
         seat.pool ?? [],
         draftLabGetCardEvalMeta,
-        { packsSeen, getPickRating }
+        { packsSeen, getPickRating, getCardProfile }
     );
 
     const result = applyPick(
@@ -270,10 +313,11 @@ const MAX_STEPS = 10_000;
 export function runFullDraftLab(
     seed: number,
     packSlots: readonly string[],
-    seatCount: number = DRAFT_LAB_SEAT_COUNT
+    seatCount: number = DRAFT_LAB_SEAT_COUNT,
+    cardProfileRows: readonly ScopedCardProfile[] = []
 ): DraftLabState {
     const getPickRating = buildDraftLabPickRating(packSlots);
-    let state = initDraftLab(seed, packSlots, seatCount);
+    let state = initDraftLab(seed, packSlots, seatCount, cardProfileRows);
     for (let i = 0; i < MAX_STEPS && !state.completed; i++) {
         state = stepDraftLab(state, getPickRating);
         if (i === MAX_STEPS - 1) {

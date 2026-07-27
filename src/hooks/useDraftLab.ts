@@ -49,6 +49,14 @@ export interface UseDraftLabResult {
     step: () => void;
     toggleAutoPlay: () => void;
     getCardProfile: GetCardProfile;
+    /** False until the Card Profile query has resolved (ADR 0072, issue
+     *  #1611). Profiles are SCORE-BEARING now, and `initDraftLab` freezes them
+     *  into the session state, so starting before the rows land would silently
+     *  snapshot an EMPTY profile set and score the whole draft without the
+     *  synergy terms — a draft that looks fine and is not the draft the same
+     *  seed produces a second later. The Draft Lab controls disable Start
+     *  while this is false. */
+    canStart: boolean;
 }
 
 export function useDraftLab(): UseDraftLabResult {
@@ -82,11 +90,26 @@ export function useDraftLab(): UseDraftLabResult {
         [packSlots, scopeCardProfiles]
     );
 
+    // Both halves of the determinism fix (issue #1611): Start is GATED on the
+    // query having resolved, and the rows it did resolve to are SNAPSHOTTED
+    // into the session state, so no live query result is ever read again for
+    // the rest of the run. Either half alone leaks — a gate without a snapshot
+    // still lets a re-fetch mid-draft change a pick; a snapshot without a gate
+    // silently freezes an empty profile set when Start beats the query.
+    const canStart = scopeCardProfiles !== undefined;
     const start = useCallback(() => {
+        if (scopeCardProfiles === undefined) return;
         setIsAutoPlaying(false);
-        setState(initDraftLab(seedInput, packSlots, DRAFT_LAB_SEAT_COUNT));
+        setState(
+            initDraftLab(
+                seedInput,
+                packSlots,
+                DRAFT_LAB_SEAT_COUNT,
+                scopeCardProfiles
+            )
+        );
         setFocusedSeat(0);
-    }, [seedInput, packSlots]);
+    }, [seedInput, packSlots, scopeCardProfiles]);
 
     const step = useCallback(() => {
         setState((prev) =>
@@ -139,5 +162,6 @@ export function useDraftLab(): UseDraftLabResult {
         step,
         toggleAutoPlay,
         getCardProfile,
+        canStart,
     };
 }

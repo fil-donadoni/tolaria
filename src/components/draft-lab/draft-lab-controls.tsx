@@ -33,6 +33,7 @@ export default function DraftLabControls({
     onSourceKeyChange,
     state,
     isAutoPlaying,
+    canStart,
     onStart,
     onStep,
     onToggleAutoPlay,
@@ -43,6 +44,11 @@ export default function DraftLabControls({
     onSourceKeyChange: (key: string) => void;
     state: DraftLabState | null;
     isAutoPlaying: boolean;
+    /** False until the Card Profile query has resolved (issue #1611) — see
+     *  `UseDraftLabResult.canStart`. Starting earlier would snapshot an empty
+     *  profile set into the session and score the whole draft without the
+     *  synergy terms. */
+    canStart: boolean;
     onStart: () => void;
     onStep: () => void;
     onToggleAutoPlay: () => void;
@@ -82,9 +88,14 @@ export default function DraftLabControls({
             <button
                 type="button"
                 onClick={onStart}
-                className="rounded-sm border border-border-strong px-3 py-1.5 text-sm text-text-muted transition-colors hover:border-accent hover:text-parchment"
+                disabled={!canStart}
+                className="rounded-sm border border-border-strong px-3 py-1.5 text-sm text-text-muted transition-colors hover:border-accent hover:text-parchment disabled:opacity-40"
             >
-                {state ? "Restart draft" : "Start draft"}
+                {canStart
+                    ? state
+                        ? "Restart draft"
+                        : "Start draft"
+                    : "Loading profiles…"}
             </button>
             <button
                 type="button"
