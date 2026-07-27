@@ -12,6 +12,7 @@ import {
     roundPairingSeed,
     type AdvanceRoundInput,
     type OpenRoundInput,
+    type ResolvePairingPresence,
     type RoundSeatLookup,
 } from "../rounds";
 import type { DeckStrength } from "../matchSim";
@@ -39,6 +40,20 @@ function oneHumanTable(seatCount: number): RoundSeatLookup[] {
 const strengthBySeat: (seatIndex: number) => DeckStrength = (seatIndex) => ({
     mean: 2 + seatIndex * 0.2,
 });
+
+/** No pairing in these tests has a bound Match to look up presence for
+ *  (`matchId` is never set below) unless a test constructs one explicitly, so
+ *  this is the shared no-op resolver for every OTHER test — it should never
+ *  actually be called. */
+const noPresence: ResolvePairingPresence = () => new Set<number>();
+
+/** A `ResolvePairingPresence` reporting exactly `seatIndexes` as present for
+ *  ANY matchId — issue #1647 review finding 1's "opponent absent" / "both
+ *  present" scenarios. */
+function presentSeats(...seatIndexes: number[]): ResolvePairingPresence {
+    const present = new Set(seatIndexes);
+    return () => present;
+}
 
 function open(overrides: Partial<OpenRoundInput> = {}): LimitedRound {
     return openRound({
@@ -546,6 +561,7 @@ describe("resolveExpiredRound — closes an undecided pairing at the deadline", 
             seats,
             matchFormat: "bo3",
             now: 1000,
+            resolvePresence: noPresence,
         });
 
         expect(closed.pairings[0].result).toEqual({
@@ -573,6 +589,7 @@ describe("resolveExpiredRound — closes an undecided pairing at the deadline", 
             seats,
             matchFormat: "bo3",
             now: 1000,
+            resolvePresence: noPresence,
         });
 
         expect(closed.pairings[0].result).toEqual({
@@ -600,6 +617,7 @@ describe("resolveExpiredRound — closes an undecided pairing at the deadline", 
             seats,
             matchFormat: "bo1",
             now: 1000,
+            resolvePresence: noPresence,
         });
 
         expect(closed.pairings[0].result).toEqual({
@@ -609,13 +627,13 @@ describe("resolveExpiredRound — closes an undecided pairing at the deadline", 
         });
     });
 
-    it("closes a human-vs-human pairing as a double loss when neither showed up (PRD story 34)", () => {
+    it("closes a human-vs-human pairing as a double loss when neither showed up — no Match was ever bound (PRD story 34)", () => {
         const seats: RoundSeatLookup[] = [{ seatIndex: 0 }, { seatIndex: 1 }];
         const round: LimitedRound = {
             roundNumber: 1,
             startedAt: 0,
             deadlineAt: 1000,
-            pairings: [{ seatA: 0, seatB: 1 }],
+            pairings: [{ seatA: 0, seatB: 1 }], // no matchId — nobody ever started
         };
 
         const [closed] = resolveExpiredRound({
@@ -624,6 +642,82 @@ describe("resolveExpiredRound — closes an undecided pairing at the deadline", 
             seats,
             matchFormat: "bo3",
             now: 1000,
+            resolvePresence: noPresence,
+        });
+
+        expect(closed.pairings[0].result).toEqual({
+            winsA: 0,
+            winsB: 0,
+            source: "timeout",
+        });
+    });
+
+    it("awards the win to the seat who showed up when a Match is bound and the opponent never joined (issue #1647 review finding 1, PRD story 33)", () => {
+        const seats: RoundSeatLookup[] = [{ seatIndex: 0 }, { seatIndex: 1 }];
+        const round: LimitedRound = {
+            roundNumber: 1,
+            startedAt: 0,
+            deadlineAt: 1000,
+            pairings: [{ seatA: 0, seatB: 1, matchId: "match-1" }],
+        };
+
+        const [closed] = resolveExpiredRound({
+            rounds: [round],
+            roundNumber: 1,
+            seats,
+            matchFormat: "bo3",
+            now: 1000,
+            resolvePresence: presentSeats(0), // only seat 0 started it
+        });
+
+        expect(closed.pairings[0].result).toEqual({
+            winsA: 2,
+            winsB: 0,
+            source: "timeout",
+        });
+    });
+
+    it("awards the win to the OTHER seat when the pairing's own seatB is the one who started the Match", () => {
+        const seats: RoundSeatLookup[] = [{ seatIndex: 0 }, { seatIndex: 1 }];
+        const round: LimitedRound = {
+            roundNumber: 1,
+            startedAt: 0,
+            deadlineAt: 1000,
+            pairings: [{ seatA: 0, seatB: 1, matchId: "match-1" }],
+        };
+
+        const [closed] = resolveExpiredRound({
+            rounds: [round],
+            roundNumber: 1,
+            seats,
+            matchFormat: "bo3",
+            now: 1000,
+            resolvePresence: presentSeats(1), // only seat 1 started it
+        });
+
+        expect(closed.pairings[0].result).toEqual({
+            winsA: 0,
+            winsB: 2,
+            source: "timeout",
+        });
+    });
+
+    it("still closes as a double loss when a Match is bound but BOTH seats showed up (a mid-game Bo3 neither finished in time)", () => {
+        const seats: RoundSeatLookup[] = [{ seatIndex: 0 }, { seatIndex: 1 }];
+        const round: LimitedRound = {
+            roundNumber: 1,
+            startedAt: 0,
+            deadlineAt: 1000,
+            pairings: [{ seatA: 0, seatB: 1, matchId: "match-1" }],
+        };
+
+        const [closed] = resolveExpiredRound({
+            rounds: [round],
+            roundNumber: 1,
+            seats,
+            matchFormat: "bo3",
+            now: 1000,
+            resolvePresence: presentSeats(0, 1), // both joined
         });
 
         expect(closed.pairings[0].result).toEqual({
@@ -653,6 +747,7 @@ describe("resolveExpiredRound — closes an undecided pairing at the deadline", 
             seats,
             matchFormat: "bo3",
             now: 1000,
+            resolvePresence: noPresence,
         });
 
         expect(closed.pairings[0]).toBe(decided); // same object — never rewritten
@@ -677,6 +772,7 @@ describe("resolveExpiredRound — closes an undecided pairing at the deadline", 
             seats,
             matchFormat: "bo3",
             now: 1000,
+            resolvePresence: noPresence,
         });
 
         expect(closed.pairings[0]).toBe(bye);
@@ -697,6 +793,7 @@ describe("resolveExpiredRound — closes an undecided pairing at the deadline", 
             seats,
             matchFormat: "bo3",
             now: 999_999_999,
+            resolvePresence: noPresence,
         });
 
         expect(unchanged).toBe(round);
@@ -718,6 +815,7 @@ describe("resolveExpiredRound — closes an undecided pairing at the deadline", 
             seats,
             matchFormat: "bo3",
             now: 999, // one ms before the deadline
+            resolvePresence: noPresence,
         });
 
         expect(unchanged.pairings[0].result).toBeUndefined();
@@ -738,6 +836,7 @@ describe("resolveExpiredRound — closes an undecided pairing at the deadline", 
             seats,
             matchFormat: "bo3",
             now: 1000,
+            resolvePresence: noPresence,
         });
         const [closedTwice] = resolveExpiredRound({
             rounds: [closedOnce],
@@ -745,6 +844,7 @@ describe("resolveExpiredRound — closes an undecided pairing at the deadline", 
             seats,
             matchFormat: "bo3",
             now: 2000,
+            resolvePresence: noPresence,
         });
 
         expect(closedTwice).toBe(closedOnce);
@@ -776,6 +876,7 @@ describe("resolveExpiredRound — closes an undecided pairing at the deadline", 
             seats,
             matchFormat: "bo3",
             now: 1000,
+            resolvePresence: noPresence,
         });
 
         expect(unchangedRound1).toBe(round1);
@@ -801,6 +902,7 @@ describe("resolveExpiredRound — closes an undecided pairing at the deadline", 
             seats,
             matchFormat: "bo3",
             now: round1.deadlineAt!,
+            resolvePresence: noPresence,
         });
         expect(isRoundComplete(closedRound1)).toBe(true);
 

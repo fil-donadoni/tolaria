@@ -92,6 +92,7 @@ import {
     openRound,
     resolveExpiredRound,
     type AdvanceRoundResult,
+    type ResolvePairingPresence,
     type ResolveSeatStrength,
 } from "./limited/rounds";
 import {
@@ -100,7 +101,11 @@ import {
     type LimitedEventSeatView,
     type LimitedEventView,
 } from "./limited/eventProjection";
-import type { LimitedEventSeat, LimitedRound } from "./limited/eventTypes";
+import type {
+    LimitedEventSeat,
+    LimitedPairing,
+    LimitedRound,
+} from "./limited/eventTypes";
 import {
     arePoolsDealt,
     areDraftPicksLegal,
@@ -2041,6 +2046,73 @@ export const autoPickSeatTimeout = internalMutation({
     },
 });
 
+/** Which of a bound Match's two seats actually showed up for it (issue #1647
+ *  review finding 1) — `players[0]` is `match.limitedPairing.seatA` (the
+ *  starter, `startPairingMatch`) and is therefore ALWAYS present; `players[1]`
+ *  (`match.limitedPairing.seatB`) joins the row only once `joinGame`
+ *  completes it (a human opponent) or immediately (a bot opponent, both
+ *  seats inserted in one `startPairingMatch` call). Building this is the
+ *  `expireRoundDeadline`-only DB read `resolveExpiredRound` (`rounds.ts`)
+ *  must never perform itself — the SAME injection discipline as
+ *  `buildSeatStrengthResolver`. */
+function buildPairingPresenceResolver(
+    boundMatches: ReadonlyMap<string, Doc<"matches">>
+): ResolvePairingPresence {
+    return (matchId) => {
+        const match = boundMatches.get(matchId);
+        const link = match?.limitedPairing;
+        if (!match || !link) return new Set<number>();
+        const present = new Set<number>([link.seatA]);
+        if (match.players.length > 1) present.add(link.seatB);
+        return present;
+    };
+}
+
+/** Finishes a pairing's bound Match to match the round deadline's own verdict
+ *  (issue #1647 review finding 2). `expireRoundDeadline` closes the PAIRING
+ *  via `resolveExpiredRound`, but that leaves the Match it was bound to
+ *  untouched — an active (`waiting`/`pregame`/`playing`/`sideboarding`) Match
+ *  keeps the single-active-Match guard (`findActiveMatchForUser`,
+ *  `convex/matches.ts`) locking the timed-out seat(s) out of their OWN next
+ *  round pairing until they manually concede a now-meaningless Match (which
+ *  `recordPlayedPairing` would then refuse anyway — the pairing is already
+ *  decided). `pairing.result` (just written by `resolveExpiredRound`) is
+ *  already the standings' source of truth; this only translates it into the
+ *  Match's OWN seat order — `match.limitedPairing.seatA` is `players[0]`,
+ *  NOT necessarily the pairing's own `seatA` (the starter may be either side,
+ *  `convex/limited/pairingMatch.ts`'s own note) — so the Match stops being
+ *  "active". Never a second recording of the standings result: that already
+ *  happened via the pairing's own `result`, this mutation never calls
+ *  `recordPlayedPairing`. */
+async function finishTimedOutPairingMatch(
+    ctx: MutationCtx,
+    match: Doc<"matches">,
+    pairing: LimitedPairing,
+    now: number
+): Promise<void> {
+    if (match.status === "finished") return; // already finished — idempotent
+    const result = pairing.result;
+    const link = match.limitedPairing;
+    if (!result || !link) return;
+    const winnerSeat =
+        result.winsA > result.winsB
+            ? pairing.seatA
+            : result.winsB > result.winsA
+              ? (pairing.seatB ?? null)
+              : null; // double loss — no winner
+    const winnerId =
+        winnerSeat === null
+            ? undefined
+            : winnerSeat === link.seatA
+              ? match.players[0]?.id
+              : match.players[1]?.id;
+    await ctx.db.patch(match._id, {
+        status: "finished",
+        winner: winnerId,
+        updatedAt: now,
+    });
+}
+
 /** Round deadline expiry (PRD #1628 stories 3/32-35, ADR 0076, issue #1647):
  *  fires when a round's configured deadline elapses. `internalMutation` —
  *  reachable ONLY via `ctx.scheduler.runAfter` (scheduled by
@@ -2062,10 +2134,17 @@ export const autoPickSeatTimeout = internalMutation({
  *  pairing).
  *
  *  Closing (`resolveExpiredRound`, `convex/limited/rounds.ts`) and advancing
- *  (`advanceRoundIfComplete`) land in the SAME `ctx.db.patch` below — the
- *  identical one-read/one-write OCC discipline `recordLimitedPairingResult`
- *  (`convex/game.ts`, issue #1646) uses, so the round this closes advances
- *  exactly like one a human finished by actually playing it. */
+ *  (`cascadeEventRounds`, the SAME shell `recordLimitedPairingResult` uses)
+ *  land in the SAME `ctx.db.patch` below — the identical one-read/one-write
+ *  OCC discipline `recordLimitedPairingResult` (`convex/game.ts`, issue
+ *  #1646) uses, so the round this closes advances exactly like one a human
+ *  finished by actually playing it. Advancing is wrapped in its own try/catch
+ *  (issue #1647 review finding 3, mirroring #1646 review finding 2): this
+ *  runs inside the transaction that just closed the timeout results, and an
+ *  uncaught `advanceRoundIfComplete` throw would roll that patch back AND
+ *  consume this schedule's only firing (a failed scheduled mutation is never
+ *  re-run) — permanently wedging the round, strictly worse than the played
+ *  path's graceful degradation. */
 export const expireRoundDeadline = internalMutation({
     args: {
         eventId: v.id("limitedEvents"),
@@ -2089,24 +2168,55 @@ export const expireRoundDeadline = internalMutation({
         if (round.deadlineAt > now) return null; // defensive: not actually due yet
 
         const matchFormat = resolveMatchFormat(event.matchFormat);
+
+        // Issue #1647 review finding 1: every undecided pairing that has a
+        // bound Match is a candidate `resolveExpiredRound` needs a presence
+        // answer for (a bye/bot-vs-bot pairing never carries a `matchId`, so
+        // this is exactly the pairing set that can possibly need one) —
+        // fetched ONCE, up front, so the pure resolver stays a sync lookup.
+        const boundMatches = new Map<string, Doc<"matches">>();
+        for (const pairing of round.pairings) {
+            if (pairing.result !== undefined) continue;
+            if (pairing.matchId === undefined) continue;
+            const match = await ctx.db.get(pairing.matchId as Id<"matches">);
+            if (match) boundMatches.set(pairing.matchId, match);
+        }
+
         const expiredRounds = resolveExpiredRound({
             rounds,
             roundNumber: args.roundNumber,
             seats: event.seats,
             matchFormat,
             now,
+            resolvePresence: buildPairingPresenceResolver(boundMatches),
         });
 
-        const seatStrength = await buildSeatStrengthResolver(ctx, event);
-        const advance = advanceRoundIfComplete({
-            eventId: event._id,
-            seats: event.seats,
-            rounds: expiredRounds,
-            matchFormat,
-            now,
-            roundDeadlineMinutes: event.roundDeadlineMinutes,
-            seatStrength,
-        });
+        // Issue #1647 review finding 2: release every seat this expiry just
+        // decided — finish the bound Match behind each pairing
+        // `resolveExpiredRound` just closed, so the single-active-Match guard
+        // stops seeing it and the seat can start its round N+1 pairing.
+        const closedRound = expiredRounds.find(
+            (r) => r.roundNumber === args.roundNumber
+        );
+        if (closedRound) {
+            for (const pairing of closedRound.pairings) {
+                if (pairing.matchId === undefined) continue;
+                if (pairing.result?.source !== "timeout") continue;
+                const match = boundMatches.get(pairing.matchId);
+                if (!match) continue;
+                await finishTimedOutPairingMatch(ctx, match, pairing, now);
+            }
+        }
+
+        let advance: AdvanceRoundResult = { kind: "unchanged" };
+        try {
+            advance = await cascadeEventRounds(ctx, event, expiredRounds, now);
+        } catch (err) {
+            console.error(
+                `expireRoundDeadline: cascadeEventRounds failed for event ${event._id} round ${args.roundNumber} — the timeout results were recorded without advancing the round`,
+                err
+            );
+        }
         const finalRounds =
             advance.kind === "unchanged" ? expiredRounds : advance.rounds;
 
@@ -2120,12 +2230,19 @@ export const expireRoundDeadline = internalMutation({
         });
 
         if (advance.kind === "roundOpened") {
-            await scheduleRoundDeadline(
-                ctx,
-                args.eventId,
-                finalRounds[finalRounds.length - 1],
-                now
-            );
+            try {
+                await scheduleRoundDeadline(
+                    ctx,
+                    args.eventId,
+                    finalRounds[finalRounds.length - 1],
+                    now
+                );
+            } catch (err) {
+                console.error(
+                    `expireRoundDeadline: scheduleRoundDeadline failed for event ${event._id} — the newly opened round has no deadline schedule`,
+                    err
+                );
+            }
         }
         return null;
     },

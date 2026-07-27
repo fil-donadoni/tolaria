@@ -54,6 +54,16 @@ export interface RoundSeatLookup {
  *  must not perform. Only ever asked for a seat with `isBot: true`. */
 export type ResolveSeatStrength = (seatIndex: number) => DeckStrength;
 
+/** For a human-vs-human pairing that already has a bound Match
+ *  (`pairing.matchId` defined), which of its two seats actually SHOWED UP for
+ *  it — started it (`startPairingMatch`) or joined it (`joinGame`). INJECTED,
+ *  the same discipline as {@link ResolveSeatStrength}: telling "opponent
+ *  absent" from "neither ever showed" needs the bound `matches` row's own
+ *  `players[]` length, a DB read this module must not perform. Only ever
+ *  asked for a `matchId` a pairing actually carries (issue #1647 review
+ *  finding 1). */
+export type ResolvePairingPresence = (matchId: string) => ReadonlySet<number>;
+
 export interface OpenRoundInput {
     /** The event's id — part of every seed derived below, so two events that
      *  happen to have identical seats and identical prior rounds still pair
@@ -213,24 +223,33 @@ export function findSeatPairing(
  *  no configured deadline, the deadline hasn't actually elapsed yet, or the
  *  round is already fully decided.
  *
- *  What "undecided at the deadline" closes to (PRD stories 32-34):
+ *  What "undecided at the deadline" closes to (PRD stories 32-34, issue #1647
+ *  review finding 1 — the player who SHOWED UP is never the one scored a
+ *  loss):
  *  - **Human vs bot**: the bot side never "shows up" as such — a human/bot
  *    pairing only decides once the human calls `startPairingMatch` (issue
  *    #1645), so an undecided one at the deadline means the human never
  *    played. Scored as a loss for the human, 0 to `gamesToWinMatch`, the
  *    SAME games a bye/win is worth for this format.
- *  - **Human vs human, still undecided**: this module has no visibility into
- *    which side (if either) actually joined the pairing's bound Match — that
- *    would need the `matches` row's own per-player join state, a DB read a
- *    pure round function deliberately never performs (see file header).
- *    Story 34's rule ("NEITHER human showed up") is applied to every
- *    undecided human-vs-human pairing at the hard deadline cutoff: a double
- *    loss (equal wins, `source: "timeout"` — `classifyPairingResult`,
- *    `convex/limited/standings.ts`, treats this specially and never as a
- *    draw). A genuinely mid-game Bo3 that both players started but didn't
- *    finish in time collapses into the same double-loss outcome — the
- *    deadline is a hard cutoff either way, and distinguishing "abandoned"
- *    from "never started" for a two-human pairing is out of scope here.
+ *  - **Human vs human, still undecided**: presence is determined from the
+ *    pairing's bound Match (`pairing.matchId`), via the INJECTED
+ *    {@link ResolvePairingPresence} — the same seam `seatStrength` uses to
+ *    keep this function pure (no `matches` row read here).
+ *      - No Match was ever bound (`matchId` undefined): NEITHER seat ever
+ *        called `startPairingMatch` — story 34's double loss (equal wins,
+ *        `source: "timeout"` — `classifyPairingResult`,
+ *        `convex/limited/standings.ts`, treats this specially and never as a
+ *        draw).
+ *      - A Match is bound and EXACTLY ONE seat is present (the starter, with
+ *        the opponent never having joined): story 33 — the present seat is
+ *        awarded the match win, `gamesToWinMatch` to 0, against the absent
+ *        one.
+ *      - A Match is bound and BOTH seats are present (a genuinely mid-game
+ *        Bo3 neither finished in time): neither is exclusively "the one who
+ *        didn't show", so this collapses into the same double-loss outcome
+ *        as the no-show case — the deadline is a hard cutoff either way, and
+ *        distinguishing "abandoned mid-game" from "never started" for a
+ *        two-human pairing is out of scope here.
  *  - **Bot vs bot**: unreachable in practice — `openRound` decides every
  *    bot-vs-bot pairing the moment the round opens, so one can never reach
  *    the deadline still undecided. Left untouched defensively. */
@@ -240,8 +259,10 @@ export function resolveExpiredRound(input: {
     seats: readonly RoundSeatLookup[];
     matchFormat: LimitedMatchFormat;
     now: number;
+    resolvePresence: ResolvePairingPresence;
 }): LimitedRound[] {
-    const { rounds, roundNumber, seats, matchFormat, now } = input;
+    const { rounds, roundNumber, seats, matchFormat, now, resolvePresence } =
+        input;
     const botSeats = new Set(
         seats.filter(isBotSeat).map((seat) => seat.seatIndex)
     );
@@ -279,6 +300,45 @@ export function resolveExpiredRound(input: {
                     },
                 };
             }
+            // Human vs human. No Match ever bound = neither seat showed up
+            // (PRD story 34).
+            if (pairing.matchId === undefined) {
+                return {
+                    ...pairing,
+                    result: {
+                        winsA: 0,
+                        winsB: 0,
+                        source: "timeout" as const,
+                    },
+                };
+            }
+            const present = resolvePresence(pairing.matchId);
+            const aPresent = present.has(pairing.seatA);
+            const bPresent = present.has(pairing.seatB);
+            if (aPresent && !bPresent) {
+                // PRD story 33: the seat that showed up is awarded the win.
+                return {
+                    ...pairing,
+                    result: {
+                        winsA: winGames,
+                        winsB: 0,
+                        source: "timeout" as const,
+                    },
+                };
+            }
+            if (bPresent && !aPresent) {
+                return {
+                    ...pairing,
+                    result: {
+                        winsA: 0,
+                        winsB: winGames,
+                        source: "timeout" as const,
+                    },
+                };
+            }
+            // Both present (a mid-game Bo3 neither finished in time) or,
+            // defensively, neither despite a bound Match — story 34's double
+            // loss.
             return {
                 ...pairing,
                 result: { winsA: 0, winsB: 0, source: "timeout" as const },

@@ -635,13 +635,29 @@ async function recordLimitedPairingResult(
     // whose round 1 had a deadline would silently lose it from round 2 on.
     // A no-op when the event has no configured deadline, or the newly opened
     // round came back fully decided on the spot (no human pairing anywhere).
+    //
+    // Wrapped in its own try/catch (issue #1647 review finding 4): this runs
+    // AFTER the `ctx.db.patch` above, inside the same transaction that just
+    // finished the Match (`finalizeGameOver` / `forfeitMatch`) — the entire
+    // point of this function's OWN try/catch around `cascadeEventRounds` is
+    // that nothing past the recorded result can roll it back. A
+    // `scheduler.runAfter` throw here is no exception: best-effort, logged,
+    // never allowed to lose the Match result or the round advance that were
+    // already committed above.
     if (advance.kind === "roundOpened") {
-        await scheduleRoundDeadline(
-            ctx,
-            event._id,
-            finalRounds[finalRounds.length - 1],
-            now
-        );
+        try {
+            await scheduleRoundDeadline(
+                ctx,
+                event._id,
+                finalRounds[finalRounds.length - 1],
+                now
+            );
+        } catch (err) {
+            console.error(
+                `recordLimitedPairingResult: scheduleRoundDeadline failed for event ${event._id} — the newly opened round has no deadline schedule`,
+                err
+            );
+        }
     }
 }
 
