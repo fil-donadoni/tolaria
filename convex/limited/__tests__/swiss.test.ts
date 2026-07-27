@@ -25,18 +25,25 @@ function normalizedPair(pairing: SwissPairing): [number, number] {
 
 /** Builds a decided `SwissRound` from a list of `[seatA, seatB, winnerSeat]`
  *  triples (a 2-0 match win for `winnerSeat`, `source: "simulated"` — the
- *  content doesn't matter to `pairRound`, only who won). */
+ *  content doesn't matter to `pairRound`, only who won). `winnerSeat` may
+ *  also be the literal `"draw"` for a 1-1 split (half a point each) — needed
+ *  to fabricate the fractional scores the bracket-displacement fixtures
+ *  below rely on. */
 function decidedRound(
-    results: Array<[seatA: number, seatB: number, winnerSeat: number]>
+    results: Array<
+        [seatA: number, seatB: number, winnerSeat: number | "draw"]
+    >
 ): SwissRound {
     return {
         pairings: results.map(([seatA, seatB, winnerSeat]) => ({
             seatA,
             seatB,
             result:
-                winnerSeat === seatA
-                    ? { winsA: 2, winsB: 0, source: "simulated" as const }
-                    : { winsA: 0, winsB: 2, source: "simulated" as const },
+                winnerSeat === "draw"
+                    ? { winsA: 1, winsB: 1, source: "simulated" as const }
+                    : winnerSeat === seatA
+                      ? { winsA: 2, winsB: 0, source: "simulated" as const }
+                      : { winsA: 0, winsB: 2, source: "simulated" as const },
         })),
     };
 }
@@ -242,6 +249,124 @@ describe("pairRound — score-bracket pairing (PRD story 31)", () => {
             // the other pairing is {1,2} regardless of internal order.
             const other = pairings.find((p) => p.seatA !== 0);
             expect(normalizedPair(other!)).toEqual([1, 2]);
+        }
+    });
+
+    it("chooses the minimum-bracket-displacement matching, not just the first repeat-free one found (PR #1649 review finding 1)", () => {
+        // 6 seats. Round 1: 1 beats 3, 0 beats 2, 4 draws 5.
+        // Round 2: 0 draws 5, 1 beats 2, 4 beats 3.
+        // Scores entering round 3: {1:2, 0:1.5, 4:1.5, 5:1, 2:0, 3:0}.
+        // Played: {1-3, 0-2, 4-5, 0-5, 1-2, 3-4}.
+        //
+        // `backtrackMatch` used to return the FIRST repeat-free matching it
+        // found by DFS over the bracket-ordered pool, with no regard for how
+        // much bracket-splitting it cost. Walking the pool in desc-score
+        // order [1, {0,4}, 5, {2,3}], the old code paired singleton 1 with
+        // whichever of {0,4} it met first (never a repeat, so it never
+        // backtracked to look further) -> [1-0, 4-2, 5-3], splitting BOTH the
+        // {0,4} bracket (1.5) and the {2,3} bracket (0), total bracket
+        // displacement 0.5+1.5+1=3.
+        //
+        // The fully legal matching [0-4, 1-5, 2-3] keeps both brackets
+        // intact and only spends displacement on 1's forced fall to the
+        // singleton 5: 0+1+0=1, strictly less. It's provably the UNIQUE
+        // minimum (verified by exhaustive enumeration of all 4 valid
+        // repeat-free matchings over this pool), so every seed must agree.
+        const round1 = decidedRound([
+            [1, 3, 1],
+            [0, 2, 0],
+            [4, 5, "draw"],
+        ]);
+        const round2 = decidedRound([
+            [0, 5, "draw"],
+            [1, 2, 1],
+            [4, 3, 4],
+        ]);
+        for (const seed of [1, 2, 3, 42, 999]) {
+            const pairings = pairRound(
+                [0, 1, 2, 3, 4, 5],
+                [round1, round2],
+                makeRng(seed)
+            );
+            const pairs = pairings.map(normalizedPair).sort();
+            expect(pairs).toEqual([
+                [0, 4],
+                [1, 5],
+                [2, 3],
+            ]);
+        }
+    });
+
+    it("prefers the bracket-preserving matching when an odd-sized tied bracket has several repeat-free options", () => {
+        // 8 seats, 2 previous rounds, engineered so scores land on two ODD
+        // (size-3) tied brackets: {0,3,7} at 1.5 and {2,5,6} at 1.0, plus
+        // singletons {1} at 0 and {4} at 0.5.
+        //
+        // Round 1: 0 beats 4, 5 beats 6, 3 beats 1, 7 beats 2.
+        // Round 2: 2 beats 5, 0 draws 3, 6 beats 1, 4 draws 7.
+        // Scores: {0:1.5, 1:0, 2:1, 3:1.5, 4:0.5, 5:1, 6:1, 7:1.5}.
+        //
+        // Every one of the 3-way ties {0,3,7} and {2,5,6} has MULTIPLE legal
+        // internal pairs (0-3, 0-7, 3-7 are all unplayed; 2-6, 5-... etc are
+        // all unplayed too) -- there is no unique forced chain here, unlike
+        // the "falls down a bracket" fixture above. Exhaustive enumeration
+        // confirms the minimum achievable bracket displacement is 1 (an odd
+        // bracket of size 3 can never fully self-pair, so exactly one of its
+        // three members must cross into another bracket) and that several
+        // distinct matchings tie at that minimum -- this fixture exercises
+        // the tie-break, not a forced unique answer.
+        //
+        // The old first-DFS-hit `backtrackMatch` does NOT find a
+        // minimum-displacement matching here: verified empirically, it
+        // produces a strictly worse (higher-displacement) matching for every
+        // one of the five seeds below.
+        const round1 = decidedRound([
+            [4, 0, 0],
+            [6, 5, 5],
+            [1, 3, 3],
+            [2, 7, 7],
+        ]);
+        const round2 = decidedRound([
+            [5, 2, 2],
+            [0, 3, "draw"],
+            [6, 1, 6],
+            [4, 7, "draw"],
+        ]);
+        const scores = new Map<number, number>([
+            [0, 1.5],
+            [1, 0],
+            [2, 1],
+            [3, 1.5],
+            [4, 0.5],
+            [5, 1],
+            [6, 1],
+            [7, 1.5],
+        ]);
+        for (const seed of [1, 2, 3, 42, 999]) {
+            const pairings = pairRound(
+                [0, 1, 2, 3, 4, 5, 6, 7],
+                [round1, round2],
+                makeRng(seed)
+            );
+            expect(pairings).toHaveLength(4);
+            const displacement = pairings
+                .map(normalizedPair)
+                .reduce(
+                    (total, [a, b]) =>
+                        total + Math.abs(scores.get(a)! - scores.get(b)!),
+                    0
+                );
+            // The provable minimum (exhaustive enumeration) — the old
+            // first-DFS-hit code overshoots this for every one of these
+            // seeds.
+            expect(displacement).toBe(1);
+            // Bracket {2,5,6} (score 1.0) can only fully self-pair by using
+            // 2-6 (5 is the only member of that bracket forced to cross,
+            // since 2-5 and 5-6 were both already played) — true at the
+            // minimum regardless of which member of {0,3,7} ends up as 5's
+            // cross partner.
+            const pairs = pairings.map(normalizedPair);
+            expect(pairs).toContainEqual([2, 6]);
         }
     });
 

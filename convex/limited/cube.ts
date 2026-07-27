@@ -21,7 +21,7 @@
 // pathological sub-pack pool a creatable event can no longer reach.
 import { VINTAGE_CUBE_NAMES } from "../cubes/vintageCubeNames";
 import { tryGetCardByName } from "../cards";
-import { makeRng } from "../gre/rng";
+import { makeRng, shuffleWithRng } from "../gre/rng";
 
 // The cube's identity (key, display name, predicate) lives in the dependency-
 // free `cubeSource.ts` so UI code can name the source without pulling the pool
@@ -110,17 +110,12 @@ export function maxCubeSeats(
 
 /** Seeded Fisher-Yates shuffle of a COPY of `pool` using `makeRng(seed)` — the
  *  same seeded-PRNG convention the rest of the draft engine shares
- *  (`convex/gre/rng.ts`). Pure: the same `(pool, seed)` always yields the same
- *  order, which is what makes the whole cube draft reproducible from the one
- *  seed stored on the event row. */
+ *  (`convex/gre/rng.ts`, whose `shuffleWithRng` does the actual shuffling —
+ *  this function just owns the `seed -> rng` step). Pure: the same
+ *  `(pool, seed)` always yields the same order, which is what makes the whole
+ *  cube draft reproducible from the one seed stored on the event row. */
 export function shuffleCube(pool: readonly string[], seed: number): string[] {
-    const arr = [...pool];
-    const rng = makeRng(seed);
-    for (let i = arr.length - 1; i > 0; i--) {
-        const j = Math.floor(rng() * (i + 1));
-        [arr[i], arr[j]] = [arr[j], arr[i]];
-    }
-    return arr;
+    return shuffleWithRng(pool, makeRng(seed));
 }
 
 /** Deals one round of cube packs: `seatCount` packs of `packSize` cards each,

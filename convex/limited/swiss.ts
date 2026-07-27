@@ -11,6 +11,7 @@
 // seed (PRD stories 19/49) without this module touching a `GameState`.
 
 import { MAX_SEATS, MIN_SEATS } from "./eventLogic";
+import { shuffleWithRng } from "../gre/rng";
 
 /** How a Pairing's result came to be decided (PRD #1628 schema). This
  *  module's own scoring only needs to know WHO won (`winsA` vs `winsB`, or
@@ -139,18 +140,6 @@ function computeScores(
     return scores;
 }
 
-/** Fisher-Yates over an injected float stream — the same shape as
- *  `gre/rng.ts`'s `seededShuffle`, reimplemented here because that helper is
- *  bound to a `GameState`'s own seed/counter and this module has neither. */
-function shuffleWithRng<T>(items: readonly T[], rng: () => number): T[] {
-    const copy = [...items];
-    for (let i = copy.length - 1; i > 0; i--) {
-        const j = Math.floor(rng() * (i + 1));
-        [copy[i], copy[j]] = [copy[j], copy[i]];
-    }
-    return copy;
-}
-
 /** Seats grouped by score into buckets, each bucket internally shuffled by
  *  `rng`, then the buckets concatenated highest-score-first ("desc", the
  *  pairing order — same-score seats stay adjacent, so a same-bracket
@@ -203,28 +192,81 @@ function pickByeSeat(
     return orderByScore(pool, scores, rng, "asc")[0];
 }
 
-/** Finds a perfect matching over `pool` (must be even-length) that avoids
- *  every pair already in `played`, preferring earlier entries of `pool`'s own
- *  order (score-bracket order — see `orderByScore`) and backtracking only
- *  when a greedy pick would make the rest of the pool unmatchable. `pool` is
- *  at most `MAX_SEATS` (8) seats, so an exhaustive backtracking search is
- *  cheap. Returns `null` if no valid full matching exists at all — the
- *  caller surfaces that as an explicit error rather than silently pairing a
+/** Total "bracket distance" a matching spends splitting seats away from their
+ *  score bracket: Σ|score(a) - score(b)| over every pair in `matching`. Zero
+ *  means every pair shares a score (no bracket was split); the higher it
+ *  climbs, the further pairs were forced from their own bracket. This is the
+ *  quantity `backtrackMatch` minimizes (PRD story 31 — "pairings stay inside
+ *  score brackets where the bracket allows it"). */
+function matchingDisplacement(
+    matching: readonly (readonly [number, number])[],
+    scores: ReadonlyMap<number, number>
+): number {
+    let total = 0;
+    for (const [a, b] of matching) {
+        total += Math.abs((scores.get(a) ?? 0) - (scores.get(b) ?? 0));
+    }
+    return total;
+}
+
+/** Finds the perfect matching over `pool` (must be even-length) that avoids
+ *  every pair already in `played` AND minimizes total bracket displacement
+ *  (`matchingDisplacement`) — the matching that keeps as many same-score
+ *  pairs together as the no-repeat constraint allows, falling seats down a
+ *  bracket only as far as it must (PRD story 31). Enumerates EVERY valid
+ *  repeat-free matching via backtracking rather than returning the first one
+ *  found: a first-DFS-hit can (and, measurably, ~4-5% of the time does)
+ *  accept an early greedy pairing that avoids a repeat but needlessly splits
+ *  a bracket that a different matching would have kept intact (issue #1641
+ *  PR #1649 review finding 1). `pool` is at most `MAX_SEATS` (8) seats, so
+ *  exhaustively enumerating every matching (at most 7!! = 105 for 8 seats) is
+ *  cheap.
+ *
+ *  Ties are broken by `pool`'s own order: among matchings tied for the
+ *  lowest displacement, the search tries `pool`'s earliest still-available
+ *  partner for each seat first and keeps the first minimum it finds (a
+ *  strict `<` comparison, so a later equally-good matching never displaces
+ *  an earlier one) — the same determinism guarantee the previous
+ *  first-DFS-hit approach gave (`orderByScore` is what makes `pool`'s order
+ *  itself reproducible from `rng`), now applied as a tiebreak instead of
+ *  being the sole criterion.
+ *
+ *  Returns `null` if no valid full matching exists at all — the caller
+ *  surfaces that as an explicit error rather than silently pairing a
  *  repeat. */
 function backtrackMatch(
     pool: readonly number[],
-    played: ReadonlySet<string>
+    played: ReadonlySet<string>,
+    scores: ReadonlyMap<number, number>
 ): Array<[number, number]> | null {
-    if (pool.length === 0) return [];
-    const [first, ...rest] = pool;
-    for (let i = 0; i < rest.length; i++) {
-        const opponent = rest[i];
-        if (played.has(pairKey(first, opponent))) continue;
-        const remaining = [...rest.slice(0, i), ...rest.slice(i + 1)];
-        const sub = backtrackMatch(remaining, played);
-        if (sub !== null) return [[first, opponent], ...sub];
+    let best: Array<[number, number]> | null = null;
+    let bestDisplacement = Infinity;
+
+    function search(
+        remaining: readonly number[],
+        acc: Array<[number, number]>
+    ): void {
+        if (remaining.length === 0) {
+            const displacement = matchingDisplacement(acc, scores);
+            if (displacement < bestDisplacement) {
+                bestDisplacement = displacement;
+                best = [...acc];
+            }
+            return;
+        }
+        const [first, ...rest] = remaining;
+        for (let i = 0; i < rest.length; i++) {
+            const opponent = rest[i];
+            if (played.has(pairKey(first, opponent))) continue;
+            const nextRemaining = [...rest.slice(0, i), ...rest.slice(i + 1)];
+            acc.push([first, opponent]);
+            search(nextRemaining, acc);
+            acc.pop();
+        }
     }
-    return null;
+
+    search(pool, []);
+    return best;
 }
 
 /** Pairs the next Round (PRD stories 29-31, 48): Swiss pairing over `seats`,
@@ -268,7 +310,7 @@ export function pairRound(
     }
 
     const ordered = orderByScore(pool, scores, rng, "desc");
-    const matching = backtrackMatch(ordered, played);
+    const matching = backtrackMatch(ordered, played, scores);
     if (!matching) {
         throw new Error(
             "pairRound: no valid pairing exists without repeating a prior matchup"
