@@ -5,9 +5,16 @@
 //
 // Deck fixtures are built from the REAL card registry: `evaluateDeckStrength`
 // reads card quality through the shared `cardValueById` (via
-// `botDrafter.ts`'s `scoreCandidateWithRating`), which only resolves against
-// real card ids — so a strength ORDERING assertion is only meaningful with
-// real cards behind it.
+// `botDrafter.ts`'s `scoreCandidate`), which only resolves against real card
+// ids — so a strength ORDERING assertion is only meaningful with real cards
+// behind it.
+//
+// Since ADR 0073 every strength is in RATING POINTS: a card's base term is its
+// Pick Rating (0–5) or the quality heuristic mapped onto the same scale, plus a
+// contextual bonus capped at `CONTEXT_CAP_LAST_PICK`. The fixtures below are
+// exercised at THREE ratings regimes — unrated, flat-rated and per-card varied
+// — because the defect this module keeps re-acquiring is a yardstick that
+// silently inherits some property of the ratings sheet.
 import { describe, it, expect } from "vitest";
 import { getCardByName } from "../../cards";
 import { getCardColorIdentity } from "../../cards/colors";
@@ -15,7 +22,16 @@ import { cardValueById } from "../../gre/cardValue";
 import { manaValue } from "../../gre/constants";
 import { makeRng } from "../../gre/rng";
 import type { DeckCard } from "../../deckPresets";
-import { RARITY_WEIGHT, type CardEvalMeta, type GetPickRating } from "../botDrafter";
+import {
+    PICK_RATING_MAX,
+    PICK_RATING_MIN,
+} from "../pickRatings";
+import {
+    CONTEXT_CAP_LAST_PICK,
+    RARITY_WEIGHT,
+    type CardEvalMeta,
+    type GetPickRating,
+} from "../botDrafter";
 import {
     WIN_PROBABILITY_MAX,
     WIN_PROBABILITY_MIN,
@@ -108,6 +124,40 @@ const TWO_COLOUR_DECK: DeckCard[] = deckOf(
     ["Swamp", 8]
 );
 
+/** A NEAR-MIRROR of `TWO_COLOUR_DECK`: the same 39 cards, with the extra Hill
+ *  Giant traded for an extra Raise Dead. Two decks this close are the case a
+ *  resolver must call a coin flip — and the case a yardstick that inherits the
+ *  ratings sheet's dispersion gets catastrophically wrong (issue #1642 second
+ *  review: on a spread-normalised scale a FLAT ratings sheet read this pair as
+ *  a maximally lopsided 75/25). */
+const NEAR_MIRROR_DECK: DeckCard[] = deckOf(
+    ...RED_SPELLS,
+    ...BLACK_SPELLS,
+    ["Shivan Dragon", 2],
+    ["Sengir Vampire", 2],
+    ["Hypnotic Specter", 1],
+    ["Raise Dead", 1],
+    ["Lightning Bolt", 1],
+    ["Mountain", 9],
+    ["Swamp", 8]
+);
+
+/** A SLOPPY build of the same two colours: the bombs traded for filler.
+ *  Clearly the worse deck, but nowhere near a blowout — the realistic middle
+ *  band, and the only fixture pair whose odds land strictly INSIDE the clamp,
+ *  which is what makes it usable as a comparison that could actually diverge. */
+const SLOPPY_DECK: DeckCard[] = deckOf(
+    ...RED_SPELLS,
+    ...BLACK_SPELLS,
+    ["Scathe Zombies", 2],
+    ["Mons's Goblin Raiders", 2],
+    ["Goblin Balloon Brigade", 1],
+    ["Raise Dead", 1],
+    ["Dwarven Warriors", 1],
+    ["Mountain", 9],
+    ["Swamp", 8]
+);
+
 /** A five-colour pile assembled from the SAME pool of cards: it cherry-picks
  *  the strongest card of every colour — strictly HIGHER raw card quality than
  *  the two-colour deck — but the mana can never support it. */
@@ -157,16 +207,62 @@ for (const name of [
 const resolveMeta: GetDeckCardEvalMeta = (cardId) =>
     FIXTURE_META.get(cardId) ?? null;
 
+// ── The three ratings regimes ────────────────────────────────────────────
+// Every property this module claims has to hold at all three. The first two
+// are the degenerate ends (nothing rated / everything rated alike); the third
+// is PRODUCTION — the Vintage Cube is fully rated card-by-card (ADR 0066), and
+// it is the regime the constant-function fixtures below never reached.
+
 const noRatings: GetPickRating = () => null;
 
-/** A hand-built `DeckStrength` for the pure-maths assertions: `spread` is the
- *  yardstick the mean gap is read against, so a scalar-only fixture would say
- *  nothing about the scale. `UNIT_SPREAD` keeps the arithmetic readable — a
- *  delta of `d` is a gap of `d / 100` spreads. */
-const UNIT_SPREAD = 100;
-function strength(mean: number, spread: number = UNIT_SPREAD): DeckStrength {
-    return { mean, spread };
+/** Every card rated the SAME. Degenerate on purpose: with the base term
+ *  identical for every card in every deck, the only per-card variation left is
+ *  the capped contextual term, so the decks' internal dispersion collapses by
+ *  more than an order of magnitude (~1.42 → ~0.09 rating points on these
+ *  fixtures). Any yardstick derived from that dispersion silently rescales the
+ *  whole table here. */
+const flatRatings: GetPickRating = () => 4;
+
+/** A per-card VARIED ratings sheet — the production regime (issue #1642 second
+ *  review: every previous rating fixture was a CONSTANT function, i.e. exactly
+ *  the one case an invariance claim holds for trivially). Deterministic FNV-1a
+ *  over the cardId spread across the full `[PICK_RATING_MIN, PICK_RATING_MAX]`
+ *  range, so the sheet is arbitrary but reproducible and always in range. */
+const variedRatings: GetPickRating = (cardId) => {
+    let hash = 0x811c9dc5;
+    for (let i = 0; i < cardId.length; i++) {
+        hash ^= cardId.charCodeAt(i);
+        hash = Math.imul(hash, 0x01000193);
+    }
+    const steps = (PICK_RATING_MAX - PICK_RATING_MIN) * 100 + 1;
+    return PICK_RATING_MIN + ((hash >>> 0) % steps) / 100;
+};
+
+const REGIMES: readonly (readonly [string, GetPickRating])[] = [
+    ["unrated", noRatings],
+    ["flat-rated", flatRatings],
+    ["per-card varied", variedRatings],
+];
+
+/** A hand-built `DeckStrength` for the pure-maths assertions. Since ADR 0073 a
+ *  strength IS a mean rating, so these are read directly in rating points —
+ *  there is no second statistic, by design (a yardstick built from one is the
+ *  defect this module twice acquired). */
+function strength(mean: number): DeckStrength {
+    return { mean };
 }
+
+/** The mean gap, in rating points, that `gameWinProbability` turns into the
+ *  clamp bound: `scale × ln 3`, since `1/(1+e^-g) = 0.75` at `g = ln 3`. Below
+ *  it the odds are strictly inside the clamp and a comparison can diverge;
+ *  above it every gap reads the same. */
+const SATURATION_DELTA = 0.5 * Math.log(3);
+
+/** A gap comfortably INSIDE the clamp — the band a comparison has to be pinned
+ *  at for it to mean anything (issue #1642 second review: the previous
+ *  600-trial equality sat at the bound on both sides, so it asserted a clamp
+ *  identity rather than an invariance). */
+const UNCLAMPED_DELTA = 0.2;
 
 /** Runs `trials` independent matches, each seeded from its own pairing
  *  identity, and returns how many seat A won. */
@@ -202,10 +298,30 @@ describe("evaluateDeckStrength (issue #1642: one card-value authority)", () => {
             noRatings
         );
         expect(twoColour.mean).toBeGreaterThan(pile.mean);
-        // The spread is the yardstick the gap is read against, never a quality
-        // signal — but it must be a real, positive one.
-        expect(twoColour.spread).toBeGreaterThan(0);
-        expect(pile.spread).toBeGreaterThan(0);
+    });
+
+    it("scores in RATING POINTS — a strength stays on the Pick Rating scale plus at most the contextual cap (ADR 0073)", () => {
+        // What makes a FIXED matchup scale well defined at all: the units are
+        // the ones an Admin edits, and they are bounded. A strength that could
+        // wander onto an arbitrary scale would put us straight back to needing
+        // a yardstick derived from the decks.
+        for (const [, getRating] of REGIMES) {
+            for (const deck of [
+                TWO_COLOUR_DECK,
+                FIVE_COLOUR_PILE,
+                SLOPPY_DECK,
+            ]) {
+                const { mean } = evaluateDeckStrength(
+                    deck,
+                    resolveMeta,
+                    getRating
+                );
+                expect(mean).toBeGreaterThanOrEqual(PICK_RATING_MIN);
+                expect(mean).toBeLessThanOrEqual(
+                    PICK_RATING_MAX + CONTEXT_CAP_LAST_PICK
+                );
+            }
+        }
     });
 
     it("is a DECK measure, not a pile of card values — the pile has the higher raw card quality and still loses", () => {
@@ -259,23 +375,63 @@ describe("evaluateDeckStrength (issue #1642: one card-value authority)", () => {
         expect(unrated.mean).toBeGreaterThan(dreg.mean);
     });
 
-    it("a UNIFORM rating shifts the level and leaves the spread alone (issue #1642 review)", () => {
-        // The scale bug this pins: a Pick Rating is an ADDITIVE per-card offset
-        // ((rating - 2.5) * 1000), so it moves the mean by hundreds while the
-        // per-card dispersion — the yardstick `gameWinProbability` divides by —
-        // is a centred statistic and cannot move at all.
+    it("a UNIFORM rating REPLACES the base term, it does not offset it (ADR 0073)", () => {
+        // The rebase this module had to absorb: pre-ADR-0073 a rating was an
+        // additive `(rating - 2.5) * 1000` offset, and this test asserted a
+        // +1500 shift. It is now the anchor itself, so a flat sheet pins every
+        // card's base term at the rated value and the deck's mean lands within
+        // one contextual cap of it — regardless of what the cards actually are.
+        const rated = evaluateDeckStrength(
+            TWO_COLOUR_DECK,
+            resolveMeta,
+            flatRatings
+        );
+        expect(rated.mean).toBeGreaterThanOrEqual(4);
+        expect(rated.mean).toBeLessThanOrEqual(4 + CONTEXT_CAP_LAST_PICK);
+
+        // …and the same flat sheet lands the five-colour pile in the same
+        // band. Ratings alone can no longer separate two decks; what still
+        // separates them is the contextual half, which is exactly why a
+        // flat sheet squeezes the whole table together.
+        const pile = evaluateDeckStrength(
+            FIVE_COLOUR_PILE,
+            resolveMeta,
+            flatRatings
+        );
+        expect(pile.mean).toBeGreaterThanOrEqual(4);
+        expect(pile.mean).toBeLessThanOrEqual(4 + CONTEXT_CAP_LAST_PICK);
+    });
+
+    it("a per-card VARIED sheet moves the ranking, and a deck of bombs still beats a deck of dregs", () => {
+        // The production regime (ADR 0066: the Vintage Cube is fully rated).
+        // Every earlier rating fixture was a constant function, so nothing
+        // exercised a sheet that actually differs card to card.
+        const varied = evaluateDeckStrength(
+            TWO_COLOUR_DECK,
+            resolveMeta,
+            variedRatings
+        );
         const unrated = evaluateDeckStrength(
             TWO_COLOUR_DECK,
             resolveMeta,
             noRatings
         );
-        const rated = evaluateDeckStrength(
+        expect(varied.mean).not.toBeCloseTo(unrated.mean, 3);
+
+        // A varied sheet is still a sheet: rating every card of one deck top
+        // and every card of the other bottom must order them that way.
+        const allBombs = evaluateDeckStrength(
             TWO_COLOUR_DECK,
             resolveMeta,
-            () => 4
+            () => PICK_RATING_MAX
         );
-        expect(rated.mean - unrated.mean).toBeCloseTo(1500, 6);
-        expect(rated.spread).toBeCloseTo(unrated.spread, 6);
+        const allDregs = evaluateDeckStrength(
+            TWO_COLOUR_DECK,
+            resolveMeta,
+            () => PICK_RATING_MIN
+        );
+        expect(allBombs.mean).toBeGreaterThan(varied.mean);
+        expect(varied.mean).toBeGreaterThan(allDregs.mean);
     });
 
     it("omitting the rating lookup is identical to a lookup that rates nothing", () => {
@@ -285,31 +441,28 @@ describe("evaluateDeckStrength (issue #1642: one card-value authority)", () => {
     });
 
     it("survives a deck the registry cannot resolve, and an empty deck", () => {
-        expect(evaluateDeckStrength([], resolveMeta)).toEqual({
-            mean: 0,
-            spread: 0,
-        });
+        expect(evaluateDeckStrength([], resolveMeta)).toEqual({ mean: 0 });
         expect(
             evaluateDeckStrength(
                 [{ cardId: "not-a-real-card", cardName: "???" }],
                 resolveMeta
             )
-        ).toEqual({ mean: 0, spread: 0 });
+        ).toEqual({ mean: 0 });
     });
 });
 
 describe("gameWinProbability (issue #1642: the 25-75% clamp)", () => {
     it("clamps an overwhelming favourite at the maximum, never higher", () => {
-        expect(gameWinProbability(strength(10_000), strength(1))).toBe(
+        expect(gameWinProbability(strength(5), strength(0))).toBe(
             WIN_PROBABILITY_MAX
         );
-        expect(gameWinProbability(strength(1), strength(10_000))).toBe(
+        expect(gameWinProbability(strength(0), strength(5))).toBe(
             WIN_PROBABILITY_MIN
         );
     });
 
     it("gives two identical decks an exact coin flip", () => {
-        expect(gameWinProbability(strength(180), strength(180))).toBeCloseTo(
+        expect(gameWinProbability(strength(3.5), strength(3.5))).toBeCloseTo(
             0.5,
             10
         );
@@ -323,9 +476,10 @@ describe("gameWinProbability (issue #1642: the 25-75% clamp)", () => {
         // Swept at TWO different strength LEVELS, and the two sweeps must agree
         // curve-for-curve: a resolver that reads the level rather than the gap
         // passes the pinned-level sweep and fails here (issue #1642 review).
-        for (const level of [200, 1_700]) {
+        for (const level of [2.0, 4.5]) {
             let previous = -Infinity;
-            for (let delta = -200; delta <= 200; delta += 5) {
+            for (let step = -40; step <= 40; step++) {
+                const delta = step / 40;
                 const p = gameWinProbability(
                     strength(level + delta),
                     strength(level)
@@ -341,73 +495,192 @@ describe("gameWinProbability (issue #1642: the 25-75% clamp)", () => {
             }
         }
         // A modest edge is a real but non-decisive edge.
-        expect(
-            gameWinProbability(strength(210), strength(200))
-        ).toBeGreaterThan(0.5);
-        expect(gameWinProbability(strength(210), strength(200))).toBeLessThan(
-            gameWinProbability(strength(240), strength(200))
+        expect(gameWinProbability(strength(2.05), strength(2))).toBeGreaterThan(
+            0.5
+        );
+        expect(gameWinProbability(strength(2.05), strength(2))).toBeLessThan(
+            gameWinProbability(strength(2.2), strength(2))
         );
     });
 
+    it("saturates the clamp at `scale × ln 3` rating points, and not before (calibration)", () => {
+        // Pins the ONE tuning number in the module, in the units it is
+        // expressed in. Below the saturation gap the odds carry information;
+        // at and above it every matchup reads alike.
+        expect(
+            gameWinProbability(strength(SATURATION_DELTA * 0.99), strength(0))
+        ).toBeLessThan(WIN_PROBABILITY_MAX);
+        expect(
+            gameWinProbability(strength(SATURATION_DELTA * 1.01), strength(0))
+        ).toBe(WIN_PROBABILITY_MAX);
+        // The realistic middle: a fifth of a rating point is a real edge, and
+        // a long way from decisive.
+        expect(
+            gameWinProbability(strength(UNCLAMPED_DELTA), strength(0))
+        ).toBeCloseTo(1 / (1 + Math.exp(-0.4)), 10);
+    });
+
     it("reads the GAP, not the LEVEL — the same delta resolves identically anywhere on the scale (issue #1642 review)", () => {
-        // The regression this pins: a Pick Rating enters as an additive
-        // per-card offset, so an event WITH ratings sits ~1500 points higher
-        // than the same event without. If the level leaked into the odds, the
-        // resolver would degenerate to a coin flip exactly when an event is
-        // rated — inverting PRD #1628 story 18.
-        const delta = 65.94;
-        const reference = gameWinProbability(strength(delta), strength(0));
-        for (const level of [0, 200, 1_700, 12_345, -150, -1_700]) {
+        // An event whose whole pool is rated a point higher than another's
+        // sits a point higher in mean. If the level leaked into the odds, that
+        // event's matches would resolve differently for no reason at all —
+        // inverting PRD #1628 story 18.
+        const reference = gameWinProbability(
+            strength(UNCLAMPED_DELTA),
+            strength(0)
+        );
+        for (const level of [0, 1, 2.5, 5, 6.9, -1.5, -40]) {
             expect(
-                gameWinProbability(strength(level + delta), strength(level))
+                gameWinProbability(
+                    strength(level + UNCLAMPED_DELTA),
+                    strength(level)
+                )
             ).toBeCloseTo(reference, 12);
         }
     });
 
     it("is invariant to sign — two negative strengths measure like two positive ones (issue #1642 review)", () => {
-        // Realistically-low Pick Ratings drive strengths negative. A
-        // denominator built from the strengths' own magnitude is not a scale
-        // at all down there: it made a 0.3 delta a saturated blowout and a
+        // A denominator built from the strengths' own magnitude is not a scale
+        // at all down here: it made a 0.3 delta a saturated blowout and a
         // 1.0 delta a coin flip.
-        expect(
-            gameWinProbability(strength(0.4), strength(0.1))
-        ).toBeCloseTo(gameWinProbability(strength(-100.3), strength(-100.6)), 12);
-        expect(gameWinProbability(strength(0.4), strength(0.1))).toBeLessThan(
-            0.51
-        );
-        expect(
-            gameWinProbability(strength(-100), strength(-101))
-        ).toBeGreaterThan(gameWinProbability(strength(0.4), strength(0.1)));
-    });
-
-    it("measures the gap in the decks' OWN per-card spread, so a rescaled evaluator resolves the same matchup", () => {
-        // Spread is the yardstick: doubling every per-card score doubles both
-        // the gap and the spread, and the matchup is unchanged.
-        expect(gameWinProbability(strength(50, 100), strength(0, 100))).toBeCloseTo(
-            gameWinProbability(strength(100, 200), strength(0, 200)),
+        expect(gameWinProbability(strength(0.4), strength(0.1))).toBeCloseTo(
+            gameWinProbability(strength(-100.3), strength(-100.6)),
             12
         );
-        // A tighter deck (smaller spread) makes the SAME raw gap decisive.
-        expect(
-            gameWinProbability(strength(50, 40), strength(0, 40))
-        ).toBeGreaterThan(gameWinProbability(strength(50, 400), strength(0, 400)));
     });
 
-    it("resolves two spreadless decks to the clamp bound rather than NaN", () => {
-        expect(gameWinProbability(strength(200, 0), strength(100, 0))).toBe(
-            WIN_PROBABILITY_MAX
+    it("reads the gap against a FIXED scale — nothing about the decks sets the yardstick (issue #1642 second review)", () => {
+        // THE defect this replaced. The previous revision divided the gap by
+        // the decks' own per-card standard deviation, which fixed
+        // level-dependence by acquiring dispersion-dependence: identical mean
+        // gaps resolved differently depending on how internally varied the two
+        // decks happened to be, and therefore on what the ratings sheet
+        // happened to contain. `DeckStrength` no longer carries a second
+        // statistic, so the only way this can regress is by deriving one.
+        const gaps = [0.01, 0.05, UNCLAMPED_DELTA, 0.4];
+        for (const gap of gaps) {
+            const reference = gameWinProbability(strength(gap), strength(0));
+            // A gap of `g` means the same thing whatever the decks it came
+            // from — and in particular is not a function of any per-deck
+            // dispersion, because there is none to read.
+            expect(reference).toBeCloseTo(
+                1 / (1 + Math.exp(-gap / 0.5)),
+                12
+            );
+        }
+        // A hundredth of a rating point is a coin flip. On the spread-scaled
+        // predecessor, with a FLAT ratings sheet squeezing per-card dispersion
+        // to ~0.09, this same gap read as a 0.56 favourite — and 0.07 read as
+        // the clamp bound.
+        expect(gameWinProbability(strength(0.01), strength(0))).toBeLessThan(
+            0.51
         );
-        expect(gameWinProbability(strength(100, 0), strength(200, 0))).toBe(
-            WIN_PROBABILITY_MIN
+        expect(gameWinProbability(strength(0.07), strength(0))).toBeLessThan(
+            0.54
         );
-        expect(gameWinProbability(strength(100, 0), strength(100, 0))).toBe(0.5);
     });
 
     it("is symmetric: swapping the two decks mirrors the probability", () => {
         expect(
-            gameWinProbability(strength(240), strength(200)) +
-                gameWinProbability(strength(200), strength(240))
+            gameWinProbability(strength(2.4), strength(2)) +
+                gameWinProbability(strength(2), strength(2.4))
         ).toBeCloseTo(1, 10);
+    });
+});
+
+describe("the yardstick survives every ratings regime (issue #1642 second review)", () => {
+    // The measurement that decides whether the scale is real: the SAME two
+    // matchups — one decisive, one near-mirror — read at all three regimes.
+    // A yardstick that inherits anything from the ratings sheet moves one of
+    // these two rows; a fixed one moves neither meaningfully.
+
+    const decisive = (getRating: GetPickRating) =>
+        gameWinProbability(
+            evaluateDeckStrength(TWO_COLOUR_DECK, resolveMeta, getRating),
+            evaluateDeckStrength(FIVE_COLOUR_PILE, resolveMeta, getRating)
+        );
+
+    const nearMirror = (getRating: GetPickRating) =>
+        gameWinProbability(
+            evaluateDeckStrength(TWO_COLOUR_DECK, resolveMeta, getRating),
+            evaluateDeckStrength(NEAR_MIRROR_DECK, resolveMeta, getRating)
+        );
+
+    it.each(REGIMES.map(([name]) => name))(
+        "a decisive matchup stays decisive — %s",
+        (name) => {
+            const getRating = REGIMES.find(([n]) => n === name)![1];
+            // A deck that can cast its spells against one that cannot is the
+            // clearest matchup these fixtures can express; a scale with any
+            // resolution at all must call it lopsided at every regime.
+            expect(decisive(getRating)).toBeGreaterThan(0.65);
+        }
+    );
+
+    it.each(REGIMES.map(([name]) => name))(
+        "a near-mirror stays a coin flip — %s",
+        (name) => {
+            const getRating = REGIMES.find(([n]) => n === name)![1];
+            // The failing case. On the spread-normalised predecessor the
+            // FLAT-rated row read 0.60 for this pair (and 0.75 for a pair 0.07
+            // apart) purely because a flat sheet collapses per-card dispersion
+            // — the ratings sheet setting the yardstick.
+            expect(nearMirror(getRating)).toBeGreaterThan(0.45);
+            expect(nearMirror(getRating)).toBeLessThan(0.55);
+        }
+    );
+
+    it("a SMALLER mean gap never produces LONGER odds, whatever the ratings sheet", () => {
+        // The sharpest statement of the defect, and the one that fails loudest
+        // on a dispersion-normalised scale. Take ONE pair of decks and read it
+        // at all three regimes: the odds must order the same way the mean gaps
+        // do, because the odds are supposed to be a function of the gap.
+        //
+        // Measured on the predecessor, for this exact pair: the flat-rated
+        // sheet SHRANK the gap 6.6× (0.136 → 0.021) and yet LENGTHENED the
+        // odds (0.550 → 0.593), because collapsing per-card dispersion shrank
+        // the yardstick faster than it shrank the gap. Any scale that is a
+        // genuine function of the gap alone satisfies this by construction; a
+        // scale with a second input cannot.
+        const readings = REGIMES.map(([name, getRating]) => {
+            const a = evaluateDeckStrength(TWO_COLOUR_DECK, resolveMeta, getRating);
+            const b = evaluateDeckStrength(SLOPPY_DECK, resolveMeta, getRating);
+            return { name, delta: a.mean - b.mean, p: gameWinProbability(a, b) };
+        });
+        for (const x of readings) {
+            for (const y of readings) {
+                if (x.delta <= y.delta) continue;
+                expect(
+                    x.p,
+                    `${x.name} (gap ${x.delta.toFixed(4)}) must not be shorter odds than ${y.name} (gap ${y.delta.toFixed(4)})`
+                ).toBeGreaterThanOrEqual(y.p);
+            }
+        }
+    });
+
+    it("a per-card VARIED sheet does not wash out a matchup relative to unrated", () => {
+        // The regime the constant-function fixtures could never reach: with
+        // ratings differing card by card, a yardstick built from per-card
+        // dispersion inflates and compresses every gap toward a coin flip.
+        const unrated = decisive(noRatings);
+        const varied = decisive(variedRatings);
+        expect(varied).toBeGreaterThan(0.65);
+        // "Not washed out" means measurably so: the varied reading may not
+        // give back most of the unrated edge over a coin flip.
+        expect(varied - 0.5).toBeGreaterThan((unrated - 0.5) * 0.8);
+    });
+
+    it("the middle band is INSIDE the clamp, so the scale has resolution to lose", () => {
+        // Every fixture pair above sits at one bound or dead centre. Without a
+        // pair strictly between them, "the odds are correct" is unfalsifiable:
+        // a broken scale that saturated everything would pass the decisive row
+        // and a broken one that flattened everything would pass the mirror row.
+        const p = gameWinProbability(
+            evaluateDeckStrength(TWO_COLOUR_DECK, resolveMeta, noRatings),
+            evaluateDeckStrength(SLOPPY_DECK, resolveMeta, noRatings)
+        );
+        expect(p).toBeGreaterThan(0.52);
+        expect(p).toBeLessThan(WIN_PROBABILITY_MAX);
     });
 });
 
@@ -415,8 +688,8 @@ describe("simulateBotMatch (issue #1642: Bo1/Bo3 rolls over an injected RNG)", (
     it("Bo1 plays exactly one game", () => {
         for (let seed = 0; seed < 50; seed++) {
             const r = simulateBotMatch(
-                strength(200),
-                strength(180),
+                strength(3),
+                strength(2.8),
                 1,
                 makeRng(seed)
             );
@@ -429,8 +702,8 @@ describe("simulateBotMatch (issue #1642: Bo1/Bo3 rolls over an injected RNG)", (
         const seen = new Set<string>();
         for (let seed = 0; seed < 200; seed++) {
             const r = simulateBotMatch(
-                strength(200),
-                strength(180),
+                strength(3),
+                strength(2.8),
                 3,
                 makeRng(seed)
             );
@@ -449,14 +722,14 @@ describe("simulateBotMatch (issue #1642: Bo1/Bo3 rolls over an injected RNG)", (
     it("the same seed always produces the same result", () => {
         for (const bestOf of [1, 3] as const) {
             const first = simulateBotMatch(
-                strength(260),
-                strength(190),
+                strength(3.6),
+                strength(2.9),
                 bestOf,
                 makeRng(4242)
             );
             const second = simulateBotMatch(
-                strength(260),
-                strength(190),
+                strength(3.6),
+                strength(2.9),
                 bestOf,
                 makeRng(4242)
             );
@@ -485,30 +758,58 @@ describe("simulateBotMatch (issue #1642: Bo1/Bo3 rolls over an injected RNG)", (
         expect(winsB).toBeGreaterThan(30);
     });
 
-    it("resolves a RATED event exactly as decisively as the same unrated one (PRD #1628 story 18)", () => {
-        // The regime the whole design rationale is about, and the one the
-        // pre-review implementation inverted: with every card rated, the two
-        // decks' strengths both jump by +1500 and the favourite collapsed to a
-        // 54% Bo3 near-coin-flip. Ratings must move the RANKING, never wash
-        // out a matchup that ratings do not actually change.
-        const rated: GetPickRating = () => 4;
-        const strong = evaluateDeckStrength(TWO_COLOUR_DECK, resolveMeta, rated);
-        const weak = evaluateDeckStrength(FIVE_COLOUR_PILE, resolveMeta, rated);
-        expect(strong.mean).toBeGreaterThan(weak.mean);
+    it("resolves a matchup identically at any LEVEL, pinned at an UNCLAMPED gap (PRD #1628 story 18)", () => {
+        // Pinned strictly inside the clamp on purpose (issue #1642 second
+        // review). The predecessor of this test ran two real-deck matchups
+        // that BOTH sat exactly at `WIN_PROBABILITY_MAX`, so its 600-trial
+        // `toEqual` compared two runs that could not have differed whatever
+        // the resolver did — it asserted a clamp identity, not an invariance.
+        // At a 0.2-point gap the odds are ~0.599 and a level leak of any size
+        // moves the trial count immediately.
+        const low = runTrials(
+            strength(2 + UNCLAMPED_DELTA),
+            strength(2),
+            3,
+            600
+        );
+        const high = runTrials(
+            strength(4.5 + UNCLAMPED_DELTA),
+            strength(4.5),
+            3,
+            600
+        );
+        expect(high).toEqual(low);
 
-        const { winsA, winsB } = runTrials(strong, weak, 3, 600);
-        expect(winsA / 600).toBeGreaterThan(0.6);
-        expect(winsB).toBeGreaterThan(30);
+        // …and the pinned matchup is genuinely mid-band: a real edge that is
+        // nowhere near the bound, so both numbers above are informative.
+        expect(low.winsA).toBeGreaterThan(low.winsB);
+        expect(low.winsA / 600).toBeLessThan(0.8);
+    });
 
-        // …and identically to the unrated event, game for game: a uniform
-        // rating offset changes neither deck's standing against the other.
-        const unratedTrials = runTrials(
+    it("resolves a RATED event as decisively as the same unrated one (PRD #1628 story 18)", () => {
+        // Ratings must move the RANKING, never wash out a matchup. Note what
+        // is NOT claimed here since ADR 0073: a flat sheet REPLACES every base
+        // term, so the two decks' gap genuinely changes and game-for-game
+        // equality would be an opinion about the sheet, not an invariant. What
+        // must hold is that the favourite stays the favourite by a comparable
+        // margin — at every regime, including a per-card varied sheet.
+        const unrated = runTrials(
             evaluateDeckStrength(TWO_COLOUR_DECK, resolveMeta, noRatings),
             evaluateDeckStrength(FIVE_COLOUR_PILE, resolveMeta, noRatings),
             3,
             600
         );
-        expect({ winsA, winsB }).toEqual(unratedTrials);
+        for (const [, getRating] of REGIMES) {
+            const { winsA, winsB } = runTrials(
+                evaluateDeckStrength(TWO_COLOUR_DECK, resolveMeta, getRating),
+                evaluateDeckStrength(FIVE_COLOUR_PILE, resolveMeta, getRating),
+                3,
+                600
+            );
+            expect(winsA / 600).toBeGreaterThan(0.6);
+            expect(winsB).toBeGreaterThan(30);
+            expect(Math.abs(winsA - unrated.winsA)).toBeLessThan(60);
+        }
     });
 
     it("two evenly-matched decks approach a 50% split over many seeded trials", () => {
@@ -520,6 +821,23 @@ describe("simulateBotMatch (issue #1642: Bo1/Bo3 rolls over an injected RNG)", (
         const { winsA } = runTrials(even, even, 3, 1000);
         expect(winsA / 1000).toBeGreaterThan(0.44);
         expect(winsA / 1000).toBeLessThan(0.56);
+    });
+
+    it("a NEAR-MIRROR pair rolls close to even at every ratings regime", () => {
+        // The trial-level counterpart of the near-mirror probability rows: a
+        // yardstick that inherits the sheet's dispersion turns this into a
+        // ~84% Bo3 sweep for whichever deck happens to be a hundredth of a
+        // point ahead.
+        for (const [, getRating] of REGIMES) {
+            const { winsA } = runTrials(
+                evaluateDeckStrength(TWO_COLOUR_DECK, resolveMeta, getRating),
+                evaluateDeckStrength(NEAR_MIRROR_DECK, resolveMeta, getRating),
+                3,
+                600
+            );
+            expect(winsA / 600).toBeGreaterThan(0.4);
+            expect(winsA / 600).toBeLessThan(0.6);
+        }
     });
 });
 
