@@ -57,6 +57,8 @@ import {
 import { delveEligibleCards, spellHasDelve } from "./payWith";
 import type { ManaCost } from "../cards/types";
 import {
+    applyCostModifiers,
+    getCostModifiers,
     landPlayLockActive,
     normalizeManaCost,
     restrictedUnitAllowsSpell,
@@ -611,8 +613,10 @@ export function getLegalActions(
             // affordable) OR a DIFFERENT mana amount (CR 702.109 Dash — `.some`
             // re-checks each offered variant's `mana` leg through the SAME
             // solver the printed cost uses, so a dash-cost creature is castable
-            // even when its printed cost is not).
-            (canPotentiallyPayCost(caster, card) ||
+            // even when its printed cost is not). CR 601.2f (ADR 0063) — the
+            // plain branch also folds in cost modifiers/self-host reductions
+            // (Emry) via the optional `state` arg.
+            (canPotentiallyPayCost(caster, card, undefined, state) ||
                 affordableAlternativeCosts(state, caster, card).some((alt) =>
                     canPotentiallyPayCost(caster, card, alt.mana ?? {})
                 )) &&
@@ -1187,19 +1191,35 @@ function canPotentiallyPayCost(
     card: CardInstanceState,
     /** CR 702.34 — when set, affordability is checked against this cost instead
      *  of the card's printed mana cost (a Flashback cast from the graveyard). */
-    costOverride?: ManaCost
+    costOverride?: ManaCost,
+    /** CR 601.2f (ADR 0063, issue #1337) — when passed, the printed/override
+     *  cost is folded through the SAME `getCostModifiers` +
+     *  `applyCostModifiers` the real payment path (`game.ts`) uses before the
+     *  affordability check, so a spell's cast-cost REDUCTION (Mana Matrix,
+     *  Planar Gate, Emry's self-host `selfCostReduction`) is reflected in the
+     *  "cast" legal action instead of gating on the unreduced printed cost.
+     *  Optional and only wired at the plain hand-cast branch below — every
+     *  other `canPotentiallyPayCost` call site (flashback/escape/madness/
+     *  graveyard-permission/alternative-cost) keeps the pre-existing
+     *  unreduced-cost gate, unchanged. */
+    state?: GameState
 ): boolean {
     const rawCost = costOverride ?? getInstanceManaCost(card);
     if (!rawCost) return true;
     // CR 107.4f — a cost with Phyrexian pips is castable whenever SOME mana-vs-
     // life split is affordable (each pip: its colour OR 2 life). Delegated to
     // the shared solver so the gate and the payment agree on the split space.
+    // Cost modifiers are not folded into the Phyrexian solver (no shipped card
+    // combines the two — mirrors game.ts's cast-cost ordering comment).
     if (phyrexianPipCount(rawCost) > 0) {
         return solvePhyrexianSplit(player, card, rawCost) !== null;
     }
     // Cost normalized without chosenX: string-X spells pay only their fixed
     // portion at the minimum (X = 0). User picks X at announcement.
     const cost = normalizeManaCost(rawCost);
+    if (state) {
+        applyCostModifiers(cost, getCostModifiers(state, card, "spell"));
+    }
     const totalRequired =
         (cost.X ?? 0) + MANA_COLORS.reduce((sum, c) => sum + (cost[c] ?? 0), 0);
     if (totalRequired === 0) return true;
