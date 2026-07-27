@@ -1067,11 +1067,21 @@ function capabilityFitTerm(
     }
 
     const candidateWeight = profileWeight(profile);
+    // Dedupe the candidate's OWN declared capabilities before iterating: the
+    // doc comment above promises counting is per DISTINCT (Pool card,
+    // Capability, direction), but iterating a `provides`/`requires` array
+    // containing the same capability twice pushed a second `CapabilityMatch`
+    // for the same pair — a duplicated entry in an LLM-seeded profile row
+    // (issue #1614) would silently double that pair's contribution. `.includes`
+    // on the OTHER side's array already collapses duplicates there (a boolean
+    // membership check), so only this side needs deduping.
+    const provides = [...new Set(profile.provides)];
+    const requires = [...new Set(profile.requires)];
     const matches: CapabilityMatch[] = [];
     for (const entry of profiled) {
         if (entry.meta.cardId === candidate.cardId) continue;
         const pairWeight = candidateWeight * profileWeight(entry.profile);
-        for (const capability of profile.provides) {
+        for (const capability of provides) {
             if (entry.profile.requires.includes(capability)) {
                 matches.push({
                     cardId: entry.meta.cardId,
@@ -1081,7 +1091,7 @@ function capabilityFitTerm(
                 });
             }
         }
-        for (const capability of profile.requires) {
+        for (const capability of requires) {
             if (entry.profile.provides.includes(capability)) {
                 matches.push({
                     cardId: entry.meta.cardId,
@@ -1170,6 +1180,16 @@ function comboEdgeTerm(
         const weight = profileWeight(profile);
         for (const edge of profile.comboEdges) {
             if (!poolByCardId.has(edge.cardId)) continue;
+            // Guard against an authored edge weight that is NaN/Infinity
+            // (issue #1614 ships the Admin write surface that will let one
+            // in — `validateCardProfileFile` today only checks capabilities/
+            // cardIds, not this number). The sibling Pick Rating seam
+            // (`pickRatings.ts`'s `isValidRating`) rejects a non-finite
+            // rating at the SAME layer; a non-finite edge here has no write
+            // gate yet, so the READ path must not let it through — an
+            // unfiltered NaN/Infinity would propagate into `score` and
+            // poison every candidate comparison in `chooseBotPick`.
+            if (!Number.isFinite(edge.weight)) continue;
             addEdge(edge.cardId, edge.weight * weight);
         }
     }
@@ -1178,6 +1198,7 @@ function comboEdgeTerm(
         const weight = profileWeight(entry.profile);
         for (const edge of entry.profile.comboEdges ?? []) {
             if (edge.cardId !== candidate.cardId) continue;
+            if (!Number.isFinite(edge.weight)) continue;
             addEdge(entry.meta.cardId, edge.weight * weight);
         }
     }

@@ -1131,6 +1131,60 @@ describe("Pick Invariant — Capability Fit is the veto (ADR 0072, issue #1611)"
         expect(termValue(trace, "archetypeFit")).toBeGreaterThan(0);
         expect(termValue(trace, "capabilityFit")).toBe(0);
     });
+
+    // Issue #1614's Admin write surface makes an LLM-seeded profile row a
+    // day-one possibility, and nothing upstream (`validateCardProfileFile`)
+    // rejects a `provides`/`requires` array with a repeated capability. The
+    // doc comment on `capabilityFitTerm` promises counting is per DISTINCT
+    // (Pool card, Capability, direction) — this asserts the code actually
+    // matches that claim rather than merely reasserting the (once-broken)
+    // behavior.
+    it("a duplicated capability in the candidate's own provides/requires contributes exactly once, not twice", () => {
+        const dedupedRequires = profileLookup({
+            [wurmMeta.cardId]: wurmProfile,
+            [flashMeta.cardId]: flashProfile,
+        });
+        const duplicatedRequires = profileLookup({
+            [wurmMeta.cardId]: wurmProfile,
+            [flashMeta.cardId]: profileOf({
+                requires: ["value-on-death", "value-on-death"],
+            }),
+        });
+        const single = scoreCandidate(wurmMeta, [flashMeta], 3, {
+            getCardProfile: dedupedRequires,
+        });
+        const duplicated = scoreCandidate(wurmMeta, [flashMeta], 3, {
+            getCardProfile: duplicatedRequires,
+        });
+        expect(termValue(duplicated, "capabilityFit")).toBe(
+            termValue(single, "capabilityFit")
+        );
+
+        // Same claim from the OTHER side: the candidate's own `provides`
+        // duplicated, matched against a Pool card's `requires`.
+        const dedupedProvides = profileLookup({
+            [wurmMeta.cardId]: wurmProfile,
+            [flashMeta.cardId]: flashProfile,
+        });
+        const duplicatedProvides = profileLookup({
+            [wurmMeta.cardId]: profileOf({
+                provides: ["value-on-death", "value-on-death"],
+            }),
+            [flashMeta.cardId]: flashProfile,
+        });
+        const singleProvides = scoreCandidate(wurmMeta, [flashMeta], 3, {
+            getCardProfile: dedupedProvides,
+        });
+        const duplicatedProvidesResult = scoreCandidate(
+            wurmMeta,
+            [flashMeta],
+            3,
+            { getCardProfile: duplicatedProvides }
+        );
+        expect(termValue(duplicatedProvidesResult, "capabilityFit")).toBe(
+            termValue(singleProvides, "capabilityFit")
+        );
+    });
 });
 
 describe("Pick Invariant — a scope with no Card Profiles is untouched (ADR 0072, issue #1611)", () => {
@@ -1310,6 +1364,55 @@ describe("Pick Invariant — Combo Edge is signed but never a penalty (ADR 0072,
             [flashMeta.cardId]: profileOf(),
         });
         expect(profileDelta(wurmMeta, [flashMeta], getCardProfile)).toBe(0);
+    });
+
+    // Issue #1614 ships the Admin write surface for Card Profiles next, and
+    // today's only guard on a comboEdges row (`validateCardProfileFile`)
+    // checks capabilities/cardIds, never the edge's `weight` number. A
+    // NaN/Infinity weight is therefore unreachable YET but about to become
+    // reachable, so the READ path (`comboEdgeTerm`) must not let a non-finite
+    // authored weight through: `NaN` propagates to a `NaN` score, `Infinity`
+    // to a `NaN` score once normalized against the cap — either way every
+    // candidate in the pack would compare false against every other,
+    // degenerating `chooseBotPick`'s selection for the whole pack.
+    it("a non-finite authored edge weight (NaN or Infinity) cannot poison the candidate's score — the edge is skipped, not propagated", () => {
+        for (const badWeight of [NaN, Infinity, -Infinity]) {
+            const getCardProfile = profileLookup({
+                [wurmMeta.cardId]: profileOf({
+                    comboEdges: [
+                        { cardId: flashMeta.cardId, weight: badWeight },
+                    ],
+                }),
+                [flashMeta.cardId]: profileOf(),
+            });
+            const trace = scoreCandidate(wurmMeta, [flashMeta], 3, {
+                getCardProfile,
+            });
+            expect(Number.isFinite(trace.score)).toBe(true);
+            expect(Number.isFinite(termValue(trace, "comboEdge"))).toBe(true);
+            // Skipped entirely — same as no edge at all, never merely
+            // "clamped to something finite but still contributing".
+            expect(termValue(trace, "comboEdge")).toBe(0);
+            expect(profileDelta(wurmMeta, [flashMeta], getCardProfile)).toBe(0);
+        }
+    });
+
+    it("a non-finite edge from the OTHER direction (a profiled Pool card's edge pointing at the candidate) is likewise skipped", () => {
+        for (const badWeight of [NaN, Infinity, -Infinity]) {
+            const getCardProfile = profileLookup({
+                [wurmMeta.cardId]: profileOf(),
+                [flashMeta.cardId]: profileOf({
+                    comboEdges: [
+                        { cardId: wurmMeta.cardId, weight: badWeight },
+                    ],
+                }),
+            });
+            const trace = scoreCandidate(wurmMeta, [flashMeta], 3, {
+                getCardProfile,
+            });
+            expect(Number.isFinite(trace.score)).toBe(true);
+            expect(termValue(trace, "comboEdge")).toBe(0);
+        }
     });
 });
 
