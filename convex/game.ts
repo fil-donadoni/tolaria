@@ -151,7 +151,15 @@ import {
 // client-supplied decklist, because the Match's result lands in the standings.
 // `cascadeEventRounds` (issue #1646) is the same one-directional import: the
 // round-advance/event-finish decision lives there, this module only calls it.
-import { cascadeEventRounds, resolveSeatAutoBuiltDeck } from "./limitedEvents";
+// `scheduleRoundDeadline` (issue #1647) is the same shape again: a round this
+// module's own cascade just opened needs the identical deadline schedule
+// `openPlayPhaseIfReady` arms for round 1, so the scheduling call lives once
+// in `limitedEvents.ts` and is invoked from both places.
+import {
+    cascadeEventRounds,
+    resolveSeatAutoBuiltDeck,
+    scheduleRoundDeadline,
+} from "./limitedEvents";
 import type {
     ActivatedAbility,
     CardDefinition,
@@ -621,6 +629,20 @@ async function recordLimitedPairingResult(
         ...(advance.kind === "eventFinished" ? { status: "finished" } : {}),
         updatedAt: now,
     });
+
+    // Issue #1647: a round this cascade just opened needs the SAME deadline
+    // schedule `openPlayPhaseIfReady` arms for round 1 — otherwise a table
+    // whose round 1 had a deadline would silently lose it from round 2 on.
+    // A no-op when the event has no configured deadline, or the newly opened
+    // round came back fully decided on the spot (no human pairing anywhere).
+    if (advance.kind === "roundOpened") {
+        await scheduleRoundDeadline(
+            ctx,
+            event._id,
+            finalRounds[finalRounds.length - 1],
+            now
+        );
+    }
 }
 
 /** If SBA detected game over, persist the result to the games table AND record

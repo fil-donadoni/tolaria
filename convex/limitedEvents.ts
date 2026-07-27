@@ -88,7 +88,9 @@ import {
 import { evaluateDeckStrength, type DeckStrength } from "./limited/matchSim";
 import {
     advanceRoundIfComplete,
+    isRoundComplete,
     openRound,
+    resolveExpiredRound,
     type AdvanceRoundResult,
     type ResolveSeatStrength,
 } from "./limited/rounds";
@@ -1099,6 +1101,11 @@ export async function openPlayPhaseIfReady(
         rounds: asDbRounds(rounds),
         updatedAt: now,
     });
+    // Issue #1647: the tail of `rounds` is the one round that can still be
+    // undecided (every round `advanceRoundIfComplete` cascades THROUGH is, by
+    // construction, already complete) — a no-op when the event has no
+    // configured deadline or the cascade already finished the event.
+    await scheduleRoundDeadline(ctx, eventId, rounds[rounds.length - 1], now);
     return true;
 }
 
@@ -1241,6 +1248,39 @@ async function scheduleSeatTimers(
             }
         );
     }
+}
+
+/** Schedules exactly one `expireRoundDeadline` firing for `round` (issue
+ *  #1647), the SAME idiom as `scheduleSeatTimers` above and the GRE
+ *  priority-timeout pattern (CLAUDE.md): the schedule is unconditional
+ *  (Convex has no cheap "cancel a scheduled job"), and `expireRoundDeadline`
+ *  re-validates the round's own completeness when it actually fires —
+ *  completeness-based staleness, not an explicit cancel call. That guard
+ *  alone is what makes "a rescheduled or superseded timer cannot fire twice
+ *  for the same round" true: a round that already advanced through play (or
+ *  through a PRIOR firing of this exact schedule) is already
+ *  `isRoundComplete`, so a second firing is a no-op.
+ *
+ *  A no-op here — never even scheduled — when the event has no configured
+ *  deadline (`round.deadlineAt` undefined, PRD story 4) or `round` is
+ *  already fully decided (e.g. an all-bot round `openRound`/
+ *  `advanceRoundIfComplete` resolved on the spot, or an
+ *  already-`eventFinished` cascade's tail round). Exported so
+ *  `convex/game.ts`'s `recordLimitedPairingResult` can schedule the newly
+ *  active round the same way once its own cascade opens one. */
+export async function scheduleRoundDeadline(
+    ctx: MutationCtx,
+    eventId: Id<"limitedEvents">,
+    round: LimitedRound,
+    now: number
+): Promise<void> {
+    if (round.deadlineAt === undefined) return;
+    if (isRoundComplete(round)) return;
+    await ctx.scheduler.runAfter(
+        Math.max(0, round.deadlineAt - now),
+        internal.limitedEvents.expireRoundDeadline,
+        { eventId, roundNumber: round.roundNumber }
+    );
 }
 
 // --- Queries ---------------------------------------------------------------
@@ -1997,6 +2037,96 @@ export const autoPickSeatTimeout = internalMutation({
         // Same completion seam as `submitPick` — an Auto-Picked final pick
         // finishes the table just as a human's does.
         await openPlayPhaseIfReady(ctx, args.eventId, now);
+        return null;
+    },
+});
+
+/** Round deadline expiry (PRD #1628 stories 3/32-35, ADR 0076, issue #1647):
+ *  fires when a round's configured deadline elapses. `internalMutation` —
+ *  reachable ONLY via `ctx.scheduler.runAfter` (scheduled by
+ *  `openPlayPhaseIfReady` / `recordLimitedPairingResult`'s
+ *  `scheduleRoundDeadline` call, or this mutation itself when its own cascade
+ *  opens a further round), never by any client-facing API — the same
+ *  "authorize by construction" idiom as `autoPickSeatTimeout`: there is no
+ *  public mutation a client could call to force-expire an arbitrary event's
+ *  round.
+ *
+ *  Staleness/idempotency (issue #1647 AC "a rescheduled or superseded timer
+ *  cannot fire twice for the same round") is `isRoundComplete`, not a
+ *  seq/generation counter: a round's `deadlineAt` is stamped once by
+ *  `openRound` and never changes, so "the round I was scheduled for is
+ *  already fully decided" — by a normal played result racing the deadline, OR
+ *  by an earlier firing of this exact schedule — is the one guard this needs,
+ *  checked BOTH before closing anything (cheap no-op) and, structurally,
+ *  by `resolveExpiredRound` itself (never rewrites an already-decided
+ *  pairing).
+ *
+ *  Closing (`resolveExpiredRound`, `convex/limited/rounds.ts`) and advancing
+ *  (`advanceRoundIfComplete`) land in the SAME `ctx.db.patch` below — the
+ *  identical one-read/one-write OCC discipline `recordLimitedPairingResult`
+ *  (`convex/game.ts`, issue #1646) uses, so the round this closes advances
+ *  exactly like one a human finished by actually playing it. */
+export const expireRoundDeadline = internalMutation({
+    args: {
+        eventId: v.id("limitedEvents"),
+        roundNumber: v.number(),
+    },
+    returns: v.null(),
+    handler: async (ctx, args) => {
+        const event = await ctx.db.get(args.eventId);
+        if (!event) return null;
+        // Phase QUESTION, not a literal (ADR 0076): the event may have
+        // finished (or, in principle, been reset) since this was scheduled.
+        if (!areRoundsRunning(event.status)) return null;
+
+        const rounds = event.rounds ?? [];
+        const round = rounds.find((r) => r.roundNumber === args.roundNumber);
+        if (!round) return null;
+        if (round.deadlineAt === undefined) return null; // no deadline configured — never auto-closes (story 4)
+        if (isRoundComplete(round)) return null; // already decided — a played result, or a prior firing of this schedule
+
+        const now = Date.now();
+        if (round.deadlineAt > now) return null; // defensive: not actually due yet
+
+        const matchFormat = resolveMatchFormat(event.matchFormat);
+        const expiredRounds = resolveExpiredRound({
+            rounds,
+            roundNumber: args.roundNumber,
+            seats: event.seats,
+            matchFormat,
+            now,
+        });
+
+        const seatStrength = await buildSeatStrengthResolver(ctx, event);
+        const advance = advanceRoundIfComplete({
+            eventId: event._id,
+            seats: event.seats,
+            rounds: expiredRounds,
+            matchFormat,
+            now,
+            roundDeadlineMinutes: event.roundDeadlineMinutes,
+            seatStrength,
+        });
+        const finalRounds =
+            advance.kind === "unchanged" ? expiredRounds : advance.rounds;
+
+        await ctx.db.patch(args.eventId, {
+            rounds: asDbRounds(finalRounds),
+            ...(advance.kind === "unchanged"
+                ? {}
+                : { currentRound: advance.currentRound }),
+            ...(advance.kind === "eventFinished" ? { status: "finished" } : {}),
+            updatedAt: now,
+        });
+
+        if (advance.kind === "roundOpened") {
+            await scheduleRoundDeadline(
+                ctx,
+                args.eventId,
+                finalRounds[finalRounds.length - 1],
+                now
+            );
+        }
         return null;
     },
 });

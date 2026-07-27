@@ -197,6 +197,97 @@ export function findSeatPairing(
     );
 }
 
+/** Closes `roundNumber`'s undecided pairings against the round deadline
+ *  (PRD #1628 stories 32-35, issue #1647). Pure — no DB, no clock beyond the
+ *  injected `now` — mirroring `advanceRoundIfComplete`'s own discipline: the
+ *  mutation shell (`convex/limitedEvents.ts`'s `expireRoundDeadline`) is what
+ *  decides WHEN to call this; this only decides WHAT closing the round means.
+ *
+ *  Every pairing that already has a `result` is left byte-identical (issue
+ *  #1647 AC "an already-decided pairing is never rewritten by the expiry") —
+ *  including a round that was played through in full before its deadline
+ *  fired, and a bye/simulated pairing `openRound` already decided on the
+ *  spot. Three no-op guards, each independently sufficient for the AC "an
+ *  event with no deadline configured never auto-closes a pairing" and for
+ *  the round-level idempotency the scheduler's staleness check relies on:
+ *  no configured deadline, the deadline hasn't actually elapsed yet, or the
+ *  round is already fully decided.
+ *
+ *  What "undecided at the deadline" closes to (PRD stories 32-34):
+ *  - **Human vs bot**: the bot side never "shows up" as such — a human/bot
+ *    pairing only decides once the human calls `startPairingMatch` (issue
+ *    #1645), so an undecided one at the deadline means the human never
+ *    played. Scored as a loss for the human, 0 to `gamesToWinMatch`, the
+ *    SAME games a bye/win is worth for this format.
+ *  - **Human vs human, still undecided**: this module has no visibility into
+ *    which side (if either) actually joined the pairing's bound Match — that
+ *    would need the `matches` row's own per-player join state, a DB read a
+ *    pure round function deliberately never performs (see file header).
+ *    Story 34's rule ("NEITHER human showed up") is applied to every
+ *    undecided human-vs-human pairing at the hard deadline cutoff: a double
+ *    loss (equal wins, `source: "timeout"` — `classifyPairingResult`,
+ *    `convex/limited/standings.ts`, treats this specially and never as a
+ *    draw). A genuinely mid-game Bo3 that both players started but didn't
+ *    finish in time collapses into the same double-loss outcome — the
+ *    deadline is a hard cutoff either way, and distinguishing "abandoned"
+ *    from "never started" for a two-human pairing is out of scope here.
+ *  - **Bot vs bot**: unreachable in practice — `openRound` decides every
+ *    bot-vs-bot pairing the moment the round opens, so one can never reach
+ *    the deadline still undecided. Left untouched defensively. */
+export function resolveExpiredRound(input: {
+    rounds: readonly LimitedRound[];
+    roundNumber: number;
+    seats: readonly RoundSeatLookup[];
+    matchFormat: LimitedMatchFormat;
+    now: number;
+}): LimitedRound[] {
+    const { rounds, roundNumber, seats, matchFormat, now } = input;
+    const botSeats = new Set(
+        seats.filter(isBotSeat).map((seat) => seat.seatIndex)
+    );
+    const winGames = gamesToWinMatch(matchFormat);
+
+    return rounds.map((round) => {
+        if (round.roundNumber !== roundNumber) return round;
+        if (round.deadlineAt === undefined) return round;
+        if (round.deadlineAt > now) return round;
+        if (isRoundComplete(round)) return round;
+
+        const pairings = round.pairings.map((pairing) => {
+            if (pairing.result !== undefined) return pairing;
+            if (pairing.seatB === undefined) return pairing; // bye — always already decided; guarded anyway
+            const aIsBot = botSeats.has(pairing.seatA);
+            const bIsBot = botSeats.has(pairing.seatB);
+            if (aIsBot && bIsBot) return pairing; // unreachable — see docstring
+            if (aIsBot) {
+                return {
+                    ...pairing,
+                    result: {
+                        winsA: winGames,
+                        winsB: 0,
+                        source: "timeout" as const,
+                    },
+                };
+            }
+            if (bIsBot) {
+                return {
+                    ...pairing,
+                    result: {
+                        winsA: 0,
+                        winsB: winGames,
+                        source: "timeout" as const,
+                    },
+                };
+            }
+            return {
+                ...pairing,
+                result: { winsA: 0, winsB: 0, source: "timeout" as const },
+            };
+        });
+        return { ...round, pairings };
+    });
+}
+
 export interface AdvanceRoundInput {
     eventId: string;
     seats: readonly RoundSeatLookup[];
