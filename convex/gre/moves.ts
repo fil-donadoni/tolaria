@@ -20,7 +20,12 @@
 
 import type { Color, TargetRequirement, TargetSelection } from "../cards/types";
 import type { CardInstanceState, GameState, PlayerState } from "./state";
-import { normalizeManaCost, canPayDiscardLastDrawn } from "./state";
+import {
+    normalizeManaCost,
+    canPayDiscardLastDrawn,
+    applyCostModifiers,
+    getCostModifiers,
+} from "./state";
 import { handCardMatchesFilter } from "./alternativeCost";
 import {
     getLegalActions,
@@ -558,6 +563,24 @@ function enumerateCastMoves(
     for (const { modeId, req } of modeVariants) {
         for (const x of xValues) {
             const normCost = normalizeManaCost(rawCost, { chosenX: x ?? 0 });
+            // CR 601.2f (ADR 0063, issue #1337) — fold in battlefield
+            // cost-modifier static effects (Stone Calendar, Mana Matrix,
+            // Planar Gate, Power Artifact, Urza's Filter) AND a spell's own
+            // `selfCostReduction` (Emry) before planning the tap payment,
+            // mirroring the gate's plain-cast branch
+            // (`canPotentiallyPayCost(caster, card, undefined, state)` in
+            // rules.ts). Without this the enumerator built its tap plan from
+            // the unreduced printed cost and disagreed with `getLegalActions`
+            // — the bot could never cast a spell whose affordability depends
+            // on a reduction. Phyrexian costs keep the pre-existing
+            // unmodified path: no shipped card combines the two (mirrors the
+            // same carve-out in `canPotentiallyPayCost`).
+            if (phyPips === 0) {
+                applyCostModifiers(
+                    normCost,
+                    getCostModifiers(state, card, "spell")
+                );
+            }
             let payLife = 0;
             if (phyPips > 0) {
                 const split = solvePhyrexianSplit(

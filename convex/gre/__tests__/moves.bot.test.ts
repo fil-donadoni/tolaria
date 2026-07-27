@@ -14,6 +14,7 @@ import {
 } from "../../cards/__tests__/setup";
 import type { CardInstanceState, GameState } from "../state";
 import { enumerateMoves, planManaPayment, type Move } from "../moves";
+import { getLegalActions } from "../rules";
 
 const FOREST = getCardByName("Forest").id;
 const MOUNTAIN = getCardByName("Mountain").id;
@@ -701,5 +702,109 @@ describe("copy-on-ETB class — declarative copySourceFilter (issue #938)", () =
             types: "Creature",
             isToken: false,
         });
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Gate ↔ enumerator cost-modifier parity (CR 601.2f, ADR 0063, issue #1337
+// pre-merge review finding).
+// ---------------------------------------------------------------------------
+//
+// `getLegalActions` (rules.ts) folds battlefield cost-modifier static effects
+// AND a spell's own `selfCostReduction` into its "cast" affordability check.
+// `enumerateCastMoves` (moves.ts) MUST agree — its `normCost`/tap plan is built
+// from the same reduced cost — or the human UI offers "cast" while the Bot's
+// move enumerator silently yields zero cast moves for that exact card. Both
+// assertions below run against the SAME state so a divergence between the two
+// single-authority call sites fails loudly.
+
+const EMRY = getCardByName("Emry, Lurker of the Loch").id; // {2}{U}, affinity for artifacts
+const ORNITHOPTER = getCardByName("Ornithopter").id; // {0} Artifact Creature
+const STONE_CALENDAR = getCardByName("Stone Calendar").id; // "Spells you cast cost {1} less"
+
+function legalActionsFor(
+    state: GameState,
+    playerId: string,
+    card: CardInstanceState
+) {
+    const player = state.players.find((p) => p.id === playerId)!;
+    return getLegalActions(state, player, card);
+}
+
+describe("gate ↔ enumerator cost-modifier parity (CR 601.2f, issue #1337)", () => {
+    it("Emry: getLegalActions offers cast AND enumerateMoves yields a cast move (1 Island + 2 Ornithopters)", () => {
+        const emry = makeInstance(EMRY, {
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const p1 = makePlayer("p1", {
+            hand: [emry],
+            battlefield: [
+                land(ISLAND, "p1"),
+                makeInstance(ORNITHOPTER, {
+                    controllerId: "p1",
+                    ownerId: "p1",
+                }),
+                makeInstance(ORNITHOPTER, {
+                    controllerId: "p1",
+                    ownerId: "p1",
+                }),
+            ],
+        });
+        const state = makeState({ players: [p1, makePlayer("p2")] });
+
+        // The gate: unreduced {2}{U} isn't payable with one Island, but the
+        // 2 artifacts reduce it to {U} — "cast" must be offered.
+        expect(legalActionsFor(state, "p1", emry)).toContain("cast");
+
+        // The enumerator must agree: at least one cast-spell move for Emry,
+        // with a tap plan the Island alone can cover.
+        const casts = castsFor(state, "p1", emry.id);
+        expect(casts).toHaveLength(1);
+        const cast = casts[0];
+        expect(cast.kind === "cast-spell" && cast.tapPlan).toEqual([
+            { cardInstanceId: expect.any(String) },
+        ]);
+    });
+
+    it("does NOT offer an Emry cast move with no artifacts and only one Island (unreduced {2}{U} unaffordable)", () => {
+        const emry = makeInstance(EMRY, {
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const p1 = makePlayer("p1", {
+            hand: [emry],
+            battlefield: [land(ISLAND, "p1")],
+        });
+        const state = makeState({ players: [p1, makePlayer("p2")] });
+
+        expect(legalActionsFor(state, "p1", emry)).not.toContain("cast");
+        expect(castsFor(state, "p1", emry.id)).toHaveLength(0);
+    });
+
+    it("Stone Calendar (fixed-literal reducer): gate and enumerator agree a {1}{G} spell is castable off a single Forest", () => {
+        const bears = makeInstance(BEARS, {
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const p1 = makePlayer("p1", {
+            hand: [bears],
+            battlefield: [
+                land(FOREST, "p1"),
+                makeInstance(STONE_CALENDAR, {
+                    controllerId: "p1",
+                    ownerId: "p1",
+                }),
+            ],
+        });
+        const state = makeState({ players: [p1, makePlayer("p2")] });
+
+        // Unreduced {1}{G} needs two mana sources; Stone Calendar's {1}
+        // reduction drops it to {G} alone, payable off the single Forest.
+        expect(legalActionsFor(state, "p1", bears)).toContain("cast");
+        expect(castsFor(state, "p1", bears.id)).toHaveLength(1);
     });
 });

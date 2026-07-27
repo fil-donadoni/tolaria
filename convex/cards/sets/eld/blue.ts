@@ -37,6 +37,7 @@ export const emryLurkerOfTheLoch: CardDefinition = {
         "Affinity for artifacts (This spell costs {1} less to cast for each artifact you control.)\nWhen Emry enters, mill four cards.\n{T}: Choose target artifact card in your graveyard. You may cast that card this turn. (You still pay its costs. Timing rules still apply.)",
     manaCost: { X: 2, U: 1 },
     types: ["Creature"],
+    supertypes: ["Legendary"],
     subtypes: ["Merfolk", "Wizard"],
     power: 1,
     toughness: 2,

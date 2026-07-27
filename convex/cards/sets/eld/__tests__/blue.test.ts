@@ -67,6 +67,9 @@ describe("Emry, Lurker of the Loch (count-driven self cost-reduction, CR 601.2f 
     it("definition: {2}{U} Legendary Creature — Merfolk Wizard, 1/2, with a self-host cost reduction", () => {
         expect(emryLurkerOfTheLoch.manaCost).toEqual({ X: 2, U: 1 });
         expect(emryLurkerOfTheLoch.types).toEqual(["Creature"]);
+        // CR 704.5j legend rule needs the supertype — `isLegendaryPermanent`
+        // (gre/sba.ts) reads `permanentDefinition(card)?.supertypes`.
+        expect(emryLurkerOfTheLoch.supertypes).toEqual(["Legendary"]);
         expect(emryLurkerOfTheLoch.subtypes).toEqual(["Merfolk", "Wizard"]);
         expect(emryLurkerOfTheLoch.power).toBe(1);
         expect(emryLurkerOfTheLoch.toughness).toBe(2);
