@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { nextRandom, randomInt, seededShuffle } from "../rng";
+import {
+    makeRng,
+    nextRandom,
+    randomInt,
+    seededShuffle,
+    shuffleWithRng,
+} from "../rng";
 import type { GameState } from "../state";
 
 function state(seed: number): GameState {
@@ -63,6 +69,44 @@ describe("PRNG determinism (CR 707, replay)", () => {
         const arr = [1, 2, 3, 4, 5];
         seededShuffle(s, arr);
         expect(arr.sort((x, y) => x - y)).toEqual([1, 2, 3, 4, 5]);
+    });
+});
+
+// `shuffleWithRng` is the shared implementation for every call site that
+// shuffles off an injected `rng` stream (`makeRng`'s closure shape) rather
+// than a `GameState`: `gre/determinize.ts`, `limited/cube.ts`,
+// `limited/swiss.ts`. Unlike its mutating sibling `seededShuffle` above, it
+// returns a NEW array and leaves `items` untouched — that's the one contract
+// distinguishing the two, and `limited/cube.ts`'s `shuffleCube` documents
+// itself as "a shuffle of a COPY of `pool`" on the strength of it (PR #1649
+// review finding 2).
+describe("shuffleWithRng (gre/rng.ts)", () => {
+    it("produces a permutation of the input (same multiset)", () => {
+        const items = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+        const result = shuffleWithRng(items, makeRng(13));
+        expect(result.slice().sort((a, b) => a - b)).toEqual(items);
+    });
+
+    it("returns a NEW array and leaves the input untouched", () => {
+        const items = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+        const snapshot = [...items];
+        const result = shuffleWithRng(items, makeRng(13));
+        expect(items).toEqual(snapshot);
+        expect(result).not.toBe(items);
+    });
+
+    it("is reproducible: the same seed produces the same order", () => {
+        const items = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+        const resultA = shuffleWithRng(items, makeRng(999));
+        const resultB = shuffleWithRng(items, makeRng(999));
+        expect(resultA).toEqual(resultB);
+    });
+
+    it("different seeds produce a different order (sanity, not a hard guarantee)", () => {
+        const items = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+        const resultA = shuffleWithRng(items, makeRng(1));
+        const resultB = shuffleWithRng(items, makeRng(2));
+        expect(resultA).not.toEqual(resultB);
     });
 });
 

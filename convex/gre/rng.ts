@@ -53,3 +53,21 @@ export function seededShuffle<T>(state: GameState, array: T[]): T[] {
     }
     return array;
 }
+
+/** Fisher–Yates shuffle over an injected float stream (`makeRng`'s closure
+ *  shape, not a `GameState`), returning a NEW array — `items` is left
+ *  untouched. The single shared implementation for every call site that
+ *  shuffles off a self-contained `rng` stream rather than a `GameState`:
+ *  `gre/determinize.ts` (ISMCTS world sampling), `limited/cube.ts` (cube pack
+ *  dealing) and `limited/swiss.ts` (score-bucket pairing order) had each grown
+ *  a byte-identical copy of this loop — extracted here per the project's
+ *  extract-on-the-second-copy rule. Pure: the same `(items, rng)` sequence
+ *  always yields the same order. */
+export function shuffleWithRng<T>(items: readonly T[], rng: () => number): T[] {
+    const copy = [...items];
+    for (let i = copy.length - 1; i > 0; i--) {
+        const j = Math.floor(rng() * (i + 1));
+        [copy[i], copy[j]] = [copy[j], copy[i]];
+    }
+    return copy;
+}

@@ -39,14 +39,7 @@
 
 import type { CardInstanceState, GameState, PlayerState } from "./state";
 import { cloneGameState } from "./clone";
-
-/** Fisher–Yates shuffle in place using the injected float stream. */
-function shuffle<T>(array: T[], rng: () => number): void {
-    for (let i = array.length - 1; i > 0; i--) {
-        const j = Math.floor(rng() * (i + 1));
-        [array[i], array[j]] = [array[j], array[i]];
-    }
-}
+import { shuffleWithRng } from "./rng";
 
 /** Re-tag an instance's zone so the world stays internally consistent after a
  *  card is dealt into a different hidden zone. */
@@ -84,7 +77,7 @@ export function determinize(
 /** The observer keeps its hand; its library keeps its size but is reshuffled
  *  (draw order is unknown to the observer). */
 function determinizeObserver(player: PlayerState, rng: () => number): void {
-    shuffle(player.library, rng);
+    player.library = shuffleWithRng(player.library, rng);
 }
 
 /** Pool the opponent's hand + library — indistinguishable to the observer —
@@ -92,8 +85,7 @@ function determinizeObserver(player: PlayerState, rng: () => number): void {
  *  remainder to the library, preserving both counts. */
 function determinizeOpponent(player: PlayerState, rng: () => number): void {
     const handSize = player.hand.length;
-    const pool = [...player.hand, ...player.library];
-    shuffle(pool, rng);
+    const pool = shuffleWithRng([...player.hand, ...player.library], rng);
     player.hand = pool.slice(0, handSize).map((c) => inZone(c, "hand"));
     player.library = pool.slice(handSize).map((c) => inZone(c, "library"));
 }
