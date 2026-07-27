@@ -40,7 +40,6 @@ import GameDialog from "~/components/ui/game-dialog";
 import LoadingScreen from "~/components/ui/loading-screen";
 import LobbyFooter from "~/components/legal/lobby-footer";
 import ActionButton from "~/components/board/action-button";
-import DashboardTopBar from "./dashboard-top-bar";
 import DashboardPlayBox from "./dashboard-play-box";
 import DashboardLimitedBox from "./dashboard-limited-box";
 import VsAiSetupDialog from "./vs-ai-setup-dialog";
@@ -48,9 +47,6 @@ import DeckList from "./deck-list";
 import DeckFormatFilter from "./deck-format-filter";
 import LobbyBackground from "./lobby-background";
 import ActiveGameNotice from "./active-game-notice";
-import BanlistAdminPanel from "./banlist-admin-panel";
-import PickRatingAdminPanel from "./pick-rating-admin-panel";
-import CardProfileAdminPanel from "./card-profile-admin-panel";
 
 function Lobby() {
     const navigate = useNavigate();
@@ -405,11 +401,9 @@ function Lobby() {
         : undefined;
 
     return (
-        <div className="relative min-h-dvh overflow-hidden bg-surface-base text-text">
+        <div className="relative flex-1 overflow-hidden bg-surface-base text-text">
             <LobbyBackground />
             <div className="relative z-10 mx-auto flex max-w-6xl flex-col gap-6 px-6 py-8">
-                <DashboardTopBar />
-
                 {activeGame && user && (
                     <ActiveGameNotice
                         activeGame={activeGame}
@@ -513,10 +507,6 @@ function Lobby() {
                         </PanelBody>
                     </Panel>
                 </div>
-
-                <BanlistAdminPanel />
-                <PickRatingAdminPanel />
-                <CardProfileAdminPanel />
 
                 <LobbyFooter />
             </div>

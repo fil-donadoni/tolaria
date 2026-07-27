@@ -48,6 +48,20 @@ Two modes:
   deterministically. The only addition is exposing `seed` on the projection of
   a **completed** event, where it can no longer reveal anything hidden.
 
+**Access: the whole `/draft-lab` route is admin-only, and a non-admin gets a
+404 — not an explanation.** The surface exposes the scorer's internals, every
+bot seat's Pool mid-draft, and a completed event's reconstruction, which needs
+the `seed` that regenerates every seat's Pool and is therefore released to an
+admin alone. Gating the ROUTE rather than each panel gives one predicate
+(`canViewDraftLab`) instead of one per surface, and it is what lets the two
+queries the Lab reads through (`listScopeCardProfiles`,
+`listScopeCardRatingsForReplay`) gate on `assertIsAdmin`: a non-admin never
+mounts the hooks that call them. The server gate is the real boundary — hiding
+the route alone would be cosmetic, since anyone signed in could call the
+queries directly. The 404 is deliberate: an admin-only developer surface should
+not confirm its own existence, so it renders the SAME page an unknown path
+does.
+
 The event carries a `scorerVersion`. The Lab shows the historical pick beside
 what the **current** scorer would pick, and the divergence between them is the
 tuning signal: change a weight, reopen an old draft, see which of 360 picks
@@ -87,6 +101,11 @@ after it has stopped describing what happened is actively misleading.
   server-side.
 - Replaying a real draft is free today and stays free — no migration, no
   retention policy, no growth in event document size.
+- The Lab is invisible to a normal player: no navigation entry, and the route
+  answers a 404. Reaching it is an admin act, which is also why the two reads
+  it depends on could be tightened to `assertIsAdmin` with no other consumer
+  affected — a static guard (`scripts/__tests__/draft-lab-admin-gating.test.ts`)
+  keeps them there.
 - A draft played before a scorer change can never be replayed with its original
   bot picks. Accepted: the historical picks are the user's own, and the value
   of the replay is the comparison, not the reproduction.

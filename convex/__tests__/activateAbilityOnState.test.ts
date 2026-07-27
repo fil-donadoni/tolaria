@@ -177,3 +177,79 @@ describe("activateAbilityOnState — the two deferred exits still work", () => {
         expect(tome.isTapped).toBe(false);
     });
 });
+
+describe("activateAbilityOnState — timing gates apply to the TARGETED path too (CR 602.3b)", () => {
+    /** Skullclamp's Equip is `sorcerySpeedOnly` AND targeted — the combination
+     *  that used to slip through. The timing gate lived only in the
+     *  non-targeted branch, so activating Equip at instant speed persisted a
+     *  `pendingTarget` and only then hit the check downstream in
+     *  `finalizeTargetSelection`. The throw left the prompt in place: the game
+     *  was stuck on `expectedInput.kind === "target"` and every `passPriority`
+     *  afterwards was rejected by `assertExpectedInput` (ADR 0047). */
+    function clampScenario(phase: string): GameState {
+        return build({
+            cards: [
+                { name: "Skullclamp", owner: "me", zone: "battlefield" },
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+            ],
+            phase,
+            turn: 3,
+        });
+    }
+
+    it("rejects a sorcery-speed Equip outside a main phase and opens NO target prompt", () => {
+        const state = clampScenario("UPKEEP");
+        const clamp = find(state, "Skullclamp");
+
+        expect(() =>
+            activateAbilityOnState(state, {
+                playerId: state.players[0].id,
+                cardInstanceId: clamp.id,
+                abilityId: "skullclamp-equip",
+            })
+        ).toThrow("Activate only as a sorcery");
+
+        // The whole point of the fix: no half-applied activation is left
+        // behind for `passPriority` to bounce off.
+        expect(state.pendingTarget).toBeUndefined();
+        expect(state.stack).toHaveLength(0);
+    });
+
+    it("rejects a sorcery-speed Equip in a main phase with a non-empty stack", () => {
+        const state = clampScenario("PRECOMBAT_MAIN");
+        const clamp = find(state, "Skullclamp");
+        state.stack.push({
+            id: "dummy",
+            controllerId: state.players[1].id,
+            card: { id: getCardByName("Lightning Bolt").id },
+        } as unknown as GameState["stack"][number]);
+
+        expect(() =>
+            activateAbilityOnState(state, {
+                playerId: state.players[0].id,
+                cardInstanceId: clamp.id,
+                abilityId: "skullclamp-equip",
+            })
+        ).toThrow("Activate only as a sorcery");
+        expect(state.pendingTarget).toBeUndefined();
+    });
+
+    it("still admits Equip at real sorcery timing", () => {
+        const state = clampScenario("PRECOMBAT_MAIN");
+        const clamp = find(state, "Skullclamp");
+
+        activateAbilityOnState(state, {
+            playerId: state.players[0].id,
+            cardInstanceId: clamp.id,
+            abilityId: "skullclamp-equip",
+        });
+
+        expect(state.pendingTarget?.abilityId).toBe("skullclamp-equip");
+    });
+});

@@ -626,6 +626,17 @@ export type CardInstanceState = {
      *  reset at the active player's turn start. Read by the activation
      *  validator to enforce `ActivatedAbility.oncePerTurn`. */
     activationsThisTurn?: Record<string, number>;
+    /** Per-turn TRIGGER counter keyed by triggered-ability id (CR 603.2 —
+     *  "this ability triggers only twice each turn", Nadu, Winged Wisdom). The
+     *  trigger twin of `activationsThisTurn`: incremented by `collectTriggers`
+     *  the moment an ability carrying `TriggeredAbility.maxTriggersPerTurn`
+     *  fires, read by that same scan to stop firing once the cap is reached,
+     *  and reset at the turn boundary alongside `activationsThisTurn`
+     *  (gre/phases.ts). Keyed by ability id, so a permanent carrying a GRANTED
+     *  capped ability (Nadu grants its trigger to every creature you control)
+     *  tallies its own quota independently of every other recipient — which is
+     *  what "this ability" in the granted text refers to. */
+    triggersThisTurn?: Record<string, number>;
     /** When set, the lethal-damage SBA exiles this creature instead of sending
      *  it to the graveyard (CR 614.1a — Disintegrate). Also incompatible with
      *  regeneration: the SBA path treats this identically to `cantBeRegenerated`.
@@ -7767,6 +7778,13 @@ function resetBattlefieldTransientState(card: CardInstanceState): void {
     delete card.lifePaidThisTap;
     delete card.manaCommitted;
     delete card.tapTriggerCommitted;
+    // CR 400.7 / 602.5 / 603.2 — the per-turn activation and trigger tallies
+    // belong to the object that was on the battlefield. A permanent that leaves
+    // and re-enters is a NEW object and gets a fresh quota, so a
+    // once-each-turn ability may be activated again and a capped trigger
+    // ("only twice each turn", Nadu, Winged Wisdom) may fire again.
+    delete card.activationsThisTurn;
+    delete card.triggersThisTurn;
     delete card.counters;
     // CR 121.2 / 400.7 — the departure-time counter memory is meaningless on a
     // permanent that has re-entered the battlefield as a new object.

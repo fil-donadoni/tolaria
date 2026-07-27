@@ -29,7 +29,7 @@
 // `cardProfileWriteErrors`, `normalizeArchetypes`, `buildScopeCardProfiles`).
 import { v } from "convex/values";
 import { mutation, query, type MutationCtx } from "../_generated/server";
-import { assertIsAdmin, getCurrentUserId } from "../auth";
+import { assertIsAdmin } from "../auth";
 import { listScopeCards } from "./cardRatingsCore";
 import {
     buildCardProfileRow,
@@ -55,15 +55,15 @@ const scopedCardProfileValidator = v.object({
 
 /** Every `cardProfiles` row for a set of scopes — the ONE place the Card
  *  Profile layer touches `ctx.db` directly, mirroring `cardRatings.ts`'s
- *  `listScopeCardRatings`. Unlike that editor query, this is NOT admin-gated
- *  (`getCurrentUserId`, not `assertIsAdmin`): the Draft Lab is a synthetic
- *  developer surface any authenticated user can open (issue #1612), and
- *  reading a Card Profile to render an "unreviewed" badge is informational,
- *  not an Admin-only capability — the SAME "any authenticated user, not
- *  admin-gated" call `listLimitedDraftableSets` already makes for its own
- *  informational read. Read-only: no `insert`/`patch`/`delete` anywhere in
- *  this handler, so it carries no write surface for
- *  `draft-lab-no-mutation.test.ts` to catch.
+ *  `listScopeCardRatings`. Admin-gated (`assertIsAdmin`), like that editor
+ *  query: its only consumer is the Draft Lab, and the WHOLE `/draft-lab` route
+ *  is now admin-only (see `src/routes/draft-lab.route.tsx`). The original
+ *  `getCurrentUserId` gate matched the Draft Lab's original "any authenticated
+ *  user" access (issue #1612); once the route became admin-only, leaving the
+ *  query open would have made the route gate purely cosmetic — a non-admin
+ *  could read every scope's profiles by calling this directly. Read-only: no
+ *  `insert`/`patch`/`delete` anywhere in this handler, so it carries no write
+ *  surface for `draft-lab-no-mutation.test.ts` to catch.
  *
  *  `scopes` is the caller's distinct pack-source identities (mirrors
  *  `resolveEventCardProfile`'s own `scopes` parameter); normalized to
@@ -74,7 +74,7 @@ export const listScopeCardProfiles = query({
     args: { scopes: v.array(v.string()) },
     returns: v.array(scopedCardProfileValidator),
     handler: async (ctx, { scopes }): Promise<ScopedCardProfile[]> => {
-        await getCurrentUserId(ctx);
+        await assertIsAdmin(ctx);
         const normalizedScopes = Array.from(
             new Set(scopes.map((scope) => scope.toLowerCase()))
         );

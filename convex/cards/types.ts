@@ -15,6 +15,16 @@ type CardId = string;
  *  and `stack` (stack items are managed by the resolution engine). */
 export type MovableZone = "library" | "hand" | "graveyard" | "exile";
 
+/** Where a card revealed off the top of a library can be routed by the
+ *  `revealTopAndRoute` Op (CR 400.7). `"library"` is deliberately absent — the
+ *  card is already there, and "put it back on top / on the bottom" is
+ *  `scryReorder`'s job (it owns the ordering choice this Op has no use for). */
+export type RevealRouteDestination =
+    | "battlefield"
+    | "hand"
+    | "graveyard"
+    | "exile";
+
 export type Color = "W" | "U" | "B" | "R" | "G" | "C";
 
 export const colors: Color[] = ["W", "U", "B", "R", "G", "C"];
@@ -6510,6 +6520,28 @@ export interface TriggeredAbility {
      *  false. Moonshadow (ecl/black.ts, issue #684/#928) is the first
      *  consumer. */
     oncePerEventBatch?: boolean;
+    /** CR 603.2 per-turn TRIGGER cap — "This ability triggers only <N> time(s)
+     *  each turn" (Nadu, Winged Wisdom: "only twice each turn"). Distinct from
+     *  `ActivatedAbility.oncePerTurn` (CR 602.5, an ACTIVATION gate the player
+     *  runs into when trying to activate): this bounds how many times the
+     *  ability may TRIGGER, so once the cap is reached the ability simply does
+     *  not fire — no stack item is created at all, and the fizzle/counter path
+     *  is never involved.
+     *
+     *  Counted PER SOURCE OBJECT, not per card definition or per controller:
+     *  the tally lives on `CardInstanceState.triggersThisTurn[abilityId]`
+     *  (mirroring `activationsThisTurn`), so a battlefield-wide grant like
+     *  Nadu's gives EACH creature you control its own two triggers per turn,
+     *  which is what the Oracle text means. Incremented by `collectTriggers`
+     *  (gre/triggers.ts) at the moment the ability triggers, and reset for
+     *  every permanent at the turn boundary alongside `activationsThisTurn`
+     *  (gre/phases.ts). A permanent that leaves and re-enters the battlefield
+     *  is a NEW object (CR 400.7) and starts fresh.
+     *
+     *  Only meaningful for battlefield-zone abilities scanned by
+     *  `collectTriggers`; a `zone: "graveyard"` ability, an emblem ability or a
+     *  delayed trigger is not capped by this field. */
+    maxTriggersPerTurn?: number;
     /** Intervening-if condition (CR 603.4d). When defined, re-evaluated by
      *  the engine immediately before `resolve` runs. If it returns false the
      *  trigger fizzles: it leaves the stack without invoking `resolve`, and
@@ -8719,6 +8751,47 @@ export type EffectOp =
           op: "mill";
           player: EffectPlayerRef;
           count: EffectValue;
+      }
+    /** CR 701.20a reveal + CR 400.7 zone change — reveal the top `count` card(s)
+     *  of a library and send each one to a destination chosen by WHAT IT IS
+     *  ("Reveal the top card of your library. If it's a land card, put it onto
+     *  the battlefield. Otherwise, put it into your hand." — Nadu, Winged
+     *  Wisdom). A thin declarative skin over primitives that already exist, one
+     *  execution path (ADR 0045): `peekLibraryTop` names the window,
+     *  `markKnownToAll` + `notifyReveal` make it public (the same pair
+     *  `digToHand`'s reveal leg uses), and each card is routed with
+     *  `putFromLibraryOntoBattlefield` (battlefield) or
+     *  `moveCardById(player, id, "library", …)` (every other zone) — the exact
+     *  two primitives `moveZone`'s `cards` shape already dispatches between.
+     *  No new SpellContext primitive.
+     *
+     *  DETERMINISTIC — no player choice, so unlike `digToHand` / `scryReorder` /
+     *  `revealAndCategorize` it never suspends. That is precisely the gap it
+     *  fills: those three all end in a player PICKING from a revealed window,
+     *  whereas this Op's destination is dictated by the card's own
+     *  characteristics, with nothing to decide.
+     *
+     *  `routes` is an ORDERED list of `{ filter, to }` rules evaluated per
+     *  revealed card, FIRST MATCH WINS (so a card matching two rules is routed
+     *  by the earlier one — write the more specific rule first); a card
+     *  matching no rule goes to `fallback`, which is the Oracle text's
+     *  "Otherwise, …" clause and is therefore required. `filter` is the same
+     *  `EffectCardFilter` the hidden-zone `choice`/`count` constructs use,
+     *  matched through the shared `matchesCardFilter`.
+     *
+     *  Every miss is a CR 608.2b no-op: an empty library reveals nothing (and
+     *  fires no reveal dialog), and a revealed id that is somehow no longer in
+     *  the library when it is routed is skipped. `count` defaults to 1 and a
+     *  non-positive `count` is a no-op. */
+    | {
+          op: "revealTopAndRoute";
+          player: EffectPlayerRef;
+          count?: EffectValue;
+          routes: {
+              filter: EffectCardFilter;
+              to: RevealRouteDestination;
+          }[];
+          fallback: RevealRouteDestination;
       }
     /** CR 401.4 look (issue #984, extended #1101) — dig to hand: look at the
      *  top `look` cards of a library, put `take` of them (default 1) into

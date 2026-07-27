@@ -2902,6 +2902,12 @@ function advanceTurn(state: GameState): void {
     for (const p of state.players) {
         for (const c of p.battlefield) {
             if (c.activationsThisTurn) c.activationsThisTurn = undefined;
+            // CR 603.2 — the trigger twin: "this ability triggers only twice
+            // each turn" (Nadu, Winged Wisdom) tallies per source object in
+            // `triggersThisTurn`, so it must be cleared on the same boundary
+            // as the activation tally or every capped ability goes inert
+            // after its first turn.
+            if (c.triggersThisTurn) c.triggersThisTurn = undefined;
             // CR 606.3 — the "one loyalty ability per turn" lock is per turn;
             // clear it so each planeswalker may act again on the next turn.
             if (c.loyaltyActivatedThisTurn) {

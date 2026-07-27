@@ -20349,3 +20349,239 @@ describe("Effect Script Op: createTokenCopy (CR 707.2 + CR 111.1, issue #1459)",
         expect(getEffectiveToughness(projected, slim)).toBe(5);
     });
 });
+
+// --- revealTopAndRoute Op: reveal the top of a library, route each card by
+// what it IS (CR 701.20a reveal + CR 400.7 zone change) ----------------------
+// Deterministic: the destination is dictated by the revealed card's own
+// characteristics, so unlike digToHand / scryReorder / revealAndCategorize
+// there is nothing to pick and the Op never suspends. Nadu, Winged Wisdom.
+
+describe("Effect Script Op: revealTopAndRoute (CR 701.20a)", () => {
+    const libOf = (owner: "p1" | "p2", entries: [string, string][]) =>
+        entries.map(([cid, defId]) =>
+            makeInstance(defId, {
+                id: cid,
+                controllerId: owner,
+                ownerId: owner,
+                zone: "library",
+            })
+        );
+
+    /** Nadu's exact script: land → battlefield, everything else → hand. */
+    const NADU_ROUTES: EffectOp[] = [
+        {
+            op: "revealTopAndRoute",
+            player: "controller",
+            routes: [{ filter: { type: "Land" }, to: "battlefield" }],
+            fallback: "hand",
+        },
+    ];
+
+    it("routes a revealed LAND onto the battlefield (matching route)", () => {
+        const id = registerScript("test-op-rtr-land", NADU_ROUTES);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: libOf("p1", [
+                        ["top", LAND_ID],
+                        ["next", BEAR_ID],
+                    ]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].battlefield.map((c) => c.id)).toContain("top");
+        expect(state.players[0].hand.map((c) => c.id)).not.toContain("top");
+        // Only the top card is touched — the rest of the library is untouched.
+        expect(state.players[0].library.map((c) => c.id)).toEqual(["next"]);
+    });
+
+    it("routes a revealed NONLAND into hand (the `fallback` branch)", () => {
+        const id = registerScript("test-op-rtr-nonland", NADU_ROUTES);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: libOf("p1", [
+                        ["top", BEAR_ID],
+                        ["next", LAND_ID],
+                    ]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].hand.map((c) => c.id)).toContain("top");
+        expect(state.players[0].battlefield.map((c) => c.id)).not.toContain(
+            "top"
+        );
+        expect(state.players[0].library.map((c) => c.id)).toEqual(["next"]);
+    });
+
+    it("reveals the card publicly (CR 701.20a) — it survives into the opponent's projected view", () => {
+        const id = registerScript("test-op-rtr-reveal", NADU_ROUTES);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: libOf("p1", [["top", BEAR_ID]]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        // WIRE FORMAT (mandatory per the GRE testing convention): the revealed
+        // card rode into p1's HAND, a zone the projection nulls out for the
+        // opponent — unless the CR 701.20a reveal stamped it known-to-all.
+        const oppView = projectPublicState(state, 1, "p2");
+        const revealed = oppView.players[0].hand.find(
+            (c) => c !== null && c.id === "top"
+        );
+        expect(revealed).toBeDefined();
+        expect(revealed!.card.id).toBe(BEAR_ID);
+    });
+
+    it("routes each card independently when `count` > 1, reading pre-move characteristics", () => {
+        // The land is routed FIRST and mutates the library; the nonland behind
+        // it must still be classified off the snapshot taken before any move.
+        const id = registerScript("test-op-rtr-count", [
+            {
+                op: "revealTopAndRoute",
+                player: "controller",
+                count: 2,
+                routes: [{ filter: { type: "Land" }, to: "battlefield" }],
+                fallback: "hand",
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: libOf("p1", [
+                        ["l", LAND_ID],
+                        ["c", BEAR_ID],
+                        ["rest", BEAR_ID],
+                    ]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].battlefield.map((c) => c.id)).toContain("l");
+        expect(state.players[0].hand.map((c) => c.id)).toContain("c");
+        expect(state.players[0].library.map((c) => c.id)).toEqual(["rest"]);
+    });
+
+    it("applies `routes` FIRST MATCH WINS", () => {
+        // A basic land matches both rules; the earlier one (exile) must win.
+        const id = registerScript("test-op-rtr-first-match", [
+            {
+                op: "revealTopAndRoute",
+                player: "controller",
+                routes: [
+                    { filter: { supertype: "Basic" }, to: "exile" },
+                    { filter: { type: "Land" }, to: "battlefield" },
+                ],
+                fallback: "hand",
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: libOf("p1", [["top", BASIC_LAND_ID]]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].exile.map((c) => c.id)).toContain("top");
+        expect(state.players[0].battlefield.map((c) => c.id)).not.toContain(
+            "top"
+        );
+    });
+
+    it("routes to the graveyard when a rule names it", () => {
+        const id = registerScript("test-op-rtr-graveyard", [
+            {
+                op: "revealTopAndRoute",
+                player: "controller",
+                routes: [{ filter: { type: "Creature" }, to: "graveyard" }],
+                fallback: "hand",
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: libOf("p1", [["top", BEAR_ID]]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        // (The resolved sorcery itself also lands in the graveyard, CR 608.2m.)
+        expect(state.players[0].graveyard.map((c) => c.id)).toContain("top");
+        expect(state.players[0].library).toHaveLength(0);
+    });
+
+    it("is a no-op on an EMPTY library (CR 608.2b)", () => {
+        const id = registerScript("test-op-rtr-empty", NADU_ROUTES);
+        const state = makeState({
+            players: [makePlayer("p1", { library: [] }), makePlayer("p2")],
+        });
+        pushSpell(state, id, "p1");
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+        expect(state.players[0].hand).toHaveLength(0);
+        expect(state.players[0].battlefield).toHaveLength(0);
+    });
+
+    it("reveals an announced TARGET player's library, not the controller's", () => {
+        const id = registerScript(
+            "test-op-rtr-target",
+            [
+                {
+                    op: "revealTopAndRoute",
+                    player: { target: 0 },
+                    routes: [{ filter: { type: "Land" }, to: "battlefield" }],
+                    fallback: "hand",
+                },
+            ],
+            { targetRequirement: { type: "player", count: 1 } }
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: libOf("p1", [["mine", LAND_ID]]),
+                }),
+                makePlayer("p2", {
+                    library: libOf("p2", [["theirs", LAND_ID]]),
+                }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        expect(state.players[1].battlefield.map((c) => c.id)).toContain(
+            "theirs"
+        );
+        expect(state.players[0].library.map((c) => c.id)).toEqual(["mine"]);
+    });
+
+    it("never suspends — no PendingChoice is raised", () => {
+        const id = registerScript("test-op-rtr-no-suspend", NADU_ROUTES);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: libOf("p1", [["top", LAND_ID]]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        expect(state.stack).toHaveLength(0);
+    });
+});

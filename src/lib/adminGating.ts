@@ -33,17 +33,20 @@ export function canViewLimitedReviewDetail(
 }
 
 /**
- * Whether the Draft Lab replay surface should treat this viewer as able to
- * see a completed Draft event's reconstruction (issue #1613 fixup). Cosmetic
- * only: the server projection (`eventProjection.ts`'s `projectLimitedEvent`)
- * already exposes a completed Draft event's `seed` ONLY to an admin viewer —
- * a non-admin's `LimitedEventView.seed` is always `null` regardless of what
- * this predicate returns. It exists so `DraftLabReplayPanel` can tell a
- * non-admin WHY the replay is unavailable instead of showing the same "no
- * recorded seed" message a genuinely seed-less event would (a silently
- * misleading degrade otherwise).
+ * Whether the `/admin/*` section renders at all — the header's Admin menu and
+ * every page under it (Scenarios, Banlists, Pick Ratings, Card Profiles, Draft
+ * Lab, Design System). ONE predicate for the whole section rather than one per
+ * page: the pages differ in what they expose but not in who may see them, and
+ * a single gate is what lets `AdminRouteGate` sit above the section's `Outlet`
+ * instead of being re-derived (and eventually forgotten) per route.
+ *
+ * Cosmetic on its own, as always: each admin mutation/query behind these pages
+ * gates on `assertIsAdmin` server-side, which is the real boundary. The gate
+ * fails CLOSED while the current-user query is in flight (`undefined`), so a
+ * non-admin never sees a frame of an admin page — and, for pages whose hooks
+ * call admin-gated queries (the Draft Lab), never mounts those hooks at all.
  */
-export function canViewDraftReplay(
+export function canViewAdminSection(
     user: AdminGateUser | null | undefined
 ): boolean {
     return user?.isAdmin === true;

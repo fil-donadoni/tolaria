@@ -5,7 +5,7 @@ import { describe, it, expect } from "vitest";
 import {
     canEditPresets,
     canViewLimitedReviewDetail,
-    canViewDraftReplay,
+    canViewAdminSection,
 } from "../adminGating";
 
 describe("canEditPresets (ADR 0033)", () => {
@@ -46,21 +46,25 @@ describe("canViewLimitedReviewDetail (issue #1583)", () => {
     });
 });
 
-describe("canViewDraftReplay (issue #1613 fixup)", () => {
+describe("canViewAdminSection (ADR 0074, admin-only section)", () => {
     it("allows a user flagged isAdmin: true", () => {
-        expect(canViewDraftReplay({ isAdmin: true })).toBe(true);
+        expect(canViewAdminSection({ isAdmin: true })).toBe(true);
     });
 
     it("hides for a non-admin user", () => {
-        expect(canViewDraftReplay({ isAdmin: false })).toBe(false);
-        expect(canViewDraftReplay({})).toBe(false);
+        expect(canViewAdminSection({ isAdmin: false })).toBe(false);
+        expect(canViewAdminSection({})).toBe(false);
     });
 
     it("hides while the user is loading (undefined)", () => {
-        expect(canViewDraftReplay(undefined)).toBe(false);
+        // Fail CLOSED while `useCurrentUser()` is in flight: an admin sees a
+        // one-frame "checking access" line, a non-admin never sees a frame of
+        // the workbench (and, decisively, never mounts the hooks that call
+        // the admin-gated queries).
+        expect(canViewAdminSection(undefined)).toBe(false);
     });
 
     it("hides when signed out (null)", () => {
-        expect(canViewDraftReplay(null)).toBe(false);
+        expect(canViewAdminSection(null)).toBe(false);
     });
 });

@@ -3,7 +3,13 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition, EffectOp, SpellContext } from "../../types";
+import type {
+    CardDefinition,
+    EffectOp,
+    PermanentView,
+    SpellContext,
+    StaticEffectContext,
+} from "../../types";
 import { damageDealtTrigger } from "../../abilities/triggers/damageDealtTrigger";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 
@@ -201,4 +207,121 @@ export const phlageTitanOfFiresFury: CardDefinition = {
     ],
     // CR 702.138 — Escape. {R}{R}{W}{W} + exile five OTHER graveyard cards.
     escape: { mana: { R: 2, W: 2 }, exile: { count: 5 } },
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Nadu, Winged Wisdom — {1}{G}{U} Legendary Creature — Bird Wizard 3/4.
+// "Flying
+//  Creatures you control have 'Whenever this creature becomes the target of a
+//  spell or ability, reveal the top card of your library. If it's a land card,
+//  put it onto the battlefield. Otherwise, put it into your hand. This ability
+//  triggers only twice each turn.'"
+//
+// Three engine seams, none of them new machinery invented for this card:
+//
+// 1. The battlefield-wide GRANT (CR 113.1 granted ability + CR 611 continuous
+//    filtered set) is the `triggered-grant` static effect Energy Flux
+//    (`atq/blue.ts`) and The Tabernacle at Pendrell Vale (`leg/colorless.ts`)
+//    already prove: the template lives on `triggeredGrantTemplates[]` (NOT on
+//    `triggeredAbilities`, so the recipients own it and Nadu does not fire a
+//    separate copy of its own), `effectiveTriggeredAbilities` unions it into
+//    each recipient, and the trigger collector scans it AS IF PRINTED on that
+//    creature — so `self` inside the template IS the targeted creature and
+//    `"controller"` inside its Effect Script is that creature's controller
+//    ("YOUR library"). Nadu itself is a creature it controls, so it receives
+//    the grant too — correct, the Oracle text says "creatures you control".
+//
+// 2. The TRIGGER CONDITION is `BECAME_TARGET` (CR 603.2b, issue #1265) — the
+//    same target-declaration event Leovold and Ward read, emitted for a cast
+//    spell's locked targets (`gre/state.ts`) AND for an activated/triggered
+//    ability's (`game.ts`), which is exactly the "spell or ability" span the
+//    Oracle text asks for. Narrowed to THIS permanent (`event.target.id ===
+//    self.id`), like Ward and unlike Leovold's controller-scoped match. NOT
+//    narrowed to an opponent's spell/ability: Nadu (unlike Ward, CR 702.21a)
+//    says plainly "becomes the target of a spell or ability", so targeting
+//    your own creature triggers it — which is the whole engine of the card.
+//
+// 3. The PER-TURN CAP is `maxTriggersPerTurn: 2` (CR 603.2 — "This ability
+//    triggers only twice each turn"). Counted PER SOURCE OBJECT on
+//    `CardInstanceState.triggersThisTurn`, the trigger twin of
+//    `activationsThisTurn`: each creature you control gets its OWN two
+//    triggers per turn (which is what "this ability" means on a granted
+//    ability), the cap is checked in `collectTriggers` BEFORE the ability
+//    fires — so an over-quota trigger never reaches the stack at all, rather
+//    than going on the stack and fizzling — and the tally resets at the turn
+//    boundary (`gre/phases.ts`).
+//
+/** CR 205 / 611 — "creatures you control": the affected set is every creature
+ *  under the SAME controller as Nadu, read off the LIVE types/controller so a
+ *  permanent animated into a creature (or one that changes controller) joins or
+ *  leaves the set as the layer system recomputes it. Mirrors Energy Flux's
+ *  `IS_ARTIFACT` predicate shape exactly. */
+const NADU_AFFECTS_YOUR_CREATURES: (
+    target: PermanentView,
+    source: PermanentView,
+    ctx: StaticEffectContext
+) => boolean = (target, source) =>
+    target.types.includes("Creature") &&
+    target.controllerId === source.controllerId;
+
+// The effect itself is a plain Effect Script over the `revealTopAndRoute` Op
+// (CR 701.20a reveal + CR 400.7 zone change): reveal the top card, route a
+// land onto the battlefield, everything else into hand. The land ENTERS —
+// it is not "played", so it costs no land drop (CR 305.2 / 400.7).
+export const naduWingedWisdom: CardDefinition = {
+    id: "94b67489-5eb0-4406-9bf3-27e50dc632eb",
+    name: "Nadu, Winged Wisdom",
+    rarity: "rare",
+    oracleText:
+        'Flying\nCreatures you control have "Whenever this creature becomes the target of a spell or ability, reveal the top card of your library. If it\'s a land card, put it onto the battlefield. Otherwise, put it into your hand. This ability triggers only twice each turn."',
+    manaCost: { X: 1, G: 1, U: 1 },
+    types: ["Creature"],
+    supertypes: ["Legendary"],
+    subtypes: ["Bird", "Wizard"],
+    power: 3,
+    toughness: 4,
+    staticAbilities: ["flying"],
+    staticEffects: [
+        // CR 113.1 / 611 — grant the became-target trigger to every creature
+        // its controller controls, recomputed as creatures enter and leave.
+        {
+            kind: "triggered-grant",
+            applies: NADU_AFFECTS_YOUR_CREATURES,
+            abilityId: "nadu-became-target",
+        },
+    ],
+    // Kept off `triggeredAbilities` so Nadu doesn't fire a SECOND copy of the
+    // trigger on top of the one it receives as a creature its controller
+    // controls — same convention as Energy Flux / Lavaspur Boots.
+    triggeredGrantTemplates: [
+        {
+            id: "nadu-became-target",
+            oracleText:
+                "Whenever this creature becomes the target of a spell or ability, reveal the top card of your library. If it's a land card, put it onto the battlefield. Otherwise, put it into your hand. This ability triggers only twice each turn.",
+            event: "BECAME_TARGET",
+            // CR 603.2b — "whenever THIS CREATURE becomes the target of a
+            // spell or ability". Pinned to this exact permanent, and
+            // deliberately NOT filtered by the targeting source's controller:
+            // unlike Ward (CR 702.21a, "an opponent controls") Nadu fires on
+            // your own spells and abilities too.
+            matches: (event, self) =>
+                event.type === "BECAME_TARGET" &&
+                event.target.type === "permanent" &&
+                event.target.id === self.id,
+            // CR 603.2 — "This ability triggers only twice each turn", tallied
+            // per source object, so each creature has its own quota.
+            maxTriggersPerTurn: 2,
+            effects: [
+                {
+                    op: "revealTopAndRoute",
+                    // The granted trigger's controller is the CREATURE's
+                    // controller, so this is "your library" from the point of
+                    // view of the Oracle text printed on that creature.
+                    player: "controller",
+                    routes: [{ filter: { type: "Land" }, to: "battlefield" }],
+                    fallback: "hand",
+                },
+            ],
+        },
+    ],
 };

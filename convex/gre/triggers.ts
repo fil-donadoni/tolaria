@@ -275,6 +275,34 @@ export function triggerHandlesEventType(
         : ability.event === type;
 }
 
+/** True if `ability` has already triggered its per-turn maximum on this exact
+ *  source object (CR 603.2 — "this ability triggers only twice each turn").
+ *  Uncapped abilities (the overwhelming majority) always return false. The
+ *  tally is per PERMANENT INSTANCE, so a battlefield-wide grant gives each
+ *  recipient its own quota. */
+function triggerCapReached(
+    permanent: CardInstanceState,
+    ability: TriggeredAbility
+): boolean {
+    const max = ability.maxTriggersPerTurn;
+    if (max === undefined) return false;
+    return (permanent.triggersThisTurn?.[ability.id] ?? 0) >= max;
+}
+
+/** Records that `ability` triggered once on `permanent` this turn (CR 603.2).
+ *  No-op for an uncapped ability so the common path allocates nothing — the
+ *  tally exists only to serve `maxTriggersPerTurn`. Reset at the turn boundary
+ *  by `resetPerTurnCounters` (gre/phases.ts). */
+function noteTriggerFired(
+    permanent: CardInstanceState,
+    ability: TriggeredAbility
+): void {
+    if (ability.maxTriggersPerTurn === undefined) return;
+    const tally: Record<string, number> = permanent.triggersThisTurn ?? {};
+    tally[ability.id] = (tally[ability.id] ?? 0) + 1;
+    permanent.triggersThisTurn = tally;
+}
+
 /** Scans all battlefield permanents for triggered abilities matching `events`.
  *  Returns new StackItems in the order they should be placed on the stack.
  *
@@ -368,8 +396,15 @@ export function collectTriggers(
                 for (const event of events) {
                     if (!triggerHandlesEventType(ability, event.type)) continue;
                     if (ability.oncePerEventBatch && firedThisBatch) continue;
+                    // CR 603.2 — "this ability triggers only N times each turn"
+                    // (Nadu, Winged Wisdom). The cap is checked BEFORE
+                    // `matches`, so an over-quota ability never fires: no stack
+                    // item is created, which is the difference between this and
+                    // a trigger that goes on the stack and then fizzles.
+                    if (triggerCapReached(permanent, ability)) continue;
                     if (!ability.matches(event, permanent, state)) continue;
                     firedThisBatch = true;
+                    noteTriggerFired(permanent, ability);
                     out.push(
                         buildTriggerItem(state, permanent, ability.id, event)
                     );

@@ -16,7 +16,7 @@
 // one `(scope, cardId)` key discipline.
 import { v } from "convex/values";
 import { mutation, query, type MutationCtx } from "../_generated/server";
-import { assertIsAdmin, getCurrentUserId } from "../auth";
+import { assertIsAdmin } from "../auth";
 import { isValidRating, PICK_RATING_MIN, PICK_RATING_MAX } from "./pickRatings";
 import {
     buildCardRatingRow,
@@ -166,16 +166,14 @@ export const listScopeCardRatings = query({
  *  `convex/limitedEvents.ts`'s inline `loadEventPickRating`, for a CLIENT
  *  consumer that can't call that internal helper directly: the Draft Lab
  *  replay surface (issue #1613 fixup). Mirrors `cardProfiles.ts`'s
- *  `listScopeCardProfiles` exactly, including its gating choice — reading a
- *  scope's edited ratings is informational, not an admin-only capability
- *  (`assertIsAdmin` stays reserved for the WRITE mutations above and the
- *  editor read `listScopeCardRatings`, which additionally folds in the seed
- *  layer for editing UI). In practice only an admin viewer has a live reason
- *  to call this today: the replay surface that feeds it needs the event's
- *  `seed`, which `eventProjection.ts` now exposes only to an admin — but
- *  this query itself places no admin gate on READING ratings, the same
- *  "any authenticated user, not admin-gated" call `listScopeCardProfiles`
- *  already makes for its own informational read. Read-only: no
+ *  `listScopeCardProfiles` exactly, including its gating choice —
+ *  `assertIsAdmin`, since the whole `/draft-lab` route (this query's only
+ *  consumer) is admin-only, and the replay surface that feeds it already
+ *  needs the event `seed` that `eventProjection.ts` releases to an admin
+ *  alone. It was originally `getCurrentUserId`, matching the Draft Lab's
+ *  original "any authenticated user" access; keeping it open once the route
+ *  closed would leave the route gate cosmetic — a non-admin could read every
+ *  scope's edited ratings by calling this directly. Read-only: no
  *  `insert`/`patch`/`delete` anywhere in this handler, so it carries no
  *  write surface for `draft-lab-no-mutation.test.ts` to catch. Uses the
  *  `by_scope` index per scope — bounded, never a full-table scan, the same
@@ -190,7 +188,7 @@ export const listScopeCardRatingsForReplay = query({
         })
     ),
     handler: async (ctx, { scopes }): Promise<ScopedCardRating[]> => {
-        await getCurrentUserId(ctx);
+        await assertIsAdmin(ctx);
         const normalizedScopes = Array.from(
             new Set(scopes.map((scope) => scope.toLowerCase()))
         );

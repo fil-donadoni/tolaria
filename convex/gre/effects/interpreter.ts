@@ -2263,6 +2263,66 @@ export const OP_EXECUTORS: {
         if (count === undefined || count <= 0) return;
         ctx.millCards(playerId, count);
     },
+    // CR 701.20a + CR 400.7 — reveal the top `count` card(s) of a library and
+    // route each one by WHAT IT IS: "Reveal the top card of your library. If
+    // it's a land card, put it onto the battlefield. Otherwise, put it into
+    // your hand." (Nadu, Winged Wisdom). A thin declarative skin over existing
+    // primitives, ONE execution path (ADR 0045): `peekLibraryTop` names the
+    // window, `markKnownToAll` + `notifyReveal` make it public (the same pair
+    // `digToHand`'s reveal leg fires), and each card leaves the library through
+    // `putFromLibraryOntoBattlefield` or `moveCardById` — the exact two
+    // primitives `moveZone`'s `cards` shape already dispatches between.
+    //
+    // DETERMINISTIC — the destination is dictated by the revealed card's own
+    // characteristics, so unlike `digToHand` / `scryReorder` /
+    // `revealAndCategorize` there is nothing to pick and this Op never
+    // suspends. Skipped when the player is gone, `count` ≤ 0, or the library
+    // is empty (CR 608.2b — an empty library reveals nothing, and fires no
+    // reveal dialog).
+    revealTopAndRoute(ctx, op) {
+        const playerId = resolvePlayerRef(ctx, op.player);
+        if (playerId === undefined) return; // CR 608.2b — player gone, skip
+        const count = op.count === undefined ? 1 : resolveValue(ctx, op.count);
+        if (count === undefined || count <= 0) return;
+        const topIds = ctx.peekLibraryTop(playerId, count);
+        if (topIds.length === 0) return; // CR 608.2b — empty library
+        // Snapshot the revealed cards' characteristics BEFORE any of them move:
+        // routing card 1 onto the battlefield mutates the library, and a later
+        // card's filter must still be read against what was revealed.
+        const revealed = new Map(
+            ctx
+                .getLibraryCards(playerId)
+                .filter((c) => topIds.includes(c.id))
+                .map((c) => [c.id, c])
+        );
+        // CR 701.20a — the reveal is public and happens BEFORE the cards are
+        // routed: `markKnownToAll` is the persistent grant (a card revealed on
+        // its way to hand stays visible to the opponent), `notifyReveal` is the
+        // transient dialog. Fired exactly once — this Op never suspends, so
+        // there is no resumed pass that could double-pop it.
+        ctx.markKnownToAll(playerId, topIds);
+        ctx.notifyReveal(
+            [...ctx.allPlayerIds],
+            topIds,
+            ctx.sourceCardId,
+            "reveal"
+        );
+        for (const id of topIds) {
+            const card = revealed.get(id);
+            if (card === undefined) continue; // CR 608.2b — no longer there
+            // FIRST MATCH WINS across the ordered `routes`; no match falls
+            // through to `fallback` (the Oracle text's "Otherwise, …").
+            const route = op.routes.find((r) =>
+                matchesCardFilter(ctx, card, r.filter)
+            );
+            const destination = route?.to ?? op.fallback;
+            if (destination === "battlefield") {
+                ctx.putFromLibraryOntoBattlefield(playerId, id);
+            } else {
+                ctx.moveCardById(playerId, id, "library", destination);
+            }
+        }
+    },
     // CR 401.4 (issue #984, extended #1101) — dig to hand: look at the top
     // `look` cards, put `take` (default 1) into hand, the rest to
     // `destination` (the library BOTTOM by default, or the GRAVEYARD —

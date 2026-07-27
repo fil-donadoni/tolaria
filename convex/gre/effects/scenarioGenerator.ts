@@ -578,6 +578,17 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // execution coverage is the Op's own interpreter tests.
             req.skip ??= `Op "mill" moves top-of-library cards to the graveyard — covered by the Op's interpreter tests`;
             return;
+        case "revealTopAndRoute":
+            // `revealTopAndRoute` routes the revealed top card(s) by their own
+            // characteristics. The canned generator seeds only a minimal filler
+            // library and cannot provision a KNOWN top card matching (or
+            // deliberately missing) a route's filter, so every destination is
+            // unpredictable from here — asserting any delta would mis-assert.
+            // Reported as an explicit skip; execution coverage is the Op's own
+            // interpreter tests, which drive both the matching and the
+            // fallback branch.
+            req.skip ??= `Op "revealTopAndRoute" routes the revealed top card by its characteristics — the canned generator cannot provision a known top card; covered by the Op's interpreter tests`;
+            return;
         case "discardAtRandom":
             // `discardAtRandom` (CR 701.8a) removes `count` RANDOM cards from a
             // TARGET player's hand. The canned generator seeds only a minimal
@@ -1864,6 +1875,15 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     // without mis-modelling the source deck). Kept for the 1:1 coverage guard;
     // the mill loop is covered by the Op's own interpreter tests.
     mill() {
+        return null;
+    },
+    // `revealTopAndRoute` (CR 701.20a) — never reached: `analyseOp` skips every
+    // script carrying one (the canned generator seeds a minimal filler library
+    // and cannot provision a KNOWN top card, so which route fires is
+    // unpredictable and any delta would be a mis-assertion). Kept for the 1:1
+    // coverage guard; both the matching route and the fallback are covered by
+    // the Op's own interpreter tests.
+    revealTopAndRoute() {
         return null;
     },
     // `discardAtRandom` (CR 701.8a, PRD #795) — never reached: `analyseOp`

@@ -168,6 +168,15 @@ function compactCard(
     ) {
         out.activationsThisTurn = card.activationsThisTurn;
     }
+    // CR 603.2 per-turn trigger cap tally — same round-trip contract as
+    // `activationsThisTurn`: a mid-turn save/load must not refund a capped
+    // ability's spent triggers (Nadu, Winged Wisdom).
+    if (
+        card.triggersThisTurn &&
+        Object.keys(card.triggersThisTurn).length > 0
+    ) {
+        out.triggersThisTurn = card.triggersThisTurn;
+    }
     if (card.grantedTypes && card.grantedTypes.length > 0) {
         out.grantedTypes = card.grantedTypes;
     }
@@ -480,6 +489,12 @@ function expandCard(
     }
     if (compact.activationsThisTurn) {
         result.activationsThisTurn = compact.activationsThisTurn as Record<
+            string,
+            number
+        >;
+    }
+    if (compact.triggersThisTurn) {
+        result.triggersThisTurn = compact.triggersThisTurn as Record<
             string,
             number
         >;

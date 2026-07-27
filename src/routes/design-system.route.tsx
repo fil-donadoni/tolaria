@@ -28,7 +28,7 @@ const TOC: Array<[string, string]> = [
 
 export default function DesignSystemRoute() {
     return (
-        <div className="relative min-h-dvh bg-surface-base text-text">
+        <div className="relative flex-1 bg-surface-base text-text">
             <AmbientPageGround />
             <div className="relative z-10 mx-auto max-w-6xl px-4 py-10 sm:px-8">
                 <header>

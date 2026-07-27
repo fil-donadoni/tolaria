@@ -87,8 +87,9 @@ vi.mock("~/lib/adminGating", () => ({ canEditPresets: () => false }));
 
 // Stub the chrome around the Play panel so the integration test stays focused
 // on the vs-AI flow (the real DashboardPlayBox + VsAiSetupDialog still render).
-// DashboardTopBar pulls in auth/profile wiring irrelevant here.
-vi.mock("../dashboard-top-bar", () => ({ default: () => null }));
+// The app header is no longer the Lobby's to render — it moved to `AppShell`
+// (`src/components/chrome/app-header.tsx`) so every section wears it — so
+// there is nothing to stub here beyond the background.
 vi.mock("../lobby-background", () => ({ default: () => null }));
 
 // Persisted lobby state: start with a known hero deck selected, Bo3 format.

@@ -651,6 +651,24 @@ const mill: Valuer<"mill"> = (op, ctx) => {
     };
 };
 
+// Reveal the top N and route each by what it is (Nadu, Winged Wisdom). Every
+// destination in `RevealRouteDestination` still gets the card OUT of the
+// library, so the yield is one card of advantage per revealed card regardless
+// of which route fires — a land hitting the battlefield and a spell hitting
+// the hand are both worth roughly a drawn card here. Routes sending cards to
+// the graveyard/exile are self-mill and worth strictly less, so the per-card
+// value is damped off `CARD_VALUE` rather than taken at face value.
+const REVEAL_ROUTE_PER_CARD = 35;
+const revealTopAndRoute: Valuer<"revealTopAndRoute"> = (op, ctx) => {
+    const { amount, scaling } = op.count
+        ? ctx.value(op.count)
+        : { amount: 1, scaling: false };
+    return {
+        points: amount * REVEAL_ROUTE_PER_CARD,
+        tags: tagScaling(scaling, "cardAdvantage"),
+    };
+};
+
 const nameCard: Valuer<"nameCard"> = () => ZERO_OP_VALUE;
 
 const preventDamage: Valuer<"preventDamage"> = (op, ctx) => {
@@ -865,6 +883,7 @@ export const OP_VALUERS: {
     grantGraveyardPlay,
     libraryLook,
     mill,
+    revealTopAndRoute,
     nameCard,
     preventDamage,
     markAssignsNoCombatDamage,

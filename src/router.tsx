@@ -1,5 +1,4 @@
 import {
-    Outlet,
     RouterProvider,
     createRootRoute,
     createRoute,
@@ -18,11 +17,21 @@ import LimitedEventDetailRoute from "./routes/limited-event-detail.route";
 import LimitedDeckBuilderRoute from "./routes/limited-deck-builder.route";
 import DesignSystemRoute from "./routes/design-system.route";
 import DraftLabRoute from "./routes/draft-lab.route";
+import AdminLayoutRoute from "./routes/admin/admin-layout.route";
+import AdminIndexRoute from "./routes/admin/admin-index.route";
+import AdminScenariosRoute from "./routes/admin/admin-scenarios.route";
+import AdminBanlistsRoute from "./routes/admin/admin-banlists.route";
+import AdminPickRatingsRoute from "./routes/admin/admin-pick-ratings.route";
+import AdminCardProfilesRoute from "./routes/admin/admin-card-profiles.route";
+import AppShell from "./components/chrome/app-shell";
+import NotFoundPage from "./components/ui/not-found-page";
 
+// Root: auth first, then the shell, which mounts the shared header on every
+// route except the fullscreen board. `AppShell` owns the `Outlet`.
 const rootRoute = createRootRoute({
     component: () => (
         <AuthGate>
-            <Outlet />
+            <AppShell />
             <BugReportButton />
         </AuthGate>
     ),
@@ -117,21 +126,67 @@ const limitedDeckBuilderRoute = createRoute({
     component: LimitedDeckBuilderRoute,
 });
 
-// Permanent design-system census (phase 3): the living reference for tokens,
-// chrome, and component variants. Unlike /prototype/* spikes this is kept.
-const designSystemRoute = createRoute({
+// ─────────────────────────────────────────────────────────────────────────
+// Admin section. ONE layout route gates the whole subtree (`AdminRouteGate`
+// inside `AdminLayoutRoute`): a non-admin gets the same 404 an unknown path
+// produces, and a new admin page inherits the gate by being added here. The
+// pages themselves are the curation/developer surfaces that used to be either
+// buried at the bottom of the Lobby (banlists, pick ratings, card profiles),
+// reachable only from inside a game (scenarios), or on an unlisted top-level
+// path anyone could guess (`/draft-lab`, `/design-system`).
+// ─────────────────────────────────────────────────────────────────────────
+const adminRoute = createRoute({
     getParentRoute: () => rootRoute,
-    path: "/design-system",
-    component: DesignSystemRoute,
+    path: "/admin",
+    component: AdminLayoutRoute,
 });
 
-// Draft Lab synthetic mode (PRD #1607 slice 5, issue #1612, ADR 0074): a
+const adminIndexRoute = createRoute({
+    getParentRoute: () => adminRoute,
+    path: "/",
+    component: AdminIndexRoute,
+});
+
+// Saved board setups (ADR 0044) — "debug scenarios" as a managed library.
+const adminScenariosRoute = createRoute({
+    getParentRoute: () => adminRoute,
+    path: "scenarios",
+    component: AdminScenariosRoute,
+});
+
+const adminBanlistsRoute = createRoute({
+    getParentRoute: () => adminRoute,
+    path: "banlists",
+    component: AdminBanlistsRoute,
+});
+
+const adminPickRatingsRoute = createRoute({
+    getParentRoute: () => adminRoute,
+    path: "pick-ratings",
+    component: AdminPickRatingsRoute,
+});
+
+const adminCardProfilesRoute = createRoute({
+    getParentRoute: () => adminRoute,
+    path: "card-profiles",
+    component: AdminCardProfilesRoute,
+});
+
+// Draft Lab (PRD #1607 slices 5-6, issues #1612/#1613, ADR 0074): a
 // client-only developer surface that runs a whole Bot Drafter draft in the
 // browser and shows the scorer's per-candidate breakdown. Writes nothing.
-const draftLabRoute = createRoute({
-    getParentRoute: () => rootRoute,
-    path: "/draft-lab",
+const adminDraftLabRoute = createRoute({
+    getParentRoute: () => adminRoute,
+    path: "draft-lab",
     component: DraftLabRoute,
+});
+
+// Permanent design-system census (phase 3): the living reference for tokens,
+// chrome, and component variants. Unlike /prototype/* spikes this is kept.
+const adminDesignSystemRoute = createRoute({
+    getParentRoute: () => adminRoute,
+    path: "design-system",
+    component: DesignSystemRoute,
 });
 
 const routeTree = rootRoute.addChildren([
@@ -146,11 +201,26 @@ const routeTree = rootRoute.addChildren([
     limitedEventsRoute,
     limitedEventDetailRoute,
     limitedDeckBuilderRoute,
-    designSystemRoute,
-    draftLabRoute,
+    adminRoute.addChildren([
+        adminIndexRoute,
+        adminScenariosRoute,
+        adminBanlistsRoute,
+        adminPickRatingsRoute,
+        adminCardProfilesRoute,
+        adminDraftLabRoute,
+        adminDesignSystemRoute,
+    ]),
 ]);
 
-const router = createRouter({ routeTree });
+// One 404 for the whole app. TanStack Router's built-in fallback is a bare
+// "Not Found" string with no chrome; `NotFoundPage` is the real page, and it
+// is the SAME component the admin gate renders for a non-admin — that is what
+// makes an admin surface indistinguishable from a path that doesn't exist
+// (see `admin-route-gate.tsx`).
+const router = createRouter({
+    routeTree,
+    defaultNotFoundComponent: NotFoundPage,
+});
 
 declare module "@tanstack/react-router" {
     interface Register {

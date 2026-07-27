@@ -6,8 +6,13 @@ import DebugButton from "./debug-button";
  * (★ golden / ☆ ephemeral), the load button, regenerate/vary affordances (only
  * for a row carrying a stored prompt), and delete. Pure presentational — all
  * async work (load, toggle, regenerate, vary, delete, cleanup) is owned by the
- * parent `DebugDbScenarios`, which passes `disabled` while a mutation/action is
- * in flight so the buttons can't double-fire.
+ * parent (`DebugDbScenarios` in the board's debug blade, `ScenariosAdminPanel`
+ * on `/admin/scenarios`), which passes `disabled` while a mutation/action is in
+ * flight so the buttons can't double-fire.
+ *
+ * `onLoad` is OPTIONAL because the admin page manages scenarios with no game
+ * open: loading a board setup needs a `gameId`, which only the in-game blade
+ * has. Without it the label renders as plain text rather than a dead button.
  */
 export default function DebugScenarioRow({
     row,
@@ -21,7 +26,7 @@ export default function DebugScenarioRow({
 }: {
     row: Doc<"debugScenarios">;
     disabled: boolean;
-    onLoad: () => void;
+    onLoad?: () => void;
     onToggleGolden: () => void;
     onEdit: () => void;
     onRegenerate: () => void;
@@ -40,9 +45,15 @@ export default function DebugScenarioRow({
                     {row.golden ? "★" : "☆"}
                 </span>
             </DebugButton>
-            <DebugButton onClick={onLoad} disabled={disabled}>
-                {row.label}
-            </DebugButton>
+            {onLoad ? (
+                <DebugButton onClick={onLoad} disabled={disabled}>
+                    {row.label}
+                </DebugButton>
+            ) : (
+                <span className="flex-1 truncate px-1 text-xs text-text">
+                    {row.label}
+                </span>
+            )}
             <DebugButton onClick={onEdit} disabled={disabled}>
                 {"✎"}
             </DebugButton>

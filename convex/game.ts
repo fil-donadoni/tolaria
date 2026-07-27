@@ -10854,6 +10854,20 @@ export function activateAbilityOnState(
     ) {
         throw new Error("Ability cannot be activated during this phase");
     }
+    // CR 602.5 / 606.3 — timing legality (controller-turn-only,
+    // once-per-turn, "activate only as a sorcery") and loyalty legality are
+    // gated HERE, in the shared prelude, so BOTH the targeted and the
+    // non-targeted path enforce them identically. They used to live only in
+    // the non-targeted branch (loyalty was duplicated into the targeted one),
+    // which let a targeted `sorcerySpeedOnly` ability — Equip is the canonical
+    // shape — open a `pendingTarget` at instant speed. The timing check then
+    // fired far downstream in `finalizeTargetSelection`, throwing AFTER the
+    // prompt was already persisted: the game sat forever on
+    // `expectedInput.kind === "target"` and every subsequent `passPriority`
+    // bounced off `assertExpectedInput` (ADR 0047). Any new activation gate
+    // belongs in this prelude, not in one of the two branches.
+    assertActivationTimingLegal(state, card, ability);
+    assertLoyaltyActivationLegal(state, card, ability);
 
     // CR 602.2b: if the ability has targets, choose them before paying
     // costs. Mana availability is deferred to finalizeTargetSelection
@@ -10909,11 +10923,6 @@ export function activateAbilityOnState(
         ) {
             throw new Error("Ability cannot be activated right now");
         }
-        // CR 606 — a targeted loyalty ability (Liliana of the Veil's "-2:
-        // target player sacrifices a creature") is validated up-front, before
-        // entering target selection, so an illegal loyalty ability never
-        // opens a target prompt. Paid later at `finalizeTargetSelection`.
-        assertLoyaltyActivationLegal(state, card, ability);
         // CR 107.3 / 601.2b — chosenX must accompany abilities with X in
         // their mana cost. Stashed on pendingTarget; finalizeTargetSelection
         // forwards it to pendingActivation / the stack item.
@@ -11120,11 +11129,6 @@ export function activateAbilityOnState(
     ) {
         throw new Error("Ability cannot be activated right now");
     }
-    assertActivationTimingLegal(state, card, ability);
-    // CR 606 — a non-targeted loyalty ability (Liliana's "+1", Garruk's
-    // "-4") is validated up-front here; it has no mana/tap/sacrifice
-    // component, so it commits inline below (paid via `payLoyaltyCost`).
-    assertLoyaltyActivationLegal(state, card, ability);
     // CR 107.3 / 601.2b — chosenX is required for abilities whose mana
     // cost has X. Validate up-front; pass to normalizeManaCost so the
     // generic portion includes X * (the chosen value).

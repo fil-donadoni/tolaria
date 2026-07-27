@@ -57,6 +57,7 @@ import {
     getBlockerCap,
     getMinimumBlockers,
 } from "./combat";
+import { isSorceryTiming } from "./phases";
 import { getInstanceManaCost, tryGetDefinition } from "../cards";
 import { matchesPermanentFilter } from "../cards/filters";
 import { liveSupertypesOf, countSnowLands } from "./snow";
@@ -717,6 +718,15 @@ function enumerateAbilityMoves(
             continue;
         }
         if (ability.controllerTurnOnly && state.activePlayerId !== player.id) {
+            continue;
+        }
+        // CR 602.3b / 307.5 — "activate only as a sorcery" (Equip is the
+        // canonical shape). Without this the enumerator hands the bot an
+        // Equip move in DECLARE_ATTACKERS; the server rejects it, but a
+        // TARGETED ability rejected mid-chain leaves the bot's `activateAbility
+        // → selectTarget` sequence half-applied. Mirrors the server's own
+        // `assertActivationTimingLegal`.
+        if (ability.sorcerySpeedOnly && !isSorceryTiming(state)) {
             continue;
         }
         // Tap cost: source must be untapped and not summoning-locked.

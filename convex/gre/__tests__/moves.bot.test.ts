@@ -11,6 +11,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
+    pushSpell,
 } from "../../cards/__tests__/setup";
 import type { CardInstanceState, GameState } from "../state";
 import { enumerateMoves, planManaPayment, type Move } from "../moves";
@@ -806,5 +807,66 @@ describe("gate ↔ enumerator cost-modifier parity (CR 601.2f, issue #1337)", ()
         // reduction drops it to {G} alone, payable off the single Forest.
         expect(legalActionsFor(state, "p1", bears)).toContain("cast");
         expect(castsFor(state, "p1", bears.id)).toHaveLength(1);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Sorcery-speed activated abilities (CR 602.3b / 307.5)
+// ---------------------------------------------------------------------------
+
+describe("enumerateAbilityMoves — sorcerySpeedOnly timing (CR 602.3b)", () => {
+    const SKULLCLAMP = getCardByName("Skullclamp").id;
+
+    function clampBoard(): GameState {
+        const clamp = makeInstance(SKULLCLAMP, {
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const bears = makeInstance(BEARS, {
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: false,
+        });
+        const p1 = makePlayer("p1", {
+            battlefield: [clamp, bears, land(FOREST, "p1")],
+        });
+        return makeState({ players: [p1, makePlayer("p2")] });
+    }
+
+    function equipMoves(state: GameState): Move[] {
+        return enumerateMoves(state, "p1").filter(
+            (m) =>
+                m.kind === "activate-ability" &&
+                m.abilityId === "skullclamp-equip"
+        );
+    }
+
+    it("offers Equip at sorcery timing (own main phase, empty stack)", () => {
+        expect(equipMoves(clampBoard())).toHaveLength(1);
+    });
+
+    it("does NOT offer Equip in DECLARE_ATTACKERS once attackers are confirmed", () => {
+        // The exact live-game shape that softlocked the board: attackers
+        // confirmed, so the enumerator falls through to the ordinary priority
+        // window and the bot could reach a sorcery-speed Equip. Because Equip
+        // is TARGETED, activating it opened a `pendingTarget` the downstream
+        // timing check then refused to finalize — the game sat forever on
+        // `expectedInput.kind === "target"`.
+        const state = clampBoard();
+        state.phase = "DECLARE_ATTACKERS";
+        state.combat = {
+            attackerIds: [],
+            blockerAssignments: {},
+            blockersConfirmed: false,
+            confirmed: true,
+        };
+        expect(equipMoves(state)).toHaveLength(0);
+    });
+
+    it("does NOT offer Equip while something is on the stack in a main phase", () => {
+        const state = clampBoard();
+        pushSpell(state, BOLT, "p2");
+        state.priorityPlayerId = "p1";
+        expect(equipMoves(state)).toHaveLength(0);
     });
 });

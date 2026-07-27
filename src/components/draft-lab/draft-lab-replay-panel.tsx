@@ -5,18 +5,17 @@
 // (`useMyLimitedEvents`, plus a live `cardRatings` scope read since the
 // #1613 fixup) and calls the pure `reconstructDraftReplay`.
 //
-// Honest degrade for a non-admin (issue #1613 fixup, pre-merge review finding
-// 1's UI follow-up): `eventProjection.ts` now exposes a completed Draft
-// event's `seed` ONLY to an admin viewer, so a non-admin's
-// `selectedEvent.seed` is always `null` — the SAME `null` a genuinely
-// seed-less (pre-ADR-0055) event would show. Without `isAdmin` this panel
-// can't tell those two cases apart, and "this event has no recorded seed"
-// would be a misleading thing to say to a non-admin who simply isn't allowed
-// to see it. `canViewDraftReplay(user)` distinguishes them so the message
-// says WHY, never just renders an empty panel.
+// Non-admin messaging used to live here (issue #1613 fixup): `eventProjection
+// .ts` exposes a completed Draft event's `seed` ONLY to an admin viewer, so a
+// non-admin's `selectedEvent.seed` read as the SAME `null` a genuinely
+// seed-less (pre-ADR-0055) event shows, and the panel had to disambiguate the
+// two. It no longer can be reached by a non-admin at all — the WHOLE
+// `/admin/draft-lab` route is admin-gated (`AdminRouteGate`, see
+// `admin-route-gate.tsx`), so a `null` seed here means exactly one thing: this
+// event has no recorded seed. The old two-branch message was kept honest by
+// the panel; keeping it now would be a structurally dead branch pretending to
+// be a gate, so it is gone and the route owns the access decision.
 import { Panel, PanelHeader, PanelBody } from "@/components/ui/panel";
-import { useCurrentUser } from "@/hooks/useCurrentUser";
-import { canViewDraftReplay } from "@/lib/adminGating";
 import { useDraftLabReplay } from "@/hooks/useDraftLabReplay";
 import { SCORER_VERSION } from "@convex/limited/scorerVersion";
 import DraftLabReplayEventPicker from "./draft-lab-replay-event-picker";
@@ -25,8 +24,6 @@ import DraftLabReplayStopNotice from "./draft-lab-replay-stop-notice";
 import DraftLabReplayPickList from "./draft-lab-replay-pick-list";
 
 export default function DraftLabReplayPanel() {
-    const currentUser = useCurrentUser();
-    const isAdmin = canViewDraftReplay(currentUser);
     const {
         replayableEvents,
         selectedEventId,
@@ -58,9 +55,8 @@ export default function DraftLabReplayPanel() {
 
                     {selectedEvent && selectedEvent.seed == null && (
                         <p className="text-[11px] text-text-disabled">
-                            {isAdmin
-                                ? "This event has no recorded seed and can't be reconstructed."
-                                : "Replay reconstruction needs this event's seed, which is only exposed to an admin viewer — even once the event is complete — because it can regenerate every seat's Pool. Ask an admin to open this replay."}
+                            This event has no recorded seed and can't be
+                            reconstructed.
                         </p>
                     )}
 

@@ -61,7 +61,7 @@ export default function LimitedYourDeckPanel({
                         : illegal
                           ? (deck.reasons[0]?.message ??
                             "It doesn't meet the Limited deck rules yet.")
-                          : "Legal for Limited — challenge a seat or play the bots."}
+                          : "Legal"}
                 </span>
             </div>
             <ActionButton

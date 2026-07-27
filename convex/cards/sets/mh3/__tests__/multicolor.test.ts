@@ -1,15 +1,24 @@
 // Modern Horizons 3 (MH3) — multicolor behavior tests (ADR 0043 colour split).
 
 import { describe, it, expect } from "vitest";
-import { psychicFrog, phlageTitanOfFiresFury } from "../multicolor";
+import {
+    psychicFrog,
+    phlageTitanOfFiresFury,
+    naduWingedWisdom,
+} from "../multicolor";
+import { grizzlyBears } from "../../lea/green";
+import { forest } from "../../lea/colorless";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import {
     type CardInstanceState,
     type GameState,
     type StackItem,
     resolveTopOfStack,
+    applySourceStaticEffects,
 } from "../../../../gre/state";
-import type { TargetSelection } from "../../../types";
+import { effectiveTriggeredAbilities } from "../../../../gre/copy";
+import { collectTriggers } from "../../../../gre/triggers";
+import type { GameEvent, TargetSelection } from "../../../types";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { raiseTriggerTargetSelection } from "../../../../gre/rules";
 import { finalizeTargetSelection } from "../../../../game";
@@ -283,5 +292,211 @@ describe("Phlage, Titan of Fire's Fury (enters/attacks value: 3 damage any targe
         )!;
         expect(slimTarget.damageMarked).toBe(3);
         expect(projected.players[0].life).toBe(23);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Nadu, Winged Wisdom — {1}{G}{U} Legendary Creature — Bird Wizard 3/4.
+// "Creatures you control have 'Whenever this creature becomes the target of a
+//  spell or ability, reveal the top card of your library. If it's a land card,
+//  put it onto the battlefield. Otherwise, put it into your hand. This ability
+//  triggers only twice each turn.'"
+//
+// Three seams, exercised end to end through the REAL machinery rather than by
+// asserting on the definition: the CR 611 triggered-grant reaching the right
+// creatures, the CR 603.2b BECAME_TARGET firing condition, and the CR 603.2
+// per-turn cap.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Nadu + one other creature, with the static grant applied as the engine
+ *  applies it when Nadu enters. */
+function withNadu(): {
+    state: GameState;
+    nadu: CardInstanceState;
+    bear: CardInstanceState;
+    oppBear: CardInstanceState;
+} {
+    const state = makeState({
+        players: [
+            makePlayer("p1", {
+                library: [
+                    makeInstance(forest.id, {
+                        id: "lib-land",
+                        controllerId: "p1",
+                        zone: "library",
+                    }),
+                    makeInstance(grizzlyBears.id, {
+                        id: "lib-spell",
+                        controllerId: "p1",
+                        zone: "library",
+                    }),
+                    makeInstance(grizzlyBears.id, {
+                        id: "lib-spell-2",
+                        controllerId: "p1",
+                        zone: "library",
+                    }),
+                ],
+            }),
+            makePlayer("p2"),
+        ],
+    });
+    const nadu = makeInstance(naduWingedWisdom.id, {
+        id: "nadu-1",
+        controllerId: "p1",
+        zone: "battlefield",
+    });
+    const bear = makeInstance(grizzlyBears.id, {
+        id: "bear-1",
+        controllerId: "p1",
+        zone: "battlefield",
+    });
+    const oppBear = makeInstance(grizzlyBears.id, {
+        id: "opp-bear-1",
+        controllerId: "p2",
+        ownerId: "p2",
+        zone: "battlefield",
+    });
+    state.players[0].battlefield.push(nadu, bear);
+    state.players[1].battlefield.push(oppBear);
+    applySourceStaticEffects(state, nadu);
+    return { state, nadu, bear, oppBear };
+}
+
+/** The CR 603.2b target-declaration event the trigger reads (issue #1265). */
+function becameTarget(
+    instanceId: string,
+    targetControllerId: string,
+    sourceControllerId: string
+): GameEvent {
+    return {
+        type: "BECAME_TARGET",
+        target: { type: "permanent", id: instanceId },
+        targetControllerId,
+        sourceControllerId,
+        sourceInstanceId: "some-stack-item",
+    };
+}
+
+describe("Nadu, Winged Wisdom ({1}{G}{U} — CR 611 triggered-grant + CR 603.2b became-target + CR 603.2 per-turn cap)", () => {
+    it("declares flying and keeps the granted template OFF triggeredAbilities", () => {
+        expect(naduWingedWisdom.staticAbilities).toContain("flying");
+        expect(naduWingedWisdom.manaCost).toEqual({ X: 1, G: 1, U: 1 });
+        expect(naduWingedWisdom.supertypes).toContain("Legendary");
+        expect(naduWingedWisdom.power).toBe(3);
+        expect(naduWingedWisdom.toughness).toBe(4);
+        // The template lives on triggeredGrantTemplates so Nadu doesn't fire a
+        // SECOND copy on top of the one it receives as a creature it controls.
+        expect(naduWingedWisdom.triggeredAbilities ?? []).toHaveLength(0);
+        expect(
+            naduWingedWisdom.triggeredGrantTemplates?.some(
+                (t) => t.id === "nadu-became-target"
+            )
+        ).toBe(true);
+        expect(
+            (naduWingedWisdom.staticEffects ?? []).map((e) => e.kind)
+        ).toContain("triggered-grant");
+    });
+
+    it("grants the trigger to creatures you control — including Nadu itself", () => {
+        const { bear, nadu } = withNadu();
+        for (const c of [bear, nadu]) {
+            expect(
+                effectiveTriggeredAbilities(c).some(
+                    (a) => a.id === "nadu-became-target"
+                )
+            ).toBe(true);
+        }
+    });
+
+    it("does NOT grant the trigger to an opponent's creature (CR 611 filter)", () => {
+        const { oppBear } = withNadu();
+        expect(
+            effectiveTriggeredAbilities(oppBear).some(
+                (a) => a.id === "nadu-became-target"
+            )
+        ).toBe(false);
+    });
+
+    it("fires when a creature you control becomes the target — including of YOUR OWN spell (unlike ward)", () => {
+        const { state } = withNadu();
+        const triggers = collectTriggers(state, [
+            // sourceController === the creature's controller: Nadu has no
+            // "an opponent controls" clause, so this still fires.
+            becameTarget("bear-1", "p1", "p1"),
+        ]);
+        expect(
+            triggers.filter(
+                (t) =>
+                    t.triggeredAbilityId === "nadu-became-target" &&
+                    t.triggerSourceId === "bear-1"
+            )
+        ).toHaveLength(1);
+    });
+
+    it("puts a revealed LAND onto the battlefield", () => {
+        const { state, bear } = withNadu();
+        pushTrigger(
+            state,
+            bear,
+            "nadu-became-target",
+            becameTarget("bear-1", "p1", "p1")
+        );
+        resolveTopOfStack(state);
+        expect(state.players[0].battlefield.map((c) => c.id)).toContain(
+            "lib-land"
+        );
+        // The land ENTERS — it is not played, so no land drop is consumed
+        // (CR 305.2 / 400.7).
+        expect(state.players[0].landsPlayedThisTurn ?? 0).toBe(0);
+    });
+
+    it("puts a revealed NONLAND into hand", () => {
+        const { state, bear } = withNadu();
+        // Drop the land so the top card is the creature.
+        state.players[0].library.shift();
+        pushTrigger(
+            state,
+            bear,
+            "nadu-became-target",
+            becameTarget("bear-1", "p1", "p1")
+        );
+        resolveTopOfStack(state);
+        expect(state.players[0].hand.map((c) => c.id)).toContain("lib-spell");
+    });
+
+    it("triggers only TWICE each turn, per creature (CR 603.2)", () => {
+        const { state } = withNadu();
+        const fire = (id: string) =>
+            collectTriggers(state, [becameTarget(id, "p1", "p1")]).filter(
+                (t) => t.triggeredAbilityId === "nadu-became-target"
+            ).length;
+        expect(fire("bear-1")).toBe(1);
+        expect(fire("bear-1")).toBe(1);
+        expect(fire("bear-1")).toBe(0);
+        // Nadu's own copy has its own untouched quota — "this ability" on a
+        // granted ability is per source object.
+        expect(fire("nadu-1")).toBe(1);
+        expect(fire("nadu-1")).toBe(1);
+        expect(fire("nadu-1")).toBe(0);
+    });
+
+    it("survives the wire projection — the revealed card is visible to the opponent", () => {
+        const { state, bear } = withNadu();
+        state.players[0].library.shift(); // top is now the creature
+        pushTrigger(
+            state,
+            bear,
+            "nadu-became-target",
+            becameTarget("bear-1", "p1", "p1")
+        );
+        resolveTopOfStack(state);
+        // The card rode into p1's HAND, which the projection nulls out for the
+        // opponent unless the CR 701.20a reveal stamped it known-to-all.
+        const oppView = projectPublicState(state, 1, "p2");
+        const revealed = oppView.players[0].hand.find(
+            (c) => c !== null && c.id === "lib-spell"
+        );
+        expect(revealed).toBeDefined();
+        expect(revealed!.card.id).toBe(grizzlyBears.id);
     });
 });

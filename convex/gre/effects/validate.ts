@@ -930,6 +930,35 @@ function isPickCategoryList(value: unknown): boolean {
     });
 }
 
+/** A destination a `revealTopAndRoute` Op may send a revealed card to
+ *  (`RevealRouteDestination`, CR 400.7). `"library"` is absent by design — the
+ *  card is already there and putting it back is `scryReorder`'s job. */
+function isRevealRouteDestination(value: unknown): boolean {
+    return (
+        value === "battlefield" ||
+        value === "hand" ||
+        value === "graveyard" ||
+        value === "exile"
+    );
+}
+
+/** The ordered `routes` list of a `revealTopAndRoute` Op: a non-empty list of
+ *  `{ filter, to }` rules, evaluated first-match-wins per revealed card. Mirrors
+ *  `isPickCategoryList`'s exact-key discipline so a typo'd field is a
+ *  validation failure, not a silently ignored clause. */
+function isRevealRouteList(value: unknown): boolean {
+    if (!Array.isArray(value) || value.length === 0) return false;
+    return value.every((entry) => {
+        if (typeof entry !== "object" || entry === null || Array.isArray(entry))
+            return false;
+        const keys = Object.keys(entry).sort();
+        if (keys.length !== 2 || keys[0] !== "filter" || keys[1] !== "to")
+            return false;
+        const e = entry as { filter: unknown; to: unknown };
+        return isCardFilter(e.filter) && isRevealRouteDestination(e.to);
+    });
+}
+
 /** The `mode` discriminator of a `preventDamage` Op (issue #845, CR 615): the
  *  three prevention-shield shapes folded here. */
 function isPreventDamageMode(value: unknown): boolean {
@@ -2335,6 +2364,23 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     mill: {
         required: {
             player: isPlayerRef,
+            count: isEffectValue,
+        },
+    },
+    // CR 701.20a + CR 400.7 — reveal the top `count` card(s) of a library and
+    // route each by what it IS (deterministic; no choice, never suspends).
+    // Nadu, Winged Wisdom. `player` names whose library; `routes` is the
+    // ordered first-match-wins `{ filter, to }` list; `fallback` is the
+    // Oracle text's "Otherwise, …" destination and is therefore REQUIRED —
+    // a script with no fallback would silently strand a non-matching card.
+    // `count` (optional, default 1) is how many top cards are revealed.
+    revealTopAndRoute: {
+        required: {
+            player: isPlayerRef,
+            routes: isRevealRouteList,
+            fallback: isRevealRouteDestination,
+        },
+        optional: {
             count: isEffectValue,
         },
     },

@@ -1,93 +1,36 @@
-// /draft-lab — Draft Lab synthetic mode (issue #1612, ADR 0074, PRD #1607
-// slice 5). A client-only developer surface: runs a whole 8-seat bot draft in
-// the browser off the SAME pure modules the server picks with
-// (`convex/limited/draftEngine.ts`/`botDrafter.ts`), from an arbitrary seed,
-// stepped or auto-played, with the full per-candidate score breakdown and its
-// provenance for one focused seat. Writes nothing — no Convex mutation is
-// imported anywhere on this page's dependency tree
-// (`draft-lab-no-mutation.test.ts` enforces this statically).
-import { useState } from "react";
+// `/admin/draft-lab` — Draft Lab (issue #1612/#1613, ADR 0074, PRD #1607
+// slices 5-6). A client-only developer surface that runs a whole Bot Drafter
+// draft in the browser and shows the scorer's per-candidate breakdown. Writes
+// nothing.
+//
+// Admin-only, and the gate is NOT here: the page lives under `/admin`, whose
+// layout route wraps every child in `AdminRouteGate` (404 for a non-admin, no
+// explanation — an admin surface shouldn't confirm its own existence). Two
+// consequences worth stating, because they are load-bearing:
+//
+//  - The workbench is a separate component (`DraftLabWorkbench`) rather than
+//    this file's body. React forbids conditional hooks, so the only way its
+//    hooks never mount for a non-admin is for the gate to sit in a PARENT — and
+//    those hooks call `assertIsAdmin`-gated queries
+//    (`listScopeCardProfiles`, `listScopeCardRatingsForReplay`).
+//  - The UI gate is cosmetic on its own; those two queries are the real
+//    boundary, guarded by `scripts/__tests__/draft-lab-admin-gating.test.ts`.
 import AmbientPageGround from "@/components/ui/ambient-page-ground";
-import { useDraftLab } from "@/hooks/useDraftLab";
-import DraftLabControls from "@/components/draft-lab/draft-lab-controls";
-import DraftLabSeatTable from "@/components/draft-lab/draft-lab-seat-table";
-import DraftLabFocusPanel from "@/components/draft-lab/draft-lab-focus-panel";
-import DraftLabModeTabs, {
-    type DraftLabMode,
-} from "@/components/draft-lab/draft-lab-mode-tabs";
-import DraftLabReplayPanel from "@/components/draft-lab/draft-lab-replay-panel";
+import DraftLabWorkbench from "@/components/draft-lab/draft-lab-workbench";
 
 export default function DraftLabRoute() {
-    const [mode, setMode] = useState<DraftLabMode>("synthetic");
-    const lab = useDraftLab();
-
-    const lastPickForFocusedSeat = lab.state
-        ? [...lab.state.pickLog]
-              .reverse()
-              .find((r) => r.seatIndex === lab.focusedSeat)
-        : undefined;
-
     return (
-        <div className="relative min-h-dvh bg-surface-base text-text">
+        <div className="relative">
             <AmbientPageGround />
-            <div className="relative z-10 mx-auto max-w-6xl px-4 py-10 sm:px-8">
+            <div className="relative z-10 mx-auto max-w-6xl px-6 py-8">
                 <header>
                     <p className="text-label">developer surface</p>
                     <h1 className="heading-panel mt-1 text-left text-3xl">
                         Draft Lab
                     </h1>
                     <span className="panel-rule mt-3 block h-px w-full" />
-                    <p className="mt-3 max-w-3xl text-sm text-text-muted">
-                        {mode === "synthetic"
-                            ? "Runs a whole Bot Drafter draft in the browser from a seed — the same picking code the server uses, with the full score breakdown and provenance for every candidate."
-                            : "Reconstructs a real completed Draft event from its seed and every seat's stored Pool, and shows what the CURRENT scorer would pick beside what actually happened."}{" "}
-                        Client-only: nothing here is saved (ADR 0074).
-                    </p>
-                    <div className="mt-4">
-                        <DraftLabModeTabs mode={mode} onChange={setMode} />
-                    </div>
                 </header>
-
-                <div className="mt-8 flex flex-col gap-6">
-                    {mode === "synthetic" ? (
-                        <>
-                            <DraftLabControls
-                                seedInput={lab.seedInput}
-                                onSeedInputChange={lab.setSeedInput}
-                                sourceKey={lab.sourceKey}
-                                onSourceKeyChange={lab.setSourceKey}
-                                state={lab.state}
-                                isAutoPlaying={lab.isAutoPlaying}
-                                canStart={lab.canStart}
-                                onStart={lab.start}
-                                onStep={lab.step}
-                                onToggleAutoPlay={lab.toggleAutoPlay}
-                            />
-
-                            {lab.state && (
-                                <>
-                                    <DraftLabSeatTable
-                                        state={lab.state}
-                                        focusedSeat={lab.focusedSeat}
-                                        onFocusSeat={lab.setFocusedSeat}
-                                        getCardProfile={lab.getCardProfile}
-                                    />
-                                    <DraftLabFocusPanel
-                                        seatLabel={
-                                            lab.state.seats[lab.focusedSeat]
-                                                ?.nickname ??
-                                            `Seat ${lab.focusedSeat + 1}`
-                                        }
-                                        record={lastPickForFocusedSeat}
-                                        getCardProfile={lab.getCardProfile}
-                                    />
-                                </>
-                            )}
-                        </>
-                    ) : (
-                        <DraftLabReplayPanel />
-                    )}
-                </div>
+                <DraftLabWorkbench />
             </div>
         </div>
     );
