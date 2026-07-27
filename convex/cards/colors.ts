@@ -29,6 +29,30 @@ export function getColorsFromCost(cost?: ManaCost): Color[] {
     return colors;
 }
 
+/** Coloured pip COUNTS in a mana cost (CR 202.2) — the counting twin of
+ *  {@link getColorsFromCost}'s presence-only colours: `{U}{U}` returns
+ *  `{ U: 2 }`, `{4}{U}` returns `{ U: 1 }`. Colour Commitment
+ *  (`convex/limited/botDrafter.ts`, ADR 0073) needs exactly this
+ *  distinction — "`{U}{U}` commits twice as hard as `{4}{U}`" — which plain
+ *  presence can't express. A Phyrexian pip (`{U/P}`, CR 105.2) counts toward
+ *  its colour the same as a normal pip: it is still a coloured mana symbol
+ *  even though it can be paid with life. Omits any colour with zero pips, so
+ *  `Object.keys(...)` on the result gives exactly the card's coloured pip
+ *  colours — the same set {@link getColorsFromCost} returns, now with counts
+ *  attached. */
+export function getPipCountsFromCost(
+    cost?: ManaCost
+): Partial<Record<Color, number>> {
+    if (!cost) return {};
+    const pips: Partial<Record<Color, number>> = {};
+    for (const c of MANA_COLORS) {
+        if (c === "C") continue;
+        const count = (cost[c] ?? 0) + (cost.phyrexian?.[c] ?? 0);
+        if (count > 0) pips[c] = count;
+    }
+    return pips;
+}
+
 /** CR 105.2 / 202.2 — the card's actual printed COLOUR(s): exactly the colours
  *  of its mana cost. A card with no coloured mana in its cost is COLOURLESS
  *  (CR 105.2a) even when it TAPS for coloured mana — a basic Island is

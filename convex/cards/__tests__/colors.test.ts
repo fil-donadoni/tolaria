@@ -5,8 +5,43 @@ import {
     getCardColorIdentity,
     getCardColors,
     getColorsFromCost,
+    getPipCountsFromCost,
 } from "../colors";
 import type { CardDefinition } from "../types";
+
+describe("getPipCountsFromCost (ADR 0073, issue #1610 — Colour Commitment pip weighting)", () => {
+    it("returns empty for undefined cost", () => {
+        expect(getPipCountsFromCost(undefined)).toEqual({});
+    });
+
+    it("ignores generic mana (X) and colorless (C)", () => {
+        expect(getPipCountsFromCost({ X: 3, C: 2 })).toEqual({});
+    });
+
+    it("counts a single coloured pip", () => {
+        expect(getPipCountsFromCost({ R: 1 })).toEqual({ R: 1 });
+    });
+
+    it("counts a DOUBLE pip, distinguishing it from a single pip — {U}{U} is 2, {4}{U} is 1", () => {
+        expect(getPipCountsFromCost({ U: 2 })).toEqual({ U: 2 });
+        expect(getPipCountsFromCost({ generic: 4, U: 1 })).toEqual({ U: 1 });
+    });
+
+    it("counts every coloured pip in a multicolour cost independently", () => {
+        expect(getPipCountsFromCost({ W: 1, U: 2, generic: 1 })).toEqual({
+            W: 1,
+            U: 2,
+        });
+    });
+
+    it("counts a Phyrexian pip (CR 105.2) the same as a normal pip", () => {
+        expect(getPipCountsFromCost({ phyrexian: { U: 1 } })).toEqual({ U: 1 });
+        // A normal pip and a Phyrexian pip of the same colour SUM.
+        expect(getPipCountsFromCost({ U: 1, phyrexian: { U: 1 } })).toEqual({
+            U: 2,
+        });
+    });
+});
 
 describe("getColorsFromCost", () => {
     it("returns empty for undefined cost", () => {

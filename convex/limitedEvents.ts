@@ -22,9 +22,13 @@ import {
     resolveDeckCardMeta,
     tryGetDefinition,
 } from "./cards";
-import { basicLandsForColors, getCardColorIdentity } from "./cards/colors";
+import {
+    basicLandsForColors,
+    getCardColorIdentity,
+    getPipCountsFromCost,
+} from "./cards/colors";
 import type { Color } from "./cards/types";
-import { manaValue } from "./gre/constants";
+import { getDefinitionProducibleColors, manaValue } from "./gre/constants";
 import { freshSeed, makeRng } from "./gre/rng";
 import {
     computeBotAutoBuiltDeck,
@@ -370,7 +374,13 @@ const resolveCardMeta: ResolveCardMeta = (scryfallId) => {
  *  out of that module the same way `resolveCardMeta` above is kept out of
  *  `eventLogic.ts`. Rarity comes from the exact printing (`resolveDeckCardMeta`,
  *  CR 206 — a reprint can carry a different rarity than its home set); colors
- *  and mana value come from the resolved `CardDefinition`. */
+ *  and mana value come from the resolved `CardDefinition`.
+ *
+ *  `pips`/`producedColors` (ADR 0073, issue #1610) are the mana-base fix:
+ *  `colors` is mana-cost-derived (CR 202.2) so a dual land, a Mox, a Signet
+ *  all read `[]` there — `producedColors` (`getDefinitionProducibleColors`)
+ *  reads what the card PRODUCES instead, and `pips` (`getPipCountsFromCost`)
+ *  carries the coloured PIP COUNT a plain `colors` presence check can't. */
 const getCardEvalMeta: GetCardEvalMeta = (scryfallId) => {
     const meta = resolveDeckCardMeta(scryfallId);
     if (!meta) return null;
@@ -381,6 +391,8 @@ const getCardEvalMeta: GetCardEvalMeta = (scryfallId) => {
         colors: getCardColorIdentity(def),
         manaValue: manaValue(def.manaCost),
         rarity: meta.rarity,
+        pips: getPipCountsFromCost(def.manaCost),
+        producedColors: [...getDefinitionProducibleColors(def)],
     };
 };
 

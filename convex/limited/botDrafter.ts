@@ -13,8 +13,45 @@
 //
 //   score = baseRating                      -- DB/seed Pick Rating, else
 //                                              heuristicAsRating(quality)
-//         + colourCommitment × contextScale -- colour fit vs the seat's Pool
+//         + colourCommitment × contextScale -- pip-weighted colour fit (below)
+//         + castability      × contextScale -- can the Pool's sources pay it
+//         + fixingValue      × contextScale -- deficit-driven mana-fixing worth
 //         + curveFit         × contextScale -- curve needs
+//
+// ── Colour splits into three derived questions (ADR 0073, issue #1610) ─────
+// `CardEvalMeta.colors` (`getCardColorIdentity`) reads `colors: []` for a
+// MOX or a SIGNET — a printed, colourless mana cost, so the cost-derived
+// branch (CR 202.2) sees no coloured symbol — even though the card plainly
+// produces coloured mana. It is NOT blind to a dual land's mana base the
+// same way: with no printed mana cost at all, `getCardColorIdentity` falls
+// back to the land's subtypes, so a Volcanic Island already reads
+// `colors: ["U","R"]`. Either way, this scorer used to read colour
+// PRODUCTION nowhere at all — only pip demand — so a mana source's identity
+// was effectively invisible to it regardless of shape. `pips` (coloured pip
+// COUNT, `cards/colors.ts#getPipCountsFromCost`) and `producedColors` (what a
+// card actually PRODUCES, `gre/constants.ts#getDefinitionProducibleColors`)
+// fix that, and back three distinct terms:
+//
+//   - Colour Commitment: `{U}{U}` commits twice as hard as `{4}{U}` — driven
+//     by PIPS, not card count. A Pool SPELL contributes its pip count; a Pool
+//     MANA SOURCE contributes at a strictly LOWER weight per colour it
+//     produces, so a strong dual land taken early FOLLOWS commitment rather
+//     than CREATING it — the classic way these bots derail on a good land.
+//   - Castability: the candidate's own pip requirement against the Pool's
+//     already-held sources for those colours. A colourless candidate (no
+//     pips at all) trivially maxes it — this is what restores the
+//     colourless-vs-off-colour distinction the non-negative clamp collapsed
+//     (see below): an off-colour card has pips the Pool has no sources for,
+//     so it scores near 0 here even though colour commitment alone can't
+//     tell the two apart.
+//   - Fixing Value: DEFICIT-driven, not commitment-driven —
+//     `Σ_colour produces[c] × max(0, pipDemand[c] − sources[c])`. A Temur
+//     Pool heavy in `{R}` pips but down to one red source values Volcanic
+//     Island over Tropical Island though both are on-colour duals: Volcanic
+//     PRODUCES red, and red is the colour actually short. Rewarding the
+//     colour already well served (commitment-driven fixing) was considered
+//     and rejected — it compounds early commitment into a self-reinforcing
+//     loop instead of steering toward what the Pool is actually missing.
 //
 // `PICK_RATING_DOMINANCE_WEIGHT` (the old ×1000 rating multiplier, issue
 // #1117) is RETIRED: it made the rating the only input by construction, so no
@@ -78,13 +115,39 @@ import { PICK_RATING_MAX, PICK_RATING_MIN } from "./pickRatings";
 export interface CardEvalMeta {
     /** Canonical `CardDefinition.id` — the id `cardValueById` scores. */
     cardId: string;
-    /** Mana-cost-derived colors (CR 202.2). Empty for a colorless card
-     *  (artifact, most lands) — such a card is neutral to color commitment. */
+    /** Mana-cost-derived colour IDENTITY (CR 202.2, `getCardColorIdentity`).
+     *  Empty for a colorless card (artifact, most lands). Not read by the
+     *  colour terms below (`colourCommitmentTerm`, `castabilityTerm`,
+     *  `fixingValueTerm` — ADR 0073, issue #1610) — they read `pips` /
+     *  `producedColors` instead, which is precisely the fix: `colors` is
+     *  blind to a dual land's, a Mox's, a Signet's mana base. Kept for
+     *  future non-colour terms (Archetype/Capability, issue #1611). */
     colors: Color[];
     /** Printed mana value (0 for a card with no mana cost, e.g. a land). */
     manaValue: number;
     /** Printed rarity of THIS printing (CR 206). */
     rarity: Rarity;
+    /** Coloured pip COUNTS from the printed mana cost
+     *  (`cards/colors.ts#getPipCountsFromCost`, ADR 0073) — `{U}{U}` is
+     *  `{ U: 2 }`, `{4}{U}` is `{ U: 1 }`. Empty for a card with no coloured
+     *  pips (a land, most artifacts). Colour Commitment and Castability read
+     *  this, never `colors`: pip COUNT, not colour presence, is the signal
+     *  ADR 0073 asks for. */
+    pips: Partial<Record<Color, number>>;
+    /** Colours of mana this card could produce as a source
+     *  (`gre/constants.ts#getDefinitionProducibleColors`, CR 106.4) — the
+     *  canonical "is this a mana source" signal Castability and Fixing Value
+     *  read, DISTINCT from `colors` for a different reason per card shape.
+     *  A Mox or a Signet (a printed, colourless mana COST) has `colors: []`
+     *  yet a non-empty `producedColors`, so `colors` alone would miss it
+     *  entirely. A dual land (no printed mana cost at all) already gets a
+     *  non-empty `colors` from `getCardColorIdentity`'s land-subtype
+     *  fallback — a Volcanic Island reads `colors: ["U","R"]`, not `[]` —
+     *  but the colour terms below still read `producedColors` for it too, so
+     *  one signal serves both card shapes uniformly instead of branching on
+     *  which kind of source a card is. A card with no mana ability yields
+     *  `[]`. */
+    producedColors: Color[];
 }
 
 /** Resolves a drawn card's Scryfall id to its `CardEvalMeta`, or `null` when
@@ -149,27 +212,62 @@ export function candidateQuality(candidate: CardEvalMeta): number {
     return cardValueById(candidate.cardId) * RARITY_WEIGHT[candidate.rarity];
 }
 
-/** Rating points contributed per already-picked Pool card sharing the
- *  candidate's colour. Deliberately small: ten committed on-colour cards are
- *  worth ~0.6 rating points BEFORE the contextual cap, i.e. colour fit refines
- *  the rating anchor rather than replacing it. */
-const COLOUR_COMMIT_RATING_PER_CARD = 0.06;
+/** Rating points contributed per weighted "unit" of colour affinity a Pool
+ *  card has already built up in the candidate's colour (`colourAffinityWeight`
+ *  below) — one unit is one coloured PIP on an already-picked Pool SPELL.
+ *  Deliberately small, mirroring the old per-card weight it replaces: ten
+ *  pip-units of affinity are worth ~0.6 rating points BEFORE the contextual
+ *  cap, i.e. colour fit refines the rating anchor rather than replacing it. */
+const COLOUR_COMMIT_RATING_PER_UNIT = 0.06;
 
-/** On-colour Pool cards before the seat counts as genuinely COMMITTED to that
- *  colour — it is still "reading signals" / establishing colours for its first
- *  few picks (PRD #1107 story 29: "as commitment grows" implies nothing to
- *  respect when there is no commitment yet). */
-const COLOUR_COMMIT_GRACE_CARDS = 3;
+/** A Pool MANA SOURCE's contribution, in affinity UNITS, per colour it can
+ *  produce (`producedColors`) — strictly LESS than the one full unit a single
+ *  coloured pip is worth. This is the load-bearing half of "a dual land
+ *  FOLLOWS commitment, it does not CREATE it" (ADR 0073, PRD #1607): taking a
+ *  strong land early must not marry the seat to a colour the way an actual
+ *  double-pipped spell of that colour would. */
+const COLOUR_COMMIT_SOURCE_UNIT_WEIGHT = 0.4;
 
-/** EXTRA rating points per on-colour Pool card beyond the grace window, on top
- *  of `COLOUR_COMMIT_RATING_PER_CARD`. This is the old off-colour PENALTY,
+/** Affinity UNITS before the seat counts as genuinely COMMITTED to a colour —
+ *  it is still "reading signals" / establishing colours for its first few
+ *  picks (PRD #1107 story 29: "as commitment grows" implies nothing to
+ *  respect when there is no commitment yet). Same magnitude as the old
+ *  card-count grace window (3), now read in pip-equivalent units. */
+const COLOUR_COMMIT_GRACE_UNITS = 3;
+
+/** EXTRA rating points per affinity unit beyond the grace window, on top of
+ *  `COLOUR_COMMIT_RATING_PER_UNIT`. This is the old off-colour PENALTY,
  *  re-expressed as the bonus its complement earns: the deeper the seat is
  *  committed, the more a card that fits that commitment is worth relative to
  *  one that fits nothing. Stating it as a penalty instead would make it dead
  *  weight under the non-negative contextual clamp (a term that is structurally
  *  ≤ 0 can never survive `clamp(rawSum, 0, cap)`), and would put the bound on
  *  each candidate's sum rather than on the gap between two candidates. */
-const COLOUR_COMMIT_RATING_PER_COMMITTED_CARD = 0.04;
+const COLOUR_COMMIT_RATING_PER_COMMITTED_UNIT = 0.04;
+
+/** Rating points a candidate with NO coloured pip requirement (colourless, or
+ *  every required colour fully served) is worth on Castability — the ceiling
+ *  the term scales toward as the Pool's sources cover the candidate's pips.
+ *  Restores the colourless-vs-off-colour distinction the non-negative clamp
+ *  collapsed (ADR 0073's refinement note): a colourless card trivially maxes
+ *  this by having nothing to pay for, while an off-colour card's pips the
+ *  Pool cannot pay for score near 0. */
+const CASTABILITY_MAX_RATING = 0.4;
+
+/** Rating points per DEFICIT pip a candidate's produced colour(s) relieve
+ *  (`fixingValueTerm`) — small and self-scaling: one white card in the Pool
+ *  yields a white deficit of one, worth a nudge, not a summons; a Pool nine
+ *  pips deep in red and down to one red source yields a deficit of eight,
+ *  worth a real bonus to a card that produces red. */
+const FIXING_VALUE_RATING_PER_DEFICIT_PIP = 0.05;
+
+/** Cap on a single candidate's raw Fixing Value, applied BEFORE the shared
+ *  contextual clamp — a very large deficit (a Pool desperate for a colour it
+ *  has almost no sources of) must still not let one term alone eat the
+ *  entire contextual budget away from Colour Commitment / Castability /
+ *  Curve Fit on the very candidate that is finally fixing it. The shared
+ *  non-negative clamp (`scoreCandidate`) still bounds the TOTAL. */
+const FIXING_VALUE_RAW_CAP = 1.2;
 
 /** Curve buckets the heuristic tracks (mana value 1 through 6+, CR 202.3);
  *  0-cost/land cards don't participate in curve scoring. Target counts are a
@@ -231,10 +329,15 @@ export function contextCapForPick(
 
 /** Every term the scorer can emit. `baseRating` is the anchor (never capped);
  *  every other key is a CONTEXTUAL term, and their sum is bounded by
- *  `contextCapForPick`. New terms (Archetype, Capability, Castability, Fixing
- *  Value — ADR 0072/0073) join this union and are contextual by construction:
+ *  `contextCapForPick`. Future terms (Archetype, Capability, Combo Edge —
+ *  ADR 0072, issue #1611) join this union and are contextual by construction:
  *  `isContextualTerm` is derived from the base key, not a second list. */
-export type PickTermKey = "baseRating" | "colourCommitment" | "curveFit";
+export type PickTermKey =
+    | "baseRating"
+    | "colourCommitment"
+    | "castability"
+    | "fixingValue"
+    | "curveFit";
 
 /** One Pool card that contributed to a term — the term's PROVENANCE (ADR
  *  0073: "the specific Pool cards that produced it"). */
@@ -306,15 +409,54 @@ export function curveBucket(mv: number): number {
     return Math.max(1, Math.min(CURVE_MAX_BUCKET, Math.round(mv)));
 }
 
-/** Per-color count of already-picked Pool cards sharing that color — the
- *  color-commitment signal (PRD #1107 story 29). */
-function colorWeights(
+/** Per-colour coloured PIP DEMAND already built up by already-picked Pool
+ *  SPELLS (ADR 0073, issue #1610) — the counting half of "`{U}{U}` commits
+ *  twice as hard as `{4}{U}`". Reads `pips`, not `colors`: a card contributes
+ *  its actual pip count, not a flat 1 per shared colour. Shared by Colour
+ *  Commitment (as the "how invested is the Pool" half) and Fixing Value (as
+ *  the deficit's demand half, `pipDemand[c] − sources[c]`). */
+function pipDemandByColor(
     poolMeta: readonly CardEvalMeta[]
 ): Partial<Record<Color, number>> {
-    const weights: Partial<Record<Color, number>> = {};
+    const demand: Partial<Record<Color, number>> = {};
     for (const meta of poolMeta) {
-        for (const c of meta.colors) {
-            weights[c] = (weights[c] ?? 0) + 1;
+        for (const [c, pip] of Object.entries(meta.pips) as [Color, number][]) {
+            if (pip > 0) demand[c] = (demand[c] ?? 0) + pip;
+        }
+    }
+    return demand;
+}
+
+/** Per-colour count of already-picked Pool cards that can PRODUCE that
+ *  colour of mana (`producedColors`, `gre/constants.ts#getDefinitionProducibleColors`)
+ *  — the Pool's actual mana-SOURCE count, distinct from `pipDemandByColor`'s
+ *  spell-side pip demand. Shared by Castability (sources available to pay a
+ *  candidate's pips) and Fixing Value (the deficit's supply half). */
+function sourceCountsByColor(
+    poolMeta: readonly CardEvalMeta[]
+): Partial<Record<Color, number>> {
+    const counts: Partial<Record<Color, number>> = {};
+    for (const meta of poolMeta) {
+        for (const c of meta.producedColors) {
+            counts[c] = (counts[c] ?? 0) + 1;
+        }
+    }
+    return counts;
+}
+
+/** Per-colour colour-COMMITMENT affinity (ADR 0073, issue #1610): a Pool
+ *  SPELL's coloured pips count at full weight (`pipDemandByColor`); a Pool
+ *  MANA SOURCE's produced colours count at `COLOUR_COMMIT_SOURCE_UNIT_WEIGHT`
+ *  — strictly less than one pip's worth, so a source FOLLOWS commitment
+ *  rather than CREATING it (a strong dual land taken early must not marry
+ *  the seat to a colour the way an actual double-pipped spell would). */
+function colourAffinityWeights(
+    poolMeta: readonly CardEvalMeta[]
+): Partial<Record<Color, number>> {
+    const weights = pipDemandByColor(poolMeta);
+    for (const meta of poolMeta) {
+        for (const c of meta.producedColors) {
+            weights[c] = (weights[c] ?? 0) + COLOUR_COMMIT_SOURCE_UNIT_WEIGHT;
         }
     }
     return weights;
@@ -380,40 +522,45 @@ function baseRatingTerm(
     };
 }
 
-/** Colour commitment (PRD #1107 story 29): rewards a candidate sharing a
- *  colour the Pool is already invested in, at a slope that STEEPENS once the
- *  seat is genuinely committed to that colour.
+/** Colour commitment (PRD #1107 story 29; pip-weighted, ADR 0073 issue
+ *  #1610): rewards a candidate whose coloured PIPS match a colour the Pool
+ *  is already invested in, at a slope that STEEPENS once the seat is
+ *  genuinely committed to that colour. Reads `candidate.pips` (its OWN
+ *  coloured mana cost), never `candidate.colors` — a candidate's commitment
+ *  fit is about what it costs to CAST, not its colour identity.
  *
  *  Non-negative by construction (ADR 0073's non-negative contextual clamp): a
  *  candidate sharing no colour with the Pool scores 0 — it earns no bonus, it
  *  is not punished. What was an off-colour penalty growing with the draft is
- *  now `COLOUR_COMMIT_RATING_PER_COMMITTED_CARD`, the same growth expressed on
+ *  now `COLOUR_COMMIT_RATING_PER_COMMITTED_UNIT`, the same growth expressed on
  *  the FITTING side, so the on-colour/off-colour GAP still widens as the seat
  *  commits (which is the behaviour PRD #1107 story 29 asks for) while the
  *  score's contextual half stays a pure bonus.
  *
- *  A COLOURLESS candidate also scores 0: it has no colour to fit, so it earns
- *  no colour bonus. It used to sit strictly above an off-colour card (which
- *  paid the penalty); telling "castable regardless of colour" apart from
- *  "actively off-colour" now belongs to the Castability term ADR 0073 plans,
+ *  A candidate with NO coloured pips (a land, most artifacts) also scores 0:
+ *  it has no colour requirement to fit, so it earns no colour bonus. Taking
+ *  Volcanic Island — `pips: {}` even though it PRODUCES {U}/{R} — must never
+ *  marry the seat to a colour by this term; telling "castable regardless of
+ *  colour" apart from "actively off-colour" belongs to Castability below,
  *  not to a negative colour term. */
 function colourCommitmentTerm(
     candidate: CardEvalMeta,
     poolMeta: readonly CardEvalMeta[]
 ): PickTerm {
-    if (candidate.colors.length === 0) {
+    const candidateColours = Object.keys(candidate.pips) as Color[];
+    if (candidateColours.length === 0) {
         return {
             term: "colourCommitment",
             value: 0,
             rawValue: 0,
             sources: [],
-            note: "colourless — no colour to fit, so no colour bonus (and never a penalty)",
+            note: "no coloured pips — no colour to fit, so no colour bonus (and never a penalty)",
         };
     }
-    const weights = colorWeights(poolMeta);
+    const weights = colourAffinityWeights(poolMeta);
     let bestColour: Color | null = null;
     let bestAffinity = 0;
-    for (const c of candidate.colors) {
+    for (const c of candidateColours) {
         const affinity = weights[c] ?? 0;
         if (affinity > bestAffinity) {
             bestAffinity = affinity;
@@ -431,28 +578,165 @@ function colourCommitmentTerm(
         };
     }
 
-    const committed = Math.max(0, bestAffinity - COLOUR_COMMIT_GRACE_CARDS);
+    const colour: Color = bestColour;
+    const committed = Math.max(0, bestAffinity - COLOUR_COMMIT_GRACE_UNITS);
     const raw =
-        bestAffinity * COLOUR_COMMIT_RATING_PER_CARD +
-        committed * COLOUR_COMMIT_RATING_PER_COMMITTED_CARD;
+        bestAffinity * COLOUR_COMMIT_RATING_PER_UNIT +
+        committed * COLOUR_COMMIT_RATING_PER_COMMITTED_UNIT;
     const note =
         committed > 0
-            ? `${bestAffinity} Pool card(s) already on {${bestColour}} (${committed} past the ${COLOUR_COMMIT_GRACE_CARDS}-card grace window)`
-            : `${bestAffinity} Pool card(s) already on {${bestColour}}`;
+            ? `${bestAffinity.toFixed(1)} affinity unit(s) already on {${colour}} (${committed.toFixed(1)} past the ${COLOUR_COMMIT_GRACE_UNITS}-unit grace window)`
+            : `${bestAffinity.toFixed(1)} affinity unit(s) already on {${colour}}`;
 
     return {
         term: "colourCommitment",
         value: raw,
         rawValue: raw,
         sources: distinctSources(poolMeta, (meta) => {
-            const shared = meta.colors.filter((c) =>
-                candidate.colors.includes(c)
-            );
-            return shared.length === 0
-                ? null
-                : `shares ${shared.map((c) => `{${c}}`).join("")}`;
+            const pip = meta.pips[colour] ?? 0;
+            if (pip > 0) return `${pip} pip(s) of {${colour}}`;
+            if (meta.producedColors.includes(colour))
+                return `produces {${colour}}`;
+            return null;
         }),
         note,
+    };
+}
+
+/** Castability (ADR 0073, issue #1610): the candidate's own coloured pip
+ *  requirement against the mana sources the Pool ALREADY holds for those
+ *  colours — stops the bot hoarding `{B}{B}{B}` bombs on three swamps. A
+ *  candidate is only as castable as its WORST-served required colour (a
+ *  spell needing `{U}{R}` with plenty of blue sources and zero red ones is
+ *  not meaningfully castable), so the term takes the minimum coverage ratio
+ *  across every colour the candidate needs, not an average.
+ *
+ *  A candidate with NO coloured pips (colourless, or a land) has nothing to
+ *  pay for, so it trivially maxes this term — this is the fix for ADR 0073's
+ *  refinement note: the non-negative contextual clamp made `colourCommitment`
+ *  alone unable to tell a colourless card apart from an actively off-colour
+ *  one (both score 0 there), and Castability is where that distinction now
+ *  lives — an off-colour candidate has pips the Pool has no sources for, so
+ *  its coverage ratio (and this term) sits near 0 instead. */
+function castabilityTerm(
+    candidate: CardEvalMeta,
+    poolMeta: readonly CardEvalMeta[]
+): PickTerm {
+    const requiredColours = Object.entries(candidate.pips).filter(
+        ([, pip]) => (pip ?? 0) > 0
+    ) as [Color, number][];
+    if (requiredColours.length === 0) {
+        return {
+            term: "castability",
+            value: CASTABILITY_MAX_RATING,
+            rawValue: CASTABILITY_MAX_RATING,
+            // Deliberately empty, not a provenance gap: this bonus is a
+            // property of the CANDIDATE alone (it has no coloured pip to pay
+            // for), never of any specific Pool card, so there is no Pool
+            // card to name — unlike every other non-zero contextual term,
+            // which always points at the Pool cards that earned it.
+            sources: [],
+            note: "no coloured pip requirement — trivially castable (a property of the candidate alone, not any Pool card, so no provenance to name)",
+        };
+    }
+
+    const sources = sourceCountsByColor(poolMeta);
+    let worstColour: Color = requiredColours[0][0];
+    let worstRatio = Infinity;
+    for (const [c, pip] of requiredColours) {
+        const have = sources[c] ?? 0;
+        const ratio = Math.min(1, have / pip);
+        if (ratio < worstRatio) {
+            worstRatio = ratio;
+            worstColour = c;
+        }
+    }
+
+    const raw = CASTABILITY_MAX_RATING * worstRatio;
+    const have = sources[worstColour] ?? 0;
+    const need = candidate.pips[worstColour] ?? 0;
+    return {
+        term: "castability",
+        value: raw,
+        rawValue: raw,
+        sources: distinctSources(poolMeta, (meta) =>
+            meta.producedColors.includes(worstColour)
+                ? `produces {${worstColour}}`
+                : null
+        ),
+        note:
+            worstRatio >= 1
+                ? `every required colour fully sourced (worst: {${worstColour}} ${have}/${need})`
+                : `bottlenecked on {${worstColour}}: ${have} source(s) for ${need} pip(s)`,
+    };
+}
+
+/** Fixing Value (ADR 0073, issue #1610): DEFICIT-driven, not
+ *  commitment-driven — `Σ_colour produces[c] × max(0, pipDemand[c] −
+ *  sources[c])`. A candidate that produces no mana (`producedColors` empty)
+ *  scores 0. Otherwise, for every colour the candidate CAN produce, it earns
+ *  credit for however much the Pool's existing pip demand in that colour
+ *  outstrips the sources already held — a Temur Pool heavy in `{R}` pips and
+ *  down to one red source values Volcanic Island (produces {U}/{R}) above
+ *  Tropical Island (produces {U}/{G}) though both are on-colour duals,
+ *  because Volcanic relieves the colour that is actually short.
+ *
+ *  Commitment-driven fixing (reward scaling with how committed the seat
+ *  already is, rather than the deficit) was considered and rejected — it
+ *  rewards the colour already well served, exactly backwards, and compounds
+ *  early commitment into a self-reinforcing loop (ADR 0073). */
+function fixingValueTerm(
+    candidate: CardEvalMeta,
+    poolMeta: readonly CardEvalMeta[]
+): PickTerm {
+    if (candidate.producedColors.length === 0) {
+        return {
+            term: "fixingValue",
+            value: 0,
+            rawValue: 0,
+            sources: [],
+            note: "produces no mana — no fixing to offer",
+        };
+    }
+
+    const demand = pipDemandByColor(poolMeta);
+    const sources = sourceCountsByColor(poolMeta);
+    let rawTotal = 0;
+    const reliefByColour: Partial<Record<Color, number>> = {};
+    for (const c of candidate.producedColors) {
+        const deficit = Math.max(0, (demand[c] ?? 0) - (sources[c] ?? 0));
+        if (deficit <= 0) continue;
+        reliefByColour[c] = deficit;
+        rawTotal += deficit * FIXING_VALUE_RATING_PER_DEFICIT_PIP;
+    }
+    const raw = Math.min(FIXING_VALUE_RAW_CAP, rawTotal);
+
+    const reliefColours = Object.keys(reliefByColour) as Color[];
+    if (reliefColours.length === 0) {
+        return {
+            term: "fixingValue",
+            value: 0,
+            rawValue: 0,
+            sources: [],
+            note: `produces ${candidate.producedColors.map((c) => `{${c}}`).join("")} — no colour the Pool is short on`,
+        };
+    }
+
+    return {
+        term: "fixingValue",
+        value: raw,
+        rawValue: raw,
+        sources: distinctSources(poolMeta, (meta) => {
+            const contributes = reliefColours.filter(
+                (c) => (meta.pips[c] ?? 0) > 0
+            );
+            return contributes.length === 0
+                ? null
+                : `demands ${contributes.map((c) => `{${c}}`).join("")}, relieved by this source`;
+        }),
+        note: `relieves a deficit of ${reliefColours
+            .map((c) => `${reliefByColour[c]} {${c}}`)
+            .join(", ")} pip(s) the Pool already has demand for`,
     };
 }
 
@@ -531,6 +815,8 @@ export function scoreCandidate(
     const base = baseRatingTerm(candidate, rating);
     const contextual: PickTerm[] = [
         colourCommitmentTerm(candidate, poolMeta),
+        castabilityTerm(candidate, poolMeta),
+        fixingValueTerm(candidate, poolMeta),
         curveFitTerm(candidate, poolMeta),
     ];
 

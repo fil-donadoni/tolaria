@@ -369,7 +369,11 @@ function producibleColorsFromAbilities(
  *  `producibleColorsFromAbilities` leaf (no suppression effect can be in
  *  play off a battlefield either). Colourless ({C}) excluded (CR 202.2,
  *  106.1b). `getProducibleColors` is expressed in terms of this function —
- *  keep them in sync by construction, not by convention. */
+ *  keep them in sync by construction, not by convention. Used by
+ *  `convex/limited/botDrafter.ts`'s Castability / Fixing Value colour terms
+ *  (ADR 0073, issue #1610): today `CardEvalMeta`'s `colors` (CR 202.2,
+ *  mana-cost-derived) reads `[]` for a dual land, a Mox, a Signet — this is
+ *  the fix, read from what the card PRODUCES instead of what it costs. */
 export function getDefinitionProducibleColors(
     cardDef: CardDefinition
 ): Set<Color> {

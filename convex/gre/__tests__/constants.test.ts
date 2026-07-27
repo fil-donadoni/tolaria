@@ -6,7 +6,8 @@ import {
     getProducibleColors,
 } from "../constants";
 import { makeInstance } from "../../cards/__tests__/setup";
-import { getDefinition } from "../../cards";
+import { getCardByName, getDefinition } from "../../cards";
+import type { CardDefinition } from "../../cards/types";
 
 describe("manaValue (CR 202.3)", () => {
     it("returns 0 when cost is undefined (lands)", () => {
@@ -31,6 +32,74 @@ describe("manaValue (CR 202.3)", () => {
 
     it("returns 0 for the empty cost (Mox)", () => {
         expect(manaValue({})).toBe(0);
+    });
+});
+
+describe("getDefinitionProducibleColors (CR 106.4, ADR 0073 issue #1610, from-name variant)", () => {
+    it("reads a Mox's colour off its ability, not its (empty) mana cost — the bug ADR 0073 fixes", () => {
+        // Mox Ruby: manaCost { X: 0 } — truthy, so the mana-cost-derived
+        // `colors`/`getCardColorIdentity` short-circuits to `[]`. Fixing
+        // Value/Castability (`convex/limited/botDrafter.ts`) need the colour
+        // it actually PRODUCES instead.
+        const moxRuby = getCardByName("Mox Ruby");
+        expect([...getDefinitionProducibleColors(moxRuby)]).toEqual(["R"]);
+    });
+
+    it("reads a dual land's two colours off its subtypes + manaChoices ability", () => {
+        const volcanicIsland = getCardByName("Volcanic Island");
+        expect(
+            [...getDefinitionProducibleColors(volcanicIsland)].sort()
+        ).toEqual(["R", "U"]);
+    });
+
+    it("reads a basic land's single colour off its subtype alone", () => {
+        const forest = getCardByName("Forest");
+        expect([...getDefinitionProducibleColors(forest)]).toEqual(["G"]);
+    });
+
+    it("returns empty for a card with no mana-producing ability", () => {
+        const bears = getCardByName("Grizzly Bears");
+        expect([...getDefinitionProducibleColors(bears)]).toEqual([]);
+    });
+
+    it("excludes {C} — colourless is not a colour (CR 202.2, 106.1b)", () => {
+        const stub: CardDefinition = {
+            id: "stub-colorless-source",
+            name: "Stub Colorless Source",
+            rarity: "common",
+            types: ["Artifact"],
+            manaCost: { generic: 1 },
+            activatedAbilities: [
+                {
+                    id: "stub-mana",
+                    oracleText: "{T}: Add {C}.",
+                    cost: { tap: true },
+                    useStack: false,
+                    manaProduced: { C: 1 },
+                },
+            ],
+        };
+        expect([...getDefinitionProducibleColors(stub)]).toEqual([]);
+    });
+
+    it("skips a useStack ability — not a mana ability (CR 605.1a)", () => {
+        const stub: CardDefinition = {
+            id: "stub-useStack-source",
+            name: "Stub UseStack Source",
+            rarity: "common",
+            types: ["Artifact"],
+            manaCost: { generic: 1 },
+            activatedAbilities: [
+                {
+                    id: "stub-mana",
+                    oracleText: "{2}, {T}: Add {U}.",
+                    cost: { tap: true },
+                    useStack: true,
+                    manaProduced: { U: 1 },
+                },
+            ],
+        };
+        expect([...getDefinitionProducibleColors(stub)]).toEqual([]);
     });
 });
 

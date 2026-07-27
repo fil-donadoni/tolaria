@@ -16,8 +16,14 @@
 // `draftEngine.ts`/`botDrafter.ts` modules this file's exports are injected
 // into.
 import { tryGetDefinition, resolveDeckCardMeta } from "@convex/cards";
-import { getCardColorIdentity } from "@convex/cards/colors";
-import { manaValue } from "@convex/gre/constants";
+import {
+    getCardColorIdentity,
+    getPipCountsFromCost,
+} from "@convex/cards/colors";
+import {
+    getDefinitionProducibleColors,
+    manaValue,
+} from "@convex/gre/constants";
 import type { ResolveCardMeta } from "@convex/limited/eventLogic";
 import type { GetCardEvalMeta } from "@convex/limited/botDrafter";
 
@@ -44,5 +50,7 @@ export const draftLabGetCardEvalMeta: GetCardEvalMeta = (scryfallId) => {
         colors: getCardColorIdentity(def),
         manaValue: manaValue(def.manaCost),
         rarity: meta.rarity,
+        pips: getPipCountsFromCost(def.manaCost),
+        producedColors: [...getDefinitionProducibleColors(def)],
     };
 };

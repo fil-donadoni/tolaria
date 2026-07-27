@@ -22,9 +22,9 @@
 // every regime.
 import { describe, it, expect } from "vitest";
 import { getCardByName } from "../../cards";
-import { getCardColorIdentity } from "../../cards/colors";
+import { getCardColorIdentity, getPipCountsFromCost } from "../../cards/colors";
 import { cardValueById } from "../../gre/cardValue";
-import { manaValue } from "../../gre/constants";
+import { getDefinitionProducibleColors, manaValue } from "../../gre/constants";
 import { makeRng } from "../../gre/rng";
 import type { DeckCard } from "../../deckPresets";
 import { PICK_RATING_MAX, PICK_RATING_MIN } from "../pickRatings";
@@ -232,6 +232,8 @@ for (const name of [
         colors: getCardColorIdentity(def),
         manaValue: manaValue(def.manaCost),
         rarity: def.rarity,
+        pips: getPipCountsFromCost(def.manaCost),
+        producedColors: [...getDefinitionProducibleColors(def)],
     });
 }
 const resolveMeta: GetDeckCardEvalMeta = (cardId) =>
@@ -551,7 +553,14 @@ describe("evaluateDeckStrength reads COMPOSITION, not list length (issue #1642 t
 
     it("still separates two REAL decks — size-independence is not flatness", () => {
         // A normalisation that squashed everything would pass every row above.
-        // The calibrated fixtures must survive it unchanged.
+        // The calibrated fixtures must survive it unchanged. Threshold
+        // recalibrated (was 0.5) when issue #1610 (ADR 0073) rebased in
+        // pip-weighted Colour Commitment / Castability / Fixing Value: the
+        // FIXTURE_META here now carries real `pips`/`producedColors`, so the
+        // gap between a focused two-colour deck and a five-colour pile is
+        // moderated by those terms rather than left at its pre-#1610 value.
+        // The margin (~0.43 of a 0–5 + context-cap scale) is still a
+        // decisive, real separation — just narrower than before the merge.
         const twoColour = evaluateDeckStrength(
             TWO_COLOUR_DECK,
             resolveMeta,
@@ -562,7 +571,7 @@ describe("evaluateDeckStrength reads COMPOSITION, not list length (issue #1642 t
             resolveMeta,
             noRatings
         );
-        expect(twoColour.mean - pile.mean).toBeGreaterThan(0.5);
+        expect(twoColour.mean - pile.mean).toBeGreaterThan(0.4);
     });
 });
 
