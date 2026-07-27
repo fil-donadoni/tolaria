@@ -672,6 +672,37 @@ function resolveBasicLandFor(setCode: string): ResolveBasicLand {
     };
 }
 
+/** ONE seat's Auto-Built deck, resolved straight off the stored event row
+ *  (issue #1115's `computeBotAutoBuiltDeck` wired with this module's two
+ *  registry resolvers). `null` for a seat that has none — a human seat, a seat
+ *  that doesn't exist, or an event whose Pool isn't final yet.
+ *
+ *  EXPORTED for `convex/game.ts`'s `startPairingMatch` (issue #1645): a round
+ *  Match against a bot seat must be played against the deck the SERVER derives
+ *  from that seat's own drafted Pool. The projection already puts
+ *  `autoBuiltDeck` on the wire for the (unrecorded) "Play vs Bots" playtest,
+ *  but a pairing Match's result lands in the standings — so its opponent
+ *  decklist can never come from the client. The import direction is
+ *  `game.ts -> limitedEvents.ts` only; this module imports nothing from
+ *  `game.ts`. */
+export function resolveSeatAutoBuiltDeck(
+    event: Doc<"limitedEvents">,
+    seatIndex: number
+): AutoBuiltDeck | null {
+    const seat = event.seats.find((s) => s.seatIndex === seatIndex);
+    if (!seat) return null;
+    return computeBotAutoBuiltDeck(
+        seat,
+        {
+            type: event.type,
+            status: event.status,
+            draftCompletedAt: event.draftCompletedAt,
+        },
+        getAutoBuildCardMeta,
+        resolveBasicLandFor(event.packSlots[0] ?? "")
+    );
+}
+
 /** A projected Seat view (`eventProjection.ts`) plus its Auto-Built deck
  *  (issue #1115) — `extends`, not `&`, because intersecting `LimitedEventView`
  *  with a `{ seats: T[] }` override makes `seats` unsatisfiable (TS intersects
