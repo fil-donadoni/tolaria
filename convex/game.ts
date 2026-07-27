@@ -3661,6 +3661,16 @@ async function buildNextGameForMatch(
         players: gamePlayers,
         solo: match.solo === true ? true : undefined,
         vsAi: match.vsAi === true ? true : undefined,
+        // The `games` row is declared a MIRROR of the owning Match's event
+        // binding (schema.ts `limitedPairing`) — G1 (`startPairingMatch`)
+        // wrote it, and every later Game of the same pairing must carry it
+        // too. Dropping it here made every Bo3 Game 2+ read as unbound
+        // (issue #1645 review): the standings write still landed (it reads
+        // the MATCH), while any gate reading the games row silently no-oped.
+        // `limitedChallenge` is deliberately NOT mirrored — it is the pending
+        // -accept marker `joinGame` consumes, already spent by G2.
+        limitedEventId: match.limitedEventId,
+        limitedPairing: match.limitedPairing,
         createdAt: now,
         updatedAt: now,
     });
@@ -10469,6 +10479,13 @@ export const cancelAutoPass = mutation({
         playerId: v.string(),
     },
     handler: async (ctx, args) => {
+        // SECURITY (issue #1645 review): seat-addressed mutation — the
+        // caller must own the handle they name. See `assertCallerOwnsSeat`.
+        // It writes no result, but clearing the OPPONENT's auto-pass /
+        // queued end-turn (and bumping `seq`) is the same act-as-another-seat
+        // class as the rest. The clear-only semantics below are unchanged:
+        // priority is never reclaimed from the opponent.
+        await assertCallerOwnsSeat(ctx, args.playerId);
         const gameState = await getLatestGameState(ctx, args.gameId);
         if (!gameState) throw new Error("Game not found");
 
@@ -10527,15 +10544,26 @@ export const concede = mutation({
 
         getPlayer(state, args.playerId);
         assertSeatOwnership(args.playerId, user._id);
-        // The per-GAME twin of `forfeitMatch`'s bot-seat gate. The `games` row
-        // mirrors the Match's `limitedPairing` / `vsAi` (`startPairingMatch`),
-        // so the event binding is reachable from the game id alone. Without
-        // this, a Bo3 pairing is still a 2-call sweep: concede the bot's seat
-        // once per Game and `finalizeGameOver` → `recordLimitedPairingResult`
-        // writes the 2-0. Ordinary bot plays are untouched — the Brain never
-        // concedes, and this gate exists on no other mutation.
+        // The per-GAME twin of `forfeitMatch`'s bot-seat gate. Without it a
+        // Bo3 pairing is still a per-Game sweep: concede the bot's seat once
+        // per Game and `finalizeGameOver` → `recordLimitedPairingResult`
+        // writes the 2-0 with nothing played. Ordinary bot plays are
+        // untouched — the Brain never concedes, and this gate exists on no
+        // other mutation.
+        //
+        // The gate resolves the binding from the owning MATCH, never from the
+        // `games` row (issue #1645 review): the Match is the authority and the
+        // `games` row is only a mirror of it, so a gate keyed off the mirror
+        // evaporates the moment a writer forgets to copy a field — which is
+        // exactly what happened for every Bo3 Game 2+ (`buildNextGameForMatch`
+        // dropped `limitedPairing`, so `assertNotEventBotSeat` no-oped from G2
+        // on while the standings write, reading the Match, still landed). The
+        // mirror is fixed too, but nothing depends on it staying in sync.
         const game = await ctx.db.get(args.gameId);
-        if (game) assertNotEventBotSeat(game, args.playerId);
+        const match = game?.matchId ? await ctx.db.get(game.matchId) : null;
+        // Legacy games predate `matchId` (schema.ts) — fall back to the row.
+        const bindingDoc = match ?? game;
+        if (bindingDoc) assertNotEventBotSeat(bindingDoc, args.playerId);
         const winnerId = getOpponentId(state, args.playerId);
 
         state.gameOver = {

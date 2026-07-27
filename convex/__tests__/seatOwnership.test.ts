@@ -33,7 +33,7 @@
 import { describe, it, expect } from "vitest";
 import type { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
-import { concede, mill } from "../game";
+import { cancelAutoPass, concede, continueMatch, mill } from "../game";
 import { assertSeatOwnership, seatBelongsToUser } from "../gameLifecycle";
 import type { GameState } from "../gre/state";
 import { makeInstance, makePlayer, makeState } from "../cards/__tests__/setup";
@@ -156,12 +156,61 @@ const EVENT_PAIRING: Row = {
     limitedPairing: { round: 1, seatA: 0, seatB: 1 },
 };
 
+/** LEA Mountain — a real definition, so `buildInitialGameState` can build a
+ *  library out of it when the Bo3 next-Game builder runs for real. */
+const MOUNTAIN = "eace2c85-976c-425e-9800-5a6ccbd91b56";
+
+/** A Match seat as the `matches` schema stores it (deck split maindeck /
+ *  sideboard), sized so `buildInitialGameState` can deal an opening hand. */
+const matchSeat = (id: string, name: string) => ({
+    id,
+    name,
+    bgColor: "#000000",
+    ready: false,
+    gamesWon: 0,
+    deck: {
+        id: "deck-1",
+        name: "Deck",
+        format: "freeform",
+        maindeck: Array.from({ length: 10 }, () => ({
+            cardId: MOUNTAIN,
+            cardName: "Mountain",
+        })),
+        sideboard: [],
+    },
+});
+
+/** The event-bound vs-AI pairing MATCH — the authority the `games` rows only
+ *  mirror. `status: "sideboarding"` is the state `continueMatch` consumes to
+ *  build Game 2 (PRD #387). */
+const eventPairingMatch = (status: string): Row => ({
+    _id: "match-1",
+    __table: "matches",
+    bestOf: 3,
+    status,
+    players: [
+        matchSeat("alice-p1", "Alice (P1)"),
+        matchSeat("alice-p2", "Bot"),
+    ],
+    currentGameNumber: 1,
+    createdAt: 0,
+    updatedAt: 0,
+    ...EVENT_PAIRING,
+});
+
 type Handler<A, R> = { _handler: (ctx: MutationCtx, args: A) => Promise<R> };
 
 const runConcede = (ctx: MutationCtx, args: Row) =>
     (concede as unknown as Handler<Row, null>)._handler(ctx, args);
 const runMill = (ctx: MutationCtx, args: Row) =>
     (mill as unknown as Handler<Row, null>)._handler(ctx, args);
+const runCancelAutoPass = (ctx: MutationCtx, args: Row) =>
+    (cancelAutoPass as unknown as Handler<Row, null>)._handler(ctx, args);
+const runContinueMatch = (ctx: MutationCtx, args: Row) =>
+    (continueMatch as unknown as Handler<Row, { gameId: string }>)._handler(
+        ctx,
+        args
+    );
 
 // ── The seat-ownership predicate itself ─────────────────────────────────────
 
@@ -324,6 +373,90 @@ describe("event-bound vs-AI pairing — the bot's seat cannot be resigned (issue
     });
 });
 
+// ── Game 2+ of a Bo3 pairing (issue #1645 review, round 3) ──────────────────
+//
+// The gate above was keyed off the `games` row, which the schema declares a
+// MIRROR of the owning Match's `limitedPairing`. `buildNextGameForMatch` did
+// not copy it, so from Game 2 on the mirror said "unbound" and the gate
+// silently no-oped — while `recordLimitedPairingResult`, which reads the
+// MATCH, still wrote the standings row. Net effect on a `matchFormat: "bo3"`
+// pairing: concede your own seat in G1, then the BOT's in G2 and G3, and the
+// event records a `source: "played"` 2-1 with zero games actually played.
+//
+// Two independent fixes, one per test below:
+//   1. `concede` resolves the binding from the MATCH (the authority), so the
+//      gate holds even when the mirror lies.
+//   2. `buildNextGameForMatch` carries `limitedEventId` / `limitedPairing`
+//      onto every later Game, so the mirror stops lying.
+describe("Bo3 Game 2+ — the bot-seat gate survives the next Game (issue #1645 review)", () => {
+    /** A Game 2 row in its PRE-FIX shape: bound to the Match by `matchId`, but
+     *  carrying no `limitedPairing` mirror of its own. The gate must still
+     *  fire — it reads the Match, not this row. */
+    const gameTwoSeeds = (): Row[] => [
+        ...twoPlayerSeeds("alice-p1", "alice-p2", {
+            matchId: "match-1",
+            gameNumber: 2,
+            vsAi: true,
+            solo: true,
+        }),
+        eventPairingMatch("playing"),
+    ];
+
+    it("refuses to concede the BOT's seat in Game 2 even when the games row lost the pairing mirror", async () => {
+        const stub = makeCtx("alice", gameTwoSeeds());
+        // The precondition that made this exploitable: the Game row itself
+        // carries no binding at all — only the Match does.
+        expect(stub.doc("game-1").limitedPairing).toBeUndefined();
+        expect(stub.doc("match-1").limitedPairing).toBeDefined();
+
+        await expect(
+            runConcede(stub.ctx, {
+                gameId: "game-1" as Id<"games">,
+                playerId: "alice-p2",
+            })
+        ).rejects.toThrow(/cannot resign your bot opponent/i);
+
+        expect(stub.doc("game-1").status).toBe("playing");
+        expect(stub.doc("game-1").winner).toBeUndefined();
+    });
+
+    it("still lets the HUMAN concede their own seat in that same Game 2", async () => {
+        const stub = makeCtx("alice", gameTwoSeeds());
+
+        await runConcede(stub.ctx, {
+            gameId: "game-1" as Id<"games">,
+            playerId: "alice-p1",
+        });
+
+        expect(stub.doc("game-1").status).toBe("finished");
+        expect(stub.doc("game-1").winner).toBe("alice-p2");
+    });
+
+    it("carries the event binding onto the next Game — the mirror stops lying", async () => {
+        // Drives the REAL next-Game builder (`buildNextGameForMatch`, via
+        // `continueMatch`) rather than hand-writing the row, so the assertion
+        // is on what the production writer actually persists.
+        const stub = makeCtx("alice", [
+            { _id: "alice", __table: "users", nickname: "Alice" },
+            eventPairingMatch("sideboarding"),
+        ]);
+
+        const { gameId } = await runContinueMatch(stub.ctx, {
+            matchId: "match-1" as Id<"matches">,
+            choice: "play",
+        });
+
+        const gameTwo = stub.doc(gameId);
+        expect(gameTwo.gameNumber).toBe(2);
+        expect(gameTwo.limitedEventId).toBe("event-1");
+        expect(gameTwo.limitedPairing).toEqual({
+            round: 1,
+            seatA: 0,
+            seatB: 1,
+        });
+    });
+});
+
 // ── The zone mutations (issue #1645 review, finding 4) ──────────────────────
 //
 // `mill` / `drawCard` / `exileFromLibrary` finish no game by themselves, which
@@ -363,5 +496,52 @@ describe("mill — a seat-addressed mutation the caller must own (issue #1645 re
         const self = state.players.find((p) => p.id === "bob")!;
         expect(self.library).toHaveLength(0);
         expect(self.graveyard).toHaveLength(1);
+    });
+});
+
+// ── cancelAutoPass (issue #1645 review, round 3) ────────────────────────────
+//
+// The one seat-addressed gameplay mutation the first sweep missed. It writes
+// no result — so it is griefing, not a scoring exploit — but it is the same
+// act-as-another-seat class: clearing the OPPONENT's `autoPassPlayers` /
+// `singleShotAutoPass` / `queuedEndTurn` and bumping `seq` from their seat.
+// The gate binds the CALLER; the mutation's clear-only semantics (priority is
+// never reclaimed from the opponent) are unchanged.
+describe("cancelAutoPass — a seat-addressed mutation the caller must own (issue #1645 review)", () => {
+    /** Both seats auto-passing, so a leaked cancel is visible on either. */
+    const autoPassSeeds = (seatA: string, seatB: string): Row[] => {
+        const seeds = twoPlayerSeeds(seatA, seatB);
+        const gs = seeds.find((s) => s._id === "gs-1")!;
+        (gs.state as GameState).autoPassPlayers = [seatA, seatB];
+        return seeds;
+    };
+
+    it("refuses to clear the OPPONENT's auto-pass, leaving the state untouched", async () => {
+        const stub = makeCtx("bob", autoPassSeeds("alice", "bob"));
+
+        await expect(
+            runCancelAutoPass(stub.ctx, {
+                gameId: "game-1" as Id<"games">,
+                playerId: "alice",
+            })
+        ).rejects.toThrow(/cannot act as another player/i);
+
+        const state = stub.doc("gs-1").state as GameState;
+        expect(state.autoPassPlayers).toEqual(["alice", "bob"]);
+        expect(stub.doc("gs-1").seq).toBe(1);
+    });
+
+    it("still clears the caller's OWN auto-pass without touching priority", async () => {
+        const stub = makeCtx("bob", autoPassSeeds("alice", "bob"));
+
+        await runCancelAutoPass(stub.ctx, {
+            gameId: "game-1" as Id<"games">,
+            playerId: "bob",
+        });
+
+        const state = stub.doc("gs-1").state as GameState;
+        expect(state.autoPassPlayers).toEqual(["alice"]);
+        // Clear-only: priority stays where it was, never reclaimed.
+        expect(state.priorityPlayerId).toBe("alice");
     });
 });
