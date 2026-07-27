@@ -2,6 +2,7 @@ import { useMutation, useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
+import { usePageVisible } from "~/hooks/usePageVisible";
 
 // Limited Event skeleton + Sealed flow (PRD #1107, ADR 0054/0055, issue
 // #1110). Thin wrapper hooks over `convex/limitedEvents.ts`'s
@@ -14,13 +15,23 @@ export type DraftableSetInfo = FunctionReturnType<
     typeof api.limitedEvents.listLimitedDraftableSets
 >[number];
 
-// Sourced from a list query (`v.array(limitedEventViewValidator)`, always
-// non-null elements) rather than `getLimitedEvent` directly — that query now
-// returns `LimitedEventView | null` (issue #1579: a cancelled event a viewer
-// is still looking at), and deriving from it here would make every list
-// consumer (`LimitedEventList`, `LimitedMyEventsList`, …) fight a spurious
-// `| null` in their element type. Same validator underneath either way.
-export type LimitedEventView = FunctionReturnType<
+// The FULL event view — every seat's Pool/pack/arrangement, as far as the
+// viewer is allowed to see them. Sourced from `getLimitedEvent`, stripped of
+// its `| null` (issue #1579: that query returns null for an event cancelled
+// out from under a live viewer; carrying the null into this alias would make
+// every consumer fight a spurious union).
+export type LimitedEventView = NonNullable<
+    FunctionReturnType<typeof api.limitedEvents.getLimitedEvent>
+>;
+
+// The LIST view — deliberately narrower (see `limitedEventSummaryValidator` in
+// `convex/limitedEvents.ts`): event name/phase plus seat identity, and none of
+// the card payload. It is a distinct type rather than `LimitedEventView` with
+// empty fields precisely so a component that reaches for a Pool on a list row
+// fails to compile: the list queries answer from the slim event row alone, and
+// re-widening them is what made a backgrounded lobby re-read every Pool in the
+// table on every draft pick.
+export type LimitedEventSummaryView = FunctionReturnType<
     typeof api.limitedEvents.listOpenLimitedEvents
 >[number];
 
@@ -32,14 +43,31 @@ export function useDraftableSets(): DraftableSetInfo[] | undefined {
     return useQuery(api.limitedEvents.listLimitedDraftableSets);
 }
 
+// Both list queries below are gated on tab visibility, mirroring the lobby's
+// `api.decks.list` / `api.game.listOpenGames` subscriptions. They are LIST
+// scans over `limitedEvents`, so every write to ANY event re-runs them and
+// re-reads every scanned row; leaving them subscribed behind a hidden tab was
+// the single largest source of Convex database read bytes in development (a
+// backgrounded lobby paid a full re-scan per draft pick). A hidden tab renders
+// nothing, so dropping the subscription costs no visible freshness — the query
+// re-runs on `visibilitychange`.
+
 /** Open events (still accepting Seats) — the Limited lobby list. */
-export function useOpenLimitedEvents(): LimitedEventView[] | undefined {
-    return useQuery(api.limitedEvents.listOpenLimitedEvents);
+export function useOpenLimitedEvents(): LimitedEventSummaryView[] | undefined {
+    const pageVisible = usePageVisible();
+    return useQuery(
+        api.limitedEvents.listOpenLimitedEvents,
+        pageVisible ? {} : "skip"
+    );
 }
 
 /** Every event (any status) the current user occupies a Seat in. */
-export function useMyLimitedEvents(): LimitedEventView[] | undefined {
-    return useQuery(api.limitedEvents.myLimitedEvents);
+export function useMyLimitedEvents(): LimitedEventSummaryView[] | undefined {
+    const pageVisible = usePageVisible();
+    return useQuery(
+        api.limitedEvents.myLimitedEvents,
+        pageVisible ? {} : "skip"
+    );
 }
 
 /** One event, projected for the current viewer (own Pool visible, every

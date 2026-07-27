@@ -1,4 +1,4 @@
-import type { LimitedEventView } from "~/hooks/useLimitedEvent";
+import type { LimitedEventSummaryView } from "~/hooks/useLimitedEvent";
 import { limitedEventName } from "~/lib/limitedEventName";
 import { limitedEventStatusHint } from "~/lib/limitedEventStatus";
 import ActionButton from "~/components/board/action-button";
@@ -14,7 +14,7 @@ export default function LimitedEventListItem({
     onOpen,
     joinPending = false,
 }: {
-    event: LimitedEventView;
+    event: LimitedEventSummaryView;
     viewerHasSeat: boolean;
     // Optional: the open-events lobby list always supplies it (a seatless
     // viewer can Join); the "your events" list (issue #1578) never renders

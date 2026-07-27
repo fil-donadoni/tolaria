@@ -487,15 +487,59 @@ describe("an all-bot table reaches the play phase (issue #1644)", () => {
             auth: {
                 getUserIdentity: async () => ({ subject: "user1|session1" }),
             },
+            // `limitedSeats` (`convex/schema.ts`) holds each seat's Pool, so
+            // it has to round-trip for real here: `openPlayPhaseIfReady`
+            // Auto-Builds every bot seat's deck from its Pool to decide the
+            // bot-vs-bot pairings, and a stub that dropped the writes would
+            // evaluate every seat as an empty deck while still passing.
             db: {
                 get: async (id: string) => docs.get(id) ?? null,
                 patch: async (id: string, patch: Record<string, unknown>) => {
                     docs.set(id, { ...docs.get(id), ...patch });
                 },
-                // Both indexed reads (`userDecks`, `cardRatings`) are empty for
-                // an all-bot table nobody has rated.
-                query: () => ({
-                    withIndex: () => ({ collect: async () => [] }),
+                insert: async (table: string, doc: Record<string, unknown>) => {
+                    const _id = `${table}-${docs.size}`;
+                    docs.set(_id, { ...doc, _id, __table: table });
+                    return _id;
+                },
+                replace: async (id: string, doc: Record<string, unknown>) => {
+                    const prev = docs.get(id);
+                    docs.set(id, { ...doc, _id: id, __table: prev?.__table });
+                },
+                // The other indexed reads (`userDecks`, `cardRatings`) have no
+                // rows for an all-bot table nobody has rated, so they fall out
+                // of the same filter naturally.
+                query: (table: string) => ({
+                    withIndex: (
+                        _name: string,
+                        build?: (q: {
+                            eq: (field: string, value: unknown) => unknown;
+                        }) => unknown
+                    ) => {
+                        const filters: [string, unknown][] = [];
+                        if (build) {
+                            const q = {
+                                eq(field: string, value: unknown) {
+                                    filters.push([field, value]);
+                                    return q;
+                                },
+                            };
+                            build(q);
+                        }
+                        const matching = () =>
+                            [...docs.values()].filter(
+                                (row) =>
+                                    row.__table === table &&
+                                    filters.every(
+                                        ([field, value]) => row[field] === value
+                                    )
+                            );
+                        return {
+                            collect: async () => matching(),
+                            unique: async () => matching()[0] ?? null,
+                            take: async (n: number) => matching().slice(0, n),
+                        };
+                    },
                 }),
             },
             scheduler: { runAfter: async () => undefined },

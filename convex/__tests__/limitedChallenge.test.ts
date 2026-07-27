@@ -158,8 +158,19 @@ describe("Limited challenge pipeline: challenge → join → game start (issue #
     // like `limitedDeckbuild.test.ts` does.
     it("resolves each seat's Pool for its REAL occupant at game start", async () => {
         const { event, deckForSeat } = buildTwoHumanEvent("event-3", 4242);
+        // `limitedSeats` returns nothing: this fixture carries its Pools inline
+        // on the event row (the legacy pre-split shape `limitedSeatStore.ts`
+        // still folds in), so the gate must resolve them from there.
         const stubCtx = {
-            db: { get: async () => event },
+            db: {
+                get: async () => event,
+                query: () => ({
+                    withIndex: () => ({
+                        unique: async () => null,
+                        collect: async () => [],
+                    }),
+                }),
+            },
         } as unknown as MutationCtx;
 
         for (const seatIndex of [0, 1] as const) {

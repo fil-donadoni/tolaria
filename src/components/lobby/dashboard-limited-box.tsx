@@ -1,5 +1,5 @@
 import type { Id } from "@convex/_generated/dataModel";
-import type { LimitedEventView } from "~/hooks/useLimitedEvent";
+import type { LimitedEventSummaryView } from "~/hooks/useLimitedEvent";
 import { limitedEventName } from "~/lib/limitedEventName";
 import { cn } from "~/lib/utils";
 import { Panel, PanelHeader, PanelBody } from "~/components/ui/panel";
@@ -21,7 +21,7 @@ export default function DashboardLimitedBox({
     onBrowse,
     onOpen,
 }: {
-    events: LimitedEventView[];
+    events: LimitedEventSummaryView[];
     onBrowse: () => void;
     onOpen: (eventId: Id<"limitedEvents">) => void;
 }) {

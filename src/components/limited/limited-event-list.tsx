@@ -1,5 +1,5 @@
 import type { Id } from "@convex/_generated/dataModel";
-import type { LimitedEventView } from "~/hooks/useLimitedEvent";
+import type { LimitedEventSummaryView } from "~/hooks/useLimitedEvent";
 import LimitedEventListItem from "./limited-event-list-item";
 
 /** The open-events lobby list (PRD #1107 story 7). */
@@ -10,7 +10,7 @@ export default function LimitedEventList({
     onOpen,
     joinPendingEventId,
 }: {
-    events: LimitedEventView[];
+    events: LimitedEventSummaryView[];
     viewerId: string;
     onJoin: (eventId: Id<"limitedEvents">) => void;
     onOpen: (eventId: Id<"limitedEvents">) => void;

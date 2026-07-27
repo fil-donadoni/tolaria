@@ -10,6 +10,7 @@ import {
     findSeatPool,
     resolveLimitedDeckLegality,
 } from "./limited/poolResolution";
+import { hydrateSeat } from "./limitedSeatStore";
 
 const deckCardValidator = v.object({
     cardId: v.string(),
@@ -79,8 +80,16 @@ export const listMine = query({
                         )) ?? null;
                     eventCache.set(row.limitedEventId, event);
                 }
+                // Only the deck's own seat is loaded — this runs per deck row
+                // in a query the lobby keeps subscribed, so pulling the whole
+                // event's Pools here would undo the `limitedSeats` split
+                // (`convex/limitedSeatStore.ts`).
+                const seatIndex = Number(row.limitedSeatId);
                 const seatPool = event
-                    ? findSeatPool(event.seats, Number(row.limitedSeatId))
+                    ? findSeatPool(
+                          await hydrateSeat(ctx, event, seatIndex),
+                          seatIndex
+                      )
                     : null;
                 const { isLegal, reasons } = resolveLimitedDeckLegality(
                     row,
