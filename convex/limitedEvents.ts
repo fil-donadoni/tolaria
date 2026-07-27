@@ -254,8 +254,9 @@ const deckCardValidator = v.object({
 });
 
 // The five true colors a Auto-Built deck can be built in (CR 105.1) — never
-// "C": `chooseTwoColors` (`convex/limited/autoBuild.ts`) only ever returns
-// two of these.
+// "C": `chooseDeckColors` (`convex/limited/autoBuild.ts`) only ever returns
+// two or three of these (the count is DERIVED from the Pool's mana base,
+// issue #1615 — hence `v.array`, not a fixed-length tuple).
 const colorValidator = v.union(
     v.literal("W"),
     v.literal("U"),
@@ -628,8 +629,11 @@ async function loadEventCardProfile(
 
 /** Resolves a drawn card's Scryfall id to the printed characteristics
  *  Auto-Build needs (issue #1115, `convex/limited/autoBuild.ts`) — the same
- *  shape as `getCardEvalMeta` above, plus `isLand` (the spell/mana-source
- *  split a deck BUILDER needs that a pack-picking heuristic never did). */
+ *  shape as `getCardEvalMeta` above (`AutoBuildCardMeta` literally EXTENDS
+ *  `CardEvalMeta`, issue #1615, so the pip/produced-colour arithmetic is
+ *  shared code), plus the two builder-only facts: `isLand` (the spell /
+ *  mana-source split) and `isBasicLand` (CR 205.4a — a basic is not fixing,
+ *  so it can never be the evidence that unlocks a third colour). */
 const getAutoBuildCardMeta: GetAutoBuildCardMeta = (scryfallId) => {
     const meta = resolveDeckCardMeta(scryfallId);
     if (!meta) return null;
@@ -640,7 +644,12 @@ const getAutoBuildCardMeta: GetAutoBuildCardMeta = (scryfallId) => {
         colors: getCardColorIdentity(def),
         manaValue: manaValue(def.manaCost),
         rarity: meta.rarity,
+        pips: getPipCountsFromCost(def.manaCost),
+        producedColors: [...getDefinitionProducibleColors(def)],
         isLand: def.types.includes("Land"),
+        isBasicLand:
+            def.types.includes("Land") &&
+            (def.supertypes?.includes("Basic") ?? false),
     };
 };
 
@@ -824,6 +833,14 @@ async function projectEventForViewer(
         ? await loadEventChallenges(ctx, event._id)
         : [];
     const viewerChallenges = projectViewerChallenges(challenges, viewerUserId);
+    // Card Profiles feed Auto-Build's Capability term (ADR 0072, issue #1615)
+    // — the SAME layered seam the Pick Heuristic reads, so a Pool drafted
+    // around an enabler is BUILT around it too. Loaded only once Pools exist
+    // (an `open` event has no deck to build, so the lobby list never pays for
+    // the scan).
+    const getCardProfile = arePoolsDealt(event.status)
+        ? await loadEventCardProfile(ctx, event.packSlots)
+        : undefined;
     return {
         ...base,
         seats: base.seats.map((seatView, i) => {
@@ -831,7 +848,8 @@ async function projectEventForViewer(
                 seats[i],
                 eventContext,
                 getAutoBuildCardMeta,
-                resolveBasicLand
+                resolveBasicLand,
+                { getCardProfile }
             );
             return {
                 ...seatView,

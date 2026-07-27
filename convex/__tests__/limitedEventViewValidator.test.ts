@@ -219,6 +219,9 @@ const getAutoBuildCardMeta = (scryfallId: string) => {
         manaValue: manaValue(def.manaCost),
         rarity: meta.rarity,
         isLand: def.types.includes("Land"),
+        isBasicLand: def.supertypes?.includes("Basic") === true,
+        pips: getPipCountsFromCost(def.manaCost),
+        producedColors: [...getDefinitionProducibleColors(def)],
     };
 };
 
