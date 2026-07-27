@@ -6,8 +6,9 @@
 // point: this project's most recurring bug class is a projection dropping a
 // field the UI reads, and a hand-built view masks it exactly (CLAUDE.md §
 // Frontend wiring analysis).
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
+import type { Id } from "@convex/_generated/dataModel";
 import {
     projectLimitedEvent,
     type LimitedEventRow,
@@ -15,9 +16,33 @@ import {
 import type { LimitedEventView } from "~/hooks/useLimitedEvent";
 import LimitedRoundPanel from "../limited-round-panel";
 
+// The panel now hosts `LimitedRoundAction` (issue #1645), which talks to
+// Convex. Same mocking discipline as `limited-vs-ai-panel.test.tsx`: mock
+// `convex/react`, the generated `api` and the project's own hooks — the
+// `event` prop still comes from the REAL projection.
+vi.mock("@tanstack/react-router", () => ({ useNavigate: () => vi.fn() }));
+vi.mock("convex/react", () => ({
+    useMutation: () => vi.fn(),
+    useQuery: () => null,
+}));
+vi.mock("@convex/_generated/api", () => {
+    const apiProxy: unknown = new Proxy({}, { get: () => apiProxy });
+    return { api: apiProxy };
+});
+vi.mock("~/hooks/useCurrentUser", () => ({
+    useCurrentUser: () => ({ _id: "user1", nickname: "Alice" }),
+}));
+vi.mock("~/hooks/useUserDecks", () => ({ useUserDecks: () => [] }));
+
 afterEach(() => {
     cleanup();
 });
+
+const EVENT_ID = "event-1644" as Id<"limitedEvents">;
+
+function renderPanel(event: LimitedEventView) {
+    return render(<LimitedRoundPanel eventId={EVENT_ID} event={event} />);
+}
 
 type Pairings = NonNullable<LimitedEventRow["rounds"]>[number]["pairings"];
 
@@ -55,13 +80,11 @@ function projectedEvent(
 
 describe("LimitedRoundPanel — the current round (PRD story 6)", () => {
     it("names the round and the total the table's size implies", () => {
-        render(
-            <LimitedRoundPanel
-                event={projectedEvent([
-                    { seatA: 0, seatB: 2 },
-                    { seatA: 1, seatB: 3 },
-                ])}
-            />
+        renderPanel(
+            projectedEvent([
+                { seatA: 0, seatB: 2 },
+                { seatA: 1, seatB: 3 },
+            ])
         );
 
         // 4 seats -> 2 Swiss rounds (`roundsForSeatCount`).
@@ -74,7 +97,7 @@ describe("LimitedRoundPanel — the current round (PRD story 6)", () => {
             currentRound: undefined,
             rounds: undefined,
         });
-        const { container } = render(<LimitedRoundPanel event={event} />);
+        const { container } = renderPanel(event);
 
         expect(container.firstChild).toBeNull();
     });
@@ -82,13 +105,11 @@ describe("LimitedRoundPanel — the current round (PRD story 6)", () => {
 
 describe("LimitedRoundPanel — the viewer's pairing (PRD story 7)", () => {
     it("names the opponent and flags a bot seat as a bot", () => {
-        render(
-            <LimitedRoundPanel
-                event={projectedEvent([
-                    { seatA: 0, seatB: 2 },
-                    { seatA: 1, seatB: 3 },
-                ])}
-            />
+        renderPanel(
+            projectedEvent([
+                { seatA: 0, seatB: 2 },
+                { seatA: 1, seatB: 3 },
+            ])
         );
 
         expect(screen.getByTestId("round-pairing")).toBeTruthy();
@@ -99,13 +120,11 @@ describe("LimitedRoundPanel — the viewer's pairing (PRD story 7)", () => {
     });
 
     it("flags a human opponent as human", () => {
-        render(
-            <LimitedRoundPanel
-                event={projectedEvent([
-                    { seatA: 0, seatB: 1 },
-                    { seatA: 2, seatB: 3 },
-                ])}
-            />
+        renderPanel(
+            projectedEvent([
+                { seatA: 0, seatB: 1 },
+                { seatA: 2, seatB: 3 },
+            ])
         );
 
         expect(screen.getByText("Bob")).toBeTruthy();
@@ -115,13 +134,11 @@ describe("LimitedRoundPanel — the viewer's pairing (PRD story 7)", () => {
     });
 
     it("says a pending pairing has not been played yet", () => {
-        render(
-            <LimitedRoundPanel
-                event={projectedEvent([
-                    { seatA: 0, seatB: 2 },
-                    { seatA: 1, seatB: 3 },
-                ])}
-            />
+        renderPanel(
+            projectedEvent([
+                { seatA: 0, seatB: 2 },
+                { seatA: 1, seatB: 3 },
+            ])
         );
 
         expect(
@@ -132,23 +149,21 @@ describe("LimitedRoundPanel — the viewer's pairing (PRD story 7)", () => {
 
 describe("LimitedRoundPanel — already decided (PRD story 26)", () => {
     it("shows a win with the score from the VIEWER's side and how it was decided", () => {
-        render(
-            <LimitedRoundPanel
-                event={projectedEvent([
-                    // The viewer is seat B here — the raw result reads 1-2 and
-                    // must render as the viewer's 2-1 win.
-                    {
-                        seatA: 2,
-                        seatB: 0,
-                        result: { winsA: 1, winsB: 2, source: "played" },
-                    },
-                    {
-                        seatA: 1,
-                        seatB: 3,
-                        result: { winsA: 2, winsB: 0, source: "played" },
-                    },
-                ])}
-            />
+        renderPanel(
+            projectedEvent([
+                // The viewer is seat B here — the raw result reads 1-2 and
+                // must render as the viewer's 2-1 win.
+                {
+                    seatA: 2,
+                    seatB: 0,
+                    result: { winsA: 1, winsB: 2, source: "played" },
+                },
+                {
+                    seatA: 1,
+                    seatB: 3,
+                    result: { winsA: 2, winsB: 0, source: "played" },
+                },
+            ])
         );
 
         const status = screen.getByTestId("round-pairing-status");
@@ -158,17 +173,15 @@ describe("LimitedRoundPanel — already decided (PRD story 26)", () => {
     });
 
     it("labels a simulated loss as simulated", () => {
-        render(
-            <LimitedRoundPanel
-                event={projectedEvent([
-                    {
-                        seatA: 0,
-                        seatB: 2,
-                        result: { winsA: 0, winsB: 2, source: "simulated" },
-                    },
-                    { seatA: 1, seatB: 3 },
-                ])}
-            />
+        renderPanel(
+            projectedEvent([
+                {
+                    seatA: 0,
+                    seatB: 2,
+                    result: { winsA: 0, winsB: 2, source: "simulated" },
+                },
+                { seatA: 1, seatB: 3 },
+            ])
         );
 
         const status = screen.getByTestId("round-pairing-status");
@@ -178,38 +191,34 @@ describe("LimitedRoundPanel — already decided (PRD story 26)", () => {
     });
 
     it("says the round is still waiting on another seat (PRD story 21)", () => {
-        render(
-            <LimitedRoundPanel
-                event={projectedEvent([
-                    {
-                        seatA: 0,
-                        seatB: 2,
-                        result: { winsA: 2, winsB: 0, source: "played" },
-                    },
-                    { seatA: 1, seatB: 3 },
-                ])}
-            />
+        renderPanel(
+            projectedEvent([
+                {
+                    seatA: 0,
+                    seatB: 2,
+                    result: { winsA: 2, winsB: 0, source: "played" },
+                },
+                { seatA: 1, seatB: 3 },
+            ])
         );
 
         expect(screen.getByTestId("round-waiting")).toBeTruthy();
     });
 
     it("does NOT say it is waiting once every pairing is decided", () => {
-        render(
-            <LimitedRoundPanel
-                event={projectedEvent([
-                    {
-                        seatA: 0,
-                        seatB: 2,
-                        result: { winsA: 2, winsB: 0, source: "played" },
-                    },
-                    {
-                        seatA: 1,
-                        seatB: 3,
-                        result: { winsA: 0, winsB: 2, source: "played" },
-                    },
-                ])}
-            />
+        renderPanel(
+            projectedEvent([
+                {
+                    seatA: 0,
+                    seatB: 2,
+                    result: { winsA: 2, winsB: 0, source: "played" },
+                },
+                {
+                    seatA: 1,
+                    seatB: 3,
+                    result: { winsA: 0, winsB: 2, source: "played" },
+                },
+            ])
         );
 
         expect(screen.queryByTestId("round-waiting")).toBeNull();
@@ -218,14 +227,12 @@ describe("LimitedRoundPanel — already decided (PRD story 26)", () => {
 
 describe("LimitedRoundPanel — the bye and the seatless viewer", () => {
     it("tells the viewer they have a bye, worth the format's games", () => {
-        render(
-            <LimitedRoundPanel
-                event={projectedEvent([
-                    { seatA: 0, result: { winsA: 2, winsB: 0, source: "bye" } },
-                    { seatA: 1, seatB: 2 },
-                    { seatA: 3 },
-                ])}
-            />
+        renderPanel(
+            projectedEvent([
+                { seatA: 0, result: { winsA: 2, winsB: 0, source: "bye" } },
+                { seatA: 1, seatB: 2 },
+                { seatA: 3 },
+            ])
         );
 
         const bye = screen.getByTestId("round-pairing-bye");
@@ -235,17 +242,15 @@ describe("LimitedRoundPanel — the bye and the seatless viewer", () => {
     });
 
     it("tells a viewer with no seat that they are only watching", () => {
-        render(
-            <LimitedRoundPanel
-                event={projectedEvent(
-                    [
-                        { seatA: 0, seatB: 2 },
-                        { seatA: 1, seatB: 3 },
-                    ],
-                    {},
-                    "outsider"
-                )}
-            />
+        renderPanel(
+            projectedEvent(
+                [
+                    { seatA: 0, seatB: 2 },
+                    { seatA: 1, seatB: 3 },
+                ],
+                {},
+                "outsider"
+            )
         );
 
         expect(screen.getByTestId("round-no-seat")).toBeTruthy();

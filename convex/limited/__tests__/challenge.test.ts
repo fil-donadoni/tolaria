@@ -80,6 +80,7 @@ describe("projectViewerChallenges — viewer-scoped privacy (issue #1577)", () =
     const challenges: ChallengeGame[] = [
         {
             gameId: "g-ab",
+            matchId: "m-ab",
             challengerUserId: "alice",
             challengerSeatIndex: 0,
             challengedUserId: "bob",
@@ -87,6 +88,7 @@ describe("projectViewerChallenges — viewer-scoped privacy (issue #1577)", () =
         },
         {
             gameId: "g-cb",
+            matchId: "m-cb",
             challengerUserId: "carol",
             challengerSeatIndex: 2,
             challengedUserId: "bob",
@@ -94,6 +96,7 @@ describe("projectViewerChallenges — viewer-scoped privacy (issue #1577)", () =
         },
         {
             gameId: "g-da",
+            matchId: "m-da",
             challengerUserId: "dave",
             challengerSeatIndex: 3,
             challengedUserId: "alice",
@@ -117,7 +120,7 @@ describe("projectViewerChallenges — viewer-scoped privacy (issue #1577)", () =
             challengedSeatIndex: 1,
         });
         expect(view.incoming).toEqual([
-            { gameId: "g-da", challengerSeatIndex: 3 },
+            { gameId: "g-da", matchId: "m-da", challengerSeatIndex: 3 },
         ]);
     });
 
@@ -130,6 +133,17 @@ describe("projectViewerChallenges — viewer-scoped privacy (issue #1577)", () =
             gameId: "g-cb",
             challengedSeatIndex: 1,
         });
+    });
+
+    it("carries each incoming challenge's owning MATCH id (issue #1645 review)", () => {
+        // The round-pairing affordance disambiguates its own Match from a
+        // stale FREE challenge sent by the same seat by comparing `matchId` to
+        // the pairing's — `challengerSeatIndex` alone cannot tell them apart.
+        const view = projectViewerChallenges(challenges, "bob");
+        expect(view.incoming.map((c) => c.matchId).sort()).toEqual([
+            "m-ab",
+            "m-cb",
+        ]);
     });
 
     it("returns nothing for an anonymous viewer", () => {

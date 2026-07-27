@@ -277,7 +277,15 @@ export default function LimitedEventDetail({
                     />
                 )}
 
-                {isPoolFinal && viewerSeat && (
+                {/* Free challenges and Play-vs-Bots are REPLACED while the
+                    event's rounds are running (ADR 0076 consequences, PRD
+                    #1628: "no free challenges while the event is live") — the
+                    round panel below carries the one Match the viewer is
+                    supposed to play, and a free Match would burn the
+                    single-active-Match slot their pairing needs. They come
+                    back once the event has concluded, as unrecorded
+                    playtesting. */}
+                {isPoolFinal && viewerSeat && !showRoundPanel && (
                     <>
                         <LimitedChallengePanel
                             eventId={eventId}
@@ -292,7 +300,9 @@ export default function LimitedEventDetail({
                     </>
                 )}
 
-                {showRoundPanel && <LimitedRoundPanel event={event} />}
+                {showRoundPanel && (
+                    <LimitedRoundPanel eventId={eventId} event={event} />
+                )}
 
                 {showStandings && <LimitedStandingsTable event={event} />}
 
