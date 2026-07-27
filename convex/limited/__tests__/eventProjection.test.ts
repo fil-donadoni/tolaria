@@ -964,3 +964,66 @@ describe("standings projection (PRD #1628 stories 22-24/47, issue #1643)", () =>
         expect(byeSeat.gameWins).toBe(2);
     });
 });
+
+describe("projectLimitedEvent — seed exposure (issue #1613, ADR 0074 replay mode)", () => {
+    it("hides seed while the event is still running (completed = false)", () => {
+        const event = row({ seed: 42 });
+        const view = projectLimitedEvent(event, "user1", false);
+        expect(view.seed).toBeNull();
+    });
+
+    it("hides seed for every viewer while running, not just non-participants", () => {
+        const event = row({ seed: 42 });
+        // Even the seated participant, and even a null (unauthenticated)
+        // viewer, must not receive the seed before the draft is over — a
+        // live seat could otherwise compute the packs it is about to be
+        // passed from the seed alone.
+        for (const viewer of ["user1", "user2", "outsider", null]) {
+            const view = projectLimitedEvent(event, viewer, false);
+            expect(view.seed).toBeNull();
+        }
+    });
+
+    it("exposes seed once the event is completed — hides nothing once the draft is over", () => {
+        const event = row({ seed: 42 });
+        const view = projectLimitedEvent(event, "user1", true);
+        expect(view.seed).toBe(42);
+    });
+
+    it("exposes seed at completion to every viewer, not just an admin", () => {
+        const event = row({ seed: 42 });
+        for (const viewer of ["user1", "user2", "outsider", null]) {
+            const view = projectLimitedEvent(
+                event,
+                viewer,
+                true,
+                0,
+                new Map(),
+                new Set(),
+                false // isAdmin: false
+            );
+            expect(view.seed).toBe(42);
+        }
+    });
+
+    it("projects seed as null (not undefined) for a completed event with no stored seed", () => {
+        const event = row();
+        delete event.seed;
+        const view = projectLimitedEvent(event, "user1", true);
+        expect(view.seed).toBeNull();
+    });
+
+    it("projects scorerVersion unconditionally — not gated on completed", () => {
+        const event = row({ scorerVersion: 3 });
+        expect(projectLimitedEvent(event, "user1", false).scorerVersion).toBe(
+            3
+        );
+        expect(projectLimitedEvent(event, "user1", true).scorerVersion).toBe(3);
+    });
+
+    it("scorerVersion is undefined (unknown), not 0, for an event predating the field", () => {
+        const event = row();
+        const view = projectLimitedEvent(event, "user1", true);
+        expect(view.scorerVersion).toBeUndefined();
+    });
+});

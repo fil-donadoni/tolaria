@@ -49,6 +49,15 @@ export interface LimitedEventRow {
     roundDeadlineMinutes?: number;
     currentRound?: number;
     rounds?: LimitedRound[];
+    /** Event RNG seed (ADR 0055). See `LimitedEventView.seed` for why this
+     *  projects only once `completed` (issue #1613, ADR 0074 replay mode). */
+    seed?: number;
+    /** Bot Drafter scorer version (issue #1613) —
+     *  `convex/limited/scorerVersion.ts`'s `SCORER_VERSION` at the moment
+     *  `startEvent` ran. Not privacy-sensitive (unlike `seed`, it names a code
+     *  version, not entropy that regenerates hidden Pools), so it projects
+     *  unconditionally, same as `matchFormat`/`packSlots`. */
+    scorerVersion?: number;
     seats: LimitedEventSeat[];
     createdAt: number;
     updatedAt: number;
@@ -210,6 +219,22 @@ export interface LimitedEventView {
      *  the play phase — an event with no rounds yet renders a zeroed table,
      *  not an absent one (issue #1643 AC). */
     standings: StandingsRow[];
+    /** Event RNG seed (ADR 0055), exposed ONLY once the event is `completed`
+     *  (issue #1613, ADR 0074 "Draft Lab: replay mode") — `null` for a
+     *  running event, where the same seed would let a live seat compute the
+     *  packs it is about to be passed (the exact hidden information the
+     *  privacy projection protects everywhere else). Once the draft is over
+     *  there is nothing left to spoil: the seed plus every seat's already-
+     *  stored `pool` (the SAME `completed`-gated reveal `pool`/`humanDeck`
+     *  above already use) is everything the Draft Lab replay surface needs
+     *  to regenerate the packs and recompute every bot pick. */
+    seed: number | null;
+    /** Bot Drafter scorer version at the moment this event started
+     *  (`convex/limited/scorerVersion.ts`). `undefined` for an event created
+     *  before this field existed — the replay surface treats that as
+     *  "unknown", never "version 0". Not gated on `completed`: naming a code
+     *  version leaks nothing. */
+    scorerVersion?: number;
     /** True once every seat has a Deck (issue #1116) — the caller-computed
      *  gate (`convex/limited/completion.ts`'s `computeEventCompletion`) that
      *  ALSO controls the `pool`/`humanDeck` full-disclosure reveal below.
@@ -278,6 +303,17 @@ export function projectLimitedEvent(
         // `LimitedEventSeat[]` (both declare their own dependency-free shapes,
         // like `swiss.ts`/`completion.ts` do) — no adapter needed.
         standings: computeStandings(event.seats, event.rounds ?? []),
+        // Issue #1613: hides nothing while the draft is running (`null`
+        // there — the same "hidden until completed" discipline as
+        // `pool`/`humanDeck`), and reveals everything once it's over, to
+        // EVERY viewer (not admin-gated like `pool`/`humanDeck`: a bare seed
+        // number, on its own, regenerates only the ALREADY-drafted packs of
+        // an event that's already finished — it can't be combined with
+        // anything a non-participant, non-admin viewer receives to recover
+        // another seat's actual historical picks, since those still require
+        // that seat's `pool`, gated exactly as before).
+        seed: completed ? (event.seed ?? null) : null,
+        scorerVersion: event.scorerVersion,
         completed,
         seatsWithDeck,
         createdAt: event.createdAt,

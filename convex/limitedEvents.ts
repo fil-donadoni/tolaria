@@ -38,6 +38,7 @@ import {
     type ResolveBasicLand,
 } from "./limited/autoBuild";
 import { computeEventCompletion } from "./limited/completion";
+import { SCORER_VERSION } from "./limited/scorerVersion";
 import {
     applyPick,
     resolveAutoPickTimeout,
@@ -311,6 +312,13 @@ const limitedEventViewValidator = v.object({
     // stored (ADR 0076). Always one row per seat, zeroed before any round is
     // decided — never absent.
     standings: v.array(standingsRowValidator),
+    // Event RNG seed (issue #1613, ADR 0074 replay mode) — `null` until the
+    // event is `completed`, see `eventProjection.ts`'s `LimitedEventView.seed`
+    // doc comment for why exposing it only then is safe.
+    seed: v.union(v.number(), v.null()),
+    // Bot Drafter scorer version at `startEvent` (issue #1613) — absent for
+    // an event created before this field existed.
+    scorerVersion: v.optional(v.number()),
     // Event completion (issue #1116): true exactly when every seat has a
     // Deck — see `convex/limited/completion.ts`'s `computeEventCompletion`.
     completed: v.boolean(),
@@ -1112,6 +1120,7 @@ export const startLimitedEvent = mutation({
                 seats: asDbSeats(afterBots.seats),
                 status: "started",
                 seed,
+                scorerVersion: SCORER_VERSION,
                 draftRound: afterBots.draftRound,
                 draftPacksRemaining: afterBots.draftPacksRemaining,
                 updatedAt: now,
@@ -1143,6 +1152,7 @@ export const startLimitedEvent = mutation({
             seats: asDbSeats(seededSeats),
             status: "started",
             seed,
+            scorerVersion: SCORER_VERSION,
             updatedAt: Date.now(),
         });
         return null;

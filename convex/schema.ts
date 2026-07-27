@@ -448,6 +448,14 @@ export default defineSchema({
         // Event RNG seed (ADR 0055), set once at `startEvent` so the seat
         // Pools it produced are reproducible/replayable given the same seed.
         seed: v.optional(v.number()),
+        // Bot Drafter scorer version (issue #1613, ADR 0074 replay mode) —
+        // `convex/limited/scorerVersion.ts`'s `SCORER_VERSION`, stamped once
+        // at `startEvent` alongside `seed`. Lets the Draft Lab replay surface
+        // show "drafted under vN, current scorer is vM" beside the
+        // historical-vs-recomputed pick diff. Optional so an event created
+        // before this field existed still validates; absent === unknown, not
+        // "version 0".
+        scorerVersion: v.optional(v.number()),
         // Per-pick timer on/off (issue #1114, PRD #1107 story 5/14; ADR 0060
         // / issue #1243 replaced the fixed `timerSeconds` value with this
         // boolean). Configured once at `createLimitedEvent`; absent/false ===

@@ -6,13 +6,19 @@
 // provenance for one focused seat. Writes nothing — no Convex mutation is
 // imported anywhere on this page's dependency tree
 // (`draft-lab-no-mutation.test.ts` enforces this statically).
+import { useState } from "react";
 import AmbientPageGround from "@/components/ui/ambient-page-ground";
 import { useDraftLab } from "@/hooks/useDraftLab";
 import DraftLabControls from "@/components/draft-lab/draft-lab-controls";
 import DraftLabSeatTable from "@/components/draft-lab/draft-lab-seat-table";
 import DraftLabFocusPanel from "@/components/draft-lab/draft-lab-focus-panel";
+import DraftLabModeTabs, {
+    type DraftLabMode,
+} from "@/components/draft-lab/draft-lab-mode-tabs";
+import DraftLabReplayPanel from "@/components/draft-lab/draft-lab-replay-panel";
 
 export default function DraftLabRoute() {
+    const [mode, setMode] = useState<DraftLabMode>("synthetic");
     const lab = useDraftLab();
 
     const lastPickForFocusedSeat = lab.state
@@ -26,53 +32,60 @@ export default function DraftLabRoute() {
             <AmbientPageGround />
             <div className="relative z-10 mx-auto max-w-6xl px-4 py-10 sm:px-8">
                 <header>
-                    <p className="text-label">
-                        developer surface — synthetic mode
-                    </p>
+                    <p className="text-label">developer surface</p>
                     <h1 className="heading-panel mt-1 text-left text-3xl">
                         Draft Lab
                     </h1>
                     <span className="panel-rule mt-3 block h-px w-full" />
                     <p className="mt-3 max-w-3xl text-sm text-text-muted">
-                        Runs a whole Bot Drafter draft in the browser from a
-                        seed — the same picking code the server uses, with the
-                        full score breakdown and provenance for every candidate.
+                        {mode === "synthetic"
+                            ? "Runs a whole Bot Drafter draft in the browser from a seed — the same picking code the server uses, with the full score breakdown and provenance for every candidate."
+                            : "Reconstructs a real completed Draft event from its seed and every seat's stored Pool, and shows what the CURRENT scorer would pick beside what actually happened."}{" "}
                         Client-only: nothing here is saved (ADR 0074).
                     </p>
+                    <div className="mt-4">
+                        <DraftLabModeTabs mode={mode} onChange={setMode} />
+                    </div>
                 </header>
 
                 <div className="mt-8 flex flex-col gap-6">
-                    <DraftLabControls
-                        seedInput={lab.seedInput}
-                        onSeedInputChange={lab.setSeedInput}
-                        sourceKey={lab.sourceKey}
-                        onSourceKeyChange={lab.setSourceKey}
-                        state={lab.state}
-                        isAutoPlaying={lab.isAutoPlaying}
-                        canStart={lab.canStart}
-                        onStart={lab.start}
-                        onStep={lab.step}
-                        onToggleAutoPlay={lab.toggleAutoPlay}
-                    />
-
-                    {lab.state && (
+                    {mode === "synthetic" ? (
                         <>
-                            <DraftLabSeatTable
+                            <DraftLabControls
+                                seedInput={lab.seedInput}
+                                onSeedInputChange={lab.setSeedInput}
+                                sourceKey={lab.sourceKey}
+                                onSourceKeyChange={lab.setSourceKey}
                                 state={lab.state}
-                                focusedSeat={lab.focusedSeat}
-                                onFocusSeat={lab.setFocusedSeat}
-                                getCardProfile={lab.getCardProfile}
+                                isAutoPlaying={lab.isAutoPlaying}
+                                canStart={lab.canStart}
+                                onStart={lab.start}
+                                onStep={lab.step}
+                                onToggleAutoPlay={lab.toggleAutoPlay}
                             />
-                            <DraftLabFocusPanel
-                                seatLabel={
-                                    lab.state.seats[lab.focusedSeat]
-                                        ?.nickname ??
-                                    `Seat ${lab.focusedSeat + 1}`
-                                }
-                                record={lastPickForFocusedSeat}
-                                getCardProfile={lab.getCardProfile}
-                            />
+
+                            {lab.state && (
+                                <>
+                                    <DraftLabSeatTable
+                                        state={lab.state}
+                                        focusedSeat={lab.focusedSeat}
+                                        onFocusSeat={lab.setFocusedSeat}
+                                        getCardProfile={lab.getCardProfile}
+                                    />
+                                    <DraftLabFocusPanel
+                                        seatLabel={
+                                            lab.state.seats[lab.focusedSeat]
+                                                ?.nickname ??
+                                            `Seat ${lab.focusedSeat + 1}`
+                                        }
+                                        record={lastPickForFocusedSeat}
+                                        getCardProfile={lab.getCardProfile}
+                                    />
+                                </>
+                            )}
                         </>
+                    ) : (
+                        <DraftLabReplayPanel />
                     )}
                 </div>
             </div>
