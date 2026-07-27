@@ -2670,12 +2670,6 @@
         "firstSet": "leg"
     },
     {
-        "name": "Emry, Lurker of the Loch",
-        "scryfallId": "bf4b9a8a-b42a-46fb-b0d0-9cf800f63c8a",
-        "oracleId": "da3e7d3d-2ca0-40c3-9602-fca37c92f507",
-        "firstSet": "eld"
-    },
-    {
         "name": "Empress Galina",
         "scryfallId": "6851dbc7-f072-41e7-a899-897445d99425",
         "oracleId": "ea2614bc-00ad-4859-98f5-689f33357fe6",
@@ -2686,6 +2680,12 @@
         "scryfallId": "952bb27c-c58a-478a-b637-eb4f7e1e0ab4",
         "oracleId": "3a59c882-8bb8-49ba-862f-125020dd5bec",
         "firstSet": "tsp"
+    },
+    {
+        "name": "Emry, Lurker of the Loch",
+        "scryfallId": "bf4b9a8a-b42a-46fb-b0d0-9cf800f63c8a",
+        "oracleId": "da3e7d3d-2ca0-40c3-9602-fca37c92f507",
+        "firstSet": "eld"
     },
     {
         "name": "Enchanted Being",
@@ -3958,6 +3958,12 @@
         "scryfallId": "9941f83b-2903-4eab-ac6d-5313e3978fa3",
         "oracleId": "34c3aebe-a224-426a-ae06-f3145193313e",
         "firstSet": "arn"
+    },
+    {
+        "name": "Guardian Scalelord",
+        "scryfallId": "94716d24-e8c6-4cd2-a3ac-20cdb929bfd4",
+        "oracleId": "d6c7d7a6-2d38-4c06-ab83-bee9cc18de52",
+        "firstSet": "moc"
     },
     {
         "name": "Guide of Souls",
