@@ -228,11 +228,15 @@ export function coloredPipsOf(
  *    the generic pips of the (already CR-601.2f-reduced) `manaCost`. `max` is
  *    that total, capped by the number of eligible creatures.
  *  - `min` = the pips ONLY convoke can pay: under `cantSpendManaToCast` (Hogaak)
- *    that is EVERY coloured + hybrid pip (mana can't pay them, delve pays only
- *    generic), so the caster is FORCED to convoke them; otherwise 0 (convoke is
- *    optional and the caster may tap zero creatures). Any generic left after the
- *    convoke pick is then handed to the delve picker / mana solver — its own
- *    forced-minimum catches whatever those can't cover.
+ *    that is EVERY coloured + hybrid pip (mana can't pay them) PLUS the generic
+ *    pips delve cannot cover (`max(0, generic − delve fuel)`, since delve pays
+ *    only generic), so the caster is FORCED to convoke them; otherwise 0
+ *    (convoke is optional and the caster may tap zero creatures). Any generic
+ *    left after the convoke pick is then handed to the delve picker / mana
+ *    solver — its own forced-minimum catches whatever those can't cover.
+ *    Omitting the generic term stranded a natural Hogaak board forever: the
+ *    delve picker forced to N but capped below N fuel, generic never reaching 0
+ *    (#1338 review).
  *
  *  The hybrid + single-colour pips ride on the choice so `recordConvokeCreaturePick`
  *  can colour-match them to the tapped creatures via {@link coverColoredAndHybridPips}. */
@@ -258,10 +262,19 @@ export function buildConvokeCreatureChoice(
     const max = Math.min(eligible, payablePips);
     if (max <= 0) return undefined;
     // CR 601.2f — under can't-spend-mana every coloured + hybrid pip MUST be
-    // convoked (mana can't pay it, delve pays only generic). Otherwise convoke
-    // is wholly optional (the caster may tap zero creatures).
+    // convoked (mana can't pay it), AND the generic pips that delve cannot
+    // cover MUST be convoked too. Delve pays only generic (CR 702.66a), so the
+    // caster is forced to convoke `max(0, generic − delve fuel)` extra
+    // creatures on top of the coloured/hybrid pips — otherwise the cast strands
+    // forever (delve capped below its fuel while generic never reaches 0). The
+    // delve-eligible fuel is the caster's graveyard minus the spell itself, and
+    // only when the spell actually has delve (else no card pays generic).
+    // Otherwise convoke is wholly optional (the caster may tap zero creatures).
+    const delveFuel = spellHasDelve(card)
+        ? delveEligibleCards(player, card.id).length
+        : 0;
     const forced = def?.cantSpendManaToCast
-        ? coloredCount + hybridPips.length
+        ? coloredCount + hybridPips.length + Math.max(0, generic - delveFuel)
         : 0;
     const min = Math.min(forced, max);
     return {

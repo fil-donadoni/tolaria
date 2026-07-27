@@ -20,7 +20,12 @@ import {
 } from "@convex/cards/__tests__/setup";
 import { projectPublicState } from "@convex/gameProjections";
 import { enumerateMoves } from "@convex/gre/moves";
+import {
+    buildConvokeCreatureChoice,
+    coverColoredAndHybridPips,
+} from "@convex/gre/payWith";
 import type { PendingCast } from "@convex/gre/state";
+import type { Color } from "@convex/cards/types";
 import {
     botActionRealisation,
     chooseConvokeCreatures,
@@ -115,6 +120,85 @@ describe("bot dispatch for the convoke creature pick (CR 702.51)", () => {
                 : []
         ).toEqual(["cr0", "cr1"]);
         // A stall would surface as none/pass — and the Worker can't help.
+        expect(enumerateMoves(state, BOT)).toEqual([]);
+    });
+
+    it("completes the cast on a natural Hogaak board (4 creatures + 3 fuel) instead of stalling (#1338 review)", () => {
+        // delve fuel (3) < generic (5) after the two hybrids: the built min MUST
+        // force 4 creatures (2 hybrids + 2 generic). Before the fix min was 2,
+        // the bot tapped only 2, generic never reached 0, and the cast parked
+        // forever — a hard stall (enumerateMoves is [], so no Worker rescue).
+        const hogaak = makeInstance(HOGAAK, {
+            id: "hogaak",
+            controllerId: BOT,
+            ownerId: BOT,
+            zone: "hand",
+        });
+        const creatures = [
+            CRAW_WURM,
+            DRUDGE_SKELETONS,
+            CRAW_WURM,
+            DRUDGE_SKELETONS,
+        ].map((cardId, i) =>
+            makeInstance(cardId, {
+                id: `cr${i}`,
+                controllerId: BOT,
+                ownerId: BOT,
+            })
+        );
+        const bot = makePlayer(BOT, {
+            hand: [hogaak],
+            graveyard: fuel(3),
+            battlefield: creatures,
+        });
+        const choice = buildConvokeCreatureChoice(bot, hogaak, { X: 5 });
+        expect(choice?.min).toBe(4);
+
+        const pendingCast: PendingCast = {
+            playerId: BOT,
+            cardInstanceId: "hogaak",
+            manaCost: { X: 5 },
+            tappedLandIds: [],
+            convokeCreatureChoice: choice,
+        };
+        const state = makeState({
+            players: [makePlayer(HUMAN), bot],
+            activePlayerId: BOT,
+            priorityPlayerId: BOT,
+            phase: "PRECOMBAT_MAIN",
+            pendingCast,
+        });
+
+        const view = buildBotView(projectPublicState(state, 1, BOT), BOT);
+        expect(view.convokeChoice?.min).toBe(4);
+
+        const action = decideBotAction(view);
+        expect(action.kind).toBe("convoke-creatures");
+        const picked =
+            action.kind === "convoke-creatures"
+                ? action.creatureInstanceIds
+                : [];
+        // Taps the forced 4 — enough that convoke covers BOTH hybrids and the 2
+        // generic pips delve can't reach (leftover 2 + 3 fuel = the 5 generic).
+        expect(picked).toHaveLength(4);
+        const colorById = new Map(
+            view.convokeChoice!.candidates.map((c) => [
+                c.id,
+                new Set<Color>(c.colors as Color[]),
+            ])
+        );
+        const leftover = coverColoredAndHybridPips(
+            picked.map((id) => colorById.get(id)!),
+            {},
+            [
+                ["B", "G"],
+                ["B", "G"],
+            ]
+        );
+        expect(leftover).not.toBeNull();
+        // convoke's leftover generic + delve fuel (3) must cover all 5 generic.
+        expect((leftover ?? 0) + 3).toBeGreaterThanOrEqual(5);
+        // No Worker move exists — the direct convoke pick is the ONLY way forward.
         expect(enumerateMoves(state, BOT)).toEqual([]);
     });
 

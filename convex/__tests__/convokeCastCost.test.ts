@@ -173,9 +173,11 @@ describe("convoke picker construction — Arena prompt policy (ADR 0063)", () =>
     it("forces the two hybrid pips and bounds max by all payable pips", () => {
         const { player, hogaak } = board({
             creatures: [CRAW_WURM, DRUDGE_SKELETONS, CRAW_WURM],
+            gyCount: 5, // delve covers the full generic, so ONLY the hybrids are forced
         });
         const choice = buildConvokeCreatureChoice(player, hogaak, { X: 5 });
-        // min = 2 (the two {B/G} pips must be convoked under can't-spend-mana);
+        // min = 2 (the two {B/G} pips must be convoked under can't-spend-mana;
+        // the 5 generic are all delve-coverable so they add nothing to min);
         // max = min(3 creatures, 2 hybrid + 5 generic).
         expect(choice?.min).toBe(2);
         expect(choice?.max).toBe(3);
@@ -190,6 +192,92 @@ describe("convoke picker construction — Arena prompt policy (ADR 0063)", () =>
         expect(
             buildConvokeCreatureChoice(player, hogaak, { X: 5 })
         ).toBeUndefined();
+    });
+});
+
+// Regression for the review-blocking stall (issue #1338 review): under
+// can't-spend-mana the forced convoke minimum omitted the generic pips delve
+// CANNOT cover. On a natural Hogaak board (fuel < remaining generic) the delve
+// picker was forced to N but capped below its fuel, so `manaCost.X` never
+// reached 0 and `tryAutoCommitPendingCast` parked the cast forever — a hard bot
+// stall with no owed choice and no legal pass. The forced minimum must be
+// coloured + hybrid pips PLUS `max(0, generic − delve fuel)`.
+describe("forced minimum covers the generic delve can't pay (CR 601.2f — #1338 review)", () => {
+    it("raises min when delve fuel is STRICTLY LESS than the generic after the hybrids", () => {
+        // {5}{B/G}{B/G}: 2 hybrids + 5 generic. 3 delve fuel covers only 3 of the
+        // generic → the other 2 generic pips can ONLY be convoked. min = 2 + 2 = 4.
+        const { player, hogaak } = board({
+            creatures: [CRAW_WURM, DRUDGE_SKELETONS, CRAW_WURM, DRUDGE_SKELETONS],
+            gyCount: 3,
+        });
+        const choice = buildConvokeCreatureChoice(player, hogaak, { X: 5 });
+        expect(choice?.min).toBe(4);
+        expect(choice?.max).toBe(4);
+    });
+
+    it("forces ALL generic onto convoke when there is no delve fuel", () => {
+        // 0 fuel → every generic pip must be convoked: min = 2 hybrids + 5 generic.
+        const { player, hogaak } = board({
+            creatures: Array(7).fill(CRAW_WURM),
+            gyCount: 0,
+        });
+        const choice = buildConvokeCreatureChoice(player, hogaak, { X: 5 });
+        expect(choice?.min).toBe(7);
+        expect(choice?.max).toBe(7);
+    });
+
+    it("convoke+delve together fully pay the cost through the real commit path — Hogaak lands, no land tapped, no infinite park", () => {
+        const b = board({
+            creatures: [
+                CRAW_WURM,
+                DRUDGE_SKELETONS,
+                CRAW_WURM,
+                DRUDGE_SKELETONS,
+            ],
+            gyCount: 3,
+            lands: 4,
+        });
+        // Park the cast with the REAL built picker (min raised to 4).
+        const choice = buildConvokeCreatureChoice(b.player, b.hogaak, { X: 5 });
+        expect(choice?.min).toBe(4);
+        b.state.pendingCast = {
+            playerId: "p1",
+            cardInstanceId: "hogaak",
+            manaCost: { X: 5 },
+            tappedLandIds: [],
+            convokeCreatureChoice: choice,
+        };
+
+        // Tap the forced 4 creatures: 2 pay the hybrids, 2 pay down generic
+        // (5 → 3); delve is then forced to exactly the 3 available fuel cards.
+        recordConvokeCreaturePick(b.state, "p1", ["cr0", "cr1", "cr2", "cr3"]);
+        expect(b.state.pendingCast!.manaCost.X).toBe(3);
+        expect(
+            b.state.pendingCast!.exileFromGraveyardChoice?.offsetGeneric
+        ).toEqual({ min: 3, max: 3 });
+
+        recordCastExileCostPick(b.state, "p1", ["gy0", "gy1", "gy2"]);
+        expect(b.state.pendingCast!.manaCost.X).toBe(0);
+
+        tryAutoCommitPendingCast(b.state, "p1");
+
+        // Cost fully paid → Hogaak resolves onto the stack, cast un-parked.
+        expect(b.state.pendingCast).toBeUndefined();
+        expect(b.state.stack).toHaveLength(1);
+        expect(b.state.stack[0].card.id).toBe(HOGAAK);
+        // All four creatures tapped for convoke (CR 702.51a).
+        expect(
+            b.player.battlefield
+                .filter((c) => c.isTapped)
+                .map((c) => c.id)
+                .sort()
+        ).toEqual(["cr0", "cr1", "cr2", "cr3"]);
+        // No land tapped — can't-spend-mana forbids it (CR 601.2f).
+        expect(
+            b.player.battlefield
+                .filter((c) => c.id.startsWith("land"))
+                .every((c) => !c.isTapped)
+        ).toBe(true);
     });
 });
 

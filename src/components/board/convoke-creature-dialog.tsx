@@ -5,7 +5,7 @@ import type { Id } from "@convex/_generated/dataModel";
 import type { CardInstance, Player } from "~/types/game";
 import type { Color } from "@convex/cards/types";
 import { getDefinition } from "@convex/cards";
-import { getColorsFromCost } from "@convex/cards/colors";
+import { STATIC_EFFECT_CTX } from "@convex/gre/layers";
 import { coverColoredAndHybridPips } from "@convex/gre/payWith";
 import GameDialog from "~/components/ui/game-dialog";
 import CardImage from "~/components/cards/card-image";
@@ -52,21 +52,19 @@ export default function ConvokeCreatureDialog({
         [me?.battlefield]
     );
 
-    // A creature's live colours (CR 613.1d layer 5). Vanilla creatures derive
-    // from their printed cost; a colour override / granted colour wins.
+    // A creature's live colours (CR 613.1d layer 5), routed through the SINGLE
+    // authority the server (`recordConvokeCreaturePick`) and the bot
+    // (`bot-view.ts`) validate coverage with — `STATIC_EFFECT_CTX.getColors`.
+    // It already folds colorOverride, embedded/printed cost, and grantedColors,
+    // so a continuous colour-change effect can't drift this client hint away
+    // from what the server enforces (#1338 review — no third hand-rolled path).
     const creatureColors = useMemo(() => {
         const map = new Map<string, Set<Color>>();
         for (const card of eligible) {
-            const override = (card as { colorOverride?: Color[] })
-                .colorOverride;
-            const base =
-                override ??
-                getColorsFromCost(getDefinition(card.card.id).manaCost);
-            const granted = (card as { grantedColors?: { color: string }[] })
-                .grantedColors;
-            const set = new Set<Color>(base);
-            for (const g of granted ?? []) set.add(g.color as Color);
-            map.set(card.id, set);
+            const colors = STATIC_EFFECT_CTX.getColors(
+                card as Parameters<typeof STATIC_EFFECT_CTX.getColors>[0]
+            );
+            map.set(card.id, new Set<Color>(colors));
         }
         return map;
     }, [eligible]);

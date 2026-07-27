@@ -10,14 +10,14 @@
 // wire projection, or the dialog shows nothing / can't validate coverage.
 
 import { describe, expect, it } from "vitest";
-import { getCardByName, getDefinition } from "@convex/cards";
+import { getCardByName } from "@convex/cards";
 import {
     makeInstance,
     makePlayer,
     makeState,
 } from "@convex/cards/__tests__/setup";
 import { projectPublicState } from "@convex/gameProjections";
-import { getColorsFromCost } from "@convex/cards/colors";
+import { STATIC_EFFECT_CTX } from "@convex/gre/layers";
 import { coverColoredAndHybridPips } from "@convex/gre/payWith";
 import type { Color } from "@convex/cards/types";
 import type { PendingCast } from "@convex/gre/state";
@@ -87,13 +87,20 @@ describe("convoke dialog affordance survives projectPublicState", () => {
         const projected = projectPublicState(parked(), 1, "p1");
         const me = projected.players.find((p) => p.id === "p1")!;
         const cc = projected.pendingCast!.convokeCreatureChoice!;
-        // Replicate the dialog's coverage check on the PROJECTED state.
+        // Replicate the dialog's coverage check on the PROJECTED state, using the
+        // SAME colour authority the dialog now derives from (the server/bot
+        // `STATIC_EFFECT_CTX.getColors`, #1338 review) — confirming it resolves
+        // live colours off the slim wire shape.
         const sources = me.battlefield
             .filter((c) => c!.types?.includes("Creature"))
             .map(
                 (c) =>
                     new Set<Color>(
-                        getColorsFromCost(getDefinition(c!.card.id).manaCost)
+                        STATIC_EFFECT_CTX.getColors(
+                            c as Parameters<
+                                typeof STATIC_EFFECT_CTX.getColors
+                            >[0]
+                        )
                     )
             );
         expect(
