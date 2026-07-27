@@ -1106,3 +1106,257 @@ describe("projectLimitedEvent — seed exposure (issue #1613, ADR 0074 replay mo
         expect(view.scorerVersion).toBeUndefined();
     });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The viewer's own pairing (PRD #1628 story 7, issue #1644). Asserted THROUGH
+// `projectLimitedEvent` — the seam the client actually receives — never against
+// a hand-built view (CLAUDE.md § Frontend wiring analysis).
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** A 4-seat table mid-play-phase: seat 0 (Alice, human) vs seat 2 (a bot),
+ *  seat 1 (Bob, human) vs seat 3 (a bot). */
+function playingRow(
+    pairings: NonNullable<LimitedEventRow["rounds"]>[number]["pairings"],
+    overrides: Partial<LimitedEventRow> = {}
+): LimitedEventRow {
+    return row({
+        status: "playing",
+        seatCount: 4,
+        currentRound: 1,
+        seats: [
+            { seatIndex: 0, userId: "user1", nickname: "Alice" },
+            { seatIndex: 1, userId: "user2", nickname: "Bob" },
+            { seatIndex: 2, nickname: "Bot 3", isBot: true },
+            { seatIndex: 3, nickname: "Bot 4", isBot: true },
+        ],
+        rounds: [{ roundNumber: 1, startedAt: 1000, pairings }],
+        ...overrides,
+    });
+}
+
+describe("projectLimitedEvent — viewerPairing (PRD #1628 story 7, issue #1644)", () => {
+    it("gives the viewer their own pairing, with the opponent named and flagged bot", () => {
+        const view = projectLimitedEvent(
+            playingRow([
+                { seatA: 0, seatB: 2 },
+                { seatA: 1, seatB: 3 },
+            ]),
+            "user1"
+        );
+
+        expect(view.viewerPairing).toEqual({
+            roundNumber: 1,
+            seatIndex: 0,
+            opponentSeatIndex: 2,
+            opponentNickname: "Bot 3",
+            opponentIsBot: true,
+            isBye: false,
+            result: null,
+            gameWins: null,
+            gameLosses: null,
+            outcome: null,
+            matchId: null,
+            roundComplete: false,
+        });
+    });
+
+    it("finds the viewer's pairing from the seatB side too", () => {
+        const view = projectLimitedEvent(
+            playingRow([
+                { seatA: 2, seatB: 0 },
+                { seatA: 1, seatB: 3 },
+            ]),
+            "user1"
+        );
+
+        expect(view.viewerPairing?.seatIndex).toBe(0);
+        expect(view.viewerPairing?.opponentSeatIndex).toBe(2);
+    });
+
+    it("flags a human opponent as human", () => {
+        const view = projectLimitedEvent(
+            playingRow([
+                { seatA: 0, seatB: 1 },
+                { seatA: 2, seatB: 3 },
+            ]),
+            "user1"
+        );
+
+        expect(view.viewerPairing?.opponentIsBot).toBe(false);
+        expect(view.viewerPairing?.opponentNickname).toBe("Bob");
+    });
+
+    it("reads a decided pairing from the viewer's own side", () => {
+        const decided = (pairings: Parameters<typeof playingRow>[0]) =>
+            projectLimitedEvent(playingRow(pairings), "user1").viewerPairing;
+
+        expect(
+            decided([
+                {
+                    seatA: 0,
+                    seatB: 2,
+                    result: { winsA: 2, winsB: 1, source: "played" },
+                },
+                {
+                    seatA: 1,
+                    seatB: 3,
+                    result: { winsA: 0, winsB: 2, source: "simulated" },
+                },
+            ])
+        ).toMatchObject({ outcome: "win", roundComplete: true });
+
+        expect(
+            decided([
+                {
+                    seatA: 2,
+                    seatB: 0,
+                    result: { winsA: 2, winsB: 0, source: "played" },
+                },
+                { seatA: 1, seatB: 3 },
+            ])
+        ).toMatchObject({ outcome: "loss", roundComplete: false });
+    });
+
+    it("reads a double no-show timeout as a LOSS for the viewer, never a draw", () => {
+        const view = projectLimitedEvent(
+            playingRow([
+                {
+                    seatA: 0,
+                    seatB: 1,
+                    result: { winsA: 0, winsB: 0, source: "timeout" },
+                },
+                { seatA: 2, seatB: 3 },
+            ]),
+            "user1"
+        );
+
+        expect(view.viewerPairing?.outcome).toBe("loss");
+    });
+
+    it("surfaces a bye as a decided win with no opponent", () => {
+        const view = projectLimitedEvent(
+            playingRow([
+                {
+                    seatA: 0,
+                    result: { winsA: 2, winsB: 0, source: "bye" },
+                },
+                { seatA: 1, seatB: 2 },
+                { seatA: 3 },
+            ]),
+            "user1"
+        );
+
+        expect(view.viewerPairing).toMatchObject({
+            isBye: true,
+            opponentSeatIndex: null,
+            opponentNickname: null,
+            opponentIsBot: false,
+            outcome: "win",
+            result: { winsA: 2, winsB: 0, source: "bye" },
+        });
+    });
+
+    it("carries result.source so the UI can explain how it was decided", () => {
+        const view = projectLimitedEvent(
+            playingRow([
+                {
+                    seatA: 0,
+                    seatB: 2,
+                    result: { winsA: 1, winsB: 2, source: "simulated" },
+                },
+                { seatA: 1, seatB: 3 },
+            ]),
+            "user1"
+        );
+
+        expect(view.viewerPairing?.result?.source).toBe("simulated");
+    });
+
+    it("is null before the play phase, and for a viewer with no seat", () => {
+        expect(projectLimitedEvent(row(), "user1").viewerPairing).toBeNull();
+        expect(
+            projectLimitedEvent(
+                playingRow([
+                    { seatA: 0, seatB: 2 },
+                    { seatA: 1, seatB: 3 },
+                ]),
+                "outsider"
+            ).viewerPairing
+        ).toBeNull();
+        expect(
+            projectLimitedEvent(
+                playingRow([
+                    { seatA: 0, seatB: 2 },
+                    { seatA: 1, seatB: 3 },
+                ]),
+                null
+            ).viewerPairing
+        ).toBeNull();
+    });
+
+    it("is null when currentRound names a round that isn't there", () => {
+        const view = projectLimitedEvent(
+            playingRow([{ seatA: 0, seatB: 2 }], { currentRound: 7 }),
+            "user1"
+        );
+        expect(view.viewerPairing).toBeNull();
+    });
+
+    it("is null when the viewer's seat isn't in the current round at all", () => {
+        const view = projectLimitedEvent(
+            playingRow([{ seatA: 1, seatB: 3 }]),
+            "user1"
+        );
+        expect(view.viewerPairing).toBeNull();
+    });
+});
+
+describe("projectLimitedEvent — viewerPairing game score (issue #1644)", () => {
+    it("reports the games from the VIEWER's side, whichever seat letter they are", () => {
+        const asSeatA = projectLimitedEvent(
+            playingRow([
+                {
+                    seatA: 0,
+                    seatB: 2,
+                    result: { winsA: 2, winsB: 1, source: "played" },
+                },
+                { seatA: 1, seatB: 3 },
+            ]),
+            "user1"
+        ).viewerPairing;
+        expect(asSeatA).toMatchObject({ gameWins: 2, gameLosses: 1 });
+
+        const asSeatB = projectLimitedEvent(
+            playingRow([
+                {
+                    seatA: 2,
+                    seatB: 0,
+                    result: { winsA: 2, winsB: 1, source: "played" },
+                },
+                { seatA: 1, seatB: 3 },
+            ]),
+            "user1"
+        ).viewerPairing;
+        // Same raw 2-1, opposite side: the viewer LOST it 1-2.
+        expect(asSeatB).toMatchObject({
+            gameWins: 1,
+            gameLosses: 2,
+            outcome: "loss",
+        });
+    });
+
+    it("reports a bye's games from the viewer's side too", () => {
+        const view = projectLimitedEvent(
+            playingRow([
+                { seatA: 0, result: { winsA: 2, winsB: 0, source: "bye" } },
+                { seatA: 1, seatB: 2 },
+                { seatA: 3 },
+            ]),
+            "user1"
+        );
+        expect(view.viewerPairing).toMatchObject({
+            gameWins: 2,
+            gameLosses: 0,
+        });
+    });
+});

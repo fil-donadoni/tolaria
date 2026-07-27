@@ -13,12 +13,18 @@ import type {
     LimitedEventStatus,
     LimitedEventType,
     LimitedMatchFormat,
+    LimitedPairingResult,
     LimitedPoolCard,
     LimitedRound,
     PoolArrangementEntry,
 } from "./eventTypes";
 import { resolveMatchFormat } from "./matchFormat";
-import { computeStandings, type StandingsRow } from "./standings";
+import { findSeatPairing, isRoundComplete } from "./rounds";
+import {
+    classifyPairingResult,
+    computeStandings,
+    type StandingsRow,
+} from "./standings";
 
 /** The row shape this module projects — structurally what a `limitedEvents`
  *  Doc satisfies, kept independent of `Doc<"limitedEvents">` so this stays
@@ -180,6 +186,61 @@ export interface LimitedEventSeatView {
     hasDeck: boolean;
 }
 
+/** How the viewer's own pairing turned out, from the VIEWER's side (PRD #1628
+ *  story 7/26, issue #1644). `null` while the pairing is still undecided —
+ *  which is the state the round panel renders as "your match is waiting". */
+export type ViewerPairingOutcome = "win" | "loss" | "draw";
+
+/** The viewer's own pairing in the CURRENT round (PRD #1628 story 7, issue
+ *  #1644) — the one thing every seat needs off the round state, pre-resolved
+ *  here rather than re-derived by each client: which round it is, who they
+ *  face, whether that opponent is a human or a bot, and whether the pairing is
+ *  already decided.
+ *
+ *  Derived from `rounds`/`seats`, both of which the wire already carries in
+ *  full — this is a CONVENIENCE, not a privacy boundary (pairings and results
+ *  are public; only pools and decks are per-seat stripped). It exists because a
+ *  client re-deriving "which pairing is mine, and did I win it" is a client
+ *  re-implementing `classifyPairingResult`, which is exactly the drift ADR 0076
+ *  made that function the single authority to prevent. */
+export interface LimitedViewerPairingView {
+    roundNumber: number;
+    /** The viewer's own seat. */
+    seatIndex: number;
+    /** The seat the viewer faces — `null` when the viewer holds the round's
+     *  bye (PRD story 27), which is also what `isBye` says. */
+    opponentSeatIndex: number | null;
+    opponentNickname: string | null;
+    /** Whether the opponent is a Bot Drafter seat (PRD story 7: "opponent
+     *  seat, human or bot"). `false` for a bye — there is no opponent. */
+    opponentIsBot: boolean;
+    isBye: boolean;
+    /** The recorded result, `null` while the pairing is undecided. Carries
+     *  `source`, so the UI can say HOW it was decided (story 26). RAW — its
+     *  `winsA`/`winsB` are seat-A-relative, which is NOT necessarily the
+     *  viewer's side; read `gameWins`/`gameLosses` below to render a score. */
+    result: LimitedPairingResult | null;
+    /** The game score from the VIEWER's side, `null` while undecided. Exists
+     *  because `result.winsA` belongs to whichever seat the pairing calls A,
+     *  and which side the viewer is on is deliberately not on the wire — a
+     *  client flipping the score itself is one more place it can be flipped
+     *  wrongly. */
+    gameWins: number | null;
+    gameLosses: number | null;
+    /** The result read from the VIEWER's side — `null` while undecided. A bye
+     *  is always a `"win"`; every other decided pairing is classified by
+     *  `classifyPairingResult` (so a double-no-show `"timeout"` reads `"loss"`
+     *  for both seats, never `"draw"`). */
+    outcome: ViewerPairingOutcome | null;
+    /** The Match this pairing is played through, once one exists. Always
+     *  `null` in this slice — creating the Match is the next one. */
+    matchId: string | null;
+    /** Is every OTHER pairing of the round decided too? Lets the panel
+     *  distinguish "the table is waiting on YOU" from "you're waiting on
+     *  another seat" (PRD story 21). */
+    roundComplete: boolean;
+}
+
 export interface LimitedEventView {
     _id: string;
     createdBy: string;
@@ -219,6 +280,11 @@ export interface LimitedEventView {
      *  the play phase — an event with no rounds yet renders a zeroed table,
      *  not an absent one (issue #1643 AC). */
     standings: StandingsRow[];
+    /** The viewer's own pairing in the current round (PRD #1628 story 7, issue
+     *  #1644) — see `LimitedViewerPairingView`. `null` before the play phase,
+     *  for a viewer with no seat at this table (a spectator or an admin), or
+     *  for a seat somehow absent from the current round's pairings. */
+    viewerPairing: LimitedViewerPairingView | null;
     /** Event RNG seed (ADR 0055), exposed ONLY for a `completed` DRAFT event
      *  AND ONLY to an admin viewer (issue #1613 fixup, tightening the
      *  original ADR 0074 "Draft Lab: replay mode" reveal). `null` in every
@@ -267,6 +333,90 @@ export interface LimitedEventView {
     seats: LimitedEventSeatView[];
     createdAt: number;
     updatedAt: number;
+}
+
+/** Resolves the viewer's own pairing in the event's CURRENT round (issue
+ *  #1644). Pure, and deliberately tolerant in every direction that isn't a
+ *  real state: no play phase yet, no seat for this viewer, a `currentRound`
+ *  naming a round that isn't in `rounds`, or a seat that somehow isn't paired
+ *  — each returns `null` rather than throwing, because a projection runs on
+ *  every read and must never be the thing that breaks the event page. */
+function projectViewerPairing(
+    event: LimitedEventRow,
+    viewerSeat: LimitedEventSeat | undefined
+): LimitedViewerPairingView | null {
+    if (!viewerSeat || event.currentRound === undefined) return null;
+    const round = event.rounds?.find(
+        (r) => r.roundNumber === event.currentRound
+    );
+    if (!round) return null;
+    const pairing = findSeatPairing(round, viewerSeat.seatIndex);
+    if (!pairing) return null;
+
+    const isBye = pairing.seatB === undefined;
+    const viewerIsSeatA = pairing.seatA === viewerSeat.seatIndex;
+    const opponentSeatIndex = isBye
+        ? null
+        : viewerIsSeatA
+          ? pairing.seatB!
+          : pairing.seatA;
+    const opponentSeat =
+        opponentSeatIndex === null
+            ? undefined
+            : event.seats.find((s) => s.seatIndex === opponentSeatIndex);
+
+    const result = pairing.result ?? null;
+    let outcome: ViewerPairingOutcome | null = null;
+    if (result) {
+        if (isBye) {
+            // A bye is a match win for its seat regardless of the recorded
+            // games (PRD story 28) — `classifyPairingResult` is explicitly
+            // only for two-sided pairings.
+            outcome = "win";
+        } else {
+            switch (classifyPairingResult(result)) {
+                case "draw":
+                    outcome = "draw";
+                    break;
+                case "doubleLoss":
+                    outcome = "loss";
+                    break;
+                case "winA":
+                    outcome = viewerIsSeatA ? "win" : "loss";
+                    break;
+                case "winB":
+                    outcome = viewerIsSeatA ? "loss" : "win";
+                    break;
+            }
+        }
+    }
+
+    return {
+        roundNumber: round.roundNumber,
+        seatIndex: viewerSeat.seatIndex,
+        opponentSeatIndex,
+        opponentNickname: opponentSeat?.nickname ?? null,
+        opponentIsBot: opponentSeat?.isBot ?? false,
+        isBye,
+        result,
+        // A bye's recorded games always belong to `seatA`, which for a bye IS
+        // the viewer — so the same seat-A-relative flip covers both cases.
+        gameWins:
+            result === null
+                ? null
+                : viewerIsSeatA
+                  ? result.winsA
+                  : result.winsB,
+        gameLosses:
+            result === null
+                ? null
+                : viewerIsSeatA
+                  ? result.winsB
+                  : result.winsA,
+        outcome,
+        matchId: pairing.matchId ?? null,
+        roundComplete: isRoundComplete(round),
+    };
 }
 
 /** Projects a `limitedEvents` row for `viewerUserId` (`null` for an
@@ -323,6 +473,12 @@ export function projectLimitedEvent(
         // `LimitedEventSeat[]` (both declare their own dependency-free shapes,
         // like `swiss.ts`/`completion.ts` do) — no adapter needed.
         standings: computeStandings(event.seats, event.rounds ?? []),
+        viewerPairing: projectViewerPairing(
+            event,
+            viewerUserId === null
+                ? undefined
+                : event.seats.find((seat) => seat.userId === viewerUserId)
+        ),
         // Issue #1613 fixup: gated on `completed` AND `type === "draft"` AND
         // `isAdmin` — see `LimitedEventView.seed`'s doc comment for why a
         // SEALED event (whose Pools the bare seed can regenerate
