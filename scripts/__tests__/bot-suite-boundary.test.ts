@@ -99,6 +99,14 @@ const ALLOWLIST = new Map([
         "convex/__tests__/debugLoadBladeScenario.test.ts",
         "covers the Debug-panel loader mutation (convex/game.ts): a label lookup plus a pure state build (resolveBladeLoadState) — reads the blade registry, runs no search",
     ],
+    [
+        "convex/__tests__/limitedPlayPhaseOpen.test.ts",
+        "covers the limitedEvents BACKEND play-phase transition (startLimitedEvent / openPlayPhaseIfReady): it reaches botDrafter and matchSim only transitively through limitedEvents, and asserts the patched event document, not the drafter's picks or the resolver's odds",
+    ],
+    [
+        "convex/__tests__/limitedEventViewValidator.test.ts",
+        "walks the limitedEvent queries' returns validator over the real projection; it reaches matchSim only transitively through limitedEvents, and asserts validator/shape agreement, not bot behaviour",
+    ],
 ]);
 
 function walk(dir: string, out: string[] = []): string[] {

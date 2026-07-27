@@ -69,19 +69,25 @@ import {
     DEFAULT_SEALED_BOOSTER_COUNT,
     fillBotSeats,
     generateSealedPools,
+    MAX_SEATS,
+    MIN_SEATS,
     releaseSeat,
     type ResolveCardMeta,
 } from "./limited/eventLogic";
+import { evaluateDeckStrength, type DeckStrength } from "./limited/matchSim";
+import { openRound, type ResolveSeatStrength } from "./limited/rounds";
 import {
     projectLimitedEvent,
     type HumanDeckView,
     type LimitedEventSeatView,
     type LimitedEventView,
 } from "./limited/eventProjection";
-import type { LimitedEventSeat } from "./limited/eventTypes";
+import type { LimitedEventSeat, LimitedRound } from "./limited/eventTypes";
 import {
     arePoolsDealt,
     areDraftPicksLegal,
+    areRoundsRunning,
+    isEventConcluded,
     isSeatingOpen,
 } from "./limited/eventStatus";
 import {
@@ -118,6 +124,17 @@ import {
  *  client input. */
 function asDbSeats(seats: LimitedEventSeat[]): Doc<"limitedEvents">["seats"] {
     return seats as unknown as Doc<"limitedEvents">["seats"];
+}
+
+/** The same type-level reconciliation for Rounds (PRD #1628, ADR 0076):
+ *  `LimitedPairing.matchId` is a plain `string` — `convex/limited/**` never
+ *  depends on `_generated` — while the schema stores a branded
+ *  `Id<"matches">`. Every `matchId` this module writes originates from a real
+ *  `ctx.db.insert("matches", …)`, never from client input. */
+function asDbRounds(
+    rounds: LimitedRound[]
+): NonNullable<Doc<"limitedEvents">["rounds"]> {
+    return rounds as unknown as NonNullable<Doc<"limitedEvents">["rounds"]>;
 }
 
 const eventTypeValidator = v.union(v.literal("sealed"), v.literal("draft"));
@@ -171,6 +188,33 @@ const standingsRowValidator = v.object({
     gameWinPct: v.number(),
     opponentMatchWinPct: v.number(),
 });
+
+// The viewer's own pairing in the CURRENT round (PRD #1628 story 7, issue
+// #1644) — see `convex/limited/eventProjection.ts`'s
+// `LimitedViewerPairingView` for the field-by-field doc. `null` before the
+// play phase, when the viewer holds no seat, or when their seat isn't paired.
+const viewerPairingValidator = v.union(
+    v.object({
+        roundNumber: v.number(),
+        seatIndex: v.number(),
+        opponentSeatIndex: v.union(v.number(), v.null()),
+        opponentNickname: v.union(v.string(), v.null()),
+        opponentIsBot: v.boolean(),
+        isBye: v.boolean(),
+        result: v.union(pairingResultValidator, v.null()),
+        gameWins: v.union(v.number(), v.null()),
+        gameLosses: v.union(v.number(), v.null()),
+        outcome: v.union(
+            v.literal("win"),
+            v.literal("loss"),
+            v.literal("draw"),
+            v.null()
+        ),
+        matchId: v.union(v.string(), v.null()),
+        roundComplete: v.boolean(),
+    }),
+    v.null()
+);
 
 const limitedPoolCardValidator = v.object({
     scryfallId: v.string(),
@@ -286,8 +330,16 @@ const limitedEventSeatViewValidator = v.object({
 
 /** Wire shape of `projectLimitedEvent`'s return value — declared once here so
  *  every query below can pin its `returns:` validator to the actual privacy-
- *  stripped view instead of leaving it undeclared. */
-const limitedEventViewValidator = v.object({
+ *  stripped view instead of leaving it undeclared.
+ *
+ *  EXPORTED for `convex/__tests__/limitedEventViewValidator.test.ts`, which
+ *  runs the real projection's output through this exact validator. Convex only
+ *  registers exports that are Convex functions, so a plain const export here is
+ *  inert on the wire (same as `game.ts`'s `STARTING_HAND_SIZE`). Keeping it
+ *  private would leave the ONLY check on this validator the handler's own
+ *  TypeScript type — which is precisely the check that cannot see the drift
+ *  (the handler type is `EventViewWithAutoBuild`, not `Infer<>` of this). */
+export const limitedEventViewValidator = v.object({
     _id: v.string(),
     createdBy: v.string(),
     type: eventTypeValidator,
@@ -312,6 +364,9 @@ const limitedEventViewValidator = v.object({
     // stored (ADR 0076). Always one row per seat, zeroed before any round is
     // decided — never absent.
     standings: v.array(standingsRowValidator),
+    // The viewer's own pairing in the current round (issue #1644) — derived
+    // from `rounds`/`seats`, a convenience rather than a privacy boundary.
+    viewerPairing: viewerPairingValidator,
     // Event RNG seed (issue #1613, ADR 0074 replay mode) — `null` unless the
     // event is a COMPLETED DRAFT and the viewer is an admin. The seed
     // regenerates every pack, so on a Sealed event it would hand any viewer
@@ -725,6 +780,130 @@ async function projectEventForViewer(
     };
 }
 
+/** Opens the event's PLAY PHASE the moment the table is ready (PRD #1628, ADR
+ *  0076, issue #1644): the event flips to `playing`, round 1 is paired, and
+ *  every pairing nobody can sit down and play — bot-vs-bot, and the bye on an
+ *  odd table — is decided in this same transaction.
+ *
+ *  A thin SHELL, in this module's established discipline: the whole decision
+ *  lives in `convex/limited/rounds.ts`'s pure `openRound`, and everything here
+ *  is a DB read, an injected resolver, or the single write at the end.
+ *
+ *  **Idempotent and self-gating.** It re-reads the row, asks `eventStatus.ts`'s
+ *  PHASE PREDICATES (never a literal status comparison — ADR 0076 decision 1)
+ *  whether the event is still in the draft/deckbuild phase, and re-derives
+ *  completion from the database. So every call site below can simply call it
+ *  after its own write: a second call once the rounds are running returns
+ *  `false` without touching anything, and it can never re-pair a round that
+ *  already exists.
+ *
+ *  Called from every path that can make `computeEventCompletion` flip — all
+ *  four of them:
+ *  - `userDecks.create` — the last seat submitting its deck, the headline case.
+ *  - `submitPick` and `autoPickSeatTimeout` — the two draft-completing paths,
+ *    which flip it when the final pick lands a Pool for humans who had already
+ *    built (the continuous draft→build surface, ADR 0060, lets a seat submit a
+ *    deck before the draft ends).
+ *  - `startLimitedEvent` (BOTH branches) — an ALL-BOT table is complete the
+ *    instant it starts, so completion flips INSIDE that mutation and none of
+ *    the three above will ever run: Sealed deals every bot seat a Pool (each
+ *    immediately Auto-Build-ready), and a draft's `runBotAutoPicks` drives the
+ *    whole draft to `draftCompletedAt` in the same transaction. Without this
+ *    call site such an event sticks in `started` with `completed: true`
+ *    forever.
+ *
+ *  Returns whether it actually opened the phase. */
+export async function openPlayPhaseIfReady(
+    ctx: MutationCtx,
+    eventId: Id<"limitedEvents">,
+    now: number
+): Promise<boolean> {
+    const event = await ctx.db.get(eventId);
+    if (!event) return false;
+    // Phase QUESTIONS, not literals: the play phase opens exactly once, out of
+    // the draft/deckbuild phase — Pools dealt, rounds not yet running, event
+    // not concluded.
+    if (
+        !arePoolsDealt(event.status) ||
+        areRoundsRunning(event.status) ||
+        isEventConcluded(event.status)
+    ) {
+        return false;
+    }
+    // Defensive: `pairRound` refuses a table outside `MIN_SEATS..MAX_SEATS`,
+    // and a mutation that throws here would roll back the caller's own write
+    // (the player's deck!). Event creation already bounds `seatCount`, so this
+    // is unreachable for a well-formed row.
+    if (event.seats.length < MIN_SEATS || event.seats.length > MAX_SEATS) {
+        return false;
+    }
+
+    const eventContext: AutoBuildEventContext = {
+        type: event.type,
+        status: event.status,
+        draftCompletedAt: event.draftCompletedAt,
+    };
+    const humanDecksBySeat = await loadHumanDecksBySeat(ctx, eventId);
+    const completion = computeEventCompletion(
+        event.seats,
+        eventContext,
+        (seatIndex) => humanDecksBySeat.has(seatIndex)
+    );
+    if (!completion.completed) return false;
+
+    // Bot deck strength, resolved lazily and memoised: `openRound` only asks
+    // for a seat it is about to simulate, so a table with few bot-vs-bot
+    // pairings never pays for Auto-Building the seats it doesn't need. The
+    // SAME card-value seams the Bot Drafter picks with (PRD story 50) —
+    // `getCardEvalMeta` keys on a deck-card id exactly as it does on a pack
+    // card's (`resolveDeckCardMeta` resolves a `printId` or a canonical id
+    // alike), and the layered Pick Ratings come from `loadEventPickRating`.
+    const getPickRating = await loadEventPickRating(ctx, event.packSlots);
+    const resolveBasicLand = resolveBasicLandFor(event.packSlots[0] ?? "");
+    const strengthCache = new Map<number, DeckStrength>();
+    const seatStrength: ResolveSeatStrength = (seatIndex) => {
+        const cached = strengthCache.get(seatIndex);
+        if (cached) return cached;
+        const seat = event.seats.find((s) => s.seatIndex === seatIndex);
+        const deck = seat
+            ? computeBotAutoBuiltDeck(
+                  seat,
+                  eventContext,
+                  getAutoBuildCardMeta,
+                  resolveBasicLand
+              )
+            : null;
+        const strength = evaluateDeckStrength(
+            deck?.cards ?? [],
+            getCardEvalMeta,
+            getPickRating
+        );
+        strengthCache.set(seatIndex, strength);
+        return strength;
+    };
+
+    const round = openRound({
+        eventId,
+        roundNumber: 1,
+        seats: event.seats,
+        previousRounds: [],
+        matchFormat: resolveMatchFormat(event.matchFormat),
+        startedAt: now,
+        roundDeadlineMinutes: event.roundDeadlineMinutes,
+        seatStrength,
+    });
+
+    await ctx.db.patch(eventId, {
+        // A status WRITE names the phase being entered — ADR 0076's explicit
+        // exemption from the no-literals rule (it isn't a phase question).
+        status: "playing",
+        currentRound: round.roundNumber,
+        rounds: asDbRounds([round]),
+        updatedAt: now,
+    });
+    return true;
+}
+
 /** Builds the `TimerConfig` `startDraft`/`applyPick`/`runBotAutoPicks` accept
  *  (issue #1114) from an event's stored `timerEnabled` flag (ADR 0060 / issue
  *  #1243: replaced the fixed `timerSeconds` value), or `undefined` when the
@@ -1135,12 +1314,20 @@ export const startLimitedEvent = mutation({
                 now,
                 [...dealt.timerUpdates, ...afterBots.timerUpdates]
             );
+            // An ALL-BOT table finishes here: `runBotAutoPicks` drives the
+            // whole draft to `draftCompletedAt` in this same mutation, so
+            // completion flips inside `startLimitedEvent` and none of the
+            // other call sites (`userDecks.create`, `submitPick`,
+            // `autoPickSeatTimeout`) will ever run. Self-gating, so this is a
+            // no-op for a normal table with a human still to build.
+            await openPlayPhaseIfReady(ctx, args.eventId, now);
             return null;
         }
 
         const seats = fillBotSeats(event.seats);
         const seed = freshSeed();
         const rng = makeRng(seed);
+        const now = Date.now();
         const seededSeats = generateSealedPools(
             seats,
             event.packSlots,
@@ -1155,8 +1342,12 @@ export const startLimitedEvent = mutation({
             status: "started",
             seed,
             scorerVersion: SCORER_VERSION,
-            updatedAt: Date.now(),
+            updatedAt: now,
         });
+        // Same all-bot case as the draft branch above: dealing the Pools makes
+        // every bot seat deck-ready immediately, so an all-bot Sealed table is
+        // complete the instant it starts. No-op for a table with a human seat.
+        await openPlayPhaseIfReady(ctx, args.eventId, now);
         return null;
     },
 });
@@ -1352,6 +1543,10 @@ export const submitPick = mutation({
             ...result.timerUpdates,
             ...afterBots.timerUpdates,
         ]);
+        // The final pick can complete the table outright when every human had
+        // already built off their growing Pool (ADR 0060's continuous
+        // draft→build surface) — self-gating, so a no-op otherwise.
+        await openPlayPhaseIfReady(ctx, args.eventId, now);
         return null;
     },
 });
@@ -1441,6 +1636,9 @@ export const autoPickSeatTimeout = internalMutation({
             ...result.timerUpdates,
             ...afterBots.timerUpdates,
         ]);
+        // Same completion seam as `submitPick` — an Auto-Picked final pick
+        // finishes the table just as a human's does.
+        await openPlayPhaseIfReady(ctx, args.eventId, now);
         return null;
     },
 });

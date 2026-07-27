@@ -21,6 +21,7 @@ import LimitedVsAiPanel from "./limited-vs-ai-panel";
 import LimitedChallengePanel from "./limited-challenge-panel";
 import LimitedReviewPanel from "./limited-review-panel";
 import LimitedStandingsTable from "./limited-standings-table";
+import LimitedRoundPanel from "./limited-round-panel";
 import LimitedShareInviteButton from "./limited-share-invite-button";
 import LimitedEventPageFrame from "./limited-event-page-frame";
 import LimitedEventToolbar from "./limited-event-toolbar";
@@ -139,6 +140,11 @@ export default function LimitedEventDetail({
     // just be permanent noise ahead of the feature it's reporting on.
     const showStandings =
         areRoundsRunning(event.status) || isEventConcluded(event.status);
+    // The round panel (PRD #1628 stories 6-7, issue #1644) — the current round
+    // and the viewer's own pairing. Only while the rounds are actually
+    // RUNNING: once the event is concluded there is no "current" pairing to
+    // act on, and the final standings above are the whole story.
+    const showRoundPanel = areRoundsRunning(event.status);
 
     const runMutation = async (run: () => Promise<unknown>) => {
         if (pending) return;
@@ -285,6 +291,8 @@ export default function LimitedEventDetail({
                         />
                     </>
                 )}
+
+                {showRoundPanel && <LimitedRoundPanel event={event} />}
 
                 {showStandings && <LimitedStandingsTable event={event} />}
 

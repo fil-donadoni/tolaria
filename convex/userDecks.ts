@@ -4,6 +4,7 @@ import type { DataModel, Doc, Id } from "./_generated/dataModel";
 import { internalMutation, mutation, query } from "./_generated/server";
 import { getCurrentUserId } from "./auth";
 import { type FormatId, isFormatId } from "./formats";
+import { openPlayPhaseIfReady } from "./limitedEvents";
 import {
     assertLimitedSeatOwnership,
     findSeatPool,
@@ -145,7 +146,7 @@ export const create = mutation({
         }
 
         const name = args.name.trim() || "Untitled deck";
-        return await ctx.db.insert("userDecks", {
+        const deckId = await ctx.db.insert("userDecks", {
             userId,
             name,
             format: args.format,
@@ -157,6 +158,23 @@ export const create = mutation({
             limitedEventId: args.limitedEventId,
             limitedSeatId: args.limitedSeatId,
         });
+
+        // Limited Event play phase (PRD #1628, ADR 0076, issue #1644): this
+        // insert may have been the LAST seat's deck, which is exactly the
+        // moment the event stops being a deckbuilding exercise and becomes an
+        // event — it flips to `playing` and round 1 is paired, with every
+        // bot-vs-bot pairing decided in this same transaction. Self-gating:
+        // `openPlayPhaseIfReady` re-derives completion from the database and
+        // no-ops when the table is still waiting on someone, so this needs no
+        // condition of its own beyond "is this even a Limited Event deck".
+        if (args.limitedEventId !== undefined) {
+            await openPlayPhaseIfReady(
+                ctx,
+                args.limitedEventId as Id<"limitedEvents">,
+                Date.now()
+            );
+        }
+        return deckId;
     },
 });
 
