@@ -4,7 +4,7 @@
 // seat actually made is the one worth reading first.
 import { useState } from "react";
 import type { PickCandidateTrace } from "@convex/limited/botDrafter";
-import type { CardProfile } from "@convex/limited/cardProfiles";
+import type { CardProfile } from "@convex/limited/cardProfilesCore";
 import DraftLabTermBreakdown from "./draft-lab-term-breakdown";
 import DraftLabProfileBadge from "./draft-lab-profile-badge";
 

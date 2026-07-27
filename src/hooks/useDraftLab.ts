@@ -28,7 +28,7 @@ import { CUBE_SOURCE_KEY } from "@convex/limited/cubeSource";
 import {
     buildDbProfileLookup,
     type GetCardProfile,
-} from "@convex/limited/cardProfiles";
+} from "@convex/limited/cardProfilesCore";
 
 /** Arbitrary, memorable default — any seed the user types behaves
  *  identically (issue #1612: "generate a draft from an arbitrary seed"). */

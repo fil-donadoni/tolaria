@@ -57,7 +57,7 @@ import {
     buildDbRatingLookup,
     resolveEventPickRating,
     type ScopedCardRating,
-} from "@convex/limited/cardRatings";
+} from "@convex/limited/cardRatingsCore";
 
 export interface UseDraftLabReplayResult {
     /** Every completed Draft event the current user occupies a Seat in —

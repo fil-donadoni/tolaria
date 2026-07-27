@@ -5,7 +5,10 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { render, cleanup, screen } from "@testing-library/react";
 import DraftLabProfileBadge from "../draft-lab-profile-badge";
-import type { CardProfile, GetDbProfile } from "@convex/limited/cardProfiles";
+import type {
+    CardProfile,
+    GetDbProfile,
+} from "@convex/limited/cardProfilesCore";
 import { buildDraftLabCardProfile } from "@/lib/limited/draftLabEngine";
 
 afterEach(cleanup);

@@ -56,13 +56,13 @@ import {
 import {
     resolveEventPickRating,
     type GetDbRating,
-} from "./limited/cardRatings";
+} from "./limited/cardRatingsCore";
 import {
     resolveEventCardProfile,
     type CardProfile,
     type GetCardProfile,
     type GetDbProfile,
-} from "./limited/cardProfiles";
+} from "./limited/cardProfilesCore";
 import {
     assignFreeSeat,
     buildEmptySeats,

@@ -36,7 +36,7 @@ import {
 import {
     resolveEventPickRating,
     type GetDbRating,
-} from "../limited/cardRatings";
+} from "../limited/cardRatingsCore";
 import { getPickRating, getPickRatingByCardId } from "../limited/pickRatings";
 import {
     assignFreeSeat,

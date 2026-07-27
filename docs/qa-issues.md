@@ -33,6 +33,7 @@ Fable of the mirror-breaker
 
 ## UX da migliorare
 
+- quando c'è il dialog di conferma auto-tap, in qualche modo space può essere interpretato come cambio fase invece che come conferma di auto-tap. forse race condition, ma può rovinare un turno.
 - Arch lightning sullo stack, mentre targetta 2 creature e un giocatore, mostra solo la freccia verso il giocatore
 - Le frecce di target di Arc mage sono sbagliate. Ho targettato una creature e un giocatore, vedo una freccia dalla creatura primo bersaglio al giocatore secondo bersaglio invece di 2 frecce che partono da arc mage e vanno verso la creatura e il giocatore
 - staff of the storyteller non è stata implementata nella sua prima edizione ma in una ristampa. correggi, trova altri casi simili e fai in modo che non ricapiti.
@@ -59,3 +60,5 @@ Fable of the mirror-breaker
 - casta flash of insight con X = 0, inutile
 - casta sheoldred's edict senza alcuna creatura o planeswalker sul mio board
 - casta damnation su board vuoto
+- casta chrome mox e non imprinta nessuna carta
+- attiva mother of runes a sorcery speed senza motivo

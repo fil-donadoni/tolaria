@@ -15,7 +15,7 @@ import {
     stepDraftLab,
 } from "../draftLabEngine";
 import { CUBE_SOURCE_KEY } from "@convex/limited/cubeSource";
-import type { ScopedCardProfile } from "@convex/limited/cardProfiles";
+import type { ScopedCardProfile } from "@convex/limited/cardProfilesCore";
 
 describe("Draft Lab synthetic mode engine (issue #1612, ADR 0074)", () => {
     it("same seed produces the same draft, every run", () => {

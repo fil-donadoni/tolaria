@@ -69,7 +69,7 @@ import {
 } from "../botDrafter";
 // TYPE-ONLY: the Card Profile seam is injected as a plain closure, so these
 // tests never load the `cardProfiles` Convex query shell.
-import type { CardProfile, GetCardProfile } from "../cardProfiles";
+import type { CardProfile, GetCardProfile } from "../cardProfilesCore";
 import type { DraftPackCard } from "../eventTypes";
 import { PICK_RATING_MAX, PICK_RATING_MIN } from "../pickRatings";
 

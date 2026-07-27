@@ -16,7 +16,7 @@ import {
     type CardProfile,
     type CardProfileFile,
     type ScopedCardProfile,
-} from "../cardProfiles";
+} from "../cardProfilesCore";
 
 /** Builds a `GetDbProfile` from a plain `(scope, cardId) -> CardProfile` map
  *  — the test-side stand-in for a `cardProfiles` table scan. */

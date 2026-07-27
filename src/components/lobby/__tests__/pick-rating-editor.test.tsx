@@ -14,7 +14,7 @@ import {
     listScopeCards,
     buildScopeCardRatings,
     type GetDbRating,
-} from "@convex/limited/cardRatings";
+} from "@convex/limited/cardRatingsCore";
 import { CUBE_SOURCE_KEY } from "@convex/limited/cube";
 import PickRatingEditor from "../pick-rating-editor";
 import type { ScopeCardRating } from "~/hooks/useCardRatings";

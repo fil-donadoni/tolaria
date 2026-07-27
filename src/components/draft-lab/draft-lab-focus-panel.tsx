@@ -5,7 +5,7 @@
 // compared candidates in.
 import { Panel, PanelHeader, PanelBody } from "@/components/ui/panel";
 import type { DraftLabPickRecord } from "@/lib/limited/draftLabEngine";
-import type { GetCardProfile } from "@convex/limited/cardProfiles";
+import type { GetCardProfile } from "@convex/limited/cardProfilesCore";
 import DraftLabCandidateRow from "./draft-lab-candidate-row";
 
 export default function DraftLabFocusPanel({

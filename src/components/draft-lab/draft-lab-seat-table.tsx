@@ -1,7 +1,7 @@
 // The 8-seat table view (issue #1612: "table view: all 8 seats, each with
 // its current pack and the pick it made").
 import type { DraftLabState } from "@/lib/limited/draftLabEngine";
-import type { GetCardProfile } from "@convex/limited/cardProfiles";
+import type { GetCardProfile } from "@convex/limited/cardProfilesCore";
 import DraftLabSeatCard from "./draft-lab-seat-card";
 
 export default function DraftLabSeatTable({

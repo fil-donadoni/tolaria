@@ -3,7 +3,7 @@
 // with `reviewed: false` (`convex/limited/cardProfiles.ts`) must be obvious
 // wherever the card it describes appears in a pick. Renders nothing for a
 // card with no profile at all, or an already-reviewed one.
-import type { CardProfile } from "@convex/limited/cardProfiles";
+import type { CardProfile } from "@convex/limited/cardProfilesCore";
 
 export default function DraftLabProfileBadge({
     profile,

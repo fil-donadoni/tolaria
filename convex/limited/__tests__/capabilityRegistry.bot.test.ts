@@ -15,7 +15,7 @@ import {
     getAllCheckedInCardProfileFiles,
     validateCardProfileFile,
     type CardProfileFile,
-} from "../cardProfiles";
+} from "../cardProfilesCore";
 
 describe("Capability Registry (ADR 0072, issue #1608)", () => {
     it("stays small — growth past ~25 rows is the signal to check Combo Edge/Archetype instead (ADR 0072 Consequences)", () => {

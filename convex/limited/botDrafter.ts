@@ -160,7 +160,7 @@ import { cardValueById } from "../gre/cardValue";
 // closure, so this module never touches the `cardProfiles` table, its Convex
 // query shell, or the card registry behind it — the same discipline
 // `GetCardEvalMeta`/`GetPickRating` already follow.
-import type { CardProfile, GetCardProfile } from "./cardProfiles";
+import type { CardProfile, GetCardProfile } from "./cardProfilesCore";
 import type { DraftPackCard, LimitedPoolCard } from "./eventTypes";
 import { PICK_RATING_MAX, PICK_RATING_MIN } from "./pickRatings";
 

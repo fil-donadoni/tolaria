@@ -13,7 +13,7 @@ import {
     buildDbRatingLookup,
     type GetDbRating,
     type ScopedCardRating,
-} from "../cardRatings";
+} from "../cardRatingsCore";
 import {
     getPickRating,
     getPickRatingFile,

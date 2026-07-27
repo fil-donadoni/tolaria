@@ -11,7 +11,7 @@
 // purpose.
 import type { LimitedEventSeat } from "@convex/limited/eventTypes";
 import type { DraftLabPickRecord } from "@/lib/limited/draftLabEngine";
-import type { GetCardProfile } from "@convex/limited/cardProfiles";
+import type { GetCardProfile } from "@convex/limited/cardProfilesCore";
 import DraftLabProfileBadge from "./draft-lab-profile-badge";
 
 export default function DraftLabSeatCard({

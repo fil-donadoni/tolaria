@@ -31,14 +31,14 @@ import {
     type GetPickRating,
     type PickCandidateTrace,
 } from "@convex/limited/botDrafter";
-import { resolveEventPickRating } from "@convex/limited/cardRatings";
+import { resolveEventPickRating } from "@convex/limited/cardRatingsCore";
 import {
     buildDbProfileLookup,
     resolveEventCardProfile,
     type GetCardProfile,
     type GetDbProfile,
     type ScopedCardProfile,
-} from "@convex/limited/cardProfiles";
+} from "@convex/limited/cardProfilesCore";
 import type {
     DraftPackCard,
     LimitedEventSeat,
