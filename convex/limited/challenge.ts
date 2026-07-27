@@ -58,6 +58,10 @@ export function assertSameEventDeck(
  *  per `waiting` `games` row that carries a `limitedChallenge`. */
 export interface ChallengeGame {
     gameId: string;
+    /** The Match this waiting Game belongs to (`games.matchId`). Carried so a
+     *  consumer can tell WHICH pending challenge it is looking at — see
+     *  `ViewerIncomingChallenge.matchId`. */
+    matchId: string;
     /** The challenger's user id (the sole player already seated in the waiting
      *  Game — `games.players[0].id` for a 2-player Match). */
     challengerUserId: string;
@@ -70,6 +74,15 @@ export interface ChallengeGame {
  *  Limited deck (`joinGame`). */
 export interface ViewerIncomingChallenge {
     gameId: string;
+    /** The Match the challenge Game belongs to (issue #1645 review). The
+     *  ROUND-pairing affordance identifies its own Match by comparing this to
+     *  the pairing's `matchId`: a FREE challenge sent by the same seat during
+     *  deckbuild is still `waiting` when the phase flips to `playing`, and
+     *  `challengerSeatIndex` alone cannot tell the two apart — so the viewer
+     *  was being offered the stale free challenge as their round Match, which
+     *  joins an UNRECORDED game and burns the single-active-Match slot the real
+     *  pairing needs. (Hiding free play once rounds start is #1648's job.) */
+    matchId: string;
     challengerSeatIndex: number;
 }
 
@@ -103,6 +116,7 @@ export function projectViewerChallenges(
         .filter((c) => c.challengedUserId === viewerUserId)
         .map((c) => ({
             gameId: c.gameId,
+            matchId: c.matchId,
             challengerSeatIndex: c.challengerSeatIndex,
         }));
     const outgoingGame = challenges.find(

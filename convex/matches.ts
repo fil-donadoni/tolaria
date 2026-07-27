@@ -3,6 +3,7 @@ import type { GenericMutationCtx, GenericQueryCtx } from "convex/server";
 import type { DataModel, Doc, Id } from "./_generated/dataModel";
 import { auth } from "./auth";
 import { query } from "./_generated/server";
+import { seatBelongsToUser } from "./gameLifecycle";
 
 // ---------------------------------------------------------------------------
 // Match orchestration (ADR 0029 / PRD #387). A Match is a best-of-N set of
@@ -277,6 +278,41 @@ export function botSeatId(match: {
     return match.players.find((p) => isBotSeat(p.id))?.id ?? null;
 }
 
+/**
+ * SECURITY (issue #1645 review) — the RESIGNATION gate for an event-bound
+ * vs-AI pairing. Applies to `forfeitMatch` and `concede` ONLY.
+ *
+ * This is a strictly HIGHER bar than `assertSeatOwnership`, and the two must
+ * not be conflated. `assertSeatOwnership` asks "does the caller own this seat
+ * HANDLE" — in a vs-AI pairing the human owns BOTH handles (`${uid}-p1` and
+ * `${uid}-p2`, ADR 0001), which is exactly right for ordinary gameplay (the
+ * client-side Brain drives the bot seat through `playCard`, `passPriority`, …
+ * and must keep working) and exactly useless against a resignation aimed at
+ * `${uid}-p2`. A round pairing's Match result is written into the Limited
+ * standings (PRD #1628), so `forfeitMatch({ playerId: "${uid}-p2" })` would
+ * otherwise be a one-call 2-0 with zero games played.
+ *
+ * `limitedPairing` is the discriminator: a CASUAL solo/vs-AI Match carries
+ * none, writes no standings row, and stays freely concedable from either seat.
+ *
+ * Never call this from an ordinary gameplay mutation — it would make the bot
+ * unplayable in an event pairing, which is worse than the hole it closes.
+ */
+export function assertNotEventBotSeat(
+    doc: {
+        vsAi?: boolean;
+        limitedPairing?: unknown;
+        players: { id: string }[];
+    },
+    playerId: string
+): void {
+    if (doc.limitedPairing === undefined) return;
+    if (playerId === botSeatId(doc))
+        throw new Error(
+            "You cannot resign your bot opponent's seat in an event pairing."
+        );
+}
+
 /** A seat for the next Game, derived from a Match player. Mirrors the
  *  `PlayerInput` shape that `game.ts`'s `buildInitialGameState` consumes — the
  *  next Game's library is built from the player's CURRENT Match maindeck as of
@@ -425,9 +461,7 @@ export function matchBelongsToUser(
     match: { players: { id: string }[] },
     userId: string
 ): boolean {
-    return match.players.some(
-        (p) => p.id === userId || p.id.startsWith(`${userId}-`)
-    );
+    return match.players.some((p) => seatBelongsToUser(p.id, userId));
 }
 
 /** The user's current active Match, or null. Scans only the small active set

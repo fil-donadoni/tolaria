@@ -401,6 +401,12 @@ export const limitedEventViewValidator = v.object({
     viewerIncomingChallenges: v.array(
         v.object({
             gameId: v.string(),
+            // The owning Match (issue #1645 review) — how the round-pairing
+            // affordance tells its OWN Match from a stale free challenge sent
+            // by the same seat. Must stay in step with
+            // `ViewerIncomingChallenge`: a projected field missing here fails
+            // all three event queries at runtime, invisibly to tsc.
+            matchId: v.string(),
             challengerSeatIndex: v.number(),
         })
     ),
@@ -672,6 +678,37 @@ function resolveBasicLandFor(setCode: string): ResolveBasicLand {
     };
 }
 
+/** ONE seat's Auto-Built deck, resolved straight off the stored event row
+ *  (issue #1115's `computeBotAutoBuiltDeck` wired with this module's two
+ *  registry resolvers). `null` for a seat that has none — a human seat, a seat
+ *  that doesn't exist, or an event whose Pool isn't final yet.
+ *
+ *  EXPORTED for `convex/game.ts`'s `startPairingMatch` (issue #1645): a round
+ *  Match against a bot seat must be played against the deck the SERVER derives
+ *  from that seat's own drafted Pool. The projection already puts
+ *  `autoBuiltDeck` on the wire for the (unrecorded) "Play vs Bots" playtest,
+ *  but a pairing Match's result lands in the standings — so its opponent
+ *  decklist can never come from the client. The import direction is
+ *  `game.ts -> limitedEvents.ts` only; this module imports nothing from
+ *  `game.ts`. */
+export function resolveSeatAutoBuiltDeck(
+    event: Doc<"limitedEvents">,
+    seatIndex: number
+): AutoBuiltDeck | null {
+    const seat = event.seats.find((s) => s.seatIndex === seatIndex);
+    if (!seat) return null;
+    return computeBotAutoBuiltDeck(
+        seat,
+        {
+            type: event.type,
+            status: event.status,
+            draftCompletedAt: event.draftCompletedAt,
+        },
+        getAutoBuildCardMeta,
+        resolveBasicLandFor(event.packSlots[0] ?? "")
+    );
+}
+
 /** A projected Seat view (`eventProjection.ts`) plus its Auto-Built deck
  *  (issue #1115) — `extends`, not `&`, because intersecting `LimitedEventView`
  *  with a `{ seats: T[] }` override makes `seats` unsatisfiable (TS intersects
@@ -759,8 +796,15 @@ async function loadEventChallenges(
         if (game.status !== "waiting" || !game.limitedChallenge) continue;
         const challengerUserId = game.players[0]?.id;
         if (!challengerUserId) continue;
+        // `games.matchId` is optional only for pre-Match legacy rows; every
+        // challenge Game (`challengeLimitedSeat`, `startPairingMatch`) inserts
+        // one. Skipping a match-less row keeps `ChallengeGame.matchId` a plain
+        // `string` — the value the round affordance compares the pairing's own
+        // `matchId` against, which must never be undefined.
+        if (!game.matchId) continue;
         challenges.push({
             gameId: game._id,
+            matchId: game.matchId,
             challengerUserId,
             challengerSeatIndex: game.limitedChallenge.challengerSeatIndex,
             challengedUserId: game.limitedChallenge.challengedUserId,

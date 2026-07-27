@@ -1,7 +1,9 @@
 import type { LimitedEventView } from "~/hooks/useLimitedEvent";
 import type { LimitedPairingResultSource } from "@convex/limited/eventTypes";
+import type { Id } from "@convex/_generated/dataModel";
 import { roundsForSeatCount } from "@convex/limited/swiss";
 import { cn } from "~/lib/utils";
+import LimitedRoundAction from "./limited-round-action";
 
 /** How a decided pairing came to be decided, in words (PRD #1628 story 26 — a
  *  player must be able to tell a real win from an awarded one). */
@@ -35,11 +37,14 @@ const OUTCOME_TONE = {
  *  whether a recorded result is a win, and a client re-implementing it is
  *  exactly the drift ADR 0076 exists to prevent.
  *
- *  This slice SURFACES the pairing; starting the Match from it is the next
- *  one, so there is deliberately no action button here yet. */
+ *  An UNDECIDED, non-bye pairing also carries its one action — start / accept /
+ *  resume the pairing's Match (issue #1645) — delegated to
+ *  `LimitedRoundAction`, which owns that whole decision. */
 export default function LimitedRoundPanel({
+    eventId,
     event,
 }: {
+    eventId: Id<"limitedEvents">;
     event: LimitedEventView;
 }) {
     if (event.currentRound === undefined) return null;
@@ -121,6 +126,15 @@ export default function LimitedRoundPanel({
                         )}
                     </div>
                 )}
+                {pairing !== null &&
+                    pairing.outcome === null &&
+                    !pairing.isBye && (
+                        <LimitedRoundAction
+                            eventId={eventId}
+                            event={event}
+                            pairing={pairing}
+                        />
+                    )}
                 {pairing !== null &&
                     pairing.outcome !== null &&
                     !pairing.roundComplete && (

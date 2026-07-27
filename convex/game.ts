@@ -132,6 +132,23 @@ import {
     assertChallengeableSeat,
     assertSameEventDeck,
 } from "./limited/challenge";
+import {
+    bindPairingMatch,
+    recordPlayedPairing,
+    resolveStartablePairing,
+    unbindPairingMatch,
+} from "./limited/pairingMatch";
+import type { LimitedRound } from "./limited/eventTypes";
+import { areRoundsRunning } from "./limited/eventStatus";
+import {
+    bestOfForMatchFormat,
+    resolveMatchFormat,
+} from "./limited/matchFormat";
+// One-directional (issue #1645): `limitedEvents.ts` imports nothing from this
+// module, so this cannot cycle. A round Match against a bot seat must be built
+// from the deck the SERVER derives from that seat's Pool — never a
+// client-supplied decklist, because the Match's result lands in the standings.
+import { resolveSeatAutoBuiltDeck } from "./limitedEvents";
 import type {
     ActivatedAbility,
     CardDefinition,
@@ -249,10 +266,15 @@ import {
     applyNameCardSubmit,
     applyRandomRevealAck,
 } from "./gre/pendingChoiceSubmit";
-import { gameBelongsToUser } from "./gameLifecycle";
+import {
+    assertCallerOwnsSeat,
+    assertSeatOwnership,
+    gameBelongsToUser,
+} from "./gameLifecycle";
 import {
     allSeatsReady,
     applySideboard,
+    assertNotEventBotSeat,
     botIsChooser,
     botSeatId,
     buildNextGameSeats,
@@ -501,11 +523,68 @@ async function saveGameState(
     });
 }
 
+/** The Rounds array as the `limitedEvents` schema declares it. `convex/limited/**`
+ *  never depends on `_generated`, so its `LimitedPairing.matchId` is a plain
+ *  `string` where the schema stores a branded `Id<"matches">` — the same
+ *  type-level reconciliation `limitedEvents.ts`'s `asDbRounds` performs, for
+ *  the two writes this module makes. Every `matchId` written here originates
+ *  from a real `ctx.db.insert("matches", …)`, never from client input. */
+function asDbRounds(
+    rounds: LimitedRound[]
+): NonNullable<Doc<"limitedEvents">["rounds"]> {
+    return rounds as unknown as NonNullable<Doc<"limitedEvents">["rounds"]>;
+}
+
+/**
+ * Record a FINISHED pairing Match's result into its Limited Event's round
+ * (PRD #1628 stories 14-15, ADR 0076, issue #1645).
+ *
+ * Called from **both** places a Match becomes finished — `finalizeGameOver`
+ * (the SBA-detected game over, which is also the path `concede` takes) and the
+ * `forfeitMatch` mutation. A result that only lands on one of them is the bug
+ * this function exists to prevent, so it is deliberately a single shared
+ * helper rather than two inline blocks.
+ *
+ * Everything it decides lives in the pure `recordPlayedPairing`
+ * (`convex/limited/pairingMatch.ts`), which refuses any Match the pairing
+ * isn't bound to and is idempotent on an already-decided pairing. It NEVER
+ * throws: this runs inside the transaction that finishes the Match, and a
+ * throw here would roll that completion back.
+ *
+ * Standings are not touched — they are DERIVED from the recorded results on
+ * every read (ADR 0076), so writing the pairing's game score is the whole job.
+ */
+async function recordLimitedPairingResult(
+    ctx: Pick<GenericMutationCtx<DataModel>, "db">,
+    match: Doc<"matches">,
+    now: number
+): Promise<void> {
+    if (match.status !== "finished") return;
+    const link = match.limitedPairing;
+    if (!link || !match.limitedEventId) return;
+    const event = await ctx.db.get(match.limitedEventId as Id<"limitedEvents">);
+    if (!event) return;
+    const rounds = recordPlayedPairing(event.rounds ?? [], link, match._id, {
+        // Match seat order: `players[0]` is the seat that started the Match,
+        // which `limitedPairing.seatA` names (`startPairingMatch`).
+        winsA: match.players[0]?.score ?? 0,
+        winsB: match.players[1]?.score ?? 0,
+    });
+    if (!rounds) return;
+    await ctx.db.patch(event._id, {
+        rounds: asDbRounds(rounds),
+        updatedAt: now,
+    });
+}
+
 /** If SBA detected game over, persist the result to the games table AND record
  *  it into the owning Match (PRD #387 / ADR 0029): bump the winner's score and,
  *  for a Bo1, immediately finish the Match. (Bo3 routes to "sideboarding" — a
- *  later slice builds the next Game; #392 only ever finishes Bo1 here.) */
-async function finalizeGameOver(
+ *  later slice builds the next Game; #392 only ever finishes Bo1 here.)
+ *
+ *  EXPORTED for `convex/__tests__/limitedPairingMatch.test.ts` (issue #1645),
+ *  which drives the real game-over path rather than re-implementing it. */
+export async function finalizeGameOver(
     ctx: Pick<GenericMutationCtx<DataModel>, "db">,
     gameId: GenericId<"games">,
     _seq: number,
@@ -529,7 +608,13 @@ async function finalizeGameOver(
     if (!match || match.status === "finished") return;
 
     const patch = recordGameResult(match, winnerId);
-    if (patch) await ctx.db.patch(game.matchId, { ...patch, updatedAt: now });
+    if (!patch) return;
+    await ctx.db.patch(game.matchId, { ...patch, updatedAt: now });
+    // Limited Event round pairing (issue #1645): a normal win and a concede
+    // both land here, so this is where a played pairing's result is recorded.
+    // A no-op unless the patch actually FINISHED the Match (a Bo3 routing to
+    // "sideboarding" is not a decided pairing).
+    await recordLimitedPairingResult(ctx, { ...match, ...patch }, now);
 }
 
 /** Guard: reject actions on a finished game. */
@@ -2931,6 +3016,245 @@ export const challengeLimitedSeat = mutation({
 });
 
 /**
+ * Start the Match for the caller's own pairing in the Limited Event's CURRENT
+ * Swiss round (PRD #1628 stories 8-13, ADR 0076, issue #1645).
+ *
+ * One action, two shapes, decided by the paired seat — never by the client:
+ *
+ * - **Against a bot seat** the Match starts immediately as the existing vs-AI
+ *   Match (`createSoloGame`'s seat model, ADR 0001) against that seat's
+ *   Auto-Built deck, resolved SERVER-SIDE off the seat's own drafted Pool
+ *   (`resolveSeatAutoBuiltDeck`). The projection already publishes that deck
+ *   for the unrecorded "Play vs Bots" playtest, but a pairing's result lands
+ *   in the standings, so its opponent decklist can never be client-supplied.
+ * - **Against a human seat** it creates the pairing's Match ADDRESSED to that
+ *   opponent — the same `waiting` + `limitedChallenge` shape
+ *   `challengeLimitedSeat` builds, so the opponent accepts it through the
+ *   unchanged `joinGame` path. A pairing is an appointment, not a race to
+ *   challenge first: whichever of the two seats starts it, the other one gets
+ *   the very same Match.
+ *
+ * The Match is Bo1 or Bo3 per the EVENT's Match Format (`bestOfForMatchFormat`),
+ * so a Bo3 sideboards from the pool through the existing between-games flow
+ * (the Limited deck's `sideboard` IS the rest of its Pool, ADR 0055).
+ *
+ * SECURITY: identity is `ctx.auth`'s (CLAUDE.md § Player identity). The seat is
+ * taken from the caller's own AUTHENTICATED deck (`limitedSeatId`, re-checked
+ * with `assertLimitedSeatOwnership`) and the pairing is looked up FROM that
+ * seat — a client can neither claim a seat nor name a pairing. The created
+ * Match id is stamped onto the pairing server-side (`bindPairingMatch`), which
+ * is what later lets `recordLimitedPairingResult` refuse a result for a pairing
+ * the Match isn't bound to.
+ *
+ * A pairing is started ONCE: `bindPairingMatch` refuses a pairing that already
+ * carries a Match, and the single-active-Match guard (#155) still applies on
+ * top. The one tolerated exception is a Match ABANDONED before it started (the
+ * waiting room's `leaveGame` deleted the row) — the dangling id is cleared and
+ * the pairing becomes startable again, rather than stranding the seat.
+ */
+export const startPairingMatch = mutation({
+    args: {
+        eventId: v.id("limitedEvents"),
+        deck: deckValidator,
+        name: v.optional(v.string()),
+        bgColor: v.optional(v.string()),
+    },
+    handler: async (ctx, args) => {
+        const user = await getCurrentUser(ctx);
+        // A round Match is only ever played with the deck built for THIS event
+        // (PRD story 9) — the same rule the challenge path enforces.
+        assertSameEventDeck(args.deck.limitedEventId, args.eventId);
+        if (!args.deck.limitedSeatId)
+            throw new Error("Your round Match needs your Limited deck's seat.");
+        // #155 (match-scoped): at most one active Match per user.
+        if (await findActiveMatchForUser(ctx, user._id))
+            throw new Error(ACTIVE_GAME_MESSAGE);
+        const event = await ctx.db.get(args.eventId);
+        // Caller owns the seat they claim (one seat-ownership authority, keyed
+        // off the AUTHENTICATED id). `event` is non-null past this gate.
+        assertLimitedSeatOwnership(event, args.deck.limitedSeatId, user._id);
+        if (!event) throw new Error("Limited Event not found.");
+        // A PHASE question, never a status literal (ADR 0076 decision 1).
+        if (!areRoundsRunning(event.status))
+            throw new Error("This event's rounds are not running.");
+
+        const seatIndex = Number(args.deck.limitedSeatId);
+        const { round, pairing, opponentSeatIndex } = resolveStartablePairing(
+            event.rounds ?? [],
+            event.currentRound,
+            seatIndex
+        );
+        let rounds: LimitedRound[] = event.rounds ?? [];
+        if (pairing.matchId) {
+            const existing = await ctx.db.get(pairing.matchId as Id<"matches">);
+            if (existing)
+                throw new Error(
+                    "Your Match for this round has already started."
+                );
+            // The bound Match is gone (abandoned waiting room) — recover.
+            rounds =
+                unbindPairingMatch(rounds, round.roundNumber, seatIndex) ??
+                rounds;
+        }
+        const opponentSeat = event.seats.find(
+            (s) => s.seatIndex === opponentSeatIndex
+        );
+        if (!opponentSeat)
+            throw new Error("Your opponent's seat is no longer at the table.");
+
+        // Authoritative deck legality gate (ADR 0036) before any row is
+        // written — the caller's deck must be legal against its own Pool.
+        assertDeckLegal(
+            args.deck,
+            undefined,
+            await loadBanlistOverrides(ctx, args.deck.format),
+            await loadLimitedPoolResolver(ctx, args.deck, user._id)
+        );
+
+        const now = Date.now();
+        const bestOf = bestOfForMatchFormat(
+            resolveMatchFormat(event.matchFormat)
+        );
+        // Match seat order: `players[0]` is always the seat that STARTED the
+        // Match, which is what `recordPlayedPairing` re-orients the score from.
+        const limitedPairing = {
+            round: round.roundNumber,
+            seatA: seatIndex,
+            seatB: opponentSeatIndex,
+        };
+        const opponentLabel =
+            opponentSeat.nickname ?? `Seat ${opponentSeat.seatIndex + 1}`;
+        const name = args.name ?? `${user.nickname} vs ${opponentLabel}`;
+
+        let matchId: Id<"matches">;
+        let gameId: Id<"games">;
+
+        if (opponentSeat.isBot) {
+            const botDeck = resolveSeatAutoBuiltDeck(event, opponentSeatIndex);
+            if (!botDeck)
+                throw new Error("Your opponent's deck is not ready yet.");
+            // Same seat model as `createSoloGame({ vsAi: true })` (ADR 0001):
+            // the caller drives `-p1`, the brain drives `-p2`. The bot deck is
+            // tagged `freeform` because it belongs to no user's own Seat — the
+            // Limited ownership gate would reject it — and it is legal by
+            // construction (issue #1115).
+            const player1: PlayerInput = {
+                id: `${user._id}-p1`,
+                name: `${user.nickname} (P1)`,
+                bgColor: args.bgColor ?? PLAYER_COLORS[0],
+                deck: args.deck,
+            };
+            const player2: PlayerInput = {
+                id: `${user._id}-p2`,
+                name: opponentLabel,
+                bgColor: PLAYER_COLORS[1],
+                deck: {
+                    id: `limited-autobuild-${args.eventId}-${opponentSeatIndex}`,
+                    name: opponentLabel,
+                    format: "freeform",
+                    cards: botDeck.cards,
+                    sideboard: botDeck.sideboard,
+                },
+            };
+            const allPlayers = [player1, player2];
+            const matchPlayers = buildMatchPlayers(allPlayers);
+            matchId = await ctx.db.insert("matches", {
+                bestOf,
+                status: "pregame",
+                players: matchPlayers,
+                currentGameNumber: 1,
+                playDrawChooserId: pickCoinTossWinner(
+                    matchPlayers,
+                    Math.random()
+                ),
+                solo: true,
+                vsAi: true,
+                limitedEventId: args.eventId,
+                limitedPairing,
+                createdAt: now,
+                updatedAt: now,
+            });
+            gameId = await ctx.db.insert("games", {
+                name,
+                matchId,
+                gameNumber: 1,
+                status: "pregame",
+                players: toGamePlayers(allPlayers),
+                solo: true,
+                vsAi: true,
+                limitedEventId: args.eventId,
+                limitedPairing,
+                createdAt: now,
+                updatedAt: now,
+            });
+        } else {
+            if (!opponentSeat.userId)
+                throw new Error("Your opponent's seat is empty.");
+            // Identical to a `challengeLimitedSeat` challenge — a `waiting`
+            // 2-player Match bound to the event and ADDRESSED to the paired
+            // seat, which `joinGame` completes. Reusing that binding is what
+            // makes the opponent's accept path (and its event projection) work
+            // with no parallel mechanism.
+            const limitedChallenge = {
+                challengerSeatIndex: seatIndex,
+                challengedUserId: opponentSeat.userId,
+                challengedSeatIndex: opponentSeatIndex,
+            };
+            const player: PlayerInput = {
+                id: user._id,
+                name: user.nickname,
+                bgColor: args.bgColor ?? PLAYER_COLORS[0],
+                deck: args.deck,
+            };
+            matchId = await ctx.db.insert("matches", {
+                bestOf,
+                status: "waiting",
+                players: buildMatchPlayers([player]),
+                currentGameNumber: 1,
+                createdAt: now,
+                updatedAt: now,
+                limitedEventId: args.eventId,
+                limitedChallenge,
+                limitedPairing,
+            });
+            gameId = await ctx.db.insert("games", {
+                name,
+                matchId,
+                gameNumber: 1,
+                status: "waiting",
+                players: toGamePlayers([player]),
+                createdAt: now,
+                updatedAt: now,
+                limitedEventId: args.eventId,
+                limitedChallenge,
+                limitedPairing,
+            });
+        }
+
+        await ctx.db.patch(matchId, { currentGameId: gameId });
+
+        // Stamp the Match onto the pairing (ADR 0076 decision 2) — the link a
+        // finished Match is recorded through. `bindPairingMatch` refuses a
+        // pairing that is already bound or decided, so a race that slipped past
+        // the checks above cannot repoint it at a second Match.
+        const bound = bindPairingMatch(
+            rounds,
+            round.roundNumber,
+            seatIndex,
+            matchId
+        );
+        if (!bound)
+            throw new Error("Your Match for this round has already started.");
+        await ctx.db.patch(args.eventId, {
+            rounds: asDbRounds(bound),
+            updatedAt: now,
+        });
+
+        return gameId;
+    },
+});
+
+/**
  * Create a solo game: a single user controls both players. The viewer
  * auto-follows the priority player on the client. Game starts in "playing"
  * immediately — no second user needs to join.
@@ -3126,6 +3450,19 @@ export const joinGame = mutation({
                 game.limitedEventId ?? ""
             );
         }
+        // A round pairing Match (issue #1645) is an appointment between two
+        // SEATS: the accepting player must sit down with the deck of the seat
+        // the pairing actually names, not merely with a deck from the same
+        // event. (`limitedPairing.seatB` is the addressed side — `seatA` is
+        // whoever started it.)
+        if (
+            game.limitedPairing &&
+            args.deck.limitedSeatId !== String(game.limitedPairing.seatB)
+        ) {
+            throw new Error(
+                "This Match is your round pairing — accept it with that seat's deck."
+            );
+        }
         // Authoritative deck legality gate (ADR 0036): the joiner's deck must be
         // legal for its declared format before the Match flips to "playing".
         // The DB banlist override (PRD #1138, issue #1144) is loaded first so a
@@ -3232,11 +3569,40 @@ export const leaveGame = mutation({
             if (
                 match &&
                 (match.status === "waiting" || match.status === "pregame")
-            )
+            ) {
                 await ctx.db.delete(game.matchId);
+                // A round pairing Match abandoned before it started (issue
+                // #1645): release the pairing so the seat can start it again,
+                // rather than leaving it pointing at a deleted Match.
+                await releaseAbandonedPairing(ctx, match);
+            }
         }
     },
 });
+
+/** Clears the `matchId` a deleted, never-started pairing Match left on its
+ *  pairing (issue #1645). Silent no-op for any Match that isn't a pairing
+ *  Match, and for a pairing already decided — `unbindPairingMatch` owns both
+ *  refusals. */
+async function releaseAbandonedPairing(
+    ctx: Pick<GenericMutationCtx<DataModel>, "db">,
+    match: Doc<"matches">
+): Promise<void> {
+    const link = match.limitedPairing;
+    if (!link || !match.limitedEventId) return;
+    const event = await ctx.db.get(match.limitedEventId as Id<"limitedEvents">);
+    if (!event) return;
+    const rounds = unbindPairingMatch(
+        event.rounds ?? [],
+        link.round,
+        link.seatA
+    );
+    if (!rounds) return;
+    await ctx.db.patch(event._id, {
+        rounds: asDbRounds(rounds),
+        updatedAt: Date.now(),
+    });
+}
 
 /**
  * Continue an undecided Bo3 Match into its next Game (PRD #387 / ADR 0029).
@@ -3295,6 +3661,16 @@ async function buildNextGameForMatch(
         players: gamePlayers,
         solo: match.solo === true ? true : undefined,
         vsAi: match.vsAi === true ? true : undefined,
+        // The `games` row is declared a MIRROR of the owning Match's event
+        // binding (schema.ts `limitedPairing`) — G1 (`startPairingMatch`)
+        // wrote it, and every later Game of the same pairing must carry it
+        // too. Dropping it here made every Bo3 Game 2+ read as unbound
+        // (issue #1645 review): the standings write still landed (it reads
+        // the MATCH), while any gate reading the games row silently no-oped.
+        // `limitedChallenge` is deliberately NOT mirrored — it is the pending
+        // -accept marker `joinGame` consumes, already spent by G2.
+        limitedEventId: match.limitedEventId,
+        limitedPairing: match.limitedPairing,
         createdAt: now,
         updatedAt: now,
     });
@@ -3496,6 +3872,20 @@ export const forfeitMatch = mutation({
         if (!match) throw new Error("Match not found");
         if (!matchBelongsToUser(match, user._id))
             throw new Error("You are not part of this match");
+        // SECURITY (issue #1645 review): `matchBelongsToUser` only proves the
+        // caller is IN this Match — it does not prove they own the seat they
+        // named. Without this, either seat of a 2-player pairing Match could
+        // forfeit AS the OPPONENT and write itself a `source: "played"` win in
+        // the Limited standings (and in a solo bot pairing, forfeiting as
+        // `-p2` would be a one-call 2-0). Solo play is unaffected: one user
+        // legitimately drives both `-p1` and `-p2`.
+        assertSeatOwnership(args.playerId, user._id);
+        // …which is precisely why seat ownership is NOT enough here: in a
+        // vs-AI pairing the human owns the bot's `-p2` handle too, so the
+        // one-call 2-0 above survives that check. Forfeiting the BOT's seat of
+        // an event-bound Match is the exploit; block it at the resignation
+        // path only, so the Brain keeps driving that seat's ordinary plays.
+        assertNotEventBotSeat(match, args.playerId);
 
         // Idempotent: an already-finished Match needs nothing.
         if (match.status === "finished") return;
@@ -3505,6 +3895,11 @@ export const forfeitMatch = mutation({
 
         const now = Date.now();
         await ctx.db.patch(args.matchId, { ...patch, updatedAt: now });
+        // The SECOND place a Match becomes finished (issue #1645). A forfeited
+        // pairing Match must land in the standings exactly like a played one —
+        // `computeForfeitMatch` awarded the opponent the games they needed, so
+        // the recorded score is already internally consistent (2-0 in a Bo3).
+        await recordLimitedPairingResult(ctx, { ...match, ...patch }, now);
 
         // If a Game is in progress, end it too so the board shows the result.
         // The opponent (the Match winner) is the Game winner.
@@ -3549,6 +3944,9 @@ export const playCard = mutation({
         skipValidation: v.optional(v.boolean()),
     },
     handler: async (ctx, args) => {
+        // SECURITY (issue #1645 review): seat-addressed mutation — the
+        // caller must own the handle they name. See `assertCallerOwnsSeat`.
+        await assertCallerOwnsSeat(ctx, args.playerId);
         const gameState = await getLatestGameState(ctx, args.gameId);
         if (!gameState) throw new Error("Game not found");
 
@@ -3626,6 +4024,9 @@ export const summonCompanion = mutation({
         playerId: v.string(),
     },
     handler: async (ctx, args) => {
+        // SECURITY (issue #1645 review): seat-addressed mutation — the
+        // caller must own the handle they name. See `assertCallerOwnsSeat`.
+        await assertCallerOwnsSeat(ctx, args.playerId);
         const gameState = await getLatestGameState(ctx, args.gameId);
         if (!gameState) throw new Error("Game not found");
 
@@ -5273,6 +5674,9 @@ export const announceCast = mutation({
         phyrexianLifePips: v.optional(v.number()),
     },
     handler: async (ctx, args) => {
+        // SECURITY (issue #1645 review): seat-addressed mutation — the
+        // caller must own the handle they name. See `assertCallerOwnsSeat`.
+        await assertCallerOwnsSeat(ctx, args.playerId);
         const gameState = await getLatestGameState(ctx, args.gameId);
         if (!gameState) throw new Error("Game not found");
 
@@ -6069,6 +6473,9 @@ export const tapForPayment = mutation({
         manaChoiceIndex: v.optional(v.number()),
     },
     handler: async (ctx, args) => {
+        // SECURITY (issue #1645 review): seat-addressed mutation — the
+        // caller must own the handle they name. See `assertCallerOwnsSeat`.
+        await assertCallerOwnsSeat(ctx, args.playerId);
         const gameState = await getLatestGameState(ctx, args.gameId);
         if (!gameState) throw new Error("Game not found");
 
@@ -6242,6 +6649,9 @@ export const untapForPayment = mutation({
         cardInstanceId: v.string(),
     },
     handler: async (ctx, args) => {
+        // SECURITY (issue #1645 review): seat-addressed mutation — the
+        // caller must own the handle they name. See `assertCallerOwnsSeat`.
+        await assertCallerOwnsSeat(ctx, args.playerId);
         const gameState = await getLatestGameState(ctx, args.gameId);
         if (!gameState) throw new Error("Game not found");
 
@@ -6417,6 +6827,9 @@ export const tapArtifactForImprovise = mutation({
         cardInstanceId: v.string(),
     },
     handler: async (ctx, args) => {
+        // SECURITY (issue #1645 review): seat-addressed mutation — the
+        // caller must own the handle they name. See `assertCallerOwnsSeat`.
+        await assertCallerOwnsSeat(ctx, args.playerId);
         const gameState = await getLatestGameState(ctx, args.gameId);
         if (!gameState) throw new Error("Game not found");
 
@@ -6462,6 +6875,9 @@ export const untapArtifactForImprovise = mutation({
         cardInstanceId: v.string(),
     },
     handler: async (ctx, args) => {
+        // SECURITY (issue #1645 review): seat-addressed mutation — the
+        // caller must own the handle they name. See `assertCallerOwnsSeat`.
+        await assertCallerOwnsSeat(ctx, args.playerId);
         const gameState = await getLatestGameState(ctx, args.gameId);
         if (!gameState) throw new Error("Game not found");
 
@@ -6543,6 +6959,9 @@ export const selectSacrifice = mutation({
         cardInstanceId: v.string(),
     },
     handler: async (ctx, args) => {
+        // SECURITY (issue #1645 review): seat-addressed mutation — the
+        // caller must own the handle they name. See `assertCallerOwnsSeat`.
+        await assertCallerOwnsSeat(ctx, args.playerId);
         const gameState = await getLatestGameState(ctx, args.gameId);
         if (!gameState) throw new Error("Game not found");
 
@@ -6632,6 +7051,9 @@ export const resolveManaSpendChoice = mutation({
         spendOrder: v.array(v.string()),
     },
     handler: async (ctx, args) => {
+        // SECURITY (issue #1645 review): seat-addressed mutation — the
+        // caller must own the handle they name. See `assertCallerOwnsSeat`.
+        await assertCallerOwnsSeat(ctx, args.playerId);
         const gameState = await getLatestGameState(ctx, args.gameId);
         if (!gameState) throw new Error("Game not found");
 
@@ -6686,6 +7108,9 @@ export const selectAdditionalCost = mutation({
         cardInstanceId: v.string(),
     },
     handler: async (ctx, args) => {
+        // SECURITY (issue #1645 review): seat-addressed mutation — the
+        // caller must own the handle they name. See `assertCallerOwnsSeat`.
+        await assertCallerOwnsSeat(ctx, args.playerId);
         const gameState = await getLatestGameState(ctx, args.gameId);
         if (!gameState) throw new Error("Game not found");
 
@@ -6754,6 +7179,9 @@ export const cancelCast = mutation({
         playerId: v.string(),
     },
     handler: async (ctx, args) => {
+        // SECURITY (issue #1645 review): seat-addressed mutation — the
+        // caller must own the handle they name. See `assertCallerOwnsSeat`.
+        await assertCallerOwnsSeat(ctx, args.playerId);
         const gameState = await getLatestGameState(ctx, args.gameId);
         if (!gameState) throw new Error("Game not found");
 
@@ -6791,6 +7219,9 @@ export const tapForActivationPayment = mutation({
         manaChoiceIndex: v.optional(v.number()),
     },
     handler: async (ctx, args) => {
+        // SECURITY (issue #1645 review): seat-addressed mutation — the
+        // caller must own the handle they name. See `assertCallerOwnsSeat`.
+        await assertCallerOwnsSeat(ctx, args.playerId);
         const gameState = await getLatestGameState(ctx, args.gameId);
         if (!gameState) throw new Error("Game not found");
 
@@ -6888,6 +7319,9 @@ export const autoTapForPayment = mutation({
         playerId: v.string(),
     },
     handler: async (ctx, args) => {
+        // SECURITY (issue #1645 review): seat-addressed mutation — the
+        // caller must own the handle they name. See `assertCallerOwnsSeat`.
+        await assertCallerOwnsSeat(ctx, args.playerId);
         const gameState = await getLatestGameState(ctx, args.gameId);
         if (!gameState) throw new Error("Game not found");
 
@@ -7030,6 +7464,9 @@ export const untapForActivationPayment = mutation({
         cardInstanceId: v.string(),
     },
     handler: async (ctx, args) => {
+        // SECURITY (issue #1645 review): seat-addressed mutation — the
+        // caller must own the handle they name. See `assertCallerOwnsSeat`.
+        await assertCallerOwnsSeat(ctx, args.playerId);
         const gameState = await getLatestGameState(ctx, args.gameId);
         if (!gameState) throw new Error("Game not found");
 
@@ -7078,6 +7515,9 @@ export const cancelActivation = mutation({
         playerId: v.string(),
     },
     handler: async (ctx, args) => {
+        // SECURITY (issue #1645 review): seat-addressed mutation — the
+        // caller must own the handle they name. See `assertCallerOwnsSeat`.
+        await assertCallerOwnsSeat(ctx, args.playerId);
         const gameState = await getLatestGameState(ctx, args.gameId);
         if (!gameState) throw new Error("Game not found");
 
@@ -7120,6 +7560,9 @@ export const selectActivationCost = mutation({
         cardInstanceId: v.string(),
     },
     handler: async (ctx, args) => {
+        // SECURITY (issue #1645 review): seat-addressed mutation — the
+        // caller must own the handle they name. See `assertCallerOwnsSeat`.
+        await assertCallerOwnsSeat(ctx, args.playerId);
         const gameState = await getLatestGameState(ctx, args.gameId);
         if (!gameState) throw new Error("Game not found");
 
@@ -7208,6 +7651,9 @@ export const selectActivationExileCost = mutation({
         cardInstanceIds: v.array(v.string()),
     },
     handler: async (ctx, args) => {
+        // SECURITY (issue #1645 review): seat-addressed mutation — the
+        // caller must own the handle they name. See `assertCallerOwnsSeat`.
+        await assertCallerOwnsSeat(ctx, args.playerId);
         const gameState = await getLatestGameState(ctx, args.gameId);
         if (!gameState) throw new Error("Game not found");
 
@@ -7293,6 +7739,9 @@ export const selectActivationDiscardCost = mutation({
         cardInstanceIds: v.array(v.string()),
     },
     handler: async (ctx, args) => {
+        // SECURITY (issue #1645 review): seat-addressed mutation — the
+        // caller must own the handle they name. See `assertCallerOwnsSeat`.
+        await assertCallerOwnsSeat(ctx, args.playerId);
         const gameState = await getLatestGameState(ctx, args.gameId);
         if (!gameState) throw new Error("Game not found");
 
@@ -7462,6 +7911,9 @@ export const selectCastExileCost = mutation({
         cardInstanceIds: v.array(v.string()),
     },
     handler: async (ctx, args) => {
+        // SECURITY (issue #1645 review): seat-addressed mutation — the
+        // caller must own the handle they name. See `assertCallerOwnsSeat`.
+        await assertCallerOwnsSeat(ctx, args.playerId);
         const gameState = await getLatestGameState(ctx, args.gameId);
         if (!gameState) throw new Error("Game not found");
 
@@ -7523,6 +7975,9 @@ export const selectCastAlternativeHandCost = mutation({
         cardInstanceIds: v.array(v.string()),
     },
     handler: async (ctx, args) => {
+        // SECURITY (issue #1645 review): seat-addressed mutation — the
+        // caller must own the handle they name. See `assertCallerOwnsSeat`.
+        await assertCallerOwnsSeat(ctx, args.playerId);
         const gameState = await getLatestGameState(ctx, args.gameId);
         if (!gameState) throw new Error("Game not found");
 
@@ -7575,6 +8030,9 @@ export const selectTarget = mutation({
         amount: v.optional(v.number()),
     },
     handler: async (ctx, args) => {
+        // SECURITY (issue #1645 review): seat-addressed mutation — the
+        // caller must own the handle they name. See `assertCallerOwnsSeat`.
+        await assertCallerOwnsSeat(ctx, args.playerId);
         const gameState = await getLatestGameState(ctx, args.gameId);
         if (!gameState) throw new Error("Game not found");
 
@@ -7957,6 +8415,9 @@ export const confirmTargets = mutation({
         playerId: v.string(),
     },
     handler: async (ctx, args) => {
+        // SECURITY (issue #1645 review): seat-addressed mutation — the
+        // caller must own the handle they name. See `assertCallerOwnsSeat`.
+        await assertCallerOwnsSeat(ctx, args.playerId);
         const gameState = await getLatestGameState(ctx, args.gameId);
         if (!gameState) throw new Error("Game not found");
 
@@ -8029,6 +8490,9 @@ export const cancelTarget = mutation({
         playerId: v.string(),
     },
     handler: async (ctx, args) => {
+        // SECURITY (issue #1645 review): seat-addressed mutation — the
+        // caller must own the handle they name. See `assertCallerOwnsSeat`.
+        await assertCallerOwnsSeat(ctx, args.playerId);
         const gameState = await getLatestGameState(ctx, args.gameId);
         if (!gameState) throw new Error("Game not found");
 
@@ -8116,6 +8580,9 @@ export const toggleAttacker = mutation({
         planeswalkerId: v.optional(v.string()),
     },
     handler: async (ctx, args) => {
+        // SECURITY (issue #1645 review): seat-addressed mutation — the
+        // caller must own the handle they name. See `assertCallerOwnsSeat`.
+        await assertCallerOwnsSeat(ctx, args.playerId);
         const gameState = await getLatestGameState(ctx, args.gameId);
         if (!gameState) throw new Error("Game not found");
 
@@ -8273,6 +8740,9 @@ export const createBand = mutation({
         memberIds: v.array(v.string()),
     },
     handler: async (ctx, args) => {
+        // SECURITY (issue #1645 review): seat-addressed mutation — the
+        // caller must own the handle they name. See `assertCallerOwnsSeat`.
+        await assertCallerOwnsSeat(ctx, args.playerId);
         const gameState = await getLatestGameState(ctx, args.gameId);
         if (!gameState) throw new Error("Game not found");
 
@@ -8349,6 +8819,9 @@ export const removeBand = mutation({
         bandId: v.string(),
     },
     handler: async (ctx, args) => {
+        // SECURITY (issue #1645 review): seat-addressed mutation — the
+        // caller must own the handle they name. See `assertCallerOwnsSeat`.
+        await assertCallerOwnsSeat(ctx, args.playerId);
         const gameState = await getLatestGameState(ctx, args.gameId);
         if (!gameState) throw new Error("Game not found");
 
@@ -8586,6 +9059,9 @@ export const confirmAttackers = mutation({
         playerId: v.string(),
     },
     handler: async (ctx, args) => {
+        // SECURITY (issue #1645 review): seat-addressed mutation — the
+        // caller must own the handle they name. See `assertCallerOwnsSeat`.
+        await assertCallerOwnsSeat(ctx, args.playerId);
         const gameState = await getLatestGameState(ctx, args.gameId);
         if (!gameState) throw new Error("Game not found");
 
@@ -8699,6 +9175,9 @@ export const autoTapForAttackTax = mutation({
         playerId: v.string(),
     },
     handler: async (ctx, args) => {
+        // SECURITY (issue #1645 review): seat-addressed mutation — the
+        // caller must own the handle they name. See `assertCallerOwnsSeat`.
+        await assertCallerOwnsSeat(ctx, args.playerId);
         const gameState = await getLatestGameState(ctx, args.gameId);
         if (!gameState) throw new Error("Game not found");
 
@@ -8760,6 +9239,9 @@ export const tapForAttackTax = mutation({
         manaChoiceIndex: v.optional(v.number()),
     },
     handler: async (ctx, args) => {
+        // SECURITY (issue #1645 review): seat-addressed mutation — the
+        // caller must own the handle they name. See `assertCallerOwnsSeat`.
+        await assertCallerOwnsSeat(ctx, args.playerId);
         const gameState = await getLatestGameState(ctx, args.gameId);
         if (!gameState) throw new Error("Game not found");
 
@@ -8809,6 +9291,9 @@ export const untapForAttackTax = mutation({
         cardInstanceId: v.string(),
     },
     handler: async (ctx, args) => {
+        // SECURITY (issue #1645 review): seat-addressed mutation — the
+        // caller must own the handle they name. See `assertCallerOwnsSeat`.
+        await assertCallerOwnsSeat(ctx, args.playerId);
         const gameState = await getLatestGameState(ctx, args.gameId);
         if (!gameState) throw new Error("Game not found");
 
@@ -8859,6 +9344,9 @@ export const cancelAttackTax = mutation({
         playerId: v.string(),
     },
     handler: async (ctx, args) => {
+        // SECURITY (issue #1645 review): seat-addressed mutation — the
+        // caller must own the handle they name. See `assertCallerOwnsSeat`.
+        await assertCallerOwnsSeat(ctx, args.playerId);
         const gameState = await getLatestGameState(ctx, args.gameId);
         if (!gameState) throw new Error("Game not found");
 
@@ -8915,6 +9403,9 @@ export const selectBlocker = mutation({
         cardInstanceId: v.string(),
     },
     handler: async (ctx, args) => {
+        // SECURITY (issue #1645 review): seat-addressed mutation — the
+        // caller must own the handle they name. See `assertCallerOwnsSeat`.
+        await assertCallerOwnsSeat(ctx, args.playerId);
         const gameState = await getLatestGameState(ctx, args.gameId);
         if (!gameState) throw new Error("Game not found");
 
@@ -8983,6 +9474,9 @@ export const assignBlockerTarget = mutation({
         attackerId: v.string(),
     },
     handler: async (ctx, args) => {
+        // SECURITY (issue #1645 review): seat-addressed mutation — the
+        // caller must own the handle they name. See `assertCallerOwnsSeat`.
+        await assertCallerOwnsSeat(ctx, args.playerId);
         const gameState = await getLatestGameState(ctx, args.gameId);
         if (!gameState) throw new Error("Game not found");
 
@@ -9085,6 +9579,9 @@ export const confirmBlockers = mutation({
         playerId: v.string(),
     },
     handler: async (ctx, args) => {
+        // SECURITY (issue #1645 review): seat-addressed mutation — the
+        // caller must own the handle they name. See `assertCallerOwnsSeat`.
+        await assertCallerOwnsSeat(ctx, args.playerId);
         const gameState = await getLatestGameState(ctx, args.gameId);
         if (!gameState) throw new Error("Game not found");
 
@@ -9206,6 +9703,9 @@ export const setDamageAssignment = mutation({
         assignments: v.any(),
     },
     handler: async (ctx, args) => {
+        // SECURITY (issue #1645 review): seat-addressed mutation — the
+        // caller must own the handle they name. See `assertCallerOwnsSeat`.
+        await assertCallerOwnsSeat(ctx, args.playerId);
         const gameState = await getLatestGameState(ctx, args.gameId);
         if (!gameState) throw new Error("Game not found");
 
@@ -9319,6 +9819,9 @@ export const confirmDamage = mutation({
         playerId: v.string(),
     },
     handler: async (ctx, args) => {
+        // SECURITY (issue #1645 review): seat-addressed mutation — the
+        // caller must own the handle they name. See `assertCallerOwnsSeat`.
+        await assertCallerOwnsSeat(ctx, args.playerId);
         const gameState = await getLatestGameState(ctx, args.gameId);
         if (!gameState) throw new Error("Game not found");
 
@@ -9393,6 +9896,9 @@ export const passPriority = mutation({
         playerId: v.string(),
     },
     handler: async (ctx, args) => {
+        // SECURITY (issue #1645 review): seat-addressed mutation — the
+        // caller must own the handle they name. See `assertCallerOwnsSeat`.
+        await assertCallerOwnsSeat(ctx, args.playerId);
         const gameState = await getLatestGameState(ctx, args.gameId);
         if (!gameState) throw new Error("Game not found");
 
@@ -9519,6 +10025,9 @@ export const submitResolutionChoice = mutation({
         secondZoneIds: v.optional(v.array(v.string())),
     },
     handler: async (ctx, args) => {
+        // SECURITY (issue #1645 review): seat-addressed mutation — the
+        // caller must own the handle they name. See `assertCallerOwnsSeat`.
+        await assertCallerOwnsSeat(ctx, args.playerId);
         const gameState = await getLatestGameState(ctx, args.gameId);
         if (!gameState) throw new Error("Game not found");
 
@@ -9567,6 +10076,9 @@ export const submitMayPay = mutation({
         discardIds: v.optional(v.array(v.string())),
     },
     handler: async (ctx, args) => {
+        // SECURITY (issue #1645 review): seat-addressed mutation — the
+        // caller must own the handle they name. See `assertCallerOwnsSeat`.
+        await assertCallerOwnsSeat(ctx, args.playerId);
         const gameState = await getLatestGameState(ctx, args.gameId);
         if (!gameState) throw new Error("Game not found");
 
@@ -9602,6 +10114,9 @@ export const submitLandEntryChoice = mutation({
         accept: v.boolean(),
     },
     handler: async (ctx, args) => {
+        // SECURITY (issue #1645 review): seat-addressed mutation — the
+        // caller must own the handle they name. See `assertCallerOwnsSeat`.
+        await assertCallerOwnsSeat(ctx, args.playerId);
         const gameState = await getLatestGameState(ctx, args.gameId);
         if (!gameState) throw new Error("Game not found");
 
@@ -9634,6 +10149,9 @@ export const submitMadnessDecline = mutation({
         playerId: v.string(),
     },
     handler: async (ctx, args) => {
+        // SECURITY (issue #1645 review): seat-addressed mutation — the
+        // caller must own the handle they name. See `assertCallerOwnsSeat`.
+        await assertCallerOwnsSeat(ctx, args.playerId);
         const gameState = await getLatestGameState(ctx, args.gameId);
         if (!gameState) throw new Error("Game not found");
 
@@ -9679,6 +10197,9 @@ export const submitReboundDecline = mutation({
         playerId: v.string(),
     },
     handler: async (ctx, args) => {
+        // SECURITY (issue #1645 review): seat-addressed mutation — the
+        // caller must own the handle they name. See `assertCallerOwnsSeat`.
+        await assertCallerOwnsSeat(ctx, args.playerId);
         const gameState = await getLatestGameState(ctx, args.gameId);
         if (!gameState) throw new Error("Game not found");
 
@@ -9724,6 +10245,9 @@ export const submitDrawReplacementPay = mutation({
         accept: v.boolean(),
     },
     handler: async (ctx, args) => {
+        // SECURITY (issue #1645 review): seat-addressed mutation — the
+        // caller must own the handle they name. See `assertCallerOwnsSeat`.
+        await assertCallerOwnsSeat(ctx, args.playerId);
         const gameState = await getLatestGameState(ctx, args.gameId);
         if (!gameState) throw new Error("Game not found");
 
@@ -9763,6 +10287,9 @@ export const submitNameCard = mutation({
         cardName: v.string(),
     },
     handler: async (ctx, args) => {
+        // SECURITY (issue #1645 review): seat-addressed mutation — the
+        // caller must own the handle they name. See `assertCallerOwnsSeat`.
+        await assertCallerOwnsSeat(ctx, args.playerId);
         const gameState = await getLatestGameState(ctx, args.gameId);
         if (!gameState) throw new Error("Game not found");
 
@@ -9798,6 +10325,9 @@ export const submitRandomRevealAck = mutation({
         choiceId: v.string(),
     },
     handler: async (ctx, args) => {
+        // SECURITY (issue #1645 review): seat-addressed mutation — the
+        // caller must own the handle they name. See `assertCallerOwnsSeat`.
+        await assertCallerOwnsSeat(ctx, args.playerId);
         const gameState = await getLatestGameState(ctx, args.gameId);
         if (!gameState) throw new Error("Game not found");
 
@@ -9834,6 +10364,9 @@ export const declareMulligan = mutation({
         decision: v.union(v.literal("keep"), v.literal("mull")),
     },
     handler: async (ctx, args) => {
+        // SECURITY (issue #1645 review): seat-addressed mutation — the
+        // caller must own the handle they name. See `assertCallerOwnsSeat`.
+        await assertCallerOwnsSeat(ctx, args.playerId);
         const gameState = await getLatestGameState(ctx, args.gameId);
         if (!gameState) throw new Error("Game not found");
 
@@ -9867,6 +10400,9 @@ export const endTurn = mutation({
         playerId: v.string(),
     },
     handler: async (ctx, args) => {
+        // SECURITY (issue #1645 review): seat-addressed mutation — the
+        // caller must own the handle they name. See `assertCallerOwnsSeat`.
+        await assertCallerOwnsSeat(ctx, args.playerId);
         const gameState = await getLatestGameState(ctx, args.gameId);
         if (!gameState) throw new Error("Game not found");
 
@@ -9943,6 +10479,13 @@ export const cancelAutoPass = mutation({
         playerId: v.string(),
     },
     handler: async (ctx, args) => {
+        // SECURITY (issue #1645 review): seat-addressed mutation — the
+        // caller must own the handle they name. See `assertCallerOwnsSeat`.
+        // It writes no result, but clearing the OPPONENT's auto-pass /
+        // queued end-turn (and bumping `seq`) is the same act-as-another-seat
+        // class as the rest. The clear-only semantics below are unchanged:
+        // priority is never reclaimed from the opponent.
+        await assertCallerOwnsSeat(ctx, args.playerId);
         const gameState = await getLatestGameState(ctx, args.gameId);
         if (!gameState) throw new Error("Game not found");
 
@@ -9978,13 +10521,21 @@ export const cancelAutoPass = mutation({
     },
 });
 
-/** CR 104.3a: a player can concede the game at any time. That player loses. */
+/** CR 104.3a: a player can concede the game at any time. That player loses.
+ *
+ *  SECURITY (issue #1645 review): a concede WRITES A RESULT — through
+ *  `finalizeGameOver` it can decide a Match and, for a round pairing, a
+ *  standings row. So the caller must own the seat they named: `getPlayer`
+ *  proves the seat is in THIS game, `assertSeatOwnership` proves it is THEIRS.
+ *  Without the second check any authenticated user could concede on behalf of
+ *  their opponent (or of a stranger's game entirely). */
 export const concede = mutation({
     args: {
         gameId: v.id("games"),
         playerId: v.string(),
     },
     handler: async (ctx, args) => {
+        const user = await getCurrentUser(ctx);
         const gameState = await getLatestGameState(ctx, args.gameId);
         if (!gameState) throw new Error("Game not found");
 
@@ -9992,6 +10543,27 @@ export const concede = mutation({
         assertGameNotOver(state);
 
         getPlayer(state, args.playerId);
+        assertSeatOwnership(args.playerId, user._id);
+        // The per-GAME twin of `forfeitMatch`'s bot-seat gate. Without it a
+        // Bo3 pairing is still a per-Game sweep: concede the bot's seat once
+        // per Game and `finalizeGameOver` → `recordLimitedPairingResult`
+        // writes the 2-0 with nothing played. Ordinary bot plays are
+        // untouched — the Brain never concedes, and this gate exists on no
+        // other mutation.
+        //
+        // The gate resolves the binding from the owning MATCH, never from the
+        // `games` row (issue #1645 review): the Match is the authority and the
+        // `games` row is only a mirror of it, so a gate keyed off the mirror
+        // evaporates the moment a writer forgets to copy a field — which is
+        // exactly what happened for every Bo3 Game 2+ (`buildNextGameForMatch`
+        // dropped `limitedPairing`, so `assertNotEventBotSeat` no-oped from G2
+        // on while the standings write, reading the Match, still landed). The
+        // mirror is fixed too, but nothing depends on it staying in sync.
+        const game = await ctx.db.get(args.gameId);
+        const match = game?.matchId ? await ctx.db.get(game.matchId) : null;
+        // Legacy games predate `matchId` (schema.ts) — fall back to the row.
+        const bindingDoc = match ?? game;
+        if (bindingDoc) assertNotEventBotSeat(bindingDoc, args.playerId);
         const winnerId = getOpponentId(state, args.playerId);
 
         state.gameOver = {
@@ -10012,6 +10584,9 @@ export const drawCard = mutation({
         playerId: v.string(),
     },
     handler: async (ctx, args) => {
+        // SECURITY (issue #1645 review): seat-addressed mutation — the
+        // caller must own the handle they name. See `assertCallerOwnsSeat`.
+        await assertCallerOwnsSeat(ctx, args.playerId);
         const gameState = await getLatestGameState(ctx, args.gameId);
         if (!gameState) throw new Error("Game not found");
 
@@ -10042,6 +10617,9 @@ export const mill = mutation({
         playerId: v.string(),
     },
     handler: async (ctx, args) => {
+        // SECURITY (issue #1645 review): seat-addressed mutation — the
+        // caller must own the handle they name. See `assertCallerOwnsSeat`.
+        await assertCallerOwnsSeat(ctx, args.playerId);
         const gameState = await getLatestGameState(ctx, args.gameId);
         if (!gameState) throw new Error("Game not found");
 
@@ -10067,6 +10645,9 @@ export const exileFromLibrary = mutation({
         playerId: v.string(),
     },
     handler: async (ctx, args) => {
+        // SECURITY (issue #1645 review): seat-addressed mutation — the
+        // caller must own the handle they name. See `assertCallerOwnsSeat`.
+        await assertCallerOwnsSeat(ctx, args.playerId);
         const gameState = await getLatestGameState(ctx, args.gameId);
         if (!gameState) throw new Error("Game not found");
 
@@ -10728,6 +11309,9 @@ export const activateAbility = mutation({
         chosenX: v.optional(v.number()),
     },
     handler: async (ctx, args) => {
+        // SECURITY (issue #1645 review): seat-addressed mutation — the
+        // caller must own the handle they name. See `assertCallerOwnsSeat`.
+        await assertCallerOwnsSeat(ctx, args.playerId);
         const gameState = await getLatestGameState(ctx, args.gameId);
         if (!gameState) throw new Error("Game not found");
 
@@ -10749,6 +11333,9 @@ export const tapUntap = mutation({
         manaChoiceIndex: v.optional(v.number()),
     },
     handler: async (ctx, args) => {
+        // SECURITY (issue #1645 review): seat-addressed mutation — the
+        // caller must own the handle they name. See `assertCallerOwnsSeat`.
+        await assertCallerOwnsSeat(ctx, args.playerId);
         const gameState = await getLatestGameState(ctx, args.gameId);
         if (!gameState) throw new Error("Game not found");
 
@@ -11427,6 +12014,9 @@ export const activateManaAbility = mutation({
         manaChoiceIndex: v.optional(v.number()),
     },
     handler: async (ctx, args) => {
+        // SECURITY (issue #1645 review): seat-addressed mutation — the
+        // caller must own the handle they name. See `assertCallerOwnsSeat`.
+        await assertCallerOwnsSeat(ctx, args.playerId);
         const gameState = await getLatestGameState(ctx, args.gameId);
         if (!gameState) throw new Error("Game not found");
 
@@ -11585,6 +12175,9 @@ export const activatePlayerAbility = mutation({
         keepPriority: v.optional(v.boolean()),
     },
     handler: async (ctx, args) => {
+        // SECURITY (issue #1645 review): seat-addressed mutation — the
+        // caller must own the handle they name. See `assertCallerOwnsSeat`.
+        await assertCallerOwnsSeat(ctx, args.playerId);
         const gameState = await getLatestGameState(ctx, args.gameId);
         if (!gameState) throw new Error("Game not found");
 
