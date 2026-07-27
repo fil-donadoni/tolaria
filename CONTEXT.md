@@ -589,8 +589,16 @@ A per-card score (0–5, Draftmancer-style) in an optional per-**Set** data file
 _Avoid_: Card Value (that's the gameplay **Brain**'s evaluation term), tier, grade
 
 **Pick Heuristic**:
-The always-available fallback scoring a **Bot Drafter** uses when no **Pick Rating** exists (and as the tie-breaking layer when one does): card quality (shared with the **Brain**'s **Card Value**, extracted to a server-usable module) adjusted by **Rarity**, the seat's color commitment, and mana-curve needs.
+The always-available quality scoring a **Bot Drafter** falls back to when no **Pick Rating** exists: card quality (shared with the **Brain**'s **Card Value**, extracted to a server-usable module) adjusted by **Rarity**, mapped onto the same 0–5 rating scale so a rated and an unrated card are comparable in one unit. It is the BASE term's fallback, not a layer under the rating — two equally-rated cards are separated by the contextual terms (**Colour Commitment**, curve fit, later **Archetype**/**Capability**), not by raw quality.
 _Avoid_: Bot logic (too broad), default rating
+
+**Pick Candidate Trace**:
+The primary result of scoring one candidate: every term with its value in rating points AND its provenance — the specific **Pool** cards that produced it. The score is DERIVED by summing the breakdown, so the explanation and the arithmetic that decides the **Pick** are the same object; there is deliberately no second narrator path that could drift from the scorer it describes. What the **Draft Lab** renders.
+_Avoid_: Explanation, log, debug string
+
+**Contextual Cap**:
+The bound on the SUM of every non-base term of a **Pick**'s score, which GROWS with the pick number (~0.3 rating points at the first **Pick**, ~2.0 by the end of the **Draft**). It encodes "raw power early, fit late" as the single parameter it is: the first pick has no deck to respect, the thirtieth does. The sum is clamped to `[0, cap]`, NOT `±cap`: contextual fit is a pure BONUS — a candidate that fits nothing earns nothing and is never penalised — so the cap is exactly the bound on the DIFFERENCE between two candidates, and a rating gap wider than that pick's cap can never be overturned by context. Ratings anchor, context refines.
+_Avoid_: Weight, clamp (it caps the sum of terms, not each term); penalty (a term that only ever subtracts is dead under the non-negative clamp — express it as the bonus its complement earns)
 
 **Archetype**:
 A named strategy a **Pool** can be built toward within one **Pack Source** scope (`reanimator`, `artifacts`, `jeskai-tempo`). A card declares the Archetypes it belongs to; a **Seat**'s accumulated **Pool** therefore has a measurable commitment per Archetype, which biases later **Picks**. Coarse-grained on purpose — it steers colours and plan, not card-to-card fit (that is **Capability**).

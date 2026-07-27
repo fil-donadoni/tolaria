@@ -1,40 +1,75 @@
 // Bot Drafter Pick Heuristic (PRD #1107 stories 8, 9, 27, 29; ADR 0054, issue
-// #1113): a bot Seat picks instantly whenever a pack reaches it, computed
-// server-side in Convex with no dependency on any connected client —
+// #1113) — recomposed onto ONE rating-point scale by PRD #1607 / ADR 0073
+// (issue #1609). A bot Seat picks instantly whenever a pack reaches it,
+// computed server-side in Convex with no dependency on any connected client —
 // deliberately unlike the vs-AI gameplay Bot's client-side ISMCTS Brain
 // (`src/lib/ai/brain.ts`). Mirrors `draftEngine.ts`/`eventLogic.ts`'s
 // discipline: a plain, pure function of plain data, unit-testable without a
 // convex-test harness.
 //
-// The Pick Heuristic scores every card still in the pack and returns the
-// highest scorer:
+// ── One scale: rating points (ADR 0073) ────────────────────────────────────
+// Every term of the score is expressed in Pick Rating points (0–5, the unit an
+// Admin already edits, `pickRatings.ts`), and the score is their SUM:
 //
-//   score = cardValueById(card) × rarityWeight(rarity)      -- card quality
-//         + colorCommitmentTerm(colors, pool)                -- color fit
-//         + curveGapTerm(manaValue, pool)                    -- curve needs
+//   score = baseRating                      -- DB/seed Pick Rating, else
+//                                              heuristicAsRating(quality)
+//         + colourCommitment × contextScale -- colour fit vs the seat's Pool
+//         + curveFit         × contextScale -- curve needs
 //
-// * Card quality reuses the shared `cardValueById` (ADR 0018, extracted to
-//   `convex/gre/cardValue.ts` for this issue) — the SAME primitive the vs-AI
-//   Brain's Hand term uses, so the two never drift apart.
-// * Color commitment grows with the seat's already-accumulated Pool: a color
-//   already invested in is reinforced, and once enough picks have been made
-//   an entirely off-color card is penalized, proportional to how many picks
-//   have already committed the seat to its colors (PRD #1107 story 29,
-//   acceptance: "prefers on-color over off-color as commitment grows").
-// * The curve term rewards a candidate that fills a currently underrepresented
-//   mana-value bucket, bounded so it can only ever tip an otherwise-close
-//   decision (acceptance: "fills curve gaps").
+// `PICK_RATING_DOMINANCE_WEIGHT` (the old ×1000 rating multiplier, issue
+// #1117) is RETIRED: it made the rating the only input by construction, so no
+// contextual term — present or future (Archetype, Capability; ADR 0072) —
+// could ever change a pick. Ratings remain the ANCHOR of the score — a rating
+// gap WIDER THAN THE PICK'S CONTEXTUAL CAP can never be overturned by context,
+// see the cap below — without being the only input.
 //
-// PURE and DETERMINISTIC: no `Math.random`, no `ctx`. Every score is a
-// function of (candidate, already-picked pool) alone; ties are broken by pack
-// position (first wins) — the pack itself is already seeded
-// (`draftEngine.ts`'s `generateRoundPacks`), so "first in this seeded pack"
-// is itself a reproducible, non-arbitrary tiebreak. This satisfies PRD #1107
+// `heuristicAsRating` maps the pre-existing quality heuristic (`cardValueById`
+// × rarity) onto the same 0–5 scale, so an UNRATED card is directly comparable
+// with a rated one. Without it a mixed Pool would compare different units and
+// unrated cards would be either invisible or dominant depending on the sign.
+//
+// ── The contextual cap grows with the pick number (ADR 0073) ───────────────
+// The SUM of every non-base term is clamped to `[0, contextCapForPick]`, which
+// grows from ~0.3 rating points at pick 1 to ~2.0 by the end of the draft. An
+// uncapped sum would let a handful of contextual matches outrank a genuine
+// bomb; a CONSTANT cap would have to answer "how much may context overturn
+// raw power" once, when the honest answer differs by an order of magnitude
+// between the first pick (no deck to respect yet) and the last (a deck that
+// very much exists). The growing cap is the "raw power early, fit late" rule
+// every drafter applies, expressed as the one parameter it actually is.
+//
+// The clamp is NON-NEGATIVE, and that is load-bearing. FIT IS A BONUS: a
+// candidate that fits nothing earns nothing, it is never PENALISED. Because
+// every candidate's contextual sum then lives in `[0, cap]`, the widest gap
+// two candidates can open on context alone is exactly `cap` — so the cap IS
+// the answer to "how much may context overturn power", which is the question
+// ADR 0073 says it exists to answer. A symmetric `clamp(rawSum, ±cap)` bounds
+// each candidate's sum but lets the DIFFERENCE reach `2 × cap`, i.e. a cap of
+// 1.9 silently licensing a 3.8-point overturn — the defect this shape fixes.
+// Consequence: any term that could only ever express itself as a penalty is
+// dead under this clamp, so a penalty must be re-expressed as the bonus its
+// COMPLEMENT earns (see `colourCommitmentTerm`).
+//
+// ── The breakdown is the primary result (ADR 0073) ─────────────────────────
+// `scoreCandidate` returns a `PickCandidateTrace`: every term with its value
+// AND its provenance (the specific Pool cards that produced it). The score is
+// DERIVED by summing the breakdown (`sumTraceTerms`), so there is exactly one
+// arithmetic path. A separate explanation path is rejected outright: a shadow
+// narrator eventually diverges from the scorer it describes, and a debugging
+// instrument that confidently reports arithmetic no longer deciding anything
+// is worse than no instrument.
+//
+// PURE and DETERMINISTIC: no `Math.random`, no `ctx`. Every trace is a
+// function of (candidate, already-picked pool, rating) alone; ties are broken
+// by pack position (first wins) — the pack itself is already seeded
+// (`draftEngine.ts`'s `generateRoundPacks`), so "first in this seeded pack" is
+// itself a reproducible, non-arbitrary tiebreak. This satisfies PRD #1107
 // acceptance "picks are deterministic given the event seed" with no extra RNG
-// plumbing needed on this path.
+// plumbing on this path.
 import type { Color, Rarity } from "../cards/types";
 import { cardValueById } from "../gre/cardValue";
 import type { DraftPackCard, LimitedPoolCard } from "./eventTypes";
+import { PICK_RATING_MAX, PICK_RATING_MIN } from "./pickRatings";
 
 /** The subset of a card's printed characteristics the Pick Heuristic needs
  *  beyond `cardValueById`'s own id-keyed lookup — injected (like
@@ -61,11 +96,11 @@ export type GetCardEvalMeta = (scryfallId: string) => CardEvalMeta | null;
 
 /** Resolves a candidate's canonical `cardId` (`CardEvalMeta.cardId`) to its
  *  Pick Rating (`pickRatings.ts`'s `PICK_RATING_MIN..PICK_RATING_MAX` scale),
- *  or `null` when no checked-in Pick Rating file rates this card (no file for
- *  the set at all, or the file simply has no entry for it) — both `null`
- *  cases fall back to the Pick Heuristic alone, identically (see
- *  `scoreCandidateWithRating`). Injected — like `GetCardEvalMeta` — so this
- *  module never touches `pickRatings.ts`'s checked-in registry directly. */
+ *  or `null` when nothing rates this card (no DB row, and no checked-in seed
+ *  entry — see `cardRatings.ts`'s `resolveEventPickRating`). A `null` falls
+ *  back to `heuristicAsRating` for the base term, on the SAME scale. Injected
+ *  — like `GetCardEvalMeta` — so this module never touches the ratings
+ *  registry or the `cardRatings` table directly. */
 export type GetPickRating = (cardId: string) => number | null;
 
 /** Rarity multiplier on top of raw card quality (PRD #1107 story 29: "card
@@ -83,22 +118,58 @@ export const RARITY_WEIGHT: Record<Rarity, number> = {
     mythic: 1.45,
 };
 
-/** Bonus per already-picked Pool card sharing a color with the candidate,
- *  scaled against the Forge-scale `cardValueById` magnitudes (a vanilla
- *  creature's latent worth is in the tens/low hundreds) so a handful of
- *  on-color picks meaningfully outweighs a marginal off-color quality edge. */
-const COLOR_COMMIT_WEIGHT = 6;
+/** Raw quality (`cardValueById` × rarity) that maps to the MIDPOINT of the
+ *  rating scale (2.5). Calibrated against the real catalogue's distribution:
+ *  `cardValueById` runs from 8 (a bare land / cheap artifact) through a
+ *  ~74 median and a ~200 90th percentile up to ~930 (Worldspine Wurm), so a
+ *  half-value of 100 puts a median card just above 2, a strong common near 3
+ *  and a genuine fatty above 4 — the same shape a human rater produces. */
+const HEURISTIC_RATING_HALF_VALUE = 100;
 
-/** Picks before the off-color penalty kicks in at all — the seat is still
- *  "reading signals" / establishing colors for its first few picks, so an
- *  early off-color card is never punished (PRD #1107 story 29: "as
- *  commitment grows" implies no penalty when there is no commitment yet). */
-const OFF_COLOR_GRACE_PICKS = 3;
+/** Maps the quality heuristic onto the Pick Rating scale (ADR 0073), so an
+ *  unrated card's base term is comparable with a rated card's.
+ *
+ *  `PICK_RATING_MAX × q / (q + HALF)` — strictly increasing in `q` (so every
+ *  quality ordering the heuristic produced survives verbatim: a bigger body
+ *  still outranks a smaller one, a rarer printing still outranks its common
+ *  twin) and asymptotically bounded by `PICK_RATING_MAX` (so no card, however
+ *  enormous, can escape the scale the way the old unbounded quality term
+ *  did). `q ≤ 0` maps to `PICK_RATING_MIN`. */
+export function heuristicAsRating(quality: number): number {
+    if (quality <= 0) return PICK_RATING_MIN;
+    return (
+        (PICK_RATING_MAX * quality) / (quality + HEURISTIC_RATING_HALF_VALUE)
+    );
+}
 
-/** Penalty per pick beyond the grace window for a candidate that shares NO
- *  color with anything already in the Pool — grows linearly with picks made,
- *  so the deeper into the draft, the more a wrong-color card is punished. */
-const OFF_COLOR_PENALTY_PER_PICK = 3;
+/** Raw, pre-rating card quality: the shared latent `cardValueById` (ADR 0018)
+ *  — the SAME primitive the vs-AI Brain's Hand term uses, so draft-time and
+ *  gameplay card quality never drift apart — scaled by printed rarity. */
+export function candidateQuality(candidate: CardEvalMeta): number {
+    return cardValueById(candidate.cardId) * RARITY_WEIGHT[candidate.rarity];
+}
+
+/** Rating points contributed per already-picked Pool card sharing the
+ *  candidate's colour. Deliberately small: ten committed on-colour cards are
+ *  worth ~0.6 rating points BEFORE the contextual cap, i.e. colour fit refines
+ *  the rating anchor rather than replacing it. */
+const COLOUR_COMMIT_RATING_PER_CARD = 0.06;
+
+/** On-colour Pool cards before the seat counts as genuinely COMMITTED to that
+ *  colour — it is still "reading signals" / establishing colours for its first
+ *  few picks (PRD #1107 story 29: "as commitment grows" implies nothing to
+ *  respect when there is no commitment yet). */
+const COLOUR_COMMIT_GRACE_CARDS = 3;
+
+/** EXTRA rating points per on-colour Pool card beyond the grace window, on top
+ *  of `COLOUR_COMMIT_RATING_PER_CARD`. This is the old off-colour PENALTY,
+ *  re-expressed as the bonus its complement earns: the deeper the seat is
+ *  committed, the more a card that fits that commitment is worth relative to
+ *  one that fits nothing. Stating it as a penalty instead would make it dead
+ *  weight under the non-negative contextual clamp (a term that is structurally
+ *  ≤ 0 can never survive `clamp(rawSum, 0, cap)`), and would put the bound on
+ *  each candidate's sum rather than on the gap between two candidates. */
+const COLOUR_COMMIT_RATING_PER_COMMITTED_CARD = 0.04;
 
 /** Curve buckets the heuristic tracks (mana value 1 through 6+, CR 202.3);
  *  0-cost/land cards don't participate in curve scoring. Target counts are a
@@ -116,25 +187,118 @@ export const CURVE_TARGET: Record<number, number> = {
     6: 2,
 };
 export const CURVE_MAX_BUCKET = 6;
-const CURVE_BONUS_WEIGHT = 30;
 
-/** Midpoint of the Pick Rating 0-5 scale (`pickRatings.ts`). A rating ABOVE
- *  the neutral point boosts a candidate over the heuristic-only baseline, a
- *  rating BELOW it penalizes — so a rating of exactly 2.5 ("perfectly
- *  average playable") reproduces roughly the same ranking an unrated card
- *  gets from the heuristic alone, while 0 ("never play this") and 5
- *  ("first-pick bomb") pull hard in either direction. */
-const PICK_RATING_NEUTRAL = 2.5;
+/** Rating points a totally empty curve bucket is worth; a partially filled
+ *  bucket earns a proportional fraction of it. */
+const CURVE_FIT_MAX_RATING = 0.5;
 
-/** Per-rating-point weight applied on top of the Pick Heuristic's own score
- *  (issue #1117: "rating DOMINATES ordering"). Sized comfortably above the
- *  Pick Heuristic's realistic spread — `scoreCandidate`'s quality term tops
- *  out in the low hundreds (a big flying rare) plus at most a few dozen from
- *  color/curve terms — so even a single rating-point gap between two
- *  candidates can never be overturned by the heuristic underneath it. A
- *  `null` rating (see `GetPickRating`) contributes exactly 0 — the pure
- *  heuristic-fallback case. */
-const PICK_RATING_DOMINANCE_WEIGHT = 1000;
+/** Cap on the SUM of every non-base term at the FIRST pick — the pick that
+ *  genuinely has no deck to respect, so context may only break near-ties. */
+export const CONTEXT_CAP_FIRST_PICK = 0.3;
+
+/** Cap on the SUM of every non-base term at the LAST pick — a deck that very
+ *  much exists by then, so context may overturn up to two rating points (but
+ *  never a full 1-in-5 rating gap plus change: raw power still anchors). */
+export const CONTEXT_CAP_LAST_PICK = 2.0;
+
+/** Picks in a standard Draft (3 packs × 15 cards) — the horizon the context
+ *  cap ramps over when the caller doesn't say otherwise. A Pool larger than
+ *  this simply sits at `CONTEXT_CAP_LAST_PICK` (the ramp clamps). */
+export const DEFAULT_DRAFT_PICKS = 45;
+
+/** The contextual cap at `pickNumber` (1-based) of a `totalPicks`-pick draft
+ *  (ADR 0073): monotonically non-decreasing, bounded, `CONTEXT_CAP_FIRST_PICK`
+ *  at pick 1 and `CONTEXT_CAP_LAST_PICK` at the last pick.
+ *
+ *  The ramp is CONCAVE (`√progress`) rather than linear: a seat has a deck to
+ *  respect well before it is halfway through, so a linear ramp would leave
+ *  context almost inert through the whole first pack — exactly the window in
+ *  which a coherent colour pair is supposed to form. `√` reaches ~60% of the
+ *  span by the end of pack one and still lands on the same bounded endpoint.
+ *  The SHAPE (monotone, bounded) is the decision; these two endpoints and the
+ *  exponent are tuning, safe to move — no Pick Invariant encodes them. */
+export function contextCapForPick(
+    pickNumber: number,
+    totalPicks: number = DEFAULT_DRAFT_PICKS
+): number {
+    const span = Math.max(1, totalPicks - 1);
+    const progress = Math.min(1, Math.max(0, (pickNumber - 1) / span));
+    return (
+        CONTEXT_CAP_FIRST_PICK +
+        (CONTEXT_CAP_LAST_PICK - CONTEXT_CAP_FIRST_PICK) * Math.sqrt(progress)
+    );
+}
+
+/** Every term the scorer can emit. `baseRating` is the anchor (never capped);
+ *  every other key is a CONTEXTUAL term, and their sum is bounded by
+ *  `contextCapForPick`. New terms (Archetype, Capability, Castability, Fixing
+ *  Value — ADR 0072/0073) join this union and are contextual by construction:
+ *  `isContextualTerm` is derived from the base key, not a second list. */
+export type PickTermKey = "baseRating" | "colourCommitment" | "curveFit";
+
+/** One Pool card that contributed to a term — the term's PROVENANCE (ADR
+ *  0073: "the specific Pool cards that produced it"). */
+export interface PickTermSource {
+    /** Canonical `cardId` of the contributing Pool card. */
+    cardId: string;
+    /** Why it contributed, e.g. `shares {G}` / `occupies the MV-2 bucket`. */
+    reason: string;
+}
+
+/** One term of a candidate's score, in rating points. */
+export interface PickTerm {
+    term: PickTermKey;
+    /** FINAL contribution — the trace's `score` is exactly the sum of these
+     *  (`sumTraceTerms`), so the breakdown is the arithmetic, not a report of
+     *  it. For a contextual term this is `rawValue × contextScale`. */
+    value: number;
+    /** Contribution BEFORE the contextual cap scaled it. Equal to `value` for
+     *  `baseRating` (never capped) and for any contextual term at a pick where
+     *  the cap did not bind. */
+    rawValue: number;
+    /** The specific Pool cards that produced this term (empty when the term
+     *  is a property of the candidate alone, e.g. `baseRating`). */
+    sources: PickTermSource[];
+    /** One-line human-readable account of how the value came about. */
+    note: string;
+}
+
+/** A candidate's full score breakdown — the PRIMARY result of scoring (ADR
+ *  0073). `score` is derived by summing `terms`, so there is no second
+ *  arithmetic path that can drift from the one that decides picks. */
+export interface PickCandidateTrace {
+    /** Canonical `cardId` of the candidate. */
+    cardId: string;
+    /** 1-based pick number this trace was computed for (Pool size + 1). */
+    pickNumber: number;
+    /** Ordered breakdown: `baseRating` first, then every contextual term. */
+    terms: PickTerm[];
+    /** The cap on the SUM of every contextual term at `pickNumber`. The sum is
+     *  clamped to `[0, contextCap]`, so this is also the widest gap context
+     *  alone can open between two candidates at this pick (ADR 0073). */
+    contextCap: number;
+    /** Uniform factor applied to every contextual term's `rawValue` — 1 when
+     *  the cap did not bind, `contextCap / rawSum` when it did. Together with
+     *  each term's `rawValue` it makes the clamp READABLE off the breakdown:
+     *  `Σ value = clamp(Σ rawValue, 0, contextCap)`, and every scaled term's
+     *  `note` says so in words. (0 in the degenerate case of a negative raw
+     *  sum — no term produces one today, fit is a bonus.) */
+    contextScale: number;
+    /** Derived: the sum of `terms[].value`. */
+    score: number;
+}
+
+/** True for every term that lives UNDER the contextual cap — i.e. everything
+ *  that is not the rating anchor. Derived from the base key so a future term
+ *  is capped by construction rather than by remembering to list it. */
+export function isContextualTerm(term: PickTermKey): boolean {
+    return term !== "baseRating";
+}
+
+/** Sums a trace's breakdown — the ONE definition of a candidate's score. */
+export function sumTraceTerms(terms: readonly PickTerm[]): number {
+    return terms.reduce((sum, t) => sum + t.value, 0);
+}
 
 /** Exported (issue #1115) so `autoBuild.ts` reuses the SAME curve-bucket
  *  authority the Pick Heuristic uses at draft time. */
@@ -172,100 +336,308 @@ function curveCounts(
     return counts;
 }
 
-/** Scores one candidate card against a seat's already-accumulated Pool
- *  (PRD #1107 story 29). Exported standalone so the heuristic's shape —
- *  quality/rarity/color/curve — is directly unit-testable without needing a
- *  whole pack. */
-export function scoreCandidate(
-    candidate: CardEvalMeta,
-    poolMeta: readonly CardEvalMeta[]
-): number {
-    const quality =
-        cardValueById(candidate.cardId) * RARITY_WEIGHT[candidate.rarity];
-
-    let colorTerm = 0;
-    if (candidate.colors.length > 0) {
-        const weights = colorWeights(poolMeta);
-        const bestAffinity = Math.max(
-            0,
-            ...candidate.colors.map((c) => weights[c] ?? 0)
-        );
-        colorTerm += bestAffinity * COLOR_COMMIT_WEIGHT;
-
-        const totalPicks = poolMeta.length;
-        if (bestAffinity === 0 && totalPicks > OFF_COLOR_GRACE_PICKS) {
-            colorTerm -=
-                (totalPicks - OFF_COLOR_GRACE_PICKS) *
-                OFF_COLOR_PENALTY_PER_PICK;
-        }
+/** Distinct contributing Pool cards, in Pool order, deduped by `cardId` — a
+ *  term's provenance names each responsible card once, not once per copy. */
+function distinctSources(
+    poolMeta: readonly CardEvalMeta[],
+    predicate: (meta: CardEvalMeta) => string | null
+): PickTermSource[] {
+    const seen = new Set<string>();
+    const sources: PickTermSource[] = [];
+    for (const meta of poolMeta) {
+        const reason = predicate(meta);
+        if (reason === null || seen.has(meta.cardId)) continue;
+        seen.add(meta.cardId);
+        sources.push({ cardId: meta.cardId, reason });
     }
-
-    let curveTerm = 0;
-    if (candidate.manaValue > 0) {
-        const bucket = curveBucket(candidate.manaValue);
-        const target = CURVE_TARGET[bucket] ?? 2;
-        const have = curveCounts(poolMeta)[bucket] ?? 0;
-        if (have < target) {
-            curveTerm = (CURVE_BONUS_WEIGHT * (target - have)) / target;
-        }
-    }
-
-    return quality + colorTerm + curveTerm;
+    return sources;
 }
 
-/** Scores one candidate the same way `scoreCandidate` does, then layers the
- *  Pick Rating adjustment on top (issue #1117, ADR 0054/0055's Pick Rating
- *  layer). `rating` is `null` for a card with no checked-in Pick Rating entry
- *  (no file for the set, or the file simply doesn't rate this card) — in
- *  that case the result is EXACTLY `scoreCandidate`'s own value, byte-for-
- *  byte, so a Draftable Set with no ratings file (or a card a checked-in
- *  file happens not to cover) drafts on the heuristic alone, unchanged (this
- *  issue's regression acceptance criterion).
+/** The base term: the rating ANCHOR (ADR 0073). A DB/seed Pick Rating when one
+ *  exists, otherwise the quality heuristic mapped onto the same 0–5 scale, so
+ *  a rated and an unrated candidate are compared in one unit. */
+function baseRatingTerm(
+    candidate: CardEvalMeta,
+    rating: number | null
+): PickTerm {
+    if (rating !== null) {
+        return {
+            term: "baseRating",
+            value: rating,
+            rawValue: rating,
+            sources: [],
+            note: `Pick Rating ${rating.toFixed(2)}`,
+        };
+    }
+    const quality = candidateQuality(candidate);
+    const value = heuristicAsRating(quality);
+    return {
+        term: "baseRating",
+        value,
+        rawValue: value,
+        sources: [],
+        note: `unrated — quality ${quality.toFixed(1)} → rating ${value.toFixed(2)}`,
+    };
+}
+
+/** Colour commitment (PRD #1107 story 29): rewards a candidate sharing a
+ *  colour the Pool is already invested in, at a slope that STEEPENS once the
+ *  seat is genuinely committed to that colour.
  *
- *  When `rating` is present, the adjustment is `(rating - PICK_RATING_NEUTRAL)
- *  * PICK_RATING_DOMINANCE_WEIGHT` — large enough relative to the heuristic's
- *  own spread that a real rating gap between two candidates always survives
- *  underneath it (rating DOMINATES), while two candidates sharing the SAME
- *  rating fall back to comparing on the heuristic term alone (the heuristic
- *  is still the tie-breaker, per this issue's acceptance criteria). */
-export function scoreCandidateWithRating(
+ *  Non-negative by construction (ADR 0073's non-negative contextual clamp): a
+ *  candidate sharing no colour with the Pool scores 0 — it earns no bonus, it
+ *  is not punished. What was an off-colour penalty growing with the draft is
+ *  now `COLOUR_COMMIT_RATING_PER_COMMITTED_CARD`, the same growth expressed on
+ *  the FITTING side, so the on-colour/off-colour GAP still widens as the seat
+ *  commits (which is the behaviour PRD #1107 story 29 asks for) while the
+ *  score's contextual half stays a pure bonus.
+ *
+ *  A COLOURLESS candidate also scores 0: it has no colour to fit, so it earns
+ *  no colour bonus. It used to sit strictly above an off-colour card (which
+ *  paid the penalty); telling "castable regardless of colour" apart from
+ *  "actively off-colour" now belongs to the Castability term ADR 0073 plans,
+ *  not to a negative colour term. */
+function colourCommitmentTerm(
+    candidate: CardEvalMeta,
+    poolMeta: readonly CardEvalMeta[]
+): PickTerm {
+    if (candidate.colors.length === 0) {
+        return {
+            term: "colourCommitment",
+            value: 0,
+            rawValue: 0,
+            sources: [],
+            note: "colourless — no colour to fit, so no colour bonus (and never a penalty)",
+        };
+    }
+    const weights = colorWeights(poolMeta);
+    let bestColour: Color | null = null;
+    let bestAffinity = 0;
+    for (const c of candidate.colors) {
+        const affinity = weights[c] ?? 0;
+        if (affinity > bestAffinity) {
+            bestAffinity = affinity;
+            bestColour = c;
+        }
+    }
+
+    if (bestColour === null) {
+        return {
+            term: "colourCommitment",
+            value: 0,
+            rawValue: 0,
+            sources: [],
+            note: `shares no colour with ${poolMeta.length} Pool card(s) — no colour bonus (and never a penalty)`,
+        };
+    }
+
+    const committed = Math.max(0, bestAffinity - COLOUR_COMMIT_GRACE_CARDS);
+    const raw =
+        bestAffinity * COLOUR_COMMIT_RATING_PER_CARD +
+        committed * COLOUR_COMMIT_RATING_PER_COMMITTED_CARD;
+    const note =
+        committed > 0
+            ? `${bestAffinity} Pool card(s) already on {${bestColour}} (${committed} past the ${COLOUR_COMMIT_GRACE_CARDS}-card grace window)`
+            : `${bestAffinity} Pool card(s) already on {${bestColour}}`;
+
+    return {
+        term: "colourCommitment",
+        value: raw,
+        rawValue: raw,
+        sources: distinctSources(poolMeta, (meta) => {
+            const shared = meta.colors.filter((c) =>
+                candidate.colors.includes(c)
+            );
+            return shared.length === 0
+                ? null
+                : `shares ${shared.map((c) => `{${c}}`).join("")}`;
+        }),
+        note,
+    };
+}
+
+/** Curve fit (PRD #1107 story 29: "fills curve gaps"): rewards a candidate
+ *  landing in a mana-value bucket the Pool has not filled yet. */
+function curveFitTerm(
+    candidate: CardEvalMeta,
+    poolMeta: readonly CardEvalMeta[]
+): PickTerm {
+    if (candidate.manaValue <= 0) {
+        return {
+            term: "curveFit",
+            value: 0,
+            rawValue: 0,
+            sources: [],
+            note: "mana value 0 (land / free spell) — outside the curve model",
+        };
+    }
+    const bucket = curveBucket(candidate.manaValue);
+    const target = CURVE_TARGET[bucket] ?? 2;
+    const have = curveCounts(poolMeta)[bucket] ?? 0;
+    const raw =
+        have < target ? (CURVE_FIT_MAX_RATING * (target - have)) / target : 0;
+    return {
+        term: "curveFit",
+        value: raw,
+        rawValue: raw,
+        sources: distinctSources(poolMeta, (meta) =>
+            meta.manaValue > 0 && curveBucket(meta.manaValue) === bucket
+                ? `occupies the MV-${bucket} bucket`
+                : null
+        ),
+        note: `MV-${bucket} bucket ${have}/${target} filled`,
+    };
+}
+
+/** Optional knobs on a single candidate's scoring. */
+export interface ScoreCandidateOptions {
+    /** Total picks in this draft — the horizon the context cap ramps over
+     *  (`contextCapForPick`). Defaults to `DEFAULT_DRAFT_PICKS`. */
+    totalPicks?: number;
+    /** The seat's TRUE 1-based pick number, when the caller knows it. Defaults
+     *  to `poolMeta.length + 1`, which is right whenever the Pool the scorer
+     *  sees IS the whole Pool. `chooseBotPick` supplies it explicitly because
+     *  it DROPS Pool entries the card registry can't resolve: an unresolvable
+     *  card is still a pick the seat made, so deriving the pick number from
+     *  the filtered Pool would under-count it and hand the seat an earlier
+     *  pick's (smaller) contextual cap. */
+    pickNumber?: number;
+}
+
+/** Scores one candidate card against a seat's already-accumulated Pool,
+ *  returning the full breakdown (ADR 0073) — the trace IS the result, and
+ *  `trace.score` is derived by summing `trace.terms`.
+ *
+ *  `rating` is the candidate's DB/seed Pick Rating on the 0–5 scale, or `null`
+ *  when nothing rates it — in which case the base term falls back to
+ *  `heuristicAsRating(quality)` on the SAME scale (so a mixed Pool never
+ *  compares different units). Note the deliberate consequence of ADR 0073's
+ *  fallback CHAIN: two candidates sharing a rating now share a base term, and
+ *  the contextual terms — not raw quality — separate them.
+ *
+ *  The pick number is DERIVED from the Pool (`poolMeta.length + 1`) unless
+ *  `options.pickNumber` says otherwise: the contextual cap is a function of
+ *  how much deck the seat already has, which is exactly what the Pool
+ *  measures. */
+export function scoreCandidate(
     candidate: CardEvalMeta,
     poolMeta: readonly CardEvalMeta[],
-    rating: number | null
-): number {
-    const heuristicScore = scoreCandidate(candidate, poolMeta);
-    if (rating === null) return heuristicScore;
-    return (
-        heuristicScore +
-        (rating - PICK_RATING_NEUTRAL) * PICK_RATING_DOMINANCE_WEIGHT
-    );
+    rating: number | null = null,
+    options: ScoreCandidateOptions = {}
+): PickCandidateTrace {
+    const pickNumber = options.pickNumber ?? poolMeta.length + 1;
+    const contextCap = contextCapForPick(pickNumber, options.totalPicks);
+
+    const base = baseRatingTerm(candidate, rating);
+    const contextual: PickTerm[] = [
+        colourCommitmentTerm(candidate, poolMeta),
+        curveFitTerm(candidate, poolMeta),
+    ];
+
+    // One uniform scale over every contextual term, so the CAP binds the SUM
+    // (ADR 0073) rather than each term separately — and so the scaled sum is
+    // exactly `clamp(rawSum, 0, cap)`, monotone in every raw term. That
+    // monotonicity is what the Pick Invariants rest on: a term that should
+    // push a candidate up can never push it down through the cap.
+    //
+    // The clamp's floor is 0, not `-cap`: contextual fit is a BONUS, so the
+    // whole contextual half of every candidate's score lives in `[0, cap]` and
+    // the gap context can open between two candidates is therefore `cap`
+    // itself — the bound ADR 0073 means by "how much may context overturn
+    // power". A ±cap clamp bounds each candidate but licenses a `2 × cap`
+    // differential. The `rawSum < 0` branch cannot be reached by today's terms
+    // (each is non-negative by construction); it is a total definition of the
+    // clamp, not a live path — the Pick Invariants assert the floor holds.
+    const rawSum = contextual.reduce((sum, t) => sum + t.rawValue, 0);
+    const contextScale =
+        rawSum > 0 ? Math.min(1, contextCap / rawSum) : rawSum === 0 ? 1 : 0;
+    for (const term of contextual) {
+        term.value = term.rawValue * contextScale;
+        if (contextScale !== 1) {
+            // The clamp must be legible off the BREAKDOWN, not just off the
+            // trace's summary fields — a reader has to be able to reconstruct
+            // the score, cap included, from the terms in front of them.
+            term.note += ` — scaled ×${contextScale.toFixed(3)}: the pick-${pickNumber} context cap (${contextCap.toFixed(2)}) clamped a raw contextual sum of ${rawSum.toFixed(2)}`;
+        }
+    }
+
+    const terms = [base, ...contextual];
+    return {
+        cardId: candidate.cardId,
+        pickNumber,
+        terms,
+        contextCap,
+        contextScale,
+        score: sumTraceTerms(terms),
+    };
+}
+
+/** Every pack a bot seat has been shown, oldest first — the pack it is picking
+ *  from is the LAST entry (ADR 0073). UNREAD by the scorer today: Draft Signal
+ *  reading (what the packs coming back tell the seat about its neighbours) is
+ *  a later slice of PRD #1607. The parameter is wired through every call site
+ *  NOW because doing it with the reader would mean touching them all twice. */
+export type PacksSeen = readonly (readonly DraftPackCard[])[];
+
+/** Inputs to a bot pick beyond the pack and Pool themselves. Required (not an
+ *  optional tail) so `packsSeen` is threaded by the COMPILER at every call
+ *  site rather than by remembering to. */
+export interface BotPickOptions extends ScoreCandidateOptions {
+    /** See `PacksSeen` — supplied, not yet read. */
+    packsSeen: PacksSeen;
+    /** Layered Pick Rating lookup (`cardRatings.ts`'s
+     *  `resolveEventPickRating`). Omit for "nothing is rated", in which case
+     *  every candidate's base term comes from `heuristicAsRating`. */
+    getPickRating?: GetPickRating;
+}
+
+/** Scores every candidate in `pack` against `poolMeta`, in pack order (ADR
+ *  0073's breakdown-primary scoring, applied to a whole pack). A candidate
+ *  `getCardEvalMeta` cannot resolve yields `null` — ranked below every real
+ *  candidate by `chooseBotPick` rather than crashing the draft. Exported so a
+ *  debugging surface (Draft Lab) reads the SAME traces the pick is made from,
+ *  never a re-derivation of them. */
+export function scorePack(
+    pack: readonly DraftPackCard[],
+    poolMeta: readonly CardEvalMeta[],
+    getCardEvalMeta: GetCardEvalMeta,
+    options: BotPickOptions
+): (PickCandidateTrace | null)[] {
+    return pack.map((card) => {
+        const meta = getCardEvalMeta(card.scryfallId);
+        if (!meta) return null;
+        const rating = options.getPickRating
+            ? options.getPickRating(meta.cardId)
+            : null;
+        return scoreCandidate(meta, poolMeta, rating, {
+            totalPicks: options.totalPicks,
+            pickNumber: options.pickNumber,
+        });
+    });
 }
 
 /** Picks one card from `pack` for a Bot Drafter seat (PRD #1107 stories 8, 9,
- *  27, 29; ADR 0054; Pick Rating layer: issue #1117, ADR 0054/0055). Scores
- *  every candidate via `scoreCandidateWithRating` against the seat's
- *  already-accumulated `pool`, returning the `pickId` of the highest scorer.
- *  Ties break by pack position (first wins). Deterministic: a pure function
- *  of `(pack, pool)` — the caller (`convex/limitedEvents.ts`) never needs to
- *  thread an RNG stream through this path, so it is trivially reproducible
+ *  27, 29; ADR 0054; one-scale recomposition: PRD #1607, ADR 0073). Scores
+ *  every candidate via `scorePack` against the seat's already-accumulated
+ *  `pool` and returns the `pickId` of the highest scorer. Ties break by pack
+ *  position (first wins). Deterministic: a pure function of
+ *  `(pack, pool, options)` — the caller (`convex/limitedEvents.ts`) never
+ *  threads an RNG stream through this path, so it is trivially reproducible
  *  given the event's seed (which already seeds the pack contents via
  *  `generateRoundPacks`).
  *
- *  `getPickRating` is OPTIONAL and defaults to "no ratings at all" (every
- *  candidate scored as `rating: null`) — omitting it reproduces the exact
- *  pre-Pick-Rating-layer behavior, which is how a Draftable Set with no
- *  checked-in ratings file keeps drafting on the heuristic alone.
+ *  `options.getPickRating` is optional and defaults to "nothing is rated" —
+ *  every candidate then scores off `heuristicAsRating`, on the same scale a
+ *  rated card uses. `options.packsSeen` is required but unread (see
+ *  `PacksSeen`).
  *
- *  Throws only when `pack` is empty — the same contract as `applyPick`,
- *  which already guards against calling this with no pack to pick from. A
- *  candidate `getCardEvalMeta` can't resolve is scored as the worst possible
- *  pick rather than thrown on, so one bad registry lookup never blocks the
- *  whole draft. */
+ *  Throws only when `pack` is empty — the same contract as `applyPick`, which
+ *  already guards against calling this with no pack to pick from. */
 export function chooseBotPick(
     pack: readonly DraftPackCard[],
     pool: readonly LimitedPoolCard[],
     getCardEvalMeta: GetCardEvalMeta,
-    getPickRating?: GetPickRating
+    options: BotPickOptions
 ): string {
     if (pack.length === 0) {
         throw new Error("chooseBotPick: pack is empty");
@@ -274,15 +646,19 @@ export function chooseBotPick(
         .map((c) => getCardEvalMeta(c.scryfallId))
         .filter((m): m is CardEvalMeta => m !== null);
 
+    // The pick number comes from the UNFILTERED Pool: a Pool card the registry
+    // can't resolve contributes nothing to the contextual TERMS (it is dropped
+    // above) but it is still a pick the seat made, so it must still advance the
+    // contextual cap. Deriving the pick number from `poolMeta` instead would
+    // let the filter and the derivation disagree.
+    const traces = scorePack(pack, poolMeta, getCardEvalMeta, {
+        ...options,
+        pickNumber: options.pickNumber ?? pool.length + 1,
+    });
     let bestIndex = 0;
     let bestScore = -Infinity;
-    for (let i = 0; i < pack.length; i++) {
-        const meta = getCardEvalMeta(pack[i].scryfallId);
-        const rating =
-            meta && getPickRating ? getPickRating(meta.cardId) : null;
-        const score = meta
-            ? scoreCandidateWithRating(meta, poolMeta, rating)
-            : -Infinity;
+    for (let i = 0; i < traces.length; i++) {
+        const score = traces[i]?.score ?? -Infinity;
         if (score > bestScore) {
             bestScore = score;
             bestIndex = i;

@@ -497,7 +497,13 @@ describe("resolveAutoPickTimeout — Selected Card takes priority over the heuri
         const heuristic = vi.fn<ChooseBotPick>(() => "r0-p0-c1");
         const pickId = resolveAutoPickTimeout([seat], 0, 1, heuristic);
         expect(pickId).toBe("r0-p0-c1");
-        expect(heuristic).toHaveBeenCalledWith(seat, seat.currentPack);
+        // Third argument: `packsSeen` (ADR 0073) — the pack in front of the
+        // seat is the only history a timeout can account for. Unread by the
+        // scorer today; supplied so the Draft Signals reader lands without
+        // re-touching this call site.
+        expect(heuristic).toHaveBeenCalledWith(seat, seat.currentPack, [
+            seat.currentPack,
+        ]);
     });
 });
 

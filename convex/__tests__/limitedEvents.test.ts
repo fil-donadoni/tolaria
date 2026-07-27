@@ -84,8 +84,8 @@ const getCardEvalMeta: GetCardEvalMeta = (scryfallId) => {
     };
 };
 
-const botChoosePick: ChooseBotPick = (seat, pack) =>
-    chooseBotPick(pack, seat.pool ?? [], getCardEvalMeta);
+const botChoosePick: ChooseBotPick = (seat, pack, packsSeen) =>
+    chooseBotPick(pack, seat.pool ?? [], getCardEvalMeta, { packsSeen });
 
 /** `createLimitedEvent`'s server-side gate: every DISTINCT packSlot must
  *  currently be Draftable (issue #1246: deduped, since a 3-element Draft
@@ -648,7 +648,8 @@ describe("Limited Event Draft Timer + Auto-Pick (issue #1114, PRD #1107 stories 
         const directPickId = chooseBotPick(
             humanSeat.currentPack!,
             humanSeat.pool ?? [],
-            getCardEvalMeta
+            getCardEvalMeta,
+            { packsSeen: [humanSeat.currentPack!] }
         );
         expect(timeoutPickId).toBe(directPickId);
     });
@@ -867,7 +868,8 @@ describe("Limited Event Draft Timer + Auto-Pick (issue #1114, PRD #1107 stories 
         const heuristicPickId = chooseBotPick(
             humanSeat.currentPack!,
             humanSeat.pool ?? [],
-            getCardEvalMeta
+            getCardEvalMeta,
+            { packsSeen: [humanSeat.currentPack!] }
         );
         // The human's tentative Selected Card — a DIFFERENT card in the same
         // pack (mirrors `selectDraftPick`'s persisted `selectedPickId`).
@@ -941,7 +943,8 @@ describe("Limited Event Draft Timer + Auto-Pick (issue #1114, PRD #1107 stories 
         const heuristicPickId = chooseBotPick(
             humanSeat.currentPack!,
             humanSeat.pool ?? [],
-            getCardEvalMeta
+            getCardEvalMeta,
+            { packsSeen: [humanSeat.currentPack!] }
         );
 
         // A selection referencing a card that is NOT in the live pack —
@@ -1707,13 +1710,11 @@ describe("Limited Event: Vintage Cube gate (Draft-only, ADR 0062 §4)", () => {
 describe("Limited Event Bot Pick Rating DB layer (PRD #1296 Slice A, ADR 0065, issue #1297): the exact loadEventPickRating + makeBotChoosePick wiring convex/limitedEvents.ts's mutations use", () => {
     /** Mirrors `convex/limitedEvents.ts`'s `makeBotChoosePick` exactly. */
     function makeBotChoosePick(getPickRating: GetPickRating): ChooseBotPick {
-        return (seat, pack) =>
-            chooseBotPick(
-                pack,
-                seat.pool ?? [],
-                getCardEvalMeta,
-                getPickRating
-            );
+        return (seat, pack, packsSeen) =>
+            chooseBotPick(pack, seat.pool ?? [], getCardEvalMeta, {
+                packsSeen,
+                getPickRating,
+            });
     }
 
     /** Mirrors `loadEventPickRating`'s eventual in-memory result: a
@@ -1730,7 +1731,7 @@ describe("Limited Event Bot Pick Rating DB layer (PRD #1296 Slice A, ADR 0065, i
      *  seed-rated bomb (e.g. Black Lotus) tied at the real ceiling. Bounds
      *  enforcement is the future Admin write mutation's job (PRD #1296
      *  Slice B); this pure layering seam is intentionally unbounded, exactly
-     *  like `scoreCandidateWithRating`'s own `rating` parameter. */
+     *  like `scoreCandidate`'s own `rating` parameter. */
     const DOMINANT_TEST_RATING = 100;
 
     it("a database rating for a SET scope (lea) changes which card the bot picks vs. today's exact wiring", () => {
@@ -1747,12 +1748,10 @@ describe("Limited Event Bot Pick Rating DB layer (PRD #1296 Slice A, ADR 0065, i
         expect(pack.length).toBeGreaterThan(1);
 
         // Baseline: today's EXACT pre-Slice-A wiring (`getPickRatingByCardId`).
-        const baselinePickId = chooseBotPick(
-            pack,
-            [],
-            getCardEvalMeta,
-            getPickRatingByCardId
-        );
+        const baselinePickId = chooseBotPick(pack, [], getCardEvalMeta, {
+            packsSeen: [pack],
+            getPickRating: getPickRatingByCardId,
+        });
         const target = pack.find((c) => c.pickId !== baselinePickId)!;
         expect(target).toBeDefined();
 
@@ -1762,7 +1761,8 @@ describe("Limited Event Bot Pick Rating DB layer (PRD #1296 Slice A, ADR 0065, i
         );
         const layeredPickId = makeBotChoosePick(getPickRating)(
             dealt.seats[0],
-            pack
+            pack,
+            [pack]
         );
 
         expect(layeredPickId).toBe(target.pickId);
@@ -1782,12 +1782,10 @@ describe("Limited Event Bot Pick Rating DB layer (PRD #1296 Slice A, ADR 0065, i
         const pack = dealt.seats[0].currentPack!;
         expect(pack.length).toBe(CUBE_PACK_SIZE);
 
-        const baselinePickId = chooseBotPick(
-            pack,
-            [],
-            getCardEvalMeta,
-            getPickRatingByCardId
-        );
+        const baselinePickId = chooseBotPick(pack, [], getCardEvalMeta, {
+            packsSeen: [pack],
+            getPickRating: getPickRatingByCardId,
+        });
         const target = pack.find((c) => c.pickId !== baselinePickId)!;
         expect(target).toBeDefined();
 
@@ -1799,7 +1797,8 @@ describe("Limited Event Bot Pick Rating DB layer (PRD #1296 Slice A, ADR 0065, i
         );
         const layeredPickId = makeBotChoosePick(getPickRating)(
             dealt.seats[0],
-            pack
+            pack,
+            [pack]
         );
 
         expect(layeredPickId).toBe(target.pickId);
@@ -1823,10 +1822,11 @@ describe("Limited Event Bot Pick Rating DB layer (PRD #1296 Slice A, ADR 0065, i
         // what actually matters here: Slice A's DB-layering is a no-op vs.
         // the LEA-scoped seed lookup when the database is empty, a
         // guarantee no future additional checked-in file can perturb.
-        const oldChoosePick: ChooseBotPick = (seat, pack) =>
-            chooseBotPick(pack, seat.pool ?? [], getCardEvalMeta, (cardId) =>
-                getPickRating("lea", cardId)
-            );
+        const oldChoosePick: ChooseBotPick = (seat, pack, packsSeen) =>
+            chooseBotPick(pack, seat.pool ?? [], getCardEvalMeta, {
+                packsSeen,
+                getPickRating: (cardId: string) => getPickRating("lea", cardId),
+            });
         const newChoosePick = makeBotChoosePick(
             resolveEventPickRating(packSlots, fakeDb({}))
         );
@@ -1869,19 +1869,21 @@ describe("checked-in Vintage Cube Pick Rating seed (PRD #1296 Slice D, issue #12
     // reserved `CUBE_SOURCE_KEY`) is actually picked up by
     // `resolveEventPickRating`/`getPickRatingByCardId` and changes real bot
     // picks — not just that the file parses.
-    const realBotChoosePickRated: ChooseBotPick = (seat, pack) =>
-        chooseBotPick(
-            pack,
-            seat.pool ?? [],
-            getCardEvalMeta,
-            getPickRatingByCardId
-        );
-    const realBotChoosePickHeuristicOnly: ChooseBotPick = (seat, pack) =>
-        chooseBotPick(pack, seat.pool ?? [], getCardEvalMeta);
+    const realBotChoosePickRated: ChooseBotPick = (seat, pack, packsSeen) =>
+        chooseBotPick(pack, seat.pool ?? [], getCardEvalMeta, {
+            packsSeen,
+            getPickRating: getPickRatingByCardId,
+        });
+    const realBotChoosePickHeuristicOnly: ChooseBotPick = (
+        seat,
+        pack,
+        packsSeen
+    ) => chooseBotPick(pack, seat.pool ?? [], getCardEvalMeta, { packsSeen });
 
-    // Comfortably above `PICK_RATING_NEUTRAL` (2.5) so `PICK_RATING_DOMINANCE_
-    // WEIGHT` guarantees the curated rating overrides the Pick Heuristic —
-    // mirrors the LEA suite's own `OBVIOUS_BOMB_THRESHOLD`.
+    // Comfortably above anything the unrated quality fallback
+    // (`heuristicAsRating`) reaches plus the early contextual cap (ADR 0073),
+    // so a curated bomb rating decides the pick — mirrors the LEA suite's own
+    // `OBVIOUS_BOMB_THRESHOLD`.
     const OBVIOUS_BOMB_THRESHOLD = 4.5;
 
     it("resolveEventPickRating, given the vintage-cube scope and an EMPTY database, surfaces the checked-in seed rating for a real cube card (Black Lotus)", () => {
@@ -1909,7 +1911,7 @@ describe("checked-in Vintage Cube Pick Rating seed (PRD #1296 Slice D, issue #12
 
         let sawAtLeastOneObviousBomb = false;
         let sawRatingDivergence = false;
-        // The curated `PICK_RATING_DOMINANCE_WEIGHT` makes an OBVIOUS bomb
+        // A curated bomb rating makes an OBVIOUS bomb
         // (rating >= 4.5) win its pack in the strong majority of cases, but it
         // is not an infinite override: a rare unrated card (neutral 2.5) with
         // an extreme Pick-Heuristic spike can out-score a single bomb, and the
@@ -1939,7 +1941,7 @@ describe("checked-in Vintage Cube Pick Rating seed (PRD #1296 Slice D, issue #12
             sawAtLeastOneObviousBomb = true;
             bombPacks++;
 
-            const ratedPick = realBotChoosePickRated(seat, pack);
+            const ratedPick = realBotChoosePickRated(seat, pack, [pack]);
             if (bombs.some((b) => b.pickId === ratedPick)) bombTakenPacks++;
 
             // And the heuristic-only pick (no rating layer) is NOT guaranteed
@@ -1954,7 +1956,8 @@ describe("checked-in Vintage Cube Pick Rating seed (PRD #1296 Slice D, issue #12
             // bomb.)
             const heuristicOnlyPick = realBotChoosePickHeuristicOnly(
                 seat,
-                pack
+                pack,
+                [pack]
             );
             if (heuristicOnlyPick !== ratedPick) {
                 sawRatingDivergence = true;

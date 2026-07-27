@@ -319,11 +319,20 @@ const getCardEvalMeta: GetCardEvalMeta = (scryfallId) => {
  *  the checked-in seed file, `convex/limited/cardRatings.ts`'s
  *  `resolveEventPickRating`, PRD #1296 Slice A, issue #1297) — replacing the
  *  old registry-agnostic `pickRatings.ts#getPickRatingByCardId`. A `null`
- *  from either layer falls through to "score via the Pick Heuristic alone",
- *  exactly as before. */
+ *  from either layer falls through to the quality heuristic mapped onto the
+ *  SAME rating scale (`heuristicAsRating`, ADR 0073).
+ *
+ *  `packsSeen` (ADR 0073 / issue #1609) is forwarded from the engine straight
+ *  into `chooseBotPick` — every bot-pick path in this module
+ *  (`startLimitedEvent`, `submitPick`, `autoPickSeatTimeout`) goes through
+ *  THIS adapter, so the parameter is threaded once for all three. Nothing
+ *  reads it yet: Draft Signal reading is a later slice of PRD #1607. */
 function makeBotChoosePick(getPickRating: GetPickRating): ChooseBotPick {
-    return (seat, pack) =>
-        chooseBotPick(pack, seat.pool ?? [], getCardEvalMeta, getPickRating);
+    return (seat, pack, packsSeen) =>
+        chooseBotPick(pack, seat.pool ?? [], getCardEvalMeta, {
+            packsSeen,
+            getPickRating,
+        });
 }
 
 /** Loads this event's Pick Rating layer (PRD #1296 Slice A, issue #1297):

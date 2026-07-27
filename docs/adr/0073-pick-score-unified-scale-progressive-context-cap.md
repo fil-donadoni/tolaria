@@ -62,6 +62,20 @@ the first pick genuinely has no deck to respect and the thirtieth genuinely
 does. The growing cap is the "raw power early, fit late" rule every drafter
 applies, expressed as the one parameter it actually is.
 
+_Refinement (issue #1609 review)._ The cap is applied as a **non-negative
+clamp**, `clamp(rawSum, 0, cap)`, not a symmetric `clamp(rawSum, ±cap)`. A
+symmetric clamp bounds each candidate's contextual sum but lets the DIFFERENCE
+between two candidates reach `2 × cap` — a cap of 1.9 quietly licensing a
+3.8-point overturn, which is not the question the cap exists to answer. With a
+non-negative clamp the differential IS the cap exactly, so "how much may
+context overturn power" has one number as its answer at every pick. The
+consequence is that contextual fit is a pure **bonus**: a candidate that fits
+nothing earns nothing, it is never penalised, and any term that could only
+express itself as a penalty must be restated as the bonus its complement earns
+(the off-colour penalty became a steeper on-colour slope past the commitment
+grace window). Telling a colourless card apart from an actively off-colour one
+therefore falls to **Castability** below, where it belonged anyway.
+
 **Colour splits into three distinct questions**, all derived, none authored:
 
 - **Colour Commitment** — measured from **coloured pips**, not card count:

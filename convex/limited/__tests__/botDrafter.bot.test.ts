@@ -16,12 +16,14 @@ import { getCardColorIdentity } from "../../cards/colors";
 import type { Color } from "../../cards/types";
 import { manaValue } from "../../gre/constants";
 import {
+    CONTEXT_CAP_LAST_PICK,
     chooseBotPick,
+    contextCapForPick,
     scoreCandidate,
-    scoreCandidateWithRating,
     type CardEvalMeta,
     type GetCardEvalMeta,
     type GetPickRating,
+    type PickTermKey,
 } from "../botDrafter";
 import {
     runBotAutoPicks,
@@ -50,6 +52,46 @@ function metaOf(name: string): CardEvalMeta {
     };
 }
 
+/** `chooseBotPick` with ADR 0073's required options object. `packsSeen` is the
+ *  pack being picked from — the only history a unit test can honestly account
+ *  for, and unread by the scorer today (Draft Signals is a later slice). */
+function pickFrom(
+    pack: readonly DraftPackCard[],
+    pool: readonly LimitedPoolCard[],
+    getCardEvalMeta: GetCardEvalMeta,
+    getPickRating?: GetPickRating
+): string {
+    return chooseBotPick(pack, pool, getCardEvalMeta, {
+        packsSeen: [pack],
+        getPickRating,
+    });
+}
+
+/** `scoreCandidate`'s derived total (ADR 0073: the trace IS the result, the
+ *  score is the sum of its breakdown) — the number every ordering assertion
+ *  below compares. */
+function scoreOf(
+    candidate: CardEvalMeta,
+    poolMeta: readonly CardEvalMeta[],
+    rating: number | null = null
+): number {
+    return scoreCandidate(candidate, poolMeta, rating).score;
+}
+
+/** One named term out of a candidate's breakdown. */
+function termOf(
+    candidate: CardEvalMeta,
+    poolMeta: readonly CardEvalMeta[],
+    term: PickTermKey,
+    rating: number | null = null
+) {
+    const found = scoreCandidate(candidate, poolMeta, rating).terms.find(
+        (t) => t.term === term
+    );
+    if (!found) throw new Error(`no ${term} term in trace`);
+    return found;
+}
+
 // Grizzly Bears (G, 2/2 vanilla) — the fixed "quality anchor" used to
 // isolate the color/curve terms: overriding `colors`/`manaValue` on a COPY of
 // this fixture changes only what those terms read, never the quality term
@@ -63,33 +105,37 @@ const hillGiant = metaOf("Hill Giant");
 
 describe("scoreCandidate — card quality (PRD #1107 story 29: 'prefers higher-quality card at equal color fit')", () => {
     it("prefers the bigger body at equal color, rarity and empty pool", () => {
-        expect(scoreCandidate(wurm, [])).toBeGreaterThan(
-            scoreCandidate(bears, [])
-        );
+        expect(scoreOf(wurm, [])).toBeGreaterThan(scoreOf(bears, []));
     });
 
     it("a higher rarity outscores the same body at a lower rarity", () => {
         const common: CardEvalMeta = { ...bears, rarity: "common" };
         const mythic: CardEvalMeta = { ...bears, rarity: "mythic" };
-        expect(scoreCandidate(mythic, [])).toBeGreaterThan(
-            scoreCandidate(common, [])
-        );
+        expect(scoreOf(mythic, [])).toBeGreaterThan(scoreOf(common, []));
+    });
+
+    it("an unrated card's quality lands ON the rating scale, so it is comparable with a rated one (ADR 0073 heuristicAsRating)", () => {
+        const base = termOf(wurm, [], "baseRating");
+        expect(base.value).toBeGreaterThan(0);
+        expect(base.value).toBeLessThanOrEqual(5);
+        expect(base.note).toContain("unrated");
+        // ... and a real rating simply replaces it, on the same scale.
+        expect(termOf(wurm, [], "baseRating", 4.25).value).toBe(4.25);
     });
 });
 
 describe("scoreCandidate — color commitment (PRD #1107 story 29: 'prefers on-color over off-color as commitment grows')", () => {
     it("does not penalize an off-color pick within the grace window (few picks so far)", () => {
-        // cardId fixed (bears) so quality is identical; only `colors` differs.
-        // Pool filler cards are curve-neutral (`manaValue: 0`) so this isolates
-        // the color term from the curve term's own pool-size sensitivity.
+        // cardId fixed (bears) so the base term is identical; only `colors`
+        // differs. Assert on the TERM rather than the total: the contextual cap
+        // itself grows with the pool (ADR 0073), so two totals taken at
+        // different pool sizes are not comparable by construction.
         const green: CardEvalMeta = { ...bears, colors: ["G"], manaValue: 0 };
         const red: CardEvalMeta = { ...bears, colors: ["R"] };
         const smallGreenPool = [green, green]; // 2 picks — within the grace window
 
-        // No penalty yet: the off-color candidate scores the SAME as it would
-        // against a totally empty pool (no color term applied either way).
-        expect(scoreCandidate(red, smallGreenPool)).toBe(
-            scoreCandidate(red, [])
+        expect(termOf(red, smallGreenPool, "colourCommitment").rawValue).toBe(
+            0
         );
     });
 
@@ -101,29 +147,40 @@ describe("scoreCandidate — color commitment (PRD #1107 story 29: 'prefers on-c
         const deepPool = Array(10).fill(green); // heavily committed to green
 
         const shallowGap =
-            scoreCandidate(green, shallowPool) -
-            scoreCandidate(red, shallowPool);
-        const deepGap =
-            scoreCandidate(green, deepPool) - scoreCandidate(red, deepPool);
+            scoreOf(green, shallowPool) - scoreOf(red, shallowPool);
+        const deepGap = scoreOf(green, deepPool) - scoreOf(red, deepPool);
 
         expect(deepGap).toBeGreaterThan(shallowGap);
         // And the on-color candidate is preferred outright once committed.
-        expect(scoreCandidate(green, deepPool)).toBeGreaterThan(
-            scoreCandidate(red, deepPool)
+        expect(scoreOf(green, deepPool)).toBeGreaterThan(
+            scoreOf(red, deepPool)
         );
     });
 
     it("a colorless candidate is neutral to color commitment either way", () => {
-        // Pool filler is curve-neutral (`manaValue: 0`) so only the color term
-        // is exercised — the colorless candidate itself keeps its own
-        // (non-zero) `manaValue`, which is what makes it curve-comparable
-        // across both calls below.
         const colorless: CardEvalMeta = { ...bears, colors: [] };
         const green: CardEvalMeta = { ...bears, colors: ["G"], manaValue: 0 };
         const deepGreenPool = Array(10).fill(green);
-        expect(scoreCandidate(colorless, deepGreenPool)).toBe(
-            scoreCandidate(colorless, [])
+        expect(
+            termOf(colorless, deepGreenPool, "colourCommitment").rawValue
+        ).toBe(0);
+        expect(termOf(colorless, [], "colourCommitment").rawValue).toBe(0);
+    });
+
+    it("names the specific Pool cards behind the term (ADR 0073 provenance)", () => {
+        const green: CardEvalMeta = { ...bears, colors: ["G"], manaValue: 0 };
+        const otherGreen: CardEvalMeta = { ...wurm, colors: ["G"] };
+        const term = termOf(
+            { ...bears, colors: ["G"] },
+            [green, otherGreen],
+            "colourCommitment"
         );
+        expect(term.sources.map((s) => s.cardId).sort()).toEqual(
+            [green.cardId, otherGreen.cardId].sort()
+        );
+        for (const source of term.sources) {
+            expect(source.reason).toContain("{G}");
+        }
     });
 });
 
@@ -137,14 +194,49 @@ describe("scoreCandidate — curve gaps (PRD #1107 story 29: 'fills curve gaps')
         // five-drops at all (bucket empty).
         const pool = Array(5).fill({ ...bears, manaValue: 2 });
 
-        expect(scoreCandidate(fiveDrop, pool)).toBeGreaterThan(
-            scoreCandidate(twoDrop, pool)
-        );
+        expect(scoreOf(fiveDrop, pool)).toBeGreaterThan(scoreOf(twoDrop, pool));
     });
 
     it("a 0-mana-value card (e.g. a land) never earns a curve bonus", () => {
         const land: CardEvalMeta = { ...bears, manaValue: 0, colors: [] };
-        expect(scoreCandidate(land, [])).toBe(scoreCandidate(land, [land]));
+        expect(termOf(land, [], "curveFit").rawValue).toBe(0);
+        expect(termOf(land, [land], "curveFit").rawValue).toBe(0);
+    });
+});
+
+describe("scoreCandidate — the breakdown IS the score (ADR 0073)", () => {
+    const pool = [
+        { ...bears, colors: ["G"] as const },
+        { ...wurm, manaValue: 6 },
+    ] as CardEvalMeta[];
+
+    it("the score is exactly the sum of the breakdown — no second arithmetic path", () => {
+        for (const rating of [null, 0, 2.5, 5]) {
+            const trace = scoreCandidate(bears, pool, rating);
+            // Summed INLINE, deliberately not via the SUT's own
+            // `sumTraceTerms`: `trace.score` is literally assigned that call,
+            // so checking one against the other is a tautology. An independent
+            // sum here is what would catch a future second arithmetic path.
+            const summed = trace.terms.reduce((s, t) => s + t.value, 0);
+            expect(trace.score).toBeCloseTo(summed, 12);
+        }
+    });
+
+    it("every contextual term is scaled by ONE factor, so the capped sum stays the sum of the terms", () => {
+        const trace = scoreCandidate(bears, pool, 3);
+        const contextual = trace.terms.filter((t) => t.term !== "baseRating");
+        expect(contextual.length).toBeGreaterThan(0);
+        for (const term of contextual) {
+            expect(term.value).toBeCloseTo(
+                term.rawValue * trace.contextScale,
+                12
+            );
+        }
+        const contextTotal = contextual.reduce((s, t) => s + t.value, 0);
+        expect(Math.abs(contextTotal)).toBeLessThanOrEqual(
+            trace.contextCap + 1e-9
+        );
+        expect(trace.contextCap).toBeLessThanOrEqual(CONTEXT_CAP_LAST_PICK);
     });
 });
 
@@ -170,7 +262,7 @@ describe("chooseBotPick (PRD #1107 stories 8, 9, 27)", () => {
         // Empty pool: wurm strictly outscores bears (bigger body, same
         // color/rarity) and giant is off-color-neutral (empty pool, no
         // penalty yet) but a smaller body than wurm.
-        expect(chooseBotPick(pack, [], getCardEvalMeta)).toBe("pick-wurm");
+        expect(pickFrom(pack, [], getCardEvalMeta)).toBe("pick-wurm");
     });
 
     it("is deterministic: the same pack + pool always yields the same pick", () => {
@@ -179,14 +271,14 @@ describe("chooseBotPick (PRD #1107 stories 8, 9, 27)", () => {
             packCard("wurm", "pick-wurm"),
         ];
         const pool: LimitedPoolCard[] = [];
-        const first = chooseBotPick(pack, pool, getCardEvalMeta);
-        const second = chooseBotPick(pack, pool, getCardEvalMeta);
+        const first = pickFrom(pack, pool, getCardEvalMeta);
+        const second = pickFrom(pack, pool, getCardEvalMeta);
         expect(first).toBe(second);
     });
 
     it("ties break by pack position (first wins)", () => {
         const pack = [packCard("bears", "pick-a"), packCard("bears", "pick-b")];
-        expect(chooseBotPick(pack, [], getCardEvalMeta)).toBe("pick-a");
+        expect(pickFrom(pack, [], getCardEvalMeta)).toBe("pick-a");
     });
 
     it("never crashes on an unresolvable candidate — ranks it lowest instead", () => {
@@ -194,11 +286,11 @@ describe("chooseBotPick (PRD #1107 stories 8, 9, 27)", () => {
             packCard("unknown-card", "pick-unknown"),
             packCard("bears", "pick-bears"),
         ];
-        expect(chooseBotPick(pack, [], getCardEvalMeta)).toBe("pick-bears");
+        expect(pickFrom(pack, [], getCardEvalMeta)).toBe("pick-bears");
     });
 
     it("throws when the pack is empty (same contract as applyPick's own guard)", () => {
-        expect(() => chooseBotPick([], [], getCardEvalMeta)).toThrow(
+        expect(() => pickFrom([], [], getCardEvalMeta)).toThrow(
             /pack is empty/
         );
     });
@@ -225,7 +317,7 @@ describe("scripted 8-seat all-bot draft — plausibly coherent 2-color pools (PR
         };
     };
     const realBotChoosePick: ChooseBotPick = (seat, pack) =>
-        chooseBotPick(pack, seat.pool ?? [], realGetCardEvalMeta);
+        pickFrom(pack, seat.pool ?? [], realGetCardEvalMeta);
 
     it("every bot seat's finished pool concentrates in (at most) two colors", () => {
         const packSlots = ["lea", "lea", "lea"];
@@ -279,45 +371,160 @@ describe("scripted 8-seat all-bot draft — plausibly coherent 2-color pools (PR
 
 // --- Pick Rating layer (issue #1117, ADR 0054/0055) -------------------------
 
-describe("scoreCandidateWithRating (issue #1117 acceptance: 'scoring layers verified')", () => {
-    it("with a null rating, reproduces scoreCandidate's own value exactly (unrated fallback)", () => {
-        expect(scoreCandidateWithRating(wurm, [], null)).toBe(
-            scoreCandidate(wurm, [])
-        );
-        expect(scoreCandidateWithRating(bears, [bears, wurm], null)).toBe(
-            scoreCandidate(bears, [bears, wurm])
+describe("scoreCandidate's rating layer (issue #1117 acceptance: 'scoring layers verified'; recomposed by ADR 0073)", () => {
+    it("a null rating falls back to the quality heuristic mapped onto the SAME scale", () => {
+        const unrated = termOf(wurm, [], "baseRating");
+        expect(unrated.note).toContain("unrated");
+        // The fallback is a CHAIN, not a sum: a real rating replaces the
+        // heuristic outright (ADR 0073).
+        expect(termOf(wurm, [], "baseRating", 3).value).toBe(3);
+    });
+
+    it("a rated card beats a heuristically-favored lower-rated card (the rating anchors the score)", () => {
+        // Craw Wurm strictly outscores Grizzly Bears on quality alone (bigger
+        // body, same color/rarity, empty pool) — see the "card quality"
+        // describe block above. A low rating on the wurm and a high rating on
+        // the bears must flip that ordering.
+        expect(scoreOf(wurm, [])).toBeGreaterThan(scoreOf(bears, []));
+        expect(scoreOf(bears, [], 5)).toBeGreaterThan(scoreOf(wurm, [], 1));
+    });
+
+    it("a rating gap WIDER THAN THE PICK'S CONTEXTUAL CAP survives any contextual context", () => {
+        // The guarantee the cap actually provides (ADR 0073, refined by the
+        // #1609 review): every candidate's contextual sum is clamped to
+        // `[0, contextCapForPick]`, so context can move two candidates apart by
+        // at most the cap — never `2 × cap`, which is what the old symmetric
+        // `±cap` clamp allowed. A gap wider than the cap is therefore
+        // untouchable; a gap NARROWER than it is legitimately overturnable, and
+        // the sibling test below pins that down.
+        const green: CardEvalMeta = { ...bears, colors: ["G"], manaValue: 2 };
+        const pool = Array(20).fill(green) as CardEvalMeta[];
+        const favouredButBad: CardEvalMeta = {
+            ...bears,
+            colors: ["G"],
+            manaValue: 5,
+        };
+        const disfavouredButGood: CardEvalMeta = { ...bears, colors: ["R"] };
+        // 4 rating points against a pick-21 cap of ~1.45 — comfortably wider.
+        expect(contextCapForPick(pool.length + 1)).toBeLessThan(4);
+        expect(scoreOf(disfavouredButGood, pool, 5)).toBeGreaterThan(
+            scoreOf(favouredButBad, pool, 1)
         );
     });
 
-    it("a rated card beats a heuristically-favored lower-rated card (rating DOMINATES)", () => {
-        // Craw Wurm strictly outscores Grizzly Bears on the heuristic alone
-        // (bigger body, same color/rarity, empty pool) — see the "card
-        // quality" describe block above. A low rating on the wurm and a high
-        // rating on the bears must flip that ordering.
-        const wurmLowRated = scoreCandidateWithRating(wurm, [], 1);
-        const bearsHighRated = scoreCandidateWithRating(bears, [], 5);
-        expect(scoreCandidate(wurm, [])).toBeGreaterThan(
-            scoreCandidate(bears, [])
+    it("a rating gap NARROWER than the pick's cap is overturnable — the cap is the licence, not a veto", () => {
+        // The other half of the same guarantee, and the reviewer's repro
+        // (issue #1609): a deep on-colour pool, a 3.0-rated on-colour 2-drop
+        // against a 4.0-rated off-colour card. The 1-point gap is inside the
+        // pick-41 cap (~1.92), so context IS allowed to overturn it — what the
+        // old clamp got wrong was licensing an overturn of up to 2 × cap.
+        const onColourFiller: CardEvalMeta = {
+            ...bears,
+            colors: ["G"],
+            manaValue: 0,
+        };
+        const pool = Array(40).fill(onColourFiller) as CardEvalMeta[];
+        const cap = contextCapForPick(pool.length + 1);
+        const onColourTwoDrop: CardEvalMeta = {
+            ...bears,
+            colors: ["G"],
+            manaValue: 2,
+        };
+        const offColour: CardEvalMeta = {
+            ...bears,
+            colors: ["R"],
+            manaValue: 0,
+        };
+
+        expect(scoreOf(onColourTwoDrop, pool, 3)).toBeGreaterThan(
+            scoreOf(offColour, pool, 4)
         );
-        expect(bearsHighRated).toBeGreaterThan(wurmLowRated);
+        // ... but only by at most the cap: the off-colour card is not
+        // PENALISED, it simply earns no contextual bonus.
+        expect(scoreOf(offColour, pool, 4)).toBe(4);
+        expect(
+            scoreOf(onColourTwoDrop, pool, 3) - scoreOf(offColour, pool, 4)
+        ).toBeLessThanOrEqual(cap - 1 + 1e-9);
+        // One more rating point (a gap wider than the cap) flips it back.
+        expect(scoreOf(offColour, pool, 5)).toBeGreaterThan(
+            scoreOf(onColourTwoDrop, pool, 3)
+        );
     });
 
-    it("equally-rated cards fall back to the heuristic as the tie-breaker", () => {
-        const wurmRated3 = scoreCandidateWithRating(wurm, [], 3);
-        const bearsRated3 = scoreCandidateWithRating(bears, [], 3);
-        // The rating contribution is identical for both (same rating), so the
-        // ordering — and even the GAP — must match the pure heuristic's.
-        expect(wurmRated3 - bearsRated3).toBeCloseTo(
-            scoreCandidate(wurm, []) - scoreCandidate(bears, []),
-            10
+    it("two equally-rated candidates share their base term, and only context separates them (ADR 0073's fallback chain)", () => {
+        expect(termOf(wurm, [], "baseRating", 3).value).toBe(
+            termOf(bears, [], "baseRating", 3).value
         );
-        expect(wurmRated3).toBeGreaterThan(bearsRated3);
+        // Same rating, same (empty) context, same mana value → an exact tie,
+        // broken downstream by pack position. Raw quality no longer refines a
+        // rated pair; the contextual terms do.
+        expect(scoreOf(wurm, [], 3)).toBe(
+            scoreOf({ ...bears, manaValue: wurm.manaValue }, [], 3)
+        );
+    });
+});
+
+describe("chooseBotPick — the pick number counts the WHOLE Pool (issue #1609 review)", () => {
+    // `chooseBotPick` drops Pool cards the registry can't resolve before
+    // scoring, but an unresolvable card is still a pick the seat made. If the
+    // pick number were derived from the FILTERED Pool, the filter and the
+    // derivation would disagree and the seat would be handed an earlier pick's
+    // (smaller) contextual cap.
+    const mv0 = "mv0";
+    const mv2 = "mv2";
+    const metaTable: Record<string, CardEvalMeta> = {
+        // Colourless, mana value 0: earns NO contextual bonus at all.
+        // Distinct `cardId`s so the rating lookup can tell them apart.
+        [mv0]: { ...hillGiant, colors: [], manaValue: 0 },
+        // Colourless 2-drop into an empty curve: earns the full curve bonus,
+        // which the cap then clamps — so this candidate's score, and only
+        // this candidate's, moves with the pick number.
+        [mv2]: { ...bears, colors: [], manaValue: 2 },
+    };
+    const getCardEvalMeta: GetCardEvalMeta = (id) => metaTable[id] ?? null;
+    const pack: DraftPackCard[] = [mv0, mv2].map((id) => ({
+        scryfallId: id,
+        cardId: id,
+        cardName: id,
+        pickId: `pick-${id}`,
+    }));
+    // A rating gap the FIRST pick's cap cannot close but a late pick's can.
+    const getPickRating: GetPickRating = (cardId) =>
+        cardId === metaTable[mv0].cardId ? 4.9 : 4.5;
+
+    function poolOf(scryfallId: string, n: number): LimitedPoolCard[] {
+        return Array.from({ length: n }, () => ({
+            scryfallId,
+            cardId: scryfallId,
+            cardName: scryfallId,
+        }));
+    }
+
+    it("an EMPTY Pool is pick 1: the tiny first-pick cap can't close a 0.4 rating gap", () => {
+        expect(pickFrom(pack, [], getCardEvalMeta, getPickRating)).toBe(
+            "pick-mv0"
+        );
     });
 
-    it("a rating of exactly PICK_RATING_NEUTRAL (2.5) leaves the heuristic score unchanged", () => {
-        expect(scoreCandidateWithRating(wurm, [], 2.5)).toBe(
-            scoreCandidate(wurm, [])
-        );
+    it("40 UNRESOLVABLE Pool cards still advance the pick number, so the late cap applies", () => {
+        // Every Pool entry resolves to `null`, so the scored `poolMeta` is
+        // empty in BOTH cases and the contextual TERMS are identical — the
+        // only thing that can differ is the cap, i.e. the pick number.
+        const unresolvable = poolOf("not-in-registry", 40);
+        expect(getCardEvalMeta("not-in-registry")).toBeNull();
+        expect(
+            pickFrom(pack, unresolvable, getCardEvalMeta, getPickRating)
+        ).toBe("pick-mv2");
+    });
+
+    it("an explicit options.pickNumber overrides the derivation", () => {
+        expect(
+            chooseBotPick(pack, [], getCardEvalMeta, {
+                packsSeen: [pack],
+                getPickRating,
+                pickNumber: 41,
+            })
+        ).toBe("pick-mv2");
     });
 });
 
@@ -340,7 +547,7 @@ describe("chooseBotPick with the Pick Rating layer (issue #1117)", () => {
             packCard("wurm", "pick-wurm"),
         ];
         // Without ratings, the heuristic alone prefers the wurm (bigger body).
-        expect(chooseBotPick(pack, [], getCardEvalMeta)).toBe("pick-wurm");
+        expect(pickFrom(pack, [], getCardEvalMeta)).toBe("pick-wurm");
 
         // With bears rated a 5 (and wurm unrated), the rating dominates.
         // `getPickRating` is keyed on the candidate's CANONICAL `cardId`
@@ -348,7 +555,7 @@ describe("chooseBotPick with the Pick Rating layer (issue #1117)", () => {
         // fixture carries the real Grizzly Bears definition id.
         const getPickRating: GetPickRating = (cardId) =>
             cardId === bears.cardId ? 5 : null;
-        expect(chooseBotPick(pack, [], getCardEvalMeta, getPickRating)).toBe(
+        expect(pickFrom(pack, [], getCardEvalMeta, getPickRating)).toBe(
             "pick-bears"
         );
     });
@@ -360,8 +567,8 @@ describe("chooseBotPick with the Pick Rating layer (issue #1117)", () => {
             packCard("giant", "pick-giant"),
         ];
         const getPickRating: GetPickRating = () => null; // nothing rated
-        expect(chooseBotPick(pack, [], getCardEvalMeta, getPickRating)).toBe(
-            chooseBotPick(pack, [], getCardEvalMeta)
+        expect(pickFrom(pack, [], getCardEvalMeta, getPickRating)).toBe(
+            pickFrom(pack, [], getCardEvalMeta)
         );
     });
 
@@ -370,12 +577,12 @@ describe("chooseBotPick with the Pick Rating layer (issue #1117)", () => {
             packCard("bears", "pick-bears"),
             packCard("wurm", "pick-wurm"),
         ];
-        const withoutRatingArg = chooseBotPick(pack, [], getCardEvalMeta);
+        const withoutRatingArg = pickFrom(pack, [], getCardEvalMeta);
         // These synthetic ids ("bears"/"wurm") are not real LEA card ids, so
         // the REAL production `getPickRatingByCardId` (which only rates real
         // checked-in cardIds) returns null for all of them — exactly the "no
         // ratings file for this set" case.
-        const withRealLookup = chooseBotPick(
+        const withRealLookup = pickFrom(
             pack,
             [],
             getCardEvalMeta,
@@ -408,21 +615,20 @@ describe("scripted all-bot LEA draft — bots take obvious bombs first-pick (iss
         };
     };
     const realBotChoosePickRated: ChooseBotPick = (seat, pack) =>
-        chooseBotPick(
+        pickFrom(
             pack,
             seat.pool ?? [],
             realGetCardEvalMeta,
             getPickRatingByCardId
         );
 
-    // A rating this close to `PICK_RATING_MAX` (5.0) is far enough from
-    // `PICK_RATING_NEUTRAL` (2.5) that `PICK_RATING_DOMINANCE_WEIGHT`
-    // guarantees it beats ANY realistic Pick Heuristic value underneath it
-    // (the heuristic's own spread tops out in the low hundreds — see
-    // `scoreCandidate`'s doc comment) — the "obvious bomb" bar. A MID-tier
-    // rating (e.g. 2.0-3.0, "solid playable") is deliberately NOT asserted
-    // here: it nudges the heuristic rather than overriding it, so it can
-    // still lose to an unrated card the heuristic loves — exactly the
+    // A rating this close to `PICK_RATING_MAX` (5.0) sits above anything the
+    // quality fallback can reach for an UNRATED LEA card (`heuristicAsRating`
+    // tops out near 4.0 on this set's biggest body) plus the FIRST pick's
+    // contextual cap (~0.3 rating points, ADR 0073) — the "obvious bomb" bar.
+    // A MID-tier rating (e.g. 2.0-3.0, "solid playable") is deliberately NOT
+    // asserted here: it nudges the heuristic rather than overriding it, so it
+    // can still lose to an unrated card the heuristic loves — exactly the
     // "ratings REFINE, never GATE" design (ADR 0054/0055), not a bug.
     const OBVIOUS_BOMB_THRESHOLD = 4.5;
 
@@ -461,7 +667,7 @@ describe("scripted all-bot LEA draft — bots take obvious bombs first-pick (iss
             // loudly here instead of silently passing a vacuous check.
             expect(bombs).toHaveLength(1);
             sawAtLeastOneObviousBomb = true;
-            const picked = realBotChoosePickRated(seat, pack);
+            const picked = realBotChoosePickRated(seat, pack, [pack]);
             expect(picked).toBe(bombs[0].pickId);
         }
 
@@ -487,7 +693,9 @@ describe("scripted all-bot LEA draft — bots take obvious bombs first-pick (iss
                 resolveCardMeta
             );
             return dealt.seats.map((seat) =>
-                realBotChoosePickRated(seat, seat.currentPack!)
+                realBotChoosePickRated(seat, seat.currentPack!, [
+                    seat.currentPack!,
+                ])
             );
         }
 
