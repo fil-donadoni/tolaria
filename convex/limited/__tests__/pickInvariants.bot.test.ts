@@ -1,4 +1,6 @@
-// Pick Invariants (PRD #1607, ADR 0073, issue #1609) — the FIRST batch.
+// Pick Invariants (PRD #1607, ADR 0073, issues #1609/#1610) — the FIRST
+// batch, extended with the pip-weighted Colour Commitment / Castability /
+// Fixing Value terms (issue #1610).
 //
 // A gameplay move has a ground truth: a move that loses by force of rules is
 // wrong. A DRAFT PICK has none — every pick is defensible — so a test asserting
@@ -16,9 +18,15 @@
 //     candidates rather than each candidate's own sum (issue #1609 review)
 //   * a rating gap wider than the pick's cap is never overturned by context
 //   * `packsSeen` is unread, so supplying it may not change any pick
+//   * a mana source is worth more Fixing Value to a Pool short of a colour
+//     than to one already served in it (issue #1610)
+//   * a candidate the Pool cannot cast may not outscore an otherwise
+//     identical castable one (issue #1610)
+//   * a mana source raises Colour Commitment strictly less than a
+//     double-pipped spell of the same colour (issue #1610)
 //
 // Every one of these holds for ANY positive weighting: retuning
-// `COLOUR_COMMIT_RATING_PER_CARD`, the curve weight, the cap endpoints or the
+// `COLOUR_COMMIT_RATING_PER_UNIT`, the curve weight, the cap endpoints or the
 // cap's exponent must never redden one. Only a BROKEN model does — an inverted
 // term, a term not reading the Pool it claims to, a cap that shrinks as the
 // deck grows, a "provenance" naming cards that are not in the Pool.
@@ -29,8 +37,11 @@
 // revert — never an automatic weight fix.
 import { describe, it, expect } from "vitest";
 import { getCardByName } from "../../cards";
-import { getCardColorIdentity } from "../../cards/colors";
-import { manaValue } from "../../gre/constants";
+import { getCardColorIdentity, getPipCountsFromCost } from "../../cards/colors";
+import {
+    getDefinitionProducibleColors,
+    manaValue,
+} from "../../gre/constants";
 import {
     CONTEXT_CAP_FIRST_PICK,
     CONTEXT_CAP_LAST_PICK,
@@ -57,20 +68,49 @@ function metaOf(name: string, over: Partial<CardEvalMeta> = {}): CardEvalMeta {
         colors: getCardColorIdentity(def),
         manaValue: manaValue(def.manaCost),
         rarity: def.rarity,
+        pips: getPipCountsFromCost(def.manaCost),
+        producedColors: [...getDefinitionProducibleColors(def)],
         ...over,
     };
 }
 
 /** Green 2-drop / green 5-drop / red 3-drop reference cards. Real registry
  *  cards (so the quality fallback resolves), with the field under test
- *  overridden — the same isolation discipline `botDrafter.bot.test.ts` uses. */
+ *  overridden — the same isolation discipline `botDrafter.bot.test.ts` uses.
+ *  Craw Wurm's REAL cost is `{4}{G}{G}` — its `pips` is `{ G: 2 }` by
+ *  default, a genuine double-pipped spell the Colour Commitment tests below
+ *  lean on. */
 const greenTwoDrop = metaOf("Grizzly Bears", { colors: ["G"], manaValue: 2 });
 const greenFiveDrop = metaOf("Craw Wurm", { colors: ["G"], manaValue: 5 });
 const redThreeDrop = metaOf("Hill Giant", { colors: ["R"], manaValue: 3 });
 /** Curve-neutral filler (mana value 0), so adding it to a Pool moves the
- *  colour signal WITHOUT touching the curve signal. */
+ *  colour signal WITHOUT touching the curve signal. Pips are left at the
+ *  underlying card's real value (`{G:1}` / `{R:1}`) — still a genuine
+ *  on-colour SPELL for Colour Commitment purposes. */
 const greenFiller = metaOf("Grizzly Bears", { colors: ["G"], manaValue: 0 });
 const redFiller = metaOf("Hill Giant", { colors: ["R"], manaValue: 0 });
+/** A same-cardId blue filler (Colour Commitment / Fixing Value tests need a
+ *  third colour alongside green/red). */
+const blueFiller = metaOf("Grizzly Bears", {
+    colors: ["U"],
+    manaValue: 0,
+    pips: { U: 1 },
+});
+
+/** Pure MANA SOURCES (ADR 0073, issue #1610): `pips: {}` — a candidate scores
+ *  0 Colour Commitment for picking one of these (it has no coloured pip
+ *  requirement of its own) — but `producedColors` is non-empty, which is
+ *  exactly what Castability / Fixing Value read. Real registry lands, so
+ *  `producedColors` comes from `getDefinitionProducibleColors` exactly
+ *  the way `convex/limitedEvents.ts` computes it in production. */
+const forest = metaOf("Forest");
+const mountain = metaOf("Mountain");
+const island = metaOf("Island");
+/** The PRD's own worked Fixing Value example (ADR 0073): "a Temur pool heavy
+ *  in {R} pips and short on red sources values Volcanic Island over Tropical
+ *  Island though both are on-colour duals." */
+const volcanicIsland = metaOf("Volcanic Island");
+const tropicalIsland = metaOf("Tropical Island");
 
 function termValue(
     trace: PickCandidateTrace,
@@ -122,20 +162,22 @@ describe("Pick Invariant — the score IS its breakdown (ADR 0073)", () => {
         // answering the question it exists to answer. A non-negative sum makes
         // the cap the bound on the differential — see the invariant below.
         for (const depth of POOL_DEPTHS) {
-            // A mixed Pool so both contextual terms are genuinely non-zero,
+            // A mixed Pool so every contextual term is genuinely non-zero,
             // and candidates on-colour, off-colour and colourless so the
             // no-fit cases are covered too.
             const pool = [
                 ...Array(depth).fill(greenTwoDrop),
                 ...Array(depth).fill(redFiller),
+                ...Array(Math.min(depth, 3)).fill(mountain),
             ] as CardEvalMeta[];
             for (const candidate of [
                 greenTwoDrop,
                 greenFiveDrop,
                 redThreeDrop,
-                { ...greenTwoDrop, colors: [] as CardEvalMeta["colors"] },
-                { ...greenTwoDrop, colors: ["W"] as CardEvalMeta["colors"] },
-            ]) {
+                volcanicIsland,
+                { ...greenTwoDrop, colors: [], pips: {}, producedColors: [] },
+                { ...greenTwoDrop, colors: ["W"], pips: { W: 1 } },
+            ] as CardEvalMeta[]) {
                 const trace = scoreCandidate(candidate, pool, 3);
                 const contextual = trace.terms
                     .filter((t) => isContextualTerm(t.term))
@@ -186,9 +228,9 @@ describe("Pick Invariant — the score IS its breakdown (ADR 0073)", () => {
     });
 
     it("a term's provenance only ever names cards that are actually in the Pool", () => {
-        const pool = [greenTwoDrop, greenFiller, redFiller];
+        const pool = [greenTwoDrop, greenFiller, redFiller, mountain];
         const poolIds = new Set(pool.map((c) => c.cardId));
-        for (const candidate of [greenTwoDrop, redThreeDrop]) {
+        for (const candidate of [greenTwoDrop, redThreeDrop, volcanicIsland]) {
             for (const term of scoreCandidate(candidate, pool, null).terms) {
                 for (const source of term.sources) {
                     expect(poolIds.has(source.cardId)).toBe(true);
@@ -199,7 +241,15 @@ describe("Pick Invariant — the score IS its breakdown (ADR 0073)", () => {
     });
 
     it("a non-zero contextual term always names at least one responsible Pool card", () => {
-        const pool = Array(6).fill(greenTwoDrop) as CardEvalMeta[];
+        // Castability's "no coloured pips — trivially castable" branch is a
+        // deliberate exception: that bonus is a property of the CANDIDATE
+        // (nothing to pay for), not of any specific Pool card, so it is
+        // exercised separately (`castability responds in the right
+        // direction` below) rather than folded into this general sweep.
+        const pool = [
+            ...(Array(6).fill(greenTwoDrop) as CardEvalMeta[]),
+            mountain,
+        ];
         const trace = scoreCandidate(greenTwoDrop, pool, null);
         for (const term of trace.terms.filter((t) =>
             isContextualTerm(t.term)
@@ -262,7 +312,13 @@ describe("Pick Invariant — the cap bounds the DIFFERENTIAL (ADR 0073, issue #1
         { ...greenTwoDrop, manaValue: 3 },
         { ...redThreeDrop, manaValue: 5 },
         { ...redThreeDrop, manaValue: 3 },
-        { ...greenTwoDrop, colors: [], manaValue: 5 },
+        {
+            ...greenTwoDrop,
+            colors: [],
+            pips: {},
+            producedColors: [],
+            manaValue: 5,
+        },
     ];
     const RATINGS = [PICK_RATING_MIN, 1.5, 2.5, 3.5, PICK_RATING_MAX];
 
@@ -379,11 +435,55 @@ describe("Pick Invariant — colour commitment responds in the right direction",
                 "colourCommitment"
             );
             const offColour = termValue(
-                scoreCandidate({ ...greenTwoDrop, colors: ["R"] }, pool, 3),
+                scoreCandidate(
+                    { ...greenTwoDrop, colors: ["R"], pips: { R: 1 } },
+                    pool,
+                    3
+                ),
                 "colourCommitment"
             );
             expect(onColour).toBeGreaterThanOrEqual(offColour - 1e-12);
         }
+    });
+
+    it("a candidate with no coloured pips (a land / mana source) may never RAISE its own colour term", () => {
+        // Volcanic Island produces {U}/{R} but has NO coloured pips of its
+        // own (`pips: {}`) — taking it must not marry the seat to a colour
+        // by THIS term (ADR 0073, PRD #1607: "the classic way these bots
+        // derail"). Fixing Value is where its worth as a SOURCE is scored.
+        for (const depth of POOL_DEPTHS) {
+            const pool = Array(depth).fill(redFiller) as CardEvalMeta[];
+            expect(
+                termValue(
+                    scoreCandidate(volcanicIsland, pool, 3),
+                    "colourCommitment"
+                )
+            ).toBe(0);
+        }
+    });
+
+    it("a Pool MANA SOURCE raises a same-colour candidate's Commitment term strictly LESS than a double-pipped spell of that colour does", () => {
+        // The load-bearing half of "mana sources contribute at a lower
+        // weight than spells" (ADR 0073, issue #1610): a dual land FOLLOWS
+        // commitment, it never CREATES it. Holds for ANY positive per-unit
+        // weighting as long as a mana source's per-colour contribution stays
+        // below a single pip's — the design constraint the constants encode,
+        // not a specific tuned number.
+        const doubleRedPipSpell: CardEvalMeta = {
+            ...redThreeDrop,
+            pips: { R: 2 },
+            producedColors: [],
+        };
+        const basePool = Array(5).fill(greenFiller) as CardEvalMeta[];
+        const afterSource = termValue(
+            scoreCandidate(redThreeDrop, [...basePool, mountain], 3),
+            "colourCommitment"
+        );
+        const afterSpell = termValue(
+            scoreCandidate(redThreeDrop, [...basePool, doubleRedPipSpell], 3),
+            "colourCommitment"
+        );
+        expect(afterSource).toBeLessThan(afterSpell);
     });
 });
 
@@ -441,6 +541,204 @@ describe("Pick Invariant — curve fit responds in the right direction", () => {
             termValue(scoreCandidate(greenFiveDrop, pool, 3), "curveFit") +
                 1e-12
         );
+    });
+});
+
+describe("Pick Invariant — castability responds in the right direction (ADR 0073, issue #1610)", () => {
+    it("adding a mana SOURCE of the candidate's colour may not LOWER its Castability term", () => {
+        let pool: CardEvalMeta[] = [];
+        let previous = termValue(
+            scoreCandidate(redThreeDrop, pool, 3),
+            "castability"
+        );
+        for (let i = 0; i < 5; i++) {
+            pool = [...pool, mountain];
+            const next = termValue(
+                scoreCandidate(redThreeDrop, pool, 3),
+                "castability"
+            );
+            expect(next).toBeGreaterThanOrEqual(previous - 1e-12);
+            previous = next;
+        }
+    });
+
+    it("adding a mana source of a DIFFERENT colour may not RAISE the candidate's Castability term", () => {
+        let pool: CardEvalMeta[] = [mountain, mountain, mountain];
+        const before = termValue(
+            scoreCandidate(redThreeDrop, pool, 3),
+            "castability"
+        );
+        pool = [...pool, forest, forest, forest];
+        const after = termValue(
+            scoreCandidate(redThreeDrop, pool, 3),
+            "castability"
+        );
+        expect(after).toBeLessThanOrEqual(before + 1e-12);
+    });
+
+    it("a candidate whose colour the Pool cannot source scores LOWER Castability than an otherwise identical candidate whose colour the Pool CAN source", () => {
+        const pool = [forest, forest]; // 2 green sources, 0 red sources
+        const sourced = { ...greenTwoDrop, pips: { G: 1 } };
+        const unsourced = { ...redThreeDrop, pips: { R: 1 } };
+        const sourcedCastability = termValue(
+            scoreCandidate(sourced, pool, 3),
+            "castability"
+        );
+        const unsourcedCastability = termValue(
+            scoreCandidate(unsourced, pool, 3),
+            "castability"
+        );
+        expect(sourcedCastability).toBeGreaterThan(unsourcedCastability);
+    });
+
+    it("a candidate with no coloured pips always maxes Castability, regardless of the Pool's sources", () => {
+        // ADR 0073's refinement note: the non-negative clamp made
+        // `colourCommitment` alone unable to tell a colourless card apart
+        // from an actively off-colour one (both score 0 there) —
+        // Castability is where that distinction now lives.
+        const colourless: CardEvalMeta = {
+            ...greenTwoDrop,
+            colors: [],
+            pips: {},
+            producedColors: [],
+        };
+        for (const pool of [
+            [] as CardEvalMeta[],
+            [forest],
+            [mountain, mountain, mountain],
+        ]) {
+            const colourlessCastability = termValue(
+                scoreCandidate(colourless, pool, 3),
+                "castability"
+            );
+            const offColour = termValue(
+                scoreCandidate({ ...redThreeDrop, pips: { R: 1 } }, pool, 3),
+                "castability"
+            );
+            expect(colourlessCastability).toBeGreaterThanOrEqual(offColour);
+        }
+    });
+
+    it("a candidate the Pool cannot cast may not outscore an otherwise identical castable one", () => {
+        // Same pip demand, same base rating, curve-neutral (manaValue 0) —
+        // the ONLY thing that differs is which colour the Pool can source.
+        const pool: CardEvalMeta[] = [
+            ...Array(4).fill(blueFiller), // U pip demand, kept equal for both colours below
+            ...Array(4).fill({ ...blueFiller, colors: ["B"], pips: { B: 1 } }), // B pip demand, matched to U
+            ...Array(3).fill(island), // sources for U only — none for B
+        ];
+        const castableU: CardEvalMeta = {
+            ...greenTwoDrop,
+            colors: ["U"],
+            pips: { U: 1 },
+            producedColors: [],
+            manaValue: 0,
+        };
+        const uncastableB: CardEvalMeta = {
+            ...greenTwoDrop,
+            colors: ["B"],
+            pips: { B: 1 },
+            producedColors: [],
+            manaValue: 0,
+        };
+        const castableScore = scoreCandidate(castableU, pool, 3).score;
+        const uncastableScore = scoreCandidate(uncastableB, pool, 3).score;
+        expect(uncastableScore).toBeLessThanOrEqual(castableScore);
+    });
+});
+
+describe("Pick Invariant — fixing value responds in the right direction (ADR 0073, issue #1610)", () => {
+    it("a mana source scores 0 Fixing Value when the Pool has no pip demand for any colour it produces", () => {
+        for (const pool of [
+            [] as CardEvalMeta[],
+            [forest, forest],
+            Array(5).fill(greenFiller) as CardEvalMeta[],
+        ]) {
+            // Volcanic Island produces {U}/{R} — an all-green Pool has zero
+            // demand for either, so there is nothing to relieve.
+            expect(
+                termValue(
+                    scoreCandidate(volcanicIsland, pool, null),
+                    "fixingValue"
+                )
+            ).toBe(0);
+        }
+    });
+
+    it("a source is worth strictly MORE Fixing Value to a Pool SHORT of that colour than to one already SERVED (ADR 0073 acceptance)", () => {
+        const demand = Array(6).fill(redFiller) as CardEvalMeta[]; // 6 R pips demand
+        const poolShort = [...demand]; // 0 existing red sources
+        const poolServed = [...demand, ...Array(6).fill(mountain)]; // demand fully sourced already
+        const short = termValue(
+            scoreCandidate(mountain, poolShort, null),
+            "fixingValue"
+        );
+        const served = termValue(
+            scoreCandidate(mountain, poolServed, null),
+            "fixingValue"
+        );
+        expect(short).toBeGreaterThan(served);
+    });
+
+    it("a 12-pip-red Pool never values a red source below a 2-pip-red Pool (ADR 0073 acceptance)", () => {
+        const pool12 = Array(12).fill(redFiller) as CardEvalMeta[];
+        const pool2 = Array(2).fill(redFiller) as CardEvalMeta[];
+        const value12 = termValue(
+            scoreCandidate(mountain, pool12, null),
+            "fixingValue"
+        );
+        const value2 = termValue(
+            scoreCandidate(mountain, pool2, null),
+            "fixingValue"
+        );
+        expect(value12).toBeGreaterThanOrEqual(value2);
+    });
+
+    it("increasing the Pool's existing sources of a colour never RAISES a new source's Fixing Value for that colour", () => {
+        const demand = Array(9).fill(redFiller) as CardEvalMeta[]; // fixed R pip demand
+        let previous = termValue(
+            scoreCandidate(mountain, demand, null),
+            "fixingValue"
+        );
+        let pool = [...demand];
+        for (let i = 0; i < 4; i++) {
+            pool = [...pool, mountain];
+            const next = termValue(
+                scoreCandidate(mountain, pool, null),
+                "fixingValue"
+            );
+            expect(next).toBeLessThanOrEqual(previous + 1e-12);
+            previous = next;
+        }
+    });
+
+    it("Fixing Value favours the colour actually SHORT: a Temur Pool heavy in {R} pips and thin on red sources values Volcanic Island over Tropical Island (PRD #1607 worked example)", () => {
+        // 9 {R} pips, 1 red source (the PRD's own numbers) — U and G demand
+        // fully covered by existing sources, so their deficits are zero and
+        // only the red deficit separates the two duals.
+        const temurPool: CardEvalMeta[] = [
+            ...(Array(9).fill(redFiller) as CardEvalMeta[]), // 9 R pips demand
+            mountain, // 1 red source
+            ...(Array(2).fill(blueFiller) as CardEvalMeta[]), // 2 U pips demand
+            island,
+            island, // 2 U sources — fully covers demand
+            greenFiller, // 1 G pip demand
+            forest, // 1 G source — fully covers demand
+        ];
+        const volcanicFixing = termValue(
+            scoreCandidate(volcanicIsland, temurPool, null),
+            "fixingValue"
+        );
+        const tropicalFixing = termValue(
+            scoreCandidate(tropicalIsland, temurPool, null),
+            "fixingValue"
+        );
+        expect(volcanicFixing).toBeGreaterThan(tropicalFixing);
+        // Rejected alternative check (ADR 0073's "Considered Options"):
+        // commitment-driven fixing would reward the colour ALREADY served —
+        // U here, served equally by both duals — never distinguishing them
+        // the way the deficit-driven formula does.
+        expect(tropicalFixing).toBe(0);
     });
 });
 

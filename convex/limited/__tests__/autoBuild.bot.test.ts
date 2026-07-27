@@ -12,8 +12,11 @@ import {
     resolveDeckCardMeta,
     tryGetDefinition,
 } from "../../cards";
-import { getCardColorIdentity } from "../../cards/colors";
-import { manaValue } from "../../gre/constants";
+import { getCardColorIdentity, getPipCountsFromCost } from "../../cards/colors";
+import {
+    getDefinitionProducibleColors,
+    manaValue,
+} from "../../gre/constants";
 import { makeRng } from "../../gre/rng";
 import { validateDeck, type Pool, type ResolvePool } from "../../formats";
 import {
@@ -62,6 +65,8 @@ const getCardEvalMeta: GetCardEvalMeta = (scryfallId) => {
         colors: getCardColorIdentity(def),
         manaValue: manaValue(def.manaCost),
         rarity: meta.rarity,
+        pips: getPipCountsFromCost(def.manaCost),
+        producedColors: [...getDefinitionProducibleColors(def)],
     };
 };
 
