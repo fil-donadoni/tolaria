@@ -3008,6 +3008,16 @@ export const challengeLimitedSeat = mutation({
         // Challenger owns the seat they claim (same gate `userDecks.create`
         // uses — one seat-ownership authority, keyed off the AUTHENTICATED id).
         assertLimitedSeatOwnership(event, args.deck.limitedSeatId, user._id);
+        if (!event) throw new Error("Limited Event not found.");
+        // A PHASE question, never a status literal (ADR 0076 decision 1):
+        // free challenges are withdrawn while the event's Swiss rounds are
+        // running (PRD #1628 story 36, issue #1648) — the round pairing is
+        // the only Match a seat plays. Rejected server-side, not merely
+        // hidden by the panel (`startPairingMatch` uses the identical gate).
+        if (areRoundsRunning(event.status))
+            throw new Error(
+                "Free challenges are off while this event's rounds are running."
+            );
         const challengerSeatIndex = Number(args.deck.limitedSeatId);
         // Target must be a seated human opponent (not a bot, not empty, not
         // self). `event` non-null past `assertLimitedSeatOwnership`.
@@ -3343,8 +3353,21 @@ export const createSoloGame = mutation({
         // An event binding is only legitimate when seat 1's deck IS that
         // event's deck — the ownership of that seat is re-checked below by
         // `loadLimitedPoolResolver`/`assertLimitedSeatOwnership`.
-        if (args.limitedEventId)
+        if (args.limitedEventId) {
             assertSameEventDeck(args.deck.limitedEventId, args.limitedEventId);
+            const limitedEvent = await ctx.db.get(args.limitedEventId);
+            if (!limitedEvent) throw new Error("Limited Event not found.");
+            // A PHASE question, never a status literal (ADR 0076 decision 1):
+            // an event-bound "Play vs the Table" playtest is withdrawn while
+            // the event's Swiss rounds are running (PRD #1628 story 36, issue
+            // #1648) — the round pairing is the only Match a seat plays.
+            // Rejected server-side, not merely hidden by the panel
+            // (`startPairingMatch`/`challengeLimitedSeat` use the same gate).
+            if (areRoundsRunning(limitedEvent.status))
+                throw new Error(
+                    "Play vs Bots is off while this event's rounds are running."
+                );
+        }
         const deck2 = args.deck2 ?? args.deck;
         // Authoritative deck legality gate (ADR 0036): both seats' decks must be
         // legal before the solo/vs-AI Match starts. Each deck's own DB banlist
@@ -3507,6 +3530,31 @@ export const joinGame = mutation({
                 args.deck.limitedEventId,
                 game.limitedEventId ?? ""
             );
+            // A PHASE question, never a status literal (ADR 0076 decision 1):
+            // free challenges are withdrawn while the event's Swiss rounds are
+            // running (PRD #1628 story 36, issue #1648) — the round pairing is
+            // the only Match a seat plays. `challengeLimitedSeat` already
+            // rejects CREATING a free challenge once rounds are running, but a
+            // free challenge sent during deckbuild is still a `waiting` row
+            // when the phase flips to `playing` (nothing cancels it —
+            // `openPlayPhaseIfReady` only patches status/rounds), so the ACCEPT
+            // side needs the identical gate or the challenged seat can still
+            // join it, landing both players in a live event-bound Match
+            // outside the pairing and burning the single-active-Match slot the
+            // pairing needs. A round pairing Match carries BOTH
+            // `limitedChallenge` AND `limitedPairing` (`startPairingMatch`) —
+            // that accept path must stay open even while rounds run, since it
+            // IS the round, so the gate applies only to a "free" challenge
+            // Game (no `limitedPairing`).
+            if (!game.limitedPairing && game.limitedEventId) {
+                const event = await ctx.db.get(
+                    game.limitedEventId as Id<"limitedEvents">
+                );
+                if (event && areRoundsRunning(event.status))
+                    throw new Error(
+                        "Free challenges are off while this event's rounds are running."
+                    );
+            }
         }
         // A round pairing Match (issue #1645) is an appointment between two
         // SEATS: the accepting player must sit down with the deck of the seat

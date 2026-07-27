@@ -285,9 +285,20 @@ export default function LimitedEventDetail({
                     supposed to play, and a free Match would burn the
                     single-active-Match slot their pairing needs. They come
                     back once the event has concluded, as unrecorded
-                    playtesting. */}
+                    playtesting (issue #1648) — the banner below is what
+                    actually tells the player that, so a post-event friendly
+                    game is never mistaken for a standings result. The server
+                    backs this up independently: `challengeLimitedSeat` and
+                    `createSoloGame`'s event binding both reject while
+                    `areRoundsRunning(event.status)` (`convex/game.ts`). */}
                 {isPoolFinal && viewerSeat && !showRoundPanel && (
                     <>
+                        {isEventConcluded(event.status) && (
+                            <Banner tone="info" className="mb-2">
+                                Event finished — matches below are unrecorded
+                                playtesting and do not count toward standings.
+                            </Banner>
+                        )}
                         <LimitedChallengePanel
                             eventId={eventId}
                             event={event}
