@@ -69,6 +69,32 @@ registerTokenDefinition({
     },
 });
 
+// A front face whose back face declares its own `imagePrintId` (issue #1595
+// — the Incubator/Phyrexian token shape, where BOTH faces pin the SAME real
+// double-faced Scryfall print id). Regression coverage for the front/back
+// image-face selection: the synthesized back-face definition must carry
+// `imagePrintFace: "back"` so `src/lib/images.ts` renders the correct CDN
+// path segment instead of always `front/`.
+const IMAGE_FACE_FRONT_ID = "test-transform-image-face-front";
+const IMAGE_FACE_PRINT_ID = "11111111-2222-3333-4444-555555555555";
+registerTokenDefinition({
+    id: IMAGE_FACE_FRONT_ID,
+    name: "Test Incubator Image",
+    rarity: "common",
+    manaCost: {},
+    types: ["Artifact"],
+    imagePrintId: IMAGE_FACE_PRINT_ID,
+    backFace: {
+        name: "Test Construct Image",
+        types: ["Artifact", "Creature"],
+        subtypes: ["Construct"],
+        power: 0,
+        toughness: 0,
+        staticAbilities: [],
+        imagePrintId: IMAGE_FACE_PRINT_ID,
+    },
+});
+
 describe("transformPermanent (CR 712, ADR 0067)", () => {
     it("swaps to the back face in place — types/subtypes/P-T/abilities and card.card.id", () => {
         const card = makeInstance(FRONT_ID, {
@@ -202,6 +228,27 @@ describe("transformPermanent (CR 712, ADR 0067)", () => {
         // `manaCost: {}` on the synthesized definition would make this
         // return `[]` instead of `["B"]`.
         expect(getCardColors(backDef!)).toEqual(["B"]);
+    });
+
+    it('stamps `imagePrintFace: "back"` on the synthesized back-face definition (issue #1595)', () => {
+        const card = makeInstance(IMAGE_FACE_FRONT_ID, {
+            id: "t9",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        transformPermanent(card);
+        const backId = (card.card as { id: string }).id;
+        const backDef = tryGetDefinition(backId);
+        expect(backDef).not.toBeNull();
+        expect(backDef!.imagePrintId).toBe(IMAGE_FACE_PRINT_ID);
+        expect(backDef!.imagePrintFace).toBe("back");
+
+        // Flipping back to front restores the FRONT definition, which was
+        // never passed through `registerBackFaceDefinition` — it carries no
+        // `imagePrintFace` and so resolves to the default "front".
+        transformPermanent(card);
+        const frontDef = tryGetDefinition((card.card as { id: string }).id);
+        expect(frontDef!.imagePrintFace).toBeUndefined();
     });
 });
 

@@ -19,10 +19,10 @@
 // lockfile's entry name is the concatenated DFC name "Incubator //
 // Phyrexian", not this spec's own front-face name "Incubator"
 // (`tokenPrintIdFor` name-matches exactly, so the auto-resolve path would
-// miss). tracked-by: #1595 — the back face renders the FRONT face's art
-// until the image pipeline gains front/back selection for a transformed
-// permanent (not blocking: the permanent still renders with valid, if not
-// face-accurate, art).
+// miss). Once transformed, the back face renders the correct BACK-face art:
+// `registerBackFaceDefinition` (`gre/transform.ts`) stamps the synthesized
+// Phyrexian definition `imagePrintFace: "back"`, and `src/lib/images.ts`
+// routes every render call site through it (issue #1595, closed).
 import type {
     EffectOp,
     EffectPlayerRef,

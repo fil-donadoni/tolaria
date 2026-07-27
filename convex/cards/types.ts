@@ -1250,6 +1250,17 @@ export interface DynamicMayPayManaCost {
 
 // --- Transform / double-faced permanents (CR 712, issue #1210, ADR 0067) ---
 
+/** Which face's URL segment `src/lib/images.ts` requests from Scryfall's
+ *  per-face CDN routing (`https://cards.scryfall.io/<variant>/<face>/...`) —
+ *  `"front"` (the default for every non-transformed card) or `"back"`. Only
+ *  meaningful paired with a `CardDefinition.imagePrintId`: a REAL double-faced
+ *  Scryfall print exposes ONE scryfall id shared by two `card_faces`, each
+ *  served under its own `front/`/`back/` path (issue #1595). Set to `"back"`
+ *  only on the synthesized `CardDefinition` `registerBackFaceDefinition`
+ *  (`gre/transform.ts`) builds for a transformed permanent's back face — never
+ *  authored directly on a card/token spec. */
+export type CardImageFace = "front" | "back";
+
 /** The BACK face of a double-faced permanent (CR 712) — a printed
  *  characteristic set entirely distinct from the front, unlike face-down
  *  morph (CR 707.4, `CardInstanceState.faceDown`), which hides a single REAL
@@ -10495,6 +10506,14 @@ export interface CardDefinition {
      *  defs and for tokens with no printed art (the placeholder renderer
      *  takes over in that case). */
     imagePrintId?: string;
+    /** Which face of `imagePrintId`'s Scryfall print to render (issue #1595).
+     *  Undefined (front, the default) for every ordinary def; set to
+     *  `"back"` only by `registerBackFaceDefinition` (`gre/transform.ts`) on
+     *  the synthesized `CardDefinition` it registers for a permanent's back
+     *  face, so `resolveCardImageFace` (`src/lib/images.ts`) picks it up the
+     *  moment a `transformPermanent` swap points `card.card.id` at it. See
+     *  {@link CardImageFace}. */
+    imagePrintFace?: CardImageFace;
 }
 
 /** Reprint of an existing `CardDefinition` in another set. The mechanics are

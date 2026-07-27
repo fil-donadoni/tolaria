@@ -3,6 +3,7 @@ import {
     getArtCropImageUrl,
     getArtImageUrl,
     getPrintedCardImageUrl,
+    resolveCardImageFace,
     resolveCardImageId,
 } from "~/lib/images";
 import {
@@ -155,9 +156,15 @@ export function buildPreviewBody(
         bodyAbilities.triggered.length > 0;
     const displayName = def?.name ?? fallbackName ?? defId;
     const imageId = resolveCardImageId(defId);
-    const imageSrc = imageId ? getArtImageUrl(imageId) : null;
-    const imageFallbackSrc = imageId ? getArtCropImageUrl(imageId) : null;
-    const printedImageSrc = imageId ? getPrintedCardImageUrl(imageId) : null;
+    // A transformed permanent's `defId` is the registered back-face
+    // definition (CR 712); resolve its rendered CDN face (issue #1595) so the
+    // hover/zoom preview matches the board art.
+    const face = resolveCardImageFace(defId);
+    const imageSrc = imageId ? getArtImageUrl(imageId, face) : null;
+    const imageFallbackSrc = imageId ? getArtCropImageUrl(imageId, face) : null;
+    const printedImageSrc = imageId
+        ? getPrintedCardImageUrl(imageId, face)
+        : null;
     const showOwner =
         !!cardInstance &&
         !!gameCtx &&

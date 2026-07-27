@@ -2,6 +2,7 @@ import { tryGetDefinition } from "@convex/cards";
 import {
     ART_CROP_RATIO,
     getArtCropImageUrl,
+    resolveCardImageFace,
     resolveCardImageId,
 } from "~/lib/images";
 import { formatOracleText } from "~/lib/oracle-text";
@@ -21,7 +22,12 @@ export default function StackAbilityTile({
     const def = tryGetDefinition(cardId);
     const name = def?.name ?? cardId;
     const imageId = resolveCardImageId(cardId);
-    const imageSrc = imageId ? getArtCropImageUrl(imageId) : null;
+    // A trigger/activated-ability tile's source can be a transformed
+    // permanent's back-face def id (CR 712); resolve its rendered CDN face
+    // (issue #1595).
+    const imageSrc = imageId
+        ? getArtCropImageUrl(imageId, resolveCardImageFace(cardId))
+        : null;
     const badgeLabel =
         kind === "triggered"
             ? "Trigger"

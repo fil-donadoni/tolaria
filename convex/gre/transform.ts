@@ -106,7 +106,20 @@ function registerBackFaceDefinition(backFace: CardBackFace): string {
             ? { staticEffects: [...spec.staticEffects] }
             : {}),
         ...(backFace.oracleText ? { oracleText: backFace.oracleText } : {}),
-        ...(spec.imagePrintId ? { imagePrintId: spec.imagePrintId } : {}),
+        // issue #1595 — a real double-faced Scryfall print shares ONE id
+        // across both faces (see the Incubator/Phyrexian token,
+        // `cards/abilities/tokens/incubatorToken.ts`), each served under its
+        // own `front/`/`back/` CDN path. Stamping `imagePrintFace: "back"`
+        // here (never on the spec itself) is what lets `resolveCardImageFace`
+        // (`src/lib/images.ts`) route a transformed permanent's art to the
+        // BACK path the instant `transformPermanent` swaps `card.card.id` to
+        // this synthesized definition.
+        ...(spec.imagePrintId
+            ? {
+                  imagePrintId: spec.imagePrintId,
+                  imagePrintFace: "back" as const,
+              }
+            : {}),
     });
     return id;
 }
