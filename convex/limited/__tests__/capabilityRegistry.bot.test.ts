@@ -179,7 +179,12 @@ describe("Catalogue-wide sweep — every checked-in Card Profile file (issue #16
         }
     });
 
-    it("this slice ships no checked-in Card Profile data (zero behaviour change, issue #1608)", () => {
-        expect(getAllCheckedInCardProfileFiles()).toEqual([]);
+    it("the sweep above is NON-VACUOUS — at least one checked-in file exists for it to validate (issue #1614)", () => {
+        // Issue #1608 shipped this guard with zero checked-in files, so the
+        // sweep passed without checking anything; the Vintage Cube census
+        // (issue #1614) is the first real content. Asserting the collection
+        // is non-empty is what stops the guard silently reverting to a
+        // vacuous pass if a future refactor drops a file from the registry.
+        expect(getAllCheckedInCardProfileFiles().length).toBeGreaterThan(0);
     });
 });

@@ -20,15 +20,23 @@
 // the boundary. The `ctx.db`-owning query shell lives in the sibling
 // `cardProfiles.ts`.
 //
-// THIS SLICE IS STILL A DATA FOUNDATION for the SCORER (issue #1608's
-// acceptance): no call site feeds `GetCardProfile` into `chooseBotPick` yet.
-// `convex/limited/botDrafter.ts` is UNCHANGED — wiring `resolveEventCardProfile`
-// into `chooseBotPick` is a LATER PRD #1607 slice (slice 4, "Archetype +
-// Capability + Combo Edge terms"), once the scorer itself understands a
-// unified 0-5 scale (slice 2, ADR 0073) it can spend a Capability-match
-// contribution on.
+// The scorer NOW consumes this seam (issue #1611): `convex/limitedEvents.ts`'s
+// `loadEventCardProfile` folds the database rows through
+// `resolveEventCardProfile` and injects the resulting `GetCardProfile` into
+// `chooseBotPick`, where the Archetype Fit / Capability Fit / Combo Edge terms
+// spend it — an UNREVIEWED row at half weight (ADR 0072). Issue #1614 closes
+// the loop at both ends: the checked-in Vintage Cube census below is the seed
+// layer's first real content, and `normalizeArchetypes`/`cardProfileWriteErrors`/
+// `buildCardProfileRow`/`buildScopeCardProfiles` further down are the pure
+// pieces the `assertIsAdmin`-gated `setCardProfile`/`clearCardProfile`
+// mutations and the Admin editor query (`cardProfiles.ts`) build on — pure
+// row-shape/validation logic belongs HERE, only the `ctx.db`/`assertIsAdmin`
+// shells live in the sibling file.
 import { isRegisteredCapability } from "./capabilityRegistry";
 import { tryGetDefinition } from "../cards";
+import { CUBE_SOURCE_KEY } from "./cubeSource";
+import type { ScopeCard } from "./cardRatingsCore";
+import vintageCubeProfilesJson from "../../data/card-profiles/vintage-cube.json";
 
 /** One `(scope, cardId)` Card Profile row — the shape both the `cardProfiles`
  *  table (`convex/schema.ts`) and any checked-in seed file share. `provides`/
@@ -61,17 +69,25 @@ export interface CardProfileFile {
     profiles: Record<string, CardProfile>;
 }
 
-/** No checked-in Card Profile seed file ships with this slice (ADR 0072:
- *  "Profiles are LLM-seeded and human-reviewed" — authoring the actual
- *  Vintage Cube census is later PRD #1607 work, not this data-foundation
- *  slice). Structured identically to `pickRatings.ts`'s
- *  `CHECKED_IN_PICK_RATINGS` — a Convex function runs in a V8 isolate with
- *  no Node builtins, so `data/card-profiles/**` (once it exists) can't be
- *  discovered dynamically; add one entry here per future checked-in file. An
- *  empty registry here is exactly ADR 0072's "a scope with no `cardProfiles`
- *  rows and no seed file contributes exactly zero from these terms" case —
- *  every scope resolves to the `null` layer today. */
-const CHECKED_IN_CARD_PROFILES: Record<string, CardProfileFile> = {};
+/** Every checked-in Card Profile seed file, keyed by lowercase scope —
+ *  structured identically to `pickRatings.ts`'s `CHECKED_IN_PICK_RATINGS` (a
+ *  Convex function runs in a V8 isolate with no Node builtins, so
+ *  `data/card-profiles/**` can't be discovered dynamically; add one entry
+ *  here per checked-in file).
+ *
+ *  `vintage-cube.json` is the LLM-generated census (issue #1614, ADR 0072's
+ *  "Profiles are LLM-seeded and human-reviewed"; ADR 0044 is the precedent
+ *  for LLM-generated repo data). EVERY row in it carries `reviewed: false` —
+ *  it contributes at HALF the contextual cap (`botDrafter.ts`'s
+ *  `UNREVIEWED_PROFILE_WEIGHT`) until a human flips the flag through the
+ *  Admin editor, which is the whole point of the flag: a confidently wrong
+ *  LLM assertion is visible in the Draft Lab without being allowed to decide
+ *  picks. A scope absent from this record still resolves to the `null` layer
+ *  (ADR 0072: "a scope with no `cardProfiles` rows and no seed file
+ *  contributes exactly zero from these terms"). */
+const CHECKED_IN_CARD_PROFILES: Record<string, CardProfileFile> = {
+    [CUBE_SOURCE_KEY]: vintageCubeProfilesJson as CardProfileFile,
+};
 
 /** Resolves a lowercase scope to its checked-in Card Profile file, or `null`
  *  when the scope ships with no profiles data — mirrors `pickRatings.ts`'s
@@ -103,10 +119,10 @@ export type GetDbProfile = (
     cardId: string
 ) => CardProfile | null;
 
-/** The lookup shape a (future) Bot Drafter call site would inject into its
- *  scorer — `cardId -> CardProfile | null`, mirroring `botDrafter.ts`'s
- *  `GetPickRating` shape. Not consumed anywhere yet (issue #1608's
- *  acceptance: `botDrafter.ts` is untouched by this slice). */
+/** The lookup shape a Bot Drafter call site injects into its scorer —
+ *  `cardId -> CardProfile | null`, mirroring `botDrafter.ts`'s
+ *  `GetPickRating` shape. Consumed by `chooseBotPick`/`scoreCandidate`'s
+ *  three synergy terms since issue #1611. */
 export type GetCardProfile = (cardId: string) => CardProfile | null;
 
 /** Resolves ONE `(scope, cardId)` pair to its checked-in SEED profile, or
@@ -116,11 +132,10 @@ export type GetCardProfile = (cardId: string) => CardProfile | null;
  *  injectable, mirroring `GetDbProfile`'s "never touch the real source
  *  directly" discipline. Defaults to the real `getCardProfile` in
  *  `resolveEventCardProfile`, so production behavior is unchanged; a test
- *  can inject a fake one to exercise the seed layer even while this slice
- *  ships zero checked-in seed data (`CHECKED_IN_CARD_PROFILES` is `{}` —
- *  see that const's doc comment). Without this seam the middle layering
- *  outcome ("seed row present, no DB row") is structurally untestable until
- *  a real Vintage Cube census file exists. */
+ *  can inject a fake one to exercise the middle layering outcome ("seed row
+ *  present, no DB row") against a FIXTURE rather than against whatever the
+ *  real Vintage Cube census (issue #1614) happens to say about a particular
+ *  card — a layering test must not be coupled to census content. */
 export type GetSeedProfile = (
     scope: string,
     cardId: string
@@ -143,8 +158,11 @@ export type GetSeedProfile = (
  *  `cardRatings.bot.test.ts` can prove real seed-fallback/override behavior
  *  by reading an entry out of the real `lea.json`, but there is no
  *  equivalent real Card Profile seed row to read yet. Injecting the seed
- *  lookup lets the layering itself — not the (still-empty) seed content —
- *  be proven directly.
+ *  lookup lets the layering itself — not the seed content — be proven
+ *  directly. The Vintage Cube census (issue #1614) now fills the real seed
+ *  layer, so tests can ALSO assert against it, but the seam stays: a
+ *  layering test must not be coupled to whatever the census happens to say
+ *  about a particular card.
  *
  *  Resolution order per card, mirroring `resolveEventPickRating` exactly:
  *
@@ -263,4 +281,137 @@ export function buildDbProfileLookup(
     }
     return (scope: string, cardId: string): CardProfile | null =>
         byKey.get(`${scope.toLowerCase()}::${cardId}`) ?? null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Admin write boundary — PURE pieces only (PRD #1607, ADR 0072, issue #1614).
+// The `assertIsAdmin`-gated `setCardProfile`/`clearCardProfile` mutations and
+// the admin-gated `listScopeCardProfilesForEditor` query own `ctx.db` and
+// live in the sibling `cardProfiles.ts`; everything below is unit-testable
+// with no convex-test harness, mirroring `cardRatingsCore.ts`'s
+// `buildCardRatingRow`/`buildScopeCardRatings`.
+// ─────────────────────────────────────────────────────────────────────────
+
+/** Normalizes a free-text Archetype list: trimmed, lowercased, empties
+ *  dropped, duplicates removed, input order preserved. Archetypes are NOT
+ *  gated by a closed registry (see `CardProfile`'s doc comment) — but they
+ *  ARE grouped by exact string equality in `botDrafter.ts`'s Archetype Fit
+ *  term, so `Reanimator` and `reanimator` would silently be two different
+ *  plans. Case-folding here is the cheapest possible guard against that fork
+ *  WITHOUT introducing a registry: the same reasoning `scope` normalization
+ *  already applies (user-facing/data-driven text normalizes; internal engine
+ *  vocabulary — a Capability id — stays case-SENSITIVE, see
+ *  `isRegisteredCapability`). Pure. */
+export function normalizeArchetypes(archetypes: readonly string[]): string[] {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const raw of archetypes) {
+        const normalized = raw.trim().toLowerCase();
+        if (normalized === "" || seen.has(normalized)) continue;
+        seen.add(normalized);
+        out.push(normalized);
+    }
+    return out;
+}
+
+/** Every reason ONE profile write must be rejected, or `[]` when it is
+ *  legal — the SAME two checks `validateCardProfileFile` applies to the seed
+ *  layer ("resolves to a real card" + "every Capability is a registry row"),
+ *  reused here so the database layer and the checked-in layer can never
+ *  drift apart on what a legal profile is (the `isValidRating` discipline
+ *  `setCardRating` established: ONE bounds authority, never two copies).
+ *  Pure — no `ctx`. */
+export function cardProfileWriteErrors(
+    cardId: string,
+    profile: CardProfile
+): string[] {
+    const errors: string[] = [];
+    if (!tryGetDefinition(cardId)) {
+        errors.push(`cardId "${cardId}" does not resolve to a card`);
+    }
+    for (const capability of profile.provides) {
+        if (!isRegisteredCapability(capability)) {
+            errors.push(`unregistered Capability provided: "${capability}"`);
+        }
+    }
+    for (const capability of profile.requires) {
+        if (!isRegisteredCapability(capability)) {
+            errors.push(`unregistered Capability required: "${capability}"`);
+        }
+    }
+    for (const edge of profile.comboEdges ?? []) {
+        if (!tryGetDefinition(edge.cardId)) {
+            errors.push(
+                `combo edge partner "${edge.cardId}" does not resolve to a card`
+            );
+        }
+        if (!Number.isFinite(edge.weight)) {
+            errors.push(
+                `combo edge to "${edge.cardId}" has a non-finite weight`
+            );
+        }
+    }
+    return errors;
+}
+
+/** The exact row `setCardProfile` (`cardProfiles.ts`) inserts/patches: `scope`
+ *  lowercased (the case discipline `resolveEventCardProfile`/`packSlots`/
+ *  `cardRatingsCore.ts` already share), `archetypes` normalized, everything
+ *  else carried verbatim. Pure — no `ctx` — so the write mutation's row-shape
+ *  decision is unit-testable directly, mirroring `cardRatingsCore.ts`'s
+ *  `buildCardRatingRow`. Does NOT validate — that is `cardProfileWriteErrors`'
+ *  job, never duplicated here. */
+export function buildCardProfileRow(
+    scope: string,
+    cardId: string,
+    profile: CardProfile
+): ScopedCardProfile {
+    return {
+        scope: scope.toLowerCase(),
+        cardId,
+        archetypes: normalizeArchetypes(profile.archetypes),
+        // Deduped on the way IN: `capabilityFitTerm` already collapses
+        // duplicates defensively (issue #1611 review), so a repeated entry
+        // never double-counts a synergy — but without this it would persist
+        // and round-trip through the editor forever.
+        provides: [...new Set(profile.provides)],
+        requires: [...new Set(profile.requires)],
+        ...(profile.comboEdges === undefined
+            ? {}
+            : { comboEdges: profile.comboEdges.map((edge) => ({ ...edge })) }),
+        reviewed: profile.reviewed,
+    };
+}
+
+/** One card of a scope annotated with BOTH profile layers, the shape the
+ *  Admin editor lists: `dbProfile` (an explicit database override, `null`
+ *  when unset) and `seedProfile` (the checked-in census default, `null` when
+ *  the scope/card has none) — so the editor renders the EFFECTIVE profile
+ *  (`dbProfile ?? seedProfile`) while still showing whether it is an
+ *  override or the seed. Mirrors `cardRatingsCore.ts`'s `ScopeCardRating`. */
+export interface ScopeCardProfile extends ScopeCard {
+    dbProfile: CardProfile | null;
+    seedProfile: CardProfile | null;
+}
+
+/** Annotates `cards` (a scope's enumerated card list, `cardRatingsCore.ts`'s
+ *  `listScopeCards` — REUSED, never re-implemented: the Admin editors for
+ *  Pick Ratings and Card Profiles must list exactly the same cards for a
+ *  scope) with both profile layers. Pure core of the editor query
+ *  (`cardProfiles.ts`'s `listScopeCardProfilesForEditor`), so it is
+ *  unit-testable with a plain in-memory `GetDbProfile`, no convex-test
+ *  harness — same split as `buildScopeCardRatings`. `scope` is normalized
+ *  HERE, once. */
+export function buildScopeCardProfiles(
+    scope: string,
+    cards: readonly ScopeCard[],
+    getDbProfile: GetDbProfile,
+    getSeedProfile: GetSeedProfile = getCardProfile
+): ScopeCardProfile[] {
+    const normalizedScope = scope.toLowerCase();
+    return cards.map((card) => ({
+        ...card,
+        dbProfile: getDbProfile(normalizedScope, card.cardId),
+        seedProfile: getSeedProfile(normalizedScope, card.cardId),
+    }));
 }

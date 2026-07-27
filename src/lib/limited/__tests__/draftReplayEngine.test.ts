@@ -9,6 +9,7 @@
 // `draft-lab-no-mutation.test.ts`, which scans this file's directory too.
 import { describe, it, expect } from "vitest";
 import {
+    buildDraftLabCardProfile,
     buildDraftLabPickRating,
     runFullDraftLab,
     standardPackSlots,
@@ -22,6 +23,14 @@ import { CUBE_SOURCE_KEY } from "@convex/limited/cubeSource";
 import type { GetPickRating } from "@convex/limited/botDrafter";
 
 const packSlots = standardPackSlots(CUBE_SOURCE_KEY);
+
+/** The SAME layered Card Profile lookup `runFullDraftLab` scores its own
+ *  picks with (`draftLabEngine.ts`, DB layer empty in the synthetic Lab, the
+ *  checked-in census underneath). A replay recomputed WITHOUT it would
+ *  diverge from the ground truth for a reason that has nothing to do with
+ *  the scorer changing — exactly the spurious-divergence class issue #1613's
+ *  fixup closed for Pick Ratings. */
+const getCardProfile = buildDraftLabCardProfile(packSlots, () => null);
 
 /** Builds the replay-engine seat input from a completed synthetic draft's
  *  final state — the SAME shape `eventProjection.ts` would hand the client
@@ -47,7 +56,8 @@ describe("reconstructDraftReplay — unmodified event (issue #1613 AC1)", () => 
             packSlots,
             seatInputsFrom(ground.seats),
             draftLabGetCardEvalMeta,
-            getPickRating
+            getPickRating,
+            getCardProfile
         );
 
         expect(result.complete).toBe(true);
@@ -82,7 +92,8 @@ describe("reconstructDraftReplay — unmodified event (issue #1613 AC1)", () => 
             packSlots,
             seatInputsFrom(ground.seats),
             draftLabGetCardEvalMeta,
-            getPickRating
+            getPickRating,
+            getCardProfile
         );
 
         expect(result.firstDivergedPickIndex).toBeNull();
@@ -104,14 +115,16 @@ describe("reconstructDraftReplay — unmodified event (issue #1613 AC1)", () => 
             packSlots,
             seatInputs,
             draftLabGetCardEvalMeta,
-            getPickRating
+            getPickRating,
+            getCardProfile
         );
         const b = reconstructDraftReplay(
             13,
             packSlots,
             seatInputs,
             draftLabGetCardEvalMeta,
-            getPickRating
+            getPickRating,
+            getCardProfile
         );
         expect(a).toEqual(b);
     });
@@ -146,7 +159,8 @@ describe("reconstructDraftReplay — divergence detection (issue #1613 AC2)", ()
             packSlots,
             seatInputsFrom(ground.seats),
             draftLabGetCardEvalMeta,
-            alteredRating
+            alteredRating,
+            getCardProfile
         );
 
         expect(result.firstDivergedPickIndex).toBe(1);
@@ -169,7 +183,8 @@ describe("reconstructDraftReplay — divergence detection (issue #1613 AC2)", ()
             packSlots,
             seatInputsFrom(ground.seats),
             draftLabGetCardEvalMeta,
-            baselineRating
+            baselineRating,
+            getCardProfile
         );
         expect(result.firstDivergedPickIndex).toBeNull();
     });
@@ -188,7 +203,8 @@ describe("reconstructDraftReplay — stop conditions (issue #1613 AC3)", () => {
             packSlots,
             seatInputs,
             draftLabGetCardEvalMeta,
-            getPickRating
+            getPickRating,
+            getCardProfile
         );
 
         expect(result.complete).toBe(false);
@@ -222,7 +238,8 @@ describe("reconstructDraftReplay — stop conditions (issue #1613 AC3)", () => {
             packSlots,
             seatInputs,
             draftLabGetCardEvalMeta,
-            getPickRating
+            getPickRating,
+            getCardProfile
         );
 
         expect(result.complete).toBe(false);

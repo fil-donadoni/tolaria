@@ -5,7 +5,7 @@ import {
     useCardRatingMutations,
 } from "~/hooks/useCardRatings";
 import { Panel, PanelHeader, PanelBody } from "~/components/ui/panel";
-import PickRatingScopePicker from "./pick-rating-scope-picker";
+import LimitedScopePicker from "./limited-scope-picker";
 import PickRatingEditor from "./pick-rating-editor";
 
 /**
@@ -37,10 +37,11 @@ export default function PickRatingPanel() {
                 subtitle="Admin only — tune the Bot Drafter's card evaluation per scope"
             />
             <PanelBody className="flex min-h-0 flex-col gap-3">
-                <PickRatingScopePicker
+                <LimitedScopePicker
                     scopes={scopes}
                     value={resolvedScope}
                     onChange={setScope}
+                    ariaLabel="Rating Scope"
                 />
                 {resolvedScope ? (
                     <PickRatingEditor
