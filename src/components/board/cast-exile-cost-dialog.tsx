@@ -32,6 +32,12 @@ export default function CastExileCostDialog({
          *  number of other cards with ≥ this many distinct card types among
          *  them. When set, `count` is ignored. */
         minCardTypes?: number;
+        /** CR 702.66 (Delve) — the `payWith` VARIABLE-OFFSET cost (CR 601.2g,
+         *  ADR 0063): exile ANY number of graveyard cards in `min..max`, each
+         *  paying for {1} of the spell's generic cost. When set, `count` is
+         *  ignored. `min` > 0 means the caster's mana can't cover the shortfall
+         *  — that many exiles are forced, and are pre-seeded below. */
+        offsetGeneric?: { min: number; max: number };
     };
     me: Player | undefined;
     gameId: Id<"games">;
@@ -40,7 +46,6 @@ export default function CastExileCostDialog({
     const selectExileCost = useMutation(api.game.selectCastExileCost);
     const cancelCast = useMutation(api.game.cancelCast);
     const [isPending, setIsPending] = useState(false);
-    const [selected, setSelected] = useState<string[]>([]);
 
     // CR 702.34a / 118.5 — the cost cards come from the caster's own graveyard
     // (default, Flash of Insight) or hand (`zone: "hand"`, the exile-a-card-
@@ -65,6 +70,17 @@ export default function CastExileCostDialog({
         [sourceCards, choice.color, choice.excludeInstanceId]
     );
 
+    // Arena-style prompt policy (ADR 0063): a partly-forced delve
+    // (`offsetGeneric.min > 0`) opens with the FORCED MINIMUM already selected,
+    // so the caster only has to confirm (or swap which cards pay). Seeded once,
+    // at mount, from the front of the graveyard — the picker's bounds are fixed
+    // for the life of the parked cast, so there is nothing to re-sync.
+    const [selected, setSelected] = useState<string[]>(() =>
+        eligible
+            .slice(0, Math.max(0, choice.offsetGeneric?.min ?? 0))
+            .map((c) => c.id)
+    );
+
     async function handleCancel() {
         if (isPending) return;
         setIsPending(true);
@@ -79,6 +95,10 @@ export default function CastExileCostDialog({
     // cards as long as their combined DISTINCT card types reach `minCardTypes`;
     // the fixed cost (Flashback, Uro/Phlage escape) takes EXACTLY `count`.
     const isVariable = choice.minCardTypes !== undefined;
+    // CR 702.66 — Delve: a bounded free-count selection, distinct from the
+    // Nethergoyf card-type threshold above.
+    const offset = choice.offsetGeneric;
+    const isDelve = offset !== undefined;
     const selectedTypeCount = useMemo(() => {
         if (!isVariable) return 0;
         const types = new Set<string>();
@@ -90,16 +110,21 @@ export default function CastExileCostDialog({
         }
         return types.size;
     }, [isVariable, selected, eligible]);
-    const requirementMet = isVariable
-        ? selectedTypeCount >= (choice.minCardTypes ?? 0)
-        : selected.length === choice.count;
+    const requirementMet = isDelve
+        ? selected.length >= offset.min && selected.length <= offset.max
+        : isVariable
+          ? selectedTypeCount >= (choice.minCardTypes ?? 0)
+          : selected.length === choice.count;
 
     function toggle(cardId: string) {
         setSelected((prev) => {
             if (prev.includes(cardId))
                 return prev.filter((id) => id !== cardId);
-            // Fixed cost caps at `count`; the variable cost has no cap.
-            if (!isVariable && prev.length >= choice.count) return prev;
+            // Delve caps at `max`; the fixed cost caps at `count`; the
+            // Nethergoyf card-type cost has no cap.
+            if (isDelve && prev.length >= offset.max) return prev;
+            if (!isDelve && !isVariable && prev.length >= choice.count)
+                return prev;
             return [...prev, cardId];
         });
     }
@@ -124,11 +149,22 @@ export default function CastExileCostDialog({
             onOpenChange={(open) => {
                 if (!open) void handleCancel();
             }}
-            title={isVariable ? "Escape cost" : "Flashback cost"}
+            title={
+                isDelve
+                    ? "Delve"
+                    : isVariable
+                      ? "Escape cost"
+                      : "Flashback cost"
+            }
             subtitle={
-                isVariable
-                    ? `Exile any number of cards with ${choice.minCardTypes}+ card types among them (${selectedTypeCount} selected)`
-                    : `Exile ${choice.count} ${choice.color === "U" ? "blue " : ""}card(s) from your ${zone}`
+                isDelve
+                    ? `Exile up to ${offset.max} card(s) from your graveyard — each pays for {1}` +
+                      (offset.min > 0
+                          ? ` (at least ${offset.min} required)`
+                          : "")
+                    : isVariable
+                      ? `Exile any number of cards with ${choice.minCardTypes}+ card types among them (${selectedTypeCount} selected)`
+                      : `Exile ${choice.count} ${choice.color === "U" ? "blue " : ""}card(s) from your ${zone}`
             }
             size="wide"
             dismissable={!isPending}
@@ -161,9 +197,11 @@ export default function CastExileCostDialog({
                     onClick={() => void handleConfirm()}
                     className="rounded-sm px-4 py-2 bg-accent hover:bg-accent-strong text-black font-medium disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                 >
-                    {isVariable
-                        ? `Exile ${selected.length} (${selectedTypeCount}/${choice.minCardTypes} types)`
-                        : `Exile ${selected.length}/${choice.count}`}
+                    {isDelve
+                        ? `Exile ${selected.length}/${offset.max}`
+                        : isVariable
+                          ? `Exile ${selected.length} (${selectedTypeCount}/${choice.minCardTypes} types)`
+                          : `Exile ${selected.length}/${choice.count}`}
                 </button>
             </div>
         </GameDialog>

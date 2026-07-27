@@ -110,6 +110,7 @@ import {
     getEscapeManaCost,
     hasEscape,
 } from "./gre/escape";
+import { applyGenericOffset, buildDelveExileChoice } from "./gre/payWith";
 import {
     getMadnessCost,
     declineMadness,
@@ -161,6 +162,7 @@ import {
     raiseTriggerTargetSelection,
     solvePhyrexianSplit,
     siblingControllerIdFor,
+    genericManaShortfall,
 } from "./gre/rules";
 import {
     PHYREXIAN_LIFE_PER_PIP,
@@ -4836,6 +4838,20 @@ export function finalizeTargetSelection(
             };
         }
     }
+    // CR 702.66 / 601.2g — Delve (`payWith`, ADR 0063). Same twin as the escape
+    // block above: a TARGETED delve spell reaches its commit here, after target
+    // selection, so build the graveyard picker here too and park on it before
+    // mana. Reuses the graveyard-exile picker slot — no delve card in the pool
+    // also carries a flashback/escape exile cost.
+    if (!castExileChoice) {
+        castExileChoice = buildDelveExileChoice(
+            player,
+            cardInHand,
+            manaCost,
+            cardInstanceId,
+            genericManaShortfall(player, cardInHand, manaCost)
+        );
+    }
     const parkForSacrifice =
         !!exilePicker ||
         !!castExileChoice ||
@@ -5870,6 +5886,26 @@ export const announceCast = mutation({
                     excludeInstanceId: args.cardInstanceId,
                 };
             }
+        }
+        // CR 702.66 / 601.2g — Delve (`payWith`, ADR 0063): "Each card you
+        // exile from your graveyard while casting this spell pays for {1}."
+        // Modeled as a Model-2 PRE-PAYMENT pending choice — the caster exiles
+        // 0..max graveyard cards through the generalized graveyard-exile
+        // picker (variable-offset mode), each offsetting one GENERIC pip of
+        // the ALREADY-REDUCED cost (CR 601.2f runs first), and
+        // `solveSmartAutoTap` then covers whatever remains. Arena-style prompt
+        // policy: `buildDelveExileChoice` returns undefined when delve can do
+        // nothing (empty graveyard, or an all-coloured remainder), so no
+        // pointless picker appears. Reuses the flashback/escape picker slot —
+        // no delve card in the pool also carries one of those exile costs.
+        if (!castExileChoice) {
+            castExileChoice = buildDelveExileChoice(
+                player,
+                cardInHand,
+                manaCost,
+                args.cardInstanceId,
+                genericManaShortfall(player, cardInHand, manaCost)
+            );
         }
 
         const parkForSacrifice =
@@ -7326,7 +7362,23 @@ export function recordCastExileCostPick(
     const ec = pc.exileFromGraveyardChoice;
     if (!ec) throw new Error("This spell has no exile-from-graveyard cost");
     if (ec.pickedCardIds) throw new Error("Exile cost already paid");
-    if (ec.minCardTypes === undefined) {
+    if (ec.offsetGeneric) {
+        // CR 702.66 (Delve) — the `payWith` variable-offset mode (CR 601.2g,
+        // ADR 0063): ANY number of cards in `min..max`. `min` is the shortfall
+        // the caster's mana can't cover, `max` is min(graveyard, generic
+        // remaining). Zero is a legal answer whenever nothing is forced.
+        const { min, max } = ec.offsetGeneric;
+        if (cardInstanceIds.length < min) {
+            throw new Error(
+                `Must exile at least ${min} card(s) from your graveyard to pay for this spell`
+            );
+        }
+        if (cardInstanceIds.length > max) {
+            throw new Error(
+                `Can't exile more than ${max} card(s) from your graveyard for this spell`
+            );
+        }
+    } else if (ec.minCardTypes === undefined) {
         // Fixed-count exile cost (Flashback X; escape fixed count — Uro/Phlage).
         if (cardInstanceIds.length !== ec.count) {
             throw new Error(
@@ -7378,6 +7430,16 @@ export function recordCastExileCostPick(
         }
     }
     ec.pickedCardIds = [...cardInstanceIds];
+    // CR 702.66b — each card exiled for delve pays for {1}: apply the payment
+    // NOW against this cast's remaining GENERIC cost, so `isManaCostCovered`
+    // and the auto-tap solver both see the reduced remainder and cover only
+    // what is genuinely left (CR 601.2g ordering: reduce → payWith → mana).
+    // Mirrors the Improvise clamp; never touches a coloured pip. The cards
+    // themselves don't move until commit, so cancelling leaves the graveyard
+    // untouched (`rollbackPendingCast` drops the whole pendingCast).
+    if (ec.offsetGeneric) {
+        applyGenericOffset(pc.manaCost, cardInstanceIds.length);
+    }
 }
 
 /** Records the player's pick for a FLASHBACK "exile X blue cards from your

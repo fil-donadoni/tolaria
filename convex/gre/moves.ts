@@ -28,7 +28,14 @@ import {
     getProducibleManaOptions,
     maxAffordableX,
     solvePhyrexianSplit,
+    genericManaShortfall,
 } from "./rules";
+import {
+    applyGenericOffset,
+    delveEligibleCards,
+    genericPortion,
+    spellHasDelve,
+} from "./payWith";
 import { PHYREXIAN_LIFE_PER_PIP, phyrexianPipCount } from "./phyrexian";
 import { STATIC_EFFECT_CTX } from "./layers";
 import {
@@ -564,6 +571,31 @@ function enumerateCastMoves(
                     if (n && n > 0) normCost[c] = (normCost[c] ?? 0) + n;
                 }
                 payLife = split.lifePips * PHYREXIAN_LIFE_PER_PIP;
+            }
+            // CR 702.66 / 601.2g — Delve (`payWith`, ADR 0063): graveyard cards
+            // exiled while casting pay for {1} of GENERIC mana each, so a spell
+            // the Bot cannot pay for with mana alone may still be castable.
+            // Discount the generic portion by exactly the MINIMUM number of
+            // exiles the caster is forced to make — the same
+            // `genericManaShortfall` the announce path uses to seed
+            // `offsetGeneric.min`, so the tap plan below and the delve pick the
+            // driver later submits (`cast-exile-cost`, which exiles `min`) cover
+            // the cost between them with nothing left over and nothing missing.
+            // Without this the enumerator drops the cast entirely and the Bot
+            // never casts a delve spell off a short board.
+            const delveFuel = spellHasDelve(card)
+                ? delveEligibleCards(player, card.id).length
+                : 0;
+            if (delveFuel > 0) {
+                const shortfall = genericManaShortfall(player, card, normCost);
+                applyGenericOffset(
+                    normCost,
+                    Math.min(
+                        delveFuel,
+                        genericPortion(normCost),
+                        Number.isFinite(shortfall) ? shortfall : 0
+                    )
+                );
             }
             const tapPlan = planManaPayment(player, normCost);
             if (tapPlan === null) continue;

@@ -9594,6 +9594,12 @@
         "firstSet": "inv"
     },
     {
+        "name": "Treasure Cruise",
+        "scryfallId": "7a59d4b1-6cf4-44ec-8a96-1bb7094fea21",
+        "oracleId": "5b6bdf5a-2742-4851-92cd-a857a3852836",
+        "firstSet": "ktk"
+    },
+    {
         "name": "Treefolk Healer",
         "scryfallId": "73c6f5c0-686d-4b3a-add7-487f9fff5faa",
         "oracleId": "a5ef15b5-83d2-4b23-9403-a9a52be46154",

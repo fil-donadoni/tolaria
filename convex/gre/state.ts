@@ -1675,6 +1675,18 @@ export type PendingCast = {
          *  fixed-`count` exile cost (Flashback, and the fixed escape costs of
          *  Uro / Phlage / Underworld Breach). */
         minCardTypes?: number;
+        /** CR 702.66 (Delve) — the `payWith` VARIABLE-OFFSET mode (CR 601.2g,
+         *  ADR 0063). When set, the picker accepts ANY number of cards in
+         *  `min..max` and `count` is ignored (a nominal 0). Each picked card
+         *  pays for {1} of the spell's GENERIC cost (CR 702.66b) — never a
+         *  coloured pip — applied by decrementing this `PendingCast`'s
+         *  `manaCost.X` as the pick is recorded, exactly like the Improvise
+         *  clamp, so `isManaCostCovered` needs no payWith-specific branch.
+         *  `min` is the shortfall the caster's mana can't cover (0 = purely
+         *  tactical); `max` is min(eligible graveyard cards, generic remaining
+         *  after CR 601.2f reductions). Built by `buildDelveExileChoice`
+         *  (`gre/payWith.ts`). Undefined for every non-delve exile cost. */
+        offsetGeneric?: { min: number; max: number };
     };
     /** In-progress "exile / discard N cards from your HAND" ALTERNATIVE-cost
      *  picker (CR 118.9 — Force of Will's "exile a blue card", Foil's "discard

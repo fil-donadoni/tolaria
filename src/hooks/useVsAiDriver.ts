@@ -109,6 +109,12 @@ export function useVsAiDriver(
     // OUT of `MoveMutations` for the same reason: it isn't Move-realised, it
     // lives outside `pendingChoices[]`, and is driven directly.
     const resolveManaSpendChoice = useMutation(api.game.resolveManaSpendChoice);
+    // CR 601.2g / 702.66 (issue #1336) — the parked cast-cost graveyard exile
+    // picker (delve's variable offset; the fixed flashback / escape exile
+    // costs). Kept OUT of `MoveMutations` for the same reason as the two above:
+    // it hangs off `pendingCast`, not `pendingChoices[]`, so it is not
+    // Move-realised and is driven directly.
+    const selectCastExileCost = useMutation(api.game.selectCastExileCost);
 
     const inFlight = useRef(false);
     const lastSignature = useRef<string | null>(null);
@@ -193,6 +199,28 @@ export function useVsAiDriver(
                 gameId,
                 playerId: botId,
                 spendOrder: action.spendOrder,
+            }).catch(() => {
+                lastSignature.current = null;
+            });
+            return;
+        }
+
+        // CR 601.2g / 702.66 (issue #1336) — the parked cast-cost graveyard
+        // exile pick: the gate already chose the exact ids
+        // (`chooseCastExileCost`), so realise it straight through, mirroring
+        // the mana-spend short-circuit above. Without this branch the bot parks
+        // its own delve cast and never finishes it (the recurring "bot freezes
+        // on a new choice mechanic" class).
+        if (
+            botActionRealisation(action.kind) === "cast-exile-cost" &&
+            action.kind === "cast-exile-cost"
+        ) {
+            if (inFlight.current) return;
+            lastSignature.current = signature;
+            void selectCastExileCost({
+                gameId,
+                playerId: botId,
+                cardInstanceIds: action.cardInstanceIds,
             }).catch(() => {
                 lastSignature.current = null;
             });

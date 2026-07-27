@@ -107,6 +107,7 @@ import * as bok from "./sets/bok";
 import * as roe from "./sets/roe";
 import * as lci from "./sets/lci";
 import * as soc from "./sets/soc";
+import * as ktk from "./sets/ktk";
 import * as akh from "./sets/akh";
 import * as aer from "./sets/aer";
 import * as rtr from "./sets/rtr";
@@ -336,6 +337,8 @@ const setModules: { code: string; exports: Record<string, unknown> }[] = [
     // Vintage Cube residue tranche (issue #1302, parent PRD #620) — new home
     // set (Staff of the Storyteller, shipped by #1345).
     { code: "soc", exports: soc },
+    // Delve capability card (Treasure Cruise) — issue #1336, PRD #702.
+    { code: "ktk", exports: ktk },
     { code: "akh", exports: akh },
     { code: "aer", exports: aer },
     { code: "rtr", exports: rtr },

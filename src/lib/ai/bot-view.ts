@@ -30,6 +30,7 @@ import type { Color } from "@convex/cards/types";
 import type {
     BotAction,
     BotView,
+    CastExileChoiceView,
     ChoiceCandidate,
     ManaSituation,
     ManaSpendChoiceView,
@@ -179,6 +180,43 @@ function buildManaSpendChoiceView(
         poolCounts,
         colorUsefulness,
     };
+}
+
+/** CR 601.2g / 702.66 (issue #1336) — read the parked graveyard/hand EXILE cast
+ *  cost awaiting the bot as PAYER of its own cast: delve's variable offset, and
+ *  the fixed flashback / escape exile costs that ride the same picker.
+ *  `pendingCast` rides the wire un-slimmed, and the bot's own graveyard/hand are
+ *  fully visible on its projection, so this is a direct read — mirroring
+ *  `buildManaSpendChoiceView` above. Undefined unless the bot itself owes an
+ *  UNPAID pick. */
+function buildCastExileChoiceView(
+    state: PublicGameState,
+    botId: string
+): CastExileChoiceView | undefined {
+    const pc = state.pendingCast;
+    const ec = pc?.exileFromGraveyardChoice;
+    if (!pc || !ec || pc.playerId !== botId || ec.pickedCardIds) {
+        return undefined;
+    }
+    const bot = state.players.find((p) => p.id === botId);
+    const zone = ec.zone ?? "graveyard";
+    const source = zone === "hand" ? (bot?.hand ?? []) : (bot?.graveyard ?? []);
+    const candidateIds = source
+        .filter((c): c is NonNullable<typeof c> => c !== null)
+        .filter((c) => c.id !== ec.excludeInstanceId)
+        .map((c) => c.id);
+    // CR 702.66 — delve's variable-offset mode is bounded by `offsetGeneric`
+    // (`min` forced, `max` the generic remaining); every other mode demands an
+    // exact `count`. The Nethergoyf card-type mode has no fixed count — it is
+    // not in the bot's pool yet, so treat it as "exile everything eligible",
+    // the only submission guaranteed to clear any card-type threshold.
+    const required = ec.offsetGeneric
+        ? ec.offsetGeneric.min
+        : ec.minCardTypes !== undefined
+          ? candidateIds.length
+          : ec.count;
+    const maximum = ec.offsetGeneric ? ec.offsetGeneric.max : required;
+    return { candidateIds, required, maximum };
 }
 
 /** Read the cards the bot may legally pick for `head` from its projected view.
@@ -614,6 +652,10 @@ export function buildBotView(state: PublicGameState, botId: string): BotView {
     // CR 601.2g (issue #1444/#1446) — the parked generic-mana spend choice.
     view.manaSpendChoice = buildManaSpendChoiceView(state, botId);
 
+    // CR 601.2g / 702.66 (issue #1336) — the parked cast-cost graveyard exile
+    // picker (delve; flashback / escape exile costs).
+    view.castExileChoice = buildCastExileChoiceView(state, botId);
+
     return view;
 }
 
@@ -778,6 +820,10 @@ export function botActionToMove(
         // attack-tax pay-cancel / no-op), never translated to a Move here.
         // `search-choice` in particular carries no answer of its own — the
         // Worker's returned Move IS the submission (issue #1506).
+        // `cast-exile-cost` (CR 601.2g / 702.66, issue #1336) likewise: the
+        // parked cast-cost graveyard exile pick hangs off `pendingCast`, not
+        // `pendingChoices[]`, so it is driven straight through
+        // `selectCastExileCost` and has no Move to translate into.
         case "search-choice":
         case "pass":
         case "declare-attackers":
@@ -786,6 +832,7 @@ export function botActionToMove(
         case "pay-attack-tax":
         case "cancel-attack-tax":
         case "resolve-mana-spend":
+        case "cast-exile-cost":
         case "none":
             return null;
         default:

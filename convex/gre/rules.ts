@@ -54,6 +54,7 @@ import {
     getEscapeManaCost,
     hasEscape,
 } from "./escape";
+import { delveEligibleCards, spellHasDelve } from "./payWith";
 import type { ManaCost } from "../cards/types";
 import {
     landPlayLockActive,
@@ -935,8 +936,16 @@ function spellHasImprovise(card: CardInstanceState): boolean {
 function coloredCostLeftover(
     player: PlayerState,
     card: CardInstanceState,
-    cost: Record<string, number>
+    cost: Record<string, number>,
+    /** CR 601.2g (`payWith`, ADR 0063) — include the chosen-resource pseudo
+     *  sources (delve's graveyard cards) in the probe. Default true: the
+     *  castability gate must see them or a delve-only-payable spell is hidden.
+     *  `genericManaShortfall` passes false — it asks the complementary question
+     *  ("how much can MANA alone NOT cover", i.e. how many resources the caster
+     *  is forced to spend), which must exclude them. */
+    opts: { payWith?: boolean } = {}
 ): number | null {
+    const includePayWith = opts.payWith ?? true;
     // Each source is the set of colors it can supply for this cost slot.
     const sources: Set<Color>[] = [];
     for (const c of MANA_COLORS) {
@@ -1001,6 +1010,22 @@ function coloredCostLeftover(
             if (producesMana) continue;
             sources.push(new Set<Color>());
         }
+    }
+
+    // CR 702.66 / 601.2g — Delve (`payWith`, ADR 0063): while casting a spell
+    // with delve, each card in the caster's graveyard may be exiled to pay for
+    // {1} of the GENERIC cost. Model each as a generic-ONLY pseudo-source
+    // (empty colour set — it never satisfies a coloured pip in the greedy pass
+    // below, so it always survives into the leftover the generic portion draws
+    // from), exactly as Improvise does above. This is a PROBE only: the real
+    // payment is the caster's explicit picker choice
+    // (`PendingCast.exileFromGraveyardChoice.offsetGeneric`), never auto-picked
+    // by the solver. Without it `getLegalActions` would drop "cast" for a spell
+    // payable only by delving (Treasure Cruise off two lands) and the client
+    // would gray it out.
+    if (includePayWith && spellHasDelve(card)) {
+        const fuel = delveEligibleCards(player, card.id).length;
+        for (let i = 0; i < fuel; i++) sources.push(new Set<Color>());
     }
 
     // Greedy: assign colored requirements first, picking the least-flexible
@@ -1211,6 +1236,27 @@ export function maxAffordableX(
     const leftover = coloredCostLeftover(player, card, cost);
     if (leftover === null) return 0;
     return Math.max(0, leftover - (cost.X ?? 0));
+}
+
+/** CR 601.2g (`payWith`, ADR 0063) — how many GENERIC pips of `cost` the
+ *  caster's MANA alone cannot cover, i.e. the minimum number of chosen
+ *  resources (delve exiles) they are FORCED to spend on this cast. Uses the
+ *  same greedy one-source-one-mana model as the castability gate, with the
+ *  payWith pseudo-sources deliberately EXCLUDED — including them would answer
+ *  its own question and always return 0.
+ *
+ *  Returns `Infinity` when the COLOURED portion itself is uncoverable: delve
+ *  never pays a coloured pip (CR 702.66a), so no number of exiles rescues that
+ *  cast. `cost` must already carry the CR 601.2f reductions
+ *  (`applyCostModifiers`), matching what the announce path parks. */
+export function genericManaShortfall(
+    player: PlayerState,
+    card: CardInstanceState,
+    cost: Record<string, number>
+): number {
+    const leftover = coloredCostLeftover(player, card, cost, { payWith: false });
+    if (leftover === null) return Infinity;
+    return Math.max(0, (cost.X ?? 0) - leftover);
 }
 
 /** CR 117.1b: some spells have phase-limited casting windows (e.g. Berserk
