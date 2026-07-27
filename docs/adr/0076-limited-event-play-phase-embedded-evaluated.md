@@ -59,11 +59,29 @@ is then a **compile error** naming exactly which facts it must declare, not a
 silently-false predicate. This is the same shape as the target-filter registry
 (ADR 0068): the guard is that a missing entry must not typecheck.
 
-Every consumer in `convex/` and `src/` was migrated to the predicates in the
-same change — a raw literal comparison against an event status is now a review
-blocker. The `arePoolsDealt` predicate carries the load-bearing invariant: **a
-Pool is never un-dealt**, so pools, submitted decks and Auto-Built decks stay
-readable through `playing` and `finished`.
+Every consumer in `convex/` and `src/` that asks a **phase question** was
+migrated to the predicates in the same change — a raw literal comparison used to
+decide what a phase permits is now a review blocker. The `arePoolsDealt`
+predicate carries the load-bearing invariant: **a Pool is never un-dealt**, so
+pools, submitted decks and Auto-Built decks stay readable through `playing` and
+`finished`.
+
+Two kinds of literal are deliberately **exempt**, because neither is a phase
+question:
+
+- **Index selection.** `listOpenLimitedEvents` keeps
+  `.withIndex("by_status", (q) => q.eq("status", "open"))`. This names the index
+  range to scan, not what the phase permits; there is no predicate form of it
+  (an index bound must be a concrete value, and routing it through a predicate
+  would degrade the query to a full scan + filter). The lobby list is defined as
+  "events in the `open` status", so the literal IS the specification.
+- **Writes.** `status: "open"` at creation and `status: "started"` at event
+  start are assignments naming the phase being entered, not comparisons
+  branching on one.
+
+The distinction is what the guard is actually about: a literal that *reads a
+status to decide behaviour* silently becomes wrong when a member is added; a
+literal that *names a specific status* does not.
 
 ### 2. The play phase lives EMBEDDED in the event document
 

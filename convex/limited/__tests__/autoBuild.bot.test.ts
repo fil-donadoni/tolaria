@@ -385,6 +385,59 @@ describe("isEventPoolFinal / computeBotAutoBuiltDeck (issue #1115)", () => {
         expect(isEventPoolFinal(completed)).toBe(true);
     });
 
+    // The regression the play phase introduced (ADR 0076, issue #1640): this
+    // gate used to read `status !== "started"`, so the instant `playing`
+    // existed EVERY bot seat's Auto-Built deck — the deck its round pairings
+    // are played and evaluated against — would have vanished mid-event. A
+    // Pool is never un-dealt, so `arePoolsDealt` must keep it final through
+    // the rounds and past the event's end. Asserted HERE, at the consumer
+    // that was actually broken: `eventStatus.test.ts` pins
+    // `arePoolsDealt("playing")` but never reaches this gate.
+    it("a Pool stays final through the play phase and past the event's end", () => {
+        const sealedPlaying: AutoBuildEventContext = {
+            type: "sealed",
+            status: "playing",
+        };
+        const sealedFinished: AutoBuildEventContext = {
+            type: "sealed",
+            status: "finished",
+        };
+        const draftPlaying: AutoBuildEventContext = {
+            type: "draft",
+            status: "playing",
+            draftCompletedAt: 12345,
+        };
+        const draftFinished: AutoBuildEventContext = {
+            type: "draft",
+            status: "finished",
+            draftCompletedAt: 12345,
+        };
+
+        expect(isEventPoolFinal(sealedPlaying)).toBe(true);
+        expect(isEventPoolFinal(sealedFinished)).toBe(true);
+        expect(isEventPoolFinal(draftPlaying)).toBe(true);
+        expect(isEventPoolFinal(draftFinished)).toBe(true);
+
+        // …and the consequence that matters: the bot seat still HAS its deck
+        // once the rounds are running and after they end.
+        expect(
+            computeBotAutoBuiltDeck(
+                { isBot: true, pool },
+                sealedPlaying,
+                meta,
+                land
+            )
+        ).not.toBeNull();
+        expect(
+            computeBotAutoBuiltDeck(
+                { isBot: true, pool },
+                draftFinished,
+                meta,
+                land
+            )
+        ).not.toBeNull();
+    });
+
     it("computeBotAutoBuiltDeck is null for a human seat, null before the Pool is final, and a deck once it is", () => {
         const started: AutoBuildEventContext = {
             type: "sealed",
