@@ -27,7 +27,7 @@ import {
     isTapLockedBySummoningSickness,
     manaValue,
 } from "./constants";
-import { STATIC_EFFECT_CTX } from "./layers";
+import { STATIC_EFFECT_CTX, getEffectivePower } from "./layers";
 import { isProtectedFromColors } from "./protection";
 import { isGuardedAgainst, playerHasShroud } from "./permanentGuard";
 import {
@@ -1456,7 +1456,14 @@ export function getLegalTargets(
      *  itself). Threaded through so a future incremental-pick caller (or a
      *  bot enumerator) CAN narrow the offered set to the sibling's
      *  controller once one half is chosen. */
-    alreadySelected: readonly TargetSelection[] = []
+    alreadySelected: readonly TargetSelection[] = [],
+    /** Issue #1378 — the announcing trigger/ability source's LIVE effective
+     *  power (CR 613 layer 7c), for a `mvFilter` bound of `"sourcePower"`
+     *  (Guardian Scalelord). See `TargetRequirement.mvFilter`'s doc comment
+     *  (`cards/types.ts`) for the CR 603.3d snapshot-timing rationale.
+     *  Undefined for every caller that doesn't need it — `resolveMvFilter`
+     *  falls back to 0, matching every other left-play convention. */
+    sourcePower?: number
 ): TargetSelection[] {
     const targets: TargetSelection[] = [];
 
@@ -1493,7 +1500,7 @@ export function getLegalTargets(
             (t) =>
                 t !== "player" && t !== "any" && t !== "spell" && t !== "card"
         );
-        const cardValues = lowerCardFilters(requirement, chosenX);
+        const cardValues = lowerCardFilters(requirement, chosenX, sourcePower);
         const cardFilterCtx: TargetFilterCtx = {
             state,
             sourceColors,
@@ -1546,7 +1553,11 @@ export function getLegalTargets(
     const tappedFilter = requirement.tappedFilter;
     const combatRoleFilter = requirement.combatRoleFilter;
     const powerFilter = requirement.powerFilter;
-    const mvFilter = resolveMvFilter(requirement.mvFilter, chosenX);
+    const mvFilter = resolveMvFilter(
+        requirement.mvFilter,
+        chosenX,
+        sourcePower
+    );
     const subtypeFilter = requirement.subtypeFilter
         ? Array.isArray(requirement.subtypeFilter)
             ? requirement.subtypeFilter
@@ -1847,6 +1858,34 @@ export function getPendingTargetSourceSubtypes(
     return [];
 }
 
+/** Effective POWER (CR 613 layer 7c) of a TRIGGERED ability's source
+ *  permanent, read live off the CURRENT battlefield (not the trigger stack
+ *  item's `...self` snapshot, which carries the source's PRINTED base
+ *  power/toughness from `collectTriggers`-time, not the layered effective
+ *  value). Used by `TargetRequirement.mvFilter`'s `"sourcePower"` cap
+ *  (Guardian Scalelord: "mana value X or less, where X is this creature's
+ *  power", issue #1378, CR 603.3d) — called from `raiseTriggerTargetSelection`
+ *  at the exact moment the trigger's target is chosen, which is what fixes
+ *  the value as the ability is put on the stack (no separate snapshot/carry
+ *  needed, mirroring how Ward / Backup's `targetIsAnother` already need no
+ *  re-check plumbing for a "checked once, at this moment" CR 603.3d value).
+ *  Returns 0 when the source can no longer be found on any battlefield (CR
+ *  608.2b last-known-information convention, matching `EffectManaValueValue`'s
+ *  own left-play fallback) — unreachable in practice since target selection
+ *  runs synchronously as the trigger is placed on the stack, with no
+ *  priority window for the source to leave beforehand. */
+export function getTriggerSourcePower(
+    state: GameState,
+    triggerSourceId: string | undefined
+): number {
+    if (!triggerSourceId) return 0;
+    for (const p of state.players) {
+        const card = p.battlefield.find((c) => c.id === triggerSourceId);
+        if (card) return getEffectivePower(state, card);
+    }
+    return 0;
+}
+
 /** Validates that a specific action is legal for a card. Throws if not. */
 export function assertLegalAction(
     state: GameState,
@@ -1878,7 +1917,13 @@ export function assertLegalAction(
  *  the divide-as-you-choose bookkeeping are owned by each caller. */
 export function pendingTargetFiltersFromRequirement(
     req: TargetRequirement,
-    chosenX: number | undefined
+    chosenX: number | undefined,
+    /** Issue #1378 — see `getLegalTargets`'s same-named parameter. Threaded
+     *  through so the CARRIED `PendingTarget.mvFilter` (validated later at
+     *  `selectTarget`, `game.ts`) resolves `"sourcePower"` to the SAME live
+     *  value the offered set (`getLegalTargets`) just used — "lower once,
+     *  check everywhere" (ADR 0068). */
+    sourcePower?: number
 ): Partial<PendingTarget> {
     // ADR 0068 — every PERMANENT-kind filter (plus `controller`, issue
     // #1408 T1), every SPELL-kind filter (issue #1409 T2), and every
@@ -1892,7 +1937,11 @@ export function pendingTargetFiltersFromRequirement(
     // `colorFilter` / `colorFilterAny` / `mvFilter`, already produced by
     // `lowerPermanentFilters`) — spread again, same values, no conflict.
     const out: Partial<PendingTarget> = {
-        ...(lowerPermanentFilters(req, chosenX) as Partial<PendingTarget>),
+        ...(lowerPermanentFilters(
+            req,
+            chosenX,
+            sourcePower
+        ) as Partial<PendingTarget>),
     };
     // Fixup (T2 review, issue #1409): `lowerSpellFilters` always resolves
     // `spellStackKind` to its explicit default `"spell"` (never
@@ -1925,7 +1974,11 @@ export function pendingTargetFiltersFromRequirement(
     if (req.zone === "graveyard") {
         Object.assign(
             out,
-            lowerCardFilters(req, chosenX) as Partial<PendingTarget>
+            lowerCardFilters(
+                req,
+                chosenX,
+                sourcePower
+            ) as Partial<PendingTarget>
         );
     }
     if (req.zone) out.zone = req.zone;
@@ -2023,6 +2076,13 @@ export function raiseTriggerTargetSelection(state: GameState): boolean {
             item.id,
             "retarget"
         );
+        // Issue #1378 — CR 603.3d: the source's live effective power, read
+        // NOW (as this trigger's target is chosen) for a `mvFilter` bound of
+        // `"sourcePower"` (Guardian Scalelord). `item.triggerSourceId` is the
+        // BATTLEFIELD permanent carrying the ability (`buildTriggerItem`) —
+        // distinct from `item.id`, the synthetic stack-item id `sourceColors`
+        // / `sourceTypes` / `sourceSubtypes` above read from.
+        const sourcePower = getTriggerSourcePower(state, item.triggerSourceId);
         // CR 113.3 — a triggered ability is not a spell.
         const legal = getLegalTargets(
             state,
@@ -2032,7 +2092,9 @@ export function raiseTriggerTargetSelection(state: GameState): boolean {
             undefined,
             sourceTypes,
             sourceSubtypes,
-            false
+            false,
+            [],
+            sourcePower
         );
 
         // CR 702.21e (issue #1361) — when TWO+ spells/abilities simultaneously
@@ -2119,7 +2181,11 @@ export function raiseTriggerTargetSelection(state: GameState): boolean {
             // `effectiveReq` (not the static `req`) so a real-choice fallback
             // for a `spellTargetsSelfSource` requirement (Ward) still carries
             // the resolved instance filter, not an empty static list.
-            ...pendingTargetFiltersFromRequirement(effectiveReq, undefined),
+            ...pendingTargetFiltersFromRequirement(
+                effectiveReq,
+                undefined,
+                sourcePower
+            ),
             ...(divideTotal !== undefined ? { divideTotal } : {}),
         };
         state.priorityPlayerId = item.controllerId;

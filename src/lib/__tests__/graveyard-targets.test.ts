@@ -6,10 +6,15 @@ import {
     matchesGraveyardTarget,
 } from "~/lib/graveyard-targets";
 
-function gyCard(id: string, ownerId: string, types: string[]): CardInstance {
+function gyCard(
+    id: string,
+    ownerId: string,
+    types: string[],
+    manaCost?: Record<string, number>
+): CardInstance {
     return {
         id,
-        card: { id: `def-${id}` },
+        card: { id: `def-${id}`, ...(manaCost ? { manaCost } : {}) },
         controllerId: ownerId,
         ownerId,
         zone: "graveyard",
@@ -111,6 +116,65 @@ describe("matchesGraveyardTarget (mirror of server filter, CR 109.2)", () => {
                 land,
                 "me",
                 pending({ targetType: "card" }),
+                "me"
+            )
+        ).toBe(true);
+    });
+});
+
+// issue #1378 (Guardian Scalelord's dynamic power-based mana-value ceiling):
+// `PendingTarget.mvFilter` was previously NEVER checked here — the server
+// already resolves any `"X"` / `"sourcePower"` sentinel into a plain number
+// bound before it ever reaches `PendingTarget`
+// (`pendingTargetFiltersFromRequirement`, `gre/rules.ts`), so the client only
+// ever needs to compare against a resolved bound, same as `matchesMvFilter`
+// (`gre/targetFilters.ts`) does server-side. Closes a pre-existing gap
+// affecting every mvFilter-restricted graveyard target (Sevinne's
+// Reclamation, sos/multicolor.ts, ulg/black.ts), not just this new card.
+describe("matchesGraveyardTarget — mvFilter (CR 202.3, issue #1378)", () => {
+    it("accepts a card within the resolved mana-value bound, rejects one outside it", () => {
+        const cheap = gyCard("cheap", "me", ["Creature"], { generic: 2 });
+        const pricey = gyCard("pricey", "me", ["Creature"], { generic: 4 });
+        const pt = pending({ mvFilter: { max: 3 } });
+        expect(matchesGraveyardTarget(cheap, "me", pt, "me")).toBe(true);
+        expect(matchesGraveyardTarget(pricey, "me", pt, "me")).toBe(false);
+    });
+
+    it("mvFilter still applies when targetType is the catch-all 'card' (the short-circuit this fix removed)", () => {
+        const pricey = gyCard("pricey2", "me", ["Artifact"], { generic: 5 });
+        const pt = pending({ targetType: "card", mvFilter: { max: 3 } });
+        expect(matchesGraveyardTarget(pricey, "me", pt, "me")).toBe(false);
+    });
+
+    it("no mvFilter on the PendingTarget leaves the target unrestricted by mana value", () => {
+        const pricey = gyCard("pricey3", "me", ["Creature"], { generic: 9 });
+        const pt = pending({});
+        expect(matchesGraveyardTarget(pricey, "me", pt, "me")).toBe(true);
+    });
+
+    it("mvFilter.min / .equals are also enforced, mirroring the server's matchesMvFilter", () => {
+        const three = gyCard("three", "me", ["Creature"], { generic: 3 });
+        expect(
+            matchesGraveyardTarget(
+                three,
+                "me",
+                pending({ mvFilter: { min: 4 } }),
+                "me"
+            )
+        ).toBe(false);
+        expect(
+            matchesGraveyardTarget(
+                three,
+                "me",
+                pending({ mvFilter: { equals: 2 } }),
+                "me"
+            )
+        ).toBe(false);
+        expect(
+            matchesGraveyardTarget(
+                three,
+                "me",
+                pending({ mvFilter: { equals: 3 } }),
                 "me"
             )
         ).toBe(true);

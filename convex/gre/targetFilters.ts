@@ -69,17 +69,25 @@ export function hasColor(card: CardInstanceState, color: Color): boolean {
     return STATIC_EFFECT_CTX.getColors(card).includes(color);
 }
 
-/** Resolves a TargetRequirement.mvFilter's `"X"` placeholders against the
- *  announced chosenX so downstream code only sees numeric bounds.
- *  Used by getLegalTargets and selectTarget validation. */
+/** Resolves a TargetRequirement.mvFilter's `"X"` / `"sourcePower"`
+ *  placeholders against the announced chosenX / source's live effective power
+ *  so downstream code only sees numeric bounds. `sourcePower` (issue #1378)
+ *  is the announcing trigger/ability source's CURRENT effective power (CR
+ *  613 layer 7c) — see the field's doc comment on `TargetRequirement.mvFilter`
+ *  (`cards/types.ts`) for the CR 603.3d snapshot-timing rationale. Used by
+ *  getLegalTargets and selectTarget validation. */
 export function resolveMvFilter(
     filter: TargetRequirement["mvFilter"] | undefined,
-    chosenX: number | undefined
+    chosenX: number | undefined,
+    sourcePower?: number
 ): { min?: number; max?: number; equals?: number } | undefined {
     if (!filter) return undefined;
-    const resolveOne = (v: number | "X" | undefined): number | undefined => {
+    const resolveOne = (
+        v: number | "X" | "sourcePower" | undefined
+    ): number | undefined => {
         if (v === undefined) return undefined;
         if (v === "X") return chosenX ?? 0;
+        if (v === "sourcePower") return sourcePower ?? 0;
         return v;
     };
     return {
@@ -362,7 +370,16 @@ export interface TargetFilterCtx {
  *  `undefined` is skipped; a filter whose value is present but whose
  *  candidate kind is absent from `checks` excludes that candidate. */
 export interface FilterDescriptor<V> {
-    lower(req: TargetRequirement, chosenX?: number): V | undefined;
+    /** `sourcePower` (issue #1378) is the announcing trigger/ability source's
+     *  live effective power, threaded through ONLY for `mvFilterDescriptor`'s
+     *  `"sourcePower"` placeholder — every other descriptor ignores the extra
+     *  argument (TS function-type compatibility permits a narrower-arity
+     *  implementation). */
+    lower(
+        req: TargetRequirement,
+        chosenX?: number,
+        sourcePower?: number
+    ): V | undefined;
     checks: Partial<{
         permanent: (
             candidate: CardInstanceState,
@@ -779,7 +796,8 @@ const mvFilterDescriptor = defineFilter<{
     max?: number;
     equals?: number;
 }>({
-    lower: (req, chosenX) => resolveMvFilter(req.mvFilter, chosenX),
+    lower: (req, chosenX, sourcePower) =>
+        resolveMvFilter(req.mvFilter, chosenX, sourcePower),
     checks: {
         permanent: (card, value) =>
             matchesMvFilter(value, mvOfPermanent(card))
@@ -1145,11 +1163,12 @@ export function checkPermanentTargetFilters(
  *  key's output IS the corresponding `PendingTarget` field, by construction. */
 export function lowerPermanentFilters(
     req: TargetRequirement,
-    chosenX: number | undefined
+    chosenX: number | undefined,
+    sourcePower?: number
 ): PermanentFilterValues {
     const out: Record<string, unknown> = {};
     for (const key of PERMANENT_FILTER_KEYS) {
-        const value = REGISTRY[key].lower(req, chosenX);
+        const value = REGISTRY[key].lower(req, chosenX, sourcePower);
         if (value !== undefined) out[key] = value;
     }
     return out as PermanentFilterValues;
@@ -1242,11 +1261,12 @@ export function checkSpellTargetFilters(
  *  stays always-active (see the descriptor's doc comment). */
 export function lowerSpellFilters(
     req: TargetRequirement,
-    chosenX: number | undefined
+    chosenX: number | undefined,
+    sourcePower?: number
 ): SpellFilterValues {
     const out: Record<string, unknown> = {};
     for (const key of SPELL_FILTER_KEYS) {
-        const value = REGISTRY[key].lower(req, chosenX);
+        const value = REGISTRY[key].lower(req, chosenX, sourcePower);
         if (value !== undefined) out[key] = value;
     }
     return out as SpellFilterValues;
@@ -1312,11 +1332,12 @@ export function checkPlayerTargetFilters(
  *  output IS the corresponding `PendingTarget` field, by construction. */
 export function lowerPlayerFilters(
     req: TargetRequirement,
-    chosenX: number | undefined
+    chosenX: number | undefined,
+    sourcePower?: number
 ): PlayerFilterValues {
     const out: Record<string, unknown> = {};
     for (const key of PLAYER_FILTER_KEYS) {
-        const value = REGISTRY[key].lower(req, chosenX);
+        const value = REGISTRY[key].lower(req, chosenX, sourcePower);
         if (value !== undefined) out[key] = value;
     }
     return out as PlayerFilterValues;
@@ -1384,11 +1405,12 @@ export function checkCardTargetFilters(
  *  output IS the corresponding `PendingTarget` field, by construction. */
 export function lowerCardFilters(
     req: TargetRequirement,
-    chosenX: number | undefined
+    chosenX: number | undefined,
+    sourcePower?: number
 ): CardFilterValues {
     const out: Record<string, unknown> = {};
     for (const key of CARD_FILTER_KEYS) {
-        const value = REGISTRY[key].lower(req, chosenX);
+        const value = REGISTRY[key].lower(req, chosenX, sourcePower);
         if (value !== undefined) out[key] = value;
     }
     return out as CardFilterValues;

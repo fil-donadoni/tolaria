@@ -12,6 +12,7 @@ import {
     intrinsicPermanentTargetViolation,
     pendingTargetFiltersFromRequirement,
     getPendingTargetSourceSubtypes,
+    getTriggerSourcePower,
     matchesBattlefieldController,
     spellMatchesCreaturePtFilter,
     spellMatchesExcludeTypeFilter,
@@ -85,6 +86,7 @@ function makeCard(
         ownerId: overrides.ownerId ?? "p1",
         zone: overrides.zone ?? "battlefield",
         isTapped: overrides.isTapped ?? false,
+        ...(overrides.counters ? { counters: overrides.counters } : {}),
     };
 }
 
@@ -2528,6 +2530,183 @@ describe("getLegalTargets: graveyard-card zone targeting (CR 400.7 / 109.2, T3 p
         expect(targets).toEqual([
             { type: "graveyard-card", id: "gy-cheap", playerId: "p1" },
         ]);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// mvFilter "sourcePower" — dynamic power-based cap (issue #1378, Guardian
+// Scalelord: "return target nonland permanent card with mana value X or
+// less from your graveyard to the battlefield, where X is this creature's
+// power", CR 603.3d). Mirrors the literal-cap mvFilter suite above; proves
+// the new grammar member resolves against the announced `sourcePower`
+// argument instead of a static bound, and that `getTriggerSourcePower`
+// reads the LIVE battlefield permanent (not a stale snapshot).
+// ---------------------------------------------------------------------------
+
+describe("mvFilter 'sourcePower' — dynamic power-based cap (issue #1378, CR 603.3d)", () => {
+    function graveyardPowerState() {
+        const cheap = makeCard({
+            id: "gy-cheap",
+            card: { id: "test-gy-cheap-power", manaCost: { generic: 2 } },
+            zone: "graveyard",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const pricey = makeCard({
+            id: "gy-pricey",
+            card: { id: "test-gy-pricey-power", manaCost: { generic: 4 } },
+            zone: "graveyard",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeGameState({
+            players: [
+                makePlayer({ id: "p1", graveyard: [cheap, pricey] }),
+                makePlayer({ id: "p2" }),
+            ],
+        });
+        return { state, cheap, pricey };
+    }
+
+    const dynamicReq: TargetRequirement = {
+        type: "card",
+        count: 1,
+        zone: "graveyard",
+        controller: "you",
+        mvFilter: { max: "sourcePower" },
+    };
+
+    it("regression: a LITERAL mvFilter.max still resolves to a plain number cap, unaffected by the new sentinel", () => {
+        const { state } = graveyardPowerState();
+        const literalReq: TargetRequirement = {
+            ...dynamicReq,
+            mvFilter: { max: 3 },
+        };
+        // A large sourcePower argument must NOT leak into a literal bound.
+        const targets = getLegalTargets(
+            state,
+            literalReq,
+            [],
+            "p1",
+            undefined,
+            [],
+            [],
+            false,
+            [],
+            999
+        );
+        expect(targets).toEqual([
+            { type: "graveyard-card", id: "gy-cheap", playerId: "p1" },
+        ]);
+    });
+
+    it("'sourcePower' resolves the cap to the announced sourcePower argument", () => {
+        const { state } = graveyardPowerState();
+        const atTwo = getLegalTargets(
+            state,
+            dynamicReq,
+            [],
+            "p1",
+            undefined,
+            [],
+            [],
+            false,
+            [],
+            2
+        );
+        expect(atTwo).toEqual([
+            { type: "graveyard-card", id: "gy-cheap", playerId: "p1" },
+        ]);
+        // An unthreaded call (no sourcePower argument) falls back to 0
+        // (CR 608.2b convention) — neither graveyard card qualifies.
+        const unthreaded = getLegalTargets(state, dynamicReq, [], "p1");
+        expect(unthreaded).toEqual([]);
+    });
+
+    it("the cap TRACKS a power change — a higher source power widens the legal set", () => {
+        const { state } = graveyardPowerState();
+        const before = getLegalTargets(
+            state,
+            dynamicReq,
+            [],
+            "p1",
+            undefined,
+            [],
+            [],
+            false,
+            [],
+            2
+        );
+        expect(before).toEqual([
+            { type: "graveyard-card", id: "gy-cheap", playerId: "p1" },
+        ]);
+        // SAME state, source now read at power 4 (e.g. buffed by a +1/+1
+        // counter before this attack trigger's target is chosen) — the
+        // mv-4 card is now ALSO legal.
+        const after = getLegalTargets(
+            state,
+            dynamicReq,
+            [],
+            "p1",
+            undefined,
+            [],
+            [],
+            false,
+            [],
+            4
+        );
+        expect(after).toHaveLength(2);
+        expect(after).toEqual(
+            expect.arrayContaining([
+                { type: "graveyard-card", id: "gy-cheap", playerId: "p1" },
+                { type: "graveyard-card", id: "gy-pricey", playerId: "p1" },
+            ])
+        );
+    });
+
+    it("getTriggerSourcePower reads the LIVE effective power (CR 613 layer 7c) off the battlefield permanent, counters included", () => {
+        const base = makeCard({
+            id: "scalelord",
+            types: ["Creature"],
+            power: 3,
+            toughness: 4,
+        });
+        const buffed = makeCard({
+            id: "scalelord",
+            types: ["Creature"],
+            power: 3,
+            toughness: 4,
+            counters: { "+1/+1": 2 },
+        });
+        const baseState = makeGameState({
+            players: [
+                makePlayer({ id: "p1", battlefield: [base] }),
+                makePlayer({ id: "p2" }),
+            ],
+        });
+        const buffedState = makeGameState({
+            players: [
+                makePlayer({ id: "p1", battlefield: [buffed] }),
+                makePlayer({ id: "p2" }),
+            ],
+        });
+        expect(getTriggerSourcePower(baseState, "scalelord")).toBe(3);
+        expect(getTriggerSourcePower(buffedState, "scalelord")).toBe(5);
+    });
+
+    it("getTriggerSourcePower falls back to 0 when the source can't be found (CR 608.2b) or is undefined", () => {
+        const state = makeGameState();
+        expect(getTriggerSourcePower(state, "not-on-any-battlefield")).toBe(0);
+        expect(getTriggerSourcePower(state, undefined)).toBe(0);
+    });
+
+    it("pendingTargetFiltersFromRequirement carries the sourcePower-RESOLVED mvFilter (a plain number) onto the PendingTarget", () => {
+        const pt = pendingTargetFiltersFromRequirement(
+            dynamicReq,
+            undefined,
+            3
+        );
+        expect(pt.mvFilter).toEqual({ max: 3 });
     });
 });
 

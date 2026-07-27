@@ -10346,6 +10346,13 @@ export function activateAbilityOnState(
         // CR 202.2 / 702.16b: the source's colors come from the
         // permanent owning the activated ability.
         const abilitySourceColors = STATIC_EFFECT_CTX.getColors(card);
+        // Issue #1378 — the activating permanent's LIVE effective power (CR
+        // 613 layer 7c), for a `mvFilter` bound of `"sourcePower"`. Read the
+        // same way the ability's own `dealDamage`-style effects would
+        // (`getEffectivePower`); an activated ability's source is always the
+        // on-battlefield `card` itself (unlike a triggered ability's
+        // separately-tracked `triggerSourceId`).
+        const abilitySourcePower = getEffectivePower(state, card);
         const legal = getLegalTargets(
             state,
             effectiveTargetReq,
@@ -10355,7 +10362,9 @@ export function activateAbilityOnState(
             card.types,
             card.subtypes,
             // Source is an activated ability, not a spell (CR 113.3).
-            false
+            false,
+            [],
+            abilitySourcePower
         );
         if (legal.length === 0) {
             throw new Error("No legal targets available");
@@ -10406,7 +10415,8 @@ export function activateAbilityOnState(
             // activated ability (CR 113 / 701.5a).
             ...pendingTargetFiltersFromRequirement(
                 effectiveTargetReq,
-                targetChosenX
+                targetChosenX,
+                abilitySourcePower
             ),
         };
 

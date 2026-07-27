@@ -313,11 +313,34 @@ export interface TargetRequirement {
     /** Restricts legal targets by mana value (CR 202.3). Inclusive bounds;
      *  string `"X"` resolves to the chosen value of X at announcement
      *  (CR 107.3) — used by Spell Blast ("counter target spell with mana
-     *  value X"). Honored for permanent and spell targets. */
+     *  value X"). Honored for permanent and spell targets.
+     *
+     *  `"sourcePower"` (issue #1378) resolves to the EFFECTIVE power (CR 613
+     *  layer 7c) of the announcing source permanent — Guardian Scalelord's
+     *  "return target nonland permanent card with mana value X or less from
+     *  your graveyard to the battlefield, where X is this creature's power".
+     *  Distinct from `"X"` (the spell/ability's OWN chosen `{X}`): this reads
+     *  a live BOARD value, not an announced cost. Resolved at the SAME point
+     *  `"X"` already is — legal-target computation
+     *  (`getLegalTargets`/`raiseTriggerTargetSelection`) and pending-target
+     *  filter carry (`pendingTargetFiltersFromRequirement`) — so the value is
+     *  fixed as the ability is put on the stack / targets are announced
+     *  (CR 603.3d) and never re-evaluated at resolution, mirroring how Ward /
+     *  Backup's `targetIsAnother` already need no re-check plumbing. Falls
+     *  back to 0 when the source cannot be located (CR 608.2b convention,
+     *  matching `EffectManaValueValue`'s own left-play fallback) —
+     *  unreachable in practice since resolution happens synchronously as the
+     *  ability is placed, with no priority window for the source to leave.
+     *  Meaningful only for a TRIGGERED or ACTIVATED ability whose source is a
+     *  battlefield permanent (a cast SPELL's source is a hand card with no
+     *  effective power to read); every current caller of `getLegalTargets`
+     *  besides the trigger/activated-ability paths simply omits the
+     *  `sourcePower` argument, so an unthreaded call resolves `"sourcePower"`
+     *  to 0 rather than silently misreading an unrelated value. */
     mvFilter?: {
-        min?: number | "X";
-        max?: number | "X";
-        equals?: number | "X";
+        min?: number | "X" | "sourcePower";
+        max?: number | "X" | "sourcePower";
+        equals?: number | "X" | "sourcePower";
     };
     /** Zone the target lives in (CR 109.2 — objects can exist in zones other
      *  than the battlefield). Default "battlefield". When set to "graveyard",
