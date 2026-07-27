@@ -6,6 +6,7 @@ import {
     type Color,
     type ControlChangeCondition,
     type CounterDestination,
+    type CountDrivenCostReduction,
     type DelayedTriggerInlineBody,
     type DelayedTriggerTiming,
     type DrawReplacementEvent,
@@ -14951,10 +14952,56 @@ export interface CostModifiers {
     minTotalMana: number;
 }
 
+/** True iff a `costReduction` value is the count-driven shape (ADR 0063)
+ *  rather than a fixed literal `ManaCost`. Discriminated on `countFilter` —
+ *  no `ManaCost` mana-symbol key collides with it. */
+function isCountDrivenCostReduction(
+    reduction: CardManaCost | CountDrivenCostReduction
+): reduction is CountDrivenCostReduction {
+    return (
+        typeof reduction === "object" &&
+        reduction !== null &&
+        "countFilter" in reduction
+    );
+}
+
+/** Resolve a CR 601.2f `costReduction`'s generic-mana amount. A fixed literal
+ *  (Stone Calendar, Power Artifact, Mana Matrix, Planar Gate) just normalizes
+ *  to its own generic portion, unchanged from before. A count-driven amount
+ *  (Emry, ADR 0063) multiplies `perCount`'s generic portion by the number of
+ *  `countFilter`-matching permanents on `player`'s OWN battlefield — "for
+ *  each artifact you control" is always evaluated against the reduction's own
+ *  player, never an opponent's board. Shared by the battlefield-scan site and
+ *  the self-host site below so the two can never drift apart. */
+function resolveCostReductionGeneric(
+    reduction: CardManaCost | CountDrivenCostReduction,
+    player: PlayerState
+): number {
+    if (isCountDrivenCostReduction(reduction)) {
+        const per = normalizeManaCost(reduction.perCount).X ?? 0;
+        if (per <= 0) return 0;
+        const n = player.battlefield.filter((c) =>
+            matchesPermanentFilter(c, reduction.countFilter, {
+                selfControllerId: player.id,
+            })
+        ).length;
+        return per * n;
+    }
+    return normalizeManaCost(reduction).X ?? 0;
+}
+
 /** Scan the battlefield for `cost-modifier` static effects that apply to the
- *  given spell or ability source and return the accumulated modifiers (CR
- *  601.2f). Each effect's own carrier permanent is passed to its `appliesTo*`
- *  predicate so an Aura can scope its modifier to its host (Power Artifact). */
+ *  given spell or ability source, PLUS the spell's own self-host reduction if
+ *  it declares one, and return the accumulated modifiers (CR 601.2f). Each
+ *  battlefield effect's own carrier permanent is passed to its `appliesTo*`
+ *  predicate so an Aura can scope its modifier to its host (Power Artifact).
+ *
+ *  Self-host (ADR 0063, spell-only): a spell's own `CardDefinition` can
+ *  declare `selfCostReduction` — its intrinsic discount to its own cast cost
+ *  (Emry, Lurker of the Loch). Unlike every other `costReduction` consumer,
+ *  Emry isn't a permanent when she's announced, so no battlefield scan can
+ *  discover her reducer; it's read directly off the cast card's own
+ *  definition instead, right here at the same 601.2f apply site. */
 export function getCostModifiers(
     state: GameState,
     card: PermanentView,
@@ -14982,16 +15029,39 @@ export function getCostModifiers(
                     }
                 }
                 if (effect.costReduction) {
-                    // Only the generic portion is reducible (CR 601.2f — a
-                    // generic-mana reduction can't remove colored pips).
-                    const norm = normalizeManaCost(effect.costReduction);
-                    reductionGeneric += norm.X ?? 0;
+                    reductionGeneric += resolveCostReductionGeneric(
+                        effect.costReduction,
+                        player
+                    );
                     if (
                         effect.minTotalMana !== undefined &&
                         effect.minTotalMana > minTotalMana
                     ) {
                         minTotalMana = effect.minTotalMana;
                     }
+                }
+            }
+        }
+    }
+    if (kind === "spell") {
+        const selfCardId = (card as unknown as { card?: { id?: string } }).card
+            ?.id;
+        const selfDef = selfCardId ? tryGetDefinition(selfCardId) : null;
+        const selfReduction = selfDef?.selfCostReduction;
+        if (selfReduction) {
+            const announcer = state.players.find(
+                (p) => p.id === card.controllerId
+            );
+            if (announcer) {
+                reductionGeneric += resolveCostReductionGeneric(
+                    selfReduction.costReduction,
+                    announcer
+                );
+                if (
+                    selfReduction.minTotalMana !== undefined &&
+                    selfReduction.minTotalMana > minTotalMana
+                ) {
+                    minTotalMana = selfReduction.minTotalMana;
                 }
             }
         }

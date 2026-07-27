@@ -55,8 +55,19 @@ const SEED = 0xc0ffee;
  *  than the old 8-ply horizon) — fewer iterations per second — so the top rung
  *  is genuinely heavy and can exceed the 5s default under parallel-suite load.
  *  This is a diagnostic harness, not a unit test; a generous ceiling keeps it
- *  reliable in CI without masking a real hang. */
-const DIAGNOSIS_TIMEOUT_MS = 30_000;
+ *  reliable in CI without masking a real hang.
+ *
+ *  Aligned to the `bot-node` project's own `testTimeout: 60_000`
+ *  (`vitest.config.ts`) — this file-local override predates the app/bot suite
+ *  split and was silently UNDERCUTTING the ceiling that split introduced for
+ *  exactly these episodes. The heaviest episodes (#5 ambush, #12 Mox Jet)
+ *  measure ~15s uncontended on a warm cache, so a 30s ceiling left under 2x
+ *  headroom and went red purely on machine load — measured at 14.7s on `main`
+ *  vs 15.0s on the branch that first tripped it, i.e. no regression, just a
+ *  slow box. 60s keeps a genuine-hang guard (4x the observed cost) without
+ *  turning CPU contention into a false failure. NOTE: this raises a wall-clock
+ *  ceiling ONLY — every episode's `expect` on the chosen move is unchanged. */
+const DIAGNOSIS_TIMEOUT_MS = 60_000;
 
 /** Run `searchWithTrace` at every budget rung and print a compact table. Returns
  *  the trace from the LARGEST budget (the most-resolved verdict) for assertions. */

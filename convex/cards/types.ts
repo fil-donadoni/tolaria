@@ -5126,14 +5126,59 @@ export interface StaticCostModifier {
     costIncrease?: ManaCost;
     /** Mana removed from the base cost (CR 601.2f reductions). Only the generic
      *  portion is reduced — colored pips can't be reduced by a generic
-     *  reduction. Defaults to nothing. */
-    costReduction?: ManaCost;
+     *  reduction. Defaults to nothing.
+     *
+     *  Two shapes: a fixed literal `ManaCost` (Stone Calendar, Power Artifact,
+     *  Mana Matrix — unchanged) or a `CountDrivenCostReduction` — `perCount` ×
+     *  the number of `countFilter`-matching permanents on the reduction's own
+     *  player (Emry, Lurker of the Loch: "{1} less to cast for each artifact
+     *  you control", ADR 0063). Both are resolved by the single
+     *  `resolveCostReductionGeneric` helper in `gre/state.ts` so fixed and
+     *  count-driven consumers can never drift apart. */
+    costReduction?: ManaCost | CountDrivenCostReduction;
     /** Floor on the post-reduction TOTAL mana of the cost (sum of all pips),
      *  CR 601.2f / 118.7. Power Artifact's reminder text: "This effect can't
      *  reduce the cost to less than one mana", i.e. `minTotalMana: 1`. A
      *  reduction never takes the total below this; colored pips are never
      *  touched, so the floor only ever protects generic mana. Ignored when no
      *  `costReduction` is present. */
+    minTotalMana?: number;
+}
+
+/** Count-driven CR 601.2f cost-reduction amount: `perCount`'s generic portion
+ *  is subtracted once per `countFilter`-matching permanent, evaluated at cast
+ *  announcement against the reduction's own player's battlefield (Emry,
+ *  Lurker of the Loch, ADR 0063). Reuses `PermanentFilter` — the existing
+ *  permanent-filter vocabulary already shared by triggers/targeting/costs —
+ *  rather than inventing a card-shaped count primitive (CLAUDE.md § Primitive
+ *  reuse): "for each artifact you control" is `{ types: "Artifact" }`, and a
+ *  future "costs {N} less per creature you control" needs no new field, just
+ *  a different filter. */
+export interface CountDrivenCostReduction {
+    /** Mana subtracted PER matching permanent (generic-only, CR 601.2f — a
+     *  count-driven reduction can't touch colored pips either). */
+    perCount: ManaCost;
+    /** What counts as one matching unit, matched against the reduction's own
+     *  player's OWN battlefield only (never the opponent's board — CR 601.2f
+     *  "you control"). */
+    countFilter: PermanentFilter;
+}
+
+/** CR 601.2f SELF-HOST cost reduction (ADR 0063): a spell's OWN intrinsic
+ *  reduction to its own cast cost, declared directly on its `CardDefinition`
+ *  rather than discovered via the battlefield `staticEffects` scan that
+ *  `StaticCostModifier.costReduction` normally uses — the spell being
+ *  announced isn't a permanent yet, so no battlefield-carried effect can find
+ *  it. Emry, Lurker of the Loch: "This spell costs {1} less to cast for each
+ *  artifact you control" is `{ costReduction: { perCount: { X: 1 },
+ *  countFilter: { types: "Artifact" } } }` — she never counts herself since
+ *  she isn't on the battlefield (or an artifact) at announcement time. Reuses
+ *  the same `costReduction` / `minTotalMana` shape as `StaticCostModifier` so
+ *  both apply sites in `getCostModifiers` (`gre/state.ts`) share one
+ *  reduction-amount resolver. Spell-only — an activated ability has no "self"
+ *  spell object to self-reduce. */
+export interface SelfCostReduction {
+    costReduction: ManaCost | CountDrivenCostReduction;
     minTotalMana?: number;
 }
 
@@ -10174,6 +10219,13 @@ export interface CardDefinition {
     staticAbilities?: string[];
     /** Continuous static effects (CR 611). Applied at stat-read time by the layer system. */
     staticEffects?: StaticEffect[];
+    /** CR 601.2f self-host cost reduction (ADR 0063) — this spell's OWN
+     *  intrinsic discount to its own cast cost (Emry, Lurker of the Loch).
+     *  See `SelfCostReduction` for why this can't be a `staticEffects[]`
+     *  cost-modifier like Stone Calendar's: the spell isn't a permanent yet
+     *  when it's announced. Applied at the same 601.2f apply site
+     *  (`getCostModifiers`, `gre/state.ts`) as the battlefield scan. */
+    selfCostReduction?: SelfCostReduction;
     activatedAbilities?: ActivatedAbility[];
     /** This permanent's BACK face (CR 712 double-faced permanents, issue
      *  #1210/#924). A permanent showing its back face
