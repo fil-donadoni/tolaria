@@ -47,7 +47,7 @@ interface Stub {
 
 /** A stub `MutationCtx` over an in-memory document store, authenticated as
  *  `userId`. Mirrors `limitedPairingMatch.test.ts`'s stub, trimmed to the
- *  `games` / `game_states` reads `concede` performs. */
+ *  `games` / `gameStates` reads `concede` performs. */
 function makeCtx(userId: string, seeds: Row[]): Stub {
     const docs = new Map<string, Row>();
     for (const seed of seeds) docs.set(seed._id as string, { ...seed });
@@ -137,7 +137,7 @@ function twoPlayerSeeds(
         },
         {
             _id: "gs-1",
-            __table: "game_states",
+            __table: "gameStates",
             gameId: "game-1",
             seq: 1,
             state,
@@ -477,7 +477,7 @@ describe("mill — a seat-addressed mutation the caller must own (issue #1645 re
             })
         ).rejects.toThrow(/cannot act as another player/i);
 
-        // `saveGameState` patches the live `game_states` row — it is untouched,
+        // `saveGameState` patches the live `gameStates` row — it is untouched,
         // so neither library moved a card.
         const state = stub.doc("gs-1").state as GameState;
         expect(stub.doc("gs-1").seq).toBe(1);

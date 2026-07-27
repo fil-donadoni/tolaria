@@ -23,6 +23,7 @@ import {
     joinGame,
     startPairingMatch,
 } from "../game";
+import { expireRoundDeadline } from "../limitedEvents";
 import type { GameState } from "../gre/state";
 import { resolveDeckCardMeta, tryGetDefinition } from "../cards";
 import { makeRng } from "../gre/rng";
@@ -38,6 +39,7 @@ import {
     type LimitedEventRow,
 } from "../limited/eventProjection";
 import { getBoosterConfig } from "../limited/registry";
+import { saveSeats } from "../limitedSeatStore";
 
 const resolveCardMeta: ResolveCardMeta = (scryfallId) => {
     const def = tryGetDefinition(scryfallId);
@@ -239,6 +241,213 @@ function playingEvent(opts: {
     return { event, deckForSeat, seeds };
 }
 
+/** The SAME 2-seat LEA Sealed table as `playingEvent`, but seeded through the
+ *  REAL production write path (`saveSeats`, `convex/limitedSeatStore.ts`)
+ *  instead of embedding `pool` inline on `event.seats`.
+ *
+ *  This is the fixture `playingEvent` (and every other fixture in this file)
+ *  is NOT: every one of them builds `seats` in memory and drops the array
+ *  straight onto the seed event row, so `event.seats[].pool` is always
+ *  present — the LEGACY inline shape. `hydrateSeats`/`hydrateSeat` fall back
+ *  to exactly that inline shape when no `limitedSeats` child row exists, so a
+ *  test built on the inline fixture can never catch a caller that reads
+ *  `event.seats[].pool` directly instead of hydrating — which is exactly the
+ *  bug `resolveSeatAutoBuiltDeck` shipped with (issue #1646 review finding
+ *  1): production's `saveSeats` NEVER writes `pool` back onto the event row,
+ *  only a `limitedSeats` child row plus a slim `poolCount`, so the inline
+ *  fixture was testing a shape production stopped producing.
+ *
+ *  Returns a STUB already seeded by a real `saveSeats` call — the caller
+ *  drives `stub.ctx` exactly like every other fixture below, but the event
+ *  row it reads back is genuinely slim. */
+async function playingEventViaSaveSeats(opts: {
+    eventId: string;
+    seed: number;
+    matchFormat: "bo1" | "bo3";
+    botSeat?: boolean;
+}): Promise<{ stub: Stub; deckForSeat: (seatIndex: number) => DeckPayload }> {
+    let seats = assignFreeSeat(buildEmptySeats(2), "alice", "Alice");
+    seats = opts.botSeat
+        ? fillBotSeats(seats)
+        : assignFreeSeat(seats, "bob", "Bob");
+    seats = generateSealedPools(
+        seats,
+        ["lea"],
+        6,
+        getBoosterConfig,
+        resolveCardMeta,
+        makeRng(opts.seed)
+    );
+
+    const deckForSeat = (seatIndex: number): DeckPayload => {
+        const seat = seats.find((s) => s.seatIndex === seatIndex)!;
+        const nonBasic = seat.pool!.filter(
+            (c) => resolveDeckCardMeta(c.cardId)?.isBasic !== true
+        );
+        const basic = seat.pool!.find(
+            (c) => resolveDeckCardMeta(c.cardId)?.isBasic === true
+        )!;
+        const main = nonBasic.slice(0, 30);
+        return {
+            id: `deck-${seatIndex}`,
+            name: `Seat ${seatIndex} Deck`,
+            format: "limited",
+            cards: [
+                ...main.map((c) => ({
+                    cardId: c.cardId,
+                    cardName: c.cardName,
+                })),
+                ...Array.from(
+                    { length: Math.max(0, 40 - main.length) },
+                    () => ({
+                        cardId: basic.cardId,
+                        cardName: basic.cardName,
+                    })
+                ),
+            ],
+            sideboard: nonBasic
+                .slice(30)
+                .map((c) => ({ cardId: c.cardId, cardName: c.cardName })),
+            limitedEventId: opts.eventId,
+            limitedSeatId: String(seatIndex),
+        };
+    };
+
+    // Seed the event row with NO inline payload at all — `saveSeats` below is
+    // what actually populates it, exactly as a real draft/deckbuild mutation
+    // would.
+    const event: Row = {
+        _id: opts.eventId,
+        __table: "limitedEvents",
+        createdBy: "alice",
+        type: "sealed",
+        status: "playing",
+        seatCount: 2,
+        packSlots: ["lea"],
+        sealedBoosterCount: 6,
+        matchFormat: opts.matchFormat,
+        currentRound: 1,
+        rounds: [
+            {
+                roundNumber: 1,
+                startedAt: 0,
+                pairings: [{ seatA: 0, seatB: 1 }],
+            },
+        ],
+        seats: [],
+        createdAt: 0,
+        updatedAt: 0,
+    };
+    const seeds: Row[] = [
+        event,
+        { _id: "alice", __table: "users", nickname: "Alice" },
+        { _id: "bob", __table: "users", nickname: "Bob" },
+    ];
+    const stub = makeCtx("alice", seeds);
+
+    // The real write: slims `event.seats` and files each seat's Pool into its
+    // own `limitedSeats` child row — the split `saveSeats` performs in every
+    // production draft/deckbuild mutation.
+    await saveSeats(
+        stub.ctx,
+        opts.eventId as unknown as Id<"limitedEvents">,
+        seats
+    );
+
+    return { stub, deckForSeat };
+}
+
+/** A 4-seat, ALL-HUMAN LEA Sealed event in `playing`, round 1 paired
+ *  (0v1)/(2v3) — both pairings pending (issue #1646's round-advance tests need
+ *  TWO separate pairings in the same round to prove the advance is
+ *  order-independent: whichever one is recorded LAST is what triggers it). */
+function fourHumanEvent(opts: { eventId: string; seed: number }): Fixture {
+    let seats = buildEmptySeats(4);
+    seats = assignFreeSeat(seats, "alice", "Alice");
+    seats = assignFreeSeat(seats, "bob", "Bob");
+    seats = assignFreeSeat(seats, "carol", "Carol");
+    seats = assignFreeSeat(seats, "dave", "Dave");
+    seats = generateSealedPools(
+        seats,
+        ["lea"],
+        6,
+        getBoosterConfig,
+        resolveCardMeta,
+        makeRng(opts.seed)
+    );
+
+    const event: Row = {
+        _id: opts.eventId,
+        __table: "limitedEvents",
+        createdBy: "alice",
+        type: "sealed",
+        status: "playing",
+        seatCount: 4,
+        packSlots: ["lea"],
+        sealedBoosterCount: 6,
+        matchFormat: "bo1",
+        currentRound: 1,
+        rounds: [
+            {
+                roundNumber: 1,
+                startedAt: 0,
+                pairings: [
+                    { seatA: 0, seatB: 1 },
+                    { seatA: 2, seatB: 3 },
+                ],
+            },
+        ],
+        seats,
+        createdAt: 0,
+        updatedAt: 0,
+    };
+
+    const deckForSeat = (seatIndex: number): DeckPayload => {
+        const seat = seats.find((s) => s.seatIndex === seatIndex)!;
+        const nonBasic = seat.pool!.filter(
+            (c) => resolveDeckCardMeta(c.cardId)?.isBasic !== true
+        );
+        const basic = seat.pool!.find(
+            (c) => resolveDeckCardMeta(c.cardId)?.isBasic === true
+        )!;
+        const main = nonBasic.slice(0, 30);
+        return {
+            id: `deck-${seatIndex}`,
+            name: `Seat ${seatIndex} Deck`,
+            format: "limited",
+            cards: [
+                ...main.map((c) => ({
+                    cardId: c.cardId,
+                    cardName: c.cardName,
+                })),
+                ...Array.from(
+                    { length: Math.max(0, 40 - main.length) },
+                    () => ({
+                        cardId: basic.cardId,
+                        cardName: basic.cardName,
+                    })
+                ),
+            ],
+            sideboard: nonBasic
+                .slice(30)
+                .map((c) => ({ cardId: c.cardId, cardName: c.cardName })),
+            limitedEventId: opts.eventId,
+            limitedSeatId: String(seatIndex),
+        };
+    };
+
+    const seeds: Row[] = [
+        event,
+        { _id: "alice", __table: "users", nickname: "Alice" },
+        { _id: "bob", __table: "users", nickname: "Bob" },
+        { _id: "carol", __table: "users", nickname: "Carol" },
+        { _id: "dave", __table: "users", nickname: "Dave" },
+    ];
+    return { event, deckForSeat, seeds };
+}
+
+const SEAT_USER = ["alice", "bob", "carol", "dave"] as const;
+
 // ── Registered-handler shims ────────────────────────────────────────────────
 
 type Handler<A, R> = { _handler: (ctx: MutationCtx, args: A) => Promise<R> };
@@ -252,6 +461,8 @@ const runJoin = (ctx: MutationCtx, args: Row) =>
     (joinGame as unknown as Handler<Row, null>)._handler(ctx, args);
 const runForfeit = (ctx: MutationCtx, args: Row) =>
     (forfeitMatch as unknown as Handler<Row, null>)._handler(ctx, args);
+const runExpire = (ctx: MutationCtx, args: Row) =>
+    (expireRoundDeadline as unknown as Handler<Row, null>)._handler(ctx, args);
 
 /** One Game of the pairing Match ending with `winnerId` through the REAL
  *  finisher every SBA-detected game over and every concede routes through. */
@@ -407,6 +618,42 @@ describe("startPairingMatch — bot pairing (PRD #1628 stories 11-12)", () => {
         // client: nothing in the mutation's args names a decklist for seat 1.
         expect(players[1].deck.maindeck.length).toBeGreaterThan(0);
         expect(pairingOf(stub, "event-b").matchId).toBe(match._id);
+    });
+
+    it("starts against the bot's deck when its Pool lives in the split `limitedSeats` child row — the PRODUCTION shape (issue #1646 review finding 1)", async () => {
+        const { stub, deckForSeat } = await playingEventViaSaveSeats({
+            eventId: "event-b-split",
+            seed: 998,
+            matchFormat: "bo3",
+            botSeat: true,
+        });
+
+        // Sanity: this fixture genuinely reproduces what `saveSeats` leaves on
+        // the row — no `pool` inline, unlike every other fixture in this
+        // file. Without this, the test below would pass for the same wrong
+        // reason `playingEvent`'s inline shape always did.
+        const rawSeats = stub.doc("event-b-split").seats as Row[];
+        expect(rawSeats.every((seat) => seat.pool === undefined)).toBe(true);
+        expect(stub.rows("limitedSeats").length).toBeGreaterThan(0);
+
+        const gameId = await runStart(stub.ctx, {
+            eventId: "event-b-split",
+            deck: deckForSeat(0),
+        });
+
+        const match = stub.doc(stub.doc(gameId).matchId as string);
+        expect(match.status).toBe("pregame");
+        expect(match.vsAi).toBe(true);
+        const players = match.players as {
+            id: string;
+            deck: { maindeck: unknown[] };
+        }[];
+        // The whole acceptance criterion this test guards: a human-vs-bot
+        // pairing Match actually starts, with the bot's deck resolved from
+        // its HYDRATED Pool — not silently empty/null (which used to throw
+        // "Your opponent's deck is not ready yet.").
+        expect(players[1].deck.maindeck.length).toBeGreaterThan(0);
+        expect(pairingOf(stub, "event-b-split").matchId).toBe(match._id);
     });
 });
 
@@ -828,5 +1075,469 @@ describe("forfeitMatch — the caller must own the seat they forfeit (issue #164
             winsB: 0,
             source: "played",
         });
+    });
+});
+
+// ── Round advance + event finish (issue #1646) ───────────────────────────────
+
+describe("recording a result advances the round / finishes the event (issue #1646)", () => {
+    it("finishes a 1-round (2-seat) event the instant its only pairing decides", async () => {
+        // `roundsForSeatCount(2) === 1` — a 2-seat table has no round 2, so
+        // its ONE pairing deciding IS the event's last pairing (PRD story 20
+        // + 39-40: "deciding the last pairing of the last round moves the
+        // event to finished").
+        const fx = playingEvent({
+            eventId: "event-fin2",
+            seed: 1646,
+            matchFormat: "bo1",
+        });
+        const stub = makeCtx("alice", fx.seeds);
+        const gameId = await runStart(stub.ctx, {
+            eventId: "event-fin2",
+            deck: fx.deckForSeat(0),
+        });
+        await runJoin(asUser(stub, "bob"), {
+            gameId,
+            deck: fx.deckForSeat(1),
+        });
+
+        await finishGame(stub.ctx, gameId, "alice");
+
+        const event = stub.doc("event-fin2");
+        expect(event.status).toBe("finished");
+        expect(event.currentRound).toBe(1);
+        expect((event.rounds as unknown[]).length).toBe(1);
+        // The winner is readable through the SAME projection the client
+        // receives — never a separate stored field (ADR 0076: standings are
+        // derived, never stored).
+        const projected = projectLimitedEvent(
+            event as unknown as LimitedEventRow,
+            "alice"
+        );
+        expect(projected.standings[0].seatIndex).toBe(0);
+        expect(projected.standings[0].points).toBe(3);
+    });
+
+    it("opens round 2 exactly once round 1's LAST undecided pairing is recorded — order-independent, and never advances twice on a re-delivered result", async () => {
+        const fx = fourHumanEvent({ eventId: "event-adv", seed: 1647 });
+        const stub = makeCtx("alice", fx.seeds);
+
+        // Record the (2,3) pairing FIRST — Dave beats Carol. Round 1 still
+        // has (0,1) pending, so nothing advances yet.
+        const gameCD = await runStart(asUser(stub, "carol"), {
+            eventId: "event-adv",
+            deck: fx.deckForSeat(2),
+        });
+        await runJoin(asUser(stub, "dave"), {
+            gameId: gameCD,
+            deck: fx.deckForSeat(3),
+        });
+        await finishGame(stub.ctx, gameCD, "dave");
+
+        expect(stub.doc("event-adv").status).toBe("playing");
+        expect(stub.doc("event-adv").currentRound).toBe(1);
+        expect((stub.doc("event-adv").rounds as unknown[]).length).toBe(1);
+
+        // NOW record (0,1) — Alice beats Bob, the round's LAST undecided
+        // pairing (whichever of the two lands second is what triggers the
+        // advance — this is the property that makes two players finishing
+        // near-simultaneously safe: the one whose write is ordered/committed
+        // SECOND is the one that observes a fully-decided round).
+        const gameAB = await runStart(stub.ctx, {
+            eventId: "event-adv",
+            deck: fx.deckForSeat(0),
+        });
+        await runJoin(asUser(stub, "bob"), {
+            gameId: gameAB,
+            deck: fx.deckForSeat(1),
+        });
+        await finishGame(stub.ctx, gameAB, "alice");
+
+        const afterRound1 = stub.doc("event-adv");
+        expect(afterRound1.status).toBe("playing");
+        expect(afterRound1.currentRound).toBe(2);
+        const rounds = afterRound1.rounds as {
+            roundNumber: number;
+            pairings: { seatA: number; seatB?: number }[];
+        }[];
+        expect(rounds).toHaveLength(2);
+
+        // Round 2 never repeats round 1's pairs.
+        const pairKey = (a: number, b: number) =>
+            a < b ? `${a}:${b}` : `${b}:${a}`;
+        const round2Pairings = rounds[1].pairings;
+        for (const p of round2Pairings) {
+            expect([pairKey(0, 1), pairKey(2, 3)]).not.toContain(
+                pairKey(p.seatA, p.seatB!)
+            );
+        }
+
+        // Re-delivering the ALREADY-recorded (0,1) result again (a retried
+        // mutation, or a second concurrent caller whose OCC-retried read
+        // lands after the first writer already recorded it) is a no-op:
+        // `recordPlayedPairing` refuses an already-decided pairing, so
+        // neither the round nor the event advances a second time.
+        await finishGame(stub.ctx, gameAB, "alice");
+        const afterRedelivery = stub.doc("event-adv");
+        expect(afterRedelivery.currentRound).toBe(2);
+        expect((afterRedelivery.rounds as unknown[]).length).toBe(2);
+
+        // Play out round 2 (the table's LAST round —
+        // `roundsForSeatCount(4) === 2`) — whichever pairing decides LAST
+        // finishes the event, same order-independence as round 1 above.
+        const [p1, p2] = round2Pairings;
+        const g1 = await runStart(asUser(stub, SEAT_USER[p1.seatA]), {
+            eventId: "event-adv",
+            deck: fx.deckForSeat(p1.seatA),
+        });
+        await runJoin(asUser(stub, SEAT_USER[p1.seatB!]), {
+            gameId: g1,
+            deck: fx.deckForSeat(p1.seatB!),
+        });
+        await finishGame(stub.ctx, g1, SEAT_USER[p1.seatA]);
+
+        expect(stub.doc("event-adv").status).toBe("playing");
+
+        const g2 = await runStart(asUser(stub, SEAT_USER[p2.seatA]), {
+            eventId: "event-adv",
+            deck: fx.deckForSeat(p2.seatA),
+        });
+        await runJoin(asUser(stub, SEAT_USER[p2.seatB!]), {
+            gameId: g2,
+            deck: fx.deckForSeat(p2.seatB!),
+        });
+        await finishGame(stub.ctx, g2, SEAT_USER[p2.seatA]);
+
+        const final = stub.doc("event-adv");
+        expect(final.status).toBe("finished");
+        expect(final.currentRound).toBe(2);
+        expect((final.rounds as unknown[]).length).toBe(2);
+
+        const projected = projectLimitedEvent(
+            final as unknown as LimitedEventRow,
+            "alice"
+        );
+        // Every seat has exactly 2 decided matches (won its round 1 and
+        // round 2 pairing, or lost both) — the standings are readable and
+        // internally consistent through the wire projection.
+        expect(projected.standings).toHaveLength(4);
+        for (const row of projected.standings) {
+            expect(row.matchWins + row.matchLosses).toBe(2);
+        }
+    });
+});
+
+describe("recordLimitedPairingResult — a cascade failure never rolls back a finished Match (issue #1646 review finding 2)", () => {
+    it("still records the pairing result and finishes the Match when cascadeEventRounds throws", async () => {
+        const fx = playingEvent({
+            eventId: "event-cascade-fail",
+            seed: 2001,
+            matchFormat: "bo1",
+        });
+        const stub = makeCtx("alice", fx.seeds);
+
+        const gameId = await runStart(stub.ctx, {
+            eventId: "event-cascade-fail",
+            deck: fx.deckForSeat(0),
+        });
+        await runJoin(asUser(stub, "bob"), {
+            gameId,
+            deck: fx.deckForSeat(1),
+        });
+
+        // Inflate `event.seats` past `MAX_SEATS` (8) AFTER the Match/pairing
+        // already exist — `roundsForSeatCount`/`pairRound`
+        // (`convex/limited/swiss.ts`) throw outside `MIN_SEATS..MAX_SEATS`
+        // (2-8), and `cascadeEventRounds` calls `roundsForSeatCount`
+        // unconditionally the instant the pairing just recorded completes
+        // its round. These 7 filler seats never sit in a pairing, so this
+        // exercises ONLY that guard — nothing else the Match-finish path
+        // reads depends on `event.seats.length`.
+        const event = stub.doc("event-cascade-fail");
+        event.seats = [
+            ...(event.seats as Row[]),
+            ...Array.from({ length: 7 }, (_, i) => ({
+                seatIndex: 2 + i,
+                isBot: true,
+                nickname: `Filler ${i}`,
+            })),
+        ];
+
+        // Finishing the Match must not throw — the whole point of the fix:
+        // a pairing-advance failure can never roll back the game-over
+        // transaction that just finished this Match. (Without the fix, this
+        // `await` rejects with `roundsForSeatCount`'s range error.)
+        await finishGame(stub.ctx, gameId, "alice");
+
+        // The Match result itself survived.
+        const match = stub.doc(stub.doc(gameId).matchId as string);
+        expect(match.status).toBe("finished");
+
+        // …and so did the pairing's recorded result — `cascadeEventRounds`
+        // failed, but `recordPlayedPairing`'s own write is unconditional and
+        // lands regardless.
+        expect(pairingOf(stub, "event-cascade-fail").result).toEqual({
+            winsA: 1,
+            winsB: 0,
+            source: "played",
+        });
+
+        // The round-advance step was skipped, not half-applied: the event is
+        // left exactly where it was before the failed cascade attempt, for
+        // the next recorded pairing (or an operator) to retry.
+        const afterward = stub.doc("event-cascade-fail");
+        expect(afterward.status).toBe("playing");
+        expect(afterward.currentRound).toBe(1);
+    });
+});
+
+// ── Round deadline expiry — presence-based scoring + lockout release
+// (issue #1647 review findings 1-3) ─────────────────────────────────────────
+
+describe("expireRoundDeadline — human-vs-human presence (issue #1647 review finding 1)", () => {
+    it("awards the win to the seat who showed up when a Match is bound and the opponent never joined (PRD story 33)", async () => {
+        const fx = playingEvent({
+            eventId: "event-to-1",
+            seed: 3001,
+            matchFormat: "bo3",
+        });
+        (fx.event.rounds as { deadlineAt?: number }[])[0].deadlineAt = 1; // already elapsed
+        const stub = makeCtx("alice", fx.seeds);
+        const gameId = await runStart(stub.ctx, {
+            eventId: "event-to-1",
+            deck: fx.deckForSeat(0),
+        });
+        // Bob never joins.
+
+        await runExpire(stub.ctx, { eventId: "event-to-1", roundNumber: 1 });
+
+        expect(pairingOf(stub, "event-to-1").result).toEqual({
+            winsA: 2,
+            winsB: 0,
+            source: "timeout",
+        });
+        // The bound Match is finished too, not left "waiting" forever
+        // (issue #1647 review finding 2).
+        const matchId = stub.doc(gameId).matchId as string;
+        expect(stub.doc(matchId).status).toBe("finished");
+        expect(stub.doc(matchId).winner).toBe("alice");
+    });
+
+    it("closes as a double loss when a Match is bound and BOTH seats showed up but neither finished in time", async () => {
+        const fx = playingEvent({
+            eventId: "event-to-2",
+            seed: 3002,
+            matchFormat: "bo3",
+        });
+        (fx.event.rounds as { deadlineAt?: number }[])[0].deadlineAt = 1;
+        const stub = makeCtx("alice", fx.seeds);
+        const gameId = await runStart(stub.ctx, {
+            eventId: "event-to-2",
+            deck: fx.deckForSeat(0),
+        });
+        await runJoin(asUser(stub, "bob"), {
+            gameId,
+            deck: fx.deckForSeat(1),
+        });
+
+        await runExpire(stub.ctx, { eventId: "event-to-2", roundNumber: 1 });
+
+        expect(pairingOf(stub, "event-to-2").result).toEqual({
+            winsA: 0,
+            winsB: 0,
+            source: "timeout",
+        });
+        // Both seats showed up, so neither is exclusively "absent" — the
+        // Match still needs to be released for either seat's next round.
+        const matchId = stub.doc(gameId).matchId as string;
+        expect(stub.doc(matchId).status).toBe("finished");
+        expect(stub.doc(matchId).winner).toBeUndefined();
+    });
+
+    it("closes as a double loss when NEITHER human ever started a Match — no Match was ever bound (PRD story 34)", async () => {
+        const fx = playingEvent({
+            eventId: "event-to-3",
+            seed: 3003,
+            matchFormat: "bo1",
+        });
+        (fx.event.rounds as { deadlineAt?: number }[])[0].deadlineAt = 1;
+        const stub = makeCtx("alice", fx.seeds);
+        expect(pairingOf(stub, "event-to-3").matchId).toBeUndefined();
+
+        await runExpire(stub.ctx, { eventId: "event-to-3", roundNumber: 1 });
+
+        expect(pairingOf(stub, "event-to-3").result).toEqual({
+            winsA: 0,
+            winsB: 0,
+            source: "timeout",
+        });
+    });
+});
+
+describe("expireRoundDeadline releases a timed-out seat for its NEXT round pairing (issue #1647 review finding 2)", () => {
+    it("a seat timed out mid-Match can start its round N+1 pairing", async () => {
+        const fx = fourHumanEvent({ eventId: "event-lock", seed: 3010 });
+        (fx.event.rounds as { deadlineAt?: number }[])[0].deadlineAt = 1;
+        fx.event.roundDeadlineMinutes = 20;
+        const stub = makeCtx("alice", fx.seeds);
+
+        // Alice starts her round-1 pairing against Bob; Bob never joins —
+        // her Match is left bound and "waiting".
+        const gameId = await runStart(stub.ctx, {
+            eventId: "event-lock",
+            deck: fx.deckForSeat(0),
+        });
+
+        // Carol/Dave's pairing is played out to completion normally, so
+        // Alice/Bob's is round 1's ONLY remaining undecided pairing — the
+        // round advances the instant the deadline closes it.
+        const gameCD = await runStart(asUser(stub, "carol"), {
+            eventId: "event-lock",
+            deck: fx.deckForSeat(2),
+        });
+        await runJoin(asUser(stub, "dave"), {
+            gameId: gameCD,
+            deck: fx.deckForSeat(3),
+        });
+        await finishGame(stub.ctx, gameCD, "dave");
+
+        await runExpire(stub.ctx, { eventId: "event-lock", roundNumber: 1 });
+
+        const event = stub.doc("event-lock");
+        expect(event.currentRound).toBe(2);
+        expect((event.rounds as unknown[]).length).toBe(2);
+
+        // Alice's round-1 Match is finished, not left active forever...
+        const matchId = stub.doc(gameId).matchId as string;
+        expect(stub.doc(matchId).status).toBe("finished");
+
+        // ...so the single-active-Match guard (`findActiveMatchForUser`) no
+        // longer sees it, and Alice can start her round-2 pairing — the
+        // exact lockout finding 2 fixes (without the fix this `runStart`
+        // rejects with the "already have an active game" message).
+        const round2GameId = await runStart(stub.ctx, {
+            eventId: "event-lock",
+            deck: fx.deckForSeat(0),
+        });
+        expect(round2GameId).toBeTruthy();
+    });
+});
+
+describe("expireRoundDeadline — a cascade failure never discards the timeout results or wedges the round (issue #1647 review finding 3)", () => {
+    it("still closes the undecided pairing when cascadeEventRounds throws, leaving the round retryable rather than permanently stuck", async () => {
+        const fx = playingEvent({
+            eventId: "event-expire-cascade-fail",
+            seed: 3020,
+            matchFormat: "bo1",
+        });
+        (fx.event.rounds as { deadlineAt?: number }[])[0].deadlineAt = 1;
+        const stub = makeCtx("alice", fx.seeds);
+
+        // Same `roundsForSeatCount` range guard as the played-path finding-2
+        // test above: inflate `event.seats` past `MAX_SEATS` (8) so
+        // `cascadeEventRounds` throws the instant the timeout close
+        // completes the round — WITHOUT the fix, that throw would escape
+        // `expireRoundDeadline` uncaught, discarding the timeout results AND
+        // burning this schedule's only firing (a failed scheduled mutation
+        // is never re-run), permanently wedging the round.
+        const event = stub.doc("event-expire-cascade-fail");
+        event.seats = [
+            ...(event.seats as Row[]),
+            ...Array.from({ length: 7 }, (_, i) => ({
+                seatIndex: 2 + i,
+                isBot: true,
+                nickname: `Filler ${i}`,
+            })),
+        ];
+
+        await expect(
+            runExpire(stub.ctx, {
+                eventId: "event-expire-cascade-fail",
+                roundNumber: 1,
+            })
+        ).resolves.toBeNull();
+
+        // The timeout result landed regardless — nobody ever started a
+        // Match, so it's a double loss.
+        expect(pairingOf(stub, "event-expire-cascade-fail").result).toEqual({
+            winsA: 0,
+            winsB: 0,
+            source: "timeout",
+        });
+
+        // The round-advance step was skipped, not half-applied: the event is
+        // left exactly where it was, for the next call (or an operator) to
+        // retry — never stuck re-throwing forever on the ALREADY-closed
+        // pairing (`isRoundComplete` would now say the round IS complete, so
+        // a retry only re-attempts the advance, not the closing).
+        const afterward = stub.doc("event-expire-cascade-fail");
+        expect(afterward.status).toBe("playing");
+        expect(afterward.currentRound).toBe(1);
+    });
+});
+
+/** The SAME ctx, but `scheduler.runAfter` always throws — issue #1647 review
+ *  finding 4: a `scheduler.runAfter` failure while arming the newly-opened
+ *  round's deadline must never roll back the Match result / round advance
+ *  that were already committed earlier in the SAME transaction. */
+function withThrowingScheduler(ctx: MutationCtx): MutationCtx {
+    return {
+        ...ctx,
+        scheduler: {
+            runAfter: async () => {
+                throw new Error("scheduler unavailable (test)");
+            },
+        },
+    } as unknown as MutationCtx;
+}
+
+describe("recordLimitedPairingResult — a scheduleRoundDeadline failure never rolls back the recorded result (issue #1647 review finding 4)", () => {
+    it("still records the pairing result and advances the round when arming the new round's deadline throws", async () => {
+        const fx = fourHumanEvent({ eventId: "event-sched-fail", seed: 3030 });
+        fx.event.roundDeadlineMinutes = 20; // round 2 gets its own deadline armed
+        const stub = makeCtx("alice", fx.seeds);
+
+        // Decide (2,3) first — round 1 still has (0,1) pending, so nothing
+        // advances (and nothing schedules) yet.
+        const gameCD = await runStart(asUser(stub, "carol"), {
+            eventId: "event-sched-fail",
+            deck: fx.deckForSeat(2),
+        });
+        await runJoin(asUser(stub, "dave"), {
+            gameId: gameCD,
+            deck: fx.deckForSeat(3),
+        });
+        await finishGame(stub.ctx, gameCD, "dave");
+
+        // NOW record (0,1) — round 1's LAST undecided pairing. This is the
+        // call that opens round 2 AND tries to arm its deadline — through a
+        // ctx whose `scheduler.runAfter` always throws.
+        const gameAB = await runStart(stub.ctx, {
+            eventId: "event-sched-fail",
+            deck: fx.deckForSeat(0),
+        });
+        await runJoin(asUser(stub, "bob"), {
+            gameId: gameAB,
+            deck: fx.deckForSeat(1),
+        });
+
+        // Must not throw — the whole point of the fix. Without it, the
+        // scheduler failure would propagate out of `finalizeGameOver` and
+        // roll back the Match result + round advance this same call just
+        // committed.
+        await expect(
+            finishGame(withThrowingScheduler(stub.ctx), gameAB, "alice")
+        ).resolves.toBeUndefined();
+
+        // The pairing result survived.
+        expect(pairingOf(stub, "event-sched-fail").result).toEqual({
+            winsA: 1,
+            winsB: 0,
+            source: "played",
+        });
+        // …and so did the round advance into round 2.
+        const event = stub.doc("event-sched-fail");
+        expect(event.currentRound).toBe(2);
+        expect((event.rounds as unknown[]).length).toBe(2);
     });
 });

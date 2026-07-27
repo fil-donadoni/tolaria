@@ -20,6 +20,7 @@ import {
     deleteSeats,
     ensureSeatsMigrated,
     eventHasInlinePayload,
+    hydrateSeat,
     hydrateSeats,
     saveSeatPayload,
     saveSeats,
@@ -85,14 +86,26 @@ import {
     type ResolveCardMeta,
 } from "./limited/eventLogic";
 import { evaluateDeckStrength, type DeckStrength } from "./limited/matchSim";
-import { openRound, type ResolveSeatStrength } from "./limited/rounds";
+import {
+    advanceRoundIfComplete,
+    isRoundComplete,
+    openRound,
+    resolveExpiredRound,
+    type AdvanceRoundResult,
+    type ResolvePairingPresence,
+    type ResolveSeatStrength,
+} from "./limited/rounds";
 import {
     projectLimitedEvent,
     type HumanDeckView,
     type LimitedEventSeatView,
     type LimitedEventView,
 } from "./limited/eventProjection";
-import type { LimitedEventSeat, LimitedRound } from "./limited/eventTypes";
+import type {
+    LimitedEventSeat,
+    LimitedPairing,
+    LimitedRound,
+} from "./limited/eventTypes";
 import {
     arePoolsDealt,
     areDraftPicksLegal,
@@ -678,10 +691,10 @@ function resolveBasicLandFor(setCode: string): ResolveBasicLand {
     };
 }
 
-/** ONE seat's Auto-Built deck, resolved straight off the stored event row
- *  (issue #1115's `computeBotAutoBuiltDeck` wired with this module's two
- *  registry resolvers). `null` for a seat that has none — a human seat, a seat
- *  that doesn't exist, or an event whose Pool isn't final yet.
+/** ONE seat's Auto-Built deck (issue #1115's `computeBotAutoBuiltDeck` wired
+ *  with this module's two registry resolvers). `null` for a seat that has
+ *  none — a human seat, a seat that doesn't exist, or an event whose Pool
+ *  isn't final yet.
  *
  *  EXPORTED for `convex/game.ts`'s `startPairingMatch` (issue #1645): a round
  *  Match against a bot seat must be played against the deck the SERVER derives
@@ -690,12 +703,22 @@ function resolveBasicLandFor(setCode: string): ResolveBasicLand {
  *  but a pairing Match's result lands in the standings — so its opponent
  *  decklist can never come from the client. The import direction is
  *  `game.ts -> limitedEvents.ts` only; this module imports nothing from
- *  `game.ts`. */
-export function resolveSeatAutoBuiltDeck(
+ *  `game.ts`.
+ *
+ *  MUST hydrate before reading the seat (issue #1646 review finding 1):
+ *  `event.seats[].pool` is absent on every row `saveSeats` writes since the
+ *  `limitedSeats` child-row split (`convex/limitedSeatStore.ts`) — reading
+ *  the raw `event.seats` here silently evaluates every bot seat as an empty
+ *  Pool and `computeBotAutoBuiltDeck` returns `null`. Same hydration idiom as
+ *  `buildSeatStrengthResolver` above; the single-seat form (`hydrateSeat`) is
+ *  enough here because only one seat's deck is ever read per call. */
+export async function resolveSeatAutoBuiltDeck(
+    ctx: QueryCtx,
     event: Doc<"limitedEvents">,
     seatIndex: number
-): AutoBuiltDeck | null {
-    const seat = event.seats.find((s) => s.seatIndex === seatIndex);
+): Promise<AutoBuiltDeck | null> {
+    const hydratedSeats = await hydrateSeat(ctx, event, seatIndex);
+    const seat = hydratedSeats.find((s) => s.seatIndex === seatIndex);
     if (!seat) return null;
     return computeBotAutoBuiltDeck(
         seat,
@@ -917,14 +940,71 @@ async function projectEventForViewer(
     };
 }
 
+/** Builds the `ResolveSeatStrength` a round open/cascade needs to decide its
+ *  bot-vs-bot pairings — lazy and memoised, so a table with few such pairings
+ *  never pays for Auto-Building the seats it doesn't need. The SAME card-value
+ *  seams the Bot Drafter picks with (PRD story 50) — `getCardEvalMeta` keys on
+ *  a deck-card id exactly as it does on a pack card's (`resolveDeckCardMeta`
+ *  resolves a `printId` or a canonical id alike), and the layered Pick Ratings
+ *  come from `loadEventPickRating`.
+ *
+ *  Shared by `openPlayPhaseIfReady` (round 1) and `cascadeEventRounds` (every
+ *  round after it, issue #1646) — both need the identical resolver, and a
+ *  divergence between the two would mean round 1's bot-vs-bot pairings and a
+ *  later round's are scored on two different notions of "this bot's deck". */
+async function buildSeatStrengthResolver(
+    ctx: QueryCtx | MutationCtx,
+    event: Doc<"limitedEvents">
+): Promise<ResolveSeatStrength> {
+    const eventContext: AutoBuildEventContext = {
+        type: event.type,
+        status: event.status,
+        draftCompletedAt: event.draftCompletedAt,
+    };
+    const getPickRating = await loadEventPickRating(ctx, event.packSlots);
+    const resolveBasicLand = resolveBasicLandFor(event.packSlots[0] ?? "");
+    // Bot deck strength is Auto-Built from the seat's POOL, which no longer
+    // lives on the event row (`convex/schema.ts`'s `limitedSeats`) — so this
+    // is one of the paths that must hydrate in FULL. A slim `event.seats` here
+    // would silently evaluate every bot seat as an empty deck and decide the
+    // bot-vs-bot pairings on nothing at all.
+    const hydratedSeats = await hydrateSeats(ctx, event);
+    const strengthCache = new Map<number, DeckStrength>();
+    return (seatIndex) => {
+        const cached = strengthCache.get(seatIndex);
+        if (cached) return cached;
+        const seat = hydratedSeats.find((s) => s.seatIndex === seatIndex);
+        const deck = seat
+            ? computeBotAutoBuiltDeck(
+                  seat,
+                  eventContext,
+                  getAutoBuildCardMeta,
+                  resolveBasicLand
+              )
+            : null;
+        const strength = evaluateDeckStrength(
+            deck?.cards ?? [],
+            getCardEvalMeta,
+            getPickRating
+        );
+        strengthCache.set(seatIndex, strength);
+        return strength;
+    };
+}
+
 /** Opens the event's PLAY PHASE the moment the table is ready (PRD #1628, ADR
  *  0076, issue #1644): the event flips to `playing`, round 1 is paired, and
  *  every pairing nobody can sit down and play — bot-vs-bot, and the bye on an
- *  odd table — is decided in this same transaction.
+ *  odd table — is decided in this same transaction. If round 1 comes back
+ *  ALREADY fully decided (an all-bot table has no human pairing to wait on),
+ *  `cascadeEventRounds` (issue #1646) carries straight on through as many
+ *  further rounds as it takes, in the SAME write — an all-bot event must never
+ *  sit at "round 1 done" forever with nobody around to advance it.
  *
  *  A thin SHELL, in this module's established discipline: the whole decision
- *  lives in `convex/limited/rounds.ts`'s pure `openRound`, and everything here
- *  is a DB read, an injected resolver, or the single write at the end.
+ *  lives in `convex/limited/rounds.ts`'s pure `openRound`/`advanceRoundIfComplete`,
+ *  and everything here is a DB read, an injected resolver, or the single write
+ *  at the end.
  *
  *  **Idempotent and self-gating.** It re-reads the row, asks `eventStatus.ts`'s
  *  PHASE PREDICATES (never a literal status comparison — ADR 0076 decision 1)
@@ -988,63 +1068,89 @@ export async function openPlayPhaseIfReady(
     );
     if (!completion.completed) return false;
 
-    // Bot deck strength, resolved lazily and memoised: `openRound` only asks
-    // for a seat it is about to simulate, so a table with few bot-vs-bot
-    // pairings never pays for Auto-Building the seats it doesn't need. The
-    // SAME card-value seams the Bot Drafter picks with (PRD story 50) —
-    // `getCardEvalMeta` keys on a deck-card id exactly as it does on a pack
-    // card's (`resolveDeckCardMeta` resolves a `printId` or a canonical id
-    // alike), and the layered Pick Ratings come from `loadEventPickRating`.
-    const getPickRating = await loadEventPickRating(ctx, event.packSlots);
-    const resolveBasicLand = resolveBasicLandFor(event.packSlots[0] ?? "");
-    // Bot deck strength is Auto-Built from the seat's POOL, which no longer
-    // lives on the event row (`convex/schema.ts`'s `limitedSeats`) — so this
-    // is one of the paths that must hydrate in FULL. A slim `event.seats` here
-    // would silently evaluate every bot seat as an empty deck and decide the
-    // bot-vs-bot pairings on nothing at all.
-    const hydratedSeats = await hydrateSeats(ctx, event);
-    const strengthCache = new Map<number, DeckStrength>();
-    const seatStrength: ResolveSeatStrength = (seatIndex) => {
-        const cached = strengthCache.get(seatIndex);
-        if (cached) return cached;
-        const seat = hydratedSeats.find((s) => s.seatIndex === seatIndex);
-        const deck = seat
-            ? computeBotAutoBuiltDeck(
-                  seat,
-                  eventContext,
-                  getAutoBuildCardMeta,
-                  resolveBasicLand
-              )
-            : null;
-        const strength = evaluateDeckStrength(
-            deck?.cards ?? [],
-            getCardEvalMeta,
-            getPickRating
-        );
-        strengthCache.set(seatIndex, strength);
-        return strength;
-    };
-
+    const seatStrength = await buildSeatStrengthResolver(ctx, event);
+    const matchFormat = resolveMatchFormat(event.matchFormat);
     const round = openRound({
         eventId,
         roundNumber: 1,
         seats: event.seats,
         previousRounds: [],
-        matchFormat: resolveMatchFormat(event.matchFormat),
+        matchFormat,
         startedAt: now,
         roundDeadlineMinutes: event.roundDeadlineMinutes,
         seatStrength,
     });
 
+    // Issue #1646: round 1 can come back fully decided on its own (no human
+    // seat at this table at all) — cascade through it in this SAME write
+    // rather than leaving the event stuck at "round 1 done, nobody to
+    // advance it".
+    const advance = advanceRoundIfComplete({
+        eventId,
+        seats: event.seats,
+        rounds: [round],
+        matchFormat,
+        now,
+        roundDeadlineMinutes: event.roundDeadlineMinutes,
+        seatStrength,
+    });
+    const rounds = advance.kind === "unchanged" ? [round] : advance.rounds;
+    const currentRound =
+        advance.kind === "unchanged" ? round.roundNumber : advance.currentRound;
+
     await ctx.db.patch(eventId, {
         // A status WRITE names the phase being entered — ADR 0076's explicit
         // exemption from the no-literals rule (it isn't a phase question).
-        status: "playing",
-        currentRound: round.roundNumber,
-        rounds: asDbRounds([round]),
+        status: advance.kind === "eventFinished" ? "finished" : "playing",
+        currentRound,
+        rounds: asDbRounds(rounds),
         updatedAt: now,
     });
+    // Issue #1647: the tail of `rounds` is the one round that can still be
+    // undecided (every round `advanceRoundIfComplete` cascades THROUGH is, by
+    // construction, already complete) — a no-op when the event has no
+    // configured deadline or the cascade already finished the event.
+    await scheduleRoundDeadline(ctx, eventId, rounds[rounds.length - 1], now);
     return true;
+}
+
+/** Advances the event's round state once its LATEST round is fully decided
+ *  (issue #1646, PRD #1628 stories 20/39-40, ADR 0076): opens the next round —
+ *  pairing it against the standings so far and immediately resolving every
+ *  bot-vs-bot pairing it comes back with — cascading through any number of
+ *  rounds with no human pairing at all, until either a round is left with an
+ *  undecided pairing or the event's last round is reached, in which case the
+ *  event is finished. A thin SHELL around the pure
+ *  `convex/limited/rounds.ts#advanceRoundIfComplete`: hydrates the SAME
+ *  bot-strength resolver `openPlayPhaseIfReady` builds for round 1
+ *  (`buildSeatStrengthResolver`) and hands the decision off — it performs NO
+ *  write of its own.
+ *
+ *  Callers fold the result into their OWN single patch (`recordLimitedPairingResult`
+ *  in `convex/game.ts`, and `openPlayPhaseIfReady` above), so the whole
+ *  "record/open + cascade" step stays one read, one write on the
+ *  `limitedEvents` document — the same discipline `openPlayPhaseIfReady`
+ *  already followed pre-#1646, and precisely what makes two callers racing on
+ *  the same event (two players finishing their pairings near-simultaneously)
+ *  safe: Convex's OCC on that ONE document serializes the two mutations, and
+ *  whichever commits SECOND is retried against the state the first one just
+ *  wrote — so a round can never be advanced twice, and never skipped. */
+export async function cascadeEventRounds(
+    ctx: QueryCtx | MutationCtx,
+    event: Doc<"limitedEvents">,
+    rounds: readonly LimitedRound[],
+    now: number
+): Promise<AdvanceRoundResult> {
+    const seatStrength = await buildSeatStrengthResolver(ctx, event);
+    return advanceRoundIfComplete({
+        eventId: event._id,
+        seats: event.seats,
+        rounds,
+        matchFormat: resolveMatchFormat(event.matchFormat),
+        now,
+        roundDeadlineMinutes: event.roundDeadlineMinutes,
+        seatStrength,
+    });
 }
 
 /** Projects one event for a LIST row — see `limitedEventSummaryValidator`.
@@ -1147,6 +1253,39 @@ async function scheduleSeatTimers(
             }
         );
     }
+}
+
+/** Schedules exactly one `expireRoundDeadline` firing for `round` (issue
+ *  #1647), the SAME idiom as `scheduleSeatTimers` above and the GRE
+ *  priority-timeout pattern (CLAUDE.md): the schedule is unconditional
+ *  (Convex has no cheap "cancel a scheduled job"), and `expireRoundDeadline`
+ *  re-validates the round's own completeness when it actually fires —
+ *  completeness-based staleness, not an explicit cancel call. That guard
+ *  alone is what makes "a rescheduled or superseded timer cannot fire twice
+ *  for the same round" true: a round that already advanced through play (or
+ *  through a PRIOR firing of this exact schedule) is already
+ *  `isRoundComplete`, so a second firing is a no-op.
+ *
+ *  A no-op here — never even scheduled — when the event has no configured
+ *  deadline (`round.deadlineAt` undefined, PRD story 4) or `round` is
+ *  already fully decided (e.g. an all-bot round `openRound`/
+ *  `advanceRoundIfComplete` resolved on the spot, or an
+ *  already-`eventFinished` cascade's tail round). Exported so
+ *  `convex/game.ts`'s `recordLimitedPairingResult` can schedule the newly
+ *  active round the same way once its own cascade opens one. */
+export async function scheduleRoundDeadline(
+    ctx: MutationCtx,
+    eventId: Id<"limitedEvents">,
+    round: LimitedRound,
+    now: number
+): Promise<void> {
+    if (round.deadlineAt === undefined) return;
+    if (isRoundComplete(round)) return;
+    await ctx.scheduler.runAfter(
+        Math.max(0, round.deadlineAt - now),
+        internal.limitedEvents.expireRoundDeadline,
+        { eventId, roundNumber: round.roundNumber }
+    );
 }
 
 // --- Queries ---------------------------------------------------------------
@@ -1903,6 +2042,208 @@ export const autoPickSeatTimeout = internalMutation({
         // Same completion seam as `submitPick` — an Auto-Picked final pick
         // finishes the table just as a human's does.
         await openPlayPhaseIfReady(ctx, args.eventId, now);
+        return null;
+    },
+});
+
+/** Which of a bound Match's two seats actually showed up for it (issue #1647
+ *  review finding 1) — `players[0]` is `match.limitedPairing.seatA` (the
+ *  starter, `startPairingMatch`) and is therefore ALWAYS present; `players[1]`
+ *  (`match.limitedPairing.seatB`) joins the row only once `joinGame`
+ *  completes it (a human opponent) or immediately (a bot opponent, both
+ *  seats inserted in one `startPairingMatch` call). Building this is the
+ *  `expireRoundDeadline`-only DB read `resolveExpiredRound` (`rounds.ts`)
+ *  must never perform itself — the SAME injection discipline as
+ *  `buildSeatStrengthResolver`. */
+function buildPairingPresenceResolver(
+    boundMatches: ReadonlyMap<string, Doc<"matches">>
+): ResolvePairingPresence {
+    return (matchId) => {
+        const match = boundMatches.get(matchId);
+        const link = match?.limitedPairing;
+        if (!match || !link) return new Set<number>();
+        const present = new Set<number>([link.seatA]);
+        if (match.players.length > 1) present.add(link.seatB);
+        return present;
+    };
+}
+
+/** Finishes a pairing's bound Match to match the round deadline's own verdict
+ *  (issue #1647 review finding 2). `expireRoundDeadline` closes the PAIRING
+ *  via `resolveExpiredRound`, but that leaves the Match it was bound to
+ *  untouched — an active (`waiting`/`pregame`/`playing`/`sideboarding`) Match
+ *  keeps the single-active-Match guard (`findActiveMatchForUser`,
+ *  `convex/matches.ts`) locking the timed-out seat(s) out of their OWN next
+ *  round pairing until they manually concede a now-meaningless Match (which
+ *  `recordPlayedPairing` would then refuse anyway — the pairing is already
+ *  decided). `pairing.result` (just written by `resolveExpiredRound`) is
+ *  already the standings' source of truth; this only translates it into the
+ *  Match's OWN seat order — `match.limitedPairing.seatA` is `players[0]`,
+ *  NOT necessarily the pairing's own `seatA` (the starter may be either side,
+ *  `convex/limited/pairingMatch.ts`'s own note) — so the Match stops being
+ *  "active". Never a second recording of the standings result: that already
+ *  happened via the pairing's own `result`, this mutation never calls
+ *  `recordPlayedPairing`. */
+async function finishTimedOutPairingMatch(
+    ctx: MutationCtx,
+    match: Doc<"matches">,
+    pairing: LimitedPairing,
+    now: number
+): Promise<void> {
+    if (match.status === "finished") return; // already finished — idempotent
+    const result = pairing.result;
+    const link = match.limitedPairing;
+    if (!result || !link) return;
+    const winnerSeat =
+        result.winsA > result.winsB
+            ? pairing.seatA
+            : result.winsB > result.winsA
+              ? (pairing.seatB ?? null)
+              : null; // double loss — no winner
+    const winnerId =
+        winnerSeat === null
+            ? undefined
+            : winnerSeat === link.seatA
+              ? match.players[0]?.id
+              : match.players[1]?.id;
+    await ctx.db.patch(match._id, {
+        status: "finished",
+        winner: winnerId,
+        updatedAt: now,
+    });
+}
+
+/** Round deadline expiry (PRD #1628 stories 3/32-35, ADR 0076, issue #1647):
+ *  fires when a round's configured deadline elapses. `internalMutation` —
+ *  reachable ONLY via `ctx.scheduler.runAfter` (scheduled by
+ *  `openPlayPhaseIfReady` / `recordLimitedPairingResult`'s
+ *  `scheduleRoundDeadline` call, or this mutation itself when its own cascade
+ *  opens a further round), never by any client-facing API — the same
+ *  "authorize by construction" idiom as `autoPickSeatTimeout`: there is no
+ *  public mutation a client could call to force-expire an arbitrary event's
+ *  round.
+ *
+ *  Staleness/idempotency (issue #1647 AC "a rescheduled or superseded timer
+ *  cannot fire twice for the same round") is `isRoundComplete`, not a
+ *  seq/generation counter: a round's `deadlineAt` is stamped once by
+ *  `openRound` and never changes, so "the round I was scheduled for is
+ *  already fully decided" — by a normal played result racing the deadline, OR
+ *  by an earlier firing of this exact schedule — is the one guard this needs,
+ *  checked BOTH before closing anything (cheap no-op) and, structurally,
+ *  by `resolveExpiredRound` itself (never rewrites an already-decided
+ *  pairing).
+ *
+ *  Closing (`resolveExpiredRound`, `convex/limited/rounds.ts`) and advancing
+ *  (`cascadeEventRounds`, the SAME shell `recordLimitedPairingResult` uses)
+ *  land in the SAME `ctx.db.patch` below — the identical one-read/one-write
+ *  OCC discipline `recordLimitedPairingResult` (`convex/game.ts`, issue
+ *  #1646) uses, so the round this closes advances exactly like one a human
+ *  finished by actually playing it. Advancing is wrapped in its own try/catch
+ *  (issue #1647 review finding 3, mirroring #1646 review finding 2): this
+ *  runs inside the transaction that just closed the timeout results, and an
+ *  uncaught `advanceRoundIfComplete` throw would roll that patch back AND
+ *  consume this schedule's only firing (a failed scheduled mutation is never
+ *  re-run) — permanently wedging the round, strictly worse than the played
+ *  path's graceful degradation. */
+export const expireRoundDeadline = internalMutation({
+    args: {
+        eventId: v.id("limitedEvents"),
+        roundNumber: v.number(),
+    },
+    returns: v.null(),
+    handler: async (ctx, args) => {
+        const event = await ctx.db.get(args.eventId);
+        if (!event) return null;
+        // Phase QUESTION, not a literal (ADR 0076): the event may have
+        // finished (or, in principle, been reset) since this was scheduled.
+        if (!areRoundsRunning(event.status)) return null;
+
+        const rounds = event.rounds ?? [];
+        const round = rounds.find((r) => r.roundNumber === args.roundNumber);
+        if (!round) return null;
+        if (round.deadlineAt === undefined) return null; // no deadline configured — never auto-closes (story 4)
+        if (isRoundComplete(round)) return null; // already decided — a played result, or a prior firing of this schedule
+
+        const now = Date.now();
+        if (round.deadlineAt > now) return null; // defensive: not actually due yet
+
+        const matchFormat = resolveMatchFormat(event.matchFormat);
+
+        // Issue #1647 review finding 1: every undecided pairing that has a
+        // bound Match is a candidate `resolveExpiredRound` needs a presence
+        // answer for (a bye/bot-vs-bot pairing never carries a `matchId`, so
+        // this is exactly the pairing set that can possibly need one) —
+        // fetched ONCE, up front, so the pure resolver stays a sync lookup.
+        const boundMatches = new Map<string, Doc<"matches">>();
+        for (const pairing of round.pairings) {
+            if (pairing.result !== undefined) continue;
+            if (pairing.matchId === undefined) continue;
+            const match = await ctx.db.get(pairing.matchId as Id<"matches">);
+            if (match) boundMatches.set(pairing.matchId, match);
+        }
+
+        const expiredRounds = resolveExpiredRound({
+            rounds,
+            roundNumber: args.roundNumber,
+            seats: event.seats,
+            matchFormat,
+            now,
+            resolvePresence: buildPairingPresenceResolver(boundMatches),
+        });
+
+        // Issue #1647 review finding 2: release every seat this expiry just
+        // decided — finish the bound Match behind each pairing
+        // `resolveExpiredRound` just closed, so the single-active-Match guard
+        // stops seeing it and the seat can start its round N+1 pairing.
+        const closedRound = expiredRounds.find(
+            (r) => r.roundNumber === args.roundNumber
+        );
+        if (closedRound) {
+            for (const pairing of closedRound.pairings) {
+                if (pairing.matchId === undefined) continue;
+                if (pairing.result?.source !== "timeout") continue;
+                const match = boundMatches.get(pairing.matchId);
+                if (!match) continue;
+                await finishTimedOutPairingMatch(ctx, match, pairing, now);
+            }
+        }
+
+        let advance: AdvanceRoundResult = { kind: "unchanged" };
+        try {
+            advance = await cascadeEventRounds(ctx, event, expiredRounds, now);
+        } catch (err) {
+            console.error(
+                `expireRoundDeadline: cascadeEventRounds failed for event ${event._id} round ${args.roundNumber} — the timeout results were recorded without advancing the round`,
+                err
+            );
+        }
+        const finalRounds =
+            advance.kind === "unchanged" ? expiredRounds : advance.rounds;
+
+        await ctx.db.patch(args.eventId, {
+            rounds: asDbRounds(finalRounds),
+            ...(advance.kind === "unchanged"
+                ? {}
+                : { currentRound: advance.currentRound }),
+            ...(advance.kind === "eventFinished" ? { status: "finished" } : {}),
+            updatedAt: now,
+        });
+
+        if (advance.kind === "roundOpened") {
+            try {
+                await scheduleRoundDeadline(
+                    ctx,
+                    args.eventId,
+                    finalRounds[finalRounds.length - 1],
+                    now
+                );
+            } catch (err) {
+                console.error(
+                    `expireRoundDeadline: scheduleRoundDeadline failed for event ${event._id} — the newly opened round has no deadline schedule`,
+                    err
+                );
+            }
+        }
         return null;
     },
 });

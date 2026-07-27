@@ -37,7 +37,7 @@ import {
     type DeckStrength,
     botMatchSeed,
 } from "./matchSim";
-import { pairRound } from "./swiss";
+import { pairRound, roundsForSeatCount } from "./swiss";
 
 /** The minimal Seat shape opening a round needs: which seats exist and which
  *  of them nobody is sitting at. Structural (like `completion.ts`'s
@@ -53,6 +53,16 @@ export interface RoundSeatLookup {
  *  registry and the event's Pick Ratings — three DB/registry reads this module
  *  must not perform. Only ever asked for a seat with `isBot: true`. */
 export type ResolveSeatStrength = (seatIndex: number) => DeckStrength;
+
+/** For a human-vs-human pairing that already has a bound Match
+ *  (`pairing.matchId` defined), which of its two seats actually SHOWED UP for
+ *  it — started it (`startPairingMatch`) or joined it (`joinGame`). INJECTED,
+ *  the same discipline as {@link ResolveSeatStrength}: telling "opponent
+ *  absent" from "neither ever showed" needs the bound `matches` row's own
+ *  `players[]` length, a DB read this module must not perform. Only ever
+ *  asked for a `matchId` a pairing actually carries (issue #1647 review
+ *  finding 1). */
+export type ResolvePairingPresence = (matchId: string) => ReadonlySet<number>;
 
 export interface OpenRoundInput {
     /** The event's id — part of every seed derived below, so two events that
@@ -195,4 +205,259 @@ export function findSeatPairing(
                 pairing.seatA === seatIndex || pairing.seatB === seatIndex
         ) ?? null
     );
+}
+
+/** Closes `roundNumber`'s undecided pairings against the round deadline
+ *  (PRD #1628 stories 32-35, issue #1647). Pure — no DB, no clock beyond the
+ *  injected `now` — mirroring `advanceRoundIfComplete`'s own discipline: the
+ *  mutation shell (`convex/limitedEvents.ts`'s `expireRoundDeadline`) is what
+ *  decides WHEN to call this; this only decides WHAT closing the round means.
+ *
+ *  Every pairing that already has a `result` is left byte-identical (issue
+ *  #1647 AC "an already-decided pairing is never rewritten by the expiry") —
+ *  including a round that was played through in full before its deadline
+ *  fired, and a bye/simulated pairing `openRound` already decided on the
+ *  spot. Three no-op guards, each independently sufficient for the AC "an
+ *  event with no deadline configured never auto-closes a pairing" and for
+ *  the round-level idempotency the scheduler's staleness check relies on:
+ *  no configured deadline, the deadline hasn't actually elapsed yet, or the
+ *  round is already fully decided.
+ *
+ *  What "undecided at the deadline" closes to (PRD stories 32-34, issue #1647
+ *  review finding 1 — the player who SHOWED UP is never the one scored a
+ *  loss):
+ *  - **Human vs bot**: the bot side never "shows up" as such — a human/bot
+ *    pairing only decides once the human calls `startPairingMatch` (issue
+ *    #1645), so an undecided one at the deadline means the human never
+ *    played. Scored as a loss for the human, 0 to `gamesToWinMatch`, the
+ *    SAME games a bye/win is worth for this format.
+ *  - **Human vs human, still undecided**: presence is determined from the
+ *    pairing's bound Match (`pairing.matchId`), via the INJECTED
+ *    {@link ResolvePairingPresence} — the same seam `seatStrength` uses to
+ *    keep this function pure (no `matches` row read here).
+ *      - No Match was ever bound (`matchId` undefined): NEITHER seat ever
+ *        called `startPairingMatch` — story 34's double loss (equal wins,
+ *        `source: "timeout"` — `classifyPairingResult`,
+ *        `convex/limited/standings.ts`, treats this specially and never as a
+ *        draw).
+ *      - A Match is bound and EXACTLY ONE seat is present (the starter, with
+ *        the opponent never having joined): story 33 — the present seat is
+ *        awarded the match win, `gamesToWinMatch` to 0, against the absent
+ *        one.
+ *      - A Match is bound and BOTH seats are present (a genuinely mid-game
+ *        Bo3 neither finished in time): neither is exclusively "the one who
+ *        didn't show", so this collapses into the same double-loss outcome
+ *        as the no-show case — the deadline is a hard cutoff either way, and
+ *        distinguishing "abandoned mid-game" from "never started" for a
+ *        two-human pairing is out of scope here.
+ *  - **Bot vs bot**: unreachable in practice — `openRound` decides every
+ *    bot-vs-bot pairing the moment the round opens, so one can never reach
+ *    the deadline still undecided. Left untouched defensively. */
+export function resolveExpiredRound(input: {
+    rounds: readonly LimitedRound[];
+    roundNumber: number;
+    seats: readonly RoundSeatLookup[];
+    matchFormat: LimitedMatchFormat;
+    now: number;
+    resolvePresence: ResolvePairingPresence;
+}): LimitedRound[] {
+    const { rounds, roundNumber, seats, matchFormat, now, resolvePresence } =
+        input;
+    const botSeats = new Set(
+        seats.filter(isBotSeat).map((seat) => seat.seatIndex)
+    );
+    const winGames = gamesToWinMatch(matchFormat);
+
+    return rounds.map((round) => {
+        if (round.roundNumber !== roundNumber) return round;
+        if (round.deadlineAt === undefined) return round;
+        if (round.deadlineAt > now) return round;
+        if (isRoundComplete(round)) return round;
+
+        const pairings = round.pairings.map((pairing) => {
+            if (pairing.result !== undefined) return pairing;
+            if (pairing.seatB === undefined) return pairing; // bye — always already decided; guarded anyway
+            const aIsBot = botSeats.has(pairing.seatA);
+            const bIsBot = botSeats.has(pairing.seatB);
+            if (aIsBot && bIsBot) return pairing; // unreachable — see docstring
+            if (aIsBot) {
+                return {
+                    ...pairing,
+                    result: {
+                        winsA: winGames,
+                        winsB: 0,
+                        source: "timeout" as const,
+                    },
+                };
+            }
+            if (bIsBot) {
+                return {
+                    ...pairing,
+                    result: {
+                        winsA: 0,
+                        winsB: winGames,
+                        source: "timeout" as const,
+                    },
+                };
+            }
+            // Human vs human. No Match ever bound = neither seat showed up
+            // (PRD story 34).
+            if (pairing.matchId === undefined) {
+                return {
+                    ...pairing,
+                    result: {
+                        winsA: 0,
+                        winsB: 0,
+                        source: "timeout" as const,
+                    },
+                };
+            }
+            const present = resolvePresence(pairing.matchId);
+            const aPresent = present.has(pairing.seatA);
+            const bPresent = present.has(pairing.seatB);
+            if (aPresent && !bPresent) {
+                // PRD story 33: the seat that showed up is awarded the win.
+                return {
+                    ...pairing,
+                    result: {
+                        winsA: winGames,
+                        winsB: 0,
+                        source: "timeout" as const,
+                    },
+                };
+            }
+            if (bPresent && !aPresent) {
+                return {
+                    ...pairing,
+                    result: {
+                        winsA: 0,
+                        winsB: winGames,
+                        source: "timeout" as const,
+                    },
+                };
+            }
+            // Both present (a mid-game Bo3 neither finished in time) or,
+            // defensively, neither despite a bound Match — story 34's double
+            // loss.
+            return {
+                ...pairing,
+                result: { winsA: 0, winsB: 0, source: "timeout" as const },
+            };
+        });
+        return { ...round, pairings };
+    });
+}
+
+export interface AdvanceRoundInput {
+    eventId: string;
+    seats: readonly RoundSeatLookup[];
+    /** Every round opened so far, in order. The LAST one is the round the
+     *  caller just recorded a result into (or the round `openRound` just
+     *  opened, for the round-1 call site) — this function only ever reads
+     *  its identity, never mutates a pairing's own result. */
+    rounds: readonly LimitedRound[];
+    matchFormat: LimitedMatchFormat;
+    /** Epoch ms every newly-opened round starts at — injected, same
+     *  discipline as `OpenRoundInput.startedAt`. */
+    now: number;
+    roundDeadlineMinutes?: number;
+    seatStrength: ResolveSeatStrength;
+}
+
+export type AdvanceRoundResult =
+    /** The latest round isn't complete yet — someone else's pairing (or the
+     *  caller's own) is still pending. Nothing to write. */
+    | { kind: "unchanged" }
+    /** One or more further rounds were opened — the last of `rounds` is now
+     *  `currentRound` and still has at least one undecided pairing (or the
+     *  event has more rounds than `openRound` alone could resolve). */
+    | { kind: "roundOpened"; rounds: LimitedRound[]; currentRound: number }
+    /** The event's LAST round is now fully decided — every round through it
+     *  is in `rounds`, `currentRound` names it, and the caller should flip
+     *  the event to `"finished"`. */
+    | { kind: "eventFinished"; rounds: LimitedRound[]; currentRound: number };
+
+/** Advances the event's round state once its LATEST round is fully decided
+ *  (issue #1646, PRD #1628 stories 20/39-40, ADR 0076): opens the next round —
+ *  pairing it against the standings so far and immediately deciding every
+ *  bot-vs-bot pairing it comes back with (`openRound` already does this on
+ *  EVERY round it opens, round 1 included) — and, if THAT round is ALSO
+ *  instantly complete (no human pairing anywhere in it: an all-bot table, or
+ *  every human seat happening to hold a bye), cascades straight into the one
+ *  after, and so on, until either a round is left with an undecided pairing or
+ *  the event's LAST round (`roundsForSeatCount(seats.length)`) is reached —
+ *  which returns `"eventFinished"` instead of opening a round N+1 that would
+ *  never exist.
+ *
+ *  Pure — no DB, no clock beyond the injected `now`, no RNG stream that isn't
+ *  derived from `(eventId, roundNumber)` (`openRound`'s own determinism
+ *  guarantee covers every round this opens, so re-running this over the same
+ *  `rounds` reproduces byte-identical further rounds). `"unchanged"` is
+ *  returned both when the latest round genuinely isn't complete AND when
+ *  `rounds` is empty — this function makes no DB call and asserts no
+ *  ownership of "when" it runs; the caller
+ *  (`convex/limitedEvents.ts`'s `cascadeEventRounds`) is what makes calling it
+ *  after every recorded result — including two callers racing on the same
+ *  event — safe: it is a pure, idempotent, re-runnable DECISION, never a
+ *  mutation. */
+export function advanceRoundIfComplete(
+    input: AdvanceRoundInput
+): AdvanceRoundResult {
+    const {
+        eventId,
+        seats,
+        matchFormat,
+        now,
+        roundDeadlineMinutes,
+        seatStrength,
+    } = input;
+
+    let rounds = [...input.rounds];
+    const latest = rounds[rounds.length - 1];
+    if (!latest || !isRoundComplete(latest)) {
+        return { kind: "unchanged" };
+    }
+
+    const totalRounds = roundsForSeatCount(seats.length);
+    let currentRoundNumber = latest.roundNumber;
+    let opened = false;
+
+    while (
+        currentRoundNumber < totalRounds &&
+        isRoundComplete(rounds[rounds.length - 1])
+    ) {
+        const nextRoundNumber = currentRoundNumber + 1;
+        const nextRound = openRound({
+            eventId,
+            roundNumber: nextRoundNumber,
+            seats,
+            previousRounds: rounds,
+            matchFormat,
+            startedAt: now,
+            roundDeadlineMinutes,
+            seatStrength,
+        });
+        rounds = [...rounds, nextRound];
+        currentRoundNumber = nextRoundNumber;
+        opened = true;
+    }
+
+    if (
+        currentRoundNumber >= totalRounds &&
+        isRoundComplete(rounds[rounds.length - 1])
+    ) {
+        return {
+            kind: "eventFinished",
+            rounds,
+            currentRound: currentRoundNumber,
+        };
+    }
+    if (opened) {
+        return {
+            kind: "roundOpened",
+            rounds,
+            currentRound: currentRoundNumber,
+        };
+    }
+    return { kind: "unchanged" };
 }

@@ -139,6 +139,7 @@ import {
     unbindPairingMatch,
 } from "./limited/pairingMatch";
 import type { LimitedRound } from "./limited/eventTypes";
+import type { AdvanceRoundResult } from "./limited/rounds";
 import { areRoundsRunning } from "./limited/eventStatus";
 import {
     bestOfForMatchFormat,
@@ -148,7 +149,17 @@ import {
 // module, so this cannot cycle. A round Match against a bot seat must be built
 // from the deck the SERVER derives from that seat's Pool — never a
 // client-supplied decklist, because the Match's result lands in the standings.
-import { resolveSeatAutoBuiltDeck } from "./limitedEvents";
+// `cascadeEventRounds` (issue #1646) is the same one-directional import: the
+// round-advance/event-finish decision lives there, this module only calls it.
+// `scheduleRoundDeadline` (issue #1647) is the same shape again: a round this
+// module's own cascade just opened needs the identical deadline schedule
+// `openPlayPhaseIfReady` arms for round 1, so the scheduling call lives once
+// in `limitedEvents.ts` and is invoked from both places.
+import {
+    cascadeEventRounds,
+    resolveSeatAutoBuiltDeck,
+    scheduleRoundDeadline,
+} from "./limitedEvents";
 import type {
     ActivatedAbility,
     CardDefinition,
@@ -536,8 +547,9 @@ function asDbRounds(
 }
 
 /**
- * Record a FINISHED pairing Match's result into its Limited Event's round
- * (PRD #1628 stories 14-15, ADR 0076, issue #1645).
+ * Record a FINISHED pairing Match's result into its Limited Event's round,
+ * then advance the round state it may have just completed (PRD #1628 stories
+ * 14-15/20/39-40, ADR 0076, issues #1645/#1646).
  *
  * Called from **both** places a Match becomes finished — `finalizeGameOver`
  * (the SBA-detected game over, which is also the path `concede` takes) and the
@@ -545,17 +557,27 @@ function asDbRounds(
  * this function exists to prevent, so it is deliberately a single shared
  * helper rather than two inline blocks.
  *
- * Everything it decides lives in the pure `recordPlayedPairing`
- * (`convex/limited/pairingMatch.ts`), which refuses any Match the pairing
- * isn't bound to and is idempotent on an already-decided pairing. It NEVER
- * throws: this runs inside the transaction that finishes the Match, and a
- * throw here would roll that completion back.
- *
- * Standings are not touched — they are DERIVED from the recorded results on
- * every read (ADR 0076), so writing the pairing's game score is the whole job.
+ * Recording lives in the pure `recordPlayedPairing` (`convex/limited/pairingMatch.ts`),
+ * which refuses any Match the pairing isn't bound to and is idempotent on an
+ * already-decided pairing. Advancing lives in `convex/limitedEvents.ts`'s
+ * `cascadeEventRounds` (a thin shell over the pure
+ * `convex/limited/rounds.ts#advanceRoundIfComplete`): if the pairing just
+ * recorded was the round's LAST undecided one, it opens the next round —
+ * cascading through any with no human pairing at all — or finishes the event
+ * on the last round. Both steps land in the SAME `ctx.db.patch` below, so
+ * "record the result" and "advance the round it may have completed" are one
+ * read, one write on the `limitedEvents` document: Convex's OCC on that one
+ * document is what makes two players finishing their pairings
+ * near-simultaneously safe — whichever mutation commits second re-reads the
+ * state the first one just wrote, so a round is never advanced twice and
+ * never skipped. Recording itself never throws (`recordPlayedPairing` is a
+ * pure refusal-by-return, never a throw). Advancing is wrapped in its own
+ * try/catch below (issue #1646 review finding 2) so it can't throw either:
+ * this runs inside the transaction that finishes the Match, and an uncaught
+ * throw here would roll that completion back and lose the result.
  */
 async function recordLimitedPairingResult(
-    ctx: Pick<GenericMutationCtx<DataModel>, "db">,
+    ctx: MutationCtx,
     match: Doc<"matches">,
     now: number
 ): Promise<void> {
@@ -571,10 +593,72 @@ async function recordLimitedPairingResult(
         winsB: match.players[1]?.score ?? 0,
     });
     if (!rounds) return;
+
+    // The pairing result itself must land no matter what happens next:
+    // `cascadeEventRounds` is defence in depth ON TOP of an already-decided
+    // Match (`roundsForSeatCount` throws outside `MIN_SEATS..MAX_SEATS`,
+    // `pairRound` throws on an infeasible no-repeat matching), and this
+    // function runs inside the SAME transaction that just finished the Match
+    // — an uncaught throw here would roll back `finalizeGameOver`/
+    // `forfeitMatch`'s own writes too, losing the result the docstring above
+    // promises never happens (issue #1646 review finding 2). So the
+    // round-advance step is best-effort: on failure it's skipped, the
+    // pairing result is still recorded via `finalRounds = rounds`, and the
+    // event is left exactly as it was — round-not-advanced, never
+    // half-advanced — for the next recorded pairing (or an operator) to
+    // retry. Genuinely unreachable today — the reviewer brute-forced
+    // `pairRound` over every played-outcome history for seat counts 2-8 and
+    // found zero infeasible pairings — this is defence in depth, kept
+    // deliberately small.
+    let advance: AdvanceRoundResult = { kind: "unchanged" };
+    try {
+        advance = await cascadeEventRounds(ctx, event, rounds, now);
+    } catch (err) {
+        console.error(
+            `recordLimitedPairingResult: cascadeEventRounds failed for event ${event._id} — the pairing result was recorded without advancing the round`,
+            err
+        );
+    }
+    const finalRounds = advance.kind === "unchanged" ? rounds : advance.rounds;
+
     await ctx.db.patch(event._id, {
-        rounds: asDbRounds(rounds),
+        rounds: asDbRounds(finalRounds),
+        ...(advance.kind === "unchanged"
+            ? {}
+            : { currentRound: advance.currentRound }),
+        ...(advance.kind === "eventFinished" ? { status: "finished" } : {}),
         updatedAt: now,
     });
+
+    // Issue #1647: a round this cascade just opened needs the SAME deadline
+    // schedule `openPlayPhaseIfReady` arms for round 1 — otherwise a table
+    // whose round 1 had a deadline would silently lose it from round 2 on.
+    // A no-op when the event has no configured deadline, or the newly opened
+    // round came back fully decided on the spot (no human pairing anywhere).
+    //
+    // Wrapped in its own try/catch (issue #1647 review finding 4): this runs
+    // AFTER the `ctx.db.patch` above, inside the same transaction that just
+    // finished the Match (`finalizeGameOver` / `forfeitMatch`) — the entire
+    // point of this function's OWN try/catch around `cascadeEventRounds` is
+    // that nothing past the recorded result can roll it back. A
+    // `scheduler.runAfter` throw here is no exception: best-effort, logged,
+    // never allowed to lose the Match result or the round advance that were
+    // already committed above.
+    if (advance.kind === "roundOpened") {
+        try {
+            await scheduleRoundDeadline(
+                ctx,
+                event._id,
+                finalRounds[finalRounds.length - 1],
+                now
+            );
+        } catch (err) {
+            console.error(
+                `recordLimitedPairingResult: scheduleRoundDeadline failed for event ${event._id} — the newly opened round has no deadline schedule`,
+                err
+            );
+        }
+    }
 }
 
 /** If SBA detected game over, persist the result to the games table AND record
@@ -583,9 +667,17 @@ async function recordLimitedPairingResult(
  *  later slice builds the next Game; #392 only ever finishes Bo1 here.)
  *
  *  EXPORTED for `convex/__tests__/limitedPairingMatch.test.ts` (issue #1645),
- *  which drives the real game-over path rather than re-implementing it. */
+ *  which drives the real game-over path rather than re-implementing it.
+ *
+ *  Widened from `Pick<GenericMutationCtx<DataModel>, "db">` to the full
+ *  `MutationCtx` (issue #1646): `recordLimitedPairingResult` now calls
+ *  `cascadeEventRounds`, which — to score a newly-opened round's bot-vs-bot
+ *  pairings — needs `hydrateSeats`'s full seat payload read (`ctx.auth`/
+ *  `ctx.storage` too, structurally, even though this path never touches
+ *  storage). Every real caller already passes a genuine `MutationCtx`; the
+ *  in-memory test stubs already cast `as unknown as MutationCtx`. */
 export async function finalizeGameOver(
-    ctx: Pick<GenericMutationCtx<DataModel>, "db">,
+    ctx: MutationCtx,
     gameId: GenericId<"games">,
     _seq: number,
     state: GameState
@@ -2954,6 +3046,16 @@ export const challengeLimitedSeat = mutation({
         // Challenger owns the seat they claim (same gate `userDecks.create`
         // uses — one seat-ownership authority, keyed off the AUTHENTICATED id).
         assertLimitedSeatOwnership(event, args.deck.limitedSeatId, user._id);
+        if (!event) throw new Error("Limited Event not found.");
+        // A PHASE question, never a status literal (ADR 0076 decision 1):
+        // free challenges are withdrawn while the event's Swiss rounds are
+        // running (PRD #1628 story 36, issue #1648) — the round pairing is
+        // the only Match a seat plays. Rejected server-side, not merely
+        // hidden by the panel (`startPairingMatch` uses the identical gate).
+        if (areRoundsRunning(event.status))
+            throw new Error(
+                "Free challenges are off while this event's rounds are running."
+            );
         const challengerSeatIndex = Number(args.deck.limitedSeatId);
         // Target must be a seated human opponent (not a bot, not empty, not
         // self). `event` non-null past `assertLimitedSeatOwnership`.
@@ -3130,7 +3232,11 @@ export const startPairingMatch = mutation({
         let gameId: Id<"games">;
 
         if (opponentSeat.isBot) {
-            const botDeck = resolveSeatAutoBuiltDeck(event, opponentSeatIndex);
+            const botDeck = await resolveSeatAutoBuiltDeck(
+                ctx,
+                event,
+                opponentSeatIndex
+            );
             if (!botDeck)
                 throw new Error("Your opponent's deck is not ready yet.");
             // Same seat model as `createSoloGame({ vsAi: true })` (ADR 0001):
@@ -3285,8 +3391,21 @@ export const createSoloGame = mutation({
         // An event binding is only legitimate when seat 1's deck IS that
         // event's deck — the ownership of that seat is re-checked below by
         // `loadLimitedPoolResolver`/`assertLimitedSeatOwnership`.
-        if (args.limitedEventId)
+        if (args.limitedEventId) {
             assertSameEventDeck(args.deck.limitedEventId, args.limitedEventId);
+            const limitedEvent = await ctx.db.get(args.limitedEventId);
+            if (!limitedEvent) throw new Error("Limited Event not found.");
+            // A PHASE question, never a status literal (ADR 0076 decision 1):
+            // an event-bound "Play vs the Table" playtest is withdrawn while
+            // the event's Swiss rounds are running (PRD #1628 story 36, issue
+            // #1648) — the round pairing is the only Match a seat plays.
+            // Rejected server-side, not merely hidden by the panel
+            // (`startPairingMatch`/`challengeLimitedSeat` use the same gate).
+            if (areRoundsRunning(limitedEvent.status))
+                throw new Error(
+                    "Play vs Bots is off while this event's rounds are running."
+                );
+        }
         const deck2 = args.deck2 ?? args.deck;
         // Authoritative deck legality gate (ADR 0036): both seats' decks must be
         // legal before the solo/vs-AI Match starts. Each deck's own DB banlist
@@ -3449,6 +3568,31 @@ export const joinGame = mutation({
                 args.deck.limitedEventId,
                 game.limitedEventId ?? ""
             );
+            // A PHASE question, never a status literal (ADR 0076 decision 1):
+            // free challenges are withdrawn while the event's Swiss rounds are
+            // running (PRD #1628 story 36, issue #1648) — the round pairing is
+            // the only Match a seat plays. `challengeLimitedSeat` already
+            // rejects CREATING a free challenge once rounds are running, but a
+            // free challenge sent during deckbuild is still a `waiting` row
+            // when the phase flips to `playing` (nothing cancels it —
+            // `openPlayPhaseIfReady` only patches status/rounds), so the ACCEPT
+            // side needs the identical gate or the challenged seat can still
+            // join it, landing both players in a live event-bound Match
+            // outside the pairing and burning the single-active-Match slot the
+            // pairing needs. A round pairing Match carries BOTH
+            // `limitedChallenge` AND `limitedPairing` (`startPairingMatch`) —
+            // that accept path must stay open even while rounds run, since it
+            // IS the round, so the gate applies only to a "free" challenge
+            // Game (no `limitedPairing`).
+            if (!game.limitedPairing && game.limitedEventId) {
+                const event = await ctx.db.get(
+                    game.limitedEventId as Id<"limitedEvents">
+                );
+                if (event && areRoundsRunning(event.status))
+                    throw new Error(
+                        "Free challenges are off while this event's rounds are running."
+                    );
+            }
         }
         // A round pairing Match (issue #1645) is an appointment between two
         // SEATS: the accepting player must sit down with the deck of the seat
