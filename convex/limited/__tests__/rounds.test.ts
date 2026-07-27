@@ -4,10 +4,12 @@
 // rewrite one — never the shape of an intermediate.
 import { describe, expect, it } from "vitest";
 import {
+    advanceRoundIfComplete,
     findSeatPairing,
     isRoundComplete,
     openRound,
     roundPairingSeed,
+    type AdvanceRoundInput,
     type OpenRoundInput,
     type RoundSeatLookup,
 } from "../rounds";
@@ -334,5 +336,190 @@ describe("findSeatPairing / isRoundComplete", () => {
                 ],
             })
         ).toBe(true);
+    });
+});
+
+// ── advanceRoundIfComplete (issue #1646) ────────────────────────────────────
+
+/** Marks seat 0's pairing of `round` as PLAYED — stands in for what
+ *  `recordPlayedPairing` (issue #1645) does to a real round when the human's
+ *  Match finishes. */
+function decideHumanPairing(round: LimitedRound): LimitedRound {
+    return {
+        ...round,
+        pairings: round.pairings.map((pairing) =>
+            pairing.seatA === 0 || pairing.seatB === 0
+                ? {
+                      ...pairing,
+                      result: { winsA: 2, winsB: 1, source: "played" as const },
+                  }
+                : pairing
+        ),
+    };
+}
+
+function advance(overrides: Partial<AdvanceRoundInput> = {}) {
+    return advanceRoundIfComplete({
+        eventId: EVENT_ID,
+        seats: botTable(8),
+        rounds: [],
+        matchFormat: "bo3",
+        now: 2_000_000,
+        seatStrength: strengthBySeat,
+        ...overrides,
+    });
+}
+
+describe("advanceRoundIfComplete — no-op cases", () => {
+    it("reports unchanged when there are no rounds at all", () => {
+        expect(advance({ rounds: [] })).toEqual({ kind: "unchanged" });
+    });
+
+    it("reports unchanged while the latest round still has an undecided pairing", () => {
+        const seats = oneHumanTable(8);
+        const round1 = open({ seats, roundNumber: 1 });
+
+        expect(advance({ seats, rounds: [round1] })).toEqual({
+            kind: "unchanged",
+        });
+    });
+});
+
+describe("advanceRoundIfComplete — opens the next round (AC 1)", () => {
+    it("opens round 2 once round 1 is fully decided, leaving the human's new pairing pending", () => {
+        const seats = oneHumanTable(8);
+        const round1 = open({ seats, roundNumber: 1 });
+        const decidedRound1 = decideHumanPairing(round1);
+        expect(isRoundComplete(decidedRound1)).toBe(true);
+
+        const result = advance({ seats, rounds: [decidedRound1] });
+
+        expect(result.kind).toBe("roundOpened");
+        if (result.kind !== "roundOpened") throw new Error("unreachable");
+        expect(result.currentRound).toBe(2);
+        expect(result.rounds).toHaveLength(2);
+        expect(result.rounds[0]).toBe(decidedRound1);
+        const round2 = result.rounds[1];
+        expect(round2.roundNumber).toBe(2);
+        const humanPairing = findSeatPairing(round2, 0)!;
+        expect(humanPairing.result).toBeUndefined();
+    });
+
+    it("never repairs the human against round 1's opponent", () => {
+        const seats = oneHumanTable(8);
+        const round1 = open({ seats, roundNumber: 1 });
+        const decidedRound1 = decideHumanPairing(round1);
+        const round1Opponent = findSeatPairing(decidedRound1, 0)!.seatB;
+
+        const result = advance({ seats, rounds: [decidedRound1] });
+        if (result.kind !== "roundOpened")
+            throw new Error("expected roundOpened");
+        const round2Opponent = findSeatPairing(result.rounds[1], 0)!.seatB;
+
+        expect(round2Opponent).not.toBe(round1Opponent);
+    });
+});
+
+describe("advanceRoundIfComplete — cascades with no human pairings (AC 2)", () => {
+    it("cascades an all-bot table straight through to eventFinished", () => {
+        const seats = botTable(8);
+        const round1 = open({ seats, roundNumber: 1 });
+        // Sanity: `openRound` already decides an all-bot round in full — the
+        // premise this cascade exists to act on.
+        expect(isRoundComplete(round1)).toBe(true);
+
+        const result = advance({ seats, rounds: [round1] });
+
+        expect(result.kind).toBe("eventFinished");
+        if (result.kind !== "eventFinished") throw new Error("unreachable");
+        expect(result.rounds).toHaveLength(3); // roundsForSeatCount(8)
+        expect(result.currentRound).toBe(3);
+        for (const round of result.rounds) {
+            expect(isRoundComplete(round)).toBe(true);
+        }
+    });
+
+    it("never repeats a pairing across the cascaded rounds", () => {
+        const seats = botTable(8);
+        const round1 = open({ seats, roundNumber: 1 });
+        const result = advance({ seats, rounds: [round1] });
+        if (result.kind === "unchanged") throw new Error("expected an advance");
+
+        const key = (a: number, b: number) =>
+            a < b ? `${a}:${b}` : `${b}:${a}`;
+        const seen = new Set<string>();
+        for (const round of result.rounds) {
+            for (const pairing of round.pairings) {
+                if (pairing.seatB === undefined) continue;
+                const pairKey = key(pairing.seatA, pairing.seatB);
+                expect(seen.has(pairKey)).toBe(false);
+                seen.add(pairKey);
+            }
+        }
+    });
+
+    it("reopening the same advance reproduces byte-identical further rounds", () => {
+        const seats = botTable(8);
+        const round1 = open({ seats, roundNumber: 1 });
+
+        const first = advance({ seats, rounds: [round1] });
+        const second = advance({ seats, rounds: [round1] });
+
+        expect(second).toEqual(first);
+    });
+});
+
+describe("advanceRoundIfComplete — event finish (AC 4)", () => {
+    it("finishes the event on the last round's last pairing, without opening round N+1", () => {
+        const seats = botTable(8);
+        const round1 = open({ seats, roundNumber: 1 });
+        const round2 = open({
+            seats,
+            roundNumber: 2,
+            previousRounds: [round1],
+        });
+        const round3 = open({
+            seats,
+            roundNumber: 3,
+            previousRounds: [round1, round2],
+        });
+
+        const result = advance({ seats, rounds: [round1, round2, round3] });
+
+        expect(result.kind).toBe("eventFinished");
+        if (result.kind !== "eventFinished") throw new Error("unreachable");
+        expect(result.rounds).toHaveLength(3);
+        expect(result.currentRound).toBe(3);
+    });
+
+    it("leaves a table of 1 human + 7 bots' last round finishing only once the human plays it", () => {
+        const seats = oneHumanTable(8);
+        const round1 = decideHumanPairing(open({ seats, roundNumber: 1 }));
+        const afterRound1 = advance({ seats, rounds: [round1] });
+        if (afterRound1.kind !== "roundOpened") {
+            throw new Error("expected round 2 to open");
+        }
+        const round2 = decideHumanPairing(afterRound1.rounds[1]);
+        const afterRound2 = advance({ seats, rounds: [round1, round2] });
+        if (afterRound2.kind !== "roundOpened") {
+            throw new Error("expected round 3 to open");
+        }
+        expect(afterRound2.currentRound).toBe(3);
+
+        const round3 = afterRound2.rounds[2];
+        // Round 3 is the LAST round (roundsForSeatCount(8) === 3) — the
+        // human's pairing is still pending, so the event has not finished.
+        expect(advance({ seats, rounds: [round1, round2, round3] })).toEqual({
+            kind: "unchanged",
+        });
+
+        const decidedRound3 = decideHumanPairing(round3);
+        const finished = advance({
+            seats,
+            rounds: [round1, round2, decidedRound3],
+        });
+        expect(finished.kind).toBe("eventFinished");
+        if (finished.kind !== "eventFinished") throw new Error("unreachable");
+        expect(finished.currentRound).toBe(3);
     });
 });

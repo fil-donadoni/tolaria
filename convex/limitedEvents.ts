@@ -20,6 +20,7 @@ import {
     deleteSeats,
     ensureSeatsMigrated,
     eventHasInlinePayload,
+    hydrateSeat,
     hydrateSeats,
     saveSeatPayload,
     saveSeats,
@@ -85,7 +86,12 @@ import {
     type ResolveCardMeta,
 } from "./limited/eventLogic";
 import { evaluateDeckStrength, type DeckStrength } from "./limited/matchSim";
-import { openRound, type ResolveSeatStrength } from "./limited/rounds";
+import {
+    advanceRoundIfComplete,
+    openRound,
+    type AdvanceRoundResult,
+    type ResolveSeatStrength,
+} from "./limited/rounds";
 import {
     projectLimitedEvent,
     type HumanDeckView,
@@ -678,10 +684,10 @@ function resolveBasicLandFor(setCode: string): ResolveBasicLand {
     };
 }
 
-/** ONE seat's Auto-Built deck, resolved straight off the stored event row
- *  (issue #1115's `computeBotAutoBuiltDeck` wired with this module's two
- *  registry resolvers). `null` for a seat that has none — a human seat, a seat
- *  that doesn't exist, or an event whose Pool isn't final yet.
+/** ONE seat's Auto-Built deck (issue #1115's `computeBotAutoBuiltDeck` wired
+ *  with this module's two registry resolvers). `null` for a seat that has
+ *  none — a human seat, a seat that doesn't exist, or an event whose Pool
+ *  isn't final yet.
  *
  *  EXPORTED for `convex/game.ts`'s `startPairingMatch` (issue #1645): a round
  *  Match against a bot seat must be played against the deck the SERVER derives
@@ -690,12 +696,22 @@ function resolveBasicLandFor(setCode: string): ResolveBasicLand {
  *  but a pairing Match's result lands in the standings — so its opponent
  *  decklist can never come from the client. The import direction is
  *  `game.ts -> limitedEvents.ts` only; this module imports nothing from
- *  `game.ts`. */
-export function resolveSeatAutoBuiltDeck(
+ *  `game.ts`.
+ *
+ *  MUST hydrate before reading the seat (issue #1646 review finding 1):
+ *  `event.seats[].pool` is absent on every row `saveSeats` writes since the
+ *  `limitedSeats` child-row split (`convex/limitedSeatStore.ts`) — reading
+ *  the raw `event.seats` here silently evaluates every bot seat as an empty
+ *  Pool and `computeBotAutoBuiltDeck` returns `null`. Same hydration idiom as
+ *  `buildSeatStrengthResolver` above; the single-seat form (`hydrateSeat`) is
+ *  enough here because only one seat's deck is ever read per call. */
+export async function resolveSeatAutoBuiltDeck(
+    ctx: QueryCtx,
     event: Doc<"limitedEvents">,
     seatIndex: number
-): AutoBuiltDeck | null {
-    const seat = event.seats.find((s) => s.seatIndex === seatIndex);
+): Promise<AutoBuiltDeck | null> {
+    const hydratedSeats = await hydrateSeat(ctx, event, seatIndex);
+    const seat = hydratedSeats.find((s) => s.seatIndex === seatIndex);
     if (!seat) return null;
     return computeBotAutoBuiltDeck(
         seat,
@@ -917,14 +933,71 @@ async function projectEventForViewer(
     };
 }
 
+/** Builds the `ResolveSeatStrength` a round open/cascade needs to decide its
+ *  bot-vs-bot pairings — lazy and memoised, so a table with few such pairings
+ *  never pays for Auto-Building the seats it doesn't need. The SAME card-value
+ *  seams the Bot Drafter picks with (PRD story 50) — `getCardEvalMeta` keys on
+ *  a deck-card id exactly as it does on a pack card's (`resolveDeckCardMeta`
+ *  resolves a `printId` or a canonical id alike), and the layered Pick Ratings
+ *  come from `loadEventPickRating`.
+ *
+ *  Shared by `openPlayPhaseIfReady` (round 1) and `cascadeEventRounds` (every
+ *  round after it, issue #1646) — both need the identical resolver, and a
+ *  divergence between the two would mean round 1's bot-vs-bot pairings and a
+ *  later round's are scored on two different notions of "this bot's deck". */
+async function buildSeatStrengthResolver(
+    ctx: QueryCtx | MutationCtx,
+    event: Doc<"limitedEvents">
+): Promise<ResolveSeatStrength> {
+    const eventContext: AutoBuildEventContext = {
+        type: event.type,
+        status: event.status,
+        draftCompletedAt: event.draftCompletedAt,
+    };
+    const getPickRating = await loadEventPickRating(ctx, event.packSlots);
+    const resolveBasicLand = resolveBasicLandFor(event.packSlots[0] ?? "");
+    // Bot deck strength is Auto-Built from the seat's POOL, which no longer
+    // lives on the event row (`convex/schema.ts`'s `limitedSeats`) — so this
+    // is one of the paths that must hydrate in FULL. A slim `event.seats` here
+    // would silently evaluate every bot seat as an empty deck and decide the
+    // bot-vs-bot pairings on nothing at all.
+    const hydratedSeats = await hydrateSeats(ctx, event);
+    const strengthCache = new Map<number, DeckStrength>();
+    return (seatIndex) => {
+        const cached = strengthCache.get(seatIndex);
+        if (cached) return cached;
+        const seat = hydratedSeats.find((s) => s.seatIndex === seatIndex);
+        const deck = seat
+            ? computeBotAutoBuiltDeck(
+                  seat,
+                  eventContext,
+                  getAutoBuildCardMeta,
+                  resolveBasicLand
+              )
+            : null;
+        const strength = evaluateDeckStrength(
+            deck?.cards ?? [],
+            getCardEvalMeta,
+            getPickRating
+        );
+        strengthCache.set(seatIndex, strength);
+        return strength;
+    };
+}
+
 /** Opens the event's PLAY PHASE the moment the table is ready (PRD #1628, ADR
  *  0076, issue #1644): the event flips to `playing`, round 1 is paired, and
  *  every pairing nobody can sit down and play — bot-vs-bot, and the bye on an
- *  odd table — is decided in this same transaction.
+ *  odd table — is decided in this same transaction. If round 1 comes back
+ *  ALREADY fully decided (an all-bot table has no human pairing to wait on),
+ *  `cascadeEventRounds` (issue #1646) carries straight on through as many
+ *  further rounds as it takes, in the SAME write — an all-bot event must never
+ *  sit at "round 1 done" forever with nobody around to advance it.
  *
  *  A thin SHELL, in this module's established discipline: the whole decision
- *  lives in `convex/limited/rounds.ts`'s pure `openRound`, and everything here
- *  is a DB read, an injected resolver, or the single write at the end.
+ *  lives in `convex/limited/rounds.ts`'s pure `openRound`/`advanceRoundIfComplete`,
+ *  and everything here is a DB read, an injected resolver, or the single write
+ *  at the end.
  *
  *  **Idempotent and self-gating.** It re-reads the row, asks `eventStatus.ts`'s
  *  PHASE PREDICATES (never a literal status comparison — ADR 0076 decision 1)
@@ -988,63 +1061,84 @@ export async function openPlayPhaseIfReady(
     );
     if (!completion.completed) return false;
 
-    // Bot deck strength, resolved lazily and memoised: `openRound` only asks
-    // for a seat it is about to simulate, so a table with few bot-vs-bot
-    // pairings never pays for Auto-Building the seats it doesn't need. The
-    // SAME card-value seams the Bot Drafter picks with (PRD story 50) —
-    // `getCardEvalMeta` keys on a deck-card id exactly as it does on a pack
-    // card's (`resolveDeckCardMeta` resolves a `printId` or a canonical id
-    // alike), and the layered Pick Ratings come from `loadEventPickRating`.
-    const getPickRating = await loadEventPickRating(ctx, event.packSlots);
-    const resolveBasicLand = resolveBasicLandFor(event.packSlots[0] ?? "");
-    // Bot deck strength is Auto-Built from the seat's POOL, which no longer
-    // lives on the event row (`convex/schema.ts`'s `limitedSeats`) — so this
-    // is one of the paths that must hydrate in FULL. A slim `event.seats` here
-    // would silently evaluate every bot seat as an empty deck and decide the
-    // bot-vs-bot pairings on nothing at all.
-    const hydratedSeats = await hydrateSeats(ctx, event);
-    const strengthCache = new Map<number, DeckStrength>();
-    const seatStrength: ResolveSeatStrength = (seatIndex) => {
-        const cached = strengthCache.get(seatIndex);
-        if (cached) return cached;
-        const seat = hydratedSeats.find((s) => s.seatIndex === seatIndex);
-        const deck = seat
-            ? computeBotAutoBuiltDeck(
-                  seat,
-                  eventContext,
-                  getAutoBuildCardMeta,
-                  resolveBasicLand
-              )
-            : null;
-        const strength = evaluateDeckStrength(
-            deck?.cards ?? [],
-            getCardEvalMeta,
-            getPickRating
-        );
-        strengthCache.set(seatIndex, strength);
-        return strength;
-    };
-
+    const seatStrength = await buildSeatStrengthResolver(ctx, event);
+    const matchFormat = resolveMatchFormat(event.matchFormat);
     const round = openRound({
         eventId,
         roundNumber: 1,
         seats: event.seats,
         previousRounds: [],
-        matchFormat: resolveMatchFormat(event.matchFormat),
+        matchFormat,
         startedAt: now,
         roundDeadlineMinutes: event.roundDeadlineMinutes,
         seatStrength,
     });
 
+    // Issue #1646: round 1 can come back fully decided on its own (no human
+    // seat at this table at all) — cascade through it in this SAME write
+    // rather than leaving the event stuck at "round 1 done, nobody to
+    // advance it".
+    const advance = advanceRoundIfComplete({
+        eventId,
+        seats: event.seats,
+        rounds: [round],
+        matchFormat,
+        now,
+        roundDeadlineMinutes: event.roundDeadlineMinutes,
+        seatStrength,
+    });
+    const rounds = advance.kind === "unchanged" ? [round] : advance.rounds;
+    const currentRound =
+        advance.kind === "unchanged" ? round.roundNumber : advance.currentRound;
+
     await ctx.db.patch(eventId, {
         // A status WRITE names the phase being entered — ADR 0076's explicit
         // exemption from the no-literals rule (it isn't a phase question).
-        status: "playing",
-        currentRound: round.roundNumber,
-        rounds: asDbRounds([round]),
+        status: advance.kind === "eventFinished" ? "finished" : "playing",
+        currentRound,
+        rounds: asDbRounds(rounds),
         updatedAt: now,
     });
     return true;
+}
+
+/** Advances the event's round state once its LATEST round is fully decided
+ *  (issue #1646, PRD #1628 stories 20/39-40, ADR 0076): opens the next round —
+ *  pairing it against the standings so far and immediately resolving every
+ *  bot-vs-bot pairing it comes back with — cascading through any number of
+ *  rounds with no human pairing at all, until either a round is left with an
+ *  undecided pairing or the event's last round is reached, in which case the
+ *  event is finished. A thin SHELL around the pure
+ *  `convex/limited/rounds.ts#advanceRoundIfComplete`: hydrates the SAME
+ *  bot-strength resolver `openPlayPhaseIfReady` builds for round 1
+ *  (`buildSeatStrengthResolver`) and hands the decision off — it performs NO
+ *  write of its own.
+ *
+ *  Callers fold the result into their OWN single patch (`recordLimitedPairingResult`
+ *  in `convex/game.ts`, and `openPlayPhaseIfReady` above), so the whole
+ *  "record/open + cascade" step stays one read, one write on the
+ *  `limitedEvents` document — the same discipline `openPlayPhaseIfReady`
+ *  already followed pre-#1646, and precisely what makes two callers racing on
+ *  the same event (two players finishing their pairings near-simultaneously)
+ *  safe: Convex's OCC on that ONE document serializes the two mutations, and
+ *  whichever commits SECOND is retried against the state the first one just
+ *  wrote — so a round can never be advanced twice, and never skipped. */
+export async function cascadeEventRounds(
+    ctx: QueryCtx | MutationCtx,
+    event: Doc<"limitedEvents">,
+    rounds: readonly LimitedRound[],
+    now: number
+): Promise<AdvanceRoundResult> {
+    const seatStrength = await buildSeatStrengthResolver(ctx, event);
+    return advanceRoundIfComplete({
+        eventId: event._id,
+        seats: event.seats,
+        rounds,
+        matchFormat: resolveMatchFormat(event.matchFormat),
+        now,
+        roundDeadlineMinutes: event.roundDeadlineMinutes,
+        seatStrength,
+    });
 }
 
 /** Projects one event for a LIST row — see `limitedEventSummaryValidator`.

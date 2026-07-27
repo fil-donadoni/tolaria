@@ -584,34 +584,43 @@ describe("an all-bot table reaches the play phase (issue #1644)", () => {
         };
     }
 
-    function expectOpenedRoundOne(row: Record<string, unknown>) {
-        expect(row.status).toBe("playing");
-        expect(row.currentRound).toBe(1);
+    // An all-bot table has no human pairing to ever wait on, so
+    // `openPlayPhaseIfReady`'s own cascade (issue #1646,
+    // `cascadeEventRounds`) carries it all the way from round 1 to
+    // `"finished"` in this SAME transaction — never stuck at "round 1 done,
+    // nobody around to advance it".
+    function expectCascadedToFinished(row: Record<string, unknown>) {
+        expect(row.status).toBe("finished");
+        expect(row.currentRound).toBe(3); // roundsForSeatCount(8)
         const rounds = row.rounds as LimitedEventRow["rounds"];
-        expect(rounds).toHaveLength(1);
-        const pairings = rounds![0].pairings;
-        expect(pairings).toHaveLength(4);
-        // Every pairing is bot-vs-bot, so the whole round is decided in the
-        // same transaction that opened it.
-        expect(pairings.filter((p) => p.result === undefined)).toHaveLength(0);
+        expect(rounds).toHaveLength(3);
+        for (const round of rounds!) {
+            const pairings = round.pairings;
+            expect(pairings).toHaveLength(4);
+            // Every pairing is bot-vs-bot, so every round is decided in the
+            // same transaction that opened it.
+            expect(pairings.filter((p) => p.result === undefined)).toHaveLength(
+                0
+            );
+        }
     }
 
-    it("startLimitedEvent opens the play phase for an all-bot SEALED table", async () => {
+    it("startLimitedEvent cascades an all-bot SEALED table straight to finished", async () => {
         const { ctx, row } = makeStubCtx(
             unstartedAllBotEvent("event-run-sealed", "sealed")
         );
         await runStartLimitedEvent(ctx, "event-run-sealed");
-        expectOpenedRoundOne(row());
+        expectCascadedToFinished(row());
     });
 
-    it("startLimitedEvent opens the play phase for an all-bot DRAFT table", async () => {
+    it("startLimitedEvent cascades an all-bot DRAFT table straight to finished", async () => {
         const { ctx, row } = makeStubCtx(
             unstartedAllBotEvent("event-run-draft", "draft")
         );
         await runStartLimitedEvent(ctx, "event-run-draft");
         // `runBotAutoPicks` drives the whole draft inside this one mutation.
         expect(row().draftCompletedAt).toEqual(expect.any(Number));
-        expectOpenedRoundOne(row());
+        expectCascadedToFinished(row());
     });
 
     it("leaves a table with a HUMAN seat in the deckbuild phase (the call self-gates)", async () => {
