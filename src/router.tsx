@@ -17,6 +17,7 @@ import LimitedEventsRoute from "./routes/limited-events.route";
 import LimitedEventDetailRoute from "./routes/limited-event-detail.route";
 import LimitedDeckBuilderRoute from "./routes/limited-deck-builder.route";
 import DesignSystemRoute from "./routes/design-system.route";
+import DraftLabRoute from "./routes/draft-lab.route";
 
 const rootRoute = createRootRoute({
     component: () => (
@@ -124,6 +125,15 @@ const designSystemRoute = createRoute({
     component: DesignSystemRoute,
 });
 
+// Draft Lab synthetic mode (PRD #1607 slice 5, issue #1612, ADR 0074): a
+// client-only developer surface that runs a whole Bot Drafter draft in the
+// browser and shows the scorer's per-candidate breakdown. Writes nothing.
+const draftLabRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/draft-lab",
+    component: DraftLabRoute,
+});
+
 const routeTree = rootRoute.addChildren([
     indexRoute,
     decksCreateRoute,
@@ -137,6 +147,7 @@ const routeTree = rootRoute.addChildren([
     limitedEventDetailRoute,
     limitedDeckBuilderRoute,
     designSystemRoute,
+    draftLabRoute,
 ]);
 
 const router = createRouter({ routeTree });
