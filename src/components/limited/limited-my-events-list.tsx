@@ -1,5 +1,5 @@
 import type { Id } from "@convex/_generated/dataModel";
-import type { LimitedEventView } from "~/hooks/useLimitedEvent";
+import type { LimitedEventSummaryView } from "~/hooks/useLimitedEvent";
 import LimitedEventListItem from "./limited-event-list-item";
 
 /** "Your events" section (issue #1578): every event — open, started, or
@@ -14,7 +14,7 @@ export default function LimitedMyEventsList({
     events,
     onOpen,
 }: {
-    events: LimitedEventView[];
+    events: LimitedEventSummaryView[];
     onOpen: (eventId: Id<"limitedEvents">) => void;
 }) {
     if (events.length === 0) return null;

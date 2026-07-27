@@ -127,6 +127,7 @@ import {
     assertLimitedSeatOwnership,
     resolvePoolFromEvent,
 } from "./limited/poolResolution";
+import { hydrateSeat } from "./limitedSeatStore";
 import {
     assertChallengeableSeat,
     assertSameEventDeck,
@@ -2755,7 +2756,14 @@ export async function loadLimitedPoolResolver(
     if (!deck.limitedEventId || !deck.limitedSeatId) return undefined;
     const event = await ctx.db.get(deck.limitedEventId as Id<"limitedEvents">);
     assertLimitedSeatOwnership(event, deck.limitedSeatId, callerUserId);
-    const pool = resolvePoolFromEvent(event, deck.limitedSeatId);
+    // Seat ownership is decided on the event row alone; only the Pool needs
+    // the `limitedSeats` payload, and only for the ONE seat this deck claims
+    // (`convex/limitedSeatStore.ts`).
+    const seatIndex = Number(deck.limitedSeatId);
+    const hydrated = event
+        ? { seats: await hydrateSeat(ctx, event, seatIndex) }
+        : null;
+    const pool = resolvePoolFromEvent(hydrated, deck.limitedSeatId);
     return () => pool;
 }
 

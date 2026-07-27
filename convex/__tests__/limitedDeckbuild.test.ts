@@ -229,9 +229,22 @@ describe("Limited deckbuild pipeline: sealed event → build → submit → crea
         const event = { _id: "event-3", seats };
         const victimSeat = event.seats.find((s) => s.userId === "victim")!;
 
-        // Stub ctx: `loadLimitedPoolResolver` only ever calls `ctx.db.get`.
+        // Stub ctx: `loadLimitedPoolResolver` calls `ctx.db.get` for the event
+        // row, then hydrates the claimed seat's payload through
+        // `convex/limitedSeatStore.ts`. `limitedSeats` returns nothing here —
+        // the event above carries its Pools inline, the legacy pre-split shape
+        // the store still folds in, which is exactly what this gate must keep
+        // resolving.
         const stubCtx = {
-            db: { get: async () => event },
+            db: {
+                get: async () => event,
+                query: () => ({
+                    withIndex: () => ({
+                        unique: async () => null,
+                        collect: async () => [],
+                    }),
+                }),
+            },
         } as unknown as MutationCtx;
 
         it("denies an ATTACKER who supplies the VICTIM's limitedSeatId/limitedEventId", async () => {

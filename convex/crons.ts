@@ -2,6 +2,7 @@ import { cronJobs } from "convex/server";
 import { internal } from "./_generated/api";
 import { internalMutation } from "./_generated/server";
 import { deleteMatchCascade } from "./matches";
+import { deleteSeats } from "./limitedSeatStore";
 
 const FINISHED_TTL_MS = 24 * 60 * 60 * 1000;
 
@@ -42,12 +43,50 @@ export const sweepFinishedGames = internalMutation({
     },
 });
 
+const OPEN_EVENT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** Garbage-collect Limited Events that were created, never started, and then
+ *  abandoned — the only events that can be dropped without destroying real
+ *  player work. An `open` event has no Pools, no submitted decks and no
+ *  Matches bound to it (all three only come into existence at
+ *  `startLimitedEvent`), so deleting one is exactly what its creator's own
+ *  `cancelLimitedEvent` does.
+ *
+ *  Deliberately does NOT sweep started/finished events: their seats' Pools are
+ *  what every `userDecks` row of format `limited` resolves its legality
+ *  against (`convex/limited/poolResolution.ts`), so deleting one would
+ *  silently invalidate a player's saved decks. Unbounded growth there is
+ *  acceptable now that an event row is slim — the card payload sits in
+ *  `limitedSeats` and is only read when the event is actually opened. */
+export const sweepAbandonedLimitedEvents = internalMutation({
+    handler: async (ctx) => {
+        const cutoff = Date.now() - OPEN_EVENT_TTL_MS;
+        const open = await ctx.db
+            .query("limitedEvents")
+            .withIndex("by_status", (q) => q.eq("status", "open"))
+            .collect();
+        for (const event of open) {
+            if (event.updatedAt > cutoff) continue;
+            // An open event should have no payload rows, but delete them first
+            // regardless — a row orphaned by a missing parent is unreachable.
+            await deleteSeats(ctx, event._id);
+            await ctx.db.delete(event._id);
+        }
+    },
+});
+
 const crons = cronJobs();
 
 crons.interval(
     "sweep finished games",
     { hours: 6 },
     internal.crons.sweepFinishedGames
+);
+
+crons.interval(
+    "sweep abandoned limited events",
+    { hours: 24 },
+    internal.crons.sweepAbandonedLimitedEvents
 );
 
 export default crons;

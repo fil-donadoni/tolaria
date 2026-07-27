@@ -36,6 +36,14 @@ export interface LimitedEventSeat {
     userId?: string;
     nickname?: string;
     isBot?: boolean;
+    /** `pool.length`, denormalised onto the event row's slim seat so listing
+     *  events never has to load the Pool itself (`convex/schema.ts`'s
+     *  `limitedSeats` split). Absent on a seat whose Pool has never been
+     *  dealt; kept in step with `pool` by `convex/limitedSeatStore.ts`, the
+     *  only writer. Readers that HAVE a hydrated `pool` should prefer
+     *  `pool.length` — this exists for the seat shapes that deliberately
+     *  don't. */
+    poolCount?: number;
     pool?: LimitedPoolCard[];
     /** Draft only (issue #1112): the pack currently in front of this seat to
      *  Pick from. Absent while waiting for the next pass (queue empty) or for

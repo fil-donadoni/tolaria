@@ -5,7 +5,7 @@
 // `convex/limited/eventProjection.ts`, so they're unit-testable without a
 // convex-test harness (the project has none — see
 // `convex/__tests__/adminAuth.test.ts`).
-import { v } from "convex/values";
+import { v, type Infer } from "convex/values";
 import { internal } from "./_generated/api";
 import {
     internalMutation,
@@ -16,6 +16,15 @@ import {
 } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import { getCurrentUser, getCurrentUserId, isAdminUser } from "./auth";
+import {
+    deleteSeats,
+    ensureSeatsMigrated,
+    eventHasInlinePayload,
+    hydrateSeats,
+    saveSeatPayload,
+    saveSeats,
+    saveSlimSeats,
+} from "./limitedSeatStore";
 import {
     getCardByName,
     getPrintingsForCard,
@@ -32,6 +41,7 @@ import { getDefinitionProducibleColors, manaValue } from "./gre/constants";
 import { freshSeed, makeRng } from "./gre/rng";
 import {
     computeBotAutoBuiltDeck,
+    isEventPoolFinal,
     type AutoBuildEventContext,
     type AutoBuiltDeck,
     type GetAutoBuildCardMeta,
@@ -404,6 +414,51 @@ export const limitedEventViewValidator = v.object({
     updatedAt: v.number(),
 });
 
+/** Wire shape of a LIST row (`listOpenLimitedEvents`/`myLimitedEvents`) — a
+ *  deliberately narrower view than `limitedEventViewValidator` above, carrying
+ *  only what a row in the events list renders: the event's name inputs
+ *  (`type`/`packSlots`), its phase (`status`/`draftCompletedAt`/`completed` —
+ *  `limitedEventStatusHint`'s inputs), and enough per-seat identity to count
+ *  filled seats and tell whether the viewer already holds one.
+ *
+ *  It is narrow so the list queries can be answered from the event row ALONE,
+ *  with no `limitedSeats` read (`convex/schema.ts`): the fat fields the full
+ *  view carries — every seat's Pool, its Auto-Built deck, its arrangement —
+ *  are exactly the ones that would drag the payload back into a query that
+ *  re-runs on every draft pick. A separate TYPE rather than the same one with
+ *  nulls, so a component that reaches for a Pool on a list row fails to
+ *  compile instead of silently rendering nothing. */
+const limitedEventSummarySeatValidator = v.object({
+    seatIndex: v.number(),
+    userId: v.optional(v.string()),
+    nickname: v.optional(v.string()),
+    isBot: v.boolean(),
+    isViewer: v.boolean(),
+    /** Pool SIZE only (never its contents) — read off the event row's
+     *  denormalised `poolCount`, so this costs no extra read. */
+    poolCount: v.union(v.number(), v.null()),
+    hasDeck: v.boolean(),
+});
+
+const limitedEventSummaryValidator = v.object({
+    _id: v.string(),
+    createdBy: v.string(),
+    type: eventTypeValidator,
+    status: eventStatusValidator,
+    seatCount: v.number(),
+    packSlots: v.array(v.string()),
+    draftCompletedAt: v.optional(v.number()),
+    matchFormat: matchFormatValidator,
+    completed: v.boolean(),
+    seatsWithDeck: v.number(),
+    seats: v.array(limitedEventSummarySeatValidator),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+});
+
+/** The list-row view, derived from its validator so the two can't drift. */
+type LimitedEventSummary = Infer<typeof limitedEventSummaryValidator>;
+
 // Per-sheet Draftability verdict (ADR 0059, PRD #1242 AC5) — which sheet(s),
 // if any, sit below the ≥80% floor, not just the set-level boolean.
 const draftableSheetInfoValidator = v.object({
@@ -720,6 +775,26 @@ async function projectEventForViewer(
         status: event.status,
         draftCompletedAt: event.draftCompletedAt,
     };
+    // How much of the seat payload this projection will actually read
+    // (`convex/limitedSeatStore.ts`): the viewer's own seat always — it's the
+    // only one whose Pool/pack/arrangement survives the privacy strip — plus
+    // EVERY seat once the Pool is final, because `computeBotAutoBuiltDeck`
+    // below needs each bot seat's Pool to derive its deck summary. While a
+    // draft is still running that second clause is false, so the query that
+    // re-fires on every pick loads one seat's cards instead of eight.
+    const viewerSeatIndex = event.seats.find(
+        (s) => viewerUserId !== null && s.userId === viewerUserId
+    )?.seatIndex;
+    const seats = await hydrateSeats(
+        ctx,
+        event,
+        isEventPoolFinal(eventContext)
+            ? undefined
+            : viewerSeatIndex === undefined
+              ? []
+              : [viewerSeatIndex]
+    );
+    const hydrated = { ...event, seats: asDbSeats(seats) };
     // Decks exist for as long as Pools do — through the play phase and past
     // the event's end (ADR 0076), not only while `status === "started"`. A
     // literal comparison here would have blanked every seat's deck (and, via
@@ -734,7 +809,7 @@ async function projectEventForViewer(
         (seatIndex) => humanDecksBySeat.has(seatIndex)
     );
     const base = projectLimitedEvent(
-        event,
+        hydrated,
         viewerUserId,
         completion.completed,
         completion.seatsWithDeck,
@@ -753,7 +828,7 @@ async function projectEventForViewer(
         ...base,
         seats: base.seats.map((seatView, i) => {
             const autoBuiltDeck = computeBotAutoBuiltDeck(
-                event.seats[i],
+                seats[i],
                 eventContext,
                 getAutoBuildCardMeta,
                 resolveBasicLand
@@ -860,11 +935,17 @@ export async function openPlayPhaseIfReady(
     // alike), and the layered Pick Ratings come from `loadEventPickRating`.
     const getPickRating = await loadEventPickRating(ctx, event.packSlots);
     const resolveBasicLand = resolveBasicLandFor(event.packSlots[0] ?? "");
+    // Bot deck strength is Auto-Built from the seat's POOL, which no longer
+    // lives on the event row (`convex/schema.ts`'s `limitedSeats`) — so this
+    // is one of the paths that must hydrate in FULL. A slim `event.seats` here
+    // would silently evaluate every bot seat as an empty deck and decide the
+    // bot-vs-bot pairings on nothing at all.
+    const hydratedSeats = await hydrateSeats(ctx, event);
     const strengthCache = new Map<number, DeckStrength>();
     const seatStrength: ResolveSeatStrength = (seatIndex) => {
         const cached = strengthCache.get(seatIndex);
         if (cached) return cached;
-        const seat = event.seats.find((s) => s.seatIndex === seatIndex);
+        const seat = hydratedSeats.find((s) => s.seatIndex === seatIndex);
         const deck = seat
             ? computeBotAutoBuiltDeck(
                   seat,
@@ -902,6 +983,58 @@ export async function openPlayPhaseIfReady(
         updatedAt: now,
     });
     return true;
+}
+
+/** Projects one event for a LIST row — see `limitedEventSummaryValidator`.
+ *
+ *  Reads NOTHING beyond the event row itself and the (indexed, per-event)
+ *  `userDecks` rows completion needs: no `limitedSeats`, no challenges, no
+ *  Auto-Build. That is the whole point — these two queries scan multiple
+ *  events and re-run on every write to any of them, so anything they load per
+ *  event is paid once per draft pick, per subscribed client. */
+async function projectEventSummary(
+    ctx: QueryCtx,
+    event: Doc<"limitedEvents">,
+    viewerUserId: string | null
+): Promise<LimitedEventSummary> {
+    const humanDecksBySeat = arePoolsDealt(event.status)
+        ? await loadHumanDecksBySeat(ctx, event._id)
+        : new Map<number, HumanDeckView>();
+    const completion = computeEventCompletion(
+        event.seats,
+        {
+            type: event.type,
+            status: event.status,
+            draftCompletedAt: event.draftCompletedAt,
+        },
+        (seatIndex) => humanDecksBySeat.has(seatIndex)
+    );
+    return {
+        _id: event._id,
+        createdBy: event.createdBy,
+        type: event.type,
+        status: event.status,
+        seatCount: event.seatCount,
+        packSlots: event.packSlots,
+        draftCompletedAt: event.draftCompletedAt,
+        matchFormat: resolveMatchFormat(event.matchFormat),
+        completed: completion.completed,
+        seatsWithDeck: completion.seatsWithDeck,
+        createdAt: event.createdAt,
+        updatedAt: event.updatedAt,
+        seats: event.seats.map((seat) => ({
+            seatIndex: seat.seatIndex,
+            userId: seat.userId,
+            nickname: seat.nickname,
+            isBot: seat.isBot ?? false,
+            isViewer: viewerUserId !== null && seat.userId === viewerUserId,
+            // The denormalised count, never a Pool read. A legacy row written
+            // before the split has no `poolCount` but still carries its Pool
+            // inline, so fall back to it rather than reporting `null`.
+            poolCount: seat.poolCount ?? seat.pool?.length ?? null,
+            hasDeck: completion.hasDeckBySeat.has(seat.seatIndex),
+        })),
+    };
 }
 
 /** Builds the `TimerConfig` `startDraft`/`applyPick`/`runBotAutoPicks` accept
@@ -974,15 +1107,15 @@ export const listLimitedDraftableSets = query({
  *  there is nothing to strip. */
 export const listOpenLimitedEvents = query({
     args: {},
-    returns: v.array(limitedEventViewValidator),
+    returns: v.array(limitedEventSummaryValidator),
     handler: async (ctx) => {
-        await getCurrentUserId(ctx);
+        const userId = await getCurrentUserId(ctx);
         const events = await ctx.db
             .query("limitedEvents")
             .withIndex("by_status", (q) => q.eq("status", "open"))
             .collect();
         return Promise.all(
-            events.map((event) => projectEventForViewer(ctx, event, null))
+            events.map((event) => projectEventSummary(ctx, event, userId))
         );
     },
 });
@@ -993,14 +1126,21 @@ export const listOpenLimitedEvents = query({
  *  "seats containing this userId" (seats is an embedded array), so this scans
  *  the `MY_EVENTS_SCAN_LIMIT` most-recently-created events — a bound, not a
  *  true index, but comfortably covers every event a user could still be
- *  seated in. */
+ *  seated in.
+ *
+ *  That scan is affordable only because an event row is SLIM: the per-seat
+ *  card payload lives in `limitedSeats` (`convex/schema.ts`) and this query
+ *  reads none of it. Before the split each scanned row carried up to 48 KB of
+ *  Pools, and since the query re-runs on every write to any event, a single
+ *  draft re-read the whole table once per pick. Keep it projecting through
+ *  `projectEventSummary` — reaching for `projectEventForViewer` here would
+ *  restore exactly that. */
 export const myLimitedEvents = query({
     args: {},
-    returns: v.array(limitedEventViewValidator),
+    returns: v.array(limitedEventSummaryValidator),
     handler: async (ctx) => {
         const user = await getCurrentUser(ctx);
         const userId = user._id;
-        const isAdmin = isAdminUser(user);
         const events = await ctx.db
             .query("limitedEvents")
             .order("desc")
@@ -1008,9 +1148,7 @@ export const myLimitedEvents = query({
         return Promise.all(
             events
                 .filter((event) => event.seats.some((s) => s.userId === userId))
-                .map((event) =>
-                    projectEventForViewer(ctx, event, userId, isAdmin)
-                )
+                .map((event) => projectEventSummary(ctx, event, userId))
         );
     },
 });
@@ -1230,6 +1368,10 @@ export const cancelLimitedEvent = mutation({
         if (!isSeatingOpen(event.status)) {
             throw new Error("This event has already started.");
         }
+        // An open event has no Pools, so there is normally nothing to clean
+        // up — but delete unconditionally rather than assume it, since an
+        // orphaned `limitedSeats` row would be unreachable forever.
+        await deleteSeats(ctx, args.eventId);
         await ctx.db.delete(args.eventId);
         return null;
     },
@@ -1297,8 +1439,7 @@ export const startLimitedEvent = mutation({
                 false,
                 timerConfig
             );
-            await ctx.db.patch(args.eventId, {
-                seats: asDbSeats(afterBots.seats),
+            await saveSeats(ctx, args.eventId, afterBots.seats, {
                 status: "started",
                 seed,
                 scorerVersion: SCORER_VERSION,
@@ -1337,8 +1478,7 @@ export const startLimitedEvent = mutation({
             rng
         );
 
-        await ctx.db.patch(args.eventId, {
-            seats: asDbSeats(seededSeats),
+        await saveSeats(ctx, args.eventId, seededSeats, {
             status: "started",
             seed,
             scorerVersion: SCORER_VERSION,
@@ -1383,7 +1523,11 @@ export const setPoolArrangementEntry = mutation({
         if (seatIndex === -1) {
             throw new Error("You do not have a Seat in this event.");
         }
-        const seat = event.seats[seatIndex];
+        // Only the caller's own seat is loaded: an arrangement edit reads and
+        // writes exactly one seat's payload, and this fires on every drag in
+        // the pool builder.
+        const seats = await hydrateSeats(ctx, event, [seatIndex]);
+        const seat = seats[seatIndex];
         const poolSize = seat.pool?.length ?? 0;
         if (
             !Number.isInteger(args.poolIndex) ||
@@ -1401,12 +1545,13 @@ export const setPoolArrangementEntry = mutation({
                 column: args.column,
             }
         );
-        const seats = [...event.seats];
-        seats[seatIndex] = { ...seat, poolArrangement: nextArrangement };
-        await ctx.db.patch(args.eventId, {
-            seats: asDbSeats(seats),
-            updatedAt: Date.now(),
-        });
+        await saveSeatPayload(
+            ctx,
+            event,
+            seatIndex,
+            { poolArrangement: nextArrangement },
+            { updatedAt: Date.now() }
+        );
         return null;
     },
 });
@@ -1439,7 +1584,11 @@ export const selectDraftPick = mutation({
         if (seatIndex === -1) {
             throw new Error("You do not have a Seat in this event.");
         }
-        const seat = event.seats[seatIndex];
+        // Only the caller's own seat is loaded — the membership check below is
+        // the sole reason this mutation needs any card data at all, and it
+        // fires on every click in a Booster.
+        const seats = await hydrateSeats(ctx, event, [seatIndex]);
+        const seat = seats[seatIndex];
         if (
             args.pickId !== null &&
             !(seat.currentPack ?? []).some((c) => c.pickId === args.pickId)
@@ -1447,15 +1596,13 @@ export const selectDraftPick = mutation({
             throw new Error("That card is not in your current pack.");
         }
 
-        const seats = [...event.seats];
         seats[seatIndex] = {
             ...seat,
             selectedPickId: args.pickId ?? undefined,
         };
-        await ctx.db.patch(args.eventId, {
-            seats: asDbSeats(seats),
-            updatedAt: Date.now(),
-        });
+        // `selectedPickId` lives on the event row, so the write touches no
+        // seat payload at all — a selection never rewrites a Pool.
+        await saveSlimSeats(ctx, event, seats, { updatedAt: Date.now() });
         return null;
     },
 });
@@ -1490,10 +1637,15 @@ export const submitPick = mutation({
             throw new Error("You do not have a Seat in this event.");
         }
 
+        // FULL hydration: the pure engine passes packs between seats, so it
+        // needs every seat's payload — a narrowed load would read another
+        // seat's missing pack as an empty one.
+        const hydratedSeats = await hydrateSeats(ctx, event);
+
         const now = Date.now();
         const timerConfig = buildTimerConfig(event.timerEnabled, now);
         const result = applyPick(
-            event.seats,
+            hydratedSeats,
             event.draftRound ?? 0,
             event.draftPacksRemaining ?? event.seats.length,
             event.packSlots,
@@ -1526,8 +1678,7 @@ export const submitPick = mutation({
             timerConfig
         );
 
-        await ctx.db.patch(args.eventId, {
-            seats: asDbSeats(afterBots.seats),
+        await saveSeats(ctx, args.eventId, afterBots.seats, {
             draftRound: afterBots.draftRound,
             draftPacksRemaining: afterBots.draftPacksRemaining,
             updatedAt: now,
@@ -1548,6 +1699,48 @@ export const submitPick = mutation({
         // draft→build surface) — self-gating, so a no-op otherwise.
         await openPlayPhaseIfReady(ctx, args.eventId, now);
         return null;
+    },
+});
+
+/** One-shot backfill for the `limitedSeats` split (`convex/schema.ts`): moves
+ *  every already-stored event's inline seat payload into child rows.
+ *
+ *  Not strictly required for correctness — `ensureSeatsMigrated` read-repairs
+ *  a legacy row the first time anything writes to it, and every read path
+ *  tolerates the inline shape — but a row nobody writes to would stay fat
+ *  forever, and a fat row is exactly what the list queries scan. Run once per
+ *  deployment after deploying:
+ *
+ *      bunx convex run limitedEvents:migrateSeatPayload '{}'
+ *
+ *  Idempotent: an already-split event is detected by `eventHasInlinePayload`
+ *  and
+ *  skipped without a write, so re-running is free and safe. `limit` bounds one
+ *  invocation's transaction; the returned `remaining` says whether to run it
+ *  again. */
+export const migrateSeatPayload = internalMutation({
+    args: { limit: v.optional(v.number()) },
+    returns: v.object({ migrated: v.number(), remaining: v.number() }),
+    handler: async (ctx, args) => {
+        const limit = args.limit ?? 25;
+        // Bounded like `myLimitedEvents`' scan: a backfill has no index to
+        // narrow by (there is no "is legacy" field to index), so it walks the
+        // table under an explicit cap rather than an unbounded `collect`.
+        const events = await ctx.db
+            .query("limitedEvents")
+            .take(MY_EVENTS_SCAN_LIMIT);
+        let migrated = 0;
+        let remaining = 0;
+        for (const event of events) {
+            if (!eventHasInlinePayload(event)) continue;
+            if (migrated >= limit) {
+                remaining++;
+                continue;
+            }
+            await ensureSeatsMigrated(ctx, event);
+            migrated++;
+        }
+        return { migrated, remaining };
     },
 });
 
@@ -1587,11 +1780,21 @@ export const autoPickSeatTimeout = internalMutation({
             return null;
         }
 
+        // Cheap seq pre-check against the event row's slim seat, BEFORE any
+        // payload is loaded. `resolveAutoPickTimeout` re-checks the same thing
+        // (it stays the authority — this is not a second rule, it's the same
+        // one asked early); most firings are stale schedules, and a stale one
+        // should cost a single small read, not eight Pools.
+        const slimSeat = event.seats[args.seatIndex];
+        if (!slimSeat || slimSeat.isBot) return null;
+        if ((slimSeat.pickSeq ?? 0) !== args.expectedSeq) return null;
+
+        const hydratedSeats = await hydrateSeats(ctx, event);
         const getPickRating = await loadEventPickRating(ctx, event.packSlots);
         const getCardProfile = await loadEventCardProfile(ctx, event.packSlots);
         const botChoosePick = makeBotChoosePick(getPickRating, getCardProfile);
         const pickId = resolveAutoPickTimeout(
-            event.seats,
+            hydratedSeats,
             args.seatIndex,
             args.expectedSeq,
             botChoosePick
@@ -1601,7 +1804,7 @@ export const autoPickSeatTimeout = internalMutation({
         const now = Date.now();
         const timerConfig = buildTimerConfig(event.timerEnabled, now);
         const result = applyPick(
-            event.seats,
+            hydratedSeats,
             event.draftRound ?? 0,
             event.draftPacksRemaining ?? event.seats.length,
             event.packSlots,
@@ -1625,8 +1828,7 @@ export const autoPickSeatTimeout = internalMutation({
             timerConfig
         );
 
-        await ctx.db.patch(args.eventId, {
-            seats: asDbSeats(afterBots.seats),
+        await saveSeats(ctx, args.eventId, afterBots.seats, {
             draftRound: afterBots.draftRound,
             draftPacksRemaining: afterBots.draftPacksRemaining,
             updatedAt: now,

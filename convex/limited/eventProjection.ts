@@ -514,7 +514,14 @@ export function projectLimitedEvent(
                 nickname: seat.nickname,
                 isBot: seat.isBot ?? false,
                 isViewer,
-                poolCount: seat.pool ? seat.pool.length : null,
+                // `pool` when it's loaded, else the denormalised `poolCount`
+                // the event row carries (`convex/schema.ts`'s `limitedSeats`
+                // split): a caller that deliberately didn't load another
+                // seat's Pool still projects the right count. `null` only
+                // when the seat genuinely has no Pool yet.
+                poolCount: seat.pool
+                    ? seat.pool.length
+                    : (seat.poolCount ?? null),
                 pool: detailRevealed ? (seat.pool ?? null) : null,
                 humanDeck:
                     completed && detailRevealed ? humanDeckForSeat : null,

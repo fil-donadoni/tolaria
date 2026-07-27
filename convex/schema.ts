@@ -481,6 +481,13 @@ export default defineSchema({
         // empties — every seat's Pool is final and deckbuilding can start.
         // Absent while the draft is still in progress (or for Sealed).
         draftCompletedAt: v.optional(v.number()),
+        // Per-seat identity + SMALL mutable state. The heavy card payload
+        // (`pool`/`currentPack`/`packQueue`/`poolArrangement`) lives in the
+        // `limitedSeats` child table below — see its comment for why. The
+        // legacy inline copies of those four fields are still DECLARED here so
+        // documents written before the split keep validating; nothing writes
+        // them any more, and `convex/limitedSeatStore.ts` is the only reader
+        // (it treats an inline copy as an un-migrated row and folds it in).
         seats: v.array(
             v.object({
                 seatIndex: v.number(),
@@ -489,12 +496,16 @@ export default defineSchema({
                 // Bot Drafter placeholder (PRD #1107 story 8), set at
                 // `startEvent` for every seat still unclaimed by a human.
                 isBot: v.optional(v.boolean()),
-                // The seat's authoritative Pool (ADR 0054/0055) — one entry
-                // per physical card opened, not yet grouped into counts (the
-                // legality-side `Pool`/`PoolCard` shape in `convex/formats.ts`
-                // is derived from this at the deckbuilding seam, a later
-                // slice). Absent until `startEvent` generates it (Sealed: in
-                // full; Draft: accumulates one Pick at a time, issue #1112).
+                // How many cards are in this seat's Pool — the ONLY pool fact
+                // the list queries need (`poolCount` on the wire). Denormalised
+                // onto the slim row precisely so listing events never has to
+                // read a single `limitedSeats` document. Absent before the
+                // event starts (no Pool yet), 0 for a Draft seat that hasn't
+                // picked. Written by `limitedSeatStore.ts` alongside every
+                // pool write — never by hand.
+                poolCount: v.optional(v.number()),
+                // LEGACY (pre-split, see the `seats` comment above). Absent on
+                // every row written since; kept only so old documents validate.
                 pool: v.optional(
                     v.array(
                         v.object({
@@ -504,10 +515,7 @@ export default defineSchema({
                         })
                     )
                 ),
-                // Draft only: the pack currently in front of this seat to
-                // Pick from (`pickId` disambiguates a duplicate scryfallId
-                // within the same pack). Absent while waiting for the next
-                // pass, or for a Sealed event.
+                // LEGACY (pre-split, see the `seats` comment above).
                 currentPack: v.optional(
                     v.array(
                         v.object({
@@ -518,8 +526,7 @@ export default defineSchema({
                         })
                     )
                 ),
-                // Draft only: packs passed here while `currentPack` was still
-                // non-empty, FIFO (PRD #1107 story 13).
+                // LEGACY (pre-split, see the `seats` comment above).
                 packQueue: v.optional(
                     v.array(
                         v.array(
@@ -554,15 +561,7 @@ export default defineSchema({
                 // CLAUDE.md's priority-timeout pattern uses, adapted here
                 // since Convex has no cheap "cancel a scheduled job" call.
                 pickSeq: v.optional(v.number()),
-                // Pool Arrangement (ADR 0060, issue #1247): per-card Maindeck/
-                // Sideboard membership + a manual Mana-Value column override,
-                // for the continuous draft→build surface. Absent/empty means
-                // every Pool card is still at its default placement (Maindeck,
-                // auto column) — see `convex/limited/poolArrangement.ts`'s
-                // `resolvePoolPlacements`. Keyed by `poolIndex` (this seat's
-                // `pool` array position), not by card id — `pool` can hold
-                // duplicate cardIds and is append-only/never reordered, so the
-                // index is the stable per-copy identity.
+                // LEGACY (pre-split, see the `seats` comment above).
                 poolArrangement: v.optional(
                     v.array(
                         v.object({
@@ -596,6 +595,78 @@ export default defineSchema({
     })
         .index("by_status", ["status"])
         .index("by_createdBy", ["createdBy"]),
+    // One seat's HEAVY card payload, split out of `limitedEvents.seats[]`.
+    //
+    // Why a child table when ADR 0076 deliberately EMBEDDED `rounds` in the
+    // event row: `rounds` is at most 12 tiny pairings, this is up to 8 seats x
+    // (a ~45-card Pool + a 15-card pack + a queue of packs) — the seats payload
+    // measured 99% of a started event's document, up to 48 KB. Convex bills a
+    // read by the bytes of the WHOLE document, so every event row a query
+    // touched was billed for card data it did not project: `myLimitedEvents`
+    // scans every event the viewer is seated in and needs only seat identity,
+    // yet re-read ~315 KB per execution — and it re-runs on EVERY write to any
+    // event, i.e. once per draft pick. That single amplification dominated the
+    // deployment's database read bytes. Splitting the payload out leaves the
+    // event row small enough that listing events is nearly free, and a pick
+    // rewrites only the one or two seats it actually touched instead of all 8.
+    //
+    // The event row stays the authority on seat IDENTITY and small mutable
+    // state (`userId`/`isBot`/`selectedPickId`/`pickDeadline`/`pickSeq`), so a
+    // `limitedSeats` row is pure payload: it is never consulted to decide who
+    // owns a seat. `convex/limitedSeatStore.ts` is the ONLY module that reads
+    // or writes this table — every consumer keeps working against the
+    // reassembled `LimitedEventSeat[]` the pure `convex/limited/**` modules
+    // already expect.
+    limitedSeats: defineTable({
+        eventId: v.id("limitedEvents"),
+        seatIndex: v.number(),
+        // Same shapes as the legacy inline fields they replace — see
+        // `convex/limited/eventTypes.ts` for the domain doc comments.
+        pool: v.optional(
+            v.array(
+                v.object({
+                    scryfallId: v.string(),
+                    cardId: v.string(),
+                    cardName: v.string(),
+                })
+            )
+        ),
+        currentPack: v.optional(
+            v.array(
+                v.object({
+                    scryfallId: v.string(),
+                    cardId: v.string(),
+                    cardName: v.string(),
+                    pickId: v.string(),
+                })
+            )
+        ),
+        packQueue: v.optional(
+            v.array(
+                v.array(
+                    v.object({
+                        scryfallId: v.string(),
+                        cardId: v.string(),
+                        cardName: v.string(),
+                        pickId: v.string(),
+                    })
+                )
+            )
+        ),
+        poolArrangement: v.optional(
+            v.array(
+                v.object({
+                    poolIndex: v.number(),
+                    column: v.optional(v.union(v.number(), v.literal("lands"))),
+                    sideboard: v.optional(v.boolean()),
+                })
+            )
+        ),
+    })
+        // Every seat of one event, in seat order — the hydration read.
+        // Doubles as the point lookup for a single seat (`eq` on both
+        // components), which is what the draft/deckbuild write path uses.
+        .index("by_event", ["eventId", "seatIndex"]),
     // Bot Drafter Pick Ratings (PRD #1296, ADR 0065, issue #1297). Evolves
     // the checked-in `data/pick-ratings/*.json` seed layer
     // (`convex/limited/pickRatings.ts`, issue #1117) into an Admin-editable
