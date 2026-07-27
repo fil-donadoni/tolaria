@@ -2,14 +2,14 @@
 // `completed` Draft events are offered — a running event's `seed` isn't on
 // the wire yet (`eventProjection.ts`), and Sealed events have no picks to
 // replay.
-import type { LimitedEventView } from "@/hooks/useLimitedEvent";
+import type { LimitedEventSummaryView } from "@/hooks/useLimitedEvent";
 
 export default function DraftLabReplayEventPicker({
     events,
     selectedEventId,
     onSelect,
 }: {
-    events: LimitedEventView[] | undefined;
+    events: LimitedEventSummaryView[] | undefined;
     selectedEventId: string | null;
     onSelect: (eventId: string | null) => void;
 }) {

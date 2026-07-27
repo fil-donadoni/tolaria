@@ -46,7 +46,13 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
-import { useMyLimitedEvents, type LimitedEventView } from "./useLimitedEvent";
+import type { Id } from "@convex/_generated/dataModel";
+import {
+    useLimitedEvent,
+    useMyLimitedEvents,
+    type LimitedEventSummaryView,
+    type LimitedEventView,
+} from "./useLimitedEvent";
 import { draftLabGetCardEvalMeta } from "@/lib/limited/draftLabCardMeta";
 import {
     reconstructDraftReplay,
@@ -64,7 +70,7 @@ export interface UseDraftLabReplayResult {
      *  `undefined` while `myLimitedEvents` hasn't answered yet. A Sealed
      *  event has no picks/passing to replay (ADR 0074 scope), so it's
      *  filtered out here rather than in every consumer. */
-    replayableEvents: LimitedEventView[] | undefined;
+    replayableEvents: LimitedEventSummaryView[] | undefined;
     selectedEventId: string | null;
     selectEvent: (eventId: string | null) => void;
     selectedEvent: LimitedEventView | null;
@@ -94,10 +100,16 @@ export function useDraftLabReplay(): UseDraftLabReplayResult {
         [events]
     );
 
-    const selectedEvent = useMemo(
-        () => replayableEvents?.find((e) => e._id === selectedEventId) ?? null,
-        [replayableEvents, selectedEventId]
-    );
+    // The SELECTED event is read through the single-event query, not picked
+    // out of the list: reconstruction needs `seed` and every seat's full
+    // `pool`, and `myLimitedEvents` deliberately carries neither (it is a
+    // summary over every event the viewer is seated in — see
+    // `limitedEventSummaryValidator` in `convex/limitedEvents.ts`). Selecting
+    // one event pays for one event's Pools instead of all of them.
+    const selectedEvent =
+        useLimitedEvent(
+            (selectedEventId ?? undefined) as Id<"limitedEvents"> | undefined
+        ) ?? null;
 
     const canReconstruct = selectedEvent != null && selectedEvent.seed != null;
 
