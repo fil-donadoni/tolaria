@@ -20,11 +20,7 @@ import { getCardByName } from "../../../index";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { getLegalTargets } from "../../../../gre/rules";
-import type {
-    CardInstanceState,
-    GameState,
-    StackItem,
-} from "../../../../gre/state";
+import type { CardInstanceState, StackItem } from "../../../../gre/state";
 
 const ATTACK_TRIGGER = guardianScalelord.triggeredAbilities!.find(
     (a) => a.id === "guardian-scalelord-attack"
