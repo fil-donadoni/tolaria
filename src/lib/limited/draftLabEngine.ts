@@ -44,12 +44,20 @@ import type {
     LimitedEventSeat,
 } from "@convex/limited/eventTypes";
 import {
+    buildCubePool,
+    isCubeSource,
+    maxCubeSeats,
+    CUBE_PACK_SIZE,
+} from "@convex/limited/cube";
+import {
     draftLabResolveCardMeta,
     draftLabGetCardEvalMeta,
 } from "./draftLabCardMeta";
 
 /** Seats in a standard Draft table (PRD #1107 / ADR 0054) — the Lab always
- *  fills every seat with a bot (issue #1612: "all seats bots"). */
+ *  fills every seat with a bot (issue #1612: "all seats bots"). A cube table
+ *  is clamped below this by `draftLabSeatCount` when the implemented pool
+ *  can't fill 8 seats singleton. */
 export const DRAFT_LAB_SEAT_COUNT = 8;
 
 /** Standard Draft: 3 Boosters per seat (PRD #1107 story 12). */
@@ -93,6 +101,12 @@ export interface DraftLabState {
      *  (`draftEngine.ts`). */
     packsSeenBySeat: ReadonlyMap<number, readonly (readonly DraftPackCard[])[]>;
     pickLog: readonly DraftLabPickRecord[];
+    /** SNAPSHOT of the cube pool this session deals from (ADR 0062), taken
+     *  once at `initDraftLab` — the Lab's analogue of the `cubePool` a real
+     *  event freezes on its row. Absent for a non-cube Pack Source. Every
+     *  round of one session MUST slice the same shuffle, so the pool is
+     *  carried in the state rather than re-derived per `stepDraftLab` call. */
+    cubePool?: readonly string[];
     /** SNAPSHOT of the `cardProfiles` DB rows this session scores with (ADR
      *  0072, issue #1611) — taken ONCE, at `initDraftLab`, and never read
      *  from a live query again for the rest of the run.
@@ -160,6 +174,26 @@ export function standardPackSlots(sourceKey: string): string[] {
     return Array.from({ length: DRAFT_LAB_ROUND_COUNT }, () => sourceKey);
 }
 
+/** The seat count a Lab session can actually deal, given its Pack Source.
+ *  Identical in spirit to `createLimitedEvent`'s server-side cube cap, and
+ *  computed from the SAME `maxCubeSeats` authority: a cube is singleton, so a
+ *  table wider than `floor(poolSize / (15 × rounds))` cannot be dealt without
+ *  repeating a card. The Lab used to ask for 8 seats unconditionally, which
+ *  overflowed the implemented pool and silently dealt duplicates (the deal now
+ *  throws instead — clamping is what keeps the Lab working). Non-cube sources
+ *  are sampled WITH replacement per round (ADR 0056) and are never clamped.
+ *  Never returns less than 1 seat: a degenerate pool surfaces as the deal's
+ *  own error, not as a table with no seats. */
+export function draftLabSeatCount(
+    requestedSeats: number,
+    packSlots: readonly string[],
+    cubePoolSize: number
+): number {
+    if (!packSlots.some(isCubeSource)) return requestedSeats;
+    const cap = maxCubeSeats(cubePoolSize, CUBE_PACK_SIZE, packSlots.length);
+    return Math.max(1, Math.min(requestedSeats, cap));
+}
+
 function createBotSeats(seatCount: number): LimitedEventSeat[] {
     return Array.from({ length: seatCount }, (_, seatIndex) => ({
         seatIndex,
@@ -178,13 +212,18 @@ export function initDraftLab(
     seatCount: number = DRAFT_LAB_SEAT_COUNT,
     cardProfileRows: readonly ScopedCardProfile[] = []
 ): DraftLabState {
-    const seats = createBotSeats(seatCount);
+    const cubePool = packSlots.some(isCubeSource) ? buildCubePool() : undefined;
+    const seats = createBotSeats(
+        draftLabSeatCount(seatCount, packSlots, cubePool?.length ?? 0)
+    );
     const dealt = startDraft(
         seats,
         packSlots,
         seed,
         getRuntimeBoosterConfig,
-        draftLabResolveCardMeta
+        draftLabResolveCardMeta,
+        undefined,
+        cubePool
     );
     return {
         seed,
@@ -196,6 +235,7 @@ export function initDraftLab(
         packsSeenBySeat: new Map(),
         pickLog: [],
         cardProfileRows,
+        ...(cubePool ? { cubePool } : {}),
     };
 }
 
@@ -277,7 +317,11 @@ export function stepDraftLab(
         chosenPickId,
         state.seed,
         getRuntimeBoosterConfig,
-        draftLabResolveCardMeta
+        draftLabResolveCardMeta,
+        undefined,
+        // The session's frozen cube pool — this pick may deal the next round,
+        // which must slice the same shuffle round 0 came from (ADR 0062).
+        state.cubePool
     );
 
     const nextPacksSeenBySeat = new Map(state.packsSeenBySeat);

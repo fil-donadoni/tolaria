@@ -814,6 +814,54 @@ describe("gate ↔ enumerator cost-modifier parity (CR 601.2f, issue #1337)", ()
 // Sorcery-speed activated abilities (CR 602.3b / 307.5)
 // ---------------------------------------------------------------------------
 
+describe("enumerateAbilityMoves — zone-restricted abilities (CR 113.6 / 702.29a)", () => {
+    const TRIOME = getCardByName("Raugrin Triome").id;
+    const GHOUL = getCardByName("Ashen Ghoul").id;
+
+    it("does NOT offer Cycling off a Triome already on the battlefield", () => {
+        // Cycling is `activateFromHand` — it functions ONLY from the hand. The
+        // human UI hides it on a battlefield permanent (`getStackAbilities`)
+        // and the server rejects it (`activateAbility`); the bot enumerator
+        // must mirror both, or the Brain burns a move the server refuses.
+        const triome = makeInstance(TRIOME, {
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const p1 = makePlayer("p1", {
+            battlefield: [
+                triome,
+                land(FOREST, "p1"),
+                land(FOREST, "p1"),
+                land(MOUNTAIN, "p1"),
+            ],
+        });
+        const state = makeState({ players: [p1, makePlayer("p2")] });
+        const cycling = enumerateMoves(state, "p1").filter(
+            (m) => m.kind === "activate-ability" && m.abilityId === "cycling"
+        );
+        expect(cycling).toHaveLength(0);
+    });
+
+    it("does NOT offer an activateFromGraveyard ability off the battlefield", () => {
+        const ghoul = makeInstance(GHOUL, {
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: false,
+        });
+        const p1 = makePlayer("p1", {
+            battlefield: [ghoul, land(FOREST, "p1"), land(FOREST, "p1")],
+        });
+        const state = makeState({ players: [p1, makePlayer("p2")] });
+        const fromGrave = enumerateMoves(state, "p1").filter(
+            (m) =>
+                m.kind === "activate-ability" &&
+                m.cardInstanceId === ghoul.id &&
+                m.abilityId !== undefined
+        );
+        expect(fromGrave).toHaveLength(0);
+    });
+});
+
 describe("enumerateAbilityMoves — sorcerySpeedOnly timing (CR 602.3b)", () => {
     const SKULLCLAMP = getCardByName("Skullclamp").id;
 

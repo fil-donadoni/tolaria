@@ -448,6 +448,18 @@ export default defineSchema({
         // Event RNG seed (ADR 0055), set once at `startEvent` so the seat
         // Pools it produced are reproducible/replayable given the same seed.
         seed: v.optional(v.number()),
+        // Vintage Cube only (ADR 0062): the FROZEN card pool this draft deals
+        // from, as canonical Card IDs, snapshotted once at `startEvent` from
+        // `buildCubePool()`. Persisted rather than re-derived because the cube
+        // is dealt as disjoint slices of ONE seeded shuffle, and only round 0
+        // is dealt in `startEvent` — rounds 1+ are dealt in later `submitPick`
+        // invocations. Rebuilding the pool from the live card registry per
+        // round means implementing a single cube card mid-draft changes
+        // `pool.length`, reshuffles the whole permutation, and makes the later
+        // rounds' slices overlap the earlier ones (a card already picked
+        // reappearing in a later pack). Absent for every non-cube event, and
+        // for cube events dealt before this field existed.
+        cubePool: v.optional(v.array(v.string())),
         // Bot Drafter scorer version (issue #1613, ADR 0074 replay mode) —
         // `convex/limited/scorerVersion.ts`'s `SCORER_VERSION`, stamped once
         // at `startEvent` alongside `seed`. Lets the Draft Lab replay surface

@@ -10,7 +10,6 @@ import { makeRng } from "../gre/rng";
 import { pickTimerSecondsForCardsRemaining } from "./pickTimerSchedule";
 import {
     isCubeSource,
-    buildCubePool,
     dealCubeRoundPacks,
     cubeSampleRegime,
     CUBE_PACK_SIZE,
@@ -51,20 +50,21 @@ function generateRoundPacks(
     resolveCardMeta: ResolveCardMeta,
     eventSeed: number,
     round: number,
-    roundCount: number
+    roundCount: number,
+    cubePool?: readonly string[]
 ): DraftPackCard[][] {
     // Cube path (ADR 0062): a curated POOL, not a per-set Booster Config —
     // branch BEFORE `getConfig`, which returns null for the cube key. The pool
     // is shuffled once from the raw EVENT seed and each round consumes a
-    // disjoint slice (singleton across the whole draft when the pool is large
-    // enough; with-replacement top-up otherwise — see `dealCubeRoundPacks`).
+    // disjoint slice, which is what keeps the draft singleton.
     if (isCubeSource(setCode)) {
         return generateCubeRoundPacks(
             seatCount,
             resolveCardMeta,
             eventSeed,
             round,
-            roundCount
+            roundCount,
+            cubePool
         );
     }
     const config = getConfig(setCode);
@@ -89,23 +89,39 @@ function generateRoundPacks(
     );
 }
 
-/** Deals one round of Vintage Cube packs (ADR 0062). The cube pool is built
- *  once from the implemented subset of the canonical list, shuffled from the
- *  raw `eventSeed` (NOT `roundSeed` — a single shuffle sliced by round is what
- *  makes the singleton invariant hold across rounds), and each drawn Card ID is
- *  resolved to its display name for the pack card exactly as the set path does.
- *  A cube pack card's `scryfallId` IS its canonical Card ID (`def.id`), which
- *  `resolveCardMeta` resolves back to name/rarity. `roundCount` (=
- *  `packSlots.length`) only decides which sampling regime to log — the deal
- *  itself is identical either way. */
+/** Deals one round of Vintage Cube packs (ADR 0062) from the draft's FROZEN
+ *  pool, shuffled from the raw `eventSeed` (NOT `roundSeed` — a single shuffle
+ *  sliced by round is what makes the singleton invariant hold across rounds).
+ *  Each drawn Card ID is resolved to its display name for the pack card
+ *  exactly as the set path does: a cube pack card's `scryfallId` IS its
+ *  canonical Card ID (`def.id`), which `resolveCardMeta` resolves back to
+ *  name/rarity.
+ *
+ *  `cubePool` is REQUIRED, and deliberately not defaulted to `buildCubePool()`.
+ *  Round 0 is dealt in one mutation and rounds 1+ in later ones, so a pool
+ *  re-derived per round from the live registry silently breaks the invariant
+ *  the moment a cube card is implemented mid-draft: `pool.length` changes, the
+ *  whole permutation reshuffles, and a later round deals cards an earlier one
+ *  already dealt. The caller owns the snapshot (`limitedEvents.cubePool` on the
+ *  server, `DraftLabState.cubePool` in the Lab) and threads it through every
+ *  round; omitting it throws rather than falling back to a fresh build.
+ *
+ *  `roundCount` (= `packSlots.length`) sizes the up-front capacity check — the
+ *  deal itself only ever consumes this round's slice. */
 function generateCubeRoundPacks(
     seatCount: number,
     resolveCardMeta: ResolveCardMeta,
     eventSeed: number,
     round: number,
-    roundCount: number
+    roundCount: number,
+    cubePool: readonly string[] | undefined
 ): DraftPackCard[][] {
-    const pool = buildCubePool();
+    if (!cubePool) {
+        throw new Error(
+            "generateCubeRoundPacks: a cube draft must be dealt from the pool frozen on the event (cubePool), never from a pool rebuilt per round — see convex/limited/cube.ts."
+        );
+    }
+    const pool = cubePool;
     const regime = cubeSampleRegime(
         pool.length,
         seatCount,
@@ -113,11 +129,12 @@ function generateCubeRoundPacks(
         roundCount
     );
     if (regime === "top-up") {
-        // Honor "no minimum — must work from day one": surface (not throw)
-        // that the implemented pool can't fill a fully-singleton draft, so the
-        // shortfall is topped up with-replacement (ADR 0062).
-        console.warn(
-            `[vintage-cube] small-pool top-up mode: implemented pool ${pool.length} < seats*15*rounds ${seatCount * CUBE_PACK_SIZE * roundCount} — dealing with-replacement.`
+        // Unreachable from a legitimate config — `createLimitedEvent` caps the
+        // table at `maxCubeSeats` and the Draft Lab clamps its own seat count.
+        // Throwing here (rather than dealing with-replacement, as this path
+        // used to) keeps "one copy per card, maximum" a real invariant.
+        throw new Error(
+            `[vintage-cube] pool of ${pool.length} cards cannot fill ${seatCount} seats × ${CUBE_PACK_SIZE} × ${roundCount} rounds (${seatCount * CUBE_PACK_SIZE * roundCount} cards). A cube is singleton — reduce the seat count.`
         );
     }
     const packs = dealCubeRoundPacks(
@@ -230,14 +247,20 @@ export interface StartDraftResult {
 /** Deals round 0: every seat opens one Booster from `packSlots[0]` and it
  *  becomes that seat's `currentPack` (nobody starts with a queue). Throws if
  *  `packSlots` is empty or references an unresolvable set — a Draft can't
- *  start with no Pack Source, mirroring `generateSealedPools`. */
+ *  start with no Pack Source, mirroring `generateSealedPools`.
+ *
+ *  `cubePool` is the draft's FROZEN cube pool — mandatory when any pack slot
+ *  is the cube source, ignored otherwise. The caller snapshots it once
+ *  (`buildCubePool()`) and passes the SAME array to every later `applyPick` /
+ *  `runBotAutoPicks` call of the same draft; see `generateCubeRoundPacks`. */
 export function startDraft(
     seats: readonly LimitedEventSeat[],
     packSlots: readonly string[],
     eventSeed: number,
     getConfig: GetBoosterConfig,
     resolveCardMeta: ResolveCardMeta,
-    timerConfig?: TimerConfig
+    timerConfig?: TimerConfig,
+    cubePool?: readonly string[]
 ): StartDraftResult {
     if (packSlots.length === 0) {
         throw new Error("startDraft: packSlots is empty");
@@ -249,7 +272,8 @@ export function startDraft(
         resolveCardMeta,
         eventSeed,
         0,
-        packSlots.length
+        packSlots.length,
+        cubePool
     );
     const timerUpdates: SeatTimerUpdate[] = [];
     const nextSeats = seats.map((seat, i) => {
@@ -315,7 +339,11 @@ export function applyPick(
     eventSeed: number,
     getConfig: GetBoosterConfig,
     resolveCardMeta: ResolveCardMeta,
-    timerConfig?: TimerConfig
+    timerConfig?: TimerConfig,
+    /** The draft's FROZEN cube pool — the same array `startDraft` dealt round
+     *  0 from. Mandatory for a cube draft (a round dealt from a re-derived
+     *  pool breaks the singleton invariant), ignored for a per-set draft. */
+    cubePool?: readonly string[]
 ): ApplyPickResult {
     const seatCount = seats.length;
     const seat = seats[seatIndex];
@@ -406,7 +434,8 @@ export function applyPick(
                 resolveCardMeta,
                 eventSeed,
                 round,
-                packSlots.length
+                packSlots.length,
+                cubePool
             );
             nextSeats = nextSeats.map((s, i) => {
                 const { seat: stamped, update } = assignFreshPack(
@@ -504,7 +533,11 @@ export function runBotAutoPicks(
     resolveCardMeta: ResolveCardMeta,
     chooseBotPick: ChooseBotPick,
     alreadyCompleted = false,
-    timerConfig?: TimerConfig
+    timerConfig?: TimerConfig,
+    /** The draft's FROZEN cube pool, forwarded to every `applyPick` this loop
+     *  drives — an all-bot cube table deals EVERY round inside this one call,
+     *  so dropping it here would break the singleton invariant on its own. */
+    cubePool?: readonly string[]
 ): RunBotAutoPicksResult {
     let curSeats: readonly LimitedEventSeat[] = seats;
     let round = draftRound;
@@ -541,7 +574,8 @@ export function runBotAutoPicks(
             eventSeed,
             getConfig,
             resolveCardMeta,
-            timerConfig
+            timerConfig,
+            cubePool
         );
         curSeats = result.seats;
         round = result.draftRound;

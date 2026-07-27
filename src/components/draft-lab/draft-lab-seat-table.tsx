@@ -1,5 +1,7 @@
-// The 8-seat table view (issue #1612: "table view: all 8 seats, each with
-// its current pack and the pick it made").
+// The table view (issue #1612: "table view: all 8 seats, each with its
+// current pack and the pick it made"). Renders whatever seats the session
+// actually has: a cube table is clamped to what the implemented pool can fill
+// singleton (`draftLabSeatCount`), so it can be narrower than 8.
 import type { DraftLabState } from "@/lib/limited/draftLabEngine";
 import type { GetCardProfile } from "@convex/limited/cardProfilesCore";
 import DraftLabSeatCard from "./draft-lab-seat-card";

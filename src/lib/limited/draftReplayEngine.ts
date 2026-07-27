@@ -175,7 +175,15 @@ export function reconstructDraftReplay(
      *  the layer the historical pick was scored WITH diverges for reasons
      *  that have nothing to do with the scorer changing — the whole point of
      *  `firstDivergedPickIndex`. */
-    getCardProfile?: GetCardProfile
+    getCardProfile?: GetCardProfile,
+    /** The FROZEN cube pool the event was dealt from (`limitedEvents.cubePool`,
+     *  ADR 0062) — required to replay a cube event, ignored for a per-set one.
+     *  Not defaulted to `buildCubePool()`: the implemented cube pool grows, and
+     *  a pool one card larger reshuffles the entire permutation, so replaying
+     *  against today's pool would reconstruct packs that were never dealt and
+     *  report every pick as diverged for reasons that have nothing to do with
+     *  the scorer. */
+    cubePool?: readonly string[]
 ): ReplayResult {
     const seatShells: LimitedEventSeat[] = seats.map((s) => ({
         seatIndex: s.seatIndex,
@@ -186,7 +194,9 @@ export function reconstructDraftReplay(
         packSlots,
         seed,
         getRuntimeBoosterConfig,
-        draftLabResolveCardMeta
+        draftLabResolveCardMeta,
+        undefined,
+        cubePool
     );
     let draftSeats = dealt.seats;
     let draftRound = dealt.draftRound;
@@ -273,7 +283,9 @@ export function reconstructDraftReplay(
             historicalPackCard.pickId,
             seed,
             getRuntimeBoosterConfig,
-            draftLabResolveCardMeta
+            draftLabResolveCardMeta,
+            undefined,
+            cubePool
         );
         draftSeats = result.seats;
         draftRound = result.draftRound;

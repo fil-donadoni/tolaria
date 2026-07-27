@@ -16,6 +16,7 @@ import { computeEventCompletion } from "../limited/completion";
 import {
     CUBE_SOURCE_KEY,
     CUBE_PACK_SIZE,
+    buildCubePool,
     cubePoolSize,
     isCubeSource,
     maxCubeSeats,
@@ -1709,6 +1710,97 @@ describe("Limited Event: Vintage Cube gate (Draft-only, ADR 0062 §4)", () => {
     });
 });
 
+// ─────────────────────────────────────────────────────────────────────────
+// The cube pool is FROZEN on the event at start (ADR 0062), and every round
+// of the draft is dealt from that snapshot. Regression for a shipped bug: a
+// real 7-seat cube draft dealt 43 duplicate cards across its 315 — the pool
+// had been rebuilt from the live registry per round, and a cube card
+// implemented mid-draft changed `pool.length`, reshuffling the permutation so
+// the later rounds' slices overlapped the earlier ones. These drive the SAME
+// call sequence `startLimitedEvent`/`submitPick` drive, in the same order.
+// ─────────────────────────────────────────────────────────────────────────
+describe("Vintage Cube singleton across the whole event (ADR 0062, frozen pool)", () => {
+    const cubeSlots = [CUBE_SOURCE_KEY, CUBE_SOURCE_KEY, CUBE_SOURCE_KEY];
+    const alwaysFirst: ChooseBotPick = (_seat, pack) => pack[0].pickId;
+
+    /** Mirrors `startLimitedEvent`'s draft branch: freeze the pool, deal round
+     *  0, then let the all-bot table run the whole draft to completion —
+     *  `runBotAutoPicks` deals rounds 1 and 2 internally, which is where the
+     *  duplicates appeared. `laterPool` stands in for the pool a later
+     *  mutation would have re-derived, so the drift case is expressible. */
+    function runAllBotCubeDraft(
+        seatCount: number,
+        seed: number,
+        round0Pool: readonly string[],
+        laterPool: readonly string[] = round0Pool
+    ) {
+        const seats = fillBotSeats(buildEmptySeats(seatCount));
+        const dealt = startDraft(
+            seats,
+            cubeSlots,
+            seed,
+            getRuntimeBoosterConfig,
+            resolveCardMeta,
+            undefined,
+            round0Pool
+        );
+        return runBotAutoPicks(
+            dealt.seats,
+            dealt.draftRound,
+            dealt.draftPacksRemaining,
+            cubeSlots,
+            seed,
+            getRuntimeBoosterConfig,
+            resolveCardMeta,
+            alwaysFirst,
+            false,
+            undefined,
+            laterPool
+        );
+    }
+
+    it("deals a full table with no card appearing twice in the entire draft", () => {
+        const pool = buildCubePool();
+        const seatCount = maxCubeSeats(pool.length, CUBE_PACK_SIZE, 3);
+        const result = runAllBotCubeDraft(seatCount, 421349364, pool);
+
+        expect(result.completed).toBe(true);
+        const dealt = result.seats.flatMap((s) =>
+            (s.pool ?? []).map((c) => c.scryfallId)
+        );
+        expect(dealt).toHaveLength(seatCount * CUBE_PACK_SIZE * 3);
+        expect(new Set(dealt).size).toBe(dealt.length);
+    });
+
+    it("would duplicate cards if a later round re-derived the pool — which is why it is persisted", () => {
+        // The exact shipped failure: one cube card implemented + deployed
+        // between round 0 and the later rounds. Nothing about the seed, seat
+        // count or pick order changes — only the pool identity.
+        const pool = buildCubePool();
+        const seatCount = maxCubeSeats(pool.length, CUBE_PACK_SIZE, 3);
+        const grown = [...pool, "a-newly-implemented-cube-card"];
+        const drifted = runAllBotCubeDraft(seatCount, 421349364, pool, grown);
+
+        const dealt = drifted.seats.flatMap((s) =>
+            (s.pool ?? []).map((c) => c.scryfallId)
+        );
+        expect(new Set(dealt).size).toBeLessThan(dealt.length);
+    });
+
+    it("refuses to deal a cube round at all when no frozen pool is supplied", () => {
+        const seats = fillBotSeats(buildEmptySeats(2));
+        expect(() =>
+            startDraft(
+                seats,
+                cubeSlots,
+                1,
+                getRuntimeBoosterConfig,
+                resolveCardMeta
+            )
+        ).toThrow(/frozen on the event/);
+    });
+});
+
 describe("Limited Event Bot Pick Rating DB layer (PRD #1296 Slice A, ADR 0065, issue #1297): the exact loadEventPickRating + makeBotChoosePick wiring convex/limitedEvents.ts's mutations use", () => {
     /** Mirrors `convex/limitedEvents.ts`'s `makeBotChoosePick` exactly. */
     function makeBotChoosePick(getPickRating: GetPickRating): ChooseBotPick {
@@ -1779,7 +1871,11 @@ describe("Limited Event Bot Pick Rating DB layer (PRD #1296 Slice A, ADR 0065, i
             cubeSlots,
             seed,
             getRuntimeBoosterConfig,
-            resolveCardMeta
+            resolveCardMeta,
+            undefined,
+            // The pool a real event freezes at start (ADR 0062) — a cube deal
+            // never re-derives it per round.
+            buildCubePool()
         );
         const pack = dealt.seats[0].currentPack!;
         expect(pack.length).toBe(CUBE_PACK_SIZE);
@@ -1902,13 +1998,21 @@ describe("checked-in Vintage Cube Pick Rating seed (PRD #1296 Slice D, issue #12
     it("a scripted all-bot Vintage Cube draft: every pack containing a curated bomb (rating >= 4.5) is taken over the heuristic's own favorite", () => {
         const cubeSlots = [CUBE_SOURCE_KEY, CUBE_SOURCE_KEY, CUBE_SOURCE_KEY];
         const seed = 20260717;
-        const seats = fillBotSeats(buildEmptySeats(8));
+        const cubePool = buildCubePool();
+        // A cube table is capped at what the pool can fill SINGLETON — the
+        // same cap `createLimitedEvent` enforces. Derived from the live pool
+        // so it self-lifts as cube cards land.
+        const seats = fillBotSeats(
+            buildEmptySeats(maxCubeSeats(cubePool.length, CUBE_PACK_SIZE, 3))
+        );
         const dealt = startDraft(
             seats,
             cubeSlots,
             seed,
             getRuntimeBoosterConfig,
-            resolveCardMeta
+            resolveCardMeta,
+            undefined,
+            cubePool
         );
 
         let sawAtLeastOneObviousBomb = false;

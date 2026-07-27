@@ -58,6 +58,9 @@ export interface LimitedEventRow {
     /** Event RNG seed (ADR 0055). See `LimitedEventView.seed` for why this
      *  projects only once `completed` (issue #1613, ADR 0074 replay mode). */
     seed?: number;
+    /** The frozen Vintage Cube pool (ADR 0062). See `LimitedEventView.cubePool`
+     *  for why the projection gates it exactly like `seed`. */
+    cubePool?: string[];
     /** Bot Drafter scorer version (issue #1613) —
      *  `convex/limited/scorerVersion.ts`'s `SCORER_VERSION` at the moment
      *  `startEvent` ran. Not privacy-sensitive (unlike `seed`, it names a code
@@ -315,6 +318,15 @@ export interface LimitedEventView {
      *  is everything the Draft Lab replay surface needs to regenerate the
      *  packs and recompute every bot pick. */
     seed: number | null;
+    /** The Vintage Cube pool this draft was dealt from (ADR 0062), frozen on
+     *  the event at `startEvent`. `null` for a non-cube event, and gated
+     *  EXACTLY like `seed` above — pool + seed together regenerate every pack,
+     *  so revealing it earlier or wider would reopen the hidden-information
+     *  hole that doc comment closes. The replay surface needs it because the
+     *  implemented cube pool GROWS: replaying a past cube draft against
+     *  today's `buildCubePool()` would reshuffle the permutation and
+     *  reconstruct packs that were never dealt. */
+    cubePool: string[] | null;
     /** Bot Drafter scorer version at the moment this event started
      *  (`convex/limited/scorerVersion.ts`). `undefined` for an event created
      *  before this field existed — the replay surface treats that as
@@ -492,6 +504,10 @@ export function projectLimitedEvent(
         seed:
             completed && event.type === "draft" && isAdmin
                 ? (event.seed ?? null)
+                : null,
+        cubePool:
+            completed && event.type === "draft" && isAdmin
+                ? (event.cubePool ?? null)
                 : null,
         scorerVersion: event.scorerVersion,
         completed,

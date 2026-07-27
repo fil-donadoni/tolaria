@@ -3,7 +3,7 @@
 // router — the predicate is the whole rule, and keeping it exported is what
 // makes it testable at all.
 import { describe, it, expect } from "vitest";
-import { shellShowsHeader } from "../app-shell";
+import { shellShowsHeader } from "@/lib/shellChrome";
 
 describe("shellShowsHeader", () => {
     it("shows the header on every ordinary section", () => {

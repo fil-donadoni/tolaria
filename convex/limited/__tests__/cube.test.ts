@@ -177,9 +177,32 @@ describe("dealCubeRoundPacks (ADR 0062)", () => {
         expect(new Set(all).size).toBe(360); // all distinct
     });
 
-    it("tops up WITH-REPLACEMENT when the pool is too small (never blocks)", () => {
-        // 2 seats * 15 * 3 = 90 needed, pool only 40 → cards must repeat.
+    it("THROWS rather than repeating a card when the pool is too small", () => {
+        // 2 seats * 15 * 3 = 90 needed, pool only 40. This used to wrap and
+        // top the shortfall up WITH-REPLACEMENT, which dealt the same card
+        // twice in one draft — "one copy per card, maximum" is a hard
+        // invariant, so the deal now refuses instead of degrading quietly.
         const pool = fakePool(40);
+        // Round 0 still fits (30 ≤ 40) — the overflow is a LATER round's
+        // slice, which is exactly the case the old wrap hid.
+        expect(() => dealCubeRoundPacks(pool, 2, 15, 0, 5)).not.toThrow();
+        expect(() => dealCubeRoundPacks(pool, 2, 15, 1, 5)).toThrow(
+            /singleton/i
+        );
+    });
+
+    it("THROWS when a single round's slice alone overflows the pool", () => {
+        // 8 seats × 15 = 120 > 100 in round 0 — the pathological sub-table
+        // case, refused up front rather than dealt with a wrapped cursor.
+        expect(() => dealCubeRoundPacks(fakePool(100), 8, 15, 0, 5)).toThrow(
+            /cannot deal round 0/
+        );
+    });
+
+    it("deals every round of a fitting draft with NO card repeated (the invariant the throw protects)", () => {
+        // maxCubeSeats(90, 15, 3) === 2, so a 2-seat/3-round draft is exactly
+        // fillable from 90 cards: every card dealt once, none twice.
+        const pool = fakePool(90);
         const all: string[] = [];
         for (let round = 0; round < 3; round++) {
             for (const pack of dealCubeRoundPacks(pool, 2, 15, round, 5)) {
@@ -187,10 +210,7 @@ describe("dealCubeRoundPacks (ADR 0062)", () => {
             }
         }
         expect(all).toHaveLength(90);
-        // Fewer distinct than dealt — the shortfall was topped up by reuse.
-        expect(new Set(all).size).toBeLessThan(90);
-        // Every dealt card is still a real pool card (no phantom/placeholder).
-        for (const id of all) expect(pool).toContain(id);
+        expect(new Set(all).size).toBe(90);
     });
 
     it("throws only on a genuinely empty pool", () => {

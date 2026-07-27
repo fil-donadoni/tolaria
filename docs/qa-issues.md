@@ -43,7 +43,6 @@ Fable of the mirror-breaker
 - Wishclaw talisman: c'è scritto che entra con 3 counters, non è un'abilita' attivata. verifica se ci sono altri casi di carte con questo testo e questo bug e sistema alla radice. Inoltre l'attivazione prevede un timing che va esteso alla UI, non mostrare la possibilità di attivazione tramite context menu se non sono nel mio turno. anche questo comportamento va esteso a tutte le carte con limitazioni di tempo, come regola generale.
 - Starting town non viene considerata come produttrice di mana colorato ai fini di castabilità
 - Erode permette di prendere terre non base con tipo di terra base, ma deve farti prendere SOLO terre base. anche path to exile.
-- Il bot non so come puo' cercare di attivare cycling di un trioma già sul battlefield. Non deve essere un'opzione valida, per il giocatore reale non lo è tramite UI ma perché il bot la vede come possiblità?
 - Memory lapse mette la carta in una posizione nota, quindi quella carta deve risultare rivelata a tutti nella library
 - Karakas mostra come target validi le creature non leggendarie e poi genera un errore quando le selezioni. deve validare client-side e dare il ring solo a chi corrisponde al filtro dei candidati reali
 
@@ -60,7 +59,7 @@ Fable of the mirror-breaker
 - Goblin artisans: abbiamo perso l'animazione del coin toss che prima c'era.
 - le abilità loyalty di un planeswalker non devono comparire nel context menu se siamo in una fase non sorcery speed, a meno di abilità che le abilitano a questa velocità.
 - Chromatic armor non mostra il colore attualmente attivo nell'oracle text live
-- premere space dopo aver dichiarato almeno un attaccante corrisponde a Confirm attacks, non ad Attack with all
+- In dichiarazione attaccanti, premere space dopo aver dichiarato almeno un attaccante deve corrispondere a "Confirm attacks", non ad "Attack with all". "Attack with all" resta il comportamento di space solo quando non è stato dichiarato nessun attaccante.
 
 # Bug gameplay
 
@@ -74,3 +73,4 @@ Fable of the mirror-breaker
 - casta damnation su board vuoto
 - casta chrome mox e non imprinta nessuna carta
 - attiva mother of runes a sorcery speed senza motivo
+- attiva sandstorm salvager senza token sul board

@@ -10,16 +10,8 @@
 // space from the battlefield while duplicating an exit the pause menu already
 // offers.
 import { Outlet, useRouterState } from "@tanstack/react-router";
+import { shellShowsHeader } from "@/lib/shellChrome";
 import AppHeader from "./app-header";
-
-/** Route prefixes that render without the shared header. */
-const FULLSCREEN_PREFIXES = ["/game"];
-
-export function shellShowsHeader(pathname: string): boolean {
-    return !FULLSCREEN_PREFIXES.some(
-        (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
-    );
-}
 
 export default function AppShell() {
     const pathname = useRouterState({

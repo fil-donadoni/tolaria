@@ -16,9 +16,20 @@
 // that can't be filled singleton from the implemented pool is capped at
 // creation (`maxCubeSeats`, enforced by `createLimitedEvent`) rather than
 // dealt with-replacement — the cap lifts automatically as cube cards land.
-// The WITH-REPLACEMENT top-up in `dealCubeRoundPacks` (surfaced by
-// `cubeSampleRegime`) therefore only ever runs as defense-in-depth for the
-// pathological sub-pack pool a creatable event can no longer reach.
+// `dealCubeRoundPacks` THROWS rather than wrapping when a deal would overflow
+// the pool: the old with-replacement "top-up" silently dealt the same card
+// twice (it is what produced the Draft Lab's 8-seat duplicates), and a hard
+// invariant that degrades quietly is not an invariant.
+//
+// The pool a draft deals from is FROZEN ON THE EVENT at start
+// (`limitedEvents.cubePool`), never rebuilt per round from the live registry.
+// The singleton invariant rests on all rounds slicing ONE shuffle, but round 0
+// is dealt in `startLimitedEvent` and rounds 1+ in later `submitPick`
+// invocations — so implementing a single cube card between them would change
+// `pool.length`, reshuffle the whole permutation, and make the later rounds'
+// slices overlap the earlier ones (cards already picked reappearing in a later
+// pack). Callers pass the frozen array down through `startDraft`/`applyPick`;
+// `buildCubePool()` is only ever read to CREATE that snapshot.
 import { VINTAGE_CUBE_NAMES } from "../cubes/vintageCubeNames";
 import { tryGetCardByName } from "../cards";
 import { makeRng, shuffleWithRng } from "../gre/rng";
@@ -74,11 +85,11 @@ export function cubePoolSize(): number {
 
 /** Whether a full draft of `roundCount` rounds at `seatCount` seats can be
  *  dealt SINGLETON (every card at most once) from a pool of `poolSize`, or
- *  must fall back to the WITH-REPLACEMENT "top-up" regime (ADR 0062). A draft
- *  runs in either regime — this only names which one, for logging/surfacing.
- *  With the creation-time capacity cap (`maxCubeSeats`, ADR 0062 rev), a
- *  creatable event is always "singleton"; "top-up" now only names the
- *  defensive sub-pack path (`dealCubeRoundPacks`). */
+ *  overflows it. "top-up" is the historical name of the WITH-REPLACEMENT
+ *  fallback (ADR 0062) — that fallback is GONE: a deal in this regime now
+ *  throws in `dealCubeRoundPacks`. The predicate survives as the cheap
+ *  up-front check callers use to size a table (`maxCubeSeats` is its inverse)
+ *  and to refuse an oversized config before dealing anything. */
 export function cubeSampleRegime(
     poolSize: number,
     seatCount: number,
@@ -123,16 +134,22 @@ export function shuffleCube(pool: readonly string[], seed: number): string[] {
  *  the EVENT seed (NOT a per-round-derived seed): the pool is shuffled once and
  *  each round consumes a disjoint contiguous slice of that single shuffle
  *  (`round * seatCount * packSize` as the starting cursor). That is what makes
- *  the SINGLETON invariant hold ACROSS rounds — as long as the whole draft
- *  (`seatCount * packSize * roundCount` cards) fits within `pool.length`, no
- *  index is ever revisited, so no card appears twice in the entire draft.
+ *  the SINGLETON invariant hold ACROSS rounds — no index is ever revisited, so
+ *  no card appears twice in the entire draft.
  *
- *  When the pool is smaller, the cursor's `% pool.length` wraps: the shortfall
- *  is topped up WITH-REPLACEMENT (ADR 0062 — a still-small implemented pool
- *  still runs a draft rather than hard-blocking). Callers wanting to surface
- *  which regime is active check `cubeSampleRegime` up front. (A within-a-pack
- *  duplicate can only occur in the pathological case `pool.length < packSize`,
- *  which no real cube approaches.) */
+ *  Two things the invariant rests on, both enforced rather than assumed:
+ *
+ *  1. `pool` must be big enough for the whole draft. A round whose slice would
+ *     run past the end THROWS — it used to wrap (`% pool.length`) and top the
+ *     shortfall up WITH-REPLACEMENT, which is exactly how the same card got
+ *     dealt twice. Callers size the table with `maxCubeSeats` up front
+ *     (`createLimitedEvent`; the Draft Lab clamps its own seat count) so this
+ *     throw is unreachable from any legitimate configuration.
+ *  2. `pool` must be the SAME array for every round of one draft — the FROZEN
+ *     snapshot stored on the event, never a fresh `buildCubePool()` per round
+ *     (see this module's header). A pool that gains or loses one card between
+ *     rounds reshuffles the entire permutation, and the later slices stop
+ *     being disjoint from the earlier ones. */
 export function dealCubeRoundPacks(
     pool: readonly string[],
     seatCount: number,
@@ -144,12 +161,19 @@ export function dealCubeRoundPacks(
         throw new Error("dealCubeRoundPacks: cube pool is empty");
     }
     const shuffled = shuffleCube(pool, seed);
+    const start = round * seatCount * packSize;
+    const end = start + seatCount * packSize;
+    if (end > shuffled.length) {
+        throw new Error(
+            `dealCubeRoundPacks: cube pool of ${shuffled.length} cards cannot deal round ${round} for ${seatCount} seats at ${packSize} cards per pack (needs ${end}). A cube is singleton — size the table with maxCubeSeats instead of repeating cards.`
+        );
+    }
     const packs: string[][] = [];
-    let cursor = round * seatCount * packSize;
+    let cursor = start;
     for (let s = 0; s < seatCount; s++) {
         const pack: string[] = [];
         while (pack.length < packSize) {
-            pack.push(shuffled[cursor % shuffled.length]);
+            pack.push(shuffled[cursor]);
             cursor++;
         }
         packs.push(pack);

@@ -139,6 +139,10 @@ export function useControllerActions(): ControllerState {
     const [isBusy, setIsBusy] = useState(false);
 
     const selectedAttackerIds = combat?.attackerIds ?? [];
+    // Scalar, not the array: the keydown effect depends on "has the player
+    // declared anything yet", and `selectedAttackerIds` is a fresh array every
+    // render, so depending on it would re-bind the listener each time.
+    const selectedAttackerCount = selectedAttackerIds.length;
     const blockerCount = Object.keys(combat?.blockerAssignments ?? {}).length;
 
     // "Attack with all" (design 2026-07-23). The declaring player is always
@@ -326,10 +330,18 @@ export function useControllerActions(): ControllerState {
                     // on the player and advances, mirroring the "Assign target"
                     // button — never confirms mid-sequence.
                     attackSequence.advance();
+                } else if (isSelectingAttackers && selectedAttackerCount > 0) {
+                    // At least one attacker already declared: Space means
+                    // "Confirm Attackers" — it mirrors the pod's primary
+                    // button, which reads the same way. Offering
+                    // "Attack with all" here would silently widen a
+                    // deliberate, hand-picked attack.
+                    confirmAttackers({ gameId, playerId });
                 } else if (isSelectingAttackers && eligibleIds.length > 0) {
-                    // Space offers "Attack with all" rather than skipping the
-                    // attack — but behind a confirmation, since it is the same
-                    // reflex keystroke that used to mean "Skip Attack".
+                    // Nothing declared yet: Space offers "Attack with all"
+                    // rather than skipping the attack — but behind a
+                    // confirmation, since it is the same reflex keystroke that
+                    // used to mean "Skip Attack".
                     setAttackAllConfirmOpen(true);
                 } else if (isSelectingAttackers) {
                     // Nothing can attack, so the only thing Space can mean is
@@ -390,6 +402,7 @@ export function useControllerActions(): ControllerState {
         attackSequence,
         attackAllConfirmOpen,
         eligibleIds,
+        selectedAttackerCount,
         isSelectingBlockers,
         isAssigningDamage,
         allDamageAssigned,

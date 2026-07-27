@@ -93,18 +93,6 @@ export default function LimitedEventsPage() {
                 <PanelBody>
                     {joinError && <Banner tone="danger">{joinError}</Banner>}
 
-                    {canCreateLimitedEvents(user) && (
-                        <div className="flex justify-end">
-                            <Button
-                                variant="primary"
-                                size="sm"
-                                onClick={() => setCreateOpen(true)}
-                            >
-                                + Create Event
-                            </Button>
-                        </div>
-                    )}
-
                     <LimitedMyEventsList
                         events={myEvents}
                         onOpen={handleOpen}
@@ -117,6 +105,18 @@ export default function LimitedEventsPage() {
                         onOpen={handleOpen}
                         joinPendingEventId={joinPendingEventId}
                     />
+
+                    {canCreateLimitedEvents(user) && (
+                        <div className="flex justify-center">
+                            <Button
+                                variant="primary"
+                                size="sm"
+                                onClick={() => setCreateOpen(true)}
+                            >
+                                + Create Event
+                            </Button>
+                        </div>
+                    )}
                 </PanelBody>
             </Panel>
 

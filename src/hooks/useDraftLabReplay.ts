@@ -202,7 +202,12 @@ export function useDraftLabReplay(): UseDraftLabReplayResult {
             seatInputs,
             draftLabGetCardEvalMeta,
             getPickRating,
-            getCardProfile
+            getCardProfile,
+            // The pool the event was really dealt from (ADR 0062) — replaying
+            // a cube draft against today's grown pool would reconstruct packs
+            // that were never dealt. `null` (non-cube, or ungated viewer)
+            // means "no cube pool", which the set path never reads.
+            selectedEvent.cubePool ?? undefined
         );
     }, [selectedEvent, ratingsSnapshot]);
 

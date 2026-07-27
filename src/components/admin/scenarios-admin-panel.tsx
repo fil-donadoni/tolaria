@@ -25,6 +25,7 @@ import DebugScenarioPreview from "@/components/debug/debug-scenario-preview";
 import DebugSaveScenario, {
     type EditingScenario,
 } from "@/components/debug/debug-save-scenario";
+import { useScenarioTestGame } from "~/hooks/useScenarioTestGame";
 
 /** A regenerated/varied spec awaiting the preview/save step. */
 type Preview = {
@@ -54,6 +55,9 @@ export default function ScenariosAdminPanel() {
     const [filter, setFilter] = useState("");
     const [editing, setEditing] = useState<EditingScenario | null>(null);
     const [creating, setCreating] = useState(false);
+    // "Test": create a fresh solo game, apply this scenario to it, go to the
+    // board. The only affordance here that leaves the page.
+    const testGame = useScenarioTestGame();
 
     const handleCleanup = async () => {
         if (cleaning) return;
@@ -107,7 +111,9 @@ export default function ScenariosAdminPanel() {
 
     return (
         <>
-            {error && <Banner tone="danger">{error}</Banner>}
+            {(error || testGame.error) && (
+                <Banner tone="danger">{error ?? testGame.error}</Banner>
+            )}
 
             <Panel>
                 <PanelHeader
@@ -160,7 +166,12 @@ export default function ScenariosAdminPanel() {
                                 <DebugScenarioRow
                                     key={s._id}
                                     row={s}
-                                    disabled={busyId !== null}
+                                    disabled={
+                                        busyId !== null ||
+                                        testGame.launchingId !== null
+                                    }
+                                    onTest={() => testGame.test(s)}
+                                    testing={testGame.launchingId === s._id}
                                     onToggleGolden={() =>
                                         void setGolden({
                                             id: s._id,

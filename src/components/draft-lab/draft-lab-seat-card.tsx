@@ -1,5 +1,6 @@
 // One seat's summary tile in the Draft Lab table view (issue #1612: "table
-// view: all 8 seats, each with its current pack and the pick it made").
+// view: all 8 seats, each with its current pack and the pick it made" — a
+// cube table may be clamped narrower, see `draftLabSeatCount`).
 // Clicking a tile focuses that seat's candidate breakdown.
 //
 // Pack CONTENTS, not just size (issue #1612 fixup, pre-merge review): the

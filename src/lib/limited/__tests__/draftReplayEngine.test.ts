@@ -57,7 +57,12 @@ describe("reconstructDraftReplay — unmodified event (issue #1613 AC1)", () => 
             seatInputsFrom(ground.seats),
             draftLabGetCardEvalMeta,
             getPickRating,
-            getCardProfile
+            getCardProfile,
+            // The pool the ground-truth draft was dealt from — a real replay
+            // reads it off the event row (`limitedEvents.cubePool`, ADR 0062)
+            // rather than rebuilding it, because the implemented cube pool
+            // grows and a larger pool reshuffles the whole permutation.
+            ground.cubePool
         );
 
         expect(result.complete).toBe(true);
@@ -93,7 +98,12 @@ describe("reconstructDraftReplay — unmodified event (issue #1613 AC1)", () => 
             seatInputsFrom(ground.seats),
             draftLabGetCardEvalMeta,
             getPickRating,
-            getCardProfile
+            getCardProfile,
+            // The pool the ground-truth draft was dealt from — a real replay
+            // reads it off the event row (`limitedEvents.cubePool`, ADR 0062)
+            // rather than rebuilding it, because the implemented cube pool
+            // grows and a larger pool reshuffles the whole permutation.
+            ground.cubePool
         );
 
         expect(result.firstDivergedPickIndex).toBeNull();
@@ -116,7 +126,12 @@ describe("reconstructDraftReplay — unmodified event (issue #1613 AC1)", () => 
             seatInputs,
             draftLabGetCardEvalMeta,
             getPickRating,
-            getCardProfile
+            getCardProfile,
+            // The pool the ground-truth draft was dealt from — a real replay
+            // reads it off the event row (`limitedEvents.cubePool`, ADR 0062)
+            // rather than rebuilding it, because the implemented cube pool
+            // grows and a larger pool reshuffles the whole permutation.
+            ground.cubePool
         );
         const b = reconstructDraftReplay(
             13,
@@ -124,7 +139,12 @@ describe("reconstructDraftReplay — unmodified event (issue #1613 AC1)", () => 
             seatInputs,
             draftLabGetCardEvalMeta,
             getPickRating,
-            getCardProfile
+            getCardProfile,
+            // The pool the ground-truth draft was dealt from — a real replay
+            // reads it off the event row (`limitedEvents.cubePool`, ADR 0062)
+            // rather than rebuilding it, because the implemented cube pool
+            // grows and a larger pool reshuffles the whole permutation.
+            ground.cubePool
         );
         expect(a).toEqual(b);
     });
@@ -160,7 +180,12 @@ describe("reconstructDraftReplay — divergence detection (issue #1613 AC2)", ()
             seatInputsFrom(ground.seats),
             draftLabGetCardEvalMeta,
             alteredRating,
-            getCardProfile
+            getCardProfile,
+            // The pool the ground-truth draft was dealt from — a real replay
+            // reads it off the event row (`limitedEvents.cubePool`, ADR 0062)
+            // rather than rebuilding it, because the implemented cube pool
+            // grows and a larger pool reshuffles the whole permutation.
+            ground.cubePool
         );
 
         expect(result.firstDivergedPickIndex).toBe(1);
@@ -184,7 +209,12 @@ describe("reconstructDraftReplay — divergence detection (issue #1613 AC2)", ()
             seatInputsFrom(ground.seats),
             draftLabGetCardEvalMeta,
             baselineRating,
-            getCardProfile
+            getCardProfile,
+            // The pool the ground-truth draft was dealt from — a real replay
+            // reads it off the event row (`limitedEvents.cubePool`, ADR 0062)
+            // rather than rebuilding it, because the implemented cube pool
+            // grows and a larger pool reshuffles the whole permutation.
+            ground.cubePool
         );
         expect(result.firstDivergedPickIndex).toBeNull();
     });
@@ -204,7 +234,12 @@ describe("reconstructDraftReplay — stop conditions (issue #1613 AC3)", () => {
             seatInputs,
             draftLabGetCardEvalMeta,
             getPickRating,
-            getCardProfile
+            getCardProfile,
+            // The pool the ground-truth draft was dealt from — a real replay
+            // reads it off the event row (`limitedEvents.cubePool`, ADR 0062)
+            // rather than rebuilding it, because the implemented cube pool
+            // grows and a larger pool reshuffles the whole permutation.
+            ground.cubePool
         );
 
         expect(result.complete).toBe(false);
@@ -239,7 +274,12 @@ describe("reconstructDraftReplay — stop conditions (issue #1613 AC3)", () => {
             seatInputs,
             draftLabGetCardEvalMeta,
             getPickRating,
-            getCardProfile
+            getCardProfile,
+            // The pool the ground-truth draft was dealt from — a real replay
+            // reads it off the event row (`limitedEvents.cubePool`, ADR 0062)
+            // rather than rebuilding it, because the implemented cube pool
+            // grows and a larger pool reshuffles the whole permutation.
+            ground.cubePool
         );
 
         expect(result.complete).toBe(false);

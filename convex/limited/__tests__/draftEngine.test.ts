@@ -10,7 +10,7 @@ import {
     roundSeed,
     startDraft,
 } from "../draftEngine";
-import { CUBE_SOURCE_KEY, CUBE_PACK_SIZE } from "../cube";
+import { CUBE_SOURCE_KEY, CUBE_PACK_SIZE, buildCubePool } from "../cube";
 import type { GetBoosterConfig, ResolveCardMeta } from "../eventLogic";
 import type { BoosterConfig } from "../boosterTypes";
 import type { LimitedEventSeat, DraftPackCard } from "../eventTypes";
@@ -740,6 +740,10 @@ describe("Vintage Cube pool source through the real engine (ADR 0062)", () => {
     // stub is correct here (and proves the cube path bypasses it entirely).
     const noConfig: GetBoosterConfig = () => null;
     const cubeSlots = [CUBE_SOURCE_KEY, CUBE_SOURCE_KEY, CUBE_SOURCE_KEY];
+    // The FROZEN pool a real event snapshots onto its row at `startEvent`
+    // (ADR 0062) — every cube deal takes it explicitly, so no round is ever
+    // dealt from a pool re-derived mid-draft.
+    const cubePool = buildCubePool();
 
     it("startDraft deals 15-card cube packs to every seat", () => {
         const dealt = startDraft(
@@ -747,7 +751,9 @@ describe("Vintage Cube pool source through the real engine (ADR 0062)", () => {
             cubeSlots,
             4242,
             noConfig,
-            resolveCardMeta
+            resolveCardMeta,
+            undefined,
+            cubePool
         );
         for (const seat of dealt.seats) {
             expect(seat.currentPack).toHaveLength(CUBE_PACK_SIZE);
@@ -761,14 +767,18 @@ describe("Vintage Cube pool source through the real engine (ADR 0062)", () => {
             cubeSlots,
             7,
             noConfig,
-            resolveCardMeta
+            resolveCardMeta,
+            undefined,
+            cubePool
         );
         const b = startDraft(
             seatsOf(2),
             cubeSlots,
             7,
             noConfig,
-            resolveCardMeta
+            resolveCardMeta,
+            undefined,
+            cubePool
         );
         expect(a.seats.map((s) => s.currentPack)).toEqual(
             b.seats.map((s) => s.currentPack)
@@ -785,7 +795,9 @@ describe("Vintage Cube pool source through the real engine (ADR 0062)", () => {
             cubeSlots,
             555,
             noConfig,
-            resolveCardMeta
+            resolveCardMeta,
+            undefined,
+            cubePool
         ).seats;
         let round = 0;
         let remaining = 2;
@@ -804,7 +816,9 @@ describe("Vintage Cube pool source through the real engine (ADR 0062)", () => {
                 seats[seatIndex].currentPack![0].pickId,
                 555,
                 noConfig,
-                resolveCardMeta
+                resolveCardMeta,
+                undefined,
+                cubePool
             );
             seats = result.seats;
             round = result.draftRound;
@@ -821,5 +835,101 @@ describe("Vintage Cube pool source through the real engine (ADR 0062)", () => {
         expect(allPicked).toHaveLength(90);
         // Singleton: every one of the 90 dealt cards is distinct.
         expect(new Set(allPicked).size).toBe(90);
+    });
+
+    it("REFUSES to deal a cube round with no frozen pool", () => {
+        // The pool must come from the caller's snapshot (the event row / the
+        // Lab session), never from a `buildCubePool()` re-read inside the
+        // deal: rounds 1+ are dealt in later mutations, so a re-derived pool
+        // silently reshuffles the draft the moment a cube card is implemented
+        // mid-draft. Omitting it is a programming error, not a fallback.
+        expect(() =>
+            startDraft(seatsOf(2), cubeSlots, 4242, noConfig, resolveCardMeta)
+        ).toThrow(/frozen on the event/);
+    });
+
+    it("deals from the pool it is GIVEN, not from the live registry", () => {
+        // A synthetic pool of ids that exist in no card registry: if any dealt
+        // card came from `buildCubePool()` instead of this argument, it could
+        // not be one of these.
+        const frozen = Array.from({ length: 90 }, (_, i) => `frozen-${i}`);
+        const dealt = startDraft(
+            seatsOf(2),
+            cubeSlots,
+            31337,
+            noConfig,
+            resolveCardMeta,
+            undefined,
+            frozen
+        );
+        for (const seat of dealt.seats) {
+            for (const card of seat.currentPack!) {
+                expect(frozen).toContain(card.scryfallId);
+            }
+        }
+    });
+
+    it("stays singleton across rounds when the LIVE pool grows mid-draft (the frozen-pool regression)", () => {
+        // Reproduces the shipped bug: round 0 dealt from one pool, rounds 1+
+        // from a pool one card larger (a cube card implemented + deployed
+        // while the draft was in progress). `shuffleCube` permutes the WHOLE
+        // array, so a single extra card makes the later rounds' slices
+        // overlap the earlier ones — cards a seat already picked come back
+        // around in a later pack. Freezing the pool is what makes that
+        // impossible; here we prove both directions.
+        const frozen = Array.from({ length: 90 }, (_, i) => `frozen-${i}`);
+        const grown = [...frozen, "frozen-new"];
+
+        const dealAll = (
+            round0: readonly string[],
+            laterRounds: readonly string[]
+        ) => {
+            let seats = startDraft(
+                seatsOf(2),
+                cubeSlots,
+                4242,
+                noConfig,
+                resolveCardMeta,
+                undefined,
+                round0
+            ).seats;
+            let round = 0;
+            let remaining = 2;
+            let completed = false;
+            for (let guard = 0; guard < 1000 && !completed; guard++) {
+                const seatIndex = seats.findIndex(
+                    (s) => s.currentPack && s.currentPack.length > 0
+                );
+                if (seatIndex === -1) break;
+                const result = applyPick(
+                    seats,
+                    round,
+                    remaining,
+                    cubeSlots,
+                    seatIndex,
+                    seats[seatIndex].currentPack![0].pickId,
+                    4242,
+                    noConfig,
+                    resolveCardMeta,
+                    undefined,
+                    laterRounds
+                );
+                seats = result.seats;
+                round = result.draftRound;
+                remaining = result.draftPacksRemaining;
+                completed = result.completed;
+            }
+            return seats.flatMap((s) => s.pool!.map((c) => c.scryfallId));
+        };
+
+        // The bug: pool changed between round 0 and the later rounds.
+        const drifted = dealAll(frozen, grown);
+        expect(drifted).toHaveLength(90);
+        expect(new Set(drifted).size).toBeLessThan(90); // cards dealt twice
+
+        // The fix: the SAME frozen array for every round.
+        const stable = dealAll(frozen, frozen);
+        expect(stable).toHaveLength(90);
+        expect(new Set(stable).size).toBe(90);
     });
 });

@@ -133,6 +133,7 @@ import {
 } from "./limited/registry";
 import {
     isCubeSource,
+    buildCubePool,
     cubePoolSize,
     maxCubeSeats,
     CUBE_PACK_SIZE,
@@ -397,6 +398,11 @@ export const limitedEventViewValidator = v.object({
     // every seat's Pool, and `completed` stays true right through the play
     // phase; see `eventProjection.ts`'s `LimitedEventView.seed` doc comment.
     seed: v.union(v.number(), v.null()),
+    // The frozen Vintage Cube pool this draft dealt from (ADR 0062) — `null`
+    // for a non-cube event, and gated exactly like `seed` above (pool + seed
+    // together regenerate every pack). The replay surface deals from it
+    // instead of today's `buildCubePool()`, which has since grown.
+    cubePool: v.union(v.array(v.string()), v.null()),
     // Bot Drafter scorer version at `startEvent` (issue #1613) — absent for
     // an event created before this field existed.
     scorerVersion: v.optional(v.number()),
@@ -1620,13 +1626,23 @@ export const startLimitedEvent = mutation({
                 getPickRating,
                 getCardProfile
             );
+            // The cube pool is FROZEN here, once, and persisted on the event
+            // (ADR 0062): every later round is dealt from THIS array, never
+            // from a `buildCubePool()` re-read. Rounds 1+ are dealt in later
+            // `submitPick` mutations, and implementing one cube card between
+            // them would otherwise change the pool size, reshuffle the whole
+            // permutation, and re-deal cards seats had already picked.
+            const cubePool = event.packSlots.some(isCubeSource)
+                ? buildCubePool()
+                : undefined;
             const dealt = startDraft(
                 seats,
                 event.packSlots,
                 seed,
                 getRuntimeBoosterConfig,
                 resolveCardMeta,
-                timerConfig
+                timerConfig,
+                cubePool
             );
             const afterBots = runBotAutoPicks(
                 dealt.seats,
@@ -1638,11 +1654,13 @@ export const startLimitedEvent = mutation({
                 resolveCardMeta,
                 botChoosePick,
                 false,
-                timerConfig
+                timerConfig,
+                cubePool
             );
             await saveSeats(ctx, args.eventId, afterBots.seats, {
                 status: "started",
                 seed,
+                ...(cubePool ? { cubePool: [...cubePool] } : {}),
                 scorerVersion: SCORER_VERSION,
                 draftRound: afterBots.draftRound,
                 draftPacksRemaining: afterBots.draftPacksRemaining,
@@ -1855,7 +1873,11 @@ export const submitPick = mutation({
             event.seed,
             getRuntimeBoosterConfig,
             resolveCardMeta,
-            timerConfig
+            timerConfig,
+            // The pool frozen at `startEvent` — this pick may be the one that
+            // empties the round and deals the next, and that deal MUST slice
+            // the same shuffle round 0 came from (ADR 0062).
+            event.cubePool
         );
 
         // The human's pick can pass a pack straight onto a bot seat, or empty
@@ -1876,7 +1898,8 @@ export const submitPick = mutation({
             resolveCardMeta,
             botChoosePick,
             result.completed,
-            timerConfig
+            timerConfig,
+            event.cubePool
         );
 
         await saveSeats(ctx, args.eventId, afterBots.seats, {
@@ -2014,7 +2037,8 @@ export const autoPickSeatTimeout = internalMutation({
             event.seed,
             getRuntimeBoosterConfig,
             resolveCardMeta,
-            timerConfig
+            timerConfig,
+            event.cubePool
         );
         const afterBots = runBotAutoPicks(
             result.seats,
@@ -2026,7 +2050,8 @@ export const autoPickSeatTimeout = internalMutation({
             resolveCardMeta,
             botChoosePick,
             result.completed,
-            timerConfig
+            timerConfig,
+            event.cubePool
         );
 
         await saveSeats(ctx, args.eventId, afterBots.seats, {

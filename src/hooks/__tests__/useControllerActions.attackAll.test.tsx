@@ -342,6 +342,26 @@ describe("useControllerActions — Attack with all (design 2026-07-23)", () => {
         expect(calls).toHaveLength(0);
     });
 
+    it("Space confirms the declared attackers once at least one is declared", () => {
+        // With an attacker already picked, Space means "Confirm Attackers" —
+        // NOT "Attack with all", which would widen a deliberate attack.
+        const me = player("me", [creature({ id: "a" }), creature({ id: "b" })]);
+        const opp = player("opp", []);
+        const { result } = renderCtrl(me, opp, makeSequence(), {
+            attackerIds: ["a"],
+        });
+
+        act(() => {
+            window.dispatchEvent(
+                new KeyboardEvent("keydown", { code: "Space" })
+            );
+        });
+
+        expect(result.current.attackAllConfirm.open).toBe(false);
+        expect(calls.some((c) => c.ref === "confirmAttackers")).toBe(true);
+        expect(calls.some((c) => c.ref === "toggleAttacker")).toBe(false);
+    });
+
     it("Space still skips the attack when no creature is eligible", () => {
         const me = player("me", [creature({ id: "tapped", isTapped: true })]);
         const opp = player("opp", []);

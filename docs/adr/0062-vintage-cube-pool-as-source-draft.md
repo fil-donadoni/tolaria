@@ -30,44 +30,65 @@ recognized by a reserved Pack Source key `"vintage-cube"` (`CUBE_SOURCE_KEY`,
 `null` for it, and every seam that would look one up special-cases the cube
 **before** the lookup.
 
-1. **Pool = the implemented subset of the canonical list.** The canonical Vintage
-   Cube list is the worklist `data/worklists/vintage-cube.txt` (~540 names),
-   checked in as `data/cube/vintage-cube.json`. `buildCubePool()` resolves each
-   name through the SAME registry seam the set path uses (`tryGetCardByName` →
-   an implemented `CardDefinition`) and keeps only the names that resolve, mapped
-   to their canonical Card ID (`def.id`). Unimplemented names are simply absent.
-   The pool grows automatically as more cube cards land — no re-import step. The
-   currently-implemented pool size is **N = 283** of 540 names.
+1.  **Pool = the implemented subset of the canonical list.** The canonical Vintage
+    Cube list is the worklist `data/worklists/vintage-cube.txt` (~540 names),
+    checked in as `data/cube/vintage-cube.json`. `buildCubePool()` resolves each
+    name through the SAME registry seam the set path uses (`tryGetCardByName` →
+    an implemented `CardDefinition`) and keeps only the names that resolve, mapped
+    to their canonical Card ID (`def.id`). Unimplemented names are simply absent.
+    The pool grows automatically as more cube cards land — no re-import step. The
+    currently-implemented pool size is **N = 283** of 540 names.
 
-2. **No completeness gate — the cube is ALWAYS draftable.** `isDraftableSet(
+2.  **No completeness gate — the cube is ALWAYS draftable.** `isDraftableSet(
 "vintage-cube")` returns `true` unconditionally (it deliberately bypasses the
-   ≥80% per-sheet floor), so `createLimitedEvent` accepts it without throwing.
-   `listDraftableSets` surfaces the cube as a selectable Pack Source carrying its
-   available-card count N (`isCube: true`, `availableCardCount: N`) — NOT an
-   Incompleteness "N missing" disable. A cube is curated, not a set to complete;
-   applying a completion incentive to it would be a category error.
+    ≥80% per-sheet floor), so `createLimitedEvent` accepts it without throwing.
+    `listDraftableSets` surfaces the cube as a selectable Pack Source carrying its
+    available-card count N (`isCube: true`, `availableCardCount: N`) — NOT an
+    Incompleteness "N missing" disable. A cube is curated, not a set to complete;
+    applying a completion incentive to it would be a category error.
 
-3. **Strict singleton sampling, table capped to fit the pool.** The pool is
-   shuffled once from the raw **event seed** (`makeRng`, deterministic) and each
-   round consumes a disjoint contiguous slice of that single shuffle (starting
-   cursor `round × seats × 15`). As long as the whole draft
-   (`seats × 15 × rounds`) fits within the pool, no index is revisited — every
-   card appears **at most once across the entire draft** (a real cube).
-   **Revision (one-copy-max is a hard invariant):** rather than dealing a card
-   twice when the table can't be filled singleton from the implemented pool,
-   the seat count is **capped at creation** — `createLimitedEvent` rejects a
-   cube config whose `seats > maxCubeSeats(poolSize, 15, rounds) =
+3.  **Strict singleton sampling, table capped to fit the pool.** The pool is
+    shuffled once from the raw **event seed** (`makeRng`, deterministic) and each
+    round consumes a disjoint contiguous slice of that single shuffle (starting
+    cursor `round × seats × 15`). As long as the whole draft
+    (`seats × 15 × rounds`) fits within the pool, no index is revisited — every
+    card appears **at most once across the entire draft** (a real cube).
+    **Revision (one-copy-max is a hard invariant):** rather than dealing a card
+    twice when the table can't be filled singleton from the implemented pool,
+    the seat count is **capped at creation** — `createLimitedEvent` rejects a
+    cube config whose `seats > maxCubeSeats(poolSize, 15, rounds) =
 ⌊poolSize / (15 × rounds)⌋`, and the create dialog clamps the seat control
-   to the same cap. At 283 implemented cards over 3 boosters that cap is
-   `⌊283 / 45⌋ = 6` seats; it lifts automatically toward the full 8-seat table
-   as the pool grows past 360. The with-replacement top-up in
-   `dealCubeRoundPacks` (surfaced by `cubeSampleRegime`) is retained only as
-   defense-in-depth for the pathological sub-pack pool a creatable event can no
-   longer reach.
+    to the same cap. At 283 implemented cards over 3 boosters that cap is
+    `⌊283 / 45⌋ = 6` seats; it lifts automatically toward the full 8-seat table
+    as the pool grows past 360.
 
-4. **Draft-only.** The pool-as-source path is wired into the draft engine
-   (`generateRoundPacks`), not the Sealed pool generator. The create-event UI
-   makes the cube selectable only for Draft; Sealed keeps its per-set path.
+        **Revision 2 (the pool is FROZEN on the event; the top-up is gone).** Two
+        holes in revision 1 both dealt duplicate cards in real drafts:
+        - **The pool was re-derived per round.** Only round 0 is dealt in
+          `startEvent`; rounds 1+ are dealt inside whichever later `submitPick`
+          empties the round. `buildCubePool()` reads the LIVE card registry, and the
+          slices are only disjoint because they index ONE shuffle — so implementing
+          a single cube card mid-draft changed `pool.length`, reshuffled the entire
+          permutation, and made a later round deal cards seats had already picked.
+          (Observed: a 7-seat draft with 43 duplicates across its 315 cards, after
+          Nadu, Winged Wisdom landed mid-draft.) The pool is now **snapshotted once
+          at `startEvent` onto `limitedEvents.cubePool`** and threaded through every
+          `startDraft`/`applyPick`/`runBotAutoPicks` call of that draft; the deal
+          REFUSES to run without it rather than rebuilding one. The replay surface
+          (ADR 0074) reads the same frozen pool off the event row, for the same
+          reason: today's grown pool would reconstruct packs that were never dealt.
+        - **The with-replacement top-up was reachable after all.** The seat cap is
+          enforced by `createLimitedEvent`, which the client-side Draft Lab does not
+          go through — it asked for 8 seats unconditionally and the deal quietly
+          wrapped its cursor (`% pool.length`), dealing 16 duplicates per session.
+          The top-up is **removed**: `dealCubeRoundPacks` throws when a round's
+          slice would overflow the pool, and the Lab clamps its own seat count with
+          the same `maxCubeSeats` authority the server caps a real event with. A
+          hard invariant that degrades quietly is not an invariant.
+
+4.  **Draft-only.** The pool-as-source path is wired into the draft engine
+    (`generateRoundPacks`), not the Sealed pool generator. The create-event UI
+    makes the cube selectable only for Draft; Sealed keeps its per-set path.
 
 Everything downstream is unchanged: a cube pack card's `scryfallId` is its
 canonical Card ID, which `resolveCardMeta` / the Bot Drafter's `getCardEvalMeta`
@@ -78,8 +99,14 @@ pool projection all work with no cube-specific plumbing.
 
 - A Vintage Cube draft runs today against the 283 implemented cube cards, with
   no gate and no minimum, and improves automatically as cube cards are added.
-- The singleton invariant is exact and deterministic (seeded), so a cube draft is
-  replayable from the one event seed — same as a set draft.
+- The singleton invariant is exact and deterministic, so a cube draft is
+  replayable — but from the event seed **and** the pool frozen on the event row
+  (revision 2), not the seed alone as a set draft is. The seed only names a
+  permutation OF a specific pool; the pool grows, so it is part of the draft's
+  identity and is persisted with it.
+- Every seat's whole draft is now derivable from `(seed, cubePool)`, so the
+  projection gates `cubePool` exactly as it gates `seed`: completed DRAFT
+  events, admin viewers only.
 - The cube is a second Pack Source **kind**, not a fake set. Future pools (a
   different cube, a jumpstart-style pool) can reuse the same `cube.ts` shape:
   a name list + `buildCubePool` + `dealCubeRoundPacks`.

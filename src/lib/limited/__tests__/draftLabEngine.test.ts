@@ -9,12 +9,18 @@ import { describe, it, expect } from "vitest";
 import {
     DRAFT_LAB_SEAT_COUNT,
     buildDraftLabPickRating,
+    draftLabSeatCount,
     initDraftLab,
     runFullDraftLab,
     standardPackSlots,
     stepDraftLab,
 } from "../draftLabEngine";
 import { CUBE_SOURCE_KEY } from "@convex/limited/cubeSource";
+import {
+    buildCubePool,
+    maxCubeSeats,
+    CUBE_PACK_SIZE,
+} from "@convex/limited/cube";
 import type { ScopedCardProfile } from "@convex/limited/cardProfilesCore";
 
 describe("Draft Lab synthetic mode engine (issue #1612, ADR 0074)", () => {
@@ -49,9 +55,13 @@ describe("Draft Lab synthetic mode engine (issue #1612, ADR 0074)", () => {
         );
     });
 
-    it("deals round 0 to all 8 seats with a full pack each, no picks yet", () => {
+    it("deals round 0 to every seat with a full pack each, no picks yet", () => {
         const state = initDraftLab(7, standardPackSlots(CUBE_SOURCE_KEY));
-        expect(state.seats.length).toBe(DRAFT_LAB_SEAT_COUNT);
+        // A cube table is clamped to what the implemented pool can fill
+        // SINGLETON (`draftLabSeatCount` / `maxCubeSeats`), so this is ≤ the
+        // standard 8 — never more, and never a table dealt with duplicates.
+        expect(state.seats.length).toBeGreaterThan(0);
+        expect(state.seats.length).toBeLessThanOrEqual(DRAFT_LAB_SEAT_COUNT);
         for (const seat of state.seats) {
             expect(seat.isBot).toBe(true);
             expect(seat.currentPack?.length).toBeGreaterThan(0);
@@ -196,5 +206,46 @@ describe("Draft Lab Card Profile snapshot (ADR 0072, issue #1611)", () => {
         expect(explicitlyEmpty.pickLog.map((r) => r.chosenPickId)).toEqual(
             omitted.pickLog.map((r) => r.chosenPickId)
         );
+    });
+});
+
+describe("Draft Lab cube singleton (ADR 0062 — the 8-seat duplicate bug)", () => {
+    const packSlots = standardPackSlots(CUBE_SOURCE_KEY);
+
+    it("clamps a cube table to what the implemented pool can fill singleton", () => {
+        // The Lab used to ask for 8 seats unconditionally. 8 × 15 × 3 = 360
+        // cards, more than the implemented pool holds, so the deal wrapped and
+        // handed out the same cards twice. The clamp is computed from the SAME
+        // `maxCubeSeats` authority the server caps a real event with.
+        const poolSize = buildCubePool().length;
+        const cap = maxCubeSeats(poolSize, CUBE_PACK_SIZE, packSlots.length);
+        expect(draftLabSeatCount(8, packSlots, poolSize)).toBe(
+            Math.min(8, cap)
+        );
+        // Asking for fewer than the cap is honoured as-is.
+        expect(draftLabSeatCount(2, packSlots, poolSize)).toBe(2);
+    });
+
+    it("never clamps a per-set Pack Source (a set is sampled with replacement)", () => {
+        expect(draftLabSeatCount(8, ["lea", "lea", "lea"], 0)).toBe(8);
+    });
+
+    it("deals a whole cube session with NO card dealt twice", () => {
+        const state = runFullDraftLab(20260727, packSlots);
+        expect(state.completed).toBe(true);
+        const dealt = state.seats.flatMap((s) =>
+            (s.pool ?? []).map((c) => c.scryfallId)
+        );
+        expect(dealt.length).toBeGreaterThan(0);
+        expect(new Set(dealt).size).toBe(dealt.length);
+    });
+
+    it("freezes the pool on the session state, and every round slices that one snapshot", () => {
+        const state = initDraftLab(11, packSlots);
+        expect(state.cubePool).toEqual(buildCubePool());
+        // A per-set session carries no cube pool at all.
+        expect(
+            initDraftLab(11, ["lea", "lea", "lea"]).cubePool
+        ).toBeUndefined();
     });
 });

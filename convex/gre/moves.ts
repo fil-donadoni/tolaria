@@ -679,6 +679,14 @@ function enumerateAbilityMoves(
         // ability (Clergy) is never a legal move for the controller (CR 602.1).
         if (!opts?.anyPlayerOnly && ability.activatableByOpponentsOnly)
             continue;
+        // CR 113.6 / 702.29a — a zone-restricted ability functions ONLY from the
+        // zone it opts into: Cycling (`activateFromHand`) from the hand, Ashen
+        // Ghoul (`activateFromGraveyard`) from the graveyard. Neither is legal
+        // off a permanent on the battlefield, which is the only zone this
+        // enumerator scans — a Triome in play must NOT offer its cycling.
+        // Mirrors the server gate (`game.ts` activateAbility) and the human UI
+        // gate (`getStackAbilities`, src/lib/card-utils.ts).
+        if (ability.activateFromHand || ability.activateFromGraveyard) continue;
         // Only abilities that use the stack are macro-moves here; mana abilities
         // are funded on demand by the cast planner, never activated standalone.
         if (!ability.useStack) continue;
