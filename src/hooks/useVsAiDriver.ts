@@ -115,6 +115,10 @@ export function useVsAiDriver(
     // it hangs off `pendingCast`, not `pendingChoices[]`, so it is not
     // Move-realised and is driven directly.
     const selectCastExileCost = useMutation(api.game.selectCastExileCost);
+    // CR 702.51 (issue #1338) — the parked Convoke creature picker (Hogaak).
+    // Kept OUT of `MoveMutations` for the same reason: it hangs off
+    // `pendingCast`, not `pendingChoices[]`, so it is driven directly.
+    const selectConvokeCreatures = useMutation(api.game.selectConvokeCreatures);
 
     const inFlight = useRef(false);
     const lastSignature = useRef<string | null>(null);
@@ -221,6 +225,26 @@ export function useVsAiDriver(
                 gameId,
                 playerId: botId,
                 cardInstanceIds: action.cardInstanceIds,
+            }).catch(() => {
+                lastSignature.current = null;
+            });
+            return;
+        }
+
+        // CR 702.51 (issue #1338) — the parked Convoke creature pick: the gate
+        // already chose a legal covering set (`chooseConvokeCreatures`), so
+        // realise it straight through, mirroring the cast-exile-cost branch
+        // above. Without it the bot parks its own Hogaak cast and never finishes.
+        if (
+            botActionRealisation(action.kind) === "convoke-creatures" &&
+            action.kind === "convoke-creatures"
+        ) {
+            if (inFlight.current) return;
+            lastSignature.current = signature;
+            void selectConvokeCreatures({
+                gameId,
+                playerId: botId,
+                creatureInstanceIds: action.creatureInstanceIds,
             }).catch(() => {
                 lastSignature.current = null;
             });

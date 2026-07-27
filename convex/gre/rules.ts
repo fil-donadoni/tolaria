@@ -54,7 +54,14 @@ import {
     getEscapeManaCost,
     hasEscape,
 } from "./escape";
-import { delveEligibleCards, spellHasDelve } from "./payWith";
+import {
+    convokeEligibleCreatures,
+    coverColoredAndHybridPips,
+    creatureConvokeColors,
+    delveEligibleCards,
+    spellHasConvoke,
+    spellHasDelve,
+} from "./payWith";
 import type { ManaCost } from "../cards/types";
 import {
     applyCostModifiers,
@@ -449,6 +456,37 @@ export function getLegalActions(
         player.graveyard.some((c) => c.id === card.id) &&
         canCastFromGraveyardByPermission(state, player, card);
     if (isPermissionCast) {
+        const baseLegal = castTimingBaseLegal(state, caster.id, card);
+        if (
+            baseLegal &&
+            passesCastPhaseRestriction(state, card) &&
+            castProhibitionReason(player.id, card, state) === undefined &&
+            canPotentiallyPayCost(
+                player,
+                card,
+                getInstanceManaCost(card) ?? {}
+            ) &&
+            hasEnoughLegalTargets(state, player, card)
+        ) {
+            actions.push("cast");
+        }
+        return actions;
+    }
+
+    // CR 702.51 / 601.3e (issue #1338, Hogaak) — a NON-LAND card in the player's
+    // OWN graveyard whose definition declares `castableFromOwnGraveyard` ("You
+    // may cast this card from your graveyard") is castable from there for its
+    // normal printed cost (paid, for Hogaak, entirely via convoke + delve — the
+    // `canPotentiallyPayCost` probe already folds those pseudo-sources in).
+    // Reached only when the card has neither Flashback nor Escape (those return
+    // above). Mirrors the broad-permission branch above.
+    const isIntrinsicGraveyardCast =
+        player.graveyard.some((c) => c.id === card.id) &&
+        !types.includes("Land") &&
+        (tryGetDefinition((card.card as { id?: string }).id ?? "")
+            ?.castableFromOwnGraveyard ??
+            false);
+    if (isIntrinsicGraveyardCast) {
         const baseLegal = castTimingBaseLegal(state, caster.id, card);
         if (
             baseLegal &&
@@ -950,43 +988,63 @@ function coloredCostLeftover(
     opts: { payWith?: boolean } = {}
 ): number | null {
     const includePayWith = opts.payWith ?? true;
+    // CR 601.2f (issue #1338) — "You can't spend mana to cast this spell"
+    // (Hogaak). When set, NO real mana source counts toward affordability: every
+    // pip must be covered by a non-mana `payWith` resource (convoke / delve),
+    // so the pool, restricted mana, land/rock taps and Wild-Growth bonuses are
+    // all excluded below. The card is castable iff convoke + delve alone cover
+    // the full cost (coloured/hybrid via convoke, generic via convoke/delve).
+    const cantSpendMana =
+        tryGetDefinition((card.card as { id?: string }).id ?? "")
+            ?.cantSpendManaToCast ?? false;
+    // CR 202.1a — guild-hybrid pips are read off the printed cost and matched by
+    // the shared greedy below (a real source or a convoke creature of either
+    // colour pays each). Orthogonal to Phyrexian pips — no card carries both.
+    const hybridPips = getInstanceManaCost(card)?.hybrid ?? [];
     // Each source is the set of colors it can supply for this cost slot.
     const sources: Set<Color>[] = [];
-    for (const c of MANA_COLORS) {
-        const n = player.manaPool[c] ?? 0;
-        for (let i = 0; i < n; i++) sources.push(new Set<Color>([c]));
-    }
-    // CR 106.6 — restricted mana whose restriction permits THIS spell (Ice
-    // Cauldron's instance-keyed noted mana, Metamorphosis' creature-only mana)
-    // is spendable on the cast and must count toward affordability. Without it
-    // a card castable only from its banked mana — e.g. Ice Cauldron's exiled
-    // card paid by the noted mana — is judged unpayable here, so "cast" is
-    // dropped from getLegalActions and `assertLegalAction` rejects the cast
-    // before payment. Mirrors `spendablePoolForSpell` at the payment site;
-    // `card.id` is the instance id that instance-keyed mana is gated on.
-    for (const r of player.restrictedMana ?? []) {
-        if (restrictedUnitAllowsSpell(r, card.types, card.id)) {
-            for (let i = 0; i < r.amount; i++) {
-                sources.push(new Set<Color>([r.color as Color]));
-            }
+    if (!cantSpendMana) {
+        for (const c of MANA_COLORS) {
+            const n = player.manaPool[c] ?? 0;
+            for (let i = 0; i < n; i++) sources.push(new Set<Color>([c]));
         }
     }
-    for (const perm of player.battlefield) {
-        if (perm.isTapped) continue;
-        // CR 302.1 — creature with summoning sickness can't pay {T}.
-        if (isTapLockedBySummoningSickness(perm)) continue;
-        // One entry per mana the source taps for: a {C}{C} source (Sol Ring)
-        // contributes two, not one (issue #132).
-        const base = getProducibleManaUnits(perm);
-        for (const unit of base) sources.push(unit);
-        // CR 605.4 — a Wild-Growth-style triggered mana ability on ANOTHER
-        // permanent adds extra mana when THIS land is tapped for mana. It only
-        // fires on a for-mana tap, so gate on the land actually producing base
-        // mana; then fold in the declared bonus units (Wild Growth {G},
-        // Gauntlet {R}, Mana Flare produced colour, Fertile Ground any colour).
-        if (base.length > 0) {
-            for (const unit of tapManaBonusUnits(player.battlefield, perm)) {
-                sources.push(unit);
+    if (!cantSpendMana) {
+        // CR 106.6 — restricted mana whose restriction permits THIS spell (Ice
+        // Cauldron's instance-keyed noted mana, Metamorphosis' creature-only mana)
+        // is spendable on the cast and must count toward affordability. Without it
+        // a card castable only from its banked mana — e.g. Ice Cauldron's exiled
+        // card paid by the noted mana — is judged unpayable here, so "cast" is
+        // dropped from getLegalActions and `assertLegalAction` rejects the cast
+        // before payment. Mirrors `spendablePoolForSpell` at the payment site;
+        // `card.id` is the instance id that instance-keyed mana is gated on.
+        for (const r of player.restrictedMana ?? []) {
+            if (restrictedUnitAllowsSpell(r, card.types, card.id)) {
+                for (let i = 0; i < r.amount; i++) {
+                    sources.push(new Set<Color>([r.color as Color]));
+                }
+            }
+        }
+        for (const perm of player.battlefield) {
+            if (perm.isTapped) continue;
+            // CR 302.1 — creature with summoning sickness can't pay {T}.
+            if (isTapLockedBySummoningSickness(perm)) continue;
+            // One entry per mana the source taps for: a {C}{C} source (Sol Ring)
+            // contributes two, not one (issue #132).
+            const base = getProducibleManaUnits(perm);
+            for (const unit of base) sources.push(unit);
+            // CR 605.4 — a Wild-Growth-style triggered mana ability on ANOTHER
+            // permanent adds extra mana when THIS land is tapped for mana. It only
+            // fires on a for-mana tap, so gate on the land actually producing base
+            // mana; then fold in the declared bonus units (Wild Growth {G},
+            // Gauntlet {R}, Mana Flare produced colour, Fertile Ground any colour).
+            if (base.length > 0) {
+                for (const unit of tapManaBonusUnits(
+                    player.battlefield,
+                    perm
+                )) {
+                    sources.push(unit);
+                }
             }
         }
     }
@@ -1032,28 +1090,28 @@ function coloredCostLeftover(
         for (let i = 0; i < fuel; i++) sources.push(new Set<Color>());
     }
 
-    // Greedy: assign colored requirements first, picking the least-flexible
-    // source able to produce that color. Optimal for the common case where each
-    // source produces a small color set (basic lands, duals, Mox).
-    const remaining = sources.map((s) => new Set(s));
-    for (const c of MANA_COLORS) {
-        let need = cost[c] ?? 0;
-        while (need > 0) {
-            let bestIdx = -1;
-            let bestSize = Infinity;
-            for (let i = 0; i < remaining.length; i++) {
-                const s = remaining[i];
-                if (s.has(c) && s.size < bestSize) {
-                    bestIdx = i;
-                    bestSize = s.size;
-                }
-            }
-            if (bestIdx === -1) return null;
-            remaining.splice(bestIdx, 1);
-            need--;
+    // CR 702.51 / 601.2g — Convoke (`payWith`, ADR 0063 / issue #1338): each
+    // untapped creature the caster controls may be tapped to pay for {1} OR one
+    // mana of that creature's colour (CR 702.51a). Model each as a COLOURED
+    // pseudo-source (its live colours; empty set for a colourless creature —
+    // generic only), so the shared greedy below can satisfy a coloured / hybrid
+    // pip from it for free. PROBE only: the real payment is the caster's
+    // explicit creature-picker choice (`PendingCast.convokeCreatureChoice`),
+    // never auto-picked. Summoning-sick creatures count (convoke is not a `{T}`
+    // ability, CR 702.51e). Without this a convoke-only-payable spell (Hogaak
+    // off can't-spend-mana) is judged unpayable and "cast" is hidden.
+    if (includePayWith && spellHasConvoke(card)) {
+        for (const creature of convokeEligibleCreatures(player)) {
+            sources.push(creatureConvokeColors(creature));
         }
     }
-    return remaining.length;
+
+    // Greedy: assign single-colour then guild-hybrid pips, each to the
+    // least-flexible source able to pay it, and return the leftover sources the
+    // generic portion ({cost.X}) draws from — or null when a coloured/hybrid pip
+    // can't be covered. The one shared primitive (`gre/payWith.ts`) the convoke
+    // coverage computation reuses (primitive-reuse rule).
+    return coverColoredAndHybridPips(sources, cost, hybridPips);
 }
 
 /** Whether the player can pay a fully-normalized mana cost (colored pips + the

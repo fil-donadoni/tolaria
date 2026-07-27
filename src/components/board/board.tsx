@@ -57,6 +57,7 @@ import TargetSelectionBanner from "./target-selection-banner";
 import GraveyardTargetDialog from "./graveyard-target-dialog";
 import ExileCostDialog from "./exile-cost-dialog";
 import CastExileCostDialog from "./cast-exile-cost-dialog";
+import ConvokeCreatureDialog from "./convoke-creature-dialog";
 import DiscardCostDialog from "./discard-cost-dialog";
 import CastAlternativeHandCostDialog from "./cast-alternative-hand-cost-dialog";
 import ManaSpendChoiceDialog from "./mana-spend-choice-dialog";
@@ -671,7 +672,21 @@ export default function Board({
                                         // blue cards from your graveyard" cost (Flash of
                                         // Insight) needs a dedicated card picker before
                                         // the payment banner takes over.
-                                        pendingCast.exileFromGraveyardChoice &&
+                                        pendingCast.convokeCreatureChoice &&
+                                          !pendingCast.convokeCreatureChoice
+                                              .pickedCreatureIds ? (
+                                            // CR 702.51 (issue #1338) — Convoke
+                                            // creature picker (Hogaak). Prompts
+                                            // BEFORE the delve exile picker.
+                                            <ConvokeCreatureDialog
+                                                choice={
+                                                    pendingCast.convokeCreatureChoice
+                                                }
+                                                me={me}
+                                                gameId={gameId}
+                                                playerId={viewerId}
+                                            />
+                                        ) : pendingCast.exileFromGraveyardChoice &&
                                           !pendingCast.exileFromGraveyardChoice
                                               .pickedCardIds ? (
                                             <CastExileCostDialog
