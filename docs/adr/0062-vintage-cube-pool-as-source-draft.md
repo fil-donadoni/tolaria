@@ -62,29 +62,30 @@ recognized by a reserved Pack Source key `"vintage-cube"` (`CUBE_SOURCE_KEY`,
     `⌊283 / 45⌋ = 6` seats; it lifts automatically toward the full 8-seat table
     as the pool grows past 360.
 
-        **Revision 2 (the pool is FROZEN on the event; the top-up is gone).** Two
-        holes in revision 1 both dealt duplicate cards in real drafts:
-        - **The pool was re-derived per round.** Only round 0 is dealt in
-          `startEvent`; rounds 1+ are dealt inside whichever later `submitPick`
-          empties the round. `buildCubePool()` reads the LIVE card registry, and the
-          slices are only disjoint because they index ONE shuffle — so implementing
-          a single cube card mid-draft changed `pool.length`, reshuffled the entire
-          permutation, and made a later round deal cards seats had already picked.
-          (Observed: a 7-seat draft with 43 duplicates across its 315 cards, after
-          Nadu, Winged Wisdom landed mid-draft.) The pool is now **snapshotted once
-          at `startEvent` onto `limitedEvents.cubePool`** and threaded through every
-          `startDraft`/`applyPick`/`runBotAutoPicks` call of that draft; the deal
-          REFUSES to run without it rather than rebuilding one. The replay surface
-          (ADR 0074) reads the same frozen pool off the event row, for the same
-          reason: today's grown pool would reconstruct packs that were never dealt.
-        - **The with-replacement top-up was reachable after all.** The seat cap is
-          enforced by `createLimitedEvent`, which the client-side Draft Lab does not
-          go through — it asked for 8 seats unconditionally and the deal quietly
-          wrapped its cursor (`% pool.length`), dealing 16 duplicates per session.
-          The top-up is **removed**: `dealCubeRoundPacks` throws when a round's
-          slice would overflow the pool, and the Lab clamps its own seat count with
-          the same `maxCubeSeats` authority the server caps a real event with. A
-          hard invariant that degrades quietly is not an invariant.
+**Revision 2 to decision 3 (the pool is FROZEN on the event; the top-up is
+gone).** Two holes in revision 1 both dealt duplicate cards in real drafts:
+
+- **The pool was re-derived per round.** Only round 0 is dealt in
+  `startEvent`; rounds 1+ are dealt inside whichever later `submitPick`
+  empties the round. `buildCubePool()` reads the LIVE card registry, and the
+  slices are only disjoint because they index ONE shuffle — so implementing
+  a single cube card mid-draft changed `pool.length`, reshuffled the entire
+  permutation, and made a later round deal cards seats had already picked.
+  (Observed: a 7-seat draft with 43 duplicates across its 315 cards, after
+  Nadu, Winged Wisdom landed mid-draft.) The pool is now **snapshotted once
+  at `startEvent` onto `limitedEvents.cubePool`** and threaded through every
+  `startDraft`/`applyPick`/`runBotAutoPicks` call of that draft; the deal
+  REFUSES to run without it rather than rebuilding one. The replay surface
+  (ADR 0074) reads the same frozen pool off the event row, for the same
+  reason: today's grown pool would reconstruct packs that were never dealt.
+- **The with-replacement top-up was reachable after all.** The seat cap is
+  enforced by `createLimitedEvent`, which the client-side Draft Lab does not
+  go through — it asked for 8 seats unconditionally and the deal quietly
+  wrapped its cursor (`% pool.length`), dealing 16 duplicates per session.
+  The top-up is **removed**: `dealCubeRoundPacks` throws when a round's
+  slice would overflow the pool, and the Lab clamps its own seat count with
+  the same `maxCubeSeats` authority the server caps a real event with. A
+  hard invariant that degrades quietly is not an invariant.
 
 4.  **Draft-only.** The pool-as-source path is wired into the draft engine
     (`generateRoundPacks`), not the Sealed pool generator. The create-event UI
