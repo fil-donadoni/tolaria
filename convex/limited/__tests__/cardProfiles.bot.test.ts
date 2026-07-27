@@ -10,10 +10,12 @@ import {
     getCardProfile,
     getCardProfileFile,
     validateCardProfileFile,
+    buildDbProfileLookup,
     type GetDbProfile,
     type GetSeedProfile,
     type CardProfile,
     type CardProfileFile,
+    type ScopedCardProfile,
 } from "../cardProfiles";
 
 /** Builds a `GetDbProfile` from a plain `(scope, cardId) -> CardProfile` map
@@ -198,6 +200,73 @@ describe("getCardProfileFile / getCardProfile — seed layer (this slice ships z
 
     it("getCardProfile falls through to null for every (scope, cardId)", () => {
         expect(getCardProfile("vintage-cube", "black-lotus")).toBeNull();
+    });
+});
+
+describe("buildDbProfileLookup (issue #1612 fixup #3): rows -> GetDbProfile fold", () => {
+    // The badge test (`draft-lab.route.tsx` / `useDraftLab.ts` consumers)
+    // exercises this only indirectly by injecting a FAKE `GetDbProfile` — the
+    // real rows->lookup fold `listScopeCardProfiles` feeds into
+    // `resolveEventCardProfile` (via `buildDraftLabCardProfile`) is never
+    // itself under test. This covers the fold directly: two scopes' rows
+    // fold into one lookup that returns the right profile per
+    // `(scope, cardId)`, `null` for an absent card, and — the same
+    // scope-isolation property the slice-1 resolver tests above assert —
+    // `null` for a card present only in a DIFFERENT scope.
+    function scopedProfile(
+        scope: string,
+        cardId: string,
+        overrides: Partial<CardProfile> = {}
+    ): ScopedCardProfile {
+        return {
+            scope,
+            cardId,
+            ...profile(overrides),
+        };
+    }
+
+    it("folds rows for two scopes into a lookup returning the right profile per (scope, cardId)", () => {
+        const leaProfile = scopedProfile("lea", "shivan-dragon", {
+            archetypes: ["aggro"],
+        });
+        const cubeProfile = scopedProfile("vintage-cube", "black-lotus", {
+            archetypes: ["artifacts"],
+        });
+        const getDbProfile = buildDbProfileLookup([leaProfile, cubeProfile]);
+
+        expect(getDbProfile("lea", "shivan-dragon")).toEqual(leaProfile);
+        expect(getDbProfile("vintage-cube", "black-lotus")).toEqual(
+            cubeProfile
+        );
+    });
+
+    it("returns null for a cardId absent from every row", () => {
+        const getDbProfile = buildDbProfileLookup([
+            scopedProfile("lea", "shivan-dragon"),
+        ]);
+        expect(getDbProfile("lea", "not-a-real-card")).toBeNull();
+    });
+
+    it("scope isolation: returns null for a card present only in a DIFFERENT scope", () => {
+        const cubeProfile = scopedProfile("vintage-cube", "shared-card-id", {
+            archetypes: ["reanimator"],
+        });
+        const getDbProfile = buildDbProfileLookup([cubeProfile]);
+
+        expect(getDbProfile("lea", "shared-card-id")).toBeNull();
+        // Same scope, same cardId -> the row IS returned, proving the miss
+        // above is scope isolation, not a broken lookup.
+        expect(getDbProfile("vintage-cube", "shared-card-id")).toEqual(
+            cubeProfile
+        );
+    });
+
+    it("is case-insensitive on scope, mirroring resolveEventCardProfile's own normalization", () => {
+        const cubeProfile = scopedProfile("vintage-cube", "card-y", {
+            archetypes: ["control"],
+        });
+        const getDbProfile = buildDbProfileLookup([cubeProfile]);
+        expect(getDbProfile("VINTAGE-CUBE", "card-y")).toEqual(cubeProfile);
     });
 });
 

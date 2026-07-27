@@ -61,6 +61,18 @@ const FORBIDDEN_PATTERNS: RegExp[] = [
     /useMutation/,
     /useAction/,
     /ctx\.db\.(insert|patch|replace|delete)/,
+    // Reviewer-proved bypass (pre-merge, issue #1612 fixup #2): the narrowed
+    // pattern set above only bans the named hooks — but `useConvex()` hands
+    // back the raw `ConvexReactClient`, whose `.mutation(...)`/`.action(...)`
+    // methods write/act exactly like `useMutation`/`useAction` do, just
+    // without matching either literal. A wrapper hook that itself calls
+    // `useMutation`/`useAction` internally and re-exports a differently-named
+    // function would ALSO slip past a hook-name-only scan. Ban `useConvex`
+    // outright (this surface has no legitimate use for the raw client — it
+    // only ever needs the read-only `useQuery` hook) and ban the method-call
+    // shape itself as a second, independent line of defense.
+    /useConvex\b/,
+    /\.(mutation|action)\(/,
 ];
 
 function isSourceFile(name: string): boolean {
@@ -99,6 +111,27 @@ describe("Draft Lab writes nothing (issue #1612 acceptance)", () => {
     it("scans a non-empty set of Draft Lab files", () => {
         const files = collectDraftLabFiles();
         expect(files.length).toBeGreaterThan(0);
+    });
+
+    it("the name-filtered scan actually matches files under BOTH src/routes and src/hooks (reviewer-proved gap, fixup #2)", () => {
+        // A bare non-empty check on the COMBINED file list (above) would stay
+        // green even if a rename silently dropped one of the two shared,
+        // name-filtered directories to zero matches — the dedicated
+        // directories alone (`src/components/draft-lab`, `src/lib/limited`)
+        // are non-empty regardless, so they'd mask the loss. Assert each
+        // name-filtered directory independently contributes at least one
+        // file, so a regression in the `/draft-?lab/i` filter (or a rename of
+        // `draft-lab.route.tsx`/`useDraftLab.ts` off the naming convention)
+        // fails loudly here instead of silently.
+        for (const rel of DRAFT_LAB_NAME_FILTERED_DIRS) {
+            const matches = walk(path.join(REPO_ROOT, rel)).filter((f) =>
+                DRAFT_LAB_NAME_PATTERN.test(path.basename(f))
+            );
+            expect(
+                matches.length,
+                `expected at least one Draft-Lab-named file under ${rel}, found none`
+            ).toBeGreaterThan(0);
+        }
     });
 
     it("no Draft Lab file imports or calls a Convex mutation/action surface", () => {
