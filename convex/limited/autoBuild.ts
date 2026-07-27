@@ -48,11 +48,10 @@
 import type { DeckCard } from "../deckPresets";
 import { FORMAT_RULES } from "../formats";
 import type { Color } from "../cards/types";
-import { cardValueById } from "../gre/cardValue";
 import {
     CURVE_MAX_BUCKET,
     CURVE_TARGET,
-    RARITY_WEIGHT,
+    candidateQuality,
     capabilityFitTerm,
     colourAffinityWeights,
     curveBucket,
@@ -166,12 +165,6 @@ export const MAX_DECK_COLORS = 3;
  *  requirement below, so a one-pip splash still has to be paid for by at least
  *  one real fixer rather than rounding its way in for free. */
 const MIN_THIRD_COLOR_SOURCES = 1;
-
-function cardQuality(
-    meta: Pick<AutoBuildCardMeta, "cardId" | "rarity">
-): number {
-    return cardValueById(meta.cardId) * RARITY_WEIGHT[meta.rarity];
-}
 
 interface ResolvedEntry {
     entry: LimitedPoolCard;
@@ -300,7 +293,7 @@ export function chooseDeckColors(
 type SpellScore = (entry: ResolvedEntry) => number;
 
 function baseSpellScore(entry: ResolvedEntry): number {
-    return heuristicAsRating(cardQuality(entry.meta!));
+    return heuristicAsRating(candidateQuality(entry.meta!));
 }
 
 /** Build-time **Capability** scoring (issue #1615, ADR 0072): base quality
@@ -529,7 +522,7 @@ export function autoBuildDeck(
                 r.meta!.producedColors.filter((c) => colorSet.has(c)).length;
             return (
                 coverage(b) - coverage(a) ||
-                cardQuality(b.meta!) - cardQuality(a.meta!)
+                candidateQuality(b.meta!) - candidateQuality(a.meta!)
             );
         })
         .slice(0, landCount);

@@ -35,7 +35,14 @@ import {
     startDraft,
     type ChooseBotPick,
 } from "../draftEngine";
-import { chooseBotPick, type GetCardEvalMeta } from "../botDrafter";
+import {
+    candidateQuality,
+    capabilityFitTerm,
+    chooseBotPick,
+    heuristicAsRating,
+    poolProfiles,
+    type GetCardEvalMeta,
+} from "../botDrafter";
 import {
     buildEmptySeats,
     fillBotSeats,
@@ -373,11 +380,11 @@ function flashFixture() {
         entries[`f${i}`] = filler;
         pool.push(poolCard(`f${i}`, filler));
     }
-    return { pool, getMeta: metaLookup(entries), flash, wurm };
+    return { pool, getMeta: metaLookup(entries), flash, wurm, filler };
 }
 
 describe("Capability-aware spell selection (issue #1615)", () => {
-    const { pool, getMeta, flash, wurm } = flashFixture();
+    const { pool, getMeta, flash, wurm, filler } = flashFixture();
     const inMaindeck = (built: { cards: { cardId: string }[] }, id: string) =>
         built.cards.some((c) => c.cardId === id);
 
@@ -393,6 +400,15 @@ describe("Capability-aware spell selection (issue #1615)", () => {
     });
 
     it("MAINDECKS the enabler once the payoff it serves is in the deck (the FIX)", () => {
+        // `built.cards.length >= 40` alone proves nothing here: the Maindeck
+        // size is `spellCount + landCount` BY CONSTRUCTION (40 always),
+        // profiles or not — see `TARGET_MAIN_SIZE`. What the comment actually
+        // claims is that the enabler took a FILLER's slot rather than growing
+        // the deck, so prove that directly: same total size as the no-profile
+        // build, and exactly one filler copy (identified by its unique
+        // `cardName`, since every filler copy shares the same `cardId`)
+        // present in the no-profile build is gone from this one.
+        const withoutProfile = autoBuildDeck(pool, getMeta, resolveBasicLand);
         const built = autoBuildDeck(pool, getMeta, resolveBasicLand, {
             getCardProfile: profileLookup({
                 [flash.cardId]: {
@@ -411,15 +427,73 @@ describe("Capability-aware spell selection (issue #1615)", () => {
         });
         expect(inMaindeck(built, wurm.cardId)).toBe(true);
         expect(inMaindeck(built, flash.cardId)).toBe(true);
-        // The enabler displaced a filler card, it did not grow the deck.
-        expect(built.cards.length).toBeGreaterThanOrEqual(40);
+        expect(built.cards.length).toBe(withoutProfile.cards.length);
+
+        const withoutNames = withoutProfile.cards.map((c) => c.cardName);
+        const builtNames = new Set(built.cards.map((c) => c.cardName));
+        const displaced = withoutNames.filter((name) => !builtNames.has(name));
+        expect(displaced).toHaveLength(1);
+        // The displaced card is one of the filler copies (its pool identity
+        // is its own scryfallId, `f0`..`f29` — see `poolCard`), never the
+        // enabler or the payoff themselves.
+        expect(displaced[0]).toMatch(/^f\d+$/);
     });
 
     it("an UNREVIEWED profile row still counts, at half weight (ADR 0072)", () => {
-        // Half of one match is 0.075 rating points, which does NOT close
-        // Flash's ~0.11 standalone-quality gap to the filler — the deliberate
-        // consequence of ADR 0072's half-weight rule: an LLM's unreviewed
-        // assertion is visible in the Draft Lab but does not decide the deck.
+        // The design guarantee (ADR 0072) is a RELATION, not two hardcoded
+        // numbers: a half-weight (unreviewed) Capability match must not close
+        // Flash's standalone-quality gap to the filler, while a full-weight
+        // (reviewed) match — proven by the FIX test above — does. Deriving
+        // both sides from the actual metas (rather than a comment asserting
+        // "0.075 < 0.1106 < 0.150") means a future `cardValueById` retune that
+        // shrinks or grows the gap can't leave this test silently passing (or
+        // failing) for the wrong reason — it re-derives the gap from
+        // `flash`/`filler` every run.
+        const flashBase = heuristicAsRating(candidateQuality(flash));
+        const fillerBase = heuristicAsRating(candidateQuality(filler));
+        const gap = fillerBase - flashBase;
+        expect(gap).toBeGreaterThan(0);
+
+        const requiresValueOnDeath = {
+            archetypes: [],
+            provides: [],
+            requires: ["value-on-death"],
+        };
+        const providesValueOnDeath = {
+            archetypes: [],
+            provides: ["value-on-death"],
+            requires: [],
+        };
+        const profiled = poolProfiles(
+            [flash, wurm],
+            profileLookup({
+                [flash.cardId]: { ...requiresValueOnDeath, reviewed: true },
+                [wurm.cardId]: { ...providesValueOnDeath, reviewed: true },
+            })
+        );
+        const fullWeightFit = capabilityFitTerm(
+            flash,
+            { ...requiresValueOnDeath, reviewed: true },
+            profiled
+        ).rawValue;
+        const halfWeightProfiled = poolProfiles(
+            [flash, wurm],
+            profileLookup({
+                [flash.cardId]: { ...requiresValueOnDeath, reviewed: false },
+                [wurm.cardId]: { ...providesValueOnDeath, reviewed: false },
+            })
+        );
+        const halfWeightFit = capabilityFitTerm(
+            flash,
+            { ...requiresValueOnDeath, reviewed: false },
+            halfWeightProfiled
+        ).rawValue;
+
+        // Half a match is worth less than the gap it would need to close...
+        expect(halfWeightFit).toBeLessThan(gap);
+        // ...while a full match (proven maindecked above) exceeds it.
+        expect(fullWeightFit).toBeGreaterThan(gap);
+
         const built = autoBuildDeck(pool, getMeta, resolveBasicLand, {
             getCardProfile: profileLookup({
                 [flash.cardId]: {
@@ -488,6 +562,74 @@ describe("Capability-aware spell selection (issue #1615)", () => {
             );
             expect(fromPool.length).toBe(pool.length);
         }
+    });
+
+    // Discriminates the design's central choice (issue #1615's own review):
+    // pass 2 (`capabilityAwareSpellScore`) must score Capability matches
+    // against the PROVISIONAL Maindeck `selectSpells` already built, never
+    // against the whole Pool. Feeding it `resolvedMetas(resolved)` (the whole
+    // Pool) instead would keep every OTHER test in this file green, because
+    // in all of them the payoff that provides the Capability is itself
+    // maindecked — so "provisional Maindeck" and "whole Pool" agree. This
+    // fixture is built specifically so they DISAGREE: the payoff is real, in
+    // the Pool, and profiled — but is cut by pass 1 on standalone quality
+    // alone, so it never reaches the provisional Maindeck at all.
+    it("scores pass 2 against the provisional Maindeck, NOT the whole Pool", () => {
+        const enabler = metaOf("Flash");
+        // A real, distinctly weak 2-mana card — far below `filler`'s standalone
+        // quality, so it is guaranteed to lose every curve-bucket-2 slot to
+        // the 30 filler copies below and never reach the provisional Maindeck,
+        // while still being profiled and genuinely present in the Pool.
+        const payoff: AutoBuildCardMeta = {
+            ...metaOf("Aeolipile"),
+            manaValue: 2,
+        };
+        const entries: Record<string, AutoBuildCardMeta> = {
+            enabler,
+            payoff,
+        };
+        const poolCards: LimitedPoolCard[] = [
+            poolCard("enabler", enabler),
+            poolCard("payoff", payoff),
+        ];
+        for (let i = 0; i < 30; i++) {
+            entries[`f${i}`] = filler;
+            poolCards.push(poolCard(`f${i}`, filler));
+        }
+        const getPoolMeta = metaLookup(entries);
+        const getCardProfile = profileLookup({
+            [enabler.cardId]: {
+                archetypes: [],
+                provides: [],
+                requires: ["value-on-death"],
+                reviewed: true,
+            },
+            [payoff.cardId]: {
+                archetypes: [],
+                provides: ["value-on-death"],
+                requires: [],
+                reviewed: true,
+            },
+        });
+
+        const built = autoBuildDeck(poolCards, getPoolMeta, resolveBasicLand, {
+            getCardProfile,
+        });
+
+        // The payoff must genuinely be cut by pass 1 — otherwise this
+        // fixture doesn't exercise the provisional-vs-whole-Pool distinction
+        // at all, and the assertion below would pass for the wrong reason.
+        expect(inMaindeck(built, payoff.cardId)).toBe(false);
+        // Because the payoff never reaches the provisional Maindeck, the
+        // CORRECT implementation gives the enabler no Capability credit for
+        // it: the enabler stays cut, exactly like the no-profile baseline.
+        // (Mutation-checked: swapping `provisional.map((r) => r.meta!)` for
+        // `resolvedMetas(resolved)` in `capabilityAwareSpellScore`'s call site
+        // in `autoBuild.ts` turns this assertion red — the payoff's profile
+        // then reaches the enabler's scoring pass via the whole Pool, closes
+        // its standalone-quality gap to the filler, and the enabler gets
+        // maindecked on a payoff that was never actually in the deck.)
+        expect(inMaindeck(built, enabler.cardId)).toBe(false);
     });
 });
 
