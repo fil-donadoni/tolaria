@@ -35,6 +35,7 @@ import {
     isSeatingOpen,
 } from "@convex/limited/eventStatus";
 import { useAutoOpenLimitedBuilder } from "~/hooks/useAutoOpenLimitedBuilder";
+import { useRoundCascadeRecovery } from "~/hooks/useRoundCascadeRecovery";
 
 /** One Limited Event's detail page (PRD #1107, ADR 0054/0055). It shows what
  *  the event's phase makes actionable, and nothing else:
@@ -72,6 +73,14 @@ export default function LimitedEventDetail({
     // End of the Draft (or start of a Sealed event) IS the start of deck
     // building — go there instead of parking on a read-only Pool.
     useAutoOpenLimitedBuilder(eventId, event, viewerSeat);
+    // Recovery, not a normal path: an event whose latest round is decided but
+    // which never advanced has no server-side entry point left that can move
+    // it (see `nudgeEventRounds`) — a seat viewing it is the retry.
+    useRoundCascadeRecovery({
+        eventId,
+        event,
+        enabled: viewerSeat !== undefined,
+    });
 
     if (event === undefined || user === undefined) {
         return <LoadingScreen />;

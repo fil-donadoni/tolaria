@@ -2272,3 +2272,74 @@ export const expireRoundDeadline = internalMutation({
         return null;
     },
 });
+
+/** Re-runs the round cascade for an event whose LATEST round is already fully
+ *  decided but which never advanced — the RECOVERY entry point the play phase
+ *  was missing.
+ *
+ *  Every normal path cascades in the same write that decides a round
+ *  (`openPlayPhaseIfReady`, `recordLimitedPairingResult`, `expireRoundDeadline`),
+ *  so in steady state this mutation is a no-op. It exists because those three
+ *  are the ONLY things that ever advance a round, and each of them can leave a
+ *  complete round un-advanced:
+ *
+ *  - `recordLimitedPairingResult` and `expireRoundDeadline` deliberately
+ *    swallow a `cascadeEventRounds` throw (recording the result matters more
+ *    than advancing, and an uncaught throw would roll the result back) — after
+ *    which nothing ever retried, and the event was stuck for good.
+ *  - A round decided by code that predates the cascade (issue #1646) is in the
+ *    same state, with no live pairing left to re-trigger it.
+ *
+ *  A stuck event is unreachable by every other entry point BY CONSTRUCTION:
+ *  `openPlayPhaseIfReady` self-gates on `!areRoundsRunning` (the event is
+ *  already `playing`), `recordLimitedPairingResult` needs an undecided human
+ *  pairing (there is none), and `expireRoundDeadline` returns early on both a
+ *  missing `deadlineAt` and an already-complete round. Hence a dedicated one.
+ *
+ *  Safe to call from anywhere, at any frequency: `advanceRoundIfComplete` is a
+ *  pure, idempotent DECISION over `rounds`, and this shell adds only the gates
+ *  every other caller applies. Two clients nudging at once serialize on the
+ *  event document's OCC exactly as two players finishing pairings do, so a
+ *  round can be neither advanced twice nor skipped. Returns whether it actually
+ *  moved the event, so a caller can avoid re-nudging in a loop. */
+export const nudgeEventRounds = mutation({
+    args: { eventId: v.id("limitedEvents") },
+    returns: v.boolean(),
+    handler: async (ctx, args) => {
+        const user = await getCurrentUser(ctx);
+        const event = await ctx.db.get(args.eventId);
+        if (!event) throw new Error("Event not found");
+        // Seat-holders only. The cascade is deterministic and unforgeable
+        // (every result it writes is derived from the event's own seed), so
+        // this is not a security boundary — it is the same "you must be at
+        // this table" rule every other event mutation applies, and it keeps a
+        // passer-by from driving another table's rounds.
+        if (!event.seats.some((seat) => seat.userId === user._id)) {
+            throw new Error("You do not have a Seat in this event.");
+        }
+        // Phase QUESTION, not a literal (ADR 0076): only a running event has
+        // rounds to advance.
+        if (!areRoundsRunning(event.status)) return false;
+
+        const rounds = event.rounds ?? [];
+        const now = Date.now();
+        const advance = await cascadeEventRounds(ctx, event, rounds, now);
+        if (advance.kind === "unchanged") return false;
+
+        await ctx.db.patch(args.eventId, {
+            rounds: asDbRounds(advance.rounds),
+            currentRound: advance.currentRound,
+            ...(advance.kind === "eventFinished" ? { status: "finished" } : {}),
+            updatedAt: now,
+        });
+        if (advance.kind === "roundOpened") {
+            await scheduleRoundDeadline(
+                ctx,
+                args.eventId,
+                advance.rounds[advance.rounds.length - 1],
+                now
+            );
+        }
+        return true;
+    },
+});
