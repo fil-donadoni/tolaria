@@ -2,8 +2,11 @@
 // OPTIONAL per-set data file (0-5 scale, Draftmancer-style, hand-curated or
 // community-imported) that REFINES the Bot Drafter's picks when present.
 // A rating ANCHORS ordering: it is the base term of `botDrafter.ts`'s
-// `scoreCandidate`, and no contextual term can overturn a rating-point gap
-// (the contextual sum is capped below the rating spread, ADR 0073). A card
+// `scoreCandidate`, and context can never overturn a rating gap WIDER THAN
+// THAT PICK'S CONTEXTUAL CAP (~0.3 rating points at pick 1, ~2.0 by the end of
+// the draft). The cap is a bound on the DIFFERENCE between two candidates
+// because every candidate's contextual sum is clamped to `[0, cap]` — fit is
+// a bonus, never a penalty (ADR 0073). A card
 // with no rating entry falls back to the quality heuristic mapped onto the
 // SAME 0–5 scale (`heuristicAsRating`) — ratings REFINE, never GATE, and a
 // Draftable Set with no checked-in ratings file (or a card missing from one)

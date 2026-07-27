@@ -19,9 +19,9 @@
 // `PICK_RATING_DOMINANCE_WEIGHT` (the old ×1000 rating multiplier, issue
 // #1117) is RETIRED: it made the rating the only input by construction, so no
 // contextual term — present or future (Archetype, Capability; ADR 0072) —
-// could ever change a pick. Ratings remain the ANCHOR of the score (a 1-point
-// rating gap can never be overturned by context, see the cap below) without
-// being the only input.
+// could ever change a pick. Ratings remain the ANCHOR of the score — a rating
+// gap WIDER THAN THE PICK'S CONTEXTUAL CAP can never be overturned by context,
+// see the cap below — without being the only input.
 //
 // `heuristicAsRating` maps the pre-existing quality heuristic (`cardValueById`
 // × rarity) onto the same 0–5 scale, so an UNRATED card is directly comparable
@@ -29,7 +29,7 @@
 // unrated cards would be either invisible or dominant depending on the sign.
 //
 // ── The contextual cap grows with the pick number (ADR 0073) ───────────────
-// The SUM of every non-base term is bounded by `contextCapForPick`, which
+// The SUM of every non-base term is clamped to `[0, contextCapForPick]`, which
 // grows from ~0.3 rating points at pick 1 to ~2.0 by the end of the draft. An
 // uncapped sum would let a handful of contextual matches outrank a genuine
 // bomb; a CONSTANT cap would have to answer "how much may context overturn
@@ -37,6 +37,18 @@
 // between the first pick (no deck to respect yet) and the last (a deck that
 // very much exists). The growing cap is the "raw power early, fit late" rule
 // every drafter applies, expressed as the one parameter it actually is.
+//
+// The clamp is NON-NEGATIVE, and that is load-bearing. FIT IS A BONUS: a
+// candidate that fits nothing earns nothing, it is never PENALISED. Because
+// every candidate's contextual sum then lives in `[0, cap]`, the widest gap
+// two candidates can open on context alone is exactly `cap` — so the cap IS
+// the answer to "how much may context overturn power", which is the question
+// ADR 0073 says it exists to answer. A symmetric `clamp(rawSum, ±cap)` bounds
+// each candidate's sum but lets the DIFFERENCE reach `2 × cap`, i.e. a cap of
+// 1.9 silently licensing a 3.8-point overturn — the defect this shape fixes.
+// Consequence: any term that could only ever express itself as a penalty is
+// dead under this clamp, so a penalty must be re-expressed as the bonus its
+// COMPLEMENT earns (see `colourCommitmentTerm`).
 //
 // ── The breakdown is the primary result (ADR 0073) ─────────────────────────
 // `scoreCandidate` returns a `PickCandidateTrace`: every term with its value
@@ -143,18 +155,21 @@ export function candidateQuality(candidate: CardEvalMeta): number {
  *  the rating anchor rather than replacing it. */
 const COLOUR_COMMIT_RATING_PER_CARD = 0.06;
 
-/** Picks before the off-colour penalty kicks in at all — the seat is still
- *  "reading signals" / establishing colours for its first few picks, so an
- *  early off-colour card is never punished (PRD #1107 story 29: "as
- *  commitment grows" implies no penalty when there is no commitment yet). */
-const OFF_COLOUR_GRACE_PICKS = 3;
+/** On-colour Pool cards before the seat counts as genuinely COMMITTED to that
+ *  colour — it is still "reading signals" / establishing colours for its first
+ *  few picks (PRD #1107 story 29: "as commitment grows" implies nothing to
+ *  respect when there is no commitment yet). */
+const COLOUR_COMMIT_GRACE_CARDS = 3;
 
-/** Rating points subtracted per pick beyond the grace window for a candidate
- *  that shares NO colour with anything already in the Pool — grows linearly
- *  with picks made, so the deeper into the draft, the more a wrong-colour card
- *  is punished (and the growing contextual cap lets that punishment actually
- *  land late, while keeping it a nudge early). */
-const OFF_COLOUR_PENALTY_RATING_PER_PICK = 0.04;
+/** EXTRA rating points per on-colour Pool card beyond the grace window, on top
+ *  of `COLOUR_COMMIT_RATING_PER_CARD`. This is the old off-colour PENALTY,
+ *  re-expressed as the bonus its complement earns: the deeper the seat is
+ *  committed, the more a card that fits that commitment is worth relative to
+ *  one that fits nothing. Stating it as a penalty instead would make it dead
+ *  weight under the non-negative contextual clamp (a term that is structurally
+ *  ≤ 0 can never survive `clamp(rawSum, 0, cap)`), and would put the bound on
+ *  each candidate's sum rather than on the gap between two candidates. */
+const COLOUR_COMMIT_RATING_PER_COMMITTED_CARD = 0.04;
 
 /** Curve buckets the heuristic tracks (mana value 1 through 6+, CR 202.3);
  *  0-cost/land cards don't participate in curve scoring. Target counts are a
@@ -258,10 +273,16 @@ export interface PickCandidateTrace {
     pickNumber: number;
     /** Ordered breakdown: `baseRating` first, then every contextual term. */
     terms: PickTerm[];
-    /** The cap on the SUM of every contextual term at `pickNumber`. */
+    /** The cap on the SUM of every contextual term at `pickNumber`. The sum is
+     *  clamped to `[0, contextCap]`, so this is also the widest gap context
+     *  alone can open between two candidates at this pick (ADR 0073). */
     contextCap: number;
     /** Uniform factor applied to every contextual term's `rawValue` — 1 when
-     *  the cap did not bind, `contextCap / |raw sum|` when it did. */
+     *  the cap did not bind, `contextCap / rawSum` when it did. Together with
+     *  each term's `rawValue` it makes the clamp READABLE off the breakdown:
+     *  `Σ value = clamp(Σ rawValue, 0, contextCap)`, and every scaled term's
+     *  `note` says so in words. (0 in the degenerate case of a negative raw
+     *  sum — no term produces one today, fit is a bonus.) */
     contextScale: number;
     /** Derived: the sum of `terms[].value`. */
     score: number;
@@ -360,8 +381,22 @@ function baseRatingTerm(
 }
 
 /** Colour commitment (PRD #1107 story 29): rewards a candidate sharing a
- *  colour the Pool is already invested in, and — once past the grace window —
- *  penalizes one sharing no colour with the Pool at all. */
+ *  colour the Pool is already invested in, at a slope that STEEPENS once the
+ *  seat is genuinely committed to that colour.
+ *
+ *  Non-negative by construction (ADR 0073's non-negative contextual clamp): a
+ *  candidate sharing no colour with the Pool scores 0 — it earns no bonus, it
+ *  is not punished. What was an off-colour penalty growing with the draft is
+ *  now `COLOUR_COMMIT_RATING_PER_COMMITTED_CARD`, the same growth expressed on
+ *  the FITTING side, so the on-colour/off-colour GAP still widens as the seat
+ *  commits (which is the behaviour PRD #1107 story 29 asks for) while the
+ *  score's contextual half stays a pure bonus.
+ *
+ *  A COLOURLESS candidate also scores 0: it has no colour to fit, so it earns
+ *  no colour bonus. It used to sit strictly above an off-colour card (which
+ *  paid the penalty); telling "castable regardless of colour" apart from
+ *  "actively off-colour" now belongs to the Castability term ADR 0073 plans,
+ *  not to a negative colour term. */
 function colourCommitmentTerm(
     candidate: CardEvalMeta,
     poolMeta: readonly CardEvalMeta[]
@@ -372,7 +407,7 @@ function colourCommitmentTerm(
             value: 0,
             rawValue: 0,
             sources: [],
-            note: "colourless — neutral to colour commitment",
+            note: "colourless — no colour to fit, so no colour bonus (and never a penalty)",
         };
     }
     const weights = colorWeights(poolMeta);
@@ -386,35 +421,37 @@ function colourCommitmentTerm(
         }
     }
 
-    let raw = bestAffinity * COLOUR_COMMIT_RATING_PER_CARD;
-    let note =
-        bestColour !== null
-            ? `${bestAffinity} Pool card(s) already on {${bestColour}}`
-            : "no Pool card on any of this card's colours";
-    let sources = distinctSources(poolMeta, (meta) => {
-        const shared = meta.colors.filter((c) => candidate.colors.includes(c));
-        return shared.length === 0
-            ? null
-            : `shares ${shared.map((c) => `{${c}}`).join("")}`;
-    });
-
-    const totalPicks = poolMeta.length;
-    if (bestAffinity === 0 && totalPicks > OFF_COLOUR_GRACE_PICKS) {
-        const committedPicks = totalPicks - OFF_COLOUR_GRACE_PICKS;
-        raw -= committedPicks * OFF_COLOUR_PENALTY_RATING_PER_PICK;
-        note = `off-colour against ${totalPicks} Pool card(s) (${committedPicks} past the ${OFF_COLOUR_GRACE_PICKS}-pick grace window)`;
-        sources = distinctSources(poolMeta, (meta) =>
-            meta.colors.length === 0
-                ? null
-                : `commits the seat to ${meta.colors.map((c) => `{${c}}`).join("")}`
-        );
+    if (bestColour === null) {
+        return {
+            term: "colourCommitment",
+            value: 0,
+            rawValue: 0,
+            sources: [],
+            note: `shares no colour with ${poolMeta.length} Pool card(s) — no colour bonus (and never a penalty)`,
+        };
     }
+
+    const committed = Math.max(0, bestAffinity - COLOUR_COMMIT_GRACE_CARDS);
+    const raw =
+        bestAffinity * COLOUR_COMMIT_RATING_PER_CARD +
+        committed * COLOUR_COMMIT_RATING_PER_COMMITTED_CARD;
+    const note =
+        committed > 0
+            ? `${bestAffinity} Pool card(s) already on {${bestColour}} (${committed} past the ${COLOUR_COMMIT_GRACE_CARDS}-card grace window)`
+            : `${bestAffinity} Pool card(s) already on {${bestColour}}`;
 
     return {
         term: "colourCommitment",
         value: raw,
         rawValue: raw,
-        sources,
+        sources: distinctSources(poolMeta, (meta) => {
+            const shared = meta.colors.filter((c) =>
+                candidate.colors.includes(c)
+            );
+            return shared.length === 0
+                ? null
+                : `shares ${shared.map((c) => `{${c}}`).join("")}`;
+        }),
         note,
     };
 }
@@ -457,6 +494,14 @@ export interface ScoreCandidateOptions {
     /** Total picks in this draft — the horizon the context cap ramps over
      *  (`contextCapForPick`). Defaults to `DEFAULT_DRAFT_PICKS`. */
     totalPicks?: number;
+    /** The seat's TRUE 1-based pick number, when the caller knows it. Defaults
+     *  to `poolMeta.length + 1`, which is right whenever the Pool the scorer
+     *  sees IS the whole Pool. `chooseBotPick` supplies it explicitly because
+     *  it DROPS Pool entries the card registry can't resolve: an unresolvable
+     *  card is still a pick the seat made, so deriving the pick number from
+     *  the filtered Pool would under-count it and hand the seat an earlier
+     *  pick's (smaller) contextual cap. */
+    pickNumber?: number;
 }
 
 /** Scores one candidate card against a seat's already-accumulated Pool,
@@ -470,16 +515,17 @@ export interface ScoreCandidateOptions {
  *  fallback CHAIN: two candidates sharing a rating now share a base term, and
  *  the contextual terms — not raw quality — separate them.
  *
- *  The pick number is DERIVED from the Pool (`poolMeta.length + 1`): the
- *  contextual cap is a function of how much deck the seat already has, which
- *  is exactly what the Pool measures. */
+ *  The pick number is DERIVED from the Pool (`poolMeta.length + 1`) unless
+ *  `options.pickNumber` says otherwise: the contextual cap is a function of
+ *  how much deck the seat already has, which is exactly what the Pool
+ *  measures. */
 export function scoreCandidate(
     candidate: CardEvalMeta,
     poolMeta: readonly CardEvalMeta[],
     rating: number | null = null,
     options: ScoreCandidateOptions = {}
 ): PickCandidateTrace {
-    const pickNumber = poolMeta.length + 1;
+    const pickNumber = options.pickNumber ?? poolMeta.length + 1;
     const contextCap = contextCapForPick(pickNumber, options.totalPicks);
 
     const base = baseRatingTerm(candidate, rating);
@@ -490,14 +536,29 @@ export function scoreCandidate(
 
     // One uniform scale over every contextual term, so the CAP binds the SUM
     // (ADR 0073) rather than each term separately — and so the scaled sum is
-    // `clamp(rawSum, -cap, +cap)`, which is monotone in every raw term. That
+    // exactly `clamp(rawSum, 0, cap)`, monotone in every raw term. That
     // monotonicity is what the Pick Invariants rest on: a term that should
     // push a candidate up can never push it down through the cap.
+    //
+    // The clamp's floor is 0, not `-cap`: contextual fit is a BONUS, so the
+    // whole contextual half of every candidate's score lives in `[0, cap]` and
+    // the gap context can open between two candidates is therefore `cap`
+    // itself — the bound ADR 0073 means by "how much may context overturn
+    // power". A ±cap clamp bounds each candidate but licenses a `2 × cap`
+    // differential. The `rawSum < 0` branch cannot be reached by today's terms
+    // (each is non-negative by construction); it is a total definition of the
+    // clamp, not a live path — the Pick Invariants assert the floor holds.
     const rawSum = contextual.reduce((sum, t) => sum + t.rawValue, 0);
     const contextScale =
-        rawSum === 0 ? 1 : Math.min(1, contextCap / Math.abs(rawSum));
+        rawSum > 0 ? Math.min(1, contextCap / rawSum) : rawSum === 0 ? 1 : 0;
     for (const term of contextual) {
         term.value = term.rawValue * contextScale;
+        if (contextScale !== 1) {
+            // The clamp must be legible off the BREAKDOWN, not just off the
+            // trace's summary fields — a reader has to be able to reconstruct
+            // the score, cap included, from the terms in front of them.
+            term.note += ` — scaled ×${contextScale.toFixed(3)}: the pick-${pickNumber} context cap (${contextCap.toFixed(2)}) clamped a raw contextual sum of ${rawSum.toFixed(2)}`;
+        }
     }
 
     const terms = [base, ...contextual];
@@ -521,15 +582,13 @@ export type PacksSeen = readonly (readonly DraftPackCard[])[];
 /** Inputs to a bot pick beyond the pack and Pool themselves. Required (not an
  *  optional tail) so `packsSeen` is threaded by the COMPILER at every call
  *  site rather than by remembering to. */
-export interface BotPickOptions {
+export interface BotPickOptions extends ScoreCandidateOptions {
     /** See `PacksSeen` — supplied, not yet read. */
     packsSeen: PacksSeen;
     /** Layered Pick Rating lookup (`cardRatings.ts`'s
      *  `resolveEventPickRating`). Omit for "nothing is rated", in which case
      *  every candidate's base term comes from `heuristicAsRating`. */
     getPickRating?: GetPickRating;
-    /** Total picks in this draft — see `ScoreCandidateOptions.totalPicks`. */
-    totalPicks?: number;
 }
 
 /** Scores every candidate in `pack` against `poolMeta`, in pack order (ADR
@@ -552,6 +611,7 @@ export function scorePack(
             : null;
         return scoreCandidate(meta, poolMeta, rating, {
             totalPicks: options.totalPicks,
+            pickNumber: options.pickNumber,
         });
     });
 }
@@ -586,7 +646,15 @@ export function chooseBotPick(
         .map((c) => getCardEvalMeta(c.scryfallId))
         .filter((m): m is CardEvalMeta => m !== null);
 
-    const traces = scorePack(pack, poolMeta, getCardEvalMeta, options);
+    // The pick number comes from the UNFILTERED Pool: a Pool card the registry
+    // can't resolve contributes nothing to the contextual TERMS (it is dropped
+    // above) but it is still a pick the seat made, so it must still advance the
+    // contextual cap. Deriving the pick number from `poolMeta` instead would
+    // let the filter and the derivation disagree.
+    const traces = scorePack(pack, poolMeta, getCardEvalMeta, {
+        ...options,
+        pickNumber: options.pickNumber ?? pool.length + 1,
+    });
     let bestIndex = 0;
     let bestScore = -Infinity;
     for (let i = 0; i < traces.length; i++) {

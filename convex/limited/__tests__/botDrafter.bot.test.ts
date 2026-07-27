@@ -18,8 +18,8 @@ import { manaValue } from "../../gre/constants";
 import {
     CONTEXT_CAP_LAST_PICK,
     chooseBotPick,
+    contextCapForPick,
     scoreCandidate,
-    sumTraceTerms,
     type CardEvalMeta,
     type GetCardEvalMeta,
     type GetPickRating,
@@ -213,7 +213,12 @@ describe("scoreCandidate — the breakdown IS the score (ADR 0073)", () => {
     it("the score is exactly the sum of the breakdown — no second arithmetic path", () => {
         for (const rating of [null, 0, 2.5, 5]) {
             const trace = scoreCandidate(bears, pool, rating);
-            expect(trace.score).toBeCloseTo(sumTraceTerms(trace.terms), 12);
+            // Summed INLINE, deliberately not via the SUT's own
+            // `sumTraceTerms`: `trace.score` is literally assigned that call,
+            // so checking one against the other is a tautology. An independent
+            // sum here is what would catch a future second arithmetic path.
+            const summed = trace.terms.reduce((s, t) => s + t.value, 0);
+            expect(trace.score).toBeCloseTo(summed, 12);
         }
     });
 
@@ -384,11 +389,14 @@ describe("scoreCandidate's rating layer (issue #1117 acceptance: 'scoring layers
         expect(scoreOf(bears, [], 5)).toBeGreaterThan(scoreOf(wurm, [], 1));
     });
 
-    it("a full rating-point gap survives ANY contextual context (the cap can never overturn it)", () => {
-        // The hostile case: the low-rated card is deep on-colour and fills an
-        // empty curve bucket, the high-rated one is off-colour. Since every
-        // contextual term lives under `contextCapForPick` (≤ 2 rating points),
-        // a 4-point rating gap is untouchable.
+    it("a rating gap WIDER THAN THE PICK'S CONTEXTUAL CAP survives any contextual context", () => {
+        // The guarantee the cap actually provides (ADR 0073, refined by the
+        // #1609 review): every candidate's contextual sum is clamped to
+        // `[0, contextCapForPick]`, so context can move two candidates apart by
+        // at most the cap — never `2 × cap`, which is what the old symmetric
+        // `±cap` clamp allowed. A gap wider than the cap is therefore
+        // untouchable; a gap NARROWER than it is legitimately overturnable, and
+        // the sibling test below pins that down.
         const green: CardEvalMeta = { ...bears, colors: ["G"], manaValue: 2 };
         const pool = Array(20).fill(green) as CardEvalMeta[];
         const favouredButBad: CardEvalMeta = {
@@ -397,8 +405,49 @@ describe("scoreCandidate's rating layer (issue #1117 acceptance: 'scoring layers
             manaValue: 5,
         };
         const disfavouredButGood: CardEvalMeta = { ...bears, colors: ["R"] };
+        // 4 rating points against a pick-21 cap of ~1.45 — comfortably wider.
+        expect(contextCapForPick(pool.length + 1)).toBeLessThan(4);
         expect(scoreOf(disfavouredButGood, pool, 5)).toBeGreaterThan(
             scoreOf(favouredButBad, pool, 1)
+        );
+    });
+
+    it("a rating gap NARROWER than the pick's cap is overturnable — the cap is the licence, not a veto", () => {
+        // The other half of the same guarantee, and the reviewer's repro
+        // (issue #1609): a deep on-colour pool, a 3.0-rated on-colour 2-drop
+        // against a 4.0-rated off-colour card. The 1-point gap is inside the
+        // pick-41 cap (~1.92), so context IS allowed to overturn it — what the
+        // old clamp got wrong was licensing an overturn of up to 2 × cap.
+        const onColourFiller: CardEvalMeta = {
+            ...bears,
+            colors: ["G"],
+            manaValue: 0,
+        };
+        const pool = Array(40).fill(onColourFiller) as CardEvalMeta[];
+        const cap = contextCapForPick(pool.length + 1);
+        const onColourTwoDrop: CardEvalMeta = {
+            ...bears,
+            colors: ["G"],
+            manaValue: 2,
+        };
+        const offColour: CardEvalMeta = {
+            ...bears,
+            colors: ["R"],
+            manaValue: 0,
+        };
+
+        expect(scoreOf(onColourTwoDrop, pool, 3)).toBeGreaterThan(
+            scoreOf(offColour, pool, 4)
+        );
+        // ... but only by at most the cap: the off-colour card is not
+        // PENALISED, it simply earns no contextual bonus.
+        expect(scoreOf(offColour, pool, 4)).toBe(4);
+        expect(
+            scoreOf(onColourTwoDrop, pool, 3) - scoreOf(offColour, pool, 4)
+        ).toBeLessThanOrEqual(cap - 1 + 1e-9);
+        // One more rating point (a gap wider than the cap) flips it back.
+        expect(scoreOf(offColour, pool, 5)).toBeGreaterThan(
+            scoreOf(onColourTwoDrop, pool, 3)
         );
     });
 
@@ -412,6 +461,70 @@ describe("scoreCandidate's rating layer (issue #1117 acceptance: 'scoring layers
         expect(scoreOf(wurm, [], 3)).toBe(
             scoreOf({ ...bears, manaValue: wurm.manaValue }, [], 3)
         );
+    });
+});
+
+describe("chooseBotPick — the pick number counts the WHOLE Pool (issue #1609 review)", () => {
+    // `chooseBotPick` drops Pool cards the registry can't resolve before
+    // scoring, but an unresolvable card is still a pick the seat made. If the
+    // pick number were derived from the FILTERED Pool, the filter and the
+    // derivation would disagree and the seat would be handed an earlier pick's
+    // (smaller) contextual cap.
+    const mv0 = "mv0";
+    const mv2 = "mv2";
+    const metaTable: Record<string, CardEvalMeta> = {
+        // Colourless, mana value 0: earns NO contextual bonus at all.
+        // Distinct `cardId`s so the rating lookup can tell them apart.
+        [mv0]: { ...hillGiant, colors: [], manaValue: 0 },
+        // Colourless 2-drop into an empty curve: earns the full curve bonus,
+        // which the cap then clamps — so this candidate's score, and only
+        // this candidate's, moves with the pick number.
+        [mv2]: { ...bears, colors: [], manaValue: 2 },
+    };
+    const getCardEvalMeta: GetCardEvalMeta = (id) => metaTable[id] ?? null;
+    const pack: DraftPackCard[] = [mv0, mv2].map((id) => ({
+        scryfallId: id,
+        cardId: id,
+        cardName: id,
+        pickId: `pick-${id}`,
+    }));
+    // A rating gap the FIRST pick's cap cannot close but a late pick's can.
+    const getPickRating: GetPickRating = (cardId) =>
+        cardId === metaTable[mv0].cardId ? 4.9 : 4.5;
+
+    function poolOf(scryfallId: string, n: number): LimitedPoolCard[] {
+        return Array.from({ length: n }, () => ({
+            scryfallId,
+            cardId: scryfallId,
+            cardName: scryfallId,
+        }));
+    }
+
+    it("an EMPTY Pool is pick 1: the tiny first-pick cap can't close a 0.4 rating gap", () => {
+        expect(pickFrom(pack, [], getCardEvalMeta, getPickRating)).toBe(
+            "pick-mv0"
+        );
+    });
+
+    it("40 UNRESOLVABLE Pool cards still advance the pick number, so the late cap applies", () => {
+        // Every Pool entry resolves to `null`, so the scored `poolMeta` is
+        // empty in BOTH cases and the contextual TERMS are identical — the
+        // only thing that can differ is the cap, i.e. the pick number.
+        const unresolvable = poolOf("not-in-registry", 40);
+        expect(getCardEvalMeta("not-in-registry")).toBeNull();
+        expect(
+            pickFrom(pack, unresolvable, getCardEvalMeta, getPickRating)
+        ).toBe("pick-mv2");
+    });
+
+    it("an explicit options.pickNumber overrides the derivation", () => {
+        expect(
+            chooseBotPick(pack, [], getCardEvalMeta, {
+                packsSeen: [pack],
+                getPickRating,
+                pickNumber: 41,
+            })
+        ).toBe("pick-mv2");
     });
 });
 

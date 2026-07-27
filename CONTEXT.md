@@ -597,8 +597,8 @@ The primary result of scoring one candidate: every term with its value in rating
 _Avoid_: Explanation, log, debug string
 
 **Contextual Cap**:
-The bound on the SUM of every non-base term of a **Pick**'s score, which GROWS with the pick number (~0.3 rating points at the first **Pick**, ~2.0 by the end of the **Draft**). It encodes "raw power early, fit late" as the single parameter it is: the first pick has no deck to respect, the thirtieth does. Because the cap stays below the rating spread, a full rating-point gap can never be overturned by context — ratings anchor, context refines.
-_Avoid_: Weight, clamp (it caps the sum of terms, not each term)
+The bound on the SUM of every non-base term of a **Pick**'s score, which GROWS with the pick number (~0.3 rating points at the first **Pick**, ~2.0 by the end of the **Draft**). It encodes "raw power early, fit late" as the single parameter it is: the first pick has no deck to respect, the thirtieth does. The sum is clamped to `[0, cap]`, NOT `±cap`: contextual fit is a pure BONUS — a candidate that fits nothing earns nothing and is never penalised — so the cap is exactly the bound on the DIFFERENCE between two candidates, and a rating gap wider than that pick's cap can never be overturned by context. Ratings anchor, context refines.
+_Avoid_: Weight, clamp (it caps the sum of terms, not each term); penalty (a term that only ever subtracts is dead under the non-negative clamp — express it as the bonus its complement earns)
 
 **Archetype**:
 A named strategy a **Pool** can be built toward within one **Pack Source** scope (`reanimator`, `artifacts`, `jeskai-tempo`). A card declares the Archetypes it belongs to; a **Seat**'s accumulated **Pool** therefore has a measurable commitment per Archetype, which biases later **Picks**. Coarse-grained on purpose — it steers colours and plan, not card-to-card fit (that is **Capability**).

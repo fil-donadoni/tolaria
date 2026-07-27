@@ -10,8 +10,11 @@
 //   * adding an off-colour card may not RAISE a candidate's colour term
 //   * filling a candidate's curve bucket may not RAISE its curve term
 //   * raising a candidate's rating may not LOWER its score
-//   * the score is exactly the sum of its breakdown, and every contextual term
-//     lives under the pick's contextual cap
+//   * the score is exactly the sum of its breakdown, and the contextual sum
+//     lives in [0, the pick's contextual cap] — fit is a BONUS, never a
+//     penalty, so the cap bounds the GAP context can open between two
+//     candidates rather than each candidate's own sum (issue #1609 review)
+//   * a rating gap wider than the pick's cap is never overturned by context
 //   * `packsSeen` is unread, so supplying it may not change any pick
 //
 // Every one of these holds for ANY positive weighting: retuning
@@ -39,7 +42,6 @@ import {
     isContextualTerm,
     scoreCandidate,
     scorePack,
-    sumTraceTerms,
     type CardEvalMeta,
     type GetCardEvalMeta,
     type PickCandidateTrace,
@@ -101,18 +103,28 @@ describe("Pick Invariant — the score IS its breakdown (ADR 0073)", () => {
                     redThreeDrop,
                 ]) {
                     const trace = scoreCandidate(candidate, pool, rating);
-                    expect(trace.score).toBeCloseTo(
-                        sumTraceTerms(trace.terms),
-                        12
-                    );
+                    // Summed INLINE, deliberately not via the SUT's own
+                    // `sumTraceTerms`: `trace.score` is literally assigned
+                    // that call, so asserting one against the other is a
+                    // tautology. An independent sum is what would bite if a
+                    // second arithmetic path ever appeared.
+                    const summed = trace.terms.reduce((s, t) => s + t.value, 0);
+                    expect(trace.score).toBeCloseTo(summed, 12);
                 }
             }
         }
     });
 
-    it("the sum of every contextual term stays within the pick's contextual cap", () => {
+    it("the sum of every contextual term stays inside [0, cap] — fit is a BONUS, never a penalty", () => {
+        // The floor matters as much as the ceiling (issue #1609 review): with a
+        // symmetric ±cap clamp each candidate is bounded but the GAP two
+        // candidates can open on context alone is 2 × cap, so the cap stops
+        // answering the question it exists to answer. A non-negative sum makes
+        // the cap the bound on the differential — see the invariant below.
         for (const depth of POOL_DEPTHS) {
-            // A mixed Pool so both contextual terms are genuinely non-zero.
+            // A mixed Pool so both contextual terms are genuinely non-zero,
+            // and candidates on-colour, off-colour and colourless so the
+            // no-fit cases are covered too.
             const pool = [
                 ...Array(depth).fill(greenTwoDrop),
                 ...Array(depth).fill(redFiller),
@@ -121,15 +133,55 @@ describe("Pick Invariant — the score IS its breakdown (ADR 0073)", () => {
                 greenTwoDrop,
                 greenFiveDrop,
                 redThreeDrop,
+                { ...greenTwoDrop, colors: [] as CardEvalMeta["colors"] },
+                { ...greenTwoDrop, colors: ["W"] as CardEvalMeta["colors"] },
             ]) {
                 const trace = scoreCandidate(candidate, pool, 3);
                 const contextual = trace.terms
                     .filter((t) => isContextualTerm(t.term))
                     .reduce((sum, t) => sum + t.value, 0);
-                expect(Math.abs(contextual)).toBeLessThanOrEqual(
-                    trace.contextCap + 1e-9
-                );
+                expect(contextual).toBeGreaterThanOrEqual(-1e-9);
+                expect(contextual).toBeLessThanOrEqual(trace.contextCap + 1e-9);
+                // No individual term may be a penalty either — a structurally
+                // ≤ 0 term is dead weight under a non-negative clamp, so its
+                // presence means someone wrote one and it silently does
+                // nothing.
+                for (const term of trace.terms) {
+                    if (!isContextualTerm(term.term)) continue;
+                    expect(term.rawValue).toBeGreaterThanOrEqual(0);
+                    expect(term.value).toBeGreaterThanOrEqual(0);
+                }
             }
+        }
+    });
+
+    it("the clamp is reconstructible from the breakdown alone — no invisible adjustment between the terms and the score", () => {
+        // ADR 0073 forbids a shadow narrator; the cap must therefore be
+        // legible off the trace rather than applied behind it. A reader with
+        // only `terms[].rawValue`, `contextScale` and `contextCap` must be
+        // able to rebuild `score` exactly.
+        const pool = Array(40).fill(greenTwoDrop) as CardEvalMeta[];
+        const trace = scoreCandidate(greenTwoDrop, pool, 3);
+        const rawSum = trace.terms
+            .filter((t) => isContextualTerm(t.term))
+            .reduce((sum, t) => sum + t.rawValue, 0);
+        const base = trace.terms.find((t) => !isContextualTerm(t.term))!;
+        const clamped = Math.min(trace.contextCap, Math.max(0, rawSum));
+        expect(trace.score).toBeCloseTo(base.value + clamped, 12);
+        for (const term of trace.terms.filter((t) =>
+            isContextualTerm(t.term)
+        )) {
+            expect(term.value).toBeCloseTo(
+                term.rawValue * trace.contextScale,
+                12
+            );
+        }
+        // And when the cap binds, every scaled line SAYS it was scaled.
+        expect(trace.contextScale).toBeLessThan(1);
+        for (const term of trace.terms.filter((t) =>
+            isContextualTerm(t.term)
+        )) {
+            expect(term.note).toContain("context cap");
         }
     });
 
@@ -195,6 +247,78 @@ describe("Pick Invariant — the contextual cap grows with the pick (ADR 0073)",
                 contextCapForPick(depth + 1),
                 12
             );
+        }
+    });
+});
+
+describe("Pick Invariant — the cap bounds the DIFFERENTIAL (ADR 0073, issue #1609)", () => {
+    /** The widest contextual spread the current term set can produce at one
+     *  Pool: perfect fit (on-colour, empty curve bucket) through no fit at all
+     *  (off-colour, saturated bucket), plus the colourless case. Adding a term
+     *  widens the spread without touching these invariants — they name no
+     *  weight, no threshold and no cap constant. */
+    const SPREAD: CardEvalMeta[] = [
+        { ...greenTwoDrop, manaValue: 5 },
+        { ...greenTwoDrop, manaValue: 3 },
+        { ...redThreeDrop, manaValue: 5 },
+        { ...redThreeDrop, manaValue: 3 },
+        { ...greenTwoDrop, colors: [], manaValue: 5 },
+    ];
+    const RATINGS = [PICK_RATING_MIN, 1.5, 2.5, 3.5, PICK_RATING_MAX];
+
+    /** Deep single-colour commitment plus a saturated MV-3 bucket — the Pool
+     *  that pulls hardest on every contextual term at once. */
+    function hostilePool(depth: number): CardEvalMeta[] {
+        return [
+            ...Array(depth).fill(greenFiller),
+            ...Array(depth).fill({ ...greenFiller, manaValue: 3 }),
+        ] as CardEvalMeta[];
+    }
+
+    it("context may move two candidates apart by at most the pick's cap — never twice it", () => {
+        // The bound is on the GAP, not on each candidate's contextual sum. A
+        // symmetric ±cap clamp satisfies the per-candidate bound and still
+        // lets a 1.9 cap overturn a 3.8-point rating gap; this is the
+        // invariant that tells the two apart.
+        for (const depth of POOL_DEPTHS) {
+            const pool = hostilePool(depth);
+            const cap = contextCapForPick(pool.length + 1);
+            for (const a of SPREAD) {
+                for (const b of SPREAD) {
+                    for (const ratingA of RATINGS) {
+                        for (const ratingB of RATINGS) {
+                            const scoreGap =
+                                scoreCandidate(a, pool, ratingA).score -
+                                scoreCandidate(b, pool, ratingB).score;
+                            expect(
+                                Math.abs(scoreGap - (ratingA - ratingB))
+                            ).toBeLessThanOrEqual(cap + 1e-9);
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    it("a rating gap WIDER than the pick's cap is never overturned, however hostile the Pool", () => {
+        // Direction-only and weight-independent: the gap under test is read
+        // off `contextCapForPick` itself, so retuning the endpoints or the
+        // ramp's exponent moves the gap with it and never reddens this.
+        for (const depth of POOL_DEPTHS) {
+            const pool = hostilePool(depth);
+            const cap = contextCapForPick(pool.length + 1);
+            const lowRating = PICK_RATING_MIN;
+            const highRating = lowRating + cap + 1e-6;
+            expect(highRating).toBeLessThanOrEqual(PICK_RATING_MAX);
+            for (const favoured of SPREAD) {
+                for (const disfavoured of SPREAD) {
+                    expect(
+                        scoreCandidate(disfavoured, pool, highRating).score
+                    ).toBeGreaterThan(
+                        scoreCandidate(favoured, pool, lowRating).score
+                    );
+                }
+            }
         }
     });
 });
