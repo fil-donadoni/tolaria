@@ -16,6 +16,7 @@ import { describe, it, expect } from "vitest";
 import {
     getDefinition,
     registerTokenDefinition,
+    tokenDefinitionId,
     tryGetDefinition,
 } from "../index";
 import type { CardDefinition } from "../types";
@@ -191,5 +192,66 @@ describe("token CardDefinition lookup (regression — client lazy synthesis)", (
             "token:Wasp|Artifact,Creature|Insect||1|1||flying|09921372-126f-4c81-b6d8-ea50b1d0eb44||";
         const def = getDefinition(id);
         expect(def.backFace).toBeUndefined();
+    });
+
+    // Issue #1595 — a transformed permanent's `card.card.id` is swapped
+    // server-side (`transformPermanent`, `gre/transform.ts`) to a synthesized
+    // back-face id, and `transformPermanent` runs SERVER-SIDE ONLY. The
+    // client bundle therefore never sees the `registerTokenDefinition` call
+    // for that id — the exact cold-decode scenario this whole file guards
+    // against (see the module header) — and must recover "this is the back
+    // face" purely from the wire id string via THIS decode path. Without a
+    // 13th segment, `resolveCardImageFace` (`src/lib/images.ts`) would always
+    // fall back to "front" on a real client even though the server-side
+    // synthesized `CardDefinition` correctly carries `imagePrintFace: "back"`
+    // — the exact gap an earlier version of this fix shipped (caught only by
+    // a frontend test that pre-registered the def, bypassing this decode
+    // path entirely).
+    it("13th segment is decoded as imagePrintFace (issue #1595)", () => {
+        const id = [
+            "token:Construct",
+            "Artifact,Creature",
+            "Construct",
+            "",
+            "0",
+            "0",
+            "",
+            "",
+            "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+            "",
+            "",
+            "",
+            "back",
+        ].join("|");
+        const def = getDefinition(id);
+        expect(def.name).toBe("Construct");
+        expect(def.imagePrintId).toBe("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
+        expect(def.imagePrintFace).toBe("back");
+    });
+
+    it("missing/empty 13th segment leaves imagePrintFace undefined (back-compat with pre-#1595 12-segment ids, decodes as front)", () => {
+        const id =
+            "token:Wasp|Artifact,Creature|Insect||1|1||flying|09921372-126f-4c81-b6d8-ea50b1d0eb44|||";
+        const def = getDefinition(id);
+        expect(def.imagePrintFace).toBeUndefined();
+    });
+
+    // The exact round trip `gre/transform.ts`'s `backFaceAsTokenSpec` +
+    // `tokenDefinitionId` produce, decoded cold (never registered) — the
+    // definitive end-to-end proof that a real client recovers the back face
+    // from the wire id alone.
+    it("tokenDefinitionId(spec with imagePrintFace: 'back') round-trips through getDefinition", () => {
+        const id = tokenDefinitionId({
+            name: "Test Construct",
+            types: ["Artifact", "Creature"],
+            subtypes: ["Construct"],
+            power: 0,
+            toughness: 0,
+            imagePrintId: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+            imagePrintFace: "back",
+        });
+        const def = getDefinition(id);
+        expect(def.imagePrintId).toBe("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
+        expect(def.imagePrintFace).toBe("back");
     });
 });

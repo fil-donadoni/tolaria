@@ -10,7 +10,8 @@
 // don't (so the caller skips the network and renders a placeholder).
 
 import { describe, it, expect } from "vitest";
-import { registerTokenDefinition } from "@convex/cards";
+import { tokenDefinitionId } from "@convex/cards";
+import type { TokenSpec } from "@convex/cards/types";
 import {
     getArtCropImageUrl,
     getArtImageUrl,
@@ -109,32 +110,32 @@ describe("resolveCardImageId", () => {
 
 // Face-aware image URL selection for transformed permanents/tokens (CR 712,
 // issue #1595). A permanent showing its back face has `card.card.id` swapped
-// to a synthesized `CardDefinition` that `registerBackFaceDefinition`
-// (`gre/transform.ts`) stamps `imagePrintFace: "back"` on — `resolveCardImageFace`
-// is the single chokepoint that reads it back, and every URL builder accepts
+// to a synthesized token id whose CONTENT encodes `imagePrintFace: "back"`
+// (`tokenDefinitionId`, `convex/cards/index.ts`) — `resolveCardImageFace` is
+// the single chokepoint that reads it back, and every URL builder accepts
 // the resolved face as an explicit param.
 describe("resolveCardImageFace / face-aware URL selection (issue #1595)", () => {
     const PRINT_ID = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
 
-    // Registers a synthesized back-face definition exactly the way
-    // `registerBackFaceDefinition` does (same `token:` id shape, same
-    // `imagePrintFace: "back"` stamp) — this test exercises the FRONTEND
-    // reader against the shape the backend actually produces, not a
-    // hand-rolled shortcut.
-    const BACK_FACE_ID =
-        "token:Test Construct|Artifact,Creature|Construct||0|0|||aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
-    registerTokenDefinition({
-        id: BACK_FACE_ID,
+    // Builds the id via the SAME `tokenDefinitionId` codec
+    // `registerBackFaceDefinition` (`gre/transform.ts`) uses — and,
+    // deliberately, NEVER registers it. On a real client, `transformPermanent`
+    // runs server-side only; the browser bundle never sees that
+    // `registerTokenDefinition` call and must decode the wire `card.card.id`
+    // string cold, through `maybeSynthesizeToken`'s lazy-synthesis path
+    // (`convex/cards/index.ts`). Pre-registering the def here would bypass
+    // that decode path entirely and mask a codec bug (issue #1595 review) —
+    // this id is resolved the same way a fresh, cold client would.
+    const backFaceSpec: TokenSpec = {
         name: "Test Construct",
-        rarity: "common",
-        manaCost: {},
         types: ["Artifact", "Creature"],
         subtypes: ["Construct"],
         power: 0,
         toughness: 0,
         imagePrintId: PRINT_ID,
         imagePrintFace: "back",
-    });
+    };
+    const BACK_FACE_ID = tokenDefinitionId(backFaceSpec);
 
     // A plain token with its OWN imagePrintId but no back-face marker — the
     // overwhelming majority shape (e.g. The Hive's Wasp) — must still default
@@ -151,7 +152,7 @@ describe("resolveCardImageFace / face-aware URL selection (issue #1595)", () => 
         expect(resolveCardImageFace(PLAIN_TOKEN_ID)).toBe("front");
     });
 
-    it("a registered back-face definition resolves to back", () => {
+    it("a cold-decoded (never registered) back-face token id resolves to back", () => {
         expect(resolveCardImageFace(BACK_FACE_ID)).toBe("back");
     });
 

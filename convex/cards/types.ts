@@ -1397,6 +1397,17 @@ export interface TokenSpec {
      *  token). See {@link CardBackFace} for the full contract. Undefined for
      *  the overwhelming majority of (single-faced) tokens. */
     backFace?: CardBackFace;
+    /** Which face THIS spec's own `imagePrintId` renders (issue #1595). Only
+     *  set by `backFaceAsTokenSpec` (`gre/transform.ts`) when reshaping a
+     *  `CardBackFace` into a `TokenSpec` for `registerBackFaceDefinition` —
+     *  never authored directly on an ordinary `createToken` spec. Folded into
+     *  the content-derived id by `tokenDefinitionId` (a trailing segment) so
+     *  a CLIENT that never ran the server-side registration call — the
+     *  overwhelming common case, since `transformPermanent` runs
+     *  server-side only — still decodes `"back"` from the wire `card.card.id`
+     *  string alone via `maybeSynthesizeToken`, with no registry round-trip
+     *  needed. See {@link CardDefinition.imagePrintFace}. */
+    imagePrintFace?: CardImageFace;
 }
 
 /** JSON-pure token specification for the `createToken` Effect Script Op

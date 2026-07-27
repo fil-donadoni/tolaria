@@ -48,7 +48,19 @@ import type { CardInstanceState } from "./state";
 
 /** Reshapes a `CardBackFace` into the `TokenSpec` shape `tokenDefinitionId`
  *  expects (same field vocabulary minus `entersWith`/`backFace` — a back
- *  face is never itself given a further back face). */
+ *  face is never itself given a further back face).
+ *
+ *  Stamps `imagePrintFace: "back"` (issue #1595) whenever the back face
+ *  carries its own `imagePrintId` — a real double-faced Scryfall print
+ *  shares ONE id across both faces (the Incubator/Phyrexian token,
+ *  `cards/abilities/tokens/incubatorToken.ts`), each served under its own
+ *  `front/`/`back/` CDN path. Setting it HERE, on the `TokenSpec` itself
+ *  (not as an ad-hoc extra field on the registered `CardDefinition`), is
+ *  what makes `tokenDefinitionId` below fold it into the content-derived
+ *  id — the wire `card.card.id` a CLIENT decodes independently, with no
+ *  server-side registration call ever reaching it (`transformPermanent`
+ *  runs server-side only). Without this, `maybeSynthesizeToken`'s
+ *  from-scratch decode has no way to know the face was "back". */
 function backFaceAsTokenSpec(backFace: CardBackFace): TokenSpec {
     return {
         name: backFace.name,
@@ -62,6 +74,7 @@ function backFaceAsTokenSpec(backFace: CardBackFace): TokenSpec {
         staticEffects: backFace.staticEffects,
         activatedAbilities: backFace.activatedAbilities,
         imagePrintId: backFace.imagePrintId,
+        ...(backFace.imagePrintId ? { imagePrintFace: "back" as const } : {}),
     };
 }
 
@@ -106,20 +119,12 @@ function registerBackFaceDefinition(backFace: CardBackFace): string {
             ? { staticEffects: [...spec.staticEffects] }
             : {}),
         ...(backFace.oracleText ? { oracleText: backFace.oracleText } : {}),
-        // issue #1595 — a real double-faced Scryfall print shares ONE id
-        // across both faces (see the Incubator/Phyrexian token,
-        // `cards/abilities/tokens/incubatorToken.ts`), each served under its
-        // own `front/`/`back/` CDN path. Stamping `imagePrintFace: "back"`
-        // here (never on the spec itself) is what lets `resolveCardImageFace`
-        // (`src/lib/images.ts`) route a transformed permanent's art to the
-        // BACK path the instant `transformPermanent` swaps `card.card.id` to
-        // this synthesized definition.
-        ...(spec.imagePrintId
-            ? {
-                  imagePrintId: spec.imagePrintId,
-                  imagePrintFace: "back" as const,
-              }
-            : {}),
+        // issue #1595 — read back off `spec` (never re-derived ad hoc here):
+        // `spec.imagePrintFace` is the SAME value `tokenDefinitionId(spec)`
+        // already folded into `id` above, so this server-side registration
+        // and the id a client independently decodes always agree.
+        ...(spec.imagePrintId ? { imagePrintId: spec.imagePrintId } : {}),
+        ...(spec.imagePrintFace ? { imagePrintFace: spec.imagePrintFace } : {}),
     });
     return id;
 }
