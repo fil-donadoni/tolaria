@@ -686,7 +686,7 @@ One Swiss round of a **Limited Event**'s **Play Phase**: a numbered set of **Pai
 _Avoid_: Turn, cycle
 
 **Pairing**:
-The unit inside a **Round**: two **Seats** matched against each other, or one Seat with a **Bye**. Keyed by **Seat** index, not by user — a bot Seat has no user. A Pairing is *chosen* (with randomness among equal-score Seats) and therefore **persisted**, never re-derived, so a re-render can't disagree with what was actually played. It carries an optional result in **games won by each side** plus a `source` (`played` / `simulated` / `bye` / `timeout`) recording how the result came to be. A human Pairing gets a real **Match**; a bot-vs-bot Pairing is **evaluated** from both drafted decks, never simulated through the **GRE**.
+The unit inside a **Round**: two **Seats** matched against each other, or one Seat with a **Bye**. Keyed by **Seat** index, not by user — a bot Seat has no user. A Pairing is _chosen_ (with randomness among equal-score Seats) and therefore **persisted**, never re-derived, so a re-render can't disagree with what was actually played. It carries an optional result in **games won by each side** plus a `source` (`played` / `simulated` / `bye` / `timeout`) recording how the result came to be. A human Pairing gets a real **Match**; a bot-vs-bot Pairing is **evaluated** from both drafted decks, never simulated through the **GRE**.
 _Avoid_: Matchup, match (a Pairing may have no Match at all)
 
 **Match Format** (event-level):
@@ -702,7 +702,7 @@ A **Pairing** with only one **Seat** — the odd Seat out at a table with an odd
 _Avoid_: Forfeit, walkover (those imply an opponent who lost)
 
 **Standings**:
-The ranked table of a **Limited Event**'s **Seats** — match points, match record and game-win percentage — **derived at read time** from the recorded **Pairing** results, never stored. The complement of persisting the Pairings: persist what was *chosen*, derive what is *implied*, so the table can never disagree with the results it comes from.
+The ranked table of a **Limited Event**'s **Seats** — match points, match record and game-win percentage — **derived at read time** from the recorded **Pairing** results, never stored. The complement of persisting the Pairings: persist what was _chosen_, derive what is _implied_, so the table can never disagree with the results it comes from.
 _Avoid_: Leaderboard, ranking (implies persistence across events — explicitly out of scope)
 
 **Limited (Format)**:

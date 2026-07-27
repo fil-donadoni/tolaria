@@ -83,20 +83,18 @@ describe("limitedEvents play-phase fields (PRD #1628, issue #1640)", () => {
     // Backward compatibility AC: an event created before the play phase
     // existed carries NONE of these, so every one must be optional or every
     // existing document instantly fails validation.
-    it.each([
-        "matchFormat",
-        "roundDeadlineMinutes",
-        "currentRound",
-        "rounds",
-    ])("declares %s as an OPTIONAL field (existing events keep working)", (f) => {
-        expect(eventFields[f]).toBeDefined();
-        expect(eventFields[f].optional).toBe(true);
-    });
+    it.each(["matchFormat", "roundDeadlineMinutes", "currentRound", "rounds"])(
+        "declares %s as an OPTIONAL field (existing events keep working)",
+        (f) => {
+            expect(eventFields[f]).toBeDefined();
+            expect(eventFields[f].optional).toBe(true);
+        }
+    );
 
     it("declares matchFormat as exactly the formats the domain module offers", () => {
-        expect(literalMembers(eventFields.matchFormat.fieldType).sort()).toEqual(
-            [...LIMITED_MATCH_FORMATS].sort()
-        );
+        expect(
+            literalMembers(eventFields.matchFormat.fieldType).sort()
+        ).toEqual([...LIMITED_MATCH_FORMATS].sort());
     });
 });
 
@@ -108,9 +106,7 @@ describe("limitedEvents play-phase fields (PRD #1628, issue #1640)", () => {
 describe("limitedEvents.rounds ↔ LimitedRound (round-trip, no field loss)", () => {
     const roundJson = arrayElement(eventFields.rounds.fieldType);
     const roundSchemaFields = objectFields(roundJson);
-    const pairingJson = arrayElement(
-        roundSchemaFields.pairings.fieldType
-    );
+    const pairingJson = arrayElement(roundSchemaFields.pairings.fieldType);
     const pairingSchemaFields = objectFields(pairingJson);
     const resultSchemaFields = objectFields(
         pairingSchemaFields.result.fieldType
@@ -163,9 +159,9 @@ describe("limitedEvents.rounds ↔ LimitedRound (round-trip, no field loss)", ()
         // `source` is required, not decorative (PRD #1628): the standings UI
         // needs it to explain an awarded win.
         expect(resultSchemaFields.source.optional).toBe(false);
-        expect(literalMembers(resultSchemaFields.source.fieldType).sort()).toEqual(
-            ["bye", "played", "simulated", "timeout"]
-        );
+        expect(
+            literalMembers(resultSchemaFields.source.fieldType).sort()
+        ).toEqual(["bye", "played", "simulated", "timeout"]);
     });
 });
 

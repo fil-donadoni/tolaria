@@ -66,9 +66,9 @@ describe("round deadline bounds (PRD #1628 stories 3-4)", () => {
     });
 
     it("offers a real Limited round length as the on-switch default", () => {
-        expect(isValidRoundDeadlineMinutes(DEFAULT_ROUND_DEADLINE_MINUTES)).toBe(
-            true
-        );
+        expect(
+            isValidRoundDeadlineMinutes(DEFAULT_ROUND_DEADLINE_MINUTES)
+        ).toBe(true);
         expect(DEFAULT_ROUND_DEADLINE_MINUTES).toBe(50);
     });
 

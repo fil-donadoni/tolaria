@@ -79,9 +79,9 @@ question:
   start are assignments naming the phase being entered, not comparisons
   branching on one.
 
-The distinction is what the guard is actually about: a literal that *reads a
-status to decide behaviour* silently becomes wrong when a member is added; a
-literal that *names a specific status* does not.
+The distinction is what the guard is actually about: a literal that _reads a
+status to decide behaviour_ silently becomes wrong when a member is added; a
+literal that _names a specific status_ does not.
 
 ### 2. The play phase lives EMBEDDED in the event document
 
@@ -96,14 +96,14 @@ Considered and rejected:
   buys isolation this domain's scale does not need: at most 8 seats × 3 rounds =
   12 pairings, bounded by the existing 8-seat cap.
 - **An append-only results log with derived pairings.** Rejected because a Swiss
-  pairing is *chosen* — with randomness among equal-score seats — so it must be
+  pairing is _chosen_ — with randomness among equal-score seats — so it must be
   persisted, not re-derived. A re-derivation could disagree with what was
   actually played.
 
 The complement matters as much: **standings are NEVER stored.** They are derived
 at read time in the projection from the recorded results, so the table can never
-disagree with the results it is computed from. Persist what was *chosen*
-(pairings), derive what is *implied* (standings).
+disagree with the results it is computed from. Persist what was _chosen_
+(pairings), derive what is _implied_ (standings).
 
 `matches` and `games` gain `limitedPairing: { round, seatA, seatB }` alongside
 the existing `limitedEventId`, so a finished Match finds its pairing without
@@ -118,7 +118,7 @@ storage concern, and no client should re-implement the default.
 ### 3. Bot-vs-bot matches are EVALUATED, not simulated through the GRE
 
 A round's bot-vs-bot pairings resolve automatically, scored from each bot's
-actual drafted deck: deck strength aggregated through the *same* seams the Bot
+actual drafted deck: deck strength aggregated through the _same_ seams the Bot
 Drafter already uses (`CardEvalMeta`, `GetPickRating`, the
 `scoreCandidateWithRating` weighting), converted to a per-game win probability
 through a logistic curve **clamped to roughly 25–75 %**, then rolled per game

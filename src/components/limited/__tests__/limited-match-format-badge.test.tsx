@@ -74,7 +74,11 @@ describe("LimitedMatchFormatBadge (PRD #1628, issue #1640)", () => {
             currentRound: 1,
             roundDeadlineMinutes: 30,
             rounds: [
-                { roundNumber: 1, startedAt: 0, pairings: [{ seatA: 0, seatB: 1 }] },
+                {
+                    roundNumber: 1,
+                    startedAt: 0,
+                    pairings: [{ seatA: 0, seatB: 1 }],
+                },
             ],
         });
         expect(screen.getByText("Best of 1 · 30 min rounds")).toBeTruthy();

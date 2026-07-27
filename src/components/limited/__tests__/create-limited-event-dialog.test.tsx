@@ -397,10 +397,14 @@ describe("CreateLimitedEventDialog — Match Format (PRD #1628 stories 1-2)", ()
             screen.getByRole("radiogroup", { name: "Match Format" })
         ).toBeTruthy();
         expect(
-            screen.getByRole("radio", { name: "Bo3" }).getAttribute("aria-checked")
+            screen
+                .getByRole("radio", { name: "Bo3" })
+                .getAttribute("aria-checked")
         ).toBe("true");
         expect(
-            screen.getByRole("radio", { name: "Bo1" }).getAttribute("aria-checked")
+            screen
+                .getByRole("radio", { name: "Bo1" })
+                .getAttribute("aria-checked")
         ).toBe("false");
     });
 
@@ -426,7 +430,9 @@ describe("CreateLimitedEventDialog — Match Format (PRD #1628 stories 1-2)", ()
         renderDialog({ onCreate });
         fireEvent.click(screen.getByRole("radio", { name: "Bo1" }));
         expect(
-            screen.getByRole("radio", { name: "Bo1" }).getAttribute("aria-checked")
+            screen
+                .getByRole("radio", { name: "Bo1" })
+                .getAttribute("aria-checked")
         ).toBe("true");
 
         fireEvent.click(screen.getByText("Create Event"));

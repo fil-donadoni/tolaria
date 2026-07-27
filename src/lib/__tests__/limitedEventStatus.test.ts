@@ -110,7 +110,9 @@ describe("limitedEventStatusHint — play phase (PRD #1628, issue #1640)", () =>
 
     it("returns 'finished' once the last round is decided", () => {
         expect(
-            limitedEventStatusHint(base({ status: "finished", completed: true }))
+            limitedEventStatusHint(
+                base({ status: "finished", completed: true })
+            )
         ).toBe("finished");
     });
 
