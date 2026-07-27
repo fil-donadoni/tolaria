@@ -6,6 +6,10 @@
 // `limited-vs-ai-panel.test.tsx`'s mocking discipline.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, cleanup, screen } from "@testing-library/react";
+import {
+    projectLimitedEvent,
+    type LimitedEventRow,
+} from "@convex/limited/eventProjection";
 import type { LimitedEventView } from "~/hooks/useLimitedEvent";
 import LimitedEventDetail from "../limited-event-detail";
 
@@ -29,8 +33,15 @@ vi.mock("@convex/_generated/api", () => {
     return { api: apiProxy };
 });
 
+// Mutable so the challenge-panel-visibility tests below can give the viewer
+// a legal deck for the event (`LimitedChallengePanel` renders nothing at all
+// without one) without disturbing every other test in this file, which relies
+// on the empty default (mirrors `limited-round-action.test.tsx`'s
+// `userDecksMock` idiom).
+let userDecksMock: unknown[] | undefined = [];
+
 vi.mock("~/hooks/useUserDecks", () => ({
-    useUserDecks: () => [],
+    useUserDecks: () => userDecksMock,
 }));
 
 const eventMock = vi.fn();
@@ -45,6 +56,7 @@ vi.mock("~/hooks/useLimitedEvent", () => ({
 
 beforeEach(() => {
     vi.clearAllMocks();
+    userDecksMock = [];
 });
 
 afterEach(() => {
@@ -369,5 +381,107 @@ describe("free challenges / Play-vs-Bots hide during rounds, reappear labelled a
 
         expect(screen.getByText("Play vs Bots")).toBeTruthy();
         expect(screen.getByText(/unrecorded playtesting/i)).toBeTruthy();
+    });
+});
+
+// `LimitedChallengePanel` visibility across the play-phase lifecycle
+// (finding 2, PR #1681 review, issue #1648): `makePoolFinalEvent` above seats
+// only a BOT opponent, so `LimitedChallengePanel` — which only ever pairs two
+// HUMANS — returns null in EVERY status above, and nothing in this file
+// actually asserted "the free challenge panel hides while rounds run /
+// reappears once finished". This fixture gives the viewer a second HUMAN
+// opponent seat and a legal saved deck of their own (both required for the
+// panel to render anything at all), and drives the view through the REAL
+// `projectLimitedEvent` reducer — never a hand-built view (CLAUDE.md §
+// Frontend wiring analysis) — so a projection drop of `hasDeck`/`userId`
+// would surface here too.
+const CHALLENGE_LEGAL_DECK = {
+    kind: "user" as const,
+    userDeckId: "userdeck-1",
+    presetId: "userdeck-1",
+    name: "Alice's Sealed Deck",
+    format: "limited" as const,
+    colors: ["R"],
+    cards: [{ cardId: "card-a", cardName: "Mountain" }],
+    sideboard: [],
+    featuredCardId: null,
+    isLegal: true,
+    reasons: [],
+    limitedEventId: "event-1",
+    limitedSeatId: "0",
+};
+
+function projectedChallengeableEvent(
+    status: "started" | "playing" | "finished"
+): LimitedEventView {
+    const row: LimitedEventRow = {
+        _id: "event-1",
+        createdBy: "user-1",
+        type: "sealed",
+        status,
+        seatCount: 2,
+        packSlots: ["lea"],
+        sealedBoosterCount: 6,
+        matchFormat: "bo3",
+        seats: [
+            {
+                seatIndex: 0,
+                userId: "user-1",
+                nickname: "Alice",
+                poolCount: 40,
+            },
+            { seatIndex: 1, userId: "user-2", nickname: "Bob", poolCount: 40 },
+        ],
+        createdAt: 0,
+        updatedAt: 0,
+    };
+    const projected = projectLimitedEvent(
+        row,
+        "user-1",
+        false,
+        2,
+        new Map(),
+        // Both seats have a submitted deck — the real `hasDeck` flag
+        // `LimitedChallengePanel`'s opponent filter reads.
+        new Set([0, 1])
+    ) as unknown as LimitedEventView;
+    return {
+        // The query shell zips the viewer's challenges onto the pure
+        // projection — mirror that here rather than replacing the
+        // projection itself (`limited-round-action.test.tsx`'s idiom). Not
+        // exercised by this fixture: the panel renders off `myDeck` +
+        // `opponentSeats`, not `viewerIncomingChallenges`.
+        ...projected,
+        viewerIncomingChallenges: [],
+        viewerOutgoingChallenge: null,
+    };
+}
+
+describe("LimitedChallengePanel hides during rounds, reappears at finish (finding 2, issue #1648 review)", () => {
+    it("hides the challenge panel while the event's rounds are running", () => {
+        userDecksMock = [CHALLENGE_LEGAL_DECK];
+        eventMock.mockReturnValue(projectedChallengeableEvent("playing"));
+
+        render(<LimitedEventDetail eventId={"event-1" as never} />);
+
+        expect(screen.queryByText("Challenge a Player")).toBeNull();
+    });
+
+    it("shows the challenge panel during draft/deckbuild (unaffected, AC)", () => {
+        userDecksMock = [CHALLENGE_LEGAL_DECK];
+        eventMock.mockReturnValue(projectedChallengeableEvent("started"));
+
+        render(<LimitedEventDetail eventId={"event-1" as never} />);
+
+        expect(screen.getByText("Challenge a Player")).toBeTruthy();
+    });
+
+    it("brings the challenge panel back once the event is finished", () => {
+        userDecksMock = [CHALLENGE_LEGAL_DECK];
+        eventMock.mockReturnValue(projectedChallengeableEvent("finished"));
+
+        render(<LimitedEventDetail eventId={"event-1" as never} />);
+
+        expect(screen.getByText("Challenge a Player")).toBeTruthy();
     });
 });

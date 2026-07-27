@@ -3530,6 +3530,31 @@ export const joinGame = mutation({
                 args.deck.limitedEventId,
                 game.limitedEventId ?? ""
             );
+            // A PHASE question, never a status literal (ADR 0076 decision 1):
+            // free challenges are withdrawn while the event's Swiss rounds are
+            // running (PRD #1628 story 36, issue #1648) — the round pairing is
+            // the only Match a seat plays. `challengeLimitedSeat` already
+            // rejects CREATING a free challenge once rounds are running, but a
+            // free challenge sent during deckbuild is still a `waiting` row
+            // when the phase flips to `playing` (nothing cancels it —
+            // `openPlayPhaseIfReady` only patches status/rounds), so the ACCEPT
+            // side needs the identical gate or the challenged seat can still
+            // join it, landing both players in a live event-bound Match
+            // outside the pairing and burning the single-active-Match slot the
+            // pairing needs. A round pairing Match carries BOTH
+            // `limitedChallenge` AND `limitedPairing` (`startPairingMatch`) —
+            // that accept path must stay open even while rounds run, since it
+            // IS the round, so the gate applies only to a "free" challenge
+            // Game (no `limitedPairing`).
+            if (!game.limitedPairing && game.limitedEventId) {
+                const event = await ctx.db.get(
+                    game.limitedEventId as Id<"limitedEvents">
+                );
+                if (event && areRoundsRunning(event.status))
+                    throw new Error(
+                        "Free challenges are off while this event's rounds are running."
+                    );
+            }
         }
         // A round pairing Match (issue #1645) is an appointment between two
         // SEATS: the accepting player must sit down with the deck of the seat

@@ -14,7 +14,12 @@
 // card registry + the REAL checked-in LEA Booster Config.
 import { describe, it, expect } from "vitest";
 import type { MutationCtx } from "../_generated/server";
-import { challengeLimitedSeat, createSoloGame } from "../game";
+import {
+    challengeLimitedSeat,
+    createSoloGame,
+    joinGame,
+    startPairingMatch,
+} from "../game";
 import { resolveDeckCardMeta, tryGetDefinition } from "../cards";
 import type { GateDeck } from "../formats";
 import { makeRng } from "../gre/rng";
@@ -185,6 +190,40 @@ function makeStubCtx(event: TwoHumanEvent, callerUserId: string) {
     return { ctx: ctx as unknown as MutationCtx, docs };
 }
 
+/** Re-points a stub ctx at a DIFFERENT authenticated caller while sharing the
+ *  SAME underlying `docs` map — the two-user idiom `limitedPairingMatch.test.ts`
+ *  uses (`asUser`), needed here so a Game/Match one seat creates is visible to
+ *  the OTHER seat's accept call. */
+function asUser(ctx: MutationCtx, userId: string): MutationCtx {
+    return {
+        ...ctx,
+        auth: {
+            getUserIdentity: async () => ({ subject: `${userId}|session1` }),
+        },
+    } as unknown as MutationCtx;
+}
+
+/** Same 2-human Sealed LEA table as `buildTwoHumanEvent`, plus a live Round 1
+ *  pairing seat 0 vs seat 1 — what `startPairingMatch` needs to start the
+ *  round Match that `joinGame`'s gate must NOT reject. */
+function buildPairedTwoHumanEvent(
+    eventId: string,
+    seed: number,
+    status: LimitedEventStatus
+) {
+    return {
+        ...buildTwoHumanEvent(eventId, seed, status),
+        currentRound: 1,
+        rounds: [
+            {
+                roundNumber: 1,
+                startedAt: 0,
+                pairings: [{ seatA: 0, seatB: 1 }],
+            },
+        ],
+    };
+}
+
 /** Drives a registered mutation's `_handler` directly — the function Convex
  *  actually deploys — bypassing the `args`/`returns` validator wrapper (which
  *  needs the real Convex runtime). Same idiom as
@@ -313,5 +352,62 @@ describe("event-bound Play-vs-Bots playtest is rejected server-side while the ev
         expect(
             [...docs.values()].filter((d) => d.__table === "matches")
         ).toHaveLength(1);
+    });
+});
+
+describe("joinGame's Limited-challenge accept is gated too (finding 1, issue #1648 review)", () => {
+    // Gating CREATION (`challengeLimitedSeat`, above) is not enough: nothing
+    // cancels a free challenge that was already sent during deckbuild once the
+    // event flips to `playing` (`openPlayPhaseIfReady`, `limitedEvents.ts`,
+    // only patches status/rounds) — it is still a `waiting` Game the addressed
+    // seat can `joinGame` into. This reproduces exactly that lifecycle: the
+    // challenge is created while `started`, then the event is flipped to
+    // `playing` UNDERNEATH it (no code path touches the challenge Game), and
+    // only THEN does the challenged seat try to accept.
+    it("rejects joinGame accepting a free challenge once the event's rounds are running", async () => {
+        const event = buildTwoHumanEvent("event-gate-7", 777, "started");
+        const { ctx, docs } = makeStubCtx(event, "alice");
+
+        const gameId = (await runHandler(challengeLimitedSeat, ctx, {
+            eventId: event._id,
+            challengedSeatIndex: 1,
+            deck: deckForSeat(event, 0),
+        })) as string;
+
+        // The event's rounds start — nothing here touches the leftover
+        // challenge Game/Match, exactly as `openPlayPhaseIfReady` behaves.
+        docs.set(event._id, { ...docs.get(event._id), status: "playing" });
+
+        await expect(
+            runHandler(joinGame, asUser(ctx, "bob"), {
+                gameId,
+                deck: deckForSeat(event, 1),
+            })
+        ).rejects.toThrow(/rounds are running/);
+    });
+
+    // Companion: a round pairing Match ALSO carries `limitedChallenge`
+    // (`startPairingMatch` stamps both), so a naive `game.limitedChallenge`
+    // gate would reject the pairing accept itself — the actual round the
+    // event's rounds-running phase exists to run. Excluded via
+    // `!game.limitedPairing`; this proves that exclusion holds.
+    it("still allows accepting the ROUND PAIRING Match while the event's rounds are running", async () => {
+        const event = buildPairedTwoHumanEvent("event-gate-8", 888, "playing");
+        const { ctx, docs } = makeStubCtx(event, "alice");
+
+        const gameId = (await runHandler(startPairingMatch, ctx, {
+            eventId: event._id,
+            deck: deckForSeat(event, 0),
+        })) as string;
+
+        await runHandler(joinGame, asUser(ctx, "bob"), {
+            gameId,
+            deck: deckForSeat(event, 1),
+        });
+
+        const game = docs.get(gameId)!;
+        const match = docs.get(game.matchId as string)!;
+        expect(match.status).toBe("pregame");
+        expect((match.players as unknown[]).length).toBe(2);
     });
 });
