@@ -61,7 +61,7 @@ import {
     sourceCountsByColor,
     type CardEvalMeta,
 } from "./botDrafter";
-import type { GetCardProfile } from "./cardProfiles";
+import type { GetCardProfile } from "./cardProfilesCore";
 import type { LimitedPoolCard } from "./eventTypes";
 import { arePoolsDealt, type LimitedEventStatus } from "./eventStatus";
 

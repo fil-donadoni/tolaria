@@ -29,7 +29,7 @@ import {
     type ResolveBasicLand,
     type TrueColor,
 } from "../autoBuild";
-import type { CardProfile, GetCardProfile } from "../cardProfiles";
+import type { CardProfile, GetCardProfile } from "../cardProfilesCore";
 import {
     runBotAutoPicks,
     startDraft,
