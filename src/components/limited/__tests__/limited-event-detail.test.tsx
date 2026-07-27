@@ -296,3 +296,78 @@ describe("LimitedEventDetail — standings table (PRD #1628 stories 22-24, issue
         expect(viewerRow.textContent).toContain("Alice");
     });
 });
+
+// Free challenges / Play-vs-Bots are hidden while the event's rounds are
+// running and reappear, labelled as unrecorded, once it's finished (PRD
+// #1628 stories 36-38, issue #1648). PR #1676 already wired the hide/reappear
+// mechanic (`!showRoundPanel`, off `areRoundsRunning`/`isEventConcluded`);
+// this pins the part #1648 actually adds — the "unrecorded" label — and
+// exercises the reappear path end to end, which had no test before.
+function makePoolFinalEvent(
+    status: "started" | "playing" | "finished"
+): LimitedEventView {
+    return makeEvent({
+        status,
+        standings: [],
+        seats: [
+            {
+                seatIndex: 0,
+                userId: "user-1",
+                nickname: "Alice",
+                isBot: false,
+                isViewer: true,
+                poolCount: 40,
+                pool: null,
+                currentPack: null,
+                packQueueCount: null,
+                pickDeadline: null,
+                autoBuiltDeck: null,
+            },
+            {
+                seatIndex: 1,
+                isBot: true,
+                nickname: "Bot 2",
+                isViewer: false,
+                poolCount: 40,
+                pool: null,
+                currentPack: null,
+                packQueueCount: null,
+                pickDeadline: null,
+                autoBuiltDeck: {
+                    cards: [{ cardId: "c1", cardName: "Mountain" }],
+                    sideboard: [],
+                    colors: ["R"],
+                },
+            },
+        ],
+    } as unknown as Partial<LimitedEventView>);
+}
+
+describe("free challenges / Play-vs-Bots hide during rounds, reappear labelled at finish (issue #1648)", () => {
+    it("hides Play-vs-Bots and the unrecorded label while the event's rounds are running", () => {
+        eventMock.mockReturnValue(makePoolFinalEvent("playing"));
+
+        render(<LimitedEventDetail eventId={"event-1" as never} />);
+
+        expect(screen.queryByText("Play vs Bots")).toBeNull();
+        expect(screen.queryByText(/unrecorded playtesting/i)).toBeNull();
+    });
+
+    it("shows Play-vs-Bots with no unrecorded label during draft/deckbuild (unaffected, AC)", () => {
+        eventMock.mockReturnValue(makePoolFinalEvent("started"));
+
+        render(<LimitedEventDetail eventId={"event-1" as never} />);
+
+        expect(screen.getByText("Play vs Bots")).toBeTruthy();
+        expect(screen.queryByText(/unrecorded playtesting/i)).toBeNull();
+    });
+
+    it("brings Play-vs-Bots back, labelled unrecorded, once the event is finished", () => {
+        eventMock.mockReturnValue(makePoolFinalEvent("finished"));
+
+        render(<LimitedEventDetail eventId={"event-1" as never} />);
+
+        expect(screen.getByText("Play vs Bots")).toBeTruthy();
+        expect(screen.getByText(/unrecorded playtesting/i)).toBeTruthy();
+    });
+});
