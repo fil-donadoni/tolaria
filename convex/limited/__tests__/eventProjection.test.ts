@@ -965,15 +965,29 @@ describe("standings projection (PRD #1628 stories 22-24/47, issue #1643)", () =>
     });
 });
 
-describe("projectLimitedEvent — seed exposure (issue #1613, ADR 0074 replay mode)", () => {
-    it("hides seed while the event is still running (completed = false)", () => {
-        const event = row({ seed: 42 });
-        const view = projectLimitedEvent(event, "user1", false);
+describe("projectLimitedEvent — seed exposure (issue #1613, ADR 0074 replay mode; tightened by the #1613 fixup)", () => {
+    // Every call below passes `type: "draft"` explicitly except the
+    // dedicated Sealed-leak tests, since `row()`'s default `type` is
+    // "sealed" — a completed Sealed event getting the seed unconditionally
+    // was the leak this fixup closes (BLOCKING 1), so a Draft-only default
+    // would silently mask a regression back to that behavior.
+
+    it("hides seed while a Draft event is still running, even for an admin", () => {
+        const event = row({ type: "draft", seed: 42 });
+        const view = projectLimitedEvent(
+            event,
+            "user1",
+            false, // completed
+            0,
+            new Map(),
+            new Set(),
+            true // isAdmin
+        );
         expect(view.seed).toBeNull();
     });
 
-    it("hides seed for every viewer while running, not just non-participants", () => {
-        const event = row({ seed: 42 });
+    it("hides seed for every viewer while a Draft event is running, not just non-participants", () => {
+        const event = row({ type: "draft", seed: 42 });
         // Even the seated participant, and even a null (unauthenticated)
         // viewer, must not receive the seed before the draft is over — a
         // live seat could otherwise compute the packs it is about to be
@@ -984,32 +998,97 @@ describe("projectLimitedEvent — seed exposure (issue #1613, ADR 0074 replay mo
         }
     });
 
-    it("exposes seed once the event is completed — hides nothing once the draft is over", () => {
-        const event = row({ seed: 42 });
-        const view = projectLimitedEvent(event, "user1", true);
-        expect(view.seed).toBe(42);
+    it("exposes seed for a completed Draft event ONLY to an admin viewer", () => {
+        const event = row({ type: "draft", seed: 42 });
+        const admin = projectLimitedEvent(
+            event,
+            "user1",
+            true, // completed
+            0,
+            new Map(),
+            new Set(),
+            true // isAdmin
+        );
+        expect(admin.seed).toBe(42);
     });
 
-    it("exposes seed at completion to every viewer, not just an admin", () => {
-        const event = row({ seed: 42 });
+    it("hides seed for a completed Draft event from every NON-admin viewer, including a seated participant", () => {
+        const event = row({ type: "draft", seed: 42 });
         for (const viewer of ["user1", "user2", "outsider", null]) {
             const view = projectLimitedEvent(
                 event,
                 viewer,
-                true,
+                true, // completed
                 0,
                 new Map(),
                 new Set(),
-                false // isAdmin: false
+                false // isAdmin
             );
-            expect(view.seed).toBe(42);
+            expect(view.seed).toBeNull();
         }
     });
 
-    it("projects seed as null (not undefined) for a completed event with no stored seed", () => {
-        const event = row();
+    it("BLOCKING 1 regression: hides seed for a completed SEALED event even from an admin", () => {
+        // `generateSealedPools` (`eventLogic.ts`) is a pure function of
+        // `makeRng(seed)` + `packSlots` + `sealedBoosterCount` — both project
+        // unconditionally — so exposing the seed here would let ANY viewer
+        // regenerate EVERY seat's exact Pool client-side, defeating the
+        // admin gate on `pool`/`humanDeck` (issue #1583). Sealed has no
+        // picks/passing for the Draft Lab replay surface to reconstruct
+        // anyway, so there is nothing legitimate for it to expose the seed
+        // for.
+        const event = row({ type: "sealed", seed: 42 });
+        for (const viewer of ["user1", "user2", "outsider", null]) {
+            const view = projectLimitedEvent(
+                event,
+                viewer,
+                true, // completed
+                0,
+                new Map(),
+                new Set(),
+                true // isAdmin
+            );
+            expect(view.seed).toBeNull();
+        }
+    });
+
+    it("BLOCKING 1 regression: hides seed for a RUNNING sealed event's play phase (completed stays true through PRD #1628's play phase)", () => {
+        // `completed` means "every seat has a Deck", not "the event is
+        // over" — PRD #1628's play phase keeps it true while rounds are
+        // still being played. An unconditional-at-completion reveal would
+        // leak every opponent's full Pool while matches are still live, not
+        // just once the event is fully finished.
+        const event = row({
+            type: "sealed",
+            seed: 42,
+            status: "started",
+            currentRound: 1,
+            rounds: [],
+        });
+        const view = projectLimitedEvent(
+            event,
+            "user1",
+            true, // completed (every seat already has a deck)
+            2,
+            new Map(),
+            new Set(),
+            true // isAdmin
+        );
+        expect(view.seed).toBeNull();
+    });
+
+    it("projects seed as null (not undefined) for a completed Draft event an admin views with no stored seed", () => {
+        const event = row({ type: "draft" });
         delete event.seed;
-        const view = projectLimitedEvent(event, "user1", true);
+        const view = projectLimitedEvent(
+            event,
+            "user1",
+            true, // completed
+            0,
+            new Map(),
+            new Set(),
+            true // isAdmin
+        );
         expect(view.seed).toBeNull();
     });
 

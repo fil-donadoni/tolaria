@@ -65,4 +65,26 @@ describe("DraftLabReplayDivergenceBanner (issue #1613)", () => {
         expect(screen.getByText(/pick 2 on/)).not.toBeNull();
         expect(screen.getByText(/1 of 3.*pick\(s\) moved/)).not.toBeNull();
     });
+
+    it("never reports 'pick 0' when the very first pick already diverged (off-by-one fix, issue #1613 fixup)", () => {
+        const result: ReplayResult = {
+            picks: [
+                pick({
+                    pickIndex: 1,
+                    diverged: true,
+                    historicalCardId: "card-a",
+                    recomputedCardId: "card-b",
+                }),
+                pick({ pickIndex: 2, diverged: false }),
+            ],
+            firstDivergedPickIndex: 1,
+            complete: true,
+            stopReason: null,
+            stoppedAtSeat: null,
+        };
+        render(<DraftLabReplayDivergenceBanner result={result} />);
+        expect(screen.queryByText(/pick 0/)).toBeNull();
+        expect(screen.getByText(/No pick was faithful/)).not.toBeNull();
+        expect(screen.getByText(/From pick 1 on/)).not.toBeNull();
+    });
 });

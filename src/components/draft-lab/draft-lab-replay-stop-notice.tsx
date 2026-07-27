@@ -6,10 +6,18 @@
 //   - "pool-mismatch": a stored Pool entry doesn't match any card in the
 //     regenerated pack — the seed/pack source no longer reproduces the SAME
 //     packs this event was really drafted from.
+//
+// Seat label (issue #1613 fixup, non-blocking finding 3): uses the SAME
+// `seatLabelFor` (nickname, else 1-based "Seat N") that
+// `draft-lab-replay-pick-list.tsx` labels seats with — this used to print
+// the raw 0-based `seatIndex` instead, so the same seat read as two
+// different seats depending on which part of the panel you looked at.
 import type {
     ReplayResult,
     ReplayStopReason,
 } from "@/lib/limited/draftReplayEngine";
+import type { LimitedEventSeatView } from "@/hooks/useLimitedEvent";
+import { seatLabelFor } from "@/lib/limited/replaySeatLabel";
 
 const STOP_REASON_MESSAGE: Record<ReplayStopReason, string> = {
     "hidden-pool":
@@ -20,14 +28,16 @@ const STOP_REASON_MESSAGE: Record<ReplayStopReason, string> = {
 
 export default function DraftLabReplayStopNotice({
     result,
+    seats,
 }: {
     result: ReplayResult;
+    seats: readonly LimitedEventSeatView[];
 }) {
     if (result.complete || !result.stopReason) return null;
 
     return (
         <p className="rounded-sm bg-signal-opponent/15 px-2 py-1.5 text-[11px] text-signal-opponent">
-            Stopped at seat {result.stoppedAtSeat} —{" "}
+            Stopped at {seatLabelFor(seats, result.stoppedAtSeat!)} —{" "}
             {STOP_REASON_MESSAGE[result.stopReason]}
         </p>
     );

@@ -22,7 +22,7 @@
 // the one `cardRatings` table and the one `(scope, cardId)` key discipline.
 import { v } from "convex/values";
 import { mutation, query, type MutationCtx } from "../_generated/server";
-import { assertIsAdmin } from "../auth";
+import { assertIsAdmin, getCurrentUserId } from "../auth";
 import {
     getPickRating,
     isValidRating,
@@ -309,5 +309,99 @@ export const listScopeCardRatings = query({
         return buildScopeCardRatings(normalizedScope, cards, getDbRating).sort(
             (a, b) => a.name.localeCompare(b.name)
         );
+    },
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// Read-only replay query (issue #1613 fixup, pre-merge review finding 2): a
+// real `cardRatings` DB layer for the Draft Lab REPLAY surface. Without
+// this, `useDraftLabReplay.ts` scored every "recomputed" pick off the
+// checked-in seed file alone (`buildDraftLabPickRating`, which hardwires
+// `getDbRating` to `() => null` — the synthetic-mode Lab's OWN documented
+// contract, not a bug there) — on any deployment carrying an edited rating
+// (PRD #1296's Pick Rating editor), the recomputed column would diverge from
+// the REAL historical pick (made under `convex/limitedEvents.ts`'s
+// `loadEventPickRating`, which DOES fold in the database) for reasons that
+// have nothing to do with the scorer changing — a permanently spurious
+// `firstDivergedPickIndex`, the replay's whole tuning signal, gone wrong.
+// ─────────────────────────────────────────────────────────────────────────
+
+/** One `cardRatings` row as `listScopeCardRatingsForReplay` ships it — a raw
+ *  `(scope, cardId, rating)` triple, deliberately NOT pre-merged with the
+ *  seed layer (unlike `ScopeCardRating` above, the admin editor's shape):
+ *  the caller (`resolveEventPickRating` via `buildDbRatingLookup` below)
+ *  already knows how to layer a DB-only lookup under the seed file itself —
+ *  mirrors `cardProfiles.ts`'s `ScopedCardProfile` precedent exactly. */
+export interface ScopedCardRating {
+    scope: string;
+    cardId: string;
+    rating: number;
+}
+
+/** Turns a flat `listScopeCardRatingsForReplay` result into the `GetDbRating`
+ *  closure `resolveEventPickRating` wants — pure, no `ctx`. Mirrors
+ *  `cardProfiles.ts`'s `buildDbProfileLookup` exactly: the one shared
+ *  "rows -> lookup" step every caller of the scope-rows query needs, kept
+ *  out of the query itself since a `useQuery` result has to stay plain
+ *  serializable data, not a closure. Case-insensitive on `scope`, matching
+ *  `resolveEventPickRating`'s own normalization. */
+export function buildDbRatingLookup(
+    rows: readonly ScopedCardRating[]
+): GetDbRating {
+    const byKey = new Map<string, number>();
+    for (const row of rows) {
+        byKey.set(`${row.scope.toLowerCase()}::${row.cardId}`, row.rating);
+    }
+    return (scope: string, cardId: string): number | null =>
+        byKey.get(`${scope.toLowerCase()}::${cardId}`) ?? null;
+}
+
+/** Every `cardRatings` row for a set of scopes — the read-only counterpart to
+ *  `convex/limitedEvents.ts`'s inline `loadEventPickRating`, for a CLIENT
+ *  consumer that can't call that internal helper directly: the Draft Lab
+ *  replay surface (issue #1613 fixup). Mirrors `cardProfiles.ts`'s
+ *  `listScopeCardProfiles` exactly, including its gating choice — reading a
+ *  scope's edited ratings is informational, not an admin-only capability
+ *  (`assertIsAdmin` stays reserved for the WRITE mutations above and the
+ *  editor read `listScopeCardRatings`, which additionally folds in the seed
+ *  layer for editing UI). In practice only an admin viewer has a live reason
+ *  to call this today: the replay surface that feeds it needs the event's
+ *  `seed`, which `eventProjection.ts` now exposes only to an admin — but
+ *  this query itself places no admin gate on READING ratings, the same
+ *  "any authenticated user, not admin-gated" call `listScopeCardProfiles`
+ *  already makes for its own informational read. Read-only: no
+ *  `insert`/`patch`/`delete` anywhere in this handler, so it carries no
+ *  write surface for `draft-lab-no-mutation.test.ts` to catch. Uses the
+ *  `by_scope` index per scope — bounded, never a full-table scan, the same
+ *  access pattern `loadEventPickRating`/`listScopeCardRatings` already use. */
+export const listScopeCardRatingsForReplay = query({
+    args: { scopes: v.array(v.string()) },
+    returns: v.array(
+        v.object({
+            scope: v.string(),
+            cardId: v.string(),
+            rating: v.number(),
+        })
+    ),
+    handler: async (ctx, { scopes }): Promise<ScopedCardRating[]> => {
+        await getCurrentUserId(ctx);
+        const normalizedScopes = Array.from(
+            new Set(scopes.map((scope) => scope.toLowerCase()))
+        );
+        const rows: ScopedCardRating[] = [];
+        for (const scope of normalizedScopes) {
+            const scopeRows = await ctx.db
+                .query("cardRatings")
+                .withIndex("by_scope", (q) => q.eq("scope", scope))
+                .collect();
+            for (const row of scopeRows) {
+                rows.push({
+                    scope: row.scope,
+                    cardId: row.cardId,
+                    rating: row.rating,
+                });
+            }
+        }
+        return rows;
     },
 });

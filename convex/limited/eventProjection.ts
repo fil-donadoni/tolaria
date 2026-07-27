@@ -219,15 +219,35 @@ export interface LimitedEventView {
      *  the play phase — an event with no rounds yet renders a zeroed table,
      *  not an absent one (issue #1643 AC). */
     standings: StandingsRow[];
-    /** Event RNG seed (ADR 0055), exposed ONLY once the event is `completed`
-     *  (issue #1613, ADR 0074 "Draft Lab: replay mode") — `null` for a
-     *  running event, where the same seed would let a live seat compute the
-     *  packs it is about to be passed (the exact hidden information the
-     *  privacy projection protects everywhere else). Once the draft is over
-     *  there is nothing left to spoil: the seed plus every seat's already-
-     *  stored `pool` (the SAME `completed`-gated reveal `pool`/`humanDeck`
-     *  above already use) is everything the Draft Lab replay surface needs
-     *  to regenerate the packs and recompute every bot pick. */
+    /** Event RNG seed (ADR 0055), exposed ONLY for a `completed` DRAFT event
+     *  AND ONLY to an admin viewer (issue #1613 fixup, tightening the
+     *  original ADR 0074 "Draft Lab: replay mode" reveal). `null` in every
+     *  other case:
+     *  - a running event, where the same seed would let a live seat compute
+     *    the packs it is about to be passed (the exact hidden information
+     *    the privacy projection protects everywhere else);
+     *  - a SEALED event, `completed` or not: `generateSealedPools`
+     *    (`eventLogic.ts`) is a PURE function of `makeRng(seed)` +
+     *    `packSlots` + `sealedBoosterCount` — all three already project
+     *    unconditionally — so the seed alone lets ANY viewer regenerate
+     *    EVERY seat's exact Pool client-side, defeating the admin gate on
+     *    `pool`/`humanDeck` below (issue #1583). Worse, `completed` only
+     *    means "every seat has a Deck" — PRD #1628's play phase keeps a
+     *    Sealed event `completed` while matches are still being played
+     *    (`projectEventForViewer`'s `arePoolsDealt`/`computeEventCompletion`
+     *    gate is independent of the round/play-phase state), so an
+     *    unconditional reveal would leak opponents' full pools DURING live
+     *    matches, not just after the event is fully over;
+     *  - a non-admin viewer of a completed DRAFT event: a non-admin gains
+     *    nothing from the seed anyway (bot seats' `pool` stays `null` for
+     *    them, so `reconstructDraftReplay` stops at `"hidden-pool"` on the
+     *    first bot pick), so gating this to admin costs zero function while
+     *    closing the leak.
+     *  For a completed DRAFT event viewed by an admin, there is nothing left
+     *  to spoil: the seed plus every seat's already-stored `pool` (which
+     *  `pool`/`humanDeck` above ALSO only reveal to an admin at completion)
+     *  is everything the Draft Lab replay surface needs to regenerate the
+     *  packs and recompute every bot pick. */
     seed: number | null;
     /** Bot Drafter scorer version at the moment this event started
      *  (`convex/limited/scorerVersion.ts`). `undefined` for an event created
@@ -303,16 +323,20 @@ export function projectLimitedEvent(
         // `LimitedEventSeat[]` (both declare their own dependency-free shapes,
         // like `swiss.ts`/`completion.ts` do) — no adapter needed.
         standings: computeStandings(event.seats, event.rounds ?? []),
-        // Issue #1613: hides nothing while the draft is running (`null`
-        // there — the same "hidden until completed" discipline as
-        // `pool`/`humanDeck`), and reveals everything once it's over, to
-        // EVERY viewer (not admin-gated like `pool`/`humanDeck`: a bare seed
-        // number, on its own, regenerates only the ALREADY-drafted packs of
-        // an event that's already finished — it can't be combined with
-        // anything a non-participant, non-admin viewer receives to recover
-        // another seat's actual historical picks, since those still require
-        // that seat's `pool`, gated exactly as before).
-        seed: completed ? (event.seed ?? null) : null,
+        // Issue #1613 fixup: gated on `completed` AND `type === "draft"` AND
+        // `isAdmin` — see `LimitedEventView.seed`'s doc comment for why a
+        // SEALED event (whose Pools the bare seed can regenerate
+        // UNCONDITIONALLY, `generateSealedPools`/`packSlots`/
+        // `sealedBoosterCount` all project regardless of viewer) and a
+        // non-admin viewer (who cannot use the seed for anything — their
+        // `reconstructDraftReplay` run stops at "hidden-pool" the moment it
+        // hits a bot seat's `null` pool) must never receive it. Same
+        // admin-gate discipline as `pool`/`humanDeck` below, not the
+        // "everyone once completed" reveal this used to be.
+        seed:
+            completed && event.type === "draft" && isAdmin
+                ? (event.seed ?? null)
+                : null,
         scorerVersion: event.scorerVersion,
         completed,
         seatsWithDeck,

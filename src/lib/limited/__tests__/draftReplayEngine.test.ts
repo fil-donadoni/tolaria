@@ -54,15 +54,22 @@ describe("reconstructDraftReplay — unmodified event (issue #1613 AC1)", () => 
         expect(result.stopReason).toBeNull();
         expect(result.picks.length).toBe(ground.pickLog.length);
 
-        // Reconstructed per-seat pools, in pick order, must equal the
-        // ground-truth pools exactly — the reconstruction's whole point.
-        for (const seat of ground.seats) {
-            const reconstructedForSeat = result.picks
-                .filter((p) => p.seatIndex === seat.seatIndex)
-                .map((p) => p.historicalCardId);
-            expect(reconstructedForSeat).toEqual(
-                (seat.pool ?? []).map((c) => c.cardId)
-            );
+        // The real claim (issue #1613 fixup, non-blocking finding 1): the
+        // ORIGINAL assertion here compared `historicalCardId` — read FROM
+        // `seatInput.pool`, i.e. `ground.seats[...].pool` itself — back
+        // against that SAME pool, which is tautological by construction
+        // (`reconstructDraftReplay` always sets `historicalCardId` straight
+        // from its `seats` input; it can never disagree with it). Seed
+        // fidelity means something stronger: the FRESHLY REGENERATED pack at
+        // each pick — built from the seed alone, independent of the stored
+        // pool — actually CONTAINS the historically-recorded card. If the
+        // seed didn't reproduce the same packs, `pack.find(...)` inside
+        // `reconstructDraftReplay` would have failed and the reconstruction
+        // would have stopped with `"pool-mismatch"` instead of `complete`.
+        for (const entry of result.picks) {
+            expect(
+                entry.pack.some((c) => c.cardId === entry.historicalCardId)
+            ).toBe(true);
         }
     });
 

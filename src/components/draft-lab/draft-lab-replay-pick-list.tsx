@@ -6,15 +6,8 @@
 // actively misleading": the fix is never to stop rendering, only to say so.
 import type { ReplayResult } from "@/lib/limited/draftReplayEngine";
 import type { LimitedEventSeatView } from "@/hooks/useLimitedEvent";
+import { seatLabelFor } from "@/lib/limited/replaySeatLabel";
 import DraftLabReplayPickRow from "./draft-lab-replay-pick-row";
-
-function seatLabelFor(
-    seats: readonly LimitedEventSeatView[],
-    seatIndex: number
-): string {
-    const seat = seats.find((s) => s.seatIndex === seatIndex);
-    return seat?.nickname ?? `Seat ${seatIndex + 1}`;
-}
 
 export default function DraftLabReplayPickList({
     result,
