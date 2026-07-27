@@ -15,6 +15,7 @@ import {
     stepDraftLab,
 } from "../draftLabEngine";
 import { CUBE_SOURCE_KEY } from "@convex/limited/cubeSource";
+import type { ScopedCardProfile } from "@convex/limited/cardProfiles";
 
 describe("Draft Lab synthetic mode engine (issue #1612, ADR 0074)", () => {
     it("same seed produces the same draft, every run", () => {
@@ -105,5 +106,95 @@ describe("Draft Lab synthetic mode engine (issue #1612, ADR 0074)", () => {
             full.pickLog.map((r) => r.chosenPickId)
         );
         expect(stepped.completed).toBe(true);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// Card Profiles are SCORE-BEARING now (ADR 0072, issue #1611), so the rows
+// the Lab scores with are SNAPSHOTTED into `DraftLabState` at `initDraftLab`.
+// These tests pin both halves of that: the rows genuinely move picks (so a
+// live `useQuery` closure read per step WOULD have made the replay depend on
+// when the query resolved), and a snapshot replays identically.
+// ─────────────────────────────────────────────────────────────────────────
+describe("Draft Lab Card Profile snapshot (ADR 0072, issue #1611)", () => {
+    const packSlots = standardPackSlots(CUBE_SOURCE_KEY);
+
+    /** A census over roughly half the cards this seed actually deals, derived
+     *  from a profile-free run so the fixture can never drift out of sync with
+     *  the cube's contents. Two complementary halves of one archetype pair, so
+     *  both Archetype Fit and Capability Fit have something to bite on. */
+    function censusFor(seed: number): ScopedCardProfile[] {
+        const bare = runFullDraftLab(seed, packSlots);
+        const cardIds = [
+            ...new Set(
+                bare.pickLog.flatMap((r) => r.pack.map((c) => c.cardId))
+            ),
+        ].sort();
+        return cardIds
+            .filter((_, i) => i % 2 === 0)
+            .map((cardId, i) => ({
+                scope: CUBE_SOURCE_KEY,
+                cardId,
+                archetypes: ["lab-archetype"],
+                provides: i % 2 === 0 ? ["value-on-death"] : [],
+                requires: i % 2 === 0 ? [] : ["value-on-death"],
+                reviewed: true,
+            }));
+    }
+
+    it("a snapshotted census actually moves picks — the reason it must not be read live", () => {
+        const seed = 4242;
+        const rows = censusFor(seed);
+        expect(rows.length).toBeGreaterThan(0);
+        const without = runFullDraftLab(seed, packSlots);
+        const with_ = runFullDraftLab(
+            seed,
+            packSlots,
+            DRAFT_LAB_SEAT_COUNT,
+            rows
+        );
+        expect(with_.pickLog.map((r) => r.chosenPickId)).not.toEqual(
+            without.pickLog.map((r) => r.chosenPickId)
+        );
+    });
+
+    it("same seed AND same snapshot ⇒ same draft, every run", () => {
+        const seed = 4242;
+        const rows = censusFor(seed);
+        const a = runFullDraftLab(seed, packSlots, DRAFT_LAB_SEAT_COUNT, rows);
+        const b = runFullDraftLab(seed, packSlots, DRAFT_LAB_SEAT_COUNT, rows);
+        expect(a.pickLog.map((r) => r.chosenPickId)).toEqual(
+            b.pickLog.map((r) => r.chosenPickId)
+        );
+        expect(
+            a.pickLog.map((r) => r.traces.map((t) => t?.score ?? null))
+        ).toEqual(b.pickLog.map((r) => r.traces.map((t) => t?.score ?? null)));
+    });
+
+    it("the rows are frozen into the state at init — nothing outside it can change a running draft", () => {
+        const seed = 4242;
+        const rows = censusFor(seed);
+        const state = initDraftLab(seed, packSlots, DRAFT_LAB_SEAT_COUNT, rows);
+        expect(state.cardProfileRows).toEqual(rows);
+        // Stepping carries the snapshot forward untouched: the ONLY inputs
+        // `stepDraftLab` has are the state and the rating lookup, so no late
+        // query result can reach it.
+        const getPickRating = buildDraftLabPickRating(packSlots);
+        const stepped = stepDraftLab(state, getPickRating);
+        expect(stepped.cardProfileRows).toEqual(rows);
+    });
+
+    it("no snapshot at all degrades to the pre-#1611 draft, unchanged", () => {
+        const seed = 99;
+        const explicitlyEmpty = runFullDraftLab(
+            seed,
+            packSlots,
+            DRAFT_LAB_SEAT_COUNT,
+            []
+        );
+        const omitted = runFullDraftLab(seed, packSlots);
+        expect(explicitlyEmpty.pickLog.map((r) => r.chosenPickId)).toEqual(
+            omitted.pickLog.map((r) => r.chosenPickId)
+        );
     });
 });

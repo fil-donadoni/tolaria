@@ -13,10 +13,61 @@
 //
 //   score = baseRating                      -- DB/seed Pick Rating, else
 //                                              heuristicAsRating(quality)
+//         + archetypeFit     × contextScale -- the Pool's accumulated plan
+//         + capabilityFit    × contextScale -- provides/requires matching
+//         + comboEdge        × contextScale -- authored two-card loops
 //         + colourCommitment × contextScale -- pip-weighted colour fit (below)
 //         + castability      × contextScale -- can the Pool's sources pay it
 //         + fixingValue      × contextScale -- deficit-driven mana-fixing worth
 //         + curveFit         × contextScale -- curve needs
+//
+// ── Synergy: three layers, coarse to fine (ADR 0072, issue #1611) ──────────
+// The three synergy terms all read ONE injected seam — `GetCardProfile`
+// (`cardProfiles.ts`, the layered DB-over-seed lookup `resolveEventCardProfile`
+// builds) — and every one of them contributes exactly ZERO for a scope with no
+// Card Profiles at all, which is ADR 0072's own "set and block environments
+// keep working with no profiles authored" consequence, and the reason wiring
+// this slice moves no already-measured draft-coherence number.
+//
+//   - Archetype Fit: COARSE. The Pool's accumulated commitment to a named
+//     strategy (`reanimator`, `artifacts`) biases a candidate sharing it, the
+//     same "best shared axis × accumulated units" shape Colour Commitment
+//     already uses for colours. Deliberately too coarse to express the
+//     Wurm/Animate Dead distinction — that is the Capability layer's job.
+//   - Capability Fit: PRECISE, and the reason the model exists. Matches the
+//     candidate's `provides` against every Pool card's `requires` AND its
+//     `requires` against their `provides` (ADR 0072: "and vice versa"). The
+//     ABSENCE of a match is the veto, expressed as no bonus rather than as a
+//     subtraction — Animate Dead requires `reanimatable`, Worldspine Wurm
+//     does not provide it (it shuffles itself out of the graveyard), so that
+//     pair earns 0 and the Wurm is not preferred one point above a card the
+//     Pool genuinely cannot use. Flash requires `value-on-death`, which the
+//     Wurm DOES provide, so that pair earns. No negative edge is authored,
+//     and none has to be remembered.
+//   - Combo Edge: the ESCAPE HATCH — explicit, signed, directed pairs, capped
+//     in COUNT (`COMBO_EDGE_MAX_PAIRS`), reserved for the closed two-card loop
+//     no vocabulary can express (Painter's Servant + Grindstone).
+//
+// SIGNED edges under a NON-NEGATIVE clamp. An edge's weight may be negative
+// (authored anti-synergy), but the contextual clamp is `clamp(Σ, 0, cap)`, so
+// a term that can only ever be negative is dead code (see the clamp note
+// below). The resolution: negative edges NET against positive ones INSIDE the
+// Combo Edge term, and the term itself is floored at 0. A negative edge can
+// therefore cancel a positive edge that would otherwise be earned — the only
+// thing an authored anti-synergy has to do — but can never drag a candidate
+// below a candidate with no profile at all, which would re-introduce exactly
+// the "context penalises" asymmetry ADR 0073's refinement removed.
+//
+// UNREVIEWED profiles count HALF (ADR 0072: "an unreviewed row's Capability
+// and Archetype contribution is applied at half the contextual cap"). Applied
+// as a per-ROW multiplicative weight (`profileWeight`), so a pair of rows
+// contributes the PRODUCT of their weights: each row's evidence is discounted
+// independently of who it is paired with, and the discount survives the shared
+// clamp (halving a term's raw value halves what it can claim of the contextual
+// budget). Zero weight was rejected — the bot would be unchanged for as long
+// as the review backlog lasts and the LLM's mistakes would never surface;
+// full weight was rejected — the bot would draft confidently on data that is
+// wrong in exactly the subtle cases the feature exists for.
 //
 // ── Colour splits into three derived questions (ADR 0073, issue #1610) ─────
 // `CardEvalMeta.colors` (`getCardColorIdentity`) reads `colors: []` for a
@@ -105,6 +156,11 @@
 // plumbing on this path.
 import type { Color, Rarity } from "../cards/types";
 import { cardValueById } from "../gre/cardValue";
+// TYPE-ONLY (erased at compile): the Card Profile seam is injected as a
+// closure, so this module never touches the `cardProfiles` table, its Convex
+// query shell, or the card registry behind it — the same discipline
+// `GetCardEvalMeta`/`GetPickRating` already follow.
+import type { CardProfile, GetCardProfile } from "./cardProfiles";
 import type { DraftPackCard, LimitedPoolCard } from "./eventTypes";
 import { PICK_RATING_MAX, PICK_RATING_MIN } from "./pickRatings";
 
@@ -269,6 +325,53 @@ const FIXING_VALUE_RATING_PER_DEFICIT_PIP = 0.05;
  *  non-negative clamp (`scoreCandidate`) still bounds the TOTAL. */
 const FIXING_VALUE_RAW_CAP = 1.2;
 
+/** Multiplier on an UNREVIEWED (`reviewed: false`) Card Profile row's
+ *  contribution to every synergy term (ADR 0072: "an unreviewed row's
+ *  Capability and Archetype contribution is applied at half the contextual
+ *  cap"). Per ROW, so a candidate/Pool-card PAIR contributes the product of
+ *  the two rows' weights — each row's evidence is discounted on its own
+ *  merits, independently of what it happens to be paired with. */
+const UNREVIEWED_PROFILE_WEIGHT = 0.5;
+
+/** Rating points per unit of Archetype commitment the Pool has already
+ *  accumulated in the candidate's best shared archetype — one unit is one
+ *  already-picked Pool card declaring that archetype (halved for an
+ *  unreviewed row). Small: the Archetype layer STEERS (colours and plan),
+ *  it does not decide. */
+const ARCHETYPE_RATING_PER_UNIT = 0.05;
+
+/** Cap on a single candidate's raw Archetype Fit, applied BEFORE the shared
+ *  contextual clamp — a deep Pool all-in on one archetype must not let the
+ *  COARSEST of the three synergy layers eat the whole contextual budget away
+ *  from the precise one (Capability Fit) on the same candidate. */
+const ARCHETYPE_FIT_RAW_CAP = 0.6;
+
+/** Rating points per matched Capability — one distinct Capability name
+ *  matched between the candidate and one distinct Pool card, in either
+ *  direction (candidate `provides` ↔ Pool `requires`, or the reverse).
+ *  Deliberately ~3× the Archetype per-unit weight: this is the layer that
+ *  knows Worldspine Wurm is a Flash payoff and not an Animate Dead one, so a
+ *  single true Capability match should outweigh several cards' worth of
+ *  coarse archetype overlap. */
+const CAPABILITY_RATING_PER_MATCH = 0.15;
+
+/** Cap on a single candidate's raw Capability Fit, before the shared
+ *  contextual clamp — same role `FIXING_VALUE_RAW_CAP` plays for fixing: a
+ *  hyper-connected card in a fully-censused Pool must not zero out every
+ *  other contextual term through the shared `contextScale`. */
+const CAPABILITY_FIT_RAW_CAP = 0.9;
+
+/** How many authored Combo Edge PAIRS may contribute to one candidate's score
+ *  (ADR 0072: "explicit, signed, directed pair, capped in number"). The edge
+ *  is the escape hatch for the closed two-card loop (Painter's Servant +
+ *  Grindstone), so a candidate should be earning it from one or two specific
+ *  partners; a card accumulating edges to a dozen Pool cards is a miscensused
+ *  Capability, and the count cap is what stops that authoring mistake from
+ *  quietly becoming the strongest term in the scorer. Pairs are selected by
+ *  descending |net weight| (ties by `cardId`, so the selection is a pure
+ *  function of the data, never of Pool order). */
+export const COMBO_EDGE_MAX_PAIRS = 2;
+
 /** Curve buckets the heuristic tracks (mana value 1 through 6+, CR 202.3);
  *  0-cost/land cards don't participate in curve scoring. Target counts are a
  *  generic Limited curve shape (a 23-spell deck skewing toward the cheap end)
@@ -329,11 +432,14 @@ export function contextCapForPick(
 
 /** Every term the scorer can emit. `baseRating` is the anchor (never capped);
  *  every other key is a CONTEXTUAL term, and their sum is bounded by
- *  `contextCapForPick`. Future terms (Archetype, Capability, Combo Edge —
- *  ADR 0072, issue #1611) join this union and are contextual by construction:
+ *  `contextCapForPick`. The synergy terms (Archetype, Capability, Combo Edge
+ *  — ADR 0072, issue #1611) are contextual by construction:
  *  `isContextualTerm` is derived from the base key, not a second list. */
 export type PickTermKey =
     | "baseRating"
+    | "archetypeFit"
+    | "capabilityFit"
+    | "comboEdge"
     | "colourCommitment"
     | "castability"
     | "fixingValue"
@@ -773,6 +879,365 @@ function curveFitTerm(
     };
 }
 
+// ── Synergy terms (ADR 0072, issue #1611) ──────────────────────────────────
+
+/** A Pool card paired with the Card Profile that was found for it — the unit
+ *  every synergy term iterates. Built ONCE per candidate scoring
+ *  (`poolProfiles`) and shared by all three terms, so a `GetCardProfile`
+ *  closure that hits a Map (the production shape) is consulted once per
+ *  distinct Pool card rather than three times. */
+interface PoolProfileEntry {
+    meta: CardEvalMeta;
+    profile: CardProfile;
+    /** How many copies of this card the Pool holds — Archetype commitment
+     *  ACCUMULATES over copies (three reanimation targets commit harder than
+     *  one), while Capability/Combo matching does NOT (a relationship between
+     *  two cards is not twice as true because the Pool holds two copies of
+     *  one end of it). */
+    copies: number;
+}
+
+/** A profile row's weight (ADR 0072's half-weight rule for unreviewed rows). */
+function profileWeight(profile: CardProfile): number {
+    return profile.reviewed ? 1 : UNREVIEWED_PROFILE_WEIGHT;
+}
+
+/** Distinct profiled Pool cards, in Pool order (so provenance and any
+ *  order-dependent note read in the order the seat actually drafted). A Pool
+ *  card with no profile is absent entirely — ADR 0072's "a missing profile and
+ *  a deliberately empty one are indistinguishable to the scorer". */
+function poolProfiles(
+    poolMeta: readonly CardEvalMeta[],
+    getCardProfile: GetCardProfile | undefined
+): PoolProfileEntry[] {
+    if (!getCardProfile) return [];
+    const byCardId = new Map<string, PoolProfileEntry>();
+    for (const meta of poolMeta) {
+        const existing = byCardId.get(meta.cardId);
+        if (existing) {
+            existing.copies += 1;
+            continue;
+        }
+        const profile = getCardProfile(meta.cardId);
+        if (!profile) continue;
+        byCardId.set(meta.cardId, { meta, profile, copies: 1 });
+    }
+    return [...byCardId.values()];
+}
+
+/** An empty synergy term — the overwhelmingly common case (no profile for the
+ *  candidate, or no profiled Pool card), factored out so all three terms
+ *  report "computed, contributed nothing" identically rather than each
+ *  inventing its own zero. */
+function emptySynergyTerm(term: PickTermKey, note: string): PickTerm {
+    return { term, value: 0, rawValue: 0, sources: [], note };
+}
+
+/** Archetype Fit (ADR 0072 layer 1, issue #1611): the Pool's ACCUMULATED
+ *  commitment to a named strategy biases a candidate that shares it — the same
+ *  "best shared axis × accumulated units" shape `colourCommitmentTerm` uses
+ *  for colours, and for the same reason: a seat drafts ONE plan, so the
+ *  archetype the Pool is deepest in is the one worth respecting, not the sum
+ *  over every archetype the candidate happens to be tagged with.
+ *
+ *  Deliberately COARSE. It cannot express (and must not be extended to
+ *  express) the Animate Dead / Worldspine Wurm distinction: all four cards of
+ *  ADR 0072's motivating example share a "cheat a fatty into play" archetype,
+ *  which is exactly why the Capability layer below exists. Non-negative: a
+ *  candidate sharing no archetype with the Pool earns nothing and is never
+ *  penalised. */
+function archetypeFitTerm(
+    profile: CardProfile | null,
+    profiled: readonly PoolProfileEntry[]
+): PickTerm {
+    if (!profile || profile.archetypes.length === 0) {
+        return emptySynergyTerm(
+            "archetypeFit",
+            profile
+                ? "profiled, but declares no archetype — nothing to steer toward"
+                : "no Card Profile for this card — no archetype signal"
+        );
+    }
+    if (profiled.length === 0) {
+        return emptySynergyTerm(
+            "archetypeFit",
+            "no profiled card in the Pool yet — no accumulated plan to fit"
+        );
+    }
+
+    const commitment = new Map<string, number>();
+    for (const entry of profiled) {
+        const weight = profileWeight(entry.profile) * entry.copies;
+        for (const archetype of entry.profile.archetypes) {
+            commitment.set(
+                archetype,
+                (commitment.get(archetype) ?? 0) + weight
+            );
+        }
+    }
+
+    // Candidate-declared order, strict `>` — the winner is a pure function of
+    // the profile data, never of Map iteration order.
+    let bestArchetype: string | null = null;
+    let bestUnits = 0;
+    for (const archetype of profile.archetypes) {
+        const units = commitment.get(archetype) ?? 0;
+        if (units > bestUnits) {
+            bestUnits = units;
+            bestArchetype = archetype;
+        }
+    }
+    if (bestArchetype === null) {
+        return emptySynergyTerm(
+            "archetypeFit",
+            `declares ${profile.archetypes.map((a) => `"${a}"`).join(", ")} — no Pool card shares any of them`
+        );
+    }
+
+    const archetype = bestArchetype;
+    const raw = Math.min(
+        ARCHETYPE_FIT_RAW_CAP,
+        bestUnits * ARCHETYPE_RATING_PER_UNIT * profileWeight(profile)
+    );
+    return {
+        term: "archetypeFit",
+        value: raw,
+        rawValue: raw,
+        sources: profiled
+            .filter((entry) => entry.profile.archetypes.includes(archetype))
+            .map((entry) => ({
+                cardId: entry.meta.cardId,
+                reason: entry.profile.reviewed
+                    ? `also "${archetype}"`
+                    : `also "${archetype}" (unreviewed — half weight)`,
+            })),
+        note:
+            `${bestUnits.toFixed(1)} Pool card(s) already committed to "${archetype}"` +
+            (profile.reviewed
+                ? ""
+                : " — this card's profile is unreviewed, half weight"),
+    };
+}
+
+/** One matched Capability between the candidate and one Pool card. */
+interface CapabilityMatch {
+    cardId: string;
+    capability: string;
+    /** `provides` = the CANDIDATE provides what the Pool card requires;
+     *  `requires` = the candidate requires what the Pool card provides. Both
+     *  directions count (ADR 0072: "matching one card's `requires` against
+     *  another's `provides`" — the relation is symmetric in value, and a bot
+     *  must be able to draft the payoff after the enabler AND the enabler
+     *  after the payoff). */
+    direction: "provides" | "requires";
+    weight: number;
+}
+
+/** Capability Fit (ADR 0072 layer 2, issue #1611) — the layer the whole design
+ *  exists for. Matches the candidate's `provides` against every profiled Pool
+ *  card's `requires`, and its `requires` against their `provides`.
+ *
+ *  ABSENCE OF A MATCH IS THE VETO, and on ADR 0073's non-negative scale that
+ *  veto is spelled "no bonus", never "a subtraction": Animate Dead requires
+ *  `reanimatable`; Worldspine Wurm's profile does not list it (the Wurm
+ *  shuffles itself out of the graveyard, so it can never be reanimated), so
+ *  the pair contributes exactly 0 and the Wurm is simply not advantaged by a
+ *  reanimation spell sitting in the Pool. Flash requires `value-on-death`,
+ *  which the Wurm DOES provide, so that pair contributes. No negative edge is
+ *  authored for the bad pair, and no one has to remember to author one.
+ *
+ *  Counted per DISTINCT (Pool card, Capability, direction): a Pool holding two
+ *  copies of the same enabler does not double the relationship. */
+function capabilityFitTerm(
+    candidate: CardEvalMeta,
+    profile: CardProfile | null,
+    profiled: readonly PoolProfileEntry[]
+): PickTerm {
+    if (!profile) {
+        return emptySynergyTerm(
+            "capabilityFit",
+            "no Card Profile for this card — no Capability to match"
+        );
+    }
+    if (profile.provides.length === 0 && profile.requires.length === 0) {
+        return emptySynergyTerm(
+            "capabilityFit",
+            "profiled, but provides and requires nothing — no Capability to match"
+        );
+    }
+
+    const candidateWeight = profileWeight(profile);
+    // Dedupe the candidate's OWN declared capabilities before iterating: the
+    // doc comment above promises counting is per DISTINCT (Pool card,
+    // Capability, direction), but iterating a `provides`/`requires` array
+    // containing the same capability twice pushed a second `CapabilityMatch`
+    // for the same pair — a duplicated entry in an LLM-seeded profile row
+    // (issue #1614) would silently double that pair's contribution. `.includes`
+    // on the OTHER side's array already collapses duplicates there (a boolean
+    // membership check), so only this side needs deduping.
+    const provides = [...new Set(profile.provides)];
+    const requires = [...new Set(profile.requires)];
+    const matches: CapabilityMatch[] = [];
+    for (const entry of profiled) {
+        if (entry.meta.cardId === candidate.cardId) continue;
+        const pairWeight = candidateWeight * profileWeight(entry.profile);
+        for (const capability of provides) {
+            if (entry.profile.requires.includes(capability)) {
+                matches.push({
+                    cardId: entry.meta.cardId,
+                    capability,
+                    direction: "provides",
+                    weight: pairWeight,
+                });
+            }
+        }
+        for (const capability of requires) {
+            if (entry.profile.provides.includes(capability)) {
+                matches.push({
+                    cardId: entry.meta.cardId,
+                    capability,
+                    direction: "requires",
+                    weight: pairWeight,
+                });
+            }
+        }
+    }
+
+    if (matches.length === 0) {
+        return emptySynergyTerm(
+            "capabilityFit",
+            `no Pool card requires what this card provides (${profile.provides.join(", ") || "nothing"}) or provides what it requires (${profile.requires.join(", ") || "nothing"}) — the pair scores nothing, which IS the veto (ADR 0072)`
+        );
+    }
+
+    const raw = Math.min(
+        CAPABILITY_FIT_RAW_CAP,
+        matches.reduce(
+            (sum, m) => sum + m.weight * CAPABILITY_RATING_PER_MATCH,
+            0
+        )
+    );
+
+    const reasonsByCard = new Map<string, string[]>();
+    for (const match of matches) {
+        const reason =
+            match.direction === "provides"
+                ? `requires ${match.capability}, which this card provides`
+                : `provides ${match.capability}, which this card requires`;
+        const existing = reasonsByCard.get(match.cardId);
+        if (existing) existing.push(reason);
+        else reasonsByCard.set(match.cardId, [reason]);
+    }
+
+    return {
+        term: "capabilityFit",
+        value: raw,
+        rawValue: raw,
+        sources: [...reasonsByCard.entries()].map(([cardId, reasons]) => ({
+            cardId,
+            reason: reasons.join("; "),
+        })),
+        note: `${matches.length} Capability match(es) with ${reasonsByCard.size} Pool card(s)${profile.reviewed ? "" : " — this card's profile is unreviewed, half weight"}`,
+    };
+}
+
+/** Combo Edge (ADR 0072 layer 3, issue #1611) — the ESCAPE HATCH, not the
+ *  model: explicit, signed, directed pairs for the closed two-card loop no
+ *  Capability vocabulary can express (Painter's Servant + Grindstone).
+ *  Anything expressible as a Capability must be a Capability.
+ *
+ *  Edges are read in BOTH directions — the candidate's own edges pointing at
+ *  Pool cards, and profiled Pool cards' edges pointing at the candidate — so
+ *  a loop only has to be authored once, from whichever end its author found
+ *  natural. Weights are in RATING POINTS (ADR 0073's one scale), scaled only
+ *  by the authoring row's review weight. Edges to the same partner net
+ *  together; the strongest `COMBO_EDGE_MAX_PAIRS` partners by |net weight|
+ *  contribute, the rest are dropped.
+ *
+ *  SIGNED, yet compatible with the non-negative contextual clamp: a negative
+ *  edge nets against positive edges INSIDE this term, and the term is floored
+ *  at 0. So an authored anti-synergy can cancel a bonus the candidate would
+ *  otherwise earn — the one thing it must be able to do — while a candidate
+ *  can never be dragged BELOW an unprofiled one, which is what a term with a
+ *  structurally-negative reach would do under `clamp(Σ, 0, cap)`: it would be
+ *  dead weight on most candidates and a hidden asymmetric penalty on the
+ *  rest. */
+function comboEdgeTerm(
+    candidate: CardEvalMeta,
+    profile: CardProfile | null,
+    profiled: readonly PoolProfileEntry[]
+): PickTerm {
+    const netByPartner = new Map<string, number>();
+    const addEdge = (partnerCardId: string, weight: number) => {
+        netByPartner.set(
+            partnerCardId,
+            (netByPartner.get(partnerCardId) ?? 0) + weight
+        );
+    };
+
+    const poolByCardId = new Map(profiled.map((e) => [e.meta.cardId, e]));
+    if (profile?.comboEdges) {
+        const weight = profileWeight(profile);
+        for (const edge of profile.comboEdges) {
+            if (!poolByCardId.has(edge.cardId)) continue;
+            // Guard against an authored edge weight that is NaN/Infinity
+            // (issue #1614 ships the Admin write surface that will let one
+            // in — `validateCardProfileFile` today only checks capabilities/
+            // cardIds, not this number). The sibling Pick Rating seam
+            // (`pickRatings.ts`'s `isValidRating`) rejects a non-finite
+            // rating at the SAME layer; a non-finite edge here has no write
+            // gate yet, so the READ path must not let it through — an
+            // unfiltered NaN/Infinity would propagate into `score` and
+            // poison every candidate comparison in `chooseBotPick`.
+            if (!Number.isFinite(edge.weight)) continue;
+            addEdge(edge.cardId, edge.weight * weight);
+        }
+    }
+    for (const entry of profiled) {
+        if (entry.meta.cardId === candidate.cardId) continue;
+        const weight = profileWeight(entry.profile);
+        for (const edge of entry.profile.comboEdges ?? []) {
+            if (edge.cardId !== candidate.cardId) continue;
+            if (!Number.isFinite(edge.weight)) continue;
+            addEdge(entry.meta.cardId, edge.weight * weight);
+        }
+    }
+
+    if (netByPartner.size === 0) {
+        return emptySynergyTerm(
+            "comboEdge",
+            "no authored Combo Edge between this card and the Pool"
+        );
+    }
+
+    // Deterministic selection: strongest |net| first, ties by cardId — never
+    // by Map insertion / Pool order, so the same data always picks the same
+    // pairs.
+    const selected = [...netByPartner.entries()]
+        .sort(
+            (a, b) =>
+                Math.abs(b[1]) - Math.abs(a[1]) || a[0].localeCompare(b[0])
+        )
+        .slice(0, COMBO_EDGE_MAX_PAIRS);
+    const net = selected.reduce((sum, [, weight]) => sum + weight, 0);
+    const raw = Math.max(0, net);
+
+    return {
+        term: "comboEdge",
+        value: raw,
+        rawValue: raw,
+        sources: selected.map(([cardId, weight]) => ({
+            cardId,
+            reason: `authored Combo Edge ${weight >= 0 ? "+" : ""}${weight.toFixed(2)}`,
+        })),
+        note:
+            `${selected.length} of ${netByPartner.size} authored edge(s) counted (cap ${COMBO_EDGE_MAX_PAIRS}), netting ${net.toFixed(2)}` +
+            (net < 0
+                ? " — floored at 0: a signed edge may cancel a bonus, never impose a penalty"
+                : ""),
+    };
+}
+
 /** Optional knobs on a single candidate's scoring. */
 export interface ScoreCandidateOptions {
     /** Total picks in this draft — the horizon the context cap ramps over
@@ -786,6 +1251,15 @@ export interface ScoreCandidateOptions {
      *  the filtered Pool would under-count it and hand the seat an earlier
      *  pick's (smaller) contextual cap. */
     pickNumber?: number;
+    /** Layered Card Profile lookup (`cardProfiles.ts`'s
+     *  `resolveEventCardProfile`, ADR 0072) — the seam the three synergy terms
+     *  read. Omit for "nothing is profiled", in which case Archetype Fit,
+     *  Capability Fit and Combo Edge all contribute exactly 0 and the score is
+     *  identical to the pre-#1611 scorer's. That is not a degenerate fallback
+     *  but the NORMAL case for a set/block environment (ADR 0072: "a scope
+     *  with no `cardProfiles` rows and no seed file contributes exactly zero
+     *  from these terms"). */
+    getCardProfile?: GetCardProfile;
 }
 
 /** Scores one candidate card against a seat's already-accumulated Pool,
@@ -813,7 +1287,14 @@ export function scoreCandidate(
     const contextCap = contextCapForPick(pickNumber, options.totalPicks);
 
     const base = baseRatingTerm(candidate, rating);
+    // One Card Profile lookup per distinct Pool card, shared by all three
+    // synergy terms (ADR 0072) — and one for the candidate itself.
+    const profiled = poolProfiles(poolMeta, options.getCardProfile);
+    const candidateProfile = options.getCardProfile?.(candidate.cardId) ?? null;
     const contextual: PickTerm[] = [
+        archetypeFitTerm(candidateProfile, profiled),
+        capabilityFitTerm(candidate, candidateProfile, profiled),
+        comboEdgeTerm(candidate, candidateProfile, profiled),
         colourCommitmentTerm(candidate, poolMeta),
         castabilityTerm(candidate, poolMeta),
         fixingValueTerm(candidate, poolMeta),
@@ -898,6 +1379,7 @@ export function scorePack(
         return scoreCandidate(meta, poolMeta, rating, {
             totalPicks: options.totalPicks,
             pickNumber: options.pickNumber,
+            getCardProfile: options.getCardProfile,
         });
     });
 }

@@ -26,6 +26,15 @@
 //     WORST-served colour, never its best (issue #1610)
 //   * a mana source raises Colour Commitment strictly less than a
 //     single-pipped spell of the same colour (issue #1610)
+//   * Animate Dead in the Pool may not raise Worldspine Wurm's score, while
+//     Flash in the Pool does — ADR 0072's motivating pair, and the reason the
+//     Capability layer exists at all (issue #1611)
+//   * a Capability match may never LOWER a candidate's score, and a scope
+//     with no Card Profiles scores exactly as the pre-#1611 scorer did
+//   * an unreviewed profile row contributes strictly less than the same row
+//     reviewed, and strictly more than no row at all (issue #1611)
+//   * a signed Combo Edge may cancel a bonus but never impose a penalty, and
+//     no candidate counts more than `COMBO_EDGE_MAX_PAIRS` edges
 //
 // Every one of these holds for ANY positive weighting: retuning
 // `COLOUR_COMMIT_RATING_PER_UNIT`, the curve weight, the cap endpoints or the
@@ -42,6 +51,7 @@ import { getCardByName } from "../../cards";
 import { getCardColorIdentity, getPipCountsFromCost } from "../../cards/colors";
 import { getDefinitionProducibleColors, manaValue } from "../../gre/constants";
 import {
+    COMBO_EDGE_MAX_PAIRS,
     CONTEXT_CAP_FIRST_PICK,
     CONTEXT_CAP_LAST_PICK,
     DEFAULT_DRAFT_PICKS,
@@ -57,6 +67,9 @@ import {
     type PickCandidateTrace,
     type PickTermKey,
 } from "../botDrafter";
+// TYPE-ONLY: the Card Profile seam is injected as a plain closure, so these
+// tests never load the `cardProfiles` Convex query shell.
+import type { CardProfile, GetCardProfile } from "../cardProfiles";
 import type { DraftPackCard } from "../eventTypes";
 import { PICK_RATING_MAX, PICK_RATING_MIN } from "../pickRatings";
 
@@ -924,5 +937,590 @@ describe("Pick Invariant — determinism and the unread packsSeen (ADR 0073)", (
         expect(chooseBotPick(pack, [], getCardEvalMeta, options)).toBe(
             pack[best].pickId
         );
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// Synergy terms — Archetype Fit, Capability Fit, Combo Edge (ADR 0072, issue
+// #1611). Same discipline as every invariant above: DIRECTION only, no weight
+// value asserted anywhere, so retuning `ARCHETYPE_RATING_PER_UNIT`,
+// `CAPABILITY_RATING_PER_MATCH` or any raw cap can never redden one. The only
+// numeric constant these read is `COMBO_EDGE_MAX_PAIRS`, and only as a COUNT
+// bound (the cap's whole meaning), never as a weight.
+// ─────────────────────────────────────────────────────────────────────────
+
+/** A Card Profile with every field defaulted — a test states only the field it
+ *  is actually exercising, so a profile shape change never silently rewrites
+ *  what a fixture means. */
+function profileOf(over: Partial<CardProfile> = {}): CardProfile {
+    return {
+        archetypes: [],
+        provides: [],
+        requires: [],
+        reviewed: true,
+        ...over,
+    };
+}
+
+/** The injected `GetCardProfile` seam, from a plain `cardId -> profile` map —
+ *  the same shape `resolveEventCardProfile` hands the scorer in production. */
+function profileLookup(rows: Record<string, CardProfile>): GetCardProfile {
+    return (cardId: string) => rows[cardId] ?? null;
+}
+
+/** ADR 0072's motivating cast. Real registry cards, so `metaOf` resolves the
+ *  same characteristics production would compute. */
+const wurmMeta = metaOf("Worldspine Wurm");
+const animateDeadMeta = metaOf("Animate Dead");
+const flashMeta = metaOf("Flash");
+
+/** Emrakul, the Aeons Torn is a TRACKED STUB in this catalogue (commented out
+ *  in `cards/sets/roe/colorless.ts`, tracked-by #1301 — Annihilator is not
+ *  implemented), so `metaOf` cannot resolve it. Its `cardId` here is the stub's
+ *  own declared id, and the synthetic meta carries its printed
+ *  characteristics. Nothing in these tests depends on its quality heuristic
+ *  (an unresolvable id scores 0 there): every assertion below compares the
+ *  card against ITSELF with and without a profile, so the base term is held
+ *  constant by construction. */
+const EMRAKUL_CARD_ID = "67600383-bbb8-411c-b8e6-2296650bc747";
+const emrakulMeta: CardEvalMeta = {
+    cardId: EMRAKUL_CARD_ID,
+    colors: [],
+    manaValue: 15,
+    rarity: "mythic",
+    pips: {},
+    producedColors: [],
+};
+
+/** How much a Card Profile census CHANGES a candidate's score against the
+ *  identical Pool with no profiles at all. Isolating the synergy terms this
+ *  way (rather than comparing two different Pools) holds `pickNumber`, the
+ *  contextual cap and every colour/curve term constant by construction, so the
+ *  delta is exactly what the profiles contributed — the only way a
+ *  "may not raise / may not lower" assertion can be about profiles at all. */
+function profileDelta(
+    candidate: CardEvalMeta,
+    poolMeta: readonly CardEvalMeta[],
+    getCardProfile: GetCardProfile,
+    rating: number | null = 3
+): number {
+    const withProfiles = scoreCandidate(candidate, poolMeta, rating, {
+        getCardProfile,
+    }).score;
+    const without = scoreCandidate(candidate, poolMeta, rating).score;
+    return withProfiles - without;
+}
+
+describe("Pick Invariant — Capability Fit is the veto (ADR 0072, issue #1611)", () => {
+    /** The census ADR 0072 argues for, with archetypes deliberately left EMPTY
+     *  so these assertions isolate the Capability layer. The coarse layer's own
+     *  (deliberate) blindness is exercised separately below. */
+    const wurmProfile = profileOf({ provides: ["value-on-death"] });
+    const animateDeadProfile = profileOf({ requires: ["reanimatable"] });
+    const flashProfile = profileOf({ requires: ["value-on-death"] });
+    /** Emrakul's payoff is Annihilator — it fires on ATTACK, and a sacrificed
+     *  Emrakul leaves nothing behind, so it is a fine Sneak Attack target and a
+     *  poor Flash one (ADR 0072's mirror case). */
+    const emrakulProfile = profileOf({ provides: ["value-on-attack"] });
+
+    it("Animate Dead + Worldspine Wurm scores NOTHING — the Wurm shuffles itself out of the graveyard, so it does not provide `reanimatable`", () => {
+        const getCardProfile = profileLookup({
+            [wurmMeta.cardId]: wurmProfile,
+            [animateDeadMeta.cardId]: animateDeadProfile,
+        });
+        const trace = scoreCandidate(wurmMeta, [animateDeadMeta], 3, {
+            getCardProfile,
+        });
+        expect(termValue(trace, "capabilityFit")).toBe(0);
+        // And nothing else picks the slack up: the whole census is worth
+        // exactly zero to this pair.
+        expect(profileDelta(wurmMeta, [animateDeadMeta], getCardProfile)).toBe(
+            0
+        );
+    });
+
+    it("Flash + Worldspine Wurm DOES score — the Wurm's death trigger pays off however it died", () => {
+        const getCardProfile = profileLookup({
+            [wurmMeta.cardId]: wurmProfile,
+            [flashMeta.cardId]: flashProfile,
+        });
+        const trace = scoreCandidate(wurmMeta, [flashMeta], 3, {
+            getCardProfile,
+        });
+        expect(termValue(trace, "capabilityFit")).toBeGreaterThan(0);
+        expect(
+            profileDelta(wurmMeta, [flashMeta], getCardProfile)
+        ).toBeGreaterThan(0);
+    });
+
+    it("adding Flash may not RAISE Emrakul's score — its payoff is on ATTACK, not on death", () => {
+        const getCardProfile = profileLookup({
+            [EMRAKUL_CARD_ID]: emrakulProfile,
+            [flashMeta.cardId]: flashProfile,
+        });
+        const trace = scoreCandidate(emrakulMeta, [flashMeta], 3, {
+            getCardProfile,
+        });
+        expect(termValue(trace, "capabilityFit")).toBe(0);
+        expect(profileDelta(emrakulMeta, [flashMeta], getCardProfile)).toBe(0);
+    });
+
+    it("the match is read in BOTH directions — the enabler drafted after the payoff scores exactly as the payoff drafted after the enabler", () => {
+        const getCardProfile = profileLookup({
+            [wurmMeta.cardId]: wurmProfile,
+            [flashMeta.cardId]: flashProfile,
+        });
+        // Payoff in hand, enabler in the pack…
+        const enablerAfterPayoff = scoreCandidate(flashMeta, [wurmMeta], 3, {
+            getCardProfile,
+        });
+        // …and the reverse.
+        const payoffAfterEnabler = scoreCandidate(wurmMeta, [flashMeta], 3, {
+            getCardProfile,
+        });
+        expect(termValue(enablerAfterPayoff, "capabilityFit")).toBeGreaterThan(
+            0
+        );
+        expect(termValue(enablerAfterPayoff, "capabilityFit")).toBeCloseTo(
+            termValue(payoffAfterEnabler, "capabilityFit"),
+            12
+        );
+    });
+
+    it("a Capability match may never LOWER a candidate's score, at any Pool depth", () => {
+        const getCardProfile = profileLookup({
+            [wurmMeta.cardId]: wurmProfile,
+            [flashMeta.cardId]: flashProfile,
+            [animateDeadMeta.cardId]: animateDeadProfile,
+        });
+        for (const depth of POOL_DEPTHS) {
+            const pool = [
+                ...(Array(depth).fill(greenFiller) as CardEvalMeta[]),
+                flashMeta,
+            ];
+            for (const candidate of [wurmMeta, emrakulMeta, greenTwoDrop]) {
+                // Float tolerance, not slack in the invariant: where the
+                // contextual cap BINDS, adding a zero-valued term still
+                // re-associates the `rawValue × contextScale` products, so a
+                // genuinely unchanged score can land an ULP below itself.
+                expect(
+                    profileDelta(candidate, pool, getCardProfile)
+                ).toBeGreaterThan(-1e-9);
+            }
+        }
+    });
+
+    it("the Archetype layer is deliberately too coarse to express the veto — it fires where Capability Fit correctly does not", () => {
+        // ADR 0072's actual argument: all four cards sit inside any coarse
+        // "cheat a fatty into play" archetype, so a model that only knows
+        // archetypes gets the Wurm/Animate Dead pairing WRONG. This asserts
+        // the split is real — the coarse term fires, the precise one vetoes.
+        const getCardProfile = profileLookup({
+            [wurmMeta.cardId]: profileOf({
+                archetypes: ["cheat-into-play"],
+                provides: ["value-on-death"],
+            }),
+            [animateDeadMeta.cardId]: profileOf({
+                archetypes: ["cheat-into-play"],
+                requires: ["reanimatable"],
+            }),
+        });
+        const trace = scoreCandidate(wurmMeta, [animateDeadMeta], 3, {
+            getCardProfile,
+        });
+        expect(termValue(trace, "archetypeFit")).toBeGreaterThan(0);
+        expect(termValue(trace, "capabilityFit")).toBe(0);
+    });
+
+    // Issue #1614's Admin write surface makes an LLM-seeded profile row a
+    // day-one possibility, and nothing upstream (`validateCardProfileFile`)
+    // rejects a `provides`/`requires` array with a repeated capability. The
+    // doc comment on `capabilityFitTerm` promises counting is per DISTINCT
+    // (Pool card, Capability, direction) — this asserts the code actually
+    // matches that claim rather than merely reasserting the (once-broken)
+    // behavior.
+    it("a duplicated capability in the candidate's own provides/requires contributes exactly once, not twice", () => {
+        const dedupedRequires = profileLookup({
+            [wurmMeta.cardId]: wurmProfile,
+            [flashMeta.cardId]: flashProfile,
+        });
+        const duplicatedRequires = profileLookup({
+            [wurmMeta.cardId]: wurmProfile,
+            [flashMeta.cardId]: profileOf({
+                requires: ["value-on-death", "value-on-death"],
+            }),
+        });
+        const single = scoreCandidate(wurmMeta, [flashMeta], 3, {
+            getCardProfile: dedupedRequires,
+        });
+        const duplicated = scoreCandidate(wurmMeta, [flashMeta], 3, {
+            getCardProfile: duplicatedRequires,
+        });
+        expect(termValue(duplicated, "capabilityFit")).toBe(
+            termValue(single, "capabilityFit")
+        );
+
+        // Same claim from the OTHER side: the candidate's own `provides`
+        // duplicated, matched against a Pool card's `requires`.
+        const dedupedProvides = profileLookup({
+            [wurmMeta.cardId]: wurmProfile,
+            [flashMeta.cardId]: flashProfile,
+        });
+        const duplicatedProvides = profileLookup({
+            [wurmMeta.cardId]: profileOf({
+                provides: ["value-on-death", "value-on-death"],
+            }),
+            [flashMeta.cardId]: flashProfile,
+        });
+        const singleProvides = scoreCandidate(wurmMeta, [flashMeta], 3, {
+            getCardProfile: dedupedProvides,
+        });
+        const duplicatedProvidesResult = scoreCandidate(
+            wurmMeta,
+            [flashMeta],
+            3,
+            { getCardProfile: duplicatedProvides }
+        );
+        expect(termValue(duplicatedProvidesResult, "capabilityFit")).toBe(
+            termValue(singleProvides, "capabilityFit")
+        );
+    });
+});
+
+describe("Pick Invariant — a scope with no Card Profiles is untouched (ADR 0072, issue #1611)", () => {
+    it("omitting the seam, and a seam that profiles nothing, both score identically to the pre-#1611 scorer", () => {
+        const pool = [greenTwoDrop, greenFiller, flashMeta, mountain];
+        for (const candidate of [wurmMeta, greenTwoDrop, volcanicIsland]) {
+            const bare = scoreCandidate(candidate, pool, 3);
+            const empty = scoreCandidate(candidate, pool, 3, {
+                getCardProfile: () => null,
+            });
+            expect(empty.score).toBe(bare.score);
+            for (const term of [
+                "archetypeFit",
+                "capabilityFit",
+                "comboEdge",
+            ] as PickTermKey[]) {
+                expect(termValue(empty, term)).toBe(0);
+                expect(termValue(empty, term, "value")).toBe(0);
+            }
+        }
+    });
+});
+
+describe("Pick Invariant — Archetype Fit responds in the right direction (ADR 0072, issue #1611)", () => {
+    const REANIMATOR = profileOf({ archetypes: ["reanimator"] });
+    const ARTIFACTS = profileOf({ archetypes: ["artifacts"] });
+    const getCardProfile = profileLookup({
+        [wurmMeta.cardId]: REANIMATOR,
+        [animateDeadMeta.cardId]: REANIMATOR,
+        [flashMeta.cardId]: ARTIFACTS,
+    });
+
+    it("adding a Pool card sharing the candidate's archetype may not LOWER its Archetype Fit", () => {
+        const before = scoreCandidate(wurmMeta, [greenFiller], 3, {
+            getCardProfile,
+        });
+        const after = scoreCandidate(
+            wurmMeta,
+            [greenFiller, animateDeadMeta],
+            3,
+            { getCardProfile }
+        );
+        expect(termValue(after, "archetypeFit")).toBeGreaterThanOrEqual(
+            termValue(before, "archetypeFit")
+        );
+        expect(termValue(after, "archetypeFit")).toBeGreaterThan(0);
+    });
+
+    it("adding a Pool card sharing NO archetype may not RAISE the candidate's Archetype Fit", () => {
+        const before = scoreCandidate(wurmMeta, [animateDeadMeta], 3, {
+            getCardProfile,
+        });
+        const after = scoreCandidate(
+            wurmMeta,
+            [animateDeadMeta, flashMeta],
+            3,
+            { getCardProfile }
+        );
+        expect(termValue(after, "archetypeFit")).toBeLessThanOrEqual(
+            termValue(before, "archetypeFit")
+        );
+    });
+
+    it("an unprofiled candidate never earns Archetype Fit, however committed the Pool", () => {
+        const pool = Array(10).fill(animateDeadMeta) as CardEvalMeta[];
+        const trace = scoreCandidate(greenTwoDrop, pool, 3, { getCardProfile });
+        expect(termValue(trace, "archetypeFit")).toBe(0);
+    });
+});
+
+describe("Pick Invariant — an unreviewed profile counts for less (ADR 0072, issue #1611)", () => {
+    const reviewedPayoff = profileOf({
+        archetypes: ["reanimator"],
+        provides: ["value-on-death"],
+    });
+    const unreviewedPayoff = { ...reviewedPayoff, reviewed: false };
+    const reviewedEnabler = profileOf({
+        archetypes: ["reanimator"],
+        requires: ["value-on-death"],
+    });
+    const unreviewedEnabler = { ...reviewedEnabler, reviewed: false };
+
+    function synergy(
+        candidateProfile: CardProfile,
+        poolProfile: CardProfile
+    ): number {
+        const getCardProfile = profileLookup({
+            [wurmMeta.cardId]: candidateProfile,
+            [flashMeta.cardId]: poolProfile,
+        });
+        const trace = scoreCandidate(wurmMeta, [flashMeta], 3, {
+            getCardProfile,
+        });
+        return (
+            termValue(trace, "archetypeFit") + termValue(trace, "capabilityFit")
+        );
+    }
+
+    it("the CANDIDATE's unreviewed profile contributes strictly less than the same profile reviewed", () => {
+        expect(synergy(unreviewedPayoff, reviewedEnabler)).toBeLessThan(
+            synergy(reviewedPayoff, reviewedEnabler)
+        );
+    });
+
+    it("a POOL card's unreviewed profile contributes strictly less than the same profile reviewed", () => {
+        expect(synergy(reviewedPayoff, unreviewedEnabler)).toBeLessThan(
+            synergy(reviewedPayoff, reviewedEnabler)
+        );
+    });
+
+    it("half weight is a discount, never a penalty — an unreviewed match still beats no match at all", () => {
+        expect(synergy(unreviewedPayoff, unreviewedEnabler)).toBeGreaterThan(0);
+        expect(synergy(unreviewedPayoff, unreviewedEnabler)).toBeLessThan(
+            synergy(reviewedPayoff, reviewedEnabler)
+        );
+    });
+});
+
+describe("Pick Invariant — Combo Edge is signed but never a penalty (ADR 0072, issue #1611)", () => {
+    it("a positive authored edge raises the candidate; the SAME edge negated never drops it below an unprofiled candidate", () => {
+        const positive = profileLookup({
+            [wurmMeta.cardId]: profileOf({
+                comboEdges: [{ cardId: flashMeta.cardId, weight: 0.8 }],
+            }),
+            [flashMeta.cardId]: profileOf(),
+        });
+        const negative = profileLookup({
+            [wurmMeta.cardId]: profileOf({
+                comboEdges: [{ cardId: flashMeta.cardId, weight: -0.8 }],
+            }),
+            [flashMeta.cardId]: profileOf(),
+        });
+        expect(profileDelta(wurmMeta, [flashMeta], positive)).toBeGreaterThan(
+            0
+        );
+        // The floor: a signed edge may cancel a bonus, it may never make a
+        // profiled candidate score BELOW the same candidate with no profile
+        // at all (ADR 0073's non-negative contextual clamp).
+        expect(profileDelta(wurmMeta, [flashMeta], negative)).toBe(0);
+    });
+
+    it("a negative edge CANCELS a positive one instead of being silently discarded", () => {
+        const cancelled = profileLookup({
+            [wurmMeta.cardId]: profileOf({
+                comboEdges: [
+                    { cardId: flashMeta.cardId, weight: 0.8 },
+                    { cardId: flashMeta.cardId, weight: -0.8 },
+                ],
+            }),
+            [flashMeta.cardId]: profileOf(),
+        });
+        expect(profileDelta(wurmMeta, [flashMeta], cancelled)).toBe(0);
+    });
+
+    it("no candidate ever counts more than COMBO_EDGE_MAX_PAIRS authored edges", () => {
+        const partners = [flashMeta, animateDeadMeta, greenTwoDrop, mountain];
+        const getCardProfile = profileLookup({
+            [wurmMeta.cardId]: profileOf({
+                comboEdges: partners.map((p, i) => ({
+                    cardId: p.cardId,
+                    weight: 0.5 + i * 0.1,
+                })),
+            }),
+            ...Object.fromEntries(partners.map((p) => [p.cardId, profileOf()])),
+        });
+        const trace = scoreCandidate(wurmMeta, partners, 3, { getCardProfile });
+        const edgeTerm = trace.terms.find((t) => t.term === "comboEdge")!;
+        expect(partners.length).toBeGreaterThan(COMBO_EDGE_MAX_PAIRS);
+        expect(edgeTerm.sources.length).toBe(COMBO_EDGE_MAX_PAIRS);
+    });
+
+    it("an edge pointing at a card NOT in the Pool contributes nothing", () => {
+        const getCardProfile = profileLookup({
+            [wurmMeta.cardId]: profileOf({
+                comboEdges: [{ cardId: animateDeadMeta.cardId, weight: 0.8 }],
+            }),
+            [flashMeta.cardId]: profileOf(),
+        });
+        expect(profileDelta(wurmMeta, [flashMeta], getCardProfile)).toBe(0);
+    });
+
+    // Issue #1614 ships the Admin write surface for Card Profiles next, and
+    // today's only guard on a comboEdges row (`validateCardProfileFile`)
+    // checks capabilities/cardIds, never the edge's `weight` number. A
+    // NaN/Infinity weight is therefore unreachable YET but about to become
+    // reachable, so the READ path (`comboEdgeTerm`) must not let a non-finite
+    // authored weight through: `NaN` propagates to a `NaN` score, `Infinity`
+    // to a `NaN` score once normalized against the cap — either way every
+    // candidate in the pack would compare false against every other,
+    // degenerating `chooseBotPick`'s selection for the whole pack.
+    it("a non-finite authored edge weight (NaN or Infinity) cannot poison the candidate's score — the edge is skipped, not propagated", () => {
+        for (const badWeight of [NaN, Infinity, -Infinity]) {
+            const getCardProfile = profileLookup({
+                [wurmMeta.cardId]: profileOf({
+                    comboEdges: [
+                        { cardId: flashMeta.cardId, weight: badWeight },
+                    ],
+                }),
+                [flashMeta.cardId]: profileOf(),
+            });
+            const trace = scoreCandidate(wurmMeta, [flashMeta], 3, {
+                getCardProfile,
+            });
+            expect(Number.isFinite(trace.score)).toBe(true);
+            expect(Number.isFinite(termValue(trace, "comboEdge"))).toBe(true);
+            // Skipped entirely — same as no edge at all, never merely
+            // "clamped to something finite but still contributing".
+            expect(termValue(trace, "comboEdge")).toBe(0);
+            expect(profileDelta(wurmMeta, [flashMeta], getCardProfile)).toBe(0);
+        }
+    });
+
+    it("a non-finite edge from the OTHER direction (a profiled Pool card's edge pointing at the candidate) is likewise skipped", () => {
+        for (const badWeight of [NaN, Infinity, -Infinity]) {
+            const getCardProfile = profileLookup({
+                [wurmMeta.cardId]: profileOf(),
+                [flashMeta.cardId]: profileOf({
+                    comboEdges: [
+                        { cardId: wurmMeta.cardId, weight: badWeight },
+                    ],
+                }),
+            });
+            const trace = scoreCandidate(wurmMeta, [flashMeta], 3, {
+                getCardProfile,
+            });
+            expect(Number.isFinite(trace.score)).toBe(true);
+            expect(termValue(trace, "comboEdge")).toBe(0);
+        }
+    });
+});
+
+describe("Pick Invariant — the synergy terms obey the shared structure (ADR 0072/0073, issue #1611)", () => {
+    const getCardProfile = profileLookup({
+        [wurmMeta.cardId]: profileOf({
+            archetypes: ["reanimator"],
+            provides: ["value-on-death"],
+            comboEdges: [{ cardId: flashMeta.cardId, weight: 0.4 }],
+        }),
+        [flashMeta.cardId]: profileOf({
+            archetypes: ["reanimator"],
+            requires: ["value-on-death"],
+        }),
+        [animateDeadMeta.cardId]: profileOf({ archetypes: ["reanimator"] }),
+    });
+    const pool = [flashMeta, animateDeadMeta, greenFiller, mountain];
+
+    it("every non-zero synergy term names Pool cards that are actually in the Pool", () => {
+        const trace = scoreCandidate(wurmMeta, pool, 3, { getCardProfile });
+        const poolIds = new Set(pool.map((c) => c.cardId));
+        for (const key of [
+            "archetypeFit",
+            "capabilityFit",
+            "comboEdge",
+        ] as PickTermKey[]) {
+            const term = trace.terms.find((t) => t.term === key)!;
+            expect(term.rawValue).toBeGreaterThan(0);
+            expect(term.sources.length).toBeGreaterThan(0);
+            for (const source of term.sources) {
+                expect(poolIds.has(source.cardId)).toBe(true);
+                expect(source.reason.length).toBeGreaterThan(0);
+            }
+        }
+    });
+
+    it("the contextual sum still lives in [0, cap] with the synergy terms present — fit stays a BONUS", () => {
+        for (const depth of POOL_DEPTHS) {
+            const deepPool = [
+                ...pool,
+                ...(Array(depth).fill(greenFiller) as CardEvalMeta[]),
+            ];
+            const trace = scoreCandidate(wurmMeta, deepPool, 3, {
+                getCardProfile,
+            });
+            const contextualSum = trace.terms
+                .filter((t) => isContextualTerm(t.term))
+                .reduce((sum, t) => sum + t.value, 0);
+            expect(contextualSum).toBeGreaterThanOrEqual(0);
+            expect(contextualSum).toBeLessThanOrEqual(trace.contextCap + 1e-12);
+            expect(trace.score).toBeCloseTo(
+                trace.terms.reduce((sum, t) => sum + t.value, 0),
+                12
+            );
+        }
+    });
+
+    it("scoring with profiles is PURE — identical inputs yield an identical trace, and the seam is never consulted for state", () => {
+        const first = scoreCandidate(wurmMeta, pool, 3, { getCardProfile });
+        const second = scoreCandidate(wurmMeta, pool, 3, { getCardProfile });
+        expect(JSON.stringify(first)).toBe(JSON.stringify(second));
+    });
+
+    it("chooseBotPick and scorePack read the SAME profile seam — one arithmetic path, not two", () => {
+        const packCards: DraftPackCard[] = [wurmMeta, greenTwoDrop].map(
+            (meta, i) => ({
+                scryfallId: `sid-${i}`,
+                cardId: meta.cardId,
+                cardName: meta.cardId,
+                pickId: `pick-${i}`,
+            })
+        );
+        const metaById: Record<string, CardEvalMeta> = {
+            [wurmMeta.cardId]: wurmMeta,
+            [greenTwoDrop.cardId]: greenTwoDrop,
+        };
+        const getCardEvalMeta: GetCardEvalMeta = (scryfallId) => {
+            const card = packCards.find((c) => c.scryfallId === scryfallId);
+            return card ? (metaById[card.cardId] ?? null) : null;
+        };
+        const options = {
+            packsSeen: [],
+            getCardProfile,
+            getPickRating: () => 3,
+        };
+        const traces = scorePack(packCards, pool, getCardEvalMeta, options);
+        const best = traces.reduce(
+            (bestIdx, trace, i) =>
+                (trace?.score ?? -Infinity) >
+                (traces[bestIdx]?.score ?? -Infinity)
+                    ? i
+                    : bestIdx,
+            0
+        );
+        expect(
+            chooseBotPick(
+                packCards.map((c) => c),
+                pool.map((m) => ({
+                    scryfallId: `pool-${m.cardId}`,
+                    cardId: m.cardId,
+                    cardName: m.cardId,
+                })),
+                (scryfallId) =>
+                    getCardEvalMeta(scryfallId) ??
+                    metaById[scryfallId.replace("pool-", "")] ??
+                    null,
+                options
+            )
+        ).toBe(packCards[best].pickId);
     });
 });
