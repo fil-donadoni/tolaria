@@ -23,6 +23,7 @@ import {
     joinGame,
     startPairingMatch,
 } from "../game";
+import { expireRoundDeadline } from "../limitedEvents";
 import type { GameState } from "../gre/state";
 import { resolveDeckCardMeta, tryGetDefinition } from "../cards";
 import { makeRng } from "../gre/rng";
@@ -460,6 +461,8 @@ const runJoin = (ctx: MutationCtx, args: Row) =>
     (joinGame as unknown as Handler<Row, null>)._handler(ctx, args);
 const runForfeit = (ctx: MutationCtx, args: Row) =>
     (forfeitMatch as unknown as Handler<Row, null>)._handler(ctx, args);
+const runExpire = (ctx: MutationCtx, args: Row) =>
+    (expireRoundDeadline as unknown as Handler<Row, null>)._handler(ctx, args);
 
 /** One Game of the pairing Match ending with `winnerId` through the REAL
  *  finisher every SBA-detected game over and every concede routes through. */
@@ -1285,5 +1288,256 @@ describe("recordLimitedPairingResult — a cascade failure never rolls back a fi
         const afterward = stub.doc("event-cascade-fail");
         expect(afterward.status).toBe("playing");
         expect(afterward.currentRound).toBe(1);
+    });
+});
+
+// ── Round deadline expiry — presence-based scoring + lockout release
+// (issue #1647 review findings 1-3) ─────────────────────────────────────────
+
+describe("expireRoundDeadline — human-vs-human presence (issue #1647 review finding 1)", () => {
+    it("awards the win to the seat who showed up when a Match is bound and the opponent never joined (PRD story 33)", async () => {
+        const fx = playingEvent({
+            eventId: "event-to-1",
+            seed: 3001,
+            matchFormat: "bo3",
+        });
+        (fx.event.rounds as { deadlineAt?: number }[])[0].deadlineAt = 1; // already elapsed
+        const stub = makeCtx("alice", fx.seeds);
+        const gameId = await runStart(stub.ctx, {
+            eventId: "event-to-1",
+            deck: fx.deckForSeat(0),
+        });
+        // Bob never joins.
+
+        await runExpire(stub.ctx, { eventId: "event-to-1", roundNumber: 1 });
+
+        expect(pairingOf(stub, "event-to-1").result).toEqual({
+            winsA: 2,
+            winsB: 0,
+            source: "timeout",
+        });
+        // The bound Match is finished too, not left "waiting" forever
+        // (issue #1647 review finding 2).
+        const matchId = stub.doc(gameId).matchId as string;
+        expect(stub.doc(matchId).status).toBe("finished");
+        expect(stub.doc(matchId).winner).toBe("alice");
+    });
+
+    it("closes as a double loss when a Match is bound and BOTH seats showed up but neither finished in time", async () => {
+        const fx = playingEvent({
+            eventId: "event-to-2",
+            seed: 3002,
+            matchFormat: "bo3",
+        });
+        (fx.event.rounds as { deadlineAt?: number }[])[0].deadlineAt = 1;
+        const stub = makeCtx("alice", fx.seeds);
+        const gameId = await runStart(stub.ctx, {
+            eventId: "event-to-2",
+            deck: fx.deckForSeat(0),
+        });
+        await runJoin(asUser(stub, "bob"), {
+            gameId,
+            deck: fx.deckForSeat(1),
+        });
+
+        await runExpire(stub.ctx, { eventId: "event-to-2", roundNumber: 1 });
+
+        expect(pairingOf(stub, "event-to-2").result).toEqual({
+            winsA: 0,
+            winsB: 0,
+            source: "timeout",
+        });
+        // Both seats showed up, so neither is exclusively "absent" — the
+        // Match still needs to be released for either seat's next round.
+        const matchId = stub.doc(gameId).matchId as string;
+        expect(stub.doc(matchId).status).toBe("finished");
+        expect(stub.doc(matchId).winner).toBeUndefined();
+    });
+
+    it("closes as a double loss when NEITHER human ever started a Match — no Match was ever bound (PRD story 34)", async () => {
+        const fx = playingEvent({
+            eventId: "event-to-3",
+            seed: 3003,
+            matchFormat: "bo1",
+        });
+        (fx.event.rounds as { deadlineAt?: number }[])[0].deadlineAt = 1;
+        const stub = makeCtx("alice", fx.seeds);
+        expect(pairingOf(stub, "event-to-3").matchId).toBeUndefined();
+
+        await runExpire(stub.ctx, { eventId: "event-to-3", roundNumber: 1 });
+
+        expect(pairingOf(stub, "event-to-3").result).toEqual({
+            winsA: 0,
+            winsB: 0,
+            source: "timeout",
+        });
+    });
+});
+
+describe("expireRoundDeadline releases a timed-out seat for its NEXT round pairing (issue #1647 review finding 2)", () => {
+    it("a seat timed out mid-Match can start its round N+1 pairing", async () => {
+        const fx = fourHumanEvent({ eventId: "event-lock", seed: 3010 });
+        (fx.event.rounds as { deadlineAt?: number }[])[0].deadlineAt = 1;
+        fx.event.roundDeadlineMinutes = 20;
+        const stub = makeCtx("alice", fx.seeds);
+
+        // Alice starts her round-1 pairing against Bob; Bob never joins —
+        // her Match is left bound and "waiting".
+        const gameId = await runStart(stub.ctx, {
+            eventId: "event-lock",
+            deck: fx.deckForSeat(0),
+        });
+
+        // Carol/Dave's pairing is played out to completion normally, so
+        // Alice/Bob's is round 1's ONLY remaining undecided pairing — the
+        // round advances the instant the deadline closes it.
+        const gameCD = await runStart(asUser(stub, "carol"), {
+            eventId: "event-lock",
+            deck: fx.deckForSeat(2),
+        });
+        await runJoin(asUser(stub, "dave"), {
+            gameId: gameCD,
+            deck: fx.deckForSeat(3),
+        });
+        await finishGame(stub.ctx, gameCD, "dave");
+
+        await runExpire(stub.ctx, { eventId: "event-lock", roundNumber: 1 });
+
+        const event = stub.doc("event-lock");
+        expect(event.currentRound).toBe(2);
+        expect((event.rounds as unknown[]).length).toBe(2);
+
+        // Alice's round-1 Match is finished, not left active forever...
+        const matchId = stub.doc(gameId).matchId as string;
+        expect(stub.doc(matchId).status).toBe("finished");
+
+        // ...so the single-active-Match guard (`findActiveMatchForUser`) no
+        // longer sees it, and Alice can start her round-2 pairing — the
+        // exact lockout finding 2 fixes (without the fix this `runStart`
+        // rejects with the "already have an active game" message).
+        const round2GameId = await runStart(stub.ctx, {
+            eventId: "event-lock",
+            deck: fx.deckForSeat(0),
+        });
+        expect(round2GameId).toBeTruthy();
+    });
+});
+
+describe("expireRoundDeadline — a cascade failure never discards the timeout results or wedges the round (issue #1647 review finding 3)", () => {
+    it("still closes the undecided pairing when cascadeEventRounds throws, leaving the round retryable rather than permanently stuck", async () => {
+        const fx = playingEvent({
+            eventId: "event-expire-cascade-fail",
+            seed: 3020,
+            matchFormat: "bo1",
+        });
+        (fx.event.rounds as { deadlineAt?: number }[])[0].deadlineAt = 1;
+        const stub = makeCtx("alice", fx.seeds);
+
+        // Same `roundsForSeatCount` range guard as the played-path finding-2
+        // test above: inflate `event.seats` past `MAX_SEATS` (8) so
+        // `cascadeEventRounds` throws the instant the timeout close
+        // completes the round — WITHOUT the fix, that throw would escape
+        // `expireRoundDeadline` uncaught, discarding the timeout results AND
+        // burning this schedule's only firing (a failed scheduled mutation
+        // is never re-run), permanently wedging the round.
+        const event = stub.doc("event-expire-cascade-fail");
+        event.seats = [
+            ...(event.seats as Row[]),
+            ...Array.from({ length: 7 }, (_, i) => ({
+                seatIndex: 2 + i,
+                isBot: true,
+                nickname: `Filler ${i}`,
+            })),
+        ];
+
+        await expect(
+            runExpire(stub.ctx, {
+                eventId: "event-expire-cascade-fail",
+                roundNumber: 1,
+            })
+        ).resolves.toBeNull();
+
+        // The timeout result landed regardless — nobody ever started a
+        // Match, so it's a double loss.
+        expect(pairingOf(stub, "event-expire-cascade-fail").result).toEqual({
+            winsA: 0,
+            winsB: 0,
+            source: "timeout",
+        });
+
+        // The round-advance step was skipped, not half-applied: the event is
+        // left exactly where it was, for the next call (or an operator) to
+        // retry — never stuck re-throwing forever on the ALREADY-closed
+        // pairing (`isRoundComplete` would now say the round IS complete, so
+        // a retry only re-attempts the advance, not the closing).
+        const afterward = stub.doc("event-expire-cascade-fail");
+        expect(afterward.status).toBe("playing");
+        expect(afterward.currentRound).toBe(1);
+    });
+});
+
+/** The SAME ctx, but `scheduler.runAfter` always throws — issue #1647 review
+ *  finding 4: a `scheduler.runAfter` failure while arming the newly-opened
+ *  round's deadline must never roll back the Match result / round advance
+ *  that were already committed earlier in the SAME transaction. */
+function withThrowingScheduler(ctx: MutationCtx): MutationCtx {
+    return {
+        ...ctx,
+        scheduler: {
+            runAfter: async () => {
+                throw new Error("scheduler unavailable (test)");
+            },
+        },
+    } as unknown as MutationCtx;
+}
+
+describe("recordLimitedPairingResult — a scheduleRoundDeadline failure never rolls back the recorded result (issue #1647 review finding 4)", () => {
+    it("still records the pairing result and advances the round when arming the new round's deadline throws", async () => {
+        const fx = fourHumanEvent({ eventId: "event-sched-fail", seed: 3030 });
+        fx.event.roundDeadlineMinutes = 20; // round 2 gets its own deadline armed
+        const stub = makeCtx("alice", fx.seeds);
+
+        // Decide (2,3) first — round 1 still has (0,1) pending, so nothing
+        // advances (and nothing schedules) yet.
+        const gameCD = await runStart(asUser(stub, "carol"), {
+            eventId: "event-sched-fail",
+            deck: fx.deckForSeat(2),
+        });
+        await runJoin(asUser(stub, "dave"), {
+            gameId: gameCD,
+            deck: fx.deckForSeat(3),
+        });
+        await finishGame(stub.ctx, gameCD, "dave");
+
+        // NOW record (0,1) — round 1's LAST undecided pairing. This is the
+        // call that opens round 2 AND tries to arm its deadline — through a
+        // ctx whose `scheduler.runAfter` always throws.
+        const gameAB = await runStart(stub.ctx, {
+            eventId: "event-sched-fail",
+            deck: fx.deckForSeat(0),
+        });
+        await runJoin(asUser(stub, "bob"), {
+            gameId: gameAB,
+            deck: fx.deckForSeat(1),
+        });
+
+        // Must not throw — the whole point of the fix. Without it, the
+        // scheduler failure would propagate out of `finalizeGameOver` and
+        // roll back the Match result + round advance this same call just
+        // committed.
+        await expect(
+            finishGame(withThrowingScheduler(stub.ctx), gameAB, "alice")
+        ).resolves.toBeUndefined();
+
+        // The pairing result survived.
+        expect(pairingOf(stub, "event-sched-fail").result).toEqual({
+            winsA: 1,
+            winsB: 0,
+            source: "played",
+        });
+        // …and so did the round advance into round 2.
+        const event = stub.doc("event-sched-fail");
+        expect(event.currentRound).toBe(2);
+        expect((event.rounds as unknown[]).length).toBe(2);
     });
 });

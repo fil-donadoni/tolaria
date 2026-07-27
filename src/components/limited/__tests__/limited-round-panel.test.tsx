@@ -50,7 +50,8 @@ type Pairings = NonNullable<LimitedEventRow["rounds"]>[number]["pairings"];
 function projectedEvent(
     pairings: Pairings,
     overrides: Partial<LimitedEventRow> = {},
-    viewerUserId: string | null = "user1"
+    viewerUserId: string | null = "user1",
+    deadlineAt?: number
 ): LimitedEventView {
     const row: LimitedEventRow = {
         _id: "event-1644",
@@ -61,7 +62,7 @@ function projectedEvent(
         packSlots: ["lea"],
         matchFormat: "bo3",
         currentRound: 1,
-        rounds: [{ roundNumber: 1, startedAt: 1000, pairings }],
+        rounds: [{ roundNumber: 1, startedAt: 1000, deadlineAt, pairings }],
         seats: [
             { seatIndex: 0, userId: "user1", nickname: "Alice" },
             { seatIndex: 1, userId: "user2", nickname: "Bob" },
@@ -100,6 +101,35 @@ describe("LimitedRoundPanel — the current round (PRD story 6)", () => {
         const { container } = renderPanel(event);
 
         expect(container.firstChild).toBeNull();
+    });
+});
+
+describe("LimitedRoundPanel — the round deadline countdown (PRD story 35, issue #1647)", () => {
+    it("shows a countdown when the round has a configured deadline", () => {
+        renderPanel(
+            projectedEvent(
+                [
+                    { seatA: 0, seatB: 2 },
+                    { seatA: 1, seatB: 3 },
+                ],
+                {},
+                "user1",
+                Date.now() + 10 * 60_000
+            )
+        );
+
+        expect(screen.getByTestId("round-deadline")).toBeTruthy();
+    });
+
+    it("renders no countdown when the round has no configured deadline", () => {
+        renderPanel(
+            projectedEvent([
+                { seatA: 0, seatB: 2 },
+                { seatA: 1, seatB: 3 },
+            ])
+        );
+
+        expect(screen.queryByTestId("round-deadline")).toBeNull();
     });
 });
 

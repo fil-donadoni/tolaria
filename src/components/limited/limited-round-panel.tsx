@@ -4,6 +4,7 @@ import type { Id } from "@convex/_generated/dataModel";
 import { roundsForSeatCount } from "@convex/limited/swiss";
 import { cn } from "~/lib/utils";
 import LimitedRoundAction from "./limited-round-action";
+import LimitedRoundDeadline from "./limited-round-deadline";
 
 /** How a decided pairing came to be decided, in words (PRD #1628 story 26 — a
  *  player must be able to tell a real win from an awarded one). */
@@ -55,11 +56,20 @@ export default function LimitedRoundPanel({
     // crashes the whole event page on a missing optional is not a trade worth
     // making for one saved character.
     const pairing = event.viewerPairing ?? null;
+    // Issue #1647: the current round's own deadline, already on the wire
+    // (`convex/limited/rounds.ts`'s `openRound` stamps it, story 4: absent
+    // when the event has no configured deadline — the countdown then simply
+    // doesn't render).
+    const currentRound = event.rounds.find(
+        (round) => round.roundNumber === event.currentRound
+    );
+    const deadlineAt = currentRound?.deadlineAt ?? null;
 
     return (
         <div className="flex flex-col gap-1.5" data-testid="round-panel">
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-text-muted">
+            <h3 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-text-muted">
                 Round {event.currentRound} of {totalRounds}
+                <LimitedRoundDeadline deadlineAt={deadlineAt} />
             </h3>
             <div className="rounded-sm border border-border-subtle/40 bg-surface-elevated px-3 py-2 text-sm">
                 {pairing === null ? (
