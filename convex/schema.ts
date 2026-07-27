@@ -212,6 +212,19 @@ export default defineSchema({
                 challengedSeatIndex: v.number(),
             })
         ),
+        /** Round pairing this Match IS (PRD #1628, issue #1640) — set only for
+         *  a Match created by the event's play phase, alongside
+         *  `limitedEventId`. Absent for a free challenge (which carries
+         *  `limitedChallenge` instead) and for every non-event Match. Present
+         *  so a FINISHED Match can find the pairing to record its result
+         *  against without scanning the event's rounds. */
+        limitedPairing: v.optional(
+            v.object({
+                round: v.number(),
+                seatA: v.number(),
+                seatB: v.number(),
+            })
+        ),
         createdAt: v.number(),
         updatedAt: v.number(),
     }).index("by_status", ["status"]),
@@ -271,6 +284,16 @@ export default defineSchema({
                 challengerSeatIndex: v.number(),
                 challengedUserId: v.string(),
                 challengedSeatIndex: v.number(),
+            })
+        ),
+        /** Round pairing this Game belongs to (PRD #1628, issue #1640) —
+         *  mirror of the owning Match's `limitedPairing`, so a Game row alone
+         *  identifies the pairing it counts towards. */
+        limitedPairing: v.optional(
+            v.object({
+                round: v.number(),
+                seatA: v.number(),
+                seatB: v.number(),
             })
         ),
         createdAt: v.number(),
@@ -337,11 +360,82 @@ export default defineSchema({
     limitedEvents: defineTable({
         createdBy: v.id("users"),
         type: v.union(v.literal("sealed"), v.literal("draft")),
-        // "open": joining seats, not yet started. "started": every seat is
-        // filled (human or bot) and — for Sealed — Pools are generated.
-        // Completion / all-Pools-reveal (PRD #1107 story 26) is deck-building
-        // integration, deferred to a later slice.
-        status: v.union(v.literal("open"), v.literal("started")),
+        // Event lifecycle (PRD #1628, ADR 0076 — which reverses ADR 0055
+        // decision 1's "the event ends at the built Deck"):
+        //   "open"     joining seats, not yet started; no Pools exist.
+        //   "started"  every seat is filled (human or bot), Pools are
+        //              generated/being drafted, seats build their decks.
+        //   "playing"  the play phase: Swiss rounds are running.
+        //   "finished" the last round is decided; standings are final.
+        // NEVER compare these literals outside `convex/limited/eventStatus.ts`
+        // — that module's exhaustive fact table is the single authority on what
+        // each phase permits (a raw `!== "started"` silently breaks the moment
+        // an event reaches the play phase).
+        status: v.union(
+            v.literal("open"),
+            v.literal("started"),
+            v.literal("playing"),
+            v.literal("finished")
+        ),
+        // Match Format of every ROUND match (PRD #1628 stories 1-2), chosen at
+        // creation. OPTIONAL only for backward compatibility — events created
+        // before the play phase existed carry no value; every reader resolves
+        // it through `resolveMatchFormat` (`convex/limited/matchFormat.ts`),
+        // which defaults to "bo3", so nothing downstream ever sees `undefined`.
+        matchFormat: v.optional(v.union(v.literal("bo1"), v.literal("bo3"))),
+        // Optional round deadline in MINUTES (PRD #1628 stories 3-4/32-35).
+        // Absent = no deadline: a relaxed table is never cut short by a timer.
+        // Stored as the creator's configured duration, not an epoch — each
+        // round stamps its own `deadlineAt` from it when it opens.
+        roundDeadlineMinutes: v.optional(v.number()),
+        // Play phase (PRD #1628, ADR 0076: EMBEDDED in the event document, not
+        // in separate `limitedRounds`/`limitedPairings` tables — at most 8
+        // seats x 3 rounds = 12 pairings, and the symmetry with the already-
+        // embedded `seats` beats the isolation a join would buy). Absent on
+        // every event that hasn't reached the play phase.
+        //
+        // 1-based number of the round currently being played.
+        currentRound: v.optional(v.number()),
+        // Every round opened so far, including the current one. Pairings are
+        // PERSISTED, never derived: Swiss chooses randomly among equal-score
+        // seats, so a re-derivation could disagree with what was played.
+        // Standings are the opposite — always derived from these results at
+        // read time, never stored (PRD #1628 story 47).
+        rounds: v.optional(
+            v.array(
+                v.object({
+                    roundNumber: v.number(),
+                    startedAt: v.number(),
+                    // Epoch ms this round's undecided human pairings are closed
+                    // as losses. Absent when the event has no round deadline.
+                    deadlineAt: v.optional(v.number()),
+                    pairings: v.array(
+                        v.object({
+                            seatA: v.number(),
+                            // Absent = BYE for `seatA`.
+                            seatB: v.optional(v.number()),
+                            // Only for a pairing involving a human — a
+                            // bot-vs-bot pairing is evaluated, not played
+                            // (ADR 0076), and a bye has no Match at all.
+                            matchId: v.optional(v.id("matches")),
+                            // Absent = undecided.
+                            result: v.optional(
+                                v.object({
+                                    winsA: v.number(),
+                                    winsB: v.number(),
+                                    source: v.union(
+                                        v.literal("played"),
+                                        v.literal("simulated"),
+                                        v.literal("bye"),
+                                        v.literal("timeout")
+                                    ),
+                                })
+                            ),
+                        })
+                    ),
+                })
+            )
+        ),
         seatCount: v.number(),
         // Pack Source per pack slot (Draftable Set codes, e.g. ["lea"] or
         // ["lea","lea","lea"] for a 3-round Draft). A Sealed event cycles this

@@ -755,3 +755,136 @@ describe("projectLimitedEvent — selectedPickId (ADR 0060, issue #1248)", () =>
         expect(own.selectedPickId).toBeNull();
     });
 });
+
+// --- Play phase on the wire (PRD #1628, ADR 0076, issue #1640) -------------
+// The mandatory wire-format assertions for the play-phase fields: every one is
+// checked against `projectLimitedEvent`'s OUTPUT — the exact object a client
+// receives — because a field the projection drops is this project's single
+// most recurring bug class, and a hand-built view would mask it entirely.
+describe("play phase projection (PRD #1628, ADR 0076, issue #1640)", () => {
+    it("defaults an absent matchFormat to Bo3 on the wire (never undefined)", () => {
+        // An event created before the play phase existed: the stored field is
+        // absent, but the client must still receive a concrete format.
+        const view = projectLimitedEvent(row(), "user1");
+        expect(view.matchFormat).toBe("bo3");
+    });
+
+    it("carries an explicitly chosen Bo1 through the projection", () => {
+        const view = projectLimitedEvent(row({ matchFormat: "bo1" }), "user1");
+        expect(view.matchFormat).toBe("bo1");
+    });
+
+    it("carries an explicitly chosen Bo3 through the projection", () => {
+        const view = projectLimitedEvent(row({ matchFormat: "bo3" }), "user1");
+        expect(view.matchFormat).toBe("bo3");
+    });
+
+    it("carries the round deadline, and keeps 'no deadline' absent", () => {
+        expect(
+            projectLimitedEvent(row({ roundDeadlineMinutes: 50 }), "user1")
+                .roundDeadlineMinutes
+        ).toBe(50);
+        expect(
+            projectLimitedEvent(row(), "user1").roundDeadlineMinutes
+        ).toBeUndefined();
+    });
+
+    it("normalises rounds to an empty array before the play phase", () => {
+        const view = projectLimitedEvent(row(), "user1");
+        expect(view.rounds).toEqual([]);
+        expect(view.currentRound).toBeUndefined();
+    });
+
+    it("projects rounds, pairings and results to EVERY viewer (public, not viewer-scoped)", () => {
+        const event = row({
+            status: "playing",
+            currentRound: 2,
+            rounds: [
+                {
+                    roundNumber: 1,
+                    startedAt: 1000,
+                    deadlineAt: 4000,
+                    pairings: [
+                        {
+                            seatA: 0,
+                            seatB: 1,
+                            matchId: "match1",
+                            result: { winsA: 2, winsB: 1, source: "played" },
+                        },
+                    ],
+                },
+                {
+                    roundNumber: 2,
+                    startedAt: 5000,
+                    pairings: [{ seatA: 1, seatB: 0 }],
+                },
+            ],
+        });
+
+        // Seat 0's viewer, seat 1's viewer and an anonymous read must all see
+        // the identical pairing history — pools/decks are stripped per seat,
+        // pairings and results are not.
+        for (const viewer of ["user1", "user2", null]) {
+            const view = projectLimitedEvent(event, viewer);
+            expect(view.status).toBe("playing");
+            expect(view.currentRound).toBe(2);
+            expect(view.rounds).toHaveLength(2);
+            expect(view.rounds[0].pairings[0]).toEqual({
+                seatA: 0,
+                seatB: 1,
+                matchId: "match1",
+                result: { winsA: 2, winsB: 1, source: "played" },
+            });
+            // Undecided pairing stays undecided (no fabricated result).
+            expect(view.rounds[1].pairings[0].result).toBeUndefined();
+        }
+    });
+
+    it("preserves a bye (absent seatB) and every result source verbatim", () => {
+        const event = row({
+            status: "finished",
+            currentRound: 1,
+            rounds: [
+                {
+                    roundNumber: 1,
+                    startedAt: 0,
+                    pairings: [
+                        {
+                            seatA: 0,
+                            result: { winsA: 2, winsB: 0, source: "bye" },
+                        },
+                        {
+                            seatA: 1,
+                            seatB: 2,
+                            result: { winsA: 2, winsB: 1, source: "simulated" },
+                        },
+                        {
+                            seatA: 3,
+                            seatB: 4,
+                            result: { winsA: 0, winsB: 2, source: "timeout" },
+                        },
+                    ],
+                },
+            ],
+        });
+        const view = projectLimitedEvent(event, "user1");
+        const pairings = view.rounds[0].pairings;
+        expect(pairings[0].seatB).toBeUndefined();
+        expect(pairings.map((p) => p.result?.source)).toEqual([
+            "bye",
+            "simulated",
+            "timeout",
+        ]);
+    });
+
+    it("keeps every pre-play-phase field working on an event with no play state", () => {
+        // Backward compatibility (issue #1640 AC): an event row written before
+        // the play phase carries none of the new fields and must project
+        // exactly as it always did.
+        const view = projectLimitedEvent(row(), "user1");
+        expect(view.status).toBe("started");
+        expect(view.seats).toHaveLength(2);
+        expect(view.seats[0].pool).toHaveLength(2);
+        expect(view.seats[1].pool).toBeNull();
+    });
+});

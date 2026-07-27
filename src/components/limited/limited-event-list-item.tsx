@@ -1,5 +1,6 @@
 import type { LimitedEventView } from "~/hooks/useLimitedEvent";
 import { limitedEventName } from "~/lib/limitedEventName";
+import { limitedEventStatusHint } from "~/lib/limitedEventStatus";
 import ActionButton from "~/components/board/action-button";
 import { Button } from "@/components/ui/button";
 
@@ -26,11 +27,13 @@ export default function LimitedEventListItem({
     const filledSeats = event.seats.filter(
         (s) => s.userId !== undefined || s.isBot
     ).length;
-    // "completed" isn't its own `status` value (schema only has
-    // open/started) — it's the `completed` flag on a started event (PRD
-    // #1107 story 26) — surfaced here so the "your events" section (issue
-    // #1578) can distinguish a still-live event from a finished one.
-    const statusLabel = event.completed ? "completed" : event.status;
+    // The derived PHASE, never the raw `status` enum (ADR 0076): with the play
+    // phase the status union has four members, and the old
+    // `completed ? "completed" : status` would have reported a running event
+    // as "completed" (every seat has a deck by then, by construction) instead
+    // of "playing". `limitedEventStatusHint` is the one authority — the same
+    // one `LimitedStatusBadge` renders.
+    const statusLabel = limitedEventStatusHint(event);
 
     return (
         <div className="flex items-center justify-between rounded-sm border border-border-subtle/40 px-4 py-3">

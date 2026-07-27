@@ -3,10 +3,11 @@
 // ../limitedEventStatus.ts's doc comment for the projection chain.
 import { describe, it, expect } from "vitest";
 import { limitedEventStatusHint } from "../limitedEventStatus";
+import type { LimitedEventStatus } from "@convex/limited/eventStatus";
 
 function base(
     overrides: Partial<{
-        status: "open" | "started";
+        status: LimitedEventStatus;
         type: "sealed" | "draft";
         draftCompletedAt: number | undefined;
         completed: boolean;
@@ -84,5 +85,48 @@ describe("limitedEventStatusHint (issue #1582)", () => {
                 })
             )
         ).toBe("ready to play");
+    });
+});
+
+// Play phase (PRD #1628, ADR 0076, issue #1640). The two new statuses must be
+// answered BEFORE the deck/pool-derived fallbacks: a running event is
+// `completed` by construction (every seat had a deck before the rounds could
+// start), so without an explicit branch it would report "ready to play"
+// forever — the exact bug the exhaustive predicate seam exists to prevent.
+describe("limitedEventStatusHint — play phase (PRD #1628, issue #1640)", () => {
+    it("returns 'playing' while the event's rounds are running", () => {
+        expect(
+            limitedEventStatusHint(
+                base({ status: "playing", type: "draft", draftCompletedAt: 1 })
+            )
+        ).toBe("playing");
+    });
+
+    it("returns 'playing' even though every seat has a deck by then", () => {
+        expect(
+            limitedEventStatusHint(base({ status: "playing", completed: true }))
+        ).toBe("playing");
+    });
+
+    it("returns 'finished' once the last round is decided", () => {
+        expect(
+            limitedEventStatusHint(
+                base({ status: "finished", completed: true })
+            )
+        ).toBe("finished");
+    });
+
+    it("never reports a play-phase Draft as 'drafting' (its pool is long final)", () => {
+        for (const status of ["playing", "finished"] as const) {
+            expect(
+                limitedEventStatusHint(
+                    base({
+                        status,
+                        type: "draft",
+                        draftCompletedAt: undefined,
+                    })
+                )
+            ).not.toBe("drafting");
+        }
     });
 });

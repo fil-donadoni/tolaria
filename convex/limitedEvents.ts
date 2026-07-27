@@ -69,6 +69,17 @@ import {
 } from "./limited/eventProjection";
 import type { LimitedEventSeat } from "./limited/eventTypes";
 import {
+    arePoolsDealt,
+    areDraftPicksLegal,
+    isSeatingOpen,
+} from "./limited/eventStatus";
+import {
+    isValidRoundDeadlineMinutes,
+    resolveMatchFormat,
+    MAX_ROUND_DEADLINE_MINUTES,
+    MIN_ROUND_DEADLINE_MINUTES,
+} from "./limited/matchFormat";
+import {
     projectViewerChallenges,
     type ChallengeGame,
     type ViewerChallenges,
@@ -99,7 +110,42 @@ function asDbSeats(seats: LimitedEventSeat[]): Doc<"limitedEvents">["seats"] {
 }
 
 const eventTypeValidator = v.union(v.literal("sealed"), v.literal("draft"));
-const eventStatusValidator = v.union(v.literal("open"), v.literal("started"));
+// Lifecycle status on the wire (PRD #1628, ADR 0076) — the same four members
+// as the schema. `convex/limited/eventStatus.ts` is the authority on what each
+// one PERMITS; this only declares the shape.
+const eventStatusValidator = v.union(
+    v.literal("open"),
+    v.literal("started"),
+    v.literal("playing"),
+    v.literal("finished")
+);
+const matchFormatValidator = v.union(v.literal("bo1"), v.literal("bo3"));
+const pairingResultValidator = v.object({
+    winsA: v.number(),
+    winsB: v.number(),
+    source: v.union(
+        v.literal("played"),
+        v.literal("simulated"),
+        v.literal("bye"),
+        v.literal("timeout")
+    ),
+});
+const roundValidator = v.object({
+    roundNumber: v.number(),
+    startedAt: v.number(),
+    deadlineAt: v.optional(v.number()),
+    pairings: v.array(
+        v.object({
+            seatA: v.number(),
+            seatB: v.optional(v.number()),
+            // The wire carries the Match id as a plain string — the pure
+            // projection module never depends on `_generated` (see
+            // `LimitedPairing.matchId`).
+            matchId: v.optional(v.string()),
+            result: v.optional(pairingResultValidator),
+        })
+    ),
+});
 
 const limitedPoolCardValidator = v.object({
     scryfallId: v.string(),
@@ -228,6 +274,15 @@ const limitedEventViewValidator = v.object({
     draftPacksRemaining: v.optional(v.number()),
     draftCompletedAt: v.optional(v.number()),
     timerEnabled: v.optional(v.boolean()),
+    // Play phase (PRD #1628, issue #1640). `matchFormat` is REQUIRED on the
+    // wire even though the stored field is optional — `projectLimitedEvent`
+    // resolves the default, so the client always receives a concrete Bo1/Bo3.
+    matchFormat: matchFormatValidator,
+    roundDeadlineMinutes: v.optional(v.number()),
+    currentRound: v.optional(v.number()),
+    // Always an array (`[]` before the play phase) — pairings and results are
+    // public; pools/decks keep their per-seat stripping.
+    rounds: v.array(roundValidator),
     // Event completion (issue #1116): true exactly when every seat has a
     // Deck — see `convex/limited/completion.ts`'s `computeEventCompletion`.
     completed: v.boolean(),
@@ -515,10 +570,14 @@ async function projectEventForViewer(
         status: event.status,
         draftCompletedAt: event.draftCompletedAt,
     };
-    const humanDecksBySeat =
-        event.status === "started"
-            ? await loadHumanDecksBySeat(ctx, event._id)
-            : new Map<number, HumanDeckView>();
+    // Decks exist for as long as Pools do — through the play phase and past
+    // the event's end (ADR 0076), not only while `status === "started"`. A
+    // literal comparison here would have blanked every seat's deck (and, via
+    // `computeEventCompletion`, un-completed the event) the moment the rounds
+    // started.
+    const humanDecksBySeat = arePoolsDealt(event.status)
+        ? await loadHumanDecksBySeat(ctx, event._id)
+        : new Map<number, HumanDeckView>();
     const completion = computeEventCompletion(
         event.seats,
         eventContext,
@@ -534,12 +593,11 @@ async function projectEventForViewer(
         isAdmin
     );
     const resolveBasicLand = resolveBasicLandFor(event.packSlots[0] ?? "");
-    // Challenges (issue #1577) only exist for a `started` event — skip the
-    // games read entirely for `open` events (the lobby list's common case).
-    const challenges =
-        event.status === "started"
-            ? await loadEventChallenges(ctx, event._id)
-            : [];
+    // Challenges (issue #1577) only exist once Pools do — skip the games read
+    // entirely for `open` events (the lobby list's common case).
+    const challenges = arePoolsDealt(event.status)
+        ? await loadEventChallenges(ctx, event._id)
+        : [];
     const viewerChallenges = projectViewerChallenges(challenges, viewerUserId);
     return {
         ...base,
@@ -725,10 +783,30 @@ export const createLimitedEvent = mutation({
         // actual per-pick length always follows the official descending
         // schedule). Absent/omitted/false === disabled.
         timerEnabled: v.optional(v.boolean()),
+        // Match Format of the event's round matches (PRD #1628 stories 1-2,
+        // issue #1640). Omitted === the Bo3 default, so an existing client
+        // that doesn't send it still creates a real-Limited-shaped event.
+        matchFormat: v.optional(matchFormatValidator),
+        // Optional round deadline in MINUTES (PRD #1628 stories 3-4). Omitted
+        // === no deadline; a relaxed table is never cut short by a timer.
+        roundDeadlineMinutes: v.optional(v.number()),
     },
     returns: v.id("limitedEvents"),
     handler: async (ctx, args) => {
         const creator = await getCurrentUser(ctx);
+
+        // Range-check the client-supplied deadline against the SAME bounds the
+        // create dialog's number input uses (an unbounded number would
+        // otherwise store `NaN`/`Infinity`/a negative and yield a `deadlineAt`
+        // that is either instantly expired or unreachable).
+        if (
+            args.roundDeadlineMinutes !== undefined &&
+            !isValidRoundDeadlineMinutes(args.roundDeadlineMinutes)
+        ) {
+            throw new Error(
+                `The round deadline must be a whole number of minutes between ${MIN_ROUND_DEADLINE_MINUTES} and ${MAX_ROUND_DEADLINE_MINUTES}.`
+            );
+        }
 
         if (args.packSlots.length === 0) {
             throw new Error(
@@ -797,6 +875,12 @@ export const createLimitedEvent = mutation({
             sealedBoosterCount:
                 args.sealedBoosterCount ?? DEFAULT_SEALED_BOOSTER_COUNT,
             timerEnabled: args.timerEnabled,
+            // Persisted CONCRETE (never left absent to be defaulted later):
+            // the tolerant `resolveMatchFormat` read exists for rows written
+            // before the play phase, not as a licence for new rows to be
+            // ambiguous about what the creator chose.
+            matchFormat: resolveMatchFormat(args.matchFormat),
+            roundDeadlineMinutes: args.roundDeadlineMinutes,
             seats: asDbSeats(seats),
             createdAt: now,
             updatedAt: now,
@@ -812,7 +896,7 @@ export const joinLimitedEvent = mutation({
         const user = await getCurrentUser(ctx);
         const event = await ctx.db.get(args.eventId);
         if (!event) throw new Error("Event not found");
-        if (event.status !== "open") {
+        if (!isSeatingOpen(event.status)) {
             throw new Error("This event has already started.");
         }
         const seats = assignFreeSeat(event.seats, user._id, user.nickname);
@@ -838,7 +922,7 @@ export const leaveLimitedEvent = mutation({
         const user = await getCurrentUser(ctx);
         const event = await ctx.db.get(args.eventId);
         if (!event) throw new Error("Event not found");
-        if (event.status !== "open") {
+        if (!isSeatingOpen(event.status)) {
             throw new Error("This event has already started.");
         }
         const seats = releaseSeat(event.seats, user._id);
@@ -869,7 +953,7 @@ export const cancelLimitedEvent = mutation({
         if (event.createdBy !== user._id) {
             throw new Error("Only the event's creator can cancel it.");
         }
-        if (event.status !== "open") {
+        if (!isSeatingOpen(event.status)) {
             throw new Error("This event has already started.");
         }
         await ctx.db.delete(args.eventId);
@@ -898,7 +982,7 @@ export const startLimitedEvent = mutation({
         if (event.createdBy !== user._id) {
             throw new Error("Only the event's creator can start it.");
         }
-        if (event.status !== "open") {
+        if (!isSeatingOpen(event.status)) {
             throw new Error("This event has already started.");
         }
 
@@ -1095,7 +1179,7 @@ export const submitPick = mutation({
         if (event.type !== "draft") {
             throw new Error("This event is not a Draft.");
         }
-        if (event.status !== "started") {
+        if (!areDraftPicksLegal(event.status)) {
             throw new Error("This event has not started yet.");
         }
         if (event.draftCompletedAt !== undefined) {
@@ -1195,7 +1279,9 @@ export const autoPickSeatTimeout = internalMutation({
     handler: async (ctx, args) => {
         const event = await ctx.db.get(args.eventId);
         if (!event) return null;
-        if (event.type !== "draft" || event.status !== "started") return null;
+        if (event.type !== "draft" || !areDraftPicksLegal(event.status)) {
+            return null;
+        }
         if (event.draftCompletedAt !== undefined) return null;
         if (event.seed === undefined || !event.timerEnabled) {
             return null;

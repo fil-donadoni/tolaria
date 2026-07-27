@@ -12,9 +12,12 @@ import type {
     LimitedEventSeat,
     LimitedEventStatus,
     LimitedEventType,
+    LimitedMatchFormat,
     LimitedPoolCard,
+    LimitedRound,
     PoolArrangementEntry,
 } from "./eventTypes";
+import { resolveMatchFormat } from "./matchFormat";
 
 /** The row shape this module projects — structurally what a `limitedEvents`
  *  Doc satisfies, kept independent of `Doc<"limitedEvents">` so this stays
@@ -36,6 +39,15 @@ export interface LimitedEventRow {
      *  always visible (not hidden information) so every seat's UI knows
      *  whether a countdown should render at all. */
     timerEnabled?: boolean;
+    /** Play phase (PRD #1628, ADR 0076). All four are OPTIONAL on the row: an
+     *  event created before the play phase existed carries none of them, and a
+     *  live event only gains `currentRound`/`rounds` when it starts playing.
+     *  `matchFormat` is the one the projection makes DEFINITE on the wire —
+     *  see `LimitedEventView.matchFormat`. */
+    matchFormat?: LimitedMatchFormat;
+    roundDeadlineMinutes?: number;
+    currentRound?: number;
+    rounds?: LimitedRound[];
     seats: LimitedEventSeat[];
     createdAt: number;
     updatedAt: number;
@@ -170,6 +182,23 @@ export interface LimitedEventView {
     draftPacksRemaining?: number;
     draftCompletedAt?: number;
     timerEnabled?: boolean;
+    /** The event's Match Format (PRD #1628 stories 1-2) — Bo1 or Bo3, chosen
+     *  at creation. DEFINITE on the wire even though the stored field is
+     *  optional: the projection resolves it through `resolveMatchFormat`, so a
+     *  client (and the event page's format line) never has to know that events
+     *  predating the play phase stored nothing, nor re-implement the default. */
+    matchFormat: LimitedMatchFormat;
+    /** Configured round deadline in minutes (PRD #1628 stories 3-4). Absent =
+     *  no deadline. Public, not viewer-scoped: every seat needs to know whether
+     *  the table is on a clock before it starts drafting. */
+    roundDeadlineMinutes?: number;
+    /** 1-based round currently being played; absent before the play phase. */
+    currentRound?: number;
+    /** Every round opened so far, with its pairings and decided results.
+     *  PUBLIC (PRD #1628: pairings and results are public — pools and decks
+     *  keep the per-seat stripping above). Always an ARRAY on the wire, `[]`
+     *  before the play phase, so no client branches on absence. */
+    rounds: LimitedRound[];
     /** True once every seat has a Deck (issue #1116) — the caller-computed
      *  gate (`convex/limited/completion.ts`'s `computeEventCompletion`) that
      *  ALSO controls the `pool`/`humanDeck` full-disclosure reveal below.
@@ -227,6 +256,13 @@ export function projectLimitedEvent(
         draftPacksRemaining: event.draftPacksRemaining,
         draftCompletedAt: event.draftCompletedAt,
         timerEnabled: event.timerEnabled,
+        // Play phase (PRD #1628). `matchFormat` is resolved here — the one
+        // place the "absent means bo3" tolerance lives — so the wire shape is
+        // definite; `rounds` normalises to `[]` for the same reason.
+        matchFormat: resolveMatchFormat(event.matchFormat),
+        roundDeadlineMinutes: event.roundDeadlineMinutes,
+        currentRound: event.currentRound,
+        rounds: event.rounds ?? [],
         completed,
         seatsWithDeck,
         createdAt: event.createdAt,

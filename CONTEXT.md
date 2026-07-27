@@ -549,8 +549,9 @@ A card's print rarity (`common` / `uncommon` / `rare`), carried per **Card Print
 _Avoid_: Frequency, tier
 
 **Limited Event**:
-An admin-created gathering of N **Players** that produces one **Limited**-legal **Deck** per seat: setup (admin picks sets/boosters) → pool generation (**Sealed**) or **Draft** → deckbuild from the pool. The Event **ends at the built Deck** — it does not orchestrate **Matches**; participants then play through the existing Match flow. Pairing, rounds, and standings are out of the Event's boundary (deferred).
-_Avoid_: Tournament (implies pairing/standings), lobby (that's constructed matchmaking)
+An admin-created gathering of N **Players** that produces one **Limited**-legal **Deck** per **Seat** and then plays it out: setup (admin picks sets/boosters, **Match Format**, optional **Round Deadline**) → pool generation (**Sealed**) or **Draft** → deckbuild from the **Pool** → **Play Phase** (Swiss **Rounds**, ending in **Standings**). The Event owns the whole arc; it orchestrates its round **Matches** through the existing Match flow rather than replacing it. Its lifecycle is a four-member status — `open` → `started` → `playing` → `finished` — whose meaning is only ever read through named predicates, never a literal comparison (ADR 0076).
+_Historical_: ADR 0055 originally stopped the Event at the built Deck, with pairing/rounds/standings deferred; ADR 0076 reverses that — a drafted deck whose performance is never recorded loses the study loop the environment exists for.
+_Avoid_: Lobby (that's constructed matchmaking)
 
 **Draftable Set**:
 A **Set** eligible for a **Limited Event**: every **Booster Sheet** of the set retains at least 80% of its cards as implemented **CardDefinitions**, after cards declared **out of scope** by ADR are treated as absent from the print run. Unimplemented cards below that per-sheet ceiling are **dropped from the sheet** (weights renormalized, same mechanism as ADR-excluded cards) — never rendered as placeholders. The 80% per-sheet floor is a **temporary onramp** to ship a Limited experience before every set is fully censused; the standing goal remains 100% implementation, and a set below 100% surfaces an **Incompleteness Notice** at event creation. A sheet under the 80% floor makes the whole set non-draftable.
@@ -675,6 +676,34 @@ _Avoid_: Pool layout, seat layout
 **Auto-Build**:
 The server-side construction of a **Limited**-legal **Deck** from a **Bot Drafter**'s **Pool** at the end of a **Limited Event**: pick the two strongest colors, ~17 spells + 17 lands, curve-aware. A bot's auto-built Deck is playable — a **User** can start a **vs-AI Game** against any bot **Seat**'s deck, closing the study loop (draft, then test your deck against the table's).
 _Avoid_: Autopilot, deck generation (too generic)
+
+**Play Phase**:
+The stretch of a **Limited Event** after every **Seat** has a **Deck**, in which the event runs its Swiss **Rounds** (status `playing`, ending at `finished`). Entering it does not freeze the earlier artifacts: **Pools**, submitted **Decks** and **Auto-Built** bot decks stay readable — a Pool is never un-dealt — because they are exactly what the rounds are played and evaluated against. While it runs, free challenges and Play-vs-Bots are withdrawn; they return once the event is `finished`, labelled as unrecorded playtesting.
+_Avoid_: Tournament phase, match phase (a Round contains Matches, the phase contains Rounds)
+
+**Round**:
+One Swiss round of a **Limited Event**'s **Play Phase**: a numbered set of **Pairings** covering every **Seat**, opened all at once and decided before the next begins. **Embedded** in the event document (with its pairings and their results) rather than living in its own table — the table is bounded at 8 seats × 3 rounds. A Round stamps its own `deadlineAt` from the event's **Round Deadline** when it opens.
+_Avoid_: Turn, cycle
+
+**Pairing**:
+The unit inside a **Round**: two **Seats** matched against each other, or one Seat with a **Bye**. Keyed by **Seat** index, not by user — a bot Seat has no user. A Pairing is _chosen_ (with randomness among equal-score Seats) and therefore **persisted**, never re-derived, so a re-render can't disagree with what was actually played. It carries an optional result in **games won by each side** plus a `source` (`played` / `simulated` / `bye` / `timeout`) recording how the result came to be. A human Pairing gets a real **Match**; a bot-vs-bot Pairing is **evaluated** from both drafted decks, never simulated through the **GRE**.
+_Avoid_: Matchup, match (a Pairing may have no Match at all)
+
+**Match Format** (event-level):
+Whether every **Round** **Match** of a **Limited Event** is best-of-one or best-of-three (`bo1` / `bo3`), chosen once at creation and fixed for the event's life. Bo3 is the default, so an unconfigured event plays like real Limited. Stored optionally (events predating the **Play Phase** carry nothing) but resolved to a definite value by a single tolerant reader, so the wire shape and every consumer only ever see a concrete format — no client re-implements the default. Maps to the existing Match's best-of setting at one seam.
+_Avoid_: Format (that's the deck-construction constraint set — a different concept entirely), bestOf (that's the Match-flow field it maps onto)
+
+**Round Deadline**:
+The optional per-**Round** clock of a **Limited Event**, configured at creation as a duration in **minutes** (not an epoch — each Round stamps its own expiry when it opens) and range-checked server-side. When it expires, an undecided human **Pairing** is closed as a loss with source `timeout`. Absent means the event has no clock: a relaxed table is never cut short. It is also how a Seat that goes away is handled — there is no explicit drop.
+_Avoid_: Timer (that's the per-**Pick** draft clock), time limit
+
+**Bye**:
+A **Pairing** with only one **Seat** — the odd Seat out at a table with an odd count — awarded the match win, worth the games its **Match Format** requires, with source `bye`. At most one per Seat per event.
+_Avoid_: Forfeit, walkover (those imply an opponent who lost)
+
+**Standings**:
+The ranked table of a **Limited Event**'s **Seats** — match points, match record and game-win percentage — **derived at read time** from the recorded **Pairing** results, never stored. The complement of persisting the Pairings: persist what was _chosen_, derive what is _implied_, so the table can never disagree with the results it comes from.
+_Avoid_: Leaderboard, ranking (implies persistence across events — explicitly out of scope)
 
 **Limited (Format)**:
 A **Format** whose **Deck Legality** is scoped to a **Pool** rather than to a card catalogue: the **Deck** carries its whole Pool — **Maindeck** (≥40, unlimited basic lands added freely) plus every unplayed Pool card in the **Sideboard** (no 15-card cap). Validation compares the deck's multiset (minus basics) against the authoritative Pool stored on the **Seat** (the deck references its **Limited Event** + Seat). **Sideboarding** between **Games** moves cards across the Pool boundary — already supported by the Match flow.

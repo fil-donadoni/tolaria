@@ -1,4 +1,5 @@
 import type { Id } from "@convex/_generated/dataModel";
+import { arePoolsDealt } from "@convex/limited/eventStatus";
 import { useLimitedEvent } from "~/hooks/useLimitedEvent";
 import { useUserDecks } from "~/hooks/useUserDecks";
 import LoadingScreen from "~/components/ui/loading-screen";
@@ -33,7 +34,7 @@ export default function PoolDeckBuilder({
     }
 
     const viewerSeat = event.seats.find((s) => s.isViewer);
-    if (!viewerSeat || event.status !== "started" || !viewerSeat.pool) {
+    if (!viewerSeat || !arePoolsDealt(event.status) || !viewerSeat.pool) {
         return (
             <LoadingScreen message="No Pool has been generated for your seat yet." />
         );

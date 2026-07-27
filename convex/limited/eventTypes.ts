@@ -75,7 +75,74 @@ export interface LimitedEventSeat {
 }
 
 export type LimitedEventType = "sealed" | "draft";
-export type LimitedEventStatus = "open" | "started";
+
+// The lifecycle status union moved to its own module (ADR 0076, issue #1640):
+// with the play phase it has four members, and every consumer now asks a NAMED
+// question of `eventStatus.ts`'s exhaustive fact table instead of comparing the
+// literal. Re-exported here so this stays the one type barrel for the event
+// domain and no existing import path had to move.
+export type { LimitedEventStatus } from "./eventStatus";
+export type { LimitedMatchFormat } from "./matchFormat";
+
+/** How a pairing's result came to be recorded (PRD #1628). NOT decorative: a
+ *  standings table where half the rows are simulated is unreadable without it,
+ *  the UI needs it to explain an awarded win, and the round tests assert on it
+ *  (a deadline must produce a 0-2 `"timeout"`, never a `"simulated"` 2-0).
+ *  - `"played"` — a real Match finished through the GRE.
+ *  - `"simulated"` — a bot-vs-bot pairing resolved by evaluating both drafted
+ *    decks (ADR 0076 decision 3: evaluated, never played through the engine).
+ *  - `"bye"` — an odd table's unpaired seat, awarded the match win.
+ *  - `"timeout"` — the round deadline closed an unplayed human pairing. */
+export type LimitedPairingResultSource =
+    | "played"
+    | "simulated"
+    | "bye"
+    | "timeout";
+
+/** The decided outcome of one pairing, in GAMES won by each side (not match
+ *  points): standings derive points, match record AND game-win % from this, so
+ *  the game counts are the primitive and everything else is computed
+ *  (PRD #1628 story 47 — standings are derived, never stored). */
+export interface LimitedPairingResult {
+    winsA: number;
+    winsB: number;
+    source: LimitedPairingResultSource;
+}
+
+/** One pairing within a round: two seats, or one seat and a bye.
+ *
+ *  `seatIndex` values, not user ids — a seat is the event's unit of identity
+ *  (a bot seat has no user), exactly as `seats[]` is keyed. */
+export interface LimitedPairing {
+    seatA: number;
+    /** Absent = BYE. `seatA` is awarded the match win (PRD #1628 stories
+     *  27-28); at most one bye per seat per event. */
+    seatB?: number;
+    /** The Match this pairing is played through — present only once a pairing
+     *  involving a HUMAN has a Match created for it, so the pairing can be
+     *  found from a finished Match (and vice versa) without a scan. A
+     *  bot-vs-bot pairing and a bye never have one: neither is played.
+     *  Stored as `v.id("matches")`, carried here as the opaque string this
+     *  module's `_id`/`createdBy` already use — `convex/limited/**` never
+     *  depends on `_generated` (see `LimitedEventRow`). */
+    matchId?: string;
+    /** Absent = undecided (still being played, or waiting on a human). */
+    result?: LimitedPairingResult;
+}
+
+/** One Swiss round of the event's play phase (PRD #1628, ADR 0076). Rounds are
+ *  EMBEDDED in the event document rather than living in their own table: at
+ *  most 8 seats x 3 rounds = 12 pairings, and the symmetry with the already-
+ *  embedded `seats` is worth more than the isolation a join would buy. */
+export interface LimitedRound {
+    roundNumber: number;
+    startedAt: number;
+    /** Epoch ms the round's undecided human pairings are closed as losses
+     *  (PRD #1628 stories 32-35). Absent = the event has no round deadline
+     *  configured, so the round never expires. */
+    deadlineAt?: number;
+    pairings: LimitedPairing[];
+}
 
 /** Per-seat, server-persisted Pool Arrangement (ADR 0060, issue #1247): how
  *  ONE opened Pool card is currently organised on the continuous draft→build
