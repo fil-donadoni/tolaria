@@ -99,6 +99,29 @@ export type BotView = {
      *  own `BotView` field rather than an `OwedChoice`. Undefined unless the bot
      *  itself owes the choice. */
     manaSpendChoice?: ManaSpendChoiceView;
+    /** CR 601.2g (`payWith`, ADR 0063) — the parked graveyard-exile CAST cost
+     *  awaiting the bot as PAYER of its own parked cast: delve's variable
+     *  offset (#1336), and the fixed flashback / escape exile costs that ride
+     *  the same picker. Like `manaSpendChoice` it lives OUTSIDE
+     *  `pendingChoices[]` (it hangs off `pendingCast`), so it is its own
+     *  `BotView` field rather than an `OwedChoice`. Undefined unless the bot
+     *  itself owes the pick. */
+    castExileChoice?: CastExileChoiceView;
+};
+
+/** The parked graveyard/hand exile CAST cost (CR 601.2g / 702.66 / 702.34a),
+ *  reduced to what the bot's deterministic picker needs. Built by
+ *  `buildBotView` from the bot's own visible graveyard/hand. */
+export type CastExileChoiceView = {
+    /** Ids the bot may pay with, in zone order (its own graveyard or hand, the
+     *  cast card itself already excluded). */
+    candidateIds: string[];
+    /** How many ids the bot MUST submit — the exact count for a fixed cost, the
+     *  forced `offsetGeneric.min` for delve (0 when delving is optional). */
+    required: number;
+    /** Upper bound on the submission (`offsetGeneric.max` for delve, otherwise
+     *  the same as `required`). */
+    maximum: number;
 };
 
 /** The parked generic-mana spend choice (#1444/#1446), reduced to what the
@@ -295,6 +318,15 @@ export type BotAction =
           kind: "resolve-mana-spend";
           spendOrder: string[];
       }
+    | {
+          /** CR 601.2g / 702.66 (`payWith`, ADR 0063) — the parked
+           *  graveyard-exile cast cost: the ids the bot exiles to pay. Driven
+           *  straight through `selectCastExileCost`, mirroring
+           *  `resolve-mana-spend` (it lives outside `pendingChoices[]`, so the
+           *  Worker surfaces no move for it and would stall on it forever). */
+          kind: "cast-exile-cost";
+          cardInstanceIds: string[];
+      }
     | { kind: "pass" }
     | { kind: "none" };
 
@@ -327,6 +359,7 @@ export type BotActionRealisation =
     | "confirm-damage"
     | "attack-tax"
     | "mana-spend"
+    | "cast-exile-cost"
     | "none";
 
 export function botActionRealisation(
@@ -348,6 +381,14 @@ export function botActionRealisation(
         // park above: it lives outside `pendingChoices[]`, so no Worker search.
         case "resolve-mana-spend":
             return "mana-spend";
+        // CR 601.2g / 702.66 (issue #1336) — the parked cast-cost graveyard
+        // exile picker (delve's variable offset, and the fixed flashback /
+        // escape exile costs) is resolved by a direct mutation
+        // (`selectCastExileCost`), like the mana-spend park above: it hangs off
+        // `pendingCast`, not `pendingChoices[]`, so no Worker search can answer
+        // it and the bot would stall mid-cast without this branch.
+        case "cast-exile-cost":
+            return "cast-exile-cost";
         case "keep":
         case "mull":
         case "mulligan-bottom":
@@ -942,11 +983,43 @@ export function chooseManaSpendOrder(choice: ManaSpendChoiceView): string[] {
     return spendOrder;
 }
 
+/** CR 601.2g / 702.66 — the bot's deterministic answer to a parked
+ *  graveyard-exile cast cost: exile exactly the number it is REQUIRED to
+ *  (`required`), taking them from the front of its own graveyard. For delve
+ *  (`required` = the forced `offsetGeneric.min`) that is precisely the amount
+ *  the move enumerator already discounted from the tap plan, so the taps and
+ *  the exiles cover the cost between them; delving further would burn
+ *  graveyard resources the bot's mana did not need. For a fixed flashback /
+ *  escape cost `required` equals the exact count the picker demands. Clamped
+ *  to what is actually available so an under-supplied view can never emit an
+ *  illegal submission. Pure and deterministic (issue #1336). */
+export function chooseCastExileCost(choice: CastExileChoiceView): string[] {
+    const n = Math.min(
+        choice.required,
+        choice.maximum,
+        choice.candidateIds.length
+    );
+    return choice.candidateIds.slice(0, Math.max(0, n));
+}
+
 /** The rest of the gate, once no pending choice is owed: the parked mana-spend
  *  choice, the attack-mana tax, the combat declarations and the ordinary
  *  priority window. Split out of {@link decideBotAction} when the choice
  *  branch grew its own entry point (issue #1506); the ordering is unchanged. */
 function decideNonChoiceAction(view: BotView): BotAction {
+    // CR 601.2g / 702.66 (issue #1336) — the parked graveyard-exile CAST cost
+    // (delve's variable offset; the fixed flashback / escape exile costs ride
+    // the same picker). Same "resolve the park before anything else" class as
+    // the mana-spend branch below, and ordered FIRST because the exile pick is
+    // what determines how much mana is still owed (CR 601.2g: reduce → payWith
+    // → mana), so any generic-spend ambiguity is only meaningful after it.
+    if (view.castExileChoice) {
+        return {
+            kind: "cast-exile-cost",
+            cardInstanceIds: chooseCastExileCost(view.castExileChoice),
+        };
+    }
+
     // CR 601.2g (issue #1446) — the parked generic-spend choice: a cast or
     // activated ability the bot itself is paying for parked because the
     // payer's choice of which pooled color covers the remaining generic is
