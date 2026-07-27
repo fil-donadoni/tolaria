@@ -520,8 +520,13 @@ export function curveBucket(mv: number): number {
  *  twice as hard as `{4}{U}`". Reads `pips`, not `colors`: a card contributes
  *  its actual pip count, not a flat 1 per shared colour. Shared by Colour
  *  Commitment (as the "how invested is the Pool" half) and Fixing Value (as
- *  the deficit's demand half, `pipDemand[c] − sources[c]`). */
-function pipDemandByColor(
+ *  the deficit's demand half, `pipDemand[c] − sources[c]`).
+ *
+ *  Exported (issue #1615) so `autoBuild.ts` measures colour commitment and the
+ *  three-colour mana-base test with the SAME arithmetic the Pick Heuristic
+ *  drafts by — one colour authority for draft time and build time, never two
+ *  that drift. */
+export function pipDemandByColor(
     poolMeta: readonly CardEvalMeta[]
 ): Partial<Record<Color, number>> {
     const demand: Partial<Record<Color, number>> = {};
@@ -537,8 +542,10 @@ function pipDemandByColor(
  *  colour of mana (`producedColors`, `gre/constants.ts#getDefinitionProducibleColors`)
  *  — the Pool's actual mana-SOURCE count, distinct from `pipDemandByColor`'s
  *  spell-side pip demand. Shared by Castability (sources available to pay a
- *  candidate's pips) and Fixing Value (the deficit's supply half). */
-function sourceCountsByColor(
+ *  candidate's pips) and Fixing Value (the deficit's supply half) — and, since
+ *  issue #1615, by `autoBuild.ts`'s three-colour mana-base test (the supply
+ *  half of the SAME `max(0, demand − sources)` deficit). */
+export function sourceCountsByColor(
     poolMeta: readonly CardEvalMeta[]
 ): Partial<Record<Color, number>> {
     const counts: Partial<Record<Color, number>> = {};
@@ -555,8 +562,12 @@ function sourceCountsByColor(
  *  MANA SOURCE's produced colours count at `COLOUR_COMMIT_SOURCE_UNIT_WEIGHT`
  *  — strictly less than one pip's worth, so a source FOLLOWS commitment
  *  rather than CREATING it (a strong dual land taken early must not marry
- *  the seat to a colour the way an actual double-pipped spell would). */
-function colourAffinityWeights(
+ *  the seat to a colour the way an actual double-pipped spell would).
+ *
+ *  Exported (issue #1615): `autoBuild.ts` RANKS a finished Pool's colours by
+ *  exactly this quantity, so the colours a seat drafted toward are the colours
+ *  it builds in. */
+export function colourAffinityWeights(
     poolMeta: readonly CardEvalMeta[]
 ): Partial<Record<Color, number>> {
     const weights = pipDemandByColor(poolMeta);
@@ -886,7 +897,7 @@ function curveFitTerm(
  *  (`poolProfiles`) and shared by all three terms, so a `GetCardProfile`
  *  closure that hits a Map (the production shape) is consulted once per
  *  distinct Pool card rather than three times. */
-interface PoolProfileEntry {
+export interface PoolProfileEntry {
     meta: CardEvalMeta;
     profile: CardProfile;
     /** How many copies of this card the Pool holds — Archetype commitment
@@ -905,8 +916,12 @@ function profileWeight(profile: CardProfile): number {
 /** Distinct profiled Pool cards, in Pool order (so provenance and any
  *  order-dependent note read in the order the seat actually drafted). A Pool
  *  card with no profile is absent entirely — ADR 0072's "a missing profile and
- *  a deliberately empty one are indistinguishable to the scorer". */
-function poolProfiles(
+ *  a deliberately empty one are indistinguishable to the scorer".
+ *
+ *  Exported (issue #1615) so `autoBuild.ts` can build the same profile view
+ *  over the cards it has ALREADY put in the Maindeck, and feed it to
+ *  `capabilityFitTerm` below. */
+export function poolProfiles(
     poolMeta: readonly CardEvalMeta[],
     getCardProfile: GetCardProfile | undefined
 ): PoolProfileEntry[] {
@@ -1047,8 +1062,14 @@ interface CapabilityMatch {
  *  authored for the bad pair, and no one has to remember to author one.
  *
  *  Counted per DISTINCT (Pool card, Capability, direction): a Pool holding two
- *  copies of the same enabler does not double the relationship. */
-function capabilityFitTerm(
+ *  copies of the same enabler does not double the relationship.
+ *
+ *  Exported (issue #1615) so Auto-Build's spell selection scores the SAME
+ *  relation the drafter picked on — pass the cards already in the Maindeck as
+ *  `profiled` and read `.rawValue` (Auto-Build has no pick number, hence no
+ *  contextual cap to scale by). Reusing the term is what stops the builder
+ *  from cutting an enabler the draft was built around. */
+export function capabilityFitTerm(
     candidate: CardEvalMeta,
     profile: CardProfile | null,
     profiled: readonly PoolProfileEntry[]

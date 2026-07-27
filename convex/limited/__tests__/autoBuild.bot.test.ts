@@ -13,12 +13,14 @@ import {
     tryGetDefinition,
 } from "../../cards";
 import { getCardColorIdentity, getPipCountsFromCost } from "../../cards/colors";
+import type { Color } from "../../cards/types";
 import { getDefinitionProducibleColors, manaValue } from "../../gre/constants";
 import { makeRng } from "../../gre/rng";
 import { validateDeck, type Pool, type ResolvePool } from "../../formats";
 import {
+    MAX_DECK_COLORS,
     autoBuildDeck,
-    chooseTwoColors,
+    chooseDeckColors,
     computeBotAutoBuiltDeck,
     isEventPoolFinal,
     type AutoBuildCardMeta,
@@ -27,6 +29,7 @@ import {
     type ResolveBasicLand,
     type TrueColor,
 } from "../autoBuild";
+import type { CardProfile, GetCardProfile } from "../cardProfiles";
 import {
     runBotAutoPicks,
     startDraft,
@@ -80,7 +83,12 @@ const getAutoBuildCardMeta: GetAutoBuildCardMeta = (scryfallId) => {
         colors: getCardColorIdentity(def),
         manaValue: manaValue(def.manaCost),
         rarity: meta.rarity,
+        pips: getPipCountsFromCost(def.manaCost),
+        producedColors: [...getDefinitionProducibleColors(def)],
         isLand: def.types.includes("Land"),
+        isBasicLand:
+            def.types.includes("Land") &&
+            (def.supertypes?.includes("Basic") ?? false),
     };
 };
 
@@ -111,7 +119,12 @@ function metaOf(name: string): AutoBuildCardMeta {
         colors: getCardColorIdentity(def),
         manaValue: manaValue(def.manaCost),
         rarity: def.rarity,
+        pips: getPipCountsFromCost(def.manaCost),
+        producedColors: [...getDefinitionProducibleColors(def)],
         isLand: def.types.includes("Land"),
+        isBasicLand:
+            def.types.includes("Land") &&
+            (def.supertypes?.includes("Basic") ?? false),
     };
 }
 
@@ -128,69 +141,353 @@ function metaLookup(
     return (scryfallId) => entries[scryfallId] ?? null;
 }
 
-// --- chooseTwoColors (PRD #1107 story 24: "pick the two strongest colors") -
+// --- chooseDeckColors: pip-weighted commitment + derived count (#1615) -----
+//
+// The colour terms are `botDrafter.ts`'s own (`colourAffinityWeights`,
+// `pipDemandByColor`, `sourceCountsByColor`) — these tests assert Auto-Build
+// READS them, in the directions ADR 0073 specifies, not the weights
+// themselves (which `botDrafter.bot.test.ts` owns).
 
-describe("chooseTwoColors (issue #1115)", () => {
-    it("picks the two colors with the highest summed card quality", () => {
-        // The SAME underlying card (identical `cardId`/`rarity`, hence
-        // identical per-copy `cardValueById` quality) attributed to two
-        // different colors via an overridden `colors` field — isolates the
-        // COUNT signal from any real quality difference between distinct
-        // cards (a genuinely different pair of cards would require guessing
-        // `cardValueById`'s exact relative magnitudes, which this test
-        // deliberately doesn't depend on).
-        const bolt = metaOf("Lightning Bolt");
-        const asRed: AutoBuildCardMeta = { ...bolt, colors: ["R"] };
-        const asGreen: AutoBuildCardMeta = { ...bolt, colors: ["G"] };
-        const plains = metaOf("Plains"); // colorless land — never contributes
-        const entries = {
-            r1: asRed,
-            g1: asGreen,
-            g2: asGreen,
-            g3: asGreen,
-            plains,
-        };
-        const pool: LimitedPoolCard[] = [
-            poolCard("r1", asRed),
-            poolCard("g1", asGreen),
-            poolCard("g2", asGreen),
-            poolCard("g3", asGreen),
-            poolCard("plains", plains),
+/** A synthetic SPELL meta: real card quality (so `cardValueById` behaves), an
+ *  overridden pip cost — the signal `chooseDeckColors` actually ranks by. */
+function spellWithPips(
+    base: AutoBuildCardMeta,
+    pips: Partial<Record<Color, number>>
+): AutoBuildCardMeta {
+    return {
+        ...base,
+        pips,
+        colors: Object.keys(pips) as Color[],
+        producedColors: [],
+        isLand: false,
+        isBasicLand: false,
+    };
+}
+
+/** A synthetic non-basic mana SOURCE (a dual land): produces `colors`, has no
+ *  pips of its own, and is explicitly NOT a basic — the distinction the
+ *  three-colour test turns on. */
+function sourceProducing(
+    base: AutoBuildCardMeta,
+    producedColors: Color[]
+): AutoBuildCardMeta {
+    return {
+        ...base,
+        pips: {},
+        colors: producedColors,
+        producedColors,
+        manaValue: 0,
+        isLand: true,
+        isBasicLand: false,
+    };
+}
+
+describe("chooseDeckColors — pip-weighted Colour Commitment (issue #1615)", () => {
+    const anchor = metaOf("Lightning Bolt");
+
+    it("ranks by PIPS, not by card count: one {U}{U}{U} outcommits two single-pip Red cards", () => {
+        // The defect this replaces summed `cardValueById × rarity` per card,
+        // so a colour's rank was a CARD COUNT. Every meta here shares one
+        // `cardId` (hence one quality), so quality cannot explain the answer —
+        // only the pip weighting can. A count-based ranking puts Red first
+        // (two cards vs one); a pip-weighted one puts Blue first (3 pips vs 2).
+        const blue = spellWithPips(anchor, { U: 3 });
+        const red = spellWithPips(anchor, { R: 1 });
+        const entries = { u1: blue, r1: red, r2: red };
+        const pool = [
+            poolCard("u1", blue),
+            poolCard("r1", red),
+            poolCard("r2", red),
         ];
-        const [c1, c2] = chooseTwoColors(pool, metaLookup(entries));
-        // 3 Green copies strictly outscore 1 Red copy; a colorless land
-        // never outranks either.
-        expect(c1).toBe("G");
-        expect(c2).toBe("R");
+        expect(chooseDeckColors(pool, metaLookup(entries))).toEqual(["U", "R"]);
+    });
+
+    it("a mana SOURCE follows commitment rather than creating it: two duals lose to one real pip", () => {
+        // ADR 0073's load-bearing asymmetry — a strong land taken early must
+        // not marry the seat to a colour. Two Green-producing sources
+        // (2 × COLOUR_COMMIT_SOURCE_UNIT_WEIGHT = 0.8 units) still rank below
+        // one single-pip Red spell (1.0 unit).
+        const red = spellWithPips(anchor, { R: 1 });
+        const greenSource = sourceProducing(anchor, ["G"]);
+        const entries = { r1: red, g1: greenSource, g2: greenSource };
+        const pool = [
+            poolCard("r1", red),
+            poolCard("g1", greenSource),
+            poolCard("g2", greenSource),
+        ];
+        expect(chooseDeckColors(pool, metaLookup(entries))[0]).toBe("R");
     });
 
     it("ties break by WUBRG order, deterministically", () => {
-        // The SAME underlying card (identical `cardId`/`rarity`, hence
-        // identical `cardValueById` quality) attributed to two DIFFERENT
-        // colors via an overridden `colors` field — a genuine score tie
-        // between Red and Green, isolating the tie-break from any real
-        // quality difference between two distinct cards.
-        const bolt = metaOf("Lightning Bolt");
-        const asRed: AutoBuildCardMeta = { ...bolt, colors: ["R"] };
-        const asGreen: AutoBuildCardMeta = { ...bolt, colors: ["G"] };
-        const entries = { r1: asRed, g1: asGreen };
-        const pool: LimitedPoolCard[] = [
-            poolCard("r1", asRed),
-            poolCard("g1", asGreen),
-        ];
-        const [c1, c2] = chooseTwoColors(pool, metaLookup(entries));
-        // WUBRG order: Red (position 4) precedes Green (position 5) — R wins
-        // the tie for first place; every 0-scoring color (W/U/B) loses to
-        // both.
-        expect(c1).toBe("R");
-        expect(c2).toBe("G");
+        const red = spellWithPips(anchor, { R: 1 });
+        const green = spellWithPips(anchor, { G: 1 });
+        const entries = { r1: red, g1: green };
+        const pool = [poolCard("r1", red), poolCard("g1", green)];
+        // WUBRG order: Red (position 4) precedes Green (position 5).
+        expect(chooseDeckColors(pool, metaLookup(entries))).toEqual(["R", "G"]);
     });
 
     it("falls back to W/U (first two WUBRG colors) for a pool with no colored cards", () => {
         const plains = metaOf("Plains");
         const entries = { p1: plains };
         const pool: LimitedPoolCard[] = [poolCard("p1", plains)];
-        expect(chooseTwoColors(pool, metaLookup(entries))).toEqual(["W", "U"]);
+        expect(chooseDeckColors(pool, metaLookup(entries))).toEqual(["W", "U"]);
+    });
+});
+
+// --- Derived colour COUNT (issue #1615) ------------------------------------
+
+/** One Pool shape, built twice: identical SPELLS (heavy W, heavy U, light B),
+ *  differing only in whether the Pool also holds Black fixing. The pair is the
+ *  whole acceptance criterion — "a pool with a three-colour mana base can
+ *  build three colours; one without cannot" — as a direction, not a number. */
+function threeColorFixture(withFixing: boolean) {
+    const anchor = metaOf("Lightning Bolt");
+    const white = spellWithPips(anchor, { W: 1 });
+    const blue = spellWithPips(anchor, { U: 1 });
+    const black = spellWithPips(anchor, { B: 1 });
+    // Scrubland: a real LEA non-basic dual, producing {W} and {B}.
+    const dual = sourceProducing(metaOf("Scrubland"), ["W", "B"]);
+    const entries: Record<string, AutoBuildCardMeta> = {};
+    const pool: LimitedPoolCard[] = [];
+    const add = (key: string, meta: AutoBuildCardMeta) => {
+        entries[key] = meta;
+        pool.push(poolCard(key, meta));
+    };
+    for (let i = 0; i < 6; i++) add(`w${i}`, white);
+    for (let i = 0; i < 6; i++) add(`u${i}`, blue);
+    for (let i = 0; i < 2; i++) add(`b${i}`, black);
+    if (withFixing) for (let i = 0; i < 3; i++) add(`d${i}`, dual);
+    return { pool, getMeta: metaLookup(entries) };
+}
+
+describe("derived colour count (issue #1615)", () => {
+    it("commits to a THIRD colour when the Pool's own non-basic sources cover it", () => {
+        const { pool, getMeta } = threeColorFixture(true);
+        const colors = chooseDeckColors(pool, getMeta);
+        expect(colors).toHaveLength(3);
+        expect(new Set(colors)).toEqual(new Set(["W", "U", "B"]));
+        expect(colors.length).toBeLessThanOrEqual(MAX_DECK_COLORS);
+    });
+
+    it("stays on TWO colours when the same spells come with no fixing for the third", () => {
+        // Identical spells, zero duals — the Black spells are still there and
+        // still rank third, but nothing in the Pool produces {B}, so the
+        // `max(0, need − sources)` deficit is positive and the splash is
+        // refused. Basics can't rescue it: a basic is a land slot taken from
+        // the top two colours, which is exactly why `isBasicLand` metas are
+        // excluded from the source count.
+        const { pool, getMeta } = threeColorFixture(false);
+        expect(chooseDeckColors(pool, getMeta)).toEqual(["W", "U"]);
+    });
+
+    it("basics in the Pool are NOT fixing — they never unlock a third colour", () => {
+        // Same shape as the positive case, but the three sources are BASIC
+        // Swamps instead of Scrublands. A basic is free to the builder, so
+        // counting it as evidence would make every Pool three-colour.
+        const anchor = metaOf("Lightning Bolt");
+        const white = spellWithPips(anchor, { W: 1 });
+        const blue = spellWithPips(anchor, { U: 1 });
+        const black = spellWithPips(anchor, { B: 1 });
+        const swamp: AutoBuildCardMeta = { ...metaOf("Swamp") };
+        expect(swamp.isBasicLand).toBe(true);
+        expect(swamp.producedColors).toContain("B");
+        const entries: Record<string, AutoBuildCardMeta> = {};
+        const pool: LimitedPoolCard[] = [];
+        const add = (key: string, meta: AutoBuildCardMeta) => {
+            entries[key] = meta;
+            pool.push(poolCard(key, meta));
+        };
+        for (let i = 0; i < 6; i++) add(`w${i}`, white);
+        for (let i = 0; i < 6; i++) add(`u${i}`, blue);
+        for (let i = 0; i < 2; i++) add(`b${i}`, black);
+        for (let i = 0; i < 3; i++) add(`s${i}`, swamp);
+        expect(chooseDeckColors(pool, metaLookup(entries))).toEqual(["W", "U"]);
+    });
+
+    it("a colour the Pool has SOURCES but no SPELLS for is fixing, not a third colour", () => {
+        const anchor = metaOf("Lightning Bolt");
+        const white = spellWithPips(anchor, { W: 1 });
+        const blue = spellWithPips(anchor, { U: 1 });
+        const dual = sourceProducing(metaOf("Scrubland"), ["W", "B"]);
+        const entries: Record<string, AutoBuildCardMeta> = {};
+        const pool: LimitedPoolCard[] = [];
+        const add = (key: string, meta: AutoBuildCardMeta) => {
+            entries[key] = meta;
+            pool.push(poolCard(key, meta));
+        };
+        for (let i = 0; i < 6; i++) add(`w${i}`, white);
+        for (let i = 0; i < 6; i++) add(`u${i}`, blue);
+        for (let i = 0; i < 4; i++) add(`d${i}`, dual);
+        expect(chooseDeckColors(pool, metaLookup(entries))).toEqual(["W", "U"]);
+    });
+
+    it("the third colour's own fixing is MAINDECKED, not left in the Sideboard", () => {
+        // A derived colour count is incoherent if the duals that justified it
+        // sit in the Sideboard: the deck would have a colour it cannot cast.
+        const { pool, getMeta } = threeColorFixture(true);
+        const built = autoBuildDeck(pool, getMeta, resolveBasicLand);
+        expect(built.colors).toHaveLength(3);
+        const scrublandId = getCardByName("Scrubland").id;
+        expect(
+            built.cards.filter((c) => c.cardId === scrublandId)
+        ).toHaveLength(3);
+        expect(
+            built.sideboard.filter((c) => c.cardId === scrublandId)
+        ).toHaveLength(0);
+    });
+});
+
+// --- Capability-aware spell selection (issue #1615, ADR 0072) --------------
+//
+// ADR 0072's own worked example, run through the BUILDER: a Pool drafted
+// around Flash + Worldspine Wurm must not build with Flash cut. Flash requires
+// `value-on-death`; the Wurm provides it (its death trigger makes three 5/5
+// tokens regardless of how it died) — the exact pairing the Capability layer
+// exists to see and `cardValueById` cannot.
+
+function profileLookup(profiles: Record<string, CardProfile>): GetCardProfile {
+    return (cardId) => profiles[cardId] ?? null;
+}
+
+/** Flash + Worldspine Wurm + 30 copies of a filler spell that outscores Flash
+ *  on standalone quality alone. `manaValue` is overridden to 2 so the filler
+ *  competes with Flash in its OWN curve bucket — otherwise the curve phase
+ *  maindecks Flash for free as the only 2-drop and the test proves nothing. */
+function flashFixture() {
+    const flash = metaOf("Flash");
+    const wurm = metaOf("Worldspine Wurm");
+    const filler: AutoBuildCardMeta = {
+        ...metaOf("Wall of Air"),
+        manaValue: 2,
+    };
+    const entries: Record<string, AutoBuildCardMeta> = {
+        flash,
+        wurm,
+    };
+    const pool: LimitedPoolCard[] = [
+        poolCard("flash", flash),
+        poolCard("wurm", wurm),
+    ];
+    for (let i = 0; i < 30; i++) {
+        entries[`f${i}`] = filler;
+        pool.push(poolCard(`f${i}`, filler));
+    }
+    return { pool, getMeta: metaLookup(entries), flash, wurm };
+}
+
+describe("Capability-aware spell selection (issue #1615)", () => {
+    const { pool, getMeta, flash, wurm } = flashFixture();
+    const inMaindeck = (built: { cards: { cardId: string }[] }, id: string) =>
+        built.cards.some((c) => c.cardId === id);
+
+    it("cuts a weak-in-isolation enabler when nothing knows what it does (the DEFECT)", () => {
+        // No Card Profiles: Flash is a 2-mana instant whose `cardValueById`
+        // sits just below the filler's, so it loses its slot — exactly the
+        // failure the issue names. This is the mutation-guard for the test
+        // below: if Flash were maindecked here too, the positive test would
+        // pass for free.
+        const built = autoBuildDeck(pool, getMeta, resolveBasicLand);
+        expect(inMaindeck(built, wurm.cardId)).toBe(true);
+        expect(inMaindeck(built, flash.cardId)).toBe(false);
+    });
+
+    it("MAINDECKS the enabler once the payoff it serves is in the deck (the FIX)", () => {
+        const built = autoBuildDeck(pool, getMeta, resolveBasicLand, {
+            getCardProfile: profileLookup({
+                [flash.cardId]: {
+                    archetypes: [],
+                    provides: [],
+                    requires: ["value-on-death"],
+                    reviewed: true,
+                },
+                [wurm.cardId]: {
+                    archetypes: [],
+                    provides: ["value-on-death"],
+                    requires: [],
+                    reviewed: true,
+                },
+            }),
+        });
+        expect(inMaindeck(built, wurm.cardId)).toBe(true);
+        expect(inMaindeck(built, flash.cardId)).toBe(true);
+        // The enabler displaced a filler card, it did not grow the deck.
+        expect(built.cards.length).toBeGreaterThanOrEqual(40);
+    });
+
+    it("an UNREVIEWED profile row still counts, at half weight (ADR 0072)", () => {
+        // Half of one match is 0.075 rating points, which does NOT close
+        // Flash's ~0.11 standalone-quality gap to the filler — the deliberate
+        // consequence of ADR 0072's half-weight rule: an LLM's unreviewed
+        // assertion is visible in the Draft Lab but does not decide the deck.
+        const built = autoBuildDeck(pool, getMeta, resolveBasicLand, {
+            getCardProfile: profileLookup({
+                [flash.cardId]: {
+                    archetypes: [],
+                    provides: [],
+                    requires: ["value-on-death"],
+                    reviewed: false,
+                },
+                [wurm.cardId]: {
+                    archetypes: [],
+                    provides: ["value-on-death"],
+                    requires: [],
+                    reviewed: false,
+                },
+            }),
+        });
+        expect(inMaindeck(built, flash.cardId)).toBe(false);
+    });
+
+    it("absence of a match is the veto: an unrelated Capability rescues nothing", () => {
+        // ADR 0072's negative case — Animate Dead requires `reanimatable`,
+        // which the Wurm does not provide (it shuffles itself out of the
+        // graveyard). Profiled, matched against nothing, scores nothing.
+        const built = autoBuildDeck(pool, getMeta, resolveBasicLand, {
+            getCardProfile: profileLookup({
+                [flash.cardId]: {
+                    archetypes: [],
+                    provides: [],
+                    requires: ["reanimatable"],
+                    reviewed: true,
+                },
+                [wurm.cardId]: {
+                    archetypes: [],
+                    provides: ["value-on-death"],
+                    requires: [],
+                    reviewed: true,
+                },
+            }),
+        });
+        expect(inMaindeck(built, flash.cardId)).toBe(false);
+    });
+
+    it("every Pool card is still placed exactly once, with or without profiles", () => {
+        for (const getCardProfile of [
+            undefined,
+            profileLookup({
+                [flash.cardId]: {
+                    archetypes: [],
+                    provides: [],
+                    requires: ["value-on-death"],
+                    reviewed: true,
+                },
+                [wurm.cardId]: {
+                    archetypes: [],
+                    provides: ["value-on-death"],
+                    requires: [],
+                    reviewed: true,
+                },
+            }),
+        ]) {
+            const built = autoBuildDeck(pool, getMeta, resolveBasicLand, {
+                getCardProfile,
+            });
+            const fromPool = [...built.cards, ...built.sideboard].filter((c) =>
+                pool.some((p) => p.cardId === c.cardId)
+            );
+            expect(fromPool.length).toBe(pool.length);
+        }
     });
 });
 
@@ -222,8 +519,12 @@ describe("autoBuildDeck (issue #1115)", () => {
         // practice, not the issue's literal "~17 spells + 17 lands" — see
         // `autoBuild.ts`'s module comment for why).
         expect(built.cards.length).toBeGreaterThanOrEqual(40);
-        expect(built.colors).toHaveLength(2);
-        expect(built.colors[0]).not.toBe(built.colors[1]);
+        // The colour COUNT is derived (issue #1615), so this asserts the
+        // BOUNDS rather than pinning a number a seed change could move: at
+        // least two colours, never more than `MAX_DECK_COLORS`, all distinct.
+        expect(built.colors.length).toBeGreaterThanOrEqual(2);
+        expect(built.colors.length).toBeLessThanOrEqual(MAX_DECK_COLORS);
+        expect(new Set(built.colors).size).toBe(built.colors.length);
 
         // "~17" land count (issue AC: "~17/17 split") — a healthy Sealed
         // pool builds close to the classic 17, never far below it.
@@ -234,10 +535,17 @@ describe("autoBuildDeck (issue #1115)", () => {
             "Mountain",
             "Forest",
         ]);
-        const landCards = built.cards.filter((c) => basicNames.has(c.cardName));
+        // Counts every LAND in the Maindeck — the invented basics plus any
+        // of the Pool's own non-basic fixing the builder maindecked (issue
+        // #1615), which together are the land base the 17-slot budget covers.
+        const landCards = built.cards.filter(
+            (c) =>
+                basicNames.has(c.cardName) ||
+                (tryGetDefinition(c.cardId)?.types.includes("Land") ?? false)
+        );
         expect(landCards.length).toBeGreaterThanOrEqual(17);
         expect(landCards.length).toBeLessThanOrEqual(20);
-        // Every land is a basic of one of the two chosen colors.
+        // Every BASIC is a basic of one of the chosen colors.
         const colorLandNames = new Set(
             built.colors.map(
                 (c) =>
@@ -251,6 +559,7 @@ describe("autoBuildDeck (issue #1115)", () => {
             )
         );
         for (const land of landCards) {
+            if (!basicNames.has(land.cardName)) continue;
             expect(colorLandNames.has(land.cardName)).toBe(true);
         }
 
