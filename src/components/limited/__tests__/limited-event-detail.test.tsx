@@ -174,3 +174,125 @@ describe("LimitedEventDetail — header (format name + phase chip)", () => {
         expect(screen.queryByText(/started/)).toBe(null);
     });
 });
+
+describe("LimitedEventDetail — standings table (PRD #1628 stories 22-24, issue #1643)", () => {
+    it("does not render the standings table before the play phase starts", () => {
+        eventMock.mockReturnValue(
+            makeEvent({
+                status: "started",
+                rounds: [],
+                standings: [
+                    {
+                        seatIndex: 0,
+                        points: 0,
+                        matchWins: 0,
+                        matchLosses: 0,
+                        matchDraws: 0,
+                        gameWins: 0,
+                        gameLosses: 0,
+                        gameWinPct: 0,
+                        opponentMatchWinPct: 0,
+                    },
+                ],
+            })
+        );
+
+        render(<LimitedEventDetail eventId={"event-1" as never} />);
+
+        expect(screen.queryByText("Standings")).toBe(null);
+    });
+
+    it("renders the standings table, with the viewer's own seat highlighted, once rounds are running", () => {
+        eventMock.mockReturnValue(
+            makeEvent({
+                status: "playing",
+                currentRound: 1,
+                rounds: [
+                    {
+                        roundNumber: 1,
+                        startedAt: 0,
+                        pairings: [
+                            {
+                                seatA: 0,
+                                seatB: 1,
+                                result: {
+                                    winsA: 2,
+                                    winsB: 0,
+                                    source: "played",
+                                },
+                            },
+                        ],
+                    },
+                ],
+                standings: [
+                    {
+                        seatIndex: 0,
+                        points: 3,
+                        matchWins: 1,
+                        matchLosses: 0,
+                        matchDraws: 0,
+                        gameWins: 2,
+                        gameLosses: 0,
+                        gameWinPct: 1,
+                        opponentMatchWinPct: 0,
+                    },
+                    {
+                        seatIndex: 1,
+                        points: 0,
+                        matchWins: 0,
+                        matchLosses: 1,
+                        matchDraws: 0,
+                        gameWins: 0,
+                        gameLosses: 2,
+                        gameWinPct: 0,
+                        opponentMatchWinPct: 0,
+                    },
+                ],
+                seats: [
+                    {
+                        seatIndex: 0,
+                        userId: "user-1",
+                        nickname: "Alice",
+                        isBot: false,
+                        isViewer: true,
+                        poolCount: 40,
+                        pool: null,
+                        humanDeck: null,
+                        deckSummary: null,
+                        currentPack: null,
+                        packQueueCount: null,
+                        pickDeadline: null,
+                        poolArrangement: null,
+                        selectedPickId: null,
+                        hasDeck: false,
+                        autoBuiltDeck: null,
+                    },
+                    {
+                        seatIndex: 1,
+                        isBot: true,
+                        nickname: "Bot 2",
+                        isViewer: false,
+                        poolCount: 40,
+                        pool: null,
+                        humanDeck: null,
+                        deckSummary: null,
+                        currentPack: null,
+                        packQueueCount: null,
+                        pickDeadline: null,
+                        poolArrangement: null,
+                        selectedPickId: null,
+                        hasDeck: false,
+                        autoBuiltDeck: null,
+                    },
+                ],
+            })
+        );
+
+        render(<LimitedEventDetail eventId={"event-1" as never} />);
+
+        expect(screen.getByText("Standings")).toBeTruthy();
+        const viewerRow = document.querySelector('[data-seat-index="0"]')!;
+        expect(viewerRow.getAttribute("data-is-viewer")).toBe("true");
+        expect(viewerRow.textContent).toContain("Alice");
+    });
+});

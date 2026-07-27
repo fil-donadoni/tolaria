@@ -147,6 +147,20 @@ const roundValidator = v.object({
     ),
 });
 
+// Standings row (PRD #1628 stories 22-24/47, issue #1643) — see
+// `convex/limited/standings.ts`'s `StandingsRow` for the field-by-field doc.
+const standingsRowValidator = v.object({
+    seatIndex: v.number(),
+    points: v.number(),
+    matchWins: v.number(),
+    matchLosses: v.number(),
+    matchDraws: v.number(),
+    gameWins: v.number(),
+    gameLosses: v.number(),
+    gameWinPct: v.number(),
+    opponentMatchWinPct: v.number(),
+});
+
 const limitedPoolCardValidator = v.object({
     scryfallId: v.string(),
     cardId: v.string(),
@@ -283,6 +297,10 @@ const limitedEventViewValidator = v.object({
     // Always an array (`[]` before the play phase) — pairings and results are
     // public; pools/decks keep their per-seat stripping.
     rounds: v.array(roundValidator),
+    // Standings (PRD #1628 stories 22-24/47, issue #1643) — derived, never
+    // stored (ADR 0076). Always one row per seat, zeroed before any round is
+    // decided — never absent.
+    standings: v.array(standingsRowValidator),
     // Event completion (issue #1116): true exactly when every seat has a
     // Deck — see `convex/limited/completion.ts`'s `computeEventCompletion`.
     completed: v.boolean(),

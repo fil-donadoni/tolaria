@@ -20,6 +20,7 @@ import LimitedYourDeckPanel from "./limited-your-deck-panel";
 import LimitedVsAiPanel from "./limited-vs-ai-panel";
 import LimitedChallengePanel from "./limited-challenge-panel";
 import LimitedReviewPanel from "./limited-review-panel";
+import LimitedStandingsTable from "./limited-standings-table";
 import LimitedShareInviteButton from "./limited-share-invite-button";
 import LimitedEventPageFrame from "./limited-event-page-frame";
 import LimitedEventToolbar from "./limited-event-toolbar";
@@ -27,6 +28,8 @@ import { limitedEventName } from "~/lib/limitedEventName";
 import {
     arePoolsDealt,
     areDraftPicksLegal,
+    areRoundsRunning,
+    isEventConcluded,
     isSeatingOpen,
 } from "@convex/limited/eventStatus";
 import { useAutoOpenLimitedBuilder } from "~/hooks/useAutoOpenLimitedBuilder";
@@ -129,6 +132,13 @@ export default function LimitedEventDetail({
         areDraftPicksLegal(event.status) &&
         event.type === "draft" &&
         !event.draftCompletedAt;
+    // Standings become the event's live scoreboard once the play phase's
+    // Swiss rounds are actually running, and stay visible once the event has
+    // concluded (PRD #1628 stories 22-24/39-40, issue #1643) — never during
+    // `open`/`started`, where no round has been decided and the table would
+    // just be permanent noise ahead of the feature it's reporting on.
+    const showStandings =
+        areRoundsRunning(event.status) || isEventConcluded(event.status);
 
     const runMutation = async (run: () => Promise<unknown>) => {
         if (pending) return;
@@ -275,6 +285,8 @@ export default function LimitedEventDetail({
                         />
                     </>
                 )}
+
+                {showStandings && <LimitedStandingsTable event={event} />}
 
                 <LimitedReviewPanel
                     event={event}

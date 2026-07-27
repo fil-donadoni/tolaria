@@ -18,6 +18,7 @@ import type {
     PoolArrangementEntry,
 } from "./eventTypes";
 import { resolveMatchFormat } from "./matchFormat";
+import { computeStandings, type StandingsRow } from "./standings";
 
 /** The row shape this module projects — structurally what a `limitedEvents`
  *  Doc satisfies, kept independent of `Doc<"limitedEvents">` so this stays
@@ -199,6 +200,16 @@ export interface LimitedEventView {
      *  keep the per-seat stripping above). Always an ARRAY on the wire, `[]`
      *  before the play phase, so no client branches on absence. */
     rounds: LimitedRound[];
+    /** The standings table (PRD #1628 stories 22-24/47, issue #1643) —
+     *  DERIVED here at read time from `rounds`/`seats`, never stored (ADR
+     *  0076): the table can never disagree with the results it's computed
+     *  from. Public (like `rounds` above): pairings and results are public,
+     *  only pools/decks are per-seat stripped. One row per seat, sorted
+     *  points desc / game-win % desc / opponent match-win % desc
+     *  (`computeStandings`'s own doc comment). Always populated, even before
+     *  the play phase — an event with no rounds yet renders a zeroed table,
+     *  not an absent one (issue #1643 AC). */
+    standings: StandingsRow[];
     /** True once every seat has a Deck (issue #1116) — the caller-computed
      *  gate (`convex/limited/completion.ts`'s `computeEventCompletion`) that
      *  ALSO controls the `pool`/`humanDeck` full-disclosure reveal below.
@@ -263,6 +274,10 @@ export function projectLimitedEvent(
         roundDeadlineMinutes: event.roundDeadlineMinutes,
         currentRound: event.currentRound,
         rounds: event.rounds ?? [],
+        // `computeStandings` is structurally compatible with `LimitedRound[]`/
+        // `LimitedEventSeat[]` (both declare their own dependency-free shapes,
+        // like `swiss.ts`/`completion.ts` do) — no adapter needed.
+        standings: computeStandings(event.seats, event.rounds ?? []),
         completed,
         seatsWithDeck,
         createdAt: event.createdAt,
