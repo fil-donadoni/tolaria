@@ -189,6 +189,33 @@ const standingsRowValidator = v.object({
     opponentMatchWinPct: v.number(),
 });
 
+// The viewer's own pairing in the CURRENT round (PRD #1628 story 7, issue
+// #1644) — see `convex/limited/eventProjection.ts`'s
+// `LimitedViewerPairingView` for the field-by-field doc. `null` before the
+// play phase, when the viewer holds no seat, or when their seat isn't paired.
+const viewerPairingValidator = v.union(
+    v.object({
+        roundNumber: v.number(),
+        seatIndex: v.number(),
+        opponentSeatIndex: v.union(v.number(), v.null()),
+        opponentNickname: v.union(v.string(), v.null()),
+        opponentIsBot: v.boolean(),
+        isBye: v.boolean(),
+        result: v.union(pairingResultValidator, v.null()),
+        gameWins: v.union(v.number(), v.null()),
+        gameLosses: v.union(v.number(), v.null()),
+        outcome: v.union(
+            v.literal("win"),
+            v.literal("loss"),
+            v.literal("draw"),
+            v.null()
+        ),
+        matchId: v.union(v.string(), v.null()),
+        roundComplete: v.boolean(),
+    }),
+    v.null()
+);
+
 const limitedPoolCardValidator = v.object({
     scryfallId: v.string(),
     cardId: v.string(),
@@ -303,8 +330,16 @@ const limitedEventSeatViewValidator = v.object({
 
 /** Wire shape of `projectLimitedEvent`'s return value — declared once here so
  *  every query below can pin its `returns:` validator to the actual privacy-
- *  stripped view instead of leaving it undeclared. */
-const limitedEventViewValidator = v.object({
+ *  stripped view instead of leaving it undeclared.
+ *
+ *  EXPORTED for `convex/__tests__/limitedEventViewValidator.test.ts`, which
+ *  runs the real projection's output through this exact validator. Convex only
+ *  registers exports that are Convex functions, so a plain const export here is
+ *  inert on the wire (same as `game.ts`'s `STARTING_HAND_SIZE`). Keeping it
+ *  private would leave the ONLY check on this validator the handler's own
+ *  TypeScript type — which is precisely the check that cannot see the drift
+ *  (the handler type is `EventViewWithAutoBuild`, not `Infer<>` of this). */
+export const limitedEventViewValidator = v.object({
     _id: v.string(),
     createdBy: v.string(),
     type: eventTypeValidator,
@@ -329,6 +364,9 @@ const limitedEventViewValidator = v.object({
     // stored (ADR 0076). Always one row per seat, zeroed before any round is
     // decided — never absent.
     standings: v.array(standingsRowValidator),
+    // The viewer's own pairing in the current round (issue #1644) — derived
+    // from `rounds`/`seats`, a convenience rather than a privacy boundary.
+    viewerPairing: viewerPairingValidator,
     // Event RNG seed (issue #1613, ADR 0074 replay mode) — `null` unless the
     // event is a COMPLETED DRAFT and the viewer is an admin. The seed
     // regenerates every pack, so on a Sealed event it would hand any viewer
@@ -759,13 +797,22 @@ async function projectEventForViewer(
  *  `false` without touching anything, and it can never re-pair a round that
  *  already exists.
  *
- *  Called from every path that can make `computeEventCompletion` flip:
- *  `userDecks.create` (the last seat submitting its deck — the headline case),
- *  and the two draft-completing paths (`submitPick`, `autoPickSeatTimeout`),
- *  which flip it when the final pick lands a Pool for humans who had already
- *  built (the continuous draft→build surface, ADR 0060, lets a seat submit a
- *  deck before the draft ends). Returns whether it actually opened the phase.
- */
+ *  Called from every path that can make `computeEventCompletion` flip — all
+ *  four of them:
+ *  - `userDecks.create` — the last seat submitting its deck, the headline case.
+ *  - `submitPick` and `autoPickSeatTimeout` — the two draft-completing paths,
+ *    which flip it when the final pick lands a Pool for humans who had already
+ *    built (the continuous draft→build surface, ADR 0060, lets a seat submit a
+ *    deck before the draft ends).
+ *  - `startLimitedEvent` (BOTH branches) — an ALL-BOT table is complete the
+ *    instant it starts, so completion flips INSIDE that mutation and none of
+ *    the three above will ever run: Sealed deals every bot seat a Pool (each
+ *    immediately Auto-Build-ready), and a draft's `runBotAutoPicks` drives the
+ *    whole draft to `draftCompletedAt` in the same transaction. Without this
+ *    call site such an event sticks in `started` with `completed: true`
+ *    forever.
+ *
+ *  Returns whether it actually opened the phase. */
 export async function openPlayPhaseIfReady(
     ctx: MutationCtx,
     eventId: Id<"limitedEvents">,
@@ -1267,12 +1314,20 @@ export const startLimitedEvent = mutation({
                 now,
                 [...dealt.timerUpdates, ...afterBots.timerUpdates]
             );
+            // An ALL-BOT table finishes here: `runBotAutoPicks` drives the
+            // whole draft to `draftCompletedAt` in this same mutation, so
+            // completion flips inside `startLimitedEvent` and none of the
+            // other call sites (`userDecks.create`, `submitPick`,
+            // `autoPickSeatTimeout`) will ever run. Self-gating, so this is a
+            // no-op for a normal table with a human still to build.
+            await openPlayPhaseIfReady(ctx, args.eventId, now);
             return null;
         }
 
         const seats = fillBotSeats(event.seats);
         const seed = freshSeed();
         const rng = makeRng(seed);
+        const now = Date.now();
         const seededSeats = generateSealedPools(
             seats,
             event.packSlots,
@@ -1287,8 +1342,12 @@ export const startLimitedEvent = mutation({
             status: "started",
             seed,
             scorerVersion: SCORER_VERSION,
-            updatedAt: Date.now(),
+            updatedAt: now,
         });
+        // Same all-bot case as the draft branch above: dealing the Pools makes
+        // every bot seat deck-ready immediately, so an all-bot Sealed table is
+        // complete the instant it starts. No-op for a table with a human seat.
+        await openPlayPhaseIfReady(ctx, args.eventId, now);
         return null;
     },
 });

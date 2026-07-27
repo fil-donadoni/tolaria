@@ -10,12 +10,13 @@
 // is then asserted THROUGH `projectLimitedEvent`, the seam the client actually
 // receives — never a hand-built view.
 import { describe, it, expect } from "vitest";
+import { startLimitedEvent } from "../limitedEvents";
 import { resolveDeckCardMeta, tryGetDefinition } from "../cards";
-import { getCardColorIdentity } from "../cards/colors";
-import { manaValue } from "../gre/constants";
+import { getCardColorIdentity, getPipCountsFromCost } from "../cards/colors";
+import { getDefinitionProducibleColors, manaValue } from "../gre/constants";
 import { makeRng } from "../gre/rng";
 import { computeBotAutoBuiltDeck } from "../limited/autoBuild";
-import type { GetCardEvalMeta } from "../limited/botDrafter";
+import { chooseBotPick, type GetCardEvalMeta } from "../limited/botDrafter";
 import { computeEventCompletion } from "../limited/completion";
 import {
     projectLimitedEvent,
@@ -32,6 +33,7 @@ import { resolveMatchFormat } from "../limited/matchFormat";
 import { evaluateDeckStrength, type DeckStrength } from "../limited/matchSim";
 import { getRuntimeBoosterConfig } from "../limited/registry";
 import { openRound, type ResolveSeatStrength } from "../limited/rounds";
+import { startDraft, runBotAutoPicks } from "../limited/draftEngine";
 import { basicLandsForColors } from "../cards/colors";
 import { getCardByName, getPrintingsForCard } from "../cards";
 import type { Color } from "../cards/types";
@@ -56,6 +58,11 @@ const getCardEvalMeta: GetCardEvalMeta = (scryfallId) => {
         colors: getCardColorIdentity(def),
         manaValue: manaValue(def.manaCost),
         rarity: meta.rarity,
+        // ADR 0073 / issue #1610 added both to `CardEvalMeta` — the colour
+        // terms read these, never `colors`. Mirrors `limitedEvents.ts`'s own
+        // `getCardEvalMeta` wiring exactly.
+        pips: getPipCountsFromCost(def.manaCost),
+        producedColors: [...getDefinitionProducibleColors(def)],
     };
 };
 
@@ -288,5 +295,183 @@ describe("the opened round reaches the client through the projection (issue #164
             // Every decided Bo3 played 2 or 3 games, counted twice (once per
             // seat).
         ).toBeGreaterThanOrEqual(3 * 2 * 2);
+    });
+});
+
+// ── An ALL-BOT table (no human seat) — issue #1644 review finding 2 ─────────
+//
+// `createLimitedEvent` does NOT seat its creator (`buildEmptySeats`, status
+// `open`), so an event whose seats are all still free is legal to start — and
+// `startLimitedEvent` turns every free seat into a Bot Drafter. Such a table is
+// COMPLETE the instant that mutation finishes its own writes: Sealed deals every
+// bot seat a Pool (each immediately Auto-Build-ready), and a draft's
+// `runBotAutoPicks` drives the whole draft to `draftCompletedAt` in the same
+// transaction.
+//
+// That is what makes it a distinct case rather than a variant of the tests
+// above. `openPlayPhaseIfReady` is the only thing that opens the play phase,
+// and its other call sites are `userDecks.create`, `submitPick` and
+// `autoPickSeatTimeout` — none of which can EVER run for a table with no human
+// seat and no pending pick. Unless `startLimitedEvent` calls it itself, such an
+// event sits in `started` with `completed: true` forever: no round panel, no
+// standings, no way out.
+describe("an all-bot table reaches the play phase (issue #1644)", () => {
+    /** The state `startLimitedEvent`'s SEALED branch leaves behind for a table
+     *  nobody joined: 8 bot seats, Pools dealt. */
+    function allBotSealedEvent(seatCount = 8): LimitedEventRow {
+        const packSlots = ["lea"];
+        const seats = generateSealedPools(
+            fillBotSeats(buildEmptySeats(seatCount)),
+            packSlots,
+            6,
+            getRuntimeBoosterConfig,
+            resolveCardMeta,
+            makeRng(16442)
+        );
+        return {
+            _id: "event-1644-allbot",
+            createdBy: "user1",
+            type: "sealed",
+            status: "started",
+            seatCount,
+            packSlots,
+            sealedBoosterCount: 6,
+            matchFormat: "bo3",
+            seats,
+            createdAt: 0,
+            updatedAt: 0,
+        };
+    }
+
+    /** The state `startLimitedEvent`'s DRAFT branch leaves behind for the same
+     *  table — the REAL `startDraft` + `runBotAutoPicks` pair, wired with the
+     *  same injected resolvers the mutation uses. `getPickRating` returns
+     *  `null` throughout, the documented fall-through to the quality heuristic
+     *  (ADR 0073) — no database layer exists in a pure test. */
+    function allBotDraftEvent(seatCount = 8): LimitedEventRow {
+        const packSlots = ["lea", "lea", "lea"];
+        const seed = 16443;
+        const dealt = startDraft(
+            fillBotSeats(buildEmptySeats(seatCount)),
+            packSlots,
+            seed,
+            getRuntimeBoosterConfig,
+            resolveCardMeta
+        );
+        const afterBots = runBotAutoPicks(
+            dealt.seats,
+            dealt.draftRound,
+            dealt.draftPacksRemaining,
+            packSlots,
+            seed,
+            getRuntimeBoosterConfig,
+            resolveCardMeta,
+            (seat, pack, packsSeen) =>
+                chooseBotPick(pack, seat.pool ?? [], getCardEvalMeta, {
+                    packsSeen,
+                    getPickRating: () => null,
+                }),
+            false
+        );
+        // The premise of this whole describe block: one mutation, whole draft.
+        expect(afterBots.completed).toBe(true);
+        return {
+            _id: "event-1644-allbot-draft",
+            createdBy: "user1",
+            type: "draft",
+            status: "started",
+            seatCount,
+            packSlots,
+            matchFormat: "bo3",
+            seats: afterBots.seats,
+            draftRound: afterBots.draftRound,
+            draftPacksRemaining: afterBots.draftPacksRemaining,
+            draftCompletedAt: 1_700_000_000_000,
+            createdAt: 0,
+            updatedAt: 0,
+        };
+    }
+
+    it("a Sealed table of 8 bots is already COMPLETE when startLimitedEvent finishes", () => {
+        // No human seat => no `userDecks.create` will ever fire. If the flip
+        // isn't acted on inside `startLimitedEvent`, nothing acts on it.
+        const event = allBotSealedEvent();
+        expect(
+            computeEventCompletion(
+                event.seats,
+                {
+                    type: event.type,
+                    status: event.status,
+                    draftCompletedAt: event.draftCompletedAt,
+                },
+                () => false
+            ).completed
+        ).toBe(true);
+    });
+
+    it("a Draft table of 8 bots is already COMPLETE when startLimitedEvent finishes", () => {
+        const event = allBotDraftEvent();
+        expect(
+            computeEventCompletion(
+                event.seats,
+                {
+                    type: event.type,
+                    status: event.status,
+                    draftCompletedAt: event.draftCompletedAt,
+                },
+                () => false
+            ).completed
+        ).toBe(true);
+    });
+
+    it("opens the play phase with round 1 fully decided — no pairing waits on anyone", () => {
+        for (const event of [allBotSealedEvent(), allBotDraftEvent()]) {
+            const opened = openPlayPhase(event, new Set())!;
+
+            expect(opened.status).toBe("playing");
+            expect(opened.currentRound).toBe(1);
+            // Every pairing is bot-vs-bot, so every one is simulated in the
+            // same transaction: the round is complete on arrival.
+            const pairings = opened.rounds![0].pairings;
+            expect(pairings).toHaveLength(4);
+            expect(pairings.filter((p) => p.result === undefined)).toHaveLength(
+                0
+            );
+
+            // And it reaches the client: standings are scored, and a viewer
+            // with no seat here simply has no pairing of their own.
+            const view = projectLimitedEvent(opened, "user1");
+            expect(view.status).toBe("playing");
+            expect(view.standings.filter((r) => r.points === 3)).toHaveLength(
+                4
+            );
+            expect(view.viewerPairing).toBeNull();
+        }
+    });
+
+    it("startLimitedEvent itself opens the play phase, in BOTH branches", () => {
+        // The assertion that actually goes red on the shipped bug. The three
+        // tests above prove the table is complete and that the open WOULD
+        // succeed — but `openPlayPhaseIfReady` is a `ctx.db`-bound mutation
+        // helper with no pure core to call, so what has to be pinned is the
+        // CALL: if `startLimitedEvent` doesn't make it, no later mutation will.
+        //
+        // Introspects the REGISTERED mutation's own handler (`_handler`, the
+        // function Convex deploys) rather than re-reading the file, so this
+        // can't drift from what actually ships.
+        const handler = (
+            startLimitedEvent as unknown as {
+                _handler: (...a: never[]) => unknown;
+            }
+        )._handler;
+        const body = String(handler);
+        // The draft branch terminates at the handler's FIRST `return null`
+        // (every earlier exit throws), so this splits the two branches.
+        const draftBranchEnd = body.indexOf("return null");
+        expect(draftBranchEnd).toBeGreaterThan(-1);
+        expect(body.slice(0, draftBranchEnd)).toContain(
+            "openPlayPhaseIfReady("
+        );
+        expect(body.slice(draftBranchEnd)).toContain("openPlayPhaseIfReady(");
     });
 });
