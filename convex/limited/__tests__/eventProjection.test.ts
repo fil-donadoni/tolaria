@@ -888,3 +888,79 @@ describe("play phase projection (PRD #1628, ADR 0076, issue #1640)", () => {
         expect(view.seats[1].pool).toBeNull();
     });
 });
+
+// Standings (PRD #1628 stories 22-24/47, issue #1643) — the mandatory wire
+// format test: `computeStandings` has its own full unit coverage
+// (`standings.test.ts`), but the AC ("the standings reach the client through
+// the event projection and are asserted THROUGH that projection") requires
+// asserting the SAME behavior against `projectLimitedEvent`'s actual output,
+// never a hand-built `StandingsRow[]`.
+describe("standings projection (PRD #1628 stories 22-24/47, issue #1643)", () => {
+    it("projects a zeroed standings row per seat for an event with no rounds yet", () => {
+        const view = projectLimitedEvent(row(), "user1");
+        expect(view.standings).toHaveLength(2);
+        for (const seatRow of view.standings) {
+            expect(seatRow.points).toBe(0);
+            expect(seatRow.matchWins).toBe(0);
+            expect(seatRow.gameWinPct).toBe(0);
+            expect(seatRow.opponentMatchWinPct).toBe(0);
+        }
+    });
+
+    it("computes standings from the event's recorded rounds, visible to every viewer", () => {
+        const event = row({
+            status: "playing",
+            currentRound: 1,
+            rounds: [
+                {
+                    roundNumber: 1,
+                    startedAt: 0,
+                    pairings: [
+                        {
+                            seatA: 0,
+                            seatB: 1,
+                            result: { winsA: 2, winsB: 0, source: "played" },
+                        },
+                    ],
+                },
+            ],
+        });
+        for (const viewer of ["user1", "user2", null]) {
+            const view = projectLimitedEvent(event, viewer);
+            const winner = view.standings.find((r) => r.seatIndex === 0)!;
+            const loser = view.standings.find((r) => r.seatIndex === 1)!;
+            expect(winner.points).toBe(3);
+            expect(winner.matchWins).toBe(1);
+            expect(winner.gameWins).toBe(2);
+            expect(loser.points).toBe(0);
+            expect(loser.matchLosses).toBe(1);
+        }
+        // Sorted: the winner comes first (higher points).
+        const view = projectLimitedEvent(event, "user1");
+        expect(view.standings[0].seatIndex).toBe(0);
+    });
+
+    it("counts a bye and a timeout the same way through the projection as the pure module", () => {
+        const event = row({
+            status: "finished",
+            currentRound: 1,
+            rounds: [
+                {
+                    roundNumber: 1,
+                    startedAt: 0,
+                    pairings: [
+                        {
+                            seatA: 0,
+                            result: { winsA: 2, winsB: 0, source: "bye" },
+                        },
+                    ],
+                },
+            ],
+        });
+        const view = projectLimitedEvent(event, "user1");
+        const byeSeat = view.standings.find((r) => r.seatIndex === 0)!;
+        expect(byeSeat.points).toBe(3);
+        expect(byeSeat.matchWins).toBe(1);
+        expect(byeSeat.gameWins).toBe(2);
+    });
+});
