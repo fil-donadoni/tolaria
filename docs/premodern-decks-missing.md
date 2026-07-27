@@ -1,6 +1,3 @@
-STIFLENOUGHT
-1 Brain Freeze
-
 MONOBLACK
 2 Withered Wretch
 4 Funeral Charm

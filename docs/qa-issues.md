@@ -27,9 +27,25 @@ Fable of the mirror-breaker
 
 ## Carte rotte
 
+- Urborg con terra base genera un errore:
+  react-Dhe7adbX.js?v=51f81d6d:2182 Uncaught (in promise) Error: [CONVEX M(game:autoTapForPayment)] [Request ID: 84f6a0d7aee0734c] Server Error
+  Uncaught Error: Must choose a mana color
+  at tapSourceIntoPayment (../../convex/game.ts:1014:25)
+  at handler (../../convex/game.ts:6997:16)
+
+    Called by client
+    at tapSourceIntoPayment (../../convex/game.ts:1014:25)
+    at handler (../../convex/game.ts:6997:16)
+
+    Called by client
+    at BaseConvexClient.mutation (http://localhost:5173/node_modules/.vite/deps/react-Dhe7adbX.js?v=51f81d6d:2182:10)
+
+- Wishclaw talisman: c'è scritto che entra con 3 counters, non è un'abilita' attivata. verifica se ci sono altri casi di carte con questo testo e questo bug e sistema alla radice. Inoltre l'attivazione prevede un timing che va esteso alla UI, non mostrare la possibilità di attivazione tramite context menu se non sono nel mio turno. anche questo comportamento va esteso a tutte le carte con limitazioni di tempo, come regola generale.
 - Starting town non viene considerata come produttrice di mana colorato ai fini di castabilità
 - Erode permette di prendere terre non base con tipo di terra base, ma deve farti prendere SOLO terre base. anche path to exile.
 - Il bot non so come puo' cercare di attivare cycling di un trioma già sul battlefield. Non deve essere un'opzione valida, per il giocatore reale non lo è tramite UI ma perché il bot la vede come possiblità?
+- Memory lapse mette la carta in una posizione nota, quindi quella carta deve risultare rivelata a tutti nella library
+- Karakas mostra come target validi le creature non leggendarie e poi genera un errore quando le selezioni. deve validare client-side e dare il ring solo a chi corrisponde al filtro dei candidati reali
 
 ## UX da migliorare
 
@@ -47,10 +63,6 @@ Fable of the mirror-breaker
 - premere space dopo aver dichiarato almeno un attaccante corrisponde a Confirm attacks, non ad Attack with all
 
 # Bug gameplay
-
-- nello scheam database c'è game_states, unica tabella snake_case. mettila in camelCase come le altre
-
-# Nuova UI
 
 # Bug bot
 

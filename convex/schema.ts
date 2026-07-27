@@ -32,7 +32,7 @@ export default defineSchema({
         // so existing rows load unchanged (absent === not an admin).
         isAdmin: v.optional(v.boolean()),
     }).index("email", ["email"]),
-    game_states: defineTable({
+    gameStates: defineTable({
         gameId: v.id("games"),
         seq: v.number(),
         state: v.any(),
@@ -237,7 +237,7 @@ export default defineSchema({
         status: v.union(
             v.literal("waiting"),
             // "pregame": the owning Match is resolving the G1 coin toss +
-            // play/draw choice; no game_states row exists yet (CR 103.2-103.4).
+            // play/draw choice; no gameStates row exists yet (CR 103.2-103.4).
             v.literal("pregame"),
             v.literal("playing"),
             v.literal("finished")

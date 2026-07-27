@@ -62,7 +62,7 @@ export default function GameRoute() {
     }
 
     if (game && game.status === "pregame" && game.matchId) {
-        // G1 coin-toss + play/draw gate (CR 103.2-103.4). No game_states row
+        // G1 coin-toss + play/draw gate (CR 103.2-103.4). No gameStates row
         // exists yet; the board mounts only once the toss resolves and the game
         // flips to "playing" (reactive re-query).
         return (

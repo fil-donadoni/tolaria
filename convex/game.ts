@@ -448,9 +448,9 @@ function toGamePlayers(players: PlayerInput[]) {
 async function getLatestGameState(
     ctx: Pick<GenericQueryCtx<DataModel>, "db">,
     gameId: GenericId<"games">
-): Promise<Doc<"game_states"> | null> {
+): Promise<Doc<"gameStates"> | null> {
     const doc = await ctx.db
-        .query("game_states")
+        .query("gameStates")
         .withIndex("by_gameId", (q) => q.eq("gameId", gameId))
         .order("desc")
         .first();
@@ -472,7 +472,7 @@ async function saveGameState(
     gameId: GenericId<"games">,
     seq: number,
     state: GameState | Record<string, unknown>,
-    existing: Doc<"game_states"> | null
+    existing: Doc<"gameStates"> | null
 ) {
     // ADR 0047 — maintain the authoritative Expected Input at the persistence
     // seam. Every stable point flows through `saveGameState`, so recomputing
@@ -493,7 +493,7 @@ async function saveGameState(
         return;
     }
 
-    await ctx.db.insert("game_states", {
+    await ctx.db.insert("gameStates", {
         gameId,
         seq,
         state: stored,
@@ -3170,7 +3170,7 @@ export const joinGame = mutation({
             }
         }
 
-        // Update game record (no game_states row until the toss is resolved).
+        // Update game record (no gameStates row until the toss is resolved).
         await ctx.db.patch(args.gameId, {
             status: "pregame",
             players: toGamePlayers(allPlayers),
@@ -3214,7 +3214,7 @@ export const leaveGame = mutation({
         if (!game) return; // already gone — nothing to free
         if (!gameBelongsToUser(game, user._id))
             throw new Error("You are not part of this game");
-        // "pregame" (G1 coin-toss gate) has no game_states row and no moves
+        // "pregame" (G1 coin-toss gate) has no gameStates row and no moves
         // played, so it abandons like a waiting room; "playing" must be
         // conceded instead.
         if (game.status !== "waiting" && game.status !== "pregame")
@@ -3222,7 +3222,7 @@ export const leaveGame = mutation({
         // Delete any state snapshots first, then the orphan waiting room and its
         // owning waiting Match (ADR 0029) so the user is free to start another.
         const states = await ctx.db
-            .query("game_states")
+            .query("gameStates")
             .withIndex("by_gameId", (q) => q.eq("gameId", args.gameId))
             .collect();
         for (const s of states) await ctx.db.delete(s._id);

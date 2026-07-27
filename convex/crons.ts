@@ -7,7 +7,7 @@ import { deleteSeats } from "./limitedSeatStore";
 const FINISHED_TTL_MS = 24 * 60 * 60 * 1000;
 
 /** Garbage-collect finished Matches older than `FINISHED_TTL_MS` (ADR 0029).
- *  Deleting a Match cascades its Games and their `game_states` snapshots in one
+ *  Deleting a Match cascades its Games and their `gameStates` snapshots in one
  *  pass. Run on a cron so abandoned/finished sessions don't accumulate storage.
  *
  *  Defensively also sweeps any finished game NOT owned by a Match (legacy rows
@@ -34,7 +34,7 @@ export const sweepFinishedGames = internalMutation({
             if (game.matchId) continue; // owned — handled by Match sweep
             if (game.updatedAt > cutoff) continue;
             const snapshots = await ctx.db
-                .query("game_states")
+                .query("gameStates")
                 .withIndex("by_gameId", (q) => q.eq("gameId", game._id))
                 .collect();
             for (const s of snapshots) await ctx.db.delete(s._id);

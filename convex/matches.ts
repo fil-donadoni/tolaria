@@ -518,7 +518,7 @@ export function projectMatch(
 
 // ---------------------------------------------------------------------------
 // Cascade delete (ADR 0029). Removing a finished Match cascades its Games and
-// their `game_states`. Shared by the cleanup cron and any explicit teardown.
+// their `gameStates`. Shared by the cleanup cron and any explicit teardown.
 // ---------------------------------------------------------------------------
 
 export async function deleteMatchCascade(
@@ -531,7 +531,7 @@ export async function deleteMatchCascade(
         .collect();
     for (const game of games) {
         const snapshots = await ctx.db
-            .query("game_states")
+            .query("gameStates")
             .withIndex("by_gameId", (q) => q.eq("gameId", game._id))
             .collect();
         for (const s of snapshots) await ctx.db.delete(s._id);
