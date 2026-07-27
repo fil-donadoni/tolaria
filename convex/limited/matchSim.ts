@@ -67,22 +67,49 @@ export interface BotMatchResult {
 export const WIN_PROBABILITY_MIN = 0.25;
 export const WIN_PROBABILITY_MAX = 0.75;
 
-/** Logistic scale, expressed as a RELATIVE strength gap (see
- *  `relativeStrengthGap`): a ~27% relative gap saturates the clamp, a ~10%
- *  gap makes the better deck roughly a 60/40 favourite per game.
+/** Logistic scale, expressed in per-card standard deviations of the deck's own
+ *  scores (`DeckStrength.spread`): a HALF-spread gap between the two means
+ *  saturates the clamp, a ~0.2-spread gap makes the better deck roughly a
+ *  60/40 favourite per game.
  *
- *  Deliberately relative rather than absolute: `evaluateDeckStrength`'s
- *  magnitude is whatever `scoreCandidateWithRating` currently returns, and
- *  that scale legitimately shifts by an order of magnitude the moment an event
- *  has Pick Ratings (`PICK_RATING_DOMINANCE_WEIGHT` is 1000 per rating point).
- *  An absolute logistic scale hard-codes an assumption about the evaluator's
- *  units and rots silently the next time the Bot Drafter is retuned; a
- *  relative one is invariant to it. */
-const STRENGTH_GAP_SCALE = 0.25;
+ *  Measured in SPREADS rather than in raw score points because
+ *  `evaluateDeckStrength`'s units are whatever `scoreCandidateWithRating`
+ *  currently returns — an absolute logistic scale hard-codes an assumption
+ *  about those units and rots silently the next time the Bot Drafter is
+ *  retuned. Spread is the evaluator's own yardstick, so this constant survives
+ *  a retune.
+ *
+ *  Half a spread is a LOT: the standard error of a 40-card mean is
+ *  `spread / sqrt(40)` ≈ 0.16 spreads, so a half-spread gap between two decks
+ *  is a ~3-sigma difference in deck quality — the point at which "clearly the
+ *  better deck" stops buying any more edge and the clamp takes over. */
+const STRENGTH_GAP_SCALE_IN_SPREADS = 0.5;
+
+/** One built deck's strength, as the two statistics the matchup needs:
+ *
+ *  - `mean` — the deck's aggregate strength, and the ONLY term that decides
+ *    which deck is better. Rankings compare this.
+ *  - `spread` — the population standard deviation of the SAME per-card scores.
+ *    Never a quality signal in itself; it is purely the SCALE the mean gap is
+ *    read against (see `STRENGTH_GAP_SCALE_IN_SPREADS`).
+ *
+ *  Carrying the spread alongside the mean is what makes `gameWinProbability`
+ *  level-independent. A Pick Rating enters `scoreCandidateWithRating` as an
+ *  ADDITIVE per-card offset (`(rating - 2.5) * 1000`), so an event that has
+ *  ratings shifts every deck's `mean` by hundreds or thousands of points while
+ *  leaving `spread` — a centred statistic — untouched. Normalising by anything
+ *  derived from the mean (its magnitude, say) would therefore make the SAME
+ *  matchup resolve differently just because the event has ratings checked in;
+ *  normalising by the spread cannot. */
+export interface DeckStrength {
+    readonly mean: number;
+    readonly spread: number;
+}
 
 /** Aggregate strength of ONE built deck (PRD #1628 story 50): the MEAN of
  *  `botDrafter.ts`'s `scoreCandidateWithRating` over the decklist, each card
- *  scored against the REST of the deck as its "pool".
+ *  scored against the REST of the deck as its "pool", plus the SPREAD of those
+ *  same per-card scores (see `DeckStrength`).
  *
  *  Scoring against the rest (rather than against the whole deck, or against
  *  nothing) is what makes this measure a DECK rather than a pile of cards, and
@@ -97,7 +124,11 @@ const STRENGTH_GAP_SCALE = 0.25;
  *    penalty — exactly as it would have at pick time.
  *  - **Curve, rarity and raw card quality** come through the same call:
  *    `CURVE_TARGET`, `RARITY_WEIGHT` and `cardValueById` (ADR 0018).
- *  - **Pick Ratings** dominate when present, as they do at pick time.
+ *  - **Pick Ratings** dominate the `mean` when present, exactly as they do at
+ *    pick time. They enter `scoreCandidateWithRating` as a per-card ADDITIVE
+ *    offset, so they move `mean` and leave `spread` untouched — which is what
+ *    keeps the matchup itself unchanged when the two decks are rated alike
+ *    (see `DeckStrength`).
  *
  *  Mean rather than sum so the number stays comparable across decks of
  *  different sizes (a Limited deck is 40 cards, but nothing here depends on
@@ -109,53 +140,74 @@ const STRENGTH_GAP_SCALE = 0.25;
  *
  *  Total: never throws. A card `getCardEvalMeta` can't resolve is skipped
  *  (it contributes nothing rather than crashing a round-opening mutation), and
- *  a deck with no resolvable cards at all scores 0. */
+ *  a deck with no resolvable cards at all scores `{ mean: 0, spread: 0 }`. */
 export function evaluateDeckStrength(
     deck: readonly DeckCard[],
     getCardEvalMeta: GetDeckCardEvalMeta,
     getPickRating?: GetPickRating
-): number {
+): DeckStrength {
     const metas: CardEvalMeta[] = [];
     for (const card of deck) {
         const meta = getCardEvalMeta(card.cardId);
         if (meta) metas.push(meta);
     }
-    if (metas.length === 0) return 0;
+    if (metas.length === 0) return { mean: 0, spread: 0 };
 
-    let total = 0;
+    const scores: number[] = [];
     for (let i = 0; i < metas.length; i++) {
         const candidate = metas[i];
         const rest = metas.filter((_, j) => j !== i);
         const rating = getPickRating ? getPickRating(candidate.cardId) : null;
-        total += scoreCandidateWithRating(candidate, rest, rating);
+        scores.push(scoreCandidateWithRating(candidate, rest, rating));
     }
-    return total / metas.length;
+
+    const mean = scores.reduce((sum, s) => sum + s, 0) / scores.length;
+    const variance =
+        scores.reduce((sum, s) => sum + (s - mean) * (s - mean), 0) /
+        scores.length;
+    return { mean, spread: Math.sqrt(variance) };
 }
 
-/** Seat A's strength advantage as a fraction of the two decks' typical
- *  magnitude — the unit-free input to the logistic (see
- *  `STRENGTH_GAP_SCALE`). The `max(1, …)` floor keeps two near-zero strengths
- *  from exploding into a spurious blowout. */
-function relativeStrengthGap(strengthA: number, strengthB: number): number {
-    const magnitude = Math.max(
-        1,
-        (Math.abs(strengthA) + Math.abs(strengthB)) / 2
-    );
-    return (strengthA - strengthB) / magnitude;
+/** The scale ONE matchup is read at: the two decks' typical per-card spread.
+ *
+ *  A standard deviation is invariant to an additive offset (so an event with
+ *  Pick Ratings measures the same as one without) and non-negative by
+ *  construction (so it never degenerates near or below zero the way a
+ *  magnitude built from the strengths themselves does). Averaged across the
+ *  two seats so neither deck alone sets the yardstick. */
+function matchupSpread(a: DeckStrength, b: DeckStrength): number {
+    return (a.spread + b.spread) / 2;
 }
 
 /** Seat A's probability of winning ONE game, from the two deck strengths: a
- *  logistic curve over their relative gap, clamped to
+ *  logistic curve over their mean gap measured in per-card spreads, clamped to
  *  `[WIN_PROBABILITY_MIN, WIN_PROBABILITY_MAX]`. Equal strengths give exactly
  *  0.5, and the function is symmetric — `p(a,b) + p(b,a) === 1` — so which
  *  seat is called A never changes the matchup.
+ *
+ *  **Level-independent by construction.** The only thing that moves the result
+ *  is `mean(A) - mean(B)` relative to the decks' own spread; adding the same
+ *  constant to every card in BOTH decks — which is exactly what checking in
+ *  Pick Ratings for a set does (`(rating - 2.5) * 1000` per card) — changes
+ *  neither term, so a rated event resolves its matches exactly as decisively
+ *  as an unrated one (PRD #1628 story 18).
+ *
+ *  Two decks with no per-card variation at all (`spread === 0` on both sides)
+ *  leave no yardstick to measure the gap against: any gap is then unmeasurably
+ *  large and resolves straight to the clamp bound.
  *
  *  Exported alongside `simulateBotMatch` because the clamp is an asserted
  *  property of this module, not an implementation detail (issue #1642), and
  *  because a UI explaining a `"simulated"` result wants the odds it was rolled
  *  at without re-rolling the match. */
-export function gameWinProbability(strengthA: number, strengthB: number): number {
-    const gap = relativeStrengthGap(strengthA, strengthB) / STRENGTH_GAP_SCALE;
+export function gameWinProbability(a: DeckStrength, b: DeckStrength): number {
+    const delta = a.mean - b.mean;
+    const spread = matchupSpread(a, b);
+    if (spread === 0) {
+        if (delta === 0) return 0.5;
+        return delta > 0 ? WIN_PROBABILITY_MAX : WIN_PROBABILITY_MIN;
+    }
+    const gap = delta / (spread * STRENGTH_GAP_SCALE_IN_SPREADS);
     const raw = 1 / (1 + Math.exp(-gap));
     return Math.min(WIN_PROBABILITY_MAX, Math.max(WIN_PROBABILITY_MIN, raw));
 }
@@ -169,8 +221,8 @@ export function gameWinProbability(strengthA: number, strengthB: number): number
  *  consumed exactly once per game: the same seed always yields the same score,
  *  which is what makes a recorded result immune to a re-render (story 19). */
 export function simulateBotMatch(
-    strengthA: number,
-    strengthB: number,
+    strengthA: DeckStrength,
+    strengthB: DeckStrength,
     bestOf: BestOf,
     rng: () => number
 ): BotMatchResult {
