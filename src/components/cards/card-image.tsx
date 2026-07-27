@@ -4,6 +4,7 @@ import {
     getImageFallbackUrl,
     getImageSrcSet,
     getImageUrl,
+    resolveCardImageFace,
     resolveCardImageId,
 } from "~/lib/images";
 import { tryGetDefinition, FACE_DOWN_CARD_ID } from "@convex/cards";
@@ -95,6 +96,10 @@ function CardImageImpl({
     // when the card defines one (e.g. The Hive → 10E Wasp print). Tokens
     // without a printed image render the in-app TokenPlaceholder.
     const imageId = resolveCardImageId(defId);
+    // A transformed permanent's `defId` is swapped to its registered
+    // back-face definition (CR 712, `gre/transform.ts`); resolve which
+    // Scryfall CDN face segment that definition renders (issue #1595).
+    const face = resolveCardImageFace(defId);
     return (
         <CardPreview
             cardId={defId}
@@ -109,11 +114,12 @@ function CardImageImpl({
                 {imageId ? (
                     <img
                         {...(jpgFallbackFor === imageId
-                            ? { src: getImageFallbackUrl(imageId) }
+                            ? { src: getImageFallbackUrl(imageId, face) }
                             : {
-                                  src: getImageUrl(imageId),
+                                  src: getImageUrl(imageId, face),
                                   srcSet: getImageSrcSet(imageId, {
                                       includeThumb,
+                                      face,
                                   }),
                                   sizes,
                               })}

@@ -14,6 +14,7 @@ import { formatOracleText } from "~/lib/oracle-text";
 import {
     ART_CROP_RATIO,
     getArtCropImageUrl,
+    resolveCardImageFace,
     resolveCardImageId,
 } from "~/lib/images";
 import { SLOT_SPRING } from "~/lib/board-motion";
@@ -143,6 +144,11 @@ export default function StackRow({
         designation?.imagePrintId ??
         emblem?.imagePrintId ??
         resolveCardImageId(item.card.id);
+    // Only the permanent-sourced fallback above can be a transformed
+    // permanent's back face (a designation/emblem marker never transforms) —
+    // resolving on `item.card.id` regardless is still correct since neither
+    // has a registered `imagePrintFace` (issue #1595).
+    const imageFace = resolveCardImageFace(item.card.id);
 
     return (
         // The shared-layout flight identity lives on the CARD TILE below, not on
@@ -183,7 +189,10 @@ export default function StackRow({
                             >
                                 {imageId ? (
                                     <img
-                                        src={getArtCropImageUrl(imageId)}
+                                        src={getArtCropImageUrl(
+                                            imageId,
+                                            imageFace
+                                        )}
                                         alt=""
                                         className="absolute inset-0 h-full w-full object-cover"
                                     />

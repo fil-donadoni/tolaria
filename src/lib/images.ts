@@ -1,13 +1,19 @@
 import { tryGetDefinition } from "@convex/cards";
+import type { CardImageFace } from "@convex/cards/types";
 
-export function getImageUrl(id: string): string {
-    return getScryfallImageUrl(id);
+export type { CardImageFace };
+
+export function getImageUrl(id: string, face?: CardImageFace): string {
+    return getScryfallImageUrl(id, face);
 }
 
 /** The printed full card (grid 488w WebP) — the "printed card" surface of the
  *  phase-2 preview toggle. Same rendition the default CardImage fetches. */
-export function getPrintedCardImageUrl(scryfallId: string): string {
-    return getScryfallImageUrl(scryfallId);
+export function getPrintedCardImageUrl(
+    scryfallId: string,
+    face?: CardImageFace
+): string {
+    return getScryfallImageUrl(scryfallId, face);
 }
 
 /** Default `sizes` hint matching the shared card surfaces: board cards render
@@ -33,15 +39,16 @@ export const DEFAULT_CARD_IMAGE_SIZES = "140px";
  *    672w stays available for wide slots on high-DPR screens. */
 export function getImageSrcSet(
     scryfallId: string,
-    opts?: { includeThumb?: boolean }
+    opts?: { includeThumb?: boolean; face?: CardImageFace }
 ): string {
     const includeThumb = opts?.includeThumb ?? true;
+    const face = opts?.face;
     return [
         ...(includeThumb
-            ? [`${scryfallUrl("thumb", scryfallId, "webp")} 146w`]
+            ? [`${scryfallUrl("thumb", scryfallId, "webp", face)} 146w`]
             : []),
-        `${scryfallUrl("grid", scryfallId, "webp")} 488w`,
-        `${scryfallUrl("display", scryfallId, "webp")} 672w`,
+        `${scryfallUrl("grid", scryfallId, "webp", face)} 488w`,
+        `${scryfallUrl("display", scryfallId, "webp", face)} 672w`,
     ].join(", ");
 }
 
@@ -49,8 +56,11 @@ export function getImageSrcSet(
  *  Used as the `onError` fallback while Scryfall's WebP rollout is in
  *  progress: spoiler-season / lowres printings may lack the `grid` WebP
  *  rendition, and the legacy `normal` JPG always exists. */
-export function getImageFallbackUrl(scryfallId: string): string {
-    return scryfallUrl("normal", scryfallId, "jpg");
+export function getImageFallbackUrl(
+    scryfallId: string,
+    face?: CardImageFace
+): string {
+    return scryfallUrl("normal", scryfallId, "jpg", face);
 }
 
 /** Preview art primary: the `art` WebP rendition (626×457) — sharper and less
@@ -59,15 +69,21 @@ export function getImageFallbackUrl(scryfallId: string): string {
  *  coverage), so callers MUST onError-fall back to {@link getArtCropImageUrl}
  *  (see card-preview-face). Never mix the two in one srcset — their aspect
  *  ratios differ. */
-export function getArtImageUrl(scryfallId: string): string {
-    return scryfallUrl("art", scryfallId, "webp");
+export function getArtImageUrl(
+    scryfallId: string,
+    face?: CardImageFace
+): string {
+    return scryfallUrl("art", scryfallId, "webp", face);
 }
 
 // art_crop stays JPG deliberately: it is the always-present fallback for the
 // `art` WebP rendition above (old printings lack `art`, per the probe note on
 // getArtImageUrl), so the fallback path must not 404 a second time.
-export function getArtCropImageUrl(scryfallId: string): string {
-    return scryfallUrl("art_crop", scryfallId, "jpg");
+export function getArtCropImageUrl(
+    scryfallId: string,
+    face?: CardImageFace
+): string {
+    return scryfallUrl("art_crop", scryfallId, "jpg", face);
 }
 
 /** Resolves the Scryfall id to use for fetching art for a given card id.
@@ -82,6 +98,19 @@ export function resolveCardImageId(cardId: string): string | null {
     if (!cardId.startsWith("token:")) return cardId;
     const def = tryGetDefinition(cardId);
     return def?.imagePrintId ?? null;
+}
+
+/** Resolves which face's URL segment to request for `cardId` (issue #1595,
+ *  CR 712). A transformed permanent's `card.card.id` is swapped by
+ *  `transformPermanent` (`gre/transform.ts`) to a synthesized `CardDefinition`
+ *  registered by `registerBackFaceDefinition`, which stamps
+ *  `imagePrintFace: "back"` on it — so this is a pure lookup on the SAME
+ *  `cardId` every `resolveCardImageId` caller already has, no
+ *  `CardInstanceState` needed. Every other def (including one that simply
+ *  hasn't transformed yet) has no `imagePrintFace` and resolves to the
+ *  default `"front"`. */
+export function resolveCardImageFace(cardId: string): CardImageFace {
+    return tryGetDefinition(cardId)?.imagePrintFace ?? "front";
 }
 
 /** Native pixel dimensions of Scryfall art_crop images (landscape).
@@ -99,10 +128,19 @@ export const ART_CROP_RATIO = `${ART_CROP_W} / ${ART_CROP_H}` as const;
 // probe found `grid` rendered for 40/40 sampled catalogue cards; consumers
 // still fall back to `normal` jpg via getImageFallbackUrl for the stragglers
 // (fresh spoilers, lowres scans).
-function getScryfallImageUrl(scryfallId: string): string {
-    return scryfallUrl("grid", scryfallId, "webp");
+function getScryfallImageUrl(scryfallId: string, face?: CardImageFace): string {
+    return scryfallUrl("grid", scryfallId, "webp", face);
 }
 
-function scryfallUrl(variant: string, scryfallId: string, ext: string): string {
-    return `https://cards.scryfall.io/${variant}/front/${scryfallId[0]}/${scryfallId[1]}/${scryfallId}.${ext}`;
+// `face` defaults to "front" — the segment every non-transformed card (the
+// overwhelming majority) renders; a transformed permanent's caller resolves
+// its own face via `resolveCardImageFace` and passes it explicitly (issue
+// #1595).
+function scryfallUrl(
+    variant: string,
+    scryfallId: string,
+    ext: string,
+    face: CardImageFace = "front"
+): string {
+    return `https://cards.scryfall.io/${variant}/${face}/${scryfallId[0]}/${scryfallId[1]}/${scryfallId}.${ext}`;
 }

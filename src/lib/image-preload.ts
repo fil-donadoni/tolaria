@@ -3,6 +3,7 @@ import {
     getArtCropImageUrl,
     getImageSrcSet,
     getImageUrl,
+    resolveCardImageFace,
     resolveCardImageId,
 } from "./images";
 
@@ -16,6 +17,11 @@ export function preloadCardImage(cardId: string): void {
     // network — the renderer uses an in-app placeholder instead.
     const imageId = resolveCardImageId(cardId);
     if (!imageId) return;
+    // A transformed permanent's `cardId` is its back-face def id (CR 712);
+    // preload the SAME face `<img>` will actually request (issue #1595) —
+    // otherwise a front-face preload is wasted bytes while the render fetches
+    // `back/` uncached.
+    const face = resolveCardImageFace(cardId);
     const img = new Image();
     img.decoding = "async";
     // Mirror CardImage's responsive attributes so the browser resolves the
@@ -24,9 +30,9 @@ export function preloadCardImage(cardId: string): void {
     // Board surfaces (hand/battlefield/stack) exclude `thumb` from their
     // srcset, so the preload does too — warming a candidate nobody fetches
     // is wasted bytes.
-    img.srcset = getImageSrcSet(imageId, { includeThumb: false });
+    img.srcset = getImageSrcSet(imageId, { includeThumb: false, face });
     img.sizes = DEFAULT_CARD_IMAGE_SIZES;
-    img.src = getImageUrl(imageId);
+    img.src = getImageUrl(imageId, face);
 }
 
 export function preloadCardImages(cardIds: Iterable<string>): void {
@@ -40,7 +46,7 @@ export function preloadArtCropImage(cardId: string): void {
     if (!imageId) return;
     const img = new Image();
     img.decoding = "async";
-    img.src = getArtCropImageUrl(imageId);
+    img.src = getArtCropImageUrl(imageId, resolveCardImageFace(cardId));
 }
 
 export function preloadArtCropImages(cardIds: Iterable<string>): void {

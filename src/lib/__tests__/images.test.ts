@@ -10,12 +10,16 @@
 // don't (so the caller skips the network and renders a placeholder).
 
 import { describe, it, expect } from "vitest";
+import { tokenDefinitionId } from "@convex/cards";
+import type { TokenSpec } from "@convex/cards/types";
 import {
     getArtCropImageUrl,
     getArtImageUrl,
     getImageFallbackUrl,
     getImageSrcSet,
     getImageUrl,
+    getPrintedCardImageUrl,
+    resolveCardImageFace,
     resolveCardImageId,
 } from "../images";
 
@@ -101,5 +105,94 @@ describe("resolveCardImageId", () => {
         const url = getArtCropImageUrl(resolved);
         expect(url).not.toContain("token:");
         expect(url).toContain("/art_crop/front/0/9/");
+    });
+});
+
+// Face-aware image URL selection for transformed permanents/tokens (CR 712,
+// issue #1595). A permanent showing its back face has `card.card.id` swapped
+// to a synthesized token id whose CONTENT encodes `imagePrintFace: "back"`
+// (`tokenDefinitionId`, `convex/cards/index.ts`) — `resolveCardImageFace` is
+// the single chokepoint that reads it back, and every URL builder accepts
+// the resolved face as an explicit param.
+describe("resolveCardImageFace / face-aware URL selection (issue #1595)", () => {
+    const PRINT_ID = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
+
+    // Builds the id via the SAME `tokenDefinitionId` codec
+    // `registerBackFaceDefinition` (`gre/transform.ts`) uses — and,
+    // deliberately, NEVER registers it. On a real client, `transformPermanent`
+    // runs server-side only; the browser bundle never sees that
+    // `registerTokenDefinition` call and must decode the wire `card.card.id`
+    // string cold, through `maybeSynthesizeToken`'s lazy-synthesis path
+    // (`convex/cards/index.ts`). Pre-registering the def here would bypass
+    // that decode path entirely and mask a codec bug (issue #1595 review) —
+    // this id is resolved the same way a fresh, cold client would.
+    const backFaceSpec: TokenSpec = {
+        name: "Test Construct",
+        types: ["Artifact", "Creature"],
+        subtypes: ["Construct"],
+        power: 0,
+        toughness: 0,
+        imagePrintId: PRINT_ID,
+        imagePrintFace: "back",
+    };
+    const BACK_FACE_ID = tokenDefinitionId(backFaceSpec);
+
+    // A plain token with its OWN imagePrintId but no back-face marker — the
+    // overwhelming majority shape (e.g. The Hive's Wasp) — must still default
+    // to "front".
+    const PLAIN_TOKEN_ID =
+        "token:Wasp|Artifact,Creature|Insect||1|1||flying|09921372-126f-4c81-b6d8-ea50b1d0eb44";
+
+    it("a printed card (no `token:` prefix) resolves to front", () => {
+        const printedId = "ce2d603a-3231-4a8c-bf39-1617586ea870"; // grizzlyBears
+        expect(resolveCardImageFace(printedId)).toBe("front");
+    });
+
+    it("a plain token with no back-face marker resolves to front", () => {
+        expect(resolveCardImageFace(PLAIN_TOKEN_ID)).toBe("front");
+    });
+
+    it("a cold-decoded (never registered) back-face token id resolves to back", () => {
+        expect(resolveCardImageFace(BACK_FACE_ID)).toBe("back");
+    });
+
+    it("scryfallUrl-backed builders default to the `front/` segment when no face is passed", () => {
+        const id = "ce2d603a-3231-4a8c-bf39-1617586ea870"; // grizzlyBears
+        expect(getImageUrl(id)).toContain("/grid/front/c/e/");
+        expect(getPrintedCardImageUrl(id)).toContain("/grid/front/c/e/");
+        expect(getImageFallbackUrl(id)).toContain("/normal/front/c/e/");
+        expect(getArtImageUrl(id)).toContain("/art/front/c/e/");
+        expect(getArtCropImageUrl(id)).toContain("/art_crop/front/c/e/");
+        for (const entry of getImageSrcSet(id).split(", ")) {
+            expect(entry).toContain("/front/");
+        }
+    });
+
+    it("every scryfallUrl-backed builder renders the `back/` segment when face is 'back'", () => {
+        expect(getImageUrl(PRINT_ID, "back")).toContain("/grid/back/a/a/");
+        expect(getPrintedCardImageUrl(PRINT_ID, "back")).toContain(
+            "/grid/back/a/a/"
+        );
+        expect(getImageFallbackUrl(PRINT_ID, "back")).toContain(
+            "/normal/back/a/a/"
+        );
+        expect(getArtImageUrl(PRINT_ID, "back")).toContain("/art/back/a/a/");
+        expect(getArtCropImageUrl(PRINT_ID, "back")).toContain(
+            "/art_crop/back/a/a/"
+        );
+        for (const entry of getImageSrcSet(PRINT_ID, { face: "back" }).split(
+            ", "
+        )) {
+            expect(entry).toContain("/back/");
+            expect(entry).not.toContain("/front/");
+        }
+    });
+
+    it("end-to-end: resolveCardImageId + resolveCardImageFace on the same back-face id builds a `back/` URL", () => {
+        const resolvedId = resolveCardImageId(BACK_FACE_ID)!;
+        const face = resolveCardImageFace(BACK_FACE_ID);
+        expect(resolvedId).toBe(PRINT_ID);
+        expect(face).toBe("back");
+        expect(getImageUrl(resolvedId, face)).toContain("/grid/back/a/a/");
     });
 });

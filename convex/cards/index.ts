@@ -3,6 +3,7 @@ import type {
     AiCombatHint,
     CardBackFace,
     CardDefinition,
+    CardImageFace,
     CardPrint,
     CardSupertype,
     CardType,
@@ -616,6 +617,21 @@ export function tokenDefinitionId(spec: TokenSpec): string {
         // the token has no back face (back-compat: an 11-segment id without
         // this trailing segment decodes as "no back face").
         spec.backFace ? encodeURIComponent(JSON.stringify(spec.backFace)) : "",
+        // 13th segment (index 12, issue #1595) — which face `imagePrintId`
+        // (the 9th segment above) itself renders. Only ever `"back"`, stamped
+        // by `backFaceAsTokenSpec` (`gre/transform.ts`) when reshaping a
+        // `CardBackFace` with its own `imagePrintId` — a real double-faced
+        // Scryfall print shares ONE id across both faces, each served under
+        // its own `front/`/`back/` CDN path (`src/lib/images.ts`). Folding it
+        // into THIS content-derived id (not a separate out-of-band flag on
+        // the registered `CardDefinition`) is what lets a client that never
+        // ran the server-side `registerTokenDefinition` call — the ordinary
+        // case, since `transformPermanent` runs server-side only — still
+        // decode "back" from the wire `card.card.id` string alone via
+        // `maybeSynthesizeToken` below. Empty when the face is front
+        // (back-compat: a 12-segment id without this trailing segment
+        // decodes as "front").
+        spec.imagePrintFace ?? "",
     ];
     return `token:${parts.join("|")}`;
 }
@@ -734,6 +750,13 @@ function maybeSynthesizeToken(cardId: string): CardDefinition | null {
         // tokens without a back face (back-compat with pre-#1210
         // 11-segment ids).
         backFaceRaw,
+        // Issue #1595 — which face `imagePrintId` (9th segment above)
+        // renders: `"back"` for a synthesized back-face definition
+        // (`gre/transform.ts`'s `backFaceAsTokenSpec`), empty/absent for
+        // front (see `tokenDefinitionId`). Trailing 13th segment; empty /
+        // absent for tokens predating #1595 (back-compat with pre-#1595
+        // 12-segment ids, which decode as "front").
+        imagePrintFaceRaw,
     ] = parts;
     const types = typesRaw.split(",").filter(Boolean) as CardType[];
     const subtypes = subtypesRaw.split(",").filter(Boolean);
@@ -778,6 +801,10 @@ function maybeSynthesizeToken(cardId: string): CardDefinition | null {
         backFaceRaw && backFaceRaw.length > 0
             ? (JSON.parse(decodeURIComponent(backFaceRaw)) as CardBackFace)
             : undefined;
+    // Rebuild which face `imagePrintId` renders (issue #1595). A plain string
+    // literal, no JSON/URI-escaping needed — mirrors `imagePrintIdRaw` above.
+    const imagePrintFace: CardImageFace | undefined =
+        imagePrintFaceRaw === "back" ? "back" : undefined;
     const manaCost: ManaCost = {};
     for (const c of colors) manaCost[c] = (manaCost[c] ?? 0) + 1;
     const def: CardDefinition = {
@@ -794,6 +821,7 @@ function maybeSynthesizeToken(cardId: string): CardDefinition | null {
         toughness,
         ...(staticAbilities.length > 0 ? { staticAbilities } : {}),
         ...(imagePrintId ? { imagePrintId } : {}),
+        ...(imagePrintFace ? { imagePrintFace } : {}),
         ...(staticEffects.length > 0 ? { staticEffects } : {}),
         ...(activatedAbilities && activatedAbilities.length > 0
             ? { activatedAbilities }
