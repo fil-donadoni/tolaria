@@ -7634,15 +7634,16 @@ export const selectTarget = mutation({
             ) {
                 throw new Error("Card type mismatch for graveyard target");
             }
-            // CR 109.3 / 102.1 / 202.3 — every CARD-kind filter (`controller`
-            // — the graveyard's OWNER, anti-spoof #904's card-flavored twin
-            // — and `mvFilter`), routed through the SINGLE shared authority
-            // — the target-filter registry (ADR 0068 / issue #1410, T3).
-            // `getLegalTargets` runs the SAME `checkCardTargetFilters` per
-            // candidate, so the offered set and the accepted set can't
-            // diverge. This ALSO fixes a real latent gap: this branch never
-            // implemented `controller: "active"` before this slice, while
-            // `getLegalTargets` already did.
+            // CR 109.3 / 102.1 / 202.3 / 109.1 — every CARD-kind filter
+            // (`controller` — the graveyard's OWNER, anti-spoof #904's
+            // card-flavored twin — `mvFilter`, and `excludeTypes` — issue
+            // #1378's "nonland permanent card" gate), routed through the
+            // SINGLE shared authority — the target-filter registry (ADR 0068
+            // / issue #1410, T3). `getLegalTargets` runs the SAME
+            // `checkCardTargetFilters` per candidate, so the offered set and
+            // the accepted set can't diverge. This ALSO fixes a real latent
+            // gap: this branch never implemented `controller: "active"`
+            // before this slice, while `getLegalTargets` already did.
             const cardFilterCtx: TargetFilterCtx = {
                 state,
                 sourceColors: [],
@@ -7657,6 +7658,7 @@ export const selectTarget = mutation({
                 {
                     controller: pt.controller,
                     mvFilter: pt.mvFilter,
+                    excludeTypes: pt.excludeTypes,
                 }
             );
             if (cardFilterViolation) throw new Error(cardFilterViolation);

@@ -2531,6 +2531,57 @@ describe("getLegalTargets: graveyard-card zone targeting (CR 400.7 / 109.2, T3 p
             { type: "graveyard-card", id: "gy-cheap", playerId: "p1" },
         ]);
     });
+
+    it("excludeTypes: 'Land' excludes a DUAL-TYPED land Creature from a graveyard-card target, includes a plain Creature (issue #1378 review follow-up, Guardian Scalelord's 'nonland permanent card')", () => {
+        // CR 300.1 — a permanent can have BOTH "Land" and "Creature" among its
+        // printed types (Dryad Arbor). A graveyard-zone requirement's own
+        // STRUCTURAL `type` field is a plain OR-membership test with no
+        // negation, so `type: PERMANENT_TYPES` alone (no `excludeTypes`)
+        // would wrongly admit this card via its "Creature" membership even
+        // under a "nonland" restriction — exactly what `excludeTypes`'s NEW
+        // `card` check (`excludeTypesDescriptor`, `targetFilters.ts`) closes.
+        const landCreature = makeCard({
+            id: "gy-land-creature",
+            card: { id: "test-gy-land-creature", manaCost: { generic: 0 } },
+            types: ["Land", "Creature"],
+            zone: "graveyard",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const plainCreature = makeCard({
+            id: "gy-plain-creature",
+            card: { id: "test-gy-plain-creature", manaCost: { generic: 2 } },
+            types: ["Creature"],
+            zone: "graveyard",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeGameState({
+            players: [
+                makePlayer({
+                    id: "p1",
+                    graveyard: [landCreature, plainCreature],
+                }),
+                makePlayer({ id: "p2" }),
+            ],
+        });
+        const req: TargetRequirement = {
+            type: [
+                "Artifact",
+                "Battle",
+                "Creature",
+                "Enchantment",
+                "Planeswalker",
+            ],
+            count: 1,
+            zone: "graveyard",
+            excludeTypes: "Land",
+        };
+        const targets = getLegalTargets(state, req, [], "p1");
+        expect(targets).toEqual([
+            { type: "graveyard-card", id: "gy-plain-creature", playerId: "p1" },
+        ]);
+    });
 });
 
 // ---------------------------------------------------------------------------

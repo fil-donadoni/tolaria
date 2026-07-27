@@ -25,19 +25,17 @@ import { backupTrigger } from "../../abilities/triggers/backupTrigger";
 //     target.
 //   - The attack trigger: a `zone: "graveyard"` `targetRequirement` (CR
 //     400.7, the Regrowth/thb-colorless-relic precedent) restricted to
-//     nonland permanent cards via a POSITIVE type list (`PERMANENT_TYPES`
-//     minus `"Land"`) rather than `excludeTypes` — a graveyard-zone
-//     requirement's card-type gate is the requirement's own STRUCTURAL
-//     `type` field (a plain OR-membership test, `gre/rules.ts`
-//     `getLegalTargets`'s graveyard branch); `excludeTypes`'s registry
-//     descriptor (`gre/targetFilters.ts`) only declares a `permanent` check,
-//     never a `card` one, so it is silently a no-op for a graveyard target —
-//     the Phelia "nonland permanent" idiom (`excludeTypes: "Land"`) does NOT
-//     carry over to this zone. With a NEW `mvFilter.max: "sourcePower"`
-//     dynamic cap (issue #1378) — the source's live effective power,
-//     resolved at the SAME point `mvFilter`'s existing `"X"` sentinel already
-//     is (`getLegalTargets` / `raiseTriggerTargetSelection`), locking the
-//     value as the trigger is put on the stack (CR 603.3d) with no
+//     nonland permanent cards via `type: PERMANENT_TYPES` + `excludeTypes:
+//     "Land"` — the Phelia idiom (`excludeTypes` is now checked for a CARD
+//     candidate too, not just `permanent` — see the `excludeTypesDescriptor`
+//     fix in `gre/targetFilters.ts`, issue #1378 review follow-up: a POSITIVE
+//     type list alone would wrongly admit a dual-typed land, e.g. a land
+//     Creature, since the graveyard branch's OWN structural `type` field is a
+//     plain OR-membership test with no negation). With a NEW `mvFilter.max:
+//     "sourcePower"` dynamic cap (issue #1378) — the source's live effective
+//     power, resolved at the SAME point `mvFilter`'s existing `"X"` sentinel
+//     already is (`getLegalTargets` / `raiseTriggerTargetSelection`), locking
+//     the value as the trigger is put on the stack (CR 603.3d) with no
 //     resolution-time re-check, mirroring Ward / Backup's own
 //     `targetIsAnother` convention. The reanimation itself is the existing
 //     `moveZone` Op's target-shape (CR 400.7, issue #839) — the same
@@ -96,10 +94,12 @@ export const guardianScalelord: CardDefinition = {
             // this trigger is put on the stack, not re-evaluated at
             // resolution.
             targetRequirement: {
-                // "nonland permanent card" — a POSITIVE list (Land omitted),
-                // not `excludeTypes` (see the module doc comment above: a
-                // graveyard target's card-type gate ignores `excludeTypes`).
-                type: PERMANENT_TYPES.filter((t) => t !== "Land"),
+                // "nonland permanent card" — the Phelia idiom: the full
+                // permanent-type list PLUS `excludeTypes: "Land"` (see the
+                // module doc comment above for why a positive list alone is
+                // insufficient for a dual-typed card).
+                type: [...PERMANENT_TYPES],
+                excludeTypes: "Land",
                 zone: "graveyard",
                 controller: "you",
                 count: 1,

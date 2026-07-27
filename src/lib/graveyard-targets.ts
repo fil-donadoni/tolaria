@@ -32,12 +32,17 @@ export function isGraveyardTargetForViewer(
 /** Client-side mirror of the backend's graveyard-target validation in
  *  `selectTarget` (convex/game.ts). Returns true if `card` in the graveyard
  *  owned by `ownerId` satisfies the pending target's controller-relationship,
- *  card-type, and mana-value filters. Must stay in sync with the server
- *  check.
+ *  card-type (positive AND negative), and mana-value filters. Must stay in
+ *  sync with the server check.
  *
  *  CR 109.2 / 400.7 — graveyard-zone target. The card-type union (the pending
  *  target's `targetType` minus the non-card tokens) is matched with OR
- *  semantics; `"card"` matches any card. `mvFilter` (CR 202.3, issue #1378 —
+ *  semantics; `"card"` matches any card. `excludeTypes` (CR 109.1, issue
+ *  #1378 review follow-up — Guardian Scalelord's "nonland permanent card",
+ *  the Phelia idiom) EXCLUDES a card whose types intersect the excluded set —
+ *  checked independently of the positive `targetType` match, since a
+ *  DUAL-TYPED card (a land Creature) can satisfy the positive list while
+ *  still needing to be excluded. `mvFilter` (CR 202.3, issue #1378 —
  *  Guardian Scalelord's dynamic power-based ceiling, and every existing
  *  literal-ceiling graveyard reanimator: Sevinne's Reclamation
  *  (`c19/white.ts`), Karmic Guide-style sos/multicolor.ts, ulg/black.ts) is
@@ -45,10 +50,11 @@ export function isGraveyardTargetForViewer(
  *  server resolves any `"X"` / `"sourcePower"` sentinel BEFORE building
  *  `PendingTarget.mvFilter` (`pendingTargetFiltersFromRequirement`,
  *  `gre/rules.ts`), so the client never needs to know the dynamic grammar,
- *  only the already-resolved bound. Previously UNCHECKED here — every
- *  mvFilter-restricted graveyard target offered every card in the graveyard
- *  as clickable regardless of mana value, relying entirely on the server's
- *  `selectTarget` rejection to catch an illegal pick after the fact. */
+ *  only the already-resolved bound. `mvFilter` and `excludeTypes` were
+ *  previously UNCHECKED here — every such-restricted graveyard target
+ *  offered every card in the graveyard as clickable regardless of mana value
+ *  / excluded type, relying entirely on the server's `selectTarget`
+ *  rejection to catch an illegal pick after the fact. */
 export function matchesGraveyardTarget(
     card: CardInstance,
     ownerId: string,
@@ -58,6 +64,8 @@ export function matchesGraveyardTarget(
     const controllerFilter = pendingTarget.controller ?? "any";
     if (controllerFilter === "you" && ownerId !== viewerId) return false;
     if (controllerFilter === "opponent" && ownerId === viewerId) return false;
+
+    const ownTypes = card.types ?? [];
 
     const reqTypes = Array.isArray(pendingTarget.targetType)
         ? pendingTarget.targetType
@@ -72,9 +80,13 @@ export function matchesGraveyardTarget(
                 t !== "card"
         );
         if (cardTypes.length > 0) {
-            const ownTypes = card.types ?? [];
             if (!cardTypes.some((t) => ownTypes.includes(t))) return false;
         }
+    }
+
+    const excludeTypes = pendingTarget.excludeTypes;
+    if (excludeTypes && excludeTypes.some((t) => ownTypes.includes(t))) {
+        return false;
     }
 
     const mvFilter = pendingTarget.mvFilter;

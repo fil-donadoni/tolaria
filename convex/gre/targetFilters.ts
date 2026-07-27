@@ -552,10 +552,23 @@ const excludeSupertypesDescriptor = defineFilter<string[]>({
 });
 
 // CR 109.1 — type-exclude filter ("nonland permanent", "nonartifact").
+// Also checked for a CARD-kind (graveyard/hand) candidate (issue #1378, T3
+// follow-up): a graveyard-zone `targetRequirement` has no negation on its own
+// STRUCTURAL `type` field (a plain OR-membership test — CR 300.1's dual-typed
+// permanents, e.g. a land Creature, would otherwise slip past a POSITIVE
+// "Creature"/"Artifact"/... list even under a "nonland" restriction), so
+// `excludeTypes: "Land"` needs the SAME registry gate here that it already has
+// for `checks.permanent` — the Phelia "nonland permanent" idiom (Guardian
+// Scalelord's graveyard reanimation target) only works catalogue-wide once a
+// `card` candidate can be excluded by type too.
 const excludeTypesDescriptor = defineFilter<CardType[]>({
     lower: (req) => arr(req.excludeTypes),
     checks: {
         permanent: (card, value) =>
+            value.some((t) => card.types.includes(t))
+                ? `Target must not be ${value.join(" or ")}`
+                : null,
+        card: (card, value) =>
             value.some((t) => card.types.includes(t))
                 ? `Target must not be ${value.join(" or ")}`
                 : null,
@@ -1345,18 +1358,26 @@ export function lowerPlayerFilters(
 
 // ─── T3 card-kind gate (ADR 0068 / issue #1410) ─────────────────────────────
 // "card" candidates are graveyard (and, if a future card ever needs it, hand)
-// targets (CR 109.2 / 400.7 — Regrowth-style recursion). Both filter keys
-// here are cross-kind (`controller`, `mvFilter`), already registered by
-// `PERMANENT_FILTER_KEYS` — there is no card-ONLY filter today (the CardType
-// filter graveyard targets use is the requirement's own STRUCTURAL `type`
-// field, not a registry filter — see the ADR's `StructuralKey` list).
+// targets (CR 109.2 / 400.7 — Regrowth-style recursion). All three filter
+// keys here are cross-kind (`controller`, `mvFilter`, `excludeTypes` — issue
+// #1378), already registered by `PERMANENT_FILTER_KEYS` — there is no
+// card-ONLY filter today (the POSITIVE CardType filter graveyard targets use
+// is the requirement's own STRUCTURAL `type` field, not a registry filter —
+// see the ADR's `StructuralKey` list; `excludeTypes` is its NEGATIVE
+// counterpart and, unlike `type`, DOES route through the registry).
 
 /** The full ordered set of filter keys a `type: "card"`-zone (graveyard)
  *  candidate is checked against. `controller` first, matching the
- *  pre-refactor check order (owner-relationship, then mana value). NOT
+ *  pre-refactor check order (owner-relationship, then mana value); `excludeTypes`
+ *  (issue #1378) appended last — a purely additive check order change, so
+ *  every pre-existing violation message still wins over it. NOT
  *  `keyof Omit<TargetRequirement, StructuralKey>` yet — T4's keystone
  *  (ADR 0068). */
-export const CARD_FILTER_KEYS = ["controller", "mvFilter"] as const;
+export const CARD_FILTER_KEYS = [
+    "controller",
+    "mvFilter",
+    "excludeTypes",
+] as const;
 
 export type CardFilterKey = (typeof CARD_FILTER_KEYS)[number];
 
@@ -1366,6 +1387,7 @@ export type CardFilterKey = (typeof CARD_FILTER_KEYS)[number];
 export type CardFilterValues = Partial<{
     controller: TargetRequirement["controller"];
     mvFilter: { min?: number; max?: number; equals?: number };
+    excludeTypes: CardType[];
 }>;
 
 /** Runs every SET filter in `values` against `candidate` (a graveyard card)

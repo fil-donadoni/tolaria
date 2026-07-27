@@ -5,6 +5,12 @@ import {
     isGraveyardTargetForViewer,
     matchesGraveyardTarget,
 } from "~/lib/graveyard-targets";
+import { projectPublicState } from "@convex/gameProjections";
+import type {
+    CardInstanceState,
+    GameState,
+    PlayerState,
+} from "@convex/gre/state";
 
 function gyCard(
     id: string,
@@ -176,6 +182,155 @@ describe("matchesGraveyardTarget — mvFilter (CR 202.3, issue #1378)", () => {
                 "me",
                 pending({ mvFilter: { equals: 3 } }),
                 "me"
+            )
+        ).toBe(true);
+    });
+});
+
+// issue #1378 review follow-up: `PendingTarget.excludeTypes` (CR 109.1, the
+// Phelia "nonland permanent" idiom, now also checked for a graveyard CARD
+// candidate server-side — see `excludeTypesDescriptor`'s new `card` check,
+// `gre/targetFilters.ts`) was likewise never checked here. A DUAL-TYPED card
+// (a land Creature) can satisfy a POSITIVE `targetType` match while still
+// needing to be excluded — checked independently, not folded into the
+// positive-type branch above.
+describe("matchesGraveyardTarget — excludeTypes (CR 109.1, issue #1378)", () => {
+    it("excludes a DUAL-TYPED land Creature even though it matches the positive 'Creature' targetType", () => {
+        const landCreature = gyCard("land-creature", "me", [
+            "Land",
+            "Creature",
+        ]);
+        const pt = pending({
+            targetType: "Creature",
+            excludeTypes: ["Land"],
+        });
+        expect(matchesGraveyardTarget(landCreature, "me", pt, "me")).toBe(
+            false
+        );
+    });
+
+    it("includes a plain Creature (no excluded type present)", () => {
+        const plainCreature = gyCard("plain-creature", "me", ["Creature"]);
+        const pt = pending({
+            targetType: "Creature",
+            excludeTypes: ["Land"],
+        });
+        expect(matchesGraveyardTarget(plainCreature, "me", pt, "me")).toBe(
+            true
+        );
+    });
+
+    it("no excludeTypes on the PendingTarget leaves the target unrestricted", () => {
+        const landCreature = gyCard("land-creature2", "me", [
+            "Land",
+            "Creature",
+        ]);
+        const pt = pending({ targetType: "Creature" });
+        expect(matchesGraveyardTarget(landCreature, "me", pt, "me")).toBe(true);
+    });
+});
+
+// Wiring-rule compliance (`.claude/rules/gre-development.md` § Frontend
+// wiring analysis): drives the SAME excludeTypes/mvFilter assertion through
+// the real server projection (`projectPublicState`) instead of a hand-built
+// `PendingTarget`/`CardInstance` — `pendingTarget` and a graveyard card's
+// `types` cross the wire untouched (`projectPublicState` spreads
+// `...state` for `pendingTarget` and `slimCard` preserves `types` on a
+// graveyard card), so this proves the client-visible wire shape, not just
+// the hand-rolled fixture shape the suite above uses.
+describe("matchesGraveyardTarget — driven through projectPublicState (wiring rule)", () => {
+    function makeInstance(
+        overrides: Partial<CardInstanceState> = {}
+    ): CardInstanceState {
+        return {
+            id: "gy-1",
+            card: { id: "def-gy-1" },
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+            types: ["Creature"],
+            subtypes: [],
+            staticAbilities: [],
+            isTapped: false,
+            ...overrides,
+        } as CardInstanceState;
+    }
+
+    function makeServerPlayer(
+        id: string,
+        graveyard: CardInstanceState[]
+    ): PlayerState {
+        return {
+            id,
+            name: id,
+            bgColor: "#000",
+            life: 20,
+            hand: [],
+            library: [],
+            graveyard,
+            exile: [],
+            battlefield: [],
+            manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
+        };
+    }
+
+    it("a projected PendingTarget with excludeTypes still bars a projected dual-typed land Creature", () => {
+        const landCreature = makeInstance({
+            id: "gy-land-creature",
+            types: ["Land", "Creature"],
+        });
+        const plainCreature = makeInstance({
+            id: "gy-plain-creature",
+            types: ["Creature"],
+        });
+        const state: GameState = {
+            players: [
+                makeServerPlayer("p1", [landCreature, plainCreature]),
+                makeServerPlayer("p2", []),
+            ],
+            stack: [],
+            turn: 1,
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            passCount: 0,
+            phase: "PRECOMBAT_MAIN",
+            rngSeed: 0,
+            rngCounter: 0,
+            pendingTarget: {
+                playerId: "p1",
+                cardInstanceId: "src",
+                targetType: "Creature",
+                count: 1,
+                zone: "graveyard",
+                selected: [],
+                controller: "you",
+                excludeTypes: ["Land"],
+            },
+        };
+        const projected = projectPublicState(state, 1, "p1");
+        const projectedPendingTarget = projected.pendingTarget as PendingTarget;
+        const projectedGraveyard = projected.players[0]
+            .graveyard as unknown as CardInstance[];
+        const projectedLandCreature = projectedGraveyard.find(
+            (c) => c.id === "gy-land-creature"
+        )!;
+        const projectedPlainCreature = projectedGraveyard.find(
+            (c) => c.id === "gy-plain-creature"
+        )!;
+        expect(
+            matchesGraveyardTarget(
+                projectedLandCreature,
+                "p1",
+                projectedPendingTarget,
+                "p1"
+            )
+        ).toBe(false);
+        expect(
+            matchesGraveyardTarget(
+                projectedPlainCreature,
+                "p1",
+                projectedPendingTarget,
+                "p1"
             )
         ).toBe(true);
     });

@@ -4,12 +4,15 @@
 // Aetherborn, `mom/black.ts`, and Death-Greeter's Champion, `moc/red.ts`)
 // plus the ALREADY-EXERCISED `moveZone` target-shape Op (Raise Dead-style
 // reanimation, e.g. `ulg/black.ts`). This file pins the CARD's own new
-// combination: a graveyard-zone `targetRequirement` restricted to a POSITIVE
-// nonland-permanent type list AND the NEW `mvFilter.max: "sourcePower"`
-// dynamic cap (issue #1378) — proving the requirement embedded on the real
-// card definition (not a hand-rolled copy) offers/excludes the right
-// graveyard cards at a given source power, and that the cap tracks a power
-// change.
+// combination: a graveyard-zone `targetRequirement` restricted to nonland
+// permanent cards via `type: PERMANENT_TYPES` + `excludeTypes: "Land"` (the
+// Phelia idiom, now also enforced for a CARD-kind candidate — issue #1378
+// review follow-up) AND the NEW `mvFilter.max: "sourcePower"` dynamic cap
+// (issue #1378) — proving the requirement embedded on the real card
+// definition (not a hand-rolled copy) offers/excludes the right graveyard
+// cards at a given source power, excludes a DUAL-TYPED land (a land Creature
+// — the exact "positive list alone admits it" gap the excludeTypes fix
+// closes), and that the cap tracks a power change.
 
 import { describe, it, expect } from "vitest";
 import { guardianScalelord } from "../white";
@@ -59,16 +62,35 @@ function attackersDeclaredState(
         ownerId: "p1",
         zone: "graveyard",
     });
+    // Dryad-Arbor-shaped: a DUAL-TYPED land Creature, mv 0 (Dryad Arbor is
+    // itself unimplemented in the catalogue, so this is a synthetic
+    // fixture — CR 300.1, "Land" is one of its printed types alongside
+    // "Creature"). Proves `excludeTypes: "Land"` bars it even though it also
+    // matches the POSITIVE "Creature" branch of `type: PERMANENT_TYPES`
+    // (the exact gap a positive-list-only expression would miss).
+    const landCreature: CardInstanceState = {
+        id: "gy-dryad-arbor",
+        card: { id: "test-dryad-arbor", manaCost: {} },
+        types: ["Land", "Creature"],
+        subtypes: ["Dryad"],
+        power: 1,
+        toughness: 1,
+        staticAbilities: [],
+        controllerId: "p1",
+        ownerId: "p1",
+        zone: "graveyard",
+        isTapped: false,
+    };
     const state = makeState({
         players: [
             makePlayer("p1", {
                 battlefield: [source],
-                graveyard: [bear, wurm, land],
+                graveyard: [bear, wurm, land, landCreature],
             }),
             makePlayer("p2"),
         ],
     });
-    return { state, source, bear, wurm, land };
+    return { state, source, bear, wurm, land, landCreature };
 }
 
 describe("Guardian Scalelord (Backup 1 + Flying + dynamic power-capped reanimation, CR 702.165/613/603.3d, issue #1378)", () => {
@@ -87,17 +109,17 @@ describe("Guardian Scalelord (Backup 1 + Flying + dynamic power-capped reanimati
         ]);
     });
 
-    it("attack trigger's targetRequirement: nonland permanent card, mana value at most the source's power", () => {
+    it("attack trigger's targetRequirement: nonland permanent card (type list + excludeTypes), mana value at most the source's power", () => {
         expect(ATTACK_TRIGGER.event).toBe("ATTACKERS_DECLARED");
         expect(ATTACK_TRIGGER.targetRequirement?.zone).toBe("graveyard");
         expect(ATTACK_TRIGGER.targetRequirement?.controller).toBe("you");
-        expect(ATTACK_TRIGGER.targetRequirement?.type).not.toContain("Land");
+        expect(ATTACK_TRIGGER.targetRequirement?.excludeTypes).toBe("Land");
         expect(ATTACK_TRIGGER.targetRequirement?.mvFilter).toEqual({
             max: "sourcePower",
         });
     });
 
-    it("legal targets at power 3: the mv-2 creature qualifies, the mv-6 creature and the land do not", () => {
+    it("legal targets at power 3: the mv-2 creature qualifies; the mv-6 creature, the plain land, and a DUAL-TYPED land Creature do not", () => {
         const { state } = attackersDeclaredState({ power: 3 });
         const legal = getLegalTargets(
             state,
@@ -116,7 +138,7 @@ describe("Guardian Scalelord (Backup 1 + Flying + dynamic power-capped reanimati
         ]);
     });
 
-    it("the cap TRACKS a power change: at power 6, the mv-6 creature is also legal, the land still is not", () => {
+    it("the cap TRACKS a power change: at power 6, the mv-6 creature is also legal; the land and the land Creature still are not", () => {
         const { state } = attackersDeclaredState({ power: 3 });
         const legal = getLegalTargets(
             state,
@@ -138,6 +160,7 @@ describe("Guardian Scalelord (Backup 1 + Flying + dynamic power-capped reanimati
             ])
         );
         expect(legal.some((t) => t.id === "gy-island")).toBe(false);
+        expect(legal.some((t) => t.id === "gy-dryad-arbor")).toBe(false);
     });
 
     it("resolving the attack trigger reanimates the chosen graveyard card to the battlefield under its owner's control", () => {
