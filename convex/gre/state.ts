@@ -15044,8 +15044,8 @@ export function getCostModifiers(
         }
     }
     if (kind === "spell") {
-        const selfCardId = (card as unknown as { card?: { id?: string } })
-            .card?.id;
+        const selfCardId = (card as unknown as { card?: { id?: string } }).card
+            ?.id;
         const selfDef = selfCardId ? tryGetDefinition(selfCardId) : null;
         const selfReduction = selfDef?.selfCostReduction;
         if (selfReduction) {
