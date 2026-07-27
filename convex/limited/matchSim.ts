@@ -33,8 +33,8 @@
 // (`botMatchSeed`), so a re-render can never rewrite a recorded result (PRD
 // #1628 story 19).
 import type { DeckCard } from "../deckPresets";
+import { FORMAT_RULES } from "../formats";
 import {
-    DEFAULT_DRAFT_PICKS,
     scoreCandidate,
     type CardEvalMeta,
     type GetPickRating,
@@ -106,6 +106,110 @@ export const WIN_PROBABILITY_MAX = 0.75;
  *  units. */
 const STRENGTH_GAP_SCALE_RATING_POINTS = 0.5;
 
+/** The list length every deck is measured AT — `FORMAT_RULES.limited.minMain`,
+ *  the 40 cards `autoBuild.ts` builds to exactly (`TARGET_MAIN_SIZE`).
+ *
+ *  It exists because `scoreCandidate`'s contextual half COUNTS pool cards:
+ *  `colourCommitmentTerm` pays per Pool card sharing the candidate's colour, so
+ *  its raw value grows linearly with the list it is handed, and
+ *  `curveFitTerm`'s "bucket not yet filled" bonus shrinks with it. Both are
+ *  right at pick time — a Pool that has grown IS a seat that has committed —
+ *  and both are wrong for a FINISHED deck, where list length is not a measure
+ *  of anything. Left alone they make a longer decklist score HIGHER at
+ *  identical composition, which is backwards for Limited. Measured on ONE
+ *  composition replicated to four lengths (a 20-card list ×1/×2/×4/×6), before
+ *  this normalisation and after:
+ *
+ *      cards      20       40       80      120
+ *      before   2.4297   3.3427   3.4972   3.4972
+ *      after    3.3194   3.3194   3.3194   3.3194
+ *
+ *  — before, a deck beat its own half at a CLAMPED 0.7500 and its own double
+ *  read 0.5766 against it, both larger than most real deck gaps; after, every
+ *  pair is 0.5000.
+ *
+ *  So the deck is re-expressed at this one length BEFORE scoring, and every
+ *  deck is therefore scored against a pool of the same size. A 40-card list —
+ *  the only length production ever produces — passes through untouched. */
+const CANONICAL_DECK_SIZE = FORMAT_RULES.limited.minMain;
+
+/** Re-expresses a decklist as the SAME COMPOSITION at exactly
+ *  `CANONICAL_DECK_SIZE` cards: each distinct card's copy count is scaled by
+ *  `CANONICAL_DECK_SIZE / list length` and the fractions are settled by
+ *  LARGEST REMAINDER, so the result is exactly `CANONICAL_DECK_SIZE` cards and
+ *  the proportions are the closest integer list to the original's.
+ *
+ *  IDENTITY on a 40-card list — returned as-is, same order — which is what
+ *  keeps this a robustness measure rather than a change of behaviour: every
+ *  deck `autoBuild` produces, and every fixture calibrating the scale, is
+ *  already 40 cards.
+ *
+ *  Deterministic: remainder ties break on `cardId`, so the same list always
+ *  normalises to the same multiset.
+ *
+ *  **What this does and does not buy** — stated precisely, because an
+ *  overstated invariance is what this module has repeatedly been wrong about.
+ *  Size-independence is EXACT exactly when the composition is representable in
+ *  40 integer copy counts; it is otherwise exact to within one copy per
+ *  distinct card, which is a genuine change of composition rather than a
+ *  residual size effect:
+ *
+ *  - A composition already expressible at 40 evaluates IDENTICALLY at every
+ *    length (the table above: 20/40/80/120 all 3.3194). Any exact MULTIPLE of a
+ *    40-card list is this case by construction; measured, the module's own two
+ *    fixtures re-expressed at 53, 60, 80 and 120 cards also return their
+ *    40-card value to the last digit.
+ *  - Scaling DOWN below 40 is not: a 20-card list cannot carry a proportion
+ *    like "3 of 40", so normalising it back rounds. Measured on the two
+ *    fixtures this module calibrates against, re-expressed at 20 cards:
+ *    0.155 and 0.097 rating points off their 40-card value (down from 1.055
+ *    and 0.179 before normalisation), against a 0.5-point matchup scale. Not
+ *    reachable from `autoBuild`, which builds to 40 exactly.
+ *  - A list with more than `CANONICAL_DECK_SIZE` DISTINCT cards cannot be
+ *    represented at all; the apportionment keeps the 40 largest shares. */
+function normaliseToCanonicalSize(
+    metas: readonly CardEvalMeta[]
+): readonly CardEvalMeta[] {
+    if (metas.length === CANONICAL_DECK_SIZE) return metas;
+
+    const byId = new Map<string, { meta: CardEvalMeta; count: number }>();
+    for (const meta of metas) {
+        const entry = byId.get(meta.cardId);
+        if (entry) entry.count++;
+        else byId.set(meta.cardId, { meta, count: 1 });
+    }
+
+    const shares = [...byId.values()].map(({ meta, count }) => {
+        const exact = (count * CANONICAL_DECK_SIZE) / metas.length;
+        const whole = Math.floor(exact);
+        return { meta, whole, remainder: exact - whole };
+    });
+    let assigned = shares.reduce((sum, share) => sum + share.whole, 0);
+    // Ties break on a raw code-unit comparison of `cardId`, NOT `localeCompare`
+    // — a locale-sensitive collation would make the apportionment depend on the
+    // machine's locale, and this module's whole contract is determinism.
+    const byRemainder = [...shares].sort(
+        (a, b) =>
+            b.remainder - a.remainder ||
+            (a.meta.cardId < b.meta.cardId
+                ? -1
+                : a.meta.cardId > b.meta.cardId
+                  ? 1
+                  : 0)
+    );
+    for (const share of byRemainder) {
+        if (assigned >= CANONICAL_DECK_SIZE) break;
+        share.whole++;
+        assigned++;
+    }
+
+    const normalised: CardEvalMeta[] = [];
+    for (const { meta, whole } of shares) {
+        for (let copy = 0; copy < whole; copy++) normalised.push(meta);
+    }
+    return normalised;
+}
+
 /** One built deck's strength: the deck's aggregate per-card score in RATING
  *  POINTS (ADR 0073's 0–5 scale plus a contextual bonus of at most
  *  `CONTEXT_CAP_LAST_PICK`). The only quantity that decides which deck is
@@ -145,16 +249,25 @@ export interface DeckStrength {
  *    contextual bonus — still in rating points, still bounded, and therefore
  *    still read against the same fixed scale an unrated deck is.
  *
- *  Mean rather than sum so the number stays comparable across decks of
- *  different sizes (a Limited deck is 40 cards, but nothing here depends on
- *  that).
+ *  **Size-independent, by normalising the list — not by taking a mean.** A
+ *  mean alone does NOT buy this: `scoreCandidate`'s contextual half counts pool
+ *  cards, so a longer list raises every card's score (see
+ *  `CANONICAL_DECK_SIZE` for the measurement, and for why counting is
+ *  nonetheless right at pick time). The deck is therefore re-expressed at
+ *  `CANONICAL_DECK_SIZE` first, so two decks of the same composition and
+ *  different lengths evaluate identically wherever that composition fits in 40
+ *  integer copy counts, and to within one copy per distinct card where it does
+ *  not — see `normaliseToCanonicalSize` for exactly which is which, and the
+ *  measurements. A 40-card list is untouched, so this changes nothing on the
+ *  production path.
  *
- *  Every card is scored at the LAST pick of a draft (`DEFAULT_DRAFT_PICKS`)
- *  rather than at a pick number derived from the decklist's length. A BUILT
- *  deck is a finished deck — the contextual cap that applies to it is the
- *  full-deck one, and pinning it keeps a 40-card deck and a 60-card one
- *  measured against the same cap instead of letting list size quietly scale
- *  the contextual half of the score.
+ *  The pick number is left DERIVED (`rest.length + 1` = 40) rather than pinned
+ *  at `DEFAULT_DRAFT_PICKS`. Normalisation is what makes that safe AND correct:
+ *  every deck now presents the same 39-card pool, so the contextual cap is the
+ *  same constant for every deck without pinning anything — and the returned
+ *  `PickCandidateTrace.pickNumber` matches the pool it was scored against,
+ *  which its documented contract ("Pool size + 1") requires and a pinned 45
+ *  against a 39-card pool violated.
  *
  *  `getPickRating` is OPTIONAL and defaults to "nothing is rated", mirroring
  *  `chooseBotPick`'s own optional parameter: an event on a set with no
@@ -175,16 +288,15 @@ export function evaluateDeckStrength(
     }
     if (metas.length === 0) return { mean: 0 };
 
+    const normalised = normaliseToCanonicalSize(metas);
     let total = 0;
-    for (let i = 0; i < metas.length; i++) {
-        const candidate = metas[i];
-        const rest = metas.filter((_, j) => j !== i);
+    for (let i = 0; i < normalised.length; i++) {
+        const candidate = normalised[i];
+        const rest = normalised.filter((_, j) => j !== i);
         const rating = getPickRating ? getPickRating(candidate.cardId) : null;
-        total += scoreCandidate(candidate, rest, rating, {
-            pickNumber: DEFAULT_DRAFT_PICKS,
-        }).score;
+        total += scoreCandidate(candidate, rest, rating).score;
     }
-    return { mean: total / metas.length };
+    return { mean: total / normalised.length };
 }
 
 /** Seat A's probability of winning ONE game, from the two deck strengths: a

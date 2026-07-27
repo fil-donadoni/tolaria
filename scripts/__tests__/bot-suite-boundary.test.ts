@@ -43,6 +43,13 @@ const BOT_MODULE_EXACT = [
     "convex/gre/shouldThink",
     "convex/gre/moves",
     "src/hooks/useVsAiDriver",
+    // The Limited bot subsystem. CLAUDE.md puts "drafter" in `test:bot`, and
+    // every test of these two already carries the suffix — but until they were
+    // listed here nothing ENFORCED that, and `matchSim.test.ts` shipped into
+    // the application suite unnoticed (issue #1642 third review). That is
+    // precisely the silent rot this guard exists to prevent.
+    "convex/limited/botDrafter",
+    "convex/limited/matchSim",
 ];
 
 /**
@@ -83,6 +90,10 @@ const ALLOWLIST = new Map([
     [
         "convex/gre/__tests__/autoTap.test.ts",
         "covers the auto-tap solver, whose scorer (evaluateAutoTapPosition) is app-facing — called from convex/game.ts for human players",
+    ],
+    [
+        "convex/__tests__/limitedEvents.test.ts",
+        "covers the limitedEvents BACKEND (convex-test mutations/queries: seats, pools, draft timers, standings); it imports chooseBotPick only as the injected ChooseBotPick the production wiring passes, and asserts the mutations' behaviour, not the drafter's",
     ],
     [
         "convex/__tests__/debugLoadBladeScenario.test.ts",

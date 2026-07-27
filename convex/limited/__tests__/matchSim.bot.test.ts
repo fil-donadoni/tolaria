@@ -15,6 +15,11 @@
 // exercised at THREE ratings regimes — unrated, flat-rated and per-card varied
 // — because the defect this module keeps re-acquiring is a yardstick that
 // silently inherits some property of the ratings sheet.
+//
+// Three invariances have now been claimed here and found false in review —
+// level-independence, dispersion-independence and DECK-SIZE-independence — so
+// each has a describe block that measures it rather than asserting it, at
+// every regime.
 import { describe, it, expect } from "vitest";
 import { getCardByName } from "../../cards";
 import { getCardColorIdentity } from "../../cards/colors";
@@ -22,13 +27,11 @@ import { cardValueById } from "../../gre/cardValue";
 import { manaValue } from "../../gre/constants";
 import { makeRng } from "../../gre/rng";
 import type { DeckCard } from "../../deckPresets";
-import {
-    PICK_RATING_MAX,
-    PICK_RATING_MIN,
-} from "../pickRatings";
+import { PICK_RATING_MAX, PICK_RATING_MIN } from "../pickRatings";
 import {
     CONTEXT_CAP_LAST_PICK,
     RARITY_WEIGHT,
+    scoreCandidate,
     type CardEvalMeta,
     type GetPickRating,
 } from "../botDrafter";
@@ -179,6 +182,33 @@ const FIVE_COLOUR_PILE: DeckCard[] = deckOf(
     ["Island", 3],
     ["Forest", 3]
 );
+
+/** A 20-card R/B list whose every copy count is 1 or 5, so REPLICATING it
+ *  yields the same composition at 20 / 40 / 80 / 120 cards EXACTLY — no
+ *  rounding anywhere, which is what makes the deck-size measurement below a
+ *  clean equality rather than an approximation. */
+const SIZE_UNIT_20: DeckCard[] = deckOf(
+    "Shivan Dragon",
+    "Hill Giant",
+    "Dwarven Warriors",
+    "Lightning Bolt",
+    "Fireball",
+    "Sengir Vampire",
+    "Bog Wraith",
+    "Hypnotic Specter",
+    "Bad Moon",
+    "Drain Life",
+    ["Mountain", 5],
+    ["Swamp", 5]
+);
+
+/** `SIZE_UNIT_20` repeated `times` over — identical composition, `20 × times`
+ *  cards. */
+function replicated(times: number): DeckCard[] {
+    const out: DeckCard[] = [];
+    for (let i = 0; i < times; i++) out.push(...SIZE_UNIT_20);
+    return out;
+}
 
 /** Resolves any fixture card id back to its `CardEvalMeta`. Built by scanning
  *  every name the fixtures use, so it behaves exactly like the production
@@ -332,7 +362,8 @@ describe("evaluateDeckStrength (issue #1642: one card-value authority)", () => {
             const total = deck.reduce((sum, card) => {
                 const meta = resolveMeta(card.cardId)!;
                 return (
-                    sum + cardValueById(meta.cardId) * RARITY_WEIGHT[meta.rarity]
+                    sum +
+                    cardValueById(meta.cardId) * RARITY_WEIGHT[meta.rarity]
                 );
             }, 0);
             return total / deck.length;
@@ -451,6 +482,90 @@ describe("evaluateDeckStrength (issue #1642: one card-value authority)", () => {
     });
 });
 
+describe("evaluateDeckStrength reads COMPOSITION, not list length (issue #1642 third review)", () => {
+    // The third false invariance. The module's doc claimed a mean made the
+    // number "comparable across decks of different sizes"; it does not.
+    // `scoreCandidate`'s contextual half COUNTS pool cards, so before
+    // normalisation the same composition read 2.4297 / 3.3427 / 3.4972 /
+    // 3.4972 at 20 / 40 / 80 / 120 cards — a deck beat its own half at a
+    // CLAMPED 0.7500 and its own double at 0.5766, both wider than the gap
+    // between two genuinely different drafted decks. And the sign is inverted
+    // relative to real Limited: a longer list is not a better deck.
+
+    const SIZES = [1, 2, 4, 6] as const;
+
+    it.each(REGIMES.map(([name]) => name))(
+        "one composition evaluates IDENTICALLY at 20 / 40 / 80 / 120 cards — %s",
+        (name) => {
+            const getRating = REGIMES.find(([n]) => n === name)![1];
+            const means = SIZES.map(
+                (times) =>
+                    evaluateDeckStrength(
+                        replicated(times),
+                        resolveMeta,
+                        getRating
+                    ).mean
+            );
+            for (const mean of means) {
+                expect(mean).toBeCloseTo(means[0], 12);
+            }
+        }
+    );
+
+    it("a deck is therefore an exact coin flip against its own half, double and sextuple", () => {
+        // The reading that matters: whatever the evaluator says, list length
+        // must not be able to decide a pairing.
+        const base = evaluateDeckStrength(replicated(2), resolveMeta);
+        for (const times of SIZES) {
+            const other = evaluateDeckStrength(replicated(times), resolveMeta);
+            expect(gameWinProbability(base, other)).toBeCloseTo(0.5, 12);
+        }
+    });
+
+    it("leaves a 40-card list — the only length production builds — untouched", () => {
+        // `autoBuild` targets `FORMAT_RULES.limited.minMain` exactly, so the
+        // normalisation must be the IDENTITY there or it is not a robustness
+        // measure but a change of behaviour. Asserted by scoring the raw
+        // 40-card list by hand and demanding the same number.
+        const metas = TWO_COLOUR_DECK.map((card) => resolveMeta(card.cardId)!);
+        expect(metas).toHaveLength(40);
+
+        let total = 0;
+        for (let i = 0; i < metas.length; i++) {
+            const rest = metas.filter((_, j) => j !== i);
+            const trace = scoreCandidate(metas[i], rest, null);
+            // …and while we are here, the trace this module produces obeys
+            // `PickCandidateTrace.pickNumber`'s contract ("Pool size + 1").
+            // The pick number used to be pinned at `DEFAULT_DRAFT_PICKS` (45)
+            // against a 39-card pool, which contradicted the contract and
+            // corrupted the clamp `note` strings. Normalisation is what makes
+            // deriving it both correct and constant: every deck now presents
+            // the same 39-card pool.
+            expect(trace.pickNumber).toBe(rest.length + 1);
+            total += trace.score;
+        }
+        expect(
+            evaluateDeckStrength(TWO_COLOUR_DECK, resolveMeta, noRatings).mean
+        ).toBeCloseTo(total / metas.length, 12);
+    });
+
+    it("still separates two REAL decks — size-independence is not flatness", () => {
+        // A normalisation that squashed everything would pass every row above.
+        // The calibrated fixtures must survive it unchanged.
+        const twoColour = evaluateDeckStrength(
+            TWO_COLOUR_DECK,
+            resolveMeta,
+            noRatings
+        );
+        const pile = evaluateDeckStrength(
+            FIVE_COLOUR_PILE,
+            resolveMeta,
+            noRatings
+        );
+        expect(twoColour.mean - pile.mean).toBeGreaterThan(0.5);
+    });
+});
+
 describe("gameWinProbability (issue #1642: the 25-75% clamp)", () => {
     it("clamps an overwhelming favourite at the maximum, never higher", () => {
         expect(gameWinProbability(strength(5), strength(0))).toBe(
@@ -563,10 +678,7 @@ describe("gameWinProbability (issue #1642: the 25-75% clamp)", () => {
             // A gap of `g` means the same thing whatever the decks it came
             // from — and in particular is not a function of any per-deck
             // dispersion, because there is none to read.
-            expect(reference).toBeCloseTo(
-                1 / (1 + Math.exp(-gap / 0.5)),
-                12
-            );
+            expect(reference).toBeCloseTo(1 / (1 + Math.exp(-gap / 0.5)), 12);
         }
         // A hundredth of a rating point is a coin flip. On the spread-scaled
         // predecessor, with a FLAT ratings sheet squeezing per-card dispersion
@@ -643,9 +755,17 @@ describe("the yardstick survives every ratings regime (issue #1642 second review
         // genuine function of the gap alone satisfies this by construction; a
         // scale with a second input cannot.
         const readings = REGIMES.map(([name, getRating]) => {
-            const a = evaluateDeckStrength(TWO_COLOUR_DECK, resolveMeta, getRating);
+            const a = evaluateDeckStrength(
+                TWO_COLOUR_DECK,
+                resolveMeta,
+                getRating
+            );
             const b = evaluateDeckStrength(SLOPPY_DECK, resolveMeta, getRating);
-            return { name, delta: a.mean - b.mean, p: gameWinProbability(a, b) };
+            return {
+                name,
+                delta: a.mean - b.mean,
+                p: gameWinProbability(a, b),
+            };
         });
         for (const x of readings) {
             for (const y of readings) {
