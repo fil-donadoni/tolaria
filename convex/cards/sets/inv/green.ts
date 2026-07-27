@@ -360,19 +360,18 @@ export const kavuClimber: CardDefinition = {
 // greater enters, its controller draws a card." (CR 603.6a ETB, any
 // creature; CR 121.1 draw.)
 //
-// NOT DSL-migratable (ADR 0045): the recipient is the ENTERING creature's
-// controller, not this permanent's controller — `enteredTrigger`'s `effects`
-// site always binds `ctx.controller` to the SOURCE's controller by design
-// (documented on `EnteredTriggerArgs.effects`, `enteredTrigger.ts`), so a
-// cross-player payout needs the factory's `resolve` callback, which is handed
-// the raw event/`EnteredPermanentInfo` (`entered.controllerId`) precisely for
-// this shape. Not "the Op doesn't exist" — the DSL site's controller binding
-// is fixed by design; `resolve` is the sanctioned escape for an event-field
-// player ref (mirrors the `PERMANENT_TAPPED`-trigger precedent documented on
-// Wild Growth, `lea/green.ts`).
-// Blocked on: `enteredTrigger`'s `effects[]` site has no entering-permanent
-// controller binding (protocol-adjacent factory limitation, not a missing
-// Op). Power is read from the trigger's `TriggerStateView` snapshot
+// Migrated resolve()→effects[] (ADR 0049, issue #1283): the recipient is the
+// ENTERING creature's controller, not this permanent's controller, but that
+// is NOT a missing-Op gap — `PERMANENT_ENTERED.controllerId` is an already-
+// censused `EVENT_FIELD_REGISTRY` row (issue #1072, added for Tectonic
+// Instability), and `buildSpellContext` threads `item.triggerEvent` into
+// EVERY triggered ability's `SpellContext` generically, `enteredTrigger`-built
+// or not — the factory's own doc comment claiming the event isn't threaded
+// was stale. `{ ref: "$event.controllerId" }` reads the entering permanent's
+// controller straight off the firing event, bypassing `ctx.controller`
+// entirely, exactly like Ankh of Mishra's `dealDamage` (`lea/colorless.ts`)
+// already does at this SAME `enteredTrigger` `effects[]` site. Power is
+// still read from the trigger's `TriggerStateView` snapshot in `condition`
 // (printed/base power — the event payload itself carries no power field).
 export const kavuLair: CardDefinition = {
     id: "f4581b53-23a0-4ca6-a77c-97d79e7a6570",
@@ -399,9 +398,13 @@ export const kavuLair: CardDefinition = {
                 }
                 return false;
             },
-            resolve: (ctx, _event, entered) => {
-                ctx.drawCards(entered.controllerId, 1);
-            },
+            effects: [
+                {
+                    op: "draw",
+                    player: { ref: "$event.controllerId" },
+                    count: 1,
+                },
+            ],
         }),
     ],
 };

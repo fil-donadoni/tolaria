@@ -1062,6 +1062,28 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // skips (per-Op regime, `.claude/rules/gre-development.md`).
             req.skip ??= `Op "castDuringResolution" suspends for a live Cast/Decline + the cast card's own picks (CR 608.2f) — covered by the Op's interpreter tests`;
             return;
+        case "setIslandSanctuaryProtection":
+            // CR 508.1c (issue #1283) — a turn-scoped player-wide "can't be
+            // attacked except by flying/islandwalk" flag whose only observable
+            // effect is at a LATER declare-attackers step, which the canned
+            // single-resolution generator doesn't model. Every shipped consumer
+            // (Island Sanctuary) additionally wraps this Op in an `optionChoice`
+            // mode, which already forces a skip on its own. Explicit skip for
+            // exhaustiveness — covered by the Op's own interpreter test plus
+            // Island Sanctuary's hand-written combat test.
+            req.skip ??= `Op "setIslandSanctuaryProtection" only manifests at a later declare-attackers step — covered by hand-written tests`;
+            return;
+        case "rangedTopdeck":
+            // CR 118.4 / 121.1 (issue #1283) — a suspending ranged `choose-
+            // hand-card` pick over a "drawn this turn" candidate pool the
+            // canned single-resolution generator cannot drive a live answer
+            // for. Every shipped consumer (Sylvan Library) additionally wraps
+            // this Op in an `optionChoice` mode, which already forces a skip
+            // on its own. Explicit skip for exhaustiveness — covered by the
+            // Op's own interpreter tests (per-Op regime) plus Sylvan
+            // Library's hand-written per-card tests.
+            req.skip ??= `Op "rangedTopdeck" suspends for a live ranged hand pick (CR 118.4) — covered by the Op's interpreter tests`;
+            return;
         default: {
             // Exhaustiveness guard: a registered Op with no analyser branch is
             // a skip, not a silent pass.
@@ -2190,6 +2212,24 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     // generator can't drive). Kept for the 1:1 coverage guard; the Op's own
     // interpreter tests are the behavioural guarantor.
     castDuringResolution() {
+        return null;
+    },
+    // `setIslandSanctuaryProtection` (CR 508.1c, issue #1283) — never reached:
+    // `analyseOp` skips every script with this Op (its only observable effect
+    // is at a LATER declare-attackers step, and its shipped consumer wraps it
+    // in an `optionChoice` mode, which already skips wholesale). Kept for the
+    // 1:1 coverage guard; the Op's own interpreter test plus Island
+    // Sanctuary's hand-written combat test are the behavioural guarantor.
+    setIslandSanctuaryProtection() {
+        return null;
+    },
+    // `rangedTopdeck` (CR 118.4 / 121.1, issue #1283) — never reached:
+    // `analyseOp` skips every script with this Op (it suspends for a live
+    // ranged hand pick, and its shipped consumer wraps it in a `mayPay`+`if`
+    // body, which already skips wholesale). Kept for the 1:1 coverage guard;
+    // the Op's own interpreter tests (per-Op regime) plus Sylvan Library's
+    // hand-written per-card tests are the behavioural guarantor.
+    rangedTopdeck() {
         return null;
     },
 };

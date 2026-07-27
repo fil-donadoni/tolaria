@@ -8,7 +8,6 @@ import type {
     CardDefinition,
     SpellContext,
     PermanentView,
-    GameEvent,
     TargetSelection,
 } from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
@@ -53,26 +52,26 @@ export const concordantCrossroads: CardDefinition = {
 // For each of those cards, pay 4 life or put the card on top of your library."
 // (CR 603.6a draw-step trigger, CR 121.1 draw, CR 118.4 life payment.)
 //
-// Resolved in steps (CR 608.2) because the draw is IRREVERSIBLE and must run
-// once, before the topdeck selection that suspends — a single `resolve` would
-// re-draw on every resume (the Bazaar of Baghdad bug). Steps:
-//   0. may-draw decision; if accepted, draw two (isolated → drawn once).
-//   1. a SINGLE ranged selection over the N = min(2, cardsDrawnThisTurnStill-
-//      InHand) cards drawn this turn. The chooser selects 0..N of them to put
-//      on top of the library; for each of the N NOT selected, they pay 4 life
-//      (CR 118.4). The two printed per-card options ("pay 4 / put on top") are
-//      collapsed into one pick — the reachable outcomes are identical (keep
-//      both = pay 8, topdeck both = pay 0, mix = pay 4).
-//
-// `recallChoice` carries the may-draw answer forward (per-step choice keys
-// can't be re-read by a later step otherwise). The topdeck commit reads the
-// pick back directly from the SAME step's choiceId.
-//
-// CR 119.4 ("can't pay life you don't have"): a player can keep at most
-// floor(life / 4) of the N cards, so the MINIMUM number that must be topdecked
-// is max(0, N − floor(life / 4)). With life < 4 all N must be topdecked. The
-// ranged choice's `min` enforces this server-side and the Done button enables
-// at that minimum client-side.
+// Migrated resolve()→effects[] (ADR 0045, issue #1283) via two Ops: the "you
+// may draw two additional cards" decision is a cost-free `mayPay` (issue
+// #680 — `cost` omitted, `bind: "$mayDraw"`) feeding an `if` whose `then`
+// runs the draw + topdeck body and whose `else` is simply OMITTED (the `if`
+// construct's else is optional — Squee, Goblin Nabob, `mmq/red.ts`, is the
+// reference shape for this exact idiom). `optionChoice` was considered and
+// rejected here: EVERY mode's `effects` must be non-empty (`isModeList`), and
+// "decline" is a genuine no-op with nothing to put in it — the project
+// deliberately has no no-op Op to plug that gap (fem/blue.ts,
+// fem/colorless.ts document the same constraint). The topdeck-or-pay body is
+// the new `rangedTopdeck` Op (a single ranged 0..N "drawn this turn" hand
+// pick with a per-NOT-chosen life cost — the two printed per-card options,
+// "pay 4 / put on top", are collapsed into one pick since the reachable
+// outcomes are identical: keep both = pay 8, topdeck both = pay 0, mix = pay
+// 4). No `resolveSteps` isolation needed any more: `runOpList` checkpoints
+// EACH Op's own pre-order position (CR 608.3), so the irreversible "draw two"
+// inside the `if`'s `then` is skipped on resume exactly like the old
+// hand-rolled `resolveSteps` split — the interpreter's own checkpointing now
+// does for free what that split used to need by hand (mirrors `putBack`'s
+// doc note on the identical Brainstorm-era bug).
 export const sylvanLibrary: CardDefinition = {
     id: "f486df00-7c4a-4ff0-bb0b-c8b5432ac742",
     rarity: "uncommon",
@@ -82,85 +81,35 @@ export const sylvanLibrary: CardDefinition = {
     manaCost: { X: 1, G: 1 },
     types: ["Enchantment"],
     triggeredAbilities: [
-        {
+        phaseTrigger({
             id: "sylvan-library-draw-step",
             oracleText:
                 "At the beginning of your draw step, you may draw two additional cards. If you do, choose two cards in your hand drawn this turn. For each of those cards, pay 4 life or put the card on top of your library.",
-            event: "PHASE_BEGIN",
-            matches: (event: GameEvent, self: PermanentView) =>
-                event.type === "PHASE_BEGIN" &&
-                event.phase === "DRAW" &&
-                event.activePlayerId === self.controllerId,
-            // NOT DSL-migratable (ADR 0045, issue #849), re-assessed for #1264:
-            // a per-card test now exists (leg/__tests__/colorless.test.ts,
-            // "Sylvan Library"), so the "no per-card test" block is stale — the
-            // real, still-current blocker is the step-1 body: a ranged topdeck
-            // selection (choose 0..N drawn-this-turn cards) whose per-card life
-            // cost is "4 for each NOT selected" — a choice-result-cardinality +
-            // pay-life composition the current Op vocabulary can't express (the
-            // `optionChoice` here is only the step-0 may-draw). Stays resolve()
-            // — planned-migratable (blocked on a ranged-choice-cardinality value
-            // construct). tracked-by: #1283
-            resolveSteps: [
-                // Step 0 — "you may draw two additional cards" (CR 121.1).
-                // Isolated so the draw never re-runs on a later suspension.
-                (ctx: SpellContext) => {
-                    const accept = ctx.requestOptionChoice({
-                        playerId: ctx.controller,
-                        choiceId: "sylvan-may",
-                        options: [
-                            { id: "draw", label: "Draw two cards" },
-                            { id: "decline", label: "Don't draw" },
-                        ],
-                        prompt: "Sylvan Library: draw two additional cards?",
-                    });
-                    if (accept === undefined) return; // suspended
-                    if (accept === "draw") ctx.drawCards(ctx.controller, 2);
+            phase: "DRAW",
+            scope: "your",
+            effects: [
+                {
+                    op: "mayPay",
+                    player: "controller",
+                    prompt: "Sylvan Library: draw two additional cards?",
+                    bind: "$mayDraw",
                 },
-                // Step 1 — the SINGLE ranged topdeck selection (CR 118.4 /
-                // 121.1). The chooser selects which of the N drawn-this-turn
-                // cards to put on top of the library; each of the N NOT
-                // selected costs 4 life. On resume the picks are read back from
-                // this same step's choiceId and committed (topdeck + pay).
-                (ctx: SpellContext) => {
-                    if (ctx.recallChoice("sylvan-may")?.[0] !== "draw") return;
-                    const controller = ctx.controller;
-                    const hand = new Set(ctx.getHandIds(controller));
-                    // Candidate pool: every card drawn this turn still in hand.
-                    // The player may topdeck up to N = min(2, pool) of them
-                    // ("choose two cards … put the card on top"); each of the N
-                    // they DON'T topdeck costs 4 life.
-                    const pool = ctx
-                        .getDrawnThisTurnIds(controller)
-                        .filter((id) => hand.has(id));
-                    const n = Math.min(2, pool.length);
-                    if (n === 0) return;
-                    // CR 119.4 — keep at most floor(life / 4) cards, so at least
-                    // max(0, N − floor(life / 4)) must be topdecked. With
-                    // life < 4 all N must go on top.
-                    const keepCap = Math.floor(ctx.getLife(controller) / 4);
-                    const minTopdeck = Math.max(0, n - keepCap);
-                    const picks = ctx.requestChoice({
-                        playerId: controller,
-                        choiceId: "sylvan-pick",
-                        kind: "choose-hand-card",
-                        zone: "hand",
-                        candidateIds: pool,
-                        count: { min: minTopdeck, max: n },
-                        prompt: `Select up to ${n} card${n === 1 ? "" : "s"} drawn this turn to put on top of your library; pay 4 life for each of the ${n} you keep.`,
-                    });
-                    if (picks === undefined) return; // suspended
-                    // Commit: selected cards go on top of the library; pay 4
-                    // life for each of the N that was NOT selected (kept).
-                    const topdeck = picks.filter((id) => hand.has(id));
-                    for (const id of topdeck) {
-                        ctx.moveHandCardToLibraryTop(controller, id);
-                    }
-                    const kept = n - topdeck.length;
-                    if (kept > 0) ctx.loseLife(controller, 4 * kept);
+                {
+                    op: "if",
+                    predicate: { binding: "$mayDraw" },
+                    then: [
+                        { op: "draw", player: "controller", count: 2 },
+                        {
+                            op: "rangedTopdeck",
+                            player: "controller",
+                            pool: "drawn-this-turn",
+                            max: 2,
+                            costPerKept: 4,
+                        },
+                    ],
                 },
             ],
-        },
+        }),
     ],
 };
 

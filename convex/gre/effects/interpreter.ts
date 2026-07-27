@@ -3450,6 +3450,67 @@ export const OP_EXECUTORS: {
             ctx.setCantBeBlockedThisTurn(target);
         }
     },
+    // CR 508.1c (issue #1283) — Island Sanctuary's player-scoped "can't be
+    // attacked except by flying/islandwalk creatures" protection. A thin
+    // declarative skin over the single SpellContext primitive
+    // `setIslandSanctuaryProtection`, one execution path (ADR 0045). Skipped
+    // when the player cannot be resolved (CR 608.2b).
+    setIslandSanctuaryProtection(ctx, op) {
+        const playerId = resolvePlayerRef(ctx, op.player);
+        if (playerId === undefined) return;
+        ctx.setIslandSanctuaryProtection(playerId);
+    },
+    // CR 118.4 / 121.1 (issue #1283) — a single ranged 0..N pick over the
+    // resolved player's "drawn this turn" hand cards: each NOT selected costs
+    // `costPerKept` life (CR 119.4 floor clamp), each selected goes to the
+    // library top via the SAME "hand → library-top" primitive `putBack` uses.
+    // Sylvan Library's own "choose two ... pay 4 life or put on top" is
+    // collapsed into ONE ranged pick per its own card comment (reachable
+    // outcomes are identical). A thin declarative composition over EXISTING
+    // SpellContext primitives — no new primitive (ADR 0045 "generalize, don't
+    // add"): getDrawnThisTurnIds / getHandIds / getLife / requestChoice /
+    // moveHandCardToLibraryTop / loseLife. SUSPENDS like `choice` / `putBack`
+    // (a fixed choiceId, unique per Op position — mirrors `putBack`'s
+    // "put-back").
+    rangedTopdeck(ctx, op) {
+        const playerId = resolvePlayerRef(ctx, op.player);
+        if (playerId === undefined) return; // CR 608.2b — player gone, skip
+        const max = resolveValue(ctx, op.max);
+        if (max === undefined || max <= 0) return;
+        const costPerKept = resolveValue(ctx, op.costPerKept) ?? 0;
+        const hand = new Set(ctx.getHandIds(playerId));
+        const pool = ctx
+            .getDrawnThisTurnIds(playerId)
+            .filter((id) => hand.has(id));
+        const n = Math.min(max, pool.length);
+        if (n === 0) return; // nothing eligible — CR 608.2b
+        // CR 119.4 — a player can't pay life they don't have, so at least
+        // n - floor(life / costPerKept) of the pool must be topdecked.
+        const keepCap =
+            costPerKept > 0
+                ? Math.floor(ctx.getLife(playerId) / costPerKept)
+                : n;
+        const minTopdeck = Math.max(0, n - keepCap);
+        const picks = ctx.requestChoice({
+            playerId,
+            choiceId: "ranged-topdeck",
+            kind: "choose-hand-card",
+            zone: "hand",
+            candidateIds: pool,
+            count: { min: minTopdeck, max: n },
+            putOnTop: true,
+            prompt:
+                op.prompt ??
+                `Choose up to ${n} card(s) drawn this turn to put on top of your library; pay ${costPerKept} life for each you keep.`,
+        });
+        if (picks === undefined) return "suspend"; // enqueued — wait
+        const topdeck = picks.filter((id) => hand.has(id));
+        for (const id of topdeck) ctx.moveHandCardToLibraryTop(playerId, id);
+        const kept = n - topdeck.length;
+        if (kept > 0 && costPerKept > 0) {
+            ctx.loseLife(playerId, costPerKept * kept);
+        }
+    },
 };
 
 /** Runs an Op list top to bottom (CR 608.2c) against a shared pre-order
