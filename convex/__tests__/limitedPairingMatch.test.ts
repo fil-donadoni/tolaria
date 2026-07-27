@@ -747,6 +747,65 @@ describe("forfeitMatch — the caller must own the seat they forfeit (issue #164
         expect(standings.find((r) => r.seatIndex === 1)!.points).toBe(0);
     });
 
+    // The solo-bot case seat OWNERSHIP alone cannot close (issue #1645 second
+    // review). Against a Bot Drafter opponent the Match is seated `alice-p1` /
+    // `alice-p2` and the human owns BOTH handles, so `assertSeatOwnership`
+    // passes for `alice-p2` — by design, since that is the very handle the
+    // client-side Brain plays. Forfeiting it would be a one-call 2-0 in the
+    // standings with zero games played. `assertNotEventBotSeat` blocks it on
+    // the resignation path only.
+    it("refuses a forfeit naming the BOT's seat in an event pairing, and records no standings row", async () => {
+        const fx = playingEvent({
+            eventId: "event-bot-x",
+            seed: 616,
+            matchFormat: "bo3",
+            botSeat: true,
+        });
+        const stub = makeCtx("alice", fx.seeds);
+        const gameId = await runStart(stub.ctx, {
+            eventId: "event-bot-x",
+            deck: fx.deckForSeat(0),
+        });
+        const matchId = stub.doc(gameId).matchId as string;
+        expect(
+            (stub.doc(matchId).players as { id: string }[]).map((p) => p.id)
+        ).toEqual(["alice-p1", "alice-p2"]);
+
+        await expect(
+            runForfeit(stub.ctx, { matchId, playerId: "alice-p2" })
+        ).rejects.toThrow(/cannot resign your bot opponent/i);
+
+        expect(pairingOf(stub, "event-bot-x").result).toBeUndefined();
+        expect(stub.doc(matchId).status).not.toBe("finished");
+        const standings = standingsOf(stub, "event-bot-x", "alice");
+        expect(standings.find((r) => r.seatIndex === 0)!.points).toBe(0);
+    });
+
+    // The same gate must not swallow the legitimate resignation: a human who
+    // gives up against the bot still concedes the pairing to the bot.
+    it("still lets the human forfeit their OWN seat of a bot pairing", async () => {
+        const fx = playingEvent({
+            eventId: "event-bot-y",
+            seed: 717,
+            matchFormat: "bo3",
+            botSeat: true,
+        });
+        const stub = makeCtx("alice", fx.seeds);
+        const gameId = await runStart(stub.ctx, {
+            eventId: "event-bot-y",
+            deck: fx.deckForSeat(0),
+        });
+        const matchId = stub.doc(gameId).matchId as string;
+
+        await runForfeit(stub.ctx, { matchId, playerId: "alice-p1" });
+
+        expect(pairingOf(stub, "event-bot-y").result).toEqual({
+            winsA: 0,
+            winsB: 2,
+            source: "played",
+        });
+    });
+
     it("still lets a player forfeit their OWN seat", async () => {
         const fx = playingEvent({
             eventId: "event-y",
