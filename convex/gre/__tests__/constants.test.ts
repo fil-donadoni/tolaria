@@ -1,6 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { isTapLockedBySummoningSickness, manaValue } from "../constants";
+import {
+    isTapLockedBySummoningSickness,
+    manaValue,
+    getDefinitionProducibleColors,
+    getProducibleColors,
+} from "../constants";
 import { makeInstance } from "../../cards/__tests__/setup";
+import { getDefinition } from "../../cards";
 
 describe("manaValue (CR 202.3)", () => {
     it("returns 0 when cost is undefined (lands)", () => {
@@ -51,5 +57,66 @@ describe("isTapLockedBySummoningSickness (CR 302.1)", () => {
             isSummoningSick: true,
         });
         expect(isTapLockedBySummoningSickness(mox)).toBe(false);
+    });
+});
+
+// CR 106.4 — "could produce": the set of colors a source could add regardless
+// of what's actually chosen at activation time. `getDefinitionProducibleColors`
+// is the definition-level twin (issue #1619, PRD #1617) answering this off a
+// `CardDefinition` alone (deck/pool analysis, no game/battlefield instance
+// required); `getProducibleColors` is the instance-level original it's
+// expressed in terms of. Every case below asserts the definition-level result
+// against the SAME expectation the instance-level function gives for the
+// equivalent battlefield instance, so the two can't silently diverge.
+describe("getDefinitionProducibleColors (CR 106.4)", () => {
+    it("mono-color mana dork — Llanowar Elves produces its one color", () => {
+        const id = "d4f1cc9e-4f99-4c26-ac1b-8ef069fa8ceb"; // Llanowar Elves
+        const def = getDefinition(id);
+        expect([...getDefinitionProducibleColors(def)].sort()).toEqual(["G"]);
+        // Agrees with the instance-level twin for the equivalent instance.
+        expect([...getProducibleColors(makeInstance(id))].sort()).toEqual([
+            "G",
+        ]);
+    });
+
+    it("multi-color source — Tropical Island (dual land) produces both colors", () => {
+        const id = "a9c6c759-aabf-44e7-ba8c-33c5df232b56"; // Tropical Island
+        const def = getDefinition(id);
+        expect([...getDefinitionProducibleColors(def)].sort()).toEqual([
+            "G",
+            "U",
+        ]);
+        expect([...getProducibleColors(makeInstance(id))].sort()).toEqual([
+            "G",
+            "U",
+        ]);
+    });
+
+    it("multi-color source — Chrome Mox (any-color mana rock) produces all five colors via its manaChoices fallback", () => {
+        const id = "6a058e68-70af-4a64-859c-c881e5578368"; // Chrome Mox
+        const def = getDefinition(id);
+        const expected = ["B", "G", "R", "U", "W"];
+        expect([...getDefinitionProducibleColors(def)].sort()).toEqual(
+            expected
+        );
+        expect([...getProducibleColors(makeInstance(id))].sort()).toEqual(
+            expected
+        );
+    });
+
+    it("basic land by subtype — Forest produces green with no activated ability contribution", () => {
+        const id = "6f1c8cb0-38eb-408b-94e8-16db83999b3b"; // Forest
+        const def = getDefinition(id);
+        expect([...getDefinitionProducibleColors(def)].sort()).toEqual(["G"]);
+        expect([...getProducibleColors(makeInstance(id))].sort()).toEqual([
+            "G",
+        ]);
+    });
+
+    it("no mana ability — Craw Wurm (vanilla creature) produces no colors", () => {
+        const id = "bfed1a95-bd67-4e16-a781-81866028af2f"; // Craw Wurm
+        const def = getDefinition(id);
+        expect(getDefinitionProducibleColors(def).size).toBe(0);
+        expect(getProducibleColors(makeInstance(id)).size).toBe(0);
     });
 });
