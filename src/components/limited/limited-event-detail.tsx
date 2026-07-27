@@ -21,6 +21,7 @@ import LimitedVsAiPanel from "./limited-vs-ai-panel";
 import LimitedChallengePanel from "./limited-challenge-panel";
 import LimitedReviewPanel from "./limited-review-panel";
 import LimitedStandingsTable from "./limited-standings-table";
+import LimitedEventWinnerBanner from "./limited-event-winner-banner";
 import LimitedRoundPanel from "./limited-round-panel";
 import LimitedShareInviteButton from "./limited-share-invite-button";
 import LimitedEventPageFrame from "./limited-event-page-frame";
@@ -303,6 +304,11 @@ export default function LimitedEventDetail({
                 {showRoundPanel && (
                     <LimitedRoundPanel eventId={eventId} event={event} />
                 )}
+
+                {/* The event's conclusion (PRD #1628 story 40, issue #1646) —
+                    sits ABOVE the standings it's read off, so a concluded
+                    event states its outcome before the table backing it. */}
+                <LimitedEventWinnerBanner event={event} />
 
                 {showStandings && <LimitedStandingsTable event={event} />}
 

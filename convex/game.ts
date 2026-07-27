@@ -148,7 +148,9 @@ import {
 // module, so this cannot cycle. A round Match against a bot seat must be built
 // from the deck the SERVER derives from that seat's Pool — never a
 // client-supplied decklist, because the Match's result lands in the standings.
-import { resolveSeatAutoBuiltDeck } from "./limitedEvents";
+// `cascadeEventRounds` (issue #1646) is the same one-directional import: the
+// round-advance/event-finish decision lives there, this module only calls it.
+import { cascadeEventRounds, resolveSeatAutoBuiltDeck } from "./limitedEvents";
 import type {
     ActivatedAbility,
     CardDefinition,
@@ -536,8 +538,9 @@ function asDbRounds(
 }
 
 /**
- * Record a FINISHED pairing Match's result into its Limited Event's round
- * (PRD #1628 stories 14-15, ADR 0076, issue #1645).
+ * Record a FINISHED pairing Match's result into its Limited Event's round,
+ * then advance the round state it may have just completed (PRD #1628 stories
+ * 14-15/20/39-40, ADR 0076, issues #1645/#1646).
  *
  * Called from **both** places a Match becomes finished — `finalizeGameOver`
  * (the SBA-detected game over, which is also the path `concede` takes) and the
@@ -545,17 +548,24 @@ function asDbRounds(
  * this function exists to prevent, so it is deliberately a single shared
  * helper rather than two inline blocks.
  *
- * Everything it decides lives in the pure `recordPlayedPairing`
- * (`convex/limited/pairingMatch.ts`), which refuses any Match the pairing
- * isn't bound to and is idempotent on an already-decided pairing. It NEVER
- * throws: this runs inside the transaction that finishes the Match, and a
- * throw here would roll that completion back.
- *
- * Standings are not touched — they are DERIVED from the recorded results on
- * every read (ADR 0076), so writing the pairing's game score is the whole job.
+ * Recording lives in the pure `recordPlayedPairing` (`convex/limited/pairingMatch.ts`),
+ * which refuses any Match the pairing isn't bound to and is idempotent on an
+ * already-decided pairing. Advancing lives in `convex/limitedEvents.ts`'s
+ * `cascadeEventRounds` (a thin shell over the pure
+ * `convex/limited/rounds.ts#advanceRoundIfComplete`): if the pairing just
+ * recorded was the round's LAST undecided one, it opens the next round —
+ * cascading through any with no human pairing at all — or finishes the event
+ * on the last round. Both steps land in the SAME `ctx.db.patch` below, so
+ * "record the result" and "advance the round it may have completed" are one
+ * read, one write on the `limitedEvents` document: Convex's OCC on that one
+ * document is what makes two players finishing their pairings
+ * near-simultaneously safe — whichever mutation commits second re-reads the
+ * state the first one just wrote, so a round is never advanced twice and
+ * never skipped. Neither step ever throws: this runs inside the transaction
+ * that finishes the Match, and a throw here would roll that completion back.
  */
 async function recordLimitedPairingResult(
-    ctx: Pick<GenericMutationCtx<DataModel>, "db">,
+    ctx: MutationCtx,
     match: Doc<"matches">,
     now: number
 ): Promise<void> {
@@ -571,8 +581,16 @@ async function recordLimitedPairingResult(
         winsB: match.players[1]?.score ?? 0,
     });
     if (!rounds) return;
+
+    const advance = await cascadeEventRounds(ctx, event, rounds, now);
+    const finalRounds = advance.kind === "unchanged" ? rounds : advance.rounds;
+
     await ctx.db.patch(event._id, {
-        rounds: asDbRounds(rounds),
+        rounds: asDbRounds(finalRounds),
+        ...(advance.kind === "unchanged"
+            ? {}
+            : { currentRound: advance.currentRound }),
+        ...(advance.kind === "eventFinished" ? { status: "finished" } : {}),
         updatedAt: now,
     });
 }
@@ -583,9 +601,17 @@ async function recordLimitedPairingResult(
  *  later slice builds the next Game; #392 only ever finishes Bo1 here.)
  *
  *  EXPORTED for `convex/__tests__/limitedPairingMatch.test.ts` (issue #1645),
- *  which drives the real game-over path rather than re-implementing it. */
+ *  which drives the real game-over path rather than re-implementing it.
+ *
+ *  Widened from `Pick<GenericMutationCtx<DataModel>, "db">` to the full
+ *  `MutationCtx` (issue #1646): `recordLimitedPairingResult` now calls
+ *  `cascadeEventRounds`, which — to score a newly-opened round's bot-vs-bot
+ *  pairings — needs `hydrateSeats`'s full seat payload read (`ctx.auth`/
+ *  `ctx.storage` too, structurally, even though this path never touches
+ *  storage). Every real caller already passes a genuine `MutationCtx`; the
+ *  in-memory test stubs already cast `as unknown as MutationCtx`. */
 export async function finalizeGameOver(
-    ctx: Pick<GenericMutationCtx<DataModel>, "db">,
+    ctx: MutationCtx,
     gameId: GenericId<"games">,
     _seq: number,
     state: GameState

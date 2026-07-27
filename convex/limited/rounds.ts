@@ -37,7 +37,7 @@ import {
     type DeckStrength,
     botMatchSeed,
 } from "./matchSim";
-import { pairRound } from "./swiss";
+import { pairRound, roundsForSeatCount } from "./swiss";
 
 /** The minimal Seat shape opening a round needs: which seats exist and which
  *  of them nobody is sitting at. Structural (like `completion.ts`'s
@@ -195,4 +195,118 @@ export function findSeatPairing(
                 pairing.seatA === seatIndex || pairing.seatB === seatIndex
         ) ?? null
     );
+}
+
+export interface AdvanceRoundInput {
+    eventId: string;
+    seats: readonly RoundSeatLookup[];
+    /** Every round opened so far, in order. The LAST one is the round the
+     *  caller just recorded a result into (or the round `openRound` just
+     *  opened, for the round-1 call site) — this function only ever reads
+     *  its identity, never mutates a pairing's own result. */
+    rounds: readonly LimitedRound[];
+    matchFormat: LimitedMatchFormat;
+    /** Epoch ms every newly-opened round starts at — injected, same
+     *  discipline as `OpenRoundInput.startedAt`. */
+    now: number;
+    roundDeadlineMinutes?: number;
+    seatStrength: ResolveSeatStrength;
+}
+
+export type AdvanceRoundResult =
+    /** The latest round isn't complete yet — someone else's pairing (or the
+     *  caller's own) is still pending. Nothing to write. */
+    | { kind: "unchanged" }
+    /** One or more further rounds were opened — the last of `rounds` is now
+     *  `currentRound` and still has at least one undecided pairing (or the
+     *  event has more rounds than `openRound` alone could resolve). */
+    | { kind: "roundOpened"; rounds: LimitedRound[]; currentRound: number }
+    /** The event's LAST round is now fully decided — every round through it
+     *  is in `rounds`, `currentRound` names it, and the caller should flip
+     *  the event to `"finished"`. */
+    | { kind: "eventFinished"; rounds: LimitedRound[]; currentRound: number };
+
+/** Advances the event's round state once its LATEST round is fully decided
+ *  (issue #1646, PRD #1628 stories 20/39-40, ADR 0076): opens the next round —
+ *  pairing it against the standings so far and immediately deciding every
+ *  bot-vs-bot pairing it comes back with (`openRound` already does this on
+ *  EVERY round it opens, round 1 included) — and, if THAT round is ALSO
+ *  instantly complete (no human pairing anywhere in it: an all-bot table, or
+ *  every human seat happening to hold a bye), cascades straight into the one
+ *  after, and so on, until either a round is left with an undecided pairing or
+ *  the event's LAST round (`roundsForSeatCount(seats.length)`) is reached —
+ *  which returns `"eventFinished"` instead of opening a round N+1 that would
+ *  never exist.
+ *
+ *  Pure — no DB, no clock beyond the injected `now`, no RNG stream that isn't
+ *  derived from `(eventId, roundNumber)` (`openRound`'s own determinism
+ *  guarantee covers every round this opens, so re-running this over the same
+ *  `rounds` reproduces byte-identical further rounds). `"unchanged"` is
+ *  returned both when the latest round genuinely isn't complete AND when
+ *  `rounds` is empty — this function makes no DB call and asserts no
+ *  ownership of "when" it runs; the caller
+ *  (`convex/limitedEvents.ts`'s `cascadeEventRounds`) is what makes calling it
+ *  after every recorded result — including two callers racing on the same
+ *  event — safe: it is a pure, idempotent, re-runnable DECISION, never a
+ *  mutation. */
+export function advanceRoundIfComplete(
+    input: AdvanceRoundInput
+): AdvanceRoundResult {
+    const {
+        eventId,
+        seats,
+        matchFormat,
+        now,
+        roundDeadlineMinutes,
+        seatStrength,
+    } = input;
+
+    let rounds = [...input.rounds];
+    const latest = rounds[rounds.length - 1];
+    if (!latest || !isRoundComplete(latest)) {
+        return { kind: "unchanged" };
+    }
+
+    const totalRounds = roundsForSeatCount(seats.length);
+    let currentRoundNumber = latest.roundNumber;
+    let opened = false;
+
+    while (
+        currentRoundNumber < totalRounds &&
+        isRoundComplete(rounds[rounds.length - 1])
+    ) {
+        const nextRoundNumber = currentRoundNumber + 1;
+        const nextRound = openRound({
+            eventId,
+            roundNumber: nextRoundNumber,
+            seats,
+            previousRounds: rounds,
+            matchFormat,
+            startedAt: now,
+            roundDeadlineMinutes,
+            seatStrength,
+        });
+        rounds = [...rounds, nextRound];
+        currentRoundNumber = nextRoundNumber;
+        opened = true;
+    }
+
+    if (
+        currentRoundNumber >= totalRounds &&
+        isRoundComplete(rounds[rounds.length - 1])
+    ) {
+        return {
+            kind: "eventFinished",
+            rounds,
+            currentRound: currentRoundNumber,
+        };
+    }
+    if (opened) {
+        return {
+            kind: "roundOpened",
+            rounds,
+            currentRound: currentRoundNumber,
+        };
+    }
+    return { kind: "unchanged" };
 }

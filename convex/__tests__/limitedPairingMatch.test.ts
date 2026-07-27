@@ -239,6 +239,97 @@ function playingEvent(opts: {
     return { event, deckForSeat, seeds };
 }
 
+/** A 4-seat, ALL-HUMAN LEA Sealed event in `playing`, round 1 paired
+ *  (0v1)/(2v3) — both pairings pending (issue #1646's round-advance tests need
+ *  TWO separate pairings in the same round to prove the advance is
+ *  order-independent: whichever one is recorded LAST is what triggers it). */
+function fourHumanEvent(opts: { eventId: string; seed: number }): Fixture {
+    let seats = buildEmptySeats(4);
+    seats = assignFreeSeat(seats, "alice", "Alice");
+    seats = assignFreeSeat(seats, "bob", "Bob");
+    seats = assignFreeSeat(seats, "carol", "Carol");
+    seats = assignFreeSeat(seats, "dave", "Dave");
+    seats = generateSealedPools(
+        seats,
+        ["lea"],
+        6,
+        getBoosterConfig,
+        resolveCardMeta,
+        makeRng(opts.seed)
+    );
+
+    const event: Row = {
+        _id: opts.eventId,
+        __table: "limitedEvents",
+        createdBy: "alice",
+        type: "sealed",
+        status: "playing",
+        seatCount: 4,
+        packSlots: ["lea"],
+        sealedBoosterCount: 6,
+        matchFormat: "bo1",
+        currentRound: 1,
+        rounds: [
+            {
+                roundNumber: 1,
+                startedAt: 0,
+                pairings: [
+                    { seatA: 0, seatB: 1 },
+                    { seatA: 2, seatB: 3 },
+                ],
+            },
+        ],
+        seats,
+        createdAt: 0,
+        updatedAt: 0,
+    };
+
+    const deckForSeat = (seatIndex: number): DeckPayload => {
+        const seat = seats.find((s) => s.seatIndex === seatIndex)!;
+        const nonBasic = seat.pool!.filter(
+            (c) => resolveDeckCardMeta(c.cardId)?.isBasic !== true
+        );
+        const basic = seat.pool!.find(
+            (c) => resolveDeckCardMeta(c.cardId)?.isBasic === true
+        )!;
+        const main = nonBasic.slice(0, 30);
+        return {
+            id: `deck-${seatIndex}`,
+            name: `Seat ${seatIndex} Deck`,
+            format: "limited",
+            cards: [
+                ...main.map((c) => ({
+                    cardId: c.cardId,
+                    cardName: c.cardName,
+                })),
+                ...Array.from(
+                    { length: Math.max(0, 40 - main.length) },
+                    () => ({
+                        cardId: basic.cardId,
+                        cardName: basic.cardName,
+                    })
+                ),
+            ],
+            sideboard: nonBasic
+                .slice(30)
+                .map((c) => ({ cardId: c.cardId, cardName: c.cardName })),
+            limitedEventId: opts.eventId,
+            limitedSeatId: String(seatIndex),
+        };
+    };
+
+    const seeds: Row[] = [
+        event,
+        { _id: "alice", __table: "users", nickname: "Alice" },
+        { _id: "bob", __table: "users", nickname: "Bob" },
+        { _id: "carol", __table: "users", nickname: "Carol" },
+        { _id: "dave", __table: "users", nickname: "Dave" },
+    ];
+    return { event, deckForSeat, seeds };
+}
+
+const SEAT_USER = ["alice", "bob", "carol", "dave"] as const;
+
 // ── Registered-handler shims ────────────────────────────────────────────────
 
 type Handler<A, R> = { _handler: (ctx: MutationCtx, args: A) => Promise<R> };
@@ -828,5 +919,154 @@ describe("forfeitMatch — the caller must own the seat they forfeit (issue #164
             winsB: 0,
             source: "played",
         });
+    });
+});
+
+// ── Round advance + event finish (issue #1646) ───────────────────────────────
+
+describe("recording a result advances the round / finishes the event (issue #1646)", () => {
+    it("finishes a 1-round (2-seat) event the instant its only pairing decides", async () => {
+        // `roundsForSeatCount(2) === 1` — a 2-seat table has no round 2, so
+        // its ONE pairing deciding IS the event's last pairing (PRD story 20
+        // + 39-40: "deciding the last pairing of the last round moves the
+        // event to finished").
+        const fx = playingEvent({
+            eventId: "event-fin2",
+            seed: 1646,
+            matchFormat: "bo1",
+        });
+        const stub = makeCtx("alice", fx.seeds);
+        const gameId = await runStart(stub.ctx, {
+            eventId: "event-fin2",
+            deck: fx.deckForSeat(0),
+        });
+        await runJoin(asUser(stub, "bob"), {
+            gameId,
+            deck: fx.deckForSeat(1),
+        });
+
+        await finishGame(stub.ctx, gameId, "alice");
+
+        const event = stub.doc("event-fin2");
+        expect(event.status).toBe("finished");
+        expect(event.currentRound).toBe(1);
+        expect((event.rounds as unknown[]).length).toBe(1);
+        // The winner is readable through the SAME projection the client
+        // receives — never a separate stored field (ADR 0076: standings are
+        // derived, never stored).
+        const projected = projectLimitedEvent(
+            event as unknown as LimitedEventRow,
+            "alice"
+        );
+        expect(projected.standings[0].seatIndex).toBe(0);
+        expect(projected.standings[0].points).toBe(3);
+    });
+
+    it("opens round 2 exactly once round 1's LAST undecided pairing is recorded — order-independent, and never advances twice on a re-delivered result", async () => {
+        const fx = fourHumanEvent({ eventId: "event-adv", seed: 1647 });
+        const stub = makeCtx("alice", fx.seeds);
+
+        // Record the (2,3) pairing FIRST — Dave beats Carol. Round 1 still
+        // has (0,1) pending, so nothing advances yet.
+        const gameCD = await runStart(asUser(stub, "carol"), {
+            eventId: "event-adv",
+            deck: fx.deckForSeat(2),
+        });
+        await runJoin(asUser(stub, "dave"), {
+            gameId: gameCD,
+            deck: fx.deckForSeat(3),
+        });
+        await finishGame(stub.ctx, gameCD, "dave");
+
+        expect(stub.doc("event-adv").status).toBe("playing");
+        expect(stub.doc("event-adv").currentRound).toBe(1);
+        expect((stub.doc("event-adv").rounds as unknown[]).length).toBe(1);
+
+        // NOW record (0,1) — Alice beats Bob, the round's LAST undecided
+        // pairing (whichever of the two lands second is what triggers the
+        // advance — this is the property that makes two players finishing
+        // near-simultaneously safe: the one whose write is ordered/committed
+        // SECOND is the one that observes a fully-decided round).
+        const gameAB = await runStart(stub.ctx, {
+            eventId: "event-adv",
+            deck: fx.deckForSeat(0),
+        });
+        await runJoin(asUser(stub, "bob"), {
+            gameId: gameAB,
+            deck: fx.deckForSeat(1),
+        });
+        await finishGame(stub.ctx, gameAB, "alice");
+
+        const afterRound1 = stub.doc("event-adv");
+        expect(afterRound1.status).toBe("playing");
+        expect(afterRound1.currentRound).toBe(2);
+        const rounds = afterRound1.rounds as {
+            roundNumber: number;
+            pairings: { seatA: number; seatB?: number }[];
+        }[];
+        expect(rounds).toHaveLength(2);
+
+        // Round 2 never repeats round 1's pairs.
+        const pairKey = (a: number, b: number) =>
+            a < b ? `${a}:${b}` : `${b}:${a}`;
+        const round2Pairings = rounds[1].pairings;
+        for (const p of round2Pairings) {
+            expect([pairKey(0, 1), pairKey(2, 3)]).not.toContain(
+                pairKey(p.seatA, p.seatB!)
+            );
+        }
+
+        // Re-delivering the ALREADY-recorded (0,1) result again (a retried
+        // mutation, or a second concurrent caller whose OCC-retried read
+        // lands after the first writer already recorded it) is a no-op:
+        // `recordPlayedPairing` refuses an already-decided pairing, so
+        // neither the round nor the event advances a second time.
+        await finishGame(stub.ctx, gameAB, "alice");
+        const afterRedelivery = stub.doc("event-adv");
+        expect(afterRedelivery.currentRound).toBe(2);
+        expect((afterRedelivery.rounds as unknown[]).length).toBe(2);
+
+        // Play out round 2 (the table's LAST round —
+        // `roundsForSeatCount(4) === 2`) — whichever pairing decides LAST
+        // finishes the event, same order-independence as round 1 above.
+        const [p1, p2] = round2Pairings;
+        const g1 = await runStart(asUser(stub, SEAT_USER[p1.seatA]), {
+            eventId: "event-adv",
+            deck: fx.deckForSeat(p1.seatA),
+        });
+        await runJoin(asUser(stub, SEAT_USER[p1.seatB!]), {
+            gameId: g1,
+            deck: fx.deckForSeat(p1.seatB!),
+        });
+        await finishGame(stub.ctx, g1, SEAT_USER[p1.seatA]);
+
+        expect(stub.doc("event-adv").status).toBe("playing");
+
+        const g2 = await runStart(asUser(stub, SEAT_USER[p2.seatA]), {
+            eventId: "event-adv",
+            deck: fx.deckForSeat(p2.seatA),
+        });
+        await runJoin(asUser(stub, SEAT_USER[p2.seatB!]), {
+            gameId: g2,
+            deck: fx.deckForSeat(p2.seatB!),
+        });
+        await finishGame(stub.ctx, g2, SEAT_USER[p2.seatA]);
+
+        const final = stub.doc("event-adv");
+        expect(final.status).toBe("finished");
+        expect(final.currentRound).toBe(2);
+        expect((final.rounds as unknown[]).length).toBe(2);
+
+        const projected = projectLimitedEvent(
+            final as unknown as LimitedEventRow,
+            "alice"
+        );
+        // Every seat has exactly 2 decided matches (won its round 1 and
+        // round 2 pairing, or lost both) — the standings are readable and
+        // internally consistent through the wire projection.
+        expect(projected.standings).toHaveLength(4);
+        for (const row of projected.standings) {
+            expect(row.matchWins + row.matchLosses).toBe(2);
+        }
     });
 });
