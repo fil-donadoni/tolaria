@@ -12,6 +12,7 @@
 
 import { MAX_SEATS, MIN_SEATS } from "./eventLogic";
 import { shuffleWithRng } from "../gre/rng";
+import { classifyPairingResult } from "./standings";
 
 /** How a Pairing's result came to be decided (PRD #1628 schema). This
  *  module's own scoring only needs to know WHO won (`winsA` vs `winsB`, or
@@ -112,11 +113,21 @@ function bump(scores: Map<number, number>, seat: number, amount: number): void {
 }
 
 /** Each seat's running score across `previousRounds` — a win (or a bye) is
- *  worth 1, a draw 0.5, a loss 0. Used ONLY to rank seats into brackets for
- *  THIS round's pairing; the public standings point scale (3/1/0, PRD's
- *  `standings.ts`, a later ticket) doesn't need to agree numerically with
- *  this, only ORDINALLY — win > draw > loss either way. */
-function computeScores(
+ *  worth 1, a draw 0.5, a loss 0 (a `"timeout"` double no-show — PRD story
+ *  34 — is a loss for both sides, not a draw). Used ONLY to rank seats into
+ *  brackets for THIS round's pairing; the public standings point scale
+ *  (3/1/0, `standings.ts`) doesn't need to agree numerically with this, only
+ *  ORDINALLY — win > draw > loss either way.
+ *
+ *  The win/draw/doubleLoss call itself is NOT reimplemented here —
+ *  `standings.ts`'s `classifyPairingResult` is the single authority both
+ *  this function and `standings.ts`'s own `recordPairing` call, so a
+ *  same-source pairing (e.g. an equal-wins `"timeout"`) can never be scored
+ *  a draw on the bracket scale while the public standings table scores the
+ *  identical pairing a double loss (the disagreement a PR review caught:
+ *  before this, `computeScores` folded EVERY equal-wins pairing into the
+ *  0.5/0.5 draw branch regardless of `source`). */
+export function computeScores(
     seats: readonly number[],
     previousRounds: readonly SwissRound[]
 ): Map<number, number> {
@@ -128,12 +139,20 @@ function computeScores(
                 bump(scores, pairing.seatA, 1);
                 continue;
             }
-            const { winsA, winsB } = pairing.result!;
-            if (winsA > winsB) bump(scores, pairing.seatA, 1);
-            else if (winsB > winsA) bump(scores, pairing.seatB, 1);
-            else {
-                bump(scores, pairing.seatA, 0.5);
-                bump(scores, pairing.seatB, 0.5);
+            switch (classifyPairingResult(pairing.result!)) {
+                case "winA":
+                    bump(scores, pairing.seatA, 1);
+                    break;
+                case "winB":
+                    bump(scores, pairing.seatB, 1);
+                    break;
+                case "draw":
+                    bump(scores, pairing.seatA, 0.5);
+                    bump(scores, pairing.seatB, 0.5);
+                    break;
+                case "doubleLoss":
+                    // Neither side scores — both stay at their prior total.
+                    break;
             }
         }
     }

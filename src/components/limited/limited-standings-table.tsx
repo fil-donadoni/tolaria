@@ -51,9 +51,9 @@ export default function LimitedStandingsTable({
                         (s) => s.seatIndex === row.seatIndex
                     );
                     const label = seat
-                        ? (seat.isBot
-                              ? (seat.nickname ?? "Bot Drafter")
-                              : (seat.nickname ?? "Open seat"))
+                        ? seat.isBot
+                            ? (seat.nickname ?? "Bot Drafter")
+                            : (seat.nickname ?? "Open seat")
                         : `Seat ${row.seatIndex + 1}`;
                     return (
                         <div
@@ -82,9 +82,7 @@ export default function LimitedStandingsTable({
                             </span>
                             <span className="text-right tabular-nums text-text-muted">
                                 {row.matchWins}-{row.matchLosses}
-                                {row.matchDraws > 0
-                                    ? `-${row.matchDraws}`
-                                    : ""}
+                                {row.matchDraws > 0 ? `-${row.matchDraws}` : ""}
                             </span>
                             <span className="text-right tabular-nums text-text-muted">
                                 {row.gameWins}-{row.gameLosses}

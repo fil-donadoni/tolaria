@@ -73,7 +73,10 @@ export interface StandingsRow {
      *  excluded — a bye has no opponent), of that opponent's OWN match-win
      *  percentage (`points / (matchesPlayed * 3)` — the standard tournament
      *  definition, which folds a draw in as a fractional win rather than
-     *  ignoring it). `0` when the seat has faced no real opponent yet. */
+     *  ignoring it), each floored at 0.33 per MTR Appendix C ("if a
+     *  player's match-win percentage is lower than 0.33, use 0.33") before
+     *  averaging — see `matchWinPct` below. `0` when the seat has faced no
+     *  real opponent yet. */
     opponentMatchWinPct: number;
 }
 
@@ -135,13 +138,18 @@ function recordDraw(record: SeatRecord): void {
  *  - Every other equal-wins result (e.g. a genuine `"played"` draw — PRD's
  *    own out-of-scope note: "standings support a draw point value, but no
  *    flow deliberately produces one") scores the standard 1-1 draw.
- *  - Otherwise, whichever side has more wins takes the match win. */
+ *  - Otherwise, whichever side has more wins takes the match win.
+ *
+ *  The two-sided (non-bye) branch delegates the win/draw/doubleLoss call to
+ *  `classifyPairingResult` below — the shared authority `swiss.ts`'s
+ *  `computeScores` also calls, so this scoring can never again drift from
+ *  the bracket-ranking scale's idea of the same recorded fact. */
 function recordPairing(
     records: Map<number, SeatRecord>,
     pairing: StandingsPairing
 ): void {
     if (!pairing.result) return; // Undecided — hasn't happened yet.
-    const { winsA, winsB, source } = pairing.result;
+    const { winsA, winsB } = pairing.result;
     const a = records.get(pairing.seatA)!;
 
     if (pairing.seatB === undefined) {
@@ -160,25 +168,26 @@ function recordPairing(
     a.opponents.push(pairing.seatB);
     b.opponents.push(pairing.seatA);
 
-    if (winsA === winsB) {
-        if (source === "timeout") {
-            // Neither side showed up — a double loss (story 34), not a draw:
-            // no-shows must never be able to farm points off each other.
+    switch (classifyPairingResult(pairing.result)) {
+        case "doubleLoss":
+            // Neither side showed up (story 34) — a double loss, not a
+            // draw: no-shows must never be able to farm points off each
+            // other.
             recordLoss(a);
             recordLoss(b);
-        } else {
+            break;
+        case "draw":
             recordDraw(a);
             recordDraw(b);
-        }
-        return;
-    }
-
-    if (winsA > winsB) {
-        recordWin(a);
-        recordLoss(b);
-    } else {
-        recordWin(b);
-        recordLoss(a);
+            break;
+        case "winA":
+            recordWin(a);
+            recordLoss(b);
+            break;
+        case "winB":
+            recordWin(b);
+            recordLoss(a);
+            break;
     }
 }
 
@@ -187,10 +196,45 @@ function recordPairing(
  *  averages over each seat's opponents. Folding `points` (rather than a naive
  *  `matchWins / matchesPlayed`) is what makes a draw contribute a fractional
  *  win instead of vanishing from the ratio. `0` for a seat with zero decided
- *  matches — never `NaN`. */
+ *  matches — never `NaN`.
+ *
+ *  Floored at 0.33 (MTR Appendix C: "if a player's match-win percentage is
+ *  lower than 0.33, use 0.33") — an opponent that went 0-3 still contributes
+ *  SOME credit to the seats that faced them, rather than a plain 0.00, which
+ *  would let a single very-weak (or non-competing, e.g. dropped) opponent
+ *  crater another seat's OMW% tiebreak. This floor applies ONLY here, to an
+ *  opponent's contribution to `opponentMatchWinPct` — never to a seat's own
+ *  record, which is reported as-is via `points`/`matchWins`/etc. on
+ *  `StandingsRow`. */
 function matchWinPct(record: SeatRecord): number {
     const played = record.matchWins + record.matchLosses + record.matchDraws;
-    return played === 0 ? 0 : record.points / (played * 3);
+    return played === 0 ? 0 : Math.max(0.33, record.points / (played * 3));
+}
+
+/** How a decided, two-sided Pairing's result (i.e. `seatB` is a real
+ *  opponent, not a bye — byes are always a match win for the sole seat and
+ *  never reach this function) resolves into a match outcome. The single
+ *  authority for this classification: `recordPairing` below (public
+ *  standings) and `swiss.ts`'s `computeScores` (mid-event bracket ranking)
+ *  both call it, so the two derived views of the same recorded fact can
+ *  never again disagree on whether an equal-wins `"timeout"` pairing is a
+ *  draw or a double loss — the exact split the PR review caught (`swiss.ts`
+ *  scored it a 0.5/0.5 draw for bracket purposes while `standings.ts` scored
+ *  it a double loss for the public table). */
+export type PairingOutcome = "winA" | "winB" | "draw" | "doubleLoss";
+
+export function classifyPairingResult(
+    result: StandingsPairingResult
+): PairingOutcome {
+    const { winsA, winsB, source } = result;
+    if (winsA === winsB) {
+        // A "timeout" double no-show is a double LOSS (PRD story 34), never
+        // a draw — the one place `source` changes the classification rather
+        // than just riding along as metadata. Every other equal-wins result
+        // (a genuine `"played"` draw) is a standard 1-1 draw.
+        return source === "timeout" ? "doubleLoss" : "draw";
+    }
+    return winsA > winsB ? "winA" : "winB";
 }
 
 /** Computes the standings table (PRD #1628 stories 22-24/47) from `seats` and
@@ -221,10 +265,7 @@ export function computeStandings(
             if (!records.has(pairing.seatA)) {
                 records.set(pairing.seatA, emptyRecord(pairing.seatA));
             }
-            if (
-                pairing.seatB !== undefined &&
-                !records.has(pairing.seatB)
-            ) {
+            if (pairing.seatB !== undefined && !records.has(pairing.seatB)) {
                 records.set(pairing.seatB, emptyRecord(pairing.seatB));
             }
             recordPairing(records, pairing);

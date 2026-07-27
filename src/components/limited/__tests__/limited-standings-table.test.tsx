@@ -13,9 +13,7 @@ afterEach(() => {
     cleanup();
 });
 
-function zeroRow(
-    seatIndex: number
-): LimitedEventView["standings"][number] {
+function zeroRow(seatIndex: number): LimitedEventView["standings"][number] {
     return {
         seatIndex,
         points: 0,
@@ -122,12 +120,8 @@ describe("LimitedStandingsTable (issue #1643)", () => {
             ]
         );
         const { container } = render(<LimitedStandingsTable event={event} />);
-        const viewerRow = container.querySelector(
-            '[data-seat-index="0"]'
-        )!;
-        const otherRow = container.querySelector(
-            '[data-seat-index="1"]'
-        )!;
+        const viewerRow = container.querySelector('[data-seat-index="0"]')!;
+        const otherRow = container.querySelector('[data-seat-index="1"]')!;
         expect(viewerRow.getAttribute("data-is-viewer")).toBe("true");
         expect(otherRow.getAttribute("data-is-viewer")).toBe("false");
         expect(viewerRow.className).toContain("bg-accent/5");

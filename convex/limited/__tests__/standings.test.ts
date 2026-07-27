@@ -3,6 +3,7 @@
 // `convex-test` harness (project convention, mirrors `completion.test.ts`).
 import { describe, it, expect } from "vitest";
 import { computeStandings, type StandingsRound } from "../standings";
+import { computeScores, type SwissRound } from "../swiss";
 
 describe("computeStandings — zeroed table (issue #1643 AC)", () => {
     it("is readable — zeroed, not crashed or blank — for an event with no results yet", () => {
@@ -247,6 +248,55 @@ describe("computeStandings — opponent match-win % (PRD story 23/47)", () => {
         const rows = computeStandings([{ seatIndex: 0 }], rounds);
         expect(rows[0].opponentMatchWinPct).toBe(0);
     });
+
+    it("floors a 0-point opponent's contribution at 0.33, per MTR Appendix C, instead of 0", () => {
+        // Seat 1 (X) goes a flat 0-3 against three different opponents (2,
+        // 3, 4) — 0 points, 0 wins. Seat 0 (A) faces X only once, in round
+        // 1. Naively, X's own match-win pct is 0/(3*3) = 0 — but MTR
+        // Appendix C floors a below-0.33 opponent at 0.33 before it's
+        // averaged into anyone else's OMW%, so A's OMW% (its only opponent
+        // being X) must read 0.33, not 0.
+        const A = 0,
+            X = 1,
+            Y = 2,
+            Z = 3,
+            W = 4;
+        const rounds: StandingsRound[] = [
+            {
+                pairings: [
+                    {
+                        seatA: A,
+                        seatB: X,
+                        result: { winsA: 2, winsB: 0, source: "played" },
+                    },
+                ],
+            },
+            {
+                pairings: [
+                    {
+                        seatA: X,
+                        seatB: Y,
+                        result: { winsA: 0, winsB: 2, source: "played" },
+                    },
+                ],
+            },
+            {
+                pairings: [
+                    {
+                        seatA: X,
+                        seatB: Z,
+                        result: { winsA: 0, winsB: 2, source: "played" },
+                    },
+                ],
+            },
+        ];
+        const seats = [A, X, Y, Z, W].map((seatIndex) => ({ seatIndex }));
+        const rows = computeStandings(seats, rounds);
+        const seatX = rows.find((r) => r.seatIndex === X)!;
+        expect(seatX.points).toBe(0); // sanity: X really did go 0-3.
+        const seatA = rows.find((r) => r.seatIndex === A)!;
+        expect(seatA.opponentMatchWinPct).toBeCloseTo(0.33);
+    });
 });
 
 describe("computeStandings — sort order (issue #1643 AC: points, then GW%, then OMW%)", () => {
@@ -260,10 +310,11 @@ describe("computeStandings — sort order (issue #1643 AC: points, then GW%, the
         // diverge without introducing a competing perfect record — a bye has
         // no opponent, so it can't itself become a new top-3 contender:
         //   Z's bye -> Z finishes 1 loss/1 (bye) win -> matchWinPct = 0.5
-        //   Y plays no round 2 -> Y stays 0-1 -> matchWinPct = 0
+        //   Y plays no round 2 -> Y stays 0-1 -> matchWinPct = 0, floored to
+        //     0.33 (MTR Appendix C) when it's averaged into B's OMW%
         // A's only opponent was Z (OMW% = 0.5); B's only opponent was Y
-        // (OMW% = 0) — so A must rank above B, both above C, which is still
-        // tied with neither on GW%.
+        // (floored OMW% = 0.33) — so A must rank above B, both above C,
+        // which is still tied with neither on GW%.
         const A = 0,
             B = 1,
             C = 2,
@@ -317,7 +368,7 @@ describe("computeStandings — sort order (issue #1643 AC: points, then GW%, the
         expect(rowB.gameWinPct).toBe(1);
         expect(rowC.gameWinPct).toBeCloseTo(2 / 3);
         expect(rowA.opponentMatchWinPct).toBeCloseTo(0.5);
-        expect(rowB.opponentMatchWinPct).toBe(0);
+        expect(rowB.opponentMatchWinPct).toBeCloseTo(0.33); // Y floored per MTR App. C.
     });
 
     it("sorts strictly by points first, regardless of game-win %", () => {
@@ -350,5 +401,50 @@ describe("computeStandings — sort order (issue #1643 AC: points, then GW%, the
             rounds
         );
         expect(rows[0].seatIndex).toBe(0); // 3 points, sole leader
+    });
+});
+
+describe("standings.ts vs swiss.ts — the two derived views agree (PR #1666 review finding)", () => {
+    it("scores an equal-wins timeout pairing a double LOSS on both scales, not a draw on one and a loss on the other", () => {
+        // The invariant that was broken: `standings.ts`'s public table and
+        // `swiss.ts`'s `computeScores` (mid-event bracket ranking) both
+        // derive from the exact same recorded Pairing, and must agree
+        // ORDINALLY on what it means — a double no-show timeout is a LOSS
+        // for both sides everywhere, never a draw on either scale. Both now
+        // call the same `classifyPairingResult` (`standings.ts`) under the
+        // hood, so this can't drift apart again.
+        const pairing = {
+            seatA: 0,
+            seatB: 1,
+            result: { winsA: 0, winsB: 0, source: "timeout" as const },
+        };
+
+        // standings.ts's view: both sides get 0 points, a match LOSS, no
+        // draw.
+        const standingsRounds: StandingsRound[] = [{ pairings: [pairing] }];
+        const rows = computeStandings(
+            [{ seatIndex: 0 }, { seatIndex: 1 }],
+            standingsRounds
+        );
+        for (const row of rows) {
+            expect(row.points).toBe(0);
+            expect(row.matchLosses).toBe(1);
+            expect(row.matchDraws).toBe(0);
+        }
+
+        // swiss.ts's view: both sides stay at their prior bracket score —
+        // NOT bumped by 0.5 each the way a genuine draw would be.
+        const swissRounds: SwissRound[] = [{ pairings: [pairing] }];
+        const scores = computeScores([0, 1], swissRounds);
+        expect(scores.get(0)).toBe(0);
+        expect(scores.get(1)).toBe(0);
+
+        // The two scales must agree ORDINALLY (win > draw > loss) on this
+        // pairing: neither seat outranks the other on either scale — a
+        // genuine draw would ALSO satisfy this specific assertion (both get
+        // 0.5 on the swiss scale), which is exactly why the points/matchLosses
+        // assertions above (where a draw and a double loss diverge) are the
+        // ones that actually pin the fix.
+        expect(scores.get(0)).toBe(scores.get(1));
     });
 });
