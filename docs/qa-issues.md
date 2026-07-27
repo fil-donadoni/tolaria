@@ -27,19 +27,6 @@ Fable of the mirror-breaker
 
 ## Carte rotte
 
-- Urborg con terra base genera un errore:
-  react-Dhe7adbX.js?v=51f81d6d:2182 Uncaught (in promise) Error: [CONVEX M(game:autoTapForPayment)] [Request ID: 84f6a0d7aee0734c] Server Error
-  Uncaught Error: Must choose a mana color
-  at tapSourceIntoPayment (../../convex/game.ts:1014:25)
-  at handler (../../convex/game.ts:6997:16)
-
-    Called by client
-    at tapSourceIntoPayment (../../convex/game.ts:1014:25)
-    at handler (../../convex/game.ts:6997:16)
-
-    Called by client
-    at BaseConvexClient.mutation (http://localhost:5173/node_modules/.vite/deps/react-Dhe7adbX.js?v=51f81d6d:2182:10)
-
 - Wishclaw talisman: c'è scritto che entra con 3 counters, non è un'abilita' attivata. verifica se ci sono altri casi di carte con questo testo e questo bug e sistema alla radice. Inoltre l'attivazione prevede un timing che va esteso alla UI, non mostrare la possibilità di attivazione tramite context menu se non sono nel mio turno. anche questo comportamento va esteso a tutte le carte con limitazioni di tempo, come regola generale.
 - Starting town non viene considerata come produttrice di mana colorato ai fini di castabilità
 - Erode permette di prendere terre non base con tipo di terra base, ma deve farti prendere SOLO terre base. anche path to exile.
