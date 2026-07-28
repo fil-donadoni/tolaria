@@ -161,7 +161,9 @@ describe("gameTicks — the cheap wake-up signal companion to gameStates (issue 
         // the default Expected Input is priority, owed by the seat that
         // still holds it.
         expect(tick.expectedInputKind).toBe("priority");
-        expect(tick.expectedInputPlayerId).toBe("alice");
+        // issue #1778 review finding 1: `owedPlayerIds`, not a single
+        // `expectedInputPlayerId` echo — see `computeOwedPlayerIds`.
+        expect(tick.owedPlayerIds).toEqual(["alice"]);
         expect(tick.gameOver).toBe(false);
     });
 
@@ -196,7 +198,7 @@ describe("gameTicks — the cheap wake-up signal companion to gameStates (issue 
 
         expect(tick).not.toBeNull();
         expect(tick!.seq).toBe(2);
-        expect(tick!.expectedInputPlayerId).toBe("alice");
+        expect(tick!.owedPlayerIds).toEqual(["alice"]);
     });
 
     it("getGameTick returns null before any save", async () => {

@@ -46,10 +46,10 @@ export default defineSchema({
     // (patch in place, mirroring `gameStates`' single-row-per-game model),
     // carrying exactly the fields `useVsAiDriver` needs to decide whether the
     // bot seat owes input WITHOUT mounting `getPublicState`:
-    // `priorityPlayerId`/`phase`/`expectedInputKind`/`gameOver`. `seq` is the
-    // authoritative "did this actually change" signature — the driver's
-    // in-flight guard keys off THIS `seq`, not the (unsubscribed) full
-    // state's, so the same tick never drives the bot twice.
+    // `priorityPlayerId`/`phase`/`expectedInputKind`/`owedPlayerIds`/`gameOver`.
+    // `seq` is the authoritative "did this actually change" signature — the
+    // driver's in-flight guard keys off THIS `seq`, not the (unsubscribed)
+    // full state's, so the same tick never drives the bot twice.
     gameTicks: defineTable({
         gameId: v.id("games"),
         seq: v.number(),
@@ -57,11 +57,21 @@ export default defineSchema({
         phase: v.string(),
         // Mirrors `ExpectedInput["kind"]` (`convex/gre/expectedInput.ts`,
         // ADR 0047) minus the rest of the union's payload — the driver only
-        // needs to know WHICH kind of input is expected and check
-        // `expectedInputPlayerId` against the bot seat, not the full target
+        // needs to know WHICH kind of input is expected, not the full target
         // list/choice shape (that still requires the fat state).
         expectedInputKind: v.optional(v.string()),
-        expectedInputPlayerId: v.optional(v.string()),
+        // The player id(s) actually owed to act this tick (issue #1778 review
+        // finding 1 — `computeOwedPlayerIds`, `convex/gre/expectedInput.ts`).
+        // NOT simply `expectedInput.playerId`: the CR 510.1c/702.21j-k combat
+        // damage-assignment sub-flow folds into a plain `{kind:"priority"}`
+        // window gated `anyPlayer: true` (`setDamageAssignment`/
+        // `confirmDamage`, `convex/game.ts`) while the real actor(s) live in
+        // `combat.damageAssignerIds` and can differ from `priorityPlayerId` —
+        // banding shifts assignment to the non-active player. A subscriber
+        // MUST gate on membership in this array, never on equality with a
+        // single player id, or a non-active damage assigner is never named
+        // and the game deadlocks waiting for input that never arrives.
+        owedPlayerIds: v.optional(v.array(v.string())),
         gameOver: v.optional(v.boolean()),
         updatedAt: v.number(),
     }).index("by_gameId", ["gameId"]),

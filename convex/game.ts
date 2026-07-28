@@ -223,7 +223,11 @@ import {
 import { liveSupertypesOf, countSnowLands } from "./gre/snow";
 import { computeSoloViewerId } from "./soloViewer";
 import { compactState, expandState } from "./gre/serialize";
-import { assertExpectedInput, refreshExpectedInput } from "./gre/expectedInput";
+import {
+    assertExpectedInput,
+    computeOwedPlayerIds,
+    refreshExpectedInput,
+} from "./gre/expectedInput";
 import { substituteColorFilter } from "./gre/textChanges";
 import {
     advancePhase,
@@ -576,7 +580,13 @@ async function saveGameTick(
         priorityPlayerId: state.priorityPlayerId,
         phase: state.phase,
         expectedInputKind: state.expectedInput?.kind,
-        expectedInputPlayerId: state.expectedInput?.playerId,
+        // issue #1778 review finding 1: NOT `state.expectedInput?.playerId` —
+        // that single id missed the non-active combat-damage assigner
+        // (banding, CR 702.21j-k) and could deadlock a subscriber gating on
+        // it. `computeOwedPlayerIds` folds in the `damageAssignerIds`
+        // sub-flow so every player who genuinely owes input this tick is
+        // named, even when it's not `priorityPlayerId`.
+        owedPlayerIds: computeOwedPlayerIds(state),
         gameOver: state.gameOver !== undefined,
         updatedAt: Date.now(),
     };
@@ -2871,9 +2881,13 @@ export function tryAutoCommitPendingCast(
  *  companion to `getPublicState`, ~150 bytes instead of 3-9 KB. A subscriber
  *  that only needs to know "did the game state change, and does a given seat
  *  owe input" — the vs-AI driver — subscribes here and only mounts the full
- *  `getPublicState` query once `expectedInputPlayerId` names its seat,
- *  instead of holding a second full-state subscription that gets discarded
- *  on every beat it doesn't own. Returns `null` before the first save. */
+ *  `getPublicState` query once its seat appears in `owedPlayerIds` (issue
+ *  #1778 review finding 1 — membership, not equality with a single
+ *  `expectedInputPlayerId`; see `computeOwedPlayerIds`,
+ *  `convex/gre/expectedInput.ts`), instead of holding a second full-state
+ *  subscription that gets discarded on every beat it doesn't own. Returns
+ *  `null` before the first save — the driver fails OPEN on that (finding 4,
+ *  `useVsAiDriver.ts`) rather than deadlocking a pre-existing game. */
 export const getGameTick = query({
     args: {
         gameId: v.id("games"),
