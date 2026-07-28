@@ -50,7 +50,7 @@ import BoardArrows from "./board-arrows";
 import GameStack from "./game-stack";
 import PriorityIndicator from "./priority-indicator";
 import BoardBackground from "./board-background";
-import PrototypeBottomBarGate from "./prototype-bottom-bar/prototype-bottom-bar-gate";
+import Controller from "./controller";
 import AutoPassController from "./auto-pass-controller";
 import GameOverDialog from "./game-over-dialog";
 import PauseMenuDialog from "./pause-menu-dialog";
@@ -880,9 +880,7 @@ export default function Board({
                                             allPlayers={allPlayers}
                                         />
                                     )}
-                                    <PrototypeBottomBarGate
-                                        me={me}
-                                        opponent={opponent}
+                                    <Controller
                                         onOpenMenu={() =>
                                             setPauseMenuOpen(true)
                                         }
