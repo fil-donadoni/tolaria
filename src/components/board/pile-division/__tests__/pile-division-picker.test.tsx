@@ -6,8 +6,8 @@
 //     and every candidate renders a face.
 //   • PICK mode — the two piles render with their counts and the Take buttons
 //     submit "A" / "B" through `submitResolutionChoice`.
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import type { CardInstance, PendingChoice } from "~/types/game";
 
 const calls: { ref: unknown; args: unknown }[] = [];
@@ -28,6 +28,14 @@ vi.mock("~/components/board/minimize-choice-button", () => ({
     default: () => <button aria-label="Minimize" />,
 }));
 
+// The single seam under test for the positioning describe block below — drive
+// it explicitly so jsdom's flaky matchMedia never decides the branch (same
+// pattern as usePromptBannerPosition.test.ts / prompt-banner-mobile-position.test.tsx).
+let portrait = false;
+vi.mock("~/hooks/useIsPortrait", () => ({
+    useIsPortrait: () => portrait,
+}));
+
 const { default: PileDivisionPicker } = await import("../pile-division-picker");
 
 function card(id: string): CardInstance {
@@ -43,6 +51,11 @@ function card(id: string): CardInstance {
 
 beforeEach(() => {
     calls.length = 0;
+});
+
+afterEach(() => {
+    cleanup();
+    portrait = false;
 });
 
 describe("PileDivisionPicker — divide mode", () => {
@@ -111,5 +124,75 @@ describe("PileDivisionPicker — pick mode", () => {
             choiceId: "fof:pick",
             cardInstanceIds: ["B"],
         });
+    });
+});
+
+// Issue #1762 review finding 4 — this dialog used to hardcode its own
+// `absolute top-1/2 left-1/2` + `useDraggable` recipe (the same dead-center
+// bug the small prompt banners had), AND the 560px-wide 3-zone stage
+// (`STAGE_W`, layout.ts) had no cap, overflowing a 390px portrait viewport.
+describe("PileDivisionPicker — mobile positioning (issue #1762)", () => {
+    const choice = {
+        stackItemId: "s1",
+        step: 0,
+        choiceId: "fof:divide",
+        playerId: "p2",
+        kind: "divide-piles",
+        zone: "library",
+        count: { min: 0, max: 3 },
+        candidateIds: ["l1", "l2"],
+        prompt: "Separate into two piles.",
+    } as unknown as PendingChoice;
+
+    it("routes positioning through the shared hook — never centers on the board in portrait", () => {
+        portrait = true;
+        const { container } = render(
+            <PileDivisionPicker
+                choice={choice}
+                cards={[card("l1"), card("l2")]}
+                playerId="p2"
+                gameId={"g1" as never}
+            />
+        );
+        const outer = container.firstElementChild as HTMLElement;
+        expect(outer.className).not.toContain("top-1/2");
+        expect(outer.className).not.toContain("left-1/2");
+        expect(outer.className).toContain("fixed");
+        expect(outer.className).toContain("env(safe-area-inset-top)");
+    });
+
+    it("keeps the desktop/landscape centered + draggable behavior unchanged", () => {
+        portrait = false;
+        const { container } = render(
+            <PileDivisionPicker
+                choice={choice}
+                cards={[card("l1"), card("l2")]}
+                playerId="p2"
+                gameId={"g1" as never}
+            />
+        );
+        const outer = container.firstElementChild as HTMLElement;
+        expect(outer.className).toContain("top-1/2");
+        expect(outer.className).toContain("left-1/2");
+    });
+
+    it("wraps the fixed-width 3-zone stage in a horizontal-scroll viewport (cap/scroll, not overflow)", () => {
+        const { container } = render(
+            <PileDivisionPicker
+                choice={choice}
+                cards={[card("l1"), card("l2")]}
+                playerId="p2"
+                gameId={"g1" as never}
+            />
+        );
+        const scrollViewport = container.querySelector(
+            ".overflow-x-auto"
+        ) as HTMLElement | null;
+        expect(scrollViewport).not.toBeNull();
+        expect(scrollViewport!.className).toContain("max-w-full");
+        // The stage itself keeps its fixed geometry (STAGE_W) — only its
+        // VIEWPORT is capped — so the drop-zone hit-testing math is untouched.
+        const stage = scrollViewport!.firstElementChild as HTMLElement;
+        expect(stage.style.width).toBe("560px");
     });
 });

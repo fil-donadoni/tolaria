@@ -45,6 +45,13 @@ vi.mock("@convex/cards/emblems", () => ({
             : undefined,
 }));
 
+// Drive the portrait/desktop seam explicitly so jsdom's flaky matchMedia
+// never decides the branch (same pattern as usePromptBannerPosition.test.ts)
+// — the "longest prompt at 390px" test below asserts the portrait wrap-cap.
+vi.mock("~/hooks/useIsPortrait", () => ({
+    useIsPortrait: () => true,
+}));
+
 import TargetSelectionBanner from "../target-selection-banner";
 
 function player(over: Partial<Player> = {}): Player {
@@ -170,5 +177,47 @@ describe("TargetSelectionBanner source-name resolution", () => {
             screen.getByText("Chandra, Torch of Defiance emblem")
         ).toBeTruthy();
         expect(screen.queryByText("spell")).toBeNull();
+    });
+});
+
+// Issue #1762 — the composed multi-type / min-max hint
+// (`describeTargetProgress` + `formatTargetLabel`) is the longest realistic
+// prompt string this banner produces. It must render in full (not truncated)
+// and never force a single unbreakable line at a 390px portrait width.
+describe("TargetSelectionBanner — longest prompt renders without broken wrapping (issue #1762)", () => {
+    it("multi-type, min/max hint renders fully at a 390px width", () => {
+        const { container } = render(
+            <div style={{ width: "390px" }}>
+                <TargetSelectionBanner
+                    pendingTarget={pending({
+                        targetType: ["Creature", "Artifact", "Planeswalker"],
+                        count: { min: 1, max: 3 },
+                        selected: [],
+                    })}
+                    me={player()}
+                    stack={[]}
+                    gameId={"g1" as never}
+                    playerId="me"
+                />
+            </div>
+        );
+        expect(
+            screen.getByText(
+                "select up to 3 a creature, an artifact or a planeswalker (min 1)"
+            )
+        ).toBeTruthy();
+        // Issue #1762 review finding 7 — a bare `not.toMatch(/whitespace-nowrap/)`
+        // can never fail (nothing here ever adds that class), so it isn't
+        // proof of anything. Assert what this change actually owns instead:
+        // the portrait wrap-cap this banner picked up from the shared
+        // `usePromptBannerPosition` hook (`max-w-[22rem]` on the inner
+        // wrapper) — the real mechanism that keeps this long hint from
+        // forcing the panel wider than the 390px viewport.
+        // container > the test's own 390px width div (a plain DOM node) >
+        // TargetSelectionBanner's outer positioning div > the inner wrapper.
+        const widthProbe = container.firstElementChild as HTMLElement;
+        const outer = widthProbe.firstElementChild as HTMLElement;
+        const inner = outer.firstElementChild as HTMLElement;
+        expect(inner.className).toContain("max-w-[22rem]");
     });
 });

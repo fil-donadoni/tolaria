@@ -3,7 +3,7 @@ import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import type { AttackManaTaxPayment } from "~/types/game";
-import { useDraggable } from "~/hooks/useDraggable";
+import { usePromptBannerPosition } from "~/hooks/usePromptBannerPosition";
 import { Panel } from "~/components/ui/panel";
 import { Button } from "~/components/ui/button";
 import ManaSymbol from "~/components/cards/mana-symbol";
@@ -48,7 +48,8 @@ export default function AttackManaTaxBanner({
     playerId,
     payment,
 }: Props) {
-    const { offset, dragHandlers } = useDraggable();
+    const { outerClassName, outerStyle, innerClassName, dragHandlers } =
+        usePromptBannerPosition();
     const autoTap = useMutation(api.game.autoTapForAttackTax);
     const cancel = useMutation(api.game.cancelAttackTax);
     const [busy, setBusy] = useState(false);
@@ -69,16 +70,14 @@ export default function AttackManaTaxBanner({
     const symbols = costSymbols(payment);
 
     return (
-        <div
-            className="absolute top-1/2 left-1/2 z-modal"
-            style={{
-                transform: `translate(calc(-50% + ${offset.x}px), calc(-50% + ${offset.y}px))`,
-            }}
-        >
+        <div className={outerClassName} style={outerStyle}>
             {/* Drag chrome stays on a plain wrapper — Panel forwards no
                 handlers, so the frame lives inside it. */}
-            <div {...dragHandlers} className="cursor-move select-none">
-                <Panel density="compact" className="w-72 px-6 py-4">
+            <div
+                {...dragHandlers}
+                className={`cursor-move select-none ${innerClassName}`.trim()}
+            >
+                <Panel density="compact" className="w-72 max-w-full px-6 py-4">
                     <p className="text-center font-beleren text-sm tracking-wide text-parchment">
                         Attack Tax
                     </p>

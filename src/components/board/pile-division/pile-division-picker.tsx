@@ -19,7 +19,7 @@ import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import type { CardInstance, PendingChoice } from "~/types/game";
 import { formatOracleText } from "~/lib/oracle-text";
-import { useDraggable } from "~/hooks/useDraggable";
+import { usePromptBannerPosition } from "~/hooks/usePromptBannerPosition";
 import { Panel } from "~/components/ui/panel";
 import { Button } from "~/components/ui/button";
 import MinimizeChoiceButton from "~/components/board/minimize-choice-button";
@@ -60,9 +60,13 @@ export default function PileDivisionPicker({
 }) {
     const submitChoice = useMutation(api.game.submitResolutionChoice);
     const [busy, setBusy] = useState(false);
-    // Draggable window chrome (the whole stage), shared with the other choice
-    // dialogs so the player can move it off the board.
-    const { offset, dragHandlers } = useDraggable();
+    // Shared positioning (issue #1762 review) — this dialog used to hardcode
+    // its own `absolute top-1/2 left-1/2` + `useDraggable` recipe (the same
+    // dead-board-center bug the small prompt banners had). Desktop stays
+    // centered and draggable via the header handle below; portrait pins it
+    // to the safe-area strip instead, with dragging disabled.
+    const { outerClassName, outerStyle, dragHandlers } =
+        usePromptBannerPosition();
 
     const isPick = choice.kind === "pick-pile";
 
@@ -216,14 +220,10 @@ export default function PileDivisionPicker({
     );
 
     return (
-        <div
-            className="absolute top-1/2 left-1/2 z-modal pointer-events-none"
-            style={{
-                transform: `translate(calc(-50% + ${offset.x}px), calc(-50% + ${offset.y}px))`,
-            }}
-        >
+        <div className={outerClassName} style={outerStyle}>
             <Panel
                 density="compact"
+                size="wide"
                 className="flex flex-col items-center gap-2 px-5 py-3 pointer-events-auto"
             >
                 <MinimizeChoiceButton className="absolute top-1.5 right-1.5" />
@@ -242,57 +242,81 @@ export default function PileDivisionPicker({
                     </p>
                 </div>
 
-                {/* The 3-zone stage. */}
-                <div
-                    ref={stageRef}
-                    className="relative"
-                    style={{ width: STAGE_W, height: CARD_H * 2 + 96 }}
-                    onPointerMove={onPointerMove}
-                    onPointerUp={onPointerUp}
-                >
-                    {!isPick && (
-                        <PileZone
-                            label="Revealed"
-                            variant="candidates"
-                            zoneRef={(el) => (zoneRefs.current.candidates = el)}
-                        />
-                    )}
-                    <PileZone
-                        label={
-                            isPick
-                                ? `Pile A (${choice.pileA?.length ?? 0})`
-                                : "Pile A"
-                        }
-                        variant="pileA"
-                        zoneRef={(el) => (zoneRefs.current.A = el)}
-                    />
-                    <PileZone
-                        label={
-                            isPick
-                                ? `Pile B (${choice.pileB?.length ?? 0})`
-                                : "Pile B"
-                        }
-                        variant="pileB"
-                        zoneRef={(el) => (zoneRefs.current.B = el)}
-                    />
-
-                    {cards.map((card) => {
-                        const pos = layout.get(card.id)!;
-                        const isDragging = drag?.id === card.id && drag.moved;
-                        const x = isDragging ? drag!.x - drag!.grabX : pos.x;
-                        const y = isDragging ? drag!.y - drag!.grabY : pos.y;
-                        return (
-                            <PileCard
-                                key={card.id}
-                                card={card}
-                                x={x}
-                                y={y}
-                                dragging={isDragging}
-                                interactive={!isPick && !busy}
-                                onPointerDown={(e) => onPointerDown(e, card.id)}
+                {/* The 3-zone stage, in its own horizontal-scroll viewport
+                    (issue #1762 review) — `STAGE_W` (560px) is a fixed
+                    geometry constant the drop-zone hit-testing and card fan
+                    math (`layout.ts`) are built around, and re-deriving it
+                    per breakpoint would ripple through every zone box /
+                    card-position calculation for no real gain. Capping/
+                    scrolling the VIEWPORT around the stage instead is the
+                    smallest correct fix: `getBoundingClientRect()` (used by
+                    both the pointer-drag math and `zoneAtPoint` below)
+                    reports the stage's actual on-screen position regardless
+                    of how far this wrapper has scrolled it, so the drag/drop
+                    math needs no changes — a portrait player just scrolls
+                    sideways to reach a card past the fold instead of the
+                    stage overflowing the panel (or the whole board). */}
+                <div className="max-w-full overflow-x-auto">
+                    <div
+                        ref={stageRef}
+                        className="relative"
+                        style={{ width: STAGE_W, height: CARD_H * 2 + 96 }}
+                        onPointerMove={onPointerMove}
+                        onPointerUp={onPointerUp}
+                    >
+                        {!isPick && (
+                            <PileZone
+                                label="Revealed"
+                                variant="candidates"
+                                zoneRef={(el) =>
+                                    (zoneRefs.current.candidates = el)
+                                }
                             />
-                        );
-                    })}
+                        )}
+                        <PileZone
+                            label={
+                                isPick
+                                    ? `Pile A (${choice.pileA?.length ?? 0})`
+                                    : "Pile A"
+                            }
+                            variant="pileA"
+                            zoneRef={(el) => (zoneRefs.current.A = el)}
+                        />
+                        <PileZone
+                            label={
+                                isPick
+                                    ? `Pile B (${choice.pileB?.length ?? 0})`
+                                    : "Pile B"
+                            }
+                            variant="pileB"
+                            zoneRef={(el) => (zoneRefs.current.B = el)}
+                        />
+
+                        {cards.map((card) => {
+                            const pos = layout.get(card.id)!;
+                            const isDragging =
+                                drag?.id === card.id && drag.moved;
+                            const x = isDragging
+                                ? drag!.x - drag!.grabX
+                                : pos.x;
+                            const y = isDragging
+                                ? drag!.y - drag!.grabY
+                                : pos.y;
+                            return (
+                                <PileCard
+                                    key={card.id}
+                                    card={card}
+                                    x={x}
+                                    y={y}
+                                    dragging={isDragging}
+                                    interactive={!isPick && !busy}
+                                    onPointerDown={(e) =>
+                                        onPointerDown(e, card.id)
+                                    }
+                                />
+                            );
+                        })}
+                    </div>
                 </div>
 
                 {/* Footer actions. */}

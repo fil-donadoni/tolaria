@@ -14,6 +14,13 @@ vi.mock("convex/react", () => ({
     useMutation: () => vi.fn(),
 }));
 
+// Drive the portrait/desktop seam explicitly so jsdom's flaky matchMedia
+// never decides the branch (same pattern as usePromptBannerPosition.test.ts)
+// — the "longest prompt at 390px" test below asserts the portrait wrap-cap.
+vi.mock("~/hooks/useIsPortrait", () => ({
+    useIsPortrait: () => true,
+}));
+
 const noopBuffer: PendingChoiceBuffer = {
     buffer: [],
     toggle: () => {},
@@ -25,7 +32,7 @@ const noopBuffer: PendingChoiceBuffer = {
     dismissError: () => {},
 };
 
-function renderPrompt(choice: PendingChoice, playerId = "me") {
+function promptTree(choice: PendingChoice, playerId = "me") {
     const value = {
         gameId: "game-id" as never,
         playerId,
@@ -40,7 +47,7 @@ function renderPrompt(choice: PendingChoice, playerId = "me") {
         onSwitchGame: () => {},
         pendingChoices: [choice],
     } as unknown as React.ContextType<typeof GameContext>;
-    return render(
+    return (
         <GameContext value={value}>
             <PendingChoiceBufferContext value={noopBuffer}>
                 <MinimizedChoiceContext
@@ -59,6 +66,10 @@ function renderPrompt(choice: PendingChoice, playerId = "me") {
             </PendingChoiceBufferContext>
         </GameContext>
     );
+}
+
+function renderPrompt(choice: PendingChoice, playerId = "me") {
+    return render(promptTree(choice, playerId));
 }
 
 describe("PendingChoicePrompt suppression", () => {
@@ -258,6 +269,45 @@ describe("PendingChoicePrompt — madness-cast (CR 702.35d)", () => {
         expect(queryByText("Cast")).toBeNull();
         expect(queryByText("Decline")).toBeNull();
         expect(getByText(/Waiting for/)).toBeTruthy();
+    });
+});
+
+// Issue #1762 — `choice.prompt` is server-authored oracle-derived text with
+// no length cap (the true worst case for wrapping, unlike the other banners'
+// fixed literals). It must render in full at a 390px width without a
+// nowrap/truncate class clipping it.
+describe("PendingChoicePrompt — longest prompt renders without broken wrapping (issue #1762)", () => {
+    it("a long option-pick prompt renders in full at a 390px width", () => {
+        const longPrompt =
+            "Choose one — Destroy target creature; or Return target creature card from your graveyard to your hand; or Search your library for a basic land card, reveal it, put it into your hand, then shuffle.";
+        const choice: PendingChoice = {
+            stackItemId: "stk",
+            step: 0,
+            choiceId: "me",
+            playerId: "me",
+            kind: "option-pick",
+            count: 1,
+            prompt: longPrompt,
+            options: [],
+        } as PendingChoice;
+        const { container } = render(
+            <div style={{ width: "390px" }}>{promptTree(choice)}</div>
+        );
+        expect(container.textContent).toContain(longPrompt);
+        // Issue #1762 review finding 7 — a bare `not.toMatch(/whitespace-nowrap/)`
+        // can never fail (nothing here ever adds that class), so it isn't
+        // proof of anything. Assert what this change actually owns instead:
+        // the portrait wrap-cap this prompt picked up from the shared
+        // `usePromptBannerPosition` hook (`max-w-[22rem]` on the inner
+        // wrapper) — the real mechanism that keeps this unbounded
+        // server-authored prompt from forcing the panel wider than the
+        // 390px viewport.
+        // container > the test's own 390px width div (a plain DOM node) >
+        // PendingChoicePrompt's outer positioning div > the inner wrapper.
+        const widthProbe = container.firstElementChild as HTMLElement;
+        const outer = widthProbe.firstElementChild as HTMLElement;
+        const inner = outer.firstElementChild as HTMLElement;
+        expect(inner.className).toContain("max-w-[22rem]");
     });
 });
 

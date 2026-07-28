@@ -3,7 +3,7 @@ import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import type { MulliganState, Player } from "~/types/game";
-import { useDraggable } from "~/hooks/useDraggable";
+import { usePromptBannerPosition } from "~/hooks/usePromptBannerPosition";
 import { Panel } from "~/components/ui/panel";
 import { Button } from "~/components/ui/button";
 
@@ -25,7 +25,8 @@ export default function MulliganPrompt({
     mulligan: MulliganState;
     allPlayers: Player[];
 }) {
-    const { offset, dragHandlers } = useDraggable();
+    const { outerClassName, outerStyle, innerClassName, dragHandlers } =
+        usePromptBannerPosition();
     const declareMulligan = useMutation(api.game.declareMulligan);
     const [isBusy, setIsBusy] = useState(false);
 
@@ -65,17 +66,15 @@ export default function MulliganPrompt({
     };
 
     return (
-        <div
-            className="absolute top-1/2 left-1/2 z-modal pointer-events-none"
-            style={{
-                transform: `translate(calc(-50% + ${offset.x}px), calc(-50% + ${offset.y}px))`,
-            }}
-        >
+        <div className={outerClassName} style={outerStyle}>
             {/* Drag chrome stays on a plain wrapper — Panel forwards no
-                handlers, so the frame lives inside it. */}
+                handlers, so the frame lives inside it. `pointer-events-none`
+                / `pointer-events-auto` now come from the hook itself (issue
+                #1762 review) — every banner gets the gutter-tap fix for
+                free instead of re-declaring it per file. */}
             <div
                 {...dragHandlers}
-                className="cursor-move select-none pointer-events-auto"
+                className={`cursor-move select-none ${innerClassName}`.trim()}
             >
                 <Panel
                     density="compact"

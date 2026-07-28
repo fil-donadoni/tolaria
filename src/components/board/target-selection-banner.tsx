@@ -5,7 +5,7 @@ import type { Id } from "@convex/_generated/dataModel";
 import type { PendingTarget, Player, StackItem } from "~/types/game";
 import { getDefinition, tryGetDefinition } from "@convex/cards";
 import { tryGetEmblemDefinition } from "@convex/cards/emblems";
-import { useDraggable } from "~/hooks/useDraggable";
+import { usePromptBannerPosition } from "~/hooks/usePromptBannerPosition";
 import { useDivideBuffer } from "~/hooks/useDivideBuffer";
 import { Panel } from "~/components/ui/panel";
 import { Button } from "~/components/ui/button";
@@ -111,7 +111,8 @@ export default function TargetSelectionBanner({
     const cancelTarget = useMutation(api.game.cancelTarget);
     const confirmTargets = useMutation(api.game.confirmTargets);
     const [isBusy, setIsBusy] = useState(false);
-    const { offset, dragHandlers } = useDraggable();
+    const { outerClassName, outerStyle, innerClassName, dragHandlers } =
+        usePromptBannerPosition();
     const divide = useDivideBuffer();
 
     // CR 707.10b — a copy-retarget selection points at a spell copy on the
@@ -164,15 +165,13 @@ export default function TargetSelectionBanner({
     const showDone = typeof pendingTarget.count !== "number" && !maxReached;
 
     return (
-        <div
-            className="absolute top-1/2 left-1/2 z-modal"
-            style={{
-                transform: `translate(calc(-50% + ${offset.x}px), calc(-50% + ${offset.y}px))`,
-            }}
-        >
+        <div className={outerClassName} style={outerStyle}>
             {/* Drag chrome stays on a plain wrapper — Panel forwards no
                 handlers, so the frame lives inside it. */}
-            <div {...dragHandlers} className="cursor-move select-none">
+            <div
+                {...dragHandlers}
+                className={`cursor-move select-none ${innerClassName}`.trim()}
+            >
                 <Panel
                     density="compact"
                     className="flex flex-col gap-3 px-5 py-3"
