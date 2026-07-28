@@ -298,3 +298,17 @@ index — read it first to discover which records exist, then open only the
 relevant ones. **Every new ADR MUST add its row to `docs/adr/README.md`** (number
 = filename number, one-line decision, link) in the same change that creates the
 ADR. An ADR without an index row is incomplete.
+
+<!-- convex-ai-start -->
+
+This project uses [Convex](https://convex.dev) as its backend.
+
+When working on Convex code, **always read
+`convex/_generated/ai/guidelines.md` first** for important guidelines on
+how to correctly use Convex APIs and patterns. The file contains rules that
+override what you may have learned about Convex from training data.
+
+Convex agent skills for common tasks can be installed by running
+`npx convex ai-files install`.
+
+<!-- convex-ai-end -->

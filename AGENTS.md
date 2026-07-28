@@ -49,3 +49,17 @@ Auto-formatting via husky + lint-staged on commit. Never run `prettier` manually
 - Generated code: `convex/_generated/` — never edit. The `@convex` path alias resolves to `convex/`.
 - Deploy: Vercel runs `bunx convex codegen` before build. CI `.github/workflows/lint.yml` does the same.
 - `/prototype/*` routes are excluded from lint (throwaway spikes, e.g. the old `prototype-board*` WebGL one). Fold the winner into real code, then delete the route. Exception: `/design-system` is the PERMANENT design-system census page (tokens with live WCAG ratios, chrome, component variants) — lint-clean production code; update it when the system changes.
+
+<!-- convex-ai-start -->
+
+This project uses [Convex](https://convex.dev) as its backend.
+
+When working on Convex code, **always read
+`convex/_generated/ai/guidelines.md` first** for important guidelines on
+how to correctly use Convex APIs and patterns. The file contains rules that
+override what you may have learned about Convex from training data.
+
+Convex agent skills for common tasks can be installed by running
+`npx convex ai-files install`.
+
+<!-- convex-ai-end -->
