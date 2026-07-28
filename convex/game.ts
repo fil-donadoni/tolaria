@@ -9,7 +9,7 @@ import {
     getInstanceManaCost,
     tryGetDefinition,
 } from "./cards";
-import { cardHasColor } from "./cards/colors";
+import { isExileCostEligible } from "./cards/exileCostEligibility";
 import { buildStateFromScenario } from "./gre/scenarioBuilder";
 import { BLADE_SCENARIOS } from "./gre/ai/blade/registry";
 import { resolveBladeLoadState } from "./gre/ai/blade/runner";
@@ -1510,14 +1510,19 @@ function canPayExileFromGraveyard(
  *  deck-builder colour identity: an Island taps for blue but is COLOURLESS
  *  (CR 105.2a) and never pays "exile a blue card". `color` undefined matches any
  *  card. A card whose definition can't be resolved never matches (a token has no
- *  graveyard existence, CR 111.7). */
+ *  graveyard existence, CR 111.7). COLOUR LEG ONLY — delegates to the shared
+ *  `isExileCostEligible` (issue #1659) so this authoritative server check can
+ *  never drift from the bot view / dialog mirrors. Not `excludeInstanceId`-aware:
+ *  callers that also need CR 702.34e's "can't exile itself" check apply that
+ *  separately (`recordCastExileCostPick`'s own check at commit carries its own
+ *  distinct error message and stays independent of this helper). The sentinel
+ *  `""` never matches a real instance id — ids are allocated `1, 2, 3, …`
+ *  (`allocInstanceId`, `convex/gre/state.ts`), never the empty string. */
 function graveyardCardMatchesColor(
     card: CardInstanceState,
     color?: Color
 ): boolean {
-    if (color === undefined) return true;
-    const def = tryGetDefinition((card.card as { id?: string }).id ?? "");
-    return def ? cardHasColor(def, color) : false;
+    return isExileCostEligible(card, "", color);
 }
 
 /** True iff `player`'s OWN graveyard holds `count` cards matching `color`,
