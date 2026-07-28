@@ -137,7 +137,10 @@ function makeCard(
     };
 }
 
-function renderCard(card: CardInstance) {
+/** The card under its two required providers. `ctxOverrides` exists for the
+ *  tap-stage tests (#1767), which need to move the game state under a staged
+ *  card (a priority/turn change must drop the stage). */
+function tree(card: CardInstance, ctxOverrides: Record<string, unknown> = {}) {
     const value = {
         gameId: "game-id" as never,
         playerId: "me",
@@ -150,14 +153,22 @@ function renderCard(card: CardInstance) {
         showAllCards: false,
         debugAllActions: false,
         onSwitchGame: () => {},
+        ...ctxOverrides,
     } as React.ContextType<typeof GameContext>;
-    return render(
+    return (
         <GameContext value={value}>
             <PendingChoiceBufferContext value={noopBuffer}>
                 <BoardHandCard card={card} />
             </PendingChoiceBufferContext>
         </GameContext>
     );
+}
+
+function renderCard(
+    card: CardInstance,
+    ctxOverrides: Record<string, unknown> = {}
+) {
+    return render(tree(card, ctxOverrides));
 }
 
 function el() {
@@ -544,5 +555,183 @@ describe("BoardHandCard seenByOpponent eye icon (ADR 0026)", () => {
         const card = makeCard("secret", ["cast"]);
         renderCard(card);
         expect(document.querySelector("[data-seen-by-opponent]")).toBeNull();
+    });
+});
+
+// Touch tap = stage + confirm (issue #1767, parent #1758). Driven through the
+// REAL component with synthetic pointer events carrying a `pointerType`, because
+// the whole feature is a discrimination on that field: a hand-built call to the
+// hook would prove nothing about whether the card actually wires the pointer
+// type through to the click that dispatches the mutation.
+describe("BoardHandCard touch tap = stage + confirm (#1767)", () => {
+    /** A full tap: the pointerdown that types the gesture, its release, and the
+     *  click it produces. Below the drag-start deadzone, so it stays a click. */
+    function tap(target: Element, pointerType: string) {
+        fireEvent.pointerDown(target, {
+            button: 0,
+            pointerType,
+            clientX: 100,
+            clientY: 400,
+        });
+        fireEvent.pointerUp(target, {
+            button: 0,
+            pointerType,
+            clientX: 100,
+            clientY: 400,
+        });
+        fireEvent.click(target);
+    }
+    function pill() {
+        return document.querySelector("[data-hand-confirm-pill]");
+    }
+
+    it("a first touch tap on a land stages it — no playCard, card lifted", () => {
+        renderCard(makeCard("land1", ["play"]));
+        tap(el(), "touch");
+        expect(playCard).not.toHaveBeenCalled();
+        expect(el().getAttribute("data-tap-staged")).toBe("true");
+        expect(pill()).not.toBeNull();
+        expect(pill()!.textContent).toBe("Play");
+    });
+
+    it("a second touch tap on the card plays the land exactly once", () => {
+        renderCard(makeCard("land1", ["play"]));
+        tap(el(), "touch");
+        tap(el(), "touch");
+        expect(playCard).toHaveBeenCalledTimes(1);
+        expect(playCard.mock.calls[0][0]).toMatchObject({
+            cardInstanceId: "land1",
+        });
+        expect(el().getAttribute("data-tap-staged")).toBeNull();
+        expect(pill()).toBeNull();
+    });
+
+    it("tapping the confirm pill casts the staged spell exactly once", () => {
+        renderCard(makeCard("bolt", ["cast"]));
+        tap(el(), "touch");
+        expect(pill()!.textContent).toBe("Cast");
+        fireEvent.click(pill()!);
+        expect(announceCast).toHaveBeenCalledTimes(1);
+        expect(announceCast.mock.calls[0][0]).toMatchObject({
+            cardInstanceId: "bolt",
+        });
+        expect(pill()).toBeNull();
+    });
+
+    it("tapping elsewhere un-stages and dispatches nothing", () => {
+        renderCard(makeCard("bolt", ["cast"]));
+        tap(el(), "touch");
+        expect(el().getAttribute("data-tap-staged")).toBe("true");
+        fireEvent.pointerDown(document.body, { pointerType: "touch" });
+        expect(el().getAttribute("data-tap-staged")).toBeNull();
+        expect(announceCast).not.toHaveBeenCalled();
+        expect(pill()).toBeNull();
+    });
+
+    it("a mouse click still casts on the FIRST click and never stages", () => {
+        renderCard(makeCard("bolt", ["cast"]));
+        tap(el(), "mouse");
+        expect(announceCast).toHaveBeenCalledTimes(1);
+        expect(el().getAttribute("data-tap-staged")).toBeNull();
+        expect(pill()).toBeNull();
+    });
+
+    it("a pen click still casts on the FIRST click and never stages", () => {
+        renderCard(makeCard("bolt", ["cast"]));
+        tap(el(), "pen");
+        expect(announceCast).toHaveBeenCalledTimes(1);
+        expect(pill()).toBeNull();
+    });
+
+    it("a touch DRAG past the commit line still commits directly (no stage)", () => {
+        renderCard(makeCard("bolt", ["cast"]));
+        const target = el();
+        fireEvent.pointerDown(target, {
+            button: 0,
+            pointerType: "touch",
+            clientX: 100,
+            clientY: 400,
+        });
+        fireEvent.pointerMove(target, {
+            pointerType: "touch",
+            clientX: 100,
+            clientY: 400 - (COMMIT_LIFT_PX + 4),
+        });
+        fireEvent.pointerUp(target, {
+            pointerType: "touch",
+            clientX: 100,
+            clientY: 400 - (COMMIT_LIFT_PX + 4),
+        });
+        expect(announceCast).toHaveBeenCalledTimes(1);
+        expect(el().getAttribute("data-tap-staged")).toBeNull();
+        expect(pill()).toBeNull();
+    });
+
+    it("a priority change drops the stage (no stale stage)", () => {
+        const card = makeCard("bolt", ["cast"]);
+        const { rerender } = renderCard(card);
+        tap(el(), "touch");
+        expect(el().getAttribute("data-tap-staged")).toBe("true");
+        rerender(tree(card, { priorityPlayerId: "them", turn: 2 }));
+        expect(el().getAttribute("data-tap-staged")).toBeNull();
+        expect(announceCast).not.toHaveBeenCalled();
+        expect(pill()).toBeNull();
+    });
+
+    it("losing the legal cast drops the stage", () => {
+        const card = makeCard("bolt", ["cast"]);
+        const { rerender } = renderCard(card);
+        tap(el(), "touch");
+        expect(el().getAttribute("data-tap-staged")).toBe("true");
+        rerender(tree({ ...card, legalActions: [] }));
+        expect(el().getAttribute("data-tap-staged")).toBeNull();
+        expect(pill()).toBeNull();
+    });
+
+    // Review finding: every overlay the card opens (cost dialog, mode /
+    // alt-cost / Phyrexian picker) is a PORTAL — outside the card in the DOM,
+    // but still a CHILD of it in the React tree, so React bubbles its clicks
+    // back into the card's own onClick. After a cast-with-dialog on touch, the
+    // dialog's confirm therefore re-entered the commit path and RE-STAGED the
+    // card that had just been cast (the touch pointer type from the tap is
+    // still on record) — a stray floating "Cast" pill whose tap fired a SECOND
+    // commit.
+    it("confirming the portaled cost dialog does NOT re-stage the just-cast card", () => {
+        cardDef = { name: "X Spell", manaCost: { X: "X" } };
+        renderCard(makeCard("xspell", ["cast"]));
+        tap(el(), "touch"); // stage
+        tap(el(), "touch"); // confirm → opens the X cost dialog
+        expect(announceCast).not.toHaveBeenCalled();
+
+        fireEvent.click(screen.getByTestId("cost-confirm"));
+
+        expect(announceCast).toHaveBeenCalledTimes(1);
+        expect(el().getAttribute("data-tap-staged")).toBeNull();
+        expect(pill()).toBeNull();
+    });
+
+    it("choosing a mode in the portaled picker does NOT re-stage the just-cast card", () => {
+        cardDef = { name: "Modal Spell", modes: [{ id: "mode-1" }] };
+        renderCard(makeCard("modal", ["cast"]));
+        tap(el(), "touch"); // stage
+        tap(el(), "touch"); // confirm → opens the mode picker
+        expect(announceCast).not.toHaveBeenCalled();
+
+        fireEvent.click(screen.getByTestId("mode-pick"));
+
+        expect(announceCast).toHaveBeenCalledTimes(1);
+        expect(announceCast.mock.calls[0][0]).toMatchObject({
+            chosenModeId: "mode-1",
+        });
+        expect(el().getAttribute("data-tap-staged")).toBeNull();
+        expect(pill()).toBeNull();
+    });
+
+    it("an inert card (no legal action) never stages on a touch tap", () => {
+        renderCard(makeCard("inert", []));
+        tap(el(), "touch");
+        expect(el().getAttribute("data-tap-staged")).toBeNull();
+        expect(playCard).not.toHaveBeenCalled();
+        expect(announceCast).not.toHaveBeenCalled();
     });
 });
