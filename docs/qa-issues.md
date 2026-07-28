@@ -41,3 +41,9 @@ Fable of the mirror-breaker
 - casta chrome mox e non imprinta nessuna carta
 - attiva mother of runes a sorcery speed senza motivo
 - attiva sandstorm salvager senza token sul board
+
+# Mobile
+
+## Bug
+
+## UI/UX

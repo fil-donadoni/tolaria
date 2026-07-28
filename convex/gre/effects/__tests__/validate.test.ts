@@ -2367,3 +2367,87 @@ describe("validateEffectScript — moveZone fromZones/filter shape (issue #1104)
         );
     });
 });
+
+// `choice.candidates` + `choice.bindOther` — the constructs that make
+// "choose one of THEM, then act on the other" (Barrin's Spite) expressible:
+// the pick is narrowed to already-known battlefield objects, and the
+// complement is snapshotted under its own binding.
+/** Drops a key entirely — an optional field set to `undefined` is not the same
+ *  as an absent one for `Object.keys`-based schema walks. */
+function omitKey(op: EffectOp, key: string): EffectOp {
+    const clone = { ...(op as Record<string, unknown>) };
+    delete clone[key];
+    return clone as EffectOp;
+}
+
+describe("validateEffectScript — choice candidates / bindOther", () => {
+    const candidateChoice = (over: Record<string, unknown> = {}) =>
+        ({
+            op: "choice",
+            kind: "sacrifice-permanents",
+            player: { controllerOf: { target: 0 } },
+            zone: "battlefield",
+            candidates: [{ target: 0 }, { target: 1 }],
+            count: 1,
+            prompt: "Choose which of the two creatures to sacrifice",
+            bind: "$sacrificed",
+            bindOther: "$spared",
+            ...over,
+        }) as EffectOp;
+
+    it("accepts the well-formed shape and resolves a ref to bindOther", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    candidateChoice(),
+                    {
+                        op: "sacrifice",
+                        permanents: { ref: "$sacrificed" },
+                    } as EffectOp,
+                    {
+                        op: "moveZone",
+                        target: { ref: "$spared" },
+                        to: "hand",
+                    } as EffectOp,
+                ],
+            })
+        );
+        expect(errors).toEqual([]);
+    });
+
+    it("rejects candidates outside the battlefield", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    candidateChoice({
+                        kind: "choose-hand-card",
+                        zone: "hand",
+                    }),
+                ],
+            })
+        );
+        expect(errors.join("\n")).toContain(
+            'valid only with zone: "battlefield"'
+        );
+    });
+
+    it("rejects bindOther without candidates", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [omitKey(candidateChoice(), "candidates")],
+            })
+        );
+        expect(errors.join("\n")).toContain(
+            '"bindOther" requires "candidates"'
+        );
+    });
+
+    it("rejects a bindOther name that re-declares an existing binding", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [candidateChoice({ bindOther: "$sacrificed" })],
+            })
+        );
+        expect(errors.join("\n")).toContain("re-declares an existing binding");
+    });
+});

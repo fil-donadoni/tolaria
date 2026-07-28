@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, fireEvent, waitFor } from "@testing-library/react";
+import { ConvexError } from "convex/values";
 import BugReportDialog from "../bug-report-dialog";
 
 // The dialog files a GitHub issue through the `bugReports` Convex functions.
@@ -103,5 +104,30 @@ describe("BugReportDialog", () => {
         fireEvent.click(getByRole("button", { name: "Submit" }));
 
         expect(await findByText("GitHub API error (403)")).toBeTruthy();
+    });
+
+    // In production Convex replaces a plain server-thrown Error's message with
+    // "Server Error"; only a ConvexError payload reaches the client, so the
+    // dialog must render `err.data` rather than `err.message`.
+    it("surfaces the payload of a ConvexError thrown server-side", async () => {
+        submitBugReport.mockRejectedValue(
+            new ConvexError(
+                "Bug reporting is not configured (missing GITHUB_TOKEN)"
+            )
+        );
+        const { getByRole, getByPlaceholderText, findByText } = render(
+            <BugReportDialog open onOpenChange={() => {}} />
+        );
+        fireEvent.change(
+            getByPlaceholderText("What happened? What did you expect?"),
+            { target: { value: "boom" } }
+        );
+        fireEvent.click(getByRole("button", { name: "Submit" }));
+
+        expect(
+            await findByText(
+                "Bug reporting is not configured (missing GITHUB_TOKEN)"
+            )
+        ).toBeTruthy();
     });
 });

@@ -2564,12 +2564,20 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
         },
         check: (entry) => {
             const errors: string[] = [];
-            if ("candidates" in entry && entry.zone !== "battlefield") {
+            // Value checks, not `in`: an explicitly-`undefined` optional key is
+            // the same as an absent one everywhere else in the grammar.
+            if (
+                entry.candidates !== undefined &&
+                entry.zone !== "battlefield"
+            ) {
                 errors.push(
                     '"candidates" is valid only with zone: "battlefield" — the other zones are hidden or unordered, so nothing in them can be named ahead of the pick'
                 );
             }
-            if ("bindOther" in entry && !("candidates" in entry)) {
+            if (
+                entry.bindOther !== undefined &&
+                entry.candidates === undefined
+            ) {
                 errors.push(
                     '"bindOther" requires "candidates" — there is no candidate set to take the complement of'
                 );
@@ -2964,6 +2972,11 @@ function collectRefUses(value: unknown, keyHint: string, out: RefUse[]): void {
                       : keyHint === "target" ||
                           keyHint === "to" ||
                           keyHint === "of" ||
+                          // `choice`'s `candidates[]` (Barrin's Spite) — the
+                          // already-known battlefield objects the pick is
+                          // narrowed to, each an `EffectObjectSelector`
+                          // exactly like `target`.
+                          keyHint === "candidates" ||
                           // `createTokenCopy`'s `source` (issue #1459) — the
                           // runtime permanent being copied, an
                           // `EffectObjectSelector` exactly like `target`
@@ -3802,6 +3815,20 @@ function checkOpListRefs(
                 );
             } else {
                 declared.set(entry.bind, bindingKindOf(entry.op));
+            }
+        }
+
+        // `choice.bindOther` declares an object SNAPSHOT binding — the single
+        // candidate the chooser did NOT pick (Barrin's Spite's "the other").
+        // Its own field rather than `bind`, which the Op already spends on the
+        // picks binding, and a different family from it.
+        if (entry.op === "choice" && typeof entry.bindOther === "string") {
+            if (declared.has(entry.bindOther)) {
+                errors.push(
+                    `${at}: bindOther "${entry.bindOther}" re-declares an existing binding — binding names must be unique within a script`
+                );
+            } else {
+                declared.set(entry.bindOther, "snapshot");
             }
         }
 

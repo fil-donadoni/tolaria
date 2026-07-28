@@ -918,11 +918,20 @@ export const vodalianZombie: CardDefinition = {
 // sameController: true` is the new TargetRequirement field spanning both
 // announced slots — checked at both legality-scan (`getLegalTargets`) and
 // selection (`selectTarget`) via the single-authority target-filter
-// registry (ADR 0068, `gre/targetFilters.ts`). The consequence is entirely
-// pre-existing DSL: `optionChoice` with `player: { controllerOf: { target:
-// 0 } }` (their controller — both targets share one, so either slot names
-// them) and two modes — sacrifice target 0 / bounce target 1, or vice
-// versa.
+// registry (ADR 0068, `gre/targetFilters.ts`).
+//
+// The consequence is a `choice` NARROWED TO THE ANNOUNCED TARGETS
+// (`candidates: [{ target: 0 }, { target: 1 }]`) whose complement is bound by
+// `bindOther`. It was first written as an `optionChoice` with two prose modes
+// ("sacrifice the FIRST creature; return the SECOND…"), which is unusable at
+// the table: nothing on the board says which of the two creatures is "first",
+// so the controller was asked to pick blind. Now they click the creature they
+// are sacrificing — the same gesture every other sacrifice uses — and
+// `$spared` names the one left over, which no announced slot can (which slot
+// it is depends on the choice).
+//
+// `player: { controllerOf: { target: 0 } }` is their controller — both targets
+// share one (`sameController`), so either slot names them.
 export const barrinsSpite: CardDefinition = {
     id: "6d8ec4dc-c74a-4d49-856e-95703675fe9b",
     name: "Barrin's Spite",
@@ -934,28 +943,22 @@ export const barrinsSpite: CardDefinition = {
     targetRequirement: { type: "Creature", count: 2, sameController: true },
     effects: [
         {
-            op: "optionChoice",
+            op: "choice",
+            kind: "sacrifice-permanents",
             player: { controllerOf: { target: 0 } },
-            prompt: "Choose which creature to sacrifice",
-            modes: [
-                {
-                    id: "sac-first",
-                    label: "Sacrifice the first creature; return the second to its owner's hand",
-                    effects: [
-                        { op: "sacrifice", target: { target: 0 } },
-                        { op: "moveZone", target: { target: 1 }, to: "hand" },
-                    ],
-                },
-                {
-                    id: "sac-second",
-                    label: "Sacrifice the second creature; return the first to its owner's hand",
-                    effects: [
-                        { op: "sacrifice", target: { target: 1 } },
-                        { op: "moveZone", target: { target: 0 }, to: "hand" },
-                    ],
-                },
-            ],
+            zone: "battlefield",
+            candidates: [{ target: 0 }, { target: 1 }],
+            count: 1,
+            prompt: "Choose which of the two creatures to sacrifice",
+            bind: "$sacrificed",
+            bindOther: "$spared",
         },
+        { op: "sacrifice", permanents: { ref: "$sacrificed" } },
+        // "Return THE OTHER to its owner's hand" — `$spared` is the candidate
+        // that wasn't picked. Uncaptured (and therefore skipped, CR 608.2b)
+        // if only one of the two creatures was still on the battlefield when
+        // the choice was raised, which is exactly right: there is no "other".
+        { op: "moveZone", target: { ref: "$spared" }, to: "hand" },
     ],
 };
 

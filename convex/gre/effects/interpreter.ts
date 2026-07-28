@@ -1135,6 +1135,33 @@ function choiceCandidates(
     zoneOwnerId: string
 ): { available: number; candidateIds?: string[] } {
     if (op.zone === "battlefield") {
+        // CR 601.2c / 608.2 — `candidates` narrows the pick to specific
+        // ALREADY-KNOWN objects (the announced targets) instead of the whole
+        // battlefield, so "choose one of THEM" is a click on a card. Each
+        // selector is re-resolved now: one that no longer names a battlefield
+        // permanent has left in response and simply drops out (CR 608.2b), and
+        // the count clamps to what remains, exactly as a zone-wide choice
+        // clamps to availability. A `filter` still narrows the resolved set.
+        if (op.candidates) {
+            const ids: string[] = [];
+            for (const selector of op.candidates) {
+                const resolved = resolveObjectRef(ctx, selector);
+                if (!resolved || resolved.type !== "permanent") continue;
+                if (ids.includes(resolved.id)) continue;
+                ids.push(resolved.id);
+            }
+            const filtered = op.filter
+                ? ids.filter((id) =>
+                      ctx
+                          .getBattlefieldIds(
+                              zoneOwnerId,
+                              toPermanentFilter(op.filter)
+                          )
+                          .includes(id)
+                  )
+                : ids;
+            return { available: filtered.length, candidateIds: filtered };
+        }
         return {
             available: ctx.getBattlefieldIds(
                 zoneOwnerId,
@@ -3106,6 +3133,24 @@ export const OP_EXECUTORS: {
         // equals `bind`.
         if (choiceId !== op.bind) {
             ctx.noteChoice(op.bind, picks);
+        }
+        // "The other" (Barrin's Spite) — snapshot the single candidate the
+        // chooser did NOT pick, so the follow-up clause can act on it. Which
+        // announced slot that is depends on the choice, so no `{ target: n }`
+        // can name it; a snapshot can, and every object-acting Op already
+        // reads one. Left UNCAPTURED unless exactly one candidate remains, so
+        // any other arrangement (nothing left, or several) simply skips
+        // downstream (CR 608.2b) instead of silently picking one.
+        if (op.bindOther) {
+            const rest = (candidateIds ?? []).filter(
+                (id) => !picks.includes(id)
+            );
+            if (rest.length === 1) {
+                bindSnapshot(ctx, op.bindOther, {
+                    type: "permanent",
+                    id: rest[0],
+                });
+            }
         }
     },
     // CR 701.9 — discard cards. Routes through `discardCard` so the Library

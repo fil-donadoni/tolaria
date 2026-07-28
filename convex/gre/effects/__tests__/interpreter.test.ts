@@ -10472,6 +10472,163 @@ describe("Effect Script Op: reveal — searched card (issue #945, CR 701.20)", (
 // with the new `reveal` Op this is the Thoughtseize/Duress/Inquisition-of-
 // Kozilek/Grief template: "target player reveals their hand, you choose a
 // nonland card from it, that player discards it."
+// `choice.candidates` + `choice.bindOther` — narrow a battlefield pick to
+// ALREADY-KNOWN objects (the announced targets) and name the one left over.
+//
+// The shape Barrin's Spite needs ("Choose two target creatures … their
+// controller chooses and sacrifices ONE of them. Return THE OTHER to its
+// owner's hand"): the pick is a click on a creature rather than a choice
+// between two prose modes that name neither, and the complement is not
+// expressible as an announced slot — which slot it is depends on the choice.
+describe("Effect Script Op: choice — candidates + bindOther", () => {
+    const CANDIDATE_SCRIPT = [
+        {
+            op: "choice",
+            kind: "sacrifice-permanents",
+            player: { controllerOf: { target: 0 } },
+            zone: "battlefield",
+            candidates: [{ target: 0 }, { target: 1 }],
+            count: 1,
+            prompt: "Choose which of the two creatures to sacrifice",
+            bind: "$sacrificed",
+            bindOther: "$spared",
+        },
+        { op: "sacrifice", permanents: { ref: "$sacrificed" } },
+        { op: "moveZone", target: { ref: "$spared" }, to: "hand" },
+    ] as const;
+
+    /** Two announced creatures on p2's board, plus an untargeted bystander. */
+    function setup(script: unknown[], label: string) {
+        const id = registerScript(label, script as never, {
+            targetRequirement: { type: "Creature", count: 2 },
+        });
+        const a = makeInstance(BEAR_ID, {
+            id: "cand-a",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const b = makeInstance(BEAR_ID, {
+            id: "cand-b",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const bystander = makeInstance(BEAR_ID, {
+            id: "cand-bystander",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [a, b, bystander] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [
+            { type: "permanent", id: "cand-a" },
+            { type: "permanent", id: "cand-b" },
+        ]);
+        return state;
+    }
+
+    it("offers ONLY the announced targets, to the chooser named by `player`", () => {
+        const state = setup([...CANDIDATE_SCRIPT], "test-op-choice-candidates");
+        expect(resolveTopOfStack(state)).toBeNull();
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("sacrifice-permanents");
+        expect(head.zone).toBe("battlefield");
+        expect(head.playerId).toBe("p2");
+        // The bystander p2 also controls is NOT a candidate.
+        expect(head.candidateIds?.sort()).toEqual(["cand-a", "cand-b"]);
+        expect(head.count).toBe(1);
+    });
+
+    it("binds `bindOther` to the candidate that was NOT picked", () => {
+        const state = setup(
+            [...CANDIDATE_SCRIPT],
+            "test-op-choice-bindother-a"
+        );
+        resolveTopOfStack(state);
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: "p2",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["cand-a"],
+        });
+        expect(state.players[1].graveyard.map((c) => c.id)).toContain("cand-a");
+        expect(state.players[1].hand.map((c) => c.id)).toContain("cand-b");
+        // The untargeted bystander is untouched.
+        expect(state.players[1].battlefield.map((c) => c.id)).toEqual([
+            "cand-bystander",
+        ]);
+    });
+
+    it("is symmetric — picking the other candidate swaps both outcomes", () => {
+        const state = setup(
+            [...CANDIDATE_SCRIPT],
+            "test-op-choice-bindother-b"
+        );
+        resolveTopOfStack(state);
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: "p2",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["cand-b"],
+        });
+        expect(state.players[1].graveyard.map((c) => c.id)).toContain("cand-b");
+        expect(state.players[1].hand.map((c) => c.id)).toContain("cand-a");
+    });
+
+    it("drops a candidate that has left the battlefield, and then has no `other` to name (CR 608.2b)", () => {
+        const state = setup(
+            [...CANDIDATE_SCRIPT],
+            "test-op-choice-candidates-gone"
+        );
+        // One announced creature is gone by the time the script runs.
+        state.players[1].battlefield = state.players[1].battlefield.filter(
+            (c) => c.id !== "cand-b"
+        );
+        expect(resolveTopOfStack(state)).toBeNull();
+        const head = state.pendingChoices![0];
+        expect(head.candidateIds).toEqual(["cand-a"]);
+        applyPendingChoiceSubmit(state, {
+            playerId: "p2",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["cand-a"],
+        });
+        // The pick is sacrificed; with nothing left over, the bounce clause
+        // simply does not happen — there is no "other".
+        expect(state.players[1].graveyard.map((c) => c.id)).toContain("cand-a");
+        expect(state.players[1].hand).toHaveLength(0);
+    });
+
+    it("wire format: both outcomes survive projectPublicState", () => {
+        const state = setup([...CANDIDATE_SCRIPT], "test-op-choice-cand-wire");
+        resolveTopOfStack(state);
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: "p2",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["cand-a"],
+        });
+        // Projected for the SPELL'S controller — the opponent's hand is
+        // normally hidden, but a creature everyone watched leave the
+        // battlefield stays public (ADR 0026).
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[1].graveyard.map((c) => c.id)).toContain(
+            "cand-a"
+        );
+        expect(projected.players[1].hand.map((c) => c?.id)).toEqual(["cand-b"]);
+    });
+});
+
 describe("Effect Script Op: choice — zoneOwnerId (issue #920)", () => {
     const handOf = (owner: "p1" | "p2", ids: string[]) =>
         ids.map((cid) =>

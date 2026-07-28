@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import GameDialog from "@/components/ui/game-dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { describeSubmitError } from "./describe-submit-error";
 
 type BugReportDialogProps = {
     open: boolean;
@@ -105,9 +106,7 @@ export default function BugReportDialog({
             });
             setIssueUrl(result.issueUrl);
         } catch (err) {
-            setError(
-                err instanceof Error ? err.message : "Something went wrong"
-            );
+            setError(describeSubmitError(err));
         } finally {
             setSubmitting(false);
         }

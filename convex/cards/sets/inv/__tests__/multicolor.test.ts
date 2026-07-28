@@ -2866,7 +2866,13 @@ describe("Reviving Vapors (CR 401.4 look, issue #1101)", () => {
 // UB engine gaps, closed (issue #1104, parent #1076)
 // ===========================================================================
 
-describe("Barrin's Spite (CR 601.2c sameController cross-slot targeting + optionChoice sac-or-bounce, issue #1104)", () => {
+// The sacrifice is a CLICK ON A CREATURE, not a pick between two sentences:
+// the `choice` is narrowed to the two announced targets (`candidates`), and
+// `bindOther` snapshots the one left over so "return THE OTHER to its owner's
+// hand" can name it (no announced slot can — which slot it is depends on the
+// choice). The bounced creature also stays PUBLIC knowledge (every player
+// watched it leave the battlefield), so it is not a hidden hand slot.
+describe("Barrin's Spite (CR 601.2c sameController cross-slot targeting + candidate-narrowed sacrifice choice, issue #1104)", () => {
     it("targetRequirement declares the cross-slot same-controller constraint", () => {
         expect(barrinsSpite.targetRequirement).toEqual({
             type: "Creature",
@@ -2875,7 +2881,45 @@ describe("Barrin's Spite (CR 601.2c sameController cross-slot targeting + option
         });
     });
 
-    it("mode 'sacrifice the first creature': the first is sacrificed, the second returns to its owner's hand", () => {
+    it("offers exactly the two announced creatures as the pick, to their controller", () => {
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bs0-bear",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const zombies = makeInstance(scatheZombies.id, {
+            id: "bs0-zombies",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        // A THIRD creature their controller also controls must NOT be offered:
+        // the choice is narrowed to the announced targets, not the board.
+        const bystander = makeInstance(grizzlyBears.id, {
+            id: "bs0-bystander",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    battlefield: [bear, zombies, bystander],
+                }),
+            ],
+        });
+        pushSpell(state, barrinsSpite.id, "p1", [
+            { type: "permanent", id: "bs0-bear" },
+            { type: "permanent", id: "bs0-zombies" },
+        ]);
+        expect(resolveTopOfStack(state)).toBeNull();
+        const head = state.pendingChoices![0];
+        expect(head.playerId).toBe("p2"); // their controller chooses
+        expect(head.zone).toBe("battlefield");
+        expect(head.candidateIds?.sort()).toEqual(["bs0-bear", "bs0-zombies"]);
+        expect(head.count).toBe(1);
+    });
+
+    it("sacrificing the first: it dies, the second returns to its owner's hand", () => {
         const bear = makeInstance(grizzlyBears.id, {
             id: "bs-bear",
             controllerId: "p2",
@@ -2896,18 +2940,26 @@ describe("Barrin's Spite (CR 601.2c sameController cross-slot targeting + option
             { type: "permanent", id: "bs-bear" },
             { type: "permanent", id: "bs-zombies" },
         ]);
-        expect(resolveTopOfStack(state)).toBeNull(); // suspended on optionChoice
+        expect(resolveTopOfStack(state)).toBeNull(); // suspended on the pick
         expect(state.pendingChoices![0].playerId).toBe("p2"); // their controller
-        submitChoice(state, ["sac-first"]);
+        // The chooser clicks the CREATURE, not a sentence.
+        submitChoice(state, ["bs-bear"]);
         expect(state.players[1].battlefield.map((c) => c.id)).toEqual([]);
         expect(state.players[1].graveyard.map((c) => c.id)).toContain(
             "bs-bear"
         );
         expect(state.players[1].hand.map((c) => c.id)).toContain("bs-zombies");
         expect(state.stack).toHaveLength(0);
+        // Wire format: the bounced creature is PUBLIC to the opponent's
+        // viewer too — a creature everyone watched leave the battlefield must
+        // not read as a card that vanished into a hidden hand.
+        const projected = projectPublicState(state, 1, "p1");
+        const oppHand = projected.players[1].hand;
+        expect(oppHand).toHaveLength(1);
+        expect(oppHand[0]?.id).toBe("bs-zombies");
     });
 
-    it("mode 'sacrifice the second creature': the second is sacrificed, the first returns to its owner's hand", () => {
+    it("sacrificing the second: it dies, the first returns to its owner's hand", () => {
         const bear = makeInstance(grizzlyBears.id, {
             id: "bs2-bear",
             controllerId: "p2",
@@ -2929,7 +2981,7 @@ describe("Barrin's Spite (CR 601.2c sameController cross-slot targeting + option
             { type: "permanent", id: "bs2-zombies" },
         ]);
         expect(resolveTopOfStack(state)).toBeNull();
-        submitChoice(state, ["sac-second"]);
+        submitChoice(state, ["bs2-zombies"]);
         expect(state.players[1].graveyard.map((c) => c.id)).toContain(
             "bs2-zombies"
         );

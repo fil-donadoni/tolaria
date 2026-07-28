@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { action, mutation } from "./_generated/server";
 import { getCurrentUserId } from "./auth";
 
@@ -29,17 +29,18 @@ export type IssueInput = {
  * Pure GitHub-issue payload builder — kept free of Convex/network so it can be
  * unit-tested directly (the project has no convex-test harness). Derives the
  * title from the first line of the description and appends a reporter/context
- * footer plus an optional attachment link. Throws on an empty/oversized
- * description so the action surfaces a readable error.
+ * footer plus an optional attachment link. Throws `ConvexError` on an
+ * empty/oversized description — a plain `Error` message is stripped by Convex
+ * in production and reaches the client as a bare "Server Error".
  */
 export function buildIssuePayload(input: IssueInput): {
     title: string;
     body: string;
 } {
     const description = input.description.trim();
-    if (!description) throw new Error("Description is required");
+    if (!description) throw new ConvexError("Description is required");
     if (description.length > DESCRIPTION_MAX) {
-        throw new Error(
+        throw new ConvexError(
             `Description too long (max ${DESCRIPTION_MAX} characters)`
         );
     }
@@ -109,11 +110,11 @@ export const submitBugReport = action({
     handler: async (ctx, args): Promise<{ issueUrl: string }> => {
         // Auth-gate: only logged-in users may file issues.
         const identity = await ctx.auth.getUserIdentity();
-        if (!identity) throw new Error("Not authenticated");
+        if (!identity) throw new ConvexError("Not authenticated");
 
         const token = process.env.GITHUB_TOKEN;
         if (!token) {
-            throw new Error(
+            throw new ConvexError(
                 "Bug reporting is not configured (missing GITHUB_TOKEN)"
             );
         }
@@ -147,14 +148,14 @@ export const submitBugReport = action({
 
         if (!res.ok) {
             const detail = await res.text().catch(() => "");
-            throw new Error(
+            throw new ConvexError(
                 `GitHub API error (${res.status}): ${detail.slice(0, 300)}`
             );
         }
 
         const issue = (await res.json()) as { html_url?: string };
         if (!issue.html_url) {
-            throw new Error("GitHub API returned no issue URL");
+            throw new ConvexError("GitHub API returned no issue URL");
         }
         return { issueUrl: issue.html_url };
     },
