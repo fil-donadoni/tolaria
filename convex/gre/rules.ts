@@ -311,10 +311,18 @@ const ALL_HAND_ACTIONS: CardAction[] = [
  *  a plain Sorcery read as castable during the opponent's turn with no flash
  *  grant in the state at all (issue #1690 — the "Teferi grants flash timing
  *  without the +1" symptom, which is really "the timing predicate lost the
- *  caster"). That was masked inside `getLegalActions` only by its unrelated
- *  `priorityPlayerId !== casterId` early return ~300 lines up; a helper
- *  documented as the shared authority must not depend on a caller's guard to
- *  be correct. */
+ *  caster").
+ *
+ *  No production path ever reached that: `isSorceryTiming` itself requires
+ *  `priorityPlayerId === activePlayerId`, and `getLegalActions` separately
+ *  returns early unless `priorityPlayerId === casterId` (~300 lines up). The
+ *  two guards COMPOSE to force `casterId === activePlayerId` — i.e. exactly
+ *  what `isSorceryTimingFor` now states directly — so the old code was
+ *  accidentally correct at every reachable call. It was only wrong when the
+ *  helper was called with a caster who is not the priority-holder. The fix is
+ *  therefore hardening, not a behaviour change: a helper documented as the
+ *  shared timing authority must not depend on two unrelated caller-side
+ *  guards to be correct. */
 export function castTimingBaseLegal(
     state: GameState,
     casterId: string,
