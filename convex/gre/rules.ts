@@ -1010,7 +1010,8 @@ export function getProducibleManaOptions(
  *  `coloredCostLeftover` below (CR 106.6). A future permanent combining an
  *  UNRESTRICTED `{C}` tap ability with a SEPARATE RESTRICTED-colour tap
  *  ability would leak the restricted colour into this gate as if it were
- *  freely spendable — no such card exists yet; flag it if one is added. */
+ *  freely spendable — no such card exists yet (all three `manaRestriction`
+ *  cards have exactly one mana ability). tracked-by: #1733 */
 function getProducibleManaUnits(card: CardInstanceState): Set<Color>[] {
     // requireTap: only a genuine {T} ability counts as an auto-payable "unit"
     // — mirrors `getProducibleManaOptions`, the real auto-tap planner.
