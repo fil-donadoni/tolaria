@@ -24,8 +24,12 @@ import {
     spellHasDelve,
 } from "../gre/payWith";
 import { genericManaShortfall, getLegalActions } from "../gre/rules";
-import { recordCastExileCostPick, tryAutoCommitPendingCast } from "../game";
-import type { PendingCast } from "../gre/state";
+import {
+    recordCastExileCostPick,
+    tryAutoCommitPendingCast,
+    finalizeTargetSelection,
+} from "../game";
+import type { PendingCast, PendingTarget } from "../gre/state";
 import { projectPublicState } from "../gameProjections";
 import { compactState, expandState } from "../gre/serialize";
 import { makeInstance, makePlayer, makeState } from "../cards/__tests__/setup";
@@ -136,27 +140,41 @@ describe("delve picker construction — Arena prompt policy (ADR 0063)", () => {
     });
 
     it("pre-seeds the FORCED minimum when mana can't cover the shortfall", () => {
-        const { player, spell } = board(2, 6);
+        // eligible (8) > max (6) keeps this on the PROMPTING branch — the
+        // auto-resolve short-circuit (issue #1660) only fires when
+        // min === max === eligible.length, which this fixture deliberately
+        // avoids (there are still 2 spare graveyard cards WHICH is a real
+        // choice, even though the COUNT is forced).
+        const { player, spell } = board(2, 8);
         const choice = buildDelveExileChoice(
             player,
             spell,
-            { X: 7, U: 1 },
+            { X: 6, U: 1 },
             spell.id,
             6
         );
         expect(choice?.offsetGeneric).toEqual({ min: 6, max: 6 });
+        expect(choice?.pickedCardIds).toBeUndefined();
     });
 
-    it("clamps the forced minimum to what the graveyard can supply", () => {
-        const { player, spell } = board(2, 2);
+    it("a PARTIALLY forced minimum (0 < min < max) still prompts, with the minimum pre-seeded", () => {
+        // shortfall (4) forces SOME exiles but max (5, capped by the generic
+        // portion) leaves room above it — 0 < min < max is the fourth
+        // prompt-policy branch (distinct from min === 0, min === max with
+        // eligible > max, and the fully-forced auto-resolve case below) and
+        // needs its own coverage now that the auto-resolve short-circuit
+        // (issue #1660) pulled the old min === max === eligible.length
+        // fixture that used to sit here onto the auto-resolve branch instead.
+        const { player, spell } = board(2, 9);
         const choice = buildDelveExileChoice(
             player,
             spell,
-            { X: 7, U: 1 },
+            { X: 5, U: 1 },
             spell.id,
-            6
+            4
         );
-        expect(choice?.offsetGeneric).toEqual({ min: 2, max: 2 });
+        expect(choice?.offsetGeneric).toEqual({ min: 4, max: 5 });
+        expect(choice?.pickedCardIds).toBeUndefined();
     });
 
     it("skips the prompt entirely when the graveyard is empty", () => {
@@ -266,6 +284,70 @@ describe("delve auto-resolve — fully forced pick skips the prompt (issue #1660
             exileFromGraveyardChoice: choice,
         };
         tryAutoCommitPendingCast(state, "p1");
+        expect(state.pendingCast).toBeUndefined();
+        expect(state.stack).toHaveLength(1);
+        expect(state.stack[0].card.id).toBe(TREASURE_CRUISE);
+        expect(player.graveyard).toHaveLength(0);
+        expect(player.exile.map((c) => c.id).sort()).toEqual([
+            "gy0",
+            "gy1",
+            "gy2",
+            "gy3",
+            "gy4",
+            "gy5",
+            "gy6",
+        ]);
+        expect(player.manaPool.U).toBe(0);
+    });
+});
+
+// issue #1660 — the fix's user-visible payload lives in TWO one-line guards
+// in game.ts (`finalizeTargetSelection` and `announceCast`):
+//   if (castExileChoice?.pickedCardIds) tryAutoCommitPendingCast(...)
+// The test above ("auto-commits in one shot through tryAutoCommitPendingCast")
+// hand-builds `state.pendingCast` and calls `tryAutoCommitPendingCast`
+// directly — it exercises the PRIMITIVE, not the guard, and stays green even
+// if either guard above is deleted. This block drives the guard itself
+// through the real park → auto-commit code path, via the exported
+// `finalizeTargetSelection` entry point (the documented workaround for the
+// missing mutation-testing harness — mirrors `escape.test.ts`'s and
+// `flashback.test.ts`'s targeted-cast precedents). Treasure Cruise has no
+// target requirement of its own; the "Spell cast branch" this exercises is
+// shared by every cast regardless of whether the card is targeted, so `pt`
+// carries an empty target set. The sibling guard in `announceCast` (the
+// untargeted no-pendingTarget cast path) has no equivalent exported seam —
+// `announceCast` is a Convex `mutation(...)` handler, not a plain function,
+// so it needs the (absent) mutation-testing harness to drive directly; see
+// the PR receipt for the disposition.
+describe("finalizeTargetSelection's auto-commit guard (issue #1660)", () => {
+    it("a fully-forced delve pick auto-commits inside finalizeTargetSelection — park then auto-commit round trip", () => {
+        // No lands (board(0, ...)) — `genericManaShortfall` reads the SAME
+        // `player.manaPool` this test pre-seeds below (through
+        // `coloredCostLeftover`'s source scan), so an untapped land here would
+        // double-count against the pool and leave 1 leftover generic pip
+        // uncovered by delve (min < max) instead of the fully-forced pick this
+        // test needs. Mana already floating in the pool (e.g. from a mana
+        // ability used earlier this turn) covers just the {U} pip once delve
+        // zeroes the generic portion — the fully-forced pick (7 graveyard
+        // cards pay for the 7 generic pips) leaves nothing else for the player
+        // to decide, so the guard should carry this all the way onto the
+        // stack in one call.
+        const { state, player, spell } = board(0, 7);
+        player.manaPool = { W: 0, U: 1, B: 0, R: 0, G: 0, C: 0 };
+        const pt: PendingTarget = {
+            playerId: "p1",
+            cardInstanceId: spell.id,
+            targetType: "any",
+            count: 0,
+            selected: [],
+        };
+        state.pendingTarget = pt;
+
+        finalizeTargetSelection(state, pt, "p1");
+
+        // The round trip: pendingCast was built (picker parked) and then
+        // immediately cleared by the auto-commit guard — never left open for
+        // a Confirm the player can't meaningfully act on.
         expect(state.pendingCast).toBeUndefined();
         expect(state.stack).toHaveLength(1);
         expect(state.stack[0].card.id).toBe(TREASURE_CRUISE);
