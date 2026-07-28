@@ -4,6 +4,16 @@ Sin
 Doomsday
 Thassa's Oracle
 Bowmaster
+Jace, Vryn's Prodigy
+Mystic Confluence
+Stoneforge Mystic
+Adeline, Resplendent Cathar
+Phantasmal Image
+Shelldock Isle
+Elite Spellbinder
+Skyclave Apparition
+Tamiyo, Inquisitive Student
+Urza, Lord High Artificer
 Emrakul
 Craterhoof
 Jacked Rabbit
@@ -18,6 +28,21 @@ Teferone
 Fallen Shinobi
 Grist
 Necromancy
+Shallow Grave
+Corpse Dance
+Through the Breach
+Sentinel of the Nameless City
+Six
+Questing Beast
+Pest Infestation
+Boseiju, Who Endures
+Pentad Prism
+Kaldra Compleat
+Wrenn and Six
+Vindicate
+Otharri, Suns' Glory
+Celestial Colonnade
+Bolas's Citadel
 Fable of the mirror-breaker
 
 # Bug carte
