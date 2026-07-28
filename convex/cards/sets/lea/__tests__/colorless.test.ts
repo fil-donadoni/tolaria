@@ -107,6 +107,7 @@ import {
     removeFromZone,
     type CardInstanceState,
     type GameState,
+    type StackItem,
 } from "../../../../gre/state";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import {
@@ -4050,6 +4051,46 @@ describe("Cyclopean Tomb ({4} — mire counter + LTB)", () => {
         // Apply static effects from tomb
         applySourceStaticEffects(state, tomb);
 
+        expect(mtn.subtypes).toEqual(["Swamp"]);
+        expect(getBasicLandMana(mtn)).toBe("B");
+    });
+
+    // REAL SEQUENCE (issue #1711). The test above hand-seeds the mire counter
+    // and THEN calls `applySourceStaticEffects` — an ordering that never occurs
+    // in play. `subtype-set` is a MATERIALIZED kind, so in a real game the
+    // static pass had already run (at the Tomb's ETB, with no counter yet) and
+    // nothing re-ran it when the {2},{T} ability put the counter on: the land
+    // stayed a Mountain. This drives it from the real activation.
+    it("the {2},{T} ability turns the land into a Swamp with no manual re-apply (CR 613.5)", () => {
+        const state = makeState();
+        const mtn = makeInstance(mountain.id, {
+            id: "mtn-real",
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        state.players[0].battlefield.push(mtn);
+
+        const tomb = makeInstance(cyclopeanTomb.id, {
+            id: "tomb-real",
+            controllerId: "p2",
+            zone: "battlefield",
+        });
+        state.players[1].battlefield.push(tomb);
+
+        // ETB materialization, BEFORE any mire counter exists.
+        applySourceStaticEffects(state, tomb);
+        expect(mtn.subtypes).toEqual(["Mountain"]);
+
+        state.stack.push({
+            ...tomb,
+            zone: "stack",
+            castById: "p2",
+            abilityId: "cyclopean-tomb-mire",
+            targets: [{ type: "permanent", id: "mtn-real" }],
+        } as StackItem);
+        resolveTopOfStack(state);
+
+        expect(mtn.counters?.mire).toBe(1);
         expect(mtn.subtypes).toEqual(["Swamp"]);
         expect(getBasicLandMana(mtn)).toBe("B");
     });

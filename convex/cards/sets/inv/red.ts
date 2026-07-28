@@ -516,6 +516,14 @@ export const pouncingKavu: CardDefinition = {
     staticEffects: [
         {
             kind: "keyword-grant",
+            // Deliberately NOT `dependsOnCounters` (CR 613.5 / issue #1711) —
+            // see Duskwalker (`inv/black.ts`) for the full reasoning. The
+            // counter read is a PROXY for the one-shot "was kicked" fact
+            // (CR 702.33) fixed at CR 614.1c ETB replacement time, not a live
+            // condition, so it must materialise once at ETB and never be
+            // re-evaluated. Durable fix — kicked-ness recorded on the
+            // permanent — tracked-by: #1716. Allowlisted in
+            // `cards/__tests__/counterGatedStatics.test.ts` until then.
             applies: (target, source) =>
                 target.id === source.id &&
                 (target.counters?.["+1/+1"] ?? 0) >= 2,

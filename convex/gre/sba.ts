@@ -4,6 +4,7 @@ import {
     destroyWithReplacements,
     getOpponentId,
     processPendingActionTriggers,
+    refreshCounterGatedStatics,
     refreshLandPlayLock,
     removePermanentTo,
     revertControlChange,
@@ -714,6 +715,14 @@ export function checkStateBasedActions(state: GameState): void {
         // canonical recompute point; the flag tracks whether any lock source is
         // in play. Idempotent, so it does not gate the fixpoint.
         refreshLandPlayLock(state);
+        // CR 613.5 (issue #1711) — same "canonical recompute point" placement:
+        // re-materialize every counter-gated static effect. The two counter
+        // mutators call this themselves for within-resolution consistency;
+        // this sweep is the catch-all for every OTHER counter write path
+        // (CR 704.5q annihilation below, Freyalise's Winds' untap-step wind
+        // strip, depletion counters on tap, `payRemoveCounterCost`, loyalty).
+        // Idempotent, so it does not gate the fixpoint.
+        refreshCounterGatedStatics(state);
         let acted = false;
         acted = checkAuraAttachmentSBA(state) || acted;
         // CR 704.5n (ADR 0065, issue #1311) — the Equipment-flavored sibling

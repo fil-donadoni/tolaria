@@ -5421,6 +5421,53 @@ export function unapplySourceStaticEffects(
 /** Aura-flavored alias kept for back-compat. */
 export const unapplyAuraStaticEffects = unapplySourceStaticEffects;
 
+/** CR 613.5 / 122.1 — the recomputation tick for COUNTER-GATED materialized
+ *  static effects (issue #1711).
+ *
+ *  `applySourceStaticEffects` MATERIALIZES its grant kinds (`keyword-grant`,
+ *  `activated-grant`, `triggered-grant`, `type-add`, `subtype-set`, …) onto the
+ *  target instance once, when the source or the target enters the battlefield.
+ *  Unlike `pt-buff` / `pt-cda` — recomputed at every read — nothing re-runs
+ *  them afterwards. A predicate gated on COUNTERS therefore goes stale the
+ *  instant a counter is added or removed, and both consumers of the
+ *  materialized arrays (`untapStep`'s `does-not-untap` check and
+ *  `getEffectiveActivatedAbilities`) silently read the pre-counter answer. That
+ *  is the whole bug class: Dread Wight's paralyzation lock, Venarian Gold's
+ *  sleep counters, Cocoon's pupa counters, Cyclopean Tomb's mire markers,
+ *  Gaea's Liege's forest markers, and the INV kicker `+1/+1` grants all shipped
+ *  inert past their first materialization.
+ *
+ *  For every battlefield source whose static effects DECLARE
+ *  `dependsOnCounters` (see `CounterGatedStatic` in `cards/types.ts`, enforced
+ *  catalogue-wide by `cards/__tests__/counterGatedStatics.test.ts`), unapply
+ *  and re-apply its grants so each predicate is re-evaluated against the
+ *  current counters. Sources that declare nothing are skipped, so this is a
+ *  no-op sweep of the battlefield for the overwhelming majority of boards.
+ *
+ *  Called from the two counter mutators (`addCounterToCard` and
+ *  `SpellContext.removeCounter`) for immediate within-resolution consistency,
+ *  and from `checkStateBasedActions` as the catch-all for every other counter
+ *  write path (CR 704.5q `+1/+1`/`-1/-1` annihilation, Freyalise's Winds' untap
+ *  strip, depletion counters on tap, `payRemoveCounterCost`, planeswalker
+ *  loyalty) — the same "not an SBA per se, but every stable transition runs
+ *  this sweep" placement `refreshLandPlayLock` already occupies. */
+export function refreshCounterGatedStatics(state: GameState): void {
+    for (const player of state.players) {
+        for (const source of player.battlefield) {
+            const cardId = (source.card as { id?: string }).id;
+            const def = cardId ? tryGetDefinition(cardId) : null;
+            const effects = getEffectiveStaticEffects(def, source.chosenModeId);
+            if (!effects.some((e) => e.dependsOnCounters === true)) continue;
+            // Full unapply/re-apply of THIS source only (the established
+            // reattach idiom): the predicate may read the target's counters
+            // (Dread Wight) or the source's own (Cocoon), so nothing short of
+            // re-running it is correct.
+            unapplySourceStaticEffects(state, source);
+            applySourceStaticEffects(state, source);
+        }
+    }
+}
+
 /** Applies every existing battlefield source's `keyword-grant` static effects
  *  to a newly-arrived permanent. Called from `finalizeSpellResolution` so
  *  lord-style buffs (Goblin King → mountainwalk on each Goblin) reach a
@@ -7552,6 +7599,11 @@ export function addCounterToCard(
     next[type] = (next[type] ?? 0) + count;
     card.counters = next;
     if (wasZero) applyKeywordCounterGrant(card, type);
+    // CR 613.5 (issue #1711) — a counter-gated MATERIALIZED static (Dread
+    // Wight's paralyzation lock, Cocoon's pupa counters) is written onto its
+    // target once and never recomputed; re-run the materialization now so the
+    // untap step and `getEffectiveActivatedAbilities` see the new answer.
+    refreshCounterGatedStatics(state);
     state.pendingEvents = [
         ...(state.pendingEvents ?? []),
         {
@@ -9467,6 +9519,11 @@ export function buildSpellContext(
             // is now completely gone (`remaining === 0`) — a partial removal
             // (3 flying counters → 1) leaves the keyword granted.
             if (remaining === 0) unapplyKeywordCounterGrant(found.card, type);
+            // CR 613.5 (issue #1711) — mirror of the `addCounterToCard` call:
+            // re-materialize every counter-gated static so a grant whose
+            // predicate has just gone false is actually lifted (Dread Wight's
+            // "{4}: Remove a paralyzation counter" freeing its own victim).
+            refreshCounterGatedStatics(state);
             // CR 122.6 — emit a COUNTER_REMOVED event so "whenever a counter is
             // removed" triggers (Vanishing's CR 702.63d sacrifice) can fire.
             // Drained by `processPendingActionTriggers` after the current
@@ -14861,7 +14918,120 @@ export function restrictionAllowsSpell(
             // CR 702.24 / ADR 0042 — cumulative-upkeep mana is never spendable
             // on a spell; it is eligible only for the CU `may-pay` payment.
             return false;
+        case "artifact-ability":
+            // CR 106.6 (issue #728, Soldevi Machinist) — "spend this mana only
+            // to activate abilities of artifacts" never permits a SPELL cast;
+            // it is consumed only at the ability-activation payment path
+            // (`restrictionAllowsAbility`).
+            return false;
     }
+}
+
+/** True if restricted mana with `restriction` may pay for an ACTIVATED ability
+ *  whose source permanent has the given effective card types (CR 106.6, issue
+ *  #728). The activation-payment twin of `restrictionAllowsSpell`.
+ *
+ *  Every restriction that is keyed on a SPELL CAST returns false here — a unit
+ *  of Mishra's Workshop mana cannot pay to activate an artifact's ability, and
+ *  cumulative-upkeep mana is reserved for the CU `may-pay`. Exhaustive `switch`
+ *  over the union: a new member must add a case here, and the compiler enforces
+ *  it. */
+export function restrictionAllowsAbility(
+    restriction: ManaRestriction,
+    sourceTypes: readonly string[]
+): boolean {
+    switch (restriction) {
+        case "creature-spell":
+        case "artifact-spell":
+        case "cumulative-upkeep":
+            return false;
+        case "artifact-ability":
+            return sourceTypes.includes("Artifact");
+    }
+}
+
+/** True if a single restricted-mana unit may pay for an activated ability
+ *  (CR 106.6, issue #728). Instance-keyed mana (Ice Cauldron's
+ *  `castableCardId`) is a CAST permission and is never eligible to activate an
+ *  ability; a type-keyed unit delegates to `restrictionAllowsAbility`. A unit
+ *  with neither field is unrestricted (defensive — the engine never produces
+ *  one). */
+export function restrictedUnitAllowsAbility(
+    unit: RestrictedMana,
+    sourceTypes: readonly string[]
+): boolean {
+    if (unit.castableCardId !== undefined) return false;
+    if (unit.restriction !== undefined) {
+        return restrictionAllowsAbility(unit.restriction, sourceTypes);
+    }
+    return true;
+}
+
+/** Builds the spendable pool for ACTIVATING an ability: the base `manaPool`
+ *  plus any restricted mana whose restriction permits an ability of a source
+ *  with `sourceTypes` (CR 106.6, issue #728). The activation twin of
+ *  `spendablePoolForSpell` — used at every activation affordability check. */
+export function spendablePoolForAbility(
+    player: PlayerState,
+    sourceTypes: readonly string[]
+): Record<string, number> {
+    const pool = { ...player.manaPool };
+    for (const r of player.restrictedMana ?? []) {
+        if (restrictedUnitAllowsAbility(r, sourceTypes)) {
+            pool[r.color] = (pool[r.color] ?? 0) + r.amount;
+        }
+    }
+    return pool;
+}
+
+/** Pays an activated ability's mana cost drawing on permitted restricted mana
+ *  FIRST, then the fungible pool (CR 106.6, issue #728) — the activation twin
+ *  of `payManaCostForSpell`, with the identical restricted-first settlement
+ *  policy (it maximises the flexible mana the activator keeps and can never
+ *  make a payment illegal, since coverage was confirmed against the merged
+ *  pool). */
+export function payManaCostForAbility(
+    player: PlayerState,
+    cost: Record<string, number>,
+    sourceTypes: readonly string[],
+    substitutions: ManaSubstitution[] = [],
+    genericSpendOrder?: readonly string[]
+): void {
+    const eligible = (player.restrictedMana ?? []).filter((r) =>
+        restrictedUnitAllowsAbility(r, sourceTypes)
+    );
+    if (eligible.length === 0) {
+        payManaCost(player.manaPool, cost, substitutions, genericSpendOrder);
+        return;
+    }
+
+    const merged = { ...player.manaPool };
+    const restrictedByColor: Record<string, number> = {};
+    for (const r of eligible) {
+        merged[r.color] = (merged[r.color] ?? 0) + r.amount;
+        restrictedByColor[r.color] =
+            (restrictedByColor[r.color] ?? 0) + r.amount;
+    }
+    const before = { ...merged };
+    payManaCost(merged, cost, substitutions, genericSpendOrder);
+
+    for (const color of MANA_COLORS) {
+        const consumed = (before[color] ?? 0) - (merged[color] ?? 0);
+        if (consumed <= 0) continue;
+        let fromRestricted = Math.min(consumed, restrictedByColor[color] ?? 0);
+        const fromReal = consumed - fromRestricted;
+        for (const r of eligible) {
+            if (fromRestricted <= 0) break;
+            if (r.color !== color) continue;
+            const take = Math.min(r.amount, fromRestricted);
+            r.amount -= take;
+            fromRestricted -= take;
+        }
+        player.manaPool[color] = (player.manaPool[color] ?? 0) - fromReal;
+    }
+
+    const remaining = (player.restrictedMana ?? []).filter((r) => r.amount > 0);
+    player.restrictedMana = remaining.length > 0 ? remaining : undefined;
 }
 
 /** True if a single restricted-mana unit may pay for a spell (CR 106.6).

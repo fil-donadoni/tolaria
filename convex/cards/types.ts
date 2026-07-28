@@ -5533,7 +5533,38 @@ export interface StaticCastTimingLock {
     oracleText: string;
 }
 
-export type StaticEffect =
+/** CR 613.5 / 122.1 — counter dependency declaration, carried by EVERY static
+ *  effect kind (issue #1711).
+ *
+ *  The engine splits static effects in two by HOW they reach the game state:
+ *
+ *   - **Recomputed** kinds (`pt-buff`, `pt-cda`, and the restriction/guard
+ *     predicates) are evaluated at every read, so a counter-gated predicate is
+ *     live for free — Homarid's tide counters need nothing here.
+ *   - **Materialized** kinds (`keyword-grant`, `activated-grant`,
+ *     `triggered-grant`, `type-add`/`type-remove`, `subtype-set`/`subtype-add`,
+ *     `supertype-set`, `color`, `keyword-remove`, `control-change`, …) are
+ *     WRITTEN ONTO the target instance once, by `applySourceStaticEffects`, at
+ *     the moment the source or the target enters the battlefield. Nothing
+ *     re-runs them afterwards, so a predicate reading `target.counters` /
+ *     `ctx.getCounterCount(...)` goes stale the instant a counter changes: the
+ *     untap step and `getEffectiveActivatedAbilities` read the materialized
+ *     arrays, so the grant is silently absent (or silently stuck on).
+ *
+ *  Setting `dependsOnCounters: true` enrolls the effect's SOURCE in
+ *  `refreshCounterGatedStatics` (`gre/state.ts`), the recomputation tick that
+ *  unapplies and re-applies its grants whenever counters move. Set it whenever
+ *  an `applies` / `condition` predicate reads counters on EITHER the target or
+ *  the source — it is harmless (and ignored) on a recomputed kind.
+ *
+ *  Enforced catalogue-wide by
+ *  `convex/cards/__tests__/counterGatedStatics.test.ts`: a materialized-kind
+ *  predicate that reads counters without this flag fails CI. */
+export interface CounterGatedStatic {
+    dependsOnCounters?: boolean;
+}
+
+export type StaticEffect = (
     | StaticPTBuff
     | StaticPTCDA
     | StaticKeywordGrant
@@ -5568,7 +5599,9 @@ export type StaticEffect =
     | StaticKeywordRemove
     | StaticAbilityLoss
     | StaticCastRestriction
-    | StaticCastTimingLock;
+    | StaticCastTimingLock
+) &
+    CounterGatedStatic;
 
 /** Canonical aura predicate: "this static effect applies to my host". Shared
  *  by every aura's `applies` callback (CR 303.4 — auras affect their enchanted

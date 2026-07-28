@@ -63,8 +63,10 @@ import {
     hecatomb,
     soulBurn,
     ashenGhoul,
+    dreadWight,
 } from "../../ice";
 import { plains, island, swamp } from "../../lea";
+import { grizzlyBears } from "../../lea/green";
 import { applyLandManaReplacement, manaValue } from "../../../../gre/constants";
 import {
     getDefinition,
@@ -78,6 +80,7 @@ import {
     tapPermanent,
     emitPermanentTapped,
     dealDamageFromPermanentToPlayer,
+    applySourceStaticEffects,
 } from "../../../../gre/state";
 import {
     getEffectivePower,
@@ -89,6 +92,7 @@ import {
     fireDelayedTriggers,
     advancePhase,
     applyAllCombatDamage,
+    untapStep,
 } from "../../../../gre/phases";
 import {
     applyPendingChoiceSubmit,
@@ -98,6 +102,7 @@ import { validateBlockerEligibility } from "../../../../gre/combat";
 import {
     tryAutoCommitPendingActivation,
     buildPendingActivation,
+    getEffectiveActivatedAbilities,
 } from "../../../../game";
 import {
     makeInstance,
@@ -119,6 +124,7 @@ import {
     vanilla,
     answerMayPay,
     BLACK_UPKEEP,
+    PHASE_EVENT_EOC,
     library,
     castCantrip,
     enterUpkeepAndFire,
@@ -2841,5 +2847,267 @@ describe("Gaze of Pain — turn-scoped unblocked rider (CR 603.7a)", () => {
                 (t) => t.triggeredAbilityId === "gaze-of-pain-unblocked"
             )
         ).toBe(false);
+    });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Dread Wight (#728)
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe("Dread Wight — paralyzation counters (CR 511.3 / 122.1 / 502.1 / 611)", () => {
+    /** Board with Dread Wight and one opposing 5/5, wired into a confirmed
+     *  block in the given direction (mirrors the Kjeldoran Frostbeast fixture,
+     *  the other ICE combat-partner card). */
+    function combatState(wightAttacks: boolean) {
+        const wight = makeInstance(dreadWight.id, {
+            id: "wight",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const partner = vanilla("partner", 5, 5, {
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [wight] }),
+                makePlayer("p2", { battlefield: [partner] }),
+            ],
+            combat: {
+                attackerIds: [wightAttacks ? "wight" : "partner"],
+                confirmed: true,
+                blockerAssignments: wightAttacks
+                    ? { partner: ["wight"] }
+                    : { wight: ["partner"] },
+                blockedAttackerIds: [wightAttacks ? "wight" : "partner"],
+                blockersConfirmed: true,
+            },
+        });
+        return { state, wight, partner };
+    }
+
+    it("end-of-combat: paralyzes and taps the creature blocking it (CR 511.3)", () => {
+        const { state, wight } = combatState(true);
+        resolveTrigger(
+            state,
+            wight,
+            "dread-wight-end-of-combat",
+            PHASE_EVENT_EOC("p1")
+        );
+        const live = state.players[1].battlefield.find(
+            (c) => c.id === "partner"
+        )!;
+        expect(live.counters?.paralyzation).toBe(1);
+        expect(live.isTapped).toBe(true);
+    });
+
+    it("end-of-combat: paralyzes and taps the attacker it blocked", () => {
+        const { state, wight } = combatState(false);
+        resolveTrigger(
+            state,
+            wight,
+            "dread-wight-end-of-combat",
+            PHASE_EVENT_EOC("p1")
+        );
+        const live = state.players[1].battlefield.find(
+            (c) => c.id === "partner"
+        )!;
+        expect(live.counters?.paralyzation).toBe(1);
+        expect(live.isTapped).toBe(true);
+    });
+
+    it("end-of-combat: leaves an uninvolved creature alone (CR 608.2b)", () => {
+        const { state, wight } = combatState(true);
+        const bystander = vanilla("bystander", 2, 2, {
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        state.players[1].battlefield.push(bystander);
+        resolveTrigger(
+            state,
+            wight,
+            "dread-wight-end-of-combat",
+            PHASE_EVENT_EOC("p1")
+        );
+        const live = state.players[1].battlefield.find(
+            (c) => c.id === "bystander"
+        )!;
+        expect(live.counters?.paralyzation).toBeUndefined();
+        expect(live.isTapped).toBe(false);
+    });
+
+    /** REAL-SEQUENCE fixture (issue #1711). Dread Wight and a victim are on the
+     *  battlefield in a confirmed block; the wight's statics are materialized
+     *  at ETB exactly as `finalizeSpellResolution` does — at which point the
+     *  victim has NO counter, so nothing is granted — and the paralyzation
+     *  counter then arrives ONLY by resolving the end-of-combat trigger.
+     *
+     *  The previous fixture hand-seeded `counters` and THEN called
+     *  `applySourceStaticEffects`, an ordering that never occurs in play: it
+     *  made the grant look live while, in a real game, the materialization had
+     *  already run before the counter existed and was never re-run. Every
+     *  assertion below therefore proves the RE-materialization
+     *  (`refreshCounterGatedStatics`), not the fixture. The victim is a REAL
+     *  registered card (not the `vanilla` fixture) because the granted-ability
+     *  enumeration resolves its definition. */
+    function paralyzedByCombat() {
+        const wight = makeInstance(dreadWight.id, {
+            id: "wight",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const victim = makeInstance(grizzlyBears.id, {
+            id: "victim",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [wight] }),
+                makePlayer("p2", { battlefield: [victim] }),
+            ],
+            combat: {
+                attackerIds: ["wight"],
+                confirmed: true,
+                blockerAssignments: { victim: ["wight"] },
+                blockedAttackerIds: ["wight"],
+                blockersConfirmed: true,
+            },
+        });
+        // ETB materialization, BEFORE any counter exists.
+        applySourceStaticEffects(state, wight);
+        expect(victim.staticAbilities ?? []).not.toContain("does-not-untap");
+        expect(getEffectiveActivatedAbilities(victim)).toEqual([]);
+
+        resolveTrigger(
+            state,
+            wight,
+            "dread-wight-end-of-combat",
+            PHASE_EVENT_EOC("p1")
+        );
+        return { state, wight, victim };
+    }
+
+    /** Same board, no combat: the victim never gets a counter. */
+    function unparalyzed() {
+        const wight = makeInstance(dreadWight.id, {
+            id: "wight",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const victim = makeInstance(grizzlyBears.id, {
+            id: "victim",
+            controllerId: "p2",
+            ownerId: "p2",
+            isTapped: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [wight] }),
+                makePlayer("p2", { battlefield: [victim] }),
+            ],
+        });
+        applySourceStaticEffects(state, wight);
+        return { state, victim };
+    }
+
+    it("the end-of-combat counter re-materializes does-not-untap (CR 502.1 / 613.5)", () => {
+        const { victim } = paralyzedByCombat();
+        expect(victim.counters?.paralyzation).toBe(1);
+        expect(victim.staticAbilities).toContain("does-not-untap");
+
+        const clean = unparalyzed();
+        expect(clean.victim.staticAbilities ?? []).not.toContain(
+            "does-not-untap"
+        );
+    });
+
+    it("the untap step leaves the paralyzed creature tapped (CR 502.1)", () => {
+        const { state } = paralyzedByCombat();
+        // The end-of-combat trigger also tapped it (CR 701.20a).
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "victim")!
+                .isTapped
+        ).toBe(true);
+        // The victim's controller is p2 — untap their step.
+        state.activePlayerId = "p2";
+        state.priorityPlayerId = "p2";
+        untapStep(state);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "victim")!
+                .isTapped
+        ).toBe(true);
+    });
+
+    it("an unparalyzed creature untaps normally", () => {
+        const { state } = unparalyzed();
+        state.activePlayerId = "p2";
+        state.priorityPlayerId = "p2";
+        untapStep(state);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "victim")!
+                .isTapped
+        ).toBe(false);
+    });
+
+    it("the {4} counter-removal ability is enumerated after the real trigger (CR 113.1 / 611)", () => {
+        const { victim } = paralyzedByCombat();
+        const granted = getEffectiveActivatedAbilities(victim);
+        expect(granted.map((g) => g.ability.id)).toContain(
+            "dread-wight-remove-paralyzation"
+        );
+        expect(granted[0].ability.cost.mana).toEqual({ X: 4 });
+        expect(granted[0].grantedSourceCardId).toBe(dreadWight.id);
+
+        // Not granted without a counter.
+        expect(getEffectiveActivatedAbilities(unparalyzed().victim)).toEqual(
+            []
+        );
+    });
+
+    it("activating the granted ability lifts the untap lock with no manual re-apply", () => {
+        const { state, victim } = paralyzedByCombat();
+        // CR 113.1 — a GRANTED ability's template lives on the granting card,
+        // so the stack item carries `grantedSourceCardId` (what the real
+        // activation path sets from `getEffectiveActivatedAbilities`).
+        state.stack.push({
+            ...victim,
+            zone: "stack",
+            castById: victim.controllerId,
+            abilityId: "dread-wight-remove-paralyzation",
+            grantedSourceCardId: dreadWight.id,
+            targets: [],
+        });
+        resolveTopOfStack(state);
+        expect(victim.counters?.paralyzation ?? 0).toBe(0);
+        // No `unapplySourceStaticEffects` / `applySourceStaticEffects` here:
+        // `SpellContext.removeCounter` re-materializes on its own, which is the
+        // whole point of issue #1711.
+        expect(victim.staticAbilities ?? []).not.toContain("does-not-untap");
+        expect(getEffectiveActivatedAbilities(victim)).toEqual([]);
+
+        state.activePlayerId = "p2";
+        state.priorityPlayerId = "p2";
+        untapStep(state);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "victim")!
+                .isTapped
+        ).toBe(false);
+    });
+
+    it("wire format: the real-sequence grant survives projectPublicState", () => {
+        const { state } = paralyzedByCombat();
+        const projected = projectPublicState(state, 1, "p2");
+        const slim = projected.players[1].battlefield.find(
+            (c) => c.id === "victim"
+        )!;
+        expect(slim.counters?.paralyzation).toBe(1);
+        expect(slim.staticAbilities).toContain("does-not-untap");
+        // The client enumerates the granted ability off the same slim shape.
+        expect(
+            getEffectiveActivatedAbilities(
+                slim as unknown as CardInstanceState
+            ).map((g) => g.ability.id)
+        ).toContain("dread-wight-remove-paralyzation");
     });
 });

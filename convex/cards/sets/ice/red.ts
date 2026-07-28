@@ -64,9 +64,10 @@ import { damageDealtTrigger } from "../../abilities/triggers/damageDealtTrigger"
 //     the menace `validateMinimumBlockers` check.
 //   • Library random-exile + reorder — Orcish Librarian ("look at top eight,
 //     exile four at RANDOM, reorder the rest"). `peekLibraryTop` /
-//     `reorderLibraryTop` ship, but no SpellContext primitive selects/exiles N
-//     cards at random from a library set (the seeded PRNG is engine-internal;
-//     only `discardAtRandom` is exposed). Flagged for a random-select primitive.
+//     `reorderLibraryTop` / the `scryReorder` Op ship, but no SpellContext
+//     primitive selects/exiles N cards at random from a library set (the seeded
+//     PRNG is engine-internal; only hand-shaped draws are exposed).
+//     tracked-by: #1702
 //   • Other specialized interactions — Chaos Moon (parity mana substitution),
 //     Earthlink (dies→sac-land), Ghostly Flame (colourless-damage-source
 //     static), Melee / Monsoon (choose-blocks / Island-count end-step),
@@ -1840,14 +1841,16 @@ export const orcishHealer: CardDefinition = {
         },
     ],
 };
-// Orcish Librarian — DEFERRED (#656/#628), re-verified against the current
-// engine (2026-07). `peekLibraryTop(8)` + `reorderLibraryTop` cover the "look at
-// top eight / put the rest on top in any order" legs (the `scryReorder` Op skin
-// is still `planned`, so the closure composes those raw primitives), but "exile
-// four of them AT RANDOM" has no SpellContext primitive: the seeded PRNG is
-// engine-internal and only `discardAtRandom` is exposed — there is no
-// random-select / random-exile over an arbitrary library subset. Stop-and-issue,
-// not invented. Blocked on: a random-select primitive over a card set.
+// Orcish Librarian — DEFERRED, re-verified against the current engine for
+// issue #728 (2026-07). `peekLibraryTop(8)` + `orderTop`/`reorderLibraryTop`
+// cover the "look at top eight / put the rest on top in any order" legs (and
+// the `scryReorder` Op shipped in #885), but "exile four of them AT RANDOM" has
+// no SpellContext primitive: the seeded PRNG (`gre/rng.ts`) is engine-internal
+// and the only exposed draws are hand-shaped (`discardAtRandom`,
+// `revealRandomHandCard`, `lookRandomHandCard`) or whole-zone
+// (`shuffleLibrary`) — there is no random-select over an arbitrary set of card
+// ids. Stop-and-issue, not invented. Blocked on a random-select primitive over
+// a card set: tracked-by: #1702
 // export const orcishLibrarian: CardDefinition = {
 //     id: "8ed908d6-6d06-4ccb-9577-37ef2d01c1a5",
 //     name: "Orcish Librarian",

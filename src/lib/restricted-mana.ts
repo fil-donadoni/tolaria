@@ -27,6 +27,8 @@ export function restrictedManaLabel(
             return "Artifact spells only";
         case "cumulative-upkeep":
             return "Cumulative upkeep only";
+        case "artifact-ability":
+            return "Artifact abilities only";
         default:
             return "Restricted";
     }
