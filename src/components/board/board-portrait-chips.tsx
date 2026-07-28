@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { Player, StackItem } from "~/types/game";
+import { PORTRAIT_MIDLINE_TOP } from "~/lib/portrait-board-bands";
 import BoardPileChips from "./board-pile-chips";
 import StackChip from "./stack-chip";
 import GameStack from "./game-stack";
@@ -50,8 +51,12 @@ export default function BoardPortraitChips({
                 </div>
             )}
 
+            {/* The midline is the shared band boundary (#1760), which sits
+                half the bottom bar's clearance above the viewport centre — not
+                a literal `top-1/2`, or the chip would drift into the viewer's
+                battlefield. */}
             <div
-                className="absolute right-2 top-1/2 z-30 -translate-y-1/2"
+                className={`absolute right-2 ${PORTRAIT_MIDLINE_TOP} z-30 -translate-y-1/2`}
                 data-testid="stack-chip-row"
             >
                 <StackChip

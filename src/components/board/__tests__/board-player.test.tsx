@@ -10,6 +10,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, fireEvent, cleanup } from "@testing-library/react";
 import type { Player } from "~/types/game";
 import { GameContext } from "~/hooks/useGameContext";
+import { PORTRAIT_MIDLINE_TOP } from "~/lib/portrait-board-bands";
 import {
     PendingChoiceBufferContext,
     type PendingChoiceBuffer,
@@ -113,7 +114,7 @@ beforeEach(() => {
     cleanup();
 });
 
-/** The top-EDGE anchor exactly — `top-1`, never the midline `top-1/2`. */
+/** The top-EDGE anchor exactly — `top-1`, never a midline anchor. */
 const TOP_EDGE_ANCHOR = /\btop-1\b(?!\/)/;
 
 describe("seat anchoring — nothing under the portrait bottom bar (#1759)", () => {
@@ -130,8 +131,10 @@ describe("seat anchoring — nothing under the portrait bottom bar (#1759)", () 
         portrait = true;
         const className = anchorClass("bottom");
         expect(className).not.toContain("bottom-1");
-        // It relocates to the top-left of the viewer's own half.
-        expect(className).toContain("top-1/2");
+        // It relocates to the top-left of the viewer's own half — pinned to the
+        // SHARED band midline (#1760), which sits half the bar's clearance
+        // above the viewport centre, not to a literal `top-1/2`.
+        expect(className).toContain(PORTRAIT_MIDLINE_TOP);
     });
 
     it("landscape/desktop keep the classic bottom-edge anchor", () => {
@@ -141,7 +144,7 @@ describe("seat anchoring — nothing under the portrait bottom bar (#1759)", () 
 
     it("the opponent's chrome stays on the top edge either way", () => {
         // `\btop-1\b(?!\/)` and NOT `toContain("top-1")`: the substring also
-        // matches the portrait viewer anchor `top-1/2`, so a regression that
+        // matches a `top-1/2`-style midline anchor, so a regression that
         // swapped the opponent onto the midline would still pass.
         portrait = true;
         expect(anchorClass("top")).toMatch(TOP_EDGE_ANCHOR);

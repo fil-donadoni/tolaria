@@ -25,3 +25,17 @@ export const CONTROLLER_BAR_HEIGHT_VAR = "--controller-bar-h";
  *  overlapped anyway. */
 export const ABOVE_CONTROLLER_BAR =
     "bottom-[calc(var(--controller-bar-h,8rem)+0.5rem)]";
+
+/** The SAME clearance as a parenthesised CSS sum expression, so it composes
+ *  inside a larger `calc()` (`calc(<EXPR> + …)`, `calc(50% - <EXPR> / 2)`)
+ *  instead of only being spellable as a whole class. The portrait band budget
+ *  (`portrait-board-bands.ts`) folds it into its own arithmetic: the bands sit
+ *  ABOVE the hand, which itself sits above the bar, so the bar's measured
+ *  height propagates all the way up the board.
+ *
+ *  The two spellings are pinned together by
+ *  `src/lib/__tests__/portrait-board-bands.test.ts` — `ABOVE_CONTROLLER_BAR`
+ *  must stay `bottom-[calc<EXPR>]` with whitespace removed, so neither can
+ *  drift from the other. */
+export const CONTROLLER_BAR_CLEARANCE_EXPR =
+    "(var(--controller-bar-h, 8rem) + 0.5rem)";

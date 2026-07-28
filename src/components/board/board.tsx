@@ -28,7 +28,13 @@ import {
     useMinimizedChoiceState,
 } from "~/hooks/useMinimizedChoice";
 import { preloadCardImages } from "~/lib/image-preload";
-import { ABOVE_CONTROLLER_BAR } from "~/lib/controller-bar-metrics";
+import {
+    PORTRAIT_OPPONENT_BATTLEFIELD_BAND,
+    PORTRAIT_OPPONENT_HAND_BAND,
+    PORTRAIT_VIEWER_BATTLEFIELD_BAND,
+    PORTRAIT_VIEWER_HAND_BAND,
+    portraitBandVars,
+} from "~/lib/portrait-board-bands";
 import { computeSoloViewerId } from "~/lib/priority";
 import {
     fanLayout,
@@ -462,6 +468,14 @@ export default function Board({
                                                                 rightPilesWidth(
                                                                     isPortrait
                                                                 ),
+                                                            // Portrait vertical budget
+                                                            // (#1760): the four bands below
+                                                            // are derived from the hand
+                                                            // strip's height and the bar's
+                                                            // MEASURED clearance, so no band
+                                                            // can run under the one beneath
+                                                            // it. See portrait-board-bands.
+                                                            ...portraitBandVars(),
                                                         } as CSSProperties
                                                     }
                                                 >
@@ -476,7 +490,13 @@ export default function Board({
                                                                 }
                                                                 side="top"
                                                             />
-                                                            <div className="absolute left-0 right-[var(--right-piles-w)] top-0 h-[18%]">
+                                                            <div
+                                                                className={
+                                                                    isPortrait
+                                                                        ? PORTRAIT_OPPONENT_HAND_BAND
+                                                                        : "absolute left-0 right-[var(--right-piles-w)] top-0 h-[18%]"
+                                                                }
+                                                            >
                                                                 {isPortrait ? (
                                                                     <BoardHandPortrait
                                                                         player={
@@ -511,7 +531,13 @@ export default function Board({
                                                                     />
                                                                 )}
                                                             </div>
-                                                            <div className="absolute left-0 right-0 top-[18%] h-[32%]">
+                                                            <div
+                                                                className={
+                                                                    isPortrait
+                                                                        ? PORTRAIT_OPPONENT_BATTLEFIELD_BAND
+                                                                        : "absolute left-0 right-0 top-[18%] h-[32%]"
+                                                                }
+                                                            >
                                                                 <BoardBattlefield
                                                                     player={
                                                                         opponent
@@ -531,7 +557,20 @@ export default function Board({
                                                                 player={me}
                                                                 side="bottom"
                                                             />
-                                                            <div className="absolute left-0 right-0 top-1/2 h-[32%]">
+                                                            <div
+                                                                className={
+                                                                    isPortrait
+                                                                        ? // Bottom-anchored to
+                                                                          // the TOP of the hand
+                                                                          // strip (#1760) — a
+                                                                          // fixed `h-[32%]` ran
+                                                                          // past it and hid the
+                                                                          // lands row under a
+                                                                          // full hand.
+                                                                          PORTRAIT_VIEWER_BATTLEFIELD_BAND
+                                                                        : "absolute left-0 right-0 top-1/2 h-[32%]"
+                                                                }
+                                                            >
                                                                 <BoardBattlefield
                                                                     player={me}
                                                                     data-testid="zone-player-battlefield"
@@ -551,7 +590,11 @@ export default function Board({
                                                                           // a fixed inset let the
                                                                           // grown bar cover the
                                                                           // hand's bottom edge.
-                                                                          `absolute left-0 right-0 ${ABOVE_CONTROLLER_BAR} h-[16%]`
+                                                                          // Its height is now the
+                                                                          // shared band the
+                                                                          // battlefield above
+                                                                          // reserves (#1760).
+                                                                          PORTRAIT_VIEWER_HAND_BAND
                                                                         : "absolute left-0 right-[var(--right-piles-w)] bottom-0 h-[18%]"
                                                                 }
                                                             >
