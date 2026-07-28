@@ -31,6 +31,14 @@ export default function MinimizeChoiceButton({
             // area grows instead of the visual size (the phase-sheet grab
             // handle's `h-12` wrapping a visually tiny pill is the same idea,
             // just via padding rather than a pseudo-element there).
+            //
+            // Contract for every mount: the CALLER's own `top-*`/`right-*`
+            // inset (the `className` prop) must be >= this `-inset-2.5`
+            // (10px) overhang, or the panel edge clips the pseudo-hit box
+            // before it reaches 44px (#1770 second review round: `top-1.5
+            // right-1.5` = 6px inset clipped 4px, delivering ~40px —
+            // `pending-choice-prompt.tsx` and `pile-division-picker.tsx` both
+            // now pass `top-2.5 right-2.5`, exactly matching the overhang).
             className={`relative flex h-6 w-6 items-center justify-center rounded-sm text-text-disabled hover:text-text-muted transition-colors cursor-pointer before:absolute before:-inset-2.5 before:content-[''] ${className}`}
         >
             <Minus className="h-4 w-4" />

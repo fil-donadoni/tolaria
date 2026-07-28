@@ -43,7 +43,17 @@ export default function BugReportButton() {
                 // it IS mounted — ungated, this button used to float under
                 // the strip's own Pass Turn button (#1770 follow-up from
                 // #1802's review).
-                className={`fixed ${ABOVE_CONTROLLER_BAR} ${BESIDE_CONTROLLER_STRIP} z-dev-overlay rounded-full shadow-md md:bottom-4 md:right-4`}
+                //
+                // The `md:` variant must spell the SAME strip-aware anchor,
+                // not a flat `md:right-4`: landscape-compact has no width
+                // bound, so every landscape phone >=768px hits `md:` too, and
+                // Tailwind emits breakpoint utilities after base ones — a
+                // flat `md:right-4` would always beat the unprefixed
+                // `BESIDE_CONTROLLER_STRIP` at that width and reintroduce the
+                // dead anchor (#1770 review). `+1rem` (not the base's
+                // `+0.75rem`) keeps the `0px` no-strip fallback equal to the
+                // old `right-4` desktop inset.
+                className={`fixed ${ABOVE_CONTROLLER_BAR} ${BESIDE_CONTROLLER_STRIP} z-dev-overlay rounded-full shadow-md md:bottom-4 md:right-[calc(var(--controller-strip-w,0px)+1rem)]`}
             >
                 <Bug />
             </Button>

@@ -258,7 +258,15 @@ export default function PendingChoicePrompt({
                 >
                     {isChooser ? (
                         <>
-                            <MinimizeChoiceButton className="absolute top-1.5 right-1.5" />
+                            {/* `top-2.5 right-2.5` (10px), not `top-1.5
+                                right-1.5` (6px, #1770 review): the button's
+                                own `before:-inset-2.5` pseudo-hit overhangs
+                                10px, and this Panel is `overflow-y-auto` — a
+                                6px inset clipped 4px of the hit box, shrinking
+                                the delivered target to ~40px. The inset must
+                                be >= the overhang for the full 44px target to
+                                survive the clip. */}
+                            <MinimizeChoiceButton className="absolute top-2.5 right-2.5" />
                             <div className="flex flex-col items-center text-center gap-1">
                                 <p className="font-beleren text-sm tracking-wide text-parchment">
                                     {sourceLabel}

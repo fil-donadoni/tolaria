@@ -226,7 +226,15 @@ export default function PileDivisionPicker({
                 size="wide"
                 className="flex flex-col items-center gap-2 px-5 py-3 pointer-events-auto"
             >
-                <MinimizeChoiceButton className="absolute top-1.5 right-1.5" />
+                {/* `top-2.5 right-2.5` (10px), not `top-1.5 right-1.5` (6px,
+                    #1770 review): the button's own `before:-inset-2.5`
+                    pseudo-hit overhangs 10px past the visible glyph — a 6px
+                    inset clipped 4px of that hit box against the panel edge,
+                    shrinking the delivered target to ~40px. Same pairing as
+                    the `PendingChoicePrompt` mount (`pending-choice-prompt.tsx`)
+                    — the inset must be >= the overhang for the full 44px
+                    target to survive. */}
+                <MinimizeChoiceButton className="absolute top-2.5 right-2.5" />
 
                 {/* Header — draggable handle for the whole dialog. */}
                 <div

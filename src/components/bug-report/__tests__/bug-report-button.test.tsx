@@ -62,4 +62,24 @@ describe("BugReportButton anchoring + z-order (issue #1764)", () => {
         // `BESIDE_CONTROLLER_STRIP`'s own module tests, not re-derived here.
         expect(button.className).not.toContain("right-3");
     });
+
+    // #1770 second review round: `toContain(BESIDE_CONTROLLER_STRIP)` alone is
+    // blind to a LATER-cascade override — a flat `md:right-4` sat alongside
+    // the strip-aware anchor and won at md+ (Tailwind emits breakpoint
+    // utilities after base ones), so the `contain` assertion above stayed
+    // green while the button was dead in landscape-compact >=768px. Pin the
+    // exact `md:right-*` / `md:bottom-*` utilities present so a mutation of
+    // either (e.g. swapping in a competing flat inset, or corrupting the
+    // sanctioned one) fails this test instead of sliding through unnoticed.
+    it("carries no competing md: right/bottom utility beyond the sanctioned strip-aware anchor", () => {
+        const { getByRole } = render(<BugReportButton />);
+        const button = getByRole("button", { name: "Report a bug" });
+        const classes = button.className.split(/\s+/).filter(Boolean);
+        const mdRight = classes.filter((c) => /^md:right-/.test(c));
+        const mdBottom = classes.filter((c) => /^md:bottom-/.test(c));
+        expect(mdRight).toEqual([
+            "md:right-[calc(var(--controller-strip-w,0px)+1rem)]",
+        ]);
+        expect(mdBottom).toEqual(["md:bottom-4"]);
+    });
 });
