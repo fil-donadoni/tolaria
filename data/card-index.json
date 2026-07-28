@@ -3115,7 +3115,9 @@
         "name": "Dread Wight",
         "scryfallId": "65d332e2-4b2d-4131-84f7-862cb138c477",
         "oracleId": "f9078d79-3250-44e8-aba1-ab52e0ba4425",
-        "firstSet": "ice"
+        "firstSet": "ice",
+        "firstPrintId": "65d332e2-4b2d-4131-84f7-862cb138c477",
+        "firstPrintSet": "ice"
     },
     {
         "name": "Dream Thrush",
@@ -11265,7 +11267,9 @@
         "name": "Soldevi Machinist",
         "scryfallId": "1f0999df-2f94-499e-b9af-fe377d515400",
         "oracleId": "06600efe-1718-4cc1-b1c0-59c82e2efd73",
-        "firstSet": "ice"
+        "firstSet": "ice",
+        "firstPrintId": "1f0999df-2f94-499e-b9af-fe377d515400",
+        "firstPrintSet": "ice"
     },
     {
         "name": "Soldevi Simulacrum",
