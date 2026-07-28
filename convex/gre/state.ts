@@ -363,6 +363,20 @@ export type CardInstanceState = {
          *  permanent, and is spliced back out by `SpellContext.removeCounter`
          *  the moment the counter type's count reaches zero. */
         counterType?: string;
+        /** CR 613.7 layer timestamp of the granting SOURCE (issue #1715).
+         *  Copied from the source's `staticSeq` when a continuous static
+         *  effect materializes this grant, so layer 6 can order this grant
+         *  against a `removedKeywords` entry from a different source. Absent
+         *  on duration- and counter-keyed grants (nothing orders those). */
+        seq?: number;
+        /** CR 613.1f (issue #1715) — this grant applied while a STRICTLY
+         *  LATER `keyword-remove` / `ability-loss` was already stripping the
+         *  keyword, so it was recorded but NOT pushed onto `staticAbilities`.
+         *  `unapplySourceStaticEffects` must skip the matching splice, or the
+         *  apply/unapply pair eats an occurrence that belongs to another
+         *  source (or to the printed card). Cleared when the stripper's own
+         *  unapply restores the keyword. */
+        suppressed?: boolean;
     }[];
     /** Activated abilities granted to this permanent by another source
      *  (CR 113.1, 611). Each entry references an ability template on another
@@ -407,7 +421,16 @@ export type CardInstanceState = {
     /** Keywords suppressed by a keyword-remove static effect (CR 613.1a
      *  layer 6). Each entry records the removed keyword and the source that
      *  removed it so `unapplySourceStaticEffects` can restore it. */
-    removedKeywords?: { keyword: string; sourceId: string }[];
+    removedKeywords?: {
+        keyword: string;
+        sourceId: string;
+        /** CR 613.7 layer timestamp of the removing SOURCE (issue #1715),
+         *  copied from its `staticSeq`. A `keyword-grant` whose own `seq` is
+         *  LOWER loses to this removal and is recorded `suppressed`; a grant
+         *  with a HIGHER seq applies on top and keeps the keyword (CR 613.1f
+         *  — Gravity Sphere then Flight: the creature flies). */
+        seq?: number;
+    }[];
     /** Keywords removed for a limited duration by a one-shot effect (CR 611.1b
      *  layer 6 — Shelkin Brownie / Tolaria stripping banding and "bands with
      *  other" abilities until end of turn). Each entry records the keyword
@@ -630,6 +653,19 @@ export type CardInstanceState = {
      *  battlefield (a World permanent re-entering becomes a fresh world
      *  permanent and is re-stamped). */
     worldSeq?: number;
+    /** CR 613.7 layer timestamp of THIS permanent's continuous static effects
+     *  (issue #1715). Stamped by `applySourceStaticEffects` every time the
+     *  source's effects are applied afresh — the permanent entering the
+     *  battlefield, or an Aura becoming attached to a different object
+     *  (CR 613.7d) — and copied onto every layer-4/6 record the apply writes
+     *  (`grantedStaticAbilities.seq`, `removedKeywords.seq`,
+     *  `grantedSubtypes.seq`, `grantedSubtypesAdd.seq`). A counter-gated
+     *  RE-EVALUATION (`refreshCounterGatedStatics`) explicitly PRESERVES it:
+     *  re-running a predicate is not a new timestamp, so the source keeps its
+     *  position in every layer's ordering no matter how many SBA passes run.
+     *  Cleared when the permanent leaves the battlefield, so a permanent that
+     *  re-enters is a new object with a new (latest) timestamp. */
+    staticSeq?: number;
     /** Per-turn activation counter keyed by ability id (CR 602.5 — "activate
      *  this ability only once each turn"). Incremented on activation commit,
      *  reset at the active player's turn start. Read by the activation
@@ -690,7 +726,16 @@ export type CardInstanceState = {
      *  source's override. The engine also snapshots `printedSubtypes` before
      *  the first replacement so unapply can restore them. When multiple
      *  sources overlap, the last entry's subtypes are the active ones. */
-    grantedSubtypes?: { subtypes: string[]; sourceId: string }[];
+    grantedSubtypes?: {
+        subtypes: string[];
+        sourceId: string;
+        /** CR 613.7 layer timestamp of the setting SOURCE (issue #1715),
+         *  copied from its `staticSeq`. `composeMaterializedSubtypes` merges
+         *  this list with `grantedSubtypesAdd` and replays BOTH in seq order,
+         *  so a later set overwrites an earlier "in addition" add and a later
+         *  add survives an earlier set. */
+        seq?: number;
+    }[];
     /** Tracks subtypes ADDED by `StaticSubtypeAdd` effects (layer 4 additive
      *  surrogate — see `cards/types.ts` for the model's limits), mirroring
      *  `grantedTypes` one-for-one: one entry per `(auraId, subtype)` pair so
@@ -699,7 +744,14 @@ export type CardInstanceState = {
      *  `subtype` itself is also pushed into `subtypes[]` at apply time.
      *  Unlike `grantedSubtypes` (subtype-SET, a destructive replace), this
      *  never touches `printedSubtypes` — nothing is ever hidden. */
-    grantedSubtypesAdd?: { subtype: string; auraId: string }[];
+    grantedSubtypesAdd?: {
+        subtype: string;
+        auraId: string;
+        /** CR 613.7 layer timestamp of the adding SOURCE (issue #1715) — see
+         *  `grantedSubtypes.seq`. Absent for the `"indefinite"` sentinel
+         *  source (a resolved one-shot, CR 611.2c), which sorts first. */
+        seq?: number;
+    }[];
     /** Layer 5 color grants (CR 305.7). Each entry records one source's
      *  granted colors. Used by Kormus Bell ("black creatures"). */
     grantedColors?: { color: string; sourceId: string }[];
@@ -5026,14 +5078,48 @@ function unapplyKeywordCounterGrant(
     }
 }
 
+/** CR 613.7 (issue #1715) — mints the next layer timestamp. Monotonic over
+ *  the live battlefield: strictly greater than every `staticSeq` currently
+ *  stamped, so a source applying now sorts AFTER every source already
+ *  applying. Derived rather than stored on `GameState` because ordering is
+ *  only ever relative among LIVE records — once every stamped permanent has
+ *  left, there is nothing left to order and restarting at 1 is observationally
+ *  identical. */
+function allocStaticTimestamp(state: GameState): number {
+    let max = 0;
+    for (const player of state.players) {
+        for (const card of player.battlefield) {
+            if (card.staticSeq !== undefined && card.staticSeq > max) {
+                max = card.staticSeq;
+            }
+        }
+    }
+    return max + 1;
+}
+
 export function applySourceStaticEffects(
     state: GameState,
-    source: CardInstanceState
+    source: CardInstanceState,
+    options?: {
+        /** CR 613.7 — keep the source's EXISTING layer timestamp instead of
+         *  minting a new one. Set only by `refreshCounterGatedStatics`: a
+         *  counter-gated re-evaluation re-runs the predicate but does NOT
+         *  re-stamp the effect, so the source keeps its ordering position
+         *  across an arbitrary number of SBA passes. Every other caller
+         *  (ETB, aura attach/reattach, reanimation) is a genuinely new
+         *  application and takes a new timestamp (CR 613.7d). */
+        preserveTimestamp?: boolean;
+    }
 ): void {
     const cardId = (source.card as { id?: string }).id;
     const def = cardId ? tryGetDefinition(cardId) : null;
     const effects = getEffectiveStaticEffects(def, source.chosenModeId);
     if (effects.length === 0) return;
+    const seq =
+        options?.preserveTimestamp && source.staticSeq !== undefined
+            ? source.staticSeq
+            : allocStaticTimestamp(state);
+    source.staticSeq = seq;
     for (const player of state.players) {
         for (const target of player.battlefield) {
             for (const effect of effects) {
@@ -5041,13 +5127,38 @@ export function applySourceStaticEffects(
                     if (!effect.applies(target, source, STATIC_EFFECT_CTX)) {
                         continue;
                     }
-                    target.staticAbilities = [
-                        ...target.staticAbilities,
-                        effect.keyword,
-                    ];
+                    // CR 613.1f / 613.7 (issue #1715) — layer 6 applies grants
+                    // and removals in TIMESTAMP order. The grant loses only to
+                    // a stripper from another source holding a STRICTLY LATER
+                    // timestamp; a grant applied after a live stripper wins and
+                    // the keyword comes back (Gravity Sphere, then Flight: the
+                    // creature flies). The existence of a `removedKeywords`
+                    // entry proves nothing about order on its own — it is
+                    // written whenever the keyword happened to be present when
+                    // the stripper applied.
+                    const outrankedBy = (target.removedKeywords ?? []).some(
+                        (r) =>
+                            r.keyword === effect.keyword &&
+                            r.sourceId !== source.id &&
+                            (r.seq ?? 0) > seq
+                    );
+                    if (!outrankedBy) {
+                        target.staticAbilities = [
+                            ...target.staticAbilities,
+                            effect.keyword,
+                        ];
+                    }
                     target.grantedStaticAbilities = [
                         ...(target.grantedStaticAbilities ?? []),
-                        { ability: effect.keyword, auraId: source.id },
+                        {
+                            ability: effect.keyword,
+                            auraId: source.id,
+                            seq,
+                            // Apply and unapply must stay exact inverses: a
+                            // grant that never reached `staticAbilities` must
+                            // not be spliced back out of it.
+                            ...(outrankedBy ? { suppressed: true } : {}),
+                        },
                     ];
                 } else if (effect.kind === "activated-grant" && cardId) {
                     if (!effect.applies(target, source, STATIC_EFFECT_CTX)) {
@@ -5171,7 +5282,7 @@ export function applySourceStaticEffects(
                         continue;
                     }
                     if (!target.printedSubtypes) {
-                        target.printedSubtypes = [...target.subtypes];
+                        target.printedSubtypes = capturePrintedSubtypes(target);
                     }
                     const grants = target.grantedSubtypes ?? [];
                     const already = grants.some(
@@ -5181,11 +5292,17 @@ export function applySourceStaticEffects(
                         grants.push({
                             subtypes: newSubtypes,
                             sourceId: source.id,
+                            seq,
                         });
                     }
                     target.grantedSubtypes =
                         grants.length > 0 ? grants : undefined;
-                    target.subtypes = [...newSubtypes];
+                    // CR 613.7 (issue #1715) — never assign `subtypes` from
+                    // this grant alone: a live `subtype-add` with a LATER
+                    // timestamp ("in addition to its other land types") must
+                    // survive a set that newly starts applying. Every path
+                    // that writes layer-4 subtypes goes through the composer.
+                    target.subtypes = composeMaterializedSubtypes(target);
                 } else if (effect.kind === "subtype-add") {
                     if (!effect.applies(target, source, STATIC_EFFECT_CTX)) {
                         continue;
@@ -5197,13 +5314,14 @@ export function applySourceStaticEffects(
                                 o.auraId === source.id && o.subtype === subtype
                         );
                         if (already) continue;
-                        origins.push({ subtype, auraId: source.id });
-                        if (!target.subtypes.includes(subtype)) {
-                            target.subtypes = [...target.subtypes, subtype];
-                        }
+                        origins.push({ subtype, auraId: source.id, seq });
                     }
                     target.grantedSubtypesAdd =
                         origins.length > 0 ? origins : undefined;
+                    // Same composer as the set branch — an add that lands
+                    // BEFORE a live set must not reappear on top of it
+                    // (CR 613.7).
+                    target.subtypes = composeMaterializedSubtypes(target);
                 } else if (effect.kind === "supertype-set") {
                     // CR 205.4a — continuous supertype mutation (Melting).
                     if (!effect.applies(target, source, STATIC_EFFECT_CTX)) {
@@ -5222,7 +5340,11 @@ export function applySourceStaticEffects(
                         ];
                         target.removedKeywords = [
                             ...(target.removedKeywords ?? []),
-                            { keyword: effect.keyword, sourceId: source.id },
+                            {
+                                keyword: effect.keyword,
+                                sourceId: source.id,
+                                seq,
+                            },
                         ];
                     }
                 } else if (effect.kind === "ability-loss") {
@@ -5238,7 +5360,7 @@ export function applySourceStaticEffects(
                     // reusing the keyword-remove restore path on unapply.
                     const removed = target.removedKeywords ?? [];
                     for (const kw of target.staticAbilities) {
-                        removed.push({ keyword: kw, sourceId: source.id });
+                        removed.push({ keyword: kw, sourceId: source.id, seq });
                     }
                     if (target.staticAbilities.length > 0) {
                         target.staticAbilities = [];
@@ -5259,6 +5381,70 @@ export function applySourceStaticEffects(
  *  aura cast. Behaves identically to `applySourceStaticEffects`. */
 export const applyAuraStaticEffects = applySourceStaticEffects;
 
+/** CR 613 layer-4 composition (issue #1715) — recompute a target's live
+ *  `subtypes[]` by replaying its WHOLE materialized layer-4 record in
+ *  timestamp order (CR 613.7).
+ *
+ *  `grantedSubtypes` (subtype-SET, "is a Mountain") and `grantedSubtypesAdd`
+ *  (subtype-ADD, "is a Forest in addition to its other land types", CR 305.7)
+ *  are two storage shapes for ONE ordered sequence of layer-4 effects, so both
+ *  are merged onto a single `seq` axis and replayed together: a set wipes
+ *  whatever earlier entries produced, an add appends to it. Replaying the adds
+ *  unconditionally on top of the newest set — as this did before — makes an
+ *  earlier add outlive a later set, which is exactly the pass-count-dependent
+ *  answer issue #1715 is about.
+ *
+ *  Ties (equal `seq`, and legacy records persisted before the timestamp
+ *  existed, which read as 0) keep sets-before-adds, the pre-#1715 order.
+ *
+ *  Read `target.grantedSubtypes` / `grantedSubtypesAdd` AFTER they have been
+ *  updated: this composes the record, it does not mutate it. Callers that
+ *  clear `printedSubtypes` must do so after calling. */
+/** Snapshots the pre-layer-4 base `subtypes` before the first `subtype-set`
+ *  overwrites them. Excludes subtypes that are only there because a live
+ *  `subtype-add` put them there (issue #1715): the composer replays the adds
+ *  from their own record, so a base that already contained them would make an
+ *  add immortal — it would survive its own source leaving play. A subtype the
+ *  card is actually PRINTED with is kept even when an add duplicates it. */
+function capturePrintedSubtypes(target: CardInstanceState): string[] {
+    const adds = target.grantedSubtypesAdd ?? [];
+    if (adds.length === 0) return [...target.subtypes];
+    const targetCardId = (target.card as { id?: string }).id;
+    const printed = targetCardId
+        ? (tryGetDefinition(targetCardId)?.subtypes ?? [])
+        : [];
+    return target.subtypes.filter(
+        (s) => printed.includes(s) || !adds.some((a) => a.subtype === s)
+    );
+}
+
+function composeMaterializedSubtypes(target: CardInstanceState): string[] {
+    const sets = target.grantedSubtypes ?? [];
+    const adds = target.grantedSubtypesAdd ?? [];
+    if (sets.length === 0 && adds.length === 0) {
+        return [...(target.printedSubtypes ?? target.subtypes)];
+    }
+    type Layer4Entry =
+        | { seq: number; set: string[] }
+        | { seq: number; add: string };
+    const entries: Layer4Entry[] = [
+        ...sets.map((g) => ({ seq: g.seq ?? 0, set: g.subtypes })),
+        ...adds.map((a) => ({ seq: a.seq ?? 0, add: a.subtype })),
+    ];
+    // Stable sort: `Array.prototype.sort` is stable per spec, so equal-seq
+    // entries keep the sets-then-adds construction order above.
+    entries.sort((a, b) => a.seq - b.seq);
+    let composed = [...(target.printedSubtypes ?? target.subtypes)];
+    for (const entry of entries) {
+        if ("set" in entry) {
+            composed = [...entry.set];
+        } else if (!composed.includes(entry.add)) {
+            composed.push(entry.add);
+        }
+    }
+    return composed;
+}
+
 /** Reverse of `applySourceStaticEffects`: walks the whole battlefield and
  *  splices out every grant whose `auraId` matches `source.id`. Call before
  *  the source transitions off the battlefield (destroy, exile, SBA detach,
@@ -5278,6 +5464,12 @@ export function unapplySourceStaticEffects(
                         kept.push(g);
                         continue;
                     }
+                    // CR 613.1f (issue #1715) — a grant a strictly-later
+                    // stripper outranked never reached `staticAbilities`, so
+                    // splicing here would eat an occurrence belonging to the
+                    // printed card or to another source. Apply and unapply
+                    // must stay exact inverses.
+                    if (g.suppressed) continue;
                     const idx = target.staticAbilities.indexOf(g.ability);
                     if (idx !== -1) {
                         target.staticAbilities = [
@@ -5369,12 +5561,8 @@ export function unapplySourceStaticEffects(
                     (g) => g.sourceId !== source.id
                 );
                 target.grantedSubtypes = kept.length > 0 ? kept : undefined;
-                if (kept.length > 0) {
-                    target.subtypes = [...kept[kept.length - 1].subtypes];
-                } else {
-                    target.subtypes = [
-                        ...(target.printedSubtypes ?? target.subtypes),
-                    ];
+                target.subtypes = composeMaterializedSubtypes(target);
+                if (kept.length === 0) {
                     target.printedSubtypes = undefined;
                 }
             }
@@ -5407,6 +5595,13 @@ export function unapplySourceStaticEffects(
                             (s) => s !== r.subtype
                         );
                     }
+                    // CR 613.7 (issue #1715) — with a `subtype-set` still
+                    // live the composed answer, not the filtered array, is
+                    // authoritative: the surviving adds have to be replayed
+                    // against the set in timestamp order again.
+                    if (target.grantedSubtypes?.length) {
+                        target.subtypes = composeMaterializedSubtypes(target);
+                    }
                 }
             }
             const colorGrants = target.grantedColors;
@@ -5431,6 +5626,21 @@ export function unapplySourceStaticEffects(
                         ...target.staticAbilities,
                         r.keyword,
                     ];
+                    // CR 613.1f (issue #1715) — the occurrence just restored
+                    // may be one this stripper outranked a grant out of. Hand
+                    // it back to that grant so a later unapply of the GRANT
+                    // splices it out again (and this stripper's restore is not
+                    // double-counted). Exactly one grant per restored
+                    // occurrence, oldest first.
+                    const outranked = (
+                        target.grantedStaticAbilities ?? []
+                    ).find(
+                        (g) =>
+                            g.suppressed === true &&
+                            g.ability === r.keyword &&
+                            (g.seq ?? 0) < (r.seq ?? 0)
+                    );
+                    if (outranked) delete outranked.suppressed;
                 }
                 target.removedKeywords = kept.length > 0 ? kept : undefined;
             }
@@ -5492,8 +5702,18 @@ export function refreshCounterGatedStatics(state: GameState): void {
             // reattach idiom): the predicate may read the target's counters
             // (Dread Wight) or the source's own (Cocoon), so nothing short of
             // re-running it is correct.
+            // CR 613.7 (issue #1715) — a counter-gated RE-EVALUATION does not
+            // give the source a new timestamp (only an Aura becoming attached
+            // does, CR 613.7d). Re-applying with a fresh timestamp would
+            // re-stamp this source LAST in every layer it participates in, so
+            // the winning subtype / keyword would depend on how many SBA
+            // passes have run. `preserveTimestamp` keeps `source.staticSeq`,
+            // which is what every record it rewrites is stamped with, so the
+            // refresh is idempotent by construction.
             unapplySourceStaticEffects(state, source);
-            applySourceStaticEffects(state, source);
+            applySourceStaticEffects(state, source, {
+                preserveTimestamp: true,
+            });
         }
     }
 }
@@ -5516,201 +5736,211 @@ export function applyExistingGrantsTo(
     // (non-batch) sources are pulled through this call in the batch path.
     excludeSourceIds?: ReadonlySet<string>
 ): void {
+    // CR 613.7 (issue #1715) — layers 4 and 6 apply in TIMESTAMP order, and
+    // this loop materializes every pre-existing source onto the newcomer in
+    // one pass. Walking the raw battlefield arrays would apply them in seating
+    // order, so which of two co-applying `subtype-set`s (or a stripper vs. a
+    // grant) won would depend on where each permanent happens to sit. Sorting
+    // by `staticSeq` makes this site agree with `applySourceStaticEffects`:
+    // an entering permanent and an entering aura resolve the same board the
+    // same way.
+    const sources: CardInstanceState[] = [];
     for (const player of state.players) {
         for (const source of player.battlefield) {
             if (source.id === newPermanent.id) continue;
             if (excludeSourceIds?.has(source.id)) continue;
-            const cardId = (source.card as { id?: string }).id;
-            const def = cardId ? tryGetDefinition(cardId) : null;
-            const effects = getEffectiveStaticEffects(def, source.chosenModeId);
-            for (const effect of effects) {
-                if (effect.kind === "keyword-grant") {
-                    if (
-                        !effect.applies(newPermanent, source, STATIC_EFFECT_CTX)
-                    ) {
-                        continue;
-                    }
+            sources.push(source);
+        }
+    }
+    sources.sort((a, b) => (a.staticSeq ?? 0) - (b.staticSeq ?? 0));
+    for (const source of sources) {
+        const seq = source.staticSeq ?? 0;
+        const cardId = (source.card as { id?: string }).id;
+        const def = cardId ? tryGetDefinition(cardId) : null;
+        const effects = getEffectiveStaticEffects(def, source.chosenModeId);
+        for (const effect of effects) {
+            if (effect.kind === "keyword-grant") {
+                if (!effect.applies(newPermanent, source, STATIC_EFFECT_CTX)) {
+                    continue;
+                }
+                // Same layer-6 ordering rule as `applySourceStaticEffects`
+                // (CR 613.1f, issue #1715): only a STRICTLY LATER stripper
+                // beats this grant. With `sources` in timestamp order a
+                // later stripper normally hasn't run yet, so this only
+                // fires against a removal already recorded on the newcomer.
+                const outrankedBy = (newPermanent.removedKeywords ?? []).some(
+                    (r) =>
+                        r.keyword === effect.keyword &&
+                        r.sourceId !== source.id &&
+                        (r.seq ?? 0) > seq
+                );
+                if (!outrankedBy) {
                     newPermanent.staticAbilities = [
                         ...newPermanent.staticAbilities,
                         effect.keyword,
                     ];
-                    newPermanent.grantedStaticAbilities = [
-                        ...(newPermanent.grantedStaticAbilities ?? []),
-                        { ability: effect.keyword, auraId: source.id },
-                    ];
-                } else if (effect.kind === "activated-grant" && cardId) {
-                    if (
-                        !effect.applies(newPermanent, source, STATIC_EFFECT_CTX)
-                    ) {
-                        continue;
-                    }
-                    newPermanent.grantedActivatedAbilities = [
-                        ...(newPermanent.grantedActivatedAbilities ?? []),
-                        {
-                            sourceCardId: cardId,
-                            abilityId: effect.abilityId,
-                            auraId: source.id,
-                        },
-                    ];
-                } else if (effect.kind === "triggered-grant" && cardId) {
-                    if (
-                        !effect.applies(newPermanent, source, STATIC_EFFECT_CTX)
-                    ) {
-                        continue;
-                    }
-                    newPermanent.grantedTriggeredAbilities = [
-                        ...(newPermanent.grantedTriggeredAbilities ?? []),
-                        {
-                            sourceCardId: cardId,
-                            abilityId: effect.abilityId,
-                            auraId: source.id,
-                        },
-                    ];
-                } else if (effect.kind === "type-add") {
-                    if (
-                        !effect.applies(newPermanent, source, STATIC_EFFECT_CTX)
-                    ) {
-                        continue;
-                    }
-                    const origins = newPermanent.grantedTypes ?? [];
-                    for (const type of effect.types) {
-                        const already = origins.some(
-                            (o) => o.auraId === source.id && o.type === type
-                        );
-                        if (already) continue;
-                        origins.push({ type, auraId: source.id });
-                        if (!newPermanent.types.includes(type as CardType)) {
-                            newPermanent.types = [
-                                ...newPermanent.types,
-                                type as CardType,
-                            ];
-                        }
-                    }
-                    newPermanent.grantedTypes =
-                        origins.length > 0 ? origins : undefined;
-                    // CR 302.6 — see the parallel `type-add` branch above:
-                    // control continuity is tracked from entry, so becoming a
-                    // creature here does not reset summoning sickness.
-                } else if (effect.kind === "color-grant") {
-                    if (
-                        !effect.applies(newPermanent, source, STATIC_EFFECT_CTX)
-                    ) {
-                        continue;
-                    }
-                    const colorGrants = newPermanent.grantedColors ?? [];
-                    for (const color of effect.colors) {
-                        const already = colorGrants.some(
-                            (g) => g.sourceId === source.id && g.color === color
-                        );
-                        if (!already) {
-                            colorGrants.push({ color, sourceId: source.id });
-                        }
-                    }
-                    newPermanent.grantedColors =
-                        colorGrants.length > 0 ? colorGrants : undefined;
-                } else if (effect.kind === "subtype-set") {
-                    // Mirror of the apply-time branching (ADR 0050): a land
-                    // entering while a computed-output subtype swap (Illusionary
-                    // Terrain) is in play must swap immediately, same as a
-                    // pre-existing land.
-                    let newSubtypes: string[] | null;
-                    if (effect.subtypesFor) {
-                        newSubtypes = effect.subtypesFor(
-                            newPermanent,
-                            source,
-                            STATIC_EFFECT_CTX
-                        );
-                    } else {
-                        newSubtypes = effect.applies!(
-                            newPermanent,
-                            source,
-                            STATIC_EFFECT_CTX
-                        )
-                            ? effect.subtypes!
-                            : null;
-                    }
-                    if (newSubtypes === null) {
-                        continue;
-                    }
-                    if (!newPermanent.printedSubtypes) {
-                        newPermanent.printedSubtypes = [
-                            ...newPermanent.subtypes,
+                }
+                newPermanent.grantedStaticAbilities = [
+                    ...(newPermanent.grantedStaticAbilities ?? []),
+                    {
+                        ability: effect.keyword,
+                        auraId: source.id,
+                        seq,
+                        ...(outrankedBy ? { suppressed: true } : {}),
+                    },
+                ];
+            } else if (effect.kind === "activated-grant" && cardId) {
+                if (!effect.applies(newPermanent, source, STATIC_EFFECT_CTX)) {
+                    continue;
+                }
+                newPermanent.grantedActivatedAbilities = [
+                    ...(newPermanent.grantedActivatedAbilities ?? []),
+                    {
+                        sourceCardId: cardId,
+                        abilityId: effect.abilityId,
+                        auraId: source.id,
+                    },
+                ];
+            } else if (effect.kind === "triggered-grant" && cardId) {
+                if (!effect.applies(newPermanent, source, STATIC_EFFECT_CTX)) {
+                    continue;
+                }
+                newPermanent.grantedTriggeredAbilities = [
+                    ...(newPermanent.grantedTriggeredAbilities ?? []),
+                    {
+                        sourceCardId: cardId,
+                        abilityId: effect.abilityId,
+                        auraId: source.id,
+                    },
+                ];
+            } else if (effect.kind === "type-add") {
+                if (!effect.applies(newPermanent, source, STATIC_EFFECT_CTX)) {
+                    continue;
+                }
+                const origins = newPermanent.grantedTypes ?? [];
+                for (const type of effect.types) {
+                    const already = origins.some(
+                        (o) => o.auraId === source.id && o.type === type
+                    );
+                    if (already) continue;
+                    origins.push({ type, auraId: source.id });
+                    if (!newPermanent.types.includes(type as CardType)) {
+                        newPermanent.types = [
+                            ...newPermanent.types,
+                            type as CardType,
                         ];
                     }
-                    const grants = newPermanent.grantedSubtypes ?? [];
-                    const already = grants.some(
-                        (g) => g.sourceId === source.id
+                }
+                newPermanent.grantedTypes =
+                    origins.length > 0 ? origins : undefined;
+                // CR 302.6 — see the parallel `type-add` branch above:
+                // control continuity is tracked from entry, so becoming a
+                // creature here does not reset summoning sickness.
+            } else if (effect.kind === "color-grant") {
+                if (!effect.applies(newPermanent, source, STATIC_EFFECT_CTX)) {
+                    continue;
+                }
+                const colorGrants = newPermanent.grantedColors ?? [];
+                for (const color of effect.colors) {
+                    const already = colorGrants.some(
+                        (g) => g.sourceId === source.id && g.color === color
                     );
                     if (!already) {
-                        grants.push({
-                            subtypes: newSubtypes,
-                            sourceId: source.id,
-                        });
+                        colorGrants.push({ color, sourceId: source.id });
                     }
-                    newPermanent.grantedSubtypes =
-                        grants.length > 0 ? grants : undefined;
-                    newPermanent.subtypes = [...newSubtypes];
-                } else if (effect.kind === "subtype-add") {
-                    // CR 305.7 — a land entering while Urborg / Yavimaya-style
-                    // "each land is a [type] in addition" is in play gains the
-                    // added subtype immediately, same as a pre-existing land.
-                    if (
-                        !effect.applies(newPermanent, source, STATIC_EFFECT_CTX)
-                    ) {
-                        continue;
-                    }
-                    const origins = newPermanent.grantedSubtypesAdd ?? [];
-                    for (const subtype of effect.subtypes) {
-                        const already = origins.some(
-                            (o) =>
-                                o.auraId === source.id && o.subtype === subtype
-                        );
-                        if (already) continue;
-                        origins.push({ subtype, auraId: source.id });
-                        if (!newPermanent.subtypes.includes(subtype)) {
-                            newPermanent.subtypes = [
-                                ...newPermanent.subtypes,
-                                subtype,
-                            ];
-                        }
-                    }
-                    newPermanent.grantedSubtypesAdd =
-                        origins.length > 0 ? origins : undefined;
-                } else if (effect.kind === "supertype-set") {
-                    // CR 205.4a — a snow land entering while Melting is in
-                    // play immediately loses its Snow supertype.
-                    if (
-                        !effect.applies(newPermanent, source, STATIC_EFFECT_CTX)
-                    ) {
-                        continue;
-                    }
-                    applySupertypeSetGrant(newPermanent, source.id, effect);
-                } else if (effect.kind === "ability-loss") {
-                    // CR 613.1f — a noncreature artifact entering under
-                    // Titania's Song loses all its abilities too.
-                    if (
-                        !effect.applies(newPermanent, source, STATIC_EFFECT_CTX)
-                    ) {
-                        continue;
-                    }
-                    const already = (
-                        newPermanent.abilitiesSuppressedBy ?? []
-                    ).includes(source.id);
-                    if (already) continue;
-                    const removed = newPermanent.removedKeywords ?? [];
-                    for (const kw of newPermanent.staticAbilities) {
-                        removed.push({ keyword: kw, sourceId: source.id });
-                    }
-                    if (newPermanent.staticAbilities.length > 0) {
-                        newPermanent.staticAbilities = [];
-                    }
-                    newPermanent.removedKeywords =
-                        removed.length > 0 ? removed : undefined;
-                    newPermanent.abilitiesSuppressedBy = [
-                        ...(newPermanent.abilitiesSuppressedBy ?? []),
-                        source.id,
-                    ];
                 }
+                newPermanent.grantedColors =
+                    colorGrants.length > 0 ? colorGrants : undefined;
+            } else if (effect.kind === "subtype-set") {
+                // Mirror of the apply-time branching (ADR 0050): a land
+                // entering while a computed-output subtype swap (Illusionary
+                // Terrain) is in play must swap immediately, same as a
+                // pre-existing land.
+                let newSubtypes: string[] | null;
+                if (effect.subtypesFor) {
+                    newSubtypes = effect.subtypesFor(
+                        newPermanent,
+                        source,
+                        STATIC_EFFECT_CTX
+                    );
+                } else {
+                    newSubtypes = effect.applies!(
+                        newPermanent,
+                        source,
+                        STATIC_EFFECT_CTX
+                    )
+                        ? effect.subtypes!
+                        : null;
+                }
+                if (newSubtypes === null) {
+                    continue;
+                }
+                if (!newPermanent.printedSubtypes) {
+                    newPermanent.printedSubtypes =
+                        capturePrintedSubtypes(newPermanent);
+                }
+                const grants = newPermanent.grantedSubtypes ?? [];
+                const already = grants.some((g) => g.sourceId === source.id);
+                if (!already) {
+                    grants.push({
+                        subtypes: newSubtypes,
+                        sourceId: source.id,
+                        seq,
+                    });
+                }
+                newPermanent.grantedSubtypes =
+                    grants.length > 0 ? grants : undefined;
+                newPermanent.subtypes =
+                    composeMaterializedSubtypes(newPermanent);
+            } else if (effect.kind === "subtype-add") {
+                // CR 305.7 — a land entering while Urborg / Yavimaya-style
+                // "each land is a [type] in addition" is in play gains the
+                // added subtype immediately, same as a pre-existing land.
+                if (!effect.applies(newPermanent, source, STATIC_EFFECT_CTX)) {
+                    continue;
+                }
+                const origins = newPermanent.grantedSubtypesAdd ?? [];
+                for (const subtype of effect.subtypes) {
+                    const already = origins.some(
+                        (o) => o.auraId === source.id && o.subtype === subtype
+                    );
+                    if (already) continue;
+                    origins.push({ subtype, auraId: source.id, seq });
+                }
+                newPermanent.grantedSubtypesAdd =
+                    origins.length > 0 ? origins : undefined;
+                newPermanent.subtypes =
+                    composeMaterializedSubtypes(newPermanent);
+            } else if (effect.kind === "supertype-set") {
+                // CR 205.4a — a snow land entering while Melting is in
+                // play immediately loses its Snow supertype.
+                if (!effect.applies(newPermanent, source, STATIC_EFFECT_CTX)) {
+                    continue;
+                }
+                applySupertypeSetGrant(newPermanent, source.id, effect);
+            } else if (effect.kind === "ability-loss") {
+                // CR 613.1f — a noncreature artifact entering under
+                // Titania's Song loses all its abilities too.
+                if (!effect.applies(newPermanent, source, STATIC_EFFECT_CTX)) {
+                    continue;
+                }
+                const already = (
+                    newPermanent.abilitiesSuppressedBy ?? []
+                ).includes(source.id);
+                if (already) continue;
+                const removed = newPermanent.removedKeywords ?? [];
+                for (const kw of newPermanent.staticAbilities) {
+                    removed.push({ keyword: kw, sourceId: source.id, seq });
+                }
+                if (newPermanent.staticAbilities.length > 0) {
+                    newPermanent.staticAbilities = [];
+                }
+                newPermanent.removedKeywords =
+                    removed.length > 0 ? removed : undefined;
+                newPermanent.abilitiesSuppressedBy = [
+                    ...(newPermanent.abilitiesSuppressedBy ?? []),
+                    source.id,
+                ];
             }
         }
     }
@@ -7959,6 +8189,10 @@ function resetBattlefieldTransientState(card: CardInstanceState): void {
     // run BEFORE the matching deletes below, while the provenance is readable.
     revertAnimation(card);
     for (const grant of card.grantedStaticAbilities ?? []) {
+        // A grant a strictly-later stripper outranked never reached
+        // `staticAbilities` (CR 613.1f, issue #1715) — splicing here would eat
+        // an occurrence that belongs to the printed card.
+        if (grant.suppressed) continue;
         const idx = card.staticAbilities.indexOf(grant.ability);
         if (idx !== -1) {
             card.staticAbilities = [
@@ -7968,6 +8202,9 @@ function resetBattlefieldTransientState(card: CardInstanceState): void {
         }
     }
     delete card.grantedStaticAbilities;
+    // CR 613.7 (issue #1715) — a permanent that leaves and re-enters is a NEW
+    // object and takes a NEW layer timestamp on its next apply.
+    delete card.staticSeq;
     delete card.grantedActivatedAbilities;
     delete card.grantedTriggeredAbilities;
     delete card.removedKeywords;
