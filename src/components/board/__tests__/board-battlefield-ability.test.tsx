@@ -645,7 +645,9 @@ describe("board battlefield activated-ability parity with the classic board (#27
         fireEvent.click(trigger);
         const item = within(document.body)
             .queryAllByRole("menuitem")
-            .find((el) => (el.textContent ?? "").includes("Remove a net counter"));
+            .find((el) =>
+                (el.textContent ?? "").includes("Remove a net counter")
+            );
         expect(item).toBeUndefined();
     });
 });

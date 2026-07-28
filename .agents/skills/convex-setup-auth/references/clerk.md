@@ -13,9 +13,9 @@ features.
 1. Confirm the user wants Clerk
 2. Make sure the user has a Clerk account and a Clerk application
 3. Determine the app framework:
-   - React
-   - Next.js
-   - TanStack Start
+    - React
+    - Next.js
+    - TanStack Start
 4. Ask whether the user wants local-only setup or production-ready setup now
 5. Gather the Clerk keys and the Clerk Frontend API URL
 6. Follow the correct framework section in the official docs
@@ -56,11 +56,11 @@ features.
 - Clerk Convex integration page: `https://dashboard.clerk.com/apps/setup/convex`
 - Clerk API keys page: `https://dashboard.clerk.com/last-active?path=api-keys`
 - Clerk environment variables:
-  - `CLERK_JWT_ISSUER_DOMAIN` for Convex backend validation in the Convex docs
-  - `CLERK_FRONTEND_API_URL` in the Clerk docs
-  - `VITE_CLERK_PUBLISHABLE_KEY` for Vite apps
-  - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` for Next.js apps
-  - `CLERK_SECRET_KEY` for Next.js server-side Clerk setup where required
+    - `CLERK_JWT_ISSUER_DOMAIN` for Convex backend validation in the Convex docs
+    - `CLERK_FRONTEND_API_URL` in the Clerk docs
+    - `VITE_CLERK_PUBLISHABLE_KEY` for Vite apps
+    - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` for Next.js apps
+    - `CLERK_SECRET_KEY` for Next.js server-side Clerk setup where required
 
 `CLERK_JWT_ISSUER_DOMAIN` and `CLERK_FRONTEND_API_URL` refer to the same Clerk
 Frontend API URL value. Do not treat them as two different URLs.

@@ -59,10 +59,10 @@ Use this when the app already uses Auth0 or the user wants Auth0 specifically.
 - frontend app entry or provider wrapper
 - Auth0 CLI install docs: `https://auth0.github.io/auth0-cli/`
 - Auth0 environment variables commonly include:
-  - `AUTH0_DOMAIN`
-  - `AUTH0_CLIENT_ID`
-  - `VITE_AUTH0_DOMAIN`
-  - `VITE_AUTH0_CLIENT_ID`
+    - `AUTH0_DOMAIN`
+    - `AUTH0_CLIENT_ID`
+    - `VITE_AUTH0_DOMAIN`
+    - `VITE_AUTH0_CLIENT_ID`
 
 ## Concrete Steps
 
