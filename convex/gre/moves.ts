@@ -274,14 +274,12 @@ export function planManaPayment(
     // (rules.ts) builds from `opts.state`, so THIS payment-planning path
     // (fixed-cost sources, actually tapping for a cost already settled on) is
     // board-aware for every board-dependent mana ability, not only the
-    // self-referential ones a self-only view already covered. This does NOT
-    // extend to the {X} CEILING the bot enumerates before ever reaching this
-    // function — `enumerateCastMoves`'s `xCeiling` still comes from
-    // `maxAffordableX(player, card)` with no `state` (below, and rules.ts's
-    // `maxAffordableX`), so a board-dependent source (Fellwar Stone) that
-    // could fund a larger X is invisible to the ceiling even though this
-    // planner, once handed that X, would find the mana. Under-offer only
-    // (never an illegal offer), tracked-by: #1757.
+    // self-referential ones a self-only view already covered. Issue #1757
+    // closed the one remaining gap this used to flag: the {X} CEILING
+    // `enumerateCastMoves` computes before ever reaching this function now
+    // passes its own `state` into `maxAffordableX` too (below), so a
+    // board-dependent source (Fellwar Stone) that funds a larger X is visible
+    // to the ceiling exactly like it is to this planner.
     const boardBattlefields = manaGateBattlefields(state);
 
     const sources: PlanSource[] = [];
@@ -574,9 +572,23 @@ function enumerateCastMoves(
     // X spells: enumerate X = 0..maxAffordable. Fixed (numeric) costs use a
     // single X = undefined. The X ceiling comes from the SHARED
     // `maxAffordableX` (rules.ts) — the same helper the human castability gate
-    // uses — so the Bot and the gate can never disagree on the reachable range.
-    // Each X is still re-checked below via `planManaPayment`, so an X the shared
-    // greedy ceiling over-counts is filtered there (never over-offered).
+    // uses — passed the SAME `state` the gate's own `hasEnoughLegalTargets`
+    // call forwards (issue #1757; previously omitted here, so a board-dependent
+    // mana source — Fellwar Stone, a Metalcraft-satisfied Mox Opal — reached a
+    // higher ceiling at the gate than the Bot ever enumerated) — so the Bot
+    // and `hasEnoughLegalTargets`'s own probe can never disagree on the
+    // reachable range. That agreement is scoped to the gate's PROBE, not to
+    // the cast path's actual reachable range: `maxAffordableX` deliberately
+    // does not model CR 601.2f cost reductions (mirrors
+    // `canPotentiallyPayCost`), while this loop's `normCost` DOES fold
+    // `applyCostModifiers` per candidate X below, and `announceCast`
+    // (game.ts) enforces no `maxAffordableX` ceiling at all on the human's
+    // announced X — so under a live cost reducer a human can legally announce
+    // an X the Bot never enumerates here. Each X this loop DOES enumerate is
+    // still re-checked below via `planManaPayment`, so an X the shared greedy
+    // ceiling over-counts is filtered there (never over-offered) — the
+    // asymmetry only ever under-enumerates the Bot's X range, never
+    // over-offers it.
     // CR 107.3 — a board-count upper bound on X ("X can't be greater than the
     // number of snow lands you control", Winter's Chill) caps the enumeration
     // to the same ceiling the cast mutation enforces, so the Bot never offers
@@ -585,10 +597,10 @@ function enumerateCastMoves(
     const xCeiling =
         def?.castXUpperBound === "snow-lands"
             ? Math.min(
-                  maxAffordableX(player, card),
+                  maxAffordableX(player, card, state),
                   countSnowLands(player.battlefield)
               )
-            : maxAffordableX(player, card);
+            : maxAffordableX(player, card, state);
     const xValues: (number | undefined)[] = hasX
         ? Array.from({ length: xCeiling + 1 }, (_, i) => i)
         : [undefined];
@@ -644,7 +656,8 @@ function enumerateCastMoves(
                     player,
                     card,
                     rawCost,
-                    x ?? 0
+                    x ?? 0,
+                    state
                 );
                 if (split === null) continue;
                 for (const [c, n] of Object.entries(split.manaAdditions)) {
@@ -667,7 +680,12 @@ function enumerateCastMoves(
                 ? delveEligibleCards(player, card.id).length
                 : 0;
             if (delveFuel > 0) {
-                const shortfall = genericManaShortfall(player, card, normCost);
+                const shortfall = genericManaShortfall(
+                    player,
+                    card,
+                    normCost,
+                    state
+                );
                 applyGenericOffset(
                     normCost,
                     Math.min(

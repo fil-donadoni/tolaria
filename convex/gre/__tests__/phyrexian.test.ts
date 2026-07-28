@@ -30,6 +30,8 @@ import {
     makeState,
 } from "../../cards/__tests__/setup";
 import { projectPublicState } from "../../gameProjections";
+import { finalizeTargetSelection } from "../../game";
+import type { PendingTarget } from "../state";
 
 describe("Phyrexian mana — representation (CR 107.4f / 202.3f)", () => {
     it("counts each Phyrexian pip as 1 toward mana value (CR 202.3f)", () => {
@@ -239,6 +241,85 @@ describe("Phyrexian mana — board threading into the Phyrexian branch (issue #1
     });
 });
 
+// Issue #1757 finding 2 — the SAME board-blind gap as finding 1 above, but on
+// the REAL SERVER CAST PATH: `resolvePhyrexianCastPayment` (game.ts) called
+// `solvePhyrexianSplit(player, card, rawCost, chosenX)` with NO `state` at
+// all (the function didn't even have a `state` param). Board-blind, so a
+// Mox-Opal-funded split comes back `null` from `solvePhyrexianSplit`, and
+// `resolvePhyrexianCastPayment` falls into its `else` branch (`lifePips =
+// totalPips`) — defaulting to an ALL-LIFE payment the caster's life total
+// (CR 119.4) can't cover. The gate (`getLegalActions`, board-aware since
+// #1751 finding 1) had legally offered "cast" — so the cast the gate offered
+// would THROW ("Cannot pay more life than you have") at commit, through the
+// exact real entry point `announceCast`'s targeted branch uses
+// (`finalizeTargetSelection`, mirrors `storm-cast-count-repro.test.ts`'s and
+// `delveCastCost.test.ts`'s targeted-cast precedents).
+describe("Phyrexian mana — board threading into the REAL cast-commit path (issue #1757 finding 2)", () => {
+    it("Gitaxian Probe ({U/P}) at 1 life, Mox Opal (Metalcraft satisfied): finalizeTargetSelection completes the cast instead of throwing the CR 119.4 life check", () => {
+        const card = makeInstance(gitaxianProbe.id, {
+            id: "probe",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const player = makePlayer("p1", {
+            life: 1,
+            hand: [card],
+            battlefield: [
+                makeInstance(moxOpal.id, {
+                    id: "mox",
+                    controllerId: "p1",
+                    ownerId: "p1",
+                }),
+                makeInstance(ankhOfMishra.id, {
+                    id: "ank1",
+                    controllerId: "p1",
+                    ownerId: "p1",
+                }),
+                makeInstance(ankhOfMishra.id, {
+                    id: "ank2",
+                    controllerId: "p1",
+                    ownerId: "p1",
+                }),
+            ],
+            manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
+        });
+        const state = makeState({ players: [player, makePlayer("p2")] });
+        // Mimic announceCast having entered target selection for the cast
+        // (Gitaxian Probe targets a player) — no `phyrexianLifePips` chosen,
+        // so `resolvePhyrexianCastPayment` takes the auto-resolve branch this
+        // fix targets.
+        const pt: PendingTarget = {
+            playerId: "p1",
+            cardInstanceId: "probe",
+            targetType: "player",
+            count: 1,
+            selected: [{ type: "player", id: "p2" }],
+        };
+        state.pendingTarget = pt;
+
+        expect(() => finalizeTargetSelection(state, pt, "p1")).not.toThrow();
+
+        // Board-blind, `resolvePhyrexianCastPayment` would have thrown
+        // "Cannot pay more life than you have" INSIDE this call (payLife = 2
+        // > life = 1) before ever reaching the mana-payment code below — so
+        // the `not.toThrow()` above is already the fix's core assertion.
+        // Board-aware, the split resolves to the MANA leg (Mox Opal pays the
+        // {U/P} pip): the parked cast owes `{ U: 1 }` mana and NO life at
+        // all — `payLife` is entirely absent from `pendingCast` (folded in
+        // only when > 0) — and the caster's life is untouched. Mox Opal
+        // itself isn't pre-tapped into the pool, so the cast parks on
+        // `pendingCast` here rather than reaching the stack immediately
+        // (mirrors every other un-autotapped board-mana cast in this suite);
+        // the life-safety property this fix protects is fully proven by the
+        // no-throw + zero-life-cost assertions.
+        expect(state.pendingCast).toBeDefined();
+        expect(state.pendingCast?.manaCost).toEqual({ U: 1 });
+        expect(state.pendingCast?.payLife).toBeUndefined();
+        expect(player.life).toBe(1);
+    });
+});
+
 describe("Phyrexian mana — split OPTIONS for the picker (CR 107.4f)", () => {
     it("returns every affordable lifePips value (a real branch)", () => {
         // Gitaxian Probe {U/P}, {U} in pool + 20 life → pay {U} (0) OR 2 life (1).
@@ -326,5 +407,55 @@ describe("Phyrexian mana — split picker surfaces through projection (CR 107.4f
         const projected = projectPublicState(state, 1, "p1");
         const slim = projected.players[0].hand.find((c) => c?.id === cardId);
         expect(slim?.phyrexianOptions).toBeUndefined();
+    });
+
+    // Additional board-blind holdout found while verifying issue #1757
+    // finding 3 (not one of the reviewer's 5 named findings, same bug class):
+    // `projectPublicState` called `phyrexianLifePipOptions(player, card,
+    // rawCost)` with NO `state` — the picker's affordability probe couldn't
+    // see a board-dependent mana source, so a real mana-vs-life branch could
+    // silently collapse to a single (life-only) option and the picker would
+    // never surface to the client, even though the mana leg was genuinely
+    // choosable.
+    it("exposes BOTH branches when a board-dependent mana source (Mox Opal, Metalcraft) funds the mana leg (issue #1757)", () => {
+        const card = makeInstance(gitaxianProbe.id, {
+            zone: "hand",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    life: 4, // affords the life leg (2 life) with room to spare
+                    hand: [card],
+                    battlefield: [
+                        makeInstance(moxOpal.id, {
+                            id: "mox",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                        }),
+                        makeInstance(ankhOfMishra.id, {
+                            id: "ank1",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                        }),
+                        makeInstance(ankhOfMishra.id, {
+                            id: "ank2",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                        }),
+                    ],
+                    manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
+                }),
+                makePlayer("p2"),
+            ],
+        });
+
+        // Board-aware: Mox Opal (Metalcraft satisfied) funds the mana leg
+        // (lifePips 0) AND life covers the life leg (lifePips 1) — a REAL
+        // two-branch choice the client must prompt for.
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].hand.find((c) => c?.id === card.id);
+        expect(slim?.phyrexianOptions).toEqual([0, 1]);
     });
 });

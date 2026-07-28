@@ -16,7 +16,7 @@ import {
 import type { CardInstanceState, GameState, PlayerState } from "../state";
 import * as stateModule from "../state";
 import { enumerateMoves, planManaPayment, type Move } from "../moves";
-import { getLegalActions } from "../rules";
+import { getLegalActions, maxAffordableX } from "../rules";
 
 const FOREST = getCardByName("Forest").id;
 const MOUNTAIN = getCardByName("Mountain").id;
@@ -1016,6 +1016,177 @@ describe("gate ↔ planner opponent-scanning mana-source parity (issue #1754)", 
 
         expect(legalActionsFor(state, "p1", bolt)).not.toContain("cast");
         expect(castsFor(state, "p1", bolt.id)).toHaveLength(0);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Gate ↔ enumerator {X}-ceiling parity for a board-dependent mana source
+// (issue #1757 — last link in the #1695 → #1751 → #1754 → #1756 chain).
+// ---------------------------------------------------------------------------
+//
+// `enumerateCastMoves` derives an {X} spell's X ceiling from
+// `maxAffordableX(player, card)` with NO `state`, while `hasEnoughLegalTargets`
+// (rules.ts) calls the SAME helper WITH `state`. `maxAffordableX` only forwards
+// board-dependent mana visibility (Mox Opal's Metalcraft, CR 602.5b) into
+// `coloredCostLeftover` when handed a `state` — so before this fix the Bot's
+// {X} ceiling for Fireball was computed as if Mox Opal produced nothing at
+// all (Metalcraft's `canActivate` sees `{ players: [] }` and reports false),
+// one lower than the ceiling the human castability gate (and the real
+// `planManaPayment` tap plan, which DOES get a board) can actually reach.
+// Under-offer only: the Bot never proposes the higher, still-legal X.
+describe("gate ↔ enumerator X-ceiling parity for a board-dependent mana source (issue #1757)", () => {
+    it("Fireball ({X}{R}) funded by a Metalcraft-satisfied Mox Opal: maxAffordableX and the enumerator's highest chosenX agree, and the extra X pip taps Mox Opal", () => {
+        const fireball = makeInstance(FIREBALL, {
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const mountain = land(MOUNTAIN, "p1");
+        const moxOpal = makeInstance(MOX_OPAL, {
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const p1 = makePlayer("p1", {
+            hand: [fireball],
+            battlefield: [
+                mountain,
+                moxOpal,
+                makeInstance(ANKH, { controllerId: "p1", ownerId: "p1" }),
+                makeInstance(ANKH, { controllerId: "p1", ownerId: "p1" }),
+            ],
+        });
+        const state = makeState({ players: [p1, makePlayer("p2")] });
+        const player = state.players.find((p) => p.id === "p1")!;
+
+        // The gate: Mox Opal + 2 Ankh of Mishra = 3 artifacts, Metalcraft
+        // satisfied. One Mountain pays Fireball's {R}; the leftover source is
+        // Mox Opal's any-colour mana, which funds exactly one more X — so
+        // `maxAffordableX` (board-aware) reaches X = 1, not X = 0.
+        expect(maxAffordableX(player, fireball, state)).toBe(1);
+
+        // The enumerator must agree: its highest offered `chosenX` for
+        // Fireball is 1, not 0 — the board-blind bug capped it at 0 (a
+        // Mountain alone pays only the fixed {R}, leaving nothing for X).
+        const casts = castsFor(state, "p1", fireball.id).filter(
+            (m): m is Move & { kind: "cast-spell" } => m.kind === "cast-spell"
+        );
+        expect(casts.length).toBeGreaterThan(0);
+        const chosenXValues = new Set(casts.map((c) => c.chosenX ?? 0));
+        expect(Math.max(...chosenXValues)).toBe(1);
+
+        // Every X = 1 move's tap plan must tap the SPECIFIC Mox Opal instance
+        // (not `expect.any(String)` — a loose assertion here was recently
+        // shown to pass under the exact fault it exists to catch, issue
+        // #1757's test requirement): the Mountain pays the coloured {R} pip,
+        // Mox Opal's choice-based any-colour ability pays the one generic
+        // pip X = 1 draws from.
+        const x1Casts = casts.filter((c) => (c.chosenX ?? 0) === 1);
+        expect(x1Casts.length).toBeGreaterThan(0);
+        for (const cast of x1Casts) {
+            expect(cast.tapPlan).toEqual([
+                { cardInstanceId: mountain.id },
+                {
+                    cardInstanceId: moxOpal.id,
+                    manaChoiceIndex: expect.any(Number),
+                },
+            ]);
+        }
+
+        // No X = 2 move is ever offered: only one leftover source (Mox Opal)
+        // exists once the Mountain pays {R}, so X = 2 is genuinely unaffordable
+        // — the fix must not OVER-offer either.
+        expect(chosenXValues.has(2)).toBe(false);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Gate ↔ enumerator Phyrexian-split (CR 107.4f) board-dependent mana-source
+// parity (issue #1757 finding 1) — a FIFTH board-blind holdout in the same
+// #1695 → #1751 → #1754 → #1756 → #1757 chain, ten lines below the delve fix
+// this PR otherwise closes out.
+// ---------------------------------------------------------------------------
+//
+// `enumerateCastMoves` called `solvePhyrexianSplit(player, card, rawCost,
+// x ?? 0)` with NO `state` — its 5th, optional param — so the split solver's
+// `canPayNormalizedCost` → `coloredCostLeftover` probe ran board-blind
+// (`getProducibleManaUnits`'s `{ players: [] }` fallback), while
+// `getLegalActions` (rules.ts) forwards its own `state` into the SAME
+// `solvePhyrexianSplit` at its `canPotentiallyPayCost` call site. Gitaxian
+// Probe ({U/P}) with the caster at 1 life (so the life-pip branch is
+// unaffordable — `Math.floor(1 / 2) === 0`) can ONLY be cast by paying the
+// pip with mana; a Metalcraft-satisfied Mox Opal is that mana, and it is
+// invisible to the board-blind solver — `split === null` for every mode/X —
+// so the enumerator silently dropped the cast the gate legally offered.
+const GITAXIAN_PROBE = getCardByName("Gitaxian Probe").id; // {U/P} Sorcery, target player
+
+describe("gate ↔ enumerator Phyrexian-split board-dependent mana-source parity (issue #1757 finding 1)", () => {
+    it("Gitaxian Probe ({U/P}), p1 at 1 life, Mox Opal (Metalcraft satisfied): getLegalActions offers cast AND enumerateMoves yields a cast move", () => {
+        const probe = makeInstance(GITAXIAN_PROBE, {
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const moxOpal = makeInstance(MOX_OPAL, {
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const p1 = makePlayer("p1", {
+            life: 1,
+            hand: [probe],
+            battlefield: [
+                moxOpal,
+                makeInstance(ANKH, { controllerId: "p1", ownerId: "p1" }),
+                makeInstance(ANKH, { controllerId: "p1", ownerId: "p1" }),
+            ],
+        });
+        const state = makeState({ players: [p1, makePlayer("p2")] });
+
+        // The gate: at 1 life, the life-pip branch of the {U/P} split can pay
+        // 0 pips (floor(1/2) = 0), so the ONLY affordable split pays the pip
+        // with mana — Mox Opal (Metalcraft satisfied: itself + 2 Ankh of
+        // Mishra = 3 artifacts) supplies it.
+        expect(legalActionsFor(state, "p1", probe)).toContain("cast");
+
+        // The planner must agree: at least one cast-spell move for Gitaxian
+        // Probe, each tapping p1's OWN Mox Opal (a choice-based source, hence
+        // `manaChoiceIndex`) for the {U/P} pip's mana leg — before the fix
+        // this was an empty array (every mode/X candidate's
+        // `solvePhyrexianSplit` returned `null` board-blind, so the loop
+        // `continue`d past every one).
+        const casts = castsFor(state, "p1", probe.id).filter(
+            (m): m is Move & { kind: "cast-spell" } => m.kind === "cast-spell"
+        );
+        expect(casts.length).toBeGreaterThan(0);
+        for (const cast of casts) {
+            expect(cast.tapPlan).toEqual([
+                {
+                    cardInstanceId: moxOpal.id,
+                    manaChoiceIndex: expect.any(Number),
+                },
+            ]);
+        }
+    });
+
+    it("does NOT offer a Gitaxian Probe cast move when Metalcraft is unsatisfied (Mox Opal alone, only 1 artifact, p1 at 1 life)", () => {
+        const probe = makeInstance(GITAXIAN_PROBE, {
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const p1 = makePlayer("p1", {
+            life: 1,
+            hand: [probe],
+            battlefield: [
+                makeInstance(MOX_OPAL, { controllerId: "p1", ownerId: "p1" }),
+            ],
+        });
+        const state = makeState({ players: [p1, makePlayer("p2")] });
+
+        // No source can pay the {U/P} pip (Mox Opal inert, life too low for
+        // the life-pip branch): both the gate and the enumerator agree it is
+        // uncastable.
+        expect(legalActionsFor(state, "p1", probe)).not.toContain("cast");
+        expect(castsFor(state, "p1", probe.id)).toHaveLength(0);
     });
 });
 

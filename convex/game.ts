@@ -4782,13 +4782,21 @@ function kickerAdjustedTargetRequirement(
  *  absent the split is auto-resolved to the most-life affordable option via
  *  `solvePhyrexianSplit` (the signature "pay 2 life" line, falling back to mana
  *  only when life can't cover a pip). A no-Phyrexian cost is a `{}`/`0` no-op.
- *  Throws when the chosen life payment exceeds the caster's life (CR 119.4). */
+ *  Throws when the chosen life payment exceeds the caster's life (CR 119.4).
+ *  `state`, when passed, is forwarded into `solvePhyrexianSplit` /
+ *  `canPayNormalizedCost` (issue #1757 finding 2) so the auto-resolved split
+ *  sees the same both-players board (`manaGateBattlefields`, issue #1751
+ *  finding 1) the human gate and the Bot's enumerator already agree on —
+ *  otherwise a Mox-Opal-funded split the gate offered comes back `null` here
+ *  and falls into the all-life branch below, which then throws the CR 119.4
+ *  life check on a cast the gate legally offered. */
 function resolvePhyrexianCastPayment(
     player: PlayerState,
     card: CardInstanceState,
     rawCost: ManaCost | undefined,
     chosenX: number | undefined,
-    argLifePips: number | undefined
+    argLifePips: number | undefined,
+    state?: GameState
 ): { manaAdditions: Partial<Record<Color, number>>; payLife: number } {
     if (!rawCost) return { manaAdditions: {}, payLife: 0 };
     const totalPips = phyrexianPipCount(rawCost);
@@ -4801,7 +4809,13 @@ function resolvePhyrexianCastPayment(
         lifePips = Math.max(0, Math.min(argLifePips, totalPips));
         manaAdditions = phyrexianManaAdditions(rawCost, lifePips);
     } else {
-        const split = solvePhyrexianSplit(player, card, rawCost, chosenX);
+        const split = solvePhyrexianSplit(
+            player,
+            card,
+            rawCost,
+            chosenX,
+            state
+        );
         if (split) {
             lifePips = split.lifePips;
             manaAdditions = split.manaAdditions;
@@ -5371,7 +5385,8 @@ export function finalizeTargetSelection(
               cardInHand,
               rawCost,
               chosenX,
-              pt.phyrexianLifePips
+              pt.phyrexianLifePips,
+              state
           );
     for (const [c, n] of Object.entries(phyrexianPayment.manaAdditions)) {
         if (n && n > 0) manaCost[c] = (manaCost[c] ?? 0) + n;
@@ -5531,7 +5546,7 @@ export function finalizeTargetSelection(
             cardInHand,
             manaCost,
             cardInstanceId,
-            genericManaShortfall(player, cardInHand, manaCost)
+            genericManaShortfall(player, cardInHand, manaCost, state)
         );
         // CR 601.2g (issue #1660) — collapse a fully-forced pick right here at
         // the commit seam (see `collapseForcedDelvePick`'s doc). No convoke on
@@ -6472,7 +6487,8 @@ export const announceCast = mutation({
             cardInHand,
             rawCost,
             chosenX,
-            args.phyrexianLifePips
+            args.phyrexianLifePips,
+            state
         );
         for (const [c, n] of Object.entries(phyrexianPayment.manaAdditions)) {
             if (n && n > 0) manaCost[c] = (manaCost[c] ?? 0) + n;
@@ -6627,7 +6643,7 @@ export const announceCast = mutation({
                 cardInHand,
                 manaCost,
                 args.cardInstanceId,
-                genericManaShortfall(player, cardInHand, manaCost)
+                genericManaShortfall(player, cardInHand, manaCost, state)
             );
             // CR 601.2g (issue #1660) — collapse a fully-forced pick right
             // here at the commit seam (see `collapseForcedDelvePick`'s doc).
@@ -8412,7 +8428,7 @@ export function recordConvokeCreaturePick(
             castCard,
             pc.manaCost,
             pc.cardInstanceId,
-            genericManaShortfall(player, castCard, pc.manaCost)
+            genericManaShortfall(player, castCard, pc.manaCost, state)
         );
         if (delveChoice) pc.exileFromGraveyardChoice = delveChoice;
     }
