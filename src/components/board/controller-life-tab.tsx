@@ -18,7 +18,10 @@ type ControllerLifeTabProps = {
  *  at a glance without opening anything.
  *
  *  It is also the viewer's player-target surface — see {@link useSelfTargetTab}
- *  for the seam; the full reachability pass is tracked-by: #1766. */
+ *  for the seam. Click-to-target and the choose-damage-target buffer route are
+ *  both reachable through this tab now (#1766); the divide-as-you-choose
+ *  stepper gap {@link useSelfTargetTab} documents is folded into #1770's
+ *  mobile QA sweep. */
 export default function ControllerLifeTab({
     me,
     opponent,

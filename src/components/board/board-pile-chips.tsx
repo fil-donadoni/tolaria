@@ -44,8 +44,18 @@ export default function BoardPileChips({ player }: { player: Player }) {
             />
 
             {/* Pile components in controlled-open mode: they render ONLY their
-                reveal dialog (no collapsed visual), driven by the chips above. */}
-            <div className="sr-only">
+                reveal dialog (no collapsed visual), driven by the chips above.
+                `hidden` (display:none), NOT `sr-only` (a 1px clip box) — a
+                `fixed` overlay cannot escape an ancestor CLIP, only an
+                ancestor that is unrendered (Portent portal-fix bug class).
+                Each pile still renders an empty `w-(--card-w-sm) aspect-5/7`
+                box when `controlled` and closed; `display:none` collapses
+                that box to nothing, so this stays layout-neutral. Portaled
+                dialogs (GameDialog's Base UI portal, LibraryOrderPicker's
+                `createPortal` to `document.body`) render outside this
+                subtree regardless, so they stay interactive while it is
+                hidden. */}
+            <div className="hidden">
                 <PlayerGraveyard
                     player={player}
                     open={openZone === "graveyard"}

@@ -30,7 +30,9 @@ import BoardPileChips from "./board-pile-chips";
  *  wraps, and a hard-coded `bottom-32` put the drawer's own edge back underneath
  *  the two-line DECLARE_ATTACKERS bar — reintroducing this ticket's overlap.
  *
- *  Deliberately thin: the richer pile presentation is tracked-by: #1766. */
+ *  Not thin any more (#1766): reusing {@link BoardPileChips} unchanged means
+ *  the drawer already carries the FULL pile presentation — reveal dialogs,
+ *  library order picker, forced pile grids — not a stripped-down preview. */
 export default function ControllerZonesDrawer({
     player,
     open,

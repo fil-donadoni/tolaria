@@ -150,7 +150,8 @@ type CtxOverrides = Partial<React.ContextType<typeof GameContext>>;
 
 function renderController(
     ctx: CtxOverrides = {},
-    toggle: (phase: Phase, side: Side) => void = () => {}
+    toggle: (phase: Phase, side: Side) => void = () => {},
+    bufferOverrides: Partial<PendingChoiceBuffer> = {}
 ) {
     const value = {
         gameId: "game-id" as never,
@@ -165,12 +166,13 @@ function renderController(
         debugAllActions: false,
         ...ctx,
     } as React.ContextType<typeof GameContext>;
+    const buffer: PendingChoiceBuffer = { ...noopBuffer, ...bufferOverrides };
     return render(
         <GameContext value={value}>
             <SkipPhasePrefsContext
                 value={{ prefs: DEFAULT_SKIP_PREFS, toggle, reset: () => {} }}
             >
-                <PendingChoiceBufferContext value={noopBuffer}>
+                <PendingChoiceBufferContext value={buffer}>
                     <MinimizedChoiceContext value={noopMinimized}>
                         <Controller onOpenMenu={() => {}} />
                     </MinimizedChoiceContext>
@@ -423,28 +425,33 @@ describe("You tab — real self-target surface (#1766)", () => {
         // Cuombajj Witches (CR 115.4/608.2) style: the viewer is the chooser
         // and their own seat is a candidate — `useSelfTargetTab` must treat
         // `isDamageTargetPickable` as targetable too (not only `isTargetable`).
-        renderController({
-            pendingChoices: [
-                {
-                    stackItemId: "witches",
-                    step: 0,
-                    choiceId: "cuombajj-witches",
-                    playerId: "me",
-                    kind: "choose-damage-target",
-                    zone: "battlefield",
-                    allControllers: true,
-                    count: 1,
-                    prompt: "Cuombajj Witches: choose any target.",
-                    candidateIds: [],
-                    candidatePlayerIds: ["me"],
-                } as unknown as PendingChoice,
-            ],
+        const witchesChoice: PendingChoice = {
+            stackItemId: "witches",
+            step: 0,
+            choiceId: "cuombajj-witches",
+            playerId: "me",
+            kind: "choose-damage-target",
+            zone: "battlefield",
+            allControllers: true,
+            count: 1,
+            prompt: "Cuombajj Witches: choose any target.",
+            candidateIds: [],
+            candidatePlayerIds: ["me"],
+        };
+        const toggle = vi.fn();
+
+        renderController({ pendingChoices: [witchesChoice] }, () => {}, {
+            toggle,
         });
 
         const tab = screen.getByLabelText("Your life total: 20");
         expect(tab.className).toContain("ring-2");
 
         fireEvent.click(tab);
+        // Proves the click ROUTES through the buffer (the viewer's own id,
+        // matching `usePlayerInteraction.handleClick`'s
+        // `bufferCtx.toggle(player.id)`), not merely that it fails to select.
+        expect(toggle).toHaveBeenCalledWith("me");
         expect(calls.find((c) => c.ref === "selectTarget")).toBeUndefined();
     });
 });
