@@ -20,8 +20,7 @@ import {
     buildTriggerStateView,
     wantsPermanentTarget,
     matchesTargetRequirement,
-    matchesTargetExclusions,
-    matchesTargetController,
+    matchesPermanentTargetFilters,
     isTapLockedBySummoningSickness,
     hasManaAbility,
     pendingCastHasImprovise,
@@ -399,16 +398,17 @@ export function useBattlefieldInteraction(player: Player) {
             // is inert here; the stepper owns assignment.
             pendingTarget.divideTotal === undefined &&
             matchesTargetRequirement(card, pendingTarget.targetType) &&
-            matchesTargetExclusions(card, pendingTarget) &&
-            // CR 109.3 / 102.1 — don't fire selectTarget for a wrong-controller
-            // permanent; `useBattlefieldVisualState` already dims it, so firing
-            // the doomed mutation just surfaces an error toast (#904). Mirror
-            // the visual-state gate: chooser is pendingTarget.playerId.
-            matchesTargetController(
-                card.controllerId,
-                pendingTarget.playerId,
-                activePlayerId,
-                pendingTarget.controller
+            // CR 109.1/.3/102.1/202/205/601.2c/613/701.20/702 (issue #1697) —
+            // don't fire selectTarget for a permanent the shared target-filter
+            // registry would reject (supertype/subtype/color/tapped/combat
+            // role/keyword/power/toughness/mv/controller/sameController);
+            // `useBattlefieldVisualState` already dims it, so firing the
+            // doomed mutation just surfaces an error toast (#904).
+            matchesPermanentTargetFilters(
+                card,
+                pendingTarget,
+                allPlayers,
+                activePlayerId
             ) &&
             // CR 702.18 / 611 — don't fire selectTarget for a shrouded /
             // "can't be the target" permanent; the server would reject it

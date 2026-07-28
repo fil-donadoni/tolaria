@@ -4,6 +4,7 @@ import type {
     ManaPool,
     PendingActivation,
     PendingCast,
+    PendingTarget,
     Player,
 } from "~/types/game";
 import type { CardType, Color, ManaCost } from "~/types/cards";
@@ -34,6 +35,11 @@ import {
     affordableAlternativeCosts,
     handCardMatchesFilter,
 } from "@convex/gre/alternativeCost";
+import {
+    checkPermanentTargetFilters,
+    type PermanentFilterValues,
+    type TargetFilterCtx,
+} from "@convex/gre/targetFilters";
 import { getDefinition, tryGetDefinition } from "@convex/cards";
 import { tryGetEmblemDefinition } from "@convex/cards/emblems";
 import { getColorsFromCost } from "@convex/cards/colors";
@@ -549,6 +555,107 @@ export function matchesTargetExclusions(
         return false;
     }
     return true;
+}
+
+/** CR 109.1 / 109.3 / 102.1 / 202 / 205 / 601.2c / 613 / 701.20 / 702 — THE
+ *  single client-side authority for every PERMANENT-kind target-filter
+ *  dimension, delegating to the SAME registry (`checkPermanentTargetFilters`,
+ *  `convex/gre/targetFilters.ts`, ADR 0068) `getLegalTargets` (the offered
+ *  set) and the `selectTarget` mutation (the accepted set, `convex/game.ts`)
+ *  already share. Closes issue #1697 (Karakas: "target legendary creature"):
+ *  the client previously only had bespoke mirrors for `controller`
+ *  ({@link matchesTargetController}), `sameController`
+ *  ({@link matchesSameController}) and `excludeTypes`/`excludeInstanceIds`
+ *  ({@link matchesTargetExclusions}) — every OTHER dimension the registry
+ *  knows about (`supertypeFilter`, `subtypeFilter`, `excludeSupertypes`,
+ *  `excludeSubtypes`, `colorFilter`, `colorFilterAny`, `excludeColors`,
+ *  `tappedFilter`, `combatRoleFilter`, `requireAbility`, `requireAbilityAny`,
+ *  `excludeAbility`, `powerFilter`, `toughnessFilter`, `mvFilter`) was
+ *  silently treated as unfiltered, so the highlight ring offered every
+ *  permanent matching the structural `type` alone and selecting one the
+ *  server actually rejected (e.g. a non-legendary creature) threw. A future
+ *  filter added to the registry is honored here automatically — no
+ *  hand-maintained per-dimension mirror to keep in sync.
+ *
+ *  `pendingTarget` already carries every filter field PRE-LOWERED
+ *  (`PendingTarget`, `convex/gre/state.ts`) — the identical
+ *  `PermanentFilterValues` shape `selectTarget` builds server-side from the
+ *  very same object — so this only FORWARDS those fields, it never
+ *  re-derives them from a `TargetRequirement`. `allPlayers`/`activePlayerId`
+ *  build a minimal `GameState`-shaped view (the same established pattern as
+ *  {@link affordableAltCostsForCard} above): the registry's power/toughness
+ *  checks only read `state.players[].battlefield` through the layer system,
+ *  which the wire-projected `Player[]` already carries in full. Does NOT
+ *  check the structural `targetType` (CardType membership) —
+ *  {@link matchesTargetRequirement} remains the gate for that, since `type`
+ *  is a `StructuralKey` in the registry, not a per-candidate filter. */
+export function matchesPermanentTargetFilters(
+    card: CardInstance,
+    pendingTarget: PendingTarget,
+    allPlayers: ReadonlyArray<Player>,
+    activePlayerId: string
+): boolean {
+    const siblingControllerId = ((): string | undefined => {
+        if (
+            !pendingTarget.sameController ||
+            pendingTarget.selected.length === 0
+        ) {
+            return undefined;
+        }
+        const sibling = pendingTarget.selected.find(
+            (t) => t.type === "permanent"
+        );
+        if (!sibling) return undefined;
+        for (const p of allPlayers) {
+            const found = p.battlefield.find((c) => c.id === sibling.id);
+            if (found) return found.controllerId;
+        }
+        return undefined;
+    })();
+
+    const state = {
+        activePlayerId,
+        players: allPlayers,
+    } as unknown as GameState;
+    const ctx: TargetFilterCtx = {
+        state,
+        sourceColors: [],
+        sourceTypes: [],
+        sourceSubtypes: [],
+        chooserId: pendingTarget.playerId,
+        activePlayerId,
+        siblingControllerId,
+    };
+    const values: PermanentFilterValues = {
+        controller: pendingTarget.controller,
+        subtypeFilter: pendingTarget.subtypeFilter,
+        supertypeFilter: pendingTarget.supertypeFilter,
+        excludeSubtypes: pendingTarget.excludeSubtypes,
+        excludeSupertypes: pendingTarget.excludeSupertypes,
+        excludeTypes: pendingTarget.excludeTypes,
+        excludeColors: pendingTarget.excludeColors,
+        colorFilter: pendingTarget.colorFilter as Color | undefined,
+        colorFilterAny: pendingTarget.colorFilterAny as
+            | readonly Color[]
+            | undefined,
+        tappedFilter: pendingTarget.tappedFilter,
+        combatRoleFilter: pendingTarget.combatRoleFilter,
+        requireAbility: pendingTarget.requireAbility,
+        requireAbilityAny: pendingTarget.requireAbilityAny,
+        excludeAbility: pendingTarget.excludeAbility,
+        excludeInstanceIds: pendingTarget.excludeInstanceIds,
+        powerFilter: pendingTarget.powerFilter,
+        toughnessFilter: pendingTarget.toughnessFilter,
+        mvFilter: pendingTarget.mvFilter,
+        sameController: pendingTarget.sameController,
+    };
+    return (
+        checkPermanentTargetFilters(
+            ctx,
+            card as unknown as CardInstanceState,
+            values
+        ) === null
+    );
 }
 
 /** True if the target requirement can target a spell on the stack (CR 114.1):

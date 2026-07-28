@@ -7,6 +7,7 @@ import {
     matchesTargetExclusions,
     matchesTargetController,
     matchesSameController,
+    matchesPermanentTargetFilters,
     matchesSpellTypeFilter,
     matchesSpellExcludeTypeFilter,
     matchesSpellCreaturePtFilter,
@@ -50,7 +51,11 @@ import type {
     PendingCast,
     Player,
 } from "~/types/game";
-import type { ActivatedAbility, CardDefinition } from "@convex/cards/types";
+import type {
+    ActivatedAbility,
+    CardDefinition,
+    TargetRequirement,
+} from "@convex/cards/types";
 import { getDefinition } from "@convex/cards";
 import { CHANDRA_TORCH_OF_DEFIANCE_EMBLEM_ID } from "@convex/cards/emblems";
 import { CLUE_TOKEN_SPEC } from "@convex/cards/abilities/tokens/clueToken";
@@ -73,7 +78,16 @@ import {
     pendelhaven,
     livonyaSilone,
     clergyOfTheHolyNimbus,
+    karakas,
 } from "@convex/cards/sets/leg";
+import { pendingTargetFiltersFromRequirement } from "@convex/gre/rules";
+import { projectPublicState } from "@convex/gameProjections";
+import {
+    makeInstance,
+    makePlayer as makeServerPlayer,
+    makeState,
+} from "@convex/cards/__tests__/setup";
+import type { PendingTarget } from "~/types/game";
 
 // Real card ids from convex/cards/sets/lea.ts, used to exercise the
 // definition-vs-instance keyword diff in getDisplayAbilities (#156).
@@ -341,6 +355,141 @@ describe("matchesTargetExclusions (CR 109.1 / 601.2c, Phelia)", () => {
     it("allows any permanent when no exclusions are present", () => {
         const land = makeCardInstance({ id: "land1", types: ["Land"] });
         expect(matchesTargetExclusions(land, {})).toBe(true);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// matchesPermanentTargetFilters (issue #1697 — Karakas "target legendary
+// creature" rings every creature, then errors on selection)
+// ---------------------------------------------------------------------------
+
+describe("matchesPermanentTargetFilters (CR 109/202/205/613/701.20/702, issue #1697)", () => {
+    // Builds a server-side GameState with Karakas's bounce ability's
+    // TargetRequirement lowered onto a real PendingTarget
+    // (pendingTargetFiltersFromRequirement, the exact function selectTarget
+    // uses server-side), projects it through the REAL wire projection
+    // (projectPublicState) — not a hand-built client fixture — and returns the
+    // wire-shaped players + pendingTarget the board actually reads. Per the
+    // frontend-wiring mandate: a hand-built view would mask exactly the class
+    // of bug this closes (a reducer silently dropping a field).
+    function projectScenario(
+        req: TargetRequirement,
+        legendaryCreatureOverrides: Partial<
+            Parameters<typeof makeInstance>[1]
+        > = {},
+        plainCreatureOverrides: Partial<Parameters<typeof makeInstance>[1]> = {}
+    ) {
+        const legendary = makeInstance(livonyaSilone.id, {
+            id: "legendary-1",
+            controllerId: "p2",
+            ownerId: "p2",
+            ...legendaryCreatureOverrides,
+        });
+        const plain = makeInstance(MERFOLK_ID, {
+            id: "plain-1",
+            controllerId: "p2",
+            ownerId: "p2",
+            ...plainCreatureOverrides,
+        });
+        const karakasInstance = makeInstance(karakas.id, {
+            id: "karakas-1",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makeServerPlayer("p1", { battlefield: [karakasInstance] }),
+                makeServerPlayer("p2", { battlefield: [legendary, plain] }),
+            ],
+            pendingTarget: {
+                playerId: "p1",
+                cardInstanceId: "karakas-1",
+                targetType: req.type,
+                count: 1,
+                selected: [],
+                ...pendingTargetFiltersFromRequirement(req, undefined),
+            } as PendingTarget,
+        });
+
+        const projected = projectPublicState(state, 1, "p1");
+        return {
+            players: projected.players as unknown as Player[],
+            pendingTarget: projected.pendingTarget as unknown as PendingTarget,
+            legendaryClient: projected.players
+                .find((p) => p.id === "p2")!
+                .battlefield.find(
+                    (c) => c.id === "legendary-1"
+                ) as unknown as CardInstance,
+            plainClient: projected.players
+                .find((p) => p.id === "p2")!
+                .battlefield.find(
+                    (c) => c.id === "plain-1"
+                ) as unknown as CardInstance,
+        };
+    }
+
+    it("supertypeFilter (Karakas): highlights the legendary creature, rejects the non-legendary one, through the real wire projection", () => {
+        const { players, pendingTarget, legendaryClient, plainClient } =
+            projectScenario(karakas.activatedAbilities![1].targetRequirement!);
+
+        // The OLD narrow check alone would wrongly say both match — proving
+        // the bug (a "Creature" requirement's structural type check has no
+        // opinion on supertype).
+        expect(
+            matchesTargetRequirement(plainClient, pendingTarget.targetType)
+        ).toBe(true);
+
+        // The shared registry-backed predicate is the one that must diverge:
+        // reject the non-legendary creature, accept the legendary one.
+        expect(
+            matchesPermanentTargetFilters(
+                plainClient,
+                pendingTarget,
+                players,
+                "p1"
+            )
+        ).toBe(false);
+        expect(
+            matchesPermanentTargetFilters(
+                legendaryClient,
+                pendingTarget,
+                players,
+                "p1"
+            )
+        ).toBe(true);
+    });
+
+    it("powerFilter (a dimension beyond supertype): rejects a creature below the power floor, accepts one at/above it, through the real wire projection", () => {
+        const req: TargetRequirement = {
+            type: "Creature",
+            count: 1,
+            powerFilter: { min: 5 },
+        };
+        // Livonya Silone (power 4) fails a "power 5 or greater" filter even
+        // though she IS legendary — proving this isn't Karakas-specific.
+        const { players, pendingTarget, legendaryClient, plainClient } =
+            projectScenario(
+                req,
+                { power: 4 },
+                { power: 6 } // "plain" creature repurposed as the power-6 pass case
+            );
+
+        expect(
+            matchesPermanentTargetFilters(
+                legendaryClient,
+                pendingTarget,
+                players,
+                "p1"
+            )
+        ).toBe(false);
+        expect(
+            matchesPermanentTargetFilters(
+                plainClient,
+                pendingTarget,
+                players,
+                "p1"
+            )
+        ).toBe(true);
     });
 });
 

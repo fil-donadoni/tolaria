@@ -2,9 +2,8 @@ import type { CardInstance } from "~/types/game";
 import { getDefinition } from "@convex/cards";
 import { useGameContext } from "~/hooks/useGameContext";
 import {
-    matchesTargetController,
     matchesTargetRequirement,
-    matchesTargetExclusions,
+    matchesPermanentTargetFilters,
     wantsPlayerTarget,
 } from "~/lib/card-utils";
 import { isPlayerUntargetableByPending } from "~/lib/targeting";
@@ -27,10 +26,11 @@ export type DivideTargetItem =
 /** Enumerate the legal divide targets for the viewer, when the viewer is the
  *  one assigning an active divide split (`pendingTarget.divideTotal` set and
  *  addressed to this seat). Reuses the SAME per-target legality predicates the
- *  board's candidate ring uses — permanent legality
- *  (`matchesTargetRequirement` + `matchesTargetController`) and player legality
- *  (`wantsPlayerTarget` + attacked-this-turn + shroud gate) — so the dialog and
- *  the board agree on the target set. Returns `[]` outside a divide selection. */
+ *  board's candidate ring uses — permanent legality (`matchesTargetRequirement`
+ *  + `matchesPermanentTargetFilters`, the shared target-filter registry,
+ *  issue #1697) and player legality (`wantsPlayerTarget` + attacked-this-turn
+ *  + shroud gate) — so the dialog and the board agree on the target set.
+ *  Returns `[]` outside a divide selection. */
 export function useDivideTargets(): DivideTargetItem[] {
     const {
         allPlayers,
@@ -51,17 +51,17 @@ export function useDivideTargets(): DivideTargetItem[] {
     const items: DivideTargetItem[] = [];
 
     // Permanent targets — mirror `useBattlefieldVisualState`'s `divideTarget`
-    // predicate (matchesTargetRequirement + matchesTargetController).
+    // predicate (matchesTargetRequirement + matchesPermanentTargetFilters,
+    // issue #1697).
     for (const p of allPlayers) {
         for (const card of p.battlefield) {
             if (
                 matchesTargetRequirement(card, pendingTarget.targetType) &&
-                matchesTargetExclusions(card, pendingTarget) &&
-                matchesTargetController(
-                    card.controllerId,
-                    pendingTarget.playerId,
-                    activePlayerId,
-                    pendingTarget.controller
+                matchesPermanentTargetFilters(
+                    card,
+                    pendingTarget,
+                    allPlayers,
+                    activePlayerId
                 )
             ) {
                 items.push({
