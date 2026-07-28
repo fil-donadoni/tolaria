@@ -941,8 +941,19 @@ export function projectPublicState(
                         : undefined;
                     // `phyrexianLifePipOptions` self-guards (returns [] for a
                     // non-Phyrexian cost), so this is O(1) for ordinary cards.
+                    // `state` is forwarded (issue #1757) so a board-dependent
+                    // mana source (Mox Opal's Metalcraft) is visible to this
+                    // picker exactly like it is to `solvePhyrexianSplit`'s
+                    // auto-resolve — otherwise the picker could under-offer a
+                    // life-pip branch the real board actually affords.
                     const phyrexianOptions = rawCost
-                        ? phyrexianLifePipOptions(player, card, rawCost)
+                        ? phyrexianLifePipOptions(
+                              player,
+                              card,
+                              rawCost,
+                              undefined,
+                              state
+                          )
                         : [];
                     return {
                         ...slimCard(card),

@@ -34,6 +34,7 @@ import type { PendingCast, PendingTarget } from "../gre/state";
 import { projectPublicState } from "../gameProjections";
 import { compactState, expandState } from "../gre/serialize";
 import { makeInstance, makePlayer, makeState } from "../cards/__tests__/setup";
+import { getCardByName } from "../cards";
 
 const TREASURE_CRUISE = "7a59d4b1-6cf4-44ec-8a96-1bb7094fea21"; // {7}{U} Sorcery, delve
 const DISRUPT = "c000a02f-6b7e-4925-a938-59e645e980d7"; // {U} Instant, no delve
@@ -372,6 +373,62 @@ describe("finalizeTargetSelection's auto-commit guard (issue #1660)", () => {
     });
 });
 
+// Issue #1757 finding 4 — the board-blind → board-aware `genericManaShortfall`
+// scope expansion (`state` threaded into `game.ts`'s three call sites,
+// `applyMove.ts:147`, `moves.ts:672`) is a behaviour change on the LIVE cast
+// path, but nothing in the suite drove it through a CALLER: the unit tests
+// above call `genericManaShortfall` directly (they test the new PARAMETER,
+// never that a caller passes it). This block closes that gap the same way
+// the #1660 guard above does — through the exported `finalizeTargetSelection`
+// commit seam, the same one `game.ts`'s targeted-cast branch uses at its
+// `genericManaShortfall(player, cardInHand, manaCost, state)` call site
+// (game.ts:5549). Scenario verified against the reviewer's exact repro:
+// Treasure Cruise, 1 Island, 7 graveyard cards, Mox Opal + 2 Ankh of Mishra
+// (Metalcraft satisfied — 3 artifacts).
+describe("finalizeTargetSelection — genericManaShortfall sees Mox Opal only when the caller passes state (issue #1757 finding 4)", () => {
+    it("board-aware: Mox Opal narrows the forced minimum, leaving a real 'which card' branch open (min 6 / max 7)", () => {
+        const { state, player, spell } = board(1, 7); // 1 Island pays {U}
+        player.battlefield.push(
+            makeInstance(getCardByName("Mox Opal").id, {
+                id: "moxOpal",
+                controllerId: "p1",
+            }),
+            makeInstance(getCardByName("Ankh of Mishra").id, {
+                id: "ankh1",
+                controllerId: "p1",
+            }),
+            makeInstance(getCardByName("Ankh of Mishra").id, {
+                id: "ankh2",
+                controllerId: "p1",
+            })
+        );
+        const pt: PendingTarget = {
+            playerId: "p1",
+            cardInstanceId: spell.id,
+            targetType: "any",
+            count: 0,
+            selected: [],
+        };
+        state.pendingTarget = pt;
+
+        finalizeTargetSelection(state, pt, "p1");
+
+        // Mox Opal (Metalcraft satisfied) is a visible leftover source, so
+        // only 6 of the 7 generic pips are forced onto the graveyard — WHICH
+        // 6 of the 7 eligible cards to exile is a real, un-collapsed choice
+        // (min 6 < max 7 = eligible.length), so the cast stays parked with the
+        // picker open rather than auto-committing.
+        expect(state.pendingCast).toBeDefined();
+        expect(
+            state.pendingCast?.exileFromGraveyardChoice?.offsetGeneric
+        ).toEqual({ min: 6, max: 7 });
+        expect(
+            state.pendingCast?.exileFromGraveyardChoice?.pickedCardIds
+        ).toBeUndefined();
+        expect(state.stack).toHaveLength(0);
+    });
+});
+
 describe("genericManaShortfall — the forced-minimum probe (CR 601.2g)", () => {
     it("reports the generic pips mana alone cannot cover", () => {
         const { player, spell } = board(2, 6);
@@ -409,6 +466,48 @@ describe("genericManaShortfall — the forced-minimum probe (CR 601.2g)", () => 
     it("is zero once mana alone covers the whole cost", () => {
         const { player, spell } = board(8, 3);
         expect(genericManaShortfall(player, spell, { X: 7, U: 1 })).toBe(0);
+    });
+
+    // Issue #1757 — the SAME board-blind gap `maxAffordableX` had:
+    // `genericManaShortfall` forwards `state` into `coloredCostLeftover` only
+    // when a caller passes one. A board-dependent mana source (Mox Opal's
+    // Metalcraft, CR 602.5b) is invisible to `getProducibleManaUnits` without
+    // a `state` — its `canActivate` sees `{ players: [] }` and reports false
+    // — so the mana-only leftover is understated and the forced-minimum
+    // delve count is OVERstated: `buildDelveExileChoice`'s `min` (and, at
+    // `min === max === eligible.length`, `collapseForcedDelvePick`'s SILENT
+    // auto-exile of the whole graveyard) would force more delve than the real
+    // board — which the eventual `planManaPayment` tap plan DOES see — needs.
+    it("board-blind (no state) overstates the forced minimum when Mox Opal (Metalcraft) could pay part of the generic cost", () => {
+        const { state, player, spell } = board(1, 9); // 1 Island pays {U}
+        const moxOpal = makeInstance(getCardByName("Mox Opal").id, {
+            id: "moxOpal",
+            controllerId: "p1",
+        });
+        player.battlefield.push(
+            moxOpal,
+            makeInstance(getCardByName("Ankh of Mishra").id, {
+                id: "ankh1",
+                controllerId: "p1",
+            }),
+            makeInstance(getCardByName("Ankh of Mishra").id, {
+                id: "ankh2",
+                controllerId: "p1",
+            })
+        );
+        // Metalcraft satisfied (Mox Opal + 2 Ankh of Mishra = 3 artifacts):
+        // Mox Opal's any-colour {T} ability funds one generic pip.
+        const cost = { X: 7, U: 1 };
+
+        // Board-blind (no `state`, the pre-#1757 shape for every caller):
+        // Mox Opal is invisible, so the Island alone (after paying {U}) leaves
+        // NOTHING for the generic portion — the full {7} looks forced.
+        expect(genericManaShortfall(player, spell, cost)).toBe(7);
+
+        // Board-aware (`state` passed, issue #1757's fix): Mox Opal is now a
+        // visible leftover source, so only 6 of the 7 generic pips are
+        // actually forced onto the graveyard.
+        expect(genericManaShortfall(player, spell, cost, state)).toBe(6);
     });
 });
 
