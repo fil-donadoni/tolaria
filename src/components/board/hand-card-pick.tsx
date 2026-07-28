@@ -8,8 +8,15 @@ import LibrarySearchConfirm from "./library-search-confirm";
 /** Modal picker for a mid-resolution `choose-hand-card` choice (CR 608.2)
  *  whose picked-from hand belongs to ANOTHER player — Thoughtseize / Duress /
  *  Hymn to Tourach "target player reveals their hand. You choose a … card from
- *  it." The revealing card's `reveal` op stamps the target's hand `knownTo` the
- *  chooser, so those cards cross the wire face-up and can be shown here.
+ *  it," and "look at target player's hand and choose a card from it" (Seer's
+ *  Vision). `projectPublicState` exposes the zone owner's hand face-up to
+ *  THIS chooser for as long as the choice is head-of-queue (issue #1698,
+ *  `handPickZoneOwner` in `convex/gameProjections.ts`) — independent of any
+ *  card-specific `reveal` op or continuous "hand revealed" static, so those
+ *  cards cross the wire face-up here even when neither happens to be active
+ *  at this exact moment (e.g. the source already sacrificed to pay its own
+ *  ability's cost). A card's own `reveal` op (Thoughtseize/Duress) additionally
+ *  makes the reveal PUBLIC and persistent — unaffected, still their job.
  *
  *  Reuses the SAME picker surface, display and highlight as the `search-library`
  *  fetch (a `CardsPile` grid + `LibrarySearchConfirm` Done, driven by the shared

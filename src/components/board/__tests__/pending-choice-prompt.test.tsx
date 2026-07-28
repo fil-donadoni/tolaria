@@ -96,6 +96,61 @@ describe("PendingChoicePrompt suppression", () => {
     });
 });
 
+// Regression (issue #1698) — pins the router's existing chooser-vs-owner
+// discrimination for `choose-hand-card` so a future change can't silently
+// flip it back to an own-hand assumption: cross-player picks (Thoughtseize /
+// Duress / Seer's Vision) yield to the dedicated `HandCardPick` modal;
+// own-hand picks (discard-from-your-own-hand, put-back-on-top) keep the
+// generic banner unchanged.
+describe("PendingChoicePrompt — choose-hand-card (issue #1698)", () => {
+    it("yields (renders nothing) for a cross-player pick — HandCardPick owns it", () => {
+        const choice: PendingChoice = {
+            stackItemId: "stk",
+            step: 0,
+            choiceId: "me",
+            playerId: "me",
+            kind: "choose-hand-card",
+            zone: "hand",
+            zoneOwnerId: "opponent",
+            count: 1,
+            prompt: "Choose a card",
+        } as PendingChoice;
+        const { container } = renderPrompt(choice);
+        expect(container.firstChild).toBeNull();
+    });
+
+    it("still renders the generic banner for an own-hand pick (zoneOwnerId omitted)", () => {
+        const choice: PendingChoice = {
+            stackItemId: "stk",
+            step: 0,
+            choiceId: "me",
+            playerId: "me",
+            kind: "choose-hand-card",
+            zone: "hand",
+            count: 1,
+            prompt: "Choose a card to discard.",
+        } as PendingChoice;
+        const { container } = renderPrompt(choice);
+        expect(container.firstChild).not.toBeNull();
+    });
+
+    it("still renders the generic banner for an own-hand pick (zoneOwnerId === viewer)", () => {
+        const choice: PendingChoice = {
+            stackItemId: "stk",
+            step: 0,
+            choiceId: "me",
+            playerId: "me",
+            kind: "choose-hand-card",
+            zone: "hand",
+            zoneOwnerId: "me",
+            count: 1,
+            prompt: "Put a card back on top.",
+        } as PendingChoice;
+        const { container } = renderPrompt(choice);
+        expect(container.firstChild).not.toBeNull();
+    });
+});
+
 describe("PendingChoicePrompt — pick-pile (ADR 0053, pile division)", () => {
     it("yields (renders nothing) for the chooser — the PileDivisionPicker owns the pick surface", () => {
         // ADR 0053: the chooser's face-up two-pile pick moved out of the generic

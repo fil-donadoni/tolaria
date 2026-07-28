@@ -587,6 +587,19 @@ interface ChoiceExposure {
     peekCandidateIds: string[] | undefined;
     /** `reveal-hand`: hand owner whose hand is shown to the chooser. */
     revealZoneOwner: string | undefined;
+    /** `choose-hand-card` (issue #1698): hand owner whose hand is exposed,
+     *  face-up, on the ORDINARY `hand` wire field (not `revealedHand` —
+     *  that's `reveal-hand`'s dedicated look-only view field) to the chooser
+     *  alone, for as long as this pick is head-of-queue. "Look at target
+     *  player's hand and choose a card from it" (Seer's Vision) needs the
+     *  SAME "chooser must see a foreign zone" exposure search-library /
+     *  reorder-library / pick-pile / reveal-hand already get above — scoped
+     *  independently of any OTHER visibility mechanism (an explicit `reveal`
+     *  Op, or a continuous `revealsHand` static), which are incidental and,
+     *  for a self-sacrificing source, provably gone by the time this exact
+     *  choice is raised (`convex/game.ts` pays activation costs before the
+     *  ability ever reaches the stack). */
+    handPickZoneOwner: string | undefined;
 }
 
 /** The looked-at cards a peek/reorder picker renders: the pinned `candidateIds`
@@ -701,12 +714,27 @@ function computeChoiceExposure(
         ? (head.zoneOwnerId ?? head.playerId)
         : undefined;
 
+    // CR 401.4 (issue #1698) — choose-hand-card exposes the zone owner's hand
+    // to the chooser on the ordinary `hand` field (see `handPickZoneOwner`
+    // doc above). Deliberately its OWN check, not folded into
+    // `exposeRevealHand`/`revealZoneOwner`: those feed the `revealedHand`
+    // field, which `RevealHandView` gates strictly on `kind === "reveal-hand"`
+    // — reusing them here would leak an unused-but-populated field into the
+    // wire for every choose-hand-card pick without helping `HandCardPick`,
+    // which reads `hand`, not `revealedHand`.
+    const exposeHandPick =
+        isChooser && head.kind === "choose-hand-card" && head.zone === "hand";
+    const handPickZoneOwner = exposeHandPick
+        ? (head.zoneOwnerId ?? head.playerId)
+        : undefined;
+
     return {
         searchZoneOwner,
         peekZoneOwner: pickPeekOwner ?? peekZoneOwner,
         peekCount: pickPeekIds ? pickPeekIds.length : peekCount,
         peekCandidateIds: pickPeekIds ?? peekCandidateIds,
         revealZoneOwner,
+        handPickZoneOwner,
     };
 }
 
@@ -768,6 +796,7 @@ export function projectPublicState(
         peekCount,
         peekCandidateIds,
         revealZoneOwner,
+        handPickZoneOwner,
     } = computeChoiceExposure(state, viewerId);
     // Exiled-card → holding-permanent links (mechanism-agnostic), so the client
     // pins each exiled card to its permanent (Arena treatment).
@@ -908,10 +937,19 @@ export function projectPublicState(
         // card's identity to opponents (a maximal, continuous form of the
         // per-card `knownTo` reveal).
         const handRevealed = handRevealedPlayers.has(player.id);
+        // issue #1698 — a `choose-hand-card` pick anchored on THIS player's
+        // hand exposes it face-up to the chooser ALONE for exactly as long
+        // as the choice is head-of-queue (`handPickZoneOwner`, gated above on
+        // `viewerId` already being that choice's chooser) — independent of
+        // `handRevealed`/`knownTo`, which stay whatever incidental mechanism
+        // (a continuous static, an explicit prior `reveal`) put them there.
+        const handPickExposed = player.id === handPickZoneOwner;
         return {
             ...common,
             hand: player.hand.map((card): SlimHandCard | null =>
-                handRevealed || card.knownTo?.includes(viewerId)
+                handRevealed ||
+                handPickExposed ||
+                card.knownTo?.includes(viewerId)
                     ? { ...slimCard(card), legalActions: [] }
                     : null
             ),

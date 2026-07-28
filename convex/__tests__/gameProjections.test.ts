@@ -455,6 +455,68 @@ describe("reorder/peek/reveal exposure (issue #262, CR 401.4)", () => {
             expect(player.revealedHand).toBeUndefined();
         }
     });
+
+    // Regression (issue #1698, Seer's Vision hang) — a `choose-hand-card`
+    // pick anchored on a DIFFERENT player's hand ("look at target player's
+    // hand and choose a card from it") is the exact same "chooser needs to
+    // see a foreign zone" shape as reorder-library/reveal-hand above, but it
+    // must expose the ORDINARY `hand` wire field (what `HandCardPick` reads),
+    // not `revealedHand` (the `reveal-hand`-only look view). Before the fix
+    // this stayed `null` for every candidate the instant no OTHER mechanism
+    // (an explicit `reveal` Op, or a still-battlefield-resident continuous
+    // `revealsHand` static) happened to cover that hand — stranding the
+    // picker at zero clickable cards forever.
+    function stateWithChooseHandCard(): GameState {
+        return makeState({
+            pendingChoices: [
+                {
+                    stackItemId: "s1",
+                    step: 0,
+                    choiceId: "p1",
+                    playerId: "p1",
+                    zoneOwnerId: "p2",
+                    kind: "choose-hand-card",
+                    zone: "hand",
+                    count: 1,
+                    prompt: "Choose a card",
+                },
+            ],
+        });
+    }
+
+    it("projectPublicState exposes the zone owner's hand (ordinary `hand` field) to a choose-hand-card chooser", () => {
+        const result = projectPublicState(stateWithChooseHandCard(), 1, "p1");
+        const owner = result.players.find((p) => p.id === "p2")!;
+        // p2's default hand (makeState fixture): p2-h1/h2/h3, all real ids —
+        // NOT null — because p1 is the active choose-hand-card chooser.
+        expect(owner.hand.map((c) => c?.id)).toEqual([
+            "p2-h1",
+            "p2-h2",
+            "p2-h3",
+        ]);
+    });
+
+    it("does NOT expose the hand to a viewer who is not the choose-hand-card chooser", () => {
+        const result = projectPublicState(stateWithChooseHandCard(), 1, "p2");
+        // p2 viewing themselves always sees their own hand in full — that's
+        // the ordinary own-hand branch, unrelated to this exposure.
+        const self = result.players.find((p) => p.id === "p2")!;
+        expect(self.hand.map((c) => c?.id)).toEqual([
+            "p2-h1",
+            "p2-h2",
+            "p2-h3",
+        ]);
+        // But p2 must NOT get any special exposure of p1's hand — p2 is the
+        // ZONE OWNER being picked from here, not the chooser.
+        const p1AsSeenByP2 = result.players.find((p) => p.id === "p1")!;
+        expect(p1AsSeenByP2.hand).toEqual([null, null]);
+    });
+
+    it("does NOT expose revealedHand for a choose-hand-card pick (that field is reveal-hand-only)", () => {
+        const result = projectPublicState(stateWithChooseHandCard(), 1, "p1");
+        const owner = result.players.find((p) => p.id === "p2")!;
+        expect(owner.revealedHand).toBeUndefined();
+    });
 });
 
 // Wire-format invariant: every transient field on a battlefield permanent
