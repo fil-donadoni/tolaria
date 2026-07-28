@@ -5041,10 +5041,27 @@ export function applySourceStaticEffects(
                     if (!effect.applies(target, source, STATIC_EFFECT_CTX)) {
                         continue;
                     }
-                    target.staticAbilities = [
-                        ...target.staticAbilities,
-                        effect.keyword,
-                    ];
+                    // CR 613.1f / 613.7 (issue #1715) — layer 6 applies grants
+                    // and removals in timestamp order. A live `removedKeywords`
+                    // entry for this keyword from ANOTHER source proves that
+                    // source's `keyword-remove` / `ability-loss` stripped this
+                    // very keyword off this target, i.e. it holds the LATER
+                    // timestamp and wins. Re-materializing the grant (which
+                    // `refreshCounterGatedStatics` does on every SBA pass for a
+                    // counter-gated source) must not resurrect it — record the
+                    // provenance so the removal's own unapply restores it, but
+                    // leave `staticAbilities` alone while the removal is live.
+                    const strippedByOther = (target.removedKeywords ?? []).some(
+                        (r) =>
+                            r.keyword === effect.keyword &&
+                            r.sourceId !== source.id
+                    );
+                    if (!strippedByOther) {
+                        target.staticAbilities = [
+                            ...target.staticAbilities,
+                            effect.keyword,
+                        ];
+                    }
                     target.grantedStaticAbilities = [
                         ...(target.grantedStaticAbilities ?? []),
                         { ability: effect.keyword, auraId: source.id },
@@ -5259,6 +5276,29 @@ export function applySourceStaticEffects(
  *  aura cast. Behaves identically to `applySourceStaticEffects`. */
 export const applyAuraStaticEffects = applySourceStaticEffects;
 
+/** CR 613 layer-4 composition (issue #1715) — recompute a target's live
+ *  `subtypes[]` from its materialized layer-4 record: the LATEST-timestamp
+ *  surviving `subtype-set` (CR 613.7, `grantedSubtypes` is kept in timestamp
+ *  order) as the base, or the printed types when no set-grant survives, with
+ *  every live `subtype-add` contribution replayed on top ("in addition to its
+ *  other land types", CR 305.7).
+ *
+ *  Read `target.grantedSubtypes` / `grantedSubtypesAdd` AFTER they have been
+ *  updated: this composes the record, it does not mutate it. Callers that
+ *  clear `printedSubtypes` must do so after calling. */
+function composeMaterializedSubtypes(target: CardInstanceState): string[] {
+    const sets = target.grantedSubtypes ?? [];
+    const base =
+        sets.length > 0
+            ? sets[sets.length - 1].subtypes
+            : (target.printedSubtypes ?? target.subtypes);
+    const composed = [...base];
+    for (const add of target.grantedSubtypesAdd ?? []) {
+        if (!composed.includes(add.subtype)) composed.push(add.subtype);
+    }
+    return composed;
+}
+
 /** Reverse of `applySourceStaticEffects`: walks the whole battlefield and
  *  splices out every grant whose `auraId` matches `source.id`. Call before
  *  the source transitions off the battlefield (destroy, exile, SBA detach,
@@ -5369,12 +5409,8 @@ export function unapplySourceStaticEffects(
                     (g) => g.sourceId !== source.id
                 );
                 target.grantedSubtypes = kept.length > 0 ? kept : undefined;
-                if (kept.length > 0) {
-                    target.subtypes = [...kept[kept.length - 1].subtypes];
-                } else {
-                    target.subtypes = [
-                        ...(target.printedSubtypes ?? target.subtypes),
-                    ];
+                target.subtypes = composeMaterializedSubtypes(target);
+                if (kept.length === 0) {
                     target.printedSubtypes = undefined;
                 }
             }
@@ -5492,8 +5528,65 @@ export function refreshCounterGatedStatics(state: GameState): void {
             // reattach idiom): the predicate may read the target's counters
             // (Dread Wight) or the source's own (Cocoon), so nothing short of
             // re-running it is correct.
+            // CR 613.7 (issue #1715) — a counter-gated RE-EVALUATION does not
+            // give the source a new timestamp (only an Aura becoming attached
+            // does, CR 613.7d). `applySourceStaticEffects` appends its
+            // `subtype-set` grant, which would re-stamp this source LAST among
+            // the target's co-applying set-grants and flip the winning subtype
+            // depending on how many SBA passes have run. Snapshot the source's
+            // position per target and put it back after the re-apply.
+            const subtypeSetOrder = snapshotSubtypeSetOrder(state, source.id);
             unapplySourceStaticEffects(state, source);
             applySourceStaticEffects(state, source);
+            restoreSubtypeSetOrder(state, source.id, subtypeSetOrder);
+        }
+    }
+}
+
+/** CR 613.7 (issue #1715) — records, per target instance id, the index this
+ *  source's `subtype-set` grant occupies in the target's timestamp-ordered
+ *  `grantedSubtypes`. Paired with `restoreSubtypeSetOrder` around a refresh. */
+function snapshotSubtypeSetOrder(
+    state: GameState,
+    sourceId: string
+): Map<string, number> {
+    const positions = new Map<string, number>();
+    for (const player of state.players) {
+        for (const target of player.battlefield) {
+            const idx = (target.grantedSubtypes ?? []).findIndex(
+                (g) => g.sourceId === sourceId
+            );
+            if (idx !== -1) positions.set(target.id, idx);
+        }
+    }
+    return positions;
+}
+
+/** Moves this source's re-appended `subtype-set` grant back to its recorded
+ *  timestamp position and recomposes the target's live subtypes (CR 613.7 /
+ *  613 layer-4 composition). A target whose predicate newly started applying
+ *  has no recorded position and correctly keeps the appended (newest) slot. */
+function restoreSubtypeSetOrder(
+    state: GameState,
+    sourceId: string,
+    positions: Map<string, number>
+): void {
+    if (positions.size === 0) return;
+    for (const player of state.players) {
+        for (const target of player.battlefield) {
+            const idx = positions.get(target.id);
+            if (idx === undefined) continue;
+            const grants = target.grantedSubtypes;
+            if (!grants) continue;
+            const current = grants.findIndex((g) => g.sourceId === sourceId);
+            // -1: the predicate stopped applying — `unapplySourceStaticEffects`
+            // already recomposed the target without it.
+            if (current === -1) continue;
+            if (current !== idx) {
+                const [entry] = grants.splice(current, 1);
+                grants.splice(Math.min(idx, grants.length), 0, entry);
+            }
+            target.subtypes = composeMaterializedSubtypes(target);
         }
     }
 }
