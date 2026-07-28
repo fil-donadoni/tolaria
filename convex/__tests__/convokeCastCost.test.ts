@@ -22,6 +22,7 @@ import {
 } from "../gre/payWith";
 import { getLegalActions } from "../gre/rules";
 import {
+    applyConvokeCreatureSelection,
     recordConvokeCreaturePick,
     tryAutoCommitPendingCast,
     recordCastExileCostPick,
@@ -580,4 +581,64 @@ describe("wire format — the convoke picker + castability cross the projection"
 
     // Silence the unused-import guard when Disrupt is absent from the catalogue.
     void DISRUPT;
+});
+
+// issue #1660, third round — the previous fixup's `opts.autoResolve` boolean
+// on `buildDelveExileChoice` turned OFF the #1660 short-circuit for the
+// convoke-chained delve leg entirely (to keep `recordConvokeCreaturePick`
+// pure), which silently reopened the exact bug on Hogaak: a fully-forced
+// delve pick chained off convoke landed on `pendingCast` unresolved, blocking
+// `tryAutoCommitPendingCast` and leaving `cast-exile-cost-dialog.tsx` open
+// with only Confirm/Cancel — issue #1660 verbatim, merely relocated from the
+// single-leg cast path to the convoke path. Nothing above this point drove
+// that user-facing outcome: every existing test in this file either asserts
+// the picker STAYS unresolved after `recordConvokeCreaturePick` (correct —
+// that step must stay a pure record) or hand-picks the delve cards via
+// `recordCastExileCostPick` instead of letting the forced pick resolve
+// itself. This block closes that gap: it drives the actual
+// `selectConvokeCreatures` commit seam — `recordConvokeCreaturePick` →
+// `collapseForcedDelvePick` → `tryAutoCommitPendingCast`, in that order,
+// exactly as the mutation's handler calls them — and asserts the picker
+// never has to be shown to the player.
+//
+// Drives `applyConvokeCreatureSelection` — the pure core extracted out of the
+// `selectConvokeCreatures` mutation (issue #1660 gap fixup) — rather than
+// hand-re-listing its three steps (`recordConvokeCreaturePick` →
+// `collapseForcedDelvePick` → `tryAutoCommitPendingCast`). Calling the actual
+// extracted function, instead of reimplementing its sequence here, is what
+// pins the production call site: deleting the `collapseForcedDelvePick` call
+// from `applyConvokeCreatureSelection` now fails this test. The mid-record
+// "still unresolved" shape is already covered by the
+// `recordConvokeCreaturePick — validation + coverage` describe block above
+// (e.g. "taps hybrids with 2 B/G creatures and leaves the generic to
+// delve"), so this block only needs to assert the seam's end-to-end outcome.
+describe("selectConvokeCreatures commit seam — collapses a forced delve leg (issue #1660, round 3)", () => {
+    it("2 B/G creatures + exactly 5 graveyard fuel: the chained delve leg pre-fills instead of opening a picker", () => {
+        // The project has no convex-test harness (see the file header / the
+        // no-convex-test-harness precedent catalogued across `__tests__/`),
+        // so — mirroring `delveCastCost.test.ts`'s equivalent seam test for
+        // the single-leg `finalizeTargetSelection` path — this drives
+        // `applyConvokeCreatureSelection`, the exact pure core
+        // `selectConvokeCreatures`'s handler now delegates to, rather than
+        // the mutation itself.
+        const { state, player, pendingCast } = parkedCast({
+            creatures: [CRAW_WURM, DRUDGE_SKELETONS],
+            gyCount: 5,
+        });
+
+        applyConvokeCreatureSelection(state, "p1", ["cr0", "cr1"]);
+
+        expect(
+            pendingCast.exileFromGraveyardChoice?.pickedCardIds?.slice().sort()
+        ).toEqual(["gy0", "gy1", "gy2", "gy3", "gy4"]);
+        expect(pendingCast.manaCost.X).toBe(0);
+
+        // The user-facing outcome: no picker was ever shown — the cast
+        // committed in one shot, same as the single-leg delve path.
+        expect(state.pendingCast).toBeUndefined();
+        expect(state.stack).toHaveLength(1);
+        expect(state.stack[0].card.id).toBe(HOGAAK);
+        expect(player.graveyard).toHaveLength(0);
+        expect(player.exile).toHaveLength(5);
+    });
 });
