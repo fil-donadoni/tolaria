@@ -247,7 +247,7 @@ describe("planManaPayment (issue #110)", () => {
     // Issue #1754 — gate↔enumerator parity for an OPPONENT-SCANNING mana
     // chooser. Fellwar Stone's `getManaChoices` walks every OTHER player's
     // battlefield and explicitly skips entries matching `controllerId`
-    // (`convex/cards/sets/lea/colorless.ts`); a self-only `battlefields` view
+    // (`convex/cards/sets/drk/colorless.ts`); a self-only `battlefields` view
     // (own controllerId + own battlefield alone) makes it see zero opponents
     // and return `[]`, so the OLD self-only planner dropped this source even
     // though the human castability gate (which gets the full board via
@@ -873,10 +873,14 @@ describe("gate ↔ planner board-dependent mana-source parity (issue #1751 findi
             ownerId: "p1",
             zone: "hand",
         });
+        const moxOpal = makeInstance(MOX_OPAL, {
+            controllerId: "p1",
+            ownerId: "p1",
+        });
         const p1 = makePlayer("p1", {
             hand: [bolt],
             battlefield: [
-                makeInstance(MOX_OPAL, { controllerId: "p1", ownerId: "p1" }),
+                moxOpal,
                 makeInstance(ANKH, { controllerId: "p1", ownerId: "p1" }),
                 makeInstance(ANKH, { controllerId: "p1", ownerId: "p1" }),
             ],
@@ -890,14 +894,19 @@ describe("gate ↔ planner board-dependent mana-source parity (issue #1751 findi
         // The planner must agree: at least one cast-spell move for Bolt
         // (Bolt's "any target" requirement yields one move per legal target —
         // p1 and p2 are both legal, hence 2), each with a tap plan that taps
-        // Mox Opal (a choice-based source, so its tap carries a
-        // `manaChoiceIndex`).
+        // p1's OWN Mox Opal (a choice-based source, so its tap carries a
+        // `manaChoiceIndex`) — asserting the concrete instance id, not just
+        // "some string", is what would catch the wider board view letting the
+        // planner tap the wrong permanent (issue #1754 finding 5; verified by
+        // temporarily widening the source loop to every player's battlefield
+        // and confirming this exact assertion catches the resulting
+        // wrong-permanent tap while a loose `expect.any(String)` does not).
         const casts = castsFor(state, "p1", bolt.id);
         expect(casts.length).toBeGreaterThan(0);
         for (const cast of casts) {
             expect(cast.kind === "cast-spell" && cast.tapPlan).toEqual([
                 {
-                    cardInstanceId: expect.any(String),
+                    cardInstanceId: moxOpal.id,
                     manaChoiceIndex: expect.any(Number),
                 },
             ]);
@@ -946,14 +955,13 @@ describe("gate ↔ planner opponent-scanning mana-source parity (issue #1754)", 
             ownerId: "p1",
             zone: "hand",
         });
+        const fellwar = makeInstance(FELLWAR_STONE, {
+            controllerId: "p1",
+            ownerId: "p1",
+        });
         const p1 = makePlayer("p1", {
             hand: [bolt],
-            battlefield: [
-                makeInstance(FELLWAR_STONE, {
-                    controllerId: "p1",
-                    ownerId: "p1",
-                }),
-            ],
+            battlefield: [fellwar],
         });
         // p1 has NO mana source of its own — Bolt's {R} can only come from
         // Fellwar Stone reading p2's Mountain (opponent-scanning).
@@ -967,14 +975,22 @@ describe("gate ↔ planner opponent-scanning mana-source parity (issue #1754)", 
         expect(legalActionsFor(state, "p1", bolt)).toContain("cast");
 
         // The planner must agree: at least one cast-spell move for Bolt, each
-        // tapping Fellwar Stone (a choice-based source, so its tap carries a
-        // `manaChoiceIndex`).
+        // tapping p1's OWN Fellwar Stone (a choice-based source, so its tap
+        // carries a `manaChoiceIndex`). Asserting the concrete instance id
+        // (not `expect.any(String)`) is the point of this test: the PR's
+        // central risk is the wider board view letting the planner tap an
+        // OPPONENT's permanent instead, which a loose `any(String)` match
+        // would not catch (issue #1754 finding 5; verified by temporarily
+        // widening the source loop to every player's battlefield — with a
+        // second opposing land breaking the greedy tie — and confirming this
+        // exact assertion catches the resulting wrong-permanent tap while a
+        // loose `expect.any(String)` does not).
         const casts = castsFor(state, "p1", bolt.id);
         expect(casts.length).toBeGreaterThan(0);
         for (const cast of casts) {
             expect(cast.kind === "cast-spell" && cast.tapPlan).toEqual([
                 {
-                    cardInstanceId: expect.any(String),
+                    cardInstanceId: fellwar.id,
                     manaChoiceIndex: expect.any(Number),
                 },
             ]);

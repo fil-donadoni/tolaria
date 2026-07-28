@@ -47,6 +47,7 @@ import {
     MANA_COLORS,
     isPlaneswalker,
     isTapLockedBySummoningSickness,
+    manaGateBattlefields,
 } from "./constants";
 import {
     getRequiredAttackerIds,
@@ -245,9 +246,10 @@ type PlanSource = {
  *  model — but emits the concrete sources; the mirror is now closer than it
  *  used to be (issue #1751 finding 4, closed fully by issue #1754):
  *  `getProducibleManaOptions` below is called with a real, BOTH-PLAYERS
- *  `battlefields` view built from `state` (every `players[].battlefield`,
- *  the SAME shape `coloredCostLeftover`/rules.ts builds from `opts.state`),
- *  so ANY board-dependent mana source's `canActivate` — self-referential
+ *  `battlefields` view built from `state` via the shared `manaGateBattlefields`
+ *  helper (`constants.ts`, issue #1754 finding 6) — the SAME helper
+ *  `coloredCostLeftover`/rules.ts calls from `opts.state` — so ANY
+ *  board-dependent mana source's `canActivate` — self-referential
  *  (Mox Opal's Metalcraft, Fanatic of Rhonas's Ferocious) or
  *  opponent-scanning (Fellwar Stone, whose `getManaChoices` walks every
  *  OTHER player's battlefield) — is evaluated against a real board here
@@ -267,14 +269,20 @@ export function planManaPayment(
     if (totalRequired === 0) return [];
 
     // Issue #1754 — both-players view, built once per call and shared across
-    // every source below: identical shape/content to the gate's
-    // `coloredCostLeftover` board (rules.ts `opts.state?.players.map(...)`),
-    // so gate and planner agree for every board-dependent mana ability, not
-    // only the self-referential ones a self-only view already covered.
-    const boardBattlefields = state.players.map((p) => ({
-        playerId: p.id,
-        battlefield: p.battlefield,
-    }));
+    // every source below via the same `manaGateBattlefields` helper (issue
+    // #1754 finding 6, `constants.ts`) the gate's `coloredCostLeftover`
+    // (rules.ts) builds from `opts.state`, so THIS payment-planning path
+    // (fixed-cost sources, actually tapping for a cost already settled on) is
+    // board-aware for every board-dependent mana ability, not only the
+    // self-referential ones a self-only view already covered. This does NOT
+    // extend to the {X} CEILING the bot enumerates before ever reaching this
+    // function — `enumerateCastMoves`'s `xCeiling` still comes from
+    // `maxAffordableX(player, card)` with no `state` (below, and rules.ts's
+    // `maxAffordableX`), so a board-dependent source (Fellwar Stone) that
+    // could fund a larger X is invisible to the ceiling even though this
+    // planner, once handed that X, would find the mana. Under-offer only
+    // (never an illegal offer), tracked-by: #1757.
+    const boardBattlefields = manaGateBattlefields(state);
 
     const sources: PlanSource[] = [];
     for (const c of MANA_COLORS) {

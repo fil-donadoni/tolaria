@@ -561,6 +561,29 @@ function manaCostKey(mana: ManaCost): string {
  *  trio's `manaAmount`); omit it (static resolution) where the board isn't
  *  available — the planner's one-source model, as before, does not resolve
  *  dynamic choosers. */
+/** CR 602.5b / 605.1a — the single, shared "both-players battlefield" view a
+ *  board-dependent mana ability's `canActivate` (Mox Opal's Metalcraft,
+ *  Fanatic of Rhonas's Ferocious) or `getManaChoices` (Fellwar Stone scanning
+ *  every OTHER player's battlefield) is evaluated against. Issue #1754 made
+ *  this exact shape — `state.players.map((p) => ({ playerId: p.id,
+ *  battlefield: p.battlefield }))` — the thing that must stay identical
+ *  across every mana-gate call site or the human castability gate
+ *  (`coloredCostLeftover`, rules.ts) and the bot's payment planner
+ *  (`planManaPayment`, moves.ts) silently diverge again (issue #1751 finding
+ *  4). Three independent inline `.map`s used to build it (rules.ts,
+ *  `manaTapBattlefields` in game.ts, moves.ts); this is now the one place
+ *  that does, called from all three so the invariant is enforced by
+ *  construction instead of by convention. */
+export function manaGateBattlefields(state: GameState): ReadonlyArray<{
+    playerId: string;
+    battlefield: readonly CardInstanceState[];
+}> {
+    return state.players.map((p) => ({
+        playerId: p.id,
+        battlefield: p.battlefield,
+    }));
+}
+
 /** Minimal `TriggerStateView` built from whatever board data a mana-tap
  *  resolution site has on hand, so an ability's own `canActivate` gate (CR
  *  602.5b, issue #947) can be evaluated at every site that enumerates

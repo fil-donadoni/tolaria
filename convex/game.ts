@@ -253,6 +253,7 @@ import {
     isCreature,
     isPlaneswalker,
     isTapLockedBySummoningSickness,
+    manaGateBattlefields,
     manaValue,
 } from "./gre/constants";
 import {
@@ -1123,15 +1124,17 @@ function manaChoiceRejectionMessage(
         : "Invalid mana choice";
 }
 
-/** Battlefields shaped for the mana-tap resolvers (CR 106.1). */
-function manaTapBattlefields(state: GameState): {
+/** Battlefields shaped for the mana-tap resolvers (CR 106.1). Thin wrapper
+ *  over the shared `manaGateBattlefields` (`gre/constants.ts`, issue #1754
+ *  finding 6) — the same view `coloredCostLeftover` (rules.ts) and
+ *  `planManaPayment` (moves.ts) build from a `GameState`, so all three
+ *  board-dependent-mana-ability call sites stay identical by construction
+ *  instead of drifting via three independent inline `.map`s. */
+function manaTapBattlefields(state: GameState): ReadonlyArray<{
     playerId: string;
     battlefield: readonly CardInstanceState[];
-}[] {
-    return state.players.map((p) => ({
-        playerId: p.id,
-        battlefield: p.battlefield,
-    }));
+}> {
+    return manaGateBattlefields(state);
 }
 
 /** CR 605.4 — realize this tap's Wild-Growth-style triggered mana bonus into
