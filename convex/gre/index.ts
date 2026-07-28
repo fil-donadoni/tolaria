@@ -65,6 +65,7 @@ export type {
 export {
     assertExpectedInput,
     computeExpectedInput,
+    computeOwedPlayerIds,
     EXPECTED_INPUT_KINDS,
 } from "./expectedInput";
 export type { ExpectedInputKind, GateRequest } from "./expectedInput";

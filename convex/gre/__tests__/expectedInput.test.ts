@@ -6,6 +6,7 @@
 import { describe, expect, it } from "vitest";
 import {
     computeExpectedInput,
+    computeOwedPlayerIds,
     refreshExpectedInput,
     assertExpectedInputCoherent,
 } from "../expectedInput";
@@ -219,6 +220,118 @@ describe("computeExpectedInput — variant selection (ADR 0047)", () => {
             gameOver: { winnerId: "p1", loserId: "p2", reason: "life" },
         });
         expect(computeExpectedInput(state)).toBeUndefined();
+    });
+});
+
+// Issue #1778 review finding 1 — the permanent-deadlock regression:
+// `computeExpectedInput`'s `{kind:"priority"}` fallthrough names
+// `priorityPlayerId`, but the CR 510.1c/702.21j-k combat-damage-assignment
+// sub-flow gates its two mutations with `anyPlayer: true` (ADR 0047) exactly
+// because the real actor is `combat.damageAssignerIds`, which can diverge
+// from `priorityPlayerId` — `COMBAT_DAMAGE`/`FIRST_STRIKE_DAMAGE` entry sets
+// `priorityPlayerId = activePlayerId` regardless of who assigns (`phases.ts`),
+// and banding (CR 702.21j-k) can shift assignment to the DEFENDING player.
+// `computeOwedPlayerIds` is the fix: a subscriber (the vs-AI driver's
+// `gameTicks` row) must gate on membership in its result, not equality with
+// a single player id.
+describe("computeOwedPlayerIds — who actually owes input (issue #1778)", () => {
+    it("mirrors computeExpectedInput's single player for every ordinary kind", () => {
+        const state = makeState({ priorityPlayerId: "p2" });
+        expect(computeOwedPlayerIds(state)).toEqual(["p2"]);
+    });
+
+    it("choice: still a singleton, matching the choice's own player", () => {
+        const state = makeState({
+            priorityPlayerId: "p1",
+            pendingChoices: [choice],
+        });
+        expect(computeOwedPlayerIds(state)).toEqual([choice.playerId]);
+    });
+
+    it("game over is owed by no one (CR 104)", () => {
+        const state = makeState({
+            gameOver: { winnerId: "p1", loserId: "p2", reason: "life" },
+        });
+        expect(computeOwedPlayerIds(state)).toEqual([]);
+    });
+
+    it("combat damage: the assigner, not priorityPlayerId, when they diverge (banding)", () => {
+        // The active player (and so priorityPlayerId, per COMBAT_DAMAGE
+        // entry) is p1, but banding shifted the multi-blocked attacker's
+        // damage assignment to p2 (CR 702.21j-k) — the exact shape that
+        // deadlocked the vs-AI driver pre-fix.
+        const state = makeState({
+            phase: "COMBAT_DAMAGE",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            combat: combatWithAttackers({
+                damageAssignerIds: { atk1: "p2" },
+                damageConfirmed: false,
+                damageAssignmentConfirmedBy: [],
+            }),
+        });
+        expect(computeExpectedInput(state)).toEqual({
+            kind: "priority",
+            playerId: "p1",
+        });
+        expect(computeOwedPlayerIds(state)).toEqual(["p2"]);
+    });
+
+    it("combat damage: both distinct assigners when banding splits authority", () => {
+        const state = makeState({
+            phase: "COMBAT_DAMAGE",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            combat: combatWithAttackers({
+                damageAssignerIds: { atk1: "p1", atk2: "p2" },
+                damageConfirmed: false,
+                damageAssignmentConfirmedBy: [],
+            }),
+        });
+        expect(new Set(computeOwedPlayerIds(state))).toEqual(
+            new Set(["p1", "p2"])
+        );
+    });
+
+    it("combat damage: drops an assigner once it has confirmed", () => {
+        const state = makeState({
+            phase: "COMBAT_DAMAGE",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            combat: combatWithAttackers({
+                damageAssignerIds: { atk1: "p1", atk2: "p2" },
+                damageConfirmed: false,
+                damageAssignmentConfirmedBy: ["p1"],
+            }),
+        });
+        expect(computeOwedPlayerIds(state)).toEqual(["p2"]);
+    });
+
+    it("combat damage: falls back to priorityPlayerId once every assigner has confirmed", () => {
+        const state = makeState({
+            phase: "COMBAT_DAMAGE",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            combat: combatWithAttackers({
+                damageAssignerIds: { atk1: "p2" },
+                damageConfirmed: false,
+                damageAssignmentConfirmedBy: ["p2"],
+            }),
+        });
+        expect(computeOwedPlayerIds(state)).toEqual(["p1"]);
+    });
+
+    it("combat damage: ignores damageAssignerIds once damage is confirmed/auto-applied", () => {
+        const state = makeState({
+            phase: "COMBAT_DAMAGE",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            combat: combatWithAttackers({
+                damageAssignerIds: { atk1: "p2" },
+                damageConfirmed: true,
+            }),
+        });
+        expect(computeOwedPlayerIds(state)).toEqual(["p1"]);
     });
 });
 

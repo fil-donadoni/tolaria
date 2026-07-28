@@ -112,6 +112,50 @@ export function computeExpectedInput(
     return { kind: "priority", playerId: state.priorityPlayerId };
 }
 
+/** Every player id actually owed to act right now (issue #1778 review
+ *  finding 1). For every {@link ExpectedInput} kind this is a singleton —
+ *  `[computeExpectedInput(state).playerId]` — EXCEPT the CR 510.1c/702.21j-k
+ *  combat-damage-assignment sub-flow (2+ blockers on one attacker, or banding
+ *  shifting assignment to the defending player): that sub-flow folds into a
+ *  plain `{ kind: "priority" }` window (the two damage mutations gate with
+ *  `anyPlayer: true`, ADR 0047, precisely because the real actor is not
+ *  `priorityPlayerId` — `COMBAT_DAMAGE`/`FIRST_STRIKE_DAMAGE` entry sets
+ *  `priorityPlayerId = activePlayerId` regardless of who assigns) while the
+ *  true actor(s) live in `combat.damageAssignerIds`. Banding can split
+ *  authority so BOTH players independently owe a `confirmDamage` for
+ *  different sources, and `confirmDamage` accepts either assigner in any
+ *  order (no enforced sequence) — so this returns every DISTINCT assigner
+ *  that has not yet confirmed, not just one. A subscriber must gate on
+ *  MEMBERSHIP in this array, never on equality with a single player id —
+ *  gating on `computeExpectedInput(state).playerId` alone missed the
+ *  non-active assigner entirely and could deadlock the vs-AI driver forever
+ *  waiting on a tick that would never name it. */
+export function computeOwedPlayerIds(state: GameState): string[] {
+    if (state.gameOver) return [];
+    const current = computeExpectedInput(state);
+    if (!current) return [];
+
+    if (
+        current.kind === "priority" &&
+        (state.phase === "FIRST_STRIKE_DAMAGE" ||
+            state.phase === "COMBAT_DAMAGE") &&
+        state.combat?.damageAssignerIds &&
+        state.combat.damageConfirmed === false
+    ) {
+        const confirmed = new Set(
+            state.combat.damageAssignmentConfirmedBy ?? []
+        );
+        const outstanding = new Set(
+            Object.values(state.combat.damageAssignerIds).filter(
+                (playerId) => !confirmed.has(playerId)
+            )
+        );
+        if (outstanding.size > 0) return [...outstanding];
+    }
+
+    return [current.playerId];
+}
+
 /** Maintain the authoritative `expectedInput` field on `state` (ADR 0047).
  *  Called by the engine at every stable point — in production via the
  *  persistence seam (`saveGameState` → here → `compactState`), and in the
