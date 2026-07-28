@@ -39,3 +39,27 @@ export const ABOVE_CONTROLLER_BAR =
  *  drift from the other. */
 export const CONTROLLER_BAR_CLEARANCE_EXPR =
     "(var(--controller-bar-h, 8rem) + 0.5rem)";
+
+/** The SAME contract, rotated 90°, for the landscape-compact control strip
+ *  (#1769). Landscape phones are wide but VERY short, so that mode docks its
+ *  controls to the RIGHT EDGE rather than the bottom one — height is the scarce
+ *  dimension there, and a bottom bar would spend it. What neighbours must
+ *  reserve is therefore a WIDTH.
+ *
+ *  CSS custom property carrying the strip's measured width, in px. Published on
+ *  `document.documentElement` by {@link useControllerStripWidth} and removed
+ *  when the strip unmounts — which is what lets a single anchor class serve
+ *  both the desktop pod branch (no strip → variable absent → fallback) and the
+ *  landscape branch, with no consumer branching on the viewport mode itself. */
+export const CONTROLLER_STRIP_WIDTH_VAR = "--controller-strip-w";
+
+/** Anchors a right-edge `fixed` element just LEFT of the landscape-compact
+ *  strip, whatever width the strip currently has.
+ *
+ *  The `0px` fallback is load-bearing, not defensive: with no strip mounted
+ *  (desktop, portrait) this evaluates to `calc(0px + 0.75rem)` = 12px, i.e.
+ *  exactly the `right-3` the phase panel has always used — so the desktop pod's
+ *  phase panel keeps its pixel position while the landscape panel slides clear
+ *  of the strip automatically. */
+export const BESIDE_CONTROLLER_STRIP =
+    "right-[calc(var(--controller-strip-w,0px)+0.75rem)]";

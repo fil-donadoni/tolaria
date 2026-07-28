@@ -4,9 +4,10 @@ import { useSyncExternalStore } from "react";
  *
  *  - `"portrait"`          — phone held upright: bottom action bar + sheet.
  *  - `"landscape-compact"` — phone held sideways: a wide but VERY short
- *                            viewport. Today it renders exactly like
- *                            `"desktop"`; the dedicated landscape layout lands
- *                            in issues #1768 / #1769, which consume this seam.
+ *                            viewport. Its CONTROLS are a thin right-edge strip
+ *                            (#1769, `ControllerLandscapeStrip`); the dedicated
+ *                            BOARD layout lands in #1768, which consumes the
+ *                            same seam.
  *  - `"desktop"`           — everything else (tablets, laptops, monitors).
  */
 export type ViewportMode = "portrait" | "landscape-compact" | "desktop";

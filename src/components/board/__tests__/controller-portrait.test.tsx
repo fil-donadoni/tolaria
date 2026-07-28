@@ -63,10 +63,12 @@ vi.mock("convex/react", () => ({
 }));
 
 // The single seam under test — drive it explicitly so jsdom's flaky matchMedia
-// never decides the branch.
+// never decides the branch. Mocked at `useViewportMode` (not the `useIsPortrait`
+// projection) since #1769 made the seam three-way; `useIsPortrait` reads through
+// this mock, so both spellings stay consistent.
 let portrait = true;
-vi.mock("~/hooks/useIsPortrait", () => ({
-    useIsPortrait: () => portrait,
+vi.mock("~/hooks/useViewportMode", () => ({
+    useViewportMode: () => (portrait ? "portrait" : "desktop"),
 }));
 
 // Chrome irrelevant to these contracts.
