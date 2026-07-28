@@ -19,7 +19,7 @@ import { braingeyser } from "../../lea/blue";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { resolveTopOfStack } from "../../../../gre/state";
 import type { GameState } from "../../../../gre/state";
-import { getLegalActions } from "../../../../gre/rules";
+import { assertLegalAction, getLegalActions } from "../../../../gre/rules";
 import { advancePhase } from "../../../../gre/phases";
 import { projectPublicState } from "../../../../gameProjections";
 import {
@@ -250,6 +250,184 @@ describe("Teferi, Time Raveler — +1: cast sorceries as though they had flash (
         expect(state.castTimingFlashGrants).toEqual([
             { playerId: "p1", cardTypes: ["Sorcery"] },
         ]);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// Issue #1690 — the two halves must not bleed into each other. The STATIC
+// restricts each OPPONENT; it must never widen the CONTROLLER's own window.
+// Absent a live +1 grant, the controller's Sorcery is castable only in their
+// own main phase, empty stack, holding priority (CR 307.1 / 601.3a).
+//
+// Exercised at all THREE layers of the one shared authority, as the issue
+// demands, for the no-grant case:
+//   1. GRE legal actions — `getLegalActions`;
+//   2. the cast mutation — `assertLegalAction`, the exact chokepoint
+//      `announceCast` (convex/game.ts) calls before it will announce a cast
+//      (there is no mutation-testing harness in this repo; driving the
+//      exported chokepoint is the established precedent — see
+//      delveCastCost.test.ts);
+//   3. the client cast gate — the `legalActions` field on the hand card as it
+//      comes OUT of `projectPublicState`, which is literally what
+//      `board-hand-card.tsx` reads (`card.legalActions.includes("cast")`).
+//      Driven THROUGH the reducer, never a hand-built view.
+describe("Teferi, Time Raveler — the static never widens the CONTROLLER's window (issue #1690, CR 307.1/601.3a)", () => {
+    const WIDE_POOL = { W: 5, U: 5, B: 5, R: 5, G: 5, C: 5 };
+
+    /** p1 controls Teferi and holds a Sorcery + a Creature, with mana for both. */
+    function controllerBoard(overrides: Partial<GameState> = {}): GameState {
+        const geyser = makeInstance(braingeyser.id, {
+            id: "geyser1",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const bears = makeInstance(grizzlyBears.id, {
+            id: "bears1",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        return makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: [geyser, bears],
+                    battlefield: [teferiOnBattlefield()],
+                    manaPool: { ...WIDE_POOL },
+                }),
+                makePlayer("p2"),
+            ],
+            phase: "PRECOMBAT_MAIN",
+            ...overrides,
+        });
+    }
+
+    /** The client's own gate: `legalActions` as projected onto the hand card. */
+    function projectedHandActions(state: GameState, cardId: string): string[] {
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].hand.find(
+            (c): c is NonNullable<typeof c> => !!c && c.id === cardId
+        )!;
+        return slim.legalActions ?? [];
+    }
+
+    /** Runs the engine forward until the active player changes. */
+    function advanceToNextTurn(state: GameState): void {
+        const from = state.activePlayerId;
+        for (let i = 0; i < 20 && state.activePlayerId === from; i++) {
+            advancePhase(state);
+        }
+        expect(state.activePlayerId).not.toBe(from);
+    }
+
+    it("+1 NOT activated: the controller cannot cast a Sorcery on the opponent's turn — GRE, cast mutation, and client gate all refuse", () => {
+        // p2's turn, p1 holds priority (responding). No grant anywhere.
+        const state = controllerBoard({
+            activePlayerId: "p2",
+            priorityPlayerId: "p1",
+        });
+        expect(state.castTimingFlashGrants).toBeUndefined();
+        const p1 = state.players[0];
+        const geyser = p1.hand[0];
+
+        // 1. GRE legal actions.
+        expect(getLegalActions(state, p1, geyser)).not.toContain("cast");
+        // 2. The cast mutation's own gate throws.
+        expect(() => assertLegalAction(state, p1, geyser, "cast")).toThrow(
+            /Illegal action "cast"/
+        );
+        // 3. The client affordance never lights up.
+        expect(projectedHandActions(state, "geyser1")).not.toContain("cast");
+
+        // Control: the SAME Sorcery is castable in the controller's own main
+        // phase, so the refusal above is timing, not affordability.
+        const ownTurn = controllerBoard({
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+        });
+        expect(
+            getLegalActions(
+                ownTurn,
+                ownTurn.players[0],
+                ownTurn.players[0].hand[0]
+            )
+        ).toContain("cast");
+        expect(projectedHandActions(ownTurn, "geyser1")).toContain("cast");
+    });
+
+    it("after the +1 resolves the controller CAN cast a Sorcery at instant speed on the opponent's turn — and loses it again on their next turn", () => {
+        const state = controllerBoard({
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+        });
+        activate(state, PLUS1);
+        expect(state.castTimingFlashGrants).toEqual([
+            { playerId: "p1", cardTypes: ["Sorcery"] },
+        ]);
+
+        // Cross into p2's turn; the grant survives (it lasts "until YOUR next
+        // turn"). p1 then takes priority in response.
+        advanceToNextTurn(state);
+        expect(state.activePlayerId).toBe("p2");
+        state.priorityPlayerId = "p1";
+        state.players[0].manaPool = { ...WIDE_POOL };
+        const p1 = state.players[0];
+        const geyser = p1.hand.find((c) => c.id === "geyser1")!;
+        expect(getLegalActions(state, p1, geyser)).toContain("cast");
+        expect(() =>
+            assertLegalAction(state, p1, geyser, "cast")
+        ).not.toThrow();
+        expect(projectedHandActions(state, "geyser1")).toContain("cast");
+
+        // The grant is narrowed to Sorcery spells: a Creature spell stays
+        // sorcery-speed even while the grant is live.
+        const bears = p1.hand.find((c) => c.id === "bears1")!;
+        expect(getLegalActions(state, p1, bears)).not.toContain("cast");
+        expect(projectedHandActions(state, "bears1")).not.toContain("cast");
+
+        // p1's next turn starts → the grant is gone (CR 601.3e "until your next
+        // turn"), so the following opponent turn refuses the Sorcery again.
+        advanceToNextTurn(state);
+        expect(state.activePlayerId).toBe("p1");
+        expect(state.castTimingFlashGrants).toBeUndefined();
+        advanceToNextTurn(state);
+        expect(state.activePlayerId).toBe("p2");
+        state.priorityPlayerId = "p1";
+        state.players[0].manaPool = { ...WIDE_POOL };
+        const later = state.players[0];
+        const geyserLater = later.hand.find((c) => c.id === "geyser1")!;
+        expect(getLegalActions(state, later, geyserLater)).not.toContain(
+            "cast"
+        );
+        expect(projectedHandActions(state, "geyser1")).not.toContain("cast");
+    });
+
+    it("the static beats a flash grant the OPPONENT holds (CR 101.2 — a restriction overrides a permission)", () => {
+        // p2 is locked by p1's Teferi AND holds a Sorcery flash grant of their
+        // own. On p1's turn, with priority, p2 still cannot cast the Sorcery.
+        const geyser = makeInstance(braingeyser.id, {
+            id: "geyser2",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [teferiOnBattlefield()] }),
+                makePlayer("p2", {
+                    hand: [geyser],
+                    manaPool: { ...WIDE_POOL },
+                }),
+            ],
+            activePlayerId: "p1",
+            priorityPlayerId: "p2",
+            castTimingFlashGrants: [{ playerId: "p2", cardTypes: ["Sorcery"] }],
+        });
+        const p2 = state.players[1];
+        expect(getLegalActions(state, p2, geyser)).not.toContain("cast");
+        expect(() => assertLegalAction(state, p2, geyser, "cast")).toThrow(
+            /Illegal action "cast"/
+        );
     });
 });
 

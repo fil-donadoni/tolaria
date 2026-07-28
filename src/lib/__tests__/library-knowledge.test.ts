@@ -5,6 +5,17 @@ import {
     libraryCount,
 } from "../library-knowledge";
 import type { CardInstance, PublicLibrary } from "~/types/game";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+    pushSpell,
+} from "../../../convex/cards/__tests__/setup";
+import { resolveTopOfStack } from "../../../convex/gre/state";
+import { projectPublicState } from "../../../convex/gameProjections";
+import { memoryLapse } from "../../../convex/cards/sets/hml/blue";
+import { grizzlyBears } from "../../../convex/cards/sets/lea";
+import { mountain } from "../../../convex/cards/sets/lea/colorless";
 
 // ADR 0026 / PRD #338 — pure render-model helpers map the projected (sparse)
 // library to face-up positions. No game logic; identity is gated server-side.
@@ -84,5 +95,55 @@ describe("libraryCount", () => {
     it("reads count from either shape", () => {
         expect(libraryCount({ count: 7, known: [] })).toBe(7);
         expect(libraryCount([knownCard("a")])).toBe(1);
+    });
+});
+
+// ── Issue #1696 — SURFACE test through the real reducer ────────────────────
+// The board's library pile is only correct if the render model is built from
+// what `projectPublicState` actually emits. A hand-built `PublicLibrary` (the
+// describes above) would mask a dropped field, so this block drives the whole
+// path: resolve Memory Lapse in the GRE → project for a viewer → build the
+// pile model the UI renders.
+describe("library pile model through projectPublicState (#1696)", () => {
+    function projectAfterMemoryLapse(viewerId: string): PublicLibrary {
+        const p1 = makePlayer("p1");
+        const p2 = makePlayer("p2", {
+            library: [
+                makeInstance(mountain.id, {
+                    id: "lib-a",
+                    controllerId: "p2",
+                    ownerId: "p2",
+                    zone: "library",
+                }),
+            ],
+        });
+        const state = makeState({ players: [p1, p2] });
+        const bears = pushSpell(state, grizzlyBears.id, "p2");
+        bears.id = "bears-spell";
+        pushSpell(state, memoryLapse.id, "p1", [
+            { type: "spell", id: "bears-spell" },
+        ]);
+        resolveTopOfStack(state);
+        return projectPublicState(state, 1, viewerId).players.find(
+            (p) => p.id === "p2"
+        )!.library as PublicLibrary;
+    }
+
+    it("renders the publicly-countered card face-up on top for both players", () => {
+        for (const viewerId of ["p1", "p2"]) {
+            const lib = projectAfterMemoryLapse(viewerId);
+            const model = buildLibraryPileModel(lib, "p2");
+            expect(model.map((s) => s.faceUp)).toEqual([true, false]);
+            expect(model[0].card.id).toBe("bears-spell");
+            expect(libraryPreviewTopCard(lib)?.id).toBe("bears-spell");
+            expect(libraryCount(lib)).toBe(2);
+        }
+    });
+
+    it("renders a card back for a viewer who never saw the move", () => {
+        const lib = projectAfterMemoryLapse("p3");
+        const model = buildLibraryPileModel(lib, "p2");
+        expect(model.map((s) => s.faceUp)).toEqual([false, false]);
+        expect(libraryPreviewTopCard(lib)).toBeNull();
     });
 });
