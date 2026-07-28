@@ -22,8 +22,6 @@ import {
 } from "./lib/set-modules.mjs";
 import { parseManaCost, formatManaCost } from "./lib/mana-cost.mjs";
 
-export { parseManaCost, formatManaCost };
-
 const jsonPath = process.argv[2];
 if (!jsonPath) {
     console.error("Usage: node scripts/json-to-cards.mjs <path-to-set.json>");
@@ -96,7 +94,15 @@ for (const card of cards) {
     seenIds.add(varName);
 
     const types = card.types ?? [];
-    const manaCost = parseManaCost(card.manaCost);
+    let manaCost;
+    try {
+        manaCost = parseManaCost(card.manaCost);
+    } catch (err) {
+        // Name the offending card (issue #1742 fixup) — a 500+ card set
+        // import otherwise aborts with only the unrecognised symbol, no way
+        // to tell which card triggered it.
+        throw new Error(`Card "${card.name}": ${err.message}`);
+    }
     const subtypes = card.subtypes?.length ? card.subtypes : undefined;
     const supertypes = card.supertypes?.length ? card.supertypes : undefined;
     const power = card.power !== undefined ? Number(card.power) : undefined;

@@ -203,7 +203,7 @@ describe("json-to-cards colour-split directory layout (ADR 0043)", () => {
         expect(modules.colorless).not.toContain("Test Phyrexian");
     });
 
-    it("raises instead of silently dropping an unmodelled symbol ({S} snow)", () => {
+    it("raises instead of silently dropping an unmodelled symbol ({S} snow), naming the offending card", () => {
         const dir = mkdtempSync(join(tmpdir(), "json-to-cards-"));
         const jsonPath = join(dir, "zzr.json");
         const outRoot = join(dir, "sets");
@@ -227,12 +227,31 @@ describe("json-to-cards colour-split directory layout (ADR 0043)", () => {
             "utf-8"
         );
         try {
-            expect(() =>
-                execFileSync("bun", [SCRIPT, jsonPath], {
-                    encoding: "utf-8",
-                    env: { ...process.env, JSON_TO_CARDS_OUT_DIR: outRoot },
-                })
-            ).toThrow();
+            // A bare `.toThrow()` on `execFileSync` passes on ANY non-zero
+            // exit (missing `bun`, a bad fixture, an unrelated crash) — it
+            // doesn't pin down that THIS card/symbol pair is what raised.
+            // Capture stderr and assert on its content instead (PR #1771
+            // review fixup).
+            let stderr = "";
+            expect(() => {
+                try {
+                    execFileSync("bun", [SCRIPT, jsonPath], {
+                        encoding: "utf-8",
+                        stdio: ["ignore", "pipe", "pipe"],
+                        env: {
+                            ...process.env,
+                            JSON_TO_CARDS_OUT_DIR: outRoot,
+                        },
+                    });
+                } catch (err) {
+                    stderr = String((err as { stderr?: unknown }).stderr ?? "");
+                    throw err;
+                }
+            }).toThrow();
+            expect(stderr).toMatch(/unrecognised mana symbol/);
+            // Issue #1742 fixup: the error now names the offending card, not
+            // just the symbol — pin that behaviour here too.
+            expect(stderr).toContain('Card "Test Snow"');
         } finally {
             rmSync(dir, { recursive: true, force: true });
         }

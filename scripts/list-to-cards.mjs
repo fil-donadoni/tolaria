@@ -197,7 +197,15 @@ export function emitCardSource(card) {
         );
 
     const { supertypes, types, subtypes } = parseTypeLine(card.type_line ?? "");
-    const cost = parseManaCost(card.mana_cost);
+    let cost;
+    try {
+        cost = parseManaCost(card.mana_cost);
+    } catch (err) {
+        // Name the offending card (issue #1742 fixup) — a 500+ card worklist
+        // run otherwise aborts with only the unrecognised symbol, no way to
+        // tell which card triggered it.
+        throw new Error(`Card "${card.name}": ${err.message}`);
+    }
     const power = card.power !== undefined ? Number(card.power) : NaN;
     const toughness =
         card.toughness !== undefined ? Number(card.toughness) : NaN;
@@ -430,7 +438,15 @@ async function main() {
             if (!src) continue; // out-of-scope cards emit ""
             // Route by the colour identity of the card's mana cost (CR 202.2);
             // lands / colourless artifacts (no coloured cost) → colorless.ts.
-            sources[moduleForCost(parseManaCost(card.mana_cost))].push(src);
+            let costForRouting;
+            try {
+                costForRouting = parseManaCost(card.mana_cost);
+            } catch (err) {
+                // Name the offending card (issue #1742 fixup) — see the
+                // matching try/catch in `emitCardSource` above.
+                throw new Error(`Card "${card.name}": ${err.message}`);
+            }
+            sources[moduleForCost(costForRouting)].push(src);
         }
         writeSetDirectory(outDir, set, sources, importLine);
     }
