@@ -48,18 +48,34 @@ export default function ControllerPhaseSheet({
         pointerId: number;
         startY: number;
         active: boolean;
+        // Live downward offset (px), mutated synchronously inside
+        // `onHandlePointerMove` — the authoritative value `commit` reads.
+        // `dragY` state exists ONLY to drive the transform style; it must
+        // never be read for the dismiss decision (see `commit` below).
+        dy: number;
     } | null>(null);
 
+    // `pointermove` is a continuous-priority React event: `setDragY` from the
+    // last move can still be an UNCOMMITTED render when the discrete,
+    // sync-flushed `pointerup`/`lostpointercapture` fires right after it on a
+    // fast flick. A `commit` that closed over the `dragY` STATE would then
+    // read whatever value was live at commit's OWN last render — stale by one
+    // (or more) moves — and spring the sheet back instead of closing. Reading
+    // `press.current.dy` sidesteps the render pipeline entirely: it is a
+    // plain mutable ref written synchronously in the same event-handler tick
+    // as the pointer move, so it is always current regardless of whether
+    // React has re-rendered yet. `commit` therefore intentionally has NO
+    // dependency on `dragY` — do not add one back.
     const commit = useCallback(() => {
         const p = press.current;
         press.current = null;
         setDragging(false);
-        if (p?.active && dragY > DISMISS_DRAG_PX) {
+        if (p?.active && p.dy > DISMISS_DRAG_PX) {
             onClose();
         } else {
             setDragY(0);
         }
-    }, [dragY, onClose]);
+    }, [onClose]);
 
     const onHandlePointerDown = useCallback(
         (e: React.PointerEvent<HTMLDivElement>) => {
@@ -68,6 +84,7 @@ export default function ControllerPhaseSheet({
                 pointerId: e.pointerId,
                 startY: e.clientY,
                 active: false,
+                dy: 0,
             };
         },
         []
@@ -86,7 +103,9 @@ export default function ControllerPhaseSheet({
             }
             // Downward-only: the handle is a CLOSE gesture, not a re-open one,
             // so upward travel is pinned to 0 rather than lifting the sheet.
-            setDragY(Math.max(0, dy));
+            const clamped = Math.max(0, dy);
+            p.dy = clamped;
+            setDragY(clamped);
         },
         []
     );
@@ -141,7 +160,7 @@ export default function ControllerPhaseSheet({
                 className="absolute inset-0 bg-black/50"
             />
             <div
-                className="relative max-h-[70vh] w-full animate-[sheetUp_0.2s_ease-out] overflow-hidden rounded-t-2xl border-t border-border-subtle bg-surface shadow-2xl backdrop-blur-md"
+                className="relative flex max-h-[70vh] w-full flex-col animate-[sheetUp_0.2s_ease-out] overflow-hidden rounded-t-2xl border-t border-border-subtle bg-surface shadow-2xl backdrop-blur-md"
                 style={{
                     transform: dragY > 0 ? `translateY(${dragY}px)` : undefined,
                     transition: dragging
