@@ -3,14 +3,28 @@
 // ordering/submit). Pointer events are owned by the picker's strip container, so
 // the image itself is inert.
 import { getImageFallbackUrl, getImageSrcSet, getImageUrl } from "~/lib/images";
-import { CARD_W, CARD_H } from "./constants";
+import {
+    CARD_W as CARD_W_NATURAL,
+    CARD_H as CARD_H_NATURAL,
+} from "./constants";
 
-export default function OrderCard({ defId }: { defId: string }) {
+export default function OrderCard({
+    defId,
+    cardW = CARD_W_NATURAL,
+    cardH = CARD_H_NATURAL,
+}: {
+    defId: string;
+    /** Live (possibly responsive, issue #1765) render size — defaults to the
+     *  natural desktop size. The picker passes its fitted tile size so every
+     *  card in the strip stays in sync with the library mock beside it. */
+    cardW?: number;
+    cardH?: number;
+}) {
     return (
         <img
             src={getImageUrl(defId)}
             srcSet={getImageSrcSet(defId)}
-            sizes={`${CARD_W}px`}
+            sizes={`${cardW}px`}
             onError={(e) => {
                 // WebP rendition missing → retry as jpg. srcset must be
                 // cleared too (it outranks src) and the guard stops the swap
@@ -24,7 +38,7 @@ export default function OrderCard({ defId }: { defId: string }) {
             alt=""
             draggable={false}
             className="pointer-events-none select-none rounded-[7%] border border-border object-cover shadow-md"
-            style={{ width: CARD_W, height: CARD_H }}
+            style={{ width: cardW, height: cardH }}
         />
     );
 }
