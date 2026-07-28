@@ -887,11 +887,13 @@ export const dreamThrush: CardDefinition = {
 // };
 
 // Faerie Squadron — "Kicker {3}{U}. If this creature was kicked, it enters
-// with two +1/+1 counters on it and with flying." The counters clause needs a
-// 1:2 multiplier `entersWith` doesn't support (only 1:1 "kicker" scaling,
-// Everflowing Chalice), and the flying clause needs a PERMANENT (non-duration)
-// ability grant on a conditional ETB — `grantAbility`'s `duration` is
-// mandatory and `grantStaticAbilityPermanent` has no Op wrapper.
+// with two +1/+1 counters on it and with flying." The counters clause IS now
+// expressible: `resolveEntersWithCounters` sums same-type entries, so two
+// `{ count: "kicker" }` rows yield 2 when kicked and none otherwise (issue
+// #1693; Vodalian Serpent above uses four such rows). The remaining blocker is
+// only the flying clause, which needs a PERMANENT (non-duration) ability grant
+// on a conditional ETB — `grantAbility`'s `duration` is mandatory and
+// `grantStaticAbilityPermanent` has no Op wrapper.
 // tracked-by: #1083
 // export const faerieSquadron: CardDefinition = {
 //     id: "4c707c81-dbbd-43be-a79a-7bc92a584839",
