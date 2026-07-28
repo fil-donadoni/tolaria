@@ -49,6 +49,8 @@ const FIREBALL = "b7623c00-144b-4a8f-9c6c-f5e9e4f65ece"; // {X}{R}
 const BLACK_LOTUS = "b0faa7f2-b547-42c4-a810-839da50dadfe"; // sacrifice: 3 mana
 const TROPICAL_ISLAND = "a9c6c759-aabf-44e7-ba8c-33c5df232b56"; // {T}: G or U
 const BLOOD_MOON = "78373616-e2d6-4ccf-998f-09f02bea45b4"; // nonbasic → Mountain
+const URBORG = "19e1224f-82cb-4f41-8739-f880cba61bbb"; // each land is a Swamp
+const DARK_RITUAL = "ebb6664d-23ca-456e-9916-afcd6f26aa7f"; // {B}
 
 /** Replicates the autoTapForPayment mutation body (solver + tap loop + commit
  *  decision) over real GRE primitives. Returns whether the spell committed. */
@@ -258,6 +260,83 @@ describe("autoTapForPayment under Blood Moon (#419)", () => {
         // Tapped for red (the Mountain subtype), not its printed G/U.
         expect(player.manaPool.G ?? 0).toBe(0);
         expect(player.manaPool.U ?? 0).toBe(0);
+    });
+});
+
+// Integration: GRE static effect (Urborg, Tomb of Yawgmoth) → game.ts
+// tap-for-payment path. Urborg gives EVERY land the Swamp subtype (CR 305.7,
+// 611 layer 4), so each land carries 2+ intrinsic mana-tap options — its own
+// colour AND {B}. `tapSourceIntoPayment` therefore demands an explicit
+// `manaChoiceIndex` (`manaTapNeedsChoice`), while the planner used to model a
+// land as a single fixed option via the single-colour `getBasicLandMana` and
+// emit a plan step with no index → "Must choose a mana color" thrown from the
+// auto-tap mutation. Planner and payment primitive must enumerate options from
+// the SAME authority (`getManaTapOptionsDetailed`).
+describe("autoTapForPayment under Urborg (multi-subtype lands)", () => {
+    function urborgState(costColor: "R" | "B") {
+        const urborg = makeInstance(URBORG, {
+            id: "urborg",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const mountain = makeInstance(MOUNTAIN, {
+            id: "m1",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const cast = makeInstance(costColor === "R" ? FIREBALL : DARK_RITUAL, {
+            id: "spell",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const p1 = makePlayer("p1", { hand: [cast], battlefield: [mountain] });
+        const p2 = makePlayer("p2", { battlefield: [urborg] });
+        const pendingCast: PendingCast =
+            costColor === "R"
+                ? {
+                      playerId: "p1",
+                      cardInstanceId: "spell",
+                      manaCost: { R: 1, X: 0 },
+                      tappedLandIds: [],
+                      chosenX: 0,
+                  }
+                : {
+                      playerId: "p1",
+                      cardInstanceId: "spell",
+                      manaCost: { B: 1 },
+                      tappedLandIds: [],
+                  };
+        const state = makeState({
+            players: [p1, p2],
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            pendingCast,
+        });
+        // Apply Urborg's continuous effects: every land also becomes a Swamp.
+        applySourceStaticEffects(state, state.players[1].battlefield[0]);
+        return { state, player: state.players[0] };
+    }
+
+    it("auto-taps a Mountain for its own {R} without throwing (the bug)", () => {
+        const { state, player } = urborgState("R");
+        const mountain = player.battlefield[0];
+        expect(mountain.subtypes).toContain("Swamp");
+
+        const committed = runAutoTap(state, player);
+
+        expect(committed).toBe(true);
+        expect(mountain.isTapped).toBe(true);
+        expect(player.manaPool.B ?? 0).toBe(0);
+    });
+
+    it("auto-taps a Mountain for the Urborg-granted {B} when the cost is black", () => {
+        const { state, player } = urborgState("B");
+        const committed = runAutoTap(state, player);
+
+        expect(committed).toBe(true);
+        expect(player.battlefield[0].isTapped).toBe(true);
+        expect(player.manaPool.R ?? 0).toBe(0);
     });
 });
 

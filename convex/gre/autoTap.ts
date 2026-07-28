@@ -1,10 +1,8 @@
 import type { Color } from "../cards/types";
 import {
     getActivatedManaAbility,
-    getActivatedManaColor,
     getActivatedManaRestriction,
-    getBasicLandMana,
-    getFixedManaAmount,
+    getManaTapOptionsDetailed,
     isTapLockedBySummoningSickness,
     MANA_COLORS,
 } from "./constants";
@@ -114,7 +112,21 @@ function withTapBonus(
 
 /** Build the solver's source list from a player's battlefield, excluding
  *  tapped sources, summoning-sick creature dorks (CR 302.1), sacrifice mana
- *  abilities, and anything that doesn't produce a single known mana output.
+ *  abilities, and anything that produces no known mana output.
+ *
+ *  A source's options come from the SAME authority the payment primitive uses
+ *  to validate the tap — `getManaTapOptionsDetailed` (CR 605.1a / 305.6): the
+ *  card's own mana abilities PLUS one intrinsic `{T}: Add` per distinct basic
+ *  land subtype, deduped by produced mana. The emitted `manaChoiceIndex` is an
+ *  index into that unified list, exactly what `tapSourceIntoPayment` /
+ *  `resolveManaTapChoice` resolve it against. Enumerating options any other
+ *  way desyncs planner and payment: the old single-colour `getBasicLandMana`
+ *  path modelled every land as ONE fixed option, so under a subtype-granting
+ *  effect (Urborg, Tomb of Yawgmoth — every land is also a Swamp) the planner
+ *  emitted a step with no index while the payment primitive demanded one, and
+ *  auto-tap threw "Must choose a mana color". It also hid the granted colour
+ *  from the solver entirely.
+ *
  *  Sorted restricted-first (fewest options) so the minimal solution prefers
  *  inflexible sources (basics) and keeps flexible ones (Birds) for last. */
 export function buildAutoTapSources(
@@ -134,30 +146,27 @@ export function buildAutoTapSources(
         if (getActivatedManaRestriction(card)) continue;
         // Summoning-sick creature mana dorks can't pay a {T} cost (CR 302.1).
         if (ability && isTapLockedBySummoningSickness(card)) continue;
+        // A board-derived choice list (Fellwar Stone's `getManaChoices` reads
+        // EVERY player's lands) can't be enumerated from the paying player's
+        // own battlefield alone, which is all this planner is handed — an index
+        // computed here could resolve to a different option server-side. Leave
+        // those sources manual, as before the unified enumeration.
+        if (ability?.getManaChoices) continue;
 
-        if (ability?.manaChoices) {
-            const options = ability.manaChoices.map((mc, index) => ({
-                manaChoiceIndex: index,
-                mana: withTapBonus(battlefield, card, toContribution(mc)),
-            }));
-            // A choice with no usable color (e.g. Black Lotus's {C}{C}{C}
-            // entry survives toContribution; that's fine) — keep all options.
-            sources.push({ cardId: card.id, options });
-            continue;
-        }
-
-        const color = getBasicLandMana(card) ?? getActivatedManaColor(card);
-        if (!color) continue; // non-mana or multi-color fixed: leave manual
-        // CR 106.1 — board-conditional output (Urza trio) computed from the
-        // controller's battlefield so the solver reasons over the real yield.
-        const amount = getFixedManaAmount(card, color, battlefield);
+        const options = getManaTapOptionsDetailed(card, card.controllerId, [
+            { playerId: card.controllerId, battlefield },
+        ]);
+        if (options.length === 0) continue; // non-mana source: leave manual
+        // CR 605.1a — an index is submitted only when the payment primitive
+        // actually demands one (`manaTapNeedsChoice`): 2+ options, or a
+        // choice-based ability even with a single entry.
+        const needsIndex = options.length >= 2 || !!ability?.manaChoices;
         sources.push({
             cardId: card.id,
-            options: [
-                {
-                    mana: withTapBonus(battlefield, card, { [color]: amount }),
-                },
-            ],
+            options: options.map((opt, index) => ({
+                ...(needsIndex ? { manaChoiceIndex: index } : {}),
+                mana: withTapBonus(battlefield, card, toContribution(opt.mana)),
+            })),
         });
     }
 

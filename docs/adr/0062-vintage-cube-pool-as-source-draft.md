@@ -62,8 +62,13 @@ recognized by a reserved Pack Source key `"vintage-cube"` (`CUBE_SOURCE_KEY`,
     `⌊283 / 45⌋ = 6` seats; it lifts automatically toward the full 8-seat table
     as the pool grows past 360.
 
-**Revision 2 to decision 3 (the pool is FROZEN on the event; the top-up is
-gone).** Two holes in revision 1 both dealt duplicate cards in real drafts:
+4.  **Draft-only.** The pool-as-source path is wired into the draft engine
+    (`generateRoundPacks`), not the Sealed pool generator. The create-event UI
+    makes the cube selectable only for Draft; Sealed keeps its per-set path.
+
+### Revision 2 — the pool is FROZEN on the event, and the top-up is gone
+
+Two holes in revision 1 both dealt duplicate cards in real drafts:
 
 - **The pool was re-derived per round.** Only round 0 is dealt in
   `startEvent`; rounds 1+ are dealt inside whichever later `submitPick`
@@ -86,10 +91,6 @@ gone).** Two holes in revision 1 both dealt duplicate cards in real drafts:
   slice would overflow the pool, and the Lab clamps its own seat count with
   the same `maxCubeSeats` authority the server caps a real event with. A
   hard invariant that degrades quietly is not an invariant.
-
-4.  **Draft-only.** The pool-as-source path is wired into the draft engine
-    (`generateRoundPacks`), not the Sealed pool generator. The create-event UI
-    makes the cube selectable only for Draft; Sealed keeps its per-set path.
 
 Everything downstream is unchanged: a cube pack card's `scryfallId` is its
 canonical Card ID, which `resolveCardMeta` / the Bot Drafter's `getCardEvalMeta`
