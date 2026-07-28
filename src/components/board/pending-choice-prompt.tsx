@@ -242,15 +242,15 @@ export default function PendingChoicePrompt({
     if (isChooser && choice.kind === "reveal-hand") return null;
 
     return (
-        <div
-            className={`${outerClassName} pointer-events-none`}
-            style={outerStyle}
-        >
+        <div className={outerClassName} style={outerStyle}>
             {/* Drag chrome stays on a plain wrapper — Panel forwards no
-                handlers, so the frame lives inside it. */}
+                handlers, so the frame lives inside it. `pointer-events-none`
+                / `pointer-events-auto` now come from the hook itself (issue
+                #1762 review) — every banner gets the gutter-tap fix for
+                free instead of re-declaring it per file. */}
             <div
                 {...dragHandlers}
-                className={`cursor-move select-none pointer-events-auto ${innerClassName}`.trim()}
+                className={`cursor-move select-none ${innerClassName}`.trim()}
             >
                 <Panel
                     density="compact"

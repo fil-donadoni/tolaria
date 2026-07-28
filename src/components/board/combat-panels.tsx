@@ -35,9 +35,26 @@ export default function CombatPanels({ player }: { player: Player }) {
 
     if (!combat) return null;
 
+    // Issue #1762 review finding 5 — `combat.confirmed` only flips true in
+    // `finalizeConfirmAttackers` (convex/game.ts), which runs AFTER any
+    // parked attack tax is paid (`pendingAttackManaTax` — Propaganda /
+    // Collective Restraint, CR 508.1c/1g — then `pendingAttackSacrifice` —
+    // Flooded Woodlands, CR 701.21a). So confirming attackers with an
+    // outstanding tax leaves `combat.confirmed` false while
+    // `AttackManaTaxBanner` / `SacrificeBanner` are ALSO on screen — both
+    // this dock and those banners pin to the same portrait top strip
+    // (`usePromptBannerPosition`) with dragging disabled, so they stacked
+    // directly on top of each other with no way to separate them. Attacker
+    // SELECTION is already done once a tax is parked (the player already
+    // pressed Confirm), so suppress this dock the moment either tax takes
+    // over the prompt — it reappears on its own once the tax clears (either
+    // paid, finalizing the attack, or canceled, which resets both pendings
+    // and `combat.confirmed` stays false).
     const isSelectingAttackers =
         phase === "DECLARE_ATTACKERS" &&
         !combat.confirmed &&
+        !combat.pendingAttackManaTax &&
+        !combat.pendingAttackSacrifice &&
         isMe &&
         playerId === activePlayerId;
 

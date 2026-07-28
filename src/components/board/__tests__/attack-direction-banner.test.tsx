@@ -19,11 +19,13 @@ describe("AttackDirectionBanner wording (issue #1762)", () => {
         expect(container.textContent).not.toMatch(/phase pod/i);
     });
 
-    it("names the actual Confirm Attackers button instead", () => {
+    it("names the actual Confirm Attackers button instead, with layout-neutral wording", () => {
         render(<AttackDirectionBanner planeswalkerPresent={false} />);
-        expect(
-            screen.getByText(/Click Confirm Attackers when done\./)
-        ).toBeTruthy();
+        // Issue #1762 review finding 6 — "Click ... when done" assumes a
+        // mouse; this banner also renders on a touch/portrait board where
+        // "click" reads wrong. No "Click" anywhere in the copy.
+        expect(screen.getByText(/Confirm Attackers when done\./)).toBeTruthy();
+        expect(screen.queryByText(/Click/)).toBeNull();
     });
 
     it("renders the full longest prompt (planeswalker retarget hint) without truncation, and never mentions 'phase pod'", () => {
@@ -33,35 +35,9 @@ describe("AttackDirectionBanner wording (issue #1762)", () => {
             <AttackDirectionBanner planeswalkerPresent={true} />
         );
         expect(container.textContent).toContain(
-            "Click an enemy planeswalker to direct your most recent attacker at it — click the attacker again to send it back to the player."
+            "Select an enemy planeswalker to direct your most recent attacker at it — select the attacker again to send it back to the player."
         );
         expect(container.textContent).not.toMatch(/phase pod/i);
-        // Wrapping text, never a single unbreakable line or a clipped
-        // ellipsis — the banner's own text content is never marked
-        // `whitespace-nowrap` or `truncate` (Tailwind's text-overflow
-        // ellipsis class), either of which would visually break/clip long
-        // copy at a narrow viewport instead of letting it wrap.
-        const textNode = container.querySelector("span.font-semibold")
-            ?.parentElement as HTMLElement;
-        expect(textNode.className).not.toMatch(/whitespace-nowrap/);
-        expect(textNode.className).not.toMatch(/\btruncate\b/);
-    });
-});
-
-describe("AttackDirectionBanner mobile width (390px, issue #1762)", () => {
-    it("keeps a width cap so long copy wraps rather than overflowing a 390px viewport", () => {
-        // jsdom performs no real CSS layout (no box measurements), so this
-        // asserts the STRUCTURAL contract instead: the banner (and its
-        // combat-panels.tsx wrapper — see board_center positioning notes)
-        // declares an explicit max-width rather than sizing to its
-        // (unbounded, planeswalker-hint-inclusive) content.
-        const { container } = render(
-            <div style={{ width: "390px" }}>
-                <AttackDirectionBanner planeswalkerPresent={true} />
-            </div>
-        );
-        const banner = container.querySelector('[data-slot="banner"]');
-        expect(banner).not.toBeNull();
-        expect(banner!.className).toMatch(/max-w-/);
+        expect(container.textContent).not.toMatch(/click/i);
     });
 });

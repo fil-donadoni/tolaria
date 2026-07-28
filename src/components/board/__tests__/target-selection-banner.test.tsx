@@ -45,6 +45,13 @@ vi.mock("@convex/cards/emblems", () => ({
             : undefined,
 }));
 
+// Drive the portrait/desktop seam explicitly so jsdom's flaky matchMedia
+// never decides the branch (same pattern as usePromptBannerPosition.test.ts)
+// — the "longest prompt at 390px" test below asserts the portrait wrap-cap.
+vi.mock("~/hooks/useIsPortrait", () => ({
+    useIsPortrait: () => true,
+}));
+
 import TargetSelectionBanner from "../target-selection-banner";
 
 function player(over: Partial<Player> = {}): Player {
@@ -199,9 +206,18 @@ describe("TargetSelectionBanner — longest prompt renders without broken wrappi
                 "select up to 3 a creature, an artifact or a planeswalker (min 1)"
             )
         ).toBeTruthy();
-        const hint = container.querySelector("span.text-text-muted");
-        expect(hint).not.toBeNull();
-        expect(hint!.className).not.toMatch(/whitespace-nowrap/);
-        expect(hint!.className).not.toMatch(/\btruncate\b/);
+        // Issue #1762 review finding 7 — a bare `not.toMatch(/whitespace-nowrap/)`
+        // can never fail (nothing here ever adds that class), so it isn't
+        // proof of anything. Assert what this change actually owns instead:
+        // the portrait wrap-cap this banner picked up from the shared
+        // `usePromptBannerPosition` hook (`max-w-[22rem]` on the inner
+        // wrapper) — the real mechanism that keeps this long hint from
+        // forcing the panel wider than the 390px viewport.
+        // container > the test's own 390px width div (a plain DOM node) >
+        // TargetSelectionBanner's outer positioning div > the inner wrapper.
+        const widthProbe = container.firstElementChild as HTMLElement;
+        const outer = widthProbe.firstElementChild as HTMLElement;
+        const inner = outer.firstElementChild as HTMLElement;
+        expect(inner.className).toContain("max-w-[22rem]");
     });
 });

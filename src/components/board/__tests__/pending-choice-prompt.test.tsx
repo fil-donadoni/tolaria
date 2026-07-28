@@ -14,6 +14,13 @@ vi.mock("convex/react", () => ({
     useMutation: () => vi.fn(),
 }));
 
+// Drive the portrait/desktop seam explicitly so jsdom's flaky matchMedia
+// never decides the branch (same pattern as usePromptBannerPosition.test.ts)
+// — the "longest prompt at 390px" test below asserts the portrait wrap-cap.
+vi.mock("~/hooks/useIsPortrait", () => ({
+    useIsPortrait: () => true,
+}));
+
 const noopBuffer: PendingChoiceBuffer = {
     buffer: [],
     toggle: () => {},
@@ -287,10 +294,20 @@ describe("PendingChoicePrompt — longest prompt renders without broken wrapping
             <div style={{ width: "390px" }}>{promptTree(choice)}</div>
         );
         expect(container.textContent).toContain(longPrompt);
-        const promptEl = container.querySelector("p.text-text-muted");
-        expect(promptEl).not.toBeNull();
-        expect(promptEl!.className).not.toMatch(/whitespace-nowrap/);
-        expect(promptEl!.className).not.toMatch(/\btruncate\b/);
+        // Issue #1762 review finding 7 — a bare `not.toMatch(/whitespace-nowrap/)`
+        // can never fail (nothing here ever adds that class), so it isn't
+        // proof of anything. Assert what this change actually owns instead:
+        // the portrait wrap-cap this prompt picked up from the shared
+        // `usePromptBannerPosition` hook (`max-w-[22rem]` on the inner
+        // wrapper) — the real mechanism that keeps this unbounded
+        // server-authored prompt from forcing the panel wider than the
+        // 390px viewport.
+        // container > the test's own 390px width div (a plain DOM node) >
+        // PendingChoicePrompt's outer positioning div > the inner wrapper.
+        const widthProbe = container.firstElementChild as HTMLElement;
+        const outer = widthProbe.firstElementChild as HTMLElement;
+        const inner = outer.firstElementChild as HTMLElement;
+        expect(inner.className).toContain("max-w-[22rem]");
     });
 });
 

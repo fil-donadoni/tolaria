@@ -8,6 +8,8 @@
 // suite is the catalogue-wide DOM proof that each banner's OWN wiring picked
 // up the portrait branch — the "two pieces passing individually but failing
 // together" class of bug the hook's unit test alone can't catch.
+import * as fs from "fs";
+import * as path from "path";
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, cleanup } from "@testing-library/react";
 import type {
@@ -256,5 +258,115 @@ describe("Prompt banners — portrait never centers on the board (issue #1762)",
             />
         );
         expectPortraitSafePosition(container);
+    });
+});
+
+// Issue #1762 review finding 8 — the suite above hand-enumerates six named
+// banners with `portrait = true` in every case, so (a) a banner that
+// re-invents the dead-center recipe INSTEAD of adopting the hook (the exact
+// bug `minimized-choice-indicator.tsx` / `pile-division-picker.tsx` had —
+// review findings 3/4) can't fail it, since it's simply never in the list,
+// and (b) the desktop/landscape path is never exercised at all. Two more
+// suites close both gaps: a source-level sweep with no hardcoded list to
+// fall out of date, and one landscape case.
+describe("Prompt banners — landscape/desktop path is unchanged (issue #1762)", () => {
+    it("PaymentBanner still centers on the board via top-1/2 left-1/2 and stays draggable", () => {
+        portrait = false;
+        const pa: PendingActivation = {
+            playerId: "me",
+            cardInstanceId: "src",
+            abilityId: "ability",
+            manaCost: { R: 1 },
+            tappedLandIds: [],
+            tapSource: false,
+            sacrificeSource: false,
+        };
+        const { container } = render(
+            <PaymentBanner
+                kind="activation"
+                pendingActivation={pa}
+                me={player()}
+                gameId={"g1" as never}
+                playerId="me"
+            />
+        );
+        const outer = container.firstElementChild as HTMLElement | null;
+        expect(outer).not.toBeNull();
+        const className = outer!.className;
+        expect(className).toContain("top-1/2");
+        expect(className).toContain("left-1/2");
+        expect(className).not.toContain("fixed");
+        expect(className).not.toContain("env(safe-area-inset-top)");
+    });
+});
+
+// Issue #1762 review finding 8 — a catalogue-wide, self-maintaining proof
+// that no `src/components/board` source file re-invents the hardcoded
+// `absolute top-1/2 left-1/2` + `useDraggable` dead-center recipe
+// `usePromptBannerPosition` exists to replace (the bug class review findings
+// 3/4 caught — a banner not on the hand-enumerated list above can't fail
+// it). Comments are stripped before matching so a file's own prose EXPLAINING
+// the historical bug (as this fix's own code comments now do, by design)
+// doesn't trip the sweep on itself — only live code counts.
+describe("Prompt banners — no hand-rolled dead-center + useDraggable pair remains (issue #1762)", () => {
+    const BOARD_DIR = path.resolve("src/components/board");
+
+    // Files that legitimately combine `top-1/2` + `left-1/2` for a REASON
+    // OTHER than this bug class, so they are exempt from the sweep. Kept
+    // explicit (not "everything not in the hand-enumerated list above") so a
+    // future addition here needs a one-line justification, not a silent
+    // pass.
+    const ALLOWLIST: Record<string, string> = {
+        "counter-badges.tsx":
+            "Per-card counter overlay (CR 122) centered ON THE CARD, not the " +
+            "board — decorative, pointer-events-none, no useDraggable import, " +
+            "so it never actually matches the useDraggable half of the pair " +
+            "(kept here for documentation, not because the sweep needs it).",
+    };
+
+    function stripComments(src: string): string {
+        return src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+    }
+
+    function collectBoardFiles(dir: string): string[] {
+        const out: string[] = [];
+        for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+            if (entry.name === "__tests__") continue;
+            const full = path.join(dir, entry.name);
+            if (entry.isDirectory()) {
+                out.push(...collectBoardFiles(full));
+            } else if (entry.name.endsWith(".tsx")) {
+                out.push(full);
+            }
+        }
+        return out;
+    }
+
+    it("every source file under src/components/board is clean (or explicitly allowlisted)", () => {
+        const files = collectBoardFiles(BOARD_DIR);
+        expect(files.length).toBeGreaterThan(50); // sanity: the sweep is actually walking the tree
+
+        const offenders: string[] = [];
+        for (const file of files) {
+            const base = path.basename(file);
+            if (base in ALLOWLIST) continue;
+            const code = stripComments(fs.readFileSync(file, "utf8"));
+            const hasDeadCenter =
+                code.includes("top-1/2") && code.includes("left-1/2");
+            const hasUseDraggable = code.includes("useDraggable");
+            if (hasDeadCenter && hasUseDraggable) {
+                offenders.push(path.relative(BOARD_DIR, file));
+            }
+        }
+        expect(offenders).toEqual([]);
+    });
+
+    it("the allowlist itself stays honest — every entry still exists and still matches the pattern it's excused from", () => {
+        for (const base of Object.keys(ALLOWLIST)) {
+            const matches = collectBoardFiles(BOARD_DIR).filter(
+                (f) => path.basename(f) === base
+            );
+            expect(matches.length).toBeGreaterThan(0);
+        }
     });
 });
