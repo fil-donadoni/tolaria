@@ -12176,6 +12176,14 @@
         "firstPrintSet": "inv"
     },
     {
+        "name": "Teferi, Hero of Dominaria",
+        "scryfallId": "5d10b752-d9cb-419d-a5c4-d4ee1acb655e",
+        "oracleId": "f2f165b6-ef0a-42ad-9352-ba68be8248b0",
+        "firstSet": "dom",
+        "firstPrintId": "5d10b752-d9cb-419d-a5c4-d4ee1acb655e",
+        "firstPrintSet": "dom"
+    },
+    {
         "name": "Teferi, Time Raveler",
         "scryfallId": "5cb76266-ae50-4bbc-8f96-d98f309b02d3",
         "oracleId": "ae7604bb-4818-45a3-960c-cf3d83f15964",

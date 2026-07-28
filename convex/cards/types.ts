@@ -1883,6 +1883,24 @@ export interface SpellContext {
      *  sickness, attached/granted-by-aura state) is cleared. No-op if the
      *  target has left the battlefield (CR 608.2b). */
     returnToHand: (target: TargetSelection) => void;
+    /** Puts a target battlefield permanent into its OWNER's library
+     *  `positionFromTop` cards from the top (1-based; 1 = top — CR 400.7,
+     *  issue #1726, Teferi, Hero of Dominaria's −3 "third from the top" =
+     *  3). Routed through the single LTB funnel (`removePermanentTo`), so
+     *  aura cleanup (CR 611.2), transient-state reset (CR 400.7), counter
+     *  loss (CR 121.2), PERMANENT_LEFT and an `exileOnLeave` redirect
+     *  (CR 614.1c — a redirected card never reaches the library) all behave
+     *  exactly as for a bounce. When the library holds fewer than
+     *  `positionFromTop − 1` cards the card is put on the bottom (splice
+     *  clamps — the official Teferi ruling). The moved card is stamped
+     *  known-to-all (ADR 0026): every player watched WHICH card went in and
+     *  where; the projection's contiguous-run model surfaces it once the
+     *  cards above it are drawn, and any shuffle clears it. No-op if the
+     *  target has left the battlefield (CR 608.2b). */
+    putIntoLibraryFromBattlefield: (
+        target: TargetSelection,
+        positionFromTop: number
+    ) => void;
     /** Reanimation primitive: moves a card from `playerId`'s graveyard or
      *  exile onto `playerId`'s battlefield (CR 400.7 zone change). Used by
      *  Resurrection ("return target creature card from your graveyard to the
@@ -8410,6 +8428,18 @@ export type EffectOp =
           bind?: string;
           controller?: EffectPlayerRef;
           tapped?: boolean;
+          /** issue #1726 — battlefield → library at a POSITION (1-based from
+           *  the top; 3 = "third from the top", Teferi, Hero of Dominaria's
+           *  −3). Valid only with `to: "library"` on this shape
+           *  (validator-enforced). Omitted, a battlefield permanent goes on
+           *  TOP (position 1 — the "put on top of its owner's library"
+           *  default), and a graveyard-card target keeps the historical
+           *  `moveCardById` path (Worldspine Wurm's shuffle-in). Routes
+           *  through the SpellContext primitive
+           *  `putIntoLibraryFromBattlefield` (the same LTB funnel as a
+           *  bounce); a library shorter than the position puts the card on
+           *  the bottom (the official Teferi ruling). */
+          position?: number;
       }
     /** CR 400.7 (issue #677) — the SEARCH half of a tutor/fetch effect: move
      *  the cards a `choice` Op picked (a bare picks ref, e.g.

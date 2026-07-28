@@ -173,6 +173,8 @@ import * as c21 from "./sets/c21";
 // tranche) — new home set (Ravnica Allegiance, earliest paper printing,
 // ADR 0041) for Skitter Eel, the prover card.
 import * as rna from "./sets/rna";
+// Teferi, Hero of Dominaria's home set (issue #1726).
+import * as dom from "./sets/dom";
 // Cube FREE: ETB / dies / attack triggers (issue #679). tla/znr shared with
 // the #681 tranche above — imported once.
 import * as eve from "./sets/eve";
@@ -397,6 +399,8 @@ const setModules: { code: string; exports: Record<string, unknown> }[] = [
     { code: "nec", exports: nec },
     { code: "c21", exports: c21 },
     { code: "rna", exports: rna },
+    // Teferi, Hero of Dominaria's home set (issue #1726).
+    { code: "dom", exports: dom },
     // Cube FREE: ETB / dies / attack triggers (issue #679). tla/znr shared
     // with the #681 tranche above — registered once.
     { code: "eve", exports: eve },
