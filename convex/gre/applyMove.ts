@@ -26,7 +26,12 @@
 //     set); the bot therefore never *prefers* such an activation.
 //   * Single-block only, matching `enumerateMoves`' single-block scope.
 
-import type { CardInstanceState, GameState, StackItem } from "./state";
+import type {
+    CardInstanceState,
+    GameState,
+    PlayerState,
+    StackItem,
+} from "./state";
 import {
     removeFromZone,
     removePermanentTo,
@@ -35,6 +40,10 @@ import {
     tapPermanent,
     canPayMayPayCost,
     discardToGraveyard,
+    moveCard,
+    normalizeManaCost,
+    applyCostModifiers,
+    getCostModifiers,
 } from "./state";
 import { matchesPermanentFilter } from "../cards/filters";
 import { isPlaneswalker } from "./constants";
@@ -47,10 +56,13 @@ import { recordBlockedAttackers } from "./banding";
 import { cloneGameState } from "./clone";
 import { enumerateMoves, type Move } from "./moves";
 import { evaluate } from "./evaluate";
-import { tryGetDefinition } from "../cards";
+import { tryGetDefinition, getInstanceManaCost } from "../cards";
 import { getManaSubstitutions } from "./state";
 import { buildAutoTapSources, solveSmartAutoTap } from "./autoTap";
 import { COMPANION_SUMMON_COST } from "./companion";
+import { spellHasDelve, delveEligibleCards, genericPortion } from "./payWith";
+import { genericManaShortfall } from "./rules";
+import { phyrexianPipCount } from "./phyrexian";
 
 /** CR 614.12 / ADR 0051 — drain every pending stackless `land-entry-tapped`
  *  pay-choice (a shock land played OR put onto the battlefield by an effect)
@@ -81,6 +93,66 @@ function autoFinalizeLandEntryChoices(state: GameState): void {
             head.cost,
             accept
         );
+    }
+}
+
+/** CR 702.66b / 601.2g (issue #1661) — pay a `cast-spell` search move's delve
+ *  portion by exiling graveyard cards, mirroring `tryAutoCommitPendingCast`'s
+ *  real-path order (`convex/game.ts`): the delve/flashback exile-cost cards
+ *  move to exile BEFORE the cast card itself leaves its own zone.
+ *
+ *  MUST be called BEFORE `applyTapPlan` taps the move's mana sources.
+ *  `genericManaShortfall` (below) reads the caster's CURRENTLY UNTAPPED mana
+ *  to decide the forced-minimum delve count, exactly like the real
+ *  announce-time computation (`buildDelveExileChoice` in `game.ts`, called
+ *  before any land is tapped) — calling this after the tap plan already ran
+ *  would see zero untapped mana, read the coloured pip as uncoverable, and
+ *  silently no-op the whole delve payment (caught by this fix's own test).
+ *
+ *  `enumerateMoves` (`moves.ts:599-623`) already discounts the move's
+ *  `tapPlan` by the number of FORCED delve exiles when it builds this move
+ *  (the same `genericManaShortfall` computation below, mirrored here rather
+ *  than carried on `Move` — `moves.ts` is out of scope for this fix, owned in
+ *  parallel by issue #1663). Without this, a search leaf that only replays
+ *  `tapPlan` evaluates a delve cast as costing NOTHING from the graveyard:
+ *  Treasure Cruise gets systematically over-rated and a later graveyard-cost
+ *  play walked by the SAME rollout (escape, flashback, another delve cast)
+ *  can illegally reuse graveyard cards that were already spent.
+ *
+ *  The search leaf has no player to consult for WHICH cards to delve (unlike
+ *  the real path's `exileFromGraveyardChoice.pickedCardIds`, a genuine
+ *  tactical choice), so it exiles the first N eligible cards — a conservative
+ *  deterministic pick, the same policy this file's `activate-ability` case
+ *  already uses for its sacrifice/tap-other costs. Shared by both search
+ *  leaves that replay a `cast-spell` move (`applyMove.ts`'s own
+ *  `applyMoveForSearch` and `search.ts`'s `applyMoveInSearch`) since they
+ *  duplicate the same tap-plan-only cast-spell shape. */
+export function applyDelveExileForSearch(
+    state: GameState,
+    player: PlayerState,
+    card: CardInstanceState,
+    chosenX: number | undefined
+): void {
+    if (!spellHasDelve(card)) return;
+    const delveFuel = delveEligibleCards(player, card.id).length;
+    if (delveFuel === 0) return;
+    const rawCost = getInstanceManaCost(card) ?? {};
+    const normCost = normalizeManaCost(rawCost, { chosenX: chosenX ?? 0 });
+    // Cost modifiers (CR 601.2f) apply before the delve offset, mirroring the
+    // enumerator; skipped for a Phyrexian-mana spell (same carve-out as
+    // `enumerateSpellMoves`, moves.ts:582 — no shipped card combines the two).
+    if (phyrexianPipCount(rawCost) === 0) {
+        applyCostModifiers(normCost, getCostModifiers(state, card, "spell"));
+    }
+    const shortfall = genericManaShortfall(player, card, normCost);
+    const delveCount = Math.min(
+        delveFuel,
+        genericPortion(normCost),
+        Number.isFinite(shortfall) ? shortfall : 0
+    );
+    if (delveCount <= 0) return;
+    for (const c of delveEligibleCards(player, card.id).slice(0, delveCount)) {
+        moveCard(player, c.id, "graveyard", "exile");
     }
 }
 
@@ -252,6 +324,22 @@ export function applyMoveForSearch(
         }
 
         case "cast-spell": {
+            // CR 702.66b / 601.2g (issue #1661) — pay the delve exile BEFORE
+            // the tap plan runs (see `applyDelveExileForSearch`'s doc — its
+            // forced-minimum calc needs the caster's mana still untapped) and
+            // before the spell leaves hand, mirroring
+            // `tryAutoCommitPendingCast`'s real-path order.
+            const preCastSpell = player.hand.find(
+                (c) => c.id === move.cardInstanceId
+            );
+            if (preCastSpell) {
+                applyDelveExileForSearch(
+                    next,
+                    player,
+                    preCastSpell,
+                    move.chosenX
+                );
+            }
             applyTapPlan(next, playerId, move.tapPlan);
             // CR 107.4f — pay the Phyrexian pips this move chose to cover with
             // life (2 each); the mana-paid pips are already in `tapPlan`.
