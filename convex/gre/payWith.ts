@@ -79,7 +79,9 @@ export function applyGenericOffset(
 
 /** CR 601.2g / 702.66 — build the delve picker for a cast that is about to be
  *  announced, or `undefined` when delve offers nothing (Arena-style prompt
- *  policy, ADR 0063).
+ *  policy, ADR 0063). A pure builder — it never decides whether the resulting
+ *  choice is forced-resolvable; that is `collapseForcedDelvePick`'s job, run
+ *  by the caller at its own commit seam (see that function's doc for why).
  *
  *  - `max` = min(eligible graveyard cards, generic remaining AFTER the CR
  *    601.2f reductions already folded into `manaCost`). `max === 0` means
@@ -88,39 +90,9 @@ export function applyGenericOffset(
  *    can't cover the cost (`shortfall`, clamped into `0..max`). `0` when lands
  *    could pay the same pips — a purely tactical choice → **prompt**. A partly
  *    forced choice → **prompt with the minimum pre-seeded**.
- *  - When `min === max === eligible.length` there is no real branch left
- *    AT ALL — not "how many" (the count is forced to `max`) and not "which
- *    ones" (`max` already consumes the whole eligible graveyard, nothing to
- *    choose FROM) — so the pick auto-resolves: `pickedCardIds` is pre-filled
- *    with every eligible card and the generic offset is paid down on
- *    `manaCost` immediately (issue #1660, mirrors
- *    `buildAlternativeCostHandChoice`'s forced-pick path in
- *    `alternativeCost.ts`). A forced COUNT with graveyard cards left over
- *    (`max < eligible.length`) still leaves a real "which ones" decision — a
- *    genuinely tactical choice about what to keep in the yard — so THAT case
- *    keeps prompting with the minimum pre-seeded, same as before.
  *
  *  `count` is a nominal 0: the variable-offset mode ignores it (mirrors the
- *  Nethergoyf `minCardTypes` mode's nominal 1).
- *
- *  `opts.autoResolve` (default `true`) gates the #1660 short-circuit above —
- *  see its own doc for why. Pass `false` when this picker is being opened as
- *  the SECOND leg of a chained payWith pick (CR 601.2g ordering, ADR 0063:
- *  convoke → delve → mana), i.e. from `recordConvokeCreaturePick` after the
- *  convoke pick has already landed. That call is a pure RECORD step —
- *  `pendingCast` was already parked once (for convoke) by its own caller, and
- *  auto-resolving here would silently pre-fill `pickedCardIds` and pay down
- *  `manaCost` before that caller gets a chance to attempt
- *  `tryAutoCommitPendingCast`. `recordConvokeCreaturePick` is exercised
- *  directly (tests, and any future direct caller), not only through the
- *  `selectConvokeCreatures` mutation that immediately follows it with a
- *  commit attempt — auto-resolving mid-record would leave the delve leg
- *  looking "already paid" to a caller that hasn't run that follow-up yet, and
- *  a subsequent explicit `recordCastExileCostPick` would reject it
- *  ("Exile cost already paid"). Keeping this leg on the always-prompt branch
- *  keeps `recordConvokeCreaturePick` a clean, composable record step, the
- *  same way `recordCastExileCostPick` and the sacrifice/hand-choice pickers
- *  never resolve themselves behind another primitive's back. */
+ *  Nethergoyf `minCardTypes` mode's nominal 1). */
 export function buildDelveExileChoice(
     player: PlayerState,
     card: CardInstanceState,
@@ -129,26 +101,79 @@ export function buildDelveExileChoice(
     /** Generic pips the caster's available mana CANNOT cover (delve excluded) —
      *  computed by `genericManaShortfall` in `rules.ts`, the same greedy model
      *  the castability gate uses. */
-    shortfall: number,
-    opts: { autoResolve?: boolean } = {}
+    shortfall: number
 ): NonNullable<PendingCast["exileFromGraveyardChoice"]> | undefined {
     if (!spellHasDelve(card)) return undefined;
-    const autoResolve = opts.autoResolve ?? true;
     const eligible = delveEligibleCards(player, castInstanceId);
     const max = Math.min(eligible.length, genericPortion(manaCost));
     if (max <= 0) return undefined;
     const min = Math.max(0, Math.min(shortfall, max));
-    const choice: NonNullable<PendingCast["exileFromGraveyardChoice"]> = {
+    return {
         count: 0,
         excludeInstanceId: castInstanceId,
         offsetGeneric: { min, max },
     };
-    if (autoResolve && min === max && max === eligible.length) {
-        const pickedCardIds = eligible.map((c) => c.id);
-        applyGenericOffset(manaCost, pickedCardIds.length);
-        return { ...choice, pickedCardIds };
-    }
-    return choice;
+}
+
+/** CR 601.2g / 702.66 — collapse a delve pick that has NO real branch left,
+ *  at the caller's COMMIT seam rather than inside the builder (issue #1660,
+ *  third round). Precedent: `autoResolveFungible` (`gre/sacrificeChoice.ts`)
+ *  is a separate collapse step the caller invokes after building/receiving a
+ *  choice, never a boolean baked into the builder itself — "composition over
+ *  flags" (`.claude/rules/gre-development.md` § Primitive reuse); a
+ *  `buildDelveExileChoice(..., { autoResolve })` opt was tried and reverted
+ *  for exactly this reason, on top of causing a correctness bug (below).
+ *
+ *  When `min === max === eligible.length` there is no real branch left AT
+ *  ALL — not "how many" (the count is forced to `max`) and not "which ones"
+ *  (`max` already consumes the whole eligible graveyard, nothing to choose
+ *  FROM) — so the pick collapses: `pickedCardIds` is pre-filled with every
+ *  eligible card and the generic offset is paid down on `manaCost`
+ *  immediately (mirrors `buildAlternativeCostHandChoice`'s forced-pick path
+ *  in `alternativeCost.ts`). A forced COUNT with graveyard cards left over
+ *  (`max < eligible.length`) still leaves a real "which ones" decision — a
+ *  genuinely tactical choice about what to keep in the yard — so that case is
+ *  left untouched (still prompts, with the minimum pre-seeded).
+ *
+ *  No-op when `choice` is undefined, already resolved (`pickedCardIds` set),
+ *  or genuinely not forced — safe for every caller to invoke unconditionally
+ *  right after it has a `castExileChoice` in hand.
+ *
+ *  **Why this must NOT live inside `buildDelveExileChoice` (or a flag on
+ *  it):** the CR 601.2g payWith order is convoke → delve → mana (ADR 0063).
+ *  On a convoke+delve card (Hogaak), the delve picker is built by
+ *  `recordConvokeCreaturePick` — a pure RECORD step, exercised directly by
+ *  tests and any future direct caller, not only through the
+ *  `selectConvokeCreatures` mutation that immediately follows it with a
+ *  commit attempt. If the builder collapsed the pick itself, that record
+ *  step would silently pre-fill `pickedCardIds` and pay down `manaCost`
+ *  before its own caller gets a chance to attempt
+ *  `tryAutoCommitPendingCast` — leaving the delve leg looking "already paid"
+ *  to a caller that hasn't run the follow-up commit, so a subsequent
+ *  explicit `recordCastExileCostPick` would reject it ("Exile cost already
+ *  paid"). Keeping the collapse OUT of the record step and calling it
+ *  instead from the COMMIT seam (`selectConvokeCreatures`, right after
+ *  `recordConvokeCreaturePick`, same as the two single-leg announce sites)
+ *  keeps `recordConvokeCreaturePick` a clean, composable record step — the
+ *  same discipline `recordCastExileCostPick` and the sacrifice/hand-choice
+ *  pickers already follow: never resolve yourself behind your caller's
+ *  back. */
+export function collapseForcedDelvePick(
+    player: PlayerState,
+    castInstanceId: string,
+    choice: NonNullable<PendingCast["exileFromGraveyardChoice"]> | undefined,
+    manaCost: Record<string, number>
+): void {
+    if (!choice || choice.pickedCardIds) return;
+    const offset = choice.offsetGeneric;
+    if (!offset) return;
+    const { min, max } = offset;
+    if (max <= 0 || min !== max) return;
+    const eligible = delveEligibleCards(player, castInstanceId);
+    if (max !== eligible.length) return;
+    const pickedCardIds = eligible.map((c) => c.id);
+    applyGenericOffset(manaCost, pickedCardIds.length);
+    choice.pickedCardIds = pickedCardIds;
 }
 
 // ─── Convoke (CR 702.51 — the coloured `payWith`, issue #1338) ───────────────

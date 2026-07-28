@@ -19,6 +19,7 @@ import { describe, it, expect } from "vitest";
 import {
     applyGenericOffset,
     buildDelveExileChoice,
+    collapseForcedDelvePick,
     delveEligibleCards,
     genericPortion,
     spellHasDelve,
@@ -203,7 +204,11 @@ describe("delve picker construction — Arena prompt policy (ADR 0063)", () => {
 // issue #1660 — a picker with zero real branch (min === max === every
 // eligible graveyard card) must auto-resolve instead of opening a picker the
 // player can only Confirm or Cancel (Arena-UX auto-resolve, mirrors
-// `buildAlternativeCostHandChoice`'s forced-pick path).
+// `buildAlternativeCostHandChoice`'s forced-pick path). Third round: the
+// collapse moved OUT of `buildDelveExileChoice` (a pure builder again) and
+// into the separate `collapseForcedDelvePick` step, run at the commit seam —
+// mirrors `autoResolveFungible` (`gre/sacrificeChoice.ts`). These tests drive
+// the two calls back-to-back, the way every real call site now does.
 describe("delve auto-resolve — fully forced pick skips the prompt (issue #1660)", () => {
     it("min === max === eligible.length pre-fills pickedCardIds and pays the generic cost down immediately", () => {
         // The issue's exact repro: 6 graveyard cards, {7}{U} Treasure Cruise,
@@ -214,6 +219,7 @@ describe("delve auto-resolve — fully forced pick skips the prompt (issue #1660
         const { player, spell } = board(2, 6);
         const cost: Record<string, number> = { X: 7, U: 1 };
         const choice = buildDelveExileChoice(player, spell, cost, spell.id, 6);
+        collapseForcedDelvePick(player, spell.id, choice, cost);
         expect(choice?.offsetGeneric).toEqual({ min: 6, max: 6 });
         expect(choice?.pickedCardIds?.slice().sort()).toEqual([
             "gy0",
@@ -265,6 +271,7 @@ describe("delve auto-resolve — fully forced pick skips the prompt (issue #1660
         const { state, player, spell } = board(1, 7);
         const cost: Record<string, number> = { X: 7, U: 1 };
         const choice = buildDelveExileChoice(player, spell, cost, spell.id, 7)!;
+        collapseForcedDelvePick(player, spell.id, choice, cost);
         expect(choice.pickedCardIds?.slice().sort()).toEqual([
             "gy0",
             "gy1",

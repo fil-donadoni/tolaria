@@ -114,6 +114,7 @@ import {
     applyGenericOffset,
     buildConvokeCreatureChoice,
     buildDelveExileChoice,
+    collapseForcedDelvePick,
     coverColoredAndHybridPips,
     creatureConvokeColors,
     spellHasConvoke,
@@ -5489,6 +5490,15 @@ export function finalizeTargetSelection(
             cardInstanceId,
             genericManaShortfall(player, cardInHand, manaCost)
         );
+        // CR 601.2g (issue #1660) — collapse a fully-forced pick right here at
+        // the commit seam (see `collapseForcedDelvePick`'s doc). No convoke on
+        // this cast, so this is the ONLY leg — nothing else has to run first.
+        collapseForcedDelvePick(
+            player,
+            cardInstanceId,
+            castExileChoice,
+            manaCost
+        );
     }
     const parkForSacrifice =
         !!exilePicker ||
@@ -6573,6 +6583,15 @@ export const announceCast = mutation({
                 manaCost,
                 args.cardInstanceId,
                 genericManaShortfall(player, cardInHand, manaCost)
+            );
+            // CR 601.2g (issue #1660) — collapse a fully-forced pick right
+            // here at the commit seam (see `collapseForcedDelvePick`'s doc).
+            // No convoke on this cast, so this is the ONLY leg.
+            collapseForcedDelvePick(
+                player,
+                args.cardInstanceId,
+                castExileChoice,
+                manaCost
             );
         }
 
@@ -8319,20 +8338,22 @@ export function recordConvokeCreaturePick(
         // CR 601.2g ordering (ADR 0063) — this is the SECOND leg of a chained
         // payWith pick: `recordConvokeCreaturePick` is a pure record step, and
         // its own caller hasn't had a chance to attempt
-        // `tryAutoCommitPendingCast` yet. `autoResolve: false` keeps the
-        // issue #1660 fully-forced short-circuit off HERE even when the delve
-        // count is fully forced (`min === max === eligible.length`) — see
-        // `buildDelveExileChoice`'s doc for why auto-resolving mid-record
-        // would leave this leg looking pre-paid to a caller (or test) that
-        // hasn't run the follow-up commit. The single-leg announce sites
-        // (no convoke) keep the default auto-resolve.
+        // `tryAutoCommitPendingCast` yet. `buildDelveExileChoice` is a pure
+        // builder — it never collapses a fully-forced pick itself (see its
+        // own doc, and `collapseForcedDelvePick`'s doc for why that
+        // collapse belongs at the COMMIT seam, not here). The caller of THIS
+        // function (`selectConvokeCreatures`) runs `collapseForcedDelvePick`
+        // right after this record step, before its own
+        // `tryAutoCommitPendingCast` — keeping this function a clean,
+        // composable record step that never pays costs behind its caller's
+        // back, the same discipline `recordCastExileCostPick` and the
+        // sacrifice/hand-choice pickers already follow.
         const delveChoice = buildDelveExileChoice(
             player,
             castCard,
             pc.manaCost,
             pc.cardInstanceId,
-            genericManaShortfall(player, castCard, pc.manaCost),
-            { autoResolve: false }
+            genericManaShortfall(player, castCard, pc.manaCost)
         );
         if (delveChoice) pc.exileFromGraveyardChoice = delveChoice;
     }
@@ -8364,6 +8385,21 @@ export const selectConvokeCreatures = mutation({
             args.playerId,
             args.creatureInstanceIds
         );
+
+        // CR 601.2g (issue #1660) — this is the commit seam for the SECOND
+        // (delve) leg of a chained convoke → delve payWith pick: collapse a
+        // fully-forced delve pick HERE, right after the pure record step and
+        // before the commit attempt, so `recordConvokeCreaturePick` itself
+        // stays a clean record step (see `collapseForcedDelvePick`'s doc).
+        const pcAfterConvoke = state.pendingCast;
+        if (pcAfterConvoke?.exileFromGraveyardChoice) {
+            collapseForcedDelvePick(
+                getPlayer(state, args.playerId),
+                pcAfterConvoke.cardInstanceId,
+                pcAfterConvoke.exileFromGraveyardChoice,
+                pcAfterConvoke.manaCost
+            );
+        }
 
         tryAutoCommitPendingCast(state, args.playerId);
 
