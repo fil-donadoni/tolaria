@@ -1012,12 +1012,45 @@ export function getProducibleManaOptions(
  *  ability would leak the restricted colour into this gate as if it were
  *  freely spendable — no such card exists yet (all three `manaRestriction`
  *  cards have exactly one mana ability). tracked-by: #1733 */
-function getProducibleManaUnits(card: CardInstanceState): Set<Color>[] {
+function getProducibleManaUnits(
+    card: CardInstanceState,
+    /** CR 602.5b / 605.1a (issue #1695 re-review, regression fix) — the
+     *  controller's id + a REAL, BOTH-PLAYERS `battlefields` view (built by
+     *  `coloredCostLeftover` from `opts.state` when a caller has one).
+     *  Board-dependent `canActivate` (Mox Opal's Metalcraft, Fanatic of
+     *  Rhonas's Ferocious — both scan only the controller's own battlefield,
+     *  `hasMetalcraft` in `types.ts` / the Ferocious closure in `mh3/green.ts`)
+     *  AND board-dependent `getManaChoices` (Fellwar Stone scans every OTHER
+     *  player's battlefield) both need it. Omitting these args (as this
+     *  function did before this fix) makes `minimalManaGateView` fall back to
+     *  `{ players: [] }`, so `canActivate` is permanently false and the mana
+     *  ability is dropped from the gate even though the real board — the one
+     *  `convex/game.ts`'s payment planner passes — satisfies it. A view
+     *  containing only the controller's OWN entry is NOT a safe substitute:
+     *  Fellwar Stone's chooser explicitly skips any entry matching
+     *  `controllerId`, so an own-only view makes it see zero opponents and
+     *  return `[]` — which the caller treats as "no options" rather than
+     *  falling back to the static list, trading the current safe
+     *  over-approximation for an under-approximating hidden-cast bug of this
+     *  same shape. See `coloredCostLeftover`'s `opts.state` doc for why this
+     *  is only ever populated from a full `GameState`, never from `player`
+     *  alone. */
+    controllerId?: string,
+    battlefields?: ReadonlyArray<{
+        playerId: string;
+        battlefield: readonly CardInstanceState[];
+    }>
+): Set<Color>[] {
     // requireTap: only a genuine {T} ability counts as an auto-payable "unit"
     // — mirrors `getProducibleManaOptions`, the real auto-tap planner.
-    const detailed = getManaTapOptionsDetailed(card, undefined, undefined, {
-        requireTap: true,
-    });
+    const detailed = getManaTapOptionsDetailed(
+        card,
+        controllerId,
+        battlefields,
+        {
+            requireTap: true,
+        }
+    );
 
     const perOptionUnits: Set<Color>[][] = detailed.map((opt) => {
         const units: Set<Color>[] = [];
@@ -1075,13 +1108,40 @@ function coloredCostLeftover(
     player: PlayerState,
     card: CardInstanceState,
     cost: Record<string, number>,
-    /** CR 601.2g (`payWith`, ADR 0063) — include the chosen-resource pseudo
-     *  sources (delve's graveyard cards) in the probe. Default true: the
-     *  castability gate must see them or a delve-only-payable spell is hidden.
-     *  `genericManaShortfall` passes false — it asks the complementary question
-     *  ("how much can MANA alone NOT cover", i.e. how many resources the caster
-     *  is forced to spend), which must exclude them. */
-    opts: { payWith?: boolean } = {}
+    opts: {
+        /** CR 601.2g (`payWith`, ADR 0063) — include the chosen-resource pseudo
+         *  sources (delve's graveyard cards) in the probe. Default true: the
+         *  castability gate must see them or a delve-only-payable spell is
+         *  hidden. `genericManaShortfall` passes false — it asks the
+         *  complementary question ("how much can MANA alone NOT cover", i.e.
+         *  how many resources the caster is forced to spend), which must
+         *  exclude them. */
+        payWith?: boolean;
+        /** CR 602.5b / 605.1a (issue #1695 re-review, regression fix) — the
+         *  full game state, threaded down from `canPotentiallyPayCost`'s own
+         *  optional `state` param (only its plain hand-cast branch passes
+         *  one today). Used to build a REAL, BOTH-PLAYERS `battlefields`
+         *  view for `getProducibleManaUnits`, so a mana ability's
+         *  board-dependent `canActivate` (Mox Opal's Metalcraft, Fanatic of
+         *  Rhonas's Ferocious) or board-dependent `getManaChoices` (Fellwar
+         *  Stone reads OPPONENT lands) sees the same board the real payment
+         *  planner (`convex/game.ts`) does. Deliberately NOT synthesized from
+         *  `player` alone: a battlefields view containing only the
+         *  controller's OWN entry makes Fellwar Stone's opponent-scanning
+         *  `getManaChoices` — which skips any entry matching `controllerId`
+         *  — see zero opponents and return `[]`, which `getManaTapOptionsDetailed`
+         *  treats as "no options" rather than falling back to the static
+         *  `manaChoices` list (an empty array is truthy). That would swap
+         *  Fellwar Stone's current safe "assume all 5 colours" over-approximation
+         *  for an under-approximating "assume none" — a NEW hidden-cast bug of
+         *  the exact shape this fix closes for Mox Opal/Fanatic of Rhonas.
+         *  When `state` is absent (every OTHER `canPotentiallyPayCost` call
+         *  site — flashback/escape/madness/graveyard-permission/free-exile —
+         *  none pass it today), `getProducibleManaUnits` falls back to its
+         *  pre-fix `undefined, undefined` call, unchanged from before this
+         *  fix. */
+        state?: GameState;
+    } = {}
 ): number | null {
     const includePayWith = opts.payWith ?? true;
     // CR 601.2f (issue #1338) — "You can't spend mana to cast this spell"
@@ -1097,6 +1157,13 @@ function coloredCostLeftover(
     // the shared greedy below (a real source or a convoke creature of either
     // colour pays each). Orthogonal to Phyrexian pips — no card carries both.
     const hybridPips = getInstanceManaCost(card)?.hybrid ?? [];
+    // See `opts.state` doc above: only built when the caller passed a full
+    // `GameState`, and always spans EVERY player, never just `player`.
+    const boardBattlefields = opts.state?.players.map((p) => ({
+        playerId: p.id,
+        battlefield: p.battlefield,
+    }));
+    const boardControllerId = boardBattlefields ? player.id : undefined;
     // Each source is the set of colors it can supply for this cost slot.
     const sources: Set<Color>[] = [];
     if (!cantSpendMana) {
@@ -1127,7 +1194,11 @@ function coloredCostLeftover(
             if (isTapLockedBySummoningSickness(perm)) continue;
             // One entry per mana the source taps for: a {C}{C} source (Sol Ring)
             // contributes two, not one (issue #132).
-            const base = getProducibleManaUnits(perm);
+            const base = getProducibleManaUnits(
+                perm,
+                boardControllerId,
+                boardBattlefields
+            );
             for (const unit of base) sources.push(unit);
             // CR 605.4 — a Wild-Growth-style triggered mana ability on ANOTHER
             // permanent adds extra mana when THIS land is tapped for mana. It only
@@ -1164,7 +1235,11 @@ function coloredCostLeftover(
             if (!perm.types.includes("Artifact")) continue;
             const producesMana =
                 !isTapLockedBySummoningSickness(perm) &&
-                getProducibleManaUnits(perm).length > 0;
+                getProducibleManaUnits(
+                    perm,
+                    boardControllerId,
+                    boardBattlefields
+                ).length > 0;
             if (producesMana) continue;
             sources.push(new Set<Color>());
         }
@@ -1377,7 +1452,15 @@ function canPotentiallyPayCost(
     const totalRequired =
         (cost.X ?? 0) + MANA_COLORS.reduce((sum, c) => sum + (cost[c] ?? 0), 0);
     if (totalRequired === 0) return true;
-    const leftover = coloredCostLeftover(player, card, cost);
+    // Issue #1695 re-review — forward the same optional `state` this function
+    // already threads through `applyCostModifiers` above down into
+    // `coloredCostLeftover`, so a board-dependent mana ability (Mox Opal,
+    // Fanatic of Rhonas, Fellwar Stone) is evaluated against the real board
+    // instead of being silently dropped. Only this (plain hand-cast) call
+    // site passes `state` today — every other `canPotentiallyPayCost` caller
+    // omits it, so `coloredCostLeftover` falls back to its pre-fix behaviour
+    // there, unchanged.
+    const leftover = coloredCostLeftover(player, card, cost, { state });
     // Remaining sources after the colored portion must cover the generic
     // ({cost.X}) portion.
     return leftover !== null && leftover >= (cost.X ?? 0);

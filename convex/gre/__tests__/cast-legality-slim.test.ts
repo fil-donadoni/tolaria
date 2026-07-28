@@ -29,6 +29,7 @@ import {
 import { metallicRebuke } from "../../cards/sets/aer";
 import { startingTown } from "../../cards/sets/fin";
 import { archaeologicalDig } from "../../cards/sets/inv";
+import { moxOpal } from "../../cards/sets/som";
 import { registerTokenDefinition } from "../../cards";
 import type { CardDefinition } from "../../cards/types";
 import type { GameState, PlayerState, StackItem } from "../state";
@@ -405,6 +406,65 @@ describe("cast affordability — Archaeological Dig's sacrifice colors aren't pa
         const player = makePlayer("p1", {
             hand: [bolt],
             battlefield: [onBattlefield(archaeologicalDig.id, "dig")],
+            manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
+        });
+        const state = withTurnOf(makeState({ players: [player] }), "p1");
+
+        expect(getLegalActions(state, player, bolt)).not.toContain("cast");
+    });
+});
+
+// Re-review regression (issue #1695, PR #1731): `getProducibleManaUnits` used
+// to call `getManaTapOptionsDetailed(card, undefined, undefined, …)`, so every
+// mana ability's `canActivate` was evaluated against `minimalManaGateView
+// (undefined)` = `{ players: [] }` — an empty board — instead of the real one.
+// Mox Opal's Metalcraft ("Activate only if you control three or more
+// artifacts") is board-dependent: with the board blanked out, `hasMetalcraft`
+// always returns false and the ability drops out of the castability gate even
+// though the real board (`game.ts`'s payment planner, which passes the real
+// battlefields) genuinely satisfies it and would pay the cost. Sol Ring is
+// included specifically because its OWN mana ({C}{C}) can't pay Lightning
+// Bolt's coloured {R} pip on its own — so this spell is castable ONLY if
+// Mox Opal's any-colour mana counts, making the assertion sensitive to a
+// revert of the board-threading fix.
+describe("cast affordability — board-dependent canActivate must see the real board (issue #1695 re-review)", () => {
+    function onBattlefield(defId: string, id: string) {
+        return makeInstance(defId, {
+            id,
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+            isTapped: false,
+        });
+    }
+
+    it("Mox Opal's Metalcraft ability counts toward Lightning Bolt when 3 artifacts are controlled", () => {
+        const bolt = makeInstance(lightningBolt.id, {
+            controllerId: "p1",
+            zone: "hand",
+        });
+        const player = makePlayer("p1", {
+            hand: [bolt],
+            battlefield: [
+                onBattlefield(moxOpal.id, "mox"),
+                onBattlefield(ankhOfMishra.id, "ankh"),
+                onBattlefield(solRing.id, "ring"),
+            ],
+            manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
+        });
+        const state = withTurnOf(makeState({ players: [player] }), "p1");
+
+        expect(getLegalActions(state, player, bolt)).toContain("cast");
+    });
+
+    it("Mox Opal alone (metalcraft NOT satisfied, only 1 artifact) does not make Lightning Bolt castable", () => {
+        const bolt = makeInstance(lightningBolt.id, {
+            controllerId: "p1",
+            zone: "hand",
+        });
+        const player = makePlayer("p1", {
+            hand: [bolt],
+            battlefield: [onBattlefield(moxOpal.id, "mox")],
             manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
         });
         const state = withTurnOf(makeState({ players: [player] }), "p1");
