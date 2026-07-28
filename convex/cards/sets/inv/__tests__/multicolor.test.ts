@@ -3167,4 +3167,79 @@ describe("Seer's Vision (CR 702-adjacent opponents-hand-reveal static + sac-for-
         );
         expect(state.stack).toHaveLength(0);
     });
+
+    // Regression (issue #1698) — the ability's OWN cost is `{ sacrifice: true
+    // }` (CR 602.2a: costs are paid BEFORE the ability goes on the stack, see
+    // `convex/game.ts`'s real `activateAbilityOnState` cost-then-push
+    // ordering), so by the time this `choice` Op needs to look at the target's
+    // hand, Seer's Vision is no longer on the battlefield and its own
+    // `revealsHand: "opponents"` continuous static has already ended. The
+    // GRE-only test above pushed the stack item WITHOUT paying the cost (the
+    // `resolveActivated` shim), which is why it never caught this: `sv` sat on
+    // the battlefield throughout, keeping the static alive by accident. This
+    // test reproduces the REAL timing by constructing the source already in
+    // the graveyard.
+    it("Sacrifice cost already removed the source — the pick must not depend on the now-gone reveal static (issue #1698)", () => {
+        const sv = makeInstance(seersVision.id, {
+            id: "sv-activate-2",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const handCard = makeInstance(grizzlyBears.id, {
+            id: "sv-discard-me-2",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { graveyard: [sv] }), // already sacrificed
+                makePlayer("p2", { hand: [handCard] }),
+            ],
+        });
+        resolveActivated(state, sv, "seers-vision-discard", [
+            { type: "player", id: "p2" },
+        ]);
+        expect(state.pendingChoices?.[0]?.kind).toBe("choose-hand-card");
+
+        // Wire assertion (through the real reducer, not a hand-built view):
+        // the controller's client must see p2's hand candidate face-up RIGHT
+        // NOW, or `HandCardPick` renders an empty modal and the game hangs
+        // forever waiting for a click that can never happen.
+        const projected = projectPublicState(state, 1, "p1");
+        const oppHand = projected.players.find((p) => p.id === "p2")!.hand;
+        expect(oppHand.map((c) => c?.id)).toEqual(["sv-discard-me-2"]);
+
+        submitChoice(state, ["sv-discard-me-2"]);
+        expect(state.players[1].hand).toHaveLength(0);
+        expect(state.players[1].graveyard.map((c) => c.id)).toContain(
+            "sv-discard-me-2"
+        );
+        expect(state.stack).toHaveLength(0);
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+    });
+
+    // Acceptance criterion — an empty target hand must resolve as a no-op
+    // instead of suspending on an unsatisfiable "choose 1" (CR 608.2b: a
+    // choice with nothing to choose from is skipped, not raised).
+    it("Sacrifice targeting a player with an empty hand resolves as a no-op, not a stuck choice (issue #1698)", () => {
+        const sv = makeInstance(seersVision.id, {
+            id: "sv-empty-target",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { graveyard: [sv] }),
+                makePlayer("p2", { hand: [] }),
+            ],
+        });
+        resolveActivated(state, sv, "seers-vision-discard", [
+            { type: "player", id: "p2" },
+        ]);
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        expect(state.stack).toHaveLength(0);
+    });
 });

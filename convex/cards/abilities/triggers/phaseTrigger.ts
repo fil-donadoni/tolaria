@@ -116,6 +116,15 @@ export interface PhaseTriggerArgs {
      *  firing event, bypassing `ctx.controller` entirely, so it is correct
      *  under any scope. Mutually exclusive with `resolve` / `resolveSteps`. */
     effects?: EffectOp[];
+    /** AI-only shadow Effect Script (PRD #1423, issue #1519) — forwarded
+     *  verbatim onto the built `TriggeredAbility`. Never executed: only the
+     *  context-free `OP_VALUERS` walker reads it, so a phase trigger whose
+     *  body genuinely cannot be a real `effects[]` script (a combat-graph
+     *  walk, an attached-host read) can still expose a value sketch to the
+     *  bot instead of landing on the `aiEffectsGuard` allowlist. Without this
+     *  passthrough the field was silently dropped by the builder, which is why
+     *  every `phaseTrigger`-built `resolve()` ability was allowlisted. */
+    aiEffects?: EffectOp[];
 }
 
 export function phaseTrigger(args: PhaseTriggerArgs): TriggeredAbility {
@@ -127,6 +136,7 @@ export function phaseTrigger(args: PhaseTriggerArgs): TriggeredAbility {
         ...(args.targetRequirement
             ? { targetRequirement: args.targetRequirement }
             : {}),
+        ...(args.aiEffects ? { aiEffects: args.aiEffects } : {}),
         matches: (event, self, state) => {
             if (event.type !== "PHASE_BEGIN") return false;
             if (event.phase !== args.phase) return false;

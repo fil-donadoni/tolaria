@@ -3112,6 +3112,14 @@
         "firstPrintSet": "lea"
     },
     {
+        "name": "Dread Wight",
+        "scryfallId": "65d332e2-4b2d-4131-84f7-862cb138c477",
+        "oracleId": "f9078d79-3250-44e8-aba1-ab52e0ba4425",
+        "firstSet": "ice",
+        "firstPrintId": "65d332e2-4b2d-4131-84f7-862cb138c477",
+        "firstPrintSet": "ice"
+    },
+    {
         "name": "Dream Thrush",
         "scryfallId": "258217df-ae88-4d93-895a-3fd242baacd1",
         "oracleId": "111f3f1c-4387-4e61-8bff-6ebe3b7b9d9f",
@@ -3862,6 +3870,14 @@
         "firstSet": "inv",
         "firstPrintId": "7fd4d018-dcf3-4439-8445-02d66e44f7d3",
         "firstPrintSet": "inv"
+    },
+    {
+        "name": "Faerie Mastermind",
+        "scryfallId": "52d3005f-a1c7-4ef5-911f-ccc0752f4181",
+        "oracleId": "a984db23-40ea-428d-829f-e944267280f8",
+        "firstSet": "mom",
+        "firstPrintId": "52d3005f-a1c7-4ef5-911f-ccc0752f4181",
+        "firstPrintSet": "mom"
     },
     {
         "name": "Faithless Looting",
@@ -11248,6 +11264,14 @@
         "firstPrintSet": "ice"
     },
     {
+        "name": "Soldevi Machinist",
+        "scryfallId": "1f0999df-2f94-499e-b9af-fe377d515400",
+        "oracleId": "06600efe-1718-4cc1-b1c0-59c82e2efd73",
+        "firstSet": "ice",
+        "firstPrintId": "1f0999df-2f94-499e-b9af-fe377d515400",
+        "firstPrintSet": "ice"
+    },
+    {
         "name": "Soldevi Simulacrum",
         "scryfallId": "9fabc7b6-e766-4e3c-816e-04cfeceaff09",
         "oracleId": "227ed0b7-7a9a-41f1-a190-1d1b85a44720",
@@ -12150,6 +12174,14 @@
         "firstSet": "inv",
         "firstPrintId": "0476cc6b-ecc6-44d6-9f44-a90d4ee85daa",
         "firstPrintSet": "inv"
+    },
+    {
+        "name": "Teferi, Hero of Dominaria",
+        "scryfallId": "5d10b752-d9cb-419d-a5c4-d4ee1acb655e",
+        "oracleId": "f2f165b6-ef0a-42ad-9352-ba68be8248b0",
+        "firstSet": "dom",
+        "firstPrintId": "5d10b752-d9cb-419d-a5c4-d4ee1acb655e",
+        "firstPrintSet": "dom"
     },
     {
         "name": "Teferi, Time Raveler",

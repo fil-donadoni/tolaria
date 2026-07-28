@@ -62,6 +62,7 @@ import {
     advancePhase,
     applyAllCombatDamage,
     fireDelayedTriggers,
+    untapStep,
 } from "../../../../gre/phases";
 import { getLegalTargets } from "../../../../gre/rules";
 import {
@@ -869,6 +870,51 @@ describe("Venarian Gold (sleep counters: ETB tap + counter-gated does-not-untap 
             (c) => c.id === "host"
         )!;
         expect(slim.counters?.sleep).toBe(3);
+    });
+
+    // REAL SEQUENCE (issue #1711). The three tests above materialize the
+    // aura's statics AFTER hand-seeding `counters`, an ordering that never
+    // occurs in play: in a real game `applySourceStaticEffects` runs once, when
+    // the Aura enters, and nothing re-runs it when the upkeep trigger strips
+    // the last sleep counter. Before `refreshCounterGatedStatics` the host
+    // stayed locked forever. These drive the assertions from the trigger.
+    it("the upkeep trigger lifts the lock when the last sleep counter goes (CR 502.1 / 613.5)", () => {
+        const { state, host, aura } = setup(1);
+        applySourceStaticEffects(state, aura);
+        expect(host.staticAbilities).toContain("does-not-untap");
+
+        resolveTrigger(state, aura, "venarian-gold-upkeep", UPKEEP_C5("p2"));
+
+        // No manual re-apply: `SpellContext.removeCounter` re-materializes.
+        expect(host.counters?.sleep ?? 0).toBe(0);
+        expect(host.staticAbilities).not.toContain("does-not-untap");
+    });
+
+    it("a tapped host actually untaps once its last sleep counter is removed", () => {
+        const { state, host, aura } = setup(1);
+        host.isTapped = true;
+        applySourceStaticEffects(state, aura);
+
+        state.activePlayerId = "p2";
+        state.priorityPlayerId = "p2";
+        untapStep(state);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "host")!.isTapped
+        ).toBe(true);
+
+        resolveTrigger(state, aura, "venarian-gold-upkeep", UPKEEP_C5("p2"));
+        untapStep(state);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "host")!.isTapped
+        ).toBe(false);
+    });
+
+    it("the lock still holds while sleep counters remain", () => {
+        const { state, host, aura } = setup(2);
+        applySourceStaticEffects(state, aura);
+        resolveTrigger(state, aura, "venarian-gold-upkeep", UPKEEP_C5("p2"));
+        expect(host.counters?.sleep).toBe(1);
+        expect(host.staticAbilities).toContain("does-not-untap");
     });
 });
 

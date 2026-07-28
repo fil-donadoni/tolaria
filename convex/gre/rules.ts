@@ -13,7 +13,7 @@ import type {
 } from "./state";
 import type { CardAction } from "./types";
 import { findTriggeredAbility } from "./copy";
-import { isSorceryTiming } from "./phases";
+import { isSorceryTiming, isSorceryTimingFor } from "./phases";
 import {
     CASTABLE_PERMANENT_TYPES,
     DAMAGEABLE_PERMANENT_TYPES,
@@ -295,14 +295,41 @@ const ALL_HAND_ACTIONS: CardAction[] = [
  *   - otherwise an instant-speed card, OR a card the caster holds a flash GRANT
  *     for (Teferi's +1: "cast sorcery spells as though they had flash"), is
  *     castable any time the caster has priority;
- *   - else sorcery timing is required. */
-function castTimingBaseLegal(
+ *   - else `casterId`'s OWN sorcery window is required (CR 307.1).
+ *
+ *  The SHARED cast-timing authority (issue #1690): the GRE (`getLegalActions`,
+ *  every cast branch below), the cast mutation (`announceCast` →
+ *  `assertLegalAction` → `getLegalActions`) and the client cast gate (the
+ *  projected `legalActions` a hand card renders from) all resolve a spell's
+ *  timing through this one function, so the three can never disagree.
+ *
+ *  Both sorcery legs ask `isSorceryTimingFor(state, casterId)` — the
+ *  CASTER-AWARE window — never the player-agnostic `isSorceryTiming(state)`.
+ *  The latter answers "is the turn in ITS ACTIVE player's sorcery window",
+ *  which for any other caster is an answer about a different player: it reports
+ *  a window to the NON-ACTIVE player throughout the opponent's main phases, so
+ *  a plain Sorcery read as castable during the opponent's turn with no flash
+ *  grant in the state at all (issue #1690 — the "Teferi grants flash timing
+ *  without the +1" symptom, which is really "the timing predicate lost the
+ *  caster").
+ *
+ *  No production path ever reached that: `isSorceryTiming` itself requires
+ *  `priorityPlayerId === activePlayerId`, and `getLegalActions` separately
+ *  returns early unless `priorityPlayerId === casterId` (~300 lines up). The
+ *  two guards COMPOSE to force `casterId === activePlayerId` — i.e. exactly
+ *  what `isSorceryTimingFor` now states directly — so the old code was
+ *  accidentally correct at every reachable call. It was only wrong when the
+ *  helper was called with a caster who is not the priority-holder. The fix is
+ *  therefore hardening, not a behaviour change: a helper documented as the
+ *  shared timing authority must not depend on two unrelated caller-side
+ *  guards to be correct. */
+export function castTimingBaseLegal(
     state: GameState,
     casterId: string,
     card: CardInstanceState
 ): boolean {
     if (isCastTimingSorcerySpeedLocked(casterId, state)) {
-        return isSorceryTiming(state);
+        return isSorceryTimingFor(state, casterId);
     }
     if (
         hasInstantSpeed(card) ||
@@ -310,7 +337,7 @@ function castTimingBaseLegal(
     ) {
         return true;
     }
-    return isSorceryTiming(state);
+    return isSorceryTimingFor(state, casterId);
 }
 
 export function getLegalActions(
@@ -372,20 +399,61 @@ export function getLegalActions(
     // "Play" is for lands only — requires sorcery timing (main phase, empty stack, active player)
     // and the player must not have already used their per-turn land drops (CR 305.2).
     if (types.includes("Land")) {
-        // Worms of the Earth (CR 614) — "Players can't play lands." While the
-        // land-play lock is active, playing a land is illegal regardless of
-        // timing or remaining land drops. Suppressing the "play" action here
-        // also blocks the server path: `assertLegalAction` rejects the
-        // `playCard` mutation when "play" is absent.
-        const landsPlayed = player.landsPlayedThisTurn ?? 0;
-        const extraDrops = getExtraLandDrops(player);
-        const maxDrops = LAND_DROPS_PER_TURN + extraDrops;
-        if (
-            !landPlayLockActive(state) &&
-            isSorceryTiming(state) &&
-            landsPlayed < maxDrops
-        ) {
-            actions.push("play");
+        // CR 305.9 (issue #1689) — a land can be played ONLY from hand,
+        // unless an effect explicitly says otherwise. This branch must scope
+        // itself to a zone plus a permission exactly like every
+        // cast-from-elsewhere branch below (flashback/escape/exile-cast
+        // scan `player.graveyard`/`player.exile` before granting anything),
+        // rather than firing for a bare `types.includes("Land")` regardless
+        // of where the card actually lives (the bug: an opponent's-hand
+        // land, an unpermissioned graveyard land, or — the reported case —
+        // an exiled land under a CAST-ONLY grant like Ragavan's "you may
+        // cast that card" all used to render a "play" affordance).
+        //   - hand: the normal, unconditional land drop.
+        //   - graveyard: only while the player holds the unconditional,
+        //     player-wide play-lands-from-graveyard permission (Icetill
+        //     Explorer, `canPlayLandsFromGraveyard`).
+        //   - exile: only when `casterId` holds the exile-cast grant AND
+        //     that grant is explicitly land-inclusive
+        //     (`castableFromExileIncludesLand`, set only by a grant whose
+        //     Oracle text says "play" — Headliner Scarlett, Expressive
+        //     Iteration, Elkin Bottle, Inti, Laelia, Dauthi Voidwalker). A
+        //     CAST-only grant (Ice Cauldron, Robber of the Rich, Ragavan)
+        //     never sets this flag, so a land under one is correctly
+        //     excluded — CR 116.2a, a land can't be cast either. Scanned
+        //     across EVERY player's exile (not just `player`'s own): a
+        //     CROSS-PLAYER grant (Dauthi Voidwalker's opponent-exile land,
+        //     issue #1156's shape) means the card can sit in a DIFFERENT
+        //     player's exile than `player`, and `assertLegalAction`'s
+        //     mutation-boundary call (`convex/game.ts`) invokes this with
+        //     `player` = the CASTER, not necessarily the zone owner, with no
+        //     separate `casterId` — mirrors `findCastableExileCard`'s own
+        //     all-players scan (`convex/game.ts`).
+        const isPlayableLandSource =
+            player.hand.some((c) => c.id === card.id) ||
+            (player.graveyard.some((c) => c.id === card.id) &&
+                canPlayLandsFromGraveyard(state, player)) ||
+            (card.castableFromExileBy === casterId &&
+                card.castableFromExileIncludesLand === true &&
+                state.players.some((p) =>
+                    p.exile.some((c) => c.id === card.id)
+                ));
+        if (isPlayableLandSource) {
+            // Worms of the Earth (CR 614) — "Players can't play lands." While the
+            // land-play lock is active, playing a land is illegal regardless of
+            // timing or remaining land drops. Suppressing the "play" action here
+            // also blocks the server path: `assertLegalAction` rejects the
+            // `playCard` mutation when "play" is absent.
+            const landsPlayed = player.landsPlayedThisTurn ?? 0;
+            const extraDrops = getExtraLandDrops(player);
+            const maxDrops = LAND_DROPS_PER_TURN + extraDrops;
+            if (
+                !landPlayLockActive(state) &&
+                isSorceryTiming(state) &&
+                landsPlayed < maxDrops
+            ) {
+                actions.push("play");
+            }
         }
     }
 

@@ -61,6 +61,11 @@ import {
 import { checkStateBasedActions } from "./sba";
 import { getExtraLandDrops, getLegalTargets } from "./rules";
 import { resolveEntersTapped } from "../cards/entersTapped";
+import { resolveEntersWithCounters } from "../cards/entersWith";
+import type {
+    EntersWithCastValues,
+    EntersWithDeclaration,
+} from "../cards/entersWith";
 import { getAbilityEffectFn, getResolveFn } from "../cards/effectRegistry";
 import {
     INLINE_DELAYED_TRIGGER_ID,
@@ -118,6 +123,7 @@ import { getColorsFromCost } from "../cards/colors";
 import {
     applyCopy,
     findTriggeredAbility,
+    presentedDefId,
     revertCopy,
     type CopyOptions,
 } from "./copy";
@@ -869,11 +875,32 @@ export type CardInstanceState = {
     notedMana?: { mana: Record<string, number>; castableCardId?: string };
     /** Cast-from-exile permission (CR 601.3e — Ice Cauldron: "You may cast that
      *  card for as long as it remains exiled"). When set on a card in the exile
-     *  zone, the named player may PLAY it from exile as if it were in their hand
-     *  — cast it if it's a spell, or play it as a land if it's a land (CR
-     *  305.2). Cleared when the card leaves exile. Persisted so the permission
-     *  survives a DB round-trip. */
+     *  zone, the named player may CAST it from exile as if it were in their
+     *  hand. CR 305.9 / 116.2a (issue #1689): a cast permission alone does
+     *  NOT also authorize playing a LAND — a land is never cast, so this
+     *  flag is meaningless for one unless {@link
+     *  castableFromExileIncludesLand} is ALSO set (see that field's doc for
+     *  which grants qualify). Cleared when the card leaves exile. Persisted
+     *  so the permission survives a DB round-trip. */
     castableFromExileBy?: string;
+    /** CR 305.9 (issue #1689) — rides alongside {@link castableFromExileBy};
+     *  true iff the GRANTING effect's Oracle text explicitly says "play"
+     *  (not merely "cast") that card, e.g. "You may look at and play that
+     *  card this turn" (Headliner Scarlett), "You may play the exiled card
+     *  this turn" (Expressive Iteration), "you may play it this turn
+     *  without paying its mana cost" (Dauthi Voidwalker). ONLY then does a
+     *  LAND sitting in exile under the grant become a legal "play" source
+     *  (`getLegalActions`'s land branch, `gre/rules.ts`) — mirroring how CR
+     *  305.9 restricts land plays to hand unless an effect EXPLICITLY says
+     *  otherwise. A grant whose Oracle text says "cast" instead (Ice
+     *  Cauldron, Robber of the Rich, Ragavan, Nimble Pilferer) never sets
+     *  this flag — `SpellContext.grantCastFromExile`'s `includesLand` opt
+     *  defaults to false/omitted, so a land under one of those grants is
+     *  simply unusable (no play, no cast — a land can't be cast either).
+     *  Meaningless (and never read) for a non-land card. Cleared alongside
+     *  `castableFromExileBy` wherever that field is cleared. Persisted so
+     *  the flag survives a DB round-trip. */
+    castableFromExileIncludesLand?: boolean;
     /** Turn-scoped expiry marker for {@link castableFromExileBy} (CR 514.2 /
      *  608.2g). When set, the play permission is an "until end of turn" impulse
      *  window (Headliner Scarlett, Expressive Iteration — "play that card this
@@ -3996,7 +4023,7 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
         delete top.resolutionStep;
         delete top.collectedChoices;
         state.stack.pop();
-        finalizeSpellResolution(state, top, cardDef);
+        finalizeSpellResolution(state, top);
         return top;
     }
 
@@ -4322,7 +4349,7 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
     }
     delete top.collectedChoices;
     state.stack.pop();
-    finalizeSpellResolution(state, top, cardDef);
+    finalizeSpellResolution(state, top);
     return top;
 }
 
@@ -4347,6 +4374,59 @@ export function shouldEnterTapped(
         entering as unknown as PermanentView,
         state as never
     );
+}
+
+/** CR 121.6 + 614.1c (issue #1693) — applies a permanent's declared
+ *  "enters with N counters on it" REPLACEMENT to `card`, AS it enters.
+ *
+ *  This is a replacement effect, NOT a triggered ability: it modifies how the
+ *  permanent enters, so it must run at the entry site — after the card is on
+ *  the battlefield but BEFORE `emitPermanentEntered` scans triggers and before
+ *  the first layer/SBA read. Nothing goes on the stack, nobody gets priority
+ *  with the permanent holding zero counters, and the clause never renders as
+ *  an ability. Modelling it as a `PERMANENT_ENTERED` trigger (the pre-#1693
+ *  shape) violated all three; the catalogue-wide guard
+ *  `convex/cards/__tests__/entersWithCounters.test.ts` keeps it from coming
+ *  back.
+ *
+ *  Shared by EVERY permanent-entry site — `finalizeSpellResolution` (a
+ *  resolving permanent spell), `stageReanimatedOnBattlefield` (reanimation, a
+ *  library/hand tutor's "put it onto the battlefield", blink),
+ *  `createToken` / `createTokenCopyOf` (CR 111.9, and the copiable clause of a
+ *  copied card per CR 706.2) and `settleEnteredLand` (`gre/playLand.ts`, every
+ *  play-a-land route) — so the sites cannot drift, exactly as
+ *  `shouldEnterTapped` unifies the tapped clause. The per-site census, and the
+ *  two sites that deliberately do NOT call this, are documented on
+ *  `convex/cards/entersWith.ts`'s header; that module also holds the count
+ *  vocabulary itself (the frontend-safe `resolveEntersWithCounters`). This
+ *  wrapper adds the CR 122.1c / 613.4d keyword-counter grant on top, which is
+ *  why entry sites must call THIS and never the bare oracle. */
+export function applyEntersWithCounters(
+    card: CardInstanceState,
+    def: { entersWith?: EntersWithDeclaration } | undefined,
+    cast: EntersWithCastValues
+): void {
+    const delta = resolveEntersWithCounters(def, cast);
+    const types = Object.keys(delta);
+    if (types.length === 0) return;
+    const before = card.counters ?? {};
+    const counters: Record<string, number> = { ...before };
+    for (const type of types)
+        counters[type] = (counters[type] ?? 0) + delta[type];
+    card.counters = counters;
+    // CR 122.1c / 613.4d (issue #1194, closing an ETB gap for issue #1318) —
+    // an entry counter whose TYPE names an implemented keyword ability grants
+    // that keyword the same way `SpellContext.addCounter` does for a resolving
+    // effect (Arwen, Mortal Queen: "Arwen enters with an indestructible
+    // counter on it" must grant indestructible immediately, not just when a
+    // LATER `addCounter` call happens to touch the same type). Only fires on
+    // the 0 → present transition, one grant per type, mirroring `addCounter`'s
+    // `wasZero` guard.
+    for (const type of types) {
+        if ((before[type] ?? 0) === 0 && counters[type] > 0) {
+            applyKeywordCounterGrant(card, type);
+        }
+    }
 }
 
 /** CR 400.7-style hygiene for a spell that returns from the stack to its
@@ -4425,27 +4505,24 @@ function sendStackItemToGraveyard(state: GameState, item: StackItem): void {
 
 /** Moves a resolved spell from the stack to its destination zone (CR 608.3
  *  for permanents, CR 608.2k for instants/sorceries). Extracted so both
- *  stepped and single-shot paths share the same transition. */
-function finalizeSpellResolution(
-    state: GameState,
-    item: StackItem,
-    cardDef:
-        | {
-              entersTapped?: boolean;
-              tracksControlContinuity?: boolean;
-              staticAbilities?: string[];
-              entersWith?: {
-                  counters?: {
-                      type: string;
-                      count: number | "X" | "kicker";
-                  }[];
-              };
-              /** CR 306.5b — planeswalker starting loyalty, placed as
-               *  `counters["loyalty"]` on ETB (issue #700). */
-              loyalty?: number;
-          }
-        | undefined
-): void {
+ *  stepped and single-shot paths share the same transition.
+ *
+ *  CR 707.2 (issue #1693) — the entering permanent's definition is re-derived
+ *  from `item.card` HERE rather than captured by the caller before the resolve
+ *  ran. A copy effect applied DURING the resolution (`becomeCopyOf` /
+ *  `setSelfBody` inside a `resolveSteps` step — Clone, Vesuvan Doppelganger,
+ *  Copy Artifact) rewrites `item.card.id` to the copied card's id, and copiable
+ *  values include the printed `entersTapped` / `entersWith` (CR 121.6
+ *  self-replacement) / `loyalty` clauses. Reading the PRE-copy definition here
+ *  meant a Clone of Clockwork Beast entered with no counters and a Clone of a
+ *  tap-land entered untapped. */
+function finalizeSpellResolution(state: GameState, item: StackItem): void {
+    // Unknown ids (synthetic test fixtures) collapse to the vanilla path —
+    // same tolerance `resolveTopOfStackInner` applies to its own lookup.
+    const finalCardId = (item.card as { id?: string } | undefined)?.id;
+    const cardDef = finalCardId
+        ? (tryGetDefinition(finalCardId) ?? undefined)
+        : undefined;
     const isPermanent = item.types.some((t) =>
         CASTABLE_PERMANENT_TYPES.includes(
             t as (typeof CASTABLE_PERMANENT_TYPES)[number]
@@ -4574,43 +4651,17 @@ function finalizeSpellResolution(
             item.notedManaSpentOnCast = { ...item.notedManaSpent };
         }
         controller.battlefield.push(item);
-        // CR 122.1, 614.1c — apply ETB-counters before the layer system runs
-        // so effective P/T reads include them immediately (Clockwork Beast).
-        const etbCounters = cardDef?.entersWith?.counters;
-        if (etbCounters && etbCounters.length > 0) {
-            const before = item.counters ?? {};
-            const counters: Record<string, number> = { ...before };
-            for (const entry of etbCounters) {
-                const n =
-                    entry.count === "X"
-                        ? Math.max(0, item.chosenX ?? 0)
-                        : // CR 702.33e — "a charge counter for each time it was
-                          // kicked" (Everflowing Chalice) reads the Multikicker
-                          // tally snapshotted on the resolving stack item.
-                          entry.count === "kicker"
-                          ? Math.max(0, item.kickerCount ?? 0)
-                          : entry.count;
-                if (n <= 0) continue;
-                counters[entry.type] = (counters[entry.type] ?? 0) + n;
-            }
-            if (Object.keys(counters).length > 0) {
-                item.counters = counters;
-                // CR 122.1c / 613.4d (issue #1194, closing an ETB gap for
-                // issue #1318) — an ETB counter whose TYPE names an
-                // implemented keyword ability grants that keyword the same
-                // way `SpellContext.addCounter` does for a resolving effect
-                // (Arwen, Mortal Queen: "Arwen enters with an indestructible
-                // counter on it" must grant indestructible immediately, not
-                // just when a LATER `addCounter` call happens to touch the
-                // same type). Only fires on the 0 → present transition, one
-                // grant per type, mirroring `addCounter`'s `wasZero` guard.
-                for (const type of Object.keys(counters)) {
-                    if ((before[type] ?? 0) === 0 && counters[type] > 0) {
-                        applyKeywordCounterGrant(item, type);
-                    }
-                }
-            }
-        }
+        // CR 121.6 / 614.1c — apply the entry-counters REPLACEMENT before the
+        // layer system runs, so effective P/T reads include them immediately
+        // (Clockwork Beast) and before `emitPermanentEntered` below scans
+        // triggers, so nothing ever observes the permanent with zero counters.
+        applyEntersWithCounters(item, cardDef, {
+            chosenX: item.chosenX,
+            // CR 702.33e — "a charge counter for each time it was kicked"
+            // (Everflowing Chalice) reads the Multikicker tally snapshotted on
+            // the resolving stack item.
+            kickerCount: item.kickerCount,
+        });
         // CR 306.5b — a planeswalker enters with a number of loyalty counters
         // equal to its printed starting loyalty (`CardDefinition.loyalty`).
         // Loyalty counters reuse the generic `counters` map (same shape as the
@@ -5399,6 +5450,53 @@ export function unapplySourceStaticEffects(
 
 /** Aura-flavored alias kept for back-compat. */
 export const unapplyAuraStaticEffects = unapplySourceStaticEffects;
+
+/** CR 613.5 / 122.1 — the recomputation tick for COUNTER-GATED materialized
+ *  static effects (issue #1711).
+ *
+ *  `applySourceStaticEffects` MATERIALIZES its grant kinds (`keyword-grant`,
+ *  `activated-grant`, `triggered-grant`, `type-add`, `subtype-set`, …) onto the
+ *  target instance once, when the source or the target enters the battlefield.
+ *  Unlike `pt-buff` / `pt-cda` — recomputed at every read — nothing re-runs
+ *  them afterwards. A predicate gated on COUNTERS therefore goes stale the
+ *  instant a counter is added or removed, and both consumers of the
+ *  materialized arrays (`untapStep`'s `does-not-untap` check and
+ *  `getEffectiveActivatedAbilities`) silently read the pre-counter answer. That
+ *  is the whole bug class: Dread Wight's paralyzation lock, Venarian Gold's
+ *  sleep counters, Cocoon's pupa counters, Cyclopean Tomb's mire markers,
+ *  Gaea's Liege's forest markers, and the INV kicker `+1/+1` grants all shipped
+ *  inert past their first materialization.
+ *
+ *  For every battlefield source whose static effects DECLARE
+ *  `dependsOnCounters` (see `CounterGatedStatic` in `cards/types.ts`, enforced
+ *  catalogue-wide by `cards/__tests__/counterGatedStatics.test.ts`), unapply
+ *  and re-apply its grants so each predicate is re-evaluated against the
+ *  current counters. Sources that declare nothing are skipped, so this is a
+ *  no-op sweep of the battlefield for the overwhelming majority of boards.
+ *
+ *  Called from the two counter mutators (`addCounterToCard` and
+ *  `SpellContext.removeCounter`) for immediate within-resolution consistency,
+ *  and from `checkStateBasedActions` as the catch-all for every other counter
+ *  write path (CR 704.5q `+1/+1`/`-1/-1` annihilation, Freyalise's Winds' untap
+ *  strip, depletion counters on tap, `payRemoveCounterCost`, planeswalker
+ *  loyalty) — the same "not an SBA per se, but every stable transition runs
+ *  this sweep" placement `refreshLandPlayLock` already occupies. */
+export function refreshCounterGatedStatics(state: GameState): void {
+    for (const player of state.players) {
+        for (const source of player.battlefield) {
+            const cardId = (source.card as { id?: string }).id;
+            const def = cardId ? tryGetDefinition(cardId) : null;
+            const effects = getEffectiveStaticEffects(def, source.chosenModeId);
+            if (!effects.some((e) => e.dependsOnCounters === true)) continue;
+            // Full unapply/re-apply of THIS source only (the established
+            // reattach idiom): the predicate may read the target's counters
+            // (Dread Wight) or the source's own (Cocoon), so nothing short of
+            // re-running it is correct.
+            unapplySourceStaticEffects(state, source);
+            applySourceStaticEffects(state, source);
+        }
+    }
+}
 
 /** Applies every existing battlefield source's `keyword-grant` static effects
  *  to a newly-arrived permanent. Called from `finalizeSpellResolution` so
@@ -6984,9 +7082,26 @@ export function returnExiledForSource(
         const [hostCard] = ownerExile.splice(idx, 1);
         putReanimatedOnBattlefield(state, hostCard, bundle.hostOwnerId);
         if (bundle.returnTapped) hostCard.isTapped = true;
-        // CR 122 — re-apply the noted counters to the new object.
+        // CR 122 — re-apply the noted counters to the new object, MERGING them
+        // onto whatever the entry itself already placed rather than
+        // overwriting (issue #1693). `putReanimatedOnBattlefield` above ran the
+        // CR 121.6 entry-counters replacement, so a blinked/flickered Clockwork
+        // Beast is already holding its seven +1/+0 counters. Both are
+        // replacement effects modifying the SAME entry event, so per CR 616.1
+        // both apply and their counters are additive — a wholesale
+        // `= { ...bundle.counters }` here silently discarded the entry half.
+        // (Ordering is safe either way: `emitPermanentEntered` only QUEUES
+        // `PERMANENT_ENTERED`; the trigger scan drains it in
+        // `processPendingActionTriggers`, i.e. after this merge, so triggers
+        // observe the final total.)
         if (Object.keys(bundle.counters).length > 0) {
-            hostCard.counters = { ...bundle.counters };
+            const merged: Record<string, number> = {
+                ...(hostCard.counters ?? {}),
+            };
+            for (const [type, n] of Object.entries(bundle.counters)) {
+                merged[type] = (merged[type] ?? 0) + n;
+            }
+            hostCard.counters = merged;
         }
         // CR 303.4 — the exiled Auras return attached to the restored host.
         for (const a of bundle.attached) {
@@ -7240,17 +7355,37 @@ function collectCastTriggers(
  *  `oncePerEventBatch`. No-op when `count <= 0` (an empty-library draw moved
  *  nothing). Callers that drive a draw at a point where pending events are
  *  later drained — `resolveTopOfStack`, the draw step's explicit drain — use
- *  this so the trigger scan picks it up. */
+ *  this so the trigger scan picks it up.
+ *
+ *  Each event also carries `drawIndexThisTurn` (0-based, CR 121.1, issue
+ *  #781) — the trigger-side twin of `DrawReplacementEvent.drawIndexThisTurn`
+ *  (`cards/types.ts`). Every call site (`drawStep`, `finalizeDrawLookKeep`,
+ *  `applyDrawCardOnTap`, the draw-step/`may-pay-bin` plan branches) already
+ *  calls `drawCard`/`drawCardFromLibrary` — which appends to
+ *  `player.drawnThisTurn` — exactly `count` times synchronously BEFORE
+ *  calling this function, so by the time this runs `drawnThisTurn.length`
+ *  already reflects the WHOLE batch. The first event's index is therefore
+ *  `drawnThisTurn.length - count`, and each subsequent fanned-out event
+ *  increments by one: a draw-3 emits indices n, n+1, n+2 — not three copies
+ *  of the same value. Feeds `nthDrawThisTurn`
+ *  (`cards/abilities/triggers/drawTrigger.ts`). */
 export function emitCardDrawn(
     state: GameState,
     playerId: string,
     count: number
 ): void {
     if (count <= 0) return;
-    const perCard = Array.from({ length: count }, () => ({
+    const player = getPlayer(state, playerId);
+    // Defensive clamp: every real call site appends to `drawnThisTurn` before
+    // calling this (see doc above), so `base` is never negative in practice —
+    // clamped anyway so a caller that skips the append (a hand-built test
+    // simulation) can't emit a nonsensical negative ordinal.
+    const base = Math.max(0, (player.drawnThisTurn?.length ?? 0) - count);
+    const perCard = Array.from({ length: count }, (_, i) => ({
         type: "CARD_DRAWN" as const,
         playerId,
         count: 1,
+        drawIndexThisTurn: base + i,
     }));
     state.pendingEvents = [...(state.pendingEvents ?? []), ...perCard];
 }
@@ -7523,6 +7658,11 @@ export function addCounterToCard(
     next[type] = (next[type] ?? 0) + count;
     card.counters = next;
     if (wasZero) applyKeywordCounterGrant(card, type);
+    // CR 613.5 (issue #1711) — a counter-gated MATERIALIZED static (Dread
+    // Wight's paralyzation lock, Cocoon's pupa counters) is written onto its
+    // target once and never recomputed; re-run the materialization now so the
+    // untap step and `getEffectiveActivatedAbilities` see the new answer.
+    refreshCounterGatedStatics(state);
     state.pendingEvents = [
         ...(state.pendingEvents ?? []),
         {
@@ -7965,6 +8105,23 @@ function stageReanimatedOnBattlefield(
     // active player's next priority window resolves it).
     const putCardId = (card.card as { id?: string }).id;
     const putDef = putCardId ? tryGetDefinition(putCardId) : undefined;
+    // CR 121.6 / 614.1c (issue #1693) — the entry-counters replacement applies
+    // however the permanent enters, not only when it is CAST: a reanimated
+    // Clockwork Beast or a tutored Wishclaw Talisman enters with its counters
+    // too. `resetBattlefieldTransientState` above already cleared the previous
+    // object's counters (CR 400.7), so this is the fresh object's entry
+    // placement. No cast-time values exist on this path — CR 107.3b puts X at
+    // 0 off the stack, and an uncast permanent was never kicked — so a
+    // `count: "X"` / `count: "kicker"` entry contributes nothing, which is the
+    // correct outcome.
+    //
+    // Applied ABOVE the `entersTappedUnlessPay` branch below: that branch
+    // pushes the permanent onto the battlefield and `return false`s to await
+    // the pay-choice, so an applier sitting after it never ran for a
+    // shock-land-style permanent put onto the battlefield by an effect. The
+    // deferred `finalizeLandEntry` completion does not re-apply it either, so
+    // the counters would simply have been lost.
+    applyEntersWithCounters(card, putDef ?? undefined, {});
     if (putDef?.entersTappedUnlessPay) {
         card.isTapped = true;
         getPlayer(state, controllerId).battlefield.push(card);
@@ -9438,6 +9595,11 @@ export function buildSpellContext(
             // is now completely gone (`remaining === 0`) — a partial removal
             // (3 flying counters → 1) leaves the keyword granted.
             if (remaining === 0) unapplyKeywordCounterGrant(found.card, type);
+            // CR 613.5 (issue #1711) — mirror of the `addCounterToCard` call:
+            // re-materialize every counter-gated static so a grant whose
+            // predicate has just gone false is actually lifted (Dread Wight's
+            // "{4}: Remove a paralyzation counter" freeing its own victim).
+            refreshCounterGatedStatics(state);
             // CR 122.6 — emit a COUNTER_REMOVED event so "whenever a counter is
             // removed" triggers (Vanishing's CR 702.63d sacrifice) can fire.
             // Drained by `processPendingActionTriggers` after the current
@@ -9625,6 +9787,36 @@ export function buildSpellContext(
             // issue #1558 — an exileOnLeave replacement can still redirect a
             // requested bounce to exile; the actual landing zone decides.
             emitCardsExiledFromBattlefield(state, moved);
+        },
+        // CR 400.7 (issue #1726) — put a battlefield permanent into its
+        // OWNER's library `positionFromTop` cards from the top (1-based;
+        // Teferi, Hero of Dominaria's −3 "third from the top" = 3). Same LTB
+        // funnel as a bounce (`removePermanentTo`), so aura cleanup, counter
+        // loss, PERMANENT_LEFT and an exileOnLeave redirect (CR 614.1c — the
+        // redirected card never reaches the library, so the reposition below
+        // finds nothing and skips) all apply. A library shorter than the
+        // position puts the card on the bottom (splice clamps its start
+        // index — the official Teferi ruling). The moved card is stamped
+        // known-to-all (ADR 0026): both players watched which card went in
+        // and where; a shuffle clears it.
+        putIntoLibraryFromBattlefield(
+            target: TargetSelection,
+            positionFromTop: number
+        ): void {
+            if (target.type === "player")
+                throw new Error("Cannot put a player into a library");
+            const moved = removePermanentTo(state, target.id, "library");
+            emitCardsExiledFromBattlefield(state, moved);
+            if (!moved) return;
+            const owner = getPlayer(state, moved.ownerId);
+            const idx = owner.library.findIndex((c) => c.id === moved.id);
+            // Not in the library: an exileOnLeave replacement redirected the
+            // departure (the emit above already handled it) — nothing to
+            // reposition.
+            if (idx === -1) return;
+            const [card] = owner.library.splice(idx, 1);
+            owner.library.splice(Math.max(0, positionFromTop - 1), 0, card);
+            grantKnowledgeToAll(state, moved.ownerId, [card.id]);
         },
         // CR 400.7 reanimation: locate `cardInstanceId` in `playerId`'s
         // graveyard or exile, splice it out, and put it onto `playerId`'s
@@ -10195,10 +10387,26 @@ export function buildSpellContext(
                 case "library-top":
                     item.zone = "library";
                     owner.library.unshift(item);
+                    // CR 400.2 / 405.1 (issue #1696) — the countered spell was
+                    // a PUBLIC object on the stack, so every player knows which
+                    // card this is; putting it at a known position in a hidden
+                    // zone does not retroactively un-reveal it. Stamp ADR 0026
+                    // reveal-class knowledge so the card stays face-up to all
+                    // players until an uncertainty event (a shuffle, CR 701.20,
+                    // via `clearKnowledge`) erases it. Identical to the
+                    // `putSpellOnLibrary` (Subtlety) path — one mechanism, not
+                    // a counterspell-specific marker.
+                    grantKnowledgeToAll(state, item.ownerId, [item.id]);
                     break;
                 case "hand":
                     item.zone = "hand";
                     owner.hand.push(item);
+                    // CR 400.2 / 405.1 (issue #1696) — same public→hidden move
+                    // as the library-top branch, into the other hidden zone
+                    // (Remand). The opponent legitimately keeps knowing that
+                    // card is in hand; the projection turns it into the
+                    // per-card `seenByOpponent` eye icon.
+                    grantKnowledgeToAll(state, item.ownerId, [item.id]);
                     break;
                 case "graveyard":
                 default:
@@ -10366,6 +10574,19 @@ export function buildSpellContext(
                  *  historical permission-only shape (Ice Cauldron, Robber of
                  *  the Rich — cast for the normal printed cost). */
                 withoutPayingManaCost?: boolean;
+                /** CR 305.9 (issue #1689) — true iff the GRANTING Oracle
+                 *  text says "play" rather than "cast" (Headliner Scarlett,
+                 *  Expressive Iteration, Elkin Bottle, Inti, Laelia, Dauthi
+                 *  Voidwalker). Stamps {@link
+                 *  CardInstanceState.castableFromExileIncludesLand}
+                 *  alongside `castableFromExileBy` so a LAND under this
+                 *  grant becomes a legal "play" source (`getLegalActions`'s
+                 *  land branch). Omitted/false (the default) is a CAST-only
+                 *  grant (Ice Cauldron, Robber of the Rich, Ragavan, Nimble
+                 *  Pilferer) — a land under it is never playable NOR
+                 *  castable (CR 116.2a — a land can't be cast either), the
+                 *  exact bug class issue #1689 closes. */
+                includesLand?: boolean;
             }
         ): void {
             // CR 601.3e — Ice Cauldron: mark a card in `zoneOwnerId`'s exile
@@ -10406,6 +10627,16 @@ export function buildSpellContext(
                 card.castFromExileWithoutPayingManaCost = true;
             } else {
                 delete card.castFromExileWithoutPayingManaCost;
+            }
+            // CR 305.9 (issue #1689) — only a grant whose Oracle text says
+            // "play" ALSO authorizes a LAND under it; see the field's own
+            // doc. A cast-only grant (the default) leaves this cleared, so
+            // a land stamped `castableFromExileBy` by one is still correctly
+            // read as unplayable by `getLegalActions`.
+            if (opts?.includesLand) {
+                card.castableFromExileIncludesLand = true;
+            } else {
+                delete card.castableFromExileIncludesLand;
             }
         },
         grantCastFromGraveyard(
@@ -10888,6 +11119,20 @@ export function buildSpellContext(
             const token = findOnBattlefield(state, tokenId)?.card;
             if (!token) return undefined;
             applyCopy(token, source, opts);
+            // CR 121.6 / 706.2 / 707.2 (issue #1693) — the copied card's
+            // "enters with N counters" self-replacement is a COPIABLE value,
+            // so a token copy of Clockwork Beast enters with its +1/+0
+            // counters just like the original. Applied AFTER `applyCopy` (it
+            // overwrites `staticAbilities`, which the keyword-counter grant
+            // writes into) and BEFORE the grant/static passes below, so the
+            // layer system's first read already sees the counters. No
+            // cast-time values exist for a token — CR 107.3b puts X at 0 off
+            // the stack and a token was never kicked.
+            applyEntersWithCounters(
+                token,
+                tryGetDefinition(presentedDefId(token)) ?? undefined,
+                {}
+            );
             // CR 611 — re-apply existing grants / source static effects after
             // the copy rewrites the token's characteristics so anthem-style and
             // P/T-buff effects observe the copied type/color.
@@ -13884,21 +14129,16 @@ export function createTokenPermanents(
         };
         // CR 111.9 / 122.1 (issue #1210) — a token can enter WITH counters
         // already on it (Incubate N: "create an Incubator token ... with N
-        // +1/+1 counters on it", CR 701.53). Stamped directly onto the
-        // instance before the CR 614 ETB chokepoint runs, mirroring how a
-        // non-token permanent's own `CardDefinition.entersWith.counters` is
-        // applied in `finalizeSpellResolution` (issue #841) — same
-        // name/shape, reused rather than invented ("generalize don't add").
-        const entersWithCounters = spec.entersWith?.counters;
-        if (entersWithCounters && entersWithCounters.length > 0) {
-            const counters: Record<string, number> = {};
-            for (const entry of entersWithCounters) {
-                if (entry.count <= 0) continue;
-                counters[entry.type] =
-                    (counters[entry.type] ?? 0) + entry.count;
-            }
-            if (Object.keys(counters).length > 0) token.counters = counters;
-        }
+        // +1/+1 counters on it", CR 701.53). Stamped onto the instance before
+        // the CR 614 ETB chokepoint runs, through the SAME shared applier
+        // every non-token entry site uses (issue #1693): this loop used to
+        // re-implement the summing itself and, in doing so, silently omitted
+        // the CR 122.1c / 613.4d keyword-counter grant, so a token spec'd with
+        // an `indestructible` counter never actually gained indestructible.
+        // Routing it through `applyEntersWithCounters` is exactly the drift the
+        // single-oracle design exists to prevent. No cast-time values exist for
+        // a token (CR 107.3b; a token was never kicked).
+        applyEntersWithCounters(token, { entersWith: spec.entersWith }, {});
         // CR 614 (issue #1148) — enters-the-battlefield replacement chokepoint.
         const enterDestination = enterBattlefieldDestinationFor(
             state,
@@ -14303,6 +14543,9 @@ export function removeFromZone(
     // CR 601.3e (issue #1156) — the free-cast waiver (Dauthi Voidwalker) rides
     // the SAME permission window as `castableFromExileBy`; consumed together.
     delete card.castFromExileWithoutPayingManaCost;
+    // CR 305.9 (issue #1689) — the land-inclusive marker rides the SAME
+    // permission window as `castableFromExileBy`; consumed together.
+    delete card.castableFromExileIncludesLand;
     // CR 601.3e / 117.6-analog (issue #1344) — the per-card cast-from-
     // graveyard grant (Malcolm, Alluring Scoundrel) is consumed once the card
     // leaves the graveyard for the stack; clear the stale flags and expiry
@@ -14806,7 +15049,120 @@ export function restrictionAllowsSpell(
             // CR 702.24 / ADR 0042 — cumulative-upkeep mana is never spendable
             // on a spell; it is eligible only for the CU `may-pay` payment.
             return false;
+        case "artifact-ability":
+            // CR 106.6 (issue #728, Soldevi Machinist) — "spend this mana only
+            // to activate abilities of artifacts" never permits a SPELL cast;
+            // it is consumed only at the ability-activation payment path
+            // (`restrictionAllowsAbility`).
+            return false;
     }
+}
+
+/** True if restricted mana with `restriction` may pay for an ACTIVATED ability
+ *  whose source permanent has the given effective card types (CR 106.6, issue
+ *  #728). The activation-payment twin of `restrictionAllowsSpell`.
+ *
+ *  Every restriction that is keyed on a SPELL CAST returns false here — a unit
+ *  of Mishra's Workshop mana cannot pay to activate an artifact's ability, and
+ *  cumulative-upkeep mana is reserved for the CU `may-pay`. Exhaustive `switch`
+ *  over the union: a new member must add a case here, and the compiler enforces
+ *  it. */
+export function restrictionAllowsAbility(
+    restriction: ManaRestriction,
+    sourceTypes: readonly string[]
+): boolean {
+    switch (restriction) {
+        case "creature-spell":
+        case "artifact-spell":
+        case "cumulative-upkeep":
+            return false;
+        case "artifact-ability":
+            return sourceTypes.includes("Artifact");
+    }
+}
+
+/** True if a single restricted-mana unit may pay for an activated ability
+ *  (CR 106.6, issue #728). Instance-keyed mana (Ice Cauldron's
+ *  `castableCardId`) is a CAST permission and is never eligible to activate an
+ *  ability; a type-keyed unit delegates to `restrictionAllowsAbility`. A unit
+ *  with neither field is unrestricted (defensive — the engine never produces
+ *  one). */
+export function restrictedUnitAllowsAbility(
+    unit: RestrictedMana,
+    sourceTypes: readonly string[]
+): boolean {
+    if (unit.castableCardId !== undefined) return false;
+    if (unit.restriction !== undefined) {
+        return restrictionAllowsAbility(unit.restriction, sourceTypes);
+    }
+    return true;
+}
+
+/** Builds the spendable pool for ACTIVATING an ability: the base `manaPool`
+ *  plus any restricted mana whose restriction permits an ability of a source
+ *  with `sourceTypes` (CR 106.6, issue #728). The activation twin of
+ *  `spendablePoolForSpell` — used at every activation affordability check. */
+export function spendablePoolForAbility(
+    player: PlayerState,
+    sourceTypes: readonly string[]
+): Record<string, number> {
+    const pool = { ...player.manaPool };
+    for (const r of player.restrictedMana ?? []) {
+        if (restrictedUnitAllowsAbility(r, sourceTypes)) {
+            pool[r.color] = (pool[r.color] ?? 0) + r.amount;
+        }
+    }
+    return pool;
+}
+
+/** Pays an activated ability's mana cost drawing on permitted restricted mana
+ *  FIRST, then the fungible pool (CR 106.6, issue #728) — the activation twin
+ *  of `payManaCostForSpell`, with the identical restricted-first settlement
+ *  policy (it maximises the flexible mana the activator keeps and can never
+ *  make a payment illegal, since coverage was confirmed against the merged
+ *  pool). */
+export function payManaCostForAbility(
+    player: PlayerState,
+    cost: Record<string, number>,
+    sourceTypes: readonly string[],
+    substitutions: ManaSubstitution[] = [],
+    genericSpendOrder?: readonly string[]
+): void {
+    const eligible = (player.restrictedMana ?? []).filter((r) =>
+        restrictedUnitAllowsAbility(r, sourceTypes)
+    );
+    if (eligible.length === 0) {
+        payManaCost(player.manaPool, cost, substitutions, genericSpendOrder);
+        return;
+    }
+
+    const merged = { ...player.manaPool };
+    const restrictedByColor: Record<string, number> = {};
+    for (const r of eligible) {
+        merged[r.color] = (merged[r.color] ?? 0) + r.amount;
+        restrictedByColor[r.color] =
+            (restrictedByColor[r.color] ?? 0) + r.amount;
+    }
+    const before = { ...merged };
+    payManaCost(merged, cost, substitutions, genericSpendOrder);
+
+    for (const color of MANA_COLORS) {
+        const consumed = (before[color] ?? 0) - (merged[color] ?? 0);
+        if (consumed <= 0) continue;
+        let fromRestricted = Math.min(consumed, restrictedByColor[color] ?? 0);
+        const fromReal = consumed - fromRestricted;
+        for (const r of eligible) {
+            if (fromRestricted <= 0) break;
+            if (r.color !== color) continue;
+            const take = Math.min(r.amount, fromRestricted);
+            r.amount -= take;
+            fromRestricted -= take;
+        }
+        player.manaPool[color] = (player.manaPool[color] ?? 0) - fromReal;
+    }
+
+    const remaining = (player.restrictedMana ?? []).filter((r) => r.amount > 0);
+    player.restrictedMana = remaining.length > 0 ? remaining : undefined;
 }
 
 /** True if a single restricted-mana unit may pay for a spell (CR 106.6).

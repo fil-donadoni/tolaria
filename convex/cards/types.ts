@@ -1883,6 +1883,24 @@ export interface SpellContext {
      *  sickness, attached/granted-by-aura state) is cleared. No-op if the
      *  target has left the battlefield (CR 608.2b). */
     returnToHand: (target: TargetSelection) => void;
+    /** Puts a target battlefield permanent into its OWNER's library
+     *  `positionFromTop` cards from the top (1-based; 1 = top — CR 400.7,
+     *  issue #1726, Teferi, Hero of Dominaria's −3 "third from the top" =
+     *  3). Routed through the single LTB funnel (`removePermanentTo`), so
+     *  aura cleanup (CR 611.2), transient-state reset (CR 400.7), counter
+     *  loss (CR 121.2), PERMANENT_LEFT and an `exileOnLeave` redirect
+     *  (CR 614.1c — a redirected card never reaches the library) all behave
+     *  exactly as for a bounce. When the library holds fewer than
+     *  `positionFromTop − 1` cards the card is put on the bottom (splice
+     *  clamps — the official Teferi ruling). The moved card is stamped
+     *  known-to-all (ADR 0026): every player watched WHICH card went in and
+     *  where; the projection's contiguous-run model surfaces it once the
+     *  cards above it are drawn, and any shuffle clears it. No-op if the
+     *  target has left the battlefield (CR 608.2b). */
+    putIntoLibraryFromBattlefield: (
+        target: TargetSelection,
+        positionFromTop: number
+    ) => void;
     /** Reanimation primitive: moves a card from `playerId`'s graveyard or
      *  exile onto `playerId`'s battlefield (CR 400.7 zone change). Used by
      *  Resurrection ("return target creature card from your graveyard to the
@@ -2276,13 +2294,26 @@ export interface SpellContext {
      *  `CardInstanceState.castFromExileWithoutPayingManaCost` alongside the
      *  permission flag. Omitted/false is the historical permission-only
      *  shape (Ice Cauldron, Robber of the Rich — cast for the normal
-     *  printed cost). */
+     *  printed cost).
+     *
+     *  `opts.includesLand` (CR 305.9, issue #1689) — true iff the GRANTING
+     *  Oracle text says "play" rather than "cast" (Headliner Scarlett:
+     *  "you may look at and play that card this turn"; Expressive
+     *  Iteration; Elkin Bottle; Inti, Seneschal of the Sun; Laelia, the
+     *  Blade Reforged; Dauthi Voidwalker). Stamps `CardInstanceState.
+     *  castableFromExileIncludesLand` alongside the permission flag, the
+     *  ONLY thing that makes a LAND under the grant a legal "play" source
+     *  (`getLegalActions`'s land branch, `gre/rules.ts`). Omitted/false
+     *  (the default) is a CAST-only grant (Ice Cauldron, Robber of the
+     *  Rich, Ragavan, Nimble Pilferer) — a land under it exposes no action
+     *  at all, matching CR 305.9's default posture that a land can only be
+     *  played from hand unless an effect EXPLICITLY says otherwise. */
     grantCastFromExile: (
         cardInstanceId: string,
         playerId: string,
         zoneOwnerId?: string,
         window?: "this-turn" | "while-exiled" | "until-next-end-step",
-        opts?: { withoutPayingManaCost?: boolean }
+        opts?: { withoutPayingManaCost?: boolean; includesLand?: boolean }
     ) => void;
     /** Play-from-graveyard grant for a SPECIFIC card (CR 601.3e /
      *  117.6-analog, issue #1344 — Malcolm, Alluring Scoundrel: "you may
@@ -5520,7 +5551,38 @@ export interface StaticCastTimingLock {
     oracleText: string;
 }
 
-export type StaticEffect =
+/** CR 613.5 / 122.1 — counter dependency declaration, carried by EVERY static
+ *  effect kind (issue #1711).
+ *
+ *  The engine splits static effects in two by HOW they reach the game state:
+ *
+ *   - **Recomputed** kinds (`pt-buff`, `pt-cda`, and the restriction/guard
+ *     predicates) are evaluated at every read, so a counter-gated predicate is
+ *     live for free — Homarid's tide counters need nothing here.
+ *   - **Materialized** kinds (`keyword-grant`, `activated-grant`,
+ *     `triggered-grant`, `type-add`/`type-remove`, `subtype-set`/`subtype-add`,
+ *     `supertype-set`, `color`, `keyword-remove`, `control-change`, …) are
+ *     WRITTEN ONTO the target instance once, by `applySourceStaticEffects`, at
+ *     the moment the source or the target enters the battlefield. Nothing
+ *     re-runs them afterwards, so a predicate reading `target.counters` /
+ *     `ctx.getCounterCount(...)` goes stale the instant a counter changes: the
+ *     untap step and `getEffectiveActivatedAbilities` read the materialized
+ *     arrays, so the grant is silently absent (or silently stuck on).
+ *
+ *  Setting `dependsOnCounters: true` enrolls the effect's SOURCE in
+ *  `refreshCounterGatedStatics` (`gre/state.ts`), the recomputation tick that
+ *  unapplies and re-applies its grants whenever counters move. Set it whenever
+ *  an `applies` / `condition` predicate reads counters on EITHER the target or
+ *  the source — it is harmless (and ignored) on a recomputed kind.
+ *
+ *  Enforced catalogue-wide by
+ *  `convex/cards/__tests__/counterGatedStatics.test.ts`: a materialized-kind
+ *  predicate that reads counters without this flag fails CI. */
+export interface CounterGatedStatic {
+    dependsOnCounters?: boolean;
+}
+
+export type StaticEffect = (
     | StaticPTBuff
     | StaticPTCDA
     | StaticKeywordGrant
@@ -5555,7 +5617,9 @@ export type StaticEffect =
     | StaticKeywordRemove
     | StaticAbilityLoss
     | StaticCastRestriction
-    | StaticCastTimingLock;
+    | StaticCastTimingLock
+) &
+    CounterGatedStatic;
 
 /** Canonical aura predicate: "this static effect applies to my host". Shared
  *  by every aura's `applies` callback (CR 303.4 — auras affect their enchanted
@@ -6139,6 +6203,20 @@ export interface CardDrawnEvent {
     /** Number of cards actually drawn (>= 1; library exhaustion may make this
      *  fewer than the requested amount). */
     count: number;
+    /** 0-based index of THIS draw among the drawing player's draws this turn
+     *  (CR 121.1) — the trigger-side twin of
+     *  `DrawReplacementEvent.drawIndexThisTurn`, which reads the same
+     *  `PlayerState.drawnThisTurn` field at the earlier replacement-discovery
+     *  seam. Stamped by `emitCardDrawn` (`gre/state.ts`) so a batch draw fans
+     *  out indices n, n+1, n+2, ... rather than N identical copies. Feeds
+     *  "whenever a player draws their Nth card each turn" trigger conditions
+     *  (`nthDrawThisTurn`, `cards/abilities/triggers/drawTrigger.ts` —
+     *  Faerie Mastermind, issue #781). Optional so a pre-#781 hand-built
+     *  event literal (tests predating this field) still type-checks;
+     *  `nthDrawThisTurn` treats `undefined` as the drawing player's FIRST
+     *  draw (index 0), mirroring `nthSpellThisTurn`'s own fallback
+     *  convention for `casterSpellCountThisTurn`. */
+    drawIndexThisTurn?: number;
 }
 
 /** Emitted whenever a card is discarded — moved from a player's hand to their
@@ -8101,14 +8179,20 @@ export type EffectOp =
      *  Voidwalker passes `"this-turn"` ("you may play it THIS TURN").
      *  `withoutPayingManaCost` (default false) is Dauthi's differentiator
      *  from Ice Cauldron/Robber of the Rich, which grant permission only.
-     *  Skipped when `player` can't be resolved, the picks binding was never
-     *  captured, or the picked card is no longer in any exile (CR 608.2b). */
+     *  `includesLand` (default false, CR 305.9, issue #1689) — true when
+     *  the granting Oracle text says "play" rather than "cast" (Dauthi
+     *  Voidwalker: "you may play it this turn..."); only then does a LAND
+     *  under the grant become playable — see `SpellContext.grantCastFromExile`'s
+     *  doc. Skipped when `player` can't be resolved, the picks binding was
+     *  never captured, or the picked card is no longer in any exile (CR
+     *  608.2b). */
     | {
           op: "grantCastFromExile";
           card: EffectRef;
           player: EffectPlayerRef;
           window?: "this-turn" | "while-exiled";
           withoutPayingManaCost?: boolean;
+          includesLand?: boolean;
       }
     /** CR 601.3e / 117.6-analog (issue #1344) — grant `player` permission to
      *  cast the GRAVEYARD card a preceding Op bound (typically the
@@ -8344,6 +8428,18 @@ export type EffectOp =
           bind?: string;
           controller?: EffectPlayerRef;
           tapped?: boolean;
+          /** issue #1726 — battlefield → library at a POSITION (1-based from
+           *  the top; 3 = "third from the top", Teferi, Hero of Dominaria's
+           *  −3). Valid only with `to: "library"` on this shape
+           *  (validator-enforced). Omitted, a battlefield permanent goes on
+           *  TOP (position 1 — the "put on top of its owner's library"
+           *  default), and a graveyard-card target keeps the historical
+           *  `moveCardById` path (Worldspine Wurm's shuffle-in). Routes
+           *  through the SpellContext primitive
+           *  `putIntoLibraryFromBattlefield` (the same LTB funnel as a
+           *  bounce); a library shorter than the position puts the card on
+           *  the bottom (the official Teferi ruling). */
+          position?: number;
       }
     /** CR 400.7 (issue #677) — the SEARCH half of a tutor/fetch effect: move
      *  the cards a `choice` Op picked (a bare picks ref, e.g.
@@ -10402,13 +10498,37 @@ export interface CardDefinition {
      *  your most recent turn began" via `canActivate: (s) => !s.isSummoningSick`
      *  combined with `controllerTurnOnly`. Used by Rocket Launcher. */
     tracksControlContinuity?: boolean;
-    /** Counters placed on the permanent when it enters the battlefield
-     *  (CR 122.1, 614.1c). Each entry is a counter type and a count, where
+    /** The "this permanent enters with N counters on it" REPLACEMENT effect
+     *  (CR 121.6 + CR 614.1c) — the ONLY correct way to express that Oracle
+     *  line. Sibling to `entersTapped` / `entersTappedUnless`: like them it
+     *  modifies HOW the permanent enters, so it is applied AS the permanent
+     *  enters — before the object is considered to have entered, before the
+     *  first layer (CR 613) / SBA (CR 704) read, and before the trigger scan.
+     *  Nothing goes on the stack, neither player receives priority with the
+     *  permanent at zero counters, and the clause never renders as an ability.
+     *
+     *  NOT a `PERMANENT_ENTERED` triggered ability carrying a `counters` Op —
+     *  that shape is a bug (issue #1693) and the catalogue-wide guard
+     *  `convex/cards/__tests__/entersWithCounters.test.ts` fails CI on it. A
+     *  genuinely triggered counter placement ("when this enters, put a counter
+     *  on ANOTHER permanent") stays a trigger: it doesn't change how THIS
+     *  permanent enters.
+     *
+     *  Each entry is a counter type and a count; entries of the same type SUM,
+     *  which is how "if this creature was kicked, it enters with four +1/+1
+     *  counters" is written as four `count: "kicker"` entries (Duskwalker,
+     *  Llanowar Elite, Vodalian Serpent) rather than a bespoke multiplier.
      *  `count: "X"` reads the value chosen for X at cast time (CR 107.3), and
      *  `count: "kicker"` reads how many times the spell was kicked (CR 702.33e —
-     *  "a charge counter for each time it was kicked", Everflowing Chalice).
-     *  Applied by
-     *  `finalizeSpellResolution` after the permanent is on the battlefield. */
+     *  "a charge counter for each time it was kicked", Everflowing Chalice);
+     *  both are 0 for a permanent that was never cast (CR 107.3b).
+     *
+     *  Resolved by the frontend-safe oracle `resolveEntersWithCounters`
+     *  (`convex/cards/entersWith.ts`) and applied by the GRE at EVERY
+     *  permanent-entry site — a resolving permanent spell, reanimation /
+     *  put-onto-the-battlefield / blink, token creation, a token COPY (the
+     *  clause is a copiable value, CR 706.2), and every play-a-land path. The
+     *  per-site census lives on that module's header comment. */
     entersWith?: {
         counters?: { type: string; count: number | "X" | "kicker" }[];
     };

@@ -63,6 +63,7 @@ import {
     mistfolk,
     phantasmalMount,
     zursWeirding,
+    soldeviMachinist,
 } from "../../ice";
 import { matchesSpellFilter } from "../../../filters";
 import { getDefinition, getCardByName } from "../../../index";
@@ -76,6 +77,12 @@ import {
     removePermanentTo,
     processPendingActionTriggers,
     planDrawStep,
+    spendablePoolForAbility,
+    payManaCostForAbility,
+    spendablePoolForSpell,
+    restrictionAllowsSpell,
+    restrictionAllowsAbility,
+    isManaCostCovered,
 } from "../../../../gre/state";
 import {
     getEffectivePower,
@@ -126,6 +133,8 @@ import {
     getBasicLandMana,
 } from "../../../../gre/constants";
 import { mountain, island, forest } from "../../lea";
+import { jayemdaeTome } from "../../lea/colorless";
+import { activateAbilityOnState } from "../../../../game";
 
 // ===========================================================================
 // Blue free tranche (#631)
@@ -3074,5 +3083,175 @@ describe("Zur's Weirding (interactive draw-reveal + hand-reveal, CR 614, #735)",
         const p1Slim = p2View.players.find((p) => p.id === "p1")!;
         expect(p1Slim.hand[0]).not.toBeNull();
         expect(p1Slim.hand[0]!.card.id).toBe(topCardId);
+    });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Soldevi Machinist (#728) — restricted mana at the ABILITY-ACTIVATION path
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe("Soldevi Machinist — '{T}: Add {C}{C}. Spend only on artifact abilities' (CR 605.1a / 106.6)", () => {
+    const ARTIFACT_TYPES = ["Artifact"] as const;
+    const CREATURE_TYPES = ["Creature"] as const;
+
+    it("declares a mana ability producing restricted {C}{C}", () => {
+        const ability = soldeviMachinist.activatedAbilities![0];
+        expect(ability.useStack).toBe(false);
+        expect(ability.cost).toEqual({ tap: true });
+        expect(ability.manaProduced).toEqual({ C: 2 });
+        expect(ability.manaRestriction).toBe("artifact-ability");
+    });
+
+    it("tapping banks the mana as restricted, not fungible (ADR 0022)", () => {
+        const player = makePlayer("p1");
+        addRestrictedManaToPool(
+            player,
+            "C",
+            2,
+            soldeviMachinist.activatedAbilities![0].manaRestriction
+        );
+        expect(player.restrictedMana).toEqual([
+            { color: "C", amount: 2, restriction: "artifact-ability" },
+        ]);
+        expect(player.manaPool.C).toBe(0);
+    });
+
+    it("counts toward an ARTIFACT's ability but not a creature's (CR 106.6)", () => {
+        const player = makePlayer("p1", {
+            restrictedMana: [
+                { color: "C", amount: 2, restriction: "artifact-ability" },
+            ],
+        });
+        expect(spendablePoolForAbility(player, ARTIFACT_TYPES).C).toBe(2);
+        expect(spendablePoolForAbility(player, CREATURE_TYPES).C ?? 0).toBe(0);
+    });
+
+    it("is never spendable on a spell — not even an artifact spell", () => {
+        const player = makePlayer("p1", {
+            restrictedMana: [
+                { color: "C", amount: 2, restriction: "artifact-ability" },
+            ],
+        });
+        expect(spendablePoolForSpell(player, ARTIFACT_TYPES).C ?? 0).toBe(0);
+        expect(restrictionAllowsSpell("artifact-ability", ["Artifact"])).toBe(
+            false
+        );
+    });
+
+    it("conversely, artifact-SPELL mana never pays an artifact's ability", () => {
+        const player = makePlayer("p1", {
+            restrictedMana: [
+                { color: "C", amount: 3, restriction: "artifact-spell" },
+            ],
+        });
+        expect(spendablePoolForAbility(player, ARTIFACT_TYPES).C ?? 0).toBe(0);
+        expect(restrictionAllowsAbility("artifact-spell", ["Artifact"])).toBe(
+            false
+        );
+    });
+
+    it("drains restricted mana FIRST, then the fungible pool", () => {
+        const player = makePlayer("p1", {
+            manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 3 },
+            restrictedMana: [
+                { color: "C", amount: 2, restriction: "artifact-ability" },
+            ],
+        });
+        payManaCostForAbility(player, { C: 4 }, ARTIFACT_TYPES);
+        expect(player.restrictedMana).toBeUndefined();
+        expect(player.manaPool.C).toBe(1);
+    });
+
+    it("integration: pays a real artifact's activated ability through activateAbilityOnState", () => {
+        const tome = makeInstance(jayemdaeTome.id, {
+            id: "tome",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [tome],
+                    manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 2 },
+                    restrictedMana: [
+                        {
+                            color: "C",
+                            amount: 2,
+                            restriction: "artifact-ability",
+                        },
+                    ],
+                    library: [
+                        makeInstance(island.id, {
+                            id: "lib1",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "library",
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        activateAbilityOnState(state, {
+            playerId: "p1",
+            cardInstanceId: "tome",
+            abilityId: "jayemdae-tome-draw",
+        });
+        // {4} covered: 2 restricted + 2 fungible — no pendingActivation, the
+        // ability went straight onto the stack.
+        expect(state.pendingActivation).toBeUndefined();
+        expect(state.stack).toHaveLength(1);
+        expect(state.players[0].restrictedMana).toBeUndefined();
+        expect(state.players[0].manaPool.C).toBe(0);
+        resolveTopOfStack(state);
+        expect(state.players[0].hand).toHaveLength(1);
+    });
+
+    it("integration: the same mana does NOT cover a creature's ability", () => {
+        const machinist = makeInstance(soldeviMachinist.id, {
+            id: "machinist",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const player = makePlayer("p1", {
+            battlefield: [machinist],
+            restrictedMana: [
+                { color: "C", amount: 2, restriction: "artifact-ability" },
+            ],
+        });
+        // The source is a Creature, so the restricted units are ineligible and
+        // a {2} ability reads as unaffordable.
+        expect(
+            isManaCostCovered(
+                spendablePoolForAbility(player, machinist.types),
+                { C: 2 }
+            )
+        ).toBe(false);
+    });
+
+    it("wire format: the restricted unit and its label survive projectPublicState", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    restrictedMana: [
+                        {
+                            color: "C",
+                            amount: 2,
+                            restriction: "artifact-ability",
+                        },
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const projected = projectPublicState(state, 1, "p1");
+        const unit = projected.players[0].restrictedMana![0];
+        expect(unit).toEqual({
+            color: "C",
+            amount: 2,
+            restriction: "artifact-ability",
+        });
+        // The pool chip's label is asserted in the frontend suite
+        // (src/lib/__tests__/restricted-mana.test.ts).
     });
 });

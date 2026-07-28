@@ -73,11 +73,14 @@ export const headlinerScarlett: CardDefinition = {
                     "library",
                     scopedPlayerId
                 );
+                // CR 305.9 (issue #1689) — oracle says "you may look at and
+                // PLAY that card this turn", land-inclusive.
                 ctx.grantCastFromExile(
                     cardId,
                     scopedPlayerId,
                     undefined,
-                    "this-turn"
+                    "this-turn",
+                    { includesLand: true }
                 );
             },
         }),

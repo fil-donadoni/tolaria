@@ -23,6 +23,7 @@ import {
     emitPermanentEntered,
     processPendingActionTriggers,
     shouldEnterTapped,
+    applyEntersWithCounters,
     applyExistingGrantsTo,
     applySourceStaticEffects,
     getPlayer,
@@ -200,6 +201,9 @@ export function applyPlayLandFromExile(
     // permission window; a land has no mana cost to waive, but drop the stale
     // flag for hygiene, mirroring `removeFromZone`'s spell-side cleanup.
     delete card.castFromExileWithoutPayingManaCost;
+    // CR 305.9 (issue #1689) — the land-inclusive marker rides the same
+    // permission window; drop it too now that the grant is consumed.
+    delete card.castableFromExileIncludesLand;
     return settleEnteredLand(state, player, card, willEnterTapped);
 }
 
@@ -249,6 +253,24 @@ function settleEnteredLand(
     markEnteredThisTurn(card, state.turn);
 
     if (willEnterTapped) card.isTapped = true;
+
+    // CR 121.6 / 614.1c (issue #1693) — the entry-counters self-replacement
+    // applies at THIS entry site too. Every one of this helper's four callers
+    // (`applyPlayLand`, `applyPlayLandFromExile`, `applyPlayLandFromGraveyard`,
+    // `finalizeLandEntry`'s from-hand branch) is a full permanent entry, so it
+    // must run before the grant/static passes and before `emitPermanentEntered`
+    // scans triggers — nothing may observe the permanent at zero counters.
+    // Latent today (no shipped Land declares `entersWith`), wired so the site
+    // cannot be the one that drifts when one does. The effect-entry branch of
+    // `finalizeLandEntry` does NOT come through here — that land already got
+    // its counters inside `stageReanimatedOnBattlefield`, so there is no
+    // double application.
+    const cardId = (card.card as { id?: string } | undefined)?.id;
+    applyEntersWithCounters(
+        card,
+        cardId ? (tryGetDefinition(cardId) ?? undefined) : undefined,
+        {}
+    );
 
     // CR 611.2 — two-way static-effect reconciliation (see step 5 above).
     applyExistingGrantsTo(state, card);

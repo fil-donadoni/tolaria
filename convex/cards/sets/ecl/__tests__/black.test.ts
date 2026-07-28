@@ -3,11 +3,19 @@
 import { describe, it, expect } from "vitest";
 import { moonshadow, ironShieldElf } from "../black";
 import { balduvianBears } from "../../ice";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+    pushSpell,
+} from "../../../__tests__/setup";
+import {
+    getEffectivePower,
+    getEffectiveToughness,
+} from "../../../../gre/layers";
 import {
     removePermanentTo,
     discardToGraveyard,
-    emitPermanentEntered,
     processPendingActionTriggers,
     resolveTopOfStack,
     type CardInstanceState,
@@ -48,33 +56,63 @@ describe("Moonshadow (CR 702.111 menace; CR 122.1 counters; CR 603.2 graveyard-f
         return { state, shadow, other };
     }
 
-    it("shape: 7/7 for {B} with menace and two triggered abilities declared", () => {
+    it("shape: 7/7 for {B} with menace, an entry-counters REPLACEMENT and ONE triggered ability", () => {
         expect(moonshadow.manaCost).toEqual({ B: 1 });
         expect(moonshadow.power).toBe(7);
         expect(moonshadow.toughness).toBe(7);
         expect(moonshadow.staticAbilities).toContain("menace");
-        // The enters-with-counters trigger + ONE "put into graveyard from
-        // anywhere" trigger listening on both PERMANENT_LEFT and CARD_DISCARDED
-        // via an array `event` (CR 603.2) — not two near-duplicate entries.
-        expect(moonshadow.triggeredAbilities).toHaveLength(2);
-        const removeCounter = moonshadow.triggeredAbilities!.find(
-            (a) => a.id === "moonshadow-remove-counter"
-        )!;
+        // CR 121.6 / 614.1c (issue #1693) — the six -1/-1 counters are a
+        // REPLACEMENT effect, declared on `entersWith`, NOT a trigger.
+        expect(moonshadow.entersWith?.counters).toEqual([
+            { type: "-1/-1", count: 6 },
+        ]);
+        // Leaving exactly ONE "put into graveyard from anywhere" trigger,
+        // listening on both PERMANENT_LEFT and CARD_DISCARDED via an array
+        // `event` (CR 603.2) — not two near-duplicate entries.
+        expect(moonshadow.triggeredAbilities).toHaveLength(1);
+        const removeCounter = moonshadow.triggeredAbilities![0];
+        expect(removeCounter.id).toBe("moonshadow-remove-counter");
         expect(removeCounter.event).toEqual([
             "PERMANENT_LEFT",
             "CARD_DISCARDED",
         ]);
     });
 
-    it("enters the battlefield with six -1/-1 counters", () => {
-        const { state, shadow } = setup();
-        emitPermanentEntered(state, shadow);
-        processPendingActionTriggers(state);
+    // CR 121.6 / 614.1c (issue #1693) — a printed 7/7 that enters with six
+    // -1/-1 counters is a 1/1 the first instant it is observable. As an ETB
+    // TRIGGER it briefly sat on the battlefield as a real 7/7 with a
+    // respondable stack item pending; as a replacement there is no such
+    // window, and the layer system / SBAs see 1/1 on their first read.
+    it("enters the battlefield with six -1/-1 counters already on it, nothing on the stack", () => {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        pushSpell(state, moonshadow.id, "p1");
         resolveTopOfStack(state);
+
         const live = state.players[0].battlefield.find(
-            (c) => c.id === "shadow"
+            (c) => (c.card as { id?: string }).id === moonshadow.id
         )!;
         expect(live.counters?.["-1/-1"]).toBe(6);
+        expect(getEffectivePower(state, live)).toBe(1);
+        expect(getEffectiveToughness(state, live)).toBe(1);
+        // No stack item was created for the placement, before OR after the
+        // engine drains the PERMANENT_ENTERED event through its trigger scan.
+        expect(state.stack).toEqual([]);
+        processPendingActionTriggers(state);
+        expect(state.stack).toEqual([]);
+
+        // Wire format — re-run the same assertions THROUGH the projection, so
+        // a dropped field can't hide the intermediate-zero-state bug client
+        // side (the board renders counters and effective P/T from this).
+        const projected = projectPublicState(state, 1, "p2");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === live.id
+        )!;
+        expect(slim.counters?.["-1/-1"]).toBe(6);
+        expect(getEffectivePower(projected, slim)).toBe(1);
+        expect(getEffectiveToughness(projected, slim)).toBe(1);
+        expect(projected.stack).toEqual([]);
     });
 
     it("removes a -1/-1 counter when a permanent card it owns dies (battlefield → graveyard)", () => {

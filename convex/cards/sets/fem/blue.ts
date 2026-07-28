@@ -16,7 +16,6 @@ import type {
     TokenSpec,
 } from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
-import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { stateTrigger } from "../../abilities/triggers/stateTrigger";
 
 export const vodalianSoldiers: CardDefinition = {
@@ -64,25 +63,16 @@ const CAMARID_TOKEN: TokenSpec = {
     colors: ["U"],
 };
 
-function tideEnterTrigger(id: string) {
-    return enteredTrigger({
-        id,
-        oracleText: "This permanent enters with a tide counter on it.",
-        scope: "self",
-        // Migrated resolve()→effects[] (ADR 0045, PRD #795): `enteredTrigger`
-        // now accepts an `effects[]` site, making the old "factory has no
-        // effects site" marker stale. CR 122 — put one tide counter on the
-        // source.
-        effects: [
-            {
-                op: "counters",
-                action: "add",
-                counter: "tide",
-                target: { ref: "$source" },
-                count: 1,
-            },
-        ],
-    });
+/** CR 121.6 / 614.1c (issue #1693) — the Tide cycle's "this permanent enters
+ *  with a tide counter on it" is a REPLACEMENT effect, shared by Homarid and
+ *  Tidal Influence. It was previously an `enteredTrigger` carrying a `counters`
+ *  Op, which put the placement on the stack: the permanent sat on the
+ *  battlefield at ZERO tide counters (so Homarid read as a plain 2/2 instead of
+ *  the 1/1 its one-counter `pt-buff` makes it) until the ability resolved, and
+ *  the line rendered as a respondable ability. As `entersWith.counters` the
+ *  counter is there the first instant the permanent is observable. */
+function tideEntersWith(): CardDefinition["entersWith"] {
+    return { counters: [{ type: "tide", count: 1 }] };
 }
 
 function tideUpkeepTrigger(id: string) {
@@ -140,8 +130,8 @@ export const homarid: CardDefinition = {
     subtypes: ["Homarid"],
     power: 2,
     toughness: 2,
+    entersWith: tideEntersWith(),
     triggeredAbilities: [
-        tideEnterTrigger("homarid-tide-enter"),
         tideUpkeepTrigger("homarid-tide-upkeep"),
         tideSheddingTrigger("homarid-tide-shed"),
     ],
@@ -193,8 +183,8 @@ export const tidalInfluence: CardDefinition = {
     manaCost: { X: 2, U: 1 },
     types: ["Enchantment"],
     castUniqueByName: true,
+    entersWith: tideEntersWith(),
     triggeredAbilities: [
-        tideEnterTrigger("tidal-influence-tide-enter"),
         tideUpkeepTrigger("tidal-influence-tide-upkeep"),
         tideSheddingTrigger("tidal-influence-tide-shed"),
     ],
@@ -775,26 +765,13 @@ export const merseine: CardDefinition = {
     types: ["Enchantment"],
     subtypes: ["Aura"],
     targetRequirement: { type: "Creature", count: 1 },
-    triggeredAbilities: [
-        enteredTrigger({
-            id: "merseine-enter-counters",
-            oracleText: "This Aura enters with three net counters on it.",
-            scope: "self",
-            // Migrated resolve()→effects[] (ADR 0045, PRD #795): `enteredTrigger`
-            // now accepts an `effects[]` site, making the old "factory has no
-            // effects site" marker stale. CR 122 — put three net counters on
-            // the source.
-            effects: [
-                {
-                    op: "counters",
-                    action: "add",
-                    counter: "net",
-                    target: { ref: "$source" },
-                    count: 3,
-                },
-            ],
-        }),
-    ],
+    // CR 121.6 / 614.1c (issue #1693) — "This Aura enters with three net
+    // counters on it" is a REPLACEMENT effect, not a triggered ability. As a
+    // trigger the Aura attached with ZERO net counters, so its untap lock
+    // below (gated on the live net-counter tally) was briefly OFF and the
+    // enchanted creature could untap in the window before the ability
+    // resolved. `entersWith.counters` puts them on as the Aura enters.
+    entersWith: { counters: [{ type: "net", count: 3 }] },
     // CR 502.1 — the enchanted creature doesn't untap while a net counter
     // remains. Expressed as an untap restriction scoped to the Aura's host,
     // gated on the live net-counter count.

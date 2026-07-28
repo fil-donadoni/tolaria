@@ -1737,6 +1737,9 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
         optional: {
             window: (v: unknown) => v === "this-turn" || v === "while-exiled",
             withoutPayingManaCost: isBoolean,
+            // CR 305.9 (issue #1689) — true iff the grant's Oracle text says
+            // "play" (land-inclusive), never for a "cast"-only grant.
+            includesLand: isBoolean,
         },
     },
     // CR 601.3e / 117.6-analog (issue #1344) — grant cast permission (+
@@ -1874,6 +1877,9 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             // across one or more zones (Lobotomy).
             fromZones: isMovableZoneArray,
             filter: isCardFilter,
+            // issue #1726 — battlefield → library at a 1-based position from
+            // the top (Teferi, Hero of Dominaria's −3 "third from the top").
+            position: isPositiveInt,
         },
         check: (entry) => {
             const hasTarget = "target" in entry;
@@ -1946,6 +1952,23 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
                         );
                     }
                 }
+                // issue #1726 — the positional library insert (battlefield →
+                // library, Teferi's −3 "third from the top"). `position` is
+                // meaningful only with to: "library"; omitted, a battlefield
+                // permanent goes on TOP (position 1 — the "put on top of its
+                // owner's library" default), and a graveyard-card target
+                // keeps the historical moveCardById path (Worldspine Wurm's
+                // shuffle-in, which follows with a shuffle anyway).
+                if ("position" in entry && entry.to !== "library") {
+                    errors.push(
+                        'field "position" is only valid with "target" and to: "library" (issue #1726)'
+                    );
+                }
+            }
+            if ("position" in entry && !hasTarget) {
+                errors.push(
+                    'field "position" is only valid on the "target" shape (issue #1726)'
+                );
             }
             // issue #1279 — the whole-zone bulk shape: required `player`/
             // `from`, and none of the single-object fields (`bind`,

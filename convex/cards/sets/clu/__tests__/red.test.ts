@@ -197,6 +197,10 @@ describe("play-from-exile expiry + land-play (CR 514.2 / 608.2g / 305.2)", () =>
             zone: "exile",
             knownTo: ["p1"],
             castableFromExileBy: "p1",
+            // CR 305.9 (issue #1689) — Headliner Scarlett's grant is
+            // land-inclusive ("you may look at and play that card"), so its
+            // exile stamp always carries the flag.
+            castableFromExileIncludesLand: true,
             ...(opts.untilTurn !== undefined
                 ? { castableFromExileUntilTurn: opts.untilTurn }
                 : {}),

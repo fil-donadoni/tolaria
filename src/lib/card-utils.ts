@@ -4,6 +4,7 @@ import type {
     ManaPool,
     PendingActivation,
     PendingCast,
+    PendingTarget,
     Player,
 } from "~/types/game";
 import type { CardType, Color, ManaCost } from "~/types/cards";
@@ -12,6 +13,7 @@ import type {
     AlternativeCost,
     CardDefinition,
     EffectCardFilter,
+    EmblemInstance,
     MayPayCost,
     PermanentView,
     TargetRequirement,
@@ -34,6 +36,11 @@ import {
     affordableAlternativeCosts,
     handCardMatchesFilter,
 } from "@convex/gre/alternativeCost";
+import {
+    checkPermanentTargetFilters,
+    type PermanentFilterValues,
+    type TargetFilterCtx,
+} from "@convex/gre/targetFilters";
 import { getDefinition, tryGetDefinition } from "@convex/cards";
 import { tryGetEmblemDefinition } from "@convex/cards/emblems";
 import { getColorsFromCost } from "@convex/cards/colors";
@@ -531,12 +538,29 @@ export function hasBattlefieldTargetCandidate(
         ? requirement.type
         : [requirement.type];
     if (types.some((t) => NON_PERMANENT_TARGET_TYPES.has(t))) return true;
-    const subtypes = requirement.subtypeFilter
-        ? Array.isArray(requirement.subtypeFilter)
-            ? requirement.subtypeFilter
-            : [requirement.subtypeFilter]
-        : undefined;
     const activePlayerId = stateView.activePlayerId ?? source.controllerId;
+    // The two judged filter dimensions run through the SAME registry
+    // (`checkPermanentTargetFilters`, ADR 0068) `getLegalTargets` and
+    // `selectTarget` already share — no bespoke client mirror (issue #1697).
+    const ctx: TargetFilterCtx = {
+        state: {
+            activePlayerId,
+            players: stateView.players,
+        } as unknown as GameState,
+        sourceColors: [],
+        sourceTypes: [],
+        sourceSubtypes: [],
+        chooserId: source.controllerId,
+        activePlayerId,
+    };
+    const values: PermanentFilterValues = {
+        controller: requirement.controller,
+        subtypeFilter: requirement.subtypeFilter
+            ? Array.isArray(requirement.subtypeFilter)
+                ? requirement.subtypeFilter
+                : [requirement.subtypeFilter]
+            : undefined,
+    };
     for (const player of stateView.players) {
         for (const permanent of player.battlefield) {
             if (
@@ -554,18 +578,11 @@ export function hasBattlefieldTargetCandidate(
                 continue;
             }
             if (
-                subtypes &&
-                !subtypes.some((s) => permanent.subtypes.includes(s))
-            ) {
-                continue;
-            }
-            if (
-                !matchesTargetController(
-                    permanent.controllerId,
-                    source.controllerId,
-                    activePlayerId,
-                    requirement.controller
-                )
+                checkPermanentTargetFilters(
+                    ctx,
+                    permanent as unknown as CardInstanceState,
+                    values
+                ) !== null
             ) {
                 continue;
             }
@@ -575,69 +592,123 @@ export function hasBattlefieldTargetCandidate(
     return false;
 }
 
-/** CR 109.3 / 102.1 — client mirror of the server's permanent-controller gate
- *  (`matchesBattlefieldController` in convex/gre/rules.ts, #904). Keeps an
- *  illegal-controller permanent from reading as clickable; the server remains
- *  the authority and rejects it regardless. `chooserId` is the player choosing
- *  targets (`pendingTarget.playerId`), NOT necessarily the viewer. */
-export function matchesTargetController(
-    controllerId: string,
-    chooserId: string,
-    activePlayerId: string,
-    filter: TargetRequirement["controller"]
-): boolean {
-    switch (filter ?? "any") {
-        case "you":
-            return controllerId === chooserId;
-        case "opponent":
-            return controllerId !== chooserId;
-        case "active":
-            return controllerId === activePlayerId;
-        case "any":
-            return true;
-    }
-}
-
-/** CR 601.2c — client mirror of the server's cross-slot same-controller gate
- *  (`sameControllerDescriptor` / `siblingControllerIdFor` in
- *  `convex/gre/targetFilters.ts`, issue #1104 — Barrin's Spite). Keeps a
- *  wrong-controller permanent from reading as clickable for the SECOND (or
- *  later) pick of a `sameController`-constrained requirement; the server
- *  remains the authority and rejects it regardless. `siblingControllerId` is
- *  the live controller of whatever's already selected under this SAME
- *  requirement (undefined for the first pick, or when the requirement isn't
- *  `sameController`-constrained) — no constraint, every candidate passes. */
-export function matchesSameController(
-    controllerId: string,
-    sameController: boolean | undefined,
-    siblingControllerId: string | undefined
-): boolean {
-    if (!sameController || siblingControllerId === undefined) return true;
-    return controllerId === siblingControllerId;
-}
-
-/** CR 109.1 / 601.2c — client mirror of the server's target-exclusion gates
- *  (`selectTarget` in convex/game.ts): `excludeTypes` ("nonland permanent") and
- *  `excludeInstanceIds` ("other than ~" / a triggered ability's reflexive
- *  self-exclude, e.g. Phelia). Keeps an excluded permanent from reading as
- *  clickable; the server remains the authority and rejects it regardless.
- *  Returns `true` when the card is NOT excluded. */
-export function matchesTargetExclusions(
+/** CR 109.1 / 109.3 / 102.1 / 202 / 205 / 601.2c / 613 / 701.20 / 702 — THE
+ *  single client-side authority for every PERMANENT-kind target-filter
+ *  dimension, delegating to the SAME registry (`checkPermanentTargetFilters`,
+ *  `convex/gre/targetFilters.ts`, ADR 0068) `getLegalTargets` (the offered
+ *  set) and the `selectTarget` mutation (the accepted set, `convex/game.ts`)
+ *  already share. Closes issue #1697 (Karakas: "target legendary creature"):
+ *  the client previously only had bespoke per-dimension mirrors (controller,
+ *  sameController, excludeTypes/excludeInstanceIds — since deleted, this
+ *  registry-backed predicate is their sole replacement) — every OTHER
+ *  dimension the registry knows about (`supertypeFilter`, `subtypeFilter`,
+ *  `excludeSupertypes`, `excludeSubtypes`, `colorFilter`, `colorFilterAny`,
+ *  `excludeColors`, `tappedFilter`, `combatRoleFilter`, `requireAbility`,
+ *  `requireAbilityAny`, `excludeAbility`, `powerFilter`, `toughnessFilter`,
+ *  `mvFilter`) was silently treated as unfiltered, so the highlight ring
+ *  offered every permanent matching the structural `type` alone and
+ *  selecting one the server actually rejected (e.g. a non-legendary
+ *  creature) threw. A future filter added to the registry is honored here
+ *  automatically — no hand-maintained per-dimension mirror to keep in sync.
+ *
+ *  `pendingTarget` already carries every filter field PRE-LOWERED
+ *  (`PendingTarget`, `convex/gre/state.ts`) — the identical
+ *  `PermanentFilterValues` shape `selectTarget` builds server-side from the
+ *  very same object — so this only FORWARDS those fields, it never
+ *  re-derives them from a `TargetRequirement`. `allPlayers`/`activePlayerId`
+ *  build a minimal `GameState`-shaped view (the same established pattern as
+ *  {@link affordableAltCostsForCard} above): the registry's power/toughness
+ *  checks only read `state.players[].battlefield` through the layer system,
+ *  which the wire-projected `Player[]` already carries in full. `emblems`
+ *  (CR 114, issue #1221) is threaded the same way `effective-stats.ts`
+ *  already does for `effectivePower`/`effectiveToughness` — the layer
+ *  system's `getEffectivePower`/`getEffectiveToughness` read
+ *  `state.emblems ?? []` for owner-scoped `pt-buff` statics (Sorin, Lord of
+ *  Innistrad's "Creatures you control get +1/+0" emblem, `convex/gre/layers.ts`);
+ *  omitting it from the synthetic state under-computes P/T here and
+ *  OVER-filters a `powerFilter`/`toughnessFilter` requirement relative to the
+ *  server (a legal target silently reads as unclickable — the inverse of
+ *  #1697's symptom). Does NOT check the structural `targetType` (CardType
+ *  membership) — {@link matchesTargetRequirement} remains the gate for that,
+ *  since `type` is a `StructuralKey` in the registry, not a per-candidate
+ *  filter. */
+export function matchesPermanentTargetFilters(
     card: CardInstance,
-    exclusions: {
-        excludeTypes?: string[];
-        excludeInstanceIds?: string[];
-    }
+    pendingTarget: PendingTarget,
+    allPlayers: ReadonlyArray<Player>,
+    activePlayerId: string,
+    emblems?: ReadonlyArray<EmblemInstance>
 ): boolean {
-    if (exclusions.excludeInstanceIds?.includes(card.id)) return false;
-    const cardTypes = card.types ?? [];
-    if (
-        exclusions.excludeTypes &&
-        exclusions.excludeTypes.some((t) => cardTypes.includes(t))
-    ) {
-        return false;
-    }
-    return true;
+    const siblingControllerId = ((): string | undefined => {
+        if (
+            !pendingTarget.sameController ||
+            pendingTarget.selected.length === 0
+        ) {
+            return undefined;
+        }
+        const sibling = pendingTarget.selected.find(
+            (t) => t.type === "permanent"
+        );
+        if (!sibling) return undefined;
+        for (const p of allPlayers) {
+            const found = p.battlefield.find((c) => c.id === sibling.id);
+            if (found) return found.controllerId;
+        }
+        return undefined;
+    })();
+
+    const state = {
+        activePlayerId,
+        players: allPlayers,
+        // CR 114 (issue #1221) — command-zone emblems (Sorin, Lord of
+        // Innistrad's anthem). See the doc comment above: without this, a
+        // `powerFilter`/`toughnessFilter` check over-filters relative to the
+        // server.
+        emblems,
+    } as unknown as GameState;
+    const ctx: TargetFilterCtx = {
+        state,
+        sourceColors: [],
+        sourceTypes: [],
+        sourceSubtypes: [],
+        chooserId: pendingTarget.playerId,
+        activePlayerId,
+        siblingControllerId,
+    };
+    const values: PermanentFilterValues = {
+        controller: pendingTarget.controller,
+        subtypeFilter: pendingTarget.subtypeFilter,
+        supertypeFilter: pendingTarget.supertypeFilter,
+        excludeSubtypes: pendingTarget.excludeSubtypes,
+        excludeSupertypes: pendingTarget.excludeSupertypes,
+        excludeTypes: pendingTarget.excludeTypes,
+        excludeColors: pendingTarget.excludeColors,
+        colorFilter: pendingTarget.colorFilter as Color | undefined,
+        colorFilterAny: pendingTarget.colorFilterAny as
+            | readonly Color[]
+            | undefined,
+        tappedFilter: pendingTarget.tappedFilter,
+        combatRoleFilter: pendingTarget.combatRoleFilter,
+        requireAbility: pendingTarget.requireAbility,
+        requireAbilityAny: pendingTarget.requireAbilityAny,
+        excludeAbility: pendingTarget.excludeAbility,
+        excludeInstanceIds: pendingTarget.excludeInstanceIds,
+        powerFilter: pendingTarget.powerFilter,
+        toughnessFilter: pendingTarget.toughnessFilter,
+        mvFilter: pendingTarget.mvFilter,
+        sameController: pendingTarget.sameController,
+    };
+    // Sound: the wire-projected `CardInstance` is a structural superset of the
+    // fields `checkPermanentTargetFilters`/the layer system read off
+    // `CardInstanceState` (the same cast pattern `effective-stats.ts`'s
+    // `toPermanentView` uses for `PermanentView`).
+    return (
+        checkPermanentTargetFilters(
+            ctx,
+            card as unknown as CardInstanceState,
+            values
+        ) === null
+    );
 }
 
 /** True if the target requirement can target a spell on the stack (CR 114.1):
@@ -998,6 +1069,87 @@ export function matchesHandCardFilter(
     return handCardMatchesFilter(card as unknown as CardInstanceState, filter);
 }
 
+/** CR 602.5b — shared activation-TIMING predicate consulted by every
+ *  zone-listing helper below (`getStackAbilities`, `getGraveyardStackAbilities`,
+ *  `getHandStackAbilities`, and the `opponentOnly` branch of
+ *  `getAnyPlayerStackAbilities`) so a printed activation-timing restriction
+ *  hides an ability IDENTICALLY regardless of which zone/branch lists it
+ *  (issue #1694 — the battlefield helper diverged from its graveyard/hand
+ *  siblings and never checked `controllerTurnOnly` at all, so a permanent like
+ *  Disrupting Scepter offered its ability during the opponent's turn and the
+ *  server rejected the click). Mirrors the server's authoritative chokepoint
+ *  `assertActivationTimingLegal` (`convex/game.ts`) for all FOUR restrictions
+ *  it enforces:
+ *   - `activationPhaseRestriction` (CR 602.5, phase/step-scoped — "only during
+ *     your upkeep", "only during combat") — the current `phase` must be a
+ *     member of the allow-list;
+ *   - `sorcerySpeedOnly` (CR 602.3b / 307.5 — "Activate only as a sorcery") —
+ *     narrowed client-side to the main-phase half of the server's
+ *     `isSorceryTiming`; this view has no stack-length/priority-holder field
+ *     to check the rest, so the mutation stays authoritative for that part;
+ *   - `controllerTurnOnly` (CR 602.5b — "Activate only during your turn") —
+ *     `turnOwnerId` (the permanent's controller while it's on the battlefield,
+ *     its owner while it sits in hand/graveyard, since CR 602.5's "your"
+ *     tracks whoever would control it) must be the active player;
+ *   - `oncePerTurn` (CR 602.5 — "Activate only once each turn", Gate to
+ *     Phyrexia) — IS evaluable client-side: the per-ability tally lives on
+ *     `CardInstanceState.activationsThisTurn` (`convex/gre/state.ts`) and
+ *     survives the wire (`slimCard` spreads the instance, `convex/
+ *     gameProjections.ts`), so a prior fix that skipped this restriction as
+ *     "not evaluable as a client hint" was factually wrong.
+ *  Every check fails OPEN when its driving field is unknown (`phase`,
+ *  `activePlayerId`, or `activationsThisTurn` undefined) — the discipline
+ *  every call site already followed individually before this predicate was
+ *  extracted: a gate that cannot be evaluated must never hide an
+ *  otherwise-legal ability; only the server's hard throw is authoritative. */
+export function isActivationTimingAllowed(
+    ability: {
+        id: string;
+        activationPhaseRestriction?: ReadonlyArray<Phase>;
+        sorcerySpeedOnly?: boolean;
+        controllerTurnOnly?: boolean;
+        oncePerTurn?: boolean;
+    },
+    turnOwnerId: string,
+    phase: Phase | undefined,
+    activePlayerId: string | undefined,
+    /** Per-ability-id activation tally for this turn
+     *  (`CardInstanceState.activationsThisTurn`). Omit (or an id absent from
+     *  the map) fails OPEN — an unknown counter must never hide a legal
+     *  activation. */
+    activationsThisTurn?: Readonly<Record<string, number>>
+): boolean {
+    if (
+        ability.activationPhaseRestriction &&
+        phase !== undefined &&
+        !ability.activationPhaseRestriction.includes(phase)
+    ) {
+        return false;
+    }
+    if (
+        ability.sorcerySpeedOnly &&
+        phase !== undefined &&
+        phase !== "PRECOMBAT_MAIN" &&
+        phase !== "POSTCOMBAT_MAIN"
+    ) {
+        return false;
+    }
+    if (
+        ability.controllerTurnOnly &&
+        activePlayerId !== undefined &&
+        activePlayerId !== turnOwnerId
+    ) {
+        return false;
+    }
+    if (ability.oncePerTurn) {
+        const used = activationsThisTurn?.[ability.id] ?? 0;
+        if (used >= 1) {
+            return false;
+        }
+    }
+    return true;
+}
+
 /** Returns stack-using activated abilities the player can currently announce.
  *  Only the non-mana availability is checked (source not already tapped when
  *  the ability has {T}); mana is deferred to a `pendingActivation` payment
@@ -1041,8 +1193,10 @@ export function getStackAbilities(
     const cardDef = getDefinition(card.card.id);
     const tapLocked = isTapLockedBySummoningSickness(card);
     const filterAbility = (a: {
+        id: string;
         useStack: boolean;
         oracleText: string;
+        oncePerTurn?: boolean;
         cost: {
             tap?: boolean;
             life?: number;
@@ -1061,6 +1215,7 @@ export function getStackAbilities(
         /** CR 601.2c — the ability's declared target requirement, when it
          *  targets. Read by the CR 602.2b no-legal-target gate below. */
         targetRequirement?: TargetRequirement;
+        controllerTurnOnly?: boolean;
         activatableByOpponentsOnly?: boolean;
         activateFromHand?: boolean;
         activateFromGraveyard?: boolean;
@@ -1114,27 +1269,21 @@ export function getStackAbilities(
         ) {
             return false;
         }
+        // CR 602.5b (issue #1694) — `activationPhaseRestriction`,
+        // `sorcerySpeedOnly`, `controllerTurnOnly` ("Activate only during
+        // your turn") and `oncePerTurn` ("Activate only once each turn") are
+        // all evaluated by the ONE shared predicate every zone-listing helper
+        // consults, so they hide an ability identically regardless of zone.
+        // The `activateAbility` mutation (`assertActivationTimingLegal`) is
+        // authoritative regardless.
         if (
-            a.activationPhaseRestriction &&
-            phase !== undefined &&
-            !a.activationPhaseRestriction.includes(phase)
-        ) {
-            return false;
-        }
-        // CR 602.3b (issue #1156) — "activate only as a sorcery" (Dauthi
-        // Voidwalker's second ability). A cheap client hint mirroring the
-        // loyalty gate's own admitted looseness above ("the full 'stack
-        // empty + priority' refinement is the server's job"): this view has
-        // no stack-length/priority-holder field to check, so it narrows to
-        // the main-phase half of `isSorceryTiming` only. The
-        // `activateAbility` mutation (`assertActivationTimingLegal`) is
-        // authoritative regardless. Skipped when `phase` is unknown
-        // (undefined) — same fail-open discipline as `activationPhaseRestriction`.
-        if (
-            a.sorcerySpeedOnly &&
-            phase !== undefined &&
-            phase !== "PRECOMBAT_MAIN" &&
-            phase !== "POSTCOMBAT_MAIN"
+            !isActivationTimingAllowed(
+                a,
+                card.controllerId,
+                phase,
+                stateView?.activePlayerId,
+                card.activationsThisTurn
+            )
         ) {
             return false;
         }
@@ -1303,20 +1452,20 @@ export function getGraveyardStackAbilities(
             ) {
                 return false;
             }
+            // CR 602.5b (issue #1694) — the same shared timing predicate
+            // `getStackAbilities` consults: `activationPhaseRestriction`,
+            // `controllerTurnOnly` ("Activate only during your upkeep/turn")
+            // and `oncePerTurn` must hide the ability identically here. While
+            // the card is in the graveyard its controller is its owner, so
+            // `card.ownerId` is the "your turn" identity CR 602.5 tracks.
             if (
-                a.activationPhaseRestriction &&
-                phase !== undefined &&
-                !a.activationPhaseRestriction.includes(phase)
-            ) {
-                return false;
-            }
-            // CR 602.5 — "Activate only during your upkeep/turn": while the card
-            // is in the graveyard its controller is its owner, so the owner must
-            // be the active player.
-            if (
-                a.controllerTurnOnly &&
-                stateView.activePlayerId !== undefined &&
-                stateView.activePlayerId !== card.ownerId
+                !isActivationTimingAllowed(
+                    a,
+                    card.ownerId,
+                    phase,
+                    stateView.activePlayerId,
+                    card.activationsThisTurn
+                )
             ) {
                 return false;
             }
@@ -1369,19 +1518,20 @@ export function getHandStackAbilities(
             ) {
                 return false;
             }
+            // CR 602.5b (issue #1694) — the same shared timing predicate
+            // `getStackAbilities` consults: `activationPhaseRestriction`,
+            // `controllerTurnOnly` ("Activate only during your turn") and
+            // `oncePerTurn` must hide the ability identically here. While the
+            // card is in hand its controller is its owner, so `card.ownerId`
+            // is the "your turn" identity CR 602.5 tracks.
             if (
-                a.activationPhaseRestriction &&
-                phase !== undefined &&
-                !a.activationPhaseRestriction.includes(phase)
-            ) {
-                return false;
-            }
-            // CR 602.5 — "Activate only during your turn": while the card is in
-            // hand its controller is its owner, so the owner must be active.
-            if (
-                a.controllerTurnOnly &&
-                stateView.activePlayerId !== undefined &&
-                stateView.activePlayerId !== card.ownerId
+                !isActivationTimingAllowed(
+                    a,
+                    card.ownerId,
+                    phase,
+                    stateView.activePlayerId,
+                    card.activationsThisTurn
+                )
             ) {
                 return false;
             }
@@ -1433,8 +1583,26 @@ export function getAnyPlayerStackAbilities(
         payerLife
     ).filter((a) => nonControllerIds.has(a.id));
     const seen = new Set(fromStack.map((a) => a.id));
+    // CR 602.5b (issue #1694) — `getStackAbilities` filters `activatableByOpponentsOnly`
+    // OUT unconditionally (line ~1071 above), so this branch reads the card
+    // definition directly instead of reusing `fromStack`'s gating. That means
+    // it must run the SAME shared timing predicate itself — every other
+    // zone-listing helper does — or an opponent-only ability with a printed
+    // timing restriction (a future Clergy-of-the-Holy-Nimbus-shaped card) would
+    // be offered outside its legal window while every other path hides it.
     const opponentOnly = (cardDef.activatedAbilities ?? [])
-        .filter((a) => a.activatableByOpponentsOnly && !seen.has(a.id))
+        .filter(
+            (a) =>
+                a.activatableByOpponentsOnly &&
+                !seen.has(a.id) &&
+                isActivationTimingAllowed(
+                    a,
+                    card.controllerId,
+                    phase,
+                    stateView?.activePlayerId,
+                    card.activationsThisTurn
+                )
+        )
         .map((a) => ({ id: a.id, oracleText: a.oracleText }));
     return [...fromStack, ...opponentOnly];
 }

@@ -58,6 +58,15 @@ describe("restrictedManaLabel (#754, CR 106.6)", () => {
         expect(restrictedManaLabel(unit)).toBe("Cumulative upkeep only");
     });
 
+    it("labels the artifact-ability restriction (Soldevi Machinist, #728)", () => {
+        const unit: RestrictedMana = {
+            color: "C",
+            amount: 2,
+            restriction: "artifact-ability",
+        };
+        expect(restrictedManaLabel(unit)).toBe("Artifact abilities only");
+    });
+
     it("uses a generic label when no restriction is set", () => {
         const unit: RestrictedMana = { color: "R", amount: 1 };
         expect(restrictedManaLabel(unit)).toBe("Restricted");

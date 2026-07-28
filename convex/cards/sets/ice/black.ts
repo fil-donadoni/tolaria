@@ -12,6 +12,7 @@ import type {
     PermanentFilter,
     PermanentView,
     SpellContext,
+    TargetSelection,
 } from "../../types";
 import { controlsSnowSubtype } from "../../snowReads";
 import { creatureCardsAboveInGraveyard } from "../../graveyardOrder";
@@ -109,8 +110,6 @@ function nextUpkeepDrawTrigger(): DelayedTriggerDef {
 //     activated abilities whose source is on the battlefield; the
 //     "creatures-above-in-graveyard" test itself ships, but activate-from-
 //     graveyard does not).
-//   • Dread Wight — paralyzation counters (counter-gated untap lock + a granted
-//     "{4}: remove a counter" activated ability on other creatures).
 //   • Cloak of Confusion / Gaze of Pain (assign-no-combat-damage redirect — the
 //     mark ships, but the "if you do, defender discards" combat-replacement
 //     rider does not), Hecatomb / Stench of Evil (tap-Swamp / pay-per-land),
@@ -575,30 +574,179 @@ export const demonicConsultation: CardDefinition = {
         }
     },
 };
-// DEFERRED (#655) — re-verified against the current engine (2026-07). The
-// end-of-combat trigger BODY is clean DSL (forEach blocking/blocked-by →
-// counters "paralyzation" + tapUntap tap), but two coupled pieces remain
-// unbuilt: (1) a per-permanent untap lock GATED on a specific counter ("doesn't
-// untap for as long as it has a paralyzation counter"). The untap step models
-// several counter-gated locks (`does-not-untap-with-depletion-counter`, the
-// `wind`-counter Freyalise's Winds replacement) but there is no paralyzation
-// variant, and the plain `does-not-untap` keyword is unconditional, not
-// counter-gated. (2) The granted "{4}: Remove a paralyzation counter from this
-// creature" on OTHER creatures is a grant of an ACTIVATED ability — `grantAbility`
-// grants KEYWORDS only (CR 702), not activated abilities that mutate the
-// grantee's counters. Both are new seams; stop-and-issue, not invented. Blocked
-// on: a paralyzation-counter untap lock + granting an activated ability.
-// export const dreadWight: CardDefinition = {
-//     id: "65d332e2-4b2d-4131-84f7-862cb138c477",
-//     name: "Dread Wight",
-//     rarity: "rare",
-//     oracleText: "At end of combat, put a paralyzation counter on each creature blocking or blocked by this creature and tap those creatures. Each of those creatures doesn't untap during its controller's untap step for as long as it has a paralyzation counter on it. Each of those creatures gains \"{4}: Remove a paralyzation counter from this creature.\"",
-//     manaCost: { X: 3, B: 2 },
-//     types: ["Creature"],
-//     subtypes: ["Zombie"],
-//     power: 3,
-//     toughness: 4,
-// };
+// Dread Wight — "At end of combat, put a paralyzation counter on each creature
+// blocking or blocked by this creature and tap those creatures. Each of those
+// creatures doesn't untap during its controller's untap step for as long as it
+// has a paralyzation counter on it. Each of those creatures gains '{4}: Remove
+// a paralyzation counter from this creature.'"
+//
+// Three coupled pieces, all built from shipped seams (the old stub note was
+// stale — issue #728 re-verification):
+//   1. The END_OF_COMBAT trigger (CR 511.3, `scope: "each"`) puts a
+//      `paralyzation` counter on and taps every combat partner (CR 122.1,
+//      CR 701.20a tap). The partner set walks `getBlockersByAttacker()` in BOTH
+//      directions relative to the source — the exact Kjeldoran Frostbeast
+//      (`ice/multicolor.ts`) shape, which is why this trigger stays `resolve()`
+//      (see the justification on the ability).
+//   2. The untap lock is a COUNTER-GATED `does-not-untap` keyword grant
+//      (CR 502.1) — the shipped Venarian Gold (`leg/blue.ts`) pattern: a
+//      `keyword-grant` static effect whose `applies` predicate reads the
+//      target's own `paralyzation` counter, so the lock switches itself off the
+//      moment the last counter comes off. `phases.ts`'s untap step reads the
+//      materialized `staticAbilities` list, so no engine branch is needed.
+//   3. The granted "{4}: Remove a paralyzation counter" is a
+//      `StaticActivatedGrant` (CR 113.1 / 611) pointing at a `grantTemplates[]`
+//      entry — the shipped Zombie Master (`lea/black.ts`) grant channel, gated
+//      on the same counter predicate so only paralyzed creatures carry it.
+//      `getEffectiveActivatedAbilities` (game.ts) already enumerates granted
+//      templates, so the grantee's controller can activate it normally.
+//
+// Both counter-gated statics declare `dependsOnCounters` (CR 613.5), so the
+// lock and the grant are re-materialized whenever a paralyzation counter moves
+// — see `refreshCounterGatedStatics` (`gre/state.ts`, issue #1711). Without
+// that declaration a materialized grant is evaluated once, at ETB, and both
+// clauses ship inert.
+//
+// DIVERGENCE (CR 611.2c): pieces 2 and 3 are sourced from Dread Wight's own
+// `staticEffects[]`, so the untap lock and the {4} ability end if Dread Wight
+// leaves the battlefield, whereas the Oracle text creates them once as
+// indefinite effects of the resolved trigger. Modelling the CR-exact form needs
+// a source-independent indefinite grant (the `grantAbility` Op is
+// duration-scoped and `applyKeywordCounterGrant` is reserved for CR 122.1c
+// keyword-NAMED counters). The paralyzation counters themselves persist either
+// way. tracked-by: #1712
+export const dreadWight: CardDefinition = {
+    id: "65d332e2-4b2d-4131-84f7-862cb138c477",
+    name: "Dread Wight",
+    rarity: "rare",
+    oracleText:
+        "At end of combat, put a paralyzation counter on each creature blocking or blocked by this creature and tap those creatures. Each of those creatures doesn't untap during its controller's untap step for as long as it has a paralyzation counter on it. Each of those creatures gains \"{4}: Remove a paralyzation counter from this creature.\"",
+    manaCost: { X: 3, B: 2 },
+    types: ["Creature"],
+    subtypes: ["Zombie"],
+    power: 3,
+    toughness: 4,
+    staticEffects: [
+        {
+            // CR 502.1 — a paralyzed creature doesn't untap. Counter-gated
+            // `does-not-untap` grant (Venarian Gold's sleep-counter shape); the
+            // untap step reads the keyword off `staticAbilities`.
+            kind: "keyword-grant",
+            // CR 613.5 (issue #1711) — `keyword-grant` is MATERIALIZED, so the
+            // counter dependency must be declared for
+            // `refreshCounterGatedStatics` to re-evaluate the lock when the
+            // end-of-combat trigger puts the counter on (and when the {4}
+            // ability takes it back off).
+            dependsOnCounters: true,
+            applies: (target: PermanentView) =>
+                (target.counters?.paralyzation ?? 0) > 0,
+            keyword: "does-not-untap",
+        },
+        {
+            // CR 113.1 / 611 — every paralyzed creature gains the counter-
+            // removal ability (template below), so its controller can free it.
+            kind: "activated-grant",
+            dependsOnCounters: true,
+            applies: (target: PermanentView) =>
+                (target.counters?.paralyzation ?? 0) > 0,
+            abilityId: "dread-wight-remove-paralyzation",
+        },
+    ],
+    grantTemplates: [
+        {
+            id: "dread-wight-remove-paralyzation",
+            oracleText:
+                "{4}: Remove a paralyzation counter from this creature.",
+            cost: { mana: { X: 4 } },
+            useStack: true,
+            // DSL-first (ADR 0045): remove one paralyzation counter from the
+            // permanent carrying the granted ability (CR 122.1).
+            effects: [
+                {
+                    op: "counters",
+                    action: "remove",
+                    counter: "paralyzation",
+                    count: 1,
+                    target: { ref: "$source" },
+                },
+            ],
+        },
+    ],
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "dread-wight-end-of-combat",
+            oracleText:
+                "At end of combat, put a paralyzation counter on each creature blocking or blocked by this creature and tap those creatures.",
+            phase: "END_OF_COMBAT",
+            scope: "each",
+            // NOT DSL-migratable (ADR 0045), the Kjeldoran Frostbeast
+            // justification verbatim: "creatures blocking or blocked by this
+            // creature" is a COMBAT-RELATIONSHIP selector (walking
+            // `getBlockersByAttacker()` both directions relative to the
+            // source) — no `EffectForEachSelector` filters permanents by
+            // combat role relative to a specific object (only zone /
+            // controller / type). Blocked on: a combat-partner-of-source
+            // forEach selector — stays resolve().
+            //
+            // AI-only shadow script (PRD #1423, issue #1519): the real body
+            // walks the combat graph, which no selector expresses, so the
+            // value model has nothing to score. Sketch the OUTCOME instead —
+            // tapping opposing creatures and putting a paralyzation counter on
+            // them (the counter is what keeps them tapped, so both Ops belong
+            // in the sketch). Never executed; only `OP_VALUERS` reads it.
+            aiEffects: [
+                {
+                    op: "forEach",
+                    select: {
+                        set: "permanents",
+                        zone: "battlefield",
+                        controller: "opponent",
+                        filter: { type: "Creature" },
+                    },
+                    effects: [
+                        {
+                            op: "tapUntap",
+                            action: "tap",
+                            target: { ref: "$each" },
+                        },
+                        {
+                            op: "counters",
+                            action: "add",
+                            counter: "paralyzation",
+                            count: 1,
+                            target: { ref: "$each" },
+                        },
+                    ],
+                },
+            ],
+            resolve: (ctx: SpellContext) => {
+                const selfId = ctx.sourceInstanceId;
+                const blockersByAttacker = ctx.getBlockersByAttacker();
+                const partners = new Set<string>();
+                for (const [attackerId, blockerIds] of Object.entries(
+                    blockersByAttacker
+                )) {
+                    if (attackerId === selfId) {
+                        // Dread Wight attacked → the creatures blocking it.
+                        for (const id of blockerIds) partners.add(id);
+                    } else if (blockerIds.includes(selfId)) {
+                        // Dread Wight blocked → the attacker it blocked.
+                        partners.add(attackerId);
+                    }
+                }
+                for (const id of partners) {
+                    const partner: TargetSelection = {
+                        type: "permanent",
+                        id,
+                    };
+                    // CR 122.1 counter, then CR 701.20a tap.
+                    ctx.addCounter(partner, "paralyzation", 1);
+                    ctx.tap(partner);
+                }
+            },
+        }),
+    ],
+};
 // Drift of the Dead — Defender Wall whose P/T is a characteristic-defining
 // ability (CR 604.3, layer 7b) equal to the number of SNOW lands its controller
 // controls (CR 205.4a). Base 0/0; the `pt-cda` counts live snow lands via

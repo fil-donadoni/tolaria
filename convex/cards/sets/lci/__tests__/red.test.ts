@@ -221,6 +221,10 @@ describe("Inti, Seneschal of the Sun — discard-triggered impulse draw", () => 
         expect(state.players[0].exile).toHaveLength(1);
         expect(exiled.id).toBe("top-card");
         expect(exiled.castableFromExileBy).toBe("p1");
+        // CR 305.9 (issue #1689) — oracle says "you may play that card until
+        // your next end step": a land exiled this way must be a legal land
+        // play, not merely castable (a land is never cast).
+        expect(exiled.castableFromExileIncludesLand).toBe(true);
         expect(exiled.castableFromExileUntilTurn).toBe(2);
         expect(exiled.knownTo).toEqual(["p1"]);
     });

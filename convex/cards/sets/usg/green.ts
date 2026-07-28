@@ -125,6 +125,19 @@ export const fertileGround: CardDefinition = {
                     [chosen as Color]: 1,
                 });
             },
+            // aiEffects (PRD #1423, issue #1519) — this ability is a bare
+            // `resolve()` closure (the runtime colour choice + the
+            // cross-player `tapped.controllerId` recipient have no Op skin
+            // reachable from a `tappedTrigger` script, see the NOT
+            // DSL-migratable note above), so the bot's `cardValueById`/
+            // `latentValue` value model has nothing to walk without a
+            // shadow. `addMana` (issue #850) only takes a fixed per-colour
+            // map — "any colour" isn't a static amount — so the shadow picks
+            // one representative pip (`{ C: 1 }`); `OP_VALUERS.addMana` sums
+            // total pips regardless of colour, so this scores identically to
+            // the real "any one colour" grant (same shape as Wild Growth's
+            // fixed-`{G:1}` twin, `lea/green.ts`).
+            aiEffects: [{ op: "addMana", mana: { C: 1 } }],
         }),
     ],
 };

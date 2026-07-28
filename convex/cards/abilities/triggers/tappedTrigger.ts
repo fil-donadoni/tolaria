@@ -90,6 +90,13 @@ export interface TappedTriggerArgs {
             manaProduced?: ManaCost;
         }
     ) => void;
+    /** aiEffects shadow script (PRD #1423, issue #1431/#1519) — a
+     *  valuation-only Effect Script, NEVER executed, walked by the same
+     *  `OP_VALUERS` a real `effects[]` script uses. Plugs the AI-blind gap
+     *  for a `resolve()`-bodied tap trigger (a bare `resolve` gives the
+     *  bot's card-quality signal nothing to walk). Only meaningful alongside
+     *  `resolve` — a card already on `effects[]` doesn't need it. */
+    aiEffects?: EffectOp[];
 }
 
 export function tappedTrigger(args: TappedTriggerArgs): TriggeredAbility {
@@ -172,6 +179,7 @@ export function tappedTrigger(args: TappedTriggerArgs): TriggeredAbility {
                       });
                   },
               }),
+        ...(args.aiEffects ? { aiEffects: args.aiEffects } : {}),
     };
 
     if (args.interveningIf) {

@@ -3,6 +3,10 @@ import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { CardInstance } from "~/types/game";
 import { useGameContext } from "~/hooks/useGameContext";
+import {
+    pendingChoiceMax,
+    pendingChoiceMin,
+} from "~/lib/pending-choice-confirm";
 import LibraryOrderPicker from "./library-order/library-order-picker";
 
 /** Full-screen picker for a `choose-hand-card` choice flagged `putOnTop` — the
@@ -14,7 +18,22 @@ import LibraryOrderPicker from "./library-order/library-order-picker";
  *
  *  Gates on the flag + own hand (`playerId` is the chooser and owns the zone).
  *  A plain own-hand discard (`choose-hand-card` without `putOnTop`) keeps the
- *  in-hand toggle; this component ignores it. */
+ *  in-hand toggle; this component ignores it.
+ *
+ *  Two shapes share this mount (issue #1691):
+ *   • EXACT — Brainstorm's `putBack` (`count: 2`): exactly 2 go back on top.
+ *   • RANGED — Sylvan Library's `rangedTopdeck` (`count: { min, max }`): the
+ *     chooser puts BETWEEN `min` and `max` back and pays life for each one
+ *     KEPT (CR 118.4), with `min` carrying the CR 119.4 "can't pay life you
+ *     don't have" floor the engine computed. Collapsing the range to
+ *     `count.min` (the old behavior) pinned the cap at 0 at a healthy life
+ *     total, so nothing could ever be dragged onto the library — the pick
+ *     rendered with no usable affordance.
+ *
+ *  `candidateIds` is the engine's eligibility allow-list (Sylvan Library: the
+ *  cards drawn THIS TURN, CR 121.1) and is authoritative: only those hand cards
+ *  enter the pool, so a card the player already held is never selectable.
+ *  Absent (Brainstorm) the whole hand is the pool. */
 export default function PutBackPicker() {
     const { gameId, playerId, allPlayers, pendingChoices } = useGameContext();
     const submitChoice = useMutation(api.game.submitResolutionChoice);
@@ -32,11 +51,19 @@ export default function PutBackPicker() {
 
     const owner = allPlayers.find((p) => p.id === playerId);
     // Own hand crosses the wire with identity (only the opponent's is nulled), so
-    // every slot is a real card here.
+    // every slot is a real card here. `candidateIds` (when the Op pins one)
+    // narrows the pool to the eligible cards — Sylvan Library's "cards in your
+    // hand drawn this turn" (CR 121.1); the ids survive `projectPublicState`
+    // untouched, so the client filters on exactly what the engine will accept.
+    const eligibleIds = head.candidateIds
+        ? new Set(head.candidateIds)
+        : undefined;
     const cards = (owner?.hand ?? []).filter(
-        (c): c is CardInstance => c !== null
+        (c): c is CardInstance =>
+            c !== null && (!eligibleIds || eligibleIds.has(c.id))
     );
-    const keep = typeof head.count === "number" ? head.count : head.count.min;
+    const keep = pendingChoiceMax(head.count);
+    const min = pendingChoiceMin(head.count);
 
     const handleConfirm = async (topTopmostFirst: string[]) => {
         if (submitting) return;
@@ -72,7 +99,7 @@ export default function PutBackPicker() {
                 "Put cards on top of your library (topmost first)"
             }
             submitting={submitting}
-            putBack={{ keep }}
+            putBack={{ keep, min }}
             onConfirm={handleConfirm}
         />
     );

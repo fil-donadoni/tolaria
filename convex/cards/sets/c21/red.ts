@@ -61,11 +61,14 @@ export const laeliaTheBladeReforged: CardDefinition = {
                     "library",
                     ctx.controller
                 );
+                // CR 305.9 (issue #1689) — oracle says "you may PLAY that
+                // card this turn", land-inclusive.
                 ctx.grantCastFromExile(
                     cardId,
                     ctx.controller,
                     undefined,
-                    "this-turn"
+                    "this-turn",
+                    { includesLand: true }
                 );
             },
             // aiEffects (PRD #1423, issue #1431/#1519) — bare `resolve()`

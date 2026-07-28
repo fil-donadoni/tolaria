@@ -2333,6 +2333,9 @@ export function finalizeCleanup(state: GameState): void {
                 // issue #1156 — the free-cast waiver (Dauthi Voidwalker) rides
                 // the same turn-scoped window; expires together.
                 delete card.castFromExileWithoutPayingManaCost;
+                // CR 305.9 (issue #1689) — the land-inclusive marker rides
+                // the same turn-scoped window; expires together.
+                delete card.castableFromExileIncludesLand;
             }
         }
     }
@@ -3340,5 +3343,32 @@ export function isSorceryTiming(state: GameState): boolean {
             state.phase === "POSTCOMBAT_MAIN") &&
         state.stack.length === 0 &&
         state.priorityPlayerId === state.activePlayerId
+    );
+}
+
+/** CR 307.1 / 601.3a — the CASTER-AWARE sorcery window: `playerId` may take a
+ *  sorcery-speed action only during one of THEIR OWN main phases, while the
+ *  stack is empty and THEY hold priority.
+ *
+ *  The player-agnostic {@link isSorceryTiming} answers "is the turn currently
+ *  in ITS active player's sorcery window", which is the right question only
+ *  when the asker already knows the subject IS the active player. Asked on
+ *  behalf of anyone else it silently answers about a different player —
+ *  reporting a sorcery window to the non-active player throughout the
+ *  opponent's main phases (issue #1690). Every per-player timing decision
+ *  (`castTimingBaseLegal`) must use this form; `isSorceryTiming` stays for the
+ *  turn-scoped questions that have no subject other than the active player
+ *  (auto-tap Demand scoring, `sorcerySpeedOnly` ability gates that pair it with
+ *  their own controller check). */
+export function isSorceryTimingFor(
+    state: GameState,
+    playerId: string
+): boolean {
+    return (
+        (state.phase === "PRECOMBAT_MAIN" ||
+            state.phase === "POSTCOMBAT_MAIN") &&
+        state.stack.length === 0 &&
+        state.activePlayerId === playerId &&
+        state.priorityPlayerId === playerId
     );
 }

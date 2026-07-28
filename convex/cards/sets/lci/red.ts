@@ -128,11 +128,14 @@ export const intiSeneschalOfTheSun: CardDefinition = {
                         "library",
                         discardingPlayerId
                     );
+                    // CR 305.9 (issue #1689) — oracle says "you may PLAY
+                    // that card until your next end step", land-inclusive.
                     ctx.grantCastFromExile(
                         cardId,
                         discardingPlayerId,
                         undefined,
-                        "until-next-end-step"
+                        "until-next-end-step",
+                        { includesLand: true }
                     );
                 },
             }),

@@ -1110,6 +1110,9 @@ const ABILITY_AI_EFFECTS_ALLOWLIST: readonly AbilityAllowlistEntry[] = [
         note: "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519",
     },
     {
+        // Home-set migration (ADR 0041) moved this card from its old INV id
+        // to its earliest paper printing (Tempest, `sets/tmp/red.ts`) — the
+        // old INV id no longer resolves to any card. Updated to the live id.
         cardId: "f2c82741-2869-41f9-82f4-6ed88756e2fd",
         name: "Crown of Flames",
         abilityId: "crown-of-flames-pump",
@@ -1437,12 +1440,6 @@ const ABILITY_AI_EFFECTS_ALLOWLIST: readonly AbilityAllowlistEntry[] = [
         cardId: "bb6af436-bcfd-4d47-a1aa-e84b587a725a",
         name: "Feldon's Cane",
         abilityId: "feldons-cane-shuffle",
-        note: "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519",
-    },
-    {
-        cardId: "091dda35-59e5-456d-8804-61513a610aed",
-        name: "Fertile Ground",
-        abilityId: "fertile-ground-extra-mana",
         note: "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519",
     },
     {

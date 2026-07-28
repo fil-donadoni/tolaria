@@ -1499,8 +1499,11 @@ export const OP_EXECUTORS: {
             playerId,
             zoneOwnerId,
             op.window,
-            op.withoutPayingManaCost
-                ? { withoutPayingManaCost: true }
+            op.withoutPayingManaCost || op.includesLand
+                ? {
+                      withoutPayingManaCost: !!op.withoutPayingManaCost,
+                      includesLand: !!op.includesLand,
+                  }
                 : undefined
         );
     },
@@ -2029,12 +2032,20 @@ export const OP_EXECUTORS: {
         }
         if (!target) return;
         if (target.type === "permanent") {
-            // Battlefield source (CR 110). Only the bounce-to-hand pair has a
-            // plain-move primitive (CR 701.10); other destinations from the
-            // battlefield need leaves-the-battlefield handling and are skipped.
+            // Battlefield source (CR 110). The bounce-to-hand pair (CR 701.10)
+            // and the positional library insert (issue #1726) both route
+            // through LTB-aware primitives; other destinations from the
+            // battlefield are skipped (destroy/exile are their own Ops).
             if (op.to === "hand") {
                 if (op.bind) bindSnapshot(ctx, op.bind, target);
                 ctx.returnToHand(target);
+            } else if (op.to === "library") {
+                // issue #1726 — "put target … into its owner's library third
+                // from the top" (Teferi, Hero of Dominaria's −3). An omitted
+                // `position` puts the permanent on TOP (the "put on top of
+                // its owner's library" default).
+                if (op.bind) bindSnapshot(ctx, op.bind, target);
+                ctx.putIntoLibraryFromBattlefield(target, op.position ?? 1);
             }
             return;
         }
