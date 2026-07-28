@@ -11,6 +11,7 @@ import {
     stackFootprintWidth,
     RIGHT_GUTTER,
 } from "~/lib/board-layout";
+import type { LandscapeCardMetrics } from "~/lib/landscape-board-bands";
 import { groupBattlefield } from "~/lib/battlefield-stacks";
 import { attachmentLabel } from "~/lib/attachment";
 import SpatialZone, { type SpatialItem } from "./spatial-zone";
@@ -49,6 +50,14 @@ type BoardBattlefieldProps = {
     player: Player;
     /** Mirror the opponent's side to the top half. */
     mirror?: boolean;
+    /** Landscape-compact (#1768): the ONE shared card footprint (and its tighter
+     *  row padding) the whole board lays out with — the hand zone is handed the
+     *  identical numbers, which is what makes a hand card the same size as a
+     *  permanent. Its presence also means the right CONTROL COLUMN is a docked
+     *  strip rather than the desktop pod, so the reserved {@link RIGHT_GUTTER}
+     *  drops to 0 and the band's own right inset (published by the landscape
+     *  budget) does the clearing instead. Omitted ⇒ desktop/portrait, unchanged. */
+    compact?: LandscapeCardMetrics;
     "data-testid"?: string;
 };
 
@@ -87,6 +96,7 @@ function backRowRank(card: CardInstance): number {
 export default function BoardBattlefield({
     player,
     mirror,
+    compact,
     "data-testid": testId,
 }: BoardBattlefieldProps) {
     // Scan every battlefield for cross-controlled auras (CR 303.4). Falls back
@@ -408,7 +418,9 @@ export default function BoardBattlefield({
         // footprint width in the row (issue #977) — otherwise a 6-card fan
         // overflows its slot and covers the next permanent's click target.
         const widthsOf = (groups: { members: CardInstance[] }[]) =>
-            groups.map((g) => stackFootprintWidth(g.members.length));
+            groups.map((g) =>
+                stackFootprintWidth(g.members.length, compact?.cardWidth)
+            );
         // CR 702.26 — phased-out permanents join their band as inert singletons
         // (never grouped/stacked), appended AFTER the live groups so they sit at
         // the tail of the row. Each reserves one card's footprint width.
@@ -421,7 +433,7 @@ export default function BoardBattlefield({
             else phasedOthers.push(card);
         }
         const singleWidths = (cards: CardInstance[]) =>
-            cards.map(() => stackFootprintWidth(1));
+            cards.map(() => stackFootprintWidth(1, compact?.cardWidth));
         const creatureItems = [
             ...creatureGroups.map(groupToItem),
             ...phasedCreatures.map(renderPhasedCard),
@@ -467,6 +479,7 @@ export default function BoardBattlefield({
         choiceBuffer,
         myPhasedCards,
         arrivalDeferIds,
+        compact?.cardWidth,
     ]);
 
     // One full-height zone; the layout stacks the creature row (centered) over
@@ -493,9 +506,15 @@ export default function BoardBattlefield({
             ],
             width,
             height,
+            cardWidth: compact?.cardWidth,
+            cardHeight: compact?.cardHeight,
+            bandPad: compact?.bandPad,
             // Portrait drops the gutter to 0 so both rows span the full width;
-            // landscape/desktop keeps the reserved control-column gutter.
-            rightGutter: isPortrait ? 0 : RIGHT_GUTTER,
+            // landscape-compact likewise — its band is already inset past the
+            // control strip AND the pile column by the landscape budget, so
+            // reserving the desktop pod's 224px again would double-charge it.
+            // Desktop keeps the reserved control-column gutter.
+            rightGutter: isPortrait || compact ? 0 : RIGHT_GUTTER,
         });
     }
 
@@ -505,6 +524,8 @@ export default function BoardBattlefield({
                 items={orderedItems}
                 layout={layout}
                 mirror={mirror}
+                cardWidth={compact?.cardWidth}
+                cardHeight={compact?.cardHeight}
                 anchorKind="permanent"
                 // Attacking creatures lift toward the midline (`-translate-y-8`
                 // / `translate-y-8`); without this the card top is clipped by

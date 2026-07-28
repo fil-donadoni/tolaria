@@ -35,6 +35,16 @@ import {
     PORTRAIT_VIEWER_HAND_BAND,
     portraitBandVars,
 } from "~/lib/portrait-board-bands";
+import {
+    LANDSCAPE_OPPONENT_BATTLEFIELD_BAND,
+    LANDSCAPE_OPPONENT_HAND_BAND,
+    LANDSCAPE_VIEWER_BATTLEFIELD_BAND,
+    LANDSCAPE_VIEWER_HAND_BAND,
+    landscapeBandVars,
+    landscapeCardMetrics,
+    makeLandscapeHandLayout,
+} from "~/lib/landscape-board-bands";
+import { CONTROLLER_STRIP_CLEARANCE_EXPR } from "~/lib/controller-bar-metrics";
 import { computeSoloViewerId } from "~/lib/priority";
 import {
     fanLayout,
@@ -43,6 +53,8 @@ import {
     type Placement,
 } from "~/lib/board-layout";
 import { useIsPortrait } from "~/hooks/useIsPortrait";
+import { useViewportMode } from "~/hooks/useViewportMode";
+import { useViewportHeight } from "~/hooks/useViewportHeight";
 import { useRecentArrivals } from "~/hooks/useRecentArrivals";
 import { ArrowAnchorProvider } from "~/hooks/useArrowAnchors";
 import { ArrowHighlightProvider } from "~/hooks/ArrowHighlightProvider";
@@ -95,12 +107,20 @@ const POPUP_SELECTORS = [
 /** Horizontal band reserved on the right edge by the pile columns
  *  (graveyard/library/exile): right-3 (0.75rem) + 3 × --card-w-sm + 2 × gap-2
  *  (1rem). In portrait the piles collapse to bottom chips, so the band is 0.
+ *  In landscape-compact (#1768) the piles are a ONE-tile-wide column docked
+ *  beside the control strip, so what the play area loses on the right is the
+ *  strip's own measured clearance.
  *  Single source of truth: set inline on `data-board-root` for in-subtree
  *  consumers (nameplate, hand) AND published to `document.documentElement`
  *  while the board is mounted so portal'd dialogs (rendered to body) can
  *  center on the play area instead of the full viewport. */
-function rightPilesWidth(isPortrait: boolean): string {
-    return isPortrait ? "0px" : "calc(1.75rem + 3 * var(--card-w-sm))";
+function rightPilesWidth(
+    isPortrait: boolean,
+    landscapeCompact: boolean
+): string {
+    if (isPortrait) return "0px";
+    if (landscapeCompact) return `calc${CONTROLLER_STRIP_CLEARANCE_EXPR}`;
+    return "calc(1.75rem + 3 * var(--card-w-sm))";
 }
 
 type BoardProps = {
@@ -153,6 +173,23 @@ export default function Board({
     onSwitchGame,
 }: BoardProps) {
     const isPortrait = useIsPortrait();
+    // Third layout regime (#1763 seam, consumed here by #1768). `useIsPortrait`
+    // stays the portrait projection of the SAME hook, so the two can never
+    // disagree; this read only adds the landscape branch the projection folds
+    // into `false`.
+    const landscapeCompact = useViewportMode() === "landscape-compact";
+    // The board's height is the only input the landscape budget needs: one
+    // shared card footprint for the hand AND the battlefield is derived from it
+    // (see landscape-board-bands). Inert in the other two modes.
+    const viewportHeight = useViewportHeight();
+    const landscapeCards = useMemo(
+        () => landscapeCardMetrics(viewportHeight),
+        [viewportHeight]
+    );
+    const landscapeHandLayout = useMemo(
+        () => makeLandscapeHandLayout(landscapeCards.cardWidth),
+        [landscapeCards.cardWidth]
+    );
     const pageVisible = usePageVisible();
     const skipPhasePrefs = useSkipPhasePrefsState();
     const [pauseMenuOpen, setPauseMenuOpen] = useState(false);
@@ -229,11 +266,14 @@ export default function Board({
     // dialog's var(..., 0px) fallback centers on the full viewport.
     useEffect(() => {
         const root = document.documentElement;
-        root.style.setProperty("--right-piles-w", rightPilesWidth(isPortrait));
+        root.style.setProperty(
+            "--right-piles-w",
+            rightPilesWidth(isPortrait, landscapeCompact)
+        );
         return () => {
             root.style.removeProperty("--right-piles-w");
         };
-    }, [isPortrait]);
+    }, [isPortrait, landscapeCompact]);
 
     useEffect(() => {
         const handler = (e: KeyboardEvent) => {
@@ -466,7 +506,8 @@ export default function Board({
                                                             // documentElement for dialogs.
                                                             "--right-piles-w":
                                                                 rightPilesWidth(
-                                                                    isPortrait
+                                                                    isPortrait,
+                                                                    landscapeCompact
                                                                 ),
                                                             // Portrait vertical budget
                                                             // (#1760): the four bands below
@@ -476,6 +517,20 @@ export default function Board({
                                                             // can run under the one beneath
                                                             // it. See portrait-board-bands.
                                                             ...portraitBandVars(),
+                                                            // Landscape vertical
+                                                            // budget (#1768):
+                                                            // four bands plus a
+                                                            // left seat rail and
+                                                            // a right pile rail,
+                                                            // all derived from
+                                                            // ONE shared card
+                                                            // footprint. Inert
+                                                            // unless a landscape
+                                                            // band class reads
+                                                            // them.
+                                                            ...landscapeBandVars(
+                                                                viewportHeight
+                                                            ),
                                                         } as CSSProperties
                                                     }
                                                 >
@@ -494,7 +549,9 @@ export default function Board({
                                                                 className={
                                                                     isPortrait
                                                                         ? PORTRAIT_OPPONENT_HAND_BAND
-                                                                        : "absolute left-0 right-[var(--right-piles-w)] top-0 h-[18%]"
+                                                                        : landscapeCompact
+                                                                          ? LANDSCAPE_OPPONENT_HAND_BAND
+                                                                          : "absolute left-0 right-[var(--right-piles-w)] top-0 h-[18%]"
                                                                 }
                                                             >
                                                                 {isPortrait ? (
@@ -517,14 +574,25 @@ export default function Board({
                                                                             opponent.id ===
                                                                             viewerId
                                                                         }
+                                                                        // Landscape: the SAME flat row
+                                                                        // and the SAME card footprint as
+                                                                        // the viewer's hand — the band
+                                                                        // clips it to a sliver, which is
+                                                                        // all a face-down count needs.
                                                                         layout={
-                                                                            opponentHandLayout
+                                                                            landscapeCompact
+                                                                                ? landscapeHandLayout
+                                                                                : opponentHandLayout
                                                                         }
                                                                         cardWidth={
-                                                                            OPP_HAND_CARD_WIDTH
+                                                                            landscapeCompact
+                                                                                ? landscapeCards.cardWidth
+                                                                                : OPP_HAND_CARD_WIDTH
                                                                         }
                                                                         cardHeight={
-                                                                            OPP_HAND_CARD_HEIGHT
+                                                                            landscapeCompact
+                                                                                ? landscapeCards.cardHeight
+                                                                                : OPP_HAND_CARD_HEIGHT
                                                                         }
                                                                         mirror
                                                                         data-testid="zone-opponent-hand"
@@ -535,7 +603,9 @@ export default function Board({
                                                                 className={
                                                                     isPortrait
                                                                         ? PORTRAIT_OPPONENT_BATTLEFIELD_BAND
-                                                                        : "absolute left-0 right-0 top-[18%] h-[32%]"
+                                                                        : landscapeCompact
+                                                                          ? LANDSCAPE_OPPONENT_BATTLEFIELD_BAND
+                                                                          : "absolute left-0 right-0 top-[18%] h-[32%]"
                                                                 }
                                                             >
                                                                 <BoardBattlefield
@@ -543,6 +613,11 @@ export default function Board({
                                                                         opponent
                                                                     }
                                                                     mirror
+                                                                    compact={
+                                                                        landscapeCompact
+                                                                            ? landscapeCards
+                                                                            : undefined
+                                                                    }
                                                                     data-testid="zone-opponent-battlefield"
                                                                 />
                                                             </div>
@@ -568,11 +643,18 @@ export default function Board({
                                                                           // lands row under a
                                                                           // full hand.
                                                                           PORTRAIT_VIEWER_BATTLEFIELD_BAND
-                                                                        : "absolute left-0 right-0 top-1/2 h-[32%]"
+                                                                        : landscapeCompact
+                                                                          ? LANDSCAPE_VIEWER_BATTLEFIELD_BAND
+                                                                          : "absolute left-0 right-0 top-1/2 h-[32%]"
                                                                 }
                                                             >
                                                                 <BoardBattlefield
                                                                     player={me}
+                                                                    compact={
+                                                                        landscapeCompact
+                                                                            ? landscapeCards
+                                                                            : undefined
+                                                                    }
                                                                     data-testid="zone-player-battlefield"
                                                                 />
                                                             </div>
@@ -595,7 +677,9 @@ export default function Board({
                                                                           // battlefield above
                                                                           // reserves (#1760).
                                                                           PORTRAIT_VIEWER_HAND_BAND
-                                                                        : "absolute left-0 right-[var(--right-piles-w)] bottom-0 h-[18%]"
+                                                                        : landscapeCompact
+                                                                          ? LANDSCAPE_VIEWER_HAND_BAND
+                                                                          : "absolute left-0 right-[var(--right-piles-w)] bottom-0 h-[18%]"
                                                                 }
                                                             >
                                                                 {isPortrait ? (
@@ -618,8 +702,26 @@ export default function Board({
                                                                             me.id ===
                                                                             viewerId
                                                                         }
+                                                                        // Landscape: flat row, and the
+                                                                        // SAME footprint the battlefield
+                                                                        // lays out with — the whole point
+                                                                        // of #1768 (the desktop fan used
+                                                                        // to render 120×168 hand cards
+                                                                        // next to 35×49 permanents).
                                                                         layout={
-                                                                            handLayout
+                                                                            landscapeCompact
+                                                                                ? landscapeHandLayout
+                                                                                : handLayout
+                                                                        }
+                                                                        cardWidth={
+                                                                            landscapeCompact
+                                                                                ? landscapeCards.cardWidth
+                                                                                : undefined
+                                                                        }
+                                                                        cardHeight={
+                                                                            landscapeCompact
+                                                                                ? landscapeCards.cardHeight
+                                                                                : undefined
                                                                         }
                                                                         data-testid="zone-player-hand"
                                                                     />
@@ -648,6 +750,9 @@ export default function Board({
                                                         <BoardPiles
                                                             orderedPlayers={
                                                                 orderedPlayers
+                                                            }
+                                                            compact={
+                                                                landscapeCompact
                                                             }
                                                         />
                                                     )}
