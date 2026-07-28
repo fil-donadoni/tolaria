@@ -20,6 +20,9 @@ import {
     moduleForCost,
     writeSetDirectory,
 } from "./lib/set-modules.mjs";
+import { parseManaCost, formatManaCost } from "./lib/mana-cost.mjs";
+
+export { parseManaCost, formatManaCost };
 
 const jsonPath = process.argv[2];
 if (!jsonPath) {
@@ -37,33 +40,10 @@ const cards = setData.cards;
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
-const COLOR_MAP = { W: "W", U: "U", B: "B", R: "R", G: "G", C: "C" };
-
-function parseManaCost(mana) {
-    if (!mana) return undefined;
-    const manaCost = {};
-    let genericNum = 0;
-    let xCount = 0;
-    const symbols = mana.match(/\{[^}]+\}/g) ?? [];
-    for (const sym of symbols) {
-        const inner = sym.slice(1, -1);
-        if (/^\d+$/.test(inner)) {
-            genericNum += Number(inner);
-        } else if (inner === "X") {
-            xCount++;
-        } else if (COLOR_MAP[inner]) {
-            const color = COLOR_MAP[inner];
-            manaCost[color] = (manaCost[color] ?? 0) + 1;
-        }
-        // hybrid / phyrexian / snow — extend later
-    }
-    if (xCount > 0) {
-        manaCost.X = "X".repeat(xCount);
-    } else if (genericNum > 0) {
-        manaCost.X = genericNum;
-    }
-    return Object.keys(manaCost).length > 0 ? manaCost : undefined;
-}
+// `parseManaCost` / `formatManaCost` now live in `./lib/mana-cost.mjs`,
+// shared with `list-to-cards.mjs` (issue #1742) — see that module for the
+// hybrid/Phyrexian symbol handling and the loud-failure path on anything
+// unrecognised.
 
 function toIdentifier(name) {
     return name
@@ -85,22 +65,6 @@ function toSnakeId(name) {
         .replace(/[^a-zA-Z0-9]+/g, "_")
         .replace(/^_|_$/g, "")
         .toLowerCase();
-}
-
-function formatCost(manaCost) {
-    if (!manaCost) return "{}";
-    const parts = [];
-    const order = ["X", "W", "U", "B", "R", "G", "C"];
-    for (const k of order) {
-        if (manaCost[k] !== undefined) {
-            const val =
-                typeof manaCost[k] === "string"
-                    ? `"${manaCost[k]}"`
-                    : manaCost[k];
-            parts.push(`${k}: ${val}`);
-        }
-    }
-    return `{ ${parts.join(", ")} }`;
 }
 
 function formatArray(arr) {
@@ -155,7 +119,7 @@ for (const card of cards) {
     fields.push(`    id: "${scryfallId}"`);
     fields.push(`    name: "${card.name.replace(/"/g, '\\"')}"`);
     fields.push(`    rarity: "${rarity}"`);
-    if (manaCost) fields.push(`    manaCost: ${formatCost(manaCost)}`);
+    if (manaCost) fields.push(`    manaCost: ${formatManaCost(manaCost)}`);
     fields.push(`    types: ${formatArray(types)}`);
     if (supertypes) fields.push(`    supertypes: ${formatArray(supertypes)}`);
     if (subtypes) fields.push(`    subtypes: ${formatArray(subtypes)}`);
@@ -179,8 +143,12 @@ for (const card of cards) {
 // Default output is the live catalogue (`convex/cards/sets`). Tests override it
 // (JSON_TO_CARDS_OUT_DIR) to a throwaway tmp dir so their generate/cleanup can
 // never race a concurrent worker walking the real sets tree (sacrificeGuard).
-const setsDir = resolve(process.env.JSON_TO_CARDS_OUT_DIR ?? "convex/cards/sets");
+const setsDir = resolve(
+    process.env.JSON_TO_CARDS_OUT_DIR ?? "convex/cards/sets"
+);
 // Colour modules live at `sets/<code>/<colour>.ts`, two levels above `cards/`.
 const importLine = `import type { CardDefinition } from "../../types";`;
 const setDir = writeSetDirectory(setsDir, setCode, sources, importLine);
-console.log(`Written ${seenIds.size} cards → ${setDir}/ (colour-split, ADR 0043)`);
+console.log(
+    `Written ${seenIds.size} cards → ${setDir}/ (colour-split, ADR 0043)`
+);

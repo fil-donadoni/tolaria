@@ -166,4 +166,75 @@ describe("json-to-cards colour-split directory layout (ADR 0043)", () => {
         expect(modules.white).not.toContain("Test Hybrid");
         expect(modules.blue).not.toContain("Test Hybrid");
     });
+
+    // Issue #1742: `parseManaCost` used to drop guild-hybrid/Phyrexian pips
+    // silently, so a card like Vibrance ({R/G}...) lost its coloured pips
+    // entirely and misfiled into colorless.ts. These assert the fixed parse
+    // both emits the `hybrid`/`phyrexian` fields AND routes correctly.
+    it("routes a guild-hybrid card ({R/W}) to multicolor.ts, never colorless.ts", () => {
+        const { modules } = generate("zzt", [
+            baseCard({
+                name: "Test Guild Hybrid",
+                manaCost: "{R/W}",
+                identifiers: {
+                    scryfallId: "00000000-0000-0000-0000-000000000005",
+                },
+            }),
+        ]);
+        expect(modules.multicolor).toContain("Test Guild Hybrid");
+        expect(modules.multicolor).toContain('hybrid: [["R", "W"]]');
+        expect(modules.colorless).not.toContain("Test Guild Hybrid");
+        expect(modules.red).not.toContain("Test Guild Hybrid");
+        expect(modules.white).not.toContain("Test Guild Hybrid");
+    });
+
+    it("routes a single-colour Phyrexian card ({B/P}) to its own colour module", () => {
+        const { modules } = generate("zzs", [
+            baseCard({
+                name: "Test Phyrexian",
+                manaCost: "{1}{B/P}{B/P}",
+                identifiers: {
+                    scryfallId: "00000000-0000-0000-0000-000000000006",
+                },
+            }),
+        ]);
+        expect(modules.black).toContain("Test Phyrexian");
+        expect(modules.black).toContain("phyrexian: { B: 2 }");
+        expect(modules.colorless).not.toContain("Test Phyrexian");
+    });
+
+    it("raises instead of silently dropping an unmodelled symbol ({S} snow)", () => {
+        const dir = mkdtempSync(join(tmpdir(), "json-to-cards-"));
+        const jsonPath = join(dir, "zzr.json");
+        const outRoot = join(dir, "sets");
+        writeFileSync(
+            jsonPath,
+            JSON.stringify({
+                data: {
+                    code: "zzr",
+                    cards: [
+                        baseCard({
+                            name: "Test Snow",
+                            manaCost: "{1}{S}",
+                            identifiers: {
+                                scryfallId:
+                                    "00000000-0000-0000-0000-000000000007",
+                            },
+                        }),
+                    ],
+                },
+            }),
+            "utf-8"
+        );
+        try {
+            expect(() =>
+                execFileSync("bun", [SCRIPT, jsonPath], {
+                    encoding: "utf-8",
+                    env: { ...process.env, JSON_TO_CARDS_OUT_DIR: outRoot },
+                })
+            ).toThrow();
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    });
 });

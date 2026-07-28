@@ -34,7 +34,7 @@ describe("parseWorklist", () => {
     });
 });
 
-describe("parseManaCost (mirrors json-to-cards)", () => {
+describe("parseManaCost (shared with json-to-cards via scripts/lib/mana-cost.mjs)", () => {
     it("splits coloured and generic pips", () => {
         expect(parseManaCost("{1}{G}")).toEqual({ X: 1, G: 1 });
         expect(parseManaCost("{W}{W}")).toEqual({ W: 2 });
@@ -42,6 +42,26 @@ describe("parseManaCost (mirrors json-to-cards)", () => {
     it("returns undefined for no cost (e.g. lands)", () => {
         expect(parseManaCost(undefined)).toBeUndefined();
         expect(parseManaCost("")).toBeUndefined();
+    });
+    // Issue #1742: this importer is the one that actually produced the bug's
+    // named examples (Figure of Destiny, Vibrance) — it resolves cross-set
+    // worklists by name from Scryfall, unlike json-to-cards.mjs's single-set
+    // JSON mode. A hybrid pip in a capability-bucket stub must survive intact
+    // so the implementer isn't fixing up a silently-wrong cost later.
+    it("parses guild-hybrid pips instead of dropping them (Vibrance shape)", () => {
+        expect(parseManaCost("{4}{R/G}{R/G}")).toEqual({
+            X: 4,
+            hybrid: [
+                ["R", "G"],
+                ["R", "G"],
+            ],
+        });
+    });
+    it("parses Phyrexian pips instead of dropping them", () => {
+        expect(parseManaCost("{R/P}")).toEqual({ phyrexian: { R: 1 } });
+    });
+    it("raises instead of silently dropping an unmodelled symbol", () => {
+        expect(() => parseManaCost("{S}")).toThrow(/unrecognised mana symbol/i);
     });
 });
 
@@ -246,6 +266,23 @@ describe("emitCardSource", () => {
         expect(() => emitCardSource({ ...free, rarity: "special" })).toThrow(
             /rarity/i
         );
+    });
+
+    // Issue #1742: Figure of Destiny (an activated-ability card → capability
+    // bucket, commented-out stub) has a `{R/W}` casting cost. Before the fix,
+    // the dropped hybrid pip meant the stub carried NO manaCost field at all —
+    // effectively a costless 1/1 once implemented without a second look at
+    // Scryfall. The stub must now carry the real hybrid cost.
+    it("a capability stub with a hybrid cost keeps the hybrid pip (Figure of Destiny shape)", () => {
+        const src = emitCardSource({
+            ...free,
+            name: "Figure of Destiny",
+            mana_cost: "{R/W}",
+            oracle_text:
+                "{R/W}: Figure of Destiny becomes a Kithkin Spirit with base power and toughness 2/2.",
+            id: "figure-id",
+        });
+        expect(src).toContain('hybrid: [["R", "W"]]');
     });
 });
 
