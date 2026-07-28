@@ -5,7 +5,7 @@
 // tests; the GRE→game.ts executor contract is covered separately by the
 // integration test.
 
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { getAllCards, getCardByName } from "../../cards";
 import {
     makeInstance,
@@ -14,6 +14,7 @@ import {
     pushSpell,
 } from "../../cards/__tests__/setup";
 import type { CardInstanceState, GameState } from "../state";
+import * as stateModule from "../state";
 import { enumerateMoves, planManaPayment, type Move } from "../moves";
 import { getLegalActions } from "../rules";
 
@@ -807,6 +808,53 @@ describe("gate ↔ enumerator cost-modifier parity (CR 601.2f, issue #1337)", ()
         // reduction drops it to {G} alone, payable off the single Forest.
         expect(legalActionsFor(state, "p1", bears)).toContain("cast");
         expect(castsFor(state, "p1", bears.id)).toHaveLength(1);
+    });
+});
+
+describe("enumerateCastMoves — getCostModifiers hoisted out of the mode×X loop (issue #1663)", () => {
+    afterEach(() => vi.restoreAllMocks());
+
+    it("calls getCostModifiers exactly once per candidate card, not once per (mode, X) combination", () => {
+        const fireball = makeInstance(FIREBALL, {
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const p1 = makePlayer("p1", {
+            hand: [fireball],
+            // R + 2 extra generic available -> X can be 0, 1, or 2 (3 values),
+            // each with 2 legal "any" targets (both players, no creatures) —
+            // several (mode, X) combinations from ONE candidate card.
+            battlefield: [
+                land(MOUNTAIN, "p1"),
+                land(MOUNTAIN, "p1"),
+                land(MOUNTAIN, "p1"),
+            ],
+        });
+        const p2 = makePlayer("p2");
+        const state = makeState({ players: [p1, p2] });
+
+        const spy = vi.spyOn(stateModule, "getCostModifiers");
+        const casts = enumerateMoves(state, "p1").filter(
+            (m): m is Extract<Move, { kind: "cast-spell" }> =>
+                m.kind === "cast-spell"
+        );
+
+        // Sanity: the enumeration actually walked multiple (mode, X)
+        // combinations for this single card — otherwise the call-count
+        // assertion below would be vacuously true.
+        expect(casts.length).toBeGreaterThan(1);
+        expect(new Set(casts.map((c) => c.chosenX)).size).toBe(3);
+
+        // The hoist under test: exactly TWO getCostModifiers calls total for
+        // this single candidate card — one from the `getLegalActions` gate
+        // (`canPotentiallyPayCost`, rules.ts) that `enumerateMoves` consults
+        // before enumerating, plus ONE hoisted call inside
+        // `enumerateCastMoves` — regardless of how many (mode, X)
+        // combinations were enumerated. Before the fix the enumerator alone
+        // called it once per combination (3 here), for 1 (gate) + 3
+        // (per-combination) = 4 total.
+        expect(spy).toHaveBeenCalledTimes(2);
     });
 });
 
