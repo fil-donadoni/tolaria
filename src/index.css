@@ -740,6 +740,18 @@
 [data-phase-sheet] [role="dialog"] {
     width: 100%;
     max-height: none;
+    /* The sheet shell (not this dialog) owns the height cap — `max-h-[70vh]
+     * overflow-hidden` on the flex-column wrapper above. `flex: 1` lets this
+     * panel stretch to fill the remaining space under the grab handle instead
+     * of sizing to its own `calc(100vh - 24px)` inline max-height (the
+     * desktop panel's bound, irrelevant once nested here), and `min-height: 0`
+     * is the flex-item override that lets it actually SHRINK below its
+     * content size — without it `ControllerPhaseList`'s internal
+     * `min-h-0 flex-1 overflow-y-auto` list never gets a bounded ancestor and
+     * never engages its own scroll, hard-clipping the bottom of the list
+     * (e.g. the Ending steps) on short viewports instead of scrolling to it. */
+    flex: 1;
+    min-height: 0;
     border: 0;
     border-radius: 0;
     background: transparent;
