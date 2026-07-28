@@ -476,6 +476,62 @@ describe("Mind Warp (look + discard X, CR 701.8)", () => {
         expect(mindWarp.manaCost).toMatchObject({ X: "X", B: 1 });
         expect(mindWarp.targetRequirement).toMatchObject({ type: "player" });
     });
+
+    // Regression (#1719 review finding 1) — the #1698 fix gated the
+    // cross-player hand exposure on `kind === "choose-hand-card"`, missing
+    // Mind Warp's IDENTICAL "look at target player's hand, caster picks which
+    // cards get discarded" shape under `kind: "discard-hand"`. Before this
+    // fix, `HandCardPick` never mounted (it routed only on
+    // `choose-hand-card`) and `projectPublicState` never exposed the
+    // target's hand either — the match hung with a Done button that could
+    // never enable.
+    it("suspends on a discard-hand pick that exposes the target's hand to the CASTER through projectPublicState, then completes the discard", () => {
+        const handCard1 = makeInstance(grizzlyBears.id, {
+            id: "mw-hand1",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const handCard2 = makeInstance(grizzlyBears.id, {
+            id: "mw-hand2",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { hand: [handCard1, handCard2] }),
+            ],
+        });
+        const item = pushSpell(state, mindWarp.id, "p1", [
+            { type: "player", id: "p2" },
+        ]);
+        item.chosenX = 1;
+        resolveTopOfStack(state);
+
+        expect(state.pendingChoices?.[0]?.kind).toBe("discard-hand");
+        expect(state.pendingChoices?.[0]?.zoneOwnerId).toBe("p2");
+        expect(state.pendingChoices?.[0]?.playerId).toBe("p1");
+
+        // Wire assertion through the real reducer (not a hand-built view):
+        // the CASTER (p1) must see p2's hand face-up right now, or the
+        // picker renders empty and the Done button can never enable.
+        const projected = projectPublicState(state, 1, "p1");
+        const targetHand = projected.players.find((p) => p.id === "p2")!.hand;
+        expect(targetHand.map((c) => c?.id).sort()).toEqual([
+            "mw-hand1",
+            "mw-hand2",
+        ]);
+
+        submitChoice(state, ["mw-hand1"]);
+        expect(state.players[1].hand.map((c) => c.id)).toEqual(["mw-hand2"]);
+        expect(state.players[1].graveyard.map((c) => c.id)).toContain(
+            "mw-hand1"
+        );
+        expect(state.stack).toHaveLength(0);
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+    });
 });
 
 describe("Minion of Tevesh Szat (upkeep pay-or-damage, CR 603.6a)", () => {
@@ -1268,6 +1324,60 @@ describe("Leshrac's Sigil (green-cast discard / return, CR 603.2 / 701.8)", () =
             false
         );
         expect(state.players[0].hand.some((c) => c.id === "sigil")).toBe(true);
+    });
+
+    // Regression (#1719 review finding 1) — same shape as Mind Warp above:
+    // after the {B}{B} may-pay is accepted, Sigil's controller picks which
+    // of the GREEN SPELL'S CASTER's hand cards get discarded, under
+    // `kind: "discard-hand"`. Before this fix neither the modal
+    // (`HandCardPick`) nor the wire exposure (`projectPublicState`)
+    // recognized this kind, hanging the match right after the may-pay.
+    it("after paying {B}{B}, suspends on a discard-hand pick exposing the green caster's hand to Sigil's controller, then completes the discard", () => {
+        const sigil = makeInstance(leshracsSigil.id, {
+            id: "sigil2",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const handCard1 = makeInstance(grizzlyBears.id, {
+            id: "ls-hand1",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [sigil],
+                    manaPool: { W: 0, U: 0, B: 2, R: 0, G: 0, C: 0 },
+                }),
+                makePlayer("p2", { hand: [handCard1] }),
+            ],
+        });
+        resolveTrigger(state, sigil, "leshracs-sigil-green-discard", {
+            type: "SPELL_CAST",
+            casterId: "p2",
+        } as StackItem["triggerEvent"]);
+
+        expect(state.pendingChoices?.[0]?.kind).toBe("may-pay");
+        answerMayPay(state, true);
+
+        expect(state.pendingChoices?.[0]?.kind).toBe("discard-hand");
+        expect(state.pendingChoices?.[0]?.zoneOwnerId).toBe("p2");
+        expect(state.pendingChoices?.[0]?.playerId).toBe("p1");
+
+        // Wire assertion through the real reducer — Sigil's controller (p1)
+        // must see p2's hand face-up right now.
+        const projected = projectPublicState(state, 1, "p1");
+        const targetHand = projected.players.find((p) => p.id === "p2")!.hand;
+        expect(targetHand.map((c) => c?.id)).toEqual(["ls-hand1"]);
+
+        submitChoice(state, ["ls-hand1"]);
+        expect(state.players[1].hand).toHaveLength(0);
+        expect(state.players[1].graveyard.map((c) => c.id)).toContain(
+            "ls-hand1"
+        );
+        expect(state.stack).toHaveLength(0);
+        expect(state.pendingChoices ?? []).toHaveLength(0);
     });
 });
 

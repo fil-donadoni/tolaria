@@ -210,15 +210,22 @@ export default function PendingChoicePrompt({
     // in-hand toggle so they don't double up with the ordered drag surface.
     if (choice.kind === "choose-hand-card" && choice.putOnTop) return null;
 
-    // A `choose-hand-card` pick from ANOTHER player's hand (Thoughtseize /
-    // Duress / Hymn to Tourach) owns its own modal picker (`HandCardPick`,
-    // mounted by the board), which reuses the search-library surface + a
-    // reachable Done. Suppress this generic banner so it doesn't double up with
-    // a "0 / max selected" counter over cards the viewer can't reach here (the
-    // opponent's hand is not clickable in-place). Own-hand picks keep the
-    // banner + in-hand toggle.
+    // A hand-zone pick from ANOTHER player's hand (Thoughtseize / Duress /
+    // Hymn to Tourach's `choose-hand-card`; Mind Warp / Leshrac's Sigil's
+    // `discard-hand` — the caster picks which of the TARGET's cards get
+    // discarded) owns its own modal picker (`HandCardPick`, mounted by the
+    // board), which reuses the search-library surface + a reachable Done.
+    // Suppress this generic banner so it doesn't double up with a
+    // "0 / max selected" counter over cards the viewer can't reach here (the
+    // opponent's hand is not clickable in-place). Gated on "chooser ≠ zone
+    // owner", NOT `kind` (issue #1698 / #1719 review finding 1 — a `kind`-only
+    // check missed `discard-hand`, leaving both the modal AND this banner
+    // unreachable for Mind Warp/Leshrac's Sigil). `reveal-hand` is excluded —
+    // its own dedicated suppression is below. Own-hand picks keep the banner
+    // + in-hand toggle.
     if (
-        choice.kind === "choose-hand-card" &&
+        choice.kind !== "reveal-hand" &&
+        choice.zone === "hand" &&
         !!choice.zoneOwnerId &&
         choice.zoneOwnerId !== playerId
     ) {

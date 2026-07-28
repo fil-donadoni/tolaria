@@ -151,6 +151,46 @@ describe("PendingChoicePrompt — choose-hand-card (issue #1698)", () => {
     });
 });
 
+// Regression (#1719 review finding 1) — the #1698 router keyed the
+// suppression on `kind === "choose-hand-card"` and missed the identical
+// cross-player shape under `discard-hand` (Mind Warp, Leshrac's Sigil): the
+// generic banner kept showing a "0 / max selected" counter over cards the
+// viewer can't reach in-place, on top of nothing else offering a reachable
+// Done — the exact hang this suite exists to catch. Gated on
+// "chooser ≠ zone owner", not `kind`.
+describe("PendingChoicePrompt — discard-hand (issue #1698 / #1719 review finding 1)", () => {
+    it("yields (renders nothing) for a cross-player discard-hand pick — HandCardPick owns it", () => {
+        const choice: PendingChoice = {
+            stackItemId: "stk",
+            step: 0,
+            choiceId: "me",
+            playerId: "me",
+            kind: "discard-hand",
+            zone: "hand",
+            zoneOwnerId: "opponent",
+            count: 1,
+            prompt: "Mind Warp: choose cards for that player to discard.",
+        } as PendingChoice;
+        const { container } = renderPrompt(choice);
+        expect(container.firstChild).toBeNull();
+    });
+
+    it("still renders the generic banner for an own-hand discard-hand pick (zoneOwnerId omitted, e.g. cleanup discard)", () => {
+        const choice: PendingChoice = {
+            stackItemId: "stk",
+            step: 0,
+            choiceId: "me",
+            playerId: "me",
+            kind: "discard-hand",
+            zone: "hand",
+            count: 1,
+            prompt: "Discard a card (hand size)",
+        } as PendingChoice;
+        const { container } = renderPrompt(choice);
+        expect(container.firstChild).not.toBeNull();
+    });
+});
+
 describe("PendingChoicePrompt — pick-pile (ADR 0053, pile division)", () => {
     it("yields (renders nothing) for the chooser — the PileDivisionPicker owns the pick surface", () => {
         // ADR 0053: the chooser's face-up two-pile pick moved out of the generic

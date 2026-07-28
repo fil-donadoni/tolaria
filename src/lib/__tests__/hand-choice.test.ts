@@ -66,4 +66,37 @@ describe("isSelectableHandChoiceCard", () => {
             )
         ).toBe(false);
     });
+
+    // Regression (#1719 review finding 1) — the review flagged this
+    // predicate alongside the `kind`-only gates in `HandCardPick` /
+    // `gameProjections.ts`'s exposure, since Mind Warp/Leshrac's Sigil
+    // (`discard-hand`) hung on BOTH the missing modal AND (independently)
+    // the fact that a cross-player pick's cards live in the OPPONENT's hand,
+    // never the chooser's own — so the in-hand toggle could never have
+    // helped regardless of `kind`. This function was already `kind`-agnostic
+    // (it never reads `choice.kind`) and needed NO code change: it correctly
+    // refuses ANY card the viewer doesn't own, `discard-hand` included, which
+    // is exactly right for a cross-player pick's opponent-owned cards, and
+    // exactly what's needed for an own-hand pick's own cards (Pox, cleanup
+    // discard) to keep working. Pinned here so a future change can't
+    // silently add a `kind` branch that carves out an exception.
+    it("is false for a discard-hand pick's card the viewer does not own (Mind Warp/Leshrac's Sigil shape)", () => {
+        expect(
+            isSelectableHandChoiceCard(
+                choice({ kind: "discard-hand", zoneOwnerId: "opp" }),
+                { id: "c1", ownerId: "opp" },
+                "me"
+            )
+        ).toBe(false);
+    });
+
+    it("is true for a discard-hand pick's OWN card (cleanup discard / Pox shape)", () => {
+        expect(
+            isSelectableHandChoiceCard(
+                choice({ kind: "discard-hand" }),
+                { id: "c1", ownerId: "me" },
+                "me"
+            )
+        ).toBe(true);
+    });
 });

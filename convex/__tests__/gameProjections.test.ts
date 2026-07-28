@@ -456,17 +456,25 @@ describe("reorder/peek/reveal exposure (issue #262, CR 401.4)", () => {
         }
     });
 
-    // Regression (issue #1698, Seer's Vision hang) — a `choose-hand-card`
-    // pick anchored on a DIFFERENT player's hand ("look at target player's
-    // hand and choose a card from it") is the exact same "chooser needs to
-    // see a foreign zone" shape as reorder-library/reveal-hand above, but it
-    // must expose the ORDINARY `hand` wire field (what `HandCardPick` reads),
-    // not `revealedHand` (the `reveal-hand`-only look view). Before the fix
-    // this stayed `null` for every candidate the instant no OTHER mechanism
-    // (an explicit `reveal` Op, or a still-battlefield-resident continuous
+    // Regression (issue #1698, Seer's Vision hang; widened by #1719 review
+    // finding 1, Mind Warp / Leshrac's Sigil) — a hand-zone pick anchored on a
+    // DIFFERENT player's hand ("look at target player's hand and choose N
+    // cards from it") is the exact same "chooser needs to see a foreign zone"
+    // shape as reorder-library/reveal-hand above, but it must expose the
+    // ORDINARY `hand` wire field (what `HandCardPick` reads), not
+    // `revealedHand` (the `reveal-hand`-only look view). Before #1698 this
+    // stayed `null` for every candidate the instant no OTHER mechanism (an
+    // explicit `reveal` Op, or a still-battlefield-resident continuous
     // `revealsHand` static) happened to cover that hand — stranding the
-    // picker at zero clickable cards forever.
-    function stateWithChooseHandCard(): GameState {
+    // picker at zero clickable cards forever. Before THIS fix, the #1698
+    // gate keyed on `kind === "choose-hand-card"` and missed the IDENTICAL
+    // `discard-hand` shape (Mind Warp, Leshrac's Sigil: the caster picks
+    // which of the TARGET's cards get discarded) — parametrized over both
+    // kinds below so the fixture proves the gate keys on "chooser ≠ zone
+    // owner", not on `kind`.
+    function stateWithHandPick(
+        kind: "choose-hand-card" | "discard-hand"
+    ): GameState {
         return makeState({
             pendingChoices: [
                 {
@@ -475,7 +483,7 @@ describe("reorder/peek/reveal exposure (issue #262, CR 401.4)", () => {
                     choiceId: "p1",
                     playerId: "p1",
                     zoneOwnerId: "p2",
-                    kind: "choose-hand-card",
+                    kind,
                     zone: "hand",
                     count: 1,
                     prompt: "Choose a card",
@@ -484,38 +492,83 @@ describe("reorder/peek/reveal exposure (issue #262, CR 401.4)", () => {
         });
     }
 
-    it("projectPublicState exposes the zone owner's hand (ordinary `hand` field) to a choose-hand-card chooser", () => {
-        const result = projectPublicState(stateWithChooseHandCard(), 1, "p1");
+    it.each(["choose-hand-card", "discard-hand"] as const)(
+        "projectPublicState exposes the zone owner's hand (ordinary `hand` field) to a %s chooser",
+        (kind) => {
+            const result = projectPublicState(stateWithHandPick(kind), 1, "p1");
+            const owner = result.players.find((p) => p.id === "p2")!;
+            // p2's default hand (makeState fixture): p2-h1/h2/h3, all real
+            // ids — NOT null — because p1 is the active chooser.
+            expect(owner.hand.map((c) => c?.id)).toEqual([
+                "p2-h1",
+                "p2-h2",
+                "p2-h3",
+            ]);
+        }
+    );
+
+    it.each(["choose-hand-card", "discard-hand"] as const)(
+        "does NOT expose revealedHand for a %s pick (that field is reveal-hand-only)",
+        (kind) => {
+            const result = projectPublicState(stateWithHandPick(kind), 1, "p1");
+            const owner = result.players.find((p) => p.id === "p2")!;
+            expect(owner.revealedHand).toBeUndefined();
+        }
+    );
+
+    // Regression (#1719 review finding 2) — the ORIGINAL negative test here
+    // asserted p1's hand (never the exposed zone in this fixture — p2 is)
+    // stayed `[null, null]` when viewed by p2. That assertion is vacuous:
+    // deleting the `isChooser` gate entirely (or widening it to any viewer)
+    // still passes it, since p1's hand was never touched by either code
+    // path. These two replacements actually fail on a widened/broken gate.
+    it.each(["choose-hand-card", "discard-hand"] as const)(
+        "does NOT expose the ZONE OWNER's hand to a viewer who is not the chooser (%s)",
+        (kind) => {
+            // A viewer that is neither the chooser (p1) nor a real player in
+            // this fixture — proves the exposure keys on `isChooser`
+            // (chooserId === head.playerId), not merely on "the zone owner
+            // isn't looking at their own hand" or an unconditional lookup
+            // that would leak the exposed hand to ANY other viewer.
+            const result = projectPublicState(
+                stateWithHandPick(kind),
+                1,
+                "not-the-chooser"
+            );
+            const owner = result.players.find((p) => p.id === "p2")!;
+            expect(owner.hand).toEqual([null, null, null]);
+        }
+    );
+
+    it.each(["choose-hand-card", "discard-hand"] as const)(
+        "does NOT expose the zone owner's hand once the pick is no longer head-of-queue (%s)",
+        (kind) => {
+            // Same zoneOwnerId/hand shape, but the choice has left the
+            // queue — pins the "only while head-of-queue" half of the
+            // exposure, which the original vacuous test never exercised.
+            const state = { ...stateWithHandPick(kind), pendingChoices: [] };
+            const result = projectPublicState(state, 1, "p1");
+            const owner = result.players.find((p) => p.id === "p2")!;
+            expect(owner.hand).toEqual([null, null, null]);
+        }
+    );
+
+    // Regression (#1719 review) — `reveal-hand` is deliberately EXCLUDED from
+    // the generalized "chooser ≠ zone owner" gate: it already owns its own
+    // dedicated exposure (`revealZoneOwner` → `revealedHand`) and its own
+    // modal (`RevealHandView`). The ordinary `hand` field must stay masked
+    // for the chooser even though `revealedHand` carries the same cards —
+    // otherwise the widened gate would double-expose the same hand through
+    // two different fields.
+    it("does NOT expose the ordinary `hand` field for a reveal-hand pick (revealedHand is its own field)", () => {
+        const result = projectPublicState(stateWithRevealHand(), 1, "p1");
         const owner = result.players.find((p) => p.id === "p2")!;
-        // p2's default hand (makeState fixture): p2-h1/h2/h3, all real ids —
-        // NOT null — because p1 is the active choose-hand-card chooser.
-        expect(owner.hand.map((c) => c?.id)).toEqual([
+        expect(owner.hand).toEqual([null, null, null]);
+        expect(owner.revealedHand!.map((c) => c.id)).toEqual([
             "p2-h1",
             "p2-h2",
             "p2-h3",
         ]);
-    });
-
-    it("does NOT expose the hand to a viewer who is not the choose-hand-card chooser", () => {
-        const result = projectPublicState(stateWithChooseHandCard(), 1, "p2");
-        // p2 viewing themselves always sees their own hand in full — that's
-        // the ordinary own-hand branch, unrelated to this exposure.
-        const self = result.players.find((p) => p.id === "p2")!;
-        expect(self.hand.map((c) => c?.id)).toEqual([
-            "p2-h1",
-            "p2-h2",
-            "p2-h3",
-        ]);
-        // But p2 must NOT get any special exposure of p1's hand — p2 is the
-        // ZONE OWNER being picked from here, not the chooser.
-        const p1AsSeenByP2 = result.players.find((p) => p.id === "p1")!;
-        expect(p1AsSeenByP2.hand).toEqual([null, null]);
-    });
-
-    it("does NOT expose revealedHand for a choose-hand-card pick (that field is reveal-hand-only)", () => {
-        const result = projectPublicState(stateWithChooseHandCard(), 1, "p1");
-        const owner = result.players.find((p) => p.id === "p2")!;
-        expect(owner.revealedHand).toBeUndefined();
     });
 });
 
