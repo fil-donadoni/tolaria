@@ -1,4 +1,5 @@
 import type { Player } from "~/types/game";
+import { ABOVE_CONTROLLER_BAR } from "~/lib/controller-bar-metrics";
 import BoardPileChips from "./board-pile-chips";
 
 /** The portrait bar's Zones drawer (variant D, #1759).
@@ -24,6 +25,11 @@ import BoardPileChips from "./board-pile-chips";
  *  escape the hidden container and appear over the board regardless of the
  *  drawer's state.
  *
+ *  It floats clear of the bar by anchoring to the bar's MEASURED height
+ *  ({@link ABOVE_CONTROLLER_BAR}), not a fixed inset: the bar's command row
+ *  wraps, and a hard-coded `bottom-32` put the drawer's own edge back underneath
+ *  the two-line DECLARE_ATTACKERS bar — reintroducing this ticket's overlap.
+ *
  *  Deliberately thin: the richer pile presentation is tracked-by: #1766. */
 export default function ControllerZonesDrawer({
     player,
@@ -39,7 +45,7 @@ export default function ControllerZonesDrawer({
             role="group"
             aria-label="Your zones"
             aria-hidden={!open}
-            className={`fixed inset-x-3 bottom-32 z-50 justify-center rounded-2xl border border-border-subtle bg-surface-base/95 p-2 shadow-2xl backdrop-blur-xl ${
+            className={`fixed inset-x-3 ${ABOVE_CONTROLLER_BAR} z-50 justify-center rounded-2xl border border-border-subtle bg-surface-base/95 p-2 shadow-2xl backdrop-blur-xl ${
                 open ? "flex" : "hidden"
             }`}
         >

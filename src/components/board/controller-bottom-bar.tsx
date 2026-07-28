@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Flag, Layers, Menu } from "lucide-react";
 import { useGameContext } from "~/hooks/useGameContext";
 import { useControllerActions } from "~/hooks/useControllerActions";
+import { useControllerBarHeight } from "~/hooks/useControllerBarHeight";
 import { selectCommandSlots } from "~/lib/controller-action-slots";
 import { pileChoiceNeedsViewerZones } from "~/lib/pile-choice-surface";
 import { phaseGroupLabel } from "~/lib/phase-labels";
@@ -52,6 +53,10 @@ export default function ControllerBottomBar({
     const { cue, actions, attackAllConfirm } = useControllerActions();
     const [sheetOpen, setSheetOpen] = useState(false);
     const [zonesOpen, setZonesOpen] = useState(false);
+    // The bar's height is state-dependent (the command row wraps), so nothing
+    // may reserve a fixed inset for it — it publishes what it measures and the
+    // hand strip / Zones drawer anchor to that. See controller-bar-metrics.ts.
+    const barRef = useControllerBarHeight<HTMLDivElement>();
 
     // Same derivation the board uses; the context's `playerId` IS the viewer.
     const me = allPlayers.find((p) => p.id === playerId);
@@ -71,6 +76,7 @@ export default function ControllerBottomBar({
     return (
         <>
             <div
+                ref={barRef}
                 data-controller-bottom-bar
                 data-cue={cue}
                 className="fixed inset-x-0 bottom-0 z-40 flex flex-col md:hidden"

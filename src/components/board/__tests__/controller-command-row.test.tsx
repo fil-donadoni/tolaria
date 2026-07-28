@@ -57,6 +57,28 @@ function itemWidth(el: HTMLElement): number {
     );
 }
 
+/** Greedy line packing of the wrapped row, using the same width estimates.
+ *  `flex-wrap` breaks to a new line as soon as the next item does not fit the
+ *  remaining space — exactly this loop. */
+function lineCount(row: HTMLElement): number {
+    const items = [...row.children].filter(
+        (c): c is HTMLElement => c instanceof HTMLElement
+    );
+    let lines = 1;
+    let used = 0;
+    for (const item of items) {
+        const w = itemWidth(item);
+        const packed = used === 0 ? w : used + GAP + w;
+        if (packed > AVAILABLE) {
+            lines += 1;
+            used = w;
+        } else {
+            used = packed;
+        }
+    }
+    return lines;
+}
+
 function action(over: Partial<ControllerAction> & { key: string }) {
     return {
         label: over.key,
@@ -130,6 +152,40 @@ describe("ControllerCommandRow — fits a 390px phone (#1759)", () => {
         for (const item of items) {
             expect(itemWidth(item)).toBeLessThanOrEqual(AVAILABLE);
         }
+    });
+
+    it("wraps to exactly two lines in the widest state — the bar's height budget", () => {
+        // The wrap is what makes the bar GROW: the side-pill line adds `h-9` +
+        // `gap-2`. Two lines is the height the reservation is sized for, so a
+        // future state that silently packs onto a THIRD line (a longer label, an
+        // extra secondary action) must fail here rather than on a phone.
+        //
+        // The reservation itself no longer hard-codes any of this — the bar
+        // publishes its measured height as `--controller-bar-h` and the hand /
+        // Zones drawer anchor to it (see controller-bar-metrics.ts) — but the
+        // line count is still the thing that moves, so it stays pinned.
+        const { container } = renderRow(DECLARE_ATTACKERS_ACTIONS);
+        const row = container.querySelector(
+            "[data-controller-command-row]"
+        ) as HTMLElement;
+        expect(lineCount(row)).toBe(2);
+    });
+
+    it("stays on one line when there is no secondary action", () => {
+        // The baseline that makes the assertion above meaningful: with priority
+        // and nothing else on offer, the bar is a single-line row.
+        const { container } = renderRow([
+            action({ key: "pass", label: "Pass" }),
+            action({
+                key: "pass-turn",
+                label: "Pass Turn",
+                tone: "destructive",
+            }),
+        ]);
+        const row = container.querySelector(
+            "[data-controller-command-row]"
+        ) as HTMLElement;
+        expect(lineCount(row)).toBe(1);
     });
 
     it("keeps Pass Turn reachable in the widest state", () => {

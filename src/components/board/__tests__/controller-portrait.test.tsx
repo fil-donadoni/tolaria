@@ -14,9 +14,13 @@
 //      mounted (disabled-aware), own life always on the bar.
 //   6. The viewer's zone chips — which used to sit UNDER the bar — are reachable
 //      again from the Zones tab.
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { render, fireEvent, screen } from "@testing-library/react";
 import { GameContext } from "~/hooks/useGameContext";
+import {
+    ABOVE_CONTROLLER_BAR,
+    CONTROLLER_BAR_HEIGHT_VAR,
+} from "~/lib/controller-bar-metrics";
 import {
     PendingChoiceBufferContext,
     type PendingChoiceBuffer,
@@ -366,6 +370,91 @@ describe("Variant D bar — no layout shift, nothing buried (#1759)", () => {
                 .getByLabelText("Toggle your zones")
                 .getAttribute("aria-expanded")
         ).toBe("true");
+    });
+});
+
+describe("Bar height reservation follows the measured height (#1759)", () => {
+    // The bar's command row WRAPS, so the bar grows: ~106px on one line, ~150px
+    // once DECLARE_ATTACKERS pushes the side pills onto their own line. Anything
+    // reserving a fixed inset (the old `bottom-32` = 128px) is then wrong — the
+    // grown bar covered the hand strip's bottom edge (eating taps) and the Zones
+    // drawer's own edge. The bar therefore PUBLISHES what it measures and the
+    // consumers anchor to that variable.
+    //
+    // jsdom does no layout, so the contract under test is the plumbing, not
+    // pixels: the bar is observed, the observed height is what gets written, and
+    // the consumers reference the variable rather than a constant.
+    type Observed = { target: Element; cb: () => void };
+    const observed: Observed[] = [];
+    const realRO = globalThis.ResizeObserver;
+
+    beforeEach(() => {
+        observed.length = 0;
+        class RecordingResizeObserver {
+            cb: () => void;
+            constructor(cb: () => void) {
+                this.cb = cb;
+            }
+            observe(target: Element) {
+                observed.push({ target, cb: this.cb });
+            }
+            unobserve() {}
+            disconnect() {}
+        }
+        globalThis.ResizeObserver =
+            RecordingResizeObserver as unknown as typeof ResizeObserver;
+        document.documentElement.style.removeProperty(
+            CONTROLLER_BAR_HEIGHT_VAR
+        );
+    });
+
+    afterEach(() => {
+        globalThis.ResizeObserver = realRO;
+        document.documentElement.style.removeProperty(
+            CONTROLLER_BAR_HEIGHT_VAR
+        );
+    });
+
+    it("publishes the bar's observed height, and republishes when it grows", () => {
+        const { container, unmount } = renderController();
+        const bar = container.querySelector(
+            "[data-controller-bottom-bar]"
+        ) as HTMLElement;
+        const root = document.documentElement;
+
+        // Seeded on mount, before any observer callback fires.
+        expect(root.style.getPropertyValue(CONTROLLER_BAR_HEIGHT_VAR)).toMatch(
+            /^[\d.]+px$/
+        );
+
+        // The BAR itself is the observed element (not an ancestor whose height
+        // the wrap would not change).
+        const entry = observed.find((o) => o.target === bar);
+        expect(entry).toBeTruthy();
+
+        // A resize republishes the height the observer saw: the two-line
+        // DECLARE_ATTACKERS bar is taller than the 128px that used to be
+        // hard-coded, and the reservation now follows it instead of clipping.
+        bar.getBoundingClientRect = () => ({ height: 150 }) as DOMRect;
+        entry!.cb();
+        expect(root.style.getPropertyValue(CONTROLLER_BAR_HEIGHT_VAR)).toBe(
+            "150px"
+        );
+
+        // Removed with the bar, so landscape / the lobby fall back to the
+        // class's own default.
+        unmount();
+        expect(root.style.getPropertyValue(CONTROLLER_BAR_HEIGHT_VAR)).toBe("");
+    });
+
+    it("anchors the Zones drawer to the variable, not a fixed inset", () => {
+        const { container } = renderController();
+        const drawer = container.querySelector(
+            "[data-controller-zones-drawer]"
+        ) as HTMLElement;
+        expect(drawer.className).toContain(ABOVE_CONTROLLER_BAR);
+        expect(drawer.className).toContain(CONTROLLER_BAR_HEIGHT_VAR);
+        expect(drawer.className).not.toContain("bottom-32");
     });
 });
 
