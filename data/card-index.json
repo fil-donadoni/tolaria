@@ -6384,6 +6384,14 @@
         "firstPrintSet": "tmp"
     },
     {
+        "name": "Jacked Rabbit",
+        "scryfallId": "2c695df6-6bf2-4e6b-8500-e3116137ca27",
+        "oracleId": "5a343a5f-3f9b-43c3-8532-8391de7a5443",
+        "firstSet": "blc",
+        "firstPrintId": "2c695df6-6bf2-4e6b-8500-e3116137ca27",
+        "firstPrintSet": "blc"
+    },
+    {
         "name": "Jacques le Vert",
         "scryfallId": "ee5a45b1-169b-468e-9251-424c09cd7f0f",
         "oracleId": "c030ca14-33cb-40b3-a1f5-b6d0cb0efd49",

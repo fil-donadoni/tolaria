@@ -1150,6 +1150,36 @@ export type CardInstanceState = {
      *  inherit a stale `true` onto the battlefield. Undefined for a permanent
      *  cast unkicked / without a Kicker cost. */
     wasKicked?: boolean;
+    /** CR 107.3 / 601.2b — the value chosen for {X} in this permanent's own
+     *  casting cost, snapshotted from the resolving stack item's `chosenX` the
+     *  instant it enters the battlefield (`finalizeSpellResolution`). The
+     *  persistent, post-ETB twin of the ephemeral `StackItem.chosenX`, exactly
+     *  as `wasKicked` is to `StackItem.kickerCount` (issue #1753) and
+     *  `notedManaSpentOnCast` is to `StackItem.notedManaSpent`.
+     *
+     *  Needed by any predicate that runs AFTER the spell has finished
+     *  resolving and must still know what X was — Ravenous (CR 702.156a,
+     *  Jacked Rabbit, `cards/sets/blc/white.ts`): "When this permanent enters,
+     *  if X is 5 or greater, draw a card" is a triggered ability whose CR
+     *  603.4d intervening-if is re-checked when the TRIGGER resolves, long
+     *  after the creature spell's stack item is gone. Three reasons the raw
+     *  `chosenX` a resolved stack item leaves on the battlefield object (it is
+     *  pushed as-is by `finalizeSpellResolution`) cannot be relied on there:
+     *  it is untyped, it is NOT part of the card serializer (so it silently
+     *  vanishes across the DB round-trip that happens at every stable point —
+     *  including the one between the trigger going on the stack and it
+     *  resolving), and nothing cleared it on a CR 400.7 zone change until this
+     *  field's sibling clear in `resetBattlefieldTransientState`.
+     *
+     *  The +1/+1 counter COUNT is deliberately NOT used as a proxy for X
+     *  (issue #1753): a counter can be added or annihilated by any later
+     *  effect (a pump spell, `-1/-1` counters, CR 704.5q), while X is a
+     *  one-shot fact fixed at CR 601.2b announcement that nothing revisits.
+     *  Like `wasKicked`, it does NOT survive a CR 400.7 zone change back to
+     *  the battlefield: `resetBattlefieldTransientState` deletes it. Undefined
+     *  for a permanent whose cost had no {X} (or that never resolved as a
+     *  spell — a token, a reanimated card). */
+    chosenXOnCast?: number;
 };
 
 /** ADR 0026 — clears persistent card knowledge over a Hidden Zone. The single
@@ -4289,6 +4319,17 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
                     // chosen mode rather than undefined.
                     chosenModeId: (sourceCard as { chosenModeId?: string })
                         .chosenModeId,
+                    // CR 107.3 / 702.33 — the cast-time one-shot snapshots
+                    // must survive into the resolve-time intervening-if. These
+                    // fields exist FOR check-time predicates (see their
+                    // docstrings), and this hand-built view is an allowlist:
+                    // omitted, `chosenXOnCast` reads `undefined` and Ravenous's
+                    // "if X is 5 or greater" (CR 702.156a, Jacked Rabbit) is
+                    // false for every X. `wasKicked` is its exact sibling —
+                    // "if this creature was kicked" (CR 614.1c) has the same
+                    // shape and would be silently false here too.
+                    chosenXOnCast: sourceCard.chosenXOnCast,
+                    wasKicked: sourceCard.wasKicked,
                     isToken: (sourceCard as { isToken?: boolean }).isToken,
                     card: sourceCard.card as Record<string, unknown>,
                 };
@@ -4768,6 +4809,20 @@ function finalizeSpellResolution(state: GameState, item: StackItem): void {
             item.wasKicked = true;
         } else {
             delete item.wasKicked;
+        }
+        // CR 107.3 / 601.2b (issue #674) — same shape, for the chosen {X}: a
+        // LATER predicate (Ravenous's CR 603.4d "if X is 5 or greater"
+        // intervening-if, re-checked when the ETB TRIGGER resolves) needs a
+        // TYPED, SERIALIZED field on the permanent. The raw `chosenX` this
+        // stack item still carries is neither — it is dropped by the card
+        // serializer, so it does not survive the DB round-trip that happens
+        // between the trigger hitting the stack and resolving. Both branches
+        // written explicitly, for the same standalone-correctness reason as
+        // `wasKicked` above.
+        if (item.chosenX !== undefined) {
+            item.chosenXOnCast = item.chosenX;
+        } else {
+            delete item.chosenXOnCast;
         }
         controller.battlefield.push(item);
         // CR 121.6 / 614.1c — apply the entry-counters REPLACEMENT before the
@@ -8361,6 +8416,17 @@ function resetBattlefieldTransientState(card: CardInstanceState): void {
     // sibling of the buyback stack→hand clear in `resetStackTransientState`.
     delete card.wasKicked;
     delete (card as { kickerCount?: number }).kickerCount;
+    // CR 107.3 / 400.7 (issue #674) — the chosen {X} is a one-shot fact about
+    // the OBJECT that resolved; a zone change makes a new object with no
+    // memory of it. Exactly the `wasKicked` pair above: the typed snapshot
+    // AND the stray untyped `chosenX` a resolved stack item leaves on the
+    // battlefield object (`finalizeSpellResolution` pushes the item as-is).
+    // Left uncleared, a Ravenous creature cast for X=7, bounced and recast for
+    // X=0 would still read X=7 (`game.ts` builds every stack item as
+    // `{ ...card, ... }`), and a reanimated one — which never announced an X
+    // at all (CR 601.2b applies to casting only) — would inherit the old one.
+    delete card.chosenXOnCast;
+    delete (card as { chosenX?: number }).chosenX;
 }
 
 /** Phase 1 of reanimation (issue #1094, CR 400.7): clears battlefield-only

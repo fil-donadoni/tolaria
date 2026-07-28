@@ -2058,13 +2058,18 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         cr: "702.155",
         status: "planned",
     },
-    // 702.156 Ravenous
+    // 702.156 Ravenous (issue #674) — a keyword on a creature spell with {X}
+    // in its mana cost, standing for TWO abilities with different timing
+    // (CR 702.156a). First card: Jacked Rabbit (blc/white.ts).
     {
         id: "ravenous",
         name: "Ravenous",
         kind: "keyword-ability",
         cr: "702.156",
-        status: "planned",
+        status: "implemented",
+        binding:
+            'entersWith: { counters: [{ type: "+1/+1", count: "X" }] } (CR 614.1c replacement, applied at resolution off StackItem.chosenX) + enteredTrigger({ scope: "self", interveningIf: X >= 5, effects: [{ op: "draw" }] }) (CR 603.4d)',
+        note: 'Ravenous is TWO abilities on one keyword, and they resolve at different times — that split is the whole implementation. (1) "This creature enters with X +1/+1 counters on it" is a CR 614.1c ETB REPLACEMENT: declare `entersWith: { counters: [{ type: "+1/+1", count: "X" }] }`, which `applyEntersWithCounters` resolves off the RESOLVING stack item\'s `chosenX` (`cards/entersWith.ts`) — no Effect Script involved. (2) "If X is 5 or more, draw a card when it enters" is a genuine TRIGGERED ability with a CR 603.4d intervening-if: declare an `enteredTrigger({ scope: "self" })` whose `interveningIf` reads `self.chosenXOnCast` and whose `effects` are a plain DSL `draw`. The next Ravenous card copies exactly that pair. CRITICAL — read X from `CardInstanceState.chosenXOnCast` (the typed, SERIALIZED snapshot `finalizeSpellResolution` writes, twin of `wasKicked`), never from `{ X: true }` / `ctx.getX()` at the trigger site and never from the +1/+1 counter COUNT. `getX()` reads the currently-resolving stack item, and the trigger\'s item only carries a stale `chosenX` by an untyped `{...self}` spread that the card serializer drops — so it reads 0 after the save/load that happens between the trigger going on the stack and resolving. The counter count is the proxy anti-pattern issue #1753 retired: any later pump or -1/-1 annihilation changes it, X never changes. Expressed inline on the first card per the closure-on-1st/extract-on-2nd convention; a SECOND Ravenous card is the point to extract a `ravenous()` factory returning the entersWith declaration + the trigger.',
     },
     // 702.157 Squad
     {
