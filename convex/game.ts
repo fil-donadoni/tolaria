@@ -6896,155 +6896,26 @@ export type TapPaymentInput = {
     manaChoiceIndex?: number;
 };
 
-/** Core per-item apply logic for step 2 of casting (CR 601.2f) — tap ONE
- *  mana source and add its mana to the pool. Extracted out of `tapForPayment`
- *  so the batched mutation can apply a whole `payments` array within ONE
- *  transaction (issue #1779 / PRD #1776 T4): each call mutates `state` in
- *  place and THROWS on the first illegal step, which the caller's loop lets
- *  propagate — nothing persists until the caller's single `saveGameState`,
- *  so an illegal element aborts the WHOLE batch, never a partial apply. */
-export function applyOneTapPayment(
-    state: GameState,
-    playerId: string,
-    input: TapPaymentInput
-): void {
-    if (!state.pendingCast) throw new Error("No spell being cast");
-    if (state.pendingCast.playerId !== playerId) {
-        throw new Error("Not your pending cast");
-    }
-
-    const player = getPlayer(state, playerId);
-    const card = player.battlefield.find((c) => c.id === input.cardInstanceId);
-    if (!card) throw new Error("Card not on battlefield");
-    if (card.isTapped) throw new Error("Card already tapped");
-    // CR 602.5b (issue #947) — an un-imprinted Chrome Mox (or any source
-    // whose mana ability's `canActivate` currently fails) has no usable
-    // mana ability at all; reject cleanly rather than falling through to
-    // a mana-choice resolution that has nothing to resolve.
-    if (!hasManaAbility(card, state)) {
-        throw new Error("Card has no mana ability to tap");
-    }
-
-    // CR 602.5b (issue #947) — gate on the ability's own `canActivate`
-    // precondition so an un-imprinted Chrome Mox is treated as having no
-    // usable mana ability at all.
-    const ability = getActivatedManaAbility(card, state);
-
-    if (
-        manaTapNeedsChoice(card, player.id, manaTapBattlefields(state), ability)
-    ) {
-        // 2+ mana-tap options — its own ability and/or one per basic land
-        // subtype (any land under Urborg), or a single board-conditional
-        // chooser (Fellwar Stone). The activator picks which to activate.
-        if (input.manaChoiceIndex === undefined) {
-            throw new Error("Must choose a mana color");
-        }
-        // CR 106.1 / 305.6 — resolve the submitted index against the unified
-        // option list (activated abilities + intrinsic basic-land subtypes),
-        // carrying the chosen option's provenance so a basic-subtype pick
-        // taps (never sacrifices) regardless of the source's own ability.
-        const resolved = resolveManaTapChoice(
-            card,
-            player.id,
-            manaTapBattlefields(state),
-            input.manaChoiceIndex
-        );
-        if (!resolved) {
-            throw new Error(
-                manaChoiceRejectionMessage(
-                    card,
-                    player.id,
-                    manaTapBattlefields(state)
-                )
-            );
-        }
-        // CR 614 — Deep Water rewrites a land's produced mana to {U}.
-        const chosen = applyLandManaReplacement(
-            state,
-            player.id,
-            card,
-            resolved.mana
-        );
-
-        const isSacrifice = resolved.ability?.cost.sacrifice === true;
-        // CR 605.1a / 601.2f — pay the mana portion of the activation cost
-        // (Chromatic Star's {1}) FIRST, before any source mutation, so an
-        // unaffordable activation throws with nothing changed.
-        applyManaAbilityManaCost(player, resolved.ability);
-        // CR 605.2 — emit "tapped for mana" before any sacrifice path
-        // moves the card off the battlefield, so the event still carries
-        // the permanent's pre-sacrifice types/subtypes.
-        emitPermanentTapped(state, card, true, chosen);
-        if (isSacrifice) {
-            // Move to graveyard instead of tapping. Cannot be undone via
-            // untapForPayment — sacrifice is a one-way payment. CR 603.6 /
-            // 700.4 — funnel through `removePermanentTo` so a leaving-the-
-            // battlefield / dies trigger on the sacrificed source fires
-            // (queues `PERMANENT_LEFT`; drained at cast commit).
-            removePermanentTo(state, card.id, "graveyard", "sacrifice");
-        } else {
-            card.isTapped = true;
-            card.chosenMana = chosen;
-        }
-
-        for (const [color, amount] of Object.entries(chosen)) {
-            if (color !== "X" && typeof amount === "number" && amount > 0) {
-                player.manaPool[color] = (player.manaPool[color] ?? 0) + amount;
-            }
-        }
-        state.pendingCast.tappedLandIds.push(card.id);
-    } else {
-        const manaColor = getBasicLandMana(card) ?? getActivatedManaColor(card);
-        if (!manaColor) throw new Error("Card does not produce mana");
-
-        // ADR 0039 / CR 605.1a — a fixed-output "Sacrifice this" mana
-        // ability (Basal Thrull) sacrifices the source instead of tapping
-        // it. One-way: it is never pushed as an untappable tappedLand entry.
-        const isSacrifice = ability?.cost.sacrifice === true;
-        // CR 605.1a / 601.2f — pay the mana portion of the activation cost
-        // FIRST, before any source mutation, so an unaffordable activation
-        // throws with nothing changed.
-        applyManaAbilityManaCost(player, ability);
-        if (!isSacrifice) card.isTapped = true;
-        // CR 106.1 / 605.1a — board-conditional output (Urza trio) computed
-        // from the controller's battlefield and snapshotted onto
-        // `chosenMana` so untap refunds the exact amount added.
-        const amount = getFixedManaAmount(card, manaColor, player.battlefield);
-        // CR 614 — Deep Water rewrites a land's produced mana to {U}.
-        const added = applyLandManaReplacement(state, player.id, card, {
-            [manaColor]: amount,
-        } as ManaCost);
-        if (
-            !isSacrifice &&
-            (getDynamicManaProduced(card, player.battlefield) ||
-                added[manaColor] === undefined)
-        ) {
-            card.chosenMana = added;
-        }
-        for (const [color, count] of Object.entries(added)) {
-            if (color !== "X" && typeof count === "number" && count > 0) {
-                player.manaPool[color] = (player.manaPool[color] ?? 0) + count;
-            }
-        }
-        emitPermanentTapped(state, card, true, added);
-        if (isSacrifice) {
-            // CR 603.6 / 700.4 — funnel the sacrifice through
-            // `removePermanentTo` so a leave-the-battlefield / dies trigger
-            // on the sacrificed source fires (queues `PERMANENT_LEFT`).
-            removePermanentTo(state, card.id, "graveyard", "sacrifice");
-        } else {
-            state.pendingCast.tappedLandIds.push(card.id);
-        }
-    }
-}
-
 /** Step 2: tap one or more lands during payment to add mana, in ONE
  *  transaction (issue #1779 / PRD #1776 T4 — was one mutation per land).
- *  Applies each entry of `payments` IN ORDER via `applyOneTapPayment`,
- *  re-running the auto-commit check after each so a batch produces the
- *  IDENTICAL terminal state to the same calls made one at a time. Validation
- *  stays per-step: the FIRST illegal payment throws, which aborts the whole
- *  batch — nothing is persisted (`saveGameState` runs once, at the end). */
+ *  Applies each entry of `payments` IN ORDER, re-running the auto-commit
+ *  check after each so a batch produces the IDENTICAL terminal state to the
+ *  same calls made one at a time. Validation stays per-step: the FIRST
+ *  illegal payment throws, which aborts the whole batch — nothing is
+ *  persisted (`saveGameState` runs once, at the end).
+ *
+ *  CR correctness (issue #1779 review finding 1): the per-item tap MUST go
+ *  through `tapSourceIntoPayment` — the SAME primitive
+ *  `tapForActivationPayment` / `autoTapForPayment` / `autoTapForAttackTax`
+ *  call and ~30 card test files exercise directly. An earlier revision of
+ *  this loop reimplemented the tap mechanics inline (`applyOneTapPayment`)
+ *  and silently dropped every inline rider: `isTapLockedBySummoningSickness`
+ *  (CR 302.1), `manaChoiceRemovesCounters` / `payRemoveCounterCost` (CR
+ *  122.6, Mana Battery), `armDelayedTriggerOnTap` (ADR 0040, Rainbow Vale),
+ *  `applyDrawCardOnTap`, `recordLifePaidOnTap`, `realizeManaAbilityTapBonus`
+ *  (Wild Growth) — and the unconditional self-damage rider (Ancient Tomb):
+ *  tapping it through the divergent copy cost 0 life instead of 2 (CR
+ *  605.1a / 106.4). There must be only ONE authority for this mechanic. */
 export const tapForPayment = mutation({
     args: {
         gameId: v.id("games"),
@@ -7074,13 +6945,41 @@ export const tapForPayment = mutation({
         });
 
         for (const payment of args.payments) {
-            applyOneTapPayment(state, args.playerId, payment);
+            if (!state.pendingCast) throw new Error("No spell being cast");
+            if (state.pendingCast.playerId !== args.playerId) {
+                throw new Error("Not your pending cast");
+            }
+            const player = getPlayer(state, args.playerId);
+            const card = player.battlefield.find(
+                (c) => c.id === payment.cardInstanceId
+            );
+            if (!card) throw new Error("Card not on battlefield");
+            // CR 602.5b (issue #947) — an un-imprinted Chrome Mox (or any
+            // source whose mana ability's `canActivate` currently fails) has
+            // no usable mana ability at all; reject cleanly rather than
+            // falling through to a mana-choice resolution that has nothing
+            // to resolve.
+            if (!hasManaAbility(card, state)) {
+                throw new Error("Card has no mana ability to tap");
+            }
+            // Issue #1779 review finding 1 — the SHARED per-item tap
+            // primitive (see the doc comment above), not a second copy of
+            // its mechanics.
+            tapSourceIntoPayment(
+                state,
+                player,
+                card,
+                payment.manaChoiceIndex,
+                state.pendingCast.tappedLandIds
+            );
             // Check if cost is now covered → auto-commit, exactly like the
             // per-call path did after every single tap.
             tryAutoCommitPendingCast(state, args.playerId);
             // A completed cast has nothing left to pay for; further batch
             // entries (over-supplied by a stale client plan) are simply
-            // ignored rather than erroring an already-successful cast.
+            // ignored rather than erroring an already-successful cast — see
+            // the "batch vs. separate-call over-supply" decision covered by
+            // `tapForPaymentBatch.test.ts` (issue #1779 review finding 4).
             if (!state.pendingCast) break;
         }
 
@@ -9162,7 +9061,24 @@ export const selectTargets = mutation({
             expect: "target",
         });
 
+        // Issue #1779 review finding 6 — a batch entry answers the ONE
+        // pending target selection the caller opened this batch against.
+        // Finalizing that selection can immediately raise a NEW
+        // `pendingTarget` (a chained targeted trigger,
+        // `raiseTriggerTargetSelection`, CR 603.3d) — a DIFFERENT prompt the
+        // batch never knew about. A single-call `selectTarget` can't hit
+        // this bug (each call re-reads state fresh from the client's OWN
+        // request for THAT prompt); the batch loop must pin the identity of
+        // the selection it started against and REJECT a surplus entry
+        // rather than silently answering whatever prompt happens to be live
+        // next — misapplying it to the wrong selection.
+        const openedPendingTarget = state.pendingTarget;
         for (const target of args.targets) {
+            if (state.pendingTarget !== openedPendingTarget) {
+                throw new Error(
+                    "Target selection was already completed by an earlier entry in this batch"
+                );
+            }
             applyOneTargetSelection(state, args.playerId, target);
             // A finalized target selection has nothing left to assign;
             // further batch entries (over-supplied by a stale client plan)
