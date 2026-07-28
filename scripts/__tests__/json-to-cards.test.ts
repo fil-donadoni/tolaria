@@ -166,4 +166,94 @@ describe("json-to-cards colour-split directory layout (ADR 0043)", () => {
         expect(modules.white).not.toContain("Test Hybrid");
         expect(modules.blue).not.toContain("Test Hybrid");
     });
+
+    // Issue #1742: `parseManaCost` used to drop guild-hybrid/Phyrexian pips
+    // silently, so a card like Vibrance ({R/G}...) lost its coloured pips
+    // entirely and misfiled into colorless.ts. These assert the fixed parse
+    // both emits the `hybrid`/`phyrexian` fields AND routes correctly.
+    it("routes a guild-hybrid card ({R/W}) to multicolor.ts, never colorless.ts", () => {
+        const { modules } = generate("zzt", [
+            baseCard({
+                name: "Test Guild Hybrid",
+                manaCost: "{R/W}",
+                identifiers: {
+                    scryfallId: "00000000-0000-0000-0000-000000000005",
+                },
+            }),
+        ]);
+        expect(modules.multicolor).toContain("Test Guild Hybrid");
+        expect(modules.multicolor).toContain('hybrid: [["R", "W"]]');
+        expect(modules.colorless).not.toContain("Test Guild Hybrid");
+        expect(modules.red).not.toContain("Test Guild Hybrid");
+        expect(modules.white).not.toContain("Test Guild Hybrid");
+    });
+
+    it("routes a single-colour Phyrexian card ({B/P}) to its own colour module", () => {
+        const { modules } = generate("zzs", [
+            baseCard({
+                name: "Test Phyrexian",
+                manaCost: "{1}{B/P}{B/P}",
+                identifiers: {
+                    scryfallId: "00000000-0000-0000-0000-000000000006",
+                },
+            }),
+        ]);
+        expect(modules.black).toContain("Test Phyrexian");
+        expect(modules.black).toContain("phyrexian: { B: 2 }");
+        expect(modules.colorless).not.toContain("Test Phyrexian");
+    });
+
+    it("raises instead of silently dropping an unmodelled symbol ({S} snow), naming the offending card", () => {
+        const dir = mkdtempSync(join(tmpdir(), "json-to-cards-"));
+        const jsonPath = join(dir, "zzr.json");
+        const outRoot = join(dir, "sets");
+        writeFileSync(
+            jsonPath,
+            JSON.stringify({
+                data: {
+                    code: "zzr",
+                    cards: [
+                        baseCard({
+                            name: "Test Snow",
+                            manaCost: "{1}{S}",
+                            identifiers: {
+                                scryfallId:
+                                    "00000000-0000-0000-0000-000000000007",
+                            },
+                        }),
+                    ],
+                },
+            }),
+            "utf-8"
+        );
+        try {
+            // A bare `.toThrow()` on `execFileSync` passes on ANY non-zero
+            // exit (missing `bun`, a bad fixture, an unrelated crash) — it
+            // doesn't pin down that THIS card/symbol pair is what raised.
+            // Capture stderr and assert on its content instead (PR #1771
+            // review fixup).
+            let stderr = "";
+            expect(() => {
+                try {
+                    execFileSync("bun", [SCRIPT, jsonPath], {
+                        encoding: "utf-8",
+                        stdio: ["ignore", "pipe", "pipe"],
+                        env: {
+                            ...process.env,
+                            JSON_TO_CARDS_OUT_DIR: outRoot,
+                        },
+                    });
+                } catch (err) {
+                    stderr = String((err as { stderr?: unknown }).stderr ?? "");
+                    throw err;
+                }
+            }).toThrow();
+            expect(stderr).toMatch(/unrecognised mana symbol/);
+            // Issue #1742 fixup: the error now names the offending card, not
+            // just the symbol — pin that behaviour here too.
+            expect(stderr).toContain('Card "Test Snow"');
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    });
 });

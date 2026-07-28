@@ -45,6 +45,9 @@ import {
     moduleForCost,
     writeSetDirectory,
 } from "./lib/set-modules.mjs";
+import { parseManaCost, formatManaCost } from "./lib/mana-cost.mjs";
+
+export { parseManaCost, formatManaCost };
 
 // ── pure transforms (unit-tested) ────────────────────────────────────────────
 
@@ -57,27 +60,11 @@ export function parseWorklist(text) {
         .filter((l) => l.length > 0 && !l.startsWith("#"));
 }
 
-const COLOR_MAP = { W: "W", U: "U", B: "B", R: "R", G: "G", C: "C" };
-
-/** Scryfall `{1}{G}`-style mana string → engine `ManaCost`. Generic pips fold
- *  into `X` (mirrors `json-to-cards.mjs`). Hybrid/phyrexian/snow symbols are
- *  not modelled here and are dropped — a free card never carries them, and a
- *  stub's cost is fixed up by the implementer. */
-export function parseManaCost(mana) {
-    if (!mana) return undefined;
-    const out = {};
-    let generic = 0;
-    let xCount = 0;
-    for (const sym of mana.match(/\{[^}]+\}/g) ?? []) {
-        const inner = sym.slice(1, -1);
-        if (/^\d+$/.test(inner)) generic += Number(inner);
-        else if (inner === "X") xCount++;
-        else if (COLOR_MAP[inner]) out[inner] = (out[inner] ?? 0) + 1;
-    }
-    if (xCount > 0) out.X = "X".repeat(xCount);
-    else if (generic > 0) out.X = generic;
-    return Object.keys(out).length > 0 ? out : undefined;
-}
+// `parseManaCost` / `formatManaCost` now live in `./lib/mana-cost.mjs`,
+// shared with `json-to-cards.mjs` (issue #1742) — re-exported above so this
+// module's own tests / callers keep importing them from here unchanged. See
+// that module for the hybrid/Phyrexian symbol handling and the loud-failure
+// path on anything unrecognised (a stub's cost is no longer silently wrong).
 
 /** Earliest tournament-legal *paper* printing from a Scryfall `unique:prints`
  *  list, or null if the card has none. Excludes digital-only games, gold-
@@ -193,18 +180,6 @@ function toIdentifier(name) {
         .join("");
 }
 
-function formatCost(cost) {
-    const order = ["X", "W", "U", "B", "R", "G", "C"];
-    const parts = [];
-    for (const k of order) {
-        if (cost[k] === undefined) continue;
-        parts.push(
-            `${k}: ${typeof cost[k] === "string" ? `"${cost[k]}"` : cost[k]}`
-        );
-    }
-    return `{ ${parts.join(", ")} }`;
-}
-
 const arr = (a) => `[${a.map((s) => `"${s}"`).join(", ")}]`;
 
 /** TypeScript source for one card. Free → active `CardDefinition`; capability
@@ -222,7 +197,15 @@ export function emitCardSource(card) {
         );
 
     const { supertypes, types, subtypes } = parseTypeLine(card.type_line ?? "");
-    const cost = parseManaCost(card.mana_cost);
+    let cost;
+    try {
+        cost = parseManaCost(card.mana_cost);
+    } catch (err) {
+        // Name the offending card (issue #1742 fixup) — a 500+ card worklist
+        // run otherwise aborts with only the unrecognised symbol, no way to
+        // tell which card triggered it.
+        throw new Error(`Card "${card.name}": ${err.message}`);
+    }
     const power = card.power !== undefined ? Number(card.power) : NaN;
     const toughness =
         card.toughness !== undefined ? Number(card.toughness) : NaN;
@@ -233,7 +216,7 @@ export function emitCardSource(card) {
     fields.push(`    id: "${card.id}"`);
     fields.push(`    name: "${card.name.replace(/"/g, '\\"')}"`);
     fields.push(`    rarity: "${card.rarity}"`);
-    if (cost) fields.push(`    manaCost: ${formatCost(cost)}`);
+    if (cost) fields.push(`    manaCost: ${formatManaCost(cost)}`);
     fields.push(`    types: ${arr(types)}`);
     if (supertypes.length) fields.push(`    supertypes: ${arr(supertypes)}`);
     if (subtypes.length) fields.push(`    subtypes: ${arr(subtypes)}`);
@@ -455,7 +438,15 @@ async function main() {
             if (!src) continue; // out-of-scope cards emit ""
             // Route by the colour identity of the card's mana cost (CR 202.2);
             // lands / colourless artifacts (no coloured cost) → colorless.ts.
-            sources[moduleForCost(parseManaCost(card.mana_cost))].push(src);
+            let costForRouting;
+            try {
+                costForRouting = parseManaCost(card.mana_cost);
+            } catch (err) {
+                // Name the offending card (issue #1742 fixup) — see the
+                // matching try/catch in `emitCardSource` above.
+                throw new Error(`Card "${card.name}": ${err.message}`);
+            }
+            sources[moduleForCost(costForRouting)].push(src);
         }
         writeSetDirectory(outDir, set, sources, importLine);
     }
