@@ -12,7 +12,7 @@ import type { CardDefinition } from "../../types";
 // parent PRD #1525 / planeswalker umbrella #1222). All four loyalty abilities
 // (CR 606) are Effect Scripts on the shipped loyalty framework (#700, signed
 // `cost.loyalty` derives sorcery-speed / once-per-turn / floor-0):
-//   • +2 FATESEAL (CR 701.20) — "Look at the top card of TARGET player's
+//   • +2 FATESEAL (CR 701.29) — "Look at the top card of TARGET player's
 //     library. You may put that card on the bottom of that player's library."
 //     A `scryReorder` (Scry 1 into `library-bottom`) on the TARGET player's
 //     library with `chooser: "controller"` (issue #1532): the CONTROLLER makes
@@ -54,7 +54,7 @@ export const jaceTheMindSculptor: CardDefinition = {
             targetRequirement: { type: "player", count: 1 },
             effects: [
                 {
-                    // CR 701.20 fateseal — Scry 1 on the TARGET player's library,
+                    // CR 701.29 fateseal — Scry 1 on the TARGET player's library,
                     // decided by the CONTROLLER (issue #1532 chooser param).
                     op: "scryReorder",
                     player: { target: 0 },
@@ -116,7 +116,7 @@ export const jaceTheMindSculptor: CardDefinition = {
                     from: "hand",
                     to: "library",
                 },
-                // … and shuffle (a plain moveZone does not shuffle — CR 701.20).
+                // … and shuffle (a plain moveZone does not shuffle — CR 701.24).
                 { op: "libraryLook", action: "shuffle", player: { target: 0 } },
             ],
         },

@@ -370,13 +370,16 @@ const KEYWORD_ACTIONS: MechanicRow[] = [
         status: "out-of-scope",
         note: "mana-value conversion for melded/transformed permanents — no melded/DFC pool modelled",
     },
-    // 701.29 Fateseal
+    // 701.29 Fateseal (shipped by decomposition, issue #1532)
     {
         id: "fateseal",
         name: "Fateseal",
         kind: "keyword-action",
         cr: "701.29",
-        status: "planned",
+        status: "implemented",
+        binding:
+            'EFFECT_OP_REGISTRY `scryReorder` Op with `player: { target }` + `chooser: "controller"` (the chooser≠zone-owner seam, PendingChoice.zoneOwnerId) — no dedicated Op, primitive reuse. Shipped on Jace, the Mind Sculptor\'s +2 (convex/cards/sets/wwk/blue.ts).',
+        note: "Fateseal N (CR 701.29a) is Scry N on an OPPONENT's (any target player's) library, decided by the fatesealing player — same execution path as Scry, differing only in whose library is looked at and who chooses.",
     },
     // 701.30 Clash
     {
@@ -545,13 +548,16 @@ const KEYWORD_ACTIONS: MechanicRow[] = [
         status: "out-of-scope",
         note: "needs a dungeon-card subsystem not modelled",
     },
-    // 701.50 Connive
+    // 701.50 Connive (issue #780 — shipped by decomposition, issue #1343)
     {
         id: "connive",
         name: "Connive",
         kind: "keyword-action",
         cr: "701.50",
-        status: "planned",
+        status: "implemented",
+        binding:
+            "Effect Script composition, no dedicated Op (ADR 0045 § primitive reuse): `draw` + `choice` (kind choose-hand-card) + `discard` + `if` with the `picksMatchFilter` predicate (gre/effects/interpreter.ts) + `counters` add +1/+1. Shipped on Ledger Shredder (convex/cards/sets/snc/blue.ts).",
+        note: 'Connive N (CR 701.50a): draw N, then discard N; for each nonland card discarded this way, put a +1/+1 counter on the conniving creature. The nonland gate is the `picksMatchFilter` `if` predicate (issue #1343), which resolves the picked cards through the discarding player\'s graveyard (CR 701.9) and tests them against an EffectCardFilter — `{ excludeType: "Land" }` here. Connive N > 1 is the same script with count: N on the draw/choice Ops; no engine work outstanding.',
     },
     // 701.51 Open an Attraction
     {

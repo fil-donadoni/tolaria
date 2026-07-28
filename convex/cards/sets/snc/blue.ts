@@ -26,11 +26,14 @@ import {
 //
 // Connive is decomposed DSL-first (ADR 0045) rather than declared as a
 // `staticAbilities` keyword — CR 701.50 is a keyword ACTION (a reusable
-// effect template), not a static/triggered ability keyword, and the
-// Mechanics Registry rows it `planned` at the keyword-census level; the
-// Effect Script below expresses its EFFECT directly with already-implemented
-// Ops (`draw` / `choice` / `discard` / `counters`), so no registry gap is
-// declared. The "if you discarded a nonland card" gate is the new
+// effect template), not a static/triggered ability keyword, so it never
+// appears in `staticAbilities[]`; the Effect Script below expresses its
+// EFFECT directly with already-implemented Ops (`draw` / `choice` /
+// `discard` / `counters`). The Mechanics Registry rows connive
+// `status: "implemented"` with that composition as its binding (issue #780,
+// the Investigate/Clue precedent: a keyword action shipped by primitive
+// reuse is implemented, not planned). The "if you discarded a nonland card"
+// gate is the new
 // `picksMatchFilter` `if` predicate (issue #1343): true iff at least one
 // picked card, resolved via the discarding player's graveyard (CR 701.9 —
 // every discard lands there), matches `{ excludeType: "Land" }`.
