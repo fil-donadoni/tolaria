@@ -1099,6 +1099,97 @@ describe("gate ↔ enumerator X-ceiling parity for a board-dependent mana source
     });
 });
 
+// ---------------------------------------------------------------------------
+// Gate ↔ enumerator Phyrexian-split (CR 107.4f) board-dependent mana-source
+// parity (issue #1757 finding 1) — a FIFTH board-blind holdout in the same
+// #1695 → #1751 → #1754 → #1756 → #1757 chain, ten lines below the delve fix
+// this PR otherwise closes out.
+// ---------------------------------------------------------------------------
+//
+// `enumerateCastMoves` called `solvePhyrexianSplit(player, card, rawCost,
+// x ?? 0)` with NO `state` — its 5th, optional param — so the split solver's
+// `canPayNormalizedCost` → `coloredCostLeftover` probe ran board-blind
+// (`getProducibleManaUnits`'s `{ players: [] }` fallback), while
+// `getLegalActions` (rules.ts) forwards its own `state` into the SAME
+// `solvePhyrexianSplit` at its `canPotentiallyPayCost` call site. Gitaxian
+// Probe ({U/P}) with the caster at 1 life (so the life-pip branch is
+// unaffordable — `Math.floor(1 / 2) === 0`) can ONLY be cast by paying the
+// pip with mana; a Metalcraft-satisfied Mox Opal is that mana, and it is
+// invisible to the board-blind solver — `split === null` for every mode/X —
+// so the enumerator silently dropped the cast the gate legally offered.
+const GITAXIAN_PROBE = getCardByName("Gitaxian Probe").id; // {U/P} Sorcery, target player
+
+describe("gate ↔ enumerator Phyrexian-split board-dependent mana-source parity (issue #1757 finding 1)", () => {
+    it("Gitaxian Probe ({U/P}), p1 at 1 life, Mox Opal (Metalcraft satisfied): getLegalActions offers cast AND enumerateMoves yields a cast move", () => {
+        const probe = makeInstance(GITAXIAN_PROBE, {
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const moxOpal = makeInstance(MOX_OPAL, {
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const p1 = makePlayer("p1", {
+            life: 1,
+            hand: [probe],
+            battlefield: [
+                moxOpal,
+                makeInstance(ANKH, { controllerId: "p1", ownerId: "p1" }),
+                makeInstance(ANKH, { controllerId: "p1", ownerId: "p1" }),
+            ],
+        });
+        const state = makeState({ players: [p1, makePlayer("p2")] });
+
+        // The gate: at 1 life, the life-pip branch of the {U/P} split can pay
+        // 0 pips (floor(1/2) = 0), so the ONLY affordable split pays the pip
+        // with mana — Mox Opal (Metalcraft satisfied: itself + 2 Ankh of
+        // Mishra = 3 artifacts) supplies it.
+        expect(legalActionsFor(state, "p1", probe)).toContain("cast");
+
+        // The planner must agree: at least one cast-spell move for Gitaxian
+        // Probe, each tapping p1's OWN Mox Opal (a choice-based source, hence
+        // `manaChoiceIndex`) for the {U/P} pip's mana leg — before the fix
+        // this was an empty array (every mode/X candidate's
+        // `solvePhyrexianSplit` returned `null` board-blind, so the loop
+        // `continue`d past every one).
+        const casts = castsFor(state, "p1", probe.id).filter(
+            (m): m is Move & { kind: "cast-spell" } => m.kind === "cast-spell"
+        );
+        expect(casts.length).toBeGreaterThan(0);
+        for (const cast of casts) {
+            expect(cast.tapPlan).toEqual([
+                {
+                    cardInstanceId: moxOpal.id,
+                    manaChoiceIndex: expect.any(Number),
+                },
+            ]);
+        }
+    });
+
+    it("does NOT offer a Gitaxian Probe cast move when Metalcraft is unsatisfied (Mox Opal alone, only 1 artifact, p1 at 1 life)", () => {
+        const probe = makeInstance(GITAXIAN_PROBE, {
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const p1 = makePlayer("p1", {
+            life: 1,
+            hand: [probe],
+            battlefield: [
+                makeInstance(MOX_OPAL, { controllerId: "p1", ownerId: "p1" }),
+            ],
+        });
+        const state = makeState({ players: [p1, makePlayer("p2")] });
+
+        // No source can pay the {U/P} pip (Mox Opal inert, life too low for
+        // the life-pip branch): both the gate and the enumerator agree it is
+        // uncastable.
+        expect(legalActionsFor(state, "p1", probe)).not.toContain("cast");
+        expect(castsFor(state, "p1", probe.id)).toHaveLength(0);
+    });
+});
+
 describe("enumerateCastMoves — getCostModifiers hoisted out of the mode×X loop (issue #1663)", () => {
     afterEach(() => vi.restoreAllMocks());
 

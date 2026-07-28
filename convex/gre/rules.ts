@@ -1091,14 +1091,20 @@ function getProducibleManaUnits(
     // (mandatory) `state` param — so a self-referential ability (Mox Opal's
     // Metalcraft, Fanatic of Rhonas's Ferocious) AND an opponent-scanning
     // chooser (Fellwar Stone) are both visible to the two callers identically
-    // ON THAT PATH. Issue #1757 closed the last two `coloredCostLeftover`
-    // callers that used to pass no `state` at all (`maxAffordableX`'s
-    // bot-enumeration call site in moves.ts and every `genericManaShortfall`
-    // caller) — every caller now has a `state` in scope and passes it, so
-    // this function only falls back to `undefined, undefined` (board-blind)
-    // for a caller that genuinely has no `GameState` on hand (there is none
-    // today); the "identical" guarantee is no longer scoped to a subset of
-    // callers.
+    // ON THAT PATH. Issue #1757 closed the last board-blind `coloredCostLeftover`
+    // callers that used to pass no `state` at all: `maxAffordableX`'s
+    // bot-enumeration call site in moves.ts, every `genericManaShortfall`
+    // caller, AND — a fifth holdout the reviewer's escalation surfaced in the
+    // same round — the Phyrexian split solver's two remaining state-less call
+    // sites (`solvePhyrexianSplit` in `enumerateCastMoves`, moves.ts, and
+    // `resolvePhyrexianCastPayment` on the real server cast path, game.ts,
+    // finding 1 / finding 2), plus `phyrexianLifePipOptions`'s
+    // `projectPublicState` call site (gameProjections.ts, found while
+    // verifying this very comment). Every caller now has a `state` in scope
+    // and passes it, so this function only falls back to `undefined,
+    // undefined` (board-blind) for a caller that genuinely has no `GameState`
+    // on hand (there is none today); the "identical" guarantee is no longer
+    // scoped to a subset of callers.
     const detailed = getManaTapOptionsDetailed(
         card,
         controllerId,
@@ -1198,11 +1204,16 @@ function coloredCostLeftover(
          *  the exact shape this fix closes for Mox Opal/Fanatic of Rhonas.
          *  A caller that omits `state` still makes `getProducibleManaUnits`
          *  fall back to its pre-fix `undefined, undefined` call — issue #1757
-         *  closed the last two callers that used to omit it by design
-         *  (`maxAffordableX`'s bot-enumeration call site in moves.ts and
-         *  every `genericManaShortfall` caller), so today every caller passes
-         *  `state` and this fallback is dead code kept only for a
-         *  hypothetical future caller with no `GameState` on hand. */
+         *  closed the last callers that used to omit it: `maxAffordableX`'s
+         *  bot-enumeration call site in moves.ts, every `genericManaShortfall`
+         *  caller, the Phyrexian split solver's two remaining state-less call
+         *  sites (`solvePhyrexianSplit` in moves.ts's `enumerateCastMoves` and
+         *  `resolvePhyrexianCastPayment` on the real server cast path in
+         *  game.ts — findings 1 and 2), and `phyrexianLifePipOptions`'s
+         *  `projectPublicState` call site in gameProjections.ts. So today
+         *  every caller passes `state` and this fallback is dead code kept
+         *  only for a hypothetical future caller with no `GameState` on
+         *  hand. */
         state?: GameState;
     } = {}
 ): number | null {

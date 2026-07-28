@@ -575,10 +575,20 @@ function enumerateCastMoves(
     // uses — passed the SAME `state` the gate's own `hasEnoughLegalTargets`
     // call forwards (issue #1757; previously omitted here, so a board-dependent
     // mana source — Fellwar Stone, a Metalcraft-satisfied Mox Opal — reached a
-    // higher ceiling at the gate than the Bot ever enumerated) — so the Bot and
-    // the gate can never disagree on the reachable range. Each X is still
-    // re-checked below via `planManaPayment`, so an X the shared greedy ceiling
-    // over-counts is filtered there (never over-offered).
+    // higher ceiling at the gate than the Bot ever enumerated) — so the Bot
+    // and `hasEnoughLegalTargets`'s own probe can never disagree on the
+    // reachable range. That agreement is scoped to the gate's PROBE, not to
+    // the cast path's actual reachable range: `maxAffordableX` deliberately
+    // does not model CR 601.2f cost reductions (mirrors
+    // `canPotentiallyPayCost`), while this loop's `normCost` DOES fold
+    // `applyCostModifiers` per candidate X below, and `announceCast`
+    // (game.ts) enforces no `maxAffordableX` ceiling at all on the human's
+    // announced X — so under a live cost reducer a human can legally announce
+    // an X the Bot never enumerates here. Each X this loop DOES enumerate is
+    // still re-checked below via `planManaPayment`, so an X the shared greedy
+    // ceiling over-counts is filtered there (never over-offered) — the
+    // asymmetry only ever under-enumerates the Bot's X range, never
+    // over-offers it.
     // CR 107.3 — a board-count upper bound on X ("X can't be greater than the
     // number of snow lands you control", Winter's Chill) caps the enumeration
     // to the same ceiling the cast mutation enforces, so the Bot never offers
@@ -646,7 +656,8 @@ function enumerateCastMoves(
                     player,
                     card,
                     rawCost,
-                    x ?? 0
+                    x ?? 0,
+                    state
                 );
                 if (split === null) continue;
                 for (const [c, n] of Object.entries(split.manaAdditions)) {
