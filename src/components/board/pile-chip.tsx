@@ -5,6 +5,12 @@ type PileChipProps = {
     count: number;
     onClick: () => void;
     "data-testid"?: string;
+    /** Player id to anchor graveyard-card target arrows (Regrowth, Raise Dead,
+     *  Animate Dead) to. BoardPileChips mounts the real `PlayerGraveyard` (the
+     *  attribute's other source) inside a `hidden` wrapper, so its rect is
+     *  always degenerate on portrait — this chip is the one VISIBLE element
+     *  carrying the anchor there. */
+    "data-arrow-anchor-graveyard"?: string;
 };
 
 /** A tappable zone chip for the portrait board (#336). On a narrow viewport the
@@ -17,12 +23,14 @@ export default function PileChip({
     count,
     onClick,
     "data-testid": testId,
+    "data-arrow-anchor-graveyard": arrowAnchorGraveyard,
 }: PileChipProps) {
     return (
         <button
             type="button"
             onClick={onClick}
             data-testid={testId}
+            data-arrow-anchor-graveyard={arrowAnchorGraveyard}
             className="flex items-center gap-1 rounded-md border border-border-subtle bg-surface-elevated px-2 py-1 font-beleren text-[10px] text-text-muted active:bg-surface"
         >
             {label}

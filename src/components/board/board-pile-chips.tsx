@@ -29,6 +29,7 @@ export default function BoardPileChips({ player }: { player: Player }) {
                 count={player.graveyard.length}
                 onClick={() => toggle("graveyard")}
                 data-testid={`chip-graveyard-${player.id}`}
+                data-arrow-anchor-graveyard={player.id}
             />
             <PileChip
                 label="LIB"
@@ -54,7 +55,15 @@ export default function BoardPileChips({ player }: { player: Player }) {
                 dialogs (GameDialog's Base UI portal, LibraryOrderPicker's
                 `createPortal` to `document.body`) render outside this
                 subtree regardless, so they stay interactive while it is
-                hidden. */}
+                hidden.
+
+                `display:none` also zeroes `getBoundingClientRect()`, so
+                `PlayerGraveyard`'s `data-arrow-anchor-graveyard` below is a
+                degenerate anchor while hidden (useDomAnchorPublisher now
+                skips zero-rect anchors rather than publish a wrong one) — the
+                GY chip above carries the SAME attribute so graveyard-card
+                target arrows (Regrowth, Raise Dead, Animate Dead) have a real,
+                visible anchor to land on. */}
             <div className="hidden">
                 <PlayerGraveyard
                     player={player}
