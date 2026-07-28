@@ -18,6 +18,9 @@ import {
     plains,
     savannahLions,
 } from "../../cards/sets/lea";
+import { tokenDefinitionId } from "../../cards";
+import type { TokenSpec } from "../../cards/types";
+import { projectPublicState } from "../../gameProjections";
 
 function freshState(): GameState {
     const p1 = makePlayer("p1", {
@@ -2108,21 +2111,62 @@ describe("backward compatibility", () => {
         }
     });
 
-    it("expands a pre-tuple library where entries are compact-card objects", () => {
+    it("expands a pre-tuple library where entries are compact-card objects (legacy v1: no `v` field, raw-string card.id)", () => {
         const state = freshState();
-        const compact = compactState(state) as Record<string, unknown>;
-        const players = compact.players as Array<Record<string, unknown>>;
-        const lib = players[0].library as Array<[string, string]>;
-        const [id, cardId] = lib[0];
-        // Simulate old format: library entry stored as an object, not a tuple.
-        players[0].library = [
-            { id, card: { id: cardId } },
-            ...lib.slice(1),
-        ] as unknown[];
-        const expanded = expandState(compact);
+        const rawLib = state.players[0].library;
+        const expectedCardId = rawLib[0].card.id;
+
+        // issue #1780 — hand-build the REAL pre-tuple legacy shape: no `v`
+        // field, no `cardPool`, no `tokenSpecs`, and `card.id` is the raw
+        // string everywhere — exactly what `compactState` used to emit
+        // before this change. A v2 envelope (`v: 2` + `cardPool`) wrapping an
+        // object-shaped library entry is a hybrid `compactState` can never
+        // produce and no production row can ever contain, so it must not
+        // appear in this fixture (mirrors the "still expands a legacy v1
+        // row" fixture below).
+        const legacy = {
+            players: state.players.map((p, i) => ({
+                id: p.id,
+                name: p.name,
+                bgColor: p.bgColor,
+                life: p.life,
+                hand: [],
+                // Simulate old format: the first entry of p1's library stored
+                // as an object (not a tuple) with a raw-string `card.id`; the
+                // rest as legacy `[instanceId, rawCardId]` tuples.
+                library:
+                    i === 0
+                        ? [
+                              {
+                                  id: rawLib[0].id,
+                                  card: { id: expectedCardId },
+                              },
+                              ...rawLib
+                                  .slice(1)
+                                  .map((c) => [c.id, c.card.id] as const),
+                          ]
+                        : p.library.map((c) => [c.id, c.card.id] as const),
+                graveyard: [],
+                exile: [],
+                battlefield: [],
+                manaPool: {},
+            })),
+            stack: [],
+            turn: state.turn,
+            activePlayerId: state.activePlayerId,
+            priorityPlayerId: state.priorityPlayerId,
+            passCount: state.passCount,
+            phase: state.phase,
+            rngSeed: state.rngSeed,
+            rngCounter: state.rngCounter,
+        };
+
+        const expanded = expandState(
+            legacy as unknown as Record<string, unknown>
+        );
         const first = expanded.players[0].library[0];
-        expect(first.id).toBe(id);
-        expect(first.card.id).toBe(cardId);
+        expect(first.id).toBe(rawLib[0].id);
+        expect(first.card.id).toBe(expectedCardId);
         expect(first.zone).toBe("library");
         expect(first.ownerId).toBe(expanded.players[0].id);
     });
@@ -2133,5 +2177,177 @@ describe("blob size regression guard", () => {
         const state = freshState();
         const compactSize = JSON.stringify(compactState(state)).length;
         expect(compactSize).toBeLessThan(5000);
+    });
+});
+
+// Issue #1780 (T5, PRD #1776) — token spec interning + cardId string table.
+// Both live entirely at the compact-form boundary: `GameState` itself never
+// gains a `tokenSpecs`/`cardPool` field (no schema-drift-guard entry needed),
+// and `expandState` hands back byte-identical `card.id` strings either way.
+describe("token spec interning + cardId string table (issue #1780)", () => {
+    const clueSpec: TokenSpec = {
+        name: "Clue",
+        types: ["Artifact"],
+        subtypes: ["Clue"],
+        staticAbilities: [],
+    };
+    const clueId = tokenDefinitionId(clueSpec);
+
+    it("writes v2 with a cardPool and interns a repeated token spec once", () => {
+        const state = freshState();
+        const clue1 = makeInstance(clueId, {
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+            isToken: true,
+        });
+        const clue2 = makeInstance(clueId, {
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+            isToken: true,
+        });
+        state.players[0].battlefield.push(clue1, clue2);
+
+        const compact = compactState(state) as Record<string, unknown>;
+        expect(compact.v).toBe(2);
+        expect(Array.isArray(compact.cardPool)).toBe(true);
+
+        const tokenSpecs = compact.tokenSpecs as Record<string, string>;
+        expect(tokenSpecs).toBeDefined();
+        // Both Clue instances share exactly ONE interned entry.
+        const entries = Object.values(tokenSpecs);
+        expect(entries).toEqual([clueId]);
+
+        // The raw (long) spec string appears exactly once in the whole
+        // document — inside tokenSpecs — never repeated per instance.
+        const compactJson = JSON.stringify(compact);
+        const occurrences = compactJson.split(clueId).length - 1;
+        expect(occurrences).toBe(1);
+    });
+
+    it("round-trips a token-heavy battlefield exactly (5 duplicate tokens across 2 zones)", () => {
+        const state = freshState();
+        const battlefieldClues = Array.from({ length: 3 }, () =>
+            makeInstance(clueId, {
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "battlefield",
+                isToken: true,
+            })
+        );
+        const graveyardClues = Array.from({ length: 2 }, () =>
+            makeInstance(clueId, {
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "graveyard",
+                isToken: true,
+            })
+        );
+        state.players[0].battlefield.push(...battlefieldClues);
+        state.players[0].graveyard.push(...graveyardClues);
+
+        const rawSize = JSON.stringify(state).length;
+        const compact = compactState(state) as Record<string, unknown>;
+        const compactSize = JSON.stringify(compact).length;
+        expect(compactSize).toBeLessThan(rawSize * 0.5);
+
+        const expanded = expandState(compact);
+        expect(expanded).toEqual(state);
+    });
+
+    it("round-trips a 60-card library of the same card exactly and shrinks materially", () => {
+        const state = freshState();
+        const bigLibrary = Array.from({ length: 60 }, () =>
+            makeInstance(mountain.id, { controllerId: "p2", zone: "library" })
+        );
+        state.players[1].library = bigLibrary;
+
+        const rawSize = JSON.stringify(state).length;
+        const compact = compactState(state) as Record<string, unknown>;
+        const compactSize = JSON.stringify(compact).length;
+        expect(compactSize).toBeLessThan(rawSize * 0.5);
+
+        // The 36-char Scryfall id string appears exactly once — in cardPool
+        // — never once per copy.
+        const occurrences =
+            JSON.stringify(compact).split(mountain.id).length - 1;
+        expect(occurrences).toBe(1);
+
+        expect(expandState(compact)).toEqual(state);
+    });
+
+    it("still expands a legacy v1 row (no `v` field, raw string card ids, no cardPool)", () => {
+        const state = freshState();
+        const clue = makeInstance(clueId, {
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+            isToken: true,
+        });
+        state.players[0].battlefield.push(clue);
+
+        // Hand-build the pre-#1780 shape: exactly what `compactState` used
+        // to emit — `card.id` is the raw string everywhere, no `v`, no
+        // `cardPool`, no `tokenSpecs`.
+        const legacy = {
+            players: state.players.map((p) => ({
+                id: p.id,
+                name: p.name,
+                bgColor: p.bgColor,
+                life: p.life,
+                hand: [],
+                library: p.library.map((c) => [c.id, c.card.id] as const),
+                graveyard: [],
+                exile: [],
+                battlefield: p.battlefield.map((c) => ({
+                    id: c.id,
+                    card: { id: c.card.id },
+                    ownerId: c.ownerId,
+                    isToken: c.isToken || undefined,
+                })),
+                manaPool: {},
+            })),
+            stack: [],
+            turn: state.turn,
+            activePlayerId: state.activePlayerId,
+            priorityPlayerId: state.priorityPlayerId,
+            passCount: state.passCount,
+            phase: state.phase,
+            rngSeed: state.rngSeed,
+            rngCounter: state.rngCounter,
+        };
+
+        const expanded = expandState(
+            legacy as unknown as Record<string, unknown>
+        );
+        const found = expanded.players[0].battlefield.find(
+            (c) => c.id === clue.id
+        );
+        expect(found).toBeDefined();
+        expect(found?.card.id).toBe(clueId);
+        expect(found?.isToken).toBe(true);
+    });
+
+    it("wire format: projectPublicState is unchanged by the v2 round-trip", () => {
+        const state = freshState();
+        const clue = makeInstance(clueId, {
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "battlefield",
+            isToken: true,
+        });
+        state.players[1].battlefield.push(clue);
+
+        const directProjection = projectPublicState(state, 1, "p1");
+        const roundTripped = expandState(
+            compactState(state) as Record<string, unknown>
+        );
+        const roundTrippedProjection = projectPublicState(
+            roundTripped,
+            1,
+            "p1"
+        );
+        expect(roundTrippedProjection).toEqual(directProjection);
     });
 });
