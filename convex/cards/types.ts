@@ -4398,6 +4398,20 @@ export interface PermanentView {
      *  doc. Mirrors `evoked`/`dashed` above. Undefined for a permanent cast
      *  unkicked / without a Kicker cost. */
     wasKicked?: boolean;
+    /** CR 107.3 / 601.2b — the value chosen for {X} in this permanent's own
+     *  casting cost, snapshotted from the resolving stack item's `chosenX` the
+     *  instant it entered the battlefield (`finalizeSpellResolution`,
+     *  `gre/state.ts`). The read handle for any check-time predicate that runs
+     *  after the spell has finished resolving: Ravenous (CR 702.156a, Jacked
+     *  Rabbit) gates its ETB draw on a CR 603.4d intervening-if — "if X is 5 or
+     *  greater" — which the engine re-evaluates when the TRIGGER resolves, by
+     *  which point the creature spell's stack item (and `ctx.getX()` with it)
+     *  is long gone. Deliberately NOT the +1/+1 counter count, which any later
+     *  effect can change (issue #1753). See
+     *  {@link CardInstanceState.chosenXOnCast} (`gre/state.ts`) for the full
+     *  doc. Mirrors `wasKicked` / `notedManaSpentOnCast` above. Undefined for a
+     *  permanent whose cost had no {X}, or that never resolved as a spell. */
+    chosenXOnCast?: number;
     /** Raw card definition reference — predicates read manaCost for color, etc. */
     card: Record<string, unknown>;
 }

@@ -68,3 +68,29 @@ export const ELDRAZI_SPAWN_TOKEN: EffectTokenSpec = {
     // printing's `all_parts` token link).
     imagePrintId: "e32795e1-5548-43ef-8cd6-c605a19ef708",
 };
+
+/** Rabbit token (CR 111 / 707.2, issue #674). "1/1 white Rabbit creature
+ *  token" — the Bloomburrow-block staple, created today by Jacked Rabbit
+ *  (`sets/blc/white.ts`) once per point of its power when it attacks. A
+ *  vanilla token: no abilities, so `EffectTokenSpec` (JSON-pure, ADR 0046)
+ *  rather than `TokenSpec`.
+ *
+ *  Deliberately NO pinned `imagePrintId`, unlike `TREASURE_TOKEN` /
+ *  `ELDRAZI_SPAWN_TOKEN` above. Rabbit is a printed token in many sets, and
+ *  the art-match rule is "the token associated with the PRODUCING card's own
+ *  printing" — so leaving it unpinned is what keeps that true as the spec is
+ *  reused: `SpellContext.createToken` falls back to
+ *  `tokenPrintIdFor(<producing card id>, "Rabbit")`, which reads the
+ *  reverse-linked Scryfall `all_parts` lockfile
+ *  (`generated/token-prints.json`) and resolves per producer. Jacked Rabbit's
+ *  entry is already in the lockfile and resolves to the BLC Rabbit print. A
+ *  pinned id here would instead freeze one set's art onto every future
+ *  producer. */
+export const RABBIT_TOKEN: EffectTokenSpec = {
+    name: "Rabbit",
+    types: ["Creature"],
+    subtypes: ["Rabbit"],
+    power: 1,
+    toughness: 1,
+    colors: ["W"],
+};

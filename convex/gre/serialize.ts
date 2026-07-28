@@ -353,6 +353,14 @@ function compactCard(
     if (card.wasKicked) {
         out.wasKicked = card.wasKicked;
     }
+    // CR 107.3 / 601.2b (issue #674) — the chosen {X} snapshot must survive a
+    // save/load: Ravenous's ETB trigger goes on the stack, the game reaches a
+    // stable point (state written to `game_state`), and only THEN does the
+    // trigger resolve and re-check its CR 603.4d intervening-if. Dropped here,
+    // "if X is 5 or greater" would read 0 on every real game.
+    if (card.chosenXOnCast !== undefined) {
+        out.chosenXOnCast = card.chosenXOnCast;
+    }
     return out;
 }
 
@@ -670,6 +678,10 @@ function expandCard(
     // marker.
     if (compact.wasKicked) {
         result.wasKicked = compact.wasKicked as boolean;
+    }
+    // CR 107.3 / 601.2b (issue #674) — restore the chosen {X} snapshot.
+    if (compact.chosenXOnCast !== undefined) {
+        result.chosenXOnCast = compact.chosenXOnCast as number;
     }
     return result;
 }

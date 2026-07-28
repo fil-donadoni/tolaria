@@ -828,6 +828,12 @@ describe("game_state serialize round-trip", () => {
         // (issue #1753); must survive a mid-game save/load like every other
         // transient field in this block.
         lion.wasKicked = true;
+        // CR 107.3 / 601.2b (issue #674) — the chosen-{X} ETB snapshot, the
+        // sibling of `wasKicked` above. Ravenous's ETB trigger re-checks its
+        // intervening-if AFTER the state has been persisted at a stable point,
+        // so losing this across the round trip silently makes "if X is 5 or
+        // greater" false for every X.
+        lion.chosenXOnCast = 5;
 
         const expanded = expandState(compactState(state));
         const got = expanded.players[1].battlefield[0];
@@ -943,6 +949,7 @@ describe("game_state serialize round-trip", () => {
         expect(got.transformed).toBe(true);
         expect(got.transformedFrom).toBe("front-def-id");
         expect(got.wasKicked).toBe(true);
+        expect(got.chosenXOnCast).toBe(5);
     });
 
     it("preserves phasedOut bundles across the round trip (CR 702.26)", () => {
