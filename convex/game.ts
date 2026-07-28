@@ -8316,12 +8316,23 @@ export function recordConvokeCreaturePick(
     // picker is undefined when nothing generic is left (all convoked).
     const castCard = locateCastSource(state, player, pc.cardInstanceId).card;
     if (castCard && spellHasDelve(castCard) && !pc.exileFromGraveyardChoice) {
+        // CR 601.2g ordering (ADR 0063) — this is the SECOND leg of a chained
+        // payWith pick: `recordConvokeCreaturePick` is a pure record step, and
+        // its own caller hasn't had a chance to attempt
+        // `tryAutoCommitPendingCast` yet. `autoResolve: false` keeps the
+        // issue #1660 fully-forced short-circuit off HERE even when the delve
+        // count is fully forced (`min === max === eligible.length`) — see
+        // `buildDelveExileChoice`'s doc for why auto-resolving mid-record
+        // would leave this leg looking pre-paid to a caller (or test) that
+        // hasn't run the follow-up commit. The single-leg announce sites
+        // (no convoke) keep the default auto-resolve.
         const delveChoice = buildDelveExileChoice(
             player,
             castCard,
             pc.manaCost,
             pc.cardInstanceId,
-            genericManaShortfall(player, castCard, pc.manaCost)
+            genericManaShortfall(player, castCard, pc.manaCost),
+            { autoResolve: false }
         );
         if (delveChoice) pc.exileFromGraveyardChoice = delveChoice;
     }

@@ -101,7 +101,26 @@ export function applyGenericOffset(
  *    keeps prompting with the minimum pre-seeded, same as before.
  *
  *  `count` is a nominal 0: the variable-offset mode ignores it (mirrors the
- *  Nethergoyf `minCardTypes` mode's nominal 1). */
+ *  Nethergoyf `minCardTypes` mode's nominal 1).
+ *
+ *  `opts.autoResolve` (default `true`) gates the #1660 short-circuit above —
+ *  see its own doc for why. Pass `false` when this picker is being opened as
+ *  the SECOND leg of a chained payWith pick (CR 601.2g ordering, ADR 0063:
+ *  convoke → delve → mana), i.e. from `recordConvokeCreaturePick` after the
+ *  convoke pick has already landed. That call is a pure RECORD step —
+ *  `pendingCast` was already parked once (for convoke) by its own caller, and
+ *  auto-resolving here would silently pre-fill `pickedCardIds` and pay down
+ *  `manaCost` before that caller gets a chance to attempt
+ *  `tryAutoCommitPendingCast`. `recordConvokeCreaturePick` is exercised
+ *  directly (tests, and any future direct caller), not only through the
+ *  `selectConvokeCreatures` mutation that immediately follows it with a
+ *  commit attempt — auto-resolving mid-record would leave the delve leg
+ *  looking "already paid" to a caller that hasn't run that follow-up yet, and
+ *  a subsequent explicit `recordCastExileCostPick` would reject it
+ *  ("Exile cost already paid"). Keeping this leg on the always-prompt branch
+ *  keeps `recordConvokeCreaturePick` a clean, composable record step, the
+ *  same way `recordCastExileCostPick` and the sacrifice/hand-choice pickers
+ *  never resolve themselves behind another primitive's back. */
 export function buildDelveExileChoice(
     player: PlayerState,
     card: CardInstanceState,
@@ -110,9 +129,11 @@ export function buildDelveExileChoice(
     /** Generic pips the caster's available mana CANNOT cover (delve excluded) —
      *  computed by `genericManaShortfall` in `rules.ts`, the same greedy model
      *  the castability gate uses. */
-    shortfall: number
+    shortfall: number,
+    opts: { autoResolve?: boolean } = {}
 ): NonNullable<PendingCast["exileFromGraveyardChoice"]> | undefined {
     if (!spellHasDelve(card)) return undefined;
+    const autoResolve = opts.autoResolve ?? true;
     const eligible = delveEligibleCards(player, castInstanceId);
     const max = Math.min(eligible.length, genericPortion(manaCost));
     if (max <= 0) return undefined;
@@ -122,7 +143,7 @@ export function buildDelveExileChoice(
         excludeInstanceId: castInstanceId,
         offsetGeneric: { min, max },
     };
-    if (min === max && max === eligible.length) {
+    if (autoResolve && min === max && max === eligible.length) {
         const pickedCardIds = eligible.map((c) => c.id);
         applyGenericOffset(manaCost, pickedCardIds.length);
         return { ...choice, pickedCardIds };
