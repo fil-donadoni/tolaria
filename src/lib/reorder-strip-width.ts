@@ -66,9 +66,31 @@ export function fitTileWidth(opts: {
     return minTileW;
 }
 
-/** Fixed horizontal chrome shared by both full-screen strip modals: the
- *  overlay's own `p-6` (24px each side) plus the strip wrapper's `px-10`
- *  (40px each side). Both components subtract this from the raw viewport
- *  width before fitting tiles, so a viewport-width test can assert the exact
- *  same usable-width math the real modal renders with. */
-export const MODAL_CHROME_PADDING_X = (24 + 40) * 2;
+/** Tailwind's default `sm` breakpoint (40rem). Both full-screen strip
+ *  modals' own responsive chrome classes (`p-2 sm:p-6` on the overlay,
+ *  `px-0 sm:px-10` on the strip wrapper) and `modalChromePaddingX` below key
+ *  off this SAME threshold — so the padding the browser actually renders and
+ *  the number fed into `fitTileWidth`'s `availableWidth` can never drift
+ *  apart. */
+export const MOBILE_BREAKPOINT_PX = 640;
+
+/** Modal overlay's own padding (`p-*`, one side), by breakpoint. */
+const OVERLAY_PADDING_X = { mobile: 8, desktop: 24 } as const; // p-2 / p-6
+/** Strip wrapper's own horizontal padding (`px-*`, one side), by breakpoint. */
+const STRIP_WRAPPER_PADDING_X = { mobile: 0, desktop: 40 } as const; // px-0 / px-10
+
+/** Total horizontal chrome (both sides combined) surrounding the strip at a
+ *  given viewport width — review fix, issue #1765: a FIXED `(24 + 40) * 2`
+ *  (desktop-shaped) constant left a 390px phone with only 262px usable,
+ *  under what even a 2-card scry needs at the readability floor (`MIN_CARD_W`),
+ *  making the responsive fit inert for every real scry. The overlay padding
+ *  and the strip wrapper's own horizontal padding both shrink at the mobile
+ *  breakpoint (`p-2 sm:p-6`, `px-0 sm:px-10`), and this function returns the
+ *  EXACT same numbers those classes render with, so both full-screen pickers
+ *  (`LibraryOrderPicker`, `TriggerOrderPrompt`) can derive `availableWidth`
+ *  from the SAME source as the JSX rather than a separately-maintained
+ *  constant. */
+export function modalChromePaddingX(viewportW: number): number {
+    const bucket = viewportW < MOBILE_BREAKPOINT_PX ? "mobile" : "desktop";
+    return (OVERLAY_PADDING_X[bucket] + STRIP_WRAPPER_PADDING_X[bucket]) * 2;
+}

@@ -8,10 +8,7 @@ import { getStackAbilityOracleText } from "~/lib/card-utils";
 import { useGameContext } from "~/hooks/useGameContext";
 import { useMinimizedChoice } from "~/hooks/useMinimizedChoice";
 import { useViewportWidth } from "~/hooks/useViewportWidth";
-import {
-    fitTileWidth,
-    MODAL_CHROME_PADDING_X,
-} from "~/lib/reorder-strip-width";
+import { fitTileWidth, modalChromePaddingX } from "~/lib/reorder-strip-width";
 import { SLOT_SPRING } from "~/lib/board-motion";
 import StackAbilityTile from "./stack-ability-tile";
 
@@ -37,13 +34,16 @@ import StackAbilityTile from "./stack-ability-tile";
  *  public). */
 
 /** Natural (desktop) tile width. Shrunk responsively (issue #1765, shared
- *  `fitTileWidth`) to fit a narrow phone viewport, floored at MIN_TILE_W. */
-const NATURAL_TILE_W = 152;
+ *  `fitTileWidth`) to fit a narrow phone viewport, floored at MIN_TILE_W.
+ *  Exported (review fix, issue #1765) so tests import the REAL constants
+ *  instead of re-declaring the same literals — a re-declared copy can drift
+ *  from this file silently. */
+export const NATURAL_TILE_W = 152;
 /** Readability floor for the responsive fit — below it the strip's own
  *  horizontal scroll (`overflow-x-auto`, already in place) takes over instead
  *  of shrinking the tile further. */
-const MIN_TILE_W = 96;
-const GAP = 20;
+export const MIN_TILE_W = 96;
+export const GAP = 20;
 const LIFT = 18;
 const DRAG_START_PX = 6;
 // StackAbilityTile is an art-crop (ART_CROP_RATIO) plus a two/three-line oracle
@@ -123,7 +123,12 @@ export default function TriggerOrderPrompt({
                 stripWidthAt: (w) => order.length * (w + GAP) - GAP,
                 naturalTileW: NATURAL_TILE_W,
                 minTileW: MIN_TILE_W,
-                availableWidth: viewportW - MODAL_CHROME_PADDING_X,
+                // `modalChromePaddingX` (review fix, issue #1765): derives the
+                // same padding numbers the `p-2 sm:p-6` / `px-0 sm:px-10`
+                // classes below actually render with, instead of a fixed
+                // desktop-shaped constant that left a 390px phone with no
+                // real room to shrink into.
+                availableWidth: viewportW - modalChromePaddingX(viewportW),
             }),
         [order.length, viewportW]
     );
@@ -260,7 +265,7 @@ export default function TriggerOrderPrompt({
 
     return (
         <div
-            className={`fixed inset-0 z-modal items-center justify-center bg-scrim p-6 ${
+            className={`fixed inset-0 z-modal items-center justify-center bg-scrim p-2 sm:p-6 ${
                 isMinimized ? "hidden" : "flex"
             }`}
         >
@@ -281,8 +286,15 @@ export default function TriggerOrderPrompt({
                 </p>
 
                 {/* overflow-hidden (not auto): a lifted tile must never spawn a
-                    scrollbar. Padding gives the lifted/scaled tile room. */}
-                <div className="flex justify-center overflow-x-auto overflow-y-hidden px-10 py-6">
+                    scrollbar. Padding gives the lifted/scaled tile room
+                    (shrunk to 0 on mobile, review fix issue #1765 —
+                    `modalChromePaddingX` accounts for it). `justify-center-safe`
+                    (not `justify-center`, review fix): plain `justify-center`
+                    on an overflowing flex child clamps `scrollLeft` at 0,
+                    making the LEFT half of the strip permanently unreachable
+                    by scroll; `safe center` falls back to `start` alignment
+                    when the content overflows, keeping both ends scrollable. */}
+                <div className="flex justify-center-safe overflow-x-auto overflow-y-hidden px-0 sm:px-10 py-6">
                     <div
                         ref={containerRef}
                         className="relative shrink-0 touch-none select-none"

@@ -30,10 +30,7 @@ import { SLOT_SPRING } from "~/lib/board-motion";
 import { Minus, Hand, Layers, Skull } from "lucide-react";
 import { useMinimizedChoice } from "~/hooks/useMinimizedChoice";
 import { useViewportWidth } from "~/hooks/useViewportWidth";
-import {
-    fitTileWidth,
-    MODAL_CHROME_PADDING_X,
-} from "~/lib/reorder-strip-width";
+import { fitTileWidth, modalChromePaddingX } from "~/lib/reorder-strip-width";
 import OrderCard from "./order-card";
 import DeckMock from "./deck-mock";
 import {
@@ -302,7 +299,13 @@ export default function LibraryOrderPicker({
     // (`overflow-x-auto`) is the fallback instead. `fitTileWidth` only needs
     // this layout's OWN footprint function (its docs: the total strip width is
     // affine in the tile width regardless of the zones/gaps below), so no
-    // hardcoded pixel width lives in this component's math.
+    // hardcoded pixel width lives in this component's math. `availableWidth`
+    // is derived from `modalChromePaddingX` (review fix, issue #1765) — the
+    // SAME source the overlay's `p-2 sm:p-6` and the strip wrapper's
+    // `px-0 sm:px-10` classes below render with, so a 390px phone's actually-
+    // smaller chrome, not a desktop-shaped fixed constant, feeds the fit —
+    // otherwise even a 2-4 card scry always bottomed out at MIN_CARD_W and
+    // deferred to scroll.
     const viewportW = useViewportWidth();
     const cardW = useMemo(
         () =>
@@ -318,7 +321,7 @@ export default function LibraryOrderPicker({
                     ).stripW,
                 naturalTileW: CARD_W_NATURAL,
                 minTileW: MIN_CARD_W,
-                availableWidth: viewportW - MODAL_CHROME_PADDING_X,
+                availableWidth: viewportW - modalChromePaddingX(viewportW),
             }),
         [second.length, top.length, hasSecond, detached, detachRight, viewportW]
     );
@@ -593,7 +596,7 @@ export default function LibraryOrderPicker({
     // path (desktop pile column, portrait chips, PutBackPicker).
     return createPortal(
         <div
-            className={`fixed inset-0 z-modal items-center justify-center bg-scrim p-6 ${
+            className={`fixed inset-0 z-modal items-center justify-center bg-scrim p-2 sm:p-6 ${
                 isMinimized ? "hidden" : "flex"
             }`}
         >
@@ -633,8 +636,19 @@ export default function LibraryOrderPicker({
                     fallback. The dragged card's `dragX` is clamped within
                     `stripW` (never past either strip edge), so a drag never
                     fights the scroll. Horizontal padding gives the scaled edge
-                    cards + their drop-shadow room to breathe. */}
-                <div className="flex justify-center overflow-x-auto overflow-y-hidden px-10 py-8">
+                    cards + their drop-shadow room to breathe (shrunk to 0 on
+                    mobile, review fix issue #1765, so a narrow phone spends
+                    that room on tile width instead — `modalChromePaddingX`
+                    above already accounts for it).
+                    `justify-center-safe` (not `justify-center`, review fix):
+                    plain `justify-center` on an overflowing flex child clamps
+                    `scrollLeft` at 0 the moment the centered content is wider
+                    than the viewport, making the LEFT half of the strip —
+                    the BOTTOM/GRAVEYARD drop zone — permanently unreachable
+                    by scroll. `safe center` (CR-of-CSS: falls back to `start`
+                    alignment when the content overflows) keeps both ends
+                    scrollable. */}
+                <div className="flex justify-center-safe overflow-x-auto overflow-y-hidden px-0 sm:px-10 py-8">
                     <div
                         ref={containerRef}
                         className="relative shrink-0 touch-none select-none"

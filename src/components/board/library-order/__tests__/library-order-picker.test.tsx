@@ -3,11 +3,8 @@ import { render, fireEvent } from "@testing-library/react";
 import type { ReactElement } from "react";
 import LibraryOrderPicker from "../library-order-picker";
 import { MinimizedChoiceContext } from "~/hooks/useMinimizedChoice";
-import {
-    fitTileWidth,
-    MODAL_CHROME_PADDING_X,
-} from "~/lib/reorder-strip-width";
-import { computeLayout } from "../layout";
+import { fitTileWidth, modalChromePaddingX } from "~/lib/reorder-strip-width";
+import { computeLayout, insertionIndex } from "../layout";
 import { CARD_W as CARD_W_NATURAL, MIN_CARD_W } from "../constants";
 
 const looked = [
@@ -375,7 +372,7 @@ describe("LibraryOrderPicker", () => {
                 computeLayout(0, 5, true, false, false, w).stripW,
             naturalTileW: CARD_W_NATURAL,
             minTileW: MIN_CARD_W,
-            availableWidth: 390 - MODAL_CHROME_PADDING_X,
+            availableWidth: 390 - modalChromePaddingX(390),
         });
         expect(expectedCardW).toBeLessThan(CARD_W_NATURAL);
 
@@ -397,22 +394,48 @@ describe("LibraryOrderPicker", () => {
     // working when the tile size is the RESPONSIVE (shrunk) one, not just the
     // natural desktop size — the gesture math (slot centers, drop index,
     // grabOffsetX) must follow the dynamic width.
-    it("drag-to-reorder still works at a reduced tile size on touch (390px viewport)", () => {
+    //
+    // Review fix: the original version of this test dropped at `clientX: 0`,
+    // which lands at drop index 0 at ANY tile width (jsdom zeroes every
+    // element's bounding rect, so `localX` is just the raw `clientX`) — it
+    // could never have caught a regression back to a hardcoded NATURAL_CARD_W
+    // in the gesture math. `library-bottom` (Scry) reserves a full tile of
+    // room for the still-empty BOTTOM zone even before anything is dragged
+    // there, so at 390px it shrinks all the way to MIN_CARD_W (72) — a much
+    // bigger gap from the natural width (116) than `none` mode's, big enough
+    // that a real mid-strip x resolves to a DIFFERENT drop index depending on
+    // which width the math actually uses. The expected index/order below is
+    // derived by mirroring the component's own `computeLayout`/`insertionIndex`
+    // at the FITTED width — not hardcoded — so this test tracks the real
+    // component math and asserts the EXACT submitted order.
+    it("drag-to-reorder computes the drop index from the actual (fitted) tile width, not a hardcoded one", () => {
         setInnerWidth(390);
         proto.setPointerCapture = vi.fn();
         proto.releasePointerCapture = vi.fn();
         proto.hasPointerCapture = vi.fn(() => true);
 
+        const fittedCardW = fitTileWidth({
+            stripWidthAt: (w) =>
+                computeLayout(0, 3, true, false, false, w).stripW,
+            naturalTileW: CARD_W_NATURAL,
+            minTileW: MIN_CARD_W,
+            availableWidth: 390 - modalChromePaddingX(390),
+        });
+        expect(fittedCardW).toBeLessThan(CARD_W_NATURAL);
+
         const onConfirm = vi.fn();
         const { getByText, baseElement } = renderPicker(
             <LibraryOrderPicker
                 lookedAt={looked}
-                destination="none"
-                prompt="Portent"
+                destination="library-bottom"
+                prompt="Scry"
                 submitting={false}
                 onConfirm={onConfirm}
             />
         );
+        // DOM order follows `lookedAt` ([a, b, c]) — VISUAL order is the top
+        // array [c, b, a] via transforms, so cards[0] ("a") is the rightmost
+        // (top) card. Dragging it to the far left must reorder.
         const cards = baseElement.querySelectorAll(".cursor-grab");
         expect(cards.length).toBe(3);
         const rightmost = cards[0] as HTMLElement;
@@ -429,14 +452,33 @@ describe("LibraryOrderPicker", () => {
             clientX: 280,
             clientY: 50,
         });
+        // Implicit-capture transfer fires lostpointercapture ON THE CARD
+        // (target ≠ container) — must not commit the drag.
         fireEvent.lostPointerCapture(rightmost, { pointerId: 1 });
-        fireEvent.pointerMove(strip, { pointerId: 1, clientX: 0, clientY: 50 });
-        fireEvent.pointerUp(strip, { pointerId: 1, clientX: 0, clientY: 50 });
+        // Mid-strip x = 250: at the FITTED width (72) this resolves to drop
+        // index 1 among the two remaining top cards; at the NATURAL width
+        // (116) the very same x would resolve to drop index 0 — the two
+        // widths genuinely disagree here, unlike `clientX: 0`.
+        fireEvent.pointerMove(strip, {
+            pointerId: 1,
+            clientX: 250,
+            clientY: 50,
+        });
+        fireEvent.pointerUp(strip, { pointerId: 1, clientX: 250, clientY: 50 });
 
         fireEvent.click(getByText("Done"));
         expect(onConfirm).toHaveBeenCalledTimes(1);
-        const submittedTop = onConfirm.mock.calls[0][0] as string[];
-        expect(submittedTop).not.toEqual(["a", "b", "c"]);
-        expect([...submittedTop].sort()).toEqual(["a", "b", "c"]);
+
+        // Mirrors the component's own drop-resolution math (`view`'s `hit` /
+        // `insertionIndex` in library-order-picker.tsx) at the FITTED width,
+        // then simulates the same splice + reverse-for-submit the component
+        // performs on confirm.
+        const hit = computeLayout(0, 2, true, false, false, fittedCardW);
+        const expectedDropIndex = insertionIndex(hit, "top", 2, 250);
+        const top0 = ["c", "b"]; // top minus the dragged "a"
+        top0.splice(expectedDropIndex, 0, "a");
+        const expectedTop = [...top0].reverse();
+
+        expect(onConfirm).toHaveBeenCalledWith(expectedTop, []);
     });
 });
