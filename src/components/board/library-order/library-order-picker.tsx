@@ -20,6 +20,7 @@
 // hand. On confirm the hand cards go out as `cardInstanceIds`, the bottom cards
 // (ordered) as `secondZoneIds`.
 import { useCallback, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { LibraryDestination } from "@convex/gre/types";
 import {
     canAddCategorizedPick,
@@ -491,9 +492,20 @@ export default function LibraryOrderPicker({
         [commit]
     );
 
-    const onLostPointerCapture = useCallback(() => {
-        if (press.current) commit();
-    }, [commit]);
+    const onLostPointerCapture = useCallback(
+        (e: React.PointerEvent<HTMLDivElement>) => {
+            // Touch-only trap: a touch pointerdown gives the pressed CARD
+            // implicit pointer capture, so our first setPointerCapture on the
+            // CONTAINER (drag activation) transfers it — firing
+            // `lostpointercapture` on the card, which bubbles here and used to
+            // commit() instantly, killing the drag on its first move (the
+            // "card jumps away" mobile glitch). Only the CONTAINER itself
+            // losing capture may commit; the card→container transfer must not.
+            if (e.target !== e.currentTarget) return;
+            if (press.current) commit();
+        },
+        [commit]
+    );
 
     // `distribute` / `putBack` require the HAND (right) zone to hold between
     // `minKeep` and `keep` cards before Done is legal (the engine enforces the
@@ -516,7 +528,13 @@ export default function LibraryOrderPicker({
 
     const containerH = CARD_H + LIFT;
 
-    return (
+    // Portalled to <body>: on the portrait board this picker mounts inside
+    // BoardPileChips' `sr-only` wrapper (1px clip box), and `fixed` does NOT
+    // escape an ancestor's `overflow: hidden` + `clip` — the overlay rendered
+    // but was invisible (Portent's reorder never appeared on mobile). The
+    // portal detaches the overlay from that ancestor chain for every mount
+    // path (desktop pile column, portrait chips, PutBackPicker).
+    return createPortal(
         <div
             className={`fixed inset-0 z-modal items-center justify-center bg-scrim p-6 ${
                 isMinimized ? "hidden" : "flex"
@@ -661,6 +679,7 @@ export default function LibraryOrderPicker({
                     </button>
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 }
