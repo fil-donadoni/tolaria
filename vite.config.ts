@@ -29,8 +29,18 @@ export default defineConfig({
     plugins: [
         tailwindcss(),
         react(),
-        babel({ presets: [reactCompilerPreset()] } as Parameters<
-            typeof babel
-        >[0]),
+        // React Compiler runs through Babel. Scope it to `src/` — the plugin's
+        // default `include` is "every .ts/.tsx", and the preset's own filter
+        // (`code: /\b[A-Z]|\buse/`) matches almost any file, so without this
+        // Babel also parses the `convex/` engine modules the frontend imports
+        // (ADR 0074). Those have no components or hooks, so the work is pure
+        // waste — and the two biggest (`gre/state.ts`, `cards/types.ts`) blow
+        // past Babel's 500 KB code-generator limit and log a deopt notice on
+        // every build.
+        babel({
+            include: [/[\\/]src[\\/].*\.[jt]sx?(?:$|\?)/],
+            exclude: [/[\\/]node_modules[\\/]/],
+            presets: [reactCompilerPreset()],
+        } as Parameters<typeof babel>[0]),
     ],
 });

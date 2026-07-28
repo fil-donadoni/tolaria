@@ -51,8 +51,12 @@ import {
 } from "../../../__tests__/setup";
 import { getCardByName } from "../../..";
 import type { CardInstanceState, GameState } from "../../../../gre/state";
-import type { Phase } from "../../../../gre/types";
+import type { GameEvent, Phase } from "../../../../gre/types";
 import { resolveTopOfStack } from "../../../../gre/state";
+import {
+    collectTriggers,
+    placeTriggersOnStack,
+} from "../../../../gre/triggers";
 import {
     advancePhase,
     applyAllCombatDamage,
@@ -259,6 +263,138 @@ describe("Backup N — real trigger path (CR 702.165, issue #1692)", () => {
         )!;
         expect(source.counters?.["+1/+1"]).toBe(1);
         expect(source.grantedStaticAbilities).toBeUndefined();
+    });
+
+    // CR 702.165c (issue #1665) — Backup grants EVERY non-backup ability
+    // printed below the line, not just the keywords. Guardian Scalelord is the
+    // only shipped Backup card with a printed TRIGGERED ability below its
+    // Backup line, so it is the one that exercises `grantedTriggeredId`.
+    describe("Guardian Scalelord: the printed attack TRIGGER is granted too (CR 702.165c, issue #1665)", () => {
+        const WURM_ID = "backup-wurm";
+        const GY_WURM_ID = "gy-craw-wurm";
+
+        /** Same real path as `castBackupCreature`, but the backup target is a
+         *  6/4 Craw Wurm (so the recipient's post-counter power, 7, differs
+         *  from Guardian Scalelord's own 3) and p1's graveyard holds an mv-6
+         *  Craw Wurm card — legal for the granted trigger ONLY if the
+         *  `mvFilter: { max: "sourcePower" }` cap reads the RECIPIENT's power. */
+        function castScalelordOnAWurm(): GameState {
+            const crawWurmId = getCardByName("Craw Wurm").id; // {4}{G}{G}, mv 6
+            const wurm = makeInstance(crawWurmId, {
+                id: WURM_ID,
+                controllerId: "p1",
+                ownerId: "p1",
+            });
+            const gyWurm = makeInstance(crawWurmId, {
+                id: GY_WURM_ID,
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "graveyard",
+            });
+            const state = makeState({
+                players: [
+                    makePlayer("p1", {
+                        battlefield: [wurm],
+                        graveyard: [gyWurm],
+                    }),
+                    makePlayer("p2"),
+                ],
+            });
+            pushSpell(state, guardianScalelord.id, "p1");
+            resolveTopOfStack(state);
+            resolveTriggerOrder(state);
+            return chooseTargetAndResolve(state, WURM_ID);
+        }
+
+        /** Declares `attackerId` as an attacker through the REAL trigger seam
+         *  (collect → place → CR 603.3d target lock), then resolves whatever
+         *  landed on the stack. */
+        function attackAndResolve(
+            state: GameState,
+            attackerId: string
+        ): GameState {
+            const triggers = collectTriggers(state, [
+                {
+                    type: "ATTACKERS_DECLARED",
+                    attackingPlayerId: "p1",
+                    attackerIds: [attackerId],
+                } as GameEvent,
+            ]);
+            placeTriggersOnStack(state, triggers);
+            const reloaded = expandState(compactState(state));
+            // A trigger with no legal target was already removed from the
+            // stack by CR 603.3c, so there may be nothing to resolve.
+            if (reloaded.stack.length > 0) resolveTopOfStack(reloaded);
+            return reloaded;
+        }
+
+        it("records the grant on the recipient and it survives the wire", () => {
+            const state = castScalelordOnAWurm();
+            const wurm = findOnBoard(state, WURM_ID);
+            // Both halves of CR 702.165c: the keyword AND the trigger.
+            expect(wurm.staticAbilities).toContain("flying");
+            expect(wurm.grantedTriggeredAbilities).toEqual([
+                {
+                    sourceCardId: guardianScalelord.id,
+                    abilityId: "guardian-scalelord-attack",
+                    duration: { phase: "end-of-turn" },
+                },
+            ]);
+            // The client reads granted triggers off the instance
+            // (`src/lib/card-utils.ts`), so the projection must keep them.
+            const projected = projectPublicState(state, 1, "p1");
+            const slim = projected.players
+                .flatMap((p) => p.battlefield)
+                .find((c) => c.id === WURM_ID)!;
+            expect(slim.grantedTriggeredAbilities).toEqual(
+                wurm.grantedTriggeredAbilities
+            );
+        });
+
+        it("the granted trigger fires when the RECIPIENT attacks, and its power caps the reanimation", () => {
+            // The 6/4 Craw Wurm is 7/5 after Backup's counter, so the mv-6
+            // graveyard card clears the cap — it would NOT under Guardian
+            // Scalelord's own power of 3, which pins that "this creature" in
+            // the granted copy means the RECIPIENT (CR 702.165a).
+            const state = attackAndResolve(castScalelordOnAWurm(), WURM_ID);
+            const p1 = state.players[0];
+            expect(p1.graveyard.some((c) => c.id === GY_WURM_ID)).toBe(false);
+            const reanimated = p1.battlefield.find((c) => c.id === GY_WURM_ID);
+            expect(reanimated).toBeDefined();
+            expect(reanimated!.controllerId).toBe("p1");
+        });
+
+        it("the SOURCE attacking still fires only its own printed copy — capped by ITS power (3 < mv 6)", () => {
+            // CR 603.3c — the granted copy lives on the Wurm, not on Guardian
+            // Scalelord, so a Scalelord attack raises exactly one trigger; with
+            // no graveyard card at mana value ≤ 3 it has no legal target and is
+            // removed from the stack (the mv-6 Wurm stays in the graveyard).
+            const state = castScalelordOnAWurm();
+            const sourceId = state.players[0].battlefield.find(
+                (c) => c.id !== WURM_ID
+            )!.id;
+            const after = attackAndResolve(state, sourceId);
+            expect(after.stack).toHaveLength(0);
+            expect(after.players[0].graveyard.some((c) => c.id === GY_WURM_ID))
+                .toBe(true);
+        });
+
+        it("expires at CLEANUP — the recipient stops firing the granted trigger next turn", () => {
+            let state = castScalelordOnAWurm();
+            for (let i = 0; i < 32 && state.phase !== "UPKEEP"; i++) {
+                advancePhase(state);
+            }
+            expect(state.phase).toBe("UPKEEP");
+            state = expandState(compactState(state));
+            const wurm = findOnBoard(state, WURM_ID);
+            expect(wurm.grantedTriggeredAbilities).toBeUndefined();
+            expect(wurm.staticAbilities).not.toContain("flying");
+            // CR 611.2 — nothing left to fire: attacking raises no trigger.
+            const after = attackAndResolve(state, WURM_ID);
+            expect(after.stack).toHaveLength(0);
+            expect(after.players[0].graveyard.some((c) => c.id === GY_WURM_ID))
+                .toBe(true);
+        });
     });
 
     it("grants even when the Backup source left the battlefield in response", () => {

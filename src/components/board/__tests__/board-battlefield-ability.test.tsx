@@ -163,7 +163,27 @@ const EQUIP_DEF = {
         },
     ],
 };
+// AURA_DEF: FEM Merseine's shape — an Aura whose activated ability may only be
+// activated by the controller of the ENCHANTED CREATURE (CR 602.1), not by the
+// Aura's own controller.
+const AURA_DEF = {
+    id: "aura-def",
+    name: "Merseine",
+    activatedAbilities: [
+        {
+            id: "merseine-remove-net",
+            useStack: true,
+            activatableByEnchantedController: true,
+            oracleText:
+                "Pay enchanted creature's mana cost: Remove a net counter from this Aura.",
+            cost: { removeCounter: { type: "net", count: 1 } },
+            canActivate: (source: { attachedTo?: string }) =>
+                source.attachedTo !== undefined,
+        },
+    ],
+};
 const DEFS: Record<string, unknown> = {
+    "aura-def": AURA_DEF,
     "stack-def": STACK_DEF,
     "x-def": X_DEF,
     "dual-def": DUAL_DEF,
@@ -569,5 +589,63 @@ describe("board battlefield activated-ability parity with the classic board (#27
                 container.querySelector(`[data-arrow-anchor-permanent="${id}"]`)
             ).not.toBeNull();
         }
+    });
+
+    it("(k) an OPPONENT's Aura on MY creature dispatches for the enchanted creature's controller (CR 602.1, Merseine)", () => {
+        // Bug: Merseine's "Only the controller of the enchanted creature may
+        // activate this ability" ability was listed in the menu but clicking it
+        // did nothing — no mutation, no error. An attached Aura renders on its
+        // HOST's board (`attachedAurasByHost` is built from EVERY battlefield),
+        // so the Aura card lives in the OTHER player's `battlefield` array while
+        // the click is handled by the host board's hook, whose lookup scanned
+        // only its own `player.battlefield` and returned early.
+        const bear = permanent("bear1", "stack-def", { types: ["Creature"] });
+        const net = permanent("net1", "aura-def", {
+            controllerId: "opp",
+            ownerId: "opp",
+            types: ["Enchantment"],
+            subtypes: ["Aura"],
+            attachedTo: "bear1",
+            counters: { net: 3 },
+        });
+        const me = makePlayer("me", [bear]);
+        const opp = makePlayer("opp", [net]);
+
+        const { container } = renderSpatial(me, [me, opp]);
+        openMenuAndClick(container, "net1", "Remove a net counter");
+        expect(activateAbility.mock.calls[0]?.[0]).toMatchObject({
+            playerId: "me",
+            cardInstanceId: "net1",
+            abilityId: "merseine-remove-net",
+        });
+    });
+
+    it("(l) MY Aura on an OPPONENT's creature is NOT offered to me (CR 602.1 — the host's controller activates)", () => {
+        // The mirror of (k): I control the Aura, the opponent controls the
+        // enchanted creature, so only THEY may activate it. The Aura renders on
+        // the opponent's board (its host's side) and must expose no entry to me.
+        const bear = permanent("bear1", "stack-def", {
+            controllerId: "opp",
+            ownerId: "opp",
+            types: ["Creature"],
+        });
+        const net = permanent("net1", "aura-def", {
+            types: ["Enchantment"],
+            subtypes: ["Aura"],
+            attachedTo: "bear1",
+            counters: { net: 3 },
+        });
+        const me = makePlayer("me", [net]);
+        const opp = makePlayer("opp", [bear]);
+
+        const { container } = renderSpatial(opp, [me, opp]);
+        const trigger = container.querySelector<HTMLElement>(
+            '[data-arrow-anchor-permanent="net1"]'
+        )!;
+        fireEvent.click(trigger);
+        const item = within(document.body)
+            .queryAllByRole("menuitem")
+            .find((el) => (el.textContent ?? "").includes("Remove a net counter"));
+        expect(item).toBeUndefined();
     });
 });

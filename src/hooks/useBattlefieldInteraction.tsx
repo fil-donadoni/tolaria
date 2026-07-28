@@ -89,6 +89,13 @@ export function useBattlefieldInteraction(player: Player) {
         emblems,
     } = useGameContext();
     const isMe = player.id === playerId;
+    // The VIEWER's own player row. Usually identical to `player` (this board is
+    // the viewer's), but an attached permanent renders on its HOST's board
+    // (`attachedAurasByHost` in `board-battlefield.tsx` is built from every
+    // battlefield), so a card the viewer controls can be rendered by the
+    // OPPONENT's board instance — and vice versa. Every activation affordance
+    // is judged against the viewer's own hand/life/mana, never the board's.
+    const viewer = allPlayers.find((p) => p.id === playerId) ?? player;
     // Melee (#669) — under `meleeCombat` the attacking (active) player declares
     // blocks; otherwise the defending (non-active) player does.
     const blockDeclarerId = meleeCombat
@@ -212,12 +219,13 @@ export function useBattlefieldInteraction(player: Player) {
         }
     }
 
-    const hasPriority = isMe && priorityPlayerId === playerId;
-    // CR 113.3c — "any player may activate" abilities (Ifh-Bíff Efreet) can be
-    // fired by the viewer even on an OPPONENT's permanent. Surface those on the
-    // opponent's block whenever the viewer holds priority. Distinct from
-    // `hasPriority` (which is gated on `isMe`) so the controller-only default is
-    // unaffected.
+    // CR 117.3 — the single priority gate for every activation affordance. It
+    // is deliberately NOT scoped to `isMe` (the board being rendered): what
+    // matters is that the VIEWER holds priority, whether the permanent is the
+    // viewer's own, an opponent's with an "any player may activate" ability
+    // (CR 113.3c, Ifh-Bíff Efreet), or an attachment rendered on the other
+    // side's board (CR 602.1, Merseine). The per-card controller split in
+    // `getActivatable` decides WHICH abilities are offered.
     const viewerHasPriority = priorityPlayerId === playerId;
 
     const isSelectingTarget =
@@ -650,22 +658,32 @@ export function useBattlefieldInteraction(player: Player) {
             cannotActivateAbilitiesThisTurn,
             lifeGainedThisTurn
         );
-        // CR 113.3c — on an OPPONENT's permanent, the viewer may only activate
-        // "any player may activate" abilities, and only while holding priority.
-        // Controller-only abilities and mana abilities stay hidden there.
-        if (!isMe) {
+        // CR 113.3c — on a permanent the viewer does NOT control, only
+        // "any player may activate" / "opponents only" / "the enchanted
+        // creature's controller may activate" abilities are offered, and only
+        // while the viewer holds priority. Controller-only abilities and mana
+        // abilities stay hidden there.
+        //
+        // The split is on the CARD's controller, not on which board renders it:
+        // an attached permanent rides its HOST's board, so an Aura the viewer
+        // controls on an opponent's creature is drawn on the opponent's side
+        // (and an opponent's Aura on the viewer's creature on the viewer's
+        // side). Keying off the board's `isMe` hid the viewer's own abilities on
+        // the first, and offered the opponent's controller-only abilities on the
+        // second — where clicking silently did nothing (Merseine).
+        if (card.controllerId !== playerId) {
             if (!viewerHasPriority) return [];
-            // CR 118.4 — the viewer (not the permanent's controller) pays an
-            // any-player ability's life cost, so gate on the viewer's own life.
-            const viewerLife = allPlayers.find((p) => p.id === playerId)?.life;
+            // CR 118.4 — the viewer (not the permanent's controller) pays a
+            // non-controller ability's life cost, so gate on the viewer's life.
             return getAnyPlayerStackAbilities(
                 card,
                 phase,
                 stateView,
-                viewerLife
+                viewer.life,
+                playerId
             );
         }
-        if (!hasPriority) {
+        if (!viewerHasPriority) {
             return [];
         }
         // CR 508.1 / 509.1 — declaring attackers and declaring blockers are
@@ -686,22 +704,25 @@ export function useBattlefieldInteraction(player: Player) {
         // Jandor's Ring discard cost (CR 118.3): payable only while the
         // controller's last-drawn-this-turn card is still in hand.
         const canDiscardLastDrawn =
-            player.lastDrawnCardId !== undefined &&
-            player.hand.some(
-                (c) => c !== null && c.id === player.lastDrawnCardId
+            viewer.lastDrawnCardId !== undefined &&
+            viewer.hand.some(
+                (c) => c !== null && c.id === viewer.lastDrawnCardId
             );
         const stack = getStackAbilities(
             card,
             phase,
             canDiscardLastDrawn,
             stateView,
-            // CR 118.4 — controller's own ability: the controller (this `player`,
-            // the viewer on the isMe path) pays the life cost.
-            player.life,
+            // CR 118.4 — controller's own ability: the controller (the viewer on
+            // this path, by the `card.controllerId` split above) pays the life
+            // cost.
+            viewer.life,
             // CR 602.1 / 118.3 — the `discardFilter` cost (Survival of the
-            // Fittest) is always paid from the CONTROLLER's own hand; this
-            // `isMe` path's `player.hand` is the real (non-nulled) hand.
-            player.hand.filter((c): c is CardInstance => c !== null)
+            // Fittest) is always paid from the CONTROLLER's own hand; the
+            // viewer IS the controller here, so this is the real (non-nulled)
+            // hand.
+            viewer.hand.filter((c): c is CardInstance => c !== null),
+            playerId
         );
         // When a card carries BOTH a mana ability and at least one stack
         // ability (Basalt Monolith, Mana Vault), surface the mana ability as
@@ -752,7 +773,7 @@ export function useBattlefieldInteraction(player: Player) {
         if (stack.length === 0) return manaCostEntry;
         if (!manaToggle) return [...manaCostEntry, ...stack];
         if (card.isTapped) {
-            if (!canRefundManaTap(card, player.manaPool))
+            if (!canRefundManaTap(card, viewer.manaPool))
                 return [...manaCostEntry, ...stack];
             return [
                 { id: manaToggle.id, oracleText: "Untap and refund mana" },
@@ -770,7 +791,15 @@ export function useBattlefieldInteraction(player: Player) {
         abilityId: string,
         keepPriority: boolean
     ) {
-        const card = player.battlefield.find((c) => c.id === cardInstanceId);
+        // Scan EVERY battlefield, not just this board's: an attached permanent
+        // is rendered on its HOST's board while it lives in its own
+        // controller's `battlefield` array, so an Aura across the control
+        // boundary (an opponent's Merseine on the viewer's creature) was not
+        // found here and the click returned silently — no mutation, no error,
+        // no feedback at all.
+        const card = allPlayers
+            .flatMap((p) => p.battlefield)
+            .find((c) => c.id === cardInstanceId);
         if (!card) return;
         const def = getDefinition(card.card.id);
         const ability = def.activatedAbilities?.find((a) => a.id === abilityId);

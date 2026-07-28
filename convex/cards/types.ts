@@ -8692,8 +8692,9 @@ export type EffectOp =
       }
     /** CR 611.1b / 613.1f (layer 6, issue #843) — grant an ability to a
      *  permanent for a limited duration. A thin declarative skin over the
-     *  SpellContext primitives `grantStaticAbility` / `grantActivatedAbility`,
-     *  one execution path (ADR 0045). Exactly one of two payloads:
+     *  SpellContext primitives `grantStaticAbility` / `grantActivatedAbility` /
+     *  `grantTriggeredAbility`, one execution path (ADR 0045). Exactly one of
+     *  three payloads:
      *  - `ability` — a keyword static ability ("flying", "trample", "haste",
      *    "banding", …; a free-form keyword read at combat / rules-check time,
      *    Berserk's "target creature gains trample").
@@ -8701,6 +8702,14 @@ export type EffectOp =
      *    RESOLVING source's `grantTemplates[]` (issue #738, Touch of Vitae's
      *    "gains '{0}: Untap this creature. Activate only once.'"). The template
      *    carries its own cost / effects / `oncePerTurn` cap.
+     *  - `grantedTriggeredId` — the `id` of a triggered-ability template on the
+     *    RESOLVING source's `triggeredGrantTemplates[]` (issue #1665, Guardian
+     *    Scalelord's Backup 1 granting the attack trigger printed below it, CR
+     *    702.165c). `effectiveTriggeredAbilities` unions the template into the
+     *    recipient's triggers, so the trigger collector scans and resolves it as
+     *    if printed on the recipient (its `matches(event, self)` and any
+     *    `$source`-relative effect therefore read the RECIPIENT, not the
+     *    granting card).
      *  `target` names the permanent: an announced target slot, the resolving
      *  source (`$source`), or the current member of a `forEach` set
      *  (`{ ref: "$each" }`). `duration` is the phase boundary at which the grant
@@ -8713,16 +8722,19 @@ export type EffectOp =
           op: "grantAbility";
           target: EffectObjectSelector;
           /** CR 611.2 — the phase boundary at which the grant expires. OMITTED
-           *  is INDEFINITE (CR 611.2b, issue #1746): the keyword persists for
+           *  is INDEFINITE (CR 611.2b, issue #1746): the ability persists for
            *  as long as the permanent stays on the battlefield — "it becomes a
            *  … Avatar with … flying and first strike" (Figure of Destiny), the
-           *  Cocoon-style permanent gain. Routes to
-           *  `SpellContext.grantStaticAbilityPermanent`. REQUIRED for
-           *  `grantedActivatedId` (an activated-ability grant has no indefinite
-           *  primitive). */
+           *  Cocoon-style permanent gain; for `grantedTriggeredId` it routes to
+           *  `grantTriggeredAbilityPermanent` (Balduvian Shaman's "gains
+           *  'Cumulative upkeep {1}'"). Routes to
+           *  `SpellContext.grantStaticAbilityPermanent` for a keyword. REQUIRED
+           *  for `grantedActivatedId` (an activated-ability grant has no
+           *  indefinite primitive). */
           duration?: DurationSpec;
           ability?: string;
           grantedActivatedId?: string;
+          grantedTriggeredId?: string;
       }
     /** CR 613.1d (layer 4, issue #1194) — adds `subtype` to a target permanent
      *  INDEFINITELY, in addition to its other types (Guide of Souls: "It

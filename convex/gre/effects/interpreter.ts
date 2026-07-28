@@ -2205,6 +2205,28 @@ export const OP_EXECUTORS: {
                 op.duration
             );
         }
+        if (op.grantedTriggeredId) {
+            // CR 113.1 / 611.1b (issue #1665) — a TRIGGERED-ability grant whose
+            // template lives on the resolving source's
+            // `triggeredGrantTemplates[]` (Guardian Scalelord's Backup 1
+            // handing the target creature the attack trigger printed below the
+            // Backup line, CR 702.165c). Mirrors the keyword leg's
+            // duration/indefinite split (CR 611.2b): both primitives exist.
+            if (op.duration === undefined) {
+                ctx.grantTriggeredAbilityPermanent(
+                    target,
+                    ctx.sourceCardId,
+                    op.grantedTriggeredId
+                );
+            } else {
+                ctx.grantTriggeredAbility(
+                    target,
+                    ctx.sourceCardId,
+                    op.grantedTriggeredId,
+                    op.duration
+                );
+            }
+        }
     },
     // CR 613.1d layer 4 (issue #1194) — add a subtype to a permanent
     // INDEFINITELY, in addition to its other types. A thin declarative skin

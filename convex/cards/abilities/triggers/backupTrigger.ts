@@ -19,13 +19,16 @@
 // Modeled as a keyword→triggered-ability factory (ADR 0002), mirroring
 // `rampageTrigger`'s shape: the card carries the parametric keyword
 // `"backup N"` in `staticAbilities[]` (board-visible reminder data) and a
-// matching `backupTrigger(N, grantedAbilities)` in `triggeredAbilities[]`, so
-// no per-card trigger code is written. `grantedAbilities` is the card's OWN
-// printed ability list below the Backup line (CR 702.165c) — the exact
-// keyword strings the card ALSO carries in its own `staticAbilities[]`
-// (Consuming Aetherborn: `["backup 1", "lifelink"]`, backupTrigger(1,
-// ["lifelink"])) — so the grant, when it fires, is provably a SUBSET of what
-// the source itself has.
+// matching `backupTrigger(N, grantedAbilities, grantedTriggeredIds)` in
+// `triggeredAbilities[]`, so no per-card trigger code is written.
+// `grantedAbilities` is the card's OWN printed KEYWORD list below the Backup
+// line (CR 702.165c) — the exact keyword strings the card ALSO carries in its
+// own `staticAbilities[]` (Consuming Aetherborn: `["backup 1", "lifelink"]`,
+// backupTrigger(1, ["lifelink"])) — and `grantedTriggeredIds` (issue #1665) is
+// the same closed list for its printed TRIGGERED abilities below that line, each
+// id naming a `triggeredGrantTemplates[]` entry mirroring a trigger the card
+// also prints on itself (Guardian Scalelord's attack trigger). Either way the
+// grant, when it fires, is provably a SUBSET of what the source itself has.
 //
 // A fully DSL-first ability (ADR 0045): the ETB target-and-counter half rides
 // the existing targeted-ETB-trigger foundation (`enteredTrigger` +
@@ -49,13 +52,21 @@ function counterPhrase(n: number): string {
     return `${n} +1/+1 counters`;
 }
 
-/** Builds the Backup N triggered ability (CR 702.165) for a value of `n` and
- *  the card's own printed ability list below the Backup line. */
+/** Builds the Backup N triggered ability (CR 702.165) for a value of `n`, the
+ *  card's own printed KEYWORD list below the Backup line, and — since issue
+ *  #1665 — the ids of its own printed TRIGGERED abilities below that line
+ *  (`grantedTriggeredIds`, each an id on the card's `triggeredGrantTemplates[]`
+ *  mirroring the trigger the card also prints on itself). CR 702.165c grants
+ *  EVERY non-backup ability printed below the Backup line, keyword or not:
+ *  Guardian Scalelord's Backup 1 hands over both "Flying" AND "Whenever this
+ *  creature attacks, return target nonland permanent card …". */
 export function backupTrigger(
     n: number,
-    grantedAbilities: string[]
+    grantedAbilities: string[],
+    grantedTriggeredIds: string[] = []
 ): TriggeredAbility {
-    const abilityWord = grantedAbilities.length === 1 ? "ability" : "abilities";
+    const grantCount = grantedAbilities.length + grantedTriggeredIds.length;
+    const abilityWord = grantCount === 1 ? "ability" : "abilities";
     const oracleText = `Backup ${n} (When this creature enters, put ${counterPhrase(n)} on target creature. If that's another creature, it gains the following ${abilityWord} until end of turn.)`;
 
     return enteredTrigger({
@@ -83,12 +94,26 @@ export function backupTrigger(
             {
                 op: "if",
                 predicate: { targetIsAnother: { target: 0 } },
-                then: grantedAbilities.map((ability) => ({
-                    op: "grantAbility" as const,
-                    target: { target: 0 },
-                    ability,
-                    duration: { phase: "end-of-turn" as const },
-                })),
+                then: [
+                    ...grantedAbilities.map((ability) => ({
+                        op: "grantAbility" as const,
+                        target: { target: 0 },
+                        ability,
+                        duration: { phase: "end-of-turn" as const },
+                    })),
+                    // CR 702.165c (issue #1665) — a printed TRIGGERED ability
+                    // below the Backup line is granted too. The template lives
+                    // on the source's `triggeredGrantTemplates[]`;
+                    // `effectiveTriggeredAbilities` unions it into the
+                    // recipient's triggers, so it fires off the RECIPIENT
+                    // (its `matches(event, self)` reads the recipient's id).
+                    ...grantedTriggeredIds.map((grantedTriggeredId) => ({
+                        op: "grantAbility" as const,
+                        target: { target: 0 },
+                        grantedTriggeredId,
+                        duration: { phase: "end-of-turn" as const },
+                    })),
+                ],
             },
         ],
     });

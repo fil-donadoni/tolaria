@@ -1765,9 +1765,12 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     grantAbility(rawOp, scenario) {
         const op = rawOp as Extract<EffectOp, { op: "grantAbility" }>;
         if (!("target" in op.target)) return null;
-        // The activated-ability grant variant (`grantedActivatedId`, issue #738)
-        // isn't observable via `staticAbilities`; its cards carry a hand-written
-        // per-card test, so skip it here (return null → smoke test skips).
+        // The activated-ability (`grantedActivatedId`, issue #738) and
+        // triggered-ability (`grantedTriggeredId`, issue #1665) grant variants
+        // aren't observable via `staticAbilities` — they land on
+        // `grantedActivatedAbilities` / `grantedTriggeredAbilities` instead;
+        // their cards carry a hand-written per-card test, so skip them here
+        // (return null → smoke test skips).
         if (op.ability === undefined) return null;
         const ability = op.ability;
         const permId = scenario.targetPermanentIds[op.target.target];

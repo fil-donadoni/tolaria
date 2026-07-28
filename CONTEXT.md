@@ -797,12 +797,16 @@ _Avoid_: Random prompt, RNG dialog
 A **Random Reveal** with two faces (CR 705.2), defaulting to WIN / LOSE relative to the flipping **Player**. The drawn bit is generated once and read back on replay — never re-rolled. Used by Bottle of Suleiman, Mijae Djinn, Ydwen Efreet.
 _Avoid_: Heads-or-tails (unless a card overrides the face labels), toss
 
-**Auto-Pass**:
-A client preference where a **Player** automatically passes **Priority** during specified **Phases** when they have no legal actions. Can be cancelled.
-_Avoid_: Auto-skip, fast-forward
+**Pass Turn**:
+A **Player**'s standing intent to yield the rest of the current turn. Permissive: it gives up response windows and turn-based decisions, so **Drain Auto-Pass** resolves the **Stack** and confirms attackers, blockers and damage on that **Player**'s behalf. Can be cancelled.
+_Avoid_: Auto-pass, fast-forward
+
+**Phase Stop**:
+A per-**Phase**, per-side (own turn / opponent's turn) preference for where a **Player** wants to be handed **Priority**. Strict: a **Phase** with no stop is passed through only when nothing is awaited — never past a non-empty **Stack**, a pending choice or target, or a turn-based combat decision. Owned by the **Player**, not by the **Game**, and mirrored to the server so **Drain Auto-Pass** can honour it without a round-trip per **Phase**. The stored preference is the _complement_ of the stop the UI shows.
+_Avoid_: Auto-pass, auto-skip, phase skip
 
 **Drain Auto-Pass**:
-The engine-side loop that applies consecutive **Auto-Passes** after a **Priority** change, without requiring round-trips to the client.
+The engine-side loop that applies consecutive passes after a **Priority** change without round-trips to the client. Honours both **Pass Turn** and **Phase Stop**, each with its own semantics — the permissive one may resolve the **Stack**, the strict one never may.
 _Avoid_: Auto-pass chain, cascade
 
 ## Example Dialogue

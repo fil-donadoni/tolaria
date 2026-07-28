@@ -1191,7 +1191,14 @@ export function getStackAbilities(
      *  the gate (callers without hand data, or the non-controller
      *  `getAnyPlayerStackAbilities` path — a `discardFilter` cost is always
      *  paid from the CONTROLLER's own hand, never the activator's). */
-    discardFilterHand?: ReadonlyArray<CardInstance>
+    discardFilterHand?: ReadonlyArray<CardInstance>,
+    /** The player who would ACTIVATE — normally the source's controller, which
+     *  is why every other gate here reads `card.controllerId`. Only
+     *  `activatableByEnchantedController` (CR 602.1, FEM Merseine: "Only the
+     *  controller of the enchanted creature may activate this ability") divorces
+     *  the two: the Aura's controller and the activator can be different
+     *  players. Omit for the ordinary controller-activates listing. */
+    activatorId?: string
 ): { id: string; oracleText: string }[] {
     const cardDef = getDefinition(card.card.id);
     const tapLocked = isTapLockedBySummoningSickness(card);
@@ -1220,6 +1227,7 @@ export function getStackAbilities(
         targetRequirement?: TargetRequirement;
         controllerTurnOnly?: boolean;
         activatableByOpponentsOnly?: boolean;
+        activatableByEnchantedController?: boolean;
         activateFromHand?: boolean;
         activateFromGraveyard?: boolean;
         canActivate?: (
@@ -1258,6 +1266,29 @@ export function getStackAbilities(
         // only for `isMe` cards); the opponent's view uses
         // `getAnyPlayerStackAbilities`.
         if (a.activatableByOpponentsOnly) return false;
+        // CR 602.1 (FEM Merseine) — "Only the controller of the enchanted
+        // creature may activate this ability". The activator is the HOST's
+        // controller, which need not be the Aura's controller, so this listing
+        // can't assume its usual "controller activates" identity: it is offered
+        // only when `activatorId` is the controller of the permanent the source
+        // is attached to. Deliberately fails CLOSED when the host or the
+        // activator can't be resolved — unlike the affordability hints above,
+        // showing this one to a player who may not activate it produces exactly
+        // the dead menu entry (server rejects, or the click no-ops) this gate
+        // exists to remove. `getAnyPlayerStackAbilities` is the path that
+        // surfaces it to a non-controller activator.
+        if (a.activatableByEnchantedController) {
+            const host = stateView?.players
+                .flatMap((p) => p.battlefield)
+                .find((c) => c.id === card.attachedTo);
+            if (
+                activatorId === undefined ||
+                !host ||
+                host.controllerId !== activatorId
+            ) {
+                return false;
+            }
+        }
         if (a.cost.tap && card.isTapped) return false;
         // CR 302.1 — creature with summoning sickness can't pay {T}.
         if (a.cost.tap && tapLocked) return false;
@@ -1549,10 +1580,12 @@ export function getHandStackAbilities(
 
 /** Filters `getStackAbilities` to those a NON-controller may activate on an
  *  OPPONENT's permanent while holding priority — the only case where a
- *  non-controller may activate. Two flags qualify: "any player may activate"
- *  (CR 113.3c, Ifh-Bíff Efreet) and "only your opponents may activate"
- *  (CR 602.1, Clergy of the Holy Nimbus). Granted abilities carry neither flag,
- *  so only the card's native definition is consulted. */
+ *  non-controller may activate. Three flags qualify: "any player may activate"
+ *  (CR 113.3c, Ifh-Bíff Efreet), "only your opponents may activate"
+ *  (CR 602.1, Clergy of the Holy Nimbus) and "only the controller of the
+ *  enchanted creature may activate" (CR 602.1, FEM Merseine — the Aura is the
+ *  opponent's, the activator is whoever controls its host). Granted abilities
+ *  carry none of them, so only the card's native definition is consulted. */
 export function getAnyPlayerStackAbilities(
     card: CardInstance,
     phase?: Phase,
@@ -1563,13 +1596,21 @@ export function getAnyPlayerStackAbilities(
     /** Life of the activating (non-controller) player — the viewer paying the
      *  cost, NOT the permanent's controller. Forwarded to `getStackAbilities`
      *  to gate the CR 118.4 life cost (see there). */
-    payerLife?: number
+    payerLife?: number,
+    /** The non-controller ACTIVATOR (the viewer). Required for the
+     *  `activatableByEnchantedController` branch, whose legality is "do you
+     *  control the enchanted permanent?" rather than a flag on the source; the
+     *  other two flags don't need it. */
+    activatorId?: string
 ): { id: string; oracleText: string }[] {
     const cardDef = getDefinition(card.card.id);
     const nonControllerIds = new Set(
         (cardDef.activatedAbilities ?? [])
             .filter(
-                (a) => a.activatableByAnyPlayer || a.activatableByOpponentsOnly
+                (a) =>
+                    a.activatableByAnyPlayer ||
+                    a.activatableByOpponentsOnly ||
+                    a.activatableByEnchantedController
             )
             .map((a) => a.id)
     );
@@ -1577,13 +1618,18 @@ export function getAnyPlayerStackAbilities(
     // Opponent-only abilities are filtered OUT by `getStackAbilities`, so query
     // the card definition directly for those, then merge with any "any player"
     // abilities surfaced through the normal filter (which applies tap/phase/
-    // canActivate gating).
+    // canActivate gating). An `activatableByEnchantedController` ability rides
+    // that same filter — `activatorId` is what unlocks it there (the host's
+    // controller must BE the activator), so it is forwarded rather than
+    // re-gated here.
     const fromStack = getStackAbilities(
         card,
         phase,
         true,
         stateView,
-        payerLife
+        payerLife,
+        undefined,
+        activatorId
     ).filter((a) => nonControllerIds.has(a.id));
     const seen = new Set(fromStack.map((a) => a.id));
     // CR 602.5b (issue #1694) — `getStackAbilities` filters `activatableByOpponentsOnly`

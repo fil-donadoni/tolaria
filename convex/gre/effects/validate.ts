@@ -2298,6 +2298,7 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
         optional: {
             ability: isNonEmptyString,
             grantedActivatedId: isNonEmptyString,
+            grantedTriggeredId: isNonEmptyString,
             // CR 611.2b (issue #1746) — omitted is an INDEFINITE keyword grant
             // (`grantStaticAbilityPermanent`). Still REQUIRED for the
             // activated-ability leg, enforced in `check` below.
@@ -2305,13 +2306,19 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
         },
         // Exactly one payload: a keyword static grant (`ability`) OR a
         // duration-scoped activated-ability grant (`grantedActivatedId`, a
-        // `grantTemplates[]` id on the resolving source, issue #738).
+        // `grantTemplates[]` id on the resolving source, issue #738) OR a
+        // triggered-ability grant (`grantedTriggeredId`, a
+        // `triggeredGrantTemplates[]` id on the resolving source, issue #1665).
         check: (op) => {
             const hasKeyword = "ability" in op;
             const hasActivated = "grantedActivatedId" in op;
-            if (hasKeyword === hasActivated) {
+            const hasTriggered = "grantedTriggeredId" in op;
+            const payloads = [hasKeyword, hasActivated, hasTriggered].filter(
+                Boolean
+            ).length;
+            if (payloads !== 1) {
                 return [
-                    'requires exactly one of "ability" or "grantedActivatedId"',
+                    'requires exactly one of "ability", "grantedActivatedId" or "grantedTriggeredId"',
                 ];
             }
             // An activated-ability grant has no indefinite primitive

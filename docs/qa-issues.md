@@ -51,6 +51,9 @@ Fable of the mirror-breaker
 
 ## UX da migliorare
 
+- quando faccio mouseover su una carta che viene coperta da card-preview si crea un loop tipo flash con card-preview che appare e scompare
+- il dialog Pay kicker cost è brutto e incoerente col resto della UI.
+
 # Bug gameplay
 
 - gli scenari che specificano carte nella library non funzionano, mi ritrovo sempre e solo terre base nella libraryi invece delle carte indicate.
