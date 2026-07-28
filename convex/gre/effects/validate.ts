@@ -1363,6 +1363,21 @@ function isPredicate(value: unknown): boolean {
     ) {
         return isBareRef(obj.boundMatchesFilter) && isCardFilter(obj.filter);
     }
+    // objectMatchesFilter form (issue #1747, Figure of Destiny) — an OBJECT
+    // SELECTOR (announced slot / `$source` / forEach `$each`) plus the card
+    // shape to test its LIVE, layer-materialised characteristics against. The
+    // selector position is what separates it from `boundMatchesFilter`'s bare
+    // snapshot ref: this form reads the battlefield now, not a snapshot.
+    if (
+        keys.length === 2 &&
+        keys.includes("objectMatchesFilter") &&
+        keys.includes("filter")
+    ) {
+        return (
+            isObjectSelector(obj.objectMatchesFilter) &&
+            isCardFilter(obj.filter)
+        );
+    }
     // Comparison form.
     if (keys.length !== 3) return false;
     return (
@@ -2101,11 +2116,12 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     setBasePT: {
         required: {
             target: isObjectSelector,
-            duration: isDurationSpec,
         },
         optional: {
             power: isNonNegativeInt,
             toughness: isNonNegativeInt,
+            // CR 611.2b (issue #1746) — omitted is INDEFINITE.
+            duration: isDurationSpec,
         },
         check: (entry) =>
             entry.power === undefined && entry.toughness === undefined
@@ -2278,11 +2294,14 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     grantAbility: {
         required: {
             target: isObjectSelector,
-            duration: isDurationSpec,
         },
         optional: {
             ability: isNonEmptyString,
             grantedActivatedId: isNonEmptyString,
+            // CR 611.2b (issue #1746) — omitted is an INDEFINITE keyword grant
+            // (`grantStaticAbilityPermanent`). Still REQUIRED for the
+            // activated-ability leg, enforced in `check` below.
+            duration: isDurationSpec,
         },
         // Exactly one payload: a keyword static grant (`ability`) OR a
         // duration-scoped activated-ability grant (`grantedActivatedId`, a
@@ -2294,6 +2313,12 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
                 return [
                     'requires exactly one of "ability" or "grantedActivatedId"',
                 ];
+            }
+            // An activated-ability grant has no indefinite primitive
+            // (`grantActivatedAbility` takes a duration), so the omitted-is-
+            // indefinite relaxation applies to the keyword leg only.
+            if (hasActivated && op.duration === undefined) {
+                return ['"duration" is required with "grantedActivatedId"'];
             }
             return [];
         },
@@ -2321,14 +2346,19 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
         },
         optional: { duration: isDurationSpec },
     },
-    // CR 305.7 layer 4 (issue #1083) — replace a target land's subtypes for a
-    // limited duration. `target` is an object selector; `subtypes` is the
-    // full replacement subtype list; `duration` is REQUIRED (this Op has no
-    // indefinite form, unlike `addSubtype`).
+    // CR 305.7 / 611.2 layer 4 (issue #1083, widened by #1746) — REPLACE a
+    // permanent's subtypes. `target` is an object selector; `subtypes` is the
+    // full replacement list; `duration` is OPTIONAL — present reverts at that
+    // boundary (Orcish Farmer's "becomes a Swamp until …"), omitted replaces
+    // INDEFINITELY (CR 611.2b — Figure of Destiny "becomes a Kithkin Spirit").
     setSubtype: {
         required: {
             target: isObjectSelector,
             subtypes: (v) => isStringArray(v),
+        },
+        optional: {
+            // CR 611.2b (issue #1746) — omitted REPLACES the subtypes
+            // INDEFINITELY (Figure of Destiny's staged respec).
             duration: isDurationSpec,
         },
     },
@@ -3008,7 +3038,12 @@ function collectRefUses(value: unknown, keyHint: string, out: RefUse[]): void {
                           // (`moveZone`'s zone discriminator) is a string
                           // literal, never a `{ ref }` object, so it never
                           // reaches this branch.
-                          keyHint === "source"
+                          keyHint === "source" ||
+                          // `objectMatchesFilter` (issue #1747) — the live
+                          // object under test, an `EffectObjectSelector`
+                          // exactly like `target` (`{ ref: "$source" }` on
+                          // Figure of Destiny's stage gates).
+                          keyHint === "objectMatchesFilter"
                         ? "object"
                         : "number",
         });
@@ -3156,6 +3191,14 @@ function collectPredicateRefUses(predicate: unknown, out: RefUse[]): void {
             ref: (p.boundMatchesFilter as { ref: string }).ref,
             kind: "object",
         });
+        return;
+    }
+    // objectMatchesFilter (issue #1747) — an object SELECTOR, which may itself
+    // be a ref (`$source` / a forEach `$each` / a bound snapshot); route it
+    // through the shared object-position collector so a dangling binding is
+    // caught exactly as at every other selector site.
+    if ("objectMatchesFilter" in p) {
+        collectRefUses(p.objectMatchesFilter, "objectMatchesFilter", out);
         return;
     }
     // Comparison: numeric refs on either side.

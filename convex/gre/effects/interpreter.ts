@@ -383,6 +383,30 @@ function evalPredicate(ctx: SpellContext, pred: EffectPredicate): boolean {
             );
         });
     }
+    // objectMatchesFilter (issue #1747) — the LIVE-object counterpart of
+    // `boundMatchesFilter` (a CR 608.2h snapshot) and `picksMatchFilter` (a
+    // graveyard lookup): true iff the referenced permanent is on the
+    // battlefield RIGHT NOW and matches `filter`. Figure of Destiny's "If this
+    // creature is a Spirit, it becomes …" needs exactly this — the subtype it
+    // tests was granted by an EARLIER resolution, so neither a snapshot nor a
+    // printed-definition read can see it. Evaluated by asking the live,
+    // layer-materialised battlefield matcher (`getBattlefieldIds`, the same
+    // reader every battlefield `choice`/`count`/`forEach` uses) whether the
+    // instance is in the matching set, so a subtype/type/colour set by a
+    // resolving effect counts exactly as a printed one does. Reads FALSE for a
+    // gone or non-permanent object (CR 608.2b — the effect does as much as it
+    // can).
+    if ("objectMatchesFilter" in pred) {
+        const target = resolveObjectRef(ctx, pred.objectMatchesFilter);
+        if (!target || target.type !== "permanent") return false;
+        const filter = {
+            ...(toPermanentFilter(pred.filter) ?? {}),
+            instanceIds: [target.id],
+        };
+        return ctx.allPlayerIds.some(
+            (pid) => ctx.getBattlefieldIds(pid, filter).length > 0
+        );
+    }
     // hasCityBlessing (Ascend, CR 702.131b — issue #1460) — true iff the
     // resolved player holds the city's blessing designation. A pure
     // player-state read via the `hasCityBlessing` primitive (the monotonic
@@ -2161,9 +2185,19 @@ export const OP_EXECUTORS: {
         // separate `grantAbility` Ops (Touch of Vitae grants haste + the {0}
         // untap ability).
         if (op.ability) {
-            ctx.grantStaticAbility(target, op.ability, op.duration);
+            // CR 611.2b (issue #1746) — an omitted `duration` is an INDEFINITE
+            // grant ("… and has flying and first strike", Figure of Destiny):
+            // route to the permanent-grant primitive, which records the grant
+            // with no duration so the phase-boundary purge never ticks it out.
+            if (op.duration === undefined) {
+                ctx.grantStaticAbilityPermanent(target, op.ability);
+            } else {
+                ctx.grantStaticAbility(target, op.ability, op.duration);
+            }
         }
-        if (op.grantedActivatedId) {
+        if (op.grantedActivatedId && op.duration !== undefined) {
+            // An activated-ability grant has no indefinite primitive, so
+            // `duration` stays REQUIRED for this leg (validator-enforced).
             ctx.grantActivatedAbility(
                 target,
                 ctx.sourceCardId,
@@ -2202,7 +2236,15 @@ export const OP_EXECUTORS: {
     setSubtype(ctx, op) {
         const target = resolveObjectRef(ctx, op.target);
         if (!target) return;
-        ctx.setSubtypesUntil(target, op.subtypes, op.duration);
+        // CR 611.2b (issue #1746) — an omitted `duration` REPLACES the subtypes
+        // INDEFINITELY ("this creature becomes a Kithkin Spirit", Figure of
+        // Destiny): the pre-existing `setSubtypes` primitive (Living Lands'
+        // resolve() closures) is exactly that effect, so no new primitive.
+        if (op.duration === undefined) {
+            ctx.setSubtypes(target, op.subtypes);
+        } else {
+            ctx.setSubtypesUntil(target, op.subtypes, op.duration);
+        }
     },
     // CR 208.2 / 611.1 (issue #1317) — turn a permanent into a creature with
     // the given base P/T, optional subtype/additionalTypes/grantedAbilities,
@@ -2230,7 +2272,15 @@ export const OP_EXECUTORS: {
     setBasePT(ctx, op) {
         const target = resolveObjectRef(ctx, op.target);
         if (!target) return;
-        ctx.setBasePT(target, op.power, op.toughness, op.duration);
+        // CR 611.2b (issue #1746) — an omitted `duration` is the primitive's
+        // pre-existing `"indefinite"` sentinel (Wall of Tombstones), now
+        // reachable from the DSL.
+        ctx.setBasePT(
+            target,
+            op.power,
+            op.toughness,
+            op.duration ?? "indefinite"
+        );
     },
     // CR 701.20 (issue #844) — shuffle a player's library. A thin declarative
     // skin over `shuffleLibrary`, ONE execution path (ADR 0045): the seeded

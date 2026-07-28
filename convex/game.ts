@@ -241,6 +241,7 @@ import {
     DAMAGEABLE_PERMANENT_TYPES,
     MANA_COLORS,
     applyLandManaReplacement,
+    hybridCostKey,
     getActivatedManaAbility,
     getActivatedManaColor,
     getActivatedManaRestriction,
@@ -8371,6 +8372,18 @@ export function recordConvokeCreaturePick(
             else delete pc.manaCost[color];
         }
     }
+    // CR 202.1a (issue #1738) — the guild-hybrid pips the greedy just covered
+    // are paid by those creatures, so they leave the remaining cost too. This
+    // was a silent no-op while `normalizeManaCost` dropped hybrid pips; now
+    // that the cost actually OWES them, skipping this step would ask a
+    // convoked Hogaak to pay {B/G}{B/G} with mana it may not spend at all
+    // (CR 601.2f), stranding the cast.
+    for (const pip of cc.hybridPips) {
+        const key = hybridCostKey(pip[0], pip[1]);
+        const left = Math.max(0, (pc.manaCost[key] ?? 0) - 1);
+        if (left > 0) pc.manaCost[key] = left;
+        else delete pc.manaCost[key];
+    }
     applyGenericOffset(pc.manaCost, leftover);
     cc.pickedCreatureIds = [...creatureInstanceIds];
     // CR 601.2g — convoke has now reduced the cost; open the delve picker on the
@@ -8754,7 +8767,11 @@ export const selectTarget = mutation({
                 pt.cardInstanceId,
                 pt.kind ?? "cast"
             );
-            if (isProtectedFromColors(matchedCard, sourceColors)) {
+            // The ACCEPTED set must apply the same quality checks as the
+            // offered set above (CR 702.16b) — including the CR 702.16j player
+            // quality (issue #1748), for which the targeting player IS the
+            // source's controller.
+            if (isProtectedFromColors(matchedCard, sourceColors, pt.playerId)) {
                 throw new Error("Target has protection from this source");
             }
             // CR 611 — a continuous `permanent-guard` (Guardian Beast / shroud)

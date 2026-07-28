@@ -83,6 +83,9 @@ import {
     LAND_DROPS_PER_TURN,
     manaValue,
     MANA_COLORS,
+    assignHybridPips,
+    hybridCostKey,
+    normalizedHybridPips,
     CASTABLE_PERMANENT_TYPES,
 } from "./constants";
 import {
@@ -590,6 +593,16 @@ export type CardInstanceState = {
         subtypes: string[];
         restoreSubtypes: string[];
         duration: Duration;
+    };
+    /** CR 400.7 / 611.2b (issue #1746) — provenance for an INDEFINITE subtype
+     *  REPLACEMENT (`SpellContext.setSubtypes` — Figure of Destiny's "becomes a
+     *  Kithkin Spirit", Living Lands). The replacement mutates `subtypes` in
+     *  place and has no duration to tick it out, so this records the line to
+     *  restore when the permanent leaves the battlefield and becomes a new
+     *  object. Written ONCE — a staged respec replaces the subtypes repeatedly
+     *  and only the first value is the printed one. */
+    indefiniteSubtypeSet?: {
+        restoreSubtypes: string[];
     };
     /** Conditional P/T modifications held "for as long as [the source] remains
      *  tapped" (CR 611.2 — duration tied to a continuously re-evaluated game
@@ -8291,6 +8304,22 @@ function resetBattlefieldTransientState(card: CardInstanceState): void {
     // permanent that has re-entered the battlefield as a new object.
     delete card.countersAtLeave;
     delete card.temporaryPTMods;
+    // CR 400.7 / 611.2b (issue #1746) — a layer-7b base-P/T SET and a subtype
+    // REPLACEMENT both survive a phase boundary when they are indefinite (and
+    // the timed forms outlive a zone change too, which is equally wrong), so
+    // they must be undone here or a bounced Figure of Destiny comes back an 8/8
+    // Kithkin Spirit Warrior Avatar. The subtype line is restored from the
+    // recorded printed value BEFORE the record is dropped — the instance's
+    // `subtypes` were overwritten in place.
+    delete card.temporaryPTSet;
+    if (card.indefiniteSubtypeSet) {
+        card.subtypes = [...card.indefiniteSubtypeSet.restoreSubtypes];
+        delete card.indefiniteSubtypeSet;
+    }
+    if (card.temporarySubtypeChange) {
+        card.subtypes = [...card.temporarySubtypeChange.restoreSubtypes];
+        delete card.temporarySubtypeChange;
+    }
     delete card.sourceTappedPTMods;
     delete card.untapLockedBy;
     delete card.skipNextUntap;
@@ -9928,6 +9957,18 @@ export function buildSpellContext(
             if (target.type !== "permanent") return;
             const found = findOnBattlefield(state, target.id);
             if (!found) return;
+            // CR 400.7 (issue #1746) — this REPLACES the instance's subtypes in
+            // place with no duration to tick it out, so the permanent would
+            // still carry them after a bounce, when it is a NEW object. Record
+            // the pre-change line ONCE (a staged respec applies this repeatedly
+            // — Figure of Destiny — and only the FIRST value is the printed
+            // one) so `resetBattlefieldTransientState` can restore it. Mirrors
+            // the indefinite-animation fix (#1470).
+            if (!found.card.indefiniteSubtypeSet) {
+                found.card.indefiniteSubtypeSet = {
+                    restoreSubtypes: [...found.card.subtypes],
+                };
+            }
             found.card.subtypes = [...subtypes];
             found.card.grantedSubtypes = undefined;
             found.card.printedSubtypes = undefined;
@@ -14920,6 +14961,17 @@ export function checkManaCost(
         }
     }
 
+    // CR 202.1a (issue #1738) — guild-hybrid pips are owed too; each consumes
+    // one mana of either of its colours. Mirrors `isManaCostCovered`.
+    const hybridPips = normalizedHybridPips(cost as Record<string, number>);
+    if (hybridPips.length > 0) {
+        const spent = assignHybridPips(pool, hybridPips);
+        if (!spent) return formatManaCost(cost);
+        for (const [color, amount] of Object.entries(spent)) {
+            pool[color] = (pool[color] ?? 0) - amount;
+        }
+    }
+
     // Pay generic cost with any remaining mana
     const generic = (cost.X as number | undefined) ?? 0;
     if (generic > 0) {
@@ -15161,6 +15213,30 @@ function payColoredRequirements(
             manaPool[sub.from] = (manaPool[sub.from] ?? 0) - take;
             need -= take;
         }
+    }
+
+    // CR 202.1a (issue #1738) — guild-hybrid pips are part of the NON-generic
+    // requirement: each is forced to consume one mana, it is only the COLOUR
+    // that is free. Paid here, after the exact-colour requirements (which have
+    // no freedom at all) and before the generic tail (which has total freedom).
+    payHybridPips(manaPool, cost, substitutions);
+}
+
+/** Deducts the guild-hybrid pips of `cost` from `manaPool` (CR 202.1a). No-op
+ *  when the cost carries none. Callers pay only after coverage was confirmed
+ *  (`isManaCostCovered`), so a `null` assignment here would mean an unaffordable
+ *  cost reached payment — the pool is left untouched rather than half-spent. */
+function payHybridPips(
+    manaPool: Record<string, number>,
+    cost: ManaCost,
+    substitutions: readonly ManaSubstitution[] = []
+): void {
+    const pips = normalizedHybridPips(cost as Record<string, number>);
+    if (pips.length === 0) return;
+    const spent = assignHybridPips(manaPool, pips, substitutions);
+    if (!spent) return;
+    for (const [color, amount] of Object.entries(spent)) {
+        manaPool[color] = (manaPool[color] ?? 0) - amount;
     }
 }
 
@@ -15648,6 +15724,23 @@ export function commitLandsForCost(
         }
     }
 
+    // CR 202.1a (issue #1738) — commit a source per guild-hybrid pip, matching
+    // the payment order in `payColoredRequirements` (exact colours, then the
+    // pips, then generic). The pip's own assignment is re-derived here from the
+    // TAPPED sources rather than the pool: this walk works on battlefield
+    // sources, and the two agree on cardinality, which is what commitment needs.
+    for (const pip of normalizedHybridPips(remaining)) {
+        const match = player.battlefield.find((card) => {
+            if (!card.isTapped || card.manaCommitted) return false;
+            const color = getManaColor(card);
+            return color === pip[0] || color === pip[1];
+        });
+        if (!match) continue;
+        match.manaCommitted = true;
+        // CR 603.3 — see colored-cost loop above.
+        match.tapTriggerCommitted = undefined;
+    }
+
     // Commit mana sources for generic cost (same greedy order as payManaCost)
     let generic = remaining.X ?? 0;
     if (generic > 0) {
@@ -15707,6 +15800,17 @@ export function normalizeManaCost(
         }
         if (key === "X" && typeof val === "string") {
             extraGeneric += (opts.chosenX ?? 0) * xFactor;
+            continue;
+        }
+        // CR 202.1a / 107.4e (issue #1738) — each guild-hybrid pip is folded
+        // into the normalized cost under its composite `"R/W"` key so the
+        // payment layer OWES it. Before this branch the `hybrid` array fell
+        // out of the numeric-key walk below and every hybrid pip was free.
+        if (key === "hybrid" && Array.isArray(val)) {
+            for (const pip of val as [Color, Color][]) {
+                const pipKey = hybridCostKey(pip[0], pip[1]);
+                result[pipKey] = (result[pipKey] ?? 0) + 1;
+            }
             continue;
         }
         const n = typeof val === "number" ? val : 0;
@@ -15996,6 +16100,20 @@ export function isManaCostCovered(
         }
     }
 
+    // CR 202.1a (issue #1738) — settle the guild-hybrid pips before the generic
+    // tail. Each pip must consume one mana of either of its colours; the exact
+    // assignment is a bipartite matching (`assignHybridPips`), and which colour
+    // wins never changes what generic can afford (generic accepts any colour,
+    // so only the leftover TOTAL matters).
+    const hybridPips = normalizedHybridPips(cost);
+    if (hybridPips.length > 0) {
+        const spent = assignHybridPips(pool, hybridPips, substitutions);
+        if (!spent) return false;
+        for (const [color, amount] of Object.entries(spent)) {
+            pool[color] = (pool[color] ?? 0) - amount;
+        }
+    }
+
     // Check generic
     const generic = cost.X ?? 0;
     if (generic > 0) {
@@ -16016,6 +16134,12 @@ function formatManaCost(cost: ManaCost): string {
     for (const color of MANA_COLORS) {
         const n = (cost[color] as number | undefined) ?? 0;
         for (let i = 0; i < n; i++) parts.push(`{${color}}`);
+    }
+    // CR 202.1a (issue #1738) — a guild-hybrid pip renders as its own symbol
+    // (`{R/W}`); without this the pips silently vanished from every message
+    // built off this string.
+    for (const [a, b] of normalizedHybridPips(cost as Record<string, number>)) {
+        parts.push(`{${a}/${b}}`);
     }
     return parts.join("") || "0";
 }

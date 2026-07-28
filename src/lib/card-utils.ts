@@ -24,8 +24,11 @@ import {
     LAND_SUBTYPE_MANA,
     LANDWALK_KEYWORDS,
     LANDWALK_SUPERTYPE_KEYWORDS,
+    assignHybridPips,
     getEffectiveManaChoices,
     getManaTapOptions,
+    hybridCostKey,
+    normalizedHybridPips,
 } from "@convex/gre/constants";
 import type {
     CardInstanceState,
@@ -2087,11 +2090,35 @@ const MANA_DISPLAY_COLORS = ["W", "U", "B", "R", "G", "C"] as const;
  *  payable from any color. Does NOT handle `X: "X"` (variable cost) — by
  *  the time the cost reaches the UI it has been normalized to a number. */
 export function isManaCostCovered(pool: ManaPool, cost: ManaCost): boolean {
+    const remainingPool: Record<string, number> = {};
     let coloredRemaining = 0;
     for (const c of MANA_DISPLAY_COLORS) {
         const need = cost[c] ?? 0;
         if (need > 0 && (pool[c] ?? 0) < need) return false;
-        coloredRemaining += (pool[c] ?? 0) - need;
+        remainingPool[c] = (pool[c] ?? 0) - need;
+        coloredRemaining += remainingPool[c];
+    }
+    // CR 202.1a (issue #1738) — each guild-hybrid pip consumes one mana of
+    // either of its colours. Delegates to the ENGINE's matching so the client
+    // affordance and the server's `isManaCostCovered` can never disagree about
+    // which pools pay which pips (a per-pip greedy here would gray out a
+    // payable cast).
+    //
+    // Both cost SHAPES reach this helper and must be handled: a card's PRINTED
+    // cost carries the `hybrid` colour-pair array, while a live
+    // `PendingCast.manaCost` / `PendingActivation.manaCost` is already
+    // NORMALIZED and carries the pips as composite `"R/W"` keys. They never
+    // coexist on one object, so reading both is safe — and reading only one of
+    // them leaves the other's pips invisible (the payment banner would call a
+    // hybrid cast fully paid with an empty pool).
+    const hybridPips = [
+        ...(cost.hybrid ?? []),
+        ...normalizedHybridPips(cost as Record<string, number>),
+    ];
+    if (hybridPips.length > 0) {
+        const spent = assignHybridPips(remainingPool, hybridPips);
+        if (!spent) return false;
+        for (const amount of Object.values(spent)) coloredRemaining -= amount;
     }
     const generic = typeof cost.X === "number" ? cost.X : 0;
     return coloredRemaining >= generic;
@@ -2136,6 +2163,16 @@ export function manaCostToString(cost?: ManaCost): string {
             const n = cost.phyrexian[c] ?? 0;
             for (let i = 0; i < n; i++) parts.push(`{${c}/P}`);
         }
+    }
+    // CR 202.1a (issue #1738) — guild-hybrid pips render as `{R/W}` tokens,
+    // after the colored pips, in the same canonical colour order the payment
+    // layer keys them by. The oracle-text tokenizer maps `{R/W}` → the
+    // `R_W.svg` symbol asset (slash → underscore), exactly as for `{B/P}`.
+    for (const pip of [
+        ...(cost.hybrid ?? []),
+        ...normalizedHybridPips(cost as Record<string, number>),
+    ]) {
+        parts.push(`{${hybridCostKey(pip[0], pip[1])}}`);
     }
     return parts.join("");
 }

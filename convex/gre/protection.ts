@@ -2,17 +2,24 @@
 //
 // Protection is stored on a card as `staticAbilities[]` entries of the form
 // `"protection from <color-name>"`, including the colorless variant
-// (`"protection from colorless"`, issue #684/#928 — Giver of Runes). Colors
-// and colorless are supported; protection from everything, from a player, or
-// from a non-color quality (CR 702.16h-k) are not yet implemented.
+// (`"protection from colorless"`, issue #684/#928 — Giver of Runes), plus the
+// PLAYER-quality form `"protection from each of your opponents"` (CR 702.16j,
+// issue #1748 — Figure of Fable), whose quality is resolved live against the
+// protected permanent's own controller. Protection from everything on a
+// PERMANENT, and other non-colour qualities (CR 702.16h/k), are not yet
+// implemented. (`playerHasProtectionFromEverything` below is the separate
+// PLAYER-scoped protection The One Ring grants, CR 115.4.)
 //
 // Callers:
 //   - targeting (CR 702.16b): rules.ts::getLegalTargets, game.ts target check
 //   - damage    (CR 702.16e): state.ts::dealDamage, phases.ts::applyAllCombatDamage
 //   - blocking  (CR 702.16f): combat.ts::validateBlockerEligibility
 //
-// Aura (702.16c) and Equipment (702.16d) clauses are deferred until the first
-// Aura/Equipment card lands — see memory "protection-aura-equip-todo".
+// The Aura clause (702.16c) is honoured at attach time and by the SBA
+// fall-off pass; the Equipment clause (702.16d) is still pending project-wide
+// (tracked-by: #1748 follow-up in the protection module's own backlog — it is
+// unimplemented for the COLOUR form too, so the player form inherits exactly
+// the same coverage rather than adding a new gap).
 
 import type { CardInstanceState } from "./state";
 import type { Color } from "../cards/types";
@@ -29,6 +36,60 @@ const PROTECTION_COLOR_NAME_TO_CODE: Record<string, Color> = {
     green: "G",
     colorless: "C",
 };
+
+/** CR 702.16j — the PLAYER-quality protection string. The quality is "each of
+ *  your opponents", i.e. every player other than the protected permanent's own
+ *  controller, re-derived live so a control-change effect moves the protection
+ *  with the permanent (CR 109.4 / 702.16). Figure of Fable's final stage. */
+export const PROTECTION_FROM_EACH_OPPONENT =
+    "protection from each of your opponents";
+
+/** The card's protection ability strings, read through any active color-word
+ *  text changes (CR 612.6 — Sleight of Mind). Shared by the colour parse and
+ *  the player-quality check so both see the same rewritten text. */
+function liveProtectionAbilities(
+    card: Pick<CardInstanceState, "staticAbilities"> &
+        Partial<Pick<CardInstanceState, "subtypes" | "textChanges">>
+): readonly string[] {
+    // Fast path: no text changes → the raw abilities (zero-copy).
+    return card.textChanges?.length
+        ? applySubstitution({
+              subtypes: card.subtypes ?? [],
+              staticAbilities: card.staticAbilities,
+              textChanges: card.textChanges,
+          }).staticAbilities
+        : card.staticAbilities;
+}
+
+/** True if `card` carries the CR 702.16j player-quality protection ability. */
+export function hasProtectionFromEachOpponent(
+    card: Pick<CardInstanceState, "staticAbilities"> &
+        Partial<Pick<CardInstanceState, "subtypes" | "textChanges">>
+): boolean {
+    return liveProtectionAbilities(card).includes(
+        PROTECTION_FROM_EACH_OPPONENT
+    );
+}
+
+/** CR 702.16j — true if `target` has protection from each of its controller's
+ *  opponents AND the source in question is controlled by one of them.
+ *
+ *  Fails CLOSED when the source's controller is unknown (`undefined`) or the
+ *  target carries no `controllerId`: a protection check that can't identify the
+ *  two controllers must not silently bar a legal action. Same-controller
+ *  sources are never barred — the protection is from OPPONENTS, so the
+ *  controller's own Auras, blockers, damage and targeting all still work. */
+export function isProtectedFromController(
+    target: Pick<CardInstanceState, "staticAbilities"> &
+        Partial<
+            Pick<CardInstanceState, "subtypes" | "textChanges" | "controllerId">
+        >,
+    sourceControllerId: string | undefined
+): boolean {
+    if (!sourceControllerId || !target.controllerId) return false;
+    if (sourceControllerId === target.controllerId) return false;
+    return hasProtectionFromEachOpponent(target);
+}
 
 /** Parses "protection from [color]" static-ability strings (CR 702.16a).
  *  Returns the color code for recognized color variants (including `"C"` for
@@ -47,14 +108,7 @@ export function getProtectedColors(
     card: Pick<CardInstanceState, "staticAbilities"> &
         Partial<Pick<CardInstanceState, "subtypes" | "textChanges">>
 ): Color[] {
-    // Fast path: no text changes → parse the raw abilities (zero-copy).
-    const abilities = card.textChanges?.length
-        ? applySubstitution({
-              subtypes: card.subtypes ?? [],
-              staticAbilities: card.staticAbilities,
-              textChanges: card.textChanges,
-          }).staticAbilities
-        : card.staticAbilities;
+    const abilities = liveProtectionAbilities(card);
     const result: Color[] = [];
     for (const ability of abilities) {
         const color = parseProtectionFromColor(ability);
@@ -69,9 +123,17 @@ export function getProtectedColors(
  *  matches an empty `sourceColors`, never a colored one). */
 export function isProtectedFromColors(
     target: Pick<CardInstanceState, "staticAbilities"> &
-        Partial<Pick<CardInstanceState, "subtypes" | "textChanges">>,
-    sourceColors: readonly Color[]
+        Partial<
+            Pick<CardInstanceState, "subtypes" | "textChanges" | "controllerId">
+        >,
+    sourceColors: readonly Color[],
+    /** CR 702.16j (issue #1748) — the source's controller, for the PLAYER
+     *  quality ("protection from each of your opponents"). Optional so every
+     *  colour-only call site is unchanged; omitting it simply never matches the
+     *  player quality (fail closed). */
+    sourceControllerId?: string
 ): boolean {
+    if (isProtectedFromController(target, sourceControllerId)) return true;
     const protectedFrom = getProtectedColors(target);
     if (protectedFrom.length === 0) return false;
     if (sourceColors.length === 0) return protectedFrom.includes("C");
@@ -87,7 +149,15 @@ export function isProtectedFromSource(
     target: CardInstanceState,
     source: CardInstanceState
 ): boolean {
-    return isProtectedFromColors(target, STATIC_EFFECT_CTX.getColors(source));
+    // CR 702.16j (issue #1748) — the source's controller carries the PLAYER
+    // quality. A stack item cloned from its source permanent keeps that
+    // permanent's `controllerId`, so this reads correctly for spells and
+    // ability items as well as for battlefield permanents.
+    return isProtectedFromColors(
+        target,
+        STATIC_EFFECT_CTX.getColors(source),
+        source.controllerId
+    );
 }
 
 /** True if `playerId` currently has PROTECTION FROM EVERYTHING (CR 702.16i

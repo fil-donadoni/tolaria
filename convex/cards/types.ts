@@ -8698,7 +8698,15 @@ export type EffectOp =
     | {
           op: "grantAbility";
           target: EffectObjectSelector;
-          duration: DurationSpec;
+          /** CR 611.2 — the phase boundary at which the grant expires. OMITTED
+           *  is INDEFINITE (CR 611.2b, issue #1746): the keyword persists for
+           *  as long as the permanent stays on the battlefield — "it becomes a
+           *  … Avatar with … flying and first strike" (Figure of Destiny), the
+           *  Cocoon-style permanent gain. Routes to
+           *  `SpellContext.grantStaticAbilityPermanent`. REQUIRED for
+           *  `grantedActivatedId` (an activated-ability grant has no indefinite
+           *  primitive). */
+          duration?: DurationSpec;
           ability?: string;
           grantedActivatedId?: string;
       }
@@ -8773,7 +8781,14 @@ export type EffectOp =
           op: "setSubtype";
           target: EffectObjectSelector;
           subtypes: string[];
-          duration: DurationSpec;
+          /** CR 611.2 — when the replacement reverts. OMITTED is INDEFINITE
+           *  (CR 611.2b, issue #1746): the permanent simply IS the new subtype
+           *  line until it leaves the battlefield — "this creature becomes a
+           *  Kithkin Spirit" (Figure of Destiny), where each stage REPLACES the
+           *  previous creature types (CR 205.1b) rather than accumulating them
+           *  (which is what `addSubtype` would do). Routes to
+           *  `SpellContext.setSubtypes`. */
+          duration?: DurationSpec;
       }
     /** CR 208.2 / 611.1 (issue #1317) — turns a permanent into a creature with
      *  the given base P/T, optionally adding a subtype / extra card types /
@@ -8822,7 +8837,13 @@ export type EffectOp =
           target: EffectObjectSelector;
           power?: number;
           toughness?: number;
-          duration: DurationSpec;
+          /** CR 611.2 — when the set reverts. OMITTED is INDEFINITE (CR
+           *  611.2b, issue #1746): the base P/T holds until the permanent
+           *  leaves the battlefield or a later set overrides it — "becomes a
+           *  Kithkin Spirit with base power and toughness 2/2" (Figure of
+           *  Destiny), Wall of Tombstones' "indefinitely". The primitive
+           *  already accepted an `"indefinite"` sentinel; this exposes it. */
+          duration?: DurationSpec;
       }
     /** CR 701.20 (issue #844) — shuffle a player's library. A thin declarative
      *  skin over the SpellContext primitive `shuffleLibrary`, one execution
@@ -10086,6 +10107,7 @@ export type EffectPredicate =
     | EffectTargetIsAnotherPredicate
     | EffectPicksMatchFilterPredicate
     | EffectBoundMatchesFilterPredicate
+    | EffectObjectMatchesFilterPredicate
     | EffectHasCityBlessingPredicate;
 
 /** Boolean-binding predicate: true iff the named boolean binding is true
@@ -10172,6 +10194,31 @@ export interface EffectPicksMatchFilterPredicate {
  *  never match — the snapshot does not carry them. */
 export interface EffectBoundMatchesFilterPredicate {
     boundMatchesFilter: EffectRef;
+    filter: EffectCardFilter;
+}
+
+/** Live-object-matches-filter predicate (issue #1747, Figure of Destiny): true
+ *  iff the referenced permanent is on the battlefield RIGHT NOW and matches
+ *  `filter`.
+ *
+ *  The third member of the matches-filter family, and the one to reach for
+ *  whenever the question is "what IS that object" rather than "what WAS it"
+ *  (`boundMatchesFilter`, a CR 608.2h snapshot) or "what is in that graveyard"
+ *  (`picksMatchFilter`). Figure of Destiny's "If this creature is a Spirit, it
+ *  becomes a Kithkin Spirit Warrior" is `{ objectMatchesFilter: "$source",
+ *  filter: { subtype: "Spirit" } }` — the subtype under test was set by an
+ *  EARLIER activation's resolution, so a printed-definition read would always
+ *  say no and a snapshot was never taken.
+ *
+ *  Matched against the LIVE, layer-materialised characteristics (CR 613) via
+ *  the same battlefield matcher every `choice`/`count`/`forEach` already uses,
+ *  so a granted type/subtype/colour counts exactly like a printed one. Reads
+ *  `false` when the object has left the battlefield or isn't a permanent
+ *  (CR 608.2b). Filter fields the battlefield matcher has no counterpart for
+ *  (`manaValueAtMost`, `hasCounter`, `excludeColor`) do not constrain — the
+ *  same asymmetry every other battlefield-scoped filter site already carries. */
+export interface EffectObjectMatchesFilterPredicate {
+    objectMatchesFilter: EffectObjectSelector;
     filter: EffectCardFilter;
 }
 

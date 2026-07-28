@@ -28,6 +28,12 @@ export type ManaCost = {
      *  in `convex/cards/types.ts` (the source of truth); rendered by
      *  `manaCostToString` as `{<color>/P}` tokens. */
     phyrexian?: Partial<Record<Color, number>>;
+    /** CR 202.1a / 107.4e — guild-hybrid mana pips (`{R/W}`, `{G/W}`); one
+     *  entry per pip, listed as the two colours it may be paid with (order
+     *  irrelevant). Each pip is paid with one mana of EITHER colour. Mirrors
+     *  `ManaCost.hybrid` in `convex/cards/types.ts` (the source of truth);
+     *  rendered by `manaCostToString` as `{R/W}` tokens. */
+    hybrid?: Array<[Color, Color]>;
 };
 
 export type CardType =
