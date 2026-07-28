@@ -8224,10 +8224,19 @@ export type EffectOp =
           includesLand?: boolean;
       }
     /** CR 601.3e / 117.6-analog (issue #1344) — grant `player` permission to
-     *  cast the GRAVEYARD card a preceding Op bound (typically the
-     *  just-discarded card from a `choice(kind: "choose-hand-card")` +
-     *  `discard` pair, a bare picks ref, `card`), optionally ALSO waiving
-     *  its mana cost. A thin declarative skin over
+     *  cast a GRAVEYARD card, optionally ALSO waiving its mana cost. `card`
+     *  names it in either of the two shapes an effect can reach one
+     *  (`EffectObjectSelector`, issue #1650):
+     *   - a bare PICKS ref (`{ ref: "$discarded" }`) — the card a preceding
+     *     Op bound, typically the just-discarded card from a
+     *     `choice(kind: "choose-hand-card")` + `discard` pair (Malcolm);
+     *   - an announced TARGET slot (`{ target: 0 }`, CR 601.2c) — the
+     *     graveyard card the ability targeted (Emry, Lurker of the Loch:
+     *     "{T}: Choose target artifact card in your graveyard. You may cast
+     *     that card this turn."). The slot must hold a `graveyard-card`
+     *     selection; anything else (or a vanished slot) skips the Op
+     *     (CR 608.2b).
+     *  A thin declarative skin over
      *  `SpellContext.grantCastFromGraveyard`, one execution path (ADR 0045)
      *  — the graveyard-sourced twin of `grantCastFromExile` (issue #1156),
      *  generalizing the SAME per-card grant shape to a second zone rather
@@ -8254,12 +8263,14 @@ export type EffectOp =
      *  with no other consumer yet — out of scope for this issue.
      *
      *  `withoutPayingManaCost` (default false) waives the mana cost
-     *  entirely. Skipped when `player` can't be resolved, the picks binding
-     *  was never captured, or the picked card is no longer in that
-     *  player's graveyard (CR 608.2b). */
+     *  entirely — OMIT it for an ordinary "you may cast that card this turn"
+     *  grant that still charges the card's own costs (Emry). Skipped when
+     *  `player` can't be resolved, the picks binding was never captured /
+     *  the target slot is empty or non-graveyard, or the named card is no
+     *  longer in that player's graveyard (CR 608.2b). */
     | {
           op: "grantCastFromGraveyard";
-          card: EffectRef;
+          card: EffectObjectSelector;
           player: EffectPlayerRef;
           window?: "this-turn" | "while-in-graveyard";
           withoutPayingManaCost?: boolean;

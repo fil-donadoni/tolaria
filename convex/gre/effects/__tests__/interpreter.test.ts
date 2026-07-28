@@ -18671,6 +18671,123 @@ describe("Effect Script choice kind: choose-hand-card + Op: grantCastFromGraveya
         expect(granted.castableFromGraveyardUntilTurn).toBeUndefined();
         expect(granted.castFromGraveyardWithoutPayingManaCost).toBeUndefined();
     });
+
+    // --- `card` as an ANNOUNCED TARGET SLOT (issue #1650, Emry) ------------
+    // The Op's `card` selector was widened from a bare picks ref to the full
+    // `EffectObjectSelector`, so a targeted ability names its graveyard card
+    // directly through `{ target: n }` (CR 601.2c) with no intervening
+    // `choice` Op. This is the construct combination the shipped card (Emry,
+    // Lurker of the Loch) introduces, so it earns the Op its permanent test.
+
+    it("grants off an ANNOUNCED graveyard-card target slot, with no choice binding (CR 601.2c, issue #1650)", () => {
+        const gyCard = makeInstance(BEAR_ID, {
+            id: "gy-target",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const id = registerScript(
+            "test-op-grant-cast-from-graveyard-target-slot",
+            [
+                {
+                    op: "grantCastFromGraveyard",
+                    card: { target: 0 },
+                    player: "controller",
+                    window: "this-turn",
+                },
+            ],
+            {
+                targetRequirement: {
+                    type: "card",
+                    count: 1,
+                    zone: "graveyard",
+                    controller: "you",
+                },
+            }
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", { graveyard: [gyCard] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1", [
+            { type: "graveyard-card", id: "gy-target", playerId: "p1" },
+        ]);
+        resolveTopOfStack(state);
+
+        const granted = state.players[0].graveyard.find(
+            (c) => c.id === "gy-target"
+        )!;
+        expect(granted.castableFromGraveyardBy).toBe("p1");
+        expect(granted.castableFromGraveyardUntilTurn).toBe(state.turn);
+        // No `withoutPayingManaCost` — the card still costs its own mana
+        // ("You still pay its costs", Emry's reminder text).
+        expect(granted.castFromGraveyardWithoutPayingManaCost).toBeUndefined();
+
+        // Wire format: the permission crosses the projection as the derived
+        // `castKind` the client's Cast affordance reads.
+        const projected = projectPublicState(state, 1, "p1");
+        const projGranted = projected.players[0].graveyard.find(
+            (c) => c.id === "gy-target"
+        )!;
+        expect(projGranted.castKind).toBe("graveyard-grant");
+    });
+
+    it("skips the Op when the announced slot is empty or is not a graveyard-card selection (CR 608.2b)", () => {
+        const gyCard = makeInstance(BEAR_ID, {
+            id: "gy-untouched",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const permanent = makeInstance(BEAR_ID, {
+            id: "bf-bear",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const id = registerScript(
+            "test-op-grant-cast-from-graveyard-bad-slot",
+            [
+                {
+                    op: "grantCastFromGraveyard",
+                    card: { target: 0 },
+                    player: "controller",
+                },
+            ]
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    graveyard: [gyCard],
+                    battlefield: [permanent],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        // No targets announced at all — the slot is empty.
+        pushSpell(state, id, "p1");
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+        expect(
+            state.players[0].graveyard.every(
+                (c) => c.castableFromGraveyardBy === undefined
+            )
+        ).toBe(true);
+
+        // A BATTLEFIELD-permanent slot is the wrong family and is refused —
+        // a graveyard cast permission is meaningless for a permanent.
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "bf-bear" }]);
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "bf-bear")!
+                .castableFromGraveyardBy
+        ).toBeUndefined();
+        expect(
+            state.players[0].graveyard.every(
+                (c) => c.castableFromGraveyardBy === undefined
+            )
+        ).toBe(true);
+    });
 });
 
 // --- nameCard Op: an open name choice during resolution (CR 201.3 / 202.3,

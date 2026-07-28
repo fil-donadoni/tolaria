@@ -221,3 +221,33 @@ describe("TargetSelectionBanner — longest prompt renders without broken wrappi
         expect(inner.className).toContain("max-w-[22rem]");
     });
 });
+
+// Issue #1650 — Emry, Lurker of the Loch's "{T}: Choose target artifact card
+// in your graveyard." The prompt must name BOTH the card type and the zone;
+// a bare "select an artifact" would send the player looking at the
+// battlefield, where nothing is clickable. `TARGET_LABEL` already carries
+// "Artifact" and `formatTargetLabel` already appends the graveyard owner —
+// this asserts the combination Emry is the first ACTIVATED ability to use.
+describe("TargetSelectionBanner — graveyard-zone artifact prompt (Emry, issue #1650)", () => {
+    it("names the type and the graveyard owner", () => {
+        render(
+            <TargetSelectionBanner
+                pendingTarget={pending({
+                    kind: "ability",
+                    targetType: "Artifact",
+                    zone: "graveyard",
+                    controller: "you",
+                    count: 1,
+                    selected: [],
+                })}
+                me={player()}
+                stack={[]}
+                gameId={"g1" as never}
+                playerId="me"
+            />
+        );
+        expect(
+            screen.getByText("select an artifact from your graveyard")
+        ).toBeTruthy();
+    });
+});

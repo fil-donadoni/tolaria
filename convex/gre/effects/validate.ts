@@ -1758,11 +1758,17 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
         },
     },
     // CR 601.3e / 117.6-analog (issue #1344) — grant cast permission (+
-    // optional cost waiver) for the graveyard card a preceding Op bound.
-    // `card` is a bare picks ref; `player` names the grantee;
+    // optional cost waiver) for a graveyard card. `card` is EITHER a bare
+    // picks ref (the card a preceding Op bound — Malcolm) OR an announced
+    // target slot (`{ target: n }`, CR 601.2c — Emry, Lurker of the Loch,
+    // issue #1650); an `$event` ref is deliberately NOT accepted (there is no
+    // graveyard-card event family). `player` names the grantee;
     // `window`/`withoutPayingManaCost` are optional.
     grantCastFromGraveyard: {
-        required: { card: isBarePicksRef, player: isPlayerRef },
+        required: {
+            card: (v: unknown) => isTargetRef(v) || isBarePicksRef(v),
+            player: isPlayerRef,
+        },
         optional: {
             window: (v: unknown) =>
                 v === "this-turn" || v === "while-in-graveyard",

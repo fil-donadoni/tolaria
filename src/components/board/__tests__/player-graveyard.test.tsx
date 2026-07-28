@@ -34,8 +34,9 @@ vi.mock("../cards-pile", () => ({
     },
 }));
 
+const selectTargetSpy = vi.fn();
 vi.mock("convex/react", () => ({
-    useMutation: () => vi.fn(),
+    useMutation: () => selectTargetSpy,
 }));
 
 function makeCard(id: string): CardInstance {
@@ -82,6 +83,9 @@ function renderWithContext(
         pendingChoices?: NonNullable<
             React.ContextType<typeof GameContext>
         >["pendingChoices"];
+        pendingTarget?: NonNullable<
+            React.ContextType<typeof GameContext>
+        >["pendingTarget"];
         buffer?: PendingChoiceBuffer;
     } = {}
 ) {
@@ -98,6 +102,7 @@ function renderWithContext(
         debugAllActions: false,
         onSwitchGame: () => {},
         pendingChoices: extra.pendingChoices,
+        pendingTarget: extra.pendingTarget,
     } as React.ContextType<typeof GameContext>;
     return render(
         <GameContext value={value}>
@@ -202,5 +207,62 @@ describe("PlayerGraveyard", () => {
         const pileProps = cardsPileSpy.mock.calls.at(-1)?.[0];
         expect(pileProps.eligibleIds).toBeUndefined();
         expect(pileProps.title).toBe("Return a card from your graveyard.");
+    });
+});
+
+// Issue #1650 — Emry, Lurker of the Loch's "{T}: Choose target artifact card
+// in your graveyard." is the first ACTIVATED ability whose target lives in a
+// graveyard, so the pile's `selectTarget` routing (CR 601.2c) is now on a
+// card's critical path. Asserted through the real component: a
+// `zone: "graveyard"` + `controller: "you"` pending target makes the OWN
+// pile's cards clickable and submits a `graveyard-card` selection, while the
+// opponent's pile stays inert under the same pending target.
+describe("PlayerGraveyard — graveyard-zone target routing (Emry, issue #1650)", () => {
+    const emryPendingTarget = {
+        playerId: "me",
+        cardInstanceId: "emry",
+        kind: "ability",
+        abilityId: "emry-lurker-of-the-loch-graveyard-cast",
+        targetType: "Artifact",
+        zone: "graveyard",
+        controller: "you",
+        count: 1,
+        selected: [],
+    } as unknown as NonNullable<
+        React.ContextType<typeof GameContext>
+    >["pendingTarget"];
+
+    it("clicking a card in YOUR graveyard submits a graveyard-card selection", () => {
+        cardsPileSpy.mockClear();
+        selectTargetSpy.mockClear();
+        const player = makePlayer([makeCard("gy-artifact")]);
+        renderWithContext(<PlayerGraveyard player={player} />, "me", {
+            pendingTarget: emryPendingTarget,
+        });
+        const pileProps = cardsPileSpy.mock.calls.at(-1)?.[0];
+        expect(pileProps.onCardClick).toBeTypeOf("function");
+        pileProps.onCardClick({ id: "gy-artifact" });
+        expect(selectTargetSpy).toHaveBeenCalledTimes(1);
+        expect(selectTargetSpy.mock.calls[0][0]).toMatchObject({
+            playerId: "me",
+            targetType: "graveyard-card",
+            targetId: "gy-artifact",
+            targetPlayerId: "me",
+        });
+    });
+
+    it("leaves the OPPONENT's graveyard inert under a controller: 'you' requirement", () => {
+        cardsPileSpy.mockClear();
+        selectTargetSpy.mockClear();
+        const theirs = {
+            ...makePlayer([makeCard("their-artifact")]),
+            id: "opp",
+        };
+        renderWithContext(<PlayerGraveyard player={theirs} />, "me", {
+            pendingTarget: emryPendingTarget,
+        });
+        const pileProps = cardsPileSpy.mock.calls.at(-1)?.[0];
+        expect(pileProps.onCardClick).toBeUndefined();
+        expect(selectTargetSpy).not.toHaveBeenCalled();
     });
 });
