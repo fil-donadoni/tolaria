@@ -239,4 +239,67 @@ describe("LibraryOrderPicker", () => {
         fireEvent.click(done);
         expect(onConfirm).toHaveBeenCalledWith([], ["a", "b", "c"]);
     });
+
+    // Mobile drag regression: a touch pointerdown gives the pressed CARD
+    // implicit pointer capture, so the picker's first setPointerCapture on the
+    // strip container transfers it and `lostpointercapture` fires on the card,
+    // bubbling to the container. That transfer must NOT end the drag — it used
+    // to commit() on the first move, snapping the card back ("card jumps away"
+    // on phones). The spurious bubbled event here reproduces the transfer; the
+    // drag must survive it and the release must still apply the reorder.
+    it("a card→container capture transfer does not kill an active drag (touch)", () => {
+        const proto = Element.prototype as Element & {
+            setPointerCapture: unknown;
+            releasePointerCapture: unknown;
+            hasPointerCapture: unknown;
+        };
+        proto.setPointerCapture = vi.fn();
+        proto.releasePointerCapture = vi.fn();
+        proto.hasPointerCapture = vi.fn(() => true);
+
+        const onConfirm = vi.fn();
+        const { getByText, baseElement } = renderPicker(
+            <LibraryOrderPicker
+                lookedAt={looked}
+                destination="none"
+                prompt="Portent"
+                submitting={false}
+                onConfirm={onConfirm}
+            />
+        );
+        // DOM order follows `lookedAt` ([a, b, c]) — VISUAL order is the top
+        // array [c, b, a] via transforms, so cards[0] ("a") is the rightmost
+        // (top) card. Dragging it to the far left must reorder.
+        const cards = baseElement.querySelectorAll(".cursor-grab");
+        expect(cards.length).toBe(3);
+        const rightmost = cards[0] as HTMLElement;
+        const strip = rightmost.parentElement as HTMLElement;
+
+        // Press the top card, drag it past the activation threshold…
+        fireEvent.pointerDown(rightmost, {
+            pointerId: 1,
+            button: 0,
+            clientX: 300,
+            clientY: 50,
+        });
+        fireEvent.pointerMove(strip, {
+            pointerId: 1,
+            clientX: 280,
+            clientY: 50,
+        });
+        // …the implicit-capture transfer fires lostpointercapture ON THE CARD
+        // (target ≠ container). Pre-fix this committed and ended the drag.
+        fireEvent.lostPointerCapture(rightmost, { pointerId: 1 });
+        // The drag is still alive: keep moving to the far LEFT and release.
+        fireEvent.pointerMove(strip, { pointerId: 1, clientX: 0, clientY: 50 });
+        fireEvent.pointerUp(strip, { pointerId: 1, clientX: 0, clientY: 50 });
+
+        fireEvent.click(getByText("Done"));
+        // "a" moved off the rightmost (top) slot — the no-drag submit would be
+        // ["a", "b", "c"]; the survived drag lands it elsewhere.
+        expect(onConfirm).toHaveBeenCalledTimes(1);
+        const submittedTop = onConfirm.mock.calls[0][0] as string[];
+        expect(submittedTop).not.toEqual(["a", "b", "c"]);
+        expect([...submittedTop].sort()).toEqual(["a", "b", "c"]);
+    });
 });

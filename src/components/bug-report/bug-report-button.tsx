@@ -20,7 +20,10 @@ export default function BugReportButton() {
                 aria-label="Report a bug"
                 title="Report a bug"
                 onClick={() => setOpen(true)}
-                className="z-sheet fixed bottom-4 left-4 rounded-full shadow-md"
+                // Bottom-RIGHT, and above the portrait bottom bar on mobile:
+                // bottom-left collided with the dev rail / You tab, and
+                // bottom-4 sat under the action bar (mobile UX audit 2026-07).
+                className="z-sheet fixed bottom-32 right-3 rounded-full shadow-md md:bottom-4 md:right-4"
             >
                 <Bug />
             </Button>
