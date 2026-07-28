@@ -5531,7 +5531,7 @@ export function finalizeTargetSelection(
             cardInHand,
             manaCost,
             cardInstanceId,
-            genericManaShortfall(player, cardInHand, manaCost)
+            genericManaShortfall(player, cardInHand, manaCost, state)
         );
         // CR 601.2g (issue #1660) — collapse a fully-forced pick right here at
         // the commit seam (see `collapseForcedDelvePick`'s doc). No convoke on
@@ -6627,7 +6627,7 @@ export const announceCast = mutation({
                 cardInHand,
                 manaCost,
                 args.cardInstanceId,
-                genericManaShortfall(player, cardInHand, manaCost)
+                genericManaShortfall(player, cardInHand, manaCost, state)
             );
             // CR 601.2g (issue #1660) — collapse a fully-forced pick right
             // here at the commit seam (see `collapseForcedDelvePick`'s doc).
@@ -8412,7 +8412,7 @@ export function recordConvokeCreaturePick(
             castCard,
             pc.manaCost,
             pc.cardInstanceId,
-            genericManaShortfall(player, castCard, pc.manaCost)
+            genericManaShortfall(player, castCard, pc.manaCost, state)
         );
         if (delveChoice) pc.exileFromGraveyardChoice = delveChoice;
     }

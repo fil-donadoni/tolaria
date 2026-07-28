@@ -1091,12 +1091,14 @@ function getProducibleManaUnits(
     // (mandatory) `state` param — so a self-referential ability (Mox Opal's
     // Metalcraft, Fanatic of Rhonas's Ferocious) AND an opponent-scanning
     // chooser (Fellwar Stone) are both visible to the two callers identically
-    // ON THAT PATH. Two `coloredCostLeftover` callers deliberately pass no
-    // `state` (`maxAffordableX`'s bot-enumeration call sites in moves.ts and
-    // `genericManaShortfall`, both by design — see their own docs), so this
-    // function still falls back to `undefined, undefined` (board-blind) for
-    // them, same as before this fix; the "identical" guarantee is scoped to
-    // the callers that do pass `state`.
+    // ON THAT PATH. Issue #1757 closed the last two `coloredCostLeftover`
+    // callers that used to pass no `state` at all (`maxAffordableX`'s
+    // bot-enumeration call site in moves.ts and every `genericManaShortfall`
+    // caller) — every caller now has a `state` in scope and passes it, so
+    // this function only falls back to `undefined, undefined` (board-blind)
+    // for a caller that genuinely has no `GameState` on hand (there is none
+    // today); the "identical" guarantee is no longer scoped to a subset of
+    // callers.
     const detailed = getManaTapOptionsDetailed(
         card,
         controllerId,
@@ -1194,11 +1196,13 @@ function coloredCostLeftover(
          *  Fellwar Stone's current safe "assume all 5 colours" over-approximation
          *  for an under-approximating "assume none" — a NEW hidden-cast bug of
          *  the exact shape this fix closes for Mox Opal/Fanatic of Rhonas.
-         *  A caller that omits `state` (the only remaining ones are
-         *  `maxAffordableX`'s bot-enumeration call sites in moves.ts and
-         *  `genericManaShortfall`, both deliberately, see their own docs)
-         *  still makes `getProducibleManaUnits` fall back to its pre-fix
-         *  `undefined, undefined` call, unchanged from before this fix. */
+         *  A caller that omits `state` still makes `getProducibleManaUnits`
+         *  fall back to its pre-fix `undefined, undefined` call — issue #1757
+         *  closed the last two callers that used to omit it by design
+         *  (`maxAffordableX`'s bot-enumeration call site in moves.ts and
+         *  every `genericManaShortfall` caller), so today every caller passes
+         *  `state` and this fallback is dead code kept only for a
+         *  hypothetical future caller with no `GameState` on hand. */
         state?: GameState;
     } = {}
 ): number | null {
@@ -1566,12 +1570,11 @@ function canPotentiallyPayCost(
     // branch (hand/flashback/escape/madness/graveyard-permission/permanent-
     // permission/graveyard-grant/free-exile/alternative-cost) is asking, and
     // — since issue #1751 finding 1 — the Phyrexian branch above forwards
-    // `state` too. This does NOT cover every board-dependent-mana consumer in
-    // the file, though: `maxAffordableX`'s two call sites in moves.ts (the
-    // Bot's X-ceiling enumeration) and `genericManaShortfall` still build
-    // their own `coloredCostLeftover` probe with no `state` at all (each
-    // documented at its own definition) — those remain board-blind by
-    // design, and only ever under-estimate, never over-offer.
+    // `state` too. `maxAffordableX`'s two call sites in moves.ts (the Bot's
+    // X-ceiling enumeration) and every `genericManaShortfall` caller build
+    // their own `coloredCostLeftover` probe the same way, forwarding their own
+    // `state` (issue #1757 closed the last board-blind holdouts among them;
+    // each documented at its own definition).
     const leftover = coloredCostLeftover(player, card, cost, { state });
     // Remaining sources after the colored portion must cover the generic
     // ({cost.X}) portion.
@@ -1592,13 +1595,18 @@ function canPotentiallyPayCost(
  *  finding 5) so a board-dependent mana ability contributes to the X ceiling.
  *  `hasEnoughLegalTargets` passes its own `state` param; the Bot's move
  *  enumerator (`enumerateCastMoves` in moves.ts), which also consumes this
- *  function for its `X = 0..N` range, does NOT — its ceiling stays the
- *  pre-existing board-blind one (safe: it only ever under-counts, never
- *  over-offers, and each candidate X is still re-checked by `planManaPayment`
- *  before a move is emitted). `coloredCostLeftover` and `planManaPayment`
- *  (moves.ts) are documented mirrors — the same one-source-one-mana greedy
- *  model — so the per-X `planManaPayment` guard the enumerator still runs
- *  only ever filters, never widens, the range this returns. */
+ *  function for its `X = 0..N` range, now passes its own `state` param too
+ *  (issue #1757 — previously omitted, so a board-dependent mana source
+ *  reached a higher ceiling at the gate than the Bot ever enumerated; the
+ *  Bot under-used X spells even though the eventual `planManaPayment` tap
+ *  plan could have covered a larger X). Every current caller of this function
+ *  passes `state`, so the ceiling this returns matches the castability gate's
+ *  everywhere. Each candidate X is still re-checked by `planManaPayment`
+ *  before a move is emitted, so a future board-blind caller (or a genuine
+ *  divergence between this greedy model and `planManaPayment`'s) would still
+ *  only ever be filtered, never over-offered — but that safety net is not why
+ *  the ceiling agrees today; the ceiling agrees because both callers now pass
+ *  the same board. */
 export function maxAffordableX(
     player: PlayerState,
     card: CardInstanceState,
@@ -1622,14 +1630,33 @@ export function maxAffordableX(
  *  Returns `Infinity` when the COLOURED portion itself is uncoverable: delve
  *  never pays a coloured pip (CR 702.66a), so no number of exiles rescues that
  *  cast. `cost` must already carry the CR 601.2f reductions
- *  (`applyCostModifiers`), matching what the announce path parks. */
+ *  (`applyCostModifiers`), matching what the announce path parks.
+ *
+ *  `state`, when passed, is forwarded into `coloredCostLeftover` (issue
+ *  #1757) so a board-dependent mana source contributes to the leftover this
+ *  shortfall is computed from — closing the same gap `maxAffordableX` closed
+ *  for the X ceiling. Without it, a self-referential source (Mox Opal's
+ *  Metalcraft, Fanatic of Rhonas's Ferocious) is invisible to
+ *  `getProducibleManaUnits`'s board-blind fallback and contributes NO mana at
+ *  all, understating the leftover and OVER-stating the forced minimum —
+ *  `buildDelveExileChoice`'s `min` (and, when `min === max ===
+ *  eligible.length`, `collapseForcedDelvePick`'s silent auto-exile of the
+ *  WHOLE graveyard) would force more delve than the real board requires. Every
+ *  current caller — `moves.ts`'s `enumerateCastMoves` (the Bot's cast-move
+ *  enumeration), `applyMove.ts`'s `applyDelveExileForSearch` (the search
+ *  leaf's delve replay, shared by `search.ts`'s `applyMoveInSearch`), and
+ *  every `game.ts` `buildDelveExileChoice` call site (hand-cast, targeted
+ *  cast, post-convoke) — has a `state` in scope and now passes it, so this
+ *  gap is closed catalogue-wide, not merely documented. */
 export function genericManaShortfall(
     player: PlayerState,
     card: CardInstanceState,
-    cost: Record<string, number>
+    cost: Record<string, number>,
+    state?: GameState
 ): number {
     const leftover = coloredCostLeftover(player, card, cost, {
         payWith: false,
+        state,
     });
     if (leftover === null) return Infinity;
     return Math.max(0, (cost.X ?? 0) - leftover);

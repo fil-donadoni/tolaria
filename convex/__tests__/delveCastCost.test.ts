@@ -34,6 +34,7 @@ import type { PendingCast, PendingTarget } from "../gre/state";
 import { projectPublicState } from "../gameProjections";
 import { compactState, expandState } from "../gre/serialize";
 import { makeInstance, makePlayer, makeState } from "../cards/__tests__/setup";
+import { getCardByName } from "../cards";
 
 const TREASURE_CRUISE = "7a59d4b1-6cf4-44ec-8a96-1bb7094fea21"; // {7}{U} Sorcery, delve
 const DISRUPT = "c000a02f-6b7e-4925-a938-59e645e980d7"; // {U} Instant, no delve
@@ -409,6 +410,48 @@ describe("genericManaShortfall — the forced-minimum probe (CR 601.2g)", () => 
     it("is zero once mana alone covers the whole cost", () => {
         const { player, spell } = board(8, 3);
         expect(genericManaShortfall(player, spell, { X: 7, U: 1 })).toBe(0);
+    });
+
+    // Issue #1757 — the SAME board-blind gap `maxAffordableX` had:
+    // `genericManaShortfall` forwards `state` into `coloredCostLeftover` only
+    // when a caller passes one. A board-dependent mana source (Mox Opal's
+    // Metalcraft, CR 602.5b) is invisible to `getProducibleManaUnits` without
+    // a `state` — its `canActivate` sees `{ players: [] }` and reports false
+    // — so the mana-only leftover is understated and the forced-minimum
+    // delve count is OVERstated: `buildDelveExileChoice`'s `min` (and, at
+    // `min === max === eligible.length`, `collapseForcedDelvePick`'s SILENT
+    // auto-exile of the whole graveyard) would force more delve than the real
+    // board — which the eventual `planManaPayment` tap plan DOES see — needs.
+    it("board-blind (no state) overstates the forced minimum when Mox Opal (Metalcraft) could pay part of the generic cost", () => {
+        const { state, player, spell } = board(1, 9); // 1 Island pays {U}
+        const moxOpal = makeInstance(getCardByName("Mox Opal").id, {
+            id: "moxOpal",
+            controllerId: "p1",
+        });
+        player.battlefield.push(
+            moxOpal,
+            makeInstance(getCardByName("Ankh of Mishra").id, {
+                id: "ankh1",
+                controllerId: "p1",
+            }),
+            makeInstance(getCardByName("Ankh of Mishra").id, {
+                id: "ankh2",
+                controllerId: "p1",
+            })
+        );
+        // Metalcraft satisfied (Mox Opal + 2 Ankh of Mishra = 3 artifacts):
+        // Mox Opal's any-colour {T} ability funds one generic pip.
+        const cost = { X: 7, U: 1 };
+
+        // Board-blind (no `state`, the pre-#1757 shape for every caller):
+        // Mox Opal is invisible, so the Island alone (after paying {U}) leaves
+        // NOTHING for the generic portion — the full {7} looks forced.
+        expect(genericManaShortfall(player, spell, cost)).toBe(7);
+
+        // Board-aware (`state` passed, issue #1757's fix): Mox Opal is now a
+        // visible leftover source, so only 6 of the 7 generic pips are
+        // actually forced onto the graveyard.
+        expect(genericManaShortfall(player, spell, cost, state)).toBe(6);
     });
 });
 

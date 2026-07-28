@@ -144,7 +144,7 @@ export function applyDelveExileForSearch(
     if (phyrexianPipCount(rawCost) === 0) {
         applyCostModifiers(normCost, getCostModifiers(state, card, "spell"));
     }
-    const shortfall = genericManaShortfall(player, card, normCost);
+    const shortfall = genericManaShortfall(player, card, normCost, state);
     const delveCount = Math.min(
         delveFuel,
         genericPortion(normCost),

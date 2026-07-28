@@ -16,7 +16,7 @@ import {
 import type { CardInstanceState, GameState, PlayerState } from "../state";
 import * as stateModule from "../state";
 import { enumerateMoves, planManaPayment, type Move } from "../moves";
-import { getLegalActions } from "../rules";
+import { getLegalActions, maxAffordableX } from "../rules";
 
 const FOREST = getCardByName("Forest").id;
 const MOUNTAIN = getCardByName("Mountain").id;
@@ -1016,6 +1016,86 @@ describe("gate ↔ planner opponent-scanning mana-source parity (issue #1754)", 
 
         expect(legalActionsFor(state, "p1", bolt)).not.toContain("cast");
         expect(castsFor(state, "p1", bolt.id)).toHaveLength(0);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Gate ↔ enumerator {X}-ceiling parity for a board-dependent mana source
+// (issue #1757 — last link in the #1695 → #1751 → #1754 → #1756 chain).
+// ---------------------------------------------------------------------------
+//
+// `enumerateCastMoves` derives an {X} spell's X ceiling from
+// `maxAffordableX(player, card)` with NO `state`, while `hasEnoughLegalTargets`
+// (rules.ts) calls the SAME helper WITH `state`. `maxAffordableX` only forwards
+// board-dependent mana visibility (Mox Opal's Metalcraft, CR 602.5b) into
+// `coloredCostLeftover` when handed a `state` — so before this fix the Bot's
+// {X} ceiling for Fireball was computed as if Mox Opal produced nothing at
+// all (Metalcraft's `canActivate` sees `{ players: [] }` and reports false),
+// one lower than the ceiling the human castability gate (and the real
+// `planManaPayment` tap plan, which DOES get a board) can actually reach.
+// Under-offer only: the Bot never proposes the higher, still-legal X.
+describe("gate ↔ enumerator X-ceiling parity for a board-dependent mana source (issue #1757)", () => {
+    it("Fireball ({X}{R}) funded by a Metalcraft-satisfied Mox Opal: maxAffordableX and the enumerator's highest chosenX agree, and the extra X pip taps Mox Opal", () => {
+        const fireball = makeInstance(FIREBALL, {
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const mountain = land(MOUNTAIN, "p1");
+        const moxOpal = makeInstance(MOX_OPAL, {
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const p1 = makePlayer("p1", {
+            hand: [fireball],
+            battlefield: [
+                mountain,
+                moxOpal,
+                makeInstance(ANKH, { controllerId: "p1", ownerId: "p1" }),
+                makeInstance(ANKH, { controllerId: "p1", ownerId: "p1" }),
+            ],
+        });
+        const state = makeState({ players: [p1, makePlayer("p2")] });
+        const player = state.players.find((p) => p.id === "p1")!;
+
+        // The gate: Mox Opal + 2 Ankh of Mishra = 3 artifacts, Metalcraft
+        // satisfied. One Mountain pays Fireball's {R}; the leftover source is
+        // Mox Opal's any-colour mana, which funds exactly one more X — so
+        // `maxAffordableX` (board-aware) reaches X = 1, not X = 0.
+        expect(maxAffordableX(player, fireball, state)).toBe(1);
+
+        // The enumerator must agree: its highest offered `chosenX` for
+        // Fireball is 1, not 0 — the board-blind bug capped it at 0 (a
+        // Mountain alone pays only the fixed {R}, leaving nothing for X).
+        const casts = castsFor(state, "p1", fireball.id).filter(
+            (m): m is Move & { kind: "cast-spell" } => m.kind === "cast-spell"
+        );
+        expect(casts.length).toBeGreaterThan(0);
+        const chosenXValues = new Set(casts.map((c) => c.chosenX ?? 0));
+        expect(Math.max(...chosenXValues)).toBe(1);
+
+        // Every X = 1 move's tap plan must tap the SPECIFIC Mox Opal instance
+        // (not `expect.any(String)` — a loose assertion here was recently
+        // shown to pass under the exact fault it exists to catch, issue
+        // #1757's test requirement): the Mountain pays the coloured {R} pip,
+        // Mox Opal's choice-based any-colour ability pays the one generic
+        // pip X = 1 draws from.
+        const x1Casts = casts.filter((c) => (c.chosenX ?? 0) === 1);
+        expect(x1Casts.length).toBeGreaterThan(0);
+        for (const cast of x1Casts) {
+            expect(cast.tapPlan).toEqual([
+                { cardInstanceId: mountain.id },
+                {
+                    cardInstanceId: moxOpal.id,
+                    manaChoiceIndex: expect.any(Number),
+                },
+            ]);
+        }
+
+        // No X = 2 move is ever offered: only one leftover source (Mox Opal)
+        // exists once the Mountain pays {R}, so X = 2 is genuinely unaffordable
+        // — the fix must not OVER-offer either.
+        expect(chosenXValues.has(2)).toBe(false);
     });
 });
 
