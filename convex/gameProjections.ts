@@ -587,6 +587,38 @@ interface ChoiceExposure {
     peekCandidateIds: string[] | undefined;
     /** `reveal-hand`: hand owner whose hand is shown to the chooser. */
     revealZoneOwner: string | undefined;
+    /** ANY cross-player hand-zone pick (issue #1698, widened by #1719 review
+     *  finding 1): hand owner whose hand is exposed, face-up, on the
+     *  ORDINARY `hand` wire field (not `revealedHand` — that's
+     *  `reveal-hand`'s dedicated look-only view field) to the chooser alone,
+     *  for as long as this pick is head-of-queue. The discriminator is
+     *  `zoneOwnerId !== playerId` (chooser ≠ hand owner) — NOT `kind`.
+     *  "Look at target player's hand and choose a card from it"
+     *  (`choose-hand-card`, Seer's Vision / Thoughtseize) and "look at that
+     *  player's hand and choose N cards from it, that player discards them"
+     *  (`discard-hand`, Mind Warp / Leshrac's Sigil — the CASTER, not the
+     *  hand's owner, is the chooser) are the exact same "chooser must see a
+     *  foreign zone" shape as search-library / reorder-library / pick-pile /
+     *  reveal-hand above; gating on `kind` alone missed `discard-hand`
+     *  entirely (both cards hung with no reachable UI). `reveal-hand` is
+     *  deliberately EXCLUDED here — it already has its own dedicated
+     *  exposure (`revealZoneOwner` → `revealedHand`) and its own modal
+     *  (`RevealHandView`); folding it into this field too would double-expose
+     *  it. This exposure is scoped independently of any OTHER visibility
+     *  mechanism (an explicit `reveal` Op, or a continuous `revealsHand`
+     *  static), which are incidental and, for a self-sacrificing source,
+     *  provably gone by the time this exact choice is raised (`convex/game.ts`
+     *  pays activation costs before the ability ever reaches the stack).
+     *  NOTE (known narrowing, out of scope): this exposes the ZONE OWNER'S
+     *  WHOLE hand even when the pick's `candidateIds`/`filter` narrows
+     *  eligibility to a subset (e.g. Thoughtseize's nonland-only filter) —
+     *  correct for every card shipped today (each looks at/reveals the
+     *  entire hand before narrowing which cards are pickable), but would be
+     *  wrong for a hypothetical future card whose Oracle text only reveals a
+     *  FILTERED subset of the hand (e.g. "reveal the creature cards in their
+     *  hand"). No behavior change here — flagged for whoever builds that
+     *  card. */
+    handPickZoneOwner: string | undefined;
 }
 
 /** The looked-at cards a peek/reorder picker renders: the pinned `candidateIds`
@@ -701,12 +733,35 @@ function computeChoiceExposure(
         ? (head.zoneOwnerId ?? head.playerId)
         : undefined;
 
+    // CR 401.4 (issue #1698, generalized by #1719 review finding 1) — ANY
+    // hand-zone pick whose chooser differs from the hand's owner exposes that
+    // owner's hand on the ordinary `hand` field (see `handPickZoneOwner` doc
+    // above). Deliberately its OWN check, not folded into
+    // `exposeRevealHand`/`revealZoneOwner`: those feed the `revealedHand`
+    // field, which `RevealHandView` gates strictly on `kind === "reveal-hand"`
+    // — reusing them here would leak an unused-but-populated field into the
+    // wire for every cross-player hand pick without helping `HandCardPick`,
+    // which reads `hand`, not `revealedHand`. The discriminator is
+    // "chooser ≠ zone owner", NOT `kind` — the original #1698 fix keyed on
+    // `kind === "choose-hand-card"` and missed the identical `discard-hand`
+    // shape (Mind Warp, Leshrac's Sigil: the caster picks which of the
+    // TARGET's cards get discarded). `reveal-hand` is excluded on purpose —
+    // it already owns its own dedicated exposure/modal (see doc above).
+    const exposeHandPick =
+        isChooser &&
+        head.kind !== "reveal-hand" &&
+        head.zone === "hand" &&
+        head.zoneOwnerId !== undefined &&
+        head.zoneOwnerId !== head.playerId;
+    const handPickZoneOwner = exposeHandPick ? head.zoneOwnerId : undefined;
+
     return {
         searchZoneOwner,
         peekZoneOwner: pickPeekOwner ?? peekZoneOwner,
         peekCount: pickPeekIds ? pickPeekIds.length : peekCount,
         peekCandidateIds: pickPeekIds ?? peekCandidateIds,
         revealZoneOwner,
+        handPickZoneOwner,
     };
 }
 
@@ -768,6 +823,7 @@ export function projectPublicState(
         peekCount,
         peekCandidateIds,
         revealZoneOwner,
+        handPickZoneOwner,
     } = computeChoiceExposure(state, viewerId);
     // Exiled-card → holding-permanent links (mechanism-agnostic), so the client
     // pins each exiled card to its permanent (Arena treatment).
@@ -908,10 +964,23 @@ export function projectPublicState(
         // card's identity to opponents (a maximal, continuous form of the
         // per-card `knownTo` reveal).
         const handRevealed = handRevealedPlayers.has(player.id);
+        // issue #1698 — a hand pick of ANY kind (`choose-hand-card`,
+        // `discard-hand`, …) anchored on THIS player's hand exposes it
+        // face-up to the chooser ALONE for exactly as long as the choice is
+        // head-of-queue (`handPickZoneOwner`, gated above on `viewerId`
+        // already being that choice's chooser). The gate keys on
+        // chooser≠owner, NOT on `kind` — keying on kind is what let Mind Warp
+        // and Leshrac's Sigil (`discard-hand`) hang. `reveal-hand` is the one
+        // deliberate exclusion: it has its own `revealedHand` path — independent of
+        // `handRevealed`/`knownTo`, which stay whatever incidental mechanism
+        // (a continuous static, an explicit prior `reveal`) put them there.
+        const handPickExposed = player.id === handPickZoneOwner;
         return {
             ...common,
             hand: player.hand.map((card): SlimHandCard | null =>
-                handRevealed || card.knownTo?.includes(viewerId)
+                handRevealed ||
+                handPickExposed ||
+                card.knownTo?.includes(viewerId)
                     ? { ...slimCard(card), legalActions: [] }
                     : null
             ),

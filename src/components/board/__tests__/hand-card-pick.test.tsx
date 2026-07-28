@@ -187,3 +187,83 @@ describe("HandCardPick (Thoughtseize opponent-hand pick, CR 608.2)", () => {
         expect(queryByTestId("cards-pile")).toBeNull();
     });
 });
+
+// Regression (#1719 review finding 1) — the #1698 fix keyed on
+// `kind === "choose-hand-card"` and missed the IDENTICAL cross-player shape
+// under `kind: "discard-hand"` (Mind Warp, Leshrac's Sigil: the caster picks
+// which of the TARGET's cards get discarded), leaving both cards hung with
+// no reachable UI (no modal AND the in-hand toggle can't help — the picked-
+// from cards aren't the chooser's own). The router now keys on
+// "chooser ≠ zone owner", not `kind`.
+function mindWarpShapedChoice(): Choices {
+    return [
+        {
+            stackItemId: "s1",
+            step: 0,
+            choiceId: "c0",
+            playerId: "me",
+            kind: "discard-hand",
+            zone: "hand",
+            zoneOwnerId: "opp",
+            count: 1,
+            prompt: "Mind Warp: choose cards for that player to discard.",
+        },
+    ] as Choices;
+}
+
+describe("HandCardPick (Mind Warp/Leshrac's Sigil opponent-hand pick, discard-hand kind, #1719)", () => {
+    it("opens the picker for a cross-player discard-hand pick", () => {
+        cardsPileSpy.mockClear();
+        const opp = makePlayer("opp", [
+            makeCard("c1", "opp"),
+            makeCard("c2", "opp"),
+        ]);
+        renderWith({
+            allPlayers: [makePlayer("me", []), opp],
+            pendingChoices: mindWarpShapedChoice(),
+        });
+        const props = cardsPileSpy.mock.calls.at(-1)?.[0];
+        expect(props.forceOpen).toBe(true);
+        expect(props.cards.map((c: CardInstance) => c.id)).toEqual([
+            "c1",
+            "c2",
+        ]);
+    });
+
+    it("toggles the buffer on a discard-hand pick click", () => {
+        cardsPileSpy.mockClear();
+        const toggle = vi.fn();
+        const opp = makePlayer("opp", [makeCard("c1", "opp")]);
+        renderWith({
+            allPlayers: [makePlayer("me", []), opp],
+            pendingChoices: mindWarpShapedChoice(),
+            buffer: { ...noopBuffer, toggle },
+        });
+        const onCardClick = cardsPileSpy.mock.calls.at(-1)?.[0].onCardClick;
+        onCardClick({ id: "c1" });
+        expect(toggle).toHaveBeenCalledWith("c1");
+    });
+
+    it("renders nothing for an own-hand discard-hand pick (zoneOwnerId === viewer, e.g. cleanup discard)", () => {
+        cardsPileSpy.mockClear();
+        const choices = mindWarpShapedChoice();
+        choices![0] = { ...choices![0], zoneOwnerId: "me" };
+        const { queryByTestId } = renderWith({
+            allPlayers: [makePlayer("me", [makeCard("h1", "me")])],
+            pendingChoices: choices,
+        });
+        expect(queryByTestId("cards-pile")).toBeNull();
+    });
+
+    it("renders nothing for a reveal-hand pick even with a cross-player zoneOwnerId (RevealHandView owns that kind)", () => {
+        cardsPileSpy.mockClear();
+        const choices = mindWarpShapedChoice();
+        choices![0] = { ...choices![0], kind: "reveal-hand" };
+        const opp = makePlayer("opp", [makeCard("c1", "opp")]);
+        const { queryByTestId } = renderWith({
+            allPlayers: [makePlayer("me", []), opp],
+            pendingChoices: choices,
+        });
+        expect(queryByTestId("cards-pile")).toBeNull();
+    });
+});
