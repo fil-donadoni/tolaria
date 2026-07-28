@@ -116,9 +116,7 @@ describe("Teferi, Hero of Dominaria — +1 (draw + next-end-step untap up to two
         });
         activate(state, PLUS1);
         // "Draw a card."
-        expect(state.players[0].hand.some((c) => c.id === "libTop")).toBe(
-            true
-        );
+        expect(state.players[0].hand.some((c) => c.id === "libTop")).toBe(true);
         // CR 603.7a — the next-end-step untap is scheduled.
         expect(state.delayedTriggers?.length).toBe(1);
         expect(state.delayedTriggers![0].timing).toBe("next-end-step");

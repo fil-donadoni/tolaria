@@ -3442,7 +3442,12 @@ describe("Effect Script Op: moveZone (CR 400.7, issue #839)", () => {
     // third from the top").
     it("puts an announced battlefield permanent into its owner's library third from the top", () => {
         const id = registerScript("test-op-movezone-lib-pos", [
-            { op: "moveZone", target: { target: 0 }, to: "library", position: 3 },
+            {
+                op: "moveZone",
+                target: { target: 0 },
+                to: "library",
+                position: 3,
+            },
         ]);
         const bear = makeInstance(BEAR_ID, {
             controllerId: "p2",
@@ -3484,7 +3489,12 @@ describe("Effect Script Op: moveZone (CR 400.7, issue #839)", () => {
     // cards puts the card on the BOTTOM (the splice clamps).
     it("clamps the library position to the bottom when the library is shorter", () => {
         const id = registerScript("test-op-movezone-lib-clamp", [
-            { op: "moveZone", target: { target: 0 }, to: "library", position: 3 },
+            {
+                op: "moveZone",
+                target: { target: 0 },
+                to: "library",
+                position: 3,
+            },
         ]);
         const bear = makeInstance(BEAR_ID, {
             controllerId: "p2",
@@ -3517,7 +3527,12 @@ describe("Effect Script Op: moveZone (CR 400.7, issue #839)", () => {
     // previously-empty library, so the card is both top and bottom).
     it("exposes the inserted card on the wire once contiguous with a library end (wire format)", () => {
         const id = registerScript("test-op-movezone-lib-wire", [
-            { op: "moveZone", target: { target: 0 }, to: "library", position: 3 },
+            {
+                op: "moveZone",
+                target: { target: 0 },
+                to: "library",
+                position: 3,
+            },
         ]);
         const bear = makeInstance(BEAR_ID, {
             controllerId: "p2",
