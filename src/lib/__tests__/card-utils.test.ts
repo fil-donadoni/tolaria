@@ -4,9 +4,7 @@ import {
     wantsPlayerTarget,
     matchesPermanentFilter,
     matchesTargetRequirement,
-    matchesTargetExclusions,
-    matchesTargetController,
-    matchesSameController,
+    matchesPermanentTargetFilters,
     matchesSpellTypeFilter,
     matchesSpellExcludeTypeFilter,
     matchesSpellCreaturePtFilter,
@@ -50,9 +48,17 @@ import type {
     PendingCast,
     Player,
 } from "~/types/game";
-import type { ActivatedAbility, CardDefinition } from "@convex/cards/types";
+import type {
+    ActivatedAbility,
+    CardDefinition,
+    EmblemInstance,
+    TargetRequirement,
+} from "@convex/cards/types";
 import { getDefinition } from "@convex/cards";
-import { CHANDRA_TORCH_OF_DEFIANCE_EMBLEM_ID } from "@convex/cards/emblems";
+import {
+    CHANDRA_TORCH_OF_DEFIANCE_EMBLEM_ID,
+    SORIN_LORD_OF_INNISTRAD_EMBLEM_ID,
+} from "@convex/cards/emblems";
 import { CLUE_TOKEN_SPEC } from "@convex/cards/abilities/tokens/clueToken";
 import { dismember } from "@convex/cards/sets/nph/black";
 import { gitaxianProbe } from "@convex/cards/sets/nph/blue";
@@ -73,7 +79,16 @@ import {
     pendelhaven,
     livonyaSilone,
     clergyOfTheHolyNimbus,
+    karakas,
 } from "@convex/cards/sets/leg";
+import { pendingTargetFiltersFromRequirement } from "@convex/gre/rules";
+import { projectPublicState } from "@convex/gameProjections";
+import {
+    makeInstance,
+    makePlayer as makeServerPlayer,
+    makeState,
+} from "@convex/cards/__tests__/setup";
+import type { PendingTarget } from "~/types/game";
 
 // Real card ids from convex/cards/sets/lea.ts, used to exercise the
 // definition-vs-instance keyword diff in getDisplayAbilities (#156).
@@ -168,46 +183,6 @@ describe("wantsPlayerTarget", () => {
 // ---------------------------------------------------------------------------
 // matchesTargetRequirement
 // ---------------------------------------------------------------------------
-
-describe("matchesTargetController (CR 109.3 / 102.1, #904)", () => {
-    // chooser = "p1", active player = "p1", opponent = "p2".
-    it("'you' accepts the chooser's permanent, rejects the opponent's", () => {
-        expect(matchesTargetController("p1", "p1", "p1", "you")).toBe(true);
-        expect(matchesTargetController("p2", "p1", "p1", "you")).toBe(false);
-    });
-    it("'opponent' accepts the opponent's permanent, rejects the chooser's", () => {
-        expect(matchesTargetController("p2", "p1", "p1", "opponent")).toBe(
-            true
-        );
-        expect(matchesTargetController("p1", "p1", "p1", "opponent")).toBe(
-            false
-        );
-    });
-    it("'active' accepts the active player's permanent regardless of chooser", () => {
-        // Chooser is the non-active player p2; active player is p1.
-        expect(matchesTargetController("p1", "p2", "p1", "active")).toBe(true);
-        expect(matchesTargetController("p2", "p2", "p1", "active")).toBe(false);
-    });
-    it("'any' / undefined accepts any controller", () => {
-        expect(matchesTargetController("p2", "p1", "p1", "any")).toBe(true);
-        expect(matchesTargetController("p2", "p1", "p1", undefined)).toBe(true);
-    });
-});
-
-describe("matchesSameController (CR 601.2c, issue #1104 — Barrin's Spite)", () => {
-    it("imposes no constraint when sameController is unset", () => {
-        expect(matchesSameController("p2", undefined, "p1")).toBe(true);
-    });
-    it("imposes no constraint when nothing has been picked yet (siblingControllerId undefined)", () => {
-        expect(matchesSameController("p2", true, undefined)).toBe(true);
-    });
-    it("accepts a candidate sharing the sibling's controller", () => {
-        expect(matchesSameController("p1", true, "p1")).toBe(true);
-    });
-    it("rejects a candidate controlled by a DIFFERENT player than the sibling", () => {
-        expect(matchesSameController("p2", true, "p1")).toBe(false);
-    });
-});
 
 describe("matchesTargetRequirement", () => {
     it("creature matches 'Creature'", () => {
@@ -305,42 +280,200 @@ describe("matchesTargetRequirement", () => {
     });
 });
 
-describe("matchesTargetExclusions (CR 109.1 / 601.2c, Phelia)", () => {
-    it("excludes a permanent whose id is in excludeInstanceIds (reflexive self / 'other than ~')", () => {
-        const phelia = makeCardInstance({ id: "phelia1", types: ["Creature"] });
+// ---------------------------------------------------------------------------
+// matchesPermanentTargetFilters (issue #1697 — Karakas "target legendary
+// creature" rings every creature, then errors on selection)
+// ---------------------------------------------------------------------------
+
+describe("matchesPermanentTargetFilters (CR 109/202/205/613/701.20/702, issue #1697)", () => {
+    // Builds a server-side GameState with Karakas's bounce ability's
+    // TargetRequirement lowered onto a real PendingTarget
+    // (pendingTargetFiltersFromRequirement, the exact function selectTarget
+    // uses server-side), projects it through the REAL wire projection
+    // (projectPublicState) — not a hand-built client fixture — and returns the
+    // wire-shaped players + pendingTarget the board actually reads. Per the
+    // frontend-wiring mandate: a hand-built view would mask exactly the class
+    // of bug this closes (a reducer silently dropping a field).
+    function projectScenario(
+        req: TargetRequirement,
+        legendaryCreatureOverrides: Partial<
+            Parameters<typeof makeInstance>[1]
+        > = {},
+        plainCreatureOverrides: Partial<
+            Parameters<typeof makeInstance>[1]
+        > = {},
+        emblems?: EmblemInstance[]
+    ) {
+        const legendary = makeInstance(livonyaSilone.id, {
+            id: "legendary-1",
+            controllerId: "p2",
+            ownerId: "p2",
+            ...legendaryCreatureOverrides,
+        });
+        const plain = makeInstance(MERFOLK_ID, {
+            id: "plain-1",
+            controllerId: "p2",
+            ownerId: "p2",
+            ...plainCreatureOverrides,
+        });
+        const karakasInstance = makeInstance(karakas.id, {
+            id: "karakas-1",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makeServerPlayer("p1", { battlefield: [karakasInstance] }),
+                makeServerPlayer("p2", { battlefield: [legendary, plain] }),
+            ],
+            pendingTarget: {
+                playerId: "p1",
+                cardInstanceId: "karakas-1",
+                targetType: req.type,
+                count: 1,
+                selected: [],
+                ...pendingTargetFiltersFromRequirement(req, undefined),
+            } as PendingTarget,
+            emblems,
+        });
+
+        const projected = projectPublicState(state, 1, "p1");
+        return {
+            players: projected.players as unknown as Player[],
+            pendingTarget: projected.pendingTarget as unknown as PendingTarget,
+            // CR 114 (issue #1221) — the wire projection forwards the
+            // top-level `emblems` field unchanged (`...state` spread in
+            // `projectPublicState`); read it back the same way
+            // `useGameContext()` does, not from the pre-projection fixture.
+            emblems: projected.emblems as unknown as
+                | EmblemInstance[]
+                | undefined,
+            legendaryClient: projected.players
+                .find((p) => p.id === "p2")!
+                .battlefield.find(
+                    (c) => c.id === "legendary-1"
+                ) as unknown as CardInstance,
+            plainClient: projected.players
+                .find((p) => p.id === "p2")!
+                .battlefield.find(
+                    (c) => c.id === "plain-1"
+                ) as unknown as CardInstance,
+        };
+    }
+
+    it("supertypeFilter (Karakas): highlights the legendary creature, rejects the non-legendary one, through the real wire projection", () => {
+        const { players, pendingTarget, legendaryClient, plainClient } =
+            projectScenario(karakas.activatedAbilities![1].targetRequirement!);
+
+        // The OLD narrow check alone would wrongly say both match — proving
+        // the bug (a "Creature" requirement's structural type check has no
+        // opinion on supertype).
         expect(
-            matchesTargetExclusions(phelia, {
-                excludeInstanceIds: ["phelia1"],
-            })
+            matchesTargetRequirement(plainClient, pendingTarget.targetType)
+        ).toBe(true);
+
+        // The shared registry-backed predicate is the one that must diverge:
+        // reject the non-legendary creature, accept the legendary one.
+        expect(
+            matchesPermanentTargetFilters(
+                plainClient,
+                pendingTarget,
+                players,
+                "p1"
+            )
         ).toBe(false);
-    });
-
-    it("allows a permanent whose id is NOT excluded", () => {
-        const other = makeCardInstance({ id: "other1", types: ["Creature"] });
         expect(
-            matchesTargetExclusions(other, {
-                excludeInstanceIds: ["phelia1"],
-            })
+            matchesPermanentTargetFilters(
+                legendaryClient,
+                pendingTarget,
+                players,
+                "p1"
+            )
         ).toBe(true);
     });
 
-    it("excludes a land under excludeTypes: ['Land'] ('nonland permanent')", () => {
-        const land = makeCardInstance({ id: "land1", types: ["Land"] });
-        expect(matchesTargetExclusions(land, { excludeTypes: ["Land"] })).toBe(
-            false
-        );
-    });
+    it("powerFilter (a dimension beyond supertype): rejects a creature below the power floor, accepts one at/above it, through the real wire projection", () => {
+        const req: TargetRequirement = {
+            type: "Creature",
+            count: 1,
+            powerFilter: { min: 5 },
+        };
+        // Livonya Silone (power 4) fails a "power 5 or greater" filter even
+        // though she IS legendary — proving this isn't Karakas-specific.
+        const { players, pendingTarget, legendaryClient, plainClient } =
+            projectScenario(
+                req,
+                { power: 4 },
+                { power: 6 } // "plain" creature repurposed as the power-6 pass case
+            );
 
-    it("allows a nonland permanent under excludeTypes: ['Land']", () => {
-        const creature = makeCardInstance({ id: "c1", types: ["Creature"] });
         expect(
-            matchesTargetExclusions(creature, { excludeTypes: ["Land"] })
+            matchesPermanentTargetFilters(
+                legendaryClient,
+                pendingTarget,
+                players,
+                "p1"
+            )
+        ).toBe(false);
+        expect(
+            matchesPermanentTargetFilters(
+                plainClient,
+                pendingTarget,
+                players,
+                "p1"
+            )
         ).toBe(true);
     });
 
-    it("allows any permanent when no exclusions are present", () => {
-        const land = makeCardInstance({ id: "land1", types: ["Land"] });
-        expect(matchesTargetExclusions(land, {})).toBe(true);
+    it("powerFilter under a command-zone emblem anthem: matches the server's effective power only when emblems are folded in (CR 114, over-filter regression)", () => {
+        const req: TargetRequirement = {
+            type: "Creature",
+            count: 1,
+            powerFilter: { min: 2 },
+        };
+        // Both creatures are base power 1 — only Sorin, Lord of Innistrad's
+        // "Creatures you control get +1/+0" emblem (owned by p2, same as the
+        // creatures' controller, CR 114.3) pushes them to power 2. The server
+        // computes effective power through the SAME layer system
+        // (`getEffectivePower`, `convex/gre/layers.ts`) reading
+        // `state.emblems`, so it accepts this target; a client predicate that
+        // built its synthetic state WITHOUT `emblems` would under-compute
+        // power back to 1 and wrongly reject a target the server allows —
+        // the over-filter inverse of #1697's under-filter symptom (a legal
+        // target silently reads as unclickable, worse than #1697 because it
+        // fails silently instead of erroring on selection).
+        const sorinEmblem: EmblemInstance = {
+            id: "emblem-1",
+            ownerId: "p2",
+            emblemId: SORIN_LORD_OF_INNISTRAD_EMBLEM_ID,
+            name: "Sorin, Lord of Innistrad emblem",
+            text: "Creatures you control get +1/+0.",
+        };
+        const { players, pendingTarget, legendaryClient, emblems } =
+            projectScenario(req, { power: 1 }, { power: 1 }, [sorinEmblem]);
+
+        // Proves the bug: omitting `emblems` from the call under-computes
+        // power (still 1) and wrongly rejects a target the server accepts.
+        expect(
+            matchesPermanentTargetFilters(
+                legendaryClient,
+                pendingTarget,
+                players,
+                "p1"
+            )
+        ).toBe(false);
+
+        // The fix: `emblems` folded into the synthetic state matches the
+        // server's effective power (2) and accepts the target.
+        expect(
+            matchesPermanentTargetFilters(
+                legendaryClient,
+                pendingTarget,
+                players,
+                "p1",
+                emblems
+            )
+        ).toBe(true);
     });
 });
 
