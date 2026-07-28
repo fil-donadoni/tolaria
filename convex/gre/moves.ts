@@ -240,9 +240,21 @@ type PlanSource = {
 };
 
 /** Greedy tap plan covering a normalized mana cost (CR 601.2f). Returns the
- *  ordered land taps to perform, or `null` when the cost cannot be paid. Mirrors
- *  `canPotentiallyPayCost` (rules.ts) — same one-source-one-mana model — but
- *  emits the concrete sources. Pool mana is modelled as zero-tap sources and is
+ *  ordered land taps to perform, or `null` when the cost cannot be paid.
+ *  Mirrors `canPotentiallyPayCost` (rules.ts) — same one-source-one-mana
+ *  model — but emits the concrete sources; the mirror is now closer than it
+ *  used to be (issue #1751 finding 4): `getProducibleManaOptions` below is
+ *  called with a real, if SELF-ONLY, `battlefields` view (`player.id` +
+ *  `player.battlefield`), so a self-referential board-dependent mana source
+ *  (Mox Opal's Metalcraft, Fanatic of Rhonas's Ferocious) is visible to the
+ *  Bot's planner exactly like it is to the human castability gate — before
+ *  this fix `getProducibleManaOptions` was always called with no board at
+ *  all, so such a source's `canActivate` was permanently false here even
+ *  when `getLegalActions` correctly offered "cast". The self-only view does
+ *  NOT extend to an opponent-scanning chooser (Fellwar Stone) — the gate's
+ *  `coloredCostLeftover` gets the FULL, both-players board via `opts.state`,
+ *  while this planner has no `state` param to build one from, so that one
+ *  case can still diverge. Pool mana is modelled as zero-tap sources and is
  *  consumed by the server at commit, so it never appears in the returned taps. */
 export function planManaPayment(
     player: PlayerState,
@@ -263,7 +275,12 @@ export function planManaPayment(
         if (perm.isTapped) continue;
         // CR 302.1 — a summoning-sick creature can't pay {T}.
         if (isTapLockedBySummoningSickness(perm)) continue;
-        const options = getProducibleManaOptions(perm);
+        // Issue #1751 finding 4 — self-only board view (own controllerId +
+        // own battlefield): enough for Mox Opal / Fanatic of Rhonas, not for
+        // Fellwar Stone (see this function's own doc above).
+        const options = getProducibleManaOptions(perm, player.id, [
+            { playerId: player.id, battlefield: player.battlefield },
+        ]);
         if (options.size === 0) continue;
         sources.push({ cardInstanceId: perm.id, options });
     }
@@ -583,8 +600,11 @@ function enumerateCastMoves(
             // Planar Gate, Power Artifact, Urza's Filter) AND a spell's own
             // `selfCostReduction` (Emry) before planning the tap payment,
             // mirroring the gate's plain-cast branch
-            // (`canPotentiallyPayCost(caster, card, undefined, state)` in
-            // rules.ts). Without this the enumerator built its tap plan from
+            // (`canPotentiallyPayCost(caster, card, undefined, state, {
+            // foldCostModifiers: true })` in rules.ts — issue #1695
+            // fourth-pass fix split the board-view `state` arg from the
+            // opt-in folding flag). Without this the enumerator built its tap
+            // plan from
             // the unreduced printed cost and disagreed with `getLegalActions`
             // — the bot could never cast a spell whose affordability depends
             // on a reduction. Phyrexian costs keep the pre-existing

@@ -22,6 +22,8 @@ import {
 import { dismember } from "../../cards/sets/nph/black";
 import { gitaxianProbe, phyrexianMetamorph } from "../../cards/sets/nph/blue";
 import { grizzlyBears } from "../../cards/sets/lea/green";
+import { ankhOfMishra, mountain } from "../../cards/sets/lea";
+import { moxOpal } from "../../cards/sets/som";
 import {
     makeInstance,
     makePlayer,
@@ -163,6 +165,77 @@ describe("Phyrexian mana — getLegalActions cast gate (CR 107.4f)", () => {
         expect(getLegalActions(state, state.players[0], card)).toContain(
             "cast"
         );
+    });
+});
+
+// Issue #1751 finding 1 (blocking, live-probed): `canPotentiallyPayCost`'s
+// Phyrexian branch (`phyrexianPipCount(rawCost) > 0`) called `solvePhyrexianSplit`
+// with NO `state` at all, so every downstream `coloredCostLeftover` /
+// `getProducibleManaUnits` probe it ran saw an empty board — a board-dependent
+// mana ability (Mox Opal's Metalcraft) could never pay a Phyrexian pip,
+// regardless of the real board. Reviewer's exact repro: Phyrexian Metamorph
+// {3}{U/P}, life 1 (too little to pay the {U/P} pip's 2 life — `maxLifePips`
+// = floor(1/2) = 0), board = Mox Opal + 2 Ankh of Mishra (Metalcraft
+// satisfied: 3 artifacts) + 3 Mountains (cover the {3} generic, no {U}
+// anywhere else). The {U/P} pip can ONLY be paid by Mox Opal's Metalcraft-
+// gated any-colour ability, making this sensitive to a revert of the
+// `state` threading fixed in `solvePhyrexianSplit(player, card, rawCost,
+// undefined, state)`.
+describe("Phyrexian mana — board threading into the Phyrexian branch (issue #1751 finding 1)", () => {
+    function onBattlefield(defId: string, id: string) {
+        return makeInstance(defId, {
+            id,
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+            isTapped: false,
+        });
+    }
+
+    it("Phyrexian Metamorph ({3}{U/P}) is castable at 1 life when only Mox Opal's Metalcraft ability can pay the {U/P} pip with mana", () => {
+        const card = makeInstance(phyrexianMetamorph.id, {
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const player = makePlayer("p1", {
+            life: 1,
+            hand: [card],
+            battlefield: [
+                onBattlefield(moxOpal.id, "mox"),
+                onBattlefield(ankhOfMishra.id, "ank1"),
+                onBattlefield(ankhOfMishra.id, "ank2"),
+                onBattlefield(mountain.id, "m1"),
+                onBattlefield(mountain.id, "m2"),
+                onBattlefield(mountain.id, "m3"),
+            ],
+            manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
+        });
+        const state = makeState({ players: [player, makePlayer("p2")] });
+
+        expect(getLegalActions(state, player, card)).toContain("cast");
+    });
+
+    it("is NOT castable at 1 life when Metalcraft is unsatisfied (only 1 artifact) — no other {U} source", () => {
+        const card = makeInstance(phyrexianMetamorph.id, {
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const player = makePlayer("p1", {
+            life: 1,
+            hand: [card],
+            battlefield: [
+                onBattlefield(moxOpal.id, "mox"),
+                onBattlefield(mountain.id, "m1"),
+                onBattlefield(mountain.id, "m2"),
+                onBattlefield(mountain.id, "m3"),
+            ],
+            manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
+        });
+        const state = makeState({ players: [player, makePlayer("p2")] });
+
+        expect(getLegalActions(state, player, card)).not.toContain("cast");
     });
 });
 

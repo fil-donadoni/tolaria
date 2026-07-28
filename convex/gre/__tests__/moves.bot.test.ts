@@ -811,6 +811,81 @@ describe("gate ↔ enumerator cost-modifier parity (CR 601.2f, issue #1337)", ()
     });
 });
 
+// ---------------------------------------------------------------------------
+// Gate ↔ planner board-dependent mana-source parity (issue #1751 finding 4).
+// ---------------------------------------------------------------------------
+//
+// `getLegalActions` (rules.ts) threads the real board into `coloredCostLeftover`
+// / `getProducibleManaUnits`, so a board-dependent mana ability (Mox Opal's
+// Metalcraft) is visible to the human castability gate. Before this fix,
+// `getProducibleManaOptions` — the Bot's `planManaPayment` (moves.ts) relies on
+// it — was ALWAYS called with no board at all (`getManaTapOptionsDetailed(card,
+// undefined, undefined, …)`), so `canActivate` saw `minimalManaGateView(undefined)`
+// = `{ players: [] }` and Mox Opal's Metalcraft-gated ability was permanently
+// unavailable to the planner: `options.size === 0` → the source is skipped →
+// `planManaPayment` returns `null` → `enumerateCastMoves` drops the cast
+// entirely, even on a board where `getLegalActions` correctly offers "cast".
+// The Bot could never cast a spell funded only by a board-dependent source.
+
+const MOX_OPAL = getCardByName("Mox Opal").id; // {T}: Add one mana of any colour. Metalcraft.
+
+describe("gate ↔ planner board-dependent mana-source parity (issue #1751 finding 4)", () => {
+    it("Mox Opal (Metalcraft satisfied): getLegalActions offers cast AND enumerateMoves yields a cast move for Lightning Bolt", () => {
+        const bolt = makeInstance(BOLT, {
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const p1 = makePlayer("p1", {
+            hand: [bolt],
+            battlefield: [
+                makeInstance(MOX_OPAL, { controllerId: "p1", ownerId: "p1" }),
+                makeInstance(ANKH, { controllerId: "p1", ownerId: "p1" }),
+                makeInstance(ANKH, { controllerId: "p1", ownerId: "p1" }),
+            ],
+        });
+        const state = makeState({ players: [p1, makePlayer("p2")] });
+
+        // The gate: Mox Opal + 2 Ankh of Mishra = 3 artifacts, Metalcraft
+        // satisfied, Mox Opal's any-colour ability alone pays Bolt's {R}.
+        expect(legalActionsFor(state, "p1", bolt)).toContain("cast");
+
+        // The planner must agree: at least one cast-spell move for Bolt
+        // (Bolt's "any target" requirement yields one move per legal target —
+        // p1 and p2 are both legal, hence 2), each with a tap plan that taps
+        // Mox Opal (a choice-based source, so its tap carries a
+        // `manaChoiceIndex`).
+        const casts = castsFor(state, "p1", bolt.id);
+        expect(casts.length).toBeGreaterThan(0);
+        for (const cast of casts) {
+            expect(cast.kind === "cast-spell" && cast.tapPlan).toEqual([
+                {
+                    cardInstanceId: expect.any(String),
+                    manaChoiceIndex: expect.any(Number),
+                },
+            ]);
+        }
+    });
+
+    it("does NOT offer a Bolt cast move when Metalcraft is unsatisfied (Mox Opal alone, only 1 artifact)", () => {
+        const bolt = makeInstance(BOLT, {
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const p1 = makePlayer("p1", {
+            hand: [bolt],
+            battlefield: [
+                makeInstance(MOX_OPAL, { controllerId: "p1", ownerId: "p1" }),
+            ],
+        });
+        const state = makeState({ players: [p1, makePlayer("p2")] });
+
+        expect(legalActionsFor(state, "p1", bolt)).not.toContain("cast");
+        expect(castsFor(state, "p1", bolt.id)).toHaveLength(0);
+    });
+});
+
 describe("enumerateCastMoves — getCostModifiers hoisted out of the mode×X loop (issue #1663)", () => {
     afterEach(() => vi.restoreAllMocks());
 
