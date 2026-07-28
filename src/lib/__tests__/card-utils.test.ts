@@ -50,7 +50,7 @@ import type {
     PendingCast,
     Player,
 } from "~/types/game";
-import type { CardDefinition } from "@convex/cards/types";
+import type { ActivatedAbility, CardDefinition } from "@convex/cards/types";
 import { getDefinition } from "@convex/cards";
 import { CHANDRA_TORCH_OF_DEFIANCE_EMBLEM_ID } from "@convex/cards/emblems";
 import { CLUE_TOKEN_SPEC } from "@convex/cards/abilities/tokens/clueToken";
@@ -58,11 +58,13 @@ import { dismember } from "@convex/cards/sets/nph/black";
 import { gitaxianProbe } from "@convex/cards/sets/nph/blue";
 import { dominate } from "@convex/cards/sets/nem";
 import { fellwarStone, deepWater, gaeasTouch } from "@convex/cards/sets/drk";
+import { disruptingScepter } from "@convex/cards/sets/lea";
 import { powerArmor } from "@convex/cards/sets/inv";
 import { dauthiVoidwalker } from "@convex/cards/sets/mh2/black";
 import { viviOrnitier } from "@convex/cards/sets/fin";
 import { metallicRebuke } from "@convex/cards/sets/aer/blue";
 import { millstone } from "@convex/cards/sets/atq/colorless";
+import { gateToPhyrexia } from "@convex/cards/sets/atq/black";
 import { moxOpal } from "@convex/cards/sets/som/colorless";
 import {
     redManaBattery,
@@ -70,6 +72,7 @@ import {
     undertow,
     pendelhaven,
     livonyaSilone,
+    clergyOfTheHolyNimbus,
 } from "@convex/cards/sets/leg";
 
 // Real card ids from convex/cards/sets/lea.ts, used to exercise the
@@ -574,6 +577,91 @@ describe("getStackAbilities", () => {
             isTapped: false,
         });
         expect(getStackAbilities(card)).toHaveLength(1);
+    });
+
+    // Disrupting Scepter's "{3}, {T}: Target player discards a card. Activate
+    // only during your turn." (CR 602.5b, issue #1694) — the battlefield
+    // helper must honor `controllerTurnOnly` exactly like its graveyard/hand
+    // siblings (`getGraveyardStackAbilities`, `getHandStackAbilities` below)
+    // already do; before this fix it offered the ability during the
+    // opponent's turn and the server rejected the click. Driven through the
+    // real reducer (`buildTriggerStateView`), not a hand-built view.
+    it("hides a controllerTurnOnly ability during the opponent's turn, shows it on the controller's turn (Disrupting Scepter)", () => {
+        const card = makeCardInstance({
+            card: { id: disruptingScepter.id },
+            types: ["Artifact"],
+            isTapped: false,
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const opponentTurnView = buildTriggerStateView([], "p2");
+        expect(
+            getStackAbilities(card, undefined, true, opponentTurnView)
+        ).toHaveLength(0);
+        const controllerTurnView = buildTriggerStateView([], "p1");
+        const abilities = getStackAbilities(
+            card,
+            undefined,
+            true,
+            controllerTurnView
+        );
+        expect(abilities).toHaveLength(1);
+        expect(abilities[0].id).toBe("disrupting-scepter-discard");
+    });
+
+    it("returns a controllerTurnOnly ability when `activePlayerId` is unknown (fail-open, matches the phase/sorcery-speed discipline)", () => {
+        const card = makeCardInstance({
+            card: { id: disruptingScepter.id },
+            types: ["Artifact"],
+            isTapped: false,
+        });
+        expect(getStackAbilities(card)).toHaveLength(1);
+    });
+
+    // Gate to Phyrexia's "Sacrifice a creature: Destroy target artifact.
+    // Activate only during your upkeep and only once each turn." (CR 602.5,
+    // issue #1694 finding 1) — `oncePerTurn` was NOT mirrored by
+    // `isActivationTimingAllowed` even though `activationPhaseRestriction`
+    // and `controllerTurnOnly` were, so the battlefield menu kept offering a
+    // second activation in the same upkeep and the server threw "Activate
+    // only once each turn". Driven through the real reducer
+    // (`buildTriggerStateView`), not a hand-built view.
+    it("offers Gate to Phyrexia's ability on the first activation in the controller's upkeep, hides it once activationsThisTurn records a use", () => {
+        const view = buildTriggerStateView([], "p1");
+        const card = makeCardInstance({
+            card: { id: gateToPhyrexia.id },
+            types: ["Enchantment"],
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const beforeUse = getStackAbilities(card, "UPKEEP", true, view);
+        expect(beforeUse).toHaveLength(1);
+        expect(beforeUse[0].id).toBe("gate-to-phyrexia-destroy");
+
+        const usedCard = makeCardInstance({
+            card: { id: gateToPhyrexia.id },
+            types: ["Enchantment"],
+            controllerId: "p1",
+            ownerId: "p1",
+            activationsThisTurn: { "gate-to-phyrexia-destroy": 1 },
+        });
+        expect(getStackAbilities(usedCard, "UPKEEP", true, view)).toHaveLength(
+            0
+        );
+    });
+
+    it("fails OPEN on a oncePerTurn ability when `activationsThisTurn` is absent (an unknown counter must never hide a legal activation)", () => {
+        const view = buildTriggerStateView([], "p1");
+        const card = makeCardInstance({
+            card: { id: gateToPhyrexia.id },
+            types: ["Enchantment"],
+            controllerId: "p1",
+            ownerId: "p1",
+            // No `activationsThisTurn` at all — the counter is unknown, not
+            // "zero uses"; the gate must still offer the ability.
+        });
+        expect(card.activationsThisTurn).toBeUndefined();
+        expect(getStackAbilities(card, "UPKEEP", true, view)).toHaveLength(1);
     });
 
     // FEM Night Soil — exile-from-graveyard cost affordability (CR 602.1 /
@@ -1177,6 +1265,67 @@ describe("getAnyPlayerStackAbilities", () => {
         });
         const ids = getStackAbilities(card).map((a) => a.id);
         expect(ids).not.toContain("clergy-cant-regen");
+    });
+
+    // Issue #1694 finding 2 — the `opponentOnly` merge branch read
+    // `cardDef.activatedAbilities` directly and never ran the shared
+    // `isActivationTimingAllowed` predicate every other zone-listing path
+    // consults, so a printed timing restriction on an opponent-only ability
+    // would be silently ignored (offered outside its legal window). No
+    // shipped card currently combines `activatableByOpponentsOnly` with a
+    // timing restriction (Clergy of the Holy Nimbus declares neither), so the
+    // ability is constructed here as a test fixture and pushed onto Clergy's
+    // real `activatedAbilities` array (the SAME object `getDefinition`
+    // returns, since Clergy carries no fading/vanishing/exalted/prowess
+    // keyword for `expandDefinition` to clone over) rather than editing a
+    // card definition file. Restored in `finally` so no other test observes
+    // the synthetic ability.
+    it("honors a controllerTurnOnly timing restriction on the opponentOnly branch (constructed test-fixture ability)", () => {
+        const syntheticAbilityId = "test-clergy-opponent-only-controller-turn";
+        const syntheticAbility: ActivatedAbility = {
+            id: syntheticAbilityId,
+            cost: {},
+            useStack: true,
+            oracleText:
+                "Test fixture: opponent-only ability, activate only during the controller's turn.",
+            activatableByOpponentsOnly: true,
+            controllerTurnOnly: true,
+        };
+        clergyOfTheHolyNimbus.activatedAbilities!.push(syntheticAbility);
+        try {
+            const card = makeCardInstance({
+                card: { id: CLERGY_ID },
+                types: ["Creature"],
+                subtypes: ["Human", "Cleric"],
+                isTapped: false,
+                controllerId: "p1",
+                ownerId: "p1",
+            });
+            // Active player is p2 (NOT the controller) — `controllerTurnOnly`
+            // ("your turn" tracks the controller, CR 602.5b) hides the
+            // ability even though the viewer is an opponent entitled to
+            // activate it.
+            const opponentActiveTurnIds = getAnyPlayerStackAbilities(
+                card,
+                undefined,
+                buildTriggerStateView([], "p2")
+            ).map((a) => a.id);
+            expect(opponentActiveTurnIds).not.toContain(syntheticAbilityId);
+
+            // Active player IS the controller (p1) — the timing restriction
+            // is satisfied, so the opponent-only ability is offered.
+            const controllerActiveTurnIds = getAnyPlayerStackAbilities(
+                card,
+                undefined,
+                buildTriggerStateView([], "p1")
+            ).map((a) => a.id);
+            expect(controllerActiveTurnIds).toContain(syntheticAbilityId);
+        } finally {
+            clergyOfTheHolyNimbus.activatedAbilities =
+                clergyOfTheHolyNimbus.activatedAbilities!.filter(
+                    (a) => a.id !== syntheticAbilityId
+                );
+        }
     });
 });
 

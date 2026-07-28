@@ -909,6 +909,87 @@ export function matchesHandCardFilter(
     return handCardMatchesFilter(card as unknown as CardInstanceState, filter);
 }
 
+/** CR 602.5b — shared activation-TIMING predicate consulted by every
+ *  zone-listing helper below (`getStackAbilities`, `getGraveyardStackAbilities`,
+ *  `getHandStackAbilities`, and the `opponentOnly` branch of
+ *  `getAnyPlayerStackAbilities`) so a printed activation-timing restriction
+ *  hides an ability IDENTICALLY regardless of which zone/branch lists it
+ *  (issue #1694 — the battlefield helper diverged from its graveyard/hand
+ *  siblings and never checked `controllerTurnOnly` at all, so a permanent like
+ *  Disrupting Scepter offered its ability during the opponent's turn and the
+ *  server rejected the click). Mirrors the server's authoritative chokepoint
+ *  `assertActivationTimingLegal` (`convex/game.ts`) for all FOUR restrictions
+ *  it enforces:
+ *   - `activationPhaseRestriction` (CR 602.5, phase/step-scoped — "only during
+ *     your upkeep", "only during combat") — the current `phase` must be a
+ *     member of the allow-list;
+ *   - `sorcerySpeedOnly` (CR 602.3b / 307.5 — "Activate only as a sorcery") —
+ *     narrowed client-side to the main-phase half of the server's
+ *     `isSorceryTiming`; this view has no stack-length/priority-holder field
+ *     to check the rest, so the mutation stays authoritative for that part;
+ *   - `controllerTurnOnly` (CR 602.5b — "Activate only during your turn") —
+ *     `turnOwnerId` (the permanent's controller while it's on the battlefield,
+ *     its owner while it sits in hand/graveyard, since CR 602.5's "your"
+ *     tracks whoever would control it) must be the active player;
+ *   - `oncePerTurn` (CR 602.5 — "Activate only once each turn", Gate to
+ *     Phyrexia) — IS evaluable client-side: the per-ability tally lives on
+ *     `CardInstanceState.activationsThisTurn` (`convex/gre/state.ts`) and
+ *     survives the wire (`slimCard` spreads the instance, `convex/
+ *     gameProjections.ts`), so a prior fix that skipped this restriction as
+ *     "not evaluable as a client hint" was factually wrong.
+ *  Every check fails OPEN when its driving field is unknown (`phase`,
+ *  `activePlayerId`, or `activationsThisTurn` undefined) — the discipline
+ *  every call site already followed individually before this predicate was
+ *  extracted: a gate that cannot be evaluated must never hide an
+ *  otherwise-legal ability; only the server's hard throw is authoritative. */
+export function isActivationTimingAllowed(
+    ability: {
+        id: string;
+        activationPhaseRestriction?: ReadonlyArray<Phase>;
+        sorcerySpeedOnly?: boolean;
+        controllerTurnOnly?: boolean;
+        oncePerTurn?: boolean;
+    },
+    turnOwnerId: string,
+    phase: Phase | undefined,
+    activePlayerId: string | undefined,
+    /** Per-ability-id activation tally for this turn
+     *  (`CardInstanceState.activationsThisTurn`). Omit (or an id absent from
+     *  the map) fails OPEN — an unknown counter must never hide a legal
+     *  activation. */
+    activationsThisTurn?: Readonly<Record<string, number>>
+): boolean {
+    if (
+        ability.activationPhaseRestriction &&
+        phase !== undefined &&
+        !ability.activationPhaseRestriction.includes(phase)
+    ) {
+        return false;
+    }
+    if (
+        ability.sorcerySpeedOnly &&
+        phase !== undefined &&
+        phase !== "PRECOMBAT_MAIN" &&
+        phase !== "POSTCOMBAT_MAIN"
+    ) {
+        return false;
+    }
+    if (
+        ability.controllerTurnOnly &&
+        activePlayerId !== undefined &&
+        activePlayerId !== turnOwnerId
+    ) {
+        return false;
+    }
+    if (ability.oncePerTurn) {
+        const used = activationsThisTurn?.[ability.id] ?? 0;
+        if (used >= 1) {
+            return false;
+        }
+    }
+    return true;
+}
+
 /** Returns stack-using activated abilities the player can currently announce.
  *  Only the non-mana availability is checked (source not already tapped when
  *  the ability has {T}); mana is deferred to a `pendingActivation` payment
@@ -952,8 +1033,10 @@ export function getStackAbilities(
     const cardDef = getDefinition(card.card.id);
     const tapLocked = isTapLockedBySummoningSickness(card);
     const filterAbility = (a: {
+        id: string;
         useStack: boolean;
         oracleText: string;
+        oncePerTurn?: boolean;
         cost: {
             tap?: boolean;
             life?: number;
@@ -969,6 +1052,7 @@ export function getStackAbilities(
         };
         activationPhaseRestriction?: ReadonlyArray<Phase>;
         sorcerySpeedOnly?: boolean;
+        controllerTurnOnly?: boolean;
         activatableByOpponentsOnly?: boolean;
         activateFromHand?: boolean;
         activateFromGraveyard?: boolean;
@@ -1022,27 +1106,21 @@ export function getStackAbilities(
         ) {
             return false;
         }
+        // CR 602.5b (issue #1694) — `activationPhaseRestriction`,
+        // `sorcerySpeedOnly`, `controllerTurnOnly` ("Activate only during
+        // your turn") and `oncePerTurn` ("Activate only once each turn") are
+        // all evaluated by the ONE shared predicate every zone-listing helper
+        // consults, so they hide an ability identically regardless of zone.
+        // The `activateAbility` mutation (`assertActivationTimingLegal`) is
+        // authoritative regardless.
         if (
-            a.activationPhaseRestriction &&
-            phase !== undefined &&
-            !a.activationPhaseRestriction.includes(phase)
-        ) {
-            return false;
-        }
-        // CR 602.3b (issue #1156) — "activate only as a sorcery" (Dauthi
-        // Voidwalker's second ability). A cheap client hint mirroring the
-        // loyalty gate's own admitted looseness above ("the full 'stack
-        // empty + priority' refinement is the server's job"): this view has
-        // no stack-length/priority-holder field to check, so it narrows to
-        // the main-phase half of `isSorceryTiming` only. The
-        // `activateAbility` mutation (`assertActivationTimingLegal`) is
-        // authoritative regardless. Skipped when `phase` is unknown
-        // (undefined) — same fail-open discipline as `activationPhaseRestriction`.
-        if (
-            a.sorcerySpeedOnly &&
-            phase !== undefined &&
-            phase !== "PRECOMBAT_MAIN" &&
-            phase !== "POSTCOMBAT_MAIN"
+            !isActivationTimingAllowed(
+                a,
+                card.controllerId,
+                phase,
+                stateView?.activePlayerId,
+                card.activationsThisTurn
+            )
         ) {
             return false;
         }
@@ -1187,20 +1265,20 @@ export function getGraveyardStackAbilities(
             ) {
                 return false;
             }
+            // CR 602.5b (issue #1694) — the same shared timing predicate
+            // `getStackAbilities` consults: `activationPhaseRestriction`,
+            // `controllerTurnOnly` ("Activate only during your upkeep/turn")
+            // and `oncePerTurn` must hide the ability identically here. While
+            // the card is in the graveyard its controller is its owner, so
+            // `card.ownerId` is the "your turn" identity CR 602.5 tracks.
             if (
-                a.activationPhaseRestriction &&
-                phase !== undefined &&
-                !a.activationPhaseRestriction.includes(phase)
-            ) {
-                return false;
-            }
-            // CR 602.5 — "Activate only during your upkeep/turn": while the card
-            // is in the graveyard its controller is its owner, so the owner must
-            // be the active player.
-            if (
-                a.controllerTurnOnly &&
-                stateView.activePlayerId !== undefined &&
-                stateView.activePlayerId !== card.ownerId
+                !isActivationTimingAllowed(
+                    a,
+                    card.ownerId,
+                    phase,
+                    stateView.activePlayerId,
+                    card.activationsThisTurn
+                )
             ) {
                 return false;
             }
@@ -1253,19 +1331,20 @@ export function getHandStackAbilities(
             ) {
                 return false;
             }
+            // CR 602.5b (issue #1694) — the same shared timing predicate
+            // `getStackAbilities` consults: `activationPhaseRestriction`,
+            // `controllerTurnOnly` ("Activate only during your turn") and
+            // `oncePerTurn` must hide the ability identically here. While the
+            // card is in hand its controller is its owner, so `card.ownerId`
+            // is the "your turn" identity CR 602.5 tracks.
             if (
-                a.activationPhaseRestriction &&
-                phase !== undefined &&
-                !a.activationPhaseRestriction.includes(phase)
-            ) {
-                return false;
-            }
-            // CR 602.5 — "Activate only during your turn": while the card is in
-            // hand its controller is its owner, so the owner must be active.
-            if (
-                a.controllerTurnOnly &&
-                stateView.activePlayerId !== undefined &&
-                stateView.activePlayerId !== card.ownerId
+                !isActivationTimingAllowed(
+                    a,
+                    card.ownerId,
+                    phase,
+                    stateView.activePlayerId,
+                    card.activationsThisTurn
+                )
             ) {
                 return false;
             }
@@ -1317,8 +1396,26 @@ export function getAnyPlayerStackAbilities(
         payerLife
     ).filter((a) => nonControllerIds.has(a.id));
     const seen = new Set(fromStack.map((a) => a.id));
+    // CR 602.5b (issue #1694) — `getStackAbilities` filters `activatableByOpponentsOnly`
+    // OUT unconditionally (line ~1071 above), so this branch reads the card
+    // definition directly instead of reusing `fromStack`'s gating. That means
+    // it must run the SAME shared timing predicate itself — every other
+    // zone-listing helper does — or an opponent-only ability with a printed
+    // timing restriction (a future Clergy-of-the-Holy-Nimbus-shaped card) would
+    // be offered outside its legal window while every other path hides it.
     const opponentOnly = (cardDef.activatedAbilities ?? [])
-        .filter((a) => a.activatableByOpponentsOnly && !seen.has(a.id))
+        .filter(
+            (a) =>
+                a.activatableByOpponentsOnly &&
+                !seen.has(a.id) &&
+                isActivationTimingAllowed(
+                    a,
+                    card.controllerId,
+                    phase,
+                    stateView?.activePlayerId,
+                    card.activationsThisTurn
+                )
+        )
         .map((a) => ({ id: a.id, oracleText: a.oracleText }));
     return [...fromStack, ...opponentOnly];
 }

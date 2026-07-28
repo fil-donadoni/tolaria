@@ -265,6 +265,13 @@ export interface CardInstance {
      *  the board can pin the exiled card to that permanent (Arena treatment).
      *  Present for all viewers when the host permanent is on a battlefield. */
     exiledByPermanentId?: string;
+    /** Per-ability-id activation tally for this turn (CR 602.5 — `oncePerTurn`
+     *  activated abilities like Gate to Phyrexia's "Activate only once each
+     *  turn"). Mirrors `CardInstanceState.activationsThisTurn`
+     *  (`convex/gre/state.ts`); forwarded by `slimCard` (the projection only
+     *  strips `card`/`knownTo`), so the client can hide a used-up activation
+     *  identically to the server's `assertActivationTimingLegal` (issue #1694). */
+    activationsThisTurn?: Readonly<Record<string, number>>;
 }
 
 export interface Combat {
