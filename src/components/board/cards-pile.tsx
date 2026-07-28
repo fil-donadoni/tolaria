@@ -4,6 +4,7 @@ import type { CardInstance } from "~/types/game";
 import { useInertialScroll } from "~/hooks/useInertialScroll";
 import { GameContext } from "~/hooks/useGameContext";
 import { SLOT_SPRING } from "~/lib/board-motion";
+import { PILE_TILE_BOX } from "~/lib/card-layout";
 import GameDialog from "~/components/ui/game-dialog";
 import ArrivalGlow from "./arrival-glow";
 import CardTilt3D from "./card-tilt-3d";
@@ -559,7 +560,9 @@ export default function CardsPile({
     // dialog so the chip can open it (e.g. an empty exile), so fall through.
     if (!cards.length && !controlled) {
         return (
-            <div className="group w-(--card-w-sm) aspect-5/7 mb-2 flex justify-center items-center text-center p-2 border border-border-subtle rounded-sm">
+            <div
+                className={`group ${PILE_TILE_BOX} flex justify-center items-center text-center p-2 border border-border-subtle rounded-sm`}
+            >
                 {zoneIcon ? (
                     <span
                         aria-label={emptyLabel}
@@ -645,7 +648,7 @@ export default function CardsPile({
                 layoutId={cardInstance.id}
                 data-flight-id={cardInstance.id}
                 transition={reduceMotion ? { duration: 0 } : SLOT_SPRING.motion}
-                className="absolute w-(--card-w-sm) aspect-5/7 mb-2"
+                className={`absolute ${PILE_TILE_BOX}`}
                 style={cardStyle}
             >
                 {image}

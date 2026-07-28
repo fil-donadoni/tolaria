@@ -366,8 +366,11 @@ export type LayoutBand = {
 };
 
 /** Vertical padding (px) kept above+below each band's cards so adjacent rows
- *  don't touch. */
-const BAND_V_PAD = 14;
+ *  don't touch. The default suits a desktop-height board; a very short board
+ *  (landscape-compact, #1768) overrides it via `bandedRowsLayout`'s `bandPad`,
+ *  where a fixed 14px would be a fifth of the whole row and would be spent
+ *  shrinking cards rather than separating them. */
+export const BAND_V_PAD = 14;
 
 /** Width of the right control column (#334) — the collapsed controller pod plus
  *  its edge offset. The board reserves a matching right gutter on BOTH seats so
@@ -413,6 +416,11 @@ export function bandedRowsLayout(opts: {
      *  hidden under the pod. Applied identically on both seats for symmetry —
      *  the opponent reserves it even though it hosts no pod. Defaults to 0. */
     rightGutter?: number;
+    /** Vertical padding kept inside each band's height slice before capping the
+     *  card scale. Defaults to {@link BAND_V_PAD}; landscape-compact (#1768)
+     *  passes a tighter value because on a ~140px band the desktop padding
+     *  costs more card than it buys separation. */
+    bandPad?: number;
 }): Placement[] {
     const {
         bands,
@@ -421,6 +429,7 @@ export function bandedRowsLayout(opts: {
         cardWidth = CARD_WIDTH,
         cardHeight = CARD_HEIGHT,
         rightGutter = 0,
+        bandPad = BAND_V_PAD,
     } = opts;
     if (bands.length === 0 || height <= 0) return [];
     // Reserve the right control column: every band is placed within
@@ -432,7 +441,7 @@ export function bandedRowsLayout(opts: {
     const bandHeight = height / bands.length;
     const maxScale = Math.max(
         0.1,
-        Math.min(1, (bandHeight - BAND_V_PAD) / cardHeight)
+        Math.min(1, (bandHeight - bandPad) / cardHeight)
     );
     return bands.flatMap((band) => {
         const centerY = height * band.centerYFrac;

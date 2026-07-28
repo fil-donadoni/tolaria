@@ -1,4 +1,9 @@
 import type { Player } from "~/types/game";
+import {
+    LANDSCAPE_OPPONENT_PILES_ANCHOR,
+    LANDSCAPE_VIEWER_PILES_ANCHOR,
+    landscapePileVars,
+} from "~/lib/landscape-board-bands";
 import PlayerGraveyard from "./player-graveyard";
 import PlayerLibrary from "./player-library";
 import PlayerExile from "./player-exile";
@@ -10,6 +15,12 @@ import PlayerCityBlessingTile from "./player-city-blessing-tile";
 type BoardPilesProps = {
     /** Opponent first, viewer second (same ordering as the rest of Board). */
     orderedPlayers: Player[];
+    /** Landscape-compact (#1768): dock the piles as a ONE-tile-wide COLUMN
+     *  beside the control strip, at the compact tile size. The desktop row of
+     *  three full `--card-w-sm` tiles costs three card widths of board on a
+     *  viewport that has none to spare, and `right-3` would park it under the
+     *  strip. Everything else — which tiles, which dialogs — is unchanged. */
+    compact?: boolean;
 };
 
 /** Card piles (graveyard / library / exile) on the spatial board (PRD #249,
@@ -35,14 +46,29 @@ type BoardPilesProps = {
  *  crops it (the companion card rendered squashed and cropped next to a fanned
  *  emblem stack, whose wider slot made the row taller). Pinning the cross-axis
  *  start keeps each tile's own aspect ratio authoritative. */
-export default function BoardPiles({ orderedPlayers }: BoardPilesProps) {
+export default function BoardPiles({
+    orderedPlayers,
+    compact = false,
+}: BoardPilesProps) {
     const [opponent, me] = orderedPlayers;
+    // Compact re-points `--card-w-sm` for the whole rail, so every tile
+    // (graveyard / library / exile / companion / emblems / designations) shrinks
+    // together and keeps the SAME 5:7 box — including the empty-zone
+    // placeholder, which is built from the identical `PILE_TILE_BOX`.
+    const railStyle = compact ? landscapePileVars() : undefined;
+    const opponentRail = compact
+        ? LANDSCAPE_OPPONENT_PILES_ANCHOR
+        : "absolute right-3 top-3 z-30 flex flex-row-reverse items-start gap-2";
+    const viewerRail = compact
+        ? LANDSCAPE_VIEWER_PILES_ANCHOR
+        : "absolute right-3 bottom-3 z-30 flex flex-row-reverse items-start gap-2";
 
     return (
         <>
             {opponent && (
                 <div
-                    className="absolute right-3 top-3 z-30 flex flex-row-reverse items-start gap-2"
+                    className={opponentRail}
+                    style={railStyle}
                     data-testid="piles-opponent"
                 >
                     <PlayerGraveyard player={opponent} />
@@ -57,7 +83,8 @@ export default function BoardPiles({ orderedPlayers }: BoardPilesProps) {
 
             {me && (
                 <div
-                    className="absolute right-3 bottom-3 z-30 flex flex-row-reverse items-start gap-2"
+                    className={viewerRail}
+                    style={railStyle}
                     data-testid="piles-player"
                 >
                     <PlayerGraveyard player={me} />

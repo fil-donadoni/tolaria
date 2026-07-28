@@ -68,3 +68,17 @@ export const fanCardClassName =
 /** ClassName for cards in the opponent's fan layout. */
 export const fanCardOpponentClassName =
     "w-[var(--card-w-sm)] aspect-5/7 shrink-0 mb-2 transition-[translate,transform,margin] hover:-translate-y-4 hover:z-10";
+
+/** THE box of one collapsed zone-pile tile — graveyard / library / exile and
+ *  every sibling tile in the pile rail (#1768).
+ *
+ *  One constant because a pile has TWO renderings — the stacked cards when it
+ *  holds any, and the bordered "empty zone" placeholder when it doesn't — and
+ *  they must occupy the SAME box. They did not: the placeholder is a normal
+ *  in-flow box while the stacked cards are `absolute`, so the placeholder's
+ *  trailing `mb-2` was live geometry where the cards' identical `mb-2` was
+ *  inert. A landscape rail sizes its tiles from `--card-w-sm`, so any
+ *  divergence between the two shows up directly as an empty Exile tile with a
+ *  different aspect than the populated Graveyard beside it — the audit finding.
+ *  Both renderings now spell their box exactly once, here. */
+export const PILE_TILE_BOX = "w-(--card-w-sm) aspect-5/7";

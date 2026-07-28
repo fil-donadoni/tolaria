@@ -63,3 +63,18 @@ export const CONTROLLER_STRIP_WIDTH_VAR = "--controller-strip-w";
  *  of the strip automatically. */
 export const BESIDE_CONTROLLER_STRIP =
     "right-[calc(var(--controller-strip-w,0px)+0.75rem)]";
+
+/** The SAME clearance as a parenthesised CSS sum expression, so it composes
+ *  inside a larger `calc()` instead of only being spellable as a whole class —
+ *  the lateral twin of {@link CONTROLLER_BAR_CLEARANCE_EXPR}. The landscape
+ *  band budget (`landscape-board-bands.ts`, #1768) folds it into its own
+ *  arithmetic: the pile column sits beside the strip and the board's bands stop
+ *  before BOTH, so the strip's measured width propagates all the way across the
+ *  board.
+ *
+ *  The two spellings are pinned together by
+ *  `src/lib/__tests__/landscape-board-bands.test.ts` —
+ *  {@link BESIDE_CONTROLLER_STRIP} must stay `right-[calc<EXPR>]` with
+ *  whitespace removed, so neither can drift from the other. */
+export const CONTROLLER_STRIP_CLEARANCE_EXPR =
+    "(var(--controller-strip-w, 0px) + 0.75rem)";
