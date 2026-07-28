@@ -7228,17 +7228,37 @@ function collectCastTriggers(
  *  `oncePerEventBatch`. No-op when `count <= 0` (an empty-library draw moved
  *  nothing). Callers that drive a draw at a point where pending events are
  *  later drained — `resolveTopOfStack`, the draw step's explicit drain — use
- *  this so the trigger scan picks it up. */
+ *  this so the trigger scan picks it up.
+ *
+ *  Each event also carries `drawIndexThisTurn` (0-based, CR 121.1, issue
+ *  #781) — the trigger-side twin of `DrawReplacementEvent.drawIndexThisTurn`
+ *  (`cards/types.ts`). Every call site (`drawStep`, `finalizeDrawLookKeep`,
+ *  `applyDrawCardOnTap`, the draw-step/`may-pay-bin` plan branches) already
+ *  calls `drawCard`/`drawCardFromLibrary` — which appends to
+ *  `player.drawnThisTurn` — exactly `count` times synchronously BEFORE
+ *  calling this function, so by the time this runs `drawnThisTurn.length`
+ *  already reflects the WHOLE batch. The first event's index is therefore
+ *  `drawnThisTurn.length - count`, and each subsequent fanned-out event
+ *  increments by one: a draw-3 emits indices n, n+1, n+2 — not three copies
+ *  of the same value. Feeds `nthDrawThisTurn`
+ *  (`cards/abilities/triggers/drawTrigger.ts`). */
 export function emitCardDrawn(
     state: GameState,
     playerId: string,
     count: number
 ): void {
     if (count <= 0) return;
-    const perCard = Array.from({ length: count }, () => ({
+    const player = getPlayer(state, playerId);
+    // Defensive clamp: every real call site appends to `drawnThisTurn` before
+    // calling this (see doc above), so `base` is never negative in practice —
+    // clamped anyway so a caller that skips the append (a hand-built test
+    // simulation) can't emit a nonsensical negative ordinal.
+    const base = Math.max(0, (player.drawnThisTurn?.length ?? 0) - count);
+    const perCard = Array.from({ length: count }, (_, i) => ({
         type: "CARD_DRAWN" as const,
         playerId,
         count: 1,
+        drawIndexThisTurn: base + i,
     }));
     state.pendingEvents = [...(state.pendingEvents ?? []), ...perCard];
 }

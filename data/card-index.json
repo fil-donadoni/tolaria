@@ -3864,6 +3864,14 @@
         "firstPrintSet": "inv"
     },
     {
+        "name": "Faerie Mastermind",
+        "scryfallId": "52d3005f-a1c7-4ef5-911f-ccc0752f4181",
+        "oracleId": "a984db23-40ea-428d-829f-e944267280f8",
+        "firstSet": "mom",
+        "firstPrintId": "52d3005f-a1c7-4ef5-911f-ccc0752f4181",
+        "firstPrintSet": "mom"
+    },
+    {
         "name": "Faithless Looting",
         "scryfallId": "a1b0da17-d595-441d-811c-a2d28d2bb232",
         "oracleId": "3d6fa57a-aa53-4b5c-b8af-a7612c823117",

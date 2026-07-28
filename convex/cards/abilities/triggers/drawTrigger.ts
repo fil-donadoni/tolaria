@@ -66,6 +66,27 @@ export interface DrawTriggerArgs {
     effects?: EffectOp[];
 }
 
+/** Reusable "this is exactly the drawing player's Nth draw this turn" trigger
+ *  condition (issue #781, CR 121.1). Reads `CardDrawnEvent.drawIndexThisTurn`
+ *  — the 0-based ordinal of THIS draw among the drawing player's draws this
+ *  turn, stamped by `emitCardDrawn` (`gre/state.ts`) — the draw-side
+ *  counterpart of `nthSpellThisTurn`'s `SpellCastEvent.casterSpellCountThisTurn`
+ *  (`spellCastTrigger.ts`). For the drawing player's Nth draw the index is
+ *  exactly N-1, so `nthDrawThisTurn(2)` is Faerie Mastermind's "whenever an
+ *  opponent draws their SECOND card each turn" (CR 121.1); `nthDrawThisTurn(1)`
+ *  is "their first card", and so on for any future card sharing the template.
+ *  An undefined field (a pre-#781 hand-built test fixture, or an emitter that
+ *  predates it) reads as the drawing player's FIRST draw (index 0), mirroring
+ *  `nthSpellThisTurn`'s own fallback convention. Pass the result to
+ *  `drawTrigger`'s `condition` — combine with `scope: "opponents"` for Faerie
+ *  Mastermind's exact template (an OPPONENT'S draw counts, the effect still
+ *  acts on the source's own controller). */
+export function nthDrawThisTurn(
+    n: number
+): NonNullable<DrawTriggerArgs["condition"]> {
+    return (event) => (event.drawIndexThisTurn ?? 0) === n - 1;
+}
+
 /** True iff `drawerId` satisfies `scope` relative to the source's controller. */
 function drawScopeMatches(
     scope: DrawTriggerScope,
