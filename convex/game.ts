@@ -114,6 +114,7 @@ import {
     applyGenericOffset,
     buildConvokeCreatureChoice,
     buildDelveExileChoice,
+    collapseForcedDelvePick,
     coverColoredAndHybridPips,
     creatureConvokeColors,
     spellHasConvoke,
@@ -5489,6 +5490,15 @@ export function finalizeTargetSelection(
             cardInstanceId,
             genericManaShortfall(player, cardInHand, manaCost)
         );
+        // CR 601.2g (issue #1660) — collapse a fully-forced pick right here at
+        // the commit seam (see `collapseForcedDelvePick`'s doc). No convoke on
+        // this cast, so this is the ONLY leg — nothing else has to run first.
+        collapseForcedDelvePick(
+            player,
+            cardInstanceId,
+            castExileChoice,
+            manaCost
+        );
     }
     const parkForSacrifice =
         !!exilePicker ||
@@ -5523,6 +5533,20 @@ export function finalizeTargetSelection(
             ...(isDashCost ? { dashed: true } : {}),
         };
         (state.pendingCast as Record<string, unknown>).targets = targets;
+        // CR 601.2g (issue #1660) — `castExileChoice` can come back from the
+        // `collapseForcedDelvePick` call above already fully resolved (a
+        // forced, zero-branch delve pick, `pickedCardIds` pre-filled) —
+        // `buildDelveExileChoice` itself is a pure builder that never
+        // resolves anything. There is nothing left for the player to decide,
+        // so try to finish the cast right now instead of leaving a
+        // picker-shaped `pendingCast` with no picker to show. A no-op (stays
+        // parked) whenever mana isn't covered yet or something ELSE
+        // genuinely still needs the player's input (real sacrifice/hand
+        // choice, exile picker) — `tryAutoCommitPendingCast` re-checks every
+        // gate itself.
+        if (castExileChoice?.pickedCardIds) {
+            tryAutoCommitPendingCast(state, playerId);
+        }
         return;
     }
 
@@ -6562,6 +6586,15 @@ export const announceCast = mutation({
                 args.cardInstanceId,
                 genericManaShortfall(player, cardInHand, manaCost)
             );
+            // CR 601.2g (issue #1660) — collapse a fully-forced pick right
+            // here at the commit seam (see `collapseForcedDelvePick`'s doc).
+            // No convoke on this cast, so this is the ONLY leg.
+            collapseForcedDelvePick(
+                player,
+                args.cardInstanceId,
+                castExileChoice,
+                manaCost
+            );
         }
 
         const parkForSacrifice =
@@ -6596,6 +6629,21 @@ export const announceCast = mutation({
                     ? { exileFromGraveyardChoice: castExileChoice }
                     : {}),
             };
+
+            // CR 601.2g (issue #1660) — `castExileChoice` can come back from
+            // the `collapseForcedDelvePick` call above already fully
+            // resolved (a forced, zero-branch delve pick, `pickedCardIds`
+            // pre-filled) — `buildDelveExileChoice` itself is a pure builder
+            // that never resolves anything. There is nothing left for the
+            // player to decide, so try to finish the cast right now instead
+            // of leaving a picker-shaped `pendingCast` with no picker to
+            // show. A no-op (stays parked) whenever mana isn't covered yet
+            // or something ELSE genuinely still needs the player's input
+            // (real sacrifice/hand choice, exile picker) —
+            // `tryAutoCommitPendingCast` re-checks every gate itself.
+            if (castExileChoice?.pickedCardIds) {
+                tryAutoCommitPendingCast(state, args.playerId);
+            }
 
             await saveGameState(
                 ctx,
@@ -8291,6 +8339,19 @@ export function recordConvokeCreaturePick(
     // picker is undefined when nothing generic is left (all convoked).
     const castCard = locateCastSource(state, player, pc.cardInstanceId).card;
     if (castCard && spellHasDelve(castCard) && !pc.exileFromGraveyardChoice) {
+        // CR 601.2g ordering (ADR 0063) — this is the SECOND leg of a chained
+        // payWith pick: `recordConvokeCreaturePick` is a pure record step, and
+        // its own caller hasn't had a chance to attempt
+        // `tryAutoCommitPendingCast` yet. `buildDelveExileChoice` is a pure
+        // builder — it never collapses a fully-forced pick itself (see its
+        // own doc, and `collapseForcedDelvePick`'s doc for why that
+        // collapse belongs at the COMMIT seam, not here). The caller of THIS
+        // function (`applyConvokeCreatureSelection`) runs `collapseForcedDelvePick`
+        // right after this record step, before its own
+        // `tryAutoCommitPendingCast` — keeping this function a clean,
+        // composable record step that never pays costs behind its caller's
+        // back, the same discipline `recordCastExileCostPick` and the
+        // sacrifice/hand-choice pickers already follow.
         const delveChoice = buildDelveExileChoice(
             player,
             castCard,
@@ -8302,10 +8363,43 @@ export function recordConvokeCreaturePick(
     }
 }
 
-/** CR 702.51a — records the player's Convoke creature picks and drives
- *  `tryAutoCommitPendingCast`. Mirrors `selectCastExileCost` on the cast path:
- *  once convoke (and any subsequent delve pick) covers the cost, the spell is
- *  put on the stack; otherwise the caster completes the remaining payment. */
+/** CR 702.51a (issue #1660) — pure core of the `selectConvokeCreatures`
+ *  mutation: records the convoke creature picks, collapses a fully-forced
+ *  delve pick opened as the chained SECOND leg (right after the record step
+ *  and before the commit attempt, so `recordConvokeCreaturePick` itself
+ *  stays a clean record step — see its doc and `collapseForcedDelvePick`'s
+ *  doc for why the collapse belongs at this seam), then drives
+ *  `tryAutoCommitPendingCast`: once convoke (and any subsequent delve pick)
+ *  covers the cost, the spell is put on the stack; otherwise the caster
+ *  completes the remaining payment. Mutates `state` in place. Extracted out
+ *  of the mutation for the same reason `finalizeTargetSelection` was
+ *  extracted out of `selectTarget` — so the pure sequence is directly unit-
+ *  testable instead of only reachable through the mutation handler. */
+export function applyConvokeCreatureSelection(
+    state: GameState,
+    playerId: string,
+    creatureInstanceIds: string[]
+): void {
+    recordConvokeCreaturePick(state, playerId, creatureInstanceIds);
+
+    // CR 601.2g (issue #1660) — this is the commit seam for the SECOND
+    // (delve) leg of a chained convoke → delve payWith pick: collapse a
+    // fully-forced delve pick HERE, right after the pure record step and
+    // before the commit attempt, so `recordConvokeCreaturePick` itself
+    // stays a clean record step (see `collapseForcedDelvePick`'s doc).
+    const pcAfterConvoke = state.pendingCast;
+    if (pcAfterConvoke?.exileFromGraveyardChoice) {
+        collapseForcedDelvePick(
+            getPlayer(state, playerId),
+            pcAfterConvoke.cardInstanceId,
+            pcAfterConvoke.exileFromGraveyardChoice,
+            pcAfterConvoke.manaCost
+        );
+    }
+
+    tryAutoCommitPendingCast(state, playerId);
+}
+
 export const selectConvokeCreatures = mutation({
     args: {
         gameId: v.id("games"),
@@ -8323,13 +8417,11 @@ export const selectConvokeCreatures = mutation({
             expect: "priority",
         });
 
-        recordConvokeCreaturePick(
+        applyConvokeCreatureSelection(
             state,
             args.playerId,
             args.creatureInstanceIds
         );
-
-        tryAutoCommitPendingCast(state, args.playerId);
 
         await saveGameState(
             ctx,
