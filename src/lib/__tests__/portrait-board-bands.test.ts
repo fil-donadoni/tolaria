@@ -15,10 +15,12 @@ import {
 import {
     PORTRAIT_HAND_BAND_H,
     PORTRAIT_HAND_BAND_VAR,
+    PORTRAIT_HAND_CARD_W_MAX,
     PORTRAIT_MIDLINE_VAR,
     PORTRAIT_OPPONENT_BF_BOTTOM_VAR,
     PORTRAIT_VIEWER_BF_BOTTOM_VAR,
     portraitBandVars,
+    portraitHandMetrics,
 } from "~/lib/portrait-board-bands";
 
 // ── A minimal CSS length evaluator ────────────────────────────────────────────
@@ -221,5 +223,93 @@ describe("band budget is derived, not hand-tuned", () => {
         expect(ABOVE_CONTROLLER_BAR).toBe(
             `bottom-[calc${CONTROLLER_BAR_CLEARANCE_EXPR.replace(/\s+/g, "")}]`
         );
+    });
+});
+
+describe("portrait hand card metrics (#1770 follow-up from #1790)", () => {
+    it("stays at the historical max on a tall-enough board", () => {
+        // 844 / 667 (the two boards this budget targets that clear the
+        // overflow threshold below) both leave the fixed card unclamped.
+        expect(portraitHandMetrics(844).cardWidth).toBe(
+            PORTRAIT_HAND_CARD_W_MAX
+        );
+        expect(portraitHandMetrics(667).cardWidth).toBe(
+            PORTRAIT_HAND_CARD_W_MAX
+        );
+    });
+
+    it("clamps below the 665px threshold — 106.4/0.16 — where the fixed card overflowed the band", () => {
+        // The regression: a 76px-wide (106.4px-tall) card on a 16% band
+        // shorter than 106.4px overflows the band's TOP edge. 665px is exact:
+        // 0.16 * 665 = 106.4.
+        const { cardWidth } = portraitHandMetrics(600);
+        expect(cardWidth).toBeLessThan(PORTRAIT_HAND_CARD_W_MAX);
+        // The derived card's height never exceeds the ACTUAL band height.
+        const bandHeightPx = 600 * 0.16;
+        expect((cardWidth * 7) / 5).toBeLessThanOrEqual(bandHeightPx);
+    });
+
+    it("scales the overlap with the derived width, keeping the historical ratio", () => {
+        const { cardWidth, overlap } = portraitHandMetrics(500);
+        expect(cardWidth).toBeLessThan(PORTRAIT_HAND_CARD_W_MAX);
+        expect(overlap).toBe(Math.round(cardWidth * (26 / 76)));
+    });
+
+    it("never produces a degenerate (zero or negative) card on a very short board", () => {
+        const { cardWidth, overlap } = portraitHandMetrics(50);
+        expect(cardWidth).toBeGreaterThan(0);
+        expect(overlap).toBeGreaterThanOrEqual(0);
+        expect(overlap).toBeLessThan(cardWidth);
+    });
+});
+
+describe("short-viewport wrap combo (#1770 follow-up from #1790)", () => {
+    // The one combo `PHONE` deliberately excludes: a 667px board (the
+    // shortest phone this budget targets) combined with the bar's WRAPPED
+    // two-line state (150px, e.g. mid DECLARE_ATTACKERS). Tiling still holds
+    // — the bands are arithmetically FORCED to, whatever the absolute sizes
+    // — but the battlefield row shrinks to ~74px, under the ~80px legibility
+    // floor the other three PHONE combos clear.
+    //
+    // Properly restoring the floor here means shrinking the hand band below
+    // its flat `PORTRAIT_HAND_BAND_H` fraction for this one state, which in
+    // turn requires the hand CARD (`portraitHandMetrics`, boardHeight-only by
+    // design) to also know the bar's MEASURED height — a value this codebase
+    // deliberately keeps CSS-only (`--controller-bar-h`, see
+    // controller-bar-metrics.ts) so the hand strip never re-renders on every
+    // bar-height tick. Threading it into JS would cross that boundary for one
+    // rare, transient state (a two-line bar on the shortest supported phone).
+    // Accepted and documented here rather than widening this sweep into that
+    // coupling — same "accept + document" disposition the #1802 review used
+    // for the landscape 320px card-footprint hit-target note.
+    const SHORT_WRAPPED: Board = { height: 667, barHeight: 150 };
+
+    it("still tiles without overlap", () => {
+        const b = bandBoxes(SHORT_WRAPPED);
+        const order = [
+            b.opponentHand,
+            b.opponentBattlefield,
+            b.viewerBattlefield,
+            b.viewerHand,
+            b.bar,
+        ];
+        for (let i = 0; i + 1 < order.length; i++) {
+            expect(order[i]!.bottom).toBeLessThanOrEqual(
+                order[i + 1]!.top + 1e-6
+            );
+            expect(order[i]!.bottom).toBeGreaterThan(order[i]!.top);
+        }
+        expect(order.at(-1)!.bottom).toBeCloseTo(SHORT_WRAPPED.height, 5);
+    });
+
+    it("documents the accepted floor shortfall — battlefield rows dip below 80px", () => {
+        const b = bandBoxes(SHORT_WRAPPED);
+        const rowHeight =
+            (b.viewerBattlefield.bottom - b.viewerBattlefield.top) / 2;
+        // Still a usable, non-degenerate row — just below the ~80px floor
+        // the other three PHONE combos comfortably clear. A regression that
+        // pushed this lower (or to <=0) should still fail here.
+        expect(rowHeight).toBeGreaterThan(60);
+        expect(rowHeight).toBeLessThan(80);
     });
 });

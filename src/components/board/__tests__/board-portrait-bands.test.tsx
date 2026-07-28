@@ -174,20 +174,30 @@ describe("portrait bands never run under the hand strip (#1760)", () => {
         );
     });
 
-    it("does not change the geometry for a 7-card hand — it scrolls instead", () => {
-        // The ticket's case. A full hand must not grow the strip (which would
-        // eat back into the battlefield); past the scroll threshold the row
-        // scrolls horizontally at a constant height.
-        renderBoard(0);
-        const emptyBf = slotOf("battlefield-me").className;
-        const emptyHand = slotOf("zone-player-hand").className;
-        cleanup();
-
+    it("scrolling past 6 cards does not grow the hand band — it scrolls instead", () => {
+        // The ticket's case: a full (7+) hand must not grow the strip (which
+        // would eat back into the battlefield); past the scroll threshold the
+        // row scrolls horizontally at the SAME constant band height instead.
+        //
+        // This replaces a tautological assertion (#1770 follow-up from
+        // #1790's review): it used to render at 0 and 7 cards and diff the
+        // two `className` snapshots, but the slot's class is a hard-coded
+        // module constant `Board` never derives from hand size — the two
+        // renders could not have differed even if the fix were broken. Real
+        // coverage is the `data-hand-scrolls` flag (asserted here against
+        // the actual scrolling case) plus the pure arithmetic in
+        // `portrait-board-bands.test.ts`; comparing the rendered class
+        // against the NAMED constants below is a genuine assertion because
+        // it draws on an independent source of truth, not a second render.
         renderBoard(7);
-        expect(slotOf("battlefield-me").className).toBe(emptyBf);
-        expect(slotOf("zone-player-hand").className).toBe(emptyHand);
         expect(screen.getByTestId("zone-player-hand").dataset.handScrolls).toBe(
             "true"
+        );
+        expect(slotOf("zone-player-hand").className).toBe(
+            PORTRAIT_VIEWER_HAND_BAND
+        );
+        expect(slotOf("battlefield-me").className).toBe(
+            PORTRAIT_VIEWER_BATTLEFIELD_BAND
         );
     });
 

@@ -148,6 +148,24 @@ describe("PlayerEmblems (command-zone emblem UI, issue #1221)", () => {
         expect(badge).toBeTruthy();
         expect(badge!.textContent).toBe("×5");
     });
+
+    // #1770 follow-up from #1802's re-review: the landscape-compact pile rail
+    // (`LANDSCAPE_*_PILES_ANCHOR`) that hosts this stack is `overflow-y-auto`,
+    // which the CSS overflow spec computes an implied `overflow-x: auto` for
+    // too — a badge poking PAST the fan's own box clips instead of scrolling
+    // into view there. The badge must sit fully inside the box.
+    it("keeps the ×N badge inside the fan's own box, not poking past it", () => {
+        const me = makePlayer("me");
+        renderEmblems(
+            me,
+            Array.from({ length: 5 }, (_, i) => sorin({ id: `emblem-${i}` }))
+        );
+        const badge = screen
+            .getByTestId("emblems-me")
+            .querySelector("[data-emblem-count]") as HTMLElement;
+        expect(badge.className).not.toMatch(/-right-\d/);
+        expect(badge.className).toMatch(/\bright-0/);
+    });
 });
 
 // A fan is wider than one card but exactly ONE CARD TALL. Deriving the

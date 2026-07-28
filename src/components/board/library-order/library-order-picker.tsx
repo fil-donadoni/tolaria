@@ -601,13 +601,16 @@ export default function LibraryOrderPicker({
             }`}
         >
             <div className="flex max-w-full flex-col gap-4">
+                {/* `h-11 w-11` (44px, #1770 mobile QA sweep touch-target
+                    audit): was `h-8 w-8` (32px). This row is the button's own
+                    — nothing else shares it — so growing it costs no layout. */}
                 <div className="flex items-center justify-end">
                     <button
                         type="button"
                         onClick={minimize}
                         aria-label="Minimize choice dialog"
                         title="Minimize — inspect the battlefield"
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-accent bg-accent/10 text-accent hover:bg-accent/20 transition-colors cursor-pointer"
+                        className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-accent bg-accent/10 text-accent hover:bg-accent/20 transition-colors cursor-pointer"
                     >
                         <Minus className="h-4 w-4" />
                     </button>

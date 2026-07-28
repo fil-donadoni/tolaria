@@ -169,6 +169,45 @@ function pct(fraction: number): string {
     return `${Number((fraction * 100).toFixed(4))}%`;
 }
 
+// ── Attacker/blocker combat lift (#1770 follow-up from #1802) ──────────────
+//
+// `useBattlefieldVisualState` lifts a combat-involved creature toward the
+// midline by a FIXED `translate-y-8` (32px) — tuned for the desktop card
+// (168px tall, so the lift is ~19% of the card). At the landscape-compact
+// scale (40-96px cards, {@link landscapeCardMetrics}) that SAME 32px is a much
+// bigger fraction of the card — up to half of it at the shared PHONE_H
+// footprint — so a declared attacker painted ~25px past the midline, over the
+// opponent's own back row. The fix keeps the SAME proportion the desktop lift
+// was tuned to (32 / `CARD_HEIGHT` from `board-layout.ts`) but scales it by
+// the shared card height instead of a flat px, so the lift is always ~19% of
+// whatever card is actually on screen.
+
+/** The desktop lift's proportion of the desktop card height (32px / 168px) —
+ *  the ratio the landscape lift is scaled to preserve. */
+const DESKTOP_ATTACKER_LIFT_FRACTION = 32 / 168;
+
+/** Landscape-compact attacker/blocker lift (px), derived from the shared card
+ *  height so it stays proportional at every board height instead of
+ *  overshooting the midline on a small card. */
+export function landscapeAttackerLiftPx(cardHeight: number): number {
+    return Math.round(cardHeight * DESKTOP_ATTACKER_LIFT_FRACTION);
+}
+
+/** Re-scales a `useBattlefieldVisualState` combat-offset class
+ *  (`-translate-y-8` / `translate-y-8` / `""`) to the landscape-compact lift.
+ *  The desktop classes are Tailwind's fixed spacing scale (no board-height
+ *  input), so a literal class can't express the derived px — an inline
+ *  `translate` style does instead ({@link landscapeCombatOffsetStyle}); this
+ *  helper only decides DIRECTION (toward vs. away from the midline) from the
+ *  desktop class, which `useBattlefieldVisualState` still computes unchanged
+ *  (shared between every board mode). Returns `0` when the card is not
+ *  involved in combat. */
+export function landscapeCombatLiftDirection(combatOffset: string): -1 | 0 | 1 {
+    if (combatOffset.startsWith("-")) return -1;
+    if (combatOffset.length > 0) return 1;
+    return 0;
+}
+
 /** The landscape band budget, as custom properties for the board root. Applied
  *  unconditionally (the values are inert unless a landscape band class reads
  *  them), alongside `--right-piles-w` and the portrait budget. */

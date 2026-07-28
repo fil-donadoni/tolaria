@@ -10,8 +10,9 @@ import {
  *  which is what makes the strip shift-free as priority changes. The strip is a
  *  fixed-width rail, so the slot is full-width and `truncate` (not `min-w-`)
  *  absorbs a long label: the CTA's POSITION never moves, only its text
- *  ellipsises. */
-const PRIMARY_SLOT = "h-10 w-full rounded-full px-3";
+ *  ellipsises. `h-11` (44px, #1770 mobile QA sweep) — was `h-10` (40px),
+ *  below the touch-target floor. */
+const PRIMARY_SLOT = "h-11 w-full rounded-full px-3";
 
 /** The landscape-compact strip's command stack (#1769) — the vertical
  *  counterpart of {@link ControllerCommandRow}.
@@ -44,13 +45,15 @@ export default function ControllerStripCommandStack({
             data-controller-strip-command-stack
             className="flex flex-col gap-1.5"
         >
+            {/* `h-11` (44px, #1770 mobile QA sweep): was `h-7` (28px), well
+                below the touch-target floor. */}
             {secondary.map((action) => (
                 <button
                     key={action.key}
                     type="button"
                     onClick={action.onClick}
                     disabled={action.disabled}
-                    className={`h-7 w-full truncate rounded-full border px-2 text-[10px] font-semibold shadow-lg backdrop-blur-md transition-opacity disabled:opacity-40 ${
+                    className={`h-11 w-full truncate rounded-full border px-2 text-[10px] font-semibold shadow-lg backdrop-blur-md transition-opacity disabled:opacity-40 ${
                         CONTROLLER_SECONDARY_TONE[action.tone]
                     }`}
                 >
@@ -84,12 +87,14 @@ export default function ControllerStripCommandStack({
                 </button>
             )}
 
+            {/* `h-11` (44px, #1770 mobile QA sweep): was `h-9` (36px), below
+                the touch-target floor. */}
             <button
                 type="button"
                 aria-label="Pass Turn"
                 onClick={passTurn?.onClick}
                 disabled={!passTurn || passTurn.disabled}
-                className="flex h-9 w-full items-center justify-center gap-1.5 rounded-full border border-danger/40 bg-surface-base/85 text-[10px] font-semibold uppercase tracking-[0.14em] text-danger-strong shadow-lg backdrop-blur-md disabled:opacity-40"
+                className="flex h-11 w-full items-center justify-center gap-1.5 rounded-full border border-danger/40 bg-surface-base/85 text-[10px] font-semibold uppercase tracking-[0.14em] text-danger-strong shadow-lg backdrop-blur-md disabled:opacity-40"
             >
                 <FastForward className="h-3.5 w-3.5 shrink-0" aria-hidden />
                 Pass Turn

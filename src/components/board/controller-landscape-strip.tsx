@@ -89,13 +89,15 @@ export default function ControllerLandscapeStrip({
                 {/* Fixed-width phase label. `T<n> · <group>` only — the step
                     name varies in width and lives inside the panel, so this
                     row can never resize the strip. */}
+                {/* `h-11`/`w-11` (44px, #1770 mobile QA sweep): both were
+                    `h-9`/`w-9` (36px), below the touch-target floor. */}
                 <div className="flex items-center gap-1.5">
                     <button
                         type="button"
                         onClick={() => setPanelOpen((v) => !v)}
                         aria-label="Toggle phase list"
                         aria-expanded={panelOpen}
-                        className={`flex h-9 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-full border border-border-subtle bg-surface-base/85 px-2 text-[11px] font-semibold shadow-lg backdrop-blur-md transition-colors ${
+                        className={`flex h-11 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-full border border-border-subtle bg-surface-base/85 px-2 text-[11px] font-semibold shadow-lg backdrop-blur-md transition-colors ${
                             panelOpen ? "text-accent-strong" : "text-text-muted"
                         }`}
                     >
@@ -109,7 +111,7 @@ export default function ControllerLandscapeStrip({
                         type="button"
                         onClick={onOpenMenu}
                         aria-label="Open game menu"
-                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border-accent/40 bg-surface-base/85 text-text-muted shadow-lg backdrop-blur-md transition-colors hover:text-text"
+                        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-border-accent/40 bg-surface-base/85 text-text-muted shadow-lg backdrop-blur-md transition-colors hover:text-text"
                     >
                         <Menu className="h-4 w-4" aria-hidden />
                     </button>

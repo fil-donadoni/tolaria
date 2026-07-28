@@ -3,6 +3,7 @@ import { motion, useReducedMotion } from "motion/react";
 import type { Player } from "~/types/game";
 import { portraitHandScrolls } from "~/lib/board-layout";
 import { SLOT_SPRING } from "~/lib/board-motion";
+import { portraitHandMetrics } from "~/lib/portrait-board-bands";
 import BoardCard from "./board-card";
 import BoardHandCard from "./board-hand-card";
 
@@ -12,15 +13,14 @@ type BoardHandPortraitProps = {
     /** True for the viewer's own hand — its cards are interactive (click +
      *  drag-to-cast / play). The opponent's hand is presentational (backs). */
     interactive: boolean;
+    /** Board height (px), for deriving the card footprint so it never exceeds
+     *  the hand band's actual height (#1770 follow-up from #1790: a fixed
+     *  card overflowed the band on boards under ~665px). Omitted ⇒ the
+     *  historical unclamped max — every existing hand-only test exercises
+     *  this default and keeps rendering the same 76px card. */
+    boardHeight?: number;
     "data-testid"?: string;
 };
-
-/** Fixed card width for the portrait flat-overlap hand (px). Small enough that
- *  up to the scroll threshold fits a ~360-390px viewport, large enough to stay
- *  legible. */
-const PORTRAIT_CARD_W = 76;
-/** Overlap between adjacent cards (px) — a flat overlap, not a fanned arc. */
-const PORTRAIT_OVERLAP = 26;
 
 /** Portrait hand (#336). On a phone the fanned-arc {@link BoardHand} crams
  *  cards into thin slivers as the hand grows. This is a FLAT overlap instead:
@@ -36,10 +36,12 @@ const PORTRAIT_OVERLAP = 26;
 export default function BoardHandPortrait({
     player,
     interactive,
+    boardHeight = Number.POSITIVE_INFINITY,
     "data-testid": testId,
 }: BoardHandPortraitProps) {
     const scrolls = portraitHandScrolls(player.hand.length);
     const reduceMotion = useReducedMotion();
+    const { cardWidth, overlap } = portraitHandMetrics(boardHeight);
 
     const items = useMemo(
         () =>
@@ -67,9 +69,9 @@ export default function BoardHandPortrait({
                         key={key}
                         className="shrink-0"
                         style={{
-                            width: PORTRAIT_CARD_W,
+                            width: cardWidth,
                             aspectRatio: "5 / 7",
-                            marginLeft: i === 0 ? 0 : -PORTRAIT_OVERLAP,
+                            marginLeft: i === 0 ? 0 : -overlap,
                         }}
                     >
                         {interactive && card ? (
@@ -90,10 +92,10 @@ export default function BoardHandPortrait({
                                 }
                                 className="w-full h-full"
                             >
-                                {/* 76px small slot — keep `thumb`, accurate hint. */}
+                                {/* Small slot — keep `thumb`, accurate hint. */}
                                 <BoardHandCard
                                     card={card}
-                                    sizes="76px"
+                                    sizes={`${cardWidth}px`}
                                     includeThumb
                                 />
                             </motion.div>

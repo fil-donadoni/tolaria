@@ -258,4 +258,17 @@ describe("TriggerOrderPrompt", () => {
             proto.hasPointerCapture = originalHasPointerCapture;
         }
     });
+
+    // #1770 mobile QA sweep touch-target audit: the minimize button rendered
+    // at `h-8 w-8` (32px) — under the 44px floor, and safe to grow here since
+    // it owns its own row.
+    it("sizes the minimize button to the 44px touch-target floor", () => {
+        const { getByLabelText } = renderPrompt(
+            ["a", "b"],
+            [stackItem("a", "text a"), stackItem("b", "text b")]
+        );
+        const btn = getByLabelText("Minimize choice dialog");
+        expect(btn.className).toContain("h-11");
+        expect(btn.className).toContain("w-11");
+    });
 });

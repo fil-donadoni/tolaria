@@ -31,7 +31,11 @@ export default function PileChip({
             onClick={onClick}
             data-testid={testId}
             data-arrow-anchor-graveyard={arrowAnchorGraveyard}
-            className="flex items-center gap-1 rounded-md border border-border-subtle bg-surface-elevated px-2 py-1 font-beleren text-[10px] text-text-muted active:bg-surface"
+            // `min-h-11 min-w-14` (#1770 mobile QA sweep touch-target audit):
+            // the chip's own label + count text sat well under the 44px
+            // floor (~py-1 + a 10px line ≈ 24-26px tall). A floor, not a
+            // fixed size, so a longer count/label keeps growing outward.
+            className="flex min-h-11 min-w-14 items-center justify-center gap-1 rounded-md border border-border-subtle bg-surface-elevated px-2 py-1 font-beleren text-[10px] text-text-muted active:bg-surface"
         >
             {label}
             <span className="font-bold text-accent-strong">{count}</span>

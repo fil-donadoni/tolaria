@@ -36,8 +36,10 @@ import {
     LANDSCAPE_SIDE_GUTTER_VAR,
     LANDSCAPE_VIEWER_HAND_FRAC,
     LANDSCAPE_VIEWER_PILES_ANCHOR,
+    landscapeAttackerLiftPx,
     landscapeBandVars,
     landscapeCardMetrics,
+    landscapeCombatLiftDirection,
     landscapePileVars,
     makeLandscapeHandLayout,
 } from "~/lib/landscape-board-bands";
@@ -280,5 +282,36 @@ describe("flat landscape hand (#1768)", () => {
                 expect(p.y).toBe(35);
             }
         }
+    });
+});
+
+// #1770 follow-up from #1802's review: the desktop combat lift
+// (`useBattlefieldVisualState`'s `-translate-y-8`/`translate-y-8`, 32px) is
+// tuned as ~19% of the 168px desktop card. At the landscape-compact scale
+// that same 32px overshoots the midline — this re-derives the lift as the
+// SAME proportion of whatever card is actually on screen.
+describe("landscape-compact attacker/blocker lift (#1770)", () => {
+    it("scales proportionally with the shared card height", () => {
+        const { cardHeight } = landscapeCardMetrics(PHONE_H);
+        expect(cardHeight).toBe(64);
+        // 32/168 desktop ratio applied to a 64px card.
+        expect(landscapeAttackerLiftPx(64)).toBe(12);
+    });
+
+    it("never exceeds a small fraction of the card it lifts, across the phone range", () => {
+        for (const h of [SHORT_H, PHONE_H, TALL_H]) {
+            const { cardHeight } = landscapeCardMetrics(h);
+            const lift = landscapeAttackerLiftPx(cardHeight);
+            // Comfortably clear of half the card (the desktop-lift overshoot
+            // the review flagged) at every footprint in range.
+            expect(lift).toBeLessThan(cardHeight / 3);
+            expect(lift).toBeGreaterThan(0);
+        }
+    });
+
+    it("reads direction from the shared visual-state's combat-offset class", () => {
+        expect(landscapeCombatLiftDirection("-translate-y-8")).toBe(-1);
+        expect(landscapeCombatLiftDirection("translate-y-8")).toBe(1);
+        expect(landscapeCombatLiftDirection("")).toBe(0);
     });
 });

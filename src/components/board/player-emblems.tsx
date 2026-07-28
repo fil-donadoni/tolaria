@@ -81,9 +81,18 @@ function EmblemStack({ members }: { members: EmblemInstance[] }) {
                 </div>
             ))}
             {n >= STACK_COUNT_BADGE_MIN && (
+                // INSIDE the fan's own box (was `-right-1.5`, poking past the
+                // right edge): the landscape-compact pile rail
+                // (`LANDSCAPE_*_PILES_ANCHOR`) that hosts this stack is
+                // `overflow-y-auto`, which the CSS overflow spec computes an
+                // implied `overflow-x: auto` for too — an overhanging badge
+                // there clips instead of scrolling into view (#1770 follow-up
+                // from #1802's re-review). The battlefield's own stack badges
+                // (`battlefield-stack-fan.tsx`) keep the overhang: they never
+                // sit in a scrolling ancestor.
                 <div
                     data-emblem-count
-                    className="absolute top-1.5 -right-1.5 z-modal-top pointer-events-none rounded-full bg-black/85 px-1.5 py-0.5 text-[11px] font-bold leading-none text-white ring-1 ring-white/30 drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]"
+                    className="absolute top-1.5 right-0.5 z-modal-top pointer-events-none rounded-full bg-black/85 px-1.5 py-0.5 text-[11px] font-bold leading-none text-white ring-1 ring-white/30 drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]"
                 >
                     ×{n}
                 </div>
