@@ -40,6 +40,28 @@ describe("DevPanelRail left float (play-area layout rule)", () => {
     });
 });
 
+// #1764: dev overlays must never overlap gameplay controls on mobile. The
+// rail used to reserve a hard-coded `bottom-28`, which sat correctly only for
+// the bar's one-line state and let the grown (two-line) bar cover it; and it
+// sat at `z-100`, painting OVER an open phase sheet (`z-sheet`, 50).
+describe("DevPanelRail anchoring + z-order (issue #1764)", () => {
+    it("anchors above the bar's MEASURED height, not a fixed inset", () => {
+        const { container } = render(<DevPanelRail>x</DevPanelRail>);
+        const root = container.firstElementChild as HTMLElement;
+        expect(root.className).toContain("var(--controller-bar-h");
+        expect(root.className).not.toContain("bottom-28");
+    });
+
+    it("sits below sheets/modals — above the board, not on top of a sheet", () => {
+        const { container } = render(<DevPanelRail>x</DevPanelRail>);
+        const root = container.firstElementChild as HTMLElement;
+        expect(root.className).toContain("z-dev-overlay");
+        expect(root.className).not.toContain("z-100");
+        expect(root.className).not.toContain("z-sheet");
+        expect(root.className).not.toContain("z-modal");
+    });
+});
+
 describe("AiDecisionTraceBox (rail child)", () => {
     it("does not anchor itself — the rail owns the positioning", () => {
         const { container } = render(<AiDecisionTraceBox />);
