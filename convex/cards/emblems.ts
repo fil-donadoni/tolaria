@@ -14,6 +14,7 @@
 // framework, #700) for the planeswalker ultimates that create them.
 
 import type { EmblemDefinition, GameEvent, PermanentView } from "./types";
+import { PERMANENT_TYPES } from "./types";
 
 const EMBLEM_REGISTRY = new Map<string, EmblemDefinition>();
 
@@ -118,6 +119,48 @@ registerEmblemDefinition({
                 event.casterId === self.controllerId,
             targetRequirement: { type: "any", count: 1 },
             effects: [{ op: "dealDamage", amount: 5, to: { target: 0 } }],
+        },
+    ],
+});
+
+/** Teferi, Hero of Dominaria −8 emblem (DOM, issue #1726). A TRIGGERED emblem
+ *  (CR 114.2a, 113.3) with a targeted trigger: "Whenever you draw a card,
+ *  exile target permanent an opponent controls." Fires on the owner's own
+ *  CARD_DRAWN (CR 603.2 — `self.controllerId` is the emblem's owner); the
+ *  target (CR 115.1c) is chosen when the trigger goes on the stack via the
+ *  ability's `targetRequirement`, rid onto the emblem trigger item as
+ *  `inlineTargetRequirement` (`buildEmblemTriggerItem`, triggers.ts) —
+ *  same seam as Chandra, Torch of Defiance's emblem above. A batch draw
+ *  ("draw two") emits one CARD_DRAWN per card (CR 121.1a — `emitCardDrawn`
+ *  fans out per-card events), so the trigger fires once per card drawn. */
+export const TEFERI_HERO_OF_DOMINARIA_EMBLEM_ID =
+    "teferi-hero-of-dominaria-emblem";
+
+registerEmblemDefinition({
+    id: TEFERI_HERO_OF_DOMINARIA_EMBLEM_ID,
+    name: "Teferi, Hero of Dominaria emblem",
+    text: "Whenever you draw a card, exile target permanent an opponent controls.",
+    // Scryfall print of the emblem card (set `tdom`, layout `emblem`) — the
+    // DOM-era emblem printing matching Teferi's own set, per the token/emblem
+    // art rule (the card's own printing where present). Verified all
+    // renditions (normal/large/png) resolve on the Scryfall CDN.
+    imagePrintId: "b82ac152-5df1-46c9-98e9-ad5585f7e799",
+    triggeredAbilities: [
+        {
+            id: "teferi-hero-of-dominaria-emblem-draw",
+            oracleText:
+                "Whenever you draw a card, exile target permanent an opponent controls.",
+            event: "CARD_DRAWN",
+            // CR 603.2 — "you draw a card": the emblem's owner is the drawer.
+            matches: (event: GameEvent, self: PermanentView): boolean =>
+                event.type === "CARD_DRAWN" &&
+                event.playerId === self.controllerId,
+            targetRequirement: {
+                type: [...PERMANENT_TYPES],
+                count: 1,
+                controller: "opponent",
+            },
+            effects: [{ op: "exile", target: { target: 0 } }],
         },
     ],
 });

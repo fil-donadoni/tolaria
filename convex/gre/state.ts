@@ -9776,6 +9776,36 @@ export function buildSpellContext(
             // requested bounce to exile; the actual landing zone decides.
             emitCardsExiledFromBattlefield(state, moved);
         },
+        // CR 400.7 (issue #1726) — put a battlefield permanent into its
+        // OWNER's library `positionFromTop` cards from the top (1-based;
+        // Teferi, Hero of Dominaria's −3 "third from the top" = 3). Same LTB
+        // funnel as a bounce (`removePermanentTo`), so aura cleanup, counter
+        // loss, PERMANENT_LEFT and an exileOnLeave redirect (CR 614.1c — the
+        // redirected card never reaches the library, so the reposition below
+        // finds nothing and skips) all apply. A library shorter than the
+        // position puts the card on the bottom (splice clamps its start
+        // index — the official Teferi ruling). The moved card is stamped
+        // known-to-all (ADR 0026): both players watched which card went in
+        // and where; a shuffle clears it.
+        putIntoLibraryFromBattlefield(
+            target: TargetSelection,
+            positionFromTop: number
+        ): void {
+            if (target.type === "player")
+                throw new Error("Cannot put a player into a library");
+            const moved = removePermanentTo(state, target.id, "library");
+            emitCardsExiledFromBattlefield(state, moved);
+            if (!moved) return;
+            const owner = getPlayer(state, moved.ownerId);
+            const idx = owner.library.findIndex((c) => c.id === moved.id);
+            // Not in the library: an exileOnLeave replacement redirected the
+            // departure (the emit above already handled it) — nothing to
+            // reposition.
+            if (idx === -1) return;
+            const [card] = owner.library.splice(idx, 1);
+            owner.library.splice(Math.max(0, positionFromTop - 1), 0, card);
+            grantKnowledgeToAll(state, moved.ownerId, [card.id]);
+        },
         // CR 400.7 reanimation: locate `cardInstanceId` in `playerId`'s
         // graveyard or exile, splice it out, and put it onto `playerId`'s
         // battlefield via `putReanimatedOnBattlefield` (CR 611.2 grant
