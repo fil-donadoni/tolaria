@@ -884,10 +884,14 @@ function hasEnoughLegalTargets(
         // even though a larger — and affordable — X would reach one. Probe every
         // announceable X (0..maxAffordableX) and accept if ANY yields enough
         // legal targets, mirroring the move enumerator's X loop. Non-X
-        // requirements keep the single X-agnostic pass.
+        // requirements keep the single X-agnostic pass. `state` is forwarded
+        // into `maxAffordableX` (issue #1751 finding 5) — it is already in
+        // scope as this function's own param — so the X ceiling itself is
+        // board-aware: an {X} spell funded by a board-dependent mana source
+        // no longer gets an under-estimated ceiling here.
         const xValues = mvFilterUsesX(req)
             ? Array.from(
-                  { length: maxAffordableX(player, card) + 1 },
+                  { length: maxAffordableX(player, card, state) + 1 },
                   (_, i) => i
               )
             : [undefined];
@@ -929,16 +933,36 @@ function hasEnoughLegalTargets(
  *  a land under Urborg advertises BOTH its own colour and {B}, each with the
  *  index that produces it. Empty map means no mana ability the engine knows
  *  about (dynamic board choosers like Fellwar Stone resolve at tap time, not
- *  in the one-source planner). */
+ *  in the one-source planner).
+ *
+ *  `controllerId` / `battlefields`, when passed, flow straight into
+ *  `getManaTapOptionsDetailed` (issue #1751 finding 4) so a board-dependent
+ *  `canActivate` (Mox Opal's Metalcraft, Fanatic of Rhonas's Ferocious) is
+ *  evaluated against a real board instead of the always-false
+ *  `minimalManaGateView(undefined)`. `planManaPayment` (moves.ts) passes a
+ *  SELF-ONLY view (`[{ playerId: player.id, battlefield: player.battlefield }]`),
+ *  which is enough for a self-referential ability like Metalcraft or Ferocious
+ *  but not for an opponent-scanning chooser (Fellwar Stone) — that one still
+ *  resolves at tap time here, same as an omitted `battlefields`. */
 export function getProducibleManaOptions(
-    card: CardInstanceState
+    card: CardInstanceState,
+    controllerId?: string,
+    battlefields?: ReadonlyArray<{
+        playerId: string;
+        battlefield: readonly CardInstanceState[];
+    }>
 ): Map<Color, number | undefined> {
     const options = new Map<Color, number | undefined>();
     // requireTap: the auto-tap planner only ever taps for mana — it must never
     // auto-commit a sacrifice-only source (Lion's Eye Diamond discards the hand).
-    const detailed = getManaTapOptionsDetailed(card, undefined, undefined, {
-        requireTap: true,
-    });
+    const detailed = getManaTapOptionsDetailed(
+        card,
+        controllerId,
+        battlefields,
+        {
+            requireTap: true,
+        }
+    );
     if (detailed.length === 0) return options;
 
     // Mirror `manaTapNeedsChoice`: the tap mutations require a `manaChoiceIndex`
@@ -1053,7 +1077,15 @@ function getProducibleManaUnits(
     }>
 ): Set<Color>[] {
     // requireTap: only a genuine {T} ability counts as an auto-payable "unit"
-    // — mirrors `getProducibleManaOptions`, the real auto-tap planner.
+    // — the SAME `requireTap: true` invariant `getProducibleManaOptions` (the
+    // real auto-tap planner) uses. Board view is NOT identical between the
+    // two, though (issue #1751 finding 4): this function is fed the FULL,
+    // both-players `battlefields` view built from `opts.state` (via
+    // `coloredCostLeftover`), while `getProducibleManaOptions`'s one caller
+    // (`planManaPayment`, moves.ts) only ever passes the controller's OWN
+    // entry — enough for a self-referential ability (Mox Opal's Metalcraft,
+    // Fanatic of Rhonas's Ferocious) but not for an opponent-scanning chooser
+    // (Fellwar Stone), where the two can still diverge.
     const detailed = getManaTapOptionsDetailed(
         card,
         controllerId,
@@ -1130,8 +1162,13 @@ function coloredCostLeftover(
         payWith?: boolean;
         /** CR 602.5b / 605.1a (issue #1695 re-review, regression fix) — the
          *  full game state, threaded down from `canPotentiallyPayCost`'s own
-         *  optional `state` param (only its plain hand-cast branch passes
-         *  one today). Used to build a REAL, BOTH-PLAYERS `battlefields`
+         *  optional `state` param. Commit 10b27d7a made every one of
+         *  `canPotentiallyPayCost`'s ten call sites (hand-cast, flashback,
+         *  escape, madness, graveyard-permission, permanent-permission,
+         *  graveyard-grant, free-exile, alternative-cost, intrinsic-graveyard)
+         *  pass `state`; issue #1751 finding 1 closed the one remaining gap,
+         *  the Phyrexian branch (`solvePhyrexianSplit`), which now forwards
+         *  `state` here too. Used to build a REAL, BOTH-PLAYERS `battlefields`
          *  view for `getProducibleManaUnits`, so a mana ability's
          *  board-dependent `canActivate` (Mox Opal's Metalcraft, Fanatic of
          *  Rhonas's Ferocious) or board-dependent `getManaChoices` (Fellwar
@@ -1146,11 +1183,11 @@ function coloredCostLeftover(
          *  Fellwar Stone's current safe "assume all 5 colours" over-approximation
          *  for an under-approximating "assume none" — a NEW hidden-cast bug of
          *  the exact shape this fix closes for Mox Opal/Fanatic of Rhonas.
-         *  When `state` is absent (every OTHER `canPotentiallyPayCost` call
-         *  site — flashback/escape/madness/graveyard-permission/free-exile —
-         *  none pass it today), `getProducibleManaUnits` falls back to its
-         *  pre-fix `undefined, undefined` call, unchanged from before this
-         *  fix. */
+         *  A caller that omits `state` (the only remaining ones are
+         *  `maxAffordableX`'s bot-enumeration call sites in moves.ts and
+         *  `genericManaShortfall`, both deliberately, see their own docs)
+         *  still makes `getProducibleManaUnits` fall back to its pre-fix
+         *  `undefined, undefined` call, unchanged from before this fix. */
         state?: GameState;
     } = {}
 ): number | null {
@@ -1299,13 +1336,18 @@ function coloredCostLeftover(
 /** Whether the player can pay a fully-normalized mana cost (colored pips + the
  *  generic `X` slot) with their current pool + producible mana. Wraps the
  *  `coloredCostLeftover` greedy assignment so callers that build a bespoke
- *  normalized cost (the Phyrexian solver) share the one affordability model. */
+ *  normalized cost (the Phyrexian solver) share the one affordability model.
+ *  `state`, when passed, is forwarded unchanged into `coloredCostLeftover`'s
+ *  `opts.state` (issue #1751 finding 1) so a board-dependent mana ability
+ *  (Mox Opal's Metalcraft) is visible to the Phyrexian solver exactly like it
+ *  already is to the plain-cost path. */
 function canPayNormalizedCost(
     player: PlayerState,
     card: CardInstanceState,
-    cost: Record<string, number>
+    cost: Record<string, number>,
+    state?: GameState
 ): boolean {
-    const leftover = coloredCostLeftover(player, card, cost);
+    const leftover = coloredCostLeftover(player, card, cost, { state });
     return leftover !== null && leftover >= (cost.X ?? 0);
 }
 
@@ -1317,12 +1359,18 @@ function canPayNormalizedCost(
  *  `null` when NO split is affordable (life can't cover the pips it must pay and
  *  mana can't cover the rest) — i.e. the spell is not castable. `chosenX` folds
  *  a variable `{X}` into the base cost before the pips are added. The pip counts
- *  are tiny (≤ a handful), so the split space is enumerated exhaustively. */
+ *  are tiny (≤ a handful), so the split space is enumerated exhaustively.
+ *  `state`, when passed, is forwarded into `canPayNormalizedCost` /
+ *  `coloredCostLeftover` (issue #1751 finding 1) so a mana-vs-life split that
+ *  can only be afforded via a board-dependent mana ability (Mox Opal's
+ *  Metalcraft, Fanatic of Rhonas's Ferocious) is found instead of the solver
+ *  silently evaluating every split against an empty board. */
 export function solvePhyrexianSplit(
     player: PlayerState,
     card: CardInstanceState,
     rawCost: ManaCost,
-    chosenX?: number
+    chosenX?: number,
+    state?: GameState
 ): { lifePips: number; manaAdditions: Partial<Record<Color, number>> } | null {
     const totalPips = phyrexianPipCount(rawCost);
     if (totalPips === 0) return { lifePips: 0, manaAdditions: {} };
@@ -1352,7 +1400,7 @@ export function solvePhyrexianSplit(
             for (const [c, n] of Object.entries(manaAdditions)) {
                 if (n && n > 0) cost[c] = (cost[c] ?? 0) + n;
             }
-            if (!canPayNormalizedCost(player, card, cost)) return;
+            if (!canPayNormalizedCost(player, card, cost, state)) return;
             if (!best || lifePips > best.lifePips) {
                 best = { lifePips, manaAdditions: { ...manaAdditions } };
             }
@@ -1382,12 +1430,16 @@ export function solvePhyrexianSplit(
  *  viable) → no prompt; TWO OR MORE = a real mana-vs-life choice the human must
  *  make. Used by the projection to surface the split picker only when the branch
  *  is real (mirrors `solvePhyrexianSplit`, which returns the single best split
- *  the engine auto-resolves to when the caster does not choose). */
+ *  the engine auto-resolves to when the caster does not choose). `state`, when
+ *  passed, is forwarded into `canPayNormalizedCost` / `coloredCostLeftover`
+ *  (issue #1751 finding 1) so a board-dependent mana ability is visible to
+ *  this affordability probe exactly like `solvePhyrexianSplit`'s. */
 export function phyrexianLifePipOptions(
     player: PlayerState,
     card: CardInstanceState,
     rawCost: ManaCost,
-    chosenX?: number
+    chosenX?: number,
+    state?: GameState
 ): number[] {
     const totalPips = phyrexianPipCount(rawCost);
     if (totalPips === 0) return [];
@@ -1408,7 +1460,7 @@ export function phyrexianLifePipOptions(
             for (const [c, n] of Object.entries(manaAdditions)) {
                 if (n && n > 0) cost[c] = (cost[c] ?? 0) + n;
             }
-            if (canPayNormalizedCost(player, card, cost)) {
+            if (canPayNormalizedCost(player, card, cost, state)) {
                 affordable.add(lifePips);
             }
             return;
@@ -1472,8 +1524,18 @@ function canPotentiallyPayCost(
     // the shared solver so the gate and the payment agree on the split space.
     // Cost modifiers are not folded into the Phyrexian solver (no shipped card
     // combines the two — mirrors game.ts's cast-cost ordering comment).
+    // `state` is forwarded through (issue #1751 finding 1, live-probed
+    // regression: Phyrexian Metamorph {3}{U/P} at 1 life with Mox Opal +
+    // Metalcraft satisfied) so a board-dependent mana ability is visible to
+    // the Phyrexian split solver exactly like it is to the plain-cost path
+    // below — before this fix `solvePhyrexianSplit` never received `state` at
+    // all, so `coloredCostLeftover` always saw an empty board here and Mox
+    // Opal's Metalcraft-gated ability could never pay a Phyrexian pip.
     if (phyrexianPipCount(rawCost) > 0) {
-        return solvePhyrexianSplit(player, card, rawCost) !== null;
+        return (
+            solvePhyrexianSplit(player, card, rawCost, undefined, state) !==
+            null
+        );
     }
     // Cost normalized without chosenX: string-X spells pay only their fixed
     // portion at the minimum (X = 0). User picks X at announcement.
@@ -1485,11 +1547,19 @@ function canPotentiallyPayCost(
         (cost.X ?? 0) + MANA_COLORS.reduce((sum, c) => sum + (cost[c] ?? 0), 0);
     if (totalRequired === 0) return true;
     // Issue #1695 (fourth-pass fix) — forward `state` down into
-    // `coloredCostLeftover` purely for the board view; every call site now
-    // passes it (see the param doc above), so a board-dependent mana ability
-    // is never silently evaluated against an empty board again, regardless
-    // of which cast branch (hand/flashback/escape/madness/graveyard-
-    // permission/alternative-cost) is asking.
+    // `coloredCostLeftover` purely for the board view; every one of THIS
+    // function's ten call sites now passes it (see the param doc above), so
+    // for the colored+generic portion checked right here, a board-dependent
+    // mana ability is judged against the real board regardless of which cast
+    // branch (hand/flashback/escape/madness/graveyard-permission/permanent-
+    // permission/graveyard-grant/free-exile/alternative-cost) is asking, and
+    // — since issue #1751 finding 1 — the Phyrexian branch above forwards
+    // `state` too. This does NOT cover every board-dependent-mana consumer in
+    // the file, though: `maxAffordableX`'s two call sites in moves.ts (the
+    // Bot's X-ceiling enumeration) and `genericManaShortfall` still build
+    // their own `coloredCostLeftover` probe with no `state` at all (each
+    // documented at its own definition) — those remain board-blind by
+    // design, and only ever under-estimate, never over-offer.
     const leftover = coloredCostLeftover(player, card, cost, { state });
     // Remaining sources after the colored portion must cover the generic
     // ({cost.X}) portion.
@@ -1506,21 +1576,26 @@ function canPotentiallyPayCost(
  *  Cost reductions are not modeled here (mirroring `canPotentiallyPayCost`),
  *  which only ever under-estimates X, never over-offers a cast.
  *
- *  Single source of truth for the X ceiling: the Bot's move enumerator
- *  (`enumerateCastMoves` in moves.ts) consumes THIS function for its `X = 0..N`
- *  range so the human castability gate and the Bot can never disagree on which
- *  X are reachable. `coloredCostLeftover` and `planManaPayment` (moves.ts) are
- *  documented mirrors — the same one-source-one-mana greedy model — so the
- *  per-X `planManaPayment` guard the enumerator still runs only ever filters,
- *  never widens, the range this returns. */
+ *  `state`, when passed, is forwarded into `coloredCostLeftover` (issue #1751
+ *  finding 5) so a board-dependent mana ability contributes to the X ceiling.
+ *  `hasEnoughLegalTargets` passes its own `state` param; the Bot's move
+ *  enumerator (`enumerateCastMoves` in moves.ts), which also consumes this
+ *  function for its `X = 0..N` range, does NOT — its ceiling stays the
+ *  pre-existing board-blind one (safe: it only ever under-counts, never
+ *  over-offers, and each candidate X is still re-checked by `planManaPayment`
+ *  before a move is emitted). `coloredCostLeftover` and `planManaPayment`
+ *  (moves.ts) are documented mirrors — the same one-source-one-mana greedy
+ *  model — so the per-X `planManaPayment` guard the enumerator still runs
+ *  only ever filters, never widens, the range this returns. */
 export function maxAffordableX(
     player: PlayerState,
-    card: CardInstanceState
+    card: CardInstanceState,
+    state?: GameState
 ): number {
     const rawCost = getInstanceManaCost(card);
     if (!rawCost || typeof rawCost.X !== "string") return 0;
     const cost = normalizeManaCost(rawCost);
-    const leftover = coloredCostLeftover(player, card, cost);
+    const leftover = coloredCostLeftover(player, card, cost, { state });
     if (leftover === null) return 0;
     return Math.max(0, leftover - (cost.X ?? 0));
 }

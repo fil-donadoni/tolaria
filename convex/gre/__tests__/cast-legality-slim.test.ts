@@ -25,15 +25,23 @@ import {
     savannahLions,
     serraAngel,
     solRing,
+    swamp,
 } from "../../cards/sets/lea";
 import { metallicRebuke } from "../../cards/sets/aer";
 import { startingTown } from "../../cards/sets/fin";
 import { archaeologicalDig } from "../../cards/sets/inv";
 import { moxOpal } from "../../cards/sets/som";
 import { firebolt } from "../../cards/sets/ody";
+import { nethergoyf } from "../../cards/sets/mh3";
+import { planarGate } from "../../cards/sets/leg";
 import { registerTokenDefinition } from "../../cards";
 import type { CardDefinition } from "../../cards/types";
-import type { GameState, PlayerState, StackItem } from "../state";
+import type {
+    CardInstanceState,
+    GameState,
+    PlayerState,
+    StackItem,
+} from "../state";
 
 // Same two abilities as Starting Town, declared in the OPPOSITE order (the
 // any-color/life ability first, the free {C} ability second) — a synthetic
@@ -544,6 +552,157 @@ describe("cast affordability — non-hand-cast board threading (issue #1695 four
         const state = withTurnOf(makeState({ players: [player] }), "p1");
 
         expect(getLegalActions(state, player, bolt)).not.toContain("cast");
+    });
+});
+
+// A dead card of a chosen card type sitting in a graveyard — a raw fixture,
+// not a real card, used only to make `hasPayableEscapeExileCost`'s "4+
+// distinct card types among OTHER graveyard cards" (CR 702.138a, Nethergoyf)
+// affordable. Mirrors `deadCard` in `cards/sets/mh3/__tests__/black.test.ts`.
+function deadCard(
+    id: string,
+    owner: string,
+    types: CardDefinition["types"]
+): CardInstanceState {
+    return {
+        id,
+        card: { id: `fake-${id}` },
+        types,
+        subtypes: [],
+        staticAbilities: [],
+        power: 0,
+        toughness: 0,
+        controllerId: owner,
+        ownerId: owner,
+        zone: "graveyard",
+        isTapped: false,
+    };
+}
+
+// Issue #1751 finding 6 (coverage gap, not a code fix — the escape branch
+// already threads `state` into `canPotentiallyPayCost`, unlike this suite's
+// only prior non-hand-cast probe, which exercised flashback exclusively).
+// Nethergoyf's escape cost ({2}{B}, CR 702.138) is castable from the
+// graveyard when only Mox Opal's Metalcraft ability can pay the {B} pip —
+// same shape as the Firebolt flashback test above, on the ESCAPE branch
+// instead. Revert-sensitive: dropping the `state` argument at the escape
+// call site (`canPotentiallyPayCost(player, card, getEscapeManaCost(state,
+// card) ?? {}, state)` in rules.ts) makes Mox Opal's `canActivate` see an
+// empty board and this test goes red.
+describe("cast affordability — escape board threading (issue #1751 finding 6, coverage for the pre-existing #1695 fourth-pass fix)", () => {
+    function onBattlefield(defId: string, id: string) {
+        return makeInstance(defId, {
+            id,
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+            isTapped: false,
+        });
+    }
+
+    // 4 distinct card types among graveyard cards OTHER than Nethergoyf
+    // itself, satisfying the escape exile cost (CR 702.138a `minCardTypes: 4`).
+    function escapeFillerGraveyard() {
+        return [
+            deadCard("d1", "p1", ["Land"]),
+            deadCard("d2", "p1", ["Instant"]),
+            deadCard("d3", "p1", ["Sorcery"]),
+            deadCard("d4", "p1", ["Enchantment"]),
+        ];
+    }
+
+    it("Nethergoyf's escape ({2}{B}) is castable from the graveyard when only Mox Opal's Metalcraft ability can pay the {B} pip", () => {
+        const goyf = makeInstance(nethergoyf.id, {
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const player = makePlayer("p1", {
+            graveyard: [goyf, ...escapeFillerGraveyard()],
+            battlefield: [
+                onBattlefield(moxOpal.id, "mox"),
+                onBattlefield(ankhOfMishra.id, "ank1"),
+                onBattlefield(ankhOfMishra.id, "ank2"),
+                onBattlefield(island.id, "is1"),
+                onBattlefield(island.id, "is2"),
+            ],
+            manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
+        });
+        const state = withTurnOf(makeState({ players: [player] }), "p1");
+
+        expect(getLegalActions(state, player, goyf)).toContain("cast");
+    });
+
+    it("is NOT castable when Metalcraft is unsatisfied (only 1 artifact) — no other black source", () => {
+        const goyf = makeInstance(nethergoyf.id, {
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const player = makePlayer("p1", {
+            graveyard: [goyf, ...escapeFillerGraveyard()],
+            battlefield: [
+                onBattlefield(moxOpal.id, "mox"),
+                onBattlefield(island.id, "is1"),
+                onBattlefield(island.id, "is2"),
+            ],
+            manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
+        });
+        const state = withTurnOf(makeState({ players: [player] }), "p1");
+
+        expect(getLegalActions(state, player, goyf)).not.toContain("cast");
+    });
+});
+
+// Issue #1751 finding 6 — negative folding assertion. `canPotentiallyPayCost`
+// deliberately sets `opts.foldCostModifiers: true` ONLY at the plain
+// hand-cast branch (rules.ts); every non-hand-cast branch — including
+// escape — passes `state` for the board view alone and must NOT also fold in
+// a battlefield cost-modifier static effect. Planar Gate ("Creature spells
+// you cast cost {2} less to cast.") would reduce Nethergoyf's escape cost
+// from {2}{B} to {B} alone IF the folding separation were violated. Set up a
+// board with exactly enough mana for the WRONGLY-folded cost ({B}, one
+// Swamp) but not the real unreduced one ({2}{B}, needs 2 more generic
+// sources) — if escape ever started folding cost modifiers, this test would
+// flip from "not castable" to "castable" and fail loudly.
+describe("cast affordability — foldCostModifiers separation holds for escape (issue #1751 finding 6)", () => {
+    function onBattlefield(defId: string, id: string) {
+        return makeInstance(defId, {
+            id,
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+            isTapped: false,
+        });
+    }
+
+    it("Nethergoyf's escape does NOT pick up Planar Gate's creature-spell cost reduction", () => {
+        const goyf = makeInstance(nethergoyf.id, {
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const player = makePlayer("p1", {
+            graveyard: [
+                goyf,
+                deadCard("d1", "p1", ["Land"]),
+                deadCard("d2", "p1", ["Instant"]),
+                deadCard("d3", "p1", ["Sorcery"]),
+                deadCard("d4", "p1", ["Enchantment"]),
+            ],
+            battlefield: [
+                onBattlefield(planarGate.id, "gate"),
+                onBattlefield(swamp.id, "swamp1"),
+                // Deliberately NO other mana source: the correct, unreduced
+                // {2}{B} escape cost needs 2 more generic sources that aren't
+                // here. A wrongly-folded {B}-only cost would be covered by
+                // the Swamp alone.
+            ],
+            manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
+        });
+        const state = withTurnOf(makeState({ players: [player] }), "p1");
+
+        expect(getLegalActions(state, player, goyf)).not.toContain("cast");
     });
 });
 
