@@ -497,9 +497,10 @@ export default function LibraryOrderPicker({
 
     // `distribute` / `putBack` require the HAND (right) zone to hold between
     // `minKeep` and `keep` cards before Done is legal (the engine enforces the
-    // same count; gating here avoids a rejected submit). A mandatory dig and
-    // `putBack` pin min === keep (exact); an optional dig (Narset) sets minKeep 0
-    // so the player may decline. order-top modes accept any split.
+    // same count; gating here avoids a rejected submit). A mandatory dig and an
+    // exact `putBack` (Brainstorm) pin min === keep; a ranged `putBack` (Sylvan
+    // Library) passes its own `min`; an optional dig (Narset) sets minKeep 0 so
+    // the player may decline. order-top modes accept any split.
     const confirmDisabled =
         submitting ||
         (keep !== undefined

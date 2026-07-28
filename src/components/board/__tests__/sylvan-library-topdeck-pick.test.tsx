@@ -52,7 +52,9 @@ function projectedSylvanPick(life = 20) {
     return projectPublicState(state, 1, "p1");
 }
 
-function renderWithProjection(projected: ReturnType<typeof projectPublicState>) {
+function renderWithProjection(
+    projected: ReturnType<typeof projectPublicState>
+) {
     const value = {
         gameId: "game-id" as never,
         playerId: "p1",

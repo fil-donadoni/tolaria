@@ -59,7 +59,8 @@ export default function PutBackPicker() {
         ? new Set(head.candidateIds)
         : undefined;
     const cards = (owner?.hand ?? []).filter(
-        (c): c is CardInstance => c !== null && (!eligibleIds || eligibleIds.has(c.id))
+        (c): c is CardInstance =>
+            c !== null && (!eligibleIds || eligibleIds.has(c.id))
     );
     const keep = pendingChoiceMax(head.count);
     const min = pendingChoiceMin(head.count);
