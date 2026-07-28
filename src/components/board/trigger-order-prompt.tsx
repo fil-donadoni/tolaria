@@ -188,9 +188,19 @@ export default function TriggerOrderPrompt({
         [commit]
     );
 
-    const onLostPointerCapture = useCallback(() => {
-        if (press.current) commit();
-    }, [commit]);
+    const onLostPointerCapture = useCallback(
+        (e: React.PointerEvent<HTMLDivElement>) => {
+            // Touch-only trap (same as library-order-picker): a touch
+            // pointerdown gives the pressed TILE implicit pointer capture, so
+            // the first setPointerCapture on the STRIP transfers it — firing
+            // `lostpointercapture` on the tile, which bubbles here and used to
+            // commit() instantly, killing the drag on its first move. Only the
+            // STRIP itself losing capture may commit.
+            if (e.target !== e.currentTarget) return;
+            if (press.current) commit();
+        },
+        [commit]
+    );
 
     const handleConfirm = async () => {
         if (submitting) return;
