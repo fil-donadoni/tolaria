@@ -38,6 +38,7 @@ export function useDivideTargets(): DivideTargetItem[] {
         playerId,
         pendingTarget,
         playerProtectionFromEverything,
+        emblems,
     } = useGameContext();
 
     if (
@@ -61,7 +62,8 @@ export function useDivideTargets(): DivideTargetItem[] {
                     card,
                     pendingTarget,
                     allPlayers,
-                    activePlayerId
+                    activePlayerId,
+                    emblems
                 )
             ) {
                 items.push({

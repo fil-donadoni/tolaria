@@ -86,6 +86,7 @@ export function useBattlefieldInteraction(player: Player) {
         allPlayers,
         cannotActivateAbilitiesThisTurn,
         lifeGainedThisTurn,
+        emblems,
     } = useGameContext();
     const isMe = player.id === playerId;
     // Melee (#669) — under `meleeCombat` the attacking (active) player declares
@@ -408,7 +409,8 @@ export function useBattlefieldInteraction(player: Player) {
                 card,
                 pendingTarget,
                 allPlayers,
-                activePlayerId
+                activePlayerId,
+                emblems
             ) &&
             // CR 702.18 / 611 — don't fire selectTarget for a shrouded /
             // "can't be the target" permanent; the server would reject it

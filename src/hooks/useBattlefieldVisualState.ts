@@ -52,6 +52,7 @@ export function useBattlefieldVisualState(player: Player) {
         pendingChoices,
         combat,
         allPlayers,
+        emblems,
     } = useGameContext();
     const bufferCtx = usePendingChoiceBuffer();
     const attackSequence = useAttackSequence();
@@ -312,7 +313,8 @@ export function useBattlefieldVisualState(player: Player) {
                     card,
                     pendingTarget,
                     allPlayers,
-                    activePlayerId
+                    activePlayerId,
+                    emblems
                 )
             ) {
                 return false;
@@ -425,7 +427,8 @@ export function useBattlefieldVisualState(player: Player) {
                 card,
                 pendingTarget,
                 allPlayers,
-                activePlayerId
+                activePlayerId,
+                emblems
             );
 
         const isTargetSelected =
