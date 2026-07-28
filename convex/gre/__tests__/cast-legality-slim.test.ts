@@ -30,6 +30,7 @@ import { metallicRebuke } from "../../cards/sets/aer";
 import { startingTown } from "../../cards/sets/fin";
 import { archaeologicalDig } from "../../cards/sets/inv";
 import { moxOpal } from "../../cards/sets/som";
+import { firebolt } from "../../cards/sets/ody";
 import { registerTokenDefinition } from "../../cards";
 import type { CardDefinition } from "../../cards/types";
 import type { GameState, PlayerState, StackItem } from "../state";
@@ -465,6 +466,79 @@ describe("cast affordability — board-dependent canActivate must see the real b
         const player = makePlayer("p1", {
             hand: [bolt],
             battlefield: [onBattlefield(moxOpal.id, "mox")],
+            manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
+        });
+        const state = withTurnOf(makeState({ players: [player] }), "p1");
+
+        expect(getLegalActions(state, player, bolt)).not.toContain("cast");
+    });
+});
+
+// Fourth-pass fix (issue #1695, PR #1731): the third-pass fix above only
+// threaded the real board into `canPotentiallyPayCost`'s plain HAND-CAST
+// branch — every OTHER call site (flashback/escape/madness/graveyard-
+// permission/alternative-cost) still built its `coloredCostLeftover` probe
+// with NO state at all, so a board-dependent mana ability was silently
+// dropped on every one of those paths. This exercises the FLASHBACK branch
+// specifically: Firebolt's flashback cost is {4}{R} (`ody/red.ts`); with Mox
+// Opal + 2 other artifacts satisfying Metalcraft and 4 colorless-producing
+// Islands covering the generic portion, the {R} pip can ONLY be paid by Mox
+// Opal's any-colour ability — exactly the shape that is invisible unless
+// this call site also receives the board. Revert-sensitive: removing the
+// `state` argument threaded onto the flashback call site
+// (`canPotentiallyPayCost(player, card, flashbackMana, state)` in
+// `rules.ts`) makes `hasMetalcraft` see an empty board, Mox Opal produces no
+// units, and this test goes red.
+describe("cast affordability — non-hand-cast board threading (issue #1695 fourth-pass fix)", () => {
+    function onBattlefield(defId: string, id: string) {
+        return makeInstance(defId, {
+            id,
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+            isTapped: false,
+        });
+    }
+
+    it("Firebolt's flashback ({4}{R}) is castable from the graveyard when only Mox Opal's Metalcraft ability can pay the {R} pip", () => {
+        const bolt = makeInstance(firebolt.id, {
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const player = makePlayer("p1", {
+            graveyard: [bolt],
+            battlefield: [
+                onBattlefield(moxOpal.id, "mox"),
+                onBattlefield(ankhOfMishra.id, "ank1"),
+                onBattlefield(ankhOfMishra.id, "ank2"),
+                onBattlefield(island.id, "is1"),
+                onBattlefield(island.id, "is2"),
+                onBattlefield(island.id, "is3"),
+                onBattlefield(island.id, "is4"),
+            ],
+            manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
+        });
+        const state = withTurnOf(makeState({ players: [player] }), "p1");
+
+        expect(getLegalActions(state, player, bolt)).toContain("cast");
+    });
+
+    it("Firebolt's flashback is NOT castable when Metalcraft is unsatisfied (only 1 artifact) — no other red source", () => {
+        const bolt = makeInstance(firebolt.id, {
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const player = makePlayer("p1", {
+            graveyard: [bolt],
+            battlefield: [
+                onBattlefield(moxOpal.id, "mox"),
+                onBattlefield(island.id, "is1"),
+                onBattlefield(island.id, "is2"),
+                onBattlefield(island.id, "is3"),
+                onBattlefield(island.id, "is4"),
+            ],
             manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
         });
         const state = withTurnOf(makeState({ players: [player] }), "p1");

@@ -583,8 +583,11 @@ function enumerateCastMoves(
             // Planar Gate, Power Artifact, Urza's Filter) AND a spell's own
             // `selfCostReduction` (Emry) before planning the tap payment,
             // mirroring the gate's plain-cast branch
-            // (`canPotentiallyPayCost(caster, card, undefined, state)` in
-            // rules.ts). Without this the enumerator built its tap plan from
+            // (`canPotentiallyPayCost(caster, card, undefined, state, {
+            // foldCostModifiers: true })` in rules.ts — issue #1695
+            // fourth-pass fix split the board-view `state` arg from the
+            // opt-in folding flag). Without this the enumerator built its tap
+            // plan from
             // the unreduced printed cost and disagreed with `getLegalActions`
             // — the bot could never cast a spell whose affordability depends
             // on a reduction. Phyrexian costs keep the pre-existing

@@ -474,7 +474,7 @@ export function getLegalActions(
             baseLegal &&
             passesCastPhaseRestriction(state, card) &&
             castProhibitionReason(player.id, card, state) === undefined &&
-            canPotentiallyPayCost(player, card, flashbackMana) &&
+            canPotentiallyPayCost(player, card, flashbackMana, state) &&
             hasEnoughLegalTargets(state, player, card) &&
             // CR 702.34a / 118.5 — the flashback-only non-mana cost (sacrifice a
             // matching permanent / exile a matching card from hand) must itself
@@ -507,7 +507,8 @@ export function getLegalActions(
             canPotentiallyPayCost(
                 player,
                 card,
-                getEscapeManaCost(state, card) ?? {}
+                getEscapeManaCost(state, card) ?? {},
+                state
             ) &&
             hasEnoughLegalTargets(state, player, card) &&
             hasPayableEscapeExileCost(state, player, card)
@@ -535,7 +536,8 @@ export function getLegalActions(
             canPotentiallyPayCost(
                 player,
                 card,
-                getInstanceManaCost(card) ?? {}
+                getInstanceManaCost(card) ?? {},
+                state
             ) &&
             hasEnoughLegalTargets(state, player, card)
         ) {
@@ -566,7 +568,8 @@ export function getLegalActions(
             canPotentiallyPayCost(
                 player,
                 card,
-                getInstanceManaCost(card) ?? {}
+                getInstanceManaCost(card) ?? {},
+                state
             ) &&
             hasEnoughLegalTargets(state, player, card)
         ) {
@@ -604,7 +607,7 @@ export function getLegalActions(
             baseLegal &&
             passesCastPhaseRestriction(state, card) &&
             castProhibitionReason(caster.id, card, state) === undefined &&
-            canPotentiallyPayCost(caster, card, costOverride) &&
+            canPotentiallyPayCost(caster, card, costOverride, state) &&
             hasEnoughLegalTargets(state, caster, card)
         ) {
             actions.push("cast");
@@ -639,7 +642,8 @@ export function getLegalActions(
             canPotentiallyPayCost(
                 player,
                 card,
-                getInstanceManaCost(card) ?? {}
+                getInstanceManaCost(card) ?? {},
+                state
             ) &&
             hasEnoughLegalTargets(state, player, card)
         ) {
@@ -662,7 +666,7 @@ export function getLegalActions(
         const madnessMana = getMadnessCost(card) ?? {};
         if (
             castProhibitionReason(player.id, card, state) === undefined &&
-            canPotentiallyPayCost(player, card, madnessMana) &&
+            canPotentiallyPayCost(player, card, madnessMana, state) &&
             hasEnoughLegalTargets(state, player, card)
         ) {
             actions.push("cast");
@@ -690,7 +694,7 @@ export function getLegalActions(
             baseLegal &&
             passesCastPhaseRestriction(state, card) &&
             castProhibitionReason(caster.id, card, state) === undefined &&
-            canPotentiallyPayCost(caster, card, {}) &&
+            canPotentiallyPayCost(caster, card, {}, state) &&
             hasEnoughLegalTargets(state, caster, card)
         ) {
             actions.push("cast");
@@ -722,12 +726,19 @@ export function getLegalActions(
             // affordable) OR a DIFFERENT mana amount (CR 702.109 Dash — `.some`
             // re-checks each offered variant's `mana` leg through the SAME
             // solver the printed cost uses, so a dash-cost creature is castable
-            // even when its printed cost is not). CR 601.2f (ADR 0063) — the
-            // plain branch also folds in cost modifiers/self-host reductions
-            // (Emry) via the optional `state` arg.
-            (canPotentiallyPayCost(caster, card, undefined, state) ||
+            // even when its printed cost is not). CR 601.2f (ADR 0063) — ONLY
+            // the plain branch also folds in cost modifiers/self-host
+            // reductions (Emry) via `foldCostModifiers: true`; the alternative-
+            // cost branch below passes `state` for the board view alone
+            // (issue #1695 fourth-pass fix) and deliberately does NOT set the
+            // flag, so an alt-cost cast's affordability is judged against the
+            // real board without also picking up a cost reduction it never
+            // folded in before this fix.
+            (canPotentiallyPayCost(caster, card, undefined, state, {
+                foldCostModifiers: true,
+            }) ||
                 affordableAlternativeCosts(state, caster, card).some((alt) =>
-                    canPotentiallyPayCost(caster, card, alt.mana ?? {})
+                    canPotentiallyPayCost(caster, card, alt.mana ?? {}, state)
                 )) &&
             hasEnoughLegalTargets(state, caster, card) &&
             hasPayableAdditionalCost(caster, card)
@@ -1421,17 +1432,38 @@ function canPotentiallyPayCost(
     /** CR 702.34 — when set, affordability is checked against this cost instead
      *  of the card's printed mana cost (a Flashback cast from the graveyard). */
     costOverride?: ManaCost,
-    /** CR 601.2f (ADR 0063, issue #1337) — when passed, the printed/override
-     *  cost is folded through the SAME `getCostModifiers` +
-     *  `applyCostModifiers` the real payment path (`game.ts`) uses before the
-     *  affordability check, so a spell's cast-cost REDUCTION (Mana Matrix,
-     *  Planar Gate, Emry's self-host `selfCostReduction`) is reflected in the
-     *  "cast" legal action instead of gating on the unreduced printed cost.
-     *  Optional and only wired at the plain hand-cast branch below — every
-     *  other `canPotentiallyPayCost` call site (flashback/escape/madness/
-     *  graveyard-permission/alternative-cost) keeps the pre-existing
-     *  unreduced-cost gate, unchanged. */
-    state?: GameState
+    /** Issue #1695 (fourth-pass fix) — the full game state, used ONLY to build
+     *  the REAL, BOTH-PLAYERS `battlefields` view that `coloredCostLeftover` /
+     *  `getProducibleManaUnits` need to evaluate a board-dependent mana
+     *  ability (Mox Opal's Metalcraft, Fanatic of Rhonas's Ferocious,
+     *  Fellwar Stone's opponent-land scan — see `coloredCostLeftover`'s own
+     *  `opts.state` doc for why it must span every player). **Passed at EVERY
+     *  call site below** — `state` is already in lexical scope at each one
+     *  (`getLegalActions`'s own param), and a mana ability must always be
+     *  judged against the real board, never an empty synthesized one.
+     *  Board-threading is INDEPENDENT of `opts.foldCostModifiers` below —
+     *  passing `state` here does not, by itself, fold cost-modifier static
+     *  effects into the cost. */
+    state?: GameState,
+    opts: {
+        /** CR 601.2f (ADR 0063, issue #1337) — when true, the printed/override
+         *  cost is folded through the SAME `getCostModifiers` +
+         *  `applyCostModifiers` the real payment path (`game.ts`) uses before
+         *  the affordability check, so a spell's cast-cost REDUCTION (Mana
+         *  Matrix, Planar Gate, Emry's self-host `selfCostReduction`) is
+         *  reflected in the "cast" legal action instead of gating on the
+         *  unreduced printed cost. Requires `state` to also be passed (a
+         *  no-op otherwise). Deliberately opt-in and set `true` ONLY at the
+         *  plain hand-cast branch below: folding a cost reduction into
+         *  flashback/escape/madness/graveyard-permission/alternative-cost
+         *  affordability would be an unrelated semantic change smuggled into
+         *  this fix's board-only scope (issue #1695 re-review). Every other
+         *  call site either omits `opts` or passes it without this flag, so
+         *  `coloredCostLeftover` still gets a real board but the cost stays
+         *  the pre-existing unreduced one, byte-identical to before this
+         *  fix. */
+        foldCostModifiers?: boolean;
+    } = {}
 ): boolean {
     const rawCost = costOverride ?? getInstanceManaCost(card);
     if (!rawCost) return true;
@@ -1446,20 +1478,18 @@ function canPotentiallyPayCost(
     // Cost normalized without chosenX: string-X spells pay only their fixed
     // portion at the minimum (X = 0). User picks X at announcement.
     const cost = normalizeManaCost(rawCost);
-    if (state) {
+    if (state && opts.foldCostModifiers) {
         applyCostModifiers(cost, getCostModifiers(state, card, "spell"));
     }
     const totalRequired =
         (cost.X ?? 0) + MANA_COLORS.reduce((sum, c) => sum + (cost[c] ?? 0), 0);
     if (totalRequired === 0) return true;
-    // Issue #1695 re-review — forward the same optional `state` this function
-    // already threads through `applyCostModifiers` above down into
-    // `coloredCostLeftover`, so a board-dependent mana ability (Mox Opal,
-    // Fanatic of Rhonas, Fellwar Stone) is evaluated against the real board
-    // instead of being silently dropped. Only this (plain hand-cast) call
-    // site passes `state` today — every other `canPotentiallyPayCost` caller
-    // omits it, so `coloredCostLeftover` falls back to its pre-fix behaviour
-    // there, unchanged.
+    // Issue #1695 (fourth-pass fix) — forward `state` down into
+    // `coloredCostLeftover` purely for the board view; every call site now
+    // passes it (see the param doc above), so a board-dependent mana ability
+    // is never silently evaluated against an empty board again, regardless
+    // of which cast branch (hand/flashback/escape/madness/graveyard-
+    // permission/alternative-cost) is asking.
     const leftover = coloredCostLeftover(player, card, cost, { state });
     // Remaining sources after the colored portion must cover the generic
     // ({cost.X}) portion.
