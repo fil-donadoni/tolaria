@@ -61,7 +61,11 @@ import {
     makeState,
     pushSpell,
 } from "../../../__tests__/setup";
-import { resolveTopOfStack, runDamageReplacement } from "../../../../gre/state";
+import {
+    processPendingActionTriggers,
+    resolveTopOfStack,
+    runDamageReplacement,
+} from "../../../../gre/state";
 import { checkStateBasedActions } from "../../../../gre/sba";
 import {
     applyMayPaySubmit,
@@ -529,62 +533,62 @@ describe("Vodalian Serpent (attack restriction + kicked counters; CR 508.1c / 70
         ).toEqual({ eligible: true });
     });
 
-    it("enters with four +1/+1 counters when kicked", () => {
-        const serpent = makeInstance(vodalianSerpent.id, {
-            id: "serpent",
-            controllerId: "p1",
-            ownerId: "p1",
-        });
+    // CR 121.6 / 614.1c (issue #1693) — "If this creature was kicked, it enters
+    // with four +1/+1 counters on it" is a REPLACEMENT effect, not a triggered
+    // ability: FOUR `count: "kicker"` entries (the shipped Duskwalker /
+    // Llanowar Elite idiom) sum to exactly 0 or 4 as the Serpent enters.
+    it("declares the kicked counters as a replacement, not a triggered ability", () => {
+        expect(vodalianSerpent.entersWith?.counters).toEqual([
+            { type: "+1/+1", count: "kicker" },
+            { type: "+1/+1", count: "kicker" },
+            { type: "+1/+1", count: "kicker" },
+            { type: "+1/+1", count: "kicker" },
+        ]);
+        expect(vodalianSerpent.triggeredAbilities ?? []).toEqual([]);
+    });
+
+    it("enters with four +1/+1 counters when kicked, nothing on the stack (CR 121.6 / 614.1c)", () => {
         const state = makeState({
-            players: [
-                makePlayer("p1", { battlefield: [serpent] }),
-                makePlayer("p2"),
-            ],
+            players: [makePlayer("p1"), makePlayer("p2")],
         });
-        state.stack.push({
-            ...serpent,
-            zone: "stack",
-            castById: "p1",
-            triggeredAbilityId: "vodalian-serpent-kicked-counters",
-            triggerSourceId: "serpent",
-            triggerEvent: {
-                type: "PERMANENT_ENTERED",
-                instanceId: "serpent",
-                controllerId: "p1",
-                types: serpent.types,
-            },
-            targets: [],
-            kickerCount: 1,
-        });
+        const item = pushSpell(state, vodalianSerpent.id, "p1");
+        item.kickerCount = 1;
         resolveTopOfStack(state);
-        expect(
-            state.players[0].battlefield.find((c) => c.id === "serpent")
-                ?.counters?.["+1/+1"]
-        ).toBe(4);
+
+        const live = state.players[0].battlefield.find(
+            (c) => c.id === item.id
+        )!;
+        expect(live.counters?.["+1/+1"]).toBe(4);
+        // A 2/2 printed body is a 6/6 the first instant it is observable…
+        expect(getEffectivePower(state, live)).toBe(6);
+        expect(getEffectiveToughness(state, live)).toBe(6);
+        // …with no stack item for the placement, before or after the trigger
+        // scan drains the PERMANENT_ENTERED event.
+        expect(state.stack).toEqual([]);
+        processPendingActionTriggers(state);
+        expect(state.stack).toEqual([]);
+
+        // Wire format — same assertions through the projection.
+        const projected = projectPublicState(state, 1, "p2");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === item.id
+        )!;
+        expect(slim.counters?.["+1/+1"]).toBe(4);
+        expect(getEffectivePower(projected, slim)).toBe(6);
+        expect(projected.stack).toEqual([]);
     });
 
     it("enters with no counters when not kicked", () => {
-        const serpent = makeInstance(vodalianSerpent.id, {
-            id: "serpent",
-            controllerId: "p1",
-            ownerId: "p1",
-        });
         const state = makeState({
-            players: [
-                makePlayer("p1", { battlefield: [serpent] }),
-                makePlayer("p2"),
-            ],
+            players: [makePlayer("p1"), makePlayer("p2")],
         });
-        resolveTrigger(state, serpent, "vodalian-serpent-kicked-counters", {
-            type: "PERMANENT_ENTERED",
-            instanceId: "serpent",
-            controllerId: "p1",
-            types: serpent.types,
-        });
-        expect(
-            state.players[0].battlefield.find((c) => c.id === "serpent")
-                ?.counters
-        ).toBeUndefined();
+        const item = pushSpell(state, vodalianSerpent.id, "p1");
+        resolveTopOfStack(state);
+        const live = state.players[0].battlefield.find(
+            (c) => c.id === item.id
+        )!;
+        expect(live.counters?.["+1/+1"]).toBeUndefined();
+        expect(getEffectivePower(state, live)).toBe(2);
     });
 });
 

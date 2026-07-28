@@ -11,9 +11,7 @@ import {
     hasManaAbility,
     matchesPermanentFilter,
     matchesTargetRequirement,
-    matchesTargetExclusions,
-    matchesTargetController,
-    matchesSameController,
+    matchesPermanentTargetFilters,
     wantsPermanentTarget,
     isTapLockedBySummoningSickness,
     getLandManaColor,
@@ -54,6 +52,7 @@ export function useBattlefieldVisualState(player: Player) {
         pendingChoices,
         combat,
         allPlayers,
+        emblems,
     } = useGameContext();
     const bufferCtx = usePendingChoiceBuffer();
     const attackSequence = useAttackSequence();
@@ -86,29 +85,11 @@ export function useBattlefieldVisualState(player: Player) {
         pendingTarget.playerId === playerId &&
         wantsPermanentTarget(pendingTarget.targetType);
 
-    // CR 601.2c (issue #1104) — the live controllerId of whatever's already
-    // selected under a `sameController`-constrained requirement (Barrin's
-    // Spite's "two target creatures controlled by the same player"),
-    // resolved by scanning BOTH battlefields for the first selected
-    // permanent (`pendingTarget.selected` carries no controllerId of its
-    // own). Undefined when the requirement isn't `sameController`-
-    // constrained or nothing has been picked yet — no constraint.
-    const siblingControllerId =
-        pendingTarget?.sameController && pendingTarget.selected.length > 0
-            ? (() => {
-                  const sibling = pendingTarget.selected.find(
-                      (t) => t.type === "permanent"
-                  );
-                  if (!sibling) return undefined;
-                  for (const p of allPlayers) {
-                      const card = p.battlefield.find(
-                          (c) => c.id === sibling.id
-                      );
-                      if (card) return card.controllerId;
-                  }
-                  return undefined;
-              })()
-            : undefined;
+    // CR 601.2c (issue #1104) — the cross-slot same-controller constraint's
+    // sibling controllerId is now resolved INSIDE `matchesPermanentTargetFilters`
+    // (issue #1697), which builds it the same way this used to inline (scan
+    // both battlefields for the first selected permanent under a
+    // `sameController`-constrained requirement).
 
     const activeChoice = pendingChoices?.[0];
     const isViewerChoosing =
@@ -316,20 +297,24 @@ export function useBattlefieldVisualState(player: Player) {
         if (isSelectingTarget) {
             if (
                 !pendingTarget ||
-                !matchesTargetRequirement(card, pendingTarget.targetType) ||
-                !matchesTargetExclusions(card, pendingTarget)
+                !matchesTargetRequirement(card, pendingTarget.targetType)
             ) {
                 return false;
             }
-            // CR 109.3 / 102.1 — respect the target's controller filter so a
-            // wrong-controller permanent doesn't read as clickable (#904). The
-            // chooser is pendingTarget.playerId, not necessarily the viewer.
+            // CR 109.1/.3/102.1/202/205/601.2c/613/701.20/702 (issue #1697) —
+            // every PERMANENT-kind filter dimension (supertype/subtype/color/
+            // tapped/combat role/keyword/power/toughness/mv/controller/
+            // sameController/exclude-types/exclude-instance), routed through
+            // the SAME shared registry `getLegalTargets`/`selectTarget` use, so
+            // a permanent can't read as clickable when the server would
+            // reject it (#904 and the Karakas "target legendary creature" gap).
             if (
-                !matchesTargetController(
-                    card.controllerId,
-                    pendingTarget.playerId,
+                !matchesPermanentTargetFilters(
+                    card,
+                    pendingTarget,
+                    allPlayers,
                     activePlayerId,
-                    pendingTarget.controller
+                    emblems
                 )
             ) {
                 return false;
@@ -438,17 +423,12 @@ export function useBattlefieldVisualState(player: Player) {
             isSelectingTarget &&
             pendingTarget &&
             matchesTargetRequirement(card, pendingTarget.targetType) &&
-            matchesTargetExclusions(card, pendingTarget) &&
-            matchesTargetController(
-                card.controllerId,
-                pendingTarget.playerId,
+            matchesPermanentTargetFilters(
+                card,
+                pendingTarget,
+                allPlayers,
                 activePlayerId,
-                pendingTarget.controller
-            ) &&
-            matchesSameController(
-                card.controllerId,
-                pendingTarget.sameController,
-                siblingControllerId
+                emblems
             );
 
         const isTargetSelected =

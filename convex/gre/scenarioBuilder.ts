@@ -31,6 +31,7 @@ import {
     getOpponentId,
 } from "./state";
 import { applyCopy } from "./copy";
+import { resolveEntersWithCounters } from "../cards/entersWith";
 import { turnFaceDown } from "./faceDown";
 import { finalizeMulligan } from "./mulligan";
 import { isPlaneswalker } from "./constants";
@@ -184,13 +185,30 @@ export function buildStateFromScenario(
                 // the editor's free-text counter type must fold onto the
                 // engine's lowercase `loyalty` key to be treated as real
                 // loyalty (see `resolveScenarioBattlefieldCounters`).
+                // CR 121.6 / 614.1c (issue #1693) — a debug board PLACES a
+                // permanent instead of entering it through an entry site, so
+                // nothing would otherwise run the entry-counters replacement:
+                // dropping a Clockwork Beast onto a scenario board gave a 0/4,
+                // reproducing the very symptom the scenario exists to demo.
+                // An explicit `entry.counters` still wins (the editor is
+                // staging a specific board); the declared entry counters are
+                // only the DEFAULT when the spec says nothing. No cast-time
+                // values exist for a placed permanent (CR 107.3b).
+                // A FACE-DOWN permanent is a 2/2 with no name, no text and no
+                // abilities (CR 708.2), so the face-up card's entry counters
+                // must NOT be defaulted onto it — that would stage a "2/2"
+                // secretly holding seven +1/+0 counters.
+                const battlefieldDef = getCardByName(entry.name);
                 const resolvedCounters = resolveScenarioBattlefieldCounters(
-                    entry.counters,
+                    entry.counters ??
+                        (entry.faceDown
+                            ? undefined
+                            : resolveEntersWithCounters(battlefieldDef, {})),
                     {
                         isPlaneswalker: isPlaneswalker(
                             instance as CardInstanceState
                         ),
-                        printedLoyalty: getCardByName(entry.name).loyalty,
+                        printedLoyalty: battlefieldDef.loyalty,
                     }
                 );
                 if (resolvedCounters) {
