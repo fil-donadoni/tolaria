@@ -3,7 +3,7 @@
 // expand). Engine code keeps working on the fat `GameState` shape; only the
 // row sitting in Convex is the slim form.
 //
-// Three layers of compression:
+// Five layers of compression:
 // 1. Library compression — every card in a player's library compresses to
 //    `[instanceId, cardId]`. Owner/controller/zone/transient state are all
 //    derivable (CR 400.7 + `resetBattlefieldTransientState` guarantee library
@@ -13,6 +13,26 @@
 // 3. Definition coalescing — `types`, `subtypes`, `staticAbilities`, `power`,
 //    `toughness`, `controllerId === ownerId` all coalesce against the static
 //    card definition or owner id, restored at expand time.
+// 4. Token spec interning (issue #1780) — a synthetic token card id
+//    (`tokenDefinitionId`, `convex/cards/index.ts`) embeds its whole spec,
+//    URL-encoded, and is repeated verbatim on every instance/zone reference.
+//    The compactor interns each DISTINCT `token:`-prefixed id once into a
+//    per-document `tokenSpecs: Record<string, string>` map keyed by a short
+//    `token:N` handle, and every reference becomes that short handle.
+// 5. cardId string table (issue #1780) — a per-document `cardPool: string[]`
+//    holds every distinct card id (real Scryfall id, or a layer-4 short
+//    token handle) exactly once; every reference in the document becomes a
+//    numeric index into it. Layers 4 and 5 are PURELY a compact-form
+//    artifact — `GameState` itself never gains a `tokenSpecs`/`cardPool`
+//    field, `card.id` is always the real full string on the fat shape, and
+//    nothing outside this file ever sees the interned/indexed form.
+//
+// Versioning (issue #1780): the document carries `v: 2` when layers 4/5 are
+// in effect. Rows written before this change have no `v` field (implicit
+// v1) and store `card.id` as the raw string everywhere — `expandState`
+// keeps that legacy path byte-for-byte unchanged so in-flight games written
+// before this shipped keep expanding correctly. `compactState` always
+// writes v2 going forward; there is no code path that writes v1 anymore.
 
 import { tryGetDefinition } from "../cards";
 import type {
@@ -27,9 +47,12 @@ import type { CardType, ManaCost } from "../cards/types";
 type CompactCard = Record<string, unknown>;
 // [instanceId, cardId] for the common case; a third element carries persistent
 // per-viewer knowledge (ADR 0026 / PRD #338 — scry-to-top etc.) when present.
+// `cardId` is a v2 cardPool index (number) going forward; legacy v1 rows
+// stored the raw string there (issue #1780 — `resolveCardId` is a passthrough
+// when there is no ExpandCtx, so the v1 shape still expands unchanged).
 type LibraryEntry =
-    | readonly [string, string]
-    | readonly [string, string, string[]];
+    | readonly [string, string | number]
+    | readonly [string, string | number, string[]];
 
 const MANA_KEYS = ["W", "U", "B", "R", "G", "C"] as const;
 
@@ -47,13 +70,97 @@ function isPlainEmpty(value: unknown): boolean {
     return false;
 }
 
+// ---------------------------------------------------------------------------
+// Layer 4/5 — token spec interning + cardId string table (issue #1780).
+// Purely compact-form artifacts: built while walking the fat GameState in
+// compactState, consumed while rebuilding it in expandState. Nothing outside
+// this file ever sees a `token:N` handle or a pool index — `expandState`
+// always hands back the original full card id string.
+// ---------------------------------------------------------------------------
+
+/** A synthetic token definition id (`convex/cards/index.ts: tokenDefinitionId`)
+ *  is `token:<name>|<types>|...` — content-derived, can run to 400+ chars for
+ *  a token with abilities/staticEffects/a back face. Real Scryfall ids never
+ *  start with this prefix. */
+function isTokenSpecId(cardId: string): boolean {
+    return cardId.startsWith("token:");
+}
+
+/** Per-document token-spec interner: distinct `token:...` ids → short
+ *  `token:N` handles, first-seen order. */
+type TokenSpecPool = {
+    map: Record<string, string>;
+    seen: Map<string, string>;
+    count: number;
+};
+
+function makeTokenSpecPool(): TokenSpecPool {
+    return { map: {}, seen: new Map(), count: 0 };
+}
+
+function internTokenSpec(pool: TokenSpecPool, cardId: string): string {
+    const existing = pool.seen.get(cardId);
+    if (existing !== undefined) return existing;
+    const handle = `token:${pool.count++}`;
+    pool.map[handle] = cardId;
+    pool.seen.set(cardId, handle);
+    return handle;
+}
+
+/** Per-document cardId string table: distinct id strings → array index,
+ *  first-seen order. Operates on whatever `internCardId` below hands it —
+ *  either a real card id or a short `token:N` handle. */
+type CardPool = { list: string[]; seen: Map<string, number> };
+
+function makeCardPool(): CardPool {
+    return { list: [], seen: new Map() };
+}
+
+function internPoolEntry(pool: CardPool, entry: string): number {
+    const existing = pool.seen.get(entry);
+    if (existing !== undefined) return existing;
+    const idx = pool.list.length;
+    pool.list.push(entry);
+    pool.seen.set(entry, idx);
+    return idx;
+}
+
+/** Compaction-side context threaded through every card/library/stack
+ *  compactor — layer 4 (token interning) runs first, layer 5 (cardId pool)
+ *  runs on whatever layer 4 produced, so a token handle is itself pooled
+ *  like any other short id. */
+type CompactCtx = { pool: CardPool; tokens: TokenSpecPool };
+
+function internCardIdForCompact(ctx: CompactCtx, cardId: string): number {
+    const forPool = isTokenSpecId(cardId)
+        ? internTokenSpec(ctx.tokens, cardId)
+        : cardId;
+    return internPoolEntry(ctx.pool, forPool);
+}
+
+/** Expansion-side context — undefined for a legacy v1 document, in which
+ *  case `resolveCardId` is a no-op passthrough (the raw string IS the id,
+ *  exactly like before this change). */
+type ExpandCtx = { pool: string[]; tokens: Record<string, string> };
+
+function resolveCardId(raw: unknown, ctx?: ExpandCtx): string {
+    if (!ctx) return raw as string;
+    const pooled = ctx.pool[raw as number] ?? "";
+    const spec = ctx.tokens[pooled];
+    return spec !== undefined ? spec : pooled;
+}
+
 function compactCard(
     card: CardInstanceState,
-    opts: { ownerId: string }
+    opts: { ownerId: string },
+    ctx: CompactCtx
 ): CompactCard {
     const cardId = (card.card as { id?: string }).id ?? "";
     const def = tryGetDefinition(cardId);
-    const out: CompactCard = { id: card.id, card: { id: cardId } };
+    const out: CompactCard = {
+        id: card.id,
+        card: { id: internCardIdForCompact(ctx, cardId) },
+    };
 
     if (card.ownerId !== opts.ownerId) out.ownerId = card.ownerId;
     if (card.controllerId !== card.ownerId) {
@@ -366,10 +473,12 @@ function compactCard(
 
 function expandCard(
     compact: CompactCard,
-    opts: { ownerId: string; zone: Zone }
+    opts: { ownerId: string; zone: Zone },
+    ctx?: ExpandCtx
 ): CardInstanceState {
-    const cardRef = compact.card as { id: string };
-    const def = tryGetDefinition(cardRef.id);
+    const cardRef = compact.card as { id: string | number };
+    const cardId = resolveCardId(cardRef.id, ctx);
+    const def = tryGetDefinition(cardId);
     const ownerId = (compact.ownerId as string | undefined) ?? opts.ownerId;
     const controllerId =
         (compact.controllerId as string | undefined) ?? ownerId;
@@ -386,7 +495,7 @@ function expandCard(
 
     const result: CardInstanceState = {
         id: compact.id as string,
-        card: { id: cardRef.id },
+        card: { id: cardId },
         controllerId,
         ownerId,
         zone: opts.zone,
@@ -689,33 +798,40 @@ function expandCard(
 /** Library cards are always default-state (CR 400.7 + `resetBattlefieldTransientState`).
  *  We compress each to `[instanceId, cardId]`; everything else is derived
  *  from the card def and the owning player. */
-function compactLibrary(library: CardInstanceState[]): LibraryEntry[] {
+function compactLibrary(
+    library: CardInstanceState[],
+    ctx: CompactCtx
+): LibraryEntry[] {
     return library.map((c) => {
         const cardId = (c.card as { id?: string }).id ?? "";
+        const idx = internCardIdForCompact(ctx, cardId);
         // ADR 0026 — preserve persistent knowledge across the DB boundary;
         // omit the third element for the overwhelmingly common unknown card.
         return c.knownTo?.length
-            ? ([c.id, cardId, c.knownTo] as const)
-            : ([c.id, cardId] as const);
+            ? ([c.id, idx, c.knownTo] as const)
+            : ([c.id, idx] as const);
     });
 }
 
 function expandLibrary(
     library: (LibraryEntry | CompactCard)[],
-    ownerId: string
+    ownerId: string,
+    ctx?: ExpandCtx
 ): CardInstanceState[] {
     return library.map((entry) => {
         // Backward-compat: rows written before the tuple format (≈5 weeks ago)
         // stored library cards as full compact-card objects like hand/graveyard.
         if (!Array.isArray(entry)) {
-            return expandCard(entry as CompactCard, {
-                ownerId,
-                zone: "library",
-            });
+            return expandCard(
+                entry as CompactCard,
+                { ownerId, zone: "library" },
+                ctx
+            );
         }
-        const [id, cardId, knownTo] = entry as
-            | readonly [string, string]
-            | readonly [string, string, string[]];
+        const [id, rawCardId, knownTo] = entry as
+            | readonly [string, string | number]
+            | readonly [string, string | number, string[]];
+        const cardId = resolveCardId(rawCardId, ctx);
         const def = tryGetDefinition(cardId);
         const card: CardInstanceState = {
             id,
@@ -791,20 +907,24 @@ type CompactPlayer = {
     companion?: { instance: CompactCard; used: boolean };
 };
 
-function compactPlayer(player: PlayerState): CompactPlayer {
+function compactPlayer(player: PlayerState, ctx: CompactCtx): CompactPlayer {
     const out: CompactPlayer = {
         id: player.id,
         name: player.name,
         bgColor: player.bgColor,
         life: player.life,
-        hand: player.hand.map((c) => compactCard(c, { ownerId: player.id })),
-        library: compactLibrary(player.library),
-        graveyard: player.graveyard.map((c) =>
-            compactCard(c, { ownerId: player.id })
+        hand: player.hand.map((c) =>
+            compactCard(c, { ownerId: player.id }, ctx)
         ),
-        exile: player.exile.map((c) => compactCard(c, { ownerId: player.id })),
+        library: compactLibrary(player.library, ctx),
+        graveyard: player.graveyard.map((c) =>
+            compactCard(c, { ownerId: player.id }, ctx)
+        ),
+        exile: player.exile.map((c) =>
+            compactCard(c, { ownerId: player.id }, ctx)
+        ),
         battlefield: player.battlefield.map((c) =>
-            compactCard(c, { ownerId: player.id })
+            compactCard(c, { ownerId: player.id }, ctx)
         ),
         manaPool: compactManaPool(player.manaPool),
     };
@@ -851,33 +971,35 @@ function compactPlayer(player: PlayerState): CompactPlayer {
     }
     if (player.companion) {
         out.companion = {
-            instance: compactCard(player.companion.instance, {
-                ownerId: player.id,
-            }),
+            instance: compactCard(
+                player.companion.instance,
+                { ownerId: player.id },
+                ctx
+            ),
             used: player.companion.used,
         };
     }
     return out;
 }
 
-function expandPlayer(player: CompactPlayer): PlayerState {
+function expandPlayer(player: CompactPlayer, ctx?: ExpandCtx): PlayerState {
     const result: PlayerState = {
         id: player.id,
         name: player.name,
         bgColor: player.bgColor,
         life: player.life,
         hand: player.hand.map((c) =>
-            expandCard(c, { ownerId: player.id, zone: "hand" })
+            expandCard(c, { ownerId: player.id, zone: "hand" }, ctx)
         ),
-        library: expandLibrary(player.library, player.id),
+        library: expandLibrary(player.library, player.id, ctx),
         graveyard: player.graveyard.map((c) =>
-            expandCard(c, { ownerId: player.id, zone: "graveyard" })
+            expandCard(c, { ownerId: player.id, zone: "graveyard" }, ctx)
         ),
         exile: player.exile.map((c) =>
-            expandCard(c, { ownerId: player.id, zone: "exile" })
+            expandCard(c, { ownerId: player.id, zone: "exile" }, ctx)
         ),
         battlefield: player.battlefield.map((c) =>
-            expandCard(c, { ownerId: player.id, zone: "battlefield" })
+            expandCard(c, { ownerId: player.id, zone: "battlefield" }, ctx)
         ),
         manaPool: expandManaPool(player.manaPool),
     };
@@ -927,18 +1049,19 @@ function expandPlayer(player: CompactPlayer): PlayerState {
             // zone-enumerating code ever reads `player.exile` to find it, since
             // the instance lives on the dedicated `player.companion` field, not
             // in any zone array.
-            instance: expandCard(player.companion.instance, {
-                ownerId: player.id,
-                zone: "exile",
-            }),
+            instance: expandCard(
+                player.companion.instance,
+                { ownerId: player.id, zone: "exile" },
+                ctx
+            ),
             used: player.companion.used,
         };
     }
     return result;
 }
 
-function compactStackItem(item: StackItem): CompactCard {
-    const base = compactCard(item, { ownerId: item.ownerId });
+function compactStackItem(item: StackItem, ctx: CompactCtx): CompactCard {
+    const base = compactCard(item, { ownerId: item.ownerId }, ctx);
     base.ownerId = item.ownerId;
     base.castById = item.castById;
     if (item.targets?.length) base.targets = item.targets;
@@ -992,7 +1115,7 @@ function compactStackItem(item: StackItem): CompactCard {
     // The snapshot is itself a full StackItem, so it recurses through this
     // same compactor rather than duplicating its field list.
     if (item.stormSnapshot) {
-        base.stormSnapshot = compactStackItem(item.stormSnapshot);
+        base.stormSnapshot = compactStackItem(item.stormSnapshot, ctx);
     }
     if (item.stormCopiesRemaining !== undefined) {
         base.stormCopiesRemaining = item.stormCopiesRemaining;
@@ -1053,9 +1176,9 @@ function compactStackItem(item: StackItem): CompactCard {
     return base;
 }
 
-function expandStackItem(compact: CompactCard): StackItem {
+function expandStackItem(compact: CompactCard, ctx?: ExpandCtx): StackItem {
     const ownerId = compact.ownerId as string;
-    const base = expandCard(compact, { ownerId, zone: "stack" });
+    const base = expandCard(compact, { ownerId, zone: "stack" }, ctx);
     const item: StackItem = {
         ...base,
         castById: compact.castById as string,
@@ -1112,7 +1235,8 @@ function expandStackItem(compact: CompactCard): StackItem {
     // counter.
     if (compact.stormSnapshot) {
         item.stormSnapshot = expandStackItem(
-            compact.stormSnapshot as CompactCard
+            compact.stormSnapshot as CompactCard,
+            ctx
         );
     }
     if (compact.stormCopiesRemaining !== undefined) {
@@ -1319,11 +1443,17 @@ export const PERSISTED_OPTIONAL_KEYS = [
  *  set without requiring them in PERSISTED_OPTIONAL_KEYS. */
 export const TRANSIENT_KEYS = new Set<string>([]);
 
-/** Pack a GameState into the slim Convex-storage form. */
+/** Pack a GameState into the slim Convex-storage form. Always writes v2
+ *  (issue #1780 — token spec interning + cardId string table); there is no
+ *  code path left that writes the legacy v1 shape. */
 export function compactState(state: GameState): Record<string, unknown> {
+    const ctx: CompactCtx = {
+        pool: makeCardPool(),
+        tokens: makeTokenSpecPool(),
+    };
     const out: Record<string, unknown> = {
-        players: state.players.map(compactPlayer),
-        stack: state.stack.map(compactStackItem),
+        players: state.players.map((p) => compactPlayer(p, ctx)),
+        stack: state.stack.map((s) => compactStackItem(s, ctx)),
         turn: state.turn,
         activePlayerId: state.activePlayerId,
         priorityPlayerId: state.priorityPlayerId,
@@ -1349,20 +1479,44 @@ export function compactState(state: GameState): Record<string, unknown> {
                 // Carry `ownerId` explicitly: bundle cards have no surrounding
                 // player to default it from on expand (unlike battlefield
                 // arrays, which key the owner off the containing player).
-                ...compactCard(c, { ownerId: c.ownerId }),
+                ...compactCard(c, { ownerId: c.ownerId }, ctx),
                 ownerId: c.ownerId,
             })),
         }));
     }
+    // Layers 4/5 (issue #1780) — every card compacted above ran through
+    // `ctx`, so `ctx.pool`/`ctx.tokens` are now fully populated. `v: 2` is
+    // the version marker `expandState` branches on; `tokenSpecs` is omitted
+    // entirely when the document has no tokens (the overwhelmingly common
+    // case), same convention as every other optional key in this file.
+    out.v = 2;
+    out.cardPool = ctx.pool.list;
+    if (ctx.tokens.count > 0) out.tokenSpecs = ctx.tokens.map;
     return out;
 }
 
-/** Expand the slim Convex-storage form back into a full GameState. */
+/** Expand the slim Convex-storage form back into a full GameState. A `v: 2`
+ *  document (issue #1780) resolves `card.id` through the per-document
+ *  cardPool/tokenSpecs tables; a legacy document (no `v` field) is expanded
+ *  exactly as before this change — `card.id` is already the real string. */
 export function expandState(data: Record<string, unknown>): GameState {
-    const players = (data.players as CompactPlayer[]).map(expandPlayer);
+    const ctx: ExpandCtx | undefined =
+        data.v === 2
+            ? {
+                  pool: (data.cardPool as string[] | undefined) ?? [],
+                  tokens:
+                      (data.tokenSpecs as Record<string, string> | undefined) ??
+                      {},
+              }
+            : undefined;
+    const players = (data.players as CompactPlayer[]).map((p) =>
+        expandPlayer(p, ctx)
+    );
     const result: GameState = {
         players,
-        stack: (data.stack as CompactCard[]).map(expandStackItem),
+        stack: (data.stack as CompactCard[]).map((s) =>
+            expandStackItem(s, ctx)
+        ),
         turn: data.turn as number,
         activePlayerId: data.activePlayerId as string,
         priorityPlayerId: data.priorityPlayerId as string,
@@ -1386,10 +1540,14 @@ export function expandState(data: Record<string, unknown>): GameState {
         result.phasedOut = compactBundles.map((b) => ({
             ...b,
             cards: b.cards.map((c) =>
-                expandCard(c, {
-                    ownerId: (c.ownerId as string | undefined) ?? "",
-                    zone: "battlefield",
-                })
+                expandCard(
+                    c,
+                    {
+                        ownerId: (c.ownerId as string | undefined) ?? "",
+                        zone: "battlefield",
+                    },
+                    ctx
+                )
             ),
         })) as GameState["phasedOut"];
     }
