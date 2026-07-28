@@ -3613,6 +3613,10 @@ describe("Elkin Bottle ({3},{T}: exile top card, play it — CR 601.3e impulse)"
         expect(p1.library.find((c) => c.id === "top")).toBeUndefined();
         const exiled = p1.exile.find((c) => c.id === "top")!;
         expect(exiled.castableFromExileBy).toBe("p1");
+        // CR 305.9 (issue #1689) — oracle says "you may play that card": a
+        // land exiled this way must be a legal land play, not merely
+        // castable (a land is never cast).
+        expect(exiled.castableFromExileIncludesLand).toBe(true);
         // Face down: hidden to the opponent, known to the controller.
         expect(exiled.knownTo).toEqual(["p1"]);
         // The next card is now on top and untouched.

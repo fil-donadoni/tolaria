@@ -599,9 +599,15 @@ export const elkinBottle: CardDefinition = {
                 // CR 601.3e — the controller may play/cast it from exile.
                 // CR 305.9 (issue #1689) — oracle says "you may play that
                 // card", land-inclusive.
-                ctx.grantCastFromExile(cardId, ctx.caster, undefined, undefined, {
-                    includesLand: true,
-                });
+                ctx.grantCastFromExile(
+                    cardId,
+                    ctx.caster,
+                    undefined,
+                    undefined,
+                    {
+                        includesLand: true,
+                    }
+                );
             },
         },
     ],

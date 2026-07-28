@@ -276,6 +276,11 @@ describe("Dauthi Voidwalker (CR 601.3e / 702.28, issue #1156)", () => {
                 (c) => c.id === "oppVoid1"
             )!;
             expect(granted.castableFromExileBy).toBe("p1");
+            // CR 305.9 (issue #1689) — oracle says "you may PLAY it": the
+            // void-countered card need not be a land here, but the grant
+            // itself must still be land-inclusive so a land redirected to
+            // exile by the replacement effect stays a legal land play.
+            expect(granted.castableFromExileIncludesLand).toBe(true);
             expect(granted.castableFromExileUntilTurn).toBe(state.turn);
             expect(granted.castFromExileWithoutPayingManaCost).toBe(true);
             // CR 601.3e (issue #1156) — the ONE place a cast's mana cost is

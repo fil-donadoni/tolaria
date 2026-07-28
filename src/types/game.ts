@@ -251,6 +251,17 @@ export interface CardInstance {
      *  controller — who is in `knownTo` — sees the real identity and this flag,
      *  and may cast it. */
     castableFromExileBy?: string;
+    /** CR 305.9 (issue #1689) — rides alongside `castableFromExileBy`; true iff
+     *  the granting effect's Oracle text explicitly says "play" (not merely
+     *  "cast") that card (Headliner Scarlett, Expressive Iteration, Dauthi
+     *  Voidwalker). ONLY then is a LAND sitting in exile under the grant a
+     *  legal play — a cast-only grant (Ice Cauldron, Robber of the Rich,
+     *  Ragavan) never sets this, so a land under it is unusable (no play, no
+     *  cast). Meaningless for a non-land card. Crosses the wire via
+     *  `slimCard` (only strips `card`/`knownTo`). Mirrors
+     *  `CardInstanceState.castableFromExileIncludesLand` in
+     *  `convex/gre/state.ts`. */
+    castableFromExileIncludesLand?: boolean;
     /** Turn-scoped expiry marker for `castableFromExileBy` (CR 514.2 / 608.2g).
      *  Present on an impulse "play that card this turn" grant (Headliner
      *  Scarlett, Expressive Iteration); the grant is revoked at that turn's

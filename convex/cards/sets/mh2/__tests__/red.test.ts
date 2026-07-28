@@ -357,9 +357,9 @@ describe("Ragavan, Nimble Pilferer (combat-damage impulse + Dash, CR 702.109a)",
         // game.ts playCard mutation boundary — a hand-crafted client request
         // is rejected server-side too (`assertLegalAction` re-derives via
         // the same `getLegalActions` the mutation calls).
-        expect(() =>
-            assertLegalAction(state, p2, exiled, "play")
-        ).toThrow(/Illegal action "play"/);
+        expect(() => assertLegalAction(state, p2, exiled, "play")).toThrow(
+            /Illegal action "play"/
+        );
 
         // Wire boundary: neither viewer's projection surfaces an affordance.
         const projectedForP1 = projectPublicState(state, 1, "p1");

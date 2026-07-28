@@ -203,9 +203,7 @@ describe("Robber of the Rich (CR 508.1 attack trigger + CR 601.3e cast-from-exil
             },
         });
         pushAttackTrigger(state, robber);
-        const exiled = state.players[1].exile.find(
-            (c) => c.id === "top-land"
-        )!;
+        const exiled = state.players[1].exile.find((c) => c.id === "top-land")!;
         expect(exiled).toBeDefined();
         expect(exiled.types).toContain("Land");
         // The cast permission is still granted, but never land-inclusive.

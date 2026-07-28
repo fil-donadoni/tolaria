@@ -13075,6 +13075,13 @@ export const debugSetupScenario = mutation({
                  *  the next cleanup. Exile zone only; combine with
                  *  `faceDownExile` for the true impulse look. */
                 castableFromExile: v.optional(v.boolean()),
+                /** CR 305.9 (issue #1689) — only when this is ALSO set does
+                 *  `castableFromExile` grant the LAND-INCLUSIVE shape
+                 *  (Headliner Scarlett / Expressive Iteration: "you may PLAY
+                 *  that card"); omitted/false stages the cast-only shape (Ice
+                 *  Cauldron / Robber of the Rich / Ragavan), under which a
+                 *  land in exile has no legal play OR cast. Exile zone only. */
+                castableFromExileIncludesLand: v.optional(v.boolean()),
                 /** Pre-seed counters (CR 122) on a battlefield permanent —
                  *  e.g. `{ "+1/+1": 3 }` for Triskelion or `{ doom: 2 }` for
                  *  Armageddon Clock. Keyed by counter type. Battlefield only. */

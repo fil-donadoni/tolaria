@@ -35,6 +35,12 @@ export const scenarioCardValidator = v.object({
     faceDown: v.optional(v.boolean()),
     faceDownExile: v.optional(v.boolean()),
     castableFromExile: v.optional(v.boolean()),
+    // CR 305.9 (issue #1689) — only when this is ALSO set does
+    // `castableFromExile` grant the LAND-INCLUSIVE shape (Headliner
+    // Scarlett / Expressive Iteration); omitted/false stages the cast-only
+    // shape (Ice Cauldron / Robber of the Rich / Ragavan). See
+    // `scenarioBuilder.ts` for the full rationale.
+    castableFromExileIncludesLand: v.optional(v.boolean()),
     counters: v.optional(v.record(v.string(), v.number())),
     attackedLastTurn: v.optional(v.boolean()),
     summoningSick: v.optional(v.boolean()),
@@ -83,6 +89,7 @@ export type ScenarioCard = {
     faceDown?: boolean;
     faceDownExile?: boolean;
     castableFromExile?: boolean;
+    castableFromExileIncludesLand?: boolean;
     counters?: Record<string, number>;
     attackedLastTurn?: boolean;
     summoningSick?: boolean;
@@ -300,6 +307,11 @@ function normalizeCard(raw: unknown): ScenarioCard | null {
     set(card, "faceDown", pickBoolean(raw.faceDown));
     set(card, "faceDownExile", pickBoolean(raw.faceDownExile));
     set(card, "castableFromExile", pickBoolean(raw.castableFromExile));
+    set(
+        card,
+        "castableFromExileIncludesLand",
+        pickBoolean(raw.castableFromExileIncludesLand)
+    );
     set(card, "attackedLastTurn", pickBoolean(raw.attackedLastTurn));
     set(card, "summoningSick", pickBoolean(raw.summoningSick));
     set(card, "copyOf", pickString(raw.copyOf));
