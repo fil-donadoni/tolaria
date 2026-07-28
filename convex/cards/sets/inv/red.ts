@@ -491,9 +491,14 @@ export const maniacalRageInv: CardPrint = {
 // If this creature was kicked, it enters with two +1/+1 counters on it and
 // with haste." (CR 702.33 Kicker, CR 702.7 first strike, CR 122.1/614.1c ETB
 // counters — the exact Duskwalker template, inv/black.ts: two `entersWith`
-// counter entries each `count: "kicker"`, plus a `keyword-grant` proxying
-// "was kicked" off the counter count it just set, since `keyword-grant` has
-// no direct kicker read.)
+// counter entries each `count: "kicker"`, plus a `keyword-grant` gated on the
+// permanent's own `wasKicked` flag, CardInstanceState.wasKicked, gre/state.ts
+// — a one-shot fact snapshotted from the resolving stack item's
+// `kickerCount` at ETB, issue #1716. Previously this read the `+1/+1` counter
+// count the same `entersWith` had just placed as a PROXY for "was kicked",
+// which is safe ONLY at the instant of ETB — see the counter-gated statics
+// guard, cards/__tests__/counterGatedStatics.test.ts, for the two failure
+// modes that made it a proxy and not a live condition.)
 export const pouncingKavu: CardDefinition = {
     id: "7e6e2e49-7bde-43c1-8caf-43d237dfc052",
     rarity: "common",
@@ -516,17 +521,19 @@ export const pouncingKavu: CardDefinition = {
     staticEffects: [
         {
             kind: "keyword-grant",
-            // Deliberately NOT `dependsOnCounters` (CR 613.5 / issue #1711) —
-            // see Duskwalker (`inv/black.ts`) for the full reasoning. The
-            // counter read is a PROXY for the one-shot "was kicked" fact
-            // (CR 702.33) fixed at CR 614.1c ETB replacement time, not a live
-            // condition, so it must materialise once at ETB and never be
-            // re-evaluated. Durable fix — kicked-ness recorded on the
-            // permanent — tracked-by: #1716. Allowlisted in
-            // `cards/__tests__/counterGatedStatics.test.ts` until then.
+            // No `dependsOnCounters` needed (CR 613.5 / issue #1711) — this
+            // predicate no longer reads counters at all. `wasKicked` is a
+            // one-shot fact fixed at CR 614.1c ETB replacement time (CR
+            // 702.33) and not mutated by anything else while this permanent
+            // stays on the battlefield (`CardInstanceState.wasKicked`,
+            // gre/state.ts), so it is safe to read whether or not the grant
+            // is ever re-evaluated during that time — unlike the `+1/+1`
+            // counter count it replaces (issue #1716). It IS cleared on a CR
+            // 400.7 zone change (`resetBattlefieldTransientState`, issue
+            // #1753), so a bounced-then-recast-unkicked or reanimated Kavu
+            // reads `undefined`, not a stale `true`.
             applies: (target, source) =>
-                target.id === source.id &&
-                (target.counters?.["+1/+1"] ?? 0) >= 2,
+                target.id === source.id && target.wasKicked === true,
             keyword: "haste",
         },
     ],
