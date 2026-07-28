@@ -1106,21 +1106,36 @@ export type CardInstanceState = {
     /** CR 702.33 / 614.1c — true iff the resolving spell's Kicker cost was
      *  paid as it was cast, snapshotted from the stack item's `kickerCount`
      *  (`StackItem.kickerCount`) the instant it enters the battlefield
-     *  (`finalizeSpellResolution`). "Was kicked" is a ONE-SHOT fact fixed the
-     *  moment the spell resolves (CR 702.33) — the CR 614.1c "if this
-     *  creature was kicked …" ETB replacement reads it exactly once and
-     *  nothing in the CR ever revisits the answer afterwards, unlike a
-     *  `+1/+1` counter count (which SBAs / `-1/-1` annihilation, CR 704.5q,
-     *  or an unrelated pump spell can change at any later point). That
-     *  difference is what makes this field safe to read from a materialized
-     *  `keyword-grant` `applies` predicate without `dependsOnCounters`,
-     *  where the `+1/+1`-counter-count PROXY it replaces (issue #1716,
-     *  Pouncing Kavu / Duskwalker, `cards/sets/inv/red.ts` /
-     *  `cards/sets/inv/black.ts`) was not: an unkicked creature later pumped
-     *  to 2+ counters would spuriously read as kicked, and a kicked one whose
-     *  counters were later wiped would spuriously read as unkicked. This
-     *  field is set once here and MUST never be recomputed or mutated after
-     *  ETB. Undefined for a permanent cast unkicked / without a Kicker cost. */
+     *  (`finalizeSpellResolution`, which writes BOTH branches explicitly —
+     *  `true` when kicked, `delete`d when not — so the write is authoritative
+     *  standalone and never depends on the object having arrived "already
+     *  clean"). "Was kicked" is a ONE-SHOT fact fixed the moment the spell
+     *  resolves (CR 702.33) — the CR 614.1c "if this creature was kicked …"
+     *  ETB replacement reads it exactly once and nothing in the CR ever
+     *  revisits the answer afterwards, unlike a `+1/+1` counter count (which
+     *  SBAs / `-1/-1` annihilation, CR 704.5q, or an unrelated pump spell can
+     *  change at any later point). That difference is what makes this field
+     *  safe to read from a materialized `keyword-grant` `applies` predicate
+     *  without `dependsOnCounters`, where the `+1/+1`-counter-count PROXY it
+     *  replaces (issue #1716, Pouncing Kavu / Duskwalker,
+     *  `cards/sets/inv/red.ts` / `cards/sets/inv/black.ts`) was not: an
+     *  unkicked creature later pumped to 2+ counters would spuriously read as
+     *  kicked, and a kicked one whose counters were later wiped would
+     *  spuriously read as unkicked. This field is not mutated by anything
+     *  else while the SAME object stays on the battlefield. It does NOT
+     *  survive a CR 400.7 zone change, though (issue #1753):
+     *  `resetBattlefieldTransientState` deletes it (and the stray runtime
+     *  `kickerCount` a resolved stack item can still be carrying) on a
+     *  bounce to hand/library, where CR 400.7 makes the hand/library card a
+     *  new object immediately. A departure to graveyard/exile does NOT clear
+     *  it there — historical state is deliberately preserved while the card
+     *  sits in a hidden/last-known-information zone (mirrors
+     *  `exiledBySourceId` above) — but the SAME helper runs again just before
+     *  any reanimation-style re-entry to the battlefield
+     *  (`stageReanimatedOnBattlefield`), so a later recast (via hand) or
+     *  reanimation (via graveyard/exile) of the same instance can never
+     *  inherit a stale `true` onto the battlefield. Undefined for a permanent
+     *  cast unkicked / without a Kicker cost. */
     wasKicked?: boolean;
 };
 
@@ -4723,15 +4738,23 @@ function finalizeSpellResolution(state: GameState, item: StackItem): void {
         }
         // CR 702.33 / 614.1c (issue #1716) — snapshot the one-shot "was this
         // kicked" fact onto the permanent, the same `notedManaSpentOnCast`
-        // precedent: the ephemeral `StackItem.kickerCount` is about to be
-        // superseded (a later recast rebuilds a fresh stack item), so a
-        // LATER check-time predicate (a `keyword-grant` `applies`, an
-        // "if this creature was kicked" trigger `condition`) needs a
-        // persistent field on the permanent itself, not the stack item.
-        // See `CardInstanceState.wasKicked`'s doc for why this must never be
-        // recomputed afterward.
+        // precedent: a LATER check-time predicate (a `keyword-grant`
+        // `applies`, an "if this creature was kicked" trigger `condition`)
+        // needs a persistent field on the permanent itself, not the stack
+        // item, because `StackItem.kickerCount` does not survive a recast —
+        // `announceCast`/`finalizeTargetSelection` (`convex/game.ts`) rebuild
+        // the next stack item as `{ ...card, ... }`, spreading whatever is
+        // still on the object (this is exactly the shape
+        // `resetStackTransientState`'s docstring warns about for buyback).
+        // Both branches are written explicitly (issue #1753) rather than
+        // relying on the `resetBattlefieldTransientState` clear alone: this is
+        // the write that actually reaches the battlefield object, so it must
+        // be correct standalone, not merely "clean because something else
+        // deleted it earlier."
         if ((item.kickerCount ?? 0) >= 1) {
             item.wasKicked = true;
+        } else {
+            delete item.wasKicked;
         }
         controller.battlefield.push(item);
         // CR 121.6 / 614.1c — apply the entry-counters REPLACEMENT before the
@@ -8295,6 +8318,20 @@ function resetBattlefieldTransientState(card: CardInstanceState): void {
     // when it wasn't set) rather than duplicating the clear at every call
     // site. Mirrors the cast-from-exile clear in `removeFromZone`.
     delete card.exiledBySourceId;
+    // CR 702.33 / 400.7 (issue #1753) — `wasKicked` is a one-shot fact about
+    // the OBJECT that resolved kicked; a CR 400.7 zone change makes a new
+    // object with no memory of it, exactly like every other field above. Left
+    // uncleared, a kicked permanent bounced to hand and recast unkicked would
+    // still read `wasKicked: true` (`game.ts` builds every stack item as
+    // `{ ...card, ... }`), and a reanimated/blinked kicked permanent would
+    // return with the grant it no longer earned. `kickerCount` is not part of
+    // `CardInstanceState` (it lives on `StackItem`/`PendingCast`), but a
+    // resolved stack item IS pushed onto `battlefield` as-is
+    // (`finalizeSpellResolution`), so the runtime object still carries it as
+    // an untyped extra property — clear it here too, the battlefield→hand
+    // sibling of the buyback stack→hand clear in `resetStackTransientState`.
+    delete card.wasKicked;
+    delete (card as { kickerCount?: number }).kickerCount;
 }
 
 /** Phase 1 of reanimation (issue #1094, CR 400.7): clears battlefield-only

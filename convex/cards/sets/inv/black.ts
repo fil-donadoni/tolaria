@@ -521,13 +521,17 @@ export const duskwalker: CardDefinition = {
             // No `dependsOnCounters` needed (CR 613.5 / issue #1711) — this
             // predicate no longer reads counters at all. `wasKicked` is a
             // one-shot fact fixed at CR 614.1c ETB replacement time (CR
-            // 702.33) that the engine never mutates afterward
-            // (`CardInstanceState.wasKicked`, gre/state.ts), so it is safe to
-            // read whether or not the grant is ever re-evaluated — unlike the
-            // `+1/+1` counter count it replaces (issue #1716): an UNKICKED
-            // Duskwalker later pumped to 2+ counters no longer spuriously
-            // gains fear, and a KICKED one whose counters are later
-            // annihilated (CR 704.5q) no longer spuriously loses it.
+            // 702.33) and not mutated by anything else while this permanent
+            // stays on the battlefield (`CardInstanceState.wasKicked`,
+            // gre/state.ts), so it is safe to read whether or not the grant
+            // is ever re-evaluated during that time — unlike the `+1/+1`
+            // counter count it replaces (issue #1716): an UNKICKED Duskwalker
+            // later pumped to 2+ counters no longer spuriously gains fear, and
+            // a KICKED one whose counters are later annihilated (CR 704.5q)
+            // no longer spuriously loses it. It IS cleared on a CR 400.7 zone
+            // change (`resetBattlefieldTransientState`, issue #1753), so a
+            // bounced-then-recast-unkicked or reanimated Duskwalker reads
+            // `undefined`, not a stale `true`.
             applies: (target, source) =>
                 target.id === source.id && target.wasKicked === true,
             keyword: "fear",

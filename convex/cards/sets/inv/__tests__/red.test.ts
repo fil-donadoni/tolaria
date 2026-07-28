@@ -41,6 +41,8 @@ import {
     resolveTopOfStack,
     applySourceStaticEffects,
     unapplySourceStaticEffects,
+    removePermanentTo,
+    putReanimatedSetOnBattlefield,
     type GameState,
     type StackItem,
 } from "../../../../gre/state";
@@ -740,6 +742,82 @@ describe("Pouncing Kavu (Kicker → two +1/+1 counters + haste; CR 702.33 / 122.
         unapplySourceStaticEffects(state, kavu);
         applySourceStaticEffects(state, kavu);
         expect(kavu.staticAbilities).toContain("haste");
+    });
+
+    // Revert-sensitive regressions (issue #1753, PR #1753 review finding 1):
+    // `wasKicked` (and the stray runtime `kickerCount` a resolved stack item
+    // still carries) must NOT survive a CR 400.7 zone change. Both drive the
+    // real production apply path — `removePermanentTo` /
+    // `putReanimatedSetOnBattlefield` (which funnel through
+    // `resetBattlefieldTransientState`) and `resolveTopOfStack` (which runs
+    // `finalizeSpellResolution`'s ETB snapshot) — not a hand-built view.
+    it("(regression) bounced to hand and recast unkicked: does not inherit stale wasKicked/haste", () => {
+        const state = enterKicked(true);
+        const kavu = state.players[0].battlefield.find(
+            (c) => c.card.id === pouncingKavu.id
+        )!;
+        expect(kavu.wasKicked).toBe(true);
+
+        // CR 400.7 — bounce the kicked Kavu to hand, the shared
+        // battlefield-departure chokepoint (`removePermanentTo`).
+        const bounced = removePermanentTo(state, kavu.id, "hand");
+        expect(bounced).not.toBeNull();
+        const handCard = state.players[0].hand.find((c) => c.id === kavu.id)!;
+        expect(handCard.wasKicked).toBeUndefined();
+        expect(
+            (handCard as { kickerCount?: number }).kickerCount
+        ).toBeUndefined();
+
+        // Recast UNKICKED, mirroring the real stack-item build
+        // (`announceCast`/`finalizeTargetSelection`, convex/game.ts):
+        // `{ ...spellCard, castById, ...(pendingKickerCount ? { kickerCount } : {}) }`
+        // — no `kickerCount` key at all when the new cast is not kicked, so a
+        // leaked field on `spellCard` would ride straight through the spread.
+        const recast: StackItem = { ...handCard, castById: "p1" };
+        state.stack.push(recast);
+        resolveTopOfStack(state);
+
+        const recastKavu = state.players[0].battlefield.find(
+            (c) => c.card.id === pouncingKavu.id
+        )!;
+        expect(recastKavu.counters?.["+1/+1"] ?? 0).toBe(0);
+        expect(recastKavu.wasKicked).toBeUndefined();
+        expect(recastKavu.staticAbilities).not.toContain("haste");
+    });
+
+    it("(regression) reanimated after being kicked: does not return with stale haste", () => {
+        const state = enterKicked(true);
+        const kavu = state.players[0].battlefield.find(
+            (c) => c.card.id === pouncingKavu.id
+        )!;
+        expect(kavu.wasKicked).toBe(true);
+        expect(kavu.staticAbilities).toContain("haste");
+
+        // CR 400.7 — send the kicked Kavu to the graveyard (same
+        // battlefield-departure chokepoint). Unlike the hand/library branch,
+        // `removePermanentTo` deliberately does NOT clear `wasKicked` here —
+        // graveyard/exile preserve historical state — so it is cleared at
+        // REANIMATION time instead, via the real production entry path
+        // (`putReanimatedSetOnBattlefield` — shared by `returnToBattlefield`
+        // and every reanimation-style ENTRY, per
+        // `resetBattlefieldTransientState`'s own doc).
+        const sent = removePermanentTo(state, kavu.id, "graveyard");
+        expect(sent).not.toBeNull();
+        expect(sent!.wasKicked).toBe(true);
+
+        const gy = state.players[0].graveyard;
+        const idx = gy.findIndex((c) => c.id === kavu.id);
+        const [reanimated] = gy.splice(idx, 1);
+        const entered = putReanimatedSetOnBattlefield(state, [
+            { card: reanimated, controllerId: "p1" },
+        ]);
+        expect(entered).toEqual([kavu.id]);
+
+        const reanimatedKavu = state.players[0].battlefield.find(
+            (c) => c.card.id === pouncingKavu.id
+        )!;
+        expect(reanimatedKavu.wasKicked).toBeUndefined();
+        expect(reanimatedKavu.staticAbilities).not.toContain("haste");
     });
 
     // Wire format (mandatory for a new CardInstanceState field, issue #1716,

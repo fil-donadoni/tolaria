@@ -208,15 +208,6 @@ describe("game_state serialize round-trip", () => {
         expect(got.worldSeq).toBe(3);
     });
 
-    it("preserves the wasKicked marker on a battlefield permanent (CR 702.33 / 614.1c, issue #1716)", () => {
-        const state = freshState();
-        const lion = state.players[1].battlefield[0];
-        lion.wasKicked = true;
-        const expanded = expandState(compactState(state));
-        const got = expanded.players[1].battlefield[0];
-        expect(got.wasKicked).toBe(true);
-    });
-
     it("preserves a depletion counter on a tapped land (ICE depletion duals, CR 122.1)", () => {
         // The depletion-dual untap-lock (#663) stores its state entirely in the
         // existing per-instance `counters` map — no new GameState field. A
@@ -832,6 +823,11 @@ describe("game_state serialize round-trip", () => {
         // later flip back restores the right definition.
         lion.transformed = true;
         lion.transformedFrom = "front-def-id";
+        // CR 702.33 / 614.1c (issue #1716) — one-shot "was this kicked" ETB
+        // snapshot, gated on and cleared by resetBattlefieldTransientState
+        // (issue #1753); must survive a mid-game save/load like every other
+        // transient field in this block.
+        lion.wasKicked = true;
 
         const expanded = expandState(compactState(state));
         const got = expanded.players[1].battlefield[0];
@@ -946,6 +942,7 @@ describe("game_state serialize round-trip", () => {
         expect(got.castFromGraveyardWithoutPayingManaCost).toBe(true);
         expect(got.transformed).toBe(true);
         expect(got.transformedFrom).toBe("front-def-id");
+        expect(got.wasKicked).toBe(true);
     });
 
     it("preserves phasedOut bundles across the round trip (CR 702.26)", () => {
