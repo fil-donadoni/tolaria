@@ -581,3 +581,68 @@ describe("useBattlefieldVisualState — Improvise artifact-tap affordance (CR 70
         expect(result.current.canInteract(mox)).toBe(true);
     });
 });
+
+// CR 205.4a / 613 (issue #1697 — Karakas "target legendary creature"). This
+// drives the SURFACE assertion through `useBattlefieldVisualState` itself —
+// not a direct call to `matchesPermanentTargetFilters` (already covered in
+// `src/lib/__tests__/card-utils.test.ts`) — so a regression that reverts the
+// hook's wiring back to the OLD narrow per-dimension mirrors (which had no
+// opinion on `supertypeFilter`) fails HERE even if the shared predicate
+// itself stays correct. That was the reviewed gap: two predicate-only tests
+// stayed green through a hook-wiring revert; this test does not.
+describe("useBattlefieldVisualState — supertypeFilter routed through the shared target-filter registry (Karakas, issue #1697)", () => {
+    function legendaryCreature(id: string): CardInstance {
+        return {
+            id,
+            // Embedded `supertypes` is the fast path `hasSupertypeLive`
+            // reads directly off `card.card` — no registry lookup needed
+            // (`convex/cards/snowReads.ts`).
+            card: { id: "plain-def", supertypes: ["Legendary"] },
+            controllerId: "me",
+            ownerId: "me",
+            zone: "battlefield",
+            isTapped: false,
+            isSummoningSick: false,
+            types: ["Creature"],
+            subtypes: [],
+            staticAbilities: [],
+        } as CardInstance;
+    }
+
+    function ctxSelectingLegendaryCreature() {
+        return {
+            phase: "PRECOMBAT_MAIN",
+            combat: undefined,
+            pendingTarget: {
+                playerId: "me",
+                targetType: "Creature",
+                supertypeFilter: ["Legendary"],
+                selected: [],
+            },
+        } as unknown as Partial<NonNullable<Ctx>>;
+    }
+
+    it("highlights the legendary creature as a valid target", () => {
+        const legend = legendaryCreature("legend1");
+        const me = makePlayer("me", [legend]);
+        const { result } = renderVisualState(
+            me,
+            ctxSelectingLegendaryCreature()
+        );
+
+        expect(result.current.getVisualState(legend).targetGlow).toBe(true);
+        expect(result.current.canInteract(legend)).toBe(true);
+    });
+
+    it("does NOT highlight a non-legendary creature — fails if the hook reverts to a narrow mirror with no supertype opinion", () => {
+        const plain = creature({ id: "plain1", isSummoningSick: false });
+        const me = makePlayer("me", [plain]);
+        const { result } = renderVisualState(
+            me,
+            ctxSelectingLegendaryCreature()
+        );
+
+        expect(result.current.getVisualState(plain).targetGlow).toBeFalsy();
+        expect(result.current.canInteract(plain)).toBe(false);
+    });
+});
