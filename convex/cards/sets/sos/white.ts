@@ -4,7 +4,7 @@
 // cost (CR 202.2): lands and colourless artifacts (no coloured cost) live in
 // colorless.ts.
 import type { CardDefinition, SpellContext } from "../../types";
-import { BASIC_LAND_SUBTYPES } from "../../types";
+import { isBasicLandCard } from "../../types";
 
 // Erode — "Destroy target creature or planeswalker. Its controller may
 // search their library for a basic land card, put it onto the battlefield
@@ -33,11 +33,12 @@ export const erode: CardDefinition = {
         // resume (CR 608.2c) — request it BEFORE the irreversible destroy so
         // destroy only ever executes once, on the final (answered) pass
         // (Cuombajj Witches precedent, arn/black.ts).
+        // CR 205.4a — "a basic land card" is the Basic SUPERTYPE, not a basic
+        // land SUBTYPE: a dual land (Tundra) is nonbasic and must not be
+        // findable here.
         const basics = ctx
             .getLibraryCards(controllerId)
-            .filter((c) =>
-                c.subtypes.some((s) => BASIC_LAND_SUBTYPES.includes(s))
-            );
+            .filter(isBasicLandCard);
         const found = ctx.requestChoice({
             playerId: controllerId,
             choiceId: `erode-search-${ctx.sourceInstanceId}`,

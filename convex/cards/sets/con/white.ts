@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 import type { CardDefinition, SpellContext } from "../../types";
-import { BASIC_LAND_SUBTYPES } from "../../types";
+import { isBasicLandCard } from "../../types";
 
 // Path to Exile — "Exile target creature. Its controller may search their
 // library for a basic land card, put that card onto the battlefield tapped,
@@ -28,11 +28,12 @@ export const pathToExile: CardDefinition = {
         // Request the choice BEFORE the irreversible exile so exile only ever
         // executes once, on the final (answered) pass (Cuombajj Witches
         // precedent, arn/black.ts — resolve() re-runs whole on resume).
+        // CR 205.4a — "a basic land card" is the Basic SUPERTYPE, not a basic
+        // land SUBTYPE: a dual land (Tundra) is nonbasic and must not be
+        // findable here.
         const basics = ctx
             .getLibraryCards(controllerId)
-            .filter((c) =>
-                c.subtypes.some((s) => BASIC_LAND_SUBTYPES.includes(s))
-            );
+            .filter(isBasicLandCard);
         const found = ctx.requestChoice({
             playerId: controllerId,
             choiceId: `path-to-exile-search-${ctx.sourceInstanceId}`,

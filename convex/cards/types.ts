@@ -5575,6 +5575,25 @@ export const BASIC_LAND_SUBTYPES: readonly string[] = [
     "Forest",
 ];
 
+/** "Basic land card" (CR 205.4a + CR 305.6) — a card with the `Basic`
+ *  SUPERTYPE and the `Land` type. NOT "a land with a basic land SUBTYPE": a
+ *  dual land (Tundra — `Land — Plains Island`, no supertype) carries basic
+ *  land types but is nonbasic, and must never satisfy a "search your library
+ *  for a basic land card" clause (Path to Exile, Erode).
+ *
+ *  Canonical predicate for the `resolve()`-side twin of the DSL's
+ *  `choice(zone: "library").filter = { type: "Land", supertype: "Basic" }` —
+ *  a `resolve()` card precomputing its `candidateIds` allow-list from
+ *  `getLibraryCards` must filter through THIS, never through
+ *  `BASIC_LAND_SUBTYPES` (which is a subtype constant and answers a different
+ *  question: Domain, Magical Hack, choose-a-basic-type modes). */
+export function isBasicLandCard(card: {
+    types: readonly CardType[];
+    supertypes: readonly CardSupertype[];
+}): boolean {
+    return card.types.includes("Land") && card.supertypes.includes("Basic");
+}
+
 /** Domain (CR 702 preamble ability word, issue #1066) — counts the DISTINCT
  *  basic land subtypes among lands `controllerId` controls (0–5, CR 305.6). A
  *  dual land (two basic subtypes) contributes both; scanned by CONTROLLER, not

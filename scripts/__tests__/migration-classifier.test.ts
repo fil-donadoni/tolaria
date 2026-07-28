@@ -1408,9 +1408,16 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // 467->464 (-3 closures), FREE 295->293 (-2), AFK-ready 283->282 (-1),
         // Op-blocked 158->157 (-1, one of the three carried a per-card test in
         // the Op-blocked bucket). X-only unchanged. Partition: 293+14+157=464.
+        //
+        // "basic land card" search fix (Erode `sos/white.ts`, Path to Exile
+        // `con/white.ts`): both `resolve()` closures gained their first
+        // per-card test file, and AFK-ready is FREE ∧ hasTest — so the two
+        // move from "need test" into the AFK-ready subset. No closure was
+        // added or migrated: total / FREE / X-only / Op-blocked all unchanged,
+        // only AFK-ready 282->284.
         expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(464);
         expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(293);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(282);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(284);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
         expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(157);
     });
