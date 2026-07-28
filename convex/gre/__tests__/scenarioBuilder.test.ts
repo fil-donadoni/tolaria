@@ -14,6 +14,7 @@ import { buildStateFromScenario } from "../scenarioBuilder";
 import { makePlayer, makeState } from "../../cards/__tests__/setup";
 import { grizzlyBears } from "../../cards/sets/lea/green";
 import { shivanDragon } from "../../cards/sets/lea/red";
+import { forest } from "../../cards/sets/lea/colorless";
 import type { ScenarioSpec } from "../../debugScenarioSpec";
 
 describe("buildStateFromScenario (issue #1424)", () => {
@@ -201,5 +202,34 @@ describe("buildStateFromScenario (issue #1424)", () => {
         buildStateFromScenario(base, spec);
 
         expect(base).toEqual(baseSnapshot);
+    });
+
+    // #946 (CR 601.3e / 608.2g) — `castableFromExile` stamps a this-turn
+    // play/cast-from-exile grant so the Debug panel can stage the affordance
+    // directly. CR 305.9 (issue #1689) — this debug helper models the
+    // LAND-INCLUSIVE grant shape (Headliner Scarlett / Expressive Iteration),
+    // so it must ALSO stamp `castableFromExileIncludesLand`: without it,
+    // `getLegalActions`'s (now zone/grant-aware) land branch would read the
+    // staged grant as cast-only and show no affordance at all, breaking the
+    // debug tool this field exists for.
+    it("`castableFromExile` stamps a land-inclusive play/cast-from-exile grant (issue #1689)", () => {
+        const base = makeState({ turn: 4 });
+        const spec: ScenarioSpec = {
+            cards: [
+                {
+                    name: forest.name,
+                    owner: "me",
+                    zone: "exile",
+                    castableFromExile: true,
+                },
+            ],
+        };
+
+        const state = buildStateFromScenario(base, spec);
+
+        const exiled = state.players[0].exile[0];
+        expect(exiled.castableFromExileBy).toBe(state.players[0].id);
+        expect(exiled.castableFromExileUntilTurn).toBe(4);
+        expect(exiled.castableFromExileIncludesLand).toBe(true);
     });
 });

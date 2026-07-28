@@ -151,11 +151,18 @@ export function buildStateFromScenario(
                 // #946 (CR 601.3e / 608.2g) — grant "me" a this-turn play-
                 // from-exile permission so a Play (land) / Cast (spell)
                 // affordance appears; the current turn stamps the expiry so
-                // it lapses at cleanup.
+                // it lapses at cleanup. CR 305.9 (issue #1689) — this debug
+                // helper models the LAND-INCLUSIVE grant shape (Headliner
+                // Scarlett / Expressive Iteration, per the doc above), so it
+                // also stamps `castableFromExileIncludesLand` — without it,
+                // `getLegalActions`'s land branch would now correctly (but
+                // unhelpfully for a debug scenario staging this exact
+                // affordance) treat the grant as cast-only.
                 if (entry.castableFromExile) {
                     const exiled = instance as CardInstanceState;
                     exiled.castableFromExileBy = player.id;
                     exiled.castableFromExileUntilTurn = state.turn;
+                    exiled.castableFromExileIncludesLand = true;
                 }
             } else {
                 if (entry.damageMarked && entry.damageMarked > 0) {
