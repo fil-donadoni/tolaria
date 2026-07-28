@@ -217,4 +217,26 @@ describe("LibraryOrderPicker", () => {
         fireEvent.click(done);
         expect(onConfirm).not.toHaveBeenCalled();
     });
+
+    // Ranged put-back (Sylvan Library's `rangedTopdeck`, CR 118.4, issue
+    // #1691): `min` 0 means "put none back and pay life for both" is legal, so
+    // Done is enabled with an empty top zone — and the top zone still accepts
+    // up to `keep`.
+    it("putBack mode with min 0 allows submitting an empty top zone", () => {
+        const onConfirm = vi.fn();
+        const { getByText } = renderPicker(
+            <LibraryOrderPicker
+                lookedAt={looked}
+                destination="none"
+                prompt="Sylvan Library"
+                submitting={false}
+                putBack={{ keep: 2, min: 0 }}
+                onConfirm={onConfirm}
+            />
+        );
+        const done = getByText("Done") as HTMLButtonElement;
+        expect(done.disabled).toBe(false);
+        fireEvent.click(done);
+        expect(onConfirm).toHaveBeenCalledWith([], ["a", "b", "c"]);
+    });
 });

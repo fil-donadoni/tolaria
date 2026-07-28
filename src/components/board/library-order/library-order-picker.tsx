@@ -172,11 +172,15 @@ export default function LibraryOrderPicker({
         categories?: PickCategory[];
     };
     /** `putBack` mode (Brainstorm, CR 401.4): the LEFT zone is the HAND (source
-     *  pool), the RIGHT zone the TOP OF LIBRARY — pull EXACTLY `keep` cards onto
+     *  pool), the RIGHT zone the TOP OF LIBRARY — pull up to `keep` cards onto
      *  the top and order them (right = topmost). The top zone is HARD-CAPPED at
      *  `keep`; leftover hand cards move nowhere (`onConfirm`'s second array is
-     *  ignored by the caller). Mutually exclusive with `distribute`. */
-    putBack?: { keep: number };
+     *  ignored by the caller). `min` (default = `keep`, the exact Brainstorm
+     *  shape) is the FLOOR: a RANGED put-back (Sylvan Library's `rangedTopdeck`,
+     *  CR 118.4 — put back or pay life per kept card, issue #1691) passes
+     *  `min` 0 so the player may put none back, or the CR 119.4 floor when they
+     *  cannot pay for every kept card. Mutually exclusive with `distribute`. */
+    putBack?: { keep: number; min?: number };
     /** `topTopmostFirst` = kept cards, topmost first (or the HAND cards in
      *  `distribute` mode / the cards put on top in `putBack` mode); `secondIds`
      *  = the rest, ordered, sent to the destination (empty for `none` and
@@ -226,9 +230,13 @@ export default function LibraryOrderPicker({
     const poolMode = distribute !== undefined || putBack !== undefined;
     const keep = distribute?.keep ?? putBack?.keep;
     const topCap = putBack ? putBack.keep : undefined;
-    // Optional-dig floor (Narset): the hand may hold as few as `min`. `putBack`
-    // and the mandatory dig keep the exact-`keep` requirement (min === keep).
-    const minKeep = distribute ? (distribute.min ?? distribute.keep) : keep;
+    // Optional-dig floor (Narset): the hand may hold as few as `min`. The
+    // mandatory dig and Brainstorm's put-back keep the exact-`keep` requirement
+    // (min === keep); a RANGED put-back (Sylvan Library, issue #1691) passes its
+    // own `min` — 0 at a healthy life total, the CR 119.4 floor otherwise.
+    const minKeep = distribute
+        ? (distribute.min ?? distribute.keep)
+        : (putBack?.min ?? keep);
     // Hand-eligible allow-list (Narset's "noncreature, nonland"): a card outside
     // it can never sit in the HAND (top) zone. Undefined = every card eligible.
     // The array ref is stable across renders (from the projected choice), so the
