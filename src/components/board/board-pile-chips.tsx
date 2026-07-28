@@ -29,6 +29,7 @@ export default function BoardPileChips({ player }: { player: Player }) {
                 count={player.graveyard.length}
                 onClick={() => toggle("graveyard")}
                 data-testid={`chip-graveyard-${player.id}`}
+                data-arrow-anchor-graveyard={player.id}
             />
             <PileChip
                 label="LIB"
@@ -44,8 +45,26 @@ export default function BoardPileChips({ player }: { player: Player }) {
             />
 
             {/* Pile components in controlled-open mode: they render ONLY their
-                reveal dialog (no collapsed visual), driven by the chips above. */}
-            <div className="sr-only">
+                reveal dialog (no collapsed visual), driven by the chips above.
+                `hidden` (display:none), NOT `sr-only` (a 1px clip box) — a
+                `fixed` overlay cannot escape an ancestor CLIP, only an
+                ancestor that is unrendered (Portent portal-fix bug class).
+                Each pile still renders an empty `w-(--card-w-sm) aspect-5/7`
+                box when `controlled` and closed; `display:none` collapses
+                that box to nothing, so this stays layout-neutral. Portaled
+                dialogs (GameDialog's Base UI portal, LibraryOrderPicker's
+                `createPortal` to `document.body`) render outside this
+                subtree regardless, so they stay interactive while it is
+                hidden.
+
+                `display:none` also zeroes `getBoundingClientRect()`, so
+                `PlayerGraveyard`'s `data-arrow-anchor-graveyard` below is a
+                degenerate anchor while hidden (useDomAnchorPublisher now
+                skips zero-rect anchors rather than publish a wrong one) — the
+                GY chip above carries the SAME attribute so graveyard-card
+                target arrows (Regrowth, Raise Dead, Animate Dead) have a real,
+                visible anchor to land on. */}
+            <div className="hidden">
                 <PlayerGraveyard
                     player={player}
                     open={openZone === "graveyard"}

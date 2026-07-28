@@ -72,6 +72,16 @@ export function useDomAnchorPublisher(
                     const id = el.getAttribute(attr);
                     if (!id) return;
                     const r = el.getBoundingClientRect();
+                    // A `display:none` ancestor (BoardPileChips' hidden dialog
+                    // wrapper, the portrait Zones drawer while closed)
+                    // collapses this element to an all-zero rect. Publishing
+                    // it would draw graveyard-card arrows (Regrowth, Raise
+                    // Dead, Animate Dead) to the board's top-left corner — no
+                    // anchor beats a wrong anchor, so skip it. If this
+                    // publisher previously owned a real anchor for this id,
+                    // omitting it from `seen` below lets the vanished-anchor
+                    // cleanup unpublish the stale point.
+                    if (r.width === 0 && r.height === 0) return;
                     publish(kind, id, {
                         x: r.left - rootRect.left + r.width / 2,
                         y: r.top - rootRect.top + r.height / 2,
