@@ -6139,6 +6139,20 @@ export interface CardDrawnEvent {
     /** Number of cards actually drawn (>= 1; library exhaustion may make this
      *  fewer than the requested amount). */
     count: number;
+    /** 0-based index of THIS draw among the drawing player's draws this turn
+     *  (CR 121.1) — the trigger-side twin of
+     *  `DrawReplacementEvent.drawIndexThisTurn`, which reads the same
+     *  `PlayerState.drawnThisTurn` field at the earlier replacement-discovery
+     *  seam. Stamped by `emitCardDrawn` (`gre/state.ts`) so a batch draw fans
+     *  out indices n, n+1, n+2, ... rather than N identical copies. Feeds
+     *  "whenever a player draws their Nth card each turn" trigger conditions
+     *  (`nthDrawThisTurn`, `cards/abilities/triggers/drawTrigger.ts` —
+     *  Faerie Mastermind, issue #781). Optional so a pre-#781 hand-built
+     *  event literal (tests predating this field) still type-checks;
+     *  `nthDrawThisTurn` treats `undefined` as the drawing player's FIRST
+     *  draw (index 0), mirroring `nthSpellThisTurn`'s own fallback
+     *  convention for `casterSpellCountThisTurn`. */
+    drawIndexThisTurn?: number;
 }
 
 /** Emitted whenever a card is discarded — moved from a player's hand to their
