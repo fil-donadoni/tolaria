@@ -964,10 +964,14 @@ export function projectPublicState(
         // card's identity to opponents (a maximal, continuous form of the
         // per-card `knownTo` reveal).
         const handRevealed = handRevealedPlayers.has(player.id);
-        // issue #1698 — a `choose-hand-card` pick anchored on THIS player's
-        // hand exposes it face-up to the chooser ALONE for exactly as long
-        // as the choice is head-of-queue (`handPickZoneOwner`, gated above on
-        // `viewerId` already being that choice's chooser) — independent of
+        // issue #1698 — a hand pick of ANY kind (`choose-hand-card`,
+        // `discard-hand`, …) anchored on THIS player's hand exposes it
+        // face-up to the chooser ALONE for exactly as long as the choice is
+        // head-of-queue (`handPickZoneOwner`, gated above on `viewerId`
+        // already being that choice's chooser). The gate keys on
+        // chooser≠owner, NOT on `kind` — keying on kind is what let Mind Warp
+        // and Leshrac's Sigil (`discard-hand`) hang. `reveal-hand` is the one
+        // deliberate exclusion: it has its own `revealedHand` path — independent of
         // `handRevealed`/`knownTo`, which stay whatever incidental mechanism
         // (a continuous static, an explicit prior `reveal`) put them there.
         const handPickExposed = player.id === handPickZoneOwner;

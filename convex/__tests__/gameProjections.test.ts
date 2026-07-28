@@ -541,12 +541,39 @@ describe("reorder/peek/reveal exposure (issue #262, CR 401.4)", () => {
     );
 
     it.each(["choose-hand-card", "discard-hand"] as const)(
-        "does NOT expose the zone owner's hand once the pick is no longer head-of-queue (%s)",
+        "does NOT expose the zone owner's hand once the pick has left the queue (%s)",
         (kind) => {
-            // Same zoneOwnerId/hand shape, but the choice has left the
-            // queue — pins the "only while head-of-queue" half of the
-            // exposure, which the original vacuous test never exercised.
+            // Same zoneOwnerId/hand shape, but the choice is gone — pins the
+            // "only while the pick is live" half of the exposure, which the
+            // original vacuous test never exercised.
             const state = { ...stateWithHandPick(kind), pendingChoices: [] };
+            const result = projectPublicState(state, 1, "p1");
+            const owner = result.players.find((p) => p.id === "p2")!;
+            expect(owner.hand).toEqual([null, null, null]);
+        }
+    );
+
+    it.each(["choose-hand-card", "discard-hand"] as const)(
+        "does NOT expose the zone owner's hand while the pick sits BEHIND another choice (%s)",
+        (kind) => {
+            // Distinct from the test above: the pick is still in the queue,
+            // just not at its head. This is what pins "head-of-queue only" —
+            // clearing the queue entirely would also pass if the gate scanned
+            // every entry instead of `pendingChoices[0]`.
+            const head = stateWithHandPick(kind).pendingChoices![0];
+            const state = makeState({
+                pendingChoices: [
+                    {
+                        stackItemId: "s0",
+                        step: 0,
+                        choiceId: "unrelated",
+                        playerId: "p1",
+                        kind: "option",
+                        prompt: "Something else first",
+                    },
+                    head,
+                ],
+            } as Parameters<typeof makeState>[0]);
             const result = projectPublicState(state, 1, "p1");
             const owner = result.players.find((p) => p.id === "p2")!;
             expect(owner.hand).toEqual([null, null, null]);
