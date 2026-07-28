@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Bug } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ABOVE_CONTROLLER_BAR } from "~/lib/controller-bar-metrics";
 import BugReportDialog from "./bug-report-dialog";
 
 /**
@@ -20,10 +21,17 @@ export default function BugReportButton() {
                 aria-label="Report a bug"
                 title="Report a bug"
                 onClick={() => setOpen(true)}
-                // Bottom-RIGHT, and above the portrait bottom bar on mobile:
-                // bottom-left collided with the dev rail / You tab, and
-                // bottom-4 sat under the action bar (mobile UX audit 2026-07).
-                className="z-sheet fixed bottom-32 right-3 rounded-full shadow-md md:bottom-4 md:right-4"
+                // Bottom-RIGHT. Below md, anchored to the portrait bottom
+                // bar's MEASURED height ({@link ABOVE_CONTROLLER_BAR},
+                // #1759/#1764) instead of the old fixed `bottom-32` — that
+                // inset was correct only for the bar's one-line state, and
+                // the grown (two-line, DECLARE_ATTACKERS) bar covered this
+                // button. `z-dev-overlay` (not `z-sheet`) keeps it strictly
+                // below any open bottom sheet or modal: this button mounts at
+                // the router root AFTER the board, so an equal z-index still
+                // wins DOM-order ties and painted over the phase sheet,
+                // eating taps meant for the sheet's own controls (#1764).
+                className={`fixed ${ABOVE_CONTROLLER_BAR} right-3 z-dev-overlay rounded-full shadow-md md:bottom-4 md:right-4`}
             >
                 <Bug />
             </Button>

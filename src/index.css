@@ -655,6 +655,17 @@
            collides. Everything above the board uses these named layers so the
            modal band (100+) has exactly three rungs. */
         --z-hud: 40;
+        /* Dev-only overlays (the left DEV rail, the bug-report button, issue
+           #1764). They must float above the board/HUD (40) so they stay
+           usable, but strictly below any bottom sheet or modal (50+) — a
+           dev overlay sitting on top of an open phase sheet ate taps meant
+           for the sheet's own controls (mobile UX audit, #1758). A shared
+           numeric rung (rather than reusing `z-sheet`) makes this true
+           regardless of DOM mount order: `BugReportButton` mounts at the
+           router root, AFTER the board (and therefore after the phase
+           sheet) in document order, so an equal z-index would still win
+           ties and paint on top. */
+        --z-dev-overlay: 45;
         --z-sheet: 50;
         --z-arrows: 60;
         --z-modal: 100;
@@ -687,6 +698,9 @@
     /* Named z layers — see --z-* vars above. */
     .z-hud {
         z-index: var(--z-hud);
+    }
+    .z-dev-overlay {
+        z-index: var(--z-dev-overlay);
     }
     .z-sheet {
         z-index: var(--z-sheet);
