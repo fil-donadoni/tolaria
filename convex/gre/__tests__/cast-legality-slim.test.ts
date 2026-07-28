@@ -15,6 +15,7 @@ import {
 } from "../../cards/__tests__/setup";
 import {
     ankhOfMishra,
+    copyArtifact,
     elvishArchers,
     forest,
     island,
@@ -27,6 +28,7 @@ import {
 } from "../../cards/sets/lea";
 import { metallicRebuke } from "../../cards/sets/aer";
 import { startingTown } from "../../cards/sets/fin";
+import { archaeologicalDig } from "../../cards/sets/inv";
 import { registerTokenDefinition } from "../../cards";
 import type { CardDefinition } from "../../cards/types";
 import type { GameState, PlayerState, StackItem } from "../state";
@@ -61,6 +63,44 @@ const reorderedStartingTown: CardDefinition = {
     ],
 };
 registerTokenDefinition(reorderedStartingTown);
+
+// Review finding (issue #1695, PR #1731): the REORDERED_TOWN_ID probe above
+// does NOT actually pin declaration-order-independence — both its abilities
+// produce exactly 1 unit, so the pre-#1695 "pick the ability with the most
+// units, ties go to whichever was seen first" tie-break already keeps the
+// FIRST-declared one regardless of which ability that is, and here the
+// any-color ability happens to be declared first. Reverting the union fix
+// entirely does not turn this test red. The probe below pins the direction
+// that DOES turn red on a revert: a LONGER ability (2 units) declared first,
+// with a SHORTER, differently-colored ability (1 unit) declared second — the
+// old tie-break (strict `>`) never lets the second ability in at all, no
+// matter its color, since it can never exceed the first ability's length.
+const SHORTER_SECOND_ID = "test:shorter-ability-second";
+const shorterAbilitySecond: CardDefinition = {
+    id: SHORTER_SECOND_ID,
+    rarity: "rare",
+    name: "Shorter Ability Second (test probe)",
+    types: ["Land"],
+    activatedAbilities: [
+        {
+            id: "shorter-second-colorless-cc",
+            oracleText: "{T}: Add {C}{C}.",
+            cost: { tap: true },
+            useStack: false,
+            effect: (ctx) => ctx.addMana({ C: 2 }),
+            manaProduced: { C: 2 },
+        },
+        {
+            id: "shorter-second-blue-life",
+            oracleText: "{T}, Pay 1 life: Add {U}.",
+            cost: { tap: true, life: 1 },
+            useStack: false,
+            effect: (ctx) => ctx.addMana({ U: 1 }),
+            manaProduced: { U: 1 },
+        },
+    ],
+};
+registerTokenDefinition(shorterAbilitySecond);
 
 function withTurnOf(state: GameState, playerId: string): GameState {
     return {
@@ -294,6 +334,82 @@ describe("cast affordability with competing tap-mana abilities (issue #1695)", (
         const state = withTurnOf(makeState({ players: [player] }), "p1");
 
         expect(getLegalActions(state, player, bolt)).toContain("cast");
+    });
+});
+
+// Review finding 2 (issue #1695, PR #1731): a real declaration-order guard,
+// in the direction the REORDERED_TOWN_ID probe above cannot detect (see the
+// comment on `shorterAbilitySecond`). A LONGER colorless ability ({T}: Add
+// {C}{C}, 2 units) declared FIRST must not shadow a SHORTER, differently
+// colored ability ({T}, Pay 1 life: Add {U}, 1 unit) declared SECOND — the
+// pre-#1695 single-"best"-ability tie-break (strict `>`, first-seen wins
+// ties) never lets the second ability contribute at all once the first is
+// longer, regardless of color. Copy Artifact ({1}{U}) forces BOTH a generic
+// pip (only the {C}{C} ability can pay it) and a colored {U} pip (only the
+// life-cost ability can pay it) to be satisfied from ONE land, so this only
+// passes when the two abilities' outputs are correctly unioned across unit
+// positions rather than one ability being picked over the other.
+describe("cast affordability — shorter ability declared second (issue #1695 finding 2)", () => {
+    function onBattlefield(defId: string, id: string) {
+        return makeInstance(defId, {
+            id,
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+            isTapped: false,
+        });
+    }
+
+    it("a 2-unit colorless ability declared first does not shadow a shorter, differently-colored ability declared second", () => {
+        const copy = makeInstance(copyArtifact.id, {
+            controllerId: "p1",
+            zone: "hand",
+        });
+        const player = makePlayer("p1", {
+            hand: [copy],
+            battlefield: [onBattlefield(SHORTER_SECOND_ID, "probe")],
+            manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
+        });
+        const state = withTurnOf(makeState({ players: [player] }), "p1");
+
+        expect(getLegalActions(state, player, copy)).toContain("cast");
+    });
+});
+
+// Review finding 1 (issue #1695, PR #1731, blocking): the union offered casts
+// that could never be paid. Archaeological Dig ("{T}: Add {C}." / "{T},
+// Sacrifice this land: Add one mana of any color.") has a non-sacrifice tap
+// ability, so the real payment authority (`getManaTapOptionsDetailed`'s
+// `combined = nonSacrifice.length > 0 ? nonSacrifice : sacrifice`,
+// constants.ts) NEVER offers the sacrifice ability's five colors — only {C}
+// is ever payable without sacrificing. The old per-ability union in
+// `getProducibleManaUnits` didn't know about that preference and folded the
+// sacrifice ability's colors in anyway, so a colored spell wrongly showed a
+// Cast button the payment step then refused.
+describe("cast affordability — Archaeological Dig's sacrifice colors aren't payable (issue #1695 finding 1)", () => {
+    function onBattlefield(defId: string, id: string) {
+        return makeInstance(defId, {
+            id,
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+            isTapped: false,
+        });
+    }
+
+    it("Archaeological Dig alone cannot cast a colored spell — only {C} is ever produced without sacrificing", () => {
+        const bolt = makeInstance(lightningBolt.id, {
+            controllerId: "p1",
+            zone: "hand",
+        });
+        const player = makePlayer("p1", {
+            hand: [bolt],
+            battlefield: [onBattlefield(archaeologicalDig.id, "dig")],
+            manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
+        });
+        const state = withTurnOf(makeState({ players: [player] }), "p1");
+
+        expect(getLegalActions(state, player, bolt)).not.toContain("cast");
     });
 });
 

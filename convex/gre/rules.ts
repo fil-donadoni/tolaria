@@ -18,7 +18,6 @@ import {
     CASTABLE_PERMANENT_TYPES,
     DAMAGEABLE_PERMANENT_TYPES,
     LAND_DROPS_PER_TURN,
-    LAND_SUBTYPE_MANA,
     MANA_COLORS,
     PLACEHOLDER_CARD_ID,
     abilitiesSuppressed,
@@ -963,93 +962,79 @@ export function getProducibleManaOptions(
  *  activation (CR 605.1a) — but when a permanent declares MULTIPLE tap
  *  abilities (Starting Town: "{T}: Add {C}" and "{T}, Pay 1 life: Add one mana
  *  of any color", issue #1695) they are ALTERNATIVES for that same tap, not
- *  competitors where only the "best" one counts. We union every ability's
- *  color options into each unit position instead of picking a single winner:
- *  the unit COUNT is the largest quantity any one ability can produce (only
- *  one ability fires per tap, so quantity can't be summed across abilities —
- *  matches the existing "real quantity, not one-per-source" rule), and each
- *  position's COLOR SET is the union of every ability's color option at that
- *  position (an ability producing fewer units than the max only contributes
- *  to the leading positions, since it can never reach a later one). This
- *  keeps the tie-break-order-independent (issue #1695 AC) and preserves the
- *  Sol Ring-style two-mana case (only one ability, no regression).
+ *  competitors where only the "best" one counts.
  *
- *  A tap-plus-life ability's colors are unioned in exactly like a free tap
- *  ability's — the same "errs toward affordable" bias this planner already
- *  applies to Improvise/Delve/Convoke pseudo-sources and the intrinsic
- *  basic-land subtype fold-in below: the gate answers "could this source ever
- *  pay a pip of this color", not "can the player afford every side cost of
- *  every alternative simultaneously". Whether the auto-tap planner actually
- *  commits to paying the life cost is a separate, later concern (out of scope
- *  here — see `getProducibleManaOptions`, which already enumerates both
- *  abilities as distinct options for the real payment planner).
+ *  Single-authority form (issue #1695 finding 1, review-blocking): the unit
+ *  list is derived from `getManaTapOptionsDetailed(…, { requireTap: true })`
+ *  — the SAME list `getProducibleManaOptions` (the real auto-tap payment
+ *  planner) and the tap mutations read — instead of re-deriving a parallel
+ *  ability filter here. A prior version of this fix unioned every
+ *  `activatedAbilities` entry with `!ability.cost.tap` as the only exclusion,
+ *  which missed that `getManaTapOptionsDetailed` ALSO drops every
+ *  sacrifice-cost option whenever a non-sacrifice tap option exists on the
+ *  same source (`combined = nonSacrifice.length > 0 ? nonSacrifice :
+ *  sacrifice` — "prefer non-destructive options; fall back to sacrifice only
+ *  when there is no other way to tap this source for mana", constants.ts).
+ *  Archaeological Dig ("{T}: Add {C}" / "{T}, Sacrifice: Add one mana of any
+ *  color") is the case: only {C} is ever payable, but the old per-ability
+ *  union offered the gate all five colors — a false-positive Cast button the
+ *  payment step then refused. Routing through the shared helper makes the
+ *  gate and the payment planner agree by construction; a life-cost ability
+ *  (Starting Town) is NOT bucketed as a sacrifice option (only `cost
+ *  .sacrifice` is), so the already-verified "errs toward affordable" bias for
+ *  life costs is unchanged.
  *
- *  The intrinsic basic-land subtypes (CR 305.6) are additional single-mana
- *  ALTERNATIVES on top of that (a land under Urborg can tap for {B} instead of
- *  its own output), so their colours are folded in as extra options on every
- *  unit position. A choice ability (dual land / Talisman) is one mana whose
- *  color set is the union of its options. */
+ *  Every entry in the shared list (`ManaTapOption`) is one whole tap
+ *  alternative — one ability's output, or one basic-land-subtype's intrinsic
+ *  `{T}: Add C` (CR 305.6, folded in by `getManaTapOptionsDetailed` itself) —
+ *  and only ONE alternative is ever used per tap. Each alternative is expanded
+ *  into its own ordered per-mana colour-set list (one entry per unit of mana
+ *  it produces), then every alternative is unioned position-by-position: the
+ *  unit COUNT is the largest quantity any single alternative can produce
+ *  (matches the existing "real quantity, not one-per-source" rule — only one
+ *  alternative fires per tap, so quantity can't be summed across them), and
+ *  each position's COLOR SET is the union of every alternative's colour at
+ *  that position. An alternative shorter than the max simply has nothing to
+ *  contribute past its own length, so it never inflates the quantity another
+ *  alternative alone wouldn't already claim. This keeps the result
+ *  declaration-order-independent (issue #1695 AC) and preserves the Sol
+ *  Ring-style two-mana case (only one ability, no regression). A choice
+ *  ability (dual land / Talisman) contributes one option per choice, so its
+ *  colours land in the union exactly like the old "one unit, colors = union
+ *  of choices" special case did.
+ *
+ *  NOTE — `manaRestriction` is NOT consulted here, same as before this
+ *  rewrite: this list only tracks which raw colours a source could ever
+ *  produce, not whether the resulting mana is legally spendable on a given
+ *  spell. Restricted mana is honoured only once it reaches the pool, at
+ *  `coloredCostLeftover` below (CR 106.6). A future permanent combining an
+ *  UNRESTRICTED `{C}` tap ability with a SEPARATE RESTRICTED-colour tap
+ *  ability would leak the restricted colour into this gate as if it were
+ *  freely spendable — no such card exists yet; flag it if one is added. */
 function getProducibleManaUnits(card: CardInstanceState): Set<Color>[] {
-    const cardId = (card.card as { id?: string }).id;
-    const def = cardId ? tryGetDefinition(cardId) : undefined;
+    // requireTap: only a genuine {T} ability counts as an auto-payable "unit"
+    // — mirrors `getProducibleManaOptions`, the real auto-tap planner.
+    const detailed = getManaTapOptionsDetailed(card, undefined, undefined, {
+        requireTap: true,
+    });
 
-    // CR 613.1f — suppress PRINTED activated mana abilities while the source
-    // has lost all abilities (Blood Moon / Titania's Song); fall through to the
-    // intrinsic basic-land subtype path below.
-    const perAbilityUnits: Set<Color>[][] = [];
-    for (const ability of abilitiesSuppressed(card)
-        ? []
-        : (def?.activatedAbilities ?? [])) {
-        if (ability.useStack) continue;
-        if (!ability.cost.tap) continue;
-
+    const perOptionUnits: Set<Color>[][] = detailed.map((opt) => {
         const units: Set<Color>[] = [];
-        if (ability.manaProduced) {
-            for (const c of MANA_COLORS) {
-                const amount = ability.manaProduced[c] ?? 0;
-                for (let i = 0; i < amount; i++)
-                    units.push(new Set<Color>([c]));
-            }
+        for (const c of MANA_COLORS) {
+            const amount = opt.mana[c] ?? 0;
+            for (let i = 0; i < amount; i++) units.push(new Set<Color>([c]));
         }
-        if (ability.manaChoices) {
-            const colors = new Set<Color>();
-            for (const choice of ability.manaChoices) {
-                for (const c of MANA_COLORS) {
-                    if ((choice[c] ?? 0) > 0) colors.add(c);
-                }
-            }
-            if (colors.size > 0) units.push(colors);
-        }
-        if (units.length > 0) perAbilityUnits.push(units);
-    }
+        return units;
+    });
 
-    // Union across alternatives: quantity = the longest single ability's
-    // production (only one ability fires per tap); each position's colors =
-    // every ability's option at that position, ORed together. An ability
-    // shorter than the max simply has nothing to contribute past its own
-    // length — it never inflates the quantity another ability alone
-    // wouldn't already claim.
-    const maxLen = perAbilityUnits.reduce((m, u) => Math.max(m, u.length), 0);
+    const maxLen = perOptionUnits.reduce((m, u) => Math.max(m, u.length), 0);
     const best: Set<Color>[] = [];
     for (let i = 0; i < maxLen; i++) {
         const colors = new Set<Color>();
-        for (const units of perAbilityUnits) {
+        for (const units of perOptionUnits) {
             for (const c of units[i] ?? []) colors.add(c);
         }
         best.push(colors);
-    }
-
-    // CR 305.6: basic land subtypes grant an intrinsic one-mana ability, a tap
-    // ALTERNATIVE to the source's own ability. Fold their colours into each
-    // unit (or seed the units when the source has no activated ability).
-    const subtypeColors = new Set<Color>();
-    for (const subtype of card.subtypes) {
-        const c = LAND_SUBTYPE_MANA[subtype];
-        if (c) subtypeColors.add(c);
-    }
-    if (subtypeColors.size > 0) {
-        if (best.length === 0) return [subtypeColors];
-        return best.map((u) => new Set<Color>([...u, ...subtypeColors]));
     }
     return best;
 }
