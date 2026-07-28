@@ -27,11 +27,13 @@ import { matchesPermanentFilter } from "@convex/cards/filters";
 import { getColorsFromCost, getCardColorIdentity } from "@convex/cards/colors";
 import { tryGetDefinition } from "@convex/cards";
 import type { Color } from "@convex/cards/types";
+import { STATIC_EFFECT_CTX } from "@convex/gre/layers";
 import type {
     BotAction,
     BotView,
     CastExileChoiceView,
     ChoiceCandidate,
+    ConvokeChoiceView,
     ManaSituation,
     ManaSpendChoiceView,
     OwedChoice,
@@ -217,6 +219,42 @@ function buildCastExileChoiceView(
           : ec.count;
     const maximum = ec.offsetGeneric ? ec.offsetGeneric.max : required;
     return { candidateIds, required, maximum };
+}
+
+/** CR 702.51 (issue #1338) — read the parked Convoke creature picker awaiting the
+ *  bot as PAYER of its own cast (Hogaak). `pendingCast` rides the wire un-slimmed
+ *  and the bot's own battlefield is fully visible, so this is a direct read
+ *  mirroring `buildCastExileChoiceView`. Each candidate carries its live colours
+ *  (the SAME `STATIC_EFFECT_CTX.getColors` the server validates coverage with) so
+ *  `chooseConvokeCreatures` can colour-match the hybrid pips. Undefined unless the
+ *  bot itself owes an UNPAID pick. */
+function buildConvokeChoiceView(
+    state: PublicGameState,
+    botId: string
+): ConvokeChoiceView | undefined {
+    const pc = state.pendingCast;
+    const cc = pc?.convokeCreatureChoice;
+    if (!pc || !cc || pc.playerId !== botId || cc.pickedCreatureIds) {
+        return undefined;
+    }
+    const bot = state.players.find((p) => p.id === botId);
+    const candidates = (bot?.battlefield ?? [])
+        .filter(
+            (c) => c.types?.includes("Creature") === true && c.isTapped !== true
+        )
+        .map((c) => ({
+            id: c.id,
+            colors: STATIC_EFFECT_CTX.getColors(
+                c as Parameters<typeof STATIC_EFFECT_CTX.getColors>[0]
+            ) as string[],
+        }));
+    return {
+        candidates,
+        hybridPips: cc.hybridPips as [string, string][],
+        coloredPips: (cc.coloredPips ?? {}) as Record<string, number>,
+        min: cc.min,
+        max: cc.max,
+    };
 }
 
 /** Read the cards the bot may legally pick for `head` from its projected view.
@@ -655,6 +693,7 @@ export function buildBotView(state: PublicGameState, botId: string): BotView {
     // CR 601.2g / 702.66 (issue #1336) — the parked cast-cost graveyard exile
     // picker (delve; flashback / escape exile costs).
     view.castExileChoice = buildCastExileChoiceView(state, botId);
+    view.convokeChoice = buildConvokeChoiceView(state, botId);
 
     return view;
 }
@@ -820,10 +859,11 @@ export function botActionToMove(
         // attack-tax pay-cancel / no-op), never translated to a Move here.
         // `search-choice` in particular carries no answer of its own — the
         // Worker's returned Move IS the submission (issue #1506).
-        // `cast-exile-cost` (CR 601.2g / 702.66, issue #1336) likewise: the
-        // parked cast-cost graveyard exile pick hangs off `pendingCast`, not
-        // `pendingChoices[]`, so it is driven straight through
-        // `selectCastExileCost` and has no Move to translate into.
+        // `cast-exile-cost` (CR 601.2g / 702.66, issue #1336) and
+        // `convoke-creatures` (CR 702.51, issue #1338) likewise: the parked
+        // cast-cost pickers hang off `pendingCast`, not `pendingChoices[]`, so
+        // they are driven straight through `selectCastExileCost` /
+        // `selectConvokeCreatures` and have no Move to translate into.
         case "search-choice":
         case "pass":
         case "declare-attackers":
@@ -833,6 +873,7 @@ export function botActionToMove(
         case "cancel-attack-tax":
         case "resolve-mana-spend":
         case "cast-exile-cost":
+        case "convoke-creatures":
         case "none":
             return null;
         default:

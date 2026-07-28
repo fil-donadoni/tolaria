@@ -107,6 +107,28 @@ export type BotView = {
      *  `BotView` field rather than an `OwedChoice`. Undefined unless the bot
      *  itself owes the pick. */
     castExileChoice?: CastExileChoiceView;
+    /** CR 702.51 (`payWith`, ADR 0063 — issue #1338) — the parked Convoke
+     *  creature picker awaiting the bot as PAYER of its own cast (Hogaak). Like
+     *  `castExileChoice` it lives OUTSIDE `pendingChoices[]` (it hangs off
+     *  `pendingCast`), so it is its own `BotView` field. Undefined unless the bot
+     *  itself owes the pick. */
+    convokeChoice?: ConvokeChoiceView;
+};
+
+/** The parked Convoke creature picker (CR 702.51), reduced to what the bot's
+ *  deterministic picker needs. Built by `buildBotView` from the bot's own
+ *  untapped creatures + their colours. */
+export type ConvokeChoiceView = {
+    /** The bot's untapped creatures it may tap, each with its live colours. */
+    candidates: { id: string; colors: string[] }[];
+    /** Guild-hybrid pips convoke MUST satisfy (colour-matched). */
+    hybridPips: [string, string][];
+    /** Single-colour pips convoke must satisfy (usually empty). */
+    coloredPips: Record<string, number>;
+    /** Forced minimum creatures to tap. */
+    min: number;
+    /** Maximum creatures to tap. */
+    max: number;
 };
 
 /** The parked graveyard/hand exile CAST cost (CR 601.2g / 702.66 / 702.34a),
@@ -327,6 +349,15 @@ export type BotAction =
           kind: "cast-exile-cost";
           cardInstanceIds: string[];
       }
+    | {
+          /** CR 702.51 (`payWith`, ADR 0063 — issue #1338) — the parked Convoke
+           *  creature picker: the creatures the bot taps to pay. Driven straight
+           *  through `selectConvokeCreatures`, mirroring `cast-exile-cost` (it
+           *  lives outside `pendingChoices[]`, so the Worker surfaces no move for
+           *  it and would stall on it forever). */
+          kind: "convoke-creatures";
+          creatureInstanceIds: string[];
+      }
     | { kind: "pass" }
     | { kind: "none" };
 
@@ -360,6 +391,7 @@ export type BotActionRealisation =
     | "attack-tax"
     | "mana-spend"
     | "cast-exile-cost"
+    | "convoke-creatures"
     | "none";
 
 export function botActionRealisation(
@@ -389,6 +421,13 @@ export function botActionRealisation(
         // it and the bot would stall mid-cast without this branch.
         case "cast-exile-cost":
             return "cast-exile-cost";
+        // CR 702.51 (issue #1338) — the parked convoke creature picker is
+        // resolved by a direct mutation (`selectConvokeCreatures`), like the
+        // cast-exile-cost park above: it hangs off `pendingCast`, not
+        // `pendingChoices[]`, so no Worker search can answer it and the bot
+        // would stall mid-cast (Hogaak) without this branch.
+        case "convoke-creatures":
+            return "convoke-creatures";
         case "keep":
         case "mull":
         case "mulligan-bottom":
@@ -1002,6 +1041,57 @@ export function chooseCastExileCost(choice: CastExileChoiceView): string[] {
     return choice.candidateIds.slice(0, Math.max(0, n));
 }
 
+/** CR 702.51 (issue #1338) — the bot's deterministic answer to a parked Convoke
+ *  creature picker: pick a MINIMAL legal covering set. Colour-match the
+ *  single-colour and guild-hybrid pips convoke must pay (each to the
+ *  least-flexible untapped creature that can pay it — the same greedy the server
+ *  validates with, `coverColoredAndHybridPips`), then top up to the forced `min`
+ *  with any remaining creatures, capped at `max`. Pure and deterministic. */
+export function chooseConvokeCreatures(choice: ConvokeChoiceView): string[] {
+    const pool = choice.candidates.map((c) => ({
+        id: c.id,
+        colors: new Set(c.colors),
+    }));
+    const used = new Set<string>();
+    const pickLeastFlexible = (
+        pred: (colors: Set<string>) => boolean
+    ): string | undefined => {
+        let bestId: string | undefined;
+        let bestSize = Infinity;
+        for (const cand of pool) {
+            if (used.has(cand.id)) continue;
+            if (pred(cand.colors) && cand.colors.size < bestSize) {
+                bestId = cand.id;
+                bestSize = cand.colors.size;
+            }
+        }
+        if (bestId !== undefined) used.add(bestId);
+        return bestId;
+    };
+    const picked: string[] = [];
+    for (const [color, n] of Object.entries(choice.coloredPips)) {
+        for (let i = 0; i < n; i++) {
+            const id = pickLeastFlexible((colors) => colors.has(color));
+            if (id !== undefined) picked.push(id);
+        }
+    }
+    for (const [c1, c2] of choice.hybridPips) {
+        const id = pickLeastFlexible(
+            (colors) => colors.has(c1) || colors.has(c2)
+        );
+        if (id !== undefined) picked.push(id);
+    }
+    // Top up to the forced minimum with any remaining creatures.
+    for (const cand of pool) {
+        if (picked.length >= choice.min) break;
+        if (!used.has(cand.id)) {
+            used.add(cand.id);
+            picked.push(cand.id);
+        }
+    }
+    return picked.slice(0, Math.max(0, choice.max));
+}
+
 /** The rest of the gate, once no pending choice is owed: the parked mana-spend
  *  choice, the attack-mana tax, the combat declarations and the ordinary
  *  priority window. Split out of {@link decideBotAction} when the choice
@@ -1013,6 +1103,18 @@ function decideNonChoiceAction(view: BotView): BotAction {
     // the mana-spend branch below, and ordered FIRST because the exile pick is
     // what determines how much mana is still owed (CR 601.2g: reduce → payWith
     // → mana), so any generic-spend ambiguity is only meaningful after it.
+    // CR 702.51 / 601.2g (issue #1338) — the parked Convoke creature picker,
+    // ordered BEFORE the delve exile picker: convoke pays the coloured / hybrid
+    // pips and reduces the generic, and the delve picker is only built after the
+    // convoke pick lands (`recordConvokeCreaturePick`). Same "resolve the park
+    // before anything else" class, closed by a direct mutation.
+    if (view.convokeChoice) {
+        return {
+            kind: "convoke-creatures",
+            creatureInstanceIds: chooseConvokeCreatures(view.convokeChoice),
+        };
+    }
+
     if (view.castExileChoice) {
         return {
             kind: "cast-exile-cost",

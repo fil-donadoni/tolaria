@@ -15,14 +15,25 @@ import type { CardDefinition, Color, ManaCost } from "./types";
  *  without `manaCost`) return an empty array. */
 export function getColorsFromCost(cost?: ManaCost): Color[] {
     if (!cost) return [];
+    // CR 105.2 / 202.2 — a guild-hybrid pip `{B/G}` is BOTH a black and a green
+    // mana symbol, so a card with `{B/G}` is both black and green (issue #1338,
+    // Hogaak). Collect every colour that appears in any hybrid pip.
+    const hybridColors = new Set<Color>();
+    for (const pip of cost.hybrid ?? []) {
+        for (const c of pip) hybridColors.add(c);
+    }
     const colors: Color[] = [];
     for (const c of MANA_COLORS) {
         if (c === "C") continue;
         // CR 105.2 — a Phyrexian mana symbol `{C/P}` is a coloured mana symbol,
         // so a card with `{U/P}` in its cost is blue even though it can be cast
         // for life (Gitaxian Probe, Phyrexian Metamorph). Count a colour when it
-        // appears as a normal pip OR as a Phyrexian pip.
-        if ((cost[c] ?? 0) > 0 || (cost.phyrexian?.[c] ?? 0) > 0) {
+        // appears as a normal pip, a Phyrexian pip, OR a hybrid pip.
+        if (
+            (cost[c] ?? 0) > 0 ||
+            (cost.phyrexian?.[c] ?? 0) > 0 ||
+            hybridColors.has(c)
+        ) {
             colors.push(c);
         }
     }

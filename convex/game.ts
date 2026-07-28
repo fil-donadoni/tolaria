@@ -110,7 +110,15 @@ import {
     getEscapeManaCost,
     hasEscape,
 } from "./gre/escape";
-import { applyGenericOffset, buildDelveExileChoice } from "./gre/payWith";
+import {
+    applyGenericOffset,
+    buildConvokeCreatureChoice,
+    buildDelveExileChoice,
+    coverColoredAndHybridPips,
+    creatureConvokeColors,
+    spellHasConvoke,
+    spellHasDelve,
+} from "./gre/payWith";
 import {
     getMadnessCost,
     declineMadness,
@@ -237,6 +245,7 @@ import {
     getManaTapOptionsDetailed,
     getFixedManaAmount,
     hasManaAbility,
+    isCreature,
     isPlaneswalker,
     isTapLockedBySummoningSickness,
     manaValue,
@@ -1660,6 +1669,22 @@ function findGraveyardGrantCastable(
     return card.castableFromGraveyardBy === player.id ? card : undefined;
 }
 
+/** CR 702.51 / 601.3e (issue #1338, Hogaak, Arisen Necropolis) — the INTRINSIC
+ *  self-permission lookup: a non-land card in `player`'s graveyard whose own
+ *  definition declares `castableFromOwnGraveyard` ("You may cast this card from
+ *  your graveyard"). Always same-player. Never returns a card that has
+ *  Flashback/Escape/a broad-or-specific external permission — `locateCastSource`
+ *  checks those first, so this is only reached for a card with none of them. */
+function findIntrinsicGraveyardCastable(
+    player: PlayerState,
+    instanceId: string
+): CardInstanceState | undefined {
+    const card = player.graveyard.find((c) => c.id === instanceId);
+    if (!card || card.types.includes("Land")) return undefined;
+    const def = tryGetDefinition((card.card as { id?: string }).id ?? "");
+    return def?.castableFromOwnGraveyard ? card : undefined;
+}
+
 /** CR 702.139 (issue #1392, Lurrus of the Dream-Den) — the STATIC,
  *  battlefield-derived graveyard-permanent-cast permission lookup. Returns
  *  the card in `player`'s graveyard matching `instanceId` while
@@ -1729,6 +1754,17 @@ export function locateCastSource(
     // permission (those branches above already returned).
     const grantCast = findGraveyardGrantCastable(player, instanceId);
     if (grantCast) return { card: grantCast, zone: "graveyard" };
+    // CR 702.51 / 601.3e (issue #1338) — a card castable purely under its OWN
+    // intrinsic "you may cast this from your graveyard" permission (Hogaak),
+    // reached only when the card has no Flashback/Escape/external permission/
+    // specific grant. Resolves normally (no exile-on-resolve).
+    const intrinsicGraveyardCast = findIntrinsicGraveyardCastable(
+        player,
+        instanceId
+    );
+    if (intrinsicGraveyardCast) {
+        return { card: intrinsicGraveyardCast, zone: "graveyard" };
+    }
     // CR 702.139 (issue #1392) — a card castable purely under Lurrus's
     // STATIC, once-per-turn, permanent-cards-only permission, reached only
     // when the card has none of Flashback/Escape/the broad permission/a
@@ -2493,6 +2529,15 @@ export function tryAutoCommitPendingCast(
     if (ac && !ac.pickedId) {
         return null;
     }
+    // CR 702.51 / 601.2g (issue #1338) — Convoke gates on its creature picker,
+    // and BEFORE delve: the convoke pick is what pays the coloured / hybrid pips
+    // and reduces the generic, so the delve picker (`exileFromGraveyardChoice`)
+    // is only built AFTER convoke resolves (`recordConvokeCreaturePick`). Commit
+    // is blocked until the creatures are chosen (selectConvokeCreatures).
+    const castConvoke = state.pendingCast.convokeCreatureChoice;
+    if (castConvoke && !castConvoke.pickedCreatureIds) {
+        return null;
+    }
     // CR 702.34a / 118.5 — the flashback "exile X blue cards from your
     // graveyard" cost (Flash of Insight) gates on its own picker: commit is
     // blocked until the player has picked the cards (selectCastExileCost),
@@ -2615,6 +2660,23 @@ export function tryAutoCommitPendingCast(
         }
         for (const id of castExile.pickedCardIds) {
             moveCard(player, id, exileSourceZone, "exile");
+        }
+    }
+    // CR 702.51a (issue #1338) — pay Convoke: TAP each chosen creature as the
+    // spell moves to the stack. Deferred to commit (like the delve exile above)
+    // so a cancelled cast leaves the creatures untapped. Re-check presence
+    // (vanished-card policy); drop the pendingCast silently on a mismatch.
+    if (castConvoke?.pickedCreatureIds) {
+        const stillThere = castConvoke.pickedCreatureIds.every((id) =>
+            player.battlefield.some((c) => c.id === id && !c.isTapped)
+        );
+        if (!stillThere) {
+            state.pendingCast = undefined;
+            return null;
+        }
+        for (const id of castConvoke.pickedCreatureIds) {
+            const creature = player.battlefield.find((c) => c.id === id);
+            if (creature) creature.isTapped = true;
         }
     }
     // CR 118.9 — pay the alternative-cost HAND leg (Force of Will's "exile a
@@ -5396,7 +5458,15 @@ export function finalizeTargetSelection(
     // selection, so build the graveyard picker here too and park on it before
     // mana. Reuses the graveyard-exile picker slot — no delve card in the pool
     // also carries a flashback/escape exile cost.
-    if (!castExileChoice) {
+    // CR 702.51 / 601.2g (issue #1338) — Convoke takes the FIRST payWith prompt:
+    // it alone pays the coloured / hybrid pips and reduces the generic, so the
+    // delve picker is built only AFTER the convoke pick lands
+    // (`recordConvokeCreaturePick`). Build the convoke picker here; skip the
+    // delve build when convoke is present (a convoke+delve card, Hogaak).
+    const castConvokeChoice = spellHasConvoke(cardInHand)
+        ? buildConvokeCreatureChoice(player, cardInHand, manaCost)
+        : undefined;
+    if (!castExileChoice && !castConvokeChoice) {
         castExileChoice = buildDelveExileChoice(
             player,
             cardInHand,
@@ -5408,6 +5478,7 @@ export function finalizeTargetSelection(
     const parkForSacrifice =
         !!exilePicker ||
         !!castExileChoice ||
+        !!castConvokeChoice ||
         (castSac !== undefined && !isSacrificeSelectionComplete(castSac)) ||
         (altHandChoice !== undefined && !altHandChoice.pickedCardIds);
     if (parkForSacrifice) {
@@ -5424,6 +5495,9 @@ export function finalizeTargetSelection(
             ...(chosenModeId ? { chosenModeId } : {}),
             ...(exilePicker ? { additionalCost: exilePicker } : {}),
             ...(castSac ? { sacrificeSelection: castSac } : {}),
+            ...(castConvokeChoice
+                ? { convokeCreatureChoice: castConvokeChoice }
+                : {}),
             ...(castExileChoice
                 ? { exileFromGraveyardChoice: castExileChoice }
                 : {}),
@@ -6454,7 +6528,13 @@ export const announceCast = mutation({
         // nothing (empty graveyard, or an all-coloured remainder), so no
         // pointless picker appears. Reuses the flashback/escape picker slot —
         // no delve card in the pool also carries one of those exile costs.
-        if (!castExileChoice) {
+        // CR 702.51 / 601.2g (issue #1338) — Convoke takes the FIRST payWith
+        // prompt (see the targeted path); the delve picker is built only after
+        // the convoke pick reduces the cost (`recordConvokeCreaturePick`).
+        const castConvokeChoice = spellHasConvoke(cardInHand)
+            ? buildConvokeCreatureChoice(player, cardInHand, manaCost)
+            : undefined;
+        if (!castExileChoice && !castConvokeChoice) {
             castExileChoice = buildDelveExileChoice(
                 player,
                 cardInHand,
@@ -6467,6 +6547,7 @@ export const announceCast = mutation({
         const parkForSacrifice =
             !!exilePicker ||
             !!castExileChoice ||
+            !!castConvokeChoice ||
             (castSac !== undefined && !isSacrificeSelectionComplete(castSac));
         if (parkForSacrifice) {
             // Open pendingCast in cost-picker mode. Commit is gated on the
@@ -6488,6 +6569,9 @@ export const announceCast = mutation({
                     : {}),
                 ...(exilePicker ? { additionalCost: exilePicker } : {}),
                 ...(castSac ? { sacrificeSelection: castSac } : {}),
+                ...(castConvokeChoice
+                    ? { convokeCreatureChoice: castConvokeChoice }
+                    : {}),
                 ...(castExileChoice
                     ? { exileFromGraveyardChoice: castExileChoice }
                     : {}),
@@ -7485,6 +7569,25 @@ export const autoTapForPayment = mutation({
         if (!pending) throw new Error("No pending payment");
 
         const player = getPlayer(state, args.playerId);
+        // CR 601.2f (issue #1338) — a can't-spend-mana cast (Hogaak) may tap NO
+        // mana source: every pip is paid by the convoke / delve pickers, which
+        // drive `manaCost` to zero, so auto-tap is a strict no-op. Guard here so
+        // the client calling autoTapForPayment mid-cast never taps a land while
+        // a picker is still open (which WOULD spend mana). Commit still fires
+        // below via tryAutoCommitPendingCast once the pickers cover the cost.
+        const castCard =
+            state.pendingCast?.playerId === args.playerId
+                ? locateCastSource(
+                      state,
+                      player,
+                      state.pendingCast.cardInstanceId
+                  ).card
+                : undefined;
+        const castCantSpendMana =
+            !!castCard &&
+            (tryGetDefinition((castCard.card as { id?: string }).id ?? "")
+                ?.cantSpendManaToCast ??
+                false);
         const substitutions = getManaSubstitutions(state, player.id);
         const sources = buildAutoTapSources(player.battlefield);
         // Smart auto-tap (PRD #472, ADR 0034): among all minimal-tap plans that
@@ -7560,14 +7663,15 @@ export const autoTapForPayment = mutation({
             selfSourceId,
             scorePlan
         );
-        const plan =
-            fullPlan ??
-            solveAutoTapPartial(
-                player.manaPool,
-                pending.manaCost,
-                substitutions,
-                sources
-            );
+        const plan = castCantSpendMana
+            ? []
+            : (fullPlan ??
+              solveAutoTapPartial(
+                  player.manaPool,
+                  pending.manaCost,
+                  substitutions,
+                  sources
+              ));
 
         for (const step of plan) {
             const card = player.battlefield.find((c) => c.id === step.cardId);
@@ -8072,6 +8176,137 @@ export const selectCastExileCost = mutation({
 
         // Commit fires here when the mana is also covered; otherwise the player
         // taps the remaining mana via tapForCastPayment.
+        tryAutoCommitPendingCast(state, args.playerId);
+
+        await saveGameState(
+            ctx,
+            args.gameId,
+            gameState.seq + 1,
+            state,
+            gameState
+        );
+    },
+});
+
+/** CR 702.51a / 601.2g (`payWith`, ADR 0063 — issue #1338) — records the
+ *  player's Convoke creature picks. Validates each id is an UNTAPPED CREATURE
+ *  the caster controls (a creature tapped for convoke is not paying a `{T}`
+ *  cost, so summoning sickness is irrelevant — CR 702.51e), that the count is in
+ *  `min..max`, and that the chosen creatures can COLOUR-COVER the spell's
+ *  coloured + guild-hybrid pips (the shared greedy `coverColoredAndHybridPips`).
+ *  Then reduces this cast's remaining cost — deleting each single-colour pip
+ *  convoke paid and offsetting the generic by the creatures left over — and,
+ *  when the spell ALSO has delve (Hogaak), opens the delve picker on the REDUCED
+ *  cost (CR 601.2g ordering: convoke → delve → mana). Only RECORDS the pick; the
+ *  creatures are TAPPED at cast commit (`tryAutoCommitPendingCast`), so
+ *  cancelling leaves them untapped. Pure (no ctx) so it is unit-tested directly,
+ *  mirroring `recordCastExileCostPick`. */
+export function recordConvokeCreaturePick(
+    state: GameState,
+    playerId: string,
+    creatureInstanceIds: string[]
+): void {
+    const pc = state.pendingCast;
+    if (!pc) throw new Error("No spell being cast");
+    if (pc.playerId !== playerId) throw new Error("Not your pending cast");
+    const cc = pc.convokeCreatureChoice;
+    if (!cc) throw new Error("This spell has no convoke cost");
+    if (cc.pickedCreatureIds) throw new Error("Convoke already paid");
+    if (creatureInstanceIds.length < cc.min) {
+        throw new Error(
+            `Must tap at least ${cc.min} creature(s) to convoke this spell`
+        );
+    }
+    if (creatureInstanceIds.length > cc.max) {
+        throw new Error(
+            `Can't tap more than ${cc.max} creature(s) to convoke this spell`
+        );
+    }
+    if (new Set(creatureInstanceIds).size !== creatureInstanceIds.length) {
+        throw new Error("Duplicate creature selected for convoke");
+    }
+    const player = getPlayer(state, playerId);
+    const picked: CardInstanceState[] = [];
+    for (const id of creatureInstanceIds) {
+        const creature = player.battlefield.find((c) => c.id === id);
+        if (!creature) {
+            throw new Error("Selected creature is not on your battlefield");
+        }
+        if (!isCreature(creature)) {
+            throw new Error("Selected permanent is not a creature");
+        }
+        if (creature.isTapped) {
+            throw new Error("Selected creature is already tapped");
+        }
+        picked.push(creature);
+    }
+    // CR 702.51a — assign the tapped creatures to the coloured + hybrid pips
+    // (colour-matched by the shared greedy); the rest each pay {1} generic.
+    const coloredPips = cc.coloredPips ?? {};
+    const leftover = coverColoredAndHybridPips(
+        picked.map((c) => creatureConvokeColors(c)),
+        coloredPips,
+        cc.hybridPips
+    );
+    if (leftover === null) {
+        throw new Error(
+            "The tapped creatures can't cover this spell's coloured mana"
+        );
+    }
+    // Remove the single-colour pips convoke paid, then offset the generic by the
+    // creatures left over (each pays {1}, CR 702.51a) — never below zero.
+    for (const [color, n] of Object.entries(coloredPips)) {
+        if (n && n > 0) {
+            const left = Math.max(0, (pc.manaCost[color] ?? 0) - n);
+            if (left > 0) pc.manaCost[color] = left;
+            else delete pc.manaCost[color];
+        }
+    }
+    applyGenericOffset(pc.manaCost, leftover);
+    cc.pickedCreatureIds = [...creatureInstanceIds];
+    // CR 601.2g — convoke has now reduced the cost; open the delve picker on the
+    // REMAINING generic (Hogaak carries both). Arena prompt policy applies: the
+    // picker is undefined when nothing generic is left (all convoked).
+    const castCard = locateCastSource(state, player, pc.cardInstanceId).card;
+    if (castCard && spellHasDelve(castCard) && !pc.exileFromGraveyardChoice) {
+        const delveChoice = buildDelveExileChoice(
+            player,
+            castCard,
+            pc.manaCost,
+            pc.cardInstanceId,
+            genericManaShortfall(player, castCard, pc.manaCost)
+        );
+        if (delveChoice) pc.exileFromGraveyardChoice = delveChoice;
+    }
+}
+
+/** CR 702.51a — records the player's Convoke creature picks and drives
+ *  `tryAutoCommitPendingCast`. Mirrors `selectCastExileCost` on the cast path:
+ *  once convoke (and any subsequent delve pick) covers the cost, the spell is
+ *  put on the stack; otherwise the caster completes the remaining payment. */
+export const selectConvokeCreatures = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+        creatureInstanceIds: v.array(v.string()),
+    },
+    handler: async (ctx, args) => {
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
+
+        const state = structuredClone(gameState.state) as GameState;
+        assertGameNotOver(state);
+        assertExpectedInput(state, {
+            playerId: args.playerId,
+            expect: "priority",
+        });
+
+        recordConvokeCreaturePick(
+            state,
+            args.playerId,
+            args.creatureInstanceIds
+        );
+
         tryAutoCommitPendingCast(state, args.playerId);
 
         await saveGameState(

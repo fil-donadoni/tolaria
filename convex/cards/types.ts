@@ -107,6 +107,22 @@ export type ManaCost = {
      *  (CR 105.2 — a Phyrexian symbol is a coloured mana symbol). Not a Mechanics
      *  Registry keyword and not an Effect Script Op — pure cost-system infra. */
     phyrexian?: Partial<Record<Color, number>>;
+    /** CR 202.1a / 107.4e — GUILD-HYBRID mana pips ({B/G}, {W/U}, …). Each entry
+     *  is one hybrid pip, listed as the two colours it may be paid with (order
+     *  irrelevant). Hogaak `{5}{B/G}{B/G}` → `[["B","G"],["B","G"]]`. A hybrid
+     *  pip is paid at cast time with one mana of EITHER colour (or, here, by a
+     *  Convoke creature of either colour — CR 702.51). This field only DECLARES
+     *  the pips; the flat generic/single-colour requirement stays in the other
+     *  keys, so `normalizeManaCost` deliberately IGNORES this field (hybrid pips
+     *  are satisfied by the payWith / convoke path, `convex/gre/payWith.ts`).
+     *  `manaValue` counts each pip as 1 (CR 202.3f), and `getColorsFromCost`
+     *  includes BOTH colours of each pip in the card's colour (CR 105.2 / 202.2).
+     *  NARROW scope (issue #1338): only two-colour guild hybrid — monocolour
+     *  hybrid ({2/B}) and Phyrexian-hybrid are NOT modelled (no pool card needs
+     *  them). Land-based hybrid AUTO-TAP payment (paying {B/G} from a Swamp) is
+     *  deferred to #782; the only shipped hybrid card is Hogaak, which forbids
+     *  spending mana, so its hybrids are always convoked. */
+    hybrid?: Array<[Color, Color]>;
 };
 
 /** CR 702.34a / 118.5 — the full Flashback cost, generalizing the mana-only
@@ -10582,6 +10598,22 @@ export interface CardDefinition {
      *  ONLY black and/or red mana on X" payment restriction is not enforced at
      *  tap time (no engine seam exists for colour-restricted generic payment). */
     noteManaSpent?: boolean;
+    /** CR 601.2f (issue #1338) — "You can't spend mana to cast this spell"
+     *  (Hogaak, Arisen Necropolis). When true, NO real mana source (pool,
+     *  restricted mana, land/rock taps, Wild-Growth bonuses) may pay any pip of
+     *  this cast: every pip — generic AND hybrid — must be covered by a
+     *  non-mana `payWith` resource (Convoke creatures, Delve exiles). The
+     *  castability probe (`coloredCostLeftover`, `gre/rules.ts`) excludes the
+     *  real sources when this is set, and the payment path drives `manaCost` to
+     *  zero via the payWith pickers so `solveSmartAutoTap` taps nothing. */
+    cantSpendManaToCast?: boolean;
+    /** CR 702.51 / 601.3e (issue #1338) — intrinsic, always-on permission to
+     *  cast this card from its owner's OWN graveyard for its normal cost
+     *  ("You may cast this card from your graveyard", Hogaak). Distinct from the
+     *  external, turn-scoped Yawgmoth's Will / Lurrus permissions and from
+     *  Flashback/Escape (which pay an ALTERNATIVE cost): the card resolves and
+     *  lands in the graveyard normally, no exile-on-resolve. Non-land only. */
+    castableFromOwnGraveyard?: boolean;
     /** Restricts cast timing to a specific subset of phases (CR 117.1b).
      *  When set, the spell is castable only while `state.phase` is in this
      *  list. Used by Berserk ("cast only before the combat damage step") —

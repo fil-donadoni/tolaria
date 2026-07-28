@@ -1739,6 +1739,29 @@ export type PendingCast = {
      *  untaps the artifact. Mirrors `tappedLandIds`'s rollback-tracking shape,
      *  kept as a separate list since these taps never add to the mana pool. */
     improviseTappedArtifactIds?: string[];
+    /** CR 702.51 / 601.2g (`payWith`, ADR 0063 — issue #1338) — Convoke: the
+     *  in-progress creature-tap picker for a cast being paid by tapping
+     *  creatures. Convoke is a COLOURED `payWith`: each tapped creature pays for
+     *  {1} OR one mana of that creature's colour (CR 702.51a), so it can satisfy
+     *  a generic pip, a single-colour pip, or a guild-hybrid pip (`{B/G}`). Set
+     *  by `buildConvokeCreatureChoice` (`gre/payWith.ts`) when the cast has
+     *  convoke; commit is blocked until the player calls `selectConvokeCreatures`
+     *  (or it auto-resolves). `min`/`max` bound the tap count (min = the
+     *  hybrid + single-colour pips only convoke can pay under can't-spend-mana;
+     *  max = all payable pips capped by eligible creatures). `hybridPips` /
+     *  `coloredPips` are the pips convoke must satisfy, matched to creature
+     *  colours by the shared greedy at record. `pickedCreatureIds` is undefined
+     *  until the pick is recorded; the creatures are TAPPED at cast commit
+     *  (`tryAutoCommitPendingCast`), so cancelling leaves them untapped. Rides
+     *  inside `pendingCast`, persisted with the parent (no separate serialize
+     *  key), mirroring `exileFromGraveyardChoice`. */
+    convokeCreatureChoice?: {
+        min: number;
+        max: number;
+        hybridPips: [Color, Color][];
+        coloredPips?: Partial<Record<Color, number>>;
+        pickedCreatureIds?: string[];
+    };
     /** CR 601.2g — an ambiguous generic-mana payment parked awaiting the caster's
      *  choice of which mana in the pool pays the generic cost. Set at the payment
      *  finalize point (`tryAutoCommitPendingCast`) when
@@ -12643,7 +12666,7 @@ export function buildSpellContext(
             for (const color of Object.keys(player.manaPool)) {
                 const amount = player.manaPool[color];
                 if (amount > 0) {
-                    drained[color as keyof CardManaCost] = amount;
+                    drained[color as Color] = amount;
                     player.manaPool[color] = 0;
                 }
             }
@@ -14259,12 +14282,17 @@ export function removeFromZone(
 
 // Loose structural mana-cost shape used by the mana-payment helpers below. The
 // value union includes the `phyrexian` object (CR 107.4f, ADR: Phyrexian mana)
-// so a real `CardManaCost` carrying `phyrexian?: Partial<Record<Color, number>>`
-// is assignable here; the payment helpers ignore that key (Phyrexian pips are
-// resolved to mana/life before payment — see `convex/gre/phyrexian.ts`).
+// AND the `hybrid` array (CR 202.1a, issue #1338 — guild-hybrid pips) so a real
+// `CardManaCost` carrying either is assignable here; the payment helpers ignore
+// both keys (Phyrexian pips resolve to mana/life before payment, hybrid pips are
+// paid via convoke — see `convex/gre/phyrexian.ts` / `convex/gre/payWith.ts`).
 type ManaCost = Record<
     string,
-    number | string | Partial<Record<Color, number>> | undefined
+    | number
+    | string
+    | Partial<Record<Color, number>>
+    | Array<[Color, Color]>
+    | undefined
 >;
 
 /** Checks if a player can pay a mana cost. Returns null if yes, or a description of what's missing. */
