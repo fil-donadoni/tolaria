@@ -113,6 +113,9 @@ beforeEach(() => {
     cleanup();
 });
 
+/** The top-EDGE anchor exactly — `top-1`, never the midline `top-1/2`. */
+const TOP_EDGE_ANCHOR = /\btop-1\b(?!\/)/;
+
 describe("seat anchoring — nothing under the portrait bottom bar (#1759)", () => {
     function anchorClass(side: "top" | "bottom") {
         const { container } = renderSpatial(
@@ -137,11 +140,14 @@ describe("seat anchoring — nothing under the portrait bottom bar (#1759)", () 
     });
 
     it("the opponent's chrome stays on the top edge either way", () => {
+        // `\btop-1\b(?!\/)` and NOT `toContain("top-1")`: the substring also
+        // matches the portrait viewer anchor `top-1/2`, so a regression that
+        // swapped the opponent onto the midline would still pass.
         portrait = true;
-        expect(anchorClass("top")).toContain("top-1");
+        expect(anchorClass("top")).toMatch(TOP_EDGE_ANCHOR);
         cleanup();
         portrait = false;
-        expect(anchorClass("top")).toContain("top-1");
+        expect(anchorClass("top")).toMatch(TOP_EDGE_ANCHOR);
     });
 });
 

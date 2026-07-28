@@ -22,9 +22,10 @@ import {
     type PendingChoiceBuffer,
 } from "~/hooks/usePendingChoiceBuffer";
 import { SkipPhasePrefsContext } from "~/hooks/useSkipPhasePreferences";
+import { MinimizedChoiceContext } from "~/hooks/useMinimizedChoice";
 import { DEFAULT_SKIP_PREFS, type Side } from "~/lib/skip-phase-prefs";
 import type { Phase } from "@convex/gre/types";
-import type { Player } from "~/types/game";
+import type { CardInstance, PendingChoice, Player } from "~/types/game";
 
 const calls: { ref: unknown; args: unknown }[] = [];
 
@@ -62,12 +63,22 @@ vi.mock("~/hooks/useIsPortrait", () => ({
 // Chrome irrelevant to these contracts.
 vi.mock("../hotkeys-legend", () => ({ default: () => <div /> }));
 vi.mock("../pause-menu-button", () => ({ default: () => <button /> }));
-// The real pile-chip row drags in every pile dialog; it has its own suite
-// (`board-portrait-chips.test.tsx`). Here we only care THAT the Zones tab mounts
-// it for the viewer's seat.
-vi.mock("../board-pile-chips", () => ({
-    default: ({ player }: { player: Player }) => (
-        <div data-testid={`pile-chips-${player.id}`} />
+// `BoardPileChips` itself is NOT mocked: it is the reducer under test here (it
+// is the sole portrait mount of PlayerLibrary / PlayerGraveyard / PlayerExile,
+// which own the blocking choice surfaces), and a stub would mask exactly the
+// softlock these tests exist to prevent. Only the leaf card renderers — pure
+// art — are stubbed out.
+vi.mock("../../cards/card-image", () => ({
+    default: ({ card }: { card: CardInstance }) => (
+        <div data-testid="card-image" data-card-id={card.id} />
+    ),
+}));
+vi.mock("../../cards/card-back", () => ({
+    default: () => <div data-testid="card-back" />,
+}));
+vi.mock("../../cards/selectable-card", () => ({
+    default: ({ cardInstance }: { cardInstance: CardInstance }) => (
+        <div data-testid="selectable-card" data-card-id={cardInstance.id} />
     ),
 }));
 // The real stop dot uses a Base UI Tooltip (flaky in jsdom); stand it in with a
@@ -109,6 +120,12 @@ function makePlayer(overrides: Partial<Player> = {}): Player {
     };
 }
 
+const noopMinimized = {
+    isMinimized: false,
+    minimize: () => {},
+    restore: () => {},
+};
+
 const noopBuffer: PendingChoiceBuffer = {
     buffer: [],
     toggle: () => {},
@@ -145,7 +162,9 @@ function renderController(
                 value={{ prefs: DEFAULT_SKIP_PREFS, toggle, reset: () => {} }}
             >
                 <PendingChoiceBufferContext value={noopBuffer}>
-                    <Controller onOpenMenu={() => {}} />
+                    <MinimizedChoiceContext value={noopMinimized}>
+                        <Controller onOpenMenu={() => {}} />
+                    </MinimizedChoiceContext>
                 </PendingChoiceBufferContext>
             </SkipPhasePrefsContext>
         </GameContext>
@@ -271,23 +290,82 @@ describe("Variant D bar — no layout shift, nothing buried (#1759)", () => {
         expect(other?.className).toContain("via-signal-opponent");
     });
 
-    it("Zones tab reveals the viewer's pile chips (they no longer sit under the bar)", () => {
+    it("Zones tab toggles the drawer's VISIBILITY — the viewer's real pile chips stay mounted", () => {
+        // Driven through the REAL BoardPileChips (no stub): it is the sole
+        // portrait mount of PlayerLibrary / PlayerGraveyard / PlayerExile, and
+        // those own the blocking choice surfaces. Unmounting the drawer while
+        // closed therefore softlocks a scry / search / graveyard pick, so the
+        // contract is mounted-always, hidden-when-closed.
         const { container } = renderController();
-        expect(container.querySelector("[data-controller-zones-drawer]")).toBe(
-            null
-        );
+        const drawer = () =>
+            container.querySelector(
+                "[data-controller-zones-drawer]"
+            ) as HTMLElement;
+
+        expect(drawer()).toBeTruthy();
+        expect(drawer().dataset.open).toBe("false");
+        expect(drawer().className).toContain("hidden");
+        expect(drawer().getAttribute("aria-hidden")).toBe("true");
+        // Mounted, not merely present: the real chip row is inside it.
+        expect(screen.getByTestId("pile-chips-me")).toBeTruthy();
+        expect(screen.getByTestId("chip-library-me")).toBeTruthy();
 
         fireEvent.click(screen.getByLabelText("Toggle your zones"));
-        const drawer = container.querySelector(
-            "[data-controller-zones-drawer]"
-        );
-        expect(drawer).toBeTruthy();
+        expect(drawer().dataset.open).toBe("true");
+        expect(drawer().className).not.toContain("hidden");
+        expect(drawer().getAttribute("aria-hidden")).toBe("false");
         expect(screen.getByTestId("pile-chips-me")).toBeTruthy();
 
         fireEvent.click(screen.getByLabelText("Toggle your zones"));
-        expect(container.querySelector("[data-controller-zones-drawer]")).toBe(
-            null
+        expect(drawer().dataset.open).toBe("false");
+        expect(screen.getByTestId("pile-chips-me")).toBeTruthy();
+    });
+
+    it("a blocking graveyard pick surfaces its picker with the Zones drawer closed", () => {
+        // The softlock regression, end to end through the real components:
+        // PendingChoicePrompt renders nothing for a pile-owned choice, so if
+        // the drawer is unmounted while closed the chooser gets NO UI.
+        const choice = {
+            kind: "choose-graveyard-card",
+            playerId: "me",
+            zone: "graveyard",
+            count: 1,
+            prompt: "Choose a card from your graveyard",
+            stackItemId: "s1",
+            step: 0,
+            choiceId: "c1",
+        } as unknown as PendingChoice;
+
+        renderController({
+            allPlayers: [
+                makePlayer({
+                    id: "me",
+                    graveyard: [
+                        {
+                            id: "g1",
+                            card: { id: "def-g1" },
+                            controllerId: "me",
+                            ownerId: "me",
+                            zone: "graveyard",
+                            isTapped: false,
+                        } as CardInstance,
+                    ],
+                }),
+            ],
+            pendingChoices: [choice],
+        });
+
+        // Never opened the Zones tab — the pick's own modal is up anyway.
+        const dialog = screen.getByRole("dialog");
+        expect(dialog.textContent).toContain(
+            "Choose a card from your graveyard"
         );
+        // …and the drawer forces itself open so the chips behind it are usable.
+        expect(
+            screen
+                .getByLabelText("Toggle your zones")
+                .getAttribute("aria-expanded")
+        ).toBe("true");
     });
 });
 

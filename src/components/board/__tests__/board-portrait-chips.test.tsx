@@ -141,16 +141,33 @@ describe("BoardPortraitChips (#336)", () => {
         ).toContain("30");
     });
 
-    it("no longer floats the VIEWER's chips over the bottom bar band (#1759)", () => {
-        // They used to sit at `bottom-24`, i.e. underneath the variant-D bottom
-        // bar — untappable. They now live in that bar's Zones drawer instead
-        // (see controller-portrait.test.tsx), so this overlay must not render
-        // them at all.
+    it("relocates the VIEWER's chips off the bottom bar band without dropping them (#1759)", () => {
+        // The viewer's row used to sit at `bottom-24`, i.e. underneath the
+        // variant-D bottom bar — untappable. The fix RELOCATES it: the same
+        // BoardPileChips row is now mounted permanently by the bar's Zones
+        // drawer, which toggles visibility only (asserted through the REAL
+        // component in controller-portrait.test.tsx). Two things must hold
+        // HERE: this overlay carries exactly one row — the opponent's, so the
+        // viewer's piles are never mounted twice — and nothing it renders may
+        // be anchored into the band the bar owns.
         const me = makePlayer("me", {
             graveyard: [makeCard("g1", "graveyard")],
         });
-        renderChips(makePlayer("opp"), me);
-        expect(screen.queryByTestId("pile-chips-me")).toBeNull();
+        const { container } = renderChips(makePlayer("opp"), me);
+
+        const rows = [
+            ...container.querySelectorAll("[data-testid^='pile-chips-']"),
+        ]
+            .map((el) => el.getAttribute("data-testid"))
+            .filter((id) => id !== "pile-chips-row-opponent");
+        expect(rows).toEqual(["pile-chips-opp"]);
+
+        // No bottom-edge anchor anywhere on the overlay: the opponent row is
+        // pinned top-left, the stack chip to the midline.
+        expect(container.querySelectorAll("[class*='bottom-']").length).toBe(0);
+        expect(
+            screen.getByTestId("pile-chips-row-opponent").className
+        ).toContain("top-2");
     });
 
     it("no reveal dialog is open until a chip is tapped", () => {

@@ -3,6 +3,7 @@ import { Flag, Layers, Menu } from "lucide-react";
 import { useGameContext } from "~/hooks/useGameContext";
 import { useControllerActions } from "~/hooks/useControllerActions";
 import { selectCommandSlots } from "~/lib/controller-action-slots";
+import { pileChoiceNeedsViewerZones } from "~/lib/pile-choice-surface";
 import { phaseGroupLabel } from "~/lib/phase-labels";
 import ControllerCommandRow from "./controller-command-row";
 import ControllerLifeTab from "./controller-life-tab";
@@ -40,8 +41,14 @@ export default function ControllerBottomBar({
 }: {
     onOpenMenu: () => void;
 }) {
-    const { phase, turn, activePlayerId, playerId, stackCount, allPlayers } =
-        useGameContext();
+    const {
+        phase,
+        turn,
+        activePlayerId,
+        playerId,
+        allPlayers,
+        pendingChoices,
+    } = useGameContext();
     const { cue, actions, attackAllConfirm } = useControllerActions();
     const [sheetOpen, setSheetOpen] = useState(false);
     const [zonesOpen, setZonesOpen] = useState(false);
@@ -51,6 +58,15 @@ export default function ControllerBottomBar({
     const opponent = allPlayers.find((p) => p.id !== playerId);
     const isMyTurn = activePlayerId === playerId;
     const slots = selectCommandSlots(actions);
+
+    // A blocking choice whose only UI is one of the viewer's own piles forces
+    // the drawer open — the player must never have to guess that a scry /
+    // search / graveyard pick is hiding behind the Zones tab.
+    const zonesForced = pileChoiceNeedsViewerZones(
+        pendingChoices?.[0],
+        playerId
+    );
+    const zonesVisible = zonesOpen || zonesForced;
 
     return (
         <>
@@ -85,13 +101,17 @@ export default function ControllerBottomBar({
                         <span />
                     )}
 
+                    {/* No count on this tab: the drawer holds the viewer's
+                        graveyard / library / exile only. The STACK has its own
+                        chip on the portrait board midline
+                        ({@link BoardPortraitChips}), so a `Zones · N` stack
+                        count here would advertise an affordance the drawer
+                        does not have. */}
                     <ControllerTabButton
-                        label={
-                            stackCount > 0 ? `Zones · ${stackCount}` : "Zones"
-                        }
+                        label="Zones"
                         ariaLabel="Toggle your zones"
-                        ariaExpanded={zonesOpen}
-                        active={zonesOpen}
+                        ariaExpanded={zonesVisible}
+                        active={zonesVisible}
                         onClick={() => setZonesOpen((v) => !v)}
                     >
                         <Layers className="h-[1.1rem] w-[1.1rem]" aria-hidden />
@@ -117,7 +137,15 @@ export default function ControllerBottomBar({
                 </div>
             </div>
 
-            {zonesOpen && me && <ControllerZonesDrawer player={me} />}
+            {/* Mounted for the whole game, never conditionally — the drawer's
+                `BoardPileChips` is the SOLE portrait mount of the viewer's
+                library / graveyard / exile, and those components own the
+                blocking choice surfaces (`LibraryOrderPicker`, the `forceOpen`
+                pile grids) that `PendingChoicePrompt` deliberately renders
+                nothing for. Unmounting it while closed left a scry / search /
+                graveyard pick with NO UI at all — a softlock. Only visibility
+                toggles. */}
+            {me && <ControllerZonesDrawer player={me} open={zonesVisible} />}
 
             {sheetOpen && (
                 <ControllerPhaseSheet onClose={() => setSheetOpen(false)} />

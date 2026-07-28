@@ -19,12 +19,14 @@ type BoardPortraitChipsProps = {
  *  - a stack chip sits at the right of the midline — the neutral band between
  *    the two battlefields — and toggles the EXISTING {@link GameStack} overlay.
  *
- *  The VIEWER's own pile chips are no longer here: they used to float at
- *  `bottom-24`, which the variant-D bottom bar (#1759) now covers, making them
- *  untappable. They moved, unchanged, into that bar's Zones drawer
- *  ({@link ControllerZonesDrawer}) — same {@link BoardPileChips} component,
- *  same reveal dialogs, reachable again. Nothing on this overlay may sit in the
- *  bar's band any more.
+ *  The VIEWER's own pile chips are RELOCATED, not removed: they used to float
+ *  at `bottom-24`, which the variant-D bottom bar (#1759) now covers, making
+ *  them untappable. The same {@link BoardPileChips} row — same component, same
+ *  reveal dialogs — is now mounted by that bar's Zones drawer
+ *  ({@link ControllerZonesDrawer}), permanently and for the whole game; the
+ *  Zones tab toggles only its VISIBILITY, because the row is the sole portrait
+ *  mount of the pile components that own the blocking choice surfaces.
+ *  Nothing on this overlay may sit in the bar's band any more.
  *
  *  Every chip opens the EXISTING reveal / stack view (the pile components in
  *  controlled-open mode, the stack panel toggled) — nothing is rebuilt. Mounted
