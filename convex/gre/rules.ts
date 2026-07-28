@@ -24,6 +24,7 @@ import {
     getManaTapOptionsDetailed,
     hasInstantSpeed,
     isTapLockedBySummoningSickness,
+    manaGateBattlefields,
     manaValue,
 } from "./constants";
 import { STATIC_EFFECT_CTX, getEffectivePower } from "./layers";
@@ -932,18 +933,20 @@ function hasEnoughLegalTargets(
  *  planner emits references the exact list the tap mutations resolve against —
  *  a land under Urborg advertises BOTH its own colour and {B}, each with the
  *  index that produces it. Empty map means no mana ability the engine knows
- *  about (dynamic board choosers like Fellwar Stone resolve at tap time, not
- *  in the one-source planner).
+ *  about — see the `battlefields` paragraph below for what board-dependent
+ *  choosers (Fellwar Stone) need to be resolved here instead of falling into
+ *  this empty case.
  *
  *  `controllerId` / `battlefields`, when passed, flow straight into
- *  `getManaTapOptionsDetailed` (issue #1751 finding 4) so a board-dependent
- *  `canActivate` (Mox Opal's Metalcraft, Fanatic of Rhonas's Ferocious) is
- *  evaluated against a real board instead of the always-false
- *  `minimalManaGateView(undefined)`. `planManaPayment` (moves.ts) passes a
- *  SELF-ONLY view (`[{ playerId: player.id, battlefield: player.battlefield }]`),
- *  which is enough for a self-referential ability like Metalcraft or Ferocious
- *  but not for an opponent-scanning chooser (Fellwar Stone) — that one still
- *  resolves at tap time here, same as an omitted `battlefields`. */
+ *  `getManaTapOptionsDetailed` (issue #1751 finding 4, closed fully by issue
+ *  #1754) so a board-dependent `canActivate` (Mox Opal's Metalcraft, Fanatic
+ *  of Rhonas's Ferocious) is evaluated against a real board instead of the
+ *  always-false `minimalManaGateView(undefined)`. `planManaPayment`
+ *  (moves.ts) now builds and passes a FULL, both-players view
+ *  (`manaGateBattlefields(state)`, `constants.ts`) — the same shared helper
+ *  `coloredCostLeftover` calls from `opts.state` — so a self-referential
+ *  ability like Metalcraft or Ferocious AND an
+ *  opponent-scanning chooser like Fellwar Stone are both visible here. */
 export function getProducibleManaOptions(
     card: CardInstanceState,
     controllerId?: string,
@@ -1078,14 +1081,22 @@ function getProducibleManaUnits(
 ): Set<Color>[] {
     // requireTap: only a genuine {T} ability counts as an auto-payable "unit"
     // — the SAME `requireTap: true` invariant `getProducibleManaOptions` (the
-    // real auto-tap planner) uses. Board view is NOT identical between the
-    // two, though (issue #1751 finding 4): this function is fed the FULL,
-    // both-players `battlefields` view built from `opts.state` (via
-    // `coloredCostLeftover`), while `getProducibleManaOptions`'s one caller
-    // (`planManaPayment`, moves.ts) only ever passes the controller's OWN
-    // entry — enough for a self-referential ability (Mox Opal's Metalcraft,
-    // Fanatic of Rhonas's Ferocious) but not for an opponent-scanning chooser
-    // (Fellwar Stone), where the two can still diverge.
+    // real auto-tap planner) uses. Board view is identical between the two
+    // WHEN THE CALLER HAS PASSED A `state` (issue #1751 finding 4, closed
+    // fully by issue #1754): this function is fed the FULL, both-players
+    // `battlefields` view built from `opts.state` (via `coloredCostLeftover`,
+    // only when a caller has one — see that param's own doc), and
+    // `getProducibleManaOptions`'s one caller (`planManaPayment`, moves.ts)
+    // always builds and passes the same FULL, both-players view from its own
+    // (mandatory) `state` param — so a self-referential ability (Mox Opal's
+    // Metalcraft, Fanatic of Rhonas's Ferocious) AND an opponent-scanning
+    // chooser (Fellwar Stone) are both visible to the two callers identically
+    // ON THAT PATH. Two `coloredCostLeftover` callers deliberately pass no
+    // `state` (`maxAffordableX`'s bot-enumeration call sites in moves.ts and
+    // `genericManaShortfall`, both by design — see their own docs), so this
+    // function still falls back to `undefined, undefined` (board-blind) for
+    // them, same as before this fix; the "identical" guarantee is scoped to
+    // the callers that do pass `state`.
     const detailed = getManaTapOptionsDetailed(
         card,
         controllerId,
@@ -1206,11 +1217,12 @@ function coloredCostLeftover(
     // colour pays each). Orthogonal to Phyrexian pips — no card carries both.
     const hybridPips = getInstanceManaCost(card)?.hybrid ?? [];
     // See `opts.state` doc above: only built when the caller passed a full
-    // `GameState`, and always spans EVERY player, never just `player`.
-    const boardBattlefields = opts.state?.players.map((p) => ({
-        playerId: p.id,
-        battlefield: p.battlefield,
-    }));
+    // `GameState`, and always spans EVERY player, never just `player`. Shared
+    // with moves.ts / game.ts via `manaGateBattlefields` (issue #1754 finding
+    // 6) so the three sites can't independently drift.
+    const boardBattlefields = opts.state
+        ? manaGateBattlefields(opts.state)
+        : undefined;
     const boardControllerId = boardBattlefields ? player.id : undefined;
     // Each source is the set of colors it can supply for this cost slot.
     const sources: Set<Color>[] = [];

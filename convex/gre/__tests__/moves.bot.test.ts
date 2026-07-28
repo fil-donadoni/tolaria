@@ -13,7 +13,7 @@ import {
     makeState,
     pushSpell,
 } from "../../cards/__tests__/setup";
-import type { CardInstanceState, GameState } from "../state";
+import type { CardInstanceState, GameState, PlayerState } from "../state";
 import * as stateModule from "../state";
 import { enumerateMoves, planManaPayment, type Move } from "../moves";
 import { getLegalActions } from "../rules";
@@ -177,16 +177,25 @@ describe("enumerateMoves — casting + mana (issue #110)", () => {
 });
 
 describe("planManaPayment (issue #110)", () => {
+    // Issue #1754 — `planManaPayment` now takes the full `GameState` (not
+    // just `player`) so it can build a both-players `battlefields` view for
+    // `getProducibleManaOptions`. These fixture-only tests don't care about
+    // an opponent board, so a bare two-player `makeState` with `p` as one
+    // side is enough plumbing.
+    function stateWith(p: PlayerState): GameState {
+        return makeState({ players: [p, makePlayer("p2")] });
+    }
+
     it("returns an empty plan for a zero cost", () => {
         const p = makePlayer("p1");
-        expect(planManaPayment(p, {})).toEqual([]);
+        expect(planManaPayment(stateWith(p), p, {})).toEqual([]);
     });
 
     it("plans colored then generic from untapped lands", () => {
         const p = makePlayer("p1", {
             battlefield: [land(FOREST, "p1"), land(FOREST, "p1")],
         });
-        const plan = planManaPayment(p, { G: 1, X: 1 });
+        const plan = planManaPayment(stateWith(p), p, { G: 1, X: 1 });
         expect(plan).not.toBeNull();
         expect(plan).toHaveLength(2);
     });
@@ -197,13 +206,13 @@ describe("planManaPayment (issue #110)", () => {
             battlefield: [land(FOREST, "p1")],
         });
         // Need GG: one from pool (no tap), one from the Forest.
-        const plan = planManaPayment(p, { G: 2 });
+        const plan = planManaPayment(stateWith(p), p, { G: 2 });
         expect(plan).toHaveLength(1);
     });
 
     it("returns null when sources cannot cover the cost", () => {
         const p = makePlayer("p1", { battlefield: [land(FOREST, "p1")] });
-        expect(planManaPayment(p, { R: 1 })).toBeNull();
+        expect(planManaPayment(stateWith(p), p, { R: 1 })).toBeNull();
     });
 
     it("skips tapped sources", () => {
@@ -213,7 +222,7 @@ describe("planManaPayment (issue #110)", () => {
             isTapped: true,
         });
         const p = makePlayer("p1", { battlefield: [tapped] });
-        expect(planManaPayment(p, { G: 1 })).toBeNull();
+        expect(planManaPayment(stateWith(p), p, { G: 1 })).toBeNull();
     });
 
     // Regression: a dual land (Bayou) carries both basic land subtypes
@@ -224,14 +233,42 @@ describe("planManaPayment (issue #110)", () => {
     // "Must choose a mana color".
     it("emits a manaChoiceIndex for dual-land choice sources", () => {
         const p = makePlayer("p1", { battlefield: [land(BAYOU, "p1")] });
+        const state = stateWith(p);
 
-        const planB = planManaPayment(p, { B: 1 });
+        const planB = planManaPayment(state, p, { B: 1 });
         expect(planB).toHaveLength(1);
         expect(planB![0].manaChoiceIndex).toBeTypeOf("number");
 
-        const planG = planManaPayment(p, { G: 1 });
+        const planG = planManaPayment(state, p, { G: 1 });
         expect(planG).toHaveLength(1);
         expect(planG![0].manaChoiceIndex).toBeTypeOf("number");
+    });
+
+    // Issue #1754 — gate↔enumerator parity for an OPPONENT-SCANNING mana
+    // chooser. Fellwar Stone's `getManaChoices` walks every OTHER player's
+    // battlefield and explicitly skips entries matching `controllerId`
+    // (`convex/cards/sets/drk/colorless.ts`); a self-only `battlefields` view
+    // (own controllerId + own battlefield alone) makes it see zero opponents
+    // and return `[]`, so the OLD self-only planner dropped this source even
+    // though the human castability gate (which gets the full board via
+    // `opts.state`) offered the cast. Passing the full `state` here is what
+    // this issue fixes — this test is a regression guard for that specific
+    // gap, not covered by the pre-existing Mox Opal parity test below (a
+    // self-referential ability, satisfiable from a self-only view).
+    it("sees a Fellwar Stone funded by an OPPONENT's land (opponent-scanning chooser)", () => {
+        const fellwar = makeInstance(getCardByName("Fellwar Stone").id, {
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const p1 = makePlayer("p1", { battlefield: [fellwar] });
+        const p2 = makePlayer("p2", { battlefield: [land(FOREST, "p2")] });
+        const state = makeState({ players: [p1, p2] });
+
+        const plan = planManaPayment(state, p1, { G: 1 });
+        expect(plan).not.toBeNull();
+        expect(plan).toHaveLength(1);
+        expect(plan![0].cardInstanceId).toBe(fellwar.id);
+        expect(plan![0].manaChoiceIndex).toBeTypeOf("number");
     });
 });
 
@@ -836,10 +873,14 @@ describe("gate ↔ planner board-dependent mana-source parity (issue #1751 findi
             ownerId: "p1",
             zone: "hand",
         });
+        const moxOpal = makeInstance(MOX_OPAL, {
+            controllerId: "p1",
+            ownerId: "p1",
+        });
         const p1 = makePlayer("p1", {
             hand: [bolt],
             battlefield: [
-                makeInstance(MOX_OPAL, { controllerId: "p1", ownerId: "p1" }),
+                moxOpal,
                 makeInstance(ANKH, { controllerId: "p1", ownerId: "p1" }),
                 makeInstance(ANKH, { controllerId: "p1", ownerId: "p1" }),
             ],
@@ -853,14 +894,19 @@ describe("gate ↔ planner board-dependent mana-source parity (issue #1751 findi
         // The planner must agree: at least one cast-spell move for Bolt
         // (Bolt's "any target" requirement yields one move per legal target —
         // p1 and p2 are both legal, hence 2), each with a tap plan that taps
-        // Mox Opal (a choice-based source, so its tap carries a
-        // `manaChoiceIndex`).
+        // p1's OWN Mox Opal (a choice-based source, so its tap carries a
+        // `manaChoiceIndex`) — asserting the concrete instance id, not just
+        // "some string", is what would catch the wider board view letting the
+        // planner tap the wrong permanent (issue #1754 finding 5; verified by
+        // temporarily widening the source loop to every player's battlefield
+        // and confirming this exact assertion catches the resulting
+        // wrong-permanent tap while a loose `expect.any(String)` does not).
         const casts = castsFor(state, "p1", bolt.id);
         expect(casts.length).toBeGreaterThan(0);
         for (const cast of casts) {
             expect(cast.kind === "cast-spell" && cast.tapPlan).toEqual([
                 {
-                    cardInstanceId: expect.any(String),
+                    cardInstanceId: moxOpal.id,
                     manaChoiceIndex: expect.any(Number),
                 },
             ]);
@@ -877,6 +923,93 @@ describe("gate ↔ planner board-dependent mana-source parity (issue #1751 findi
             hand: [bolt],
             battlefield: [
                 makeInstance(MOX_OPAL, { controllerId: "p1", ownerId: "p1" }),
+            ],
+        });
+        const state = makeState({ players: [p1, makePlayer("p2")] });
+
+        expect(legalActionsFor(state, "p1", bolt)).not.toContain("cast");
+        expect(castsFor(state, "p1", bolt.id)).toHaveLength(0);
+    });
+});
+
+// Issue #1754 — residual gap from #1751/#1752: `planManaPayment` (moves.ts)
+// was given a real, if SELF-ONLY, board view (own controllerId + own
+// battlefield) so a self-referential board-dependent source (Mox Opal above)
+// agreed with the gate. That self-only view does NOT extend to an
+// OPPONENT-SCANNING chooser: Fellwar Stone's `getManaChoices`
+// (`convex/cards/sets/drk/colorless.ts`) walks every OTHER player's
+// battlefield and explicitly skips entries matching `controllerId` — with a
+// self-only view it sees zero opponents and returns `[]`, so
+// `getProducibleManaOptions` reports no options, the source is skipped, and
+// `planManaPayment` drops the cast even though `getLegalActions` — which
+// gets the FULL both-players board via `coloredCostLeftover`'s `opts.state`
+// — correctly offers "cast". This describe block is the parity guard for
+// exactly that gap: `planManaPayment` now takes `state` and builds the same
+// both-players view the gate does.
+const FELLWAR_STONE = getCardByName("Fellwar Stone").id; // {T}: Add one mana of any color an opponent's land could produce.
+
+describe("gate ↔ planner opponent-scanning mana-source parity (issue #1754)", () => {
+    it("Fellwar Stone funded by an opponent's Mountain: getLegalActions offers cast AND enumerateMoves yields a cast move for Lightning Bolt", () => {
+        const bolt = makeInstance(BOLT, {
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const fellwar = makeInstance(FELLWAR_STONE, {
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const p1 = makePlayer("p1", {
+            hand: [bolt],
+            battlefield: [fellwar],
+        });
+        // p1 has NO mana source of its own — Bolt's {R} can only come from
+        // Fellwar Stone reading p2's Mountain (opponent-scanning).
+        const p2 = makePlayer("p2", {
+            battlefield: [land(MOUNTAIN, "p2")],
+        });
+        const state = makeState({ players: [p1, p2] });
+
+        // The gate: `coloredCostLeftover` sees p2's Mountain via `opts.state`,
+        // so Fellwar Stone's `getManaChoices` offers {R} and Bolt is castable.
+        expect(legalActionsFor(state, "p1", bolt)).toContain("cast");
+
+        // The planner must agree: at least one cast-spell move for Bolt, each
+        // tapping p1's OWN Fellwar Stone (a choice-based source, so its tap
+        // carries a `manaChoiceIndex`). Asserting the concrete instance id
+        // (not `expect.any(String)`) is the point of this test: the PR's
+        // central risk is the wider board view letting the planner tap an
+        // OPPONENT's permanent instead, which a loose `any(String)` match
+        // would not catch (issue #1754 finding 5; verified by temporarily
+        // widening the source loop to every player's battlefield — with a
+        // second opposing land breaking the greedy tie — and confirming this
+        // exact assertion catches the resulting wrong-permanent tap while a
+        // loose `expect.any(String)` does not).
+        const casts = castsFor(state, "p1", bolt.id);
+        expect(casts.length).toBeGreaterThan(0);
+        for (const cast of casts) {
+            expect(cast.kind === "cast-spell" && cast.tapPlan).toEqual([
+                {
+                    cardInstanceId: fellwar.id,
+                    manaChoiceIndex: expect.any(Number),
+                },
+            ]);
+        }
+    });
+
+    it("does NOT offer a Bolt cast move when the opponent controls no mana-producing land (Fellwar Stone alone, empty opposing board)", () => {
+        const bolt = makeInstance(BOLT, {
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const p1 = makePlayer("p1", {
+            hand: [bolt],
+            battlefield: [
+                makeInstance(FELLWAR_STONE, {
+                    controllerId: "p1",
+                    ownerId: "p1",
+                }),
             ],
         });
         const state = makeState({ players: [p1, makePlayer("p2")] });
