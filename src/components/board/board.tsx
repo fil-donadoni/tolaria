@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { LayoutGroup } from "motion/react";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
@@ -162,14 +162,23 @@ export default function Board({
     );
     const state = showAllCards ? fullState : publicState;
 
-    const gameCardIds = useQuery(
-        api.game.getGameCardIds,
-        pageVisible ? { gameId } : "skip"
-    );
-
     // Owning Match (ADR 0029): the game-over screen shows the terminal Match
     // result. Resolve the matchId from the game doc, then the Match meta.
     const game = useQuery(api.game.getGame, pageVisible ? { gameId } : "skip");
+
+    // Convex bandwidth: the decklists are already inside the `games` doc this
+    // component subscribes to above, so deriving the id set here costs nothing.
+    // A dedicated `getGameCardIds` query was a SECOND subscription re-reading
+    // that same ~9 KB row on every patch — pure duplicated read bandwidth.
+    const gameCardIds = useMemo(() => {
+        if (!game) return undefined;
+        const ids = new Set<string>();
+        for (const p of game.players ?? []) {
+            for (const c of p.deck?.cards ?? []) ids.add(c.cardId);
+        }
+        return Array.from(ids);
+    }, [game]);
+
     const matchId = game?.matchId ?? null;
     const match = useQuery(
         api.matches.getMatch,

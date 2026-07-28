@@ -2936,22 +2936,11 @@ export const getJoinInfo = query({
     },
 });
 
-/** Returns the unique set of card IDs across both players' decks for a game.
- *  Used by the client to preload all card images at game start. */
-export const getGameCardIds = query({
-    args: {
-        gameId: v.id("games"),
-    },
-    handler: async (ctx, args) => {
-        const game = await ctx.db.get(args.gameId);
-        if (!game) return [];
-        const ids = new Set<string>();
-        for (const p of game.players) {
-            for (const c of p.deck.cards) ids.add(c.cardId);
-        }
-        return Array.from(ids);
-    },
-});
+// `getGameCardIds` was removed (Convex read-bandwidth): it re-read the whole
+// ~9 KB `games` row — decklists included — to return a set the client already
+// holds, since `<Board>` subscribes to `getGame` anyway. Two subscriptions on
+// one fat document, one of them pure duplication. The id set is now derived
+// client-side in `src/components/board/board.tsx`.
 
 /** Returns all games waiting for a second player, excluding any the caller
  *  is already part of. Auth is required. Uses the `by_status` index so the
