@@ -1,125 +1,123 @@
 import { useState } from "react";
-import { ChevronUp } from "lucide-react";
+import { Flag, Layers, Menu } from "lucide-react";
 import { useGameContext } from "~/hooks/useGameContext";
 import { useControllerActions } from "~/hooks/useControllerActions";
-import { phaseGroupLabel, phaseLabel } from "~/lib/phase-labels";
-import { Button } from "~/components/ui/button";
-import ActionButton from "./action-button";
+import { selectCommandSlots } from "~/lib/controller-action-slots";
+import { phaseGroupLabel } from "~/lib/phase-labels";
+import ControllerCommandRow from "./controller-command-row";
+import ControllerLifeTab from "./controller-life-tab";
+import ControllerTabButton from "./controller-tab-button";
+import ControllerZonesDrawer from "./controller-zones-drawer";
 import ControllerPhaseSheet from "./controller-phase-sheet";
-import PauseMenuButton from "./pause-menu-button";
 import AttackAllConfirmDialog from "./attack-all-confirm-dialog";
 
-/** Portrait controller (#335). On a narrow portrait viewport the desktop
- *  right-edge pod collapses to this FIXED BOTTOM ACTION BAR: a current-phase
- *  chip (taps open the full phase list as a bottom sheet) plus a full-width,
- *  thumb-reachable primary action button. The whole right control column goes
- *  away so the battlefield uses the full screen width (the battlefield drops its
- *  right gutter to 0 off the SAME `useIsPortrait` seam).
+/** Portrait controller (#335), redesigned as variant D "Refined fusion"
+ *  (#1758/#1759, user-approved from the `prototype/mobile-bottom-bar` audit).
  *
- *  It is a pure presentation fork: it reads the SAME `useControllerActions`
- *  descriptors the desktop pod renders, so every button dispatches the IDENTICAL
- *  mutation with the same args, and the phase sheet reuses the SAME stop-toggle
- *  path (`useSkipPhasePreferences`). No GRE changes — view-layer only. */
+ *  An app tab bar owns the bottom edge — **You** (own life, opponent's as a
+ *  `vs N` subline) · **Zones** · **Phase** · **Menu** — with a floating command
+ *  row above it. The three complaints the audit raised are structural, not
+ *  cosmetic, so the layout answers each one directly:
+ *
+ *  - *Own life and the zone chips were buried under the bar.* Life is now ON
+ *    the bar (and is the self-target surface); the viewer's pile chips moved
+ *    into the Zones drawer, which floats clear of it.
+ *  - *Buttons appeared and disappeared, so the bar reflowed constantly.* There
+ *    is exactly ONE fixed-size primary slot that morphs (see
+ *    {@link selectCommandSlots}), Pass Turn is always mounted and merely greys
+ *    out, and every tab is a fixed quarter of the width — the phase label
+ *    truncates instead of resizing its neighbours.
+ *  - *The priority border was a chunky colour slab.* Priority is a 2px gradient
+ *    hairline on the bar's top edge.
+ *
+ *  It stays a pure presentation fork of {@link ControllerPod}: it reads the SAME
+ *  `useControllerActions` descriptors, so every control dispatches the IDENTICAL
+ *  mutation, and the phase sheet reuses the SAME `useSkipPhasePreferences`
+ *  stop-toggle path. Exactly one of pod/bar mounts (the #335 seam), so the
+ *  hook — and its keyboard shortcuts — never doubles. No GRE changes. */
 export default function ControllerBottomBar({
     onOpenMenu,
 }: {
     onOpenMenu: () => void;
 }) {
-    const { phase, turn, activePlayerId, playerId } = useGameContext();
+    const { phase, turn, activePlayerId, playerId, stackCount, allPlayers } =
+        useGameContext();
     const { cue, actions, attackAllConfirm } = useControllerActions();
     const [sheetOpen, setSheetOpen] = useState(false);
+    const [zonesOpen, setZonesOpen] = useState(false);
 
+    // Same derivation the board uses; the context's `playerId` IS the viewer.
+    const me = allPlayers.find((p) => p.id === playerId);
+    const opponent = allPlayers.find((p) => p.id !== playerId);
     const isMyTurn = activePlayerId === playerId;
-
-    // The bar leads with the call-to-action for the current step; any remaining
-    // actions (e.g. "Pass Turn" alongside "Pass") stack on a secondary row. Both
-    // come from the same ordered `actions` array, so the wiring is untouched.
-    const [primary, ...rest] = actions;
+    const slots = selectCommandSlots(actions);
 
     return (
         <>
             <div
                 data-controller-bottom-bar
                 data-cue={cue}
-                className={`fixed inset-x-2 bottom-2 z-40 flex flex-col gap-2 rounded-2xl border bg-surface-base p-2 shadow-2xl backdrop-blur-md md:hidden ${
-                    isMyTurn
-                        ? "border-signal-self/60"
-                        : "border-signal-opponent/40"
-                }`}
+                className="fixed inset-x-0 bottom-0 z-40 flex flex-col md:hidden"
             >
-                <div className="flex items-stretch gap-2">
-                    <span
-                        className={`flex items-center rounded-lg px-2 text-[11px] font-bold uppercase tracking-wider ${
-                            isMyTurn
-                                ? "bg-signal-self/20 text-signal-self-strong"
-                                : "bg-signal-opponent/20 text-signal-opponent-strong"
-                        }`}
+                <ControllerCommandRow slots={slots} />
+
+                {/* Priority hairline — the whole priority signal, 2px tall. */}
+                <div
+                    data-controller-priority-hairline
+                    className={`h-0.5 bg-gradient-to-r from-transparent to-transparent ${
+                        isMyTurn ? "via-signal-self" : "via-signal-opponent/70"
+                    }`}
+                />
+
+                <div
+                    className="grid grid-cols-4 bg-gradient-to-t from-surface-base to-surface-base/85 backdrop-blur-xl"
+                    style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+                >
+                    {/* A missing viewer seat is not a real game state, but the
+                        placeholder keeps the grid at four cells regardless. */}
+                    {me ? (
+                        <ControllerLifeTab
+                            me={me}
+                            opponent={opponent}
+                            isMyTurn={isMyTurn}
+                        />
+                    ) : (
+                        <span />
+                    )}
+
+                    <ControllerTabButton
+                        label={
+                            stackCount > 0 ? `Zones · ${stackCount}` : "Zones"
+                        }
+                        ariaLabel="Toggle your zones"
+                        ariaExpanded={zonesOpen}
+                        active={zonesOpen}
+                        onClick={() => setZonesOpen((v) => !v)}
                     >
-                        {isMyTurn ? "You" : "Opp"}
-                    </span>
-                    <button
-                        type="button"
+                        <Layers className="h-[1.1rem] w-[1.1rem]" aria-hidden />
+                    </ControllerTabButton>
+
+                    <ControllerTabButton
+                        label={`T${turn} · ${phaseGroupLabel(phase)}`}
+                        ariaLabel="Toggle phase list"
+                        ariaExpanded={sheetOpen}
+                        active={sheetOpen}
                         onClick={() => setSheetOpen((v) => !v)}
-                        aria-expanded={sheetOpen}
-                        aria-label="Toggle phase list"
-                        className="flex min-w-[88px] flex-col justify-center rounded-xl bg-surface-elevated px-3 py-2 text-left active:bg-surface-elevated"
                     >
-                        <span className="flex items-center gap-1 text-[8px] uppercase tracking-wider text-text-disabled">
-                            T{turn} · {phaseGroupLabel(phase)}
-                            <ChevronUp className="h-3 w-3" aria-hidden />
-                        </span>
-                        <span className="truncate font-beleren text-sm font-bold text-accent-strong">
-                            {phaseLabel(phase)}
-                        </span>
-                    </button>
+                        <Flag className="h-[1.1rem] w-[1.1rem]" aria-hidden />
+                    </ControllerTabButton>
 
-                    <PauseMenuButton onOpen={onOpenMenu} />
-
-                    {primary &&
-                        (primary.pill ? (
-                            <button
-                                type="button"
-                                onClick={primary.onClick}
-                                disabled={primary.disabled}
-                                className="flex flex-1 items-center justify-center rounded-xl border border-border-accent/40 bg-surface-elevated px-3 text-center text-xs font-beleren tracking-wide text-text-muted disabled:opacity-70"
-                                style={{ minHeight: 48 }}
-                            >
-                                {primary.label}
-                            </button>
-                        ) : (
-                            <Button
-                                type="button"
-                                variant={
-                                    primary.tone === "destructive"
-                                        ? "destructive"
-                                        : "primary"
-                                }
-                                onClick={primary.onClick}
-                                disabled={primary.disabled}
-                                className="flex-1 rounded-xl px-3 text-sm font-bold"
-                                style={{ minHeight: 48 }}
-                            >
-                                {primary.label}
-                            </Button>
-                        ))}
+                    <ControllerTabButton
+                        label="Menu"
+                        ariaLabel="Open game menu"
+                        onClick={onOpenMenu}
+                    >
+                        <Menu className="h-[1.1rem] w-[1.1rem]" aria-hidden />
+                    </ControllerTabButton>
                 </div>
-
-                {rest.length > 0 && (
-                    <div className="flex items-stretch gap-2">
-                        {rest.map((action) => (
-                            <div key={action.key} className="flex-1">
-                                <ActionButton
-                                    onClick={action.onClick}
-                                    label={action.label}
-                                    tone={action.tone}
-                                    disabled={action.disabled}
-                                    shortcut={action.shortcut}
-                                />
-                            </div>
-                        ))}
-                    </div>
-                )}
             </div>
+
+            {zonesOpen && me && <ControllerZonesDrawer player={me} />}
 
             {sheetOpen && (
                 <ControllerPhaseSheet onClose={() => setSheetOpen(false)} />

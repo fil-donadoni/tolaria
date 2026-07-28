@@ -1,15 +1,19 @@
-// Portrait controller (#335): the right control column collapses to a fixed
-// bottom action bar (+ phase bottom sheet) below the `md:` breakpoint. The
-// contracts tested here are the acceptance criteria:
+// Portrait controller (#335), redesigned as variant D (#1759): the right
+// control column collapses to a fixed app tab bar (You · Zones · Phase · Menu)
+// plus a morphing command row, below the `md:` breakpoint. The contracts tested
+// here are the acceptance criteria:
 //   1. The portrait branch (`Controller` with `useIsPortrait` = true) renders
-//      the bottom bar with the current-phase chip and a full-width primary
-//      action, NOT the desktop right-edge pod.
+//      the bottom bar, NOT the desktop right-edge pod.
 //   2. Each rendered action dispatches the SAME mutation, with the same args, as
 //      the desktop pod — proving the wiring (`useControllerActions`) is reused.
-//   3. The phase sheet opens from the chip and routes stop toggles through the
-//      SAME `useSkipPhasePreferences().toggle(phase, side)` path.
+//   3. The phase sheet opens from the Phase tab and routes stop toggles through
+//      the SAME `useSkipPhasePreferences().toggle(phase, side)` path.
 //   4. The single seam picks pod vs. bar: landscape mounts the pod, portrait the
 //      bar — exactly one, so the shortcut/mutation hook never doubles.
+//   5. Zero layout shift: exactly one fixed-size primary slot, Pass Turn always
+//      mounted (disabled-aware), own life always on the bar.
+//   6. The viewer's zone chips — which used to sit UNDER the bar — are reachable
+//      again from the Zones tab.
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, fireEvent, screen } from "@testing-library/react";
 import { GameContext } from "~/hooks/useGameContext";
@@ -58,6 +62,14 @@ vi.mock("~/hooks/useIsPortrait", () => ({
 // Chrome irrelevant to these contracts.
 vi.mock("../hotkeys-legend", () => ({ default: () => <div /> }));
 vi.mock("../pause-menu-button", () => ({ default: () => <button /> }));
+// The real pile-chip row drags in every pile dialog; it has its own suite
+// (`board-portrait-chips.test.tsx`). Here we only care THAT the Zones tab mounts
+// it for the viewer's seat.
+vi.mock("../board-pile-chips", () => ({
+    default: ({ player }: { player: Player }) => (
+        <div data-testid={`pile-chips-${player.id}`} />
+    ),
+}));
 // The real stop dot uses a Base UI Tooltip (flaky in jsdom); stand it in with a
 // plain button that surfaces the aria-label + click — same contract.
 vi.mock("../phase-stop-dot", () => ({
@@ -166,9 +178,11 @@ describe("Controller seam (#335)", () => {
 });
 
 describe("Portrait bottom bar — same controls, same mutations", () => {
-    it("shows the current-phase chip and a full-width primary Pass action", () => {
+    it("shows the fixed-width phase tab and a primary Pass action", () => {
         renderController();
-        expect(screen.getByText("Main Phase 1")).toBeTruthy();
+        // Fixed-width `T<n> · <group>` form — the step name (which varies in
+        // width) stays inside the sheet.
+        expect(screen.getByText("T1 · Main 1")).toBeTruthy();
         // The primary action is the SAME "Pass" the desktop pod renders.
         fireEvent.click(screen.getByText(/^Pass$/));
         const pass = calls.find((c) => c.ref === "passPriority");
@@ -198,6 +212,82 @@ describe("Portrait bottom bar — same controls, same mutations", () => {
         renderController();
         fireEvent.keyDown(window, { code: "Space" });
         expect(calls.map((c) => c.ref)).toContain("passPriority");
+    });
+});
+
+describe("Variant D bar — no layout shift, nothing buried (#1759)", () => {
+    it("keeps own life on the bar, with the opponent's total as the subline", () => {
+        renderController({
+            allPlayers: [
+                makePlayer({ id: "me", life: 17 }),
+                makePlayer({ id: "opp", life: 12 }),
+            ],
+        });
+        const life = screen.getByLabelText("Your life total: 17");
+        expect(life.textContent).toContain("17");
+        expect(life.textContent).toContain("vs 12");
+    });
+
+    it("mounts exactly one primary slot and always mounts Pass Turn", () => {
+        // Priority: Pass owns the primary slot, Pass Turn is enabled.
+        const { unmount } = renderController();
+        expect(screen.getByText(/^Pass$/)).toBeTruthy();
+        expect(
+            screen.getByLabelText("Pass Turn").hasAttribute("disabled")
+        ).toBe(false);
+        unmount();
+
+        // No priority: the SAME two slots are still mounted — the bar cannot
+        // reflow — but Pass Turn is disabled rather than removed.
+        renderController({ priorityPlayerId: "opp" });
+        expect(screen.getByText(/^Pass$/)).toBeTruthy();
+        expect(
+            screen.getByLabelText("Pass Turn").hasAttribute("disabled")
+        ).toBe(true);
+    });
+
+    it("morphs the primary slot to the contextual action, demoting nothing", () => {
+        renderController({
+            phase: "DECLARE_ATTACKERS",
+            combat: { attackerIds: [], confirmed: false } as never,
+        });
+        // "Skip Attack" (the confirm-attackers descriptor) beats Pass in the
+        // primary slot; Pass Turn keeps its own circular slot.
+        expect(screen.getByText(/Skip Attack/)).toBeTruthy();
+        expect(screen.getByLabelText("Pass Turn")).toBeTruthy();
+    });
+
+    it("signals priority with a hairline, self vs opponent", () => {
+        const { container, unmount } = renderController();
+        const mine = container.querySelector(
+            "[data-controller-priority-hairline]"
+        );
+        expect(mine?.className).toContain("via-signal-self");
+        unmount();
+
+        const other = renderController({
+            activePlayerId: "opp",
+        }).container.querySelector("[data-controller-priority-hairline]");
+        expect(other?.className).toContain("via-signal-opponent");
+    });
+
+    it("Zones tab reveals the viewer's pile chips (they no longer sit under the bar)", () => {
+        const { container } = renderController();
+        expect(container.querySelector("[data-controller-zones-drawer]")).toBe(
+            null
+        );
+
+        fireEvent.click(screen.getByLabelText("Toggle your zones"));
+        const drawer = container.querySelector(
+            "[data-controller-zones-drawer]"
+        );
+        expect(drawer).toBeTruthy();
+        expect(screen.getByTestId("pile-chips-me")).toBeTruthy();
+
+        fireEvent.click(screen.getByLabelText("Toggle your zones"));
+        expect(container.querySelector("[data-controller-zones-drawer]")).toBe(
+            null
+        );
     });
 });
 

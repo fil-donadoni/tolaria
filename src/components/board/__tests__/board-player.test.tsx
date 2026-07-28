@@ -21,6 +21,13 @@ vi.mock("convex/react", () => ({
     useMutation: () => selectTargetSpy,
 }));
 
+// Drive the portrait seam explicitly so jsdom's flaky matchMedia never decides
+// where the seat chrome anchors.
+let portrait = false;
+vi.mock("~/hooks/useIsPortrait", () => ({
+    useIsPortrait: () => portrait,
+}));
+
 import PlayerLife from "../player-life";
 import BoardPlayer from "../board-player";
 
@@ -102,7 +109,40 @@ function renderSpatial(
 
 beforeEach(() => {
     selectTargetSpy.mockClear();
+    portrait = false;
     cleanup();
+});
+
+describe("seat anchoring — nothing under the portrait bottom bar (#1759)", () => {
+    function anchorClass(side: "top" | "bottom") {
+        const { container } = renderSpatial(
+            makePlayer("p2"),
+            { playerId: "p2" },
+            side
+        );
+        return (container.firstElementChild as HTMLElement).className;
+    }
+
+    it("portrait lifts the VIEWER's chrome off the bottom edge the bar owns", () => {
+        portrait = true;
+        const className = anchorClass("bottom");
+        expect(className).not.toContain("bottom-1");
+        // It relocates to the top-left of the viewer's own half.
+        expect(className).toContain("top-1/2");
+    });
+
+    it("landscape/desktop keep the classic bottom-edge anchor", () => {
+        portrait = false;
+        expect(anchorClass("bottom")).toContain("bottom-1");
+    });
+
+    it("the opponent's chrome stays on the top edge either way", () => {
+        portrait = true;
+        expect(anchorClass("top")).toContain("top-1");
+        cleanup();
+        portrait = false;
+        expect(anchorClass("top")).toContain("top-1");
+    });
 });
 
 describe("board player target parity (#280)", () => {

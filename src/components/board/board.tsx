@@ -531,10 +531,10 @@ export default function Board({
                                                                 className={
                                                                     isPortrait
                                                                         ? // Lifted clear of the
-                                                                          // pile chips (bottom-24)
-                                                                          // + the bottom action bar
-                                                                          // (#335) so the hand stays
-                                                                          // fully thumb-reachable.
+                                                                          // variant-D bottom bar
+                                                                          // (#335/#1759) so the
+                                                                          // hand stays fully
+                                                                          // thumb-reachable.
                                                                           "absolute left-0 right-0 bottom-32 h-[16%]"
                                                                         : "absolute left-0 right-[var(--right-piles-w)] bottom-0 h-[18%]"
                                                                 }

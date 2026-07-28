@@ -121,30 +121,36 @@ function renderChips(
 beforeEach(() => cleanup());
 
 describe("BoardPortraitChips (#336)", () => {
-    it("renders a pile-chip row for each seat with zone labels + counts", () => {
+    it("renders the opponent's pile-chip row with zone labels + counts", () => {
         const me = makePlayer("me", {
             graveyard: [makeCard("g1", "graveyard")],
             library: { count: 24 },
         });
-        const opp = makePlayer("opp", { exile: [makeCard("x1", "exile")] });
+        const opp = makePlayer("opp", {
+            exile: [makeCard("x1", "exile")],
+            library: { count: 30 },
+        });
         renderChips(opp, me);
 
-        expect(screen.getByTestId("pile-chips-me")).toBeTruthy();
-        expect(screen.getByTestId("pile-chips-opp")).toBeTruthy();
-
-        // Counts come from the projected zones (graveyard/exile arrays;
-        // library via libraryCount).
-        const myChips = screen.getByTestId("pile-chips-me");
-        expect(
-            within(myChips).getByTestId("chip-graveyard-me").textContent
-        ).toContain("1");
-        expect(
-            within(myChips).getByTestId("chip-library-me").textContent
-        ).toContain("24");
         const oppChips = screen.getByTestId("pile-chips-opp");
         expect(
             within(oppChips).getByTestId("chip-exile-opp").textContent
         ).toContain("1");
+        expect(
+            within(oppChips).getByTestId("chip-library-opp").textContent
+        ).toContain("30");
+    });
+
+    it("no longer floats the VIEWER's chips over the bottom bar band (#1759)", () => {
+        // They used to sit at `bottom-24`, i.e. underneath the variant-D bottom
+        // bar — untappable. They now live in that bar's Zones drawer instead
+        // (see controller-portrait.test.tsx), so this overlay must not render
+        // them at all.
+        const me = makePlayer("me", {
+            graveyard: [makeCard("g1", "graveyard")],
+        });
+        renderChips(makePlayer("opp"), me);
+        expect(screen.queryByTestId("pile-chips-me")).toBeNull();
     });
 
     it("no reveal dialog is open until a chip is tapped", () => {
@@ -156,17 +162,16 @@ describe("BoardPortraitChips (#336)", () => {
         expect(screen.queryByRole("dialog")).toBeNull();
     });
 
-    it("tapping the graveyard chip opens the EXISTING graveyard reveal view", () => {
-        const me = makePlayer("me", {
+    it("tapping the opponent's graveyard chip opens the EXISTING reveal view", () => {
+        const opp = makePlayer("opp", {
             graveyard: [
                 makeCard("g1", "graveyard"),
                 makeCard("g2", "graveyard"),
             ],
         });
-        const opp = makePlayer("opp");
-        renderChips(opp, me);
+        renderChips(opp, makePlayer("me"));
 
-        fireEvent.click(screen.getByTestId("chip-graveyard-me"));
+        fireEvent.click(screen.getByTestId("chip-graveyard-opp"));
 
         const dialog = screen.getByRole("dialog");
         // The reveal dialog is the same one the desktop pile opens — titled with
