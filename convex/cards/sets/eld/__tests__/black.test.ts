@@ -4,51 +4,60 @@
 import { describe, it, expect } from "vitest";
 import { wishclawTalisman } from "../black";
 import { forest } from "../../lea/colorless";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
-import { resolveTopOfStack } from "../../../../gre/state";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+    pushSpell,
+} from "../../../__tests__/setup";
+import {
+    processPendingActionTriggers,
+    resolveTopOfStack,
+} from "../../../../gre/state";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { projectPublicState } from "../../../../gameProjections";
 
 describe("Wishclaw Talisman (CR 122 counters / 701.19 / 400.7 / 701.20 / 613.1b)", () => {
-    it("enters with three wish counters (CR 603.6a ETB)", () => {
-        const talisman = makeInstance(wishclawTalisman.id, {
-            id: "talisman1",
-            controllerId: "p1",
-            ownerId: "p1",
-        });
+    // CR 121.6 / 614.1c (issue #1693) — "This artifact enters with three wish
+    // counters on it" is a REPLACEMENT effect, so the counters must be on the
+    // artifact the FIRST instant it is on the battlefield: nothing on the
+    // stack, no priority window at zero counters, no ability rendered.
+    it("declares the entry counters as a replacement, not a triggered ability", () => {
+        expect(wishclawTalisman.entersWith?.counters).toEqual([
+            { type: "wish", count: 3 },
+        ]);
+        expect(wishclawTalisman.triggeredAbilities ?? []).toEqual([]);
+    });
+
+    it("enters with three wish counters as it enters, with nothing on the stack (CR 121.6 / 614.1c)", () => {
         const state = makeState({
-            players: [
-                makePlayer("p1", { battlefield: [talisman] }),
-                makePlayer("p2"),
-            ],
+            players: [makePlayer("p1"), makePlayer("p2")],
         });
-        // Fire the self ETB trigger (mirrors collectTriggers + buildTriggerItem).
-        state.stack.push({
-            ...talisman,
-            id: "trig-wishclaw-etb",
-            zone: "stack",
-            castById: "p1",
-            triggeredAbilityId: "wishclaw-talisman-etb-counters",
-            triggerSourceId: "talisman1",
-            triggerEvent: {
-                type: "PERMANENT_ENTERED",
-                instanceId: "talisman1",
-                controllerId: "p1",
-                types: talisman.types,
-            },
-            targets: [],
-        });
+        pushSpell(state, wishclawTalisman.id, "p1");
         resolveTopOfStack(state);
+
         const permanent = state.players[0].battlefield.find(
-            (c) => c.id === "talisman1"
+            (c) => (c.card as { id?: string }).id === wishclawTalisman.id
         );
+        // The counters are there the first time the permanent is observable…
         expect(permanent?.counters?.wish).toBe(3);
-        // Wire format — counters are public battlefield state.
+        // …and the placement created NO stack item to respond to, even after
+        // the engine drains the PERMANENT_ENTERED event through its trigger
+        // scan — the clause is not an ability, so nothing is collected.
+        expect(state.stack).toEqual([]);
+        processPendingActionTriggers(state);
+        expect(state.stack).toEqual([]);
+        // Its activation cost (remove a wish counter) is payable immediately.
+        expect(permanent?.counters?.wish).toBeGreaterThanOrEqual(1);
+
+        // Wire format — the "no intermediate zero state" criterion is a
+        // client-visible one, so re-run it THROUGH the projection.
         const projected = projectPublicState(state, 1, "p2");
         const slim = projected.players[0].battlefield.find(
-            (c) => c.id === "talisman1"
+            (c) => c.id === permanent!.id
         );
         expect(slim?.counters?.wish).toBe(3);
+        expect(projected.stack).toEqual([]);
     });
 
     it("searches for a card, puts it into hand, then gives control to an opponent", () => {

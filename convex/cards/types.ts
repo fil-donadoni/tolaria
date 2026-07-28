@@ -10435,13 +10435,37 @@ export interface CardDefinition {
      *  your most recent turn began" via `canActivate: (s) => !s.isSummoningSick`
      *  combined with `controllerTurnOnly`. Used by Rocket Launcher. */
     tracksControlContinuity?: boolean;
-    /** Counters placed on the permanent when it enters the battlefield
-     *  (CR 122.1, 614.1c). Each entry is a counter type and a count, where
+    /** The "this permanent enters with N counters on it" REPLACEMENT effect
+     *  (CR 121.6 + CR 614.1c) — the ONLY correct way to express that Oracle
+     *  line. Sibling to `entersTapped` / `entersTappedUnless`: like them it
+     *  modifies HOW the permanent enters, so it is applied AS the permanent
+     *  enters — before the object is considered to have entered, before the
+     *  first layer (CR 613) / SBA (CR 704) read, and before the trigger scan.
+     *  Nothing goes on the stack, neither player receives priority with the
+     *  permanent at zero counters, and the clause never renders as an ability.
+     *
+     *  NOT a `PERMANENT_ENTERED` triggered ability carrying a `counters` Op —
+     *  that shape is a bug (issue #1693) and the catalogue-wide guard
+     *  `convex/cards/__tests__/entersWithCounters.test.ts` fails CI on it. A
+     *  genuinely triggered counter placement ("when this enters, put a counter
+     *  on ANOTHER permanent") stays a trigger: it doesn't change how THIS
+     *  permanent enters.
+     *
+     *  Each entry is a counter type and a count; entries of the same type SUM,
+     *  which is how "if this creature was kicked, it enters with four +1/+1
+     *  counters" is written as four `count: "kicker"` entries (Duskwalker,
+     *  Llanowar Elite, Vodalian Serpent) rather than a bespoke multiplier.
      *  `count: "X"` reads the value chosen for X at cast time (CR 107.3), and
      *  `count: "kicker"` reads how many times the spell was kicked (CR 702.33e —
-     *  "a charge counter for each time it was kicked", Everflowing Chalice).
-     *  Applied by
-     *  `finalizeSpellResolution` after the permanent is on the battlefield. */
+     *  "a charge counter for each time it was kicked", Everflowing Chalice);
+     *  both are 0 for a permanent that was never cast (CR 107.3b).
+     *
+     *  Resolved by the frontend-safe oracle `resolveEntersWithCounters`
+     *  (`convex/cards/entersWith.ts`) and applied by the GRE at EVERY
+     *  permanent-entry site — a resolving permanent spell, reanimation /
+     *  put-onto-the-battlefield / blink, token creation, a token COPY (the
+     *  clause is a copiable value, CR 706.2), and every play-a-land path. The
+     *  per-site census lives on that module's header comment. */
     entersWith?: {
         counters?: { type: string; count: number | "X" | "kicker" }[];
     };

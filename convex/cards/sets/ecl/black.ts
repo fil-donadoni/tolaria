@@ -4,7 +4,6 @@
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 import type { CardDefinition, TriggeredAbility } from "../../types";
 import { PERMANENT_TYPES } from "../../types";
-import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 
 // A discarded/milled card CAN be a land, so the "permanent card" check below
 // needs the full CR 300.1 permanent-type list (`PERMANENT_TYPES`, incl. Land) —
@@ -18,6 +17,14 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 // from anywhere while this creature has a -1/-1 counter on it, remove a
 // -1/-1 counter from this creature." (CR 702.111 menace; CR 122.1 counters;
 // CR 603.2 zone-change trigger.)
+//
+// The six -1/-1 counters are a REPLACEMENT effect (CR 121.6 / 614.1c, issue
+// #1693), declared as `entersWith.counters` — NOT a `PERMANENT_ENTERED`
+// trigger, which is how this card originally shipped. As a trigger, a printed
+// 7/7 briefly sat on the battlefield as an actual 7/7 with a respondable stack
+// item pending; as a replacement it is a 1/1 the first instant it is
+// observable, which is also what the layer system (CR 613) and state-based
+// actions (CR 704.5) must see on their first read.
 //
 // Deviation (documented, CR-compliance default per gre-development.md): the
 // "put into your graveyard from anywhere" clause is implemented across the
@@ -47,23 +54,6 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 // dedupe is per-batch OVERALL: a single action that both discards a permanent
 // card AND kills a permanent in the same batch fires exactly once (the older
 // two-halves-dedupe-per-type residual gap is closed by the merge).
-function moonshadowEntersWithCounters(): TriggeredAbility {
-    return enteredTrigger({
-        id: "moonshadow-enters-with-counters",
-        oracleText: "This creature enters with six -1/-1 counters on it.",
-        scope: "self",
-        effects: [
-            {
-                op: "counters",
-                action: "add",
-                counter: "-1/-1",
-                target: { ref: "$source" },
-                count: 6,
-            },
-        ],
-    });
-}
-
 function moonshadowRemoveCounter(): TriggeredAbility {
     return {
         id: "moonshadow-remove-counter",
@@ -131,10 +121,8 @@ export const moonshadow: CardDefinition = {
     power: 7,
     toughness: 7,
     staticAbilities: ["menace"],
-    triggeredAbilities: [
-        moonshadowEntersWithCounters(),
-        moonshadowRemoveCounter(),
-    ],
+    entersWith: { counters: [{ type: "-1/-1", count: 6 }] },
+    triggeredAbilities: [moonshadowRemoveCounter()],
 };
 
 // Iron-Shield Elf — {1}{B} Creature — Elf Warrior, 3/1 (issue #1307 residue

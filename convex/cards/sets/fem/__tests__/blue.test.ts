@@ -34,7 +34,10 @@ import {
     getCardByName,
     getPrintingsForCard,
 } from "../../../index";
-import { resolveTopOfStack } from "../../../../gre/state";
+import {
+    processPendingActionTriggers,
+    resolveTopOfStack,
+} from "../../../../gre/state";
 import type {
     CardInstanceState,
     GameState,
@@ -185,18 +188,37 @@ describe("Homarid — tide counter P/T cycle (CR 611.2c, 603.6a, 603.8)", () => 
         expect(homarid.toughness).toBe(2);
     });
 
-    it("enters with a tide counter on it (CR 603.6)", () => {
-        const inst = makeWithTide(homarid.id, 0);
+    // CR 121.6 / 614.1c (issue #1693) — "This creature enters with a tide
+    // counter on it" is a REPLACEMENT effect. As a trigger, Homarid sat on the
+    // battlefield at ZERO tide counters (reading as a plain 2/2) until the
+    // ability resolved; as a replacement its one-counter `pt-buff` applies on
+    // the very first read, so it is a 1/1 the instant it is observable.
+    it("enters with a tide counter already on it, nothing on the stack (CR 121.6 / 614.1c)", () => {
+        expect(homarid.entersWith?.counters).toEqual([
+            { type: "tide", count: 1 },
+        ]);
         const state = makeState({
-            players: [
-                makePlayer("p1", { battlefield: [inst] }),
-                makePlayer("p2"),
-            ],
+            players: [makePlayer("p1"), makePlayer("p2")],
         });
-        resolveTrigger(state, inst, "homarid-tide-enter", {
-            type: "PERMANENT_ENTERED",
-        } as StackItem["triggerEvent"]);
-        expect(state.players[0].battlefield[0].counters?.tide).toBe(1);
+        pushSpell(state, homarid.id, "p1");
+        resolveTopOfStack(state);
+
+        const live = state.players[0].battlefield[0];
+        expect(live.counters?.tide).toBe(1);
+        expect(getEffectivePower(state, live)).toBe(1);
+        expect(getEffectiveToughness(state, live)).toBe(1);
+        expect(state.stack).toEqual([]);
+        processPendingActionTriggers(state);
+        expect(state.stack).toEqual([]);
+
+        // Wire format — the counter and the P/T it drives must survive the
+        // projection, or the board shows the intermediate zero state.
+        const projected = projectPublicState(state, 1, "p2");
+        const slim = projected.players[0].battlefield[0];
+        expect(slim.counters?.tide).toBe(1);
+        expect(getEffectivePower(projected, slim)).toBe(1);
+        expect(getEffectiveToughness(projected, slim)).toBe(1);
+        expect(projected.stack).toEqual([]);
     });
 
     it("adds a tide counter each upkeep (CR 603.6a)", () => {
@@ -697,14 +719,15 @@ describe("Merseine — net counters + dynamic cost K (CR 122, 502.1, 601.2f, 202
         return { state, aura, host };
     }
 
-    it("enters with three net counters (CR 122.1)", () => {
-        const aura = makeInstance(merseine.id, {
-            id: "aura",
-            controllerId: "p1",
-            ownerId: "p1",
-            zone: "battlefield",
-            attachedTo: "host",
-        });
+    // CR 121.6 / 614.1c (issue #1693) — the three net counters are a
+    // REPLACEMENT effect. As a trigger the Aura attached with ZERO net
+    // counters, so its untap lock (gated on the live tally) was briefly OFF.
+    it("enters with three net counters already on it, nothing on the stack (CR 121.6 / 614.1c)", () => {
+        expect(merseine.entersWith?.counters).toEqual([
+            { type: "net", count: 3 },
+        ]);
+        expect(merseine.triggeredAbilities ?? []).toEqual([]);
+
         const host = makeInstance(grizzlyBears.id, {
             id: "host",
             controllerId: "p2",
@@ -713,14 +736,27 @@ describe("Merseine — net counters + dynamic cost K (CR 122, 502.1, 601.2f, 202
         });
         const state = makeState({
             players: [
-                makePlayer("p1", { battlefield: [aura] }),
+                makePlayer("p1"),
                 makePlayer("p2", { battlefield: [host] }),
             ],
         });
-        resolveTrigger(state, aura, "merseine-enter-counters", {
-            type: "PERMANENT_ENTERED",
-        } as StackItem["triggerEvent"]);
-        expect(state.players[0].battlefield[0].counters?.net).toBe(3);
+        pushSpell(state, merseine.id, "p1", [
+            { type: "permanent", id: "host" },
+        ]);
+        resolveTopOfStack(state);
+
+        const live = state.players[0].battlefield[0];
+        expect(live.attachedTo).toBe("host");
+        expect(live.counters?.net).toBe(3);
+        expect(state.stack).toEqual([]);
+        processPendingActionTriggers(state);
+        expect(state.stack).toEqual([]);
+
+        // Wire format — counters are public battlefield state the untap lock
+        // and the client both read.
+        const projected = projectPublicState(state, 1, "p2");
+        expect(projected.players[0].battlefield[0].counters?.net).toBe(3);
+        expect(projected.stack).toEqual([]);
     });
 
     it("keeps the enchanted creature from untapping while a net counter remains (CR 502.1)", () => {
