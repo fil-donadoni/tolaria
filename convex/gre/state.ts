@@ -7074,10 +7074,14 @@ export function returnExiledForSource(
         // onto whatever the entry itself already placed rather than
         // overwriting (issue #1693). `putReanimatedOnBattlefield` above ran the
         // CR 121.6 entry-counters replacement, so a blinked/flickered Clockwork
-        // Beast is already holding its seven +1/+0 counters — and the trigger
-        // scan inside that call has ALREADY observed them. A wholesale
-        // `= { ...bundle.counters }` here silently discarded them right after
-        // the board had been told they were there.
+        // Beast is already holding its seven +1/+0 counters. Both are
+        // replacement effects modifying the SAME entry event, so per CR 616.1
+        // both apply and their counters are additive — a wholesale
+        // `= { ...bundle.counters }` here silently discarded the entry half.
+        // (Ordering is safe either way: `emitPermanentEntered` only QUEUES
+        // `PERMANENT_ENTERED`; the trigger scan drains it in
+        // `processPendingActionTriggers`, i.e. after this merge, so triggers
+        // observe the final total.)
         if (Object.keys(bundle.counters).length > 0) {
             const merged: Record<string, number> = {
                 ...(hostCard.counters ?? {}),

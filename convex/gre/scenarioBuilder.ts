@@ -194,10 +194,16 @@ export function buildStateFromScenario(
                 // staging a specific board); the declared entry counters are
                 // only the DEFAULT when the spec says nothing. No cast-time
                 // values exist for a placed permanent (CR 107.3b).
+                // A FACE-DOWN permanent is a 2/2 with no name, no text and no
+                // abilities (CR 708.2), so the face-up card's entry counters
+                // must NOT be defaulted onto it — that would stage a "2/2"
+                // secretly holding seven +1/+0 counters.
                 const battlefieldDef = getCardByName(entry.name);
                 const resolvedCounters = resolveScenarioBattlefieldCounters(
                     entry.counters ??
-                        resolveEntersWithCounters(battlefieldDef, {}),
+                        (entry.faceDown
+                            ? undefined
+                            : resolveEntersWithCounters(battlefieldDef, {})),
                     {
                         isPlaneswalker: isPlaneswalker(
                             instance as CardInstanceState
