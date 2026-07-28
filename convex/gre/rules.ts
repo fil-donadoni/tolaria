@@ -13,7 +13,7 @@ import type {
 } from "./state";
 import type { CardAction } from "./types";
 import { findTriggeredAbility } from "./copy";
-import { isSorceryTiming } from "./phases";
+import { isSorceryTiming, isSorceryTimingFor } from "./phases";
 import {
     CASTABLE_PERMANENT_TYPES,
     DAMAGEABLE_PERMANENT_TYPES,
@@ -295,14 +295,33 @@ const ALL_HAND_ACTIONS: CardAction[] = [
  *   - otherwise an instant-speed card, OR a card the caster holds a flash GRANT
  *     for (Teferi's +1: "cast sorcery spells as though they had flash"), is
  *     castable any time the caster has priority;
- *   - else sorcery timing is required. */
-function castTimingBaseLegal(
+ *   - else `casterId`'s OWN sorcery window is required (CR 307.1).
+ *
+ *  The SHARED cast-timing authority (issue #1690): the GRE (`getLegalActions`,
+ *  every cast branch below), the cast mutation (`announceCast` →
+ *  `assertLegalAction` → `getLegalActions`) and the client cast gate (the
+ *  projected `legalActions` a hand card renders from) all resolve a spell's
+ *  timing through this one function, so the three can never disagree.
+ *
+ *  Both sorcery legs ask `isSorceryTimingFor(state, casterId)` — the
+ *  CASTER-AWARE window — never the player-agnostic `isSorceryTiming(state)`.
+ *  The latter answers "is the turn in ITS ACTIVE player's sorcery window",
+ *  which for any other caster is an answer about a different player: it reports
+ *  a window to the NON-ACTIVE player throughout the opponent's main phases, so
+ *  a plain Sorcery read as castable during the opponent's turn with no flash
+ *  grant in the state at all (issue #1690 — the "Teferi grants flash timing
+ *  without the +1" symptom, which is really "the timing predicate lost the
+ *  caster"). That was masked inside `getLegalActions` only by its unrelated
+ *  `priorityPlayerId !== casterId` early return ~300 lines up; a helper
+ *  documented as the shared authority must not depend on a caller's guard to
+ *  be correct. */
+export function castTimingBaseLegal(
     state: GameState,
     casterId: string,
     card: CardInstanceState
 ): boolean {
     if (isCastTimingSorcerySpeedLocked(casterId, state)) {
-        return isSorceryTiming(state);
+        return isSorceryTimingFor(state, casterId);
     }
     if (
         hasInstantSpeed(card) ||
@@ -310,7 +329,7 @@ function castTimingBaseLegal(
     ) {
         return true;
     }
-    return isSorceryTiming(state);
+    return isSorceryTimingFor(state, casterId);
 }
 
 export function getLegalActions(
