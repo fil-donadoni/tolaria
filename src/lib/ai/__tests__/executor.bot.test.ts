@@ -17,6 +17,7 @@ function fakeMutations() {
         summonCompanion: vi.fn().mockResolvedValue(null),
         announceCast: vi.fn().mockResolvedValue(null),
         selectTarget: vi.fn().mockResolvedValue(null),
+        selectTargets: vi.fn().mockResolvedValue(null),
         confirmTargets: vi.fn().mockResolvedValue(null),
         tapForPayment: vi.fn().mockResolvedValue(null),
         activateAbility: vi.fn().mockResolvedValue(null),
@@ -141,7 +142,7 @@ describe("executeMove (issue #110)", () => {
         expect(m.summonCompanion).toHaveBeenCalledWith(GP);
     });
 
-    it("cast-spell → announce, select each target, then tap each land in order", async () => {
+    it("cast-spell → announce, batch-select all targets, then batch-tap all lands (issue #1779)", async () => {
         const m = await run({
             kind: "cast-spell",
             cardInstanceId: "bolt",
@@ -157,16 +158,24 @@ describe("executeMove (issue #110)", () => {
             chosenX: undefined,
             chosenModeId: undefined,
         });
-        expect(m.selectTarget).toHaveBeenCalledWith({
+        // Batched: ONE selectTargets call carrying the whole target array,
+        // not one selectTarget call per target.
+        expect(m.selectTargets).toHaveBeenCalledWith({
             ...GP,
-            targetType: "player",
-            targetId: "u1-p1",
-            targetPlayerId: undefined,
+            targets: [
+                {
+                    targetType: "player",
+                    targetId: "u1-p1",
+                    targetPlayerId: undefined,
+                },
+            ],
         });
+        expect(m.selectTarget).not.toHaveBeenCalled();
+        // Batched: ONE tapForPayment call carrying the whole payments array,
+        // not one tapForPayment call per land.
         expect(m.tapForPayment).toHaveBeenCalledWith({
             ...GP,
-            cardInstanceId: "mtn",
-            manaChoiceIndex: undefined,
+            payments: [{ cardInstanceId: "mtn", manaChoiceIndex: undefined }],
         });
         // No confirmTargets for fixed-N selections.
         expect(m.confirmTargets).not.toHaveBeenCalled();
@@ -183,7 +192,7 @@ describe("executeMove (issue #110)", () => {
         expect(m.confirmTargets).toHaveBeenCalledWith(GP);
     });
 
-    it("activate-ability → activate, then fund via tapForActivationPayment", async () => {
+    it("activate-ability → activate, batch-select targets, then fund via tapForActivationPayment", async () => {
         const m = await run({
             kind: "activate-ability",
             cardInstanceId: "src",
@@ -199,12 +208,21 @@ describe("executeMove (issue #110)", () => {
             abilityId: "ping",
             chosenX: undefined,
         });
-        expect(m.selectTarget).toHaveBeenCalledWith({
+        // Batched: ONE selectTargets call (issue #1779 — selectTargets serves
+        // BOTH cast and activated-ability targeting).
+        expect(m.selectTargets).toHaveBeenCalledWith({
             ...GP,
-            targetType: "permanent",
-            targetId: "creat",
-            targetPlayerId: undefined,
+            targets: [
+                {
+                    targetType: "permanent",
+                    targetId: "creat",
+                    targetPlayerId: undefined,
+                },
+            ],
         });
+        expect(m.selectTarget).not.toHaveBeenCalled();
+        // tapForActivationPayment stays per-item (out of issue #1779's named
+        // scope, which batches `tapForPayment` only).
         expect(m.tapForActivationPayment).toHaveBeenCalledWith({
             ...GP,
             cardInstanceId: "isl",

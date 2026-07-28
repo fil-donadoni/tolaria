@@ -548,11 +548,6 @@ export function useBattlefieldInteraction(player: Player) {
 
         // Mana source tap/untap (lands, mox, etc.)
         if (isInPayment) {
-            const tapMutation = isPayingCast
-                ? tapForPayment
-                : isPayingActivation
-                  ? tapForActivationPayment
-                  : tapForAttackTax;
             const untapMutation = isPayingCast
                 ? untapForPayment
                 : isPayingActivation
@@ -575,7 +570,23 @@ export function useBattlefieldInteraction(player: Player) {
                     choices,
                     inPayment: true,
                 });
+            } else if (isPayingCast) {
+                // issue #1779 / PRD #1776 T4 — tapForPayment now takes a
+                // `payments` batch; a single manual click still submits it as
+                // a one-element array (no UX regression — Convex reactivity
+                // still drives the "mana pool fills as you tap" feedback per
+                // click, since we still fire one mutation per click here).
+                guardMutation(
+                    tapForPayment({
+                        gameId,
+                        playerId,
+                        payments: [{ cardInstanceId: card.id }],
+                    })
+                );
             } else {
+                const tapMutation = isPayingActivation
+                    ? tapForActivationPayment
+                    : tapForAttackTax;
                 guardMutation(
                     tapMutation({
                         gameId,
@@ -913,12 +924,27 @@ export function useBattlefieldInteraction(player: Player) {
                             manaChoiceIndex: index,
                         };
                         if (manaChoiceState.inPayment) {
-                            const mutation = isPayingCast
-                                ? tapForPayment
-                                : isPayingActivation
-                                  ? tapForActivationPayment
-                                  : tapForAttackTax;
-                            guardMutation(mutation(args));
+                            if (isPayingCast) {
+                                // issue #1779 / PRD #1776 T4 — batched shape.
+                                guardMutation(
+                                    tapForPayment({
+                                        gameId,
+                                        playerId,
+                                        payments: [
+                                            {
+                                                cardInstanceId:
+                                                    manaChoiceState.cardId,
+                                                manaChoiceIndex: index,
+                                            },
+                                        ],
+                                    })
+                                );
+                            } else {
+                                const mutation = isPayingActivation
+                                    ? tapForActivationPayment
+                                    : tapForAttackTax;
+                                guardMutation(mutation(args));
+                            }
                         } else {
                             guardMutation(tapUntap(args));
                         }

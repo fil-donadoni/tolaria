@@ -6888,19 +6888,52 @@ export const announceCast = mutation({
     },
 });
 
-/** Step 2: tap a land during payment to add mana. Auto-commits when cost is covered. */
+/** One payment item for the batched `tapForPayment` (issue #1779 / PRD #1776
+ *  T4). */
+export type TapPaymentInput = {
+    cardInstanceId: string;
+    /** Required for sources with manaChoices (duals, Birds of Paradise, Black Lotus). */
+    manaChoiceIndex?: number;
+};
+
+/** Step 2: tap one or more lands during payment to add mana, in ONE
+ *  transaction (issue #1779 / PRD #1776 T4 — was one mutation per land).
+ *  Applies each entry of `payments` IN ORDER, re-running the auto-commit
+ *  check after each so a batch produces the IDENTICAL terminal state to the
+ *  same calls made one at a time. Validation stays per-step: the FIRST
+ *  illegal payment throws, which aborts the whole batch — nothing is
+ *  persisted (`saveGameState` runs once, at the end).
+ *
+ *  CR correctness (issue #1779 review finding 1): the per-item tap MUST go
+ *  through `tapSourceIntoPayment` — the SAME primitive
+ *  `tapForActivationPayment` / `autoTapForPayment` / `autoTapForAttackTax`
+ *  call and ~30 card test files exercise directly. An earlier revision of
+ *  this loop reimplemented the tap mechanics inline (`applyOneTapPayment`)
+ *  and silently dropped every inline rider: `isTapLockedBySummoningSickness`
+ *  (CR 302.1), `manaChoiceRemovesCounters` / `payRemoveCounterCost` (CR
+ *  122.6, Mana Battery), `armDelayedTriggerOnTap` (ADR 0040, Rainbow Vale),
+ *  `applyDrawCardOnTap`, `recordLifePaidOnTap`, `realizeManaAbilityTapBonus`
+ *  (Wild Growth) — and the unconditional self-damage rider (Ancient Tomb):
+ *  tapping it through the divergent copy cost 0 life instead of 2 (CR
+ *  605.1a / 106.4). There must be only ONE authority for this mechanic. */
 export const tapForPayment = mutation({
     args: {
         gameId: v.id("games"),
         playerId: v.string(),
-        cardInstanceId: v.string(),
-        /** Required for sources with manaChoices (duals, Birds of Paradise, Black Lotus). */
-        manaChoiceIndex: v.optional(v.number()),
+        payments: v.array(
+            v.object({
+                cardInstanceId: v.string(),
+                manaChoiceIndex: v.optional(v.number()),
+            })
+        ),
     },
     handler: async (ctx, args) => {
         // SECURITY (issue #1645 review): seat-addressed mutation — the
         // caller must own the handle they name. See `assertCallerOwnsSeat`.
         await assertCallerOwnsSeat(ctx, args.playerId);
+        if (args.payments.length === 0) {
+            throw new Error("payments must include at least one entry");
+        }
         const gameState = await getLatestGameState(ctx, args.gameId);
         if (!gameState) throw new Error("Game not found");
 
@@ -6911,151 +6944,45 @@ export const tapForPayment = mutation({
             expect: "priority",
         });
 
-        if (!state.pendingCast) throw new Error("No spell being cast");
-        if (state.pendingCast.playerId !== args.playerId) {
-            throw new Error("Not your pending cast");
-        }
-
-        const player = getPlayer(state, args.playerId);
-        const card = player.battlefield.find(
-            (c) => c.id === args.cardInstanceId
-        );
-        if (!card) throw new Error("Card not on battlefield");
-        if (card.isTapped) throw new Error("Card already tapped");
-        // CR 602.5b (issue #947) — an un-imprinted Chrome Mox (or any source
-        // whose mana ability's `canActivate` currently fails) has no usable
-        // mana ability at all; reject cleanly rather than falling through to
-        // a mana-choice resolution that has nothing to resolve.
-        if (!hasManaAbility(card, state)) {
-            throw new Error("Card has no mana ability to tap");
-        }
-
-        // CR 602.5b (issue #947) — gate on the ability's own `canActivate`
-        // precondition so an un-imprinted Chrome Mox is treated as having no
-        // usable mana ability at all.
-        const ability = getActivatedManaAbility(card, state);
-
-        if (
-            manaTapNeedsChoice(
-                card,
-                player.id,
-                manaTapBattlefields(state),
-                ability
-            )
-        ) {
-            // 2+ mana-tap options — its own ability and/or one per basic land
-            // subtype (any land under Urborg), or a single board-conditional
-            // chooser (Fellwar Stone). The activator picks which to activate.
-            if (args.manaChoiceIndex === undefined) {
-                throw new Error("Must choose a mana color");
+        for (const payment of args.payments) {
+            if (!state.pendingCast) throw new Error("No spell being cast");
+            if (state.pendingCast.playerId !== args.playerId) {
+                throw new Error("Not your pending cast");
             }
-            // CR 106.1 / 305.6 — resolve the submitted index against the unified
-            // option list (activated abilities + intrinsic basic-land subtypes),
-            // carrying the chosen option's provenance so a basic-subtype pick
-            // taps (never sacrifices) regardless of the source's own ability.
-            const resolved = resolveManaTapChoice(
-                card,
-                player.id,
-                manaTapBattlefields(state),
-                args.manaChoiceIndex
+            const player = getPlayer(state, args.playerId);
+            const card = player.battlefield.find(
+                (c) => c.id === payment.cardInstanceId
             );
-            if (!resolved) {
-                throw new Error(
-                    manaChoiceRejectionMessage(
-                        card,
-                        player.id,
-                        manaTapBattlefields(state)
-                    )
-                );
+            if (!card) throw new Error("Card not on battlefield");
+            // CR 602.5b (issue #947) — an un-imprinted Chrome Mox (or any
+            // source whose mana ability's `canActivate` currently fails) has
+            // no usable mana ability at all; reject cleanly rather than
+            // falling through to a mana-choice resolution that has nothing
+            // to resolve.
+            if (!hasManaAbility(card, state)) {
+                throw new Error("Card has no mana ability to tap");
             }
-            // CR 614 — Deep Water rewrites a land's produced mana to {U}.
-            const chosen = applyLandManaReplacement(
+            // Issue #1779 review finding 1 — the SHARED per-item tap
+            // primitive (see the doc comment above), not a second copy of
+            // its mechanics.
+            tapSourceIntoPayment(
                 state,
-                player.id,
+                player,
                 card,
-                resolved.mana
+                payment.manaChoiceIndex,
+                state.pendingCast.tappedLandIds
             );
-
-            const isSacrifice = resolved.ability?.cost.sacrifice === true;
-            // CR 605.1a / 601.2f — pay the mana portion of the activation cost
-            // (Chromatic Star's {1}) FIRST, before any source mutation, so an
-            // unaffordable activation throws with nothing changed.
-            applyManaAbilityManaCost(player, resolved.ability);
-            // CR 605.2 — emit "tapped for mana" before any sacrifice path
-            // moves the card off the battlefield, so the event still carries
-            // the permanent's pre-sacrifice types/subtypes.
-            emitPermanentTapped(state, card, true, chosen);
-            if (isSacrifice) {
-                // Move to graveyard instead of tapping. Cannot be undone via
-                // untapForPayment — sacrifice is a one-way payment. CR 603.6 /
-                // 700.4 — funnel through `removePermanentTo` so a leaving-the-
-                // battlefield / dies trigger on the sacrificed source fires
-                // (queues `PERMANENT_LEFT`; drained at cast commit).
-                removePermanentTo(state, card.id, "graveyard", "sacrifice");
-            } else {
-                card.isTapped = true;
-                card.chosenMana = chosen;
-            }
-
-            for (const [color, amount] of Object.entries(chosen)) {
-                if (color !== "X" && typeof amount === "number" && amount > 0) {
-                    player.manaPool[color] =
-                        (player.manaPool[color] ?? 0) + amount;
-                }
-            }
-            state.pendingCast.tappedLandIds.push(card.id);
-        } else {
-            const manaColor =
-                getBasicLandMana(card) ?? getActivatedManaColor(card);
-            if (!manaColor) throw new Error("Card does not produce mana");
-
-            // ADR 0039 / CR 605.1a — a fixed-output "Sacrifice this" mana
-            // ability (Basal Thrull) sacrifices the source instead of tapping
-            // it. One-way: it is never pushed as an untappable tappedLand entry.
-            const isSacrifice = ability?.cost.sacrifice === true;
-            // CR 605.1a / 601.2f — pay the mana portion of the activation cost
-            // FIRST, before any source mutation, so an unaffordable activation
-            // throws with nothing changed.
-            applyManaAbilityManaCost(player, ability);
-            if (!isSacrifice) card.isTapped = true;
-            // CR 106.1 / 605.1a — board-conditional output (Urza trio) computed
-            // from the controller's battlefield and snapshotted onto
-            // `chosenMana` so untap refunds the exact amount added.
-            const amount = getFixedManaAmount(
-                card,
-                manaColor,
-                player.battlefield
-            );
-            // CR 614 — Deep Water rewrites a land's produced mana to {U}.
-            const added = applyLandManaReplacement(state, player.id, card, {
-                [manaColor]: amount,
-            } as ManaCost);
-            if (
-                !isSacrifice &&
-                (getDynamicManaProduced(card, player.battlefield) ||
-                    added[manaColor] === undefined)
-            ) {
-                card.chosenMana = added;
-            }
-            for (const [color, count] of Object.entries(added)) {
-                if (color !== "X" && typeof count === "number" && count > 0) {
-                    player.manaPool[color] =
-                        (player.manaPool[color] ?? 0) + count;
-                }
-            }
-            emitPermanentTapped(state, card, true, added);
-            if (isSacrifice) {
-                // CR 603.6 / 700.4 — funnel the sacrifice through
-                // `removePermanentTo` so a leave-the-battlefield / dies trigger
-                // on the sacrificed source fires (queues `PERMANENT_LEFT`).
-                removePermanentTo(state, card.id, "graveyard", "sacrifice");
-            } else {
-                state.pendingCast.tappedLandIds.push(card.id);
-            }
+            // Check if cost is now covered → auto-commit, exactly like the
+            // per-call path did after every single tap.
+            tryAutoCommitPendingCast(state, args.playerId);
+            // A completed cast has nothing left to pay for; further batch
+            // entries (over-supplied by a stale client plan) are simply
+            // ignored rather than erroring an already-successful cast — see
+            // the "batch vs. separate-call over-supply" decision covered by
+            // `tapForPaymentBatch.test.ts` (issue #1779 review finding 4).
+            if (!state.pendingCast) break;
         }
 
-        // Check if cost is now covered → auto-commit
-        tryAutoCommitPendingCast(state, args.playerId);
         await saveGameState(
             ctx,
             args.gameId,
@@ -8638,6 +8565,403 @@ export const selectCastAlternativeHandCost = mutation({
     },
 });
 
+/** One target-selection item for the batched `selectTargets` (issue #1779 /
+ *  PRD #1776 T4). */
+export type TargetSelectionInput = {
+    targetType: "permanent" | "player" | "spell" | "graveyard-card";
+    targetId: string;
+    /** Owner of the zone the target lives in. Required for non-battlefield
+     *  zones (e.g. "graveyard-card") so the same instance id is unambiguous;
+     *  ignored for battlefield/player/spell targets. */
+    targetPlayerId?: string;
+    /** Divide-as-you-choose amount (CR 601.2d / 120.4) assigned to THIS
+     *  target — the points of damage / counters this target receives. Only
+     *  meaningful for a spell whose `targetRequirement.divideAsChosen` is
+     *  set; must be ≥ 1 and not exceed the remaining budget. Omitted for
+     *  non-divide spells (the engine auto-divides ≥1-each on finalize). */
+    amount?: number;
+};
+
+/** Core per-item apply logic for target selection (CR 601.2c). Extracted out
+ *  of `selectTarget` so the batched `selectTargets` mutation can apply a
+ *  whole ordered array within ONE transaction (issue #1779 / PRD #1776 T4):
+ *  each call mutates `state` in place and THROWS on the first illegal target,
+ *  which the caller's loop lets propagate — nothing persists until the
+ *  caller's single `saveGameState`, so an illegal element aborts the WHOLE
+ *  batch, never a partial apply. Re-reads `state.pendingTarget` fresh on
+ *  every call, so a batch that spans a multi-group advance (CR 601.2c,
+ *  Fumarole) or finalizes mid-array is handled identically to the same calls
+ *  made one at a time. */
+export function applyOneTargetSelection(
+    state: GameState,
+    playerId: string,
+    input: TargetSelectionInput
+): void {
+    if (!state.pendingTarget)
+        throw new Error("No target selection in progress");
+    if (state.pendingTarget.playerId !== playerId) {
+        throw new Error("Not your pending target selection");
+    }
+
+    const target: {
+        type: "permanent" | "player" | "spell" | "graveyard-card";
+        id: string;
+        playerId?: string;
+    } = {
+        type: input.targetType,
+        id: input.targetId,
+        ...(input.targetPlayerId ? { playerId: input.targetPlayerId } : {}),
+    };
+
+    // Validate the target exists and matches the requirement
+    const pt = state.pendingTarget;
+    const reqTypes = Array.isArray(pt.targetType)
+        ? pt.targetType
+        : [pt.targetType];
+    const wantsAny = reqTypes.includes("any");
+
+    if (input.targetType === "graveyard-card") {
+        // CR 109.2 / 400.7: graveyard-zone target. The chooser names a
+        // specific player's graveyard via `targetPlayerId`; the engine
+        // validates that the card sits there and matches the requested
+        // CardType filter (structural — ADR 0068's `StructuralKey`).
+        if (pt.zone !== "graveyard") {
+            throw new Error("This spell does not target a graveyard card");
+        }
+        if (!input.targetPlayerId) {
+            throw new Error("targetPlayerId required for graveyard target");
+        }
+        const owner = state.players.find((p) => p.id === input.targetPlayerId);
+        if (!owner) throw new Error("Invalid graveyard owner");
+        const matchedCard = owner.graveyard.find(
+            (c) => c.id === input.targetId
+        );
+        if (!matchedCard) throw new Error("Invalid graveyard target");
+        const wantsAnyCard = reqTypes.includes("card");
+        const cardTypes = reqTypes.filter(
+            (t) =>
+                t !== "player" &&
+                t !== "any" &&
+                t !== "spell" &&
+                t !== "spell-or-permanent" &&
+                t !== "card"
+        );
+        if (
+            !wantsAnyCard &&
+            !cardTypes.some((t) => matchedCard.types.includes(t as never))
+        ) {
+            throw new Error("Card type mismatch for graveyard target");
+        }
+        // CR 109.3 / 102.1 / 202.3 / 109.1 — every CARD-kind filter
+        // (`controller` — the graveyard's OWNER, anti-spoof #904's
+        // card-flavored twin — `mvFilter`, and `excludeTypes` — issue
+        // #1378's "nonland permanent card" gate), routed through the
+        // SINGLE shared authority — the target-filter registry (ADR 0068
+        // / issue #1410, T3). `getLegalTargets` runs the SAME
+        // `checkCardTargetFilters` per candidate, so the offered set and
+        // the accepted set can't diverge. This ALSO fixes a real latent
+        // gap: this branch never implemented `controller: "active"`
+        // before this slice, while `getLegalTargets` already did.
+        const cardFilterCtx: TargetFilterCtx = {
+            state,
+            sourceColors: [],
+            sourceTypes: [],
+            sourceSubtypes: [],
+            chooserId: playerId,
+            activePlayerId: state.activePlayerId,
+        };
+        const cardFilterViolation = checkCardTargetFilters(
+            cardFilterCtx,
+            matchedCard,
+            {
+                controller: pt.controller,
+                mvFilter: pt.mvFilter,
+                excludeTypes: pt.excludeTypes,
+            }
+        );
+        if (cardFilterViolation) throw new Error(cardFilterViolation);
+    } else if (input.targetType === "permanent") {
+        const wantsSpellOrPermanent = reqTypes.includes("spell-or-permanent");
+        const permanentTypes = reqTypes.filter(
+            (t) =>
+                t !== "player" &&
+                t !== "any" &&
+                t !== "spell" &&
+                t !== "spell-or-permanent" &&
+                t !== "card"
+        );
+        // CR 115.4 / 120.3: "any target" only matches damageable permanents.
+        let matchedCard: CardInstanceState | null = null;
+        for (const p of state.players) {
+            for (const c of p.battlefield) {
+                if (c.id !== input.targetId) continue;
+                const matchesAny =
+                    wantsAny &&
+                    DAMAGEABLE_PERMANENT_TYPES.some((t) => c.types.includes(t));
+                const matchesExplicit = permanentTypes.some((t) =>
+                    c.types.includes(t as never)
+                );
+                if (matchesAny || wantsSpellOrPermanent || matchesExplicit)
+                    matchedCard = c;
+            }
+        }
+        if (!matchedCard) throw new Error("Invalid target");
+        // CR 109.1 / 115 / 202 / 205 / 613 / 701.20 / 109.3 / 102.1 —
+        // every PERMANENT-kind filter (including `controller`, anti-spoof
+        // #904), routed through the SINGLE shared authority — the
+        // target-filter registry (ADR 0068 / issue #1408). `getLegalTargets`
+        // runs the SAME `checkPermanentTargetFilters` per candidate, so
+        // the offered set and the accepted set can't diverge (subtype/
+        // supertype/type-exclude/color/tapped/combat-role/keyword/
+        // exclude-instance/power/toughness/mv/controller) — the Phelia
+        // bug class. A new filter added to the registry is enforced at
+        // both sites at once — no field-by-field drift possible here.
+        // CR 601.2c same-controller cross-slot constraint (issue #1104,
+        // Barrin's Spite) — the sibling's live controllerId from what's
+        // already in `pt.selected`, resolved through the SAME
+        // `siblingControllerIdFor` helper `getLegalTargets` uses (ADR
+        // 0068 "lower once, check everywhere" — the offered set and the
+        // accepted set can't diverge).
+        const siblingControllerId = siblingControllerIdFor(
+            state,
+            pt.sameController,
+            pt.selected
+        );
+        const filterCtx: TargetFilterCtx = {
+            state,
+            sourceColors: [],
+            sourceTypes: [],
+            sourceSubtypes: [],
+            chooserId: playerId,
+            activePlayerId: state.activePlayerId,
+            siblingControllerId,
+        };
+        const filterViolation = checkPermanentTargetFilters(
+            filterCtx,
+            matchedCard,
+            {
+                controller: pt.controller,
+                subtypeFilter: pt.subtypeFilter,
+                supertypeFilter: pt.supertypeFilter,
+                excludeSubtypes: pt.excludeSubtypes,
+                excludeSupertypes: pt.excludeSupertypes,
+                excludeTypes: pt.excludeTypes,
+                excludeColors: pt.excludeColors,
+                colorFilter: pt.colorFilter as Color | undefined,
+                colorFilterAny: pt.colorFilterAny as
+                    | readonly Color[]
+                    | undefined,
+                tappedFilter: pt.tappedFilter,
+                combatRoleFilter: pt.combatRoleFilter,
+                requireAbility: pt.requireAbility,
+                requireAbilityAny: pt.requireAbilityAny,
+                excludeAbility: pt.excludeAbility,
+                excludeInstanceIds: pt.excludeInstanceIds,
+                powerFilter: pt.powerFilter,
+                toughnessFilter: pt.toughnessFilter,
+                mvFilter: pt.mvFilter,
+                sameController: pt.sameController,
+            }
+        );
+        if (filterViolation) throw new Error(filterViolation);
+        // CR 702.16b: a permanent with protection from [color] can't be
+        // targeted by a spell/ability whose source has that color.
+        const sourceColors = getPendingTargetSourceColors(
+            state,
+            pt.cardInstanceId,
+            pt.kind ?? "cast"
+        );
+        // The ACCEPTED set must apply the same quality checks as the
+        // offered set above (CR 702.16b) — including the CR 702.16j player
+        // quality (issue #1748), for which the targeting player IS the
+        // source's controller.
+        if (isProtectedFromColors(matchedCard, sourceColors, pt.playerId)) {
+            throw new Error("Target has protection from this source");
+        }
+        // CR 611 — a continuous `permanent-guard` (Guardian Beast / shroud)
+        // may bar targeting entirely. Mirror of the getLegalTargets gate.
+        // The source's card types (CR 109.5), subtypes ("Aura spells"), and
+        // spell-vs-ability (CR 113.3 "spells only") narrow filtered guards.
+        const guardSourceKind = pt.kind ?? "cast";
+        const sourceTypes = getPendingTargetSourceTypes(
+            state,
+            pt.cardInstanceId,
+            guardSourceKind
+        );
+        const sourceSubtypes = getPendingTargetSourceSubtypes(
+            state,
+            pt.cardInstanceId,
+            guardSourceKind
+        );
+        if (
+            isGuardedAgainst(state, matchedCard, "cantBeTargeted", {
+                types: sourceTypes,
+                subtypes: sourceSubtypes,
+                // copy-retarget is a spell copy; cast is a spell; ability
+                // is not (CR 113.3).
+                isSpell: guardSourceKind !== "ability",
+                // CR 702.11b — the source's controller (the selecting
+                // player). Hexproof bars only an opponent-controlled source;
+                // the permanent's own controller can still target it.
+                controllerId: playerId,
+            })
+        ) {
+            throw new Error(
+                "Target can't be the target of spells or abilities"
+            );
+        }
+    } else if (input.targetType === "player") {
+        if (!wantsAny && !reqTypes.includes("player")) {
+            throw new Error("Must target a permanent");
+        }
+        if (pt.colorFilter || pt.colorFilterAny) {
+            throw new Error("Players have no color");
+        }
+        const found = state.players.find((p) => p.id === input.targetId);
+        if (!found) throw new Error("Invalid player target");
+        // CR 109.3 / 102.1 / 506.2 — every PLAYER-kind filter
+        // (`controller` — Word of Command's "target opponent", anti-
+        // spoof #904's player-flavored twin — and
+        // `playerAttackedThisTurn` — Fire and Brimstone), routed through
+        // the SINGLE shared authority — the target-filter registry
+        // (ADR 0068 / issue #1410, T3). `getLegalTargets` runs the SAME
+        // `checkPlayerTargetFilters` per candidate, so the offered set
+        // and the accepted set can't diverge. This ALSO fixes a real
+        // latent gap: this branch never implemented `controller:
+        // "active"` before this slice, while `getLegalTargets` already
+        // did.
+        const playerFilterCtx: TargetFilterCtx = {
+            state,
+            sourceColors: [],
+            sourceTypes: [],
+            sourceSubtypes: [],
+            chooserId: playerId,
+            activePlayerId: state.activePlayerId,
+        };
+        const playerFilterViolation = checkPlayerTargetFilters(
+            playerFilterCtx,
+            found,
+            {
+                controller: pt.controller,
+                playerAttackedThisTurn: pt.playerAttackedThisTurn,
+            }
+        );
+        if (playerFilterViolation) throw new Error(playerFilterViolation);
+        // CR 702.18 (applied to a player via CR 115.4) — a shrouded
+        // player can't be the target of spells or abilities. Mirror of
+        // the permanent branch's `isGuardedAgainst` gate above; no
+        // source narrowing (shroud bars every source, including the
+        // guarded player's own). Always-on gate (ADR 0068) — stays
+        // outside the registry.
+        if (playerHasShroud(state, found.id)) {
+            throw new Error(
+                "Target can't be the target of spells or abilities"
+            );
+        }
+        // CR 702.16b/i (applied to a player via CR 115.4) — a player with
+        // protection from everything can't be the target of any spell or
+        // ability (The One Ring, issue #674). The SAME predicate
+        // `getLegalTargets` gates the offered set with, so offered and
+        // accepted can't diverge. No source narrowing: protection from
+        // EVERYTHING bars every source, the protected player's own
+        // included. Always-on gate (ADR 0068) — outside the registry.
+        if (playerHasProtectionFromEverything(state, found.id)) {
+            throw new Error(
+                "Target can't be the target of spells or abilities"
+            );
+        }
+    } else {
+        // "spell" target (CR 114.1): must match a stack item.
+        if (
+            !reqTypes.includes("spell") &&
+            !reqTypes.includes("spell-or-permanent")
+        ) {
+            throw new Error("This spell does not target a spell");
+        }
+        const spell = state.stack.find((s) => s.id === input.targetId);
+        if (!spell) throw new Error("Invalid spell target");
+        // CR 113 / 114.1 / 109.3 / 202.2 / 202.3 / 208.2 / 601.2c / 701.7 /
+        // 702 — every spell-kind filter (spellStackKind, controller,
+        // stackSourceTypeFilter, spellTargetsInstanceIds, colorFilter,
+        // mvFilter, spellTypeFilter, spellExcludeTypeFilter,
+        // spellCreaturePtFilter, spellSingleTargetingController,
+        // spellWouldDestroyLandYouControl), routed through the SINGLE
+        // shared authority — the target-filter registry (ADR 0068 /
+        // issue #1409, T2). `getLegalTargets` runs the SAME
+        // `checkSpellTargetFilters` per candidate, so the offered set
+        // and the accepted set can't diverge — the spell-flavored half
+        // of the Phelia bug class.
+        const spellFilterCtx: TargetFilterCtx = {
+            state,
+            sourceColors: [],
+            sourceTypes: [],
+            sourceSubtypes: [],
+            chooserId: playerId,
+            activePlayerId: state.activePlayerId,
+        };
+        const spellFilterViolation = checkSpellTargetFilters(
+            spellFilterCtx,
+            spell,
+            {
+                spellStackKind: pt.spellStackKind,
+                controller: pt.controller,
+                stackSourceTypeFilter: pt.stackSourceTypeFilter,
+                spellTargetsInstanceIds: pt.spellTargetsInstanceIds,
+                colorFilter: pt.colorFilter as Color | undefined,
+                colorFilterAny: pt.colorFilterAny as
+                    | readonly Color[]
+                    | undefined,
+                mvFilter: pt.mvFilter,
+                spellTypeFilter: pt.spellTypeFilter,
+                spellExcludeTypeFilter: pt.spellExcludeTypeFilter,
+                spellCreaturePtFilter: pt.spellCreaturePtFilter,
+                spellSingleTargetingController:
+                    pt.spellSingleTargetingController,
+                spellWouldDestroyLandYouControl:
+                    pt.spellWouldDestroyLandYouControl,
+            }
+        );
+        if (spellFilterViolation) throw new Error(spellFilterViolation);
+    }
+
+    pt.selected.push(target);
+
+    // CR 601.2d / 120.4 — divide-as-you-choose: record the amount assigned
+    // to this target. Validate ≥ 1 and that the running total never exceeds
+    // the spell's budget. When the caller omits an amount the engine
+    // auto-divides ≥1-each at finalize, so the field stays optional.
+    if (pt.divideTotal !== undefined && input.amount !== undefined) {
+        if (input.amount < 1) {
+            throw new Error("Each target must receive at least 1");
+        }
+        const amounts = pt.divideAmounts ?? {};
+        const priorSum = Object.values(amounts).reduce((a, b) => a + b, 0);
+        if (priorSum + input.amount > pt.divideTotal) {
+            throw new Error("Assigned amount exceeds the spell's total");
+        }
+        amounts[`${target.type}:${target.id}`] = input.amount;
+        pt.divideAmounts = amounts;
+    }
+
+    // CR 601.2d — a divide-as-you-choose spell auto-finalizes once the whole
+    // budget has been assigned, even before the (open-ended) max target
+    // count is hit: there are no points left to give a further target.
+    const divideBudgetSpent =
+        pt.divideTotal !== undefined &&
+        pt.divideAmounts !== undefined &&
+        Object.values(pt.divideAmounts).reduce((a, b) => a + b, 0) >=
+            pt.divideTotal;
+
+    const maxReached =
+        isTargetCountMaxReached(pt.count, pt.selected.length) ||
+        divideBudgetSpent;
+    if (maxReached) {
+        // CR 601.2c — advance to the next independent target group
+        // (Fumarole) when one is queued; otherwise finalize.
+        advanceTargetGroupOrFinalize(state, pt, playerId);
+    }
+}
+
 /** Select a target for a spell being announced (CR 601.2c). */
 export const selectTarget = mutation({
     args: {
@@ -8675,373 +8999,92 @@ export const selectTarget = mutation({
             expect: "target",
         });
 
-        if (!state.pendingTarget)
-            throw new Error("No target selection in progress");
-        if (state.pendingTarget.playerId !== args.playerId) {
-            throw new Error("Not your pending target selection");
+        applyOneTargetSelection(state, args.playerId, {
+            targetType: args.targetType,
+            targetId: args.targetId,
+            targetPlayerId: args.targetPlayerId,
+            amount: args.amount,
+        });
+
+        await saveGameState(
+            ctx,
+            args.gameId,
+            gameState.seq + 1,
+            state,
+            gameState
+        );
+    },
+});
+
+/** Batched form of `selectTarget` (issue #1779 / PRD #1776 T4): apply a full
+ *  ordered array of target selections in ONE transaction/round-trip instead
+ *  of one mutation per target — the CR 601.2d divide-as-you-choose buffer
+ *  (`useDivideBuffer`) and the vs-AI bot executor (which already knows the
+ *  whole target set before dispatch) both drive this instead of looping
+ *  `selectTarget`. Preserves per-target divide-as-you-choose amounts and
+ *  multi-group advance (CR 601.2c, Fumarole) exactly like the same calls made
+ *  one at a time — see `applyOneTargetSelection`. Validation stays per-step:
+ *  the FIRST illegal target throws and aborts the whole batch (nothing is
+ *  persisted — `saveGameState` runs once, at the end). */
+export const selectTargets = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+        targets: v.array(
+            v.object({
+                targetType: v.union(
+                    v.literal("permanent"),
+                    v.literal("player"),
+                    v.literal("spell"),
+                    v.literal("graveyard-card")
+                ),
+                targetId: v.string(),
+                targetPlayerId: v.optional(v.string()),
+                amount: v.optional(v.number()),
+            })
+        ),
+    },
+    handler: async (ctx, args) => {
+        // SECURITY (issue #1645 review): seat-addressed mutation — the
+        // caller must own the handle they name. See `assertCallerOwnsSeat`.
+        await assertCallerOwnsSeat(ctx, args.playerId);
+        if (args.targets.length === 0) {
+            throw new Error("targets must include at least one entry");
         }
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
 
-        const target: {
-            type: "permanent" | "player" | "spell" | "graveyard-card";
-            id: string;
-            playerId?: string;
-        } = {
-            type: args.targetType,
-            id: args.targetId,
-            ...(args.targetPlayerId ? { playerId: args.targetPlayerId } : {}),
-        };
+        const state = structuredClone(gameState.state) as GameState;
+        assertGameNotOver(state);
+        assertExpectedInput(state, {
+            playerId: args.playerId,
+            expect: "target",
+        });
 
-        // Validate the target exists and matches the requirement
-        const pt = state.pendingTarget;
-        const reqTypes = Array.isArray(pt.targetType)
-            ? pt.targetType
-            : [pt.targetType];
-        const wantsAny = reqTypes.includes("any");
-
-        if (args.targetType === "graveyard-card") {
-            // CR 109.2 / 400.7: graveyard-zone target. The chooser names a
-            // specific player's graveyard via `targetPlayerId`; the engine
-            // validates that the card sits there and matches the requested
-            // CardType filter (structural — ADR 0068's `StructuralKey`).
-            if (pt.zone !== "graveyard") {
-                throw new Error("This spell does not target a graveyard card");
-            }
-            if (!args.targetPlayerId) {
-                throw new Error("targetPlayerId required for graveyard target");
-            }
-            const owner = state.players.find(
-                (p) => p.id === args.targetPlayerId
-            );
-            if (!owner) throw new Error("Invalid graveyard owner");
-            const matchedCard = owner.graveyard.find(
-                (c) => c.id === args.targetId
-            );
-            if (!matchedCard) throw new Error("Invalid graveyard target");
-            const wantsAnyCard = reqTypes.includes("card");
-            const cardTypes = reqTypes.filter(
-                (t) =>
-                    t !== "player" &&
-                    t !== "any" &&
-                    t !== "spell" &&
-                    t !== "spell-or-permanent" &&
-                    t !== "card"
-            );
-            if (
-                !wantsAnyCard &&
-                !cardTypes.some((t) => matchedCard.types.includes(t as never))
-            ) {
-                throw new Error("Card type mismatch for graveyard target");
-            }
-            // CR 109.3 / 102.1 / 202.3 / 109.1 — every CARD-kind filter
-            // (`controller` — the graveyard's OWNER, anti-spoof #904's
-            // card-flavored twin — `mvFilter`, and `excludeTypes` — issue
-            // #1378's "nonland permanent card" gate), routed through the
-            // SINGLE shared authority — the target-filter registry (ADR 0068
-            // / issue #1410, T3). `getLegalTargets` runs the SAME
-            // `checkCardTargetFilters` per candidate, so the offered set and
-            // the accepted set can't diverge. This ALSO fixes a real latent
-            // gap: this branch never implemented `controller: "active"`
-            // before this slice, while `getLegalTargets` already did.
-            const cardFilterCtx: TargetFilterCtx = {
-                state,
-                sourceColors: [],
-                sourceTypes: [],
-                sourceSubtypes: [],
-                chooserId: args.playerId,
-                activePlayerId: state.activePlayerId,
-            };
-            const cardFilterViolation = checkCardTargetFilters(
-                cardFilterCtx,
-                matchedCard,
-                {
-                    controller: pt.controller,
-                    mvFilter: pt.mvFilter,
-                    excludeTypes: pt.excludeTypes,
-                }
-            );
-            if (cardFilterViolation) throw new Error(cardFilterViolation);
-        } else if (args.targetType === "permanent") {
-            const wantsSpellOrPermanent =
-                reqTypes.includes("spell-or-permanent");
-            const permanentTypes = reqTypes.filter(
-                (t) =>
-                    t !== "player" &&
-                    t !== "any" &&
-                    t !== "spell" &&
-                    t !== "spell-or-permanent" &&
-                    t !== "card"
-            );
-            // CR 115.4 / 120.3: "any target" only matches damageable permanents.
-            let matchedCard: CardInstanceState | null = null;
-            for (const p of state.players) {
-                for (const c of p.battlefield) {
-                    if (c.id !== args.targetId) continue;
-                    const matchesAny =
-                        wantsAny &&
-                        DAMAGEABLE_PERMANENT_TYPES.some((t) =>
-                            c.types.includes(t)
-                        );
-                    const matchesExplicit = permanentTypes.some((t) =>
-                        c.types.includes(t as never)
-                    );
-                    if (matchesAny || wantsSpellOrPermanent || matchesExplicit)
-                        matchedCard = c;
-                }
-            }
-            if (!matchedCard) throw new Error("Invalid target");
-            // CR 109.1 / 115 / 202 / 205 / 613 / 701.20 / 109.3 / 102.1 —
-            // every PERMANENT-kind filter (including `controller`, anti-spoof
-            // #904), routed through the SINGLE shared authority — the
-            // target-filter registry (ADR 0068 / issue #1408). `getLegalTargets`
-            // runs the SAME `checkPermanentTargetFilters` per candidate, so
-            // the offered set and the accepted set can't diverge (subtype/
-            // supertype/type-exclude/color/tapped/combat-role/keyword/
-            // exclude-instance/power/toughness/mv/controller) — the Phelia
-            // bug class. A new filter added to the registry is enforced at
-            // both sites at once — no field-by-field drift possible here.
-            // CR 601.2c same-controller cross-slot constraint (issue #1104,
-            // Barrin's Spite) — the sibling's live controllerId from what's
-            // already in `pt.selected`, resolved through the SAME
-            // `siblingControllerIdFor` helper `getLegalTargets` uses (ADR
-            // 0068 "lower once, check everywhere" — the offered set and the
-            // accepted set can't diverge).
-            const siblingControllerId = siblingControllerIdFor(
-                state,
-                pt.sameController,
-                pt.selected
-            );
-            const filterCtx: TargetFilterCtx = {
-                state,
-                sourceColors: [],
-                sourceTypes: [],
-                sourceSubtypes: [],
-                chooserId: args.playerId,
-                activePlayerId: state.activePlayerId,
-                siblingControllerId,
-            };
-            const filterViolation = checkPermanentTargetFilters(
-                filterCtx,
-                matchedCard,
-                {
-                    controller: pt.controller,
-                    subtypeFilter: pt.subtypeFilter,
-                    supertypeFilter: pt.supertypeFilter,
-                    excludeSubtypes: pt.excludeSubtypes,
-                    excludeSupertypes: pt.excludeSupertypes,
-                    excludeTypes: pt.excludeTypes,
-                    excludeColors: pt.excludeColors,
-                    colorFilter: pt.colorFilter as Color | undefined,
-                    colorFilterAny: pt.colorFilterAny as
-                        | readonly Color[]
-                        | undefined,
-                    tappedFilter: pt.tappedFilter,
-                    combatRoleFilter: pt.combatRoleFilter,
-                    requireAbility: pt.requireAbility,
-                    requireAbilityAny: pt.requireAbilityAny,
-                    excludeAbility: pt.excludeAbility,
-                    excludeInstanceIds: pt.excludeInstanceIds,
-                    powerFilter: pt.powerFilter,
-                    toughnessFilter: pt.toughnessFilter,
-                    mvFilter: pt.mvFilter,
-                    sameController: pt.sameController,
-                }
-            );
-            if (filterViolation) throw new Error(filterViolation);
-            // CR 702.16b: a permanent with protection from [color] can't be
-            // targeted by a spell/ability whose source has that color.
-            const sourceColors = getPendingTargetSourceColors(
-                state,
-                pt.cardInstanceId,
-                pt.kind ?? "cast"
-            );
-            // The ACCEPTED set must apply the same quality checks as the
-            // offered set above (CR 702.16b) — including the CR 702.16j player
-            // quality (issue #1748), for which the targeting player IS the
-            // source's controller.
-            if (isProtectedFromColors(matchedCard, sourceColors, pt.playerId)) {
-                throw new Error("Target has protection from this source");
-            }
-            // CR 611 — a continuous `permanent-guard` (Guardian Beast / shroud)
-            // may bar targeting entirely. Mirror of the getLegalTargets gate.
-            // The source's card types (CR 109.5), subtypes ("Aura spells"), and
-            // spell-vs-ability (CR 113.3 "spells only") narrow filtered guards.
-            const guardSourceKind = pt.kind ?? "cast";
-            const sourceTypes = getPendingTargetSourceTypes(
-                state,
-                pt.cardInstanceId,
-                guardSourceKind
-            );
-            const sourceSubtypes = getPendingTargetSourceSubtypes(
-                state,
-                pt.cardInstanceId,
-                guardSourceKind
-            );
-            if (
-                isGuardedAgainst(state, matchedCard, "cantBeTargeted", {
-                    types: sourceTypes,
-                    subtypes: sourceSubtypes,
-                    // copy-retarget is a spell copy; cast is a spell; ability
-                    // is not (CR 113.3).
-                    isSpell: guardSourceKind !== "ability",
-                    // CR 702.11b — the source's controller (the selecting
-                    // player). Hexproof bars only an opponent-controlled source;
-                    // the permanent's own controller can still target it.
-                    controllerId: args.playerId,
-                })
-            ) {
+        // Issue #1779 review finding 6 — a batch entry answers the ONE
+        // pending target selection the caller opened this batch against.
+        // Finalizing that selection can immediately raise a NEW
+        // `pendingTarget` (a chained targeted trigger,
+        // `raiseTriggerTargetSelection`, CR 603.3d) — a DIFFERENT prompt the
+        // batch never knew about. A single-call `selectTarget` can't hit
+        // this bug (each call re-reads state fresh from the client's OWN
+        // request for THAT prompt); the batch loop must pin the identity of
+        // the selection it started against and REJECT a surplus entry
+        // rather than silently answering whatever prompt happens to be live
+        // next — misapplying it to the wrong selection.
+        const openedPendingTarget = state.pendingTarget;
+        for (const target of args.targets) {
+            if (state.pendingTarget !== openedPendingTarget) {
                 throw new Error(
-                    "Target can't be the target of spells or abilities"
+                    "Target selection was already completed by an earlier entry in this batch"
                 );
             }
-        } else if (args.targetType === "player") {
-            if (!wantsAny && !reqTypes.includes("player")) {
-                throw new Error("Must target a permanent");
-            }
-            if (pt.colorFilter || pt.colorFilterAny) {
-                throw new Error("Players have no color");
-            }
-            const found = state.players.find((p) => p.id === args.targetId);
-            if (!found) throw new Error("Invalid player target");
-            // CR 109.3 / 102.1 / 506.2 — every PLAYER-kind filter
-            // (`controller` — Word of Command's "target opponent", anti-
-            // spoof #904's player-flavored twin — and
-            // `playerAttackedThisTurn` — Fire and Brimstone), routed through
-            // the SINGLE shared authority — the target-filter registry
-            // (ADR 0068 / issue #1410, T3). `getLegalTargets` runs the SAME
-            // `checkPlayerTargetFilters` per candidate, so the offered set
-            // and the accepted set can't diverge. This ALSO fixes a real
-            // latent gap: this branch never implemented `controller:
-            // "active"` before this slice, while `getLegalTargets` already
-            // did.
-            const playerFilterCtx: TargetFilterCtx = {
-                state,
-                sourceColors: [],
-                sourceTypes: [],
-                sourceSubtypes: [],
-                chooserId: args.playerId,
-                activePlayerId: state.activePlayerId,
-            };
-            const playerFilterViolation = checkPlayerTargetFilters(
-                playerFilterCtx,
-                found,
-                {
-                    controller: pt.controller,
-                    playerAttackedThisTurn: pt.playerAttackedThisTurn,
-                }
-            );
-            if (playerFilterViolation) throw new Error(playerFilterViolation);
-            // CR 702.18 (applied to a player via CR 115.4) — a shrouded
-            // player can't be the target of spells or abilities. Mirror of
-            // the permanent branch's `isGuardedAgainst` gate above; no
-            // source narrowing (shroud bars every source, including the
-            // guarded player's own). Always-on gate (ADR 0068) — stays
-            // outside the registry.
-            if (playerHasShroud(state, found.id)) {
-                throw new Error(
-                    "Target can't be the target of spells or abilities"
-                );
-            }
-            // CR 702.16b/i (applied to a player via CR 115.4) — a player with
-            // protection from everything can't be the target of any spell or
-            // ability (The One Ring, issue #674). The SAME predicate
-            // `getLegalTargets` gates the offered set with, so offered and
-            // accepted can't diverge. No source narrowing: protection from
-            // EVERYTHING bars every source, the protected player's own
-            // included. Always-on gate (ADR 0068) — outside the registry.
-            if (playerHasProtectionFromEverything(state, found.id)) {
-                throw new Error(
-                    "Target can't be the target of spells or abilities"
-                );
-            }
-        } else {
-            // "spell" target (CR 114.1): must match a stack item.
-            if (
-                !reqTypes.includes("spell") &&
-                !reqTypes.includes("spell-or-permanent")
-            ) {
-                throw new Error("This spell does not target a spell");
-            }
-            const spell = state.stack.find((s) => s.id === args.targetId);
-            if (!spell) throw new Error("Invalid spell target");
-            // CR 113 / 114.1 / 109.3 / 202.2 / 202.3 / 208.2 / 601.2c / 701.7 /
-            // 702 — every spell-kind filter (spellStackKind, controller,
-            // stackSourceTypeFilter, spellTargetsInstanceIds, colorFilter,
-            // mvFilter, spellTypeFilter, spellExcludeTypeFilter,
-            // spellCreaturePtFilter, spellSingleTargetingController,
-            // spellWouldDestroyLandYouControl), routed through the SINGLE
-            // shared authority — the target-filter registry (ADR 0068 /
-            // issue #1409, T2). `getLegalTargets` runs the SAME
-            // `checkSpellTargetFilters` per candidate, so the offered set
-            // and the accepted set can't diverge — the spell-flavored half
-            // of the Phelia bug class.
-            const spellFilterCtx: TargetFilterCtx = {
-                state,
-                sourceColors: [],
-                sourceTypes: [],
-                sourceSubtypes: [],
-                chooserId: args.playerId,
-                activePlayerId: state.activePlayerId,
-            };
-            const spellFilterViolation = checkSpellTargetFilters(
-                spellFilterCtx,
-                spell,
-                {
-                    spellStackKind: pt.spellStackKind,
-                    controller: pt.controller,
-                    stackSourceTypeFilter: pt.stackSourceTypeFilter,
-                    spellTargetsInstanceIds: pt.spellTargetsInstanceIds,
-                    colorFilter: pt.colorFilter as Color | undefined,
-                    colorFilterAny: pt.colorFilterAny as
-                        | readonly Color[]
-                        | undefined,
-                    mvFilter: pt.mvFilter,
-                    spellTypeFilter: pt.spellTypeFilter,
-                    spellExcludeTypeFilter: pt.spellExcludeTypeFilter,
-                    spellCreaturePtFilter: pt.spellCreaturePtFilter,
-                    spellSingleTargetingController:
-                        pt.spellSingleTargetingController,
-                    spellWouldDestroyLandYouControl:
-                        pt.spellWouldDestroyLandYouControl,
-                }
-            );
-            if (spellFilterViolation) throw new Error(spellFilterViolation);
-        }
-
-        pt.selected.push(target);
-
-        // CR 601.2d / 120.4 — divide-as-you-choose: record the amount assigned
-        // to this target. Validate ≥ 1 and that the running total never exceeds
-        // the spell's budget. When the caller omits an amount the engine
-        // auto-divides ≥1-each at finalize, so the field stays optional.
-        if (pt.divideTotal !== undefined && args.amount !== undefined) {
-            if (args.amount < 1) {
-                throw new Error("Each target must receive at least 1");
-            }
-            const amounts = pt.divideAmounts ?? {};
-            const priorSum = Object.values(amounts).reduce((a, b) => a + b, 0);
-            if (priorSum + args.amount > pt.divideTotal) {
-                throw new Error("Assigned amount exceeds the spell's total");
-            }
-            amounts[`${target.type}:${target.id}`] = args.amount;
-            pt.divideAmounts = amounts;
-        }
-
-        // CR 601.2d — a divide-as-you-choose spell auto-finalizes once the whole
-        // budget has been assigned, even before the (open-ended) max target
-        // count is hit: there are no points left to give a further target.
-        const divideBudgetSpent =
-            pt.divideTotal !== undefined &&
-            pt.divideAmounts !== undefined &&
-            Object.values(pt.divideAmounts).reduce((a, b) => a + b, 0) >=
-                pt.divideTotal;
-
-        const maxReached =
-            isTargetCountMaxReached(pt.count, pt.selected.length) ||
-            divideBudgetSpent;
-        if (maxReached) {
-            // CR 601.2c — advance to the next independent target group
-            // (Fumarole) when one is queued; otherwise finalize.
-            advanceTargetGroupOrFinalize(state, pt, args.playerId);
+            applyOneTargetSelection(state, args.playerId, target);
+            // A finalized target selection has nothing left to assign;
+            // further batch entries (over-supplied by a stale client plan)
+            // are ignored rather than erroring an already-successful
+            // selection.
+            if (!state.pendingTarget) break;
         }
 
         await saveGameState(
