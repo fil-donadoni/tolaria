@@ -223,9 +223,23 @@ export const LANDSCAPE_VIEWER_SEAT_ANCHOR =
 /** Pile columns, one tile wide, docked BESIDE the control strip (#1769) — the
  *  strip is vertically centred and short, so the corners next to it are free.
  *  Vertical rather than the desktop row: a row of three tiles would cost three
- *  card widths of board, a column costs one. */
-export const LANDSCAPE_OPPONENT_PILES_ANCHOR = `absolute ${BESIDE_CONTROLLER_STRIP} top-2 z-30 flex flex-col items-end gap-1`;
-export const LANDSCAPE_VIEWER_PILES_ANCHOR = `absolute ${BESIDE_CONTROLLER_STRIP} bottom-2 z-30 flex flex-col items-end gap-1`;
+ *  card widths of board, a column costs one.
+ *
+ *  **Each column is capped at the MIDLINE.** A column grows from its own edge
+ *  toward the middle, and the tile count is not fixed at three: companion,
+ *  emblems, monarch and city's-blessing tiles appear conditionally. On a 390px
+ *  board a compact tile is ~46px wide ⇒ ~64px tall, so an uncapped column
+ *  crosses the 46% midline at the FOURTH tile and the two seats' columns
+ *  overlap — the opponent's exile sitting on the viewer's graveyard, each
+ *  stealing the other's taps. The cap is the same "make the overlap
+ *  arithmetically impossible" move the bands themselves make: `max-height` is
+ *  the seat's own share of the height (the midline for the opponent, its
+ *  complement for the viewer) minus the 0.5rem edge offset and 0.5rem of
+ *  clearance, and anything past it SCROLLS inside the column instead of
+ *  invading the other seat. Spelled literally (never composed from the *_VAR
+ *  constants) so Tailwind's scanner sees each arbitrary value. */
+export const LANDSCAPE_OPPONENT_PILES_ANCHOR = `absolute ${BESIDE_CONTROLLER_STRIP} top-2 z-30 flex flex-col items-end gap-1 max-h-[calc(var(--landscape-midline)-1rem)] overflow-y-auto`;
+export const LANDSCAPE_VIEWER_PILES_ANCHOR = `absolute ${BESIDE_CONTROLLER_STRIP} bottom-2 z-30 flex flex-col items-end gap-1 max-h-[calc(100%-var(--landscape-midline)-1rem)] overflow-y-auto`;
 
 /** Re-points `--card-w-sm` (the pile-tile width every zone tile is built from)
  *  at the compact landscape tile, so graveyard / library / exile / companion /

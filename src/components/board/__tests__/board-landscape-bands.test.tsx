@@ -311,6 +311,17 @@ describe("landscape-compact seat chrome + pile rail (#1768)", () => {
             expect(rail.className).toContain(BESIDE_CONTROLLER_STRIP);
             expect(rail.className).toContain("flex-col");
             expect(rail.className).not.toContain("right-3");
+            // A column is unbounded by default, and the tile count is not fixed
+            // at three (companion / emblems / monarch / city's blessing are
+            // conditional): capped at the seat's own half of the board, extra
+            // tiles scroll INSIDE the column instead of crossing the midline
+            // onto the other seat's tiles.
+            expect(rail.className).toContain(
+                `max-h-[calc(${
+                    id === "piles-opponent" ? "" : "100%-"
+                }var(${LANDSCAPE_MIDLINE_VAR})-1rem)]`
+            );
+            expect(rail.className).toContain("overflow-y-auto");
             // Tiles shrink together off the shared scale.
             expect(rail.style.getPropertyValue("--card-w-sm")).toBe(
                 `var(${LANDSCAPE_PILE_TILE_VAR})`

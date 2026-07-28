@@ -26,13 +26,16 @@ import {
     LANDSCAPE_MIDLINE_VAR,
     LANDSCAPE_MIN_CARD_H,
     LANDSCAPE_OPP_BF_BOTTOM_VAR,
+    LANDSCAPE_OPPONENT_PILES_ANCHOR,
     LANDSCAPE_OPP_HAND_BAND_VAR,
     LANDSCAPE_OPP_HAND_FRAC,
+    LANDSCAPE_PILE_SCALE,
     LANDSCAPE_PILE_TILE_VAR,
     LANDSCAPE_RIGHT_RAIL_VAR,
     LANDSCAPE_SIDE_GUTTER,
     LANDSCAPE_SIDE_GUTTER_VAR,
     LANDSCAPE_VIEWER_HAND_FRAC,
+    LANDSCAPE_VIEWER_PILES_ANCHOR,
     landscapeBandVars,
     landscapeCardMetrics,
     landscapePileVars,
@@ -183,6 +186,65 @@ describe("published landscape custom properties (#1768)", () => {
         expect(
             (landscapePileVars() as Record<string, string>)["--card-w-sm"]
         ).toBe(`var(${LANDSCAPE_PILE_TILE_VAR})`);
+    });
+});
+
+describe("pile columns are capped at the midline (#1768)", () => {
+    /** `gap-1` between tiles, and the `0.5rem` edge offset + `0.5rem` clearance
+     *  the cap subtracts, at the browser default root size. */
+    const PILE_GAP = 4;
+    const REM = 16;
+
+    /** One pile tile's rendered height: `--card-w-sm` (the compact tile width)
+     *  at the shared 5:7 box. */
+    const tileHeight = (boardH: number) =>
+        (landscapeCardMetrics(boardH).cardWidth * LANDSCAPE_PILE_SCALE * 7) / 5;
+    /** An UNCAPPED column of `n` tiles, in px. */
+    const columnHeight = (n: number, boardH: number) =>
+        n * tileHeight(boardH) + (n - 1) * PILE_GAP;
+    /** What the `max-h` cap evaluates to for a seat owning `frac` of the board. */
+    const capPx = (frac: number, boardH: number) => frac * boardH - REM;
+
+    it("caps each column at its OWN half of the board", () => {
+        // The opponent's column owns everything above the midline; the viewer's
+        // owns the complement. Both minus the edge offset + clearance.
+        expect(LANDSCAPE_OPPONENT_PILES_ANCHOR).toContain(
+            `max-h-[calc(var(${LANDSCAPE_MIDLINE_VAR})-1rem)]`
+        );
+        expect(LANDSCAPE_VIEWER_PILES_ANCHOR).toContain(
+            `max-h-[calc(100%-var(${LANDSCAPE_MIDLINE_VAR})-1rem)]`
+        );
+    });
+
+    it("scrolls the overflow instead of invading the other seat", () => {
+        // Without this the 4th tile simply paints past the cap — the cap alone
+        // would clip the tile, not make it reachable.
+        expect(LANDSCAPE_OPPONENT_PILES_ANCHOR).toContain("overflow-y-auto");
+        expect(LANDSCAPE_VIEWER_PILES_ANCHOR).toContain("overflow-y-auto");
+    });
+
+    it("keeps the two columns arithmetically disjoint", () => {
+        // The whole point: the caps are the two sides of the midline, so their
+        // sum can never exceed the board — whatever the tile count.
+        const opp = capPx(LANDSCAPE_MIDLINE_FRAC, PHONE_H);
+        const viewer = capPx(1 - LANDSCAPE_MIDLINE_FRAC, PHONE_H);
+        expect(opp + viewer).toBeLessThan(PHONE_H);
+        for (const h of [SHORT_H, PHONE_H, TALL_H]) {
+            expect(
+                capPx(LANDSCAPE_MIDLINE_FRAC, h) +
+                    capPx(1 - LANDSCAPE_MIDLINE_FRAC, h)
+            ).toBeLessThan(h);
+        }
+    });
+
+    it("is the FOURTH tile that needed the cap", () => {
+        // The regression's arithmetic: graveyard + library + exile fit inside a
+        // seat's half, but a 4th conditional tile (companion / emblems /
+        // monarch / city's blessing) crosses the midline — that overlap is what
+        // the cap + scroll replaces.
+        const cap = capPx(LANDSCAPE_MIDLINE_FRAC, PHONE_H);
+        expect(columnHeight(3, PHONE_H)).toBeLessThan(cap);
+        expect(columnHeight(4, PHONE_H)).toBeGreaterThan(cap);
     });
 });
 
