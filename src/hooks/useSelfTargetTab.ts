@@ -23,8 +23,14 @@ export type SelfTargetTab = {
  *  it exposes the shared {@link usePlayerInteraction} controller plus the ring
  *  the tab wears while the player is a legal target.
  *
- *  Deliberately narrow. Divide-as-you-choose steppers and the full zone/target
- *  reachability pass are out of scope here — tracked-by: #1766. */
+ *  Click-to-target and the choose-damage-target buffer route are both fully
+ *  reachable through this tab now (#1766). Still narrow by design: the
+ *  divide-as-you-choose stepper (Fire Covenant / Meteor Shower splitting
+ *  damage onto the viewer's own life) has no bar-tab affordance — the
+ *  desktop nameplate stepper (`isDivideTarget`/`incDivide`/`decDivide` on
+ *  {@link usePlayerInteraction}) isn't surfaced here yet. Verifying that gap
+ *  (and the rest of the target surface) end to end through the real game
+ *  loop is folded into #1770's mobile QA sweep. */
 export function useSelfTargetTab(me: Player): SelfTargetTab {
     const interaction = usePlayerInteraction(me);
     const targetable =

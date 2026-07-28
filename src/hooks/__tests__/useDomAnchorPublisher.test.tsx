@@ -131,3 +131,80 @@ describe("useDomAnchorPublisher — revision re-measure (solo seat swap)", () =>
         expect(value.anchors.player.p1).toEqual({ x: 450, y: 30 });
     });
 });
+
+// Regression test for the second #1766 fixup round: BoardPileChips mounts the
+// real PlayerGraveyard inside a `hidden` (display:none) wrapper, which
+// collapses its `data-arrow-anchor-graveyard` element to an all-zero rect —
+// jsdom returns all-zero rects by default anyway, which is exactly the shape
+// a real `display:none` ancestor produces. Publishing that zero rect drew
+// graveyard-card target arrows (Regrowth, Raise Dead, Animate Dead) to the
+// board's top-left corner. The fix: `measure()` skips a `width === 0 && height
+// === 0` rect instead of publishing it, so a real (non-degenerate) anchor for
+// the same id — the now-visible PileChip — wins instead.
+function ZeroRect(): DOMRect {
+    return {
+        left: 0,
+        top: 0,
+        width: 0,
+        height: 0,
+        right: 0,
+        bottom: 0,
+        x: 0,
+        y: 0,
+        toJSON: () => ({}),
+    } as DOMRect;
+}
+
+function DegenerateHarness({ visibleRect }: { visibleRect: DOMRect | null }) {
+    const ref = useRef<HTMLDivElement>(null);
+    useDomAnchorPublisher(ref, ["graveyard"], "rev");
+    return (
+        <div
+            data-board-root
+            ref={(el) => {
+                if (el) el.getBoundingClientRect = () => rect(0, 0) as DOMRect;
+            }}
+        >
+            <div ref={ref} />
+            {visibleRect && (
+                <div
+                    data-testid="visible-chip"
+                    data-arrow-anchor-graveyard="me"
+                    ref={(el) => {
+                        if (el) el.getBoundingClientRect = () => visibleRect;
+                    }}
+                />
+            )}
+            <div
+                data-testid="hidden-wrapper"
+                data-arrow-anchor-graveyard="me"
+                ref={(el) => {
+                    if (el) el.getBoundingClientRect = ZeroRect;
+                }}
+            />
+        </div>
+    );
+}
+
+describe("useDomAnchorPublisher — degenerate rect skip (#1766 fixup)", () => {
+    it("does not publish a zero-rect anchor when no other element supplies a real one", () => {
+        const { value } = makeRegistry();
+        render(
+            <ArrowAnchorContext.Provider value={value}>
+                <DegenerateHarness visibleRect={null} />
+            </ArrowAnchorContext.Provider>
+        );
+        expect(value.anchors.graveyard.me).toBeUndefined();
+    });
+
+    it("prefers the real rect over the degenerate one for the same anchor id", () => {
+        const { value } = makeRegistry();
+        render(
+            <ArrowAnchorContext.Provider value={value}>
+                <DegenerateHarness visibleRect={rect(100, 200)} />
+            </ArrowAnchorContext.Provider>
+        );
+        // centers: x + width/2, y + height/2 — never the (0,0) top-left corner.
+        expect(value.anchors.graveyard.me).toEqual({ x: 150, y: 220 });
+    });
+});

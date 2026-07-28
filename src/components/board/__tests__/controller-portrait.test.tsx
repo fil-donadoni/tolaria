@@ -14,6 +14,10 @@
 //      mounted (disabled-aware), own life always on the bar.
 //   6. The viewer's zone chips — which used to sit UNDER the bar — are reachable
 //      again from the Zones tab.
+//   7. The You tab is a REAL self-target surface (#1766): a pending player
+//      target dispatches the SAME `selectTarget` mutation the nameplate would,
+//      with the viewer's own id, and wears the same pulsing ring while
+//      targetable.
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { render, fireEvent, screen } from "@testing-library/react";
 import { GameContext } from "~/hooks/useGameContext";
@@ -46,6 +50,7 @@ vi.mock("@convex/_generated/api", () => ({
             endTurn: "endTurn",
             cancelAutoPass: "cancelAutoPass",
             submitMayPay: "submitMayPay",
+            selectTarget: "selectTarget",
         },
     },
 }));
@@ -145,7 +150,8 @@ type CtxOverrides = Partial<React.ContextType<typeof GameContext>>;
 
 function renderController(
     ctx: CtxOverrides = {},
-    toggle: (phase: Phase, side: Side) => void = () => {}
+    toggle: (phase: Phase, side: Side) => void = () => {},
+    bufferOverrides: Partial<PendingChoiceBuffer> = {}
 ) {
     const value = {
         gameId: "game-id" as never,
@@ -160,12 +166,13 @@ function renderController(
         debugAllActions: false,
         ...ctx,
     } as React.ContextType<typeof GameContext>;
+    const buffer: PendingChoiceBuffer = { ...noopBuffer, ...bufferOverrides };
     return render(
         <GameContext value={value}>
             <SkipPhasePrefsContext
                 value={{ prefs: DEFAULT_SKIP_PREFS, toggle, reset: () => {} }}
             >
-                <PendingChoiceBufferContext value={noopBuffer}>
+                <PendingChoiceBufferContext value={buffer}>
                     <MinimizedChoiceContext value={noopMinimized}>
                         <Controller onOpenMenu={() => {}} />
                     </MinimizedChoiceContext>
@@ -370,6 +377,82 @@ describe("Variant D bar — no layout shift, nothing buried (#1759)", () => {
                 .getByLabelText("Toggle your zones")
                 .getAttribute("aria-expanded")
         ).toBe("true");
+    });
+});
+
+describe("You tab — real self-target surface (#1766)", () => {
+    // A player-target spell/ability pending on the viewer, targeting THEM (not
+    // routed through a hand-built view — the same `pendingTarget` shape
+    // `usePlayerInteraction` reads off `useGameContext()` for the nameplate).
+    const selfPlayerTarget = {
+        playerId: "me",
+        cardInstanceId: "spell-1",
+        targetType: "player" as const,
+        count: 1,
+        selected: [],
+    };
+
+    it("tapping the You tab fires the SAME selectTarget mutation the nameplate would, with the viewer's own id", () => {
+        renderController({ pendingTarget: selfPlayerTarget });
+
+        fireEvent.click(screen.getByLabelText("Your life total: 20"));
+
+        const call = calls.find((c) => c.ref === "selectTarget");
+        expect(call?.args).toMatchObject({
+            gameId: "game-id",
+            playerId: "me",
+            targetType: "player",
+            targetId: "me",
+        });
+    });
+
+    it("wears the pulsing target ring while a player-target selection is active, not otherwise", () => {
+        const { unmount } = renderController({
+            pendingTarget: selfPlayerTarget,
+        });
+        const targetableTab = screen.getByLabelText("Your life total: 20");
+        expect(targetableTab.className).toContain("ring-2");
+        expect(targetableTab.className).toContain("animate-pulse");
+        unmount();
+
+        const idleTab = renderController().container.querySelector(
+            "[aria-label='Your life total: 20']"
+        ) as HTMLElement;
+        expect(idleTab.className).not.toContain("ring-2");
+    });
+
+    it("routes a choose-damage-target pick owed to the viewer through the pending-choice buffer, not selectTarget", () => {
+        // Cuombajj Witches (CR 115.4/608.2) style: the viewer is the chooser
+        // and their own seat is a candidate — `useSelfTargetTab` must treat
+        // `isDamageTargetPickable` as targetable too (not only `isTargetable`).
+        const witchesChoice: PendingChoice = {
+            stackItemId: "witches",
+            step: 0,
+            choiceId: "cuombajj-witches",
+            playerId: "me",
+            kind: "choose-damage-target",
+            zone: "battlefield",
+            allControllers: true,
+            count: 1,
+            prompt: "Cuombajj Witches: choose any target.",
+            candidateIds: [],
+            candidatePlayerIds: ["me"],
+        };
+        const toggle = vi.fn();
+
+        renderController({ pendingChoices: [witchesChoice] }, () => {}, {
+            toggle,
+        });
+
+        const tab = screen.getByLabelText("Your life total: 20");
+        expect(tab.className).toContain("ring-2");
+
+        fireEvent.click(tab);
+        // Proves the click ROUTES through the buffer (the viewer's own id,
+        // matching `usePlayerInteraction.handleClick`'s
+        // `bufferCtx.toggle(player.id)`), not merely that it fails to select.
+        expect(toggle).toHaveBeenCalledWith("me");
+        expect(calls.find((c) => c.ref === "selectTarget")).toBeUndefined();
     });
 });
 

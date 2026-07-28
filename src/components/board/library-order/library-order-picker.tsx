@@ -589,11 +589,11 @@ export default function LibraryOrderPicker({
     const containerH = cardH + LIFT;
 
     // Portalled to <body>: on the portrait board this picker mounts inside
-    // BoardPileChips' `sr-only` wrapper (1px clip box), and `fixed` does NOT
-    // escape an ancestor's `overflow: hidden` + `clip` — the overlay rendered
-    // but was invisible (Portent's reorder never appeared on mobile). The
-    // portal detaches the overlay from that ancestor chain for every mount
-    // path (desktop pile column, portrait chips, PutBackPicker).
+    // BoardPileChips' `hidden` wrapper (display:none), and `fixed` does NOT
+    // escape an ancestor that is unrendered — the overlay rendered but was
+    // invisible (Portent's reorder never appeared on mobile). The portal
+    // detaches the overlay from that ancestor chain for every mount path
+    // (desktop pile column, portrait chips, PutBackPicker).
     return createPortal(
         <div
             className={`fixed inset-0 z-modal items-center justify-center bg-scrim p-2 sm:p-6 ${
