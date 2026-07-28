@@ -55,10 +55,11 @@ export default function CastExileCostDialog({
 
     // Eligible payment cards: the caster's own zone, matching the colour
     // filter (CR 105.2) and excluding the flashback card itself (CR 702.34e)
-    // via the shared `isExileCostEligible` — the SAME predicate the server
-    // (`recordCastExileCostPick`) and the bot's view builder
-    // (`buildCastExileChoiceView`) consult, so the three can never drift
-    // apart (issue #1659).
+    // via the shared `isExileCostEligible` — the server (`recordCastExileCostPick`,
+    // through `graveyardCardMatchesColor`, which delegates its colour leg
+    // straight to this function) and the bot's view builder
+    // (`buildCastExileChoiceView`) both call the SAME function, so the three
+    // can never drift apart (issue #1659).
     const eligible = useMemo(
         () =>
             (sourceCards ?? []).filter(

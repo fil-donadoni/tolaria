@@ -134,13 +134,23 @@ describe("bot dispatch for a colour-filtered flashback exile cost (CR 702.34a, i
         ).toEqual(["blue1", "blue2"]);
     });
 
-    it("chooseCastExileCost never draws from an ineligible id even if asked for more than the candidate set holds", () => {
-        expect(
-            chooseCastExileCost({
-                candidateIds: ["blue1", "blue2"],
-                required: 5,
-                maximum: 5,
-            })
-        ).toEqual(["blue1", "blue2"]);
+    it("clamps to the real eligible set — never fills an over-request with an ineligible id — when the announced X exceeds the blue cards actually in the graveyard", () => {
+        // count: 5 asks for more blue cards than the graveyard holds (only
+        // blue1/blue2 qualify — red1 and land1 don't). Driven through the
+        // REAL reducer chain (buildBotView → chooseCastExileCost), not a
+        // hand-built CastExileChoiceView: `chooseCastExileCost` itself has no
+        // eligibility logic (it only clamps `required`/`maximum` against
+        // `candidateIds.length`), so eligibility can only be exercised by
+        // going through `buildCastExileChoiceView`'s real `candidateIds`.
+        // Pre-fix (candidateIds unfiltered by colour) this would have sliced
+        // in `red1`/`land1` too.
+        const state = baseState(parkedFlashbackCast(5));
+        const view = buildBotView(projectPublicState(state, 1, BOT), BOT);
+        expect(view.castExileChoice).toBeDefined();
+
+        expect(chooseCastExileCost(view.castExileChoice!)).toEqual([
+            "blue1",
+            "blue2",
+        ]);
     });
 });

@@ -16,7 +16,7 @@
 // turn (`CardInstanceState.grantedFlashback` — Snapcaster Mage).
 import type { Color, FlashbackCost, ManaCost } from "../cards/types";
 import { tryGetDefinition } from "../cards";
-import { cardHasColor } from "../cards/colors";
+import { isExileCostEligible } from "../cards/exileCostEligibility";
 import type { CardInstanceState, PlayerState } from "./state";
 
 /** The flashback-only NON-mana additional cost (sacrifice a permanent and/or
@@ -111,22 +111,20 @@ export function hasFlashback(card: CardInstanceState): boolean {
  *  card can't pay for its own cost). This is BOTH the affordability bound
  *  (`canPayFlashbackExile` — need `>= chosenX`) AND the maximum X the caster may
  *  legally announce on the flashback cast, since the cost demands EXACTLY
- *  `chosenX` such cards. Single authority for "how many blue cards can this
- *  flashback exile" so the client X cap and the server announce check never
- *  diverge (`getEffectiveToughness`-style single-source pattern). */
+ *  `chosenX` such cards. NOT server-only: `gameProjections.ts` also calls this
+ *  to emit `flashbackExileMaxX`, the client's X cap for the same cost — so it
+ *  delegates to the shared `isExileCostEligible` (issue #1659) rather than
+ *  re-deriving the colour check, keeping the client cap and the server
+ *  announce check from ever diverging (`getEffectiveToughness`-style
+ *  single-source pattern). */
 export function flashbackExileEligibleCount(
     player: PlayerState,
     color: Color | undefined,
     excludeInstanceId: string
 ): number {
-    return player.graveyard.filter((c) => {
-        if (c.id === excludeInstanceId) return false;
-        if (color === undefined) return true;
-        const def = tryGetDefinition((c.card as { id?: string }).id ?? "");
-        // CR 105.2 / 202.2 — a card's COLOUR, not its colour identity: an Island
-        // taps for blue but is colourless, so it never pays "exile a blue card".
-        return def ? cardHasColor(def, color) : false;
-    }).length;
+    return player.graveyard.filter((c) =>
+        isExileCostEligible(c, excludeInstanceId, color)
+    ).length;
 }
 
 /** CR 702.34a — the card in `player`'s graveyard with `instanceId` that can be

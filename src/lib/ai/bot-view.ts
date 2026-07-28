@@ -204,8 +204,9 @@ function buildCastExileChoiceView(
     const bot = state.players.find((p) => p.id === botId);
     const zone = ec.zone ?? "graveyard";
     const source = zone === "hand" ? (bot?.hand ?? []) : (bot?.graveyard ?? []);
-    // Issue #1659 — `isExileCostEligible` is the SAME predicate the server
-    // (`recordCastExileCostPick` / `graveyardCardMatchesColor`) and the human
+    // Issue #1659 — `isExileCostEligible` mirrors the check the server
+    // (`recordCastExileCostPick`, via `graveyardCardMatchesColor`, which
+    // delegates its colour leg straight to this same function) and the human
     // picker (`CastExileCostDialog`'s `eligible` memo) consult. Without the
     // `ec.color` check this dropped, the bot could submit a colour-ineligible
     // instance id (Flash of Insight's "exile X blue cards") and the mutation

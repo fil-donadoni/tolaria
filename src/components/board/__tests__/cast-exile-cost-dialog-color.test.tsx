@@ -17,21 +17,30 @@ vi.mock("@convex/_generated/api", () => ({
 // Real-shaped defs: a blue creature ({1}{U}) vs a basic Island (no mana cost,
 // Island subtype). `cardHasColor` (the real, unmocked function) reads mana-cost
 // colours, so the Island resolves to colourless.
+// `getDefinition`/`tryGetDefinition` share one lookup: the dialog's `eligible`
+// memo now goes through the shared `isExileCostEligible`
+// (`@convex/cards/exileCostEligibility`), which calls `tryGetDefinition` —
+// mock both (identically) so the shared predicate resolves the same
+// real-shaped defs. `vi.mock` factories are hoisted, so the lookup is
+// duplicated inline rather than shared via a top-level const.
+function lookupDef(id: string) {
+    return id === "island-def"
+        ? { name: "Island", types: ["Land"], subtypes: ["Island"] }
+        : id === "blue-def"
+          ? {
+                name: "Blue Elemental",
+                types: ["Creature"],
+                manaCost: { generic: 1, U: 1 },
+            }
+          : {
+                name: "Flash of Insight",
+                types: ["Instant"],
+                manaCost: { X: "X", generic: 1, U: 1 },
+            };
+}
 vi.mock("@convex/cards", () => ({
-    getDefinition: (id: string) =>
-        id === "island-def"
-            ? { name: "Island", types: ["Land"], subtypes: ["Island"] }
-            : id === "blue-def"
-              ? {
-                    name: "Blue Elemental",
-                    types: ["Creature"],
-                    manaCost: { generic: 1, U: 1 },
-                }
-              : {
-                    name: "Flash of Insight",
-                    types: ["Instant"],
-                    manaCost: { X: "X", generic: 1, U: 1 },
-                },
+    getDefinition: (id: string) => lookupDef(id),
+    tryGetDefinition: (id: string) => lookupDef(id),
 }));
 vi.mock("../../cards/card-image", () => ({
     default: () => <div data-testid="card-image" />,
