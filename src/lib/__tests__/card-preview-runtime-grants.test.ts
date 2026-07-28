@@ -187,39 +187,50 @@ describe("card preview reflects runtime grants end-to-end (#447)", () => {
 });
 
 // A granted keyword and the ability that carries its rules text are the SAME
-// ability. Ward is granted as `staticAbilities: ["ward {1}"]` PLUS the
-// "Whenever this permanent becomes the target …" trigger, so the preview listed
-// it twice: once bare, once with the reminder text. The compact keyword row is
-// the canonical one.
+// ability. Lavaspur Boots grants ward as a `keyword-grant` ("ward {1}") PLUS a
+// `triggered-grant` carrying the CR 702.21a trigger, so the preview listed it
+// twice: once bare, once with the reminder text. The compact keyword row is the
+// canonical one.
+const LAVASPUR_BOOTS_ID = "e50709de-e6ef-4dbc-af1e-290fed279f34";
+
 describe("granted keyword rows are not duplicated by their rules-text ability", () => {
-    it("drops a granted ability whose oracle text restates a granted keyword row", () => {
-        const creature = makeInstance(BEAR_ID, {
-            id: "warded-1",
-            staticAbilities: ["ward {1}"],
-            grantedTriggeredAbilities: [
-                { sourceCardId: BEAR_ID, abilityId: "nope" },
-            ],
-        } as Partial<CardInstance> as never);
-        const display = getDisplayAbilities(BEAR_ID, {
-            ...(creature as unknown as CardInstance),
-            staticAbilities: ["ward {1}"],
-            grantedTriggeredAbilities: [],
+    it("lists a ward grant ONCE — the keyword row, not its trigger's reminder text", () => {
+        const creature = makeInstance(BEAR_ID, { id: "creature-1" });
+        const boots = makeInstance(LAVASPUR_BOOTS_ID, {
+            id: "boots-1",
+            attachedTo: "creature-1",
         });
-        expect(
-            display.keywords.filter((k) => k.state === "granted")
-        ).toHaveLength(1);
-        expect(display.keywords[0].name).toBe("ward {1}");
-        // Nothing else may restate it.
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [creature, boots] }),
+                makePlayer("p2"),
+            ],
+        });
+        applySourceStaticEffects(state, boots);
+
+        const display = getDisplayAbilities(
+            BEAR_ID,
+            projectedCard(state, "creature-1")
+        );
+        const ward = display.keywords.filter((k) =>
+            k.name.toLowerCase().startsWith("ward")
+        );
+        expect(ward).toHaveLength(1);
+        expect(ward[0].state).toBe("granted");
+        // The trigger that gives ward its rules text must not print a second
+        // "Ward {1} (Whenever this permanent becomes the target …)" row.
         const restated = [...display.activated, ...display.triggered].filter(
             (a) => a.oracleText.toLowerCase().startsWith("ward")
         );
-        expect(restated).toHaveLength(0);
+        expect(restated).toEqual([]);
+        // The other granted keyword still shows.
+        expect(display.keywords.map((k) => k.name)).toContain("haste");
     });
 
-    it("keeps a NATIVE ability even when it opens with a keyword word", () => {
-        // The filter is scoped to granted-vs-granted precisely so printed text
-        // is never swallowed.
-        const display = getDisplayAbilities(BEAR_ID);
-        expect(display.keywords.every((k) => k.state !== "granted")).toBe(true);
+    it("keeps NATIVE printed abilities — the filter is granted-only", () => {
+        const display = getDisplayAbilities(LAVASPUR_BOOTS_ID);
+        expect(display.activated.map((a) => a.oracleText)).toContain(
+            "Equip {1}"
+        );
     });
 });

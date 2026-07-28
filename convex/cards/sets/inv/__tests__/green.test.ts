@@ -20,7 +20,6 @@ import {
     pushSpell,
 } from "../../../__tests__/setup";
 import {
-    emitPermanentTapped,
     processPendingActionTriggers,
     resolveTopOfStack,
     type GameState,
@@ -32,7 +31,7 @@ import { projectPublicState } from "../../../../gameProjections";
 import { STATIC_EFFECT_CTX } from "../../../../gre/layers";
 import { isGuardedAgainst } from "../../../../gre/permanentGuard";
 import { getLegalTargets } from "../../../../gre/rules";
-import { plains, island, swamp, forest } from "../../lea/colorless";
+import { plains, island, swamp } from "../../lea/colorless";
 
 const CREATURE_REQ = { type: "Creature", count: 1 } as const;
 

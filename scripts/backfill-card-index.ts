@@ -3,11 +3,19 @@
  * One-shot backfill of the lockfile `data/card-index.json` (ADR 0041).
  *
  * The lockfile is the committed central index of every implemented card —
- * `{ name, scryfallId, oracleId, firstSet }` — and is what `list-to-cards.mjs`
- * dedups against (by `oracleId`) and what the id-guard validates against. The
- * existing catalogue predates the lockfile, so this script seeds it from the
- * registry: every `CardDefinition.id` is a Scryfall print id, and one
- * `POST /cards/collection` per 75 ids returns that print's `oracle_id` + `set`.
+ * `{ name, scryfallId, oracleId, firstSet, firstPrintId, firstPrintSet }` — and
+ * is what `list-to-cards.mjs` dedups against (by `oracleId`) and what the
+ * id-guard validates against. The existing catalogue predates the lockfile, so
+ * this script seeds it from the registry: every `CardDefinition.id` is a
+ * Scryfall print id, and one `POST /cards/collection` per 75 ids returns that
+ * print's `oracle_id` + `set` + `reprint` flag.
+ *
+ * `firstPrintId` / `firstPrintSet` name the card's EARLIEST PAPER printing
+ * (ADR 0041's "home set = earliest paper printing"), which is what
+ * `check-card-index.ts` asserts every `CardDefinition.id` equals — the offline
+ * guard against implementing a card against a reprint (wrong home set, wrong
+ * art). Only a print Scryfall flags as a `reprint` needs the extra per-oracle
+ * prints query; for everything else the def's own id IS the first printing.
  *
  * Run with bun (executes TypeScript directly):
  *   bun run scripts/backfill-card-index.ts
@@ -24,13 +32,28 @@ type Entry = {
     name: string;
     scryfallId: string;
     oracleId: string;
+    /** Set of the printing `scryfallId` names. */
     firstSet: string;
+    /** Scryfall id of the card's earliest PAPER printing (ADR 0041). Equals
+     *  `scryfallId` for a correctly-homed card — that equality is the guard. */
+    firstPrintId: string;
+    /** Set code of `firstPrintId`. */
+    firstPrintSet: string;
 };
+
+/** Printings that are never a card's "first edition": Scryfall set types that
+ *  are not real releases. Digital-only printings are excluded separately via
+ *  the `digital` flag (ADR 0041 excludes digital-only, gold-border, oversized
+ *  and non-tournament printings). */
+const NON_PRINT_SET_TYPES = new Set(["token", "memorabilia", "minigame"]);
 
 const SCRYFALL = "https://api.scryfall.com";
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-type Resolved = Map<string, { oracleId: string; set: string }>;
+type Resolved = Map<
+    string,
+    { oracleId: string; set: string; reprint: boolean }
+>;
 
 /** POST one ≤75-id batch. Returns null if Scryfall rejects it (HTTP 400 — a
  *  malformed/unknown identifier poisons the whole request), so the caller can
@@ -78,12 +101,65 @@ async function postBatch(
     if (res.status === 400) return null;
     if (!res.ok) throw new Error(`Scryfall collection HTTP ${res.status}`);
     const json = (await res.json()) as {
-        data: Array<{ id: string; oracle_id: string; set: string }>;
+        data: Array<{
+            id: string;
+            oracle_id: string;
+            set: string;
+            reprint?: boolean;
+        }>;
     };
     const out: Resolved = new Map();
     for (const c of json.data)
-        out.set(c.id, { oracleId: c.oracle_id, set: c.set });
+        out.set(c.id, {
+            oracleId: c.oracle_id,
+            set: c.set,
+            reprint: c.reprint === true,
+        });
     return out;
+}
+
+/** The card's earliest PAPER printing (ADR 0041). Only called for a print
+ *  Scryfall marked as a reprint — otherwise the print in hand already is the
+ *  first one. Falls back to the print in hand if the search fails or returns
+ *  nothing usable, so a transient API problem never silently rewrites the
+ *  lockfile to a wrong id. */
+async function firstPaperPrint(
+    oracleId: string,
+    fallbackId: string,
+    fallbackSet: string
+): Promise<{ id: string; set: string }> {
+    const url =
+        `${SCRYFALL}/cards/search?order=released&dir=asc&unique=prints` +
+        `&include_extras=true&q=${encodeURIComponent(`oracleid:${oracleId}`)}`;
+    for (let a = 1; a <= 4; a++) {
+        const res = await fetch(url, {
+            headers: {
+                Accept: "application/json",
+                "User-Agent": "tolaria-backfill/1.0",
+            },
+        });
+        await sleep(150);
+        if (res.status === 429 || res.status >= 500) {
+            await sleep(1500 * a);
+            continue;
+        }
+        if (!res.ok) break;
+        const json = (await res.json()) as {
+            data: Array<{
+                id: string;
+                set: string;
+                set_type: string;
+                digital: boolean;
+            }>;
+        };
+        const paper = json.data.filter(
+            (p) => !p.digital && !NON_PRINT_SET_TYPES.has(p.set_type)
+        );
+        if (paper.length > 0) return { id: paper[0].id, set: paper[0].set };
+        break;
+    }
+    console.warn(`  prints lookup failed for ${oracleId} — keeping own print`);
+    return { id: fallbackId, set: fallbackSet };
 }
 
 /** Resolve a batch, bisecting on HTTP 400 to skip the single bad identifier.
@@ -140,11 +216,16 @@ async function main() {
         for (const c of chunk) {
             const r = batch.get(c.id);
             if (!r) continue; // unresolved (bad id / not_found) — reported on re-run
+            const first = r.reprint
+                ? await firstPaperPrint(r.oracleId, c.id, r.set)
+                : { id: c.id, set: r.set };
             byId.set(c.id, {
                 name: c.name,
                 scryfallId: c.id,
                 oracleId: r.oracleId,
                 firstSet: r.set,
+                firstPrintId: first.id,
+                firstPrintSet: first.set,
             });
         }
         writeLock();

@@ -4,7 +4,12 @@
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 // Modern Scryfall oracle text is authoritative (ADR 0004).
 
-import type { CardDefinition, ManaCost, SpellContext, CardPrint } from "../../types";
+import type {
+    CardDefinition,
+    ManaCost,
+    SpellContext,
+    CardPrint,
+} from "../../types";
 import { countDomain, EFFECT_AFFECTS_SELF } from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";

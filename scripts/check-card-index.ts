@@ -12,6 +12,14 @@
  *     pollution: a staged-but-not-implemented card leaked in (the old
  *     importer used to write these back), poisoning future dedup.
  *
+ * It ALSO enforces ADR 0041's "home set = earliest paper printing": a
+ * `CardDefinition.id` must be the card's FIRST printing, never a reprint. A
+ * card implemented against a reprint files itself under the wrong home set and
+ * renders the wrong art — silent, and only ever caught by eye (Staff of the
+ * Storyteller shipped against a 2026 SOC reprint of a 2023 ONC card). The
+ * lockfile carries `firstPrintId` (resolved online by the backfill), so the
+ * check stays offline: `scryfallId === firstPrintId` for every entry.
+ *
  * This check is OFFLINE (registry ⇄ lockfile id set comparison) so it can live
  * in `check:all`. The FIX is online — regenerate from the registry:
  *
@@ -26,7 +34,16 @@ import { readFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { getAllCards } from "../convex/cards/index";
 
-type Entry = { name: string; scryfallId: string };
+type Entry = {
+    name: string;
+    scryfallId: string;
+    /** Earliest PAPER printing of this card (ADR 0041). Absent on entries
+     *  written before the field existed — those are reported as needing a
+     *  lockfile refresh rather than silently skipped. */
+    firstPrintId?: string;
+    firstPrintSet?: string;
+    firstSet?: string;
+};
 
 const lockPath = resolve("data/card-index.json");
 if (!existsSync(lockPath)) {
@@ -47,10 +64,53 @@ const registryIds = new Set(cards.map((c) => c.id));
 const missing = cards.filter((c) => !lockIds.has(c.id));
 // indexed but not implemented → pollution
 const extra = lock.filter((e) => !registryIds.has(e.scryfallId));
+// ADR 0041 — implemented against a reprint instead of the first printing.
+const reprinted = lock.filter(
+    (e) =>
+        registryIds.has(e.scryfallId) &&
+        e.firstPrintId !== undefined &&
+        e.firstPrintId !== e.scryfallId
+);
+// Entries written before `firstPrintId` existed can't be checked at all.
+const unversioned = lock.filter(
+    (e) => registryIds.has(e.scryfallId) && e.firstPrintId === undefined
+);
 
-if (missing.length === 0 && extra.length === 0) {
-    console.log(`✓ card-index: in sync (${cards.length} cards)`);
+if (
+    missing.length === 0 &&
+    extra.length === 0 &&
+    reprinted.length === 0 &&
+    unversioned.length === 0
+) {
+    console.log(
+        `✓ card-index: in sync, every card on its first printing (${cards.length} cards)`
+    );
     process.exit(0);
+}
+
+if (reprinted.length) {
+    console.error(
+        `✗ card-index: ${reprinted.length} card(s) implemented against a REPRINT ` +
+            `instead of their first printing (ADR 0041 — home set = earliest paper printing).\n` +
+            `Move the definition to its home-set module, use the first-printing id, and\n` +
+            `leave a \`CardPrint\` behind for the printing it was written against:\n`
+    );
+    for (const e of reprinted.slice(0, 30)) {
+        console.error(
+            `  - ${e.name}: uses ${e.firstSet ?? "?"} ${e.scryfallId}, ` +
+                `first printed in ${e.firstPrintSet ?? "?"} ${e.firstPrintId}`
+        );
+    }
+    if (reprinted.length > 30)
+        console.error(`  … and ${reprinted.length - 30} more`);
+    console.error("");
+}
+
+if (unversioned.length) {
+    console.error(
+        `✗ card-index: ${unversioned.length} entr(ies) predate the first-printing ` +
+            `field, so ADR 0041 can't be checked for them. Regenerate the lockfile.\n`
+    );
 }
 
 console.error(
