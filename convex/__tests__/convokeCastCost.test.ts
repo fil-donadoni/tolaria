@@ -16,13 +16,13 @@
 import { describe, it, expect } from "vitest";
 import {
     buildConvokeCreatureChoice,
-    collapseForcedDelvePick,
     convokeEligibleCreatures,
     coverColoredAndHybridPips,
     spellHasConvoke,
 } from "../gre/payWith";
 import { getLegalActions } from "../gre/rules";
 import {
+    applyConvokeCreatureSelection,
     recordConvokeCreaturePick,
     tryAutoCommitPendingCast,
     recordCastExileCostPick,
@@ -600,45 +600,38 @@ describe("wire format — the convoke picker + castability cross the projection"
 // `collapseForcedDelvePick` → `tryAutoCommitPendingCast`, in that order,
 // exactly as the mutation's handler calls them — and asserts the picker
 // never has to be shown to the player.
+//
+// Drives `applyConvokeCreatureSelection` — the pure core extracted out of the
+// `selectConvokeCreatures` mutation (issue #1660 gap fixup) — rather than
+// hand-re-listing its three steps (`recordConvokeCreaturePick` →
+// `collapseForcedDelvePick` → `tryAutoCommitPendingCast`). Calling the actual
+// extracted function, instead of reimplementing its sequence here, is what
+// pins the production call site: deleting the `collapseForcedDelvePick` call
+// from `applyConvokeCreatureSelection` now fails this test. The mid-record
+// "still unresolved" shape is already covered by the
+// `recordConvokeCreaturePick — validation + coverage` describe block above
+// (e.g. "taps hybrids with 2 B/G creatures and leaves the generic to
+// delve"), so this block only needs to assert the seam's end-to-end outcome.
 describe("selectConvokeCreatures commit seam — collapses a forced delve leg (issue #1660, round 3)", () => {
     it("2 B/G creatures + exactly 5 graveyard fuel: the chained delve leg pre-fills instead of opening a picker", () => {
         // The project has no convex-test harness (see the file header / the
         // no-convex-test-harness precedent catalogued across `__tests__/`),
         // so — mirroring `delveCastCost.test.ts`'s equivalent seam test for
-        // the single-leg `finalizeTargetSelection` path — this drives the
-        // exact primitive sequence `selectConvokeCreatures`'s handler runs,
-        // rather than the mutation itself.
+        // the single-leg `finalizeTargetSelection` path — this drives
+        // `applyConvokeCreatureSelection`, the exact pure core
+        // `selectConvokeCreatures`'s handler now delegates to, rather than
+        // the mutation itself.
         const { state, player, pendingCast } = parkedCast({
             creatures: [CRAW_WURM, DRUDGE_SKELETONS],
             gyCount: 5,
         });
 
-        recordConvokeCreaturePick(state, "p1", ["cr0", "cr1"]);
-
-        // After the pure record step: the chained delve leg is forced
-        // (min === max === eligible.length === 5) but NOT yet resolved —
-        // exactly the #1660 shape the previous round reopened.
-        expect(pendingCast.exileFromGraveyardChoice?.offsetGeneric).toEqual({
-            min: 5,
-            max: 5,
-        });
-        expect(
-            pendingCast.exileFromGraveyardChoice?.pickedCardIds
-        ).toBeUndefined();
-
-        collapseForcedDelvePick(
-            player,
-            pendingCast.cardInstanceId,
-            pendingCast.exileFromGraveyardChoice,
-            pendingCast.manaCost
-        );
+        applyConvokeCreatureSelection(state, "p1", ["cr0", "cr1"]);
 
         expect(
             pendingCast.exileFromGraveyardChoice?.pickedCardIds?.slice().sort()
         ).toEqual(["gy0", "gy1", "gy2", "gy3", "gy4"]);
         expect(pendingCast.manaCost.X).toBe(0);
-
-        tryAutoCommitPendingCast(state, "p1");
 
         // The user-facing outcome: no picker was ever shown — the cast
         // committed in one shot, same as the single-leg delve path.
