@@ -18,7 +18,6 @@ import {
     CASTABLE_PERMANENT_TYPES,
     DAMAGEABLE_PERMANENT_TYPES,
     LAND_DROPS_PER_TURN,
-    LAND_SUBTYPE_MANA,
     MANA_COLORS,
     PLACEHOLDER_CARD_ID,
     abilitiesSuppressed,
@@ -960,58 +959,116 @@ export function getProducibleManaOptions(
  *  affordability counts the real quantity, not one-per-source.
  *
  *  A tap is a single shared cost, so only ONE mana ability can be used per
- *  activation — we take the ability producing the most mana (ties: first) and
- *  never sum across competing abilities. The intrinsic basic-land subtypes
- *  (CR 305.6) are additional single-mana ALTERNATIVES to that ability (a land
- *  under Urborg can tap for {B} instead of its own output), so their colours
- *  are folded in as extra options on each unit — this errs toward affordable,
- *  the documented bias of this planner. A choice ability (dual land / Talisman)
- *  is one mana whose color set is the union of its options. */
-function getProducibleManaUnits(card: CardInstanceState): Set<Color>[] {
-    const cardId = (card.card as { id?: string }).id;
-    const def = cardId ? tryGetDefinition(cardId) : undefined;
+ *  activation (CR 605.1a) — but when a permanent declares MULTIPLE tap
+ *  abilities (Starting Town: "{T}: Add {C}" and "{T}, Pay 1 life: Add one mana
+ *  of any color", issue #1695) they are ALTERNATIVES for that same tap, not
+ *  competitors where only the "best" one counts.
+ *
+ *  Single-authority form (issue #1695 finding 1, review-blocking): the unit
+ *  list is derived from `getManaTapOptionsDetailed(…, { requireTap: true })`
+ *  — the SAME list `getProducibleManaOptions` (the real auto-tap payment
+ *  planner) and the tap mutations read — instead of re-deriving a parallel
+ *  ability filter here. A prior version of this fix unioned every
+ *  `activatedAbilities` entry with `!ability.cost.tap` as the only exclusion,
+ *  which missed that `getManaTapOptionsDetailed` ALSO drops every
+ *  sacrifice-cost option whenever a non-sacrifice tap option exists on the
+ *  same source (`combined = nonSacrifice.length > 0 ? nonSacrifice :
+ *  sacrifice` — "prefer non-destructive options; fall back to sacrifice only
+ *  when there is no other way to tap this source for mana", constants.ts).
+ *  Archaeological Dig ("{T}: Add {C}" / "{T}, Sacrifice: Add one mana of any
+ *  color") is the case: only {C} is ever payable, but the old per-ability
+ *  union offered the gate all five colors — a false-positive Cast button the
+ *  payment step then refused. Routing through the shared helper makes the
+ *  gate and the payment planner agree by construction; a life-cost ability
+ *  (Starting Town) is NOT bucketed as a sacrifice option (only `cost
+ *  .sacrifice` is), so the already-verified "errs toward affordable" bias for
+ *  life costs is unchanged.
+ *
+ *  Every entry in the shared list (`ManaTapOption`) is one whole tap
+ *  alternative — one ability's output, or one basic-land-subtype's intrinsic
+ *  `{T}: Add C` (CR 305.6, folded in by `getManaTapOptionsDetailed` itself) —
+ *  and only ONE alternative is ever used per tap. Each alternative is expanded
+ *  into its own ordered per-mana colour-set list (one entry per unit of mana
+ *  it produces), then every alternative is unioned position-by-position: the
+ *  unit COUNT is the largest quantity any single alternative can produce
+ *  (matches the existing "real quantity, not one-per-source" rule — only one
+ *  alternative fires per tap, so quantity can't be summed across them), and
+ *  each position's COLOR SET is the union of every alternative's colour at
+ *  that position. An alternative shorter than the max simply has nothing to
+ *  contribute past its own length, so it never inflates the quantity another
+ *  alternative alone wouldn't already claim. This keeps the result
+ *  declaration-order-independent (issue #1695 AC) and preserves the Sol
+ *  Ring-style two-mana case (only one ability, no regression). A choice
+ *  ability (dual land / Talisman) contributes one option per choice, so its
+ *  colours land in the union exactly like the old "one unit, colors = union
+ *  of choices" special case did.
+ *
+ *  NOTE — `manaRestriction` is NOT consulted here, same as before this
+ *  rewrite: this list only tracks which raw colours a source could ever
+ *  produce, not whether the resulting mana is legally spendable on a given
+ *  spell. Restricted mana is honoured only once it reaches the pool, at
+ *  `coloredCostLeftover` below (CR 106.6). A future permanent combining an
+ *  UNRESTRICTED `{C}` tap ability with a SEPARATE RESTRICTED-colour tap
+ *  ability would leak the restricted colour into this gate as if it were
+ *  freely spendable — no such card exists yet (all three `manaRestriction`
+ *  cards have exactly one mana ability). tracked-by: #1733 */
+function getProducibleManaUnits(
+    card: CardInstanceState,
+    /** CR 602.5b / 605.1a (issue #1695 re-review, regression fix) — the
+     *  controller's id + a REAL, BOTH-PLAYERS `battlefields` view (built by
+     *  `coloredCostLeftover` from `opts.state` when a caller has one).
+     *  Board-dependent `canActivate` (Mox Opal's Metalcraft, Fanatic of
+     *  Rhonas's Ferocious — both scan only the controller's own battlefield,
+     *  `hasMetalcraft` in `types.ts` / the Ferocious closure in `mh3/green.ts`)
+     *  AND board-dependent `getManaChoices` (Fellwar Stone scans every OTHER
+     *  player's battlefield) both need it. Omitting these args (as this
+     *  function did before this fix) makes `minimalManaGateView` fall back to
+     *  `{ players: [] }`, so `canActivate` is permanently false and the mana
+     *  ability is dropped from the gate even though the real board — the one
+     *  `convex/game.ts`'s payment planner passes — satisfies it. A view
+     *  containing only the controller's OWN entry is NOT a safe substitute:
+     *  Fellwar Stone's chooser explicitly skips any entry matching
+     *  `controllerId`, so an own-only view makes it see zero opponents and
+     *  return `[]` — which the caller treats as "no options" rather than
+     *  falling back to the static list, trading the current safe
+     *  over-approximation for an under-approximating hidden-cast bug of this
+     *  same shape. See `coloredCostLeftover`'s `opts.state` doc for why this
+     *  is only ever populated from a full `GameState`, never from `player`
+     *  alone. */
+    controllerId?: string,
+    battlefields?: ReadonlyArray<{
+        playerId: string;
+        battlefield: readonly CardInstanceState[];
+    }>
+): Set<Color>[] {
+    // requireTap: only a genuine {T} ability counts as an auto-payable "unit"
+    // — mirrors `getProducibleManaOptions`, the real auto-tap planner.
+    const detailed = getManaTapOptionsDetailed(
+        card,
+        controllerId,
+        battlefields,
+        {
+            requireTap: true,
+        }
+    );
 
-    // CR 613.1f — suppress PRINTED activated mana abilities while the source
-    // has lost all abilities (Blood Moon / Titania's Song); fall through to the
-    // intrinsic basic-land subtype path below.
-    let best: Set<Color>[] = [];
-    for (const ability of abilitiesSuppressed(card)
-        ? []
-        : (def?.activatedAbilities ?? [])) {
-        if (ability.useStack) continue;
-        if (!ability.cost.tap) continue;
-
+    const perOptionUnits: Set<Color>[][] = detailed.map((opt) => {
         const units: Set<Color>[] = [];
-        if (ability.manaProduced) {
-            for (const c of MANA_COLORS) {
-                const amount = ability.manaProduced[c] ?? 0;
-                for (let i = 0; i < amount; i++)
-                    units.push(new Set<Color>([c]));
-            }
+        for (const c of MANA_COLORS) {
+            const amount = opt.mana[c] ?? 0;
+            for (let i = 0; i < amount; i++) units.push(new Set<Color>([c]));
         }
-        if (ability.manaChoices) {
-            const colors = new Set<Color>();
-            for (const choice of ability.manaChoices) {
-                for (const c of MANA_COLORS) {
-                    if ((choice[c] ?? 0) > 0) colors.add(c);
-                }
-            }
-            if (colors.size > 0) units.push(colors);
-        }
-        if (units.length > best.length) best = units;
-    }
+        return units;
+    });
 
-    // CR 305.6: basic land subtypes grant an intrinsic one-mana ability, a tap
-    // ALTERNATIVE to the source's own ability. Fold their colours into each
-    // unit (or seed the units when the source has no activated ability).
-    const subtypeColors = new Set<Color>();
-    for (const subtype of card.subtypes) {
-        const c = LAND_SUBTYPE_MANA[subtype];
-        if (c) subtypeColors.add(c);
-    }
-    if (subtypeColors.size > 0) {
-        if (best.length === 0) return [subtypeColors];
-        return best.map((u) => new Set<Color>([...u, ...subtypeColors]));
+    const maxLen = perOptionUnits.reduce((m, u) => Math.max(m, u.length), 0);
+    const best: Set<Color>[] = [];
+    for (let i = 0; i < maxLen; i++) {
+        const colors = new Set<Color>();
+        for (const units of perOptionUnits) {
+            for (const c of units[i] ?? []) colors.add(c);
+        }
+        best.push(colors);
     }
     return best;
 }
@@ -1051,13 +1108,40 @@ function coloredCostLeftover(
     player: PlayerState,
     card: CardInstanceState,
     cost: Record<string, number>,
-    /** CR 601.2g (`payWith`, ADR 0063) — include the chosen-resource pseudo
-     *  sources (delve's graveyard cards) in the probe. Default true: the
-     *  castability gate must see them or a delve-only-payable spell is hidden.
-     *  `genericManaShortfall` passes false — it asks the complementary question
-     *  ("how much can MANA alone NOT cover", i.e. how many resources the caster
-     *  is forced to spend), which must exclude them. */
-    opts: { payWith?: boolean } = {}
+    opts: {
+        /** CR 601.2g (`payWith`, ADR 0063) — include the chosen-resource pseudo
+         *  sources (delve's graveyard cards) in the probe. Default true: the
+         *  castability gate must see them or a delve-only-payable spell is
+         *  hidden. `genericManaShortfall` passes false — it asks the
+         *  complementary question ("how much can MANA alone NOT cover", i.e.
+         *  how many resources the caster is forced to spend), which must
+         *  exclude them. */
+        payWith?: boolean;
+        /** CR 602.5b / 605.1a (issue #1695 re-review, regression fix) — the
+         *  full game state, threaded down from `canPotentiallyPayCost`'s own
+         *  optional `state` param (only its plain hand-cast branch passes
+         *  one today). Used to build a REAL, BOTH-PLAYERS `battlefields`
+         *  view for `getProducibleManaUnits`, so a mana ability's
+         *  board-dependent `canActivate` (Mox Opal's Metalcraft, Fanatic of
+         *  Rhonas's Ferocious) or board-dependent `getManaChoices` (Fellwar
+         *  Stone reads OPPONENT lands) sees the same board the real payment
+         *  planner (`convex/game.ts`) does. Deliberately NOT synthesized from
+         *  `player` alone: a battlefields view containing only the
+         *  controller's OWN entry makes Fellwar Stone's opponent-scanning
+         *  `getManaChoices` — which skips any entry matching `controllerId`
+         *  — see zero opponents and return `[]`, which `getManaTapOptionsDetailed`
+         *  treats as "no options" rather than falling back to the static
+         *  `manaChoices` list (an empty array is truthy). That would swap
+         *  Fellwar Stone's current safe "assume all 5 colours" over-approximation
+         *  for an under-approximating "assume none" — a NEW hidden-cast bug of
+         *  the exact shape this fix closes for Mox Opal/Fanatic of Rhonas.
+         *  When `state` is absent (every OTHER `canPotentiallyPayCost` call
+         *  site — flashback/escape/madness/graveyard-permission/free-exile —
+         *  none pass it today), `getProducibleManaUnits` falls back to its
+         *  pre-fix `undefined, undefined` call, unchanged from before this
+         *  fix. */
+        state?: GameState;
+    } = {}
 ): number | null {
     const includePayWith = opts.payWith ?? true;
     // CR 601.2f (issue #1338) — "You can't spend mana to cast this spell"
@@ -1073,6 +1157,13 @@ function coloredCostLeftover(
     // the shared greedy below (a real source or a convoke creature of either
     // colour pays each). Orthogonal to Phyrexian pips — no card carries both.
     const hybridPips = getInstanceManaCost(card)?.hybrid ?? [];
+    // See `opts.state` doc above: only built when the caller passed a full
+    // `GameState`, and always spans EVERY player, never just `player`.
+    const boardBattlefields = opts.state?.players.map((p) => ({
+        playerId: p.id,
+        battlefield: p.battlefield,
+    }));
+    const boardControllerId = boardBattlefields ? player.id : undefined;
     // Each source is the set of colors it can supply for this cost slot.
     const sources: Set<Color>[] = [];
     if (!cantSpendMana) {
@@ -1103,7 +1194,11 @@ function coloredCostLeftover(
             if (isTapLockedBySummoningSickness(perm)) continue;
             // One entry per mana the source taps for: a {C}{C} source (Sol Ring)
             // contributes two, not one (issue #132).
-            const base = getProducibleManaUnits(perm);
+            const base = getProducibleManaUnits(
+                perm,
+                boardControllerId,
+                boardBattlefields
+            );
             for (const unit of base) sources.push(unit);
             // CR 605.4 — a Wild-Growth-style triggered mana ability on ANOTHER
             // permanent adds extra mana when THIS land is tapped for mana. It only
@@ -1140,7 +1235,11 @@ function coloredCostLeftover(
             if (!perm.types.includes("Artifact")) continue;
             const producesMana =
                 !isTapLockedBySummoningSickness(perm) &&
-                getProducibleManaUnits(perm).length > 0;
+                getProducibleManaUnits(
+                    perm,
+                    boardControllerId,
+                    boardBattlefields
+                ).length > 0;
             if (producesMana) continue;
             sources.push(new Set<Color>());
         }
@@ -1353,7 +1452,15 @@ function canPotentiallyPayCost(
     const totalRequired =
         (cost.X ?? 0) + MANA_COLORS.reduce((sum, c) => sum + (cost[c] ?? 0), 0);
     if (totalRequired === 0) return true;
-    const leftover = coloredCostLeftover(player, card, cost);
+    // Issue #1695 re-review — forward the same optional `state` this function
+    // already threads through `applyCostModifiers` above down into
+    // `coloredCostLeftover`, so a board-dependent mana ability (Mox Opal,
+    // Fanatic of Rhonas, Fellwar Stone) is evaluated against the real board
+    // instead of being silently dropped. Only this (plain hand-cast) call
+    // site passes `state` today — every other `canPotentiallyPayCost` caller
+    // omits it, so `coloredCostLeftover` falls back to its pre-fix behaviour
+    // there, unchanged.
+    const leftover = coloredCostLeftover(player, card, cost, { state });
     // Remaining sources after the colored portion must cover the generic
     // ({cost.X}) portion.
     return leftover !== null && leftover >= (cost.X ?? 0);
