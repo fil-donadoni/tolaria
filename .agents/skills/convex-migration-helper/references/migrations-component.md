@@ -42,12 +42,12 @@ batching and pagination automatically.
 ```typescript
 // convex/migrations.ts
 export const addDefaultRole = migrations.define({
-  table: "users",
-  migrateOne: async (ctx, user) => {
-    if (user.role === undefined) {
-      await ctx.db.patch(user._id, { role: "user" });
-    }
-  },
+    table: "users",
+    migrateOne: async (ctx, user) => {
+        if (user.role === undefined) {
+            await ctx.db.patch(user._id, { role: "user" });
+        }
+    },
 });
 ```
 
@@ -55,8 +55,8 @@ Shorthand: if you return an object, it is applied as a patch automatically.
 
 ```typescript
 export const clearDeprecatedField = migrations.define({
-  table: "users",
-  migrateOne: () => ({ legacyField: undefined }),
+    table: "users",
+    migrateOne: () => ({ legacyField: undefined }),
 });
 ```
 
@@ -105,9 +105,9 @@ For a reusable series, define a runner:
 
 ```typescript
 export const runAll = migrations.runner([
-  internal.migrations.addDefaultRole,
-  internal.migrations.clearDeprecatedField,
-  internal.migrations.normalizeEmails,
+    internal.migrations.addDefaultRole,
+    internal.migrations.clearDeprecatedField,
+    internal.migrations.normalizeEmails,
 ]);
 ```
 
@@ -122,9 +122,9 @@ Programmatically from another Convex function:
 
 ```typescript
 await migrations.runSerially(ctx, [
-  internal.migrations.addDefaultRole,
-  internal.migrations.clearDeprecatedField,
-  internal.migrations.normalizeEmails,
+    internal.migrations.addDefaultRole,
+    internal.migrations.clearDeprecatedField,
+    internal.migrations.normalizeEmails,
 ]);
 ```
 
@@ -185,11 +185,11 @@ size to avoid transaction limits or OCC conflicts:
 
 ```typescript
 export const migrateHeavyTable = migrations.define({
-  table: "largeDocuments",
-  batchSize: 10,
-  migrateOne: async (ctx, doc) => {
-    // migration logic
-  },
+    table: "largeDocuments",
+    batchSize: 10,
+    migrateOne: async (ctx, doc) => {
+        // migration logic
+    },
 });
 ```
 
@@ -199,9 +199,9 @@ Process only matching documents instead of the full table:
 
 ```typescript
 export const fixEmptyNames = migrations.define({
-  table: "users",
-  customRange: (query) => query.withIndex("by_name", (q) => q.eq("name", "")),
-  migrateOne: () => ({ name: "<unknown>" }),
+    table: "users",
+    customRange: (query) => query.withIndex("by_name", (q) => q.eq("name", "")),
+    migrateOne: () => ({ name: "<unknown>" }),
 });
 ```
 
@@ -212,8 +212,8 @@ processing if your migration logic does not depend on ordering:
 
 ```typescript
 export const clearField = migrations.define({
-  table: "myTable",
-  parallelize: true,
-  migrateOne: () => ({ optionalField: undefined }),
+    table: "myTable",
+    parallelize: true,
+    migrateOne: () => ({ optionalField: undefined }),
 });
 ```

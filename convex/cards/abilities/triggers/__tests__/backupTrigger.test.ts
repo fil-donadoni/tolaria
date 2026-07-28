@@ -376,8 +376,9 @@ describe("Backup N — real trigger path (CR 702.165, issue #1692)", () => {
             )!.id;
             const after = attackAndResolve(state, sourceId);
             expect(after.stack).toHaveLength(0);
-            expect(after.players[0].graveyard.some((c) => c.id === GY_WURM_ID))
-                .toBe(true);
+            expect(
+                after.players[0].graveyard.some((c) => c.id === GY_WURM_ID)
+            ).toBe(true);
         });
 
         it("expires at CLEANUP — the recipient stops firing the granted trigger next turn", () => {
@@ -393,8 +394,9 @@ describe("Backup N — real trigger path (CR 702.165, issue #1692)", () => {
             // CR 611.2 — nothing left to fire: attacking raises no trigger.
             const after = attackAndResolve(state, WURM_ID);
             expect(after.stack).toHaveLength(0);
-            expect(after.players[0].graveyard.some((c) => c.id === GY_WURM_ID))
-                .toBe(true);
+            expect(
+                after.players[0].graveyard.some((c) => c.id === GY_WURM_ID)
+            ).toBe(true);
         });
     });
 

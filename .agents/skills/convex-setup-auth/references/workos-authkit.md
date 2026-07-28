@@ -13,8 +13,8 @@ specifically.
 
 1. Confirm the user wants WorkOS AuthKit
 2. Determine whether they want:
-   - a Convex-managed WorkOS team
-   - an existing WorkOS team
+    - a Convex-managed WorkOS team
+    - an existing WorkOS team
 3. Ask whether the user wants local-only setup or production-ready setup now
 4. Read the official Convex and WorkOS AuthKit guide
 5. Create or update `convex.json` for the app's framework and real local port
@@ -56,12 +56,12 @@ specifically.
 - frontend auth provider wiring
 - callback or redirect route setup where the framework requires it
 - WorkOS environment variables commonly include:
-  - `WORKOS_CLIENT_ID`
-  - `WORKOS_API_KEY`
-  - `WORKOS_COOKIE_PASSWORD`
-  - `VITE_WORKOS_CLIENT_ID`
-  - `VITE_WORKOS_REDIRECT_URI`
-  - `NEXT_PUBLIC_WORKOS_REDIRECT_URI`
+    - `WORKOS_CLIENT_ID`
+    - `WORKOS_API_KEY`
+    - `WORKOS_COOKIE_PASSWORD`
+    - `VITE_WORKOS_CLIENT_ID`
+    - `VITE_WORKOS_REDIRECT_URI`
+    - `NEXT_PUBLIC_WORKOS_REDIRECT_URI`
 
 For a managed WorkOS team, `convex dev` can provision the AuthKit environment
 and write local env vars such as `VITE_WORKOS_CLIENT_ID` and

@@ -70,10 +70,10 @@ const messages = await ctx.db.query("messages").collect();
 ```ts
 // Good: paginate or limit
 const messages = await ctx.db
-  .query("messages")
-  .withIndex("by_channel", (q) => q.eq("channelId", channelId))
-  .order("desc")
-  .take(50);
+    .query("messages")
+    .withIndex("by_channel", (q) => q.eq("channelId", channelId))
+    .order("desc")
+    .take(50);
 ```
 
 ### 2. Read smaller shapes
@@ -92,38 +92,38 @@ self-scheduling chain.
 ```ts
 // Bad: one mutation updating every row
 export const backfillAll = internalMutation({
-  handler: async (ctx) => {
-    const docs = await ctx.db.query("items").collect();
-    for (const doc of docs) {
-      await ctx.db.patch(doc._id, { newField: computeValue(doc) });
-    }
-  },
+    handler: async (ctx) => {
+        const docs = await ctx.db.query("items").collect();
+        for (const doc of docs) {
+            await ctx.db.patch(doc._id, { newField: computeValue(doc) });
+        }
+    },
 });
 ```
 
 ```ts
 // Good: cursor-based batch processing
 export const backfillBatch = internalMutation({
-  args: { cursor: v.optional(v.string()), batchSize: v.optional(v.number()) },
-  handler: async (ctx, args) => {
-    const batchSize = args.batchSize ?? 100;
-    const result = await ctx.db
-      .query("items")
-      .paginate({ cursor: args.cursor ?? null, numItems: batchSize });
+    args: { cursor: v.optional(v.string()), batchSize: v.optional(v.number()) },
+    handler: async (ctx, args) => {
+        const batchSize = args.batchSize ?? 100;
+        const result = await ctx.db
+            .query("items")
+            .paginate({ cursor: args.cursor ?? null, numItems: batchSize });
 
-    for (const doc of result.page) {
-      if (doc.newField === undefined) {
-        await ctx.db.patch(doc._id, { newField: computeValue(doc) });
-      }
-    }
+        for (const doc of result.page) {
+            if (doc.newField === undefined) {
+                await ctx.db.patch(doc._id, { newField: computeValue(doc) });
+            }
+        }
 
-    if (!result.isDone) {
-      await ctx.scheduler.runAfter(0, internal.items.backfillBatch, {
-        cursor: result.continueCursor,
-        batchSize,
-      });
-    }
-  },
+        if (!result.isDone) {
+            await ctx.scheduler.runAfter(0, internal.items.backfillBatch, {
+                cursor: result.continueCursor,
+                batchSize,
+            });
+        }
+    },
 });
 ```
 
@@ -139,20 +139,20 @@ back.
 ```ts
 // Bad: heavy computation inside a mutation
 export const processUpload = mutation({
-  handler: async (ctx, args) => {
-    const result = expensiveComputation(args.data);
-    await ctx.db.insert("results", result);
-  },
+    handler: async (ctx, args) => {
+        const result = expensiveComputation(args.data);
+        await ctx.db.insert("results", result);
+    },
 });
 ```
 
 ```ts
 // Good: action for heavy work, mutation for the write
 export const processUpload = action({
-  handler: async (ctx, args) => {
-    const result = expensiveComputation(args.data);
-    await ctx.runMutation(internal.results.store, { result });
-  },
+    handler: async (ctx, args) => {
+        const result = expensiveComputation(args.data);
+        await ctx.runMutation(internal.results.store, { result });
+    },
 });
 ```
 
@@ -164,24 +164,24 @@ component only renders a few fields, map the results before returning.
 ```ts
 // Bad: returns full documents including large content fields
 export const list = query({
-  handler: async (ctx) => {
-    return await ctx.db.query("articles").take(20);
-  },
+    handler: async (ctx) => {
+        return await ctx.db.query("articles").take(20);
+    },
 });
 ```
 
 ```ts
 // Good: project to only the fields the client needs
 export const list = query({
-  handler: async (ctx) => {
-    const articles = await ctx.db.query("articles").take(20);
-    return articles.map((a) => ({
-      _id: a._id,
-      title: a.title,
-      author: a.author,
-      createdAt: a._creationTime,
-    }));
-  },
+    handler: async (ctx) => {
+        const articles = await ctx.db.query("articles").take(20);
+        return articles.map((a) => ({
+            _id: a._id,
+            title: a.title,
+            author: a.author,
+            createdAt: a._creationTime,
+        }));
+    },
 });
 ```
 
@@ -194,20 +194,20 @@ transaction but pay extra per-call cost.
 ```ts
 // Bad: unnecessary overhead from ctx.runQuery inside a mutation
 export const createProject = mutation({
-  handler: async (ctx, args) => {
-    const user = await ctx.runQuery(api.users.getCurrentUser);
-    await ctx.db.insert("projects", { ...args, ownerId: user._id });
-  },
+    handler: async (ctx, args) => {
+        const user = await ctx.runQuery(api.users.getCurrentUser);
+        await ctx.db.insert("projects", { ...args, ownerId: user._id });
+    },
 });
 ```
 
 ```ts
 // Good: plain helper function, no extra overhead
 export const createProject = mutation({
-  handler: async (ctx, args) => {
-    const user = await getCurrentUser(ctx);
-    await ctx.db.insert("projects", { ...args, ownerId: user._id });
-  },
+    handler: async (ctx, args) => {
+        const user = await getCurrentUser(ctx);
+        await ctx.db.insert("projects", { ...args, ownerId: user._id });
+    },
 });
 ```
 
@@ -224,22 +224,22 @@ calling Node.js code from the Convex runtime).
 ```ts
 // Bad: runAction overhead for no reason
 export const processItems = action({
-  handler: async (ctx, args) => {
-    for (const item of args.items) {
-      await ctx.runAction(internal.items.processOne, { item });
-    }
-  },
+    handler: async (ctx, args) => {
+        for (const item of args.items) {
+            await ctx.runAction(internal.items.processOne, { item });
+        }
+    },
 });
 ```
 
 ```ts
 // Good: plain function call
 export const processItems = action({
-  handler: async (ctx, args) => {
-    for (const item of args.items) {
-      await processOneItem(ctx, { item });
-    }
-  },
+    handler: async (ctx, args) => {
+        for (const item of args.items) {
+            await processOneItem(ctx, { item });
+        }
+    },
 });
 ```
 
