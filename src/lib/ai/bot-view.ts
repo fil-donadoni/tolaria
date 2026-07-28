@@ -26,6 +26,7 @@ import { manaValue } from "@convex/gre/constants";
 import { matchesPermanentFilter } from "@convex/cards/filters";
 import { getColorsFromCost, getCardColorIdentity } from "@convex/cards/colors";
 import { tryGetDefinition } from "@convex/cards";
+import { isExileCostEligible } from "@convex/cards/exileCostEligibility";
 import type { Color } from "@convex/cards/types";
 import { STATIC_EFFECT_CTX } from "@convex/gre/layers";
 import type {
@@ -203,9 +204,16 @@ function buildCastExileChoiceView(
     const bot = state.players.find((p) => p.id === botId);
     const zone = ec.zone ?? "graveyard";
     const source = zone === "hand" ? (bot?.hand ?? []) : (bot?.graveyard ?? []);
+    // Issue #1659 — `isExileCostEligible` is the SAME predicate the server
+    // (`recordCastExileCostPick` / `graveyardCardMatchesColor`) and the human
+    // picker (`CastExileCostDialog`'s `eligible` memo) consult. Without the
+    // `ec.color` check this dropped, the bot could submit a colour-ineligible
+    // instance id (Flash of Insight's "exile X blue cards") and the mutation
+    // would reject it — a stall that shows up client-side as a retry loop
+    // (`useVsAiDriver`'s `.catch(() => lastSignature.current = null)`).
     const candidateIds = source
         .filter((c): c is NonNullable<typeof c> => c !== null)
-        .filter((c) => c.id !== ec.excludeInstanceId)
+        .filter((c) => isExileCostEligible(c, ec.excludeInstanceId, ec.color))
         .map((c) => c.id);
     // CR 702.66 — delve's variable-offset mode is bounded by `offsetGeneric`
     // (`min` forced, `max` the generic remaining); every other mode demands an
