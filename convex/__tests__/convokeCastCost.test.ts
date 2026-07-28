@@ -207,7 +207,12 @@ describe("forced minimum covers the generic delve can't pay (CR 601.2f — #1338
         // {5}{B/G}{B/G}: 2 hybrids + 5 generic. 3 delve fuel covers only 3 of the
         // generic → the other 2 generic pips can ONLY be convoked. min = 2 + 2 = 4.
         const { player, hogaak } = board({
-            creatures: [CRAW_WURM, DRUDGE_SKELETONS, CRAW_WURM, DRUDGE_SKELETONS],
+            creatures: [
+                CRAW_WURM,
+                DRUDGE_SKELETONS,
+                CRAW_WURM,
+                DRUDGE_SKELETONS,
+            ],
             gyCount: 3,
         });
         const choice = buildConvokeCreatureChoice(player, hogaak, { X: 5 });
