@@ -2111,24 +2111,61 @@ describe("backward compatibility", () => {
         }
     });
 
-    it("expands a pre-tuple library where entries are compact-card objects", () => {
+    it("expands a pre-tuple library where entries are compact-card objects (legacy v1: no `v` field, raw-string card.id)", () => {
         const state = freshState();
-        const compact = compactState(state) as Record<string, unknown>;
-        const players = compact.players as Array<Record<string, unknown>>;
-        const lib = players[0].library as Array<[string, number]>;
-        const [id, cardIdIndex] = lib[0];
-        // issue #1780 — the document is v2, so `card.id` is a cardPool index
-        // even inside a legacy object-shaped entry; resolve the same way a
-        // real tuple entry would to get the expected raw cardId.
-        const expectedCardId = state.players[0].library[0].card.id;
-        // Simulate old format: library entry stored as an object, not a tuple.
-        players[0].library = [
-            { id, card: { id: cardIdIndex } },
-            ...lib.slice(1),
-        ] as unknown[];
-        const expanded = expandState(compact);
+        const rawLib = state.players[0].library;
+        const expectedCardId = rawLib[0].card.id;
+
+        // issue #1780 — hand-build the REAL pre-tuple legacy shape: no `v`
+        // field, no `cardPool`, no `tokenSpecs`, and `card.id` is the raw
+        // string everywhere — exactly what `compactState` used to emit
+        // before this change. A v2 envelope (`v: 2` + `cardPool`) wrapping an
+        // object-shaped library entry is a hybrid `compactState` can never
+        // produce and no production row can ever contain, so it must not
+        // appear in this fixture (mirrors the "still expands a legacy v1
+        // row" fixture below).
+        const legacy = {
+            players: state.players.map((p, i) => ({
+                id: p.id,
+                name: p.name,
+                bgColor: p.bgColor,
+                life: p.life,
+                hand: [],
+                // Simulate old format: the first entry of p1's library stored
+                // as an object (not a tuple) with a raw-string `card.id`; the
+                // rest as legacy `[instanceId, rawCardId]` tuples.
+                library:
+                    i === 0
+                        ? [
+                              {
+                                  id: rawLib[0].id,
+                                  card: { id: expectedCardId },
+                              },
+                              ...rawLib
+                                  .slice(1)
+                                  .map((c) => [c.id, c.card.id] as const),
+                          ]
+                        : p.library.map((c) => [c.id, c.card.id] as const),
+                graveyard: [],
+                exile: [],
+                battlefield: [],
+                manaPool: {},
+            })),
+            stack: [],
+            turn: state.turn,
+            activePlayerId: state.activePlayerId,
+            priorityPlayerId: state.priorityPlayerId,
+            passCount: state.passCount,
+            phase: state.phase,
+            rngSeed: state.rngSeed,
+            rngCounter: state.rngCounter,
+        };
+
+        const expanded = expandState(
+            legacy as unknown as Record<string, unknown>
+        );
         const first = expanded.players[0].library[0];
-        expect(first.id).toBe(id);
+        expect(first.id).toBe(rawLib[0].id);
         expect(first.card.id).toBe(expectedCardId);
         expect(first.zone).toBe("library");
         expect(first.ownerId).toBe(expanded.players[0].id);
