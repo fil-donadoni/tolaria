@@ -26,7 +26,41 @@ import {
     solRing,
 } from "../../cards/sets/lea";
 import { metallicRebuke } from "../../cards/sets/aer";
+import { startingTown } from "../../cards/sets/fin";
+import { registerTokenDefinition } from "../../cards";
+import type { CardDefinition } from "../../cards/types";
 import type { GameState, PlayerState, StackItem } from "../state";
+
+// Same two abilities as Starting Town, declared in the OPPOSITE order (the
+// any-color/life ability first, the free {C} ability second) — a synthetic
+// probe proving the union in `getProducibleManaUnits` doesn't depend on
+// declaration order (issue #1695 AC).
+const REORDERED_TOWN_ID = "test:reordered-starting-town";
+const reorderedStartingTown: CardDefinition = {
+    id: REORDERED_TOWN_ID,
+    rarity: "rare",
+    name: "Reordered Starting Town (test probe)",
+    types: ["Land"],
+    activatedAbilities: [
+        {
+            id: "reordered-any-color",
+            oracleText: "{T}, Pay 1 life: Add one mana of any color.",
+            cost: { tap: true, life: 1 },
+            useStack: false,
+            effect: (ctx) => ctx.addMana({ W: 1 }),
+            manaChoices: [{ W: 1 }, { U: 1 }, { B: 1 }, { R: 1 }, { G: 1 }],
+        },
+        {
+            id: "reordered-colorless",
+            oracleText: "{T}: Add {C}.",
+            cost: { tap: true },
+            useStack: false,
+            effect: (ctx) => ctx.addMana({ C: 1 }),
+            manaProduced: { C: 1 },
+        },
+    ],
+};
+registerTokenDefinition(reorderedStartingTown);
 
 function withTurnOf(state: GameState, playerId: string): GameState {
     return {
@@ -211,6 +245,55 @@ describe("cast affordability with multi-mana sources (issue #132)", () => {
         const state = withTurnOf(makeState({ players: [player] }), "p1");
 
         expect(getLegalActions(state, player, bolt)).not.toContain("cast");
+    });
+});
+
+// issue #1695: a permanent with TWO independent tap-for-mana abilities only
+// counted the first-declared ability's colors toward affordability — the
+// planner picked a single "best" ability (most units, ties to first) instead
+// of treating them as alternatives and unioning their colors. Starting Town
+// declares "{T}: Add {C}" first and "{T}, Pay 1 life: Add one mana of any
+// color" second; both yield 1 unit, so the tie kept only {C} and the
+// any-color option was invisible to a colored spell's Cast gate.
+describe("cast affordability with competing tap-mana abilities (issue #1695)", () => {
+    function onBattlefield(defId: string, id: string) {
+        return makeInstance(defId, {
+            id,
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+            isTapped: false,
+        });
+    }
+
+    it("Starting Town's any-color (life-cost) ability counts toward a colored spell even though it's declared second", () => {
+        const bolt = makeInstance(lightningBolt.id, {
+            controllerId: "p1",
+            zone: "hand",
+        });
+        const player = makePlayer("p1", {
+            hand: [bolt],
+            battlefield: [onBattlefield(startingTown.id, "town")],
+            manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
+        });
+        const state = withTurnOf(makeState({ players: [player] }), "p1");
+
+        expect(getLegalActions(state, player, bolt)).toContain("cast");
+    });
+
+    it("declaration order does not change the result — any-color ability declared FIRST still counts", () => {
+        const bolt = makeInstance(lightningBolt.id, {
+            controllerId: "p1",
+            zone: "hand",
+        });
+        const player = makePlayer("p1", {
+            hand: [bolt],
+            battlefield: [onBattlefield(REORDERED_TOWN_ID, "town")],
+            manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
+        });
+        const state = withTurnOf(makeState({ players: [player] }), "p1");
+
+        expect(getLegalActions(state, player, bolt)).toContain("cast");
     });
 });
 
