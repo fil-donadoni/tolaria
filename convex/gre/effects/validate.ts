@@ -2548,10 +2548,33 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
         // "bazaar-discard"). Any non-empty string — unlike `bind` it is
         // NEVER read back via `{ ref }`, so it isn't constrained to the
         // `$`-prefixed binding-name grammar.
+        // `candidates` (Barrin's Spite) narrows the pick to already-known
+        // battlefield objects — the announced targets — so "choose one of
+        // THEM" is a click on a card instead of a list of sentences.
+        // `bindOther` snapshots the single unpicked candidate ("the other"),
+        // which no announced slot can name because which slot it is depends on
+        // the choice.
         optional: {
             filter: isCardFilter,
             zoneOwnerId: isPlayerRef,
             id: isNonEmptyString,
+            candidates: (v) =>
+                Array.isArray(v) && v.length > 0 && v.every(isObjectSelector),
+            bindOther: isBindingName,
+        },
+        check: (entry) => {
+            const errors: string[] = [];
+            if ("candidates" in entry && entry.zone !== "battlefield") {
+                errors.push(
+                    '"candidates" is valid only with zone: "battlefield" — the other zones are hidden or unordered, so nothing in them can be named ahead of the pick'
+                );
+            }
+            if ("bindOther" in entry && !("candidates" in entry)) {
+                errors.push(
+                    '"bindOther" requires "candidates" — there is no candidate set to take the complement of'
+                );
+            }
+            return errors;
         },
     },
     // CR 701.9 (issue #805) — discard the cards a `choice` Op picked, OR

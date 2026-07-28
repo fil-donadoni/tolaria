@@ -159,6 +159,21 @@ describe("Chrome Mox ({0} Artifact — imprint exile + colour-gated mana, CR 603
             (c) => c.id === "mox"
         )!;
         expect(moxOnBattlefield.counters?.["imprint-G"]).toBe(1);
+        // CR 406.2 — the imprinted card is exiled FACE UP (Chrome Mox names no
+        // face-down exile), so it carries no `knownTo` gate.
+        const exiled = state.players[0].exile.find(
+            (c) => c.id === "greenCard"
+        )!;
+        expect(exiled.knownTo ?? []).toEqual([]);
+        // CR 111 (issue #791) — pinned to the Mox, so the board renders it
+        // attached to the permanent instead of loose in the exile pile. The
+        // wire projection is what the board actually reads, so assert there.
+        expect(exiled.exiledBySourceId).toBe("mox");
+        const projected = projectPublicState(state, 1, "p2");
+        const slim = projected.players[0].exile.find(
+            (c) => c.id === "greenCard"
+        )!;
+        expect(slim.exiledByPermanentId).toBe("mox");
     });
 
     it("declining the exile (or an all-land/artifact hand) leaves Chrome Mox with no mana ability available", () => {

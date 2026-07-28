@@ -21,6 +21,17 @@ export function isPTCounter(type: string): boolean {
     return PT_COUNTER_RE.test(type);
 }
 
+/** Internal bookkeeping stored in the per-instance counter map but NOT a CR 122
+ *  counter the player is meant to read.
+ *
+ *  `imprint-<color>` (Chrome Mox and every future Imprint card) records the
+ *  exiled card's colours so the mana ability can offer exactly those — the
+ *  player reads the imprint from the exiled card pinned to the permanent, not
+ *  from an "I*" chip whose meaning nothing on the board explains. */
+function isInternalCounter(type: string): boolean {
+    return type.startsWith("imprint-");
+}
+
 /** Title-case a kebab/space counter key: "gaea-forest" → "Gaea Forest". */
 function titleCase(type: string): string {
     return type
@@ -72,7 +83,10 @@ export function getCounterDisplays(card: CardInstance): CounterDisplay[] {
         Object.entries(counters)
             // CR 306.5b — loyalty counters are shown by the dedicated planeswalker
             // loyalty badge (bottom-right), not as a generic named-counter badge.
-            .filter(([type, count]) => count > 0 && type !== "loyalty")
+            .filter(
+                ([type, count]) =>
+                    count > 0 && type !== "loyalty" && !isInternalCounter(type)
+            )
             .map(([type, count]) => ({
                 type,
                 count,

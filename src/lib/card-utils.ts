@@ -486,6 +486,95 @@ export function matchesTargetRequirement(
     return types.some((t) => cardTypes.includes(t as never));
 }
 
+/** Target-requirement `type` values that do NOT name a battlefield permanent,
+ *  so {@link hasBattlefieldTargetCandidate} cannot judge them and fails open. */
+const NON_PERMANENT_TARGET_TYPES = new Set([
+    "player",
+    "spell",
+    "spell-or-permanent",
+    "card",
+]);
+
+/**
+ * CR 602.2b / 601.2c — is there at least ONE permanent on the board that could
+ * be this requirement's target?
+ *
+ * An activated ability that targets and has NO legal target can't be activated
+ * at all (CR 602.2b), so offering it in the tap/context menu is offering a move
+ * the server will reject — the Equipment whose Equip is listed with no creature
+ * anywhere on the battlefield. This is the client hint that hides it.
+ *
+ * Deliberately CONSERVATIVE — it only judges what the wire view can see
+ * cheaply, and every branch it can't judge FAILS OPEN (returns true) so the
+ * gate never hides a legal ability:
+ *  - a requirement in a non-battlefield zone (graveyard), or whose type names a
+ *    player / spell / any card, is not judged;
+ *  - only `type`, `subtypeFilter`, `controller` and the self-exclusion are
+ *    applied — the finer filters (power/toughness, colour, protection, shroud,
+ *    intrinsic per-card filters) are the server's, whose `getLegalTargets` /
+ *    `selectTarget` remain the single authority.
+ * So a "no candidates" answer is reliable; a "has candidates" answer only means
+ * the ability is worth offering.
+ */
+export function hasBattlefieldTargetCandidate(
+    requirement: TargetRequirement,
+    source: CardInstance,
+    stateView: TriggerStateView | undefined
+): boolean {
+    // No view to judge against — fail open (the caller may be a test or a
+    // surface without player state).
+    if (!stateView || stateView.players.length === 0) return true;
+    if (requirement.zone !== undefined && requirement.zone !== "battlefield") {
+        return true;
+    }
+    const types = Array.isArray(requirement.type)
+        ? requirement.type
+        : [requirement.type];
+    if (types.some((t) => NON_PERMANENT_TARGET_TYPES.has(t))) return true;
+    const subtypes = requirement.subtypeFilter
+        ? Array.isArray(requirement.subtypeFilter)
+            ? requirement.subtypeFilter
+            : [requirement.subtypeFilter]
+        : undefined;
+    const activePlayerId = stateView.activePlayerId ?? source.controllerId;
+    for (const player of stateView.players) {
+        for (const permanent of player.battlefield) {
+            if (
+                requirement.excludeSource === true &&
+                permanent.id === source.id
+            ) {
+                continue;
+            }
+            if (
+                !matchesTargetRequirement(
+                    permanent as unknown as CardInstance,
+                    types
+                )
+            ) {
+                continue;
+            }
+            if (
+                subtypes &&
+                !subtypes.some((s) => permanent.subtypes.includes(s))
+            ) {
+                continue;
+            }
+            if (
+                !matchesTargetController(
+                    permanent.controllerId,
+                    source.controllerId,
+                    activePlayerId,
+                    requirement.controller
+                )
+            ) {
+                continue;
+            }
+            return true;
+        }
+    }
+    return false;
+}
+
 /** CR 109.3 / 102.1 — client mirror of the server's permanent-controller gate
  *  (`matchesBattlefieldController` in convex/gre/rules.ts, #904). Keeps an
  *  illegal-controller permanent from reading as clickable; the server remains
@@ -969,6 +1058,9 @@ export function getStackAbilities(
         };
         activationPhaseRestriction?: ReadonlyArray<Phase>;
         sorcerySpeedOnly?: boolean;
+        /** CR 601.2c — the ability's declared target requirement, when it
+         *  targets. Read by the CR 602.2b no-legal-target gate below. */
+        targetRequirement?: TargetRequirement;
         activatableByOpponentsOnly?: boolean;
         activateFromHand?: boolean;
         activateFromGraveyard?: boolean;
@@ -1058,12 +1150,26 @@ export function getStackAbilities(
         if (a.cost.loyalty !== undefined) {
             // CR 606.3 — at most one loyalty ability of this permanent per turn.
             if (card.loyaltyActivatedThisTurn) return false;
-            // CR 606.3 — sorcery-speed: only on the controller's own turn. The
-            // full "stack empty + priority" refinement is the server's job; the
-            // active-turn check is the cheap client hint the view can make.
+            // CR 606.3 — sorcery-speed: the controller's own MAIN PHASE. Both
+            // halves matter, and only checking the turn left the abilities
+            // offered all through combat and the end step on your own turn,
+            // where `assertLoyaltyActivationLegal` rejects every one of them.
+            // Narrowed the same way `sorcerySpeedOnly` above is — to the
+            // main-phase half of `isSorceryTiming`, since this view carries no
+            // stack length or priority holder; the server stays authoritative.
+            // (An effect that grants instant-speed loyalty activation — Teferi,
+            // Temporal Archmage — is not modelled yet; when it lands it belongs
+            // here as an escape from this narrowing, mirroring the server gate.)
             if (
                 stateView?.activePlayerId !== undefined &&
                 stateView.activePlayerId !== card.controllerId
+            ) {
+                return false;
+            }
+            if (
+                phase !== undefined &&
+                phase !== "PRECOMBAT_MAIN" &&
+                phase !== "POSTCOMBAT_MAIN"
             ) {
                 return false;
             }
@@ -1122,6 +1228,16 @@ export function getStackAbilities(
         if (a.canActivate !== undefined) {
             const view: TriggerStateView = stateView ?? { players: [] };
             if (!a.canActivate(card as PermanentView, view)) return false;
+        }
+        // CR 602.2b — a targeting ability with NO legal target can't be
+        // activated, so offering it is offering a move the server will reject
+        // (an Equipment's Equip with no creature anywhere on the battlefield).
+        // Conservative and fail-open — see `hasBattlefieldTargetCandidate`.
+        if (
+            a.targetRequirement !== undefined &&
+            !hasBattlefieldTargetCandidate(a.targetRequirement, card, stateView)
+        ) {
+            return false;
         }
         return true;
     };
@@ -1419,6 +1535,75 @@ export function getDelayedTriggerOracleText(
         (t) => t.id === delayedTriggerId
     );
     return trigger?.oracleText ?? null;
+}
+
+/** Which flavour of ability a stack item is (CR 602 / 603), or `null` for a
+ *  spell. */
+export type StackAbilityKind = "activated" | "triggered" | "delayed";
+
+export function stackAbilityKindOf(item: {
+    abilityId?: string;
+    triggeredAbilityId?: string;
+    delayedTriggerId?: string;
+}): StackAbilityKind | null {
+    if (item.abilityId) return "activated";
+    if (item.triggeredAbilityId) return "triggered";
+    if (item.delayedTriggerId) return "delayed";
+    return null;
+}
+
+/**
+ * The oracle text of an on-stack (or about-to-be-stacked) ABILITY, whatever
+ * flavour it is — activated, triggered, delayed, or the inline body of a
+ * reflexive trigger (CR 603.3c, ADR 0048).
+ *
+ * The single resolver for every surface that prints an ability's text. The
+ * stack row and the APNAP trigger-ORDER prompt used to each roll their own,
+ * and the order prompt only handled `triggeredAbilityId` — so a reflexive
+ * ability waiting in the same batch (Inti, Seneschal of the Sun's "When you do,
+ * put a +1/+1 counter on target attacking creature", whose stack item is an
+ * INLINE delayed trigger carrying its text in `delayedOracleText`) rendered as
+ * a blank tile the player was asked to order.
+ *
+ * Returns null for a spell (no ability id at all) and for an ability whose
+ * text can't be resolved.
+ */
+export function getStackAbilityOracleText(item: {
+    card: { id: string };
+    abilityId?: string;
+    triggeredAbilityId?: string;
+    delayedTriggerId?: string;
+    delayedOracleText?: string;
+    grantedActivatedAbilities?: ReadonlyArray<{
+        sourceCardId: string;
+        abilityId: string;
+    }>;
+    grantedTriggeredAbilities?: ReadonlyArray<{
+        sourceCardId: string;
+        abilityId: string;
+    }>;
+}): string | null {
+    const kind = stackAbilityKindOf(item);
+    if (kind === null) return null;
+    if (kind === "activated") {
+        return getAbilityOracleText(
+            item.card.id,
+            item.abilityId!,
+            item.grantedActivatedAbilities
+        );
+    }
+    if (kind === "triggered") {
+        return getTriggeredAbilityOracleText(
+            item.card.id,
+            item.triggeredAbilityId!,
+            item.grantedTriggeredAbilities
+        );
+    }
+    return getDelayedTriggerOracleText(
+        item.card.id,
+        item.delayedTriggerId!,
+        item.delayedOracleText
+    );
 }
 
 /** One line of a modal spell's oracle text as shown on the stack (CR 700.2c). */

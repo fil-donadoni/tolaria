@@ -26,7 +26,15 @@ type BoardPilesProps = {
  *  bottom-right edge, the opponent's mirror to the top-RIGHT (#334), so the
  *  right edge reads as one symmetric control column — opponent piles · stack ·
  *  pod · viewer piles — with both halves symmetric about the midline. View-layer
- *  only — the GRE boundary is untouched. */
+ *  only — the GRE boundary is untouched.
+ *
+ *  `items-start`: every tile in the row sizes itself as one card (`--card-w-sm`
+ *  wide, `aspect-5/7` tall). Flex's default `stretch` overrides an item's
+ *  aspect-derived height with the ROW's height, so one taller tile silently
+ *  re-shaped every other one — and since the art is `object-cover`, re-shaping
+ *  crops it (the companion card rendered squashed and cropped next to a fanned
+ *  emblem stack, whose wider slot made the row taller). Pinning the cross-axis
+ *  start keeps each tile's own aspect ratio authoritative. */
 export default function BoardPiles({ orderedPlayers }: BoardPilesProps) {
     const [opponent, me] = orderedPlayers;
 
@@ -34,7 +42,7 @@ export default function BoardPiles({ orderedPlayers }: BoardPilesProps) {
         <>
             {opponent && (
                 <div
-                    className="absolute right-3 top-3 z-30 flex flex-row-reverse gap-2"
+                    className="absolute right-3 top-3 z-30 flex flex-row-reverse items-start gap-2"
                     data-testid="piles-opponent"
                 >
                     <PlayerGraveyard player={opponent} />
@@ -49,7 +57,7 @@ export default function BoardPiles({ orderedPlayers }: BoardPilesProps) {
 
             {me && (
                 <div
-                    className="absolute right-3 bottom-3 z-30 flex flex-row-reverse gap-2"
+                    className="absolute right-3 bottom-3 z-30 flex flex-row-reverse items-start gap-2"
                     data-testid="piles-player"
                 >
                     <PlayerGraveyard player={me} />

@@ -15,13 +15,20 @@ function sortKey(card: CardInstance): { type: string; name: string } {
 }
 
 /**
- * Orders the cards of a `search-library` pick (issue #933 follow-up): eligible
- * (allow-listed) cards first, then everything sorted by type line, with card
- * name as the tiebreaker. `eligibleIds` is `undefined` for an unfiltered
- * search — then no bucket split happens and cards sort purely by type/name.
+ * Orders the cards of a filtered pick: eligible (allow-listed) cards first,
+ * then everything sorted by type line, with card name as the tiebreaker.
+ * `eligibleIds` is `undefined` for an unfiltered pick — then no bucket split
+ * happens and cards sort purely by type/name.
  *
- * Pure, non-mutating: returns a new array so the projected `librarySearch`
- * stays untouched.
+ * Used by every picker whose zone carries NO game-significant order — the
+ * library search (issue #933), and the revealed-hand pick (Inquisition of
+ * Kozilek / Thoughtseize), where hunting the two legal cards out of a
+ * seven-card grid is the whole task. The GRAVEYARD deliberately does NOT use
+ * it: graveyard order is real game state (CR 400.2 — Ashen Ghoul counts the
+ * creature cards ABOVE it), so its picker must keep showing the true order.
+ *
+ * Pure, non-mutating: returns a new array so the projected zone stays
+ * untouched.
  */
 export function orderLibrarySearchCards(
     cards: CardInstance[],

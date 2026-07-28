@@ -16,8 +16,17 @@ export default function LibrarySearchConfirm({
     const { buffer, submit, isPending } = usePendingChoiceBuffer();
     const selected = buffer.length;
     const canSubmit = selected >= min && selected <= max;
+    // `max === 0` is the no-hit library search (CR 401.4 / 701.19a): the filter
+    // matched nothing, so the chooser gets the look they are entitled to with
+    // every card inert, and the only thing left to do is shuffle. Naming the
+    // button for that beats a bare "Skip", which reads as if a pick were
+    // available and being declined.
     const label =
-        min === 0 && selected === 0 ? "Skip" : `Done (${selected}/${max})`;
+        max === 0
+            ? "Shuffle"
+            : min === 0 && selected === 0
+              ? "Skip"
+              : `Done (${selected}/${max})`;
 
     return (
         <Button

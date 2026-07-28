@@ -60,8 +60,16 @@ function EmblemStack({ members }: { members: EmblemInstance[] }) {
         <div
             data-emblem-stack={members[0].emblemId}
             data-stack-size={n}
-            className="relative aspect-5/7"
-            style={{ width: `calc(var(--card-w-sm) + ${(n - 1) * offset}px)` }}
+            className="relative"
+            // A fan is WIDER than one card but exactly ONE CARD TALL: its
+            // members are absolutely positioned card-sized tiles. Deriving the
+            // wrapper's height from its full fan width (`aspect-5/7`) made the
+            // slot taller than the cards inside it and, in a stretch-aligned
+            // pile row, re-shaped every neighbouring tile with it.
+            style={{
+                width: `calc(var(--card-w-sm) + ${(n - 1) * offset}px)`,
+                height: "calc(var(--card-w-sm) * 7 / 5)",
+            }}
         >
             {members.map((emblem, i) => (
                 <div

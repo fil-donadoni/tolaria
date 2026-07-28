@@ -4,11 +4,10 @@ import { tryGetEmblemDefinition } from "@convex/cards/emblems";
 import { motion, useReducedMotion } from "motion/react";
 import type { Player, StackItem } from "~/types/game";
 import {
-    getAbilityOracleText,
-    getDelayedTriggerOracleText,
+    getStackAbilityOracleText,
     getStackModeLines,
-    getTriggeredAbilityOracleText,
     manaCostToString,
+    stackAbilityKindOf,
 } from "~/lib/card-utils";
 import { formatOracleText } from "~/lib/oracle-text";
 import {
@@ -23,29 +22,6 @@ import ColorOverlayCardImage from "../cards/color-overlay-card-image";
 import TokenPlaceholder from "../cards/token-placeholder";
 
 type AbilityKind = "activated" | "triggered" | "delayed";
-
-function abilityKindOf(item: StackItem): AbilityKind | null {
-    if (item.abilityId) return "activated";
-    if (item.triggeredAbilityId) return "triggered";
-    if (item.delayedTriggerId) return "delayed";
-    return null;
-}
-
-function abilityOracleText(item: StackItem, kind: AbilityKind): string | null {
-    if (kind === "activated")
-        return getAbilityOracleText(item.card.id, item.abilityId!);
-    if (kind === "triggered")
-        return getTriggeredAbilityOracleText(
-            item.card.id,
-            item.triggeredAbilityId!,
-            item.grantedTriggeredAbilities
-        );
-    return getDelayedTriggerOracleText(
-        item.card.id,
-        item.delayedTriggerId!,
-        item.delayedOracleText
-    );
-}
 
 const KIND_LABEL: Record<AbilityKind, string> = {
     activated: "Activated ability",
@@ -116,7 +92,7 @@ export default function StackRow({
     viewerId: string;
 }) {
     const reduceMotion = useReducedMotion();
-    const kind = abilityKindOf(item);
+    const kind = stackAbilityKindOf(item);
     // CR 725 (issue #1305) — a source-less inherent designation triggered
     // ability (the Monarch's end-step draw) carries `designationId` but no card
     // (`card.id` is ""). Render its marker-card art + name and label it a plain
@@ -129,7 +105,7 @@ export default function StackRow({
     const def = tryGetDefinition(item.card.id);
     const name = designation?.name ?? def?.name ?? emblem?.name ?? item.card.id;
     const oracle = kind
-        ? abilityOracleText(item, kind)
+        ? getStackAbilityOracleText(item)
         : (def?.oracleText ?? null);
     const kindLabel = designation
         ? "Triggered ability"

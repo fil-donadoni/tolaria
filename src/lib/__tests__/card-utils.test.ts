@@ -650,20 +650,24 @@ describe("getStackAbilities", () => {
             });
 
         it("surfaces the ability when the viewer's own graveyard has 2 cards (via buildTriggerStateView)", () => {
+            // The Lavamancer itself is on the battlefield, so its "any target"
+            // ability has a legal target candidate (CR 602.2b — a targeting
+            // ability with none is hidden).
+            const lavamancer = makeLavamancer();
             const view = buildTriggerStateView(
                 [
                     {
                         id: "p1",
                         life: 20,
                         hand: [],
-                        battlefield: [],
+                        battlefield: [lavamancer],
                         graveyard: [gvCard("g1", "p1"), gvCard("g2", "p1")],
                     },
                 ],
                 "p1"
             );
             const abilities = getStackAbilities(
-                makeLavamancer(),
+                lavamancer,
                 undefined,
                 true,
                 view
@@ -1075,8 +1079,20 @@ describe("getStackAbilities — player-state canActivate predicates (#436)", () 
             isTapped: false,
             isSummoningSick: false,
         });
+        // Nettling Imp forces a creature an OPPONENT controls to attack, so the
+        // opponent needs one on the board or the ability has no legal target
+        // (CR 602.2b) and is hidden.
+        const victim = makeCardInstance({
+            id: "victim-1",
+            types: ["Creature"],
+            controllerId: "p2",
+            ownerId: "p2",
+        });
         const view = buildTriggerStateView(
-            [makePlayerLike({ id: "p1", battlefield: [card] })],
+            [
+                makePlayerLike({ id: "p1", battlefield: [card] }),
+                makePlayerLike({ id: "p2", battlefield: [victim] }),
+            ],
             "p2" // opponent's turn → predicate true
         );
         const abilities = getStackAbilities(card, "PRECOMBAT_MAIN", true, view);
@@ -3127,5 +3143,133 @@ describe("Mox Opal Metalcraft gate through buildTriggerStateView (issue #1530, #
             types: ["Artifact"],
         });
         expect(hasManaAbility(card, board(3))).toBe(true);
+    });
+});
+
+// CR 606.3 — a loyalty ability is sorcery-speed on its controller's own turn.
+// The client hint only checked the TURN, so every loyalty ability stayed in the
+// context menu all through combat and the end step, where the server rejects
+// it ("A loyalty ability can only be activated at sorcery speed on your turn").
+describe("getStackAbilities — loyalty abilities are sorcery-speed (CR 606.3)", () => {
+    const JACE_ID = "0e606072-a3aa-4300-ba90-ec92a721fa76"; // Jace, the Mind Sculptor
+
+    function jaceOnBoard() {
+        return makeCardInstance({
+            id: "jace-1",
+            card: { id: JACE_ID },
+            types: ["Planeswalker"],
+            controllerId: "p1",
+            ownerId: "p1",
+            counters: { loyalty: 20 },
+        });
+    }
+
+    function abilitiesAt(phase: string) {
+        const jace = jaceOnBoard();
+        const opp = makeCardInstance({
+            id: "victim-1",
+            types: ["Creature"],
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const view = buildTriggerStateView(
+            [
+                makePlayerLike({ id: "p1", battlefield: [jace] }),
+                makePlayerLike({ id: "p2", battlefield: [opp] }),
+            ],
+            "p1" // controller's own turn
+        );
+        return getStackAbilities(jace, phase as never, true, view).map(
+            (a) => a.id
+        );
+    }
+
+    it("offers them in a main phase", () => {
+        expect(abilitiesAt("PRECOMBAT_MAIN").length).toBeGreaterThan(0);
+        expect(abilitiesAt("POSTCOMBAT_MAIN").length).toBeGreaterThan(0);
+    });
+
+    it("hides them outside a main phase, even on your own turn", () => {
+        expect(abilitiesAt("DECLARE_ATTACKERS")).toEqual([]);
+        expect(abilitiesAt("UPKEEP")).toEqual([]);
+        expect(abilitiesAt("END_STEP")).toEqual([]);
+    });
+});
+
+// CR 602.2b — an activated ability that targets and has no legal target can't
+// be activated, so offering it in the menu offers a move the server rejects
+// (an Equipment's Equip with no creature anywhere on the battlefield).
+describe("getStackAbilities — targeting abilities with no legal target (CR 602.2b)", () => {
+    const BOOTS_ID = "e50709de-e6ef-4dbc-af1e-290fed279f34"; // Lavaspur Boots
+
+    function boots() {
+        return makeCardInstance({
+            id: "boots-1",
+            card: { id: BOOTS_ID },
+            types: ["Artifact"],
+            subtypes: ["Equipment"],
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+    }
+
+    it("hides Equip when its controller has no creature", () => {
+        const equipment = boots();
+        const view = buildTriggerStateView(
+            [
+                makePlayerLike({ id: "p1", battlefield: [equipment] }),
+                makePlayerLike({ id: "p2", battlefield: [] }),
+            ],
+            "p1"
+        );
+        expect(
+            getStackAbilities(equipment, "PRECOMBAT_MAIN", true, view).map(
+                (a) => a.id
+            )
+        ).not.toContain("lavaspur-boots-equip");
+    });
+
+    it("offers Equip once a creature it could attach to exists", () => {
+        const equipment = boots();
+        const bear = makeCardInstance({
+            id: "bear-1",
+            types: ["Creature"],
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const view = buildTriggerStateView(
+            [
+                makePlayerLike({ id: "p1", battlefield: [equipment, bear] }),
+                makePlayerLike({ id: "p2", battlefield: [] }),
+            ],
+            "p1"
+        );
+        expect(
+            getStackAbilities(equipment, "PRECOMBAT_MAIN", true, view).map(
+                (a) => a.id
+            )
+        ).toContain("lavaspur-boots-equip");
+    });
+
+    it("does not offer Equip for a creature only the OPPONENT controls (controller: 'you')", () => {
+        const equipment = boots();
+        const oppBear = makeCardInstance({
+            id: "bear-2",
+            types: ["Creature"],
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const view = buildTriggerStateView(
+            [
+                makePlayerLike({ id: "p1", battlefield: [equipment] }),
+                makePlayerLike({ id: "p2", battlefield: [oppBear] }),
+            ],
+            "p1"
+        );
+        expect(
+            getStackAbilities(equipment, "PRECOMBAT_MAIN", true, view).map(
+                (a) => a.id
+            )
+        ).not.toContain("lavaspur-boots-equip");
     });
 });

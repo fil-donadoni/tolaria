@@ -4119,7 +4119,11 @@ describe("Effect Script Op: moveZone — cards/player shape (CR 400.7, issue #67
         expect(state.stack).toHaveLength(0);
     });
 
-    it("skips the search-and-move (and every downstream Op) when there are no matching candidates (CR 608.2b)", () => {
+    // CR 401.4 / 701.19a — a library search with NO matching card still shows
+    // the library. The look is the player's entitlement (and it gets shuffled
+    // afterwards); skipping the choice silently denied it, so a fetchland with
+    // no basic left never revealed the library at all.
+    it("still raises a 0-pick search-library choice when nothing matches, and moves nothing", () => {
         const id = registerScript("test-op-movezone-nomatch", [
             {
                 op: "choice",
@@ -4144,11 +4148,30 @@ describe("Effect Script Op: moveZone — cards/player shape (CR 400.7, issue #67
             players: [makePlayer("p1", { library: lib }), makePlayer("p2")],
         });
         pushSpell(state, id, "p1");
-        // No lands in the library — the choice finds zero candidates and is
-        // skipped entirely (no PendingChoice raised), so resolution completes
-        // synchronously without a search prompt.
-        expect(() => resolveTopOfStack(state)).not.toThrow();
-        expect(state.pendingChoices).toBeUndefined();
+        // No lands in the library — the search still suspends so the chooser
+        // sees the library, with an EMPTY allow-list (every card inert) and a
+        // 0-pick count (the Done button only shuffles).
+        expect(resolveTopOfStack(state)).toBeNull();
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("search-library");
+        expect(head.candidateIds).toEqual([]);
+        expect(head.count).toEqual({ min: 0, max: 0 });
+        // Wire format: the searched library is exposed face-up to the chooser,
+        // which is what lets the client render the whole pile (all disabled).
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[0].librarySearch?.map((c) => c.id)).toEqual([
+            "bear1",
+            "bear2",
+        ]);
+        // Submitting nothing completes the resolution, moving nothing.
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: [],
+        });
+        expect(state.pendingChoices ?? []).toEqual([]);
         expect(state.players[0].library).toHaveLength(2);
         expect(state.players[0].battlefield).toHaveLength(0);
     });
@@ -4494,12 +4517,21 @@ describe("Effect Script Op: moveZone — cards/player shape (CR 400.7, issue #67
         });
         pushSpell(state, id, "p1"); // no chosenX
         const resolved = resolveTopOfStack(state);
-        // Zero candidates + `count: { min: 0, ... }` auto-resolves without
-        // suspending (CR 608.2b — mirrors "skips the choice AND the
-        // consuming Op when there are no candidates" above); the card never
-        // moves out of the library.
-        expect(resolved).not.toBeNull();
-        expect(state.pendingChoices).toBeUndefined();
+        // Zero candidates in a LIBRARY search still suspends so the chooser
+        // gets the look CR 401.4 entitles them to (see "still raises a 0-pick
+        // search-library choice when nothing matches" above) — with an empty
+        // allow-list, so nothing is pickable and nothing moves.
+        expect(resolved).toBeNull();
+        const head = state.pendingChoices![0];
+        expect(head.candidateIds).toEqual([]);
+        expect(head.count).toEqual({ min: 0, max: 0 });
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: [],
+        });
         expect(state.players[0].library.map((c) => c.id)).toEqual(["x0cheap1"]);
         expect(state.players[0].hand.length).toBe(0);
     });
@@ -12329,8 +12361,12 @@ describe("Effect Script construct: forEach + moveZone — mass bounce (CR 400.7 
         expect(projected.players[0].battlefield).toHaveLength(0);
         expect(projected.players[1].battlefield).toHaveLength(0);
         expect(projected.players[0].hand).toHaveLength(1);
-        // Opponent's hand is hidden from this viewer — slimmed to a count.
-        expect(projected.players[1].hand).toEqual([null]);
+        // ADR 0026 — a permanent bounced from the battlefield stays PUBLIC
+        // knowledge: every player watched it sit there and watched it move, so
+        // the opponent's slot carries its real identity rather than a hidden
+        // `null` (a bounced creature must not read as a card that vanished).
+        expect(projected.players[1].hand).toHaveLength(1);
+        expect(projected.players[1].hand[0]?.id).toBe("uphW2");
     });
 
     // Colour-filtered mass bounce (Hibernation, issue #995, CR 202.2 / 400.7):

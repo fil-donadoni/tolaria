@@ -9460,6 +9460,39 @@ export type EffectOp =
            *  entirely if this player ref cannot be resolved (CR 608.2b). */
           zoneOwnerId?: EffectPlayerRef;
           filter?: EffectCardFilter;
+          /** CR 601.2c / 608.2 — restricts the pick to specific ALREADY-KNOWN
+           *  objects instead of a whole zone: the announced targets, or
+           *  snapshots an earlier Op bound. `zone: "battlefield"` only
+           *  (validator-enforced) — the other zones are hidden or unordered,
+           *  and nothing there can be named ahead of the pick.
+           *
+           *  This is what lets a card whose text says "choose one of THEM" be
+           *  a real click on a card rather than a list of sentences: Barrin's
+           *  Spite ("Choose two target creatures … their controller chooses
+           *  and sacrifices ONE of them") narrows the choice to
+           *  `[{ target: 0 }, { target: 1 }]`, so the chooser clicks the
+           *  creature on the board instead of picking "the first"/"the second"
+           *  out of prose that names neither.
+           *
+           *  A selector that no longer resolves to a battlefield permanent is
+           *  dropped from the candidate set (CR 608.2b — it left in response),
+           *  and the count clamps to what is left, exactly as a zone-wide
+           *  choice clamps to availability. Composes with `filter`, which
+           *  further narrows the resolved set. */
+          candidates?: EffectObjectSelector[];
+          /** Snapshots the ONE candidate that was NOT picked — "the other".
+           *  Requires `candidates` (validator-enforced) and binds a normal
+           *  object snapshot, so any object-acting Op reads it: `moveZone
+           *  { target: { ref: "$other" } }`, `destroy`, `dealDamage`.
+           *
+           *  Barrin's Spite's second clause ("Return THE OTHER to its owner's
+           *  hand") is the shape this exists for: the complement of the pick
+           *  is not expressible as an announced slot, because which slot it is
+           *  depends on the choice. Left UNCAPTURED (so every reader skips, CR
+           *  608.2b) unless exactly one candidate remains unpicked — with two
+           *  candidates and one pick that is always the case, and any other
+           *  arrangement has no single "other" to name. */
+          bindOther?: string;
           /** Pick count, clamped to availability (CR 608.2b). A plain number
            *  is an EXACT count (the chooser must pick that many, down to
            *  however many exist). `{ min, max }` (issue #677) is an OPTIONAL

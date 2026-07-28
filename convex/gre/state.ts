@@ -6683,6 +6683,18 @@ export function removePermanentTo(
     delete creature.counters;
     const owner = getPlayer(state, creature.ownerId);
     (owner[toZone] as CardInstanceState[]).push(creature);
+    // ADR 0026 — a permanent bounced to its owner's HAND stays PUBLIC
+    // knowledge: every player watched it sit on the battlefield and watched it
+    // move, so its identity in hand is known to all (CR 400.3 — a zone change
+    // out of a public zone is observed). Without this the card silently became
+    // a face-down hand slot for the opponent the instant it left the
+    // battlefield, which reads as a card vanishing (Barrin's Spite: you see
+    // one creature sacrificed and the other simply disappear). Library is
+    // deliberately NOT included: a bounce-to-library is followed by a shuffle
+    // or a hidden position, and `clearKnowledge` owns that case.
+    if (toZone === "hand") {
+        grantKnowledgeToAll(state, creature.ownerId, [creature.id]);
+    }
     if (toZone === "exile" && graveyardRedirectCounters) {
         applyGraveyardRedirectCounters(creature, graveyardRedirectCounters);
     }

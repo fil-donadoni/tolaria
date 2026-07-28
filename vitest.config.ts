@@ -70,10 +70,30 @@ const exclude = [
 const BOT_GLOB_NODE = ["convex/**/*.bot.test.ts", "scripts/**/*.bot.test.ts"];
 const BOT_GLOB_JSDOM = ["src/**/*.bot.test.{ts,tsx}"];
 
+// ─────────────────────────────────────────────────────────────────────────────
+// WORKER CAP — CPU admission control (see scripts/gate.ts for the full rationale).
+//
+// Vitest defaults to `ncpu - 1` workers per invocation. That is correct for ONE
+// invocation and pathological for this repo's actual working mode: several
+// concurrent Claude Code subagents, each in its own worktree, each running
+// vitest. On 8 cores four of them spawn ~28 workers — measured load average 45,
+// targeted suites 2.5x slower than solo, and the bot suite blowing its 60s
+// per-test ceiling under contention (false reds).
+//
+// So the DEFAULT here is deliberately small (2): four concurrent light jobs then
+// fit inside ncpu. The heavy tier — the full suites and `check:all`, which hold
+// the machine-wide gate mutex and therefore run alone — raises it back to
+// `ncpu - 1` by exporting TOLARIA_VITEST_WORKERS (scripts/gate.ts). Override by
+// hand for a one-off solo run: TOLARIA_VITEST_WORKERS=7 bunx vitest run <path>.
+// ─────────────────────────────────────────────────────────────────────────────
+const WORKERS = Math.max(1, Number(process.env.TOLARIA_VITEST_WORKERS ?? 2));
+
 export default defineConfig({
     resolve: { alias },
     test: {
         globals: true,
+        maxWorkers: WORKERS,
+        minWorkers: 1,
         projects: [
             {
                 extends: true,

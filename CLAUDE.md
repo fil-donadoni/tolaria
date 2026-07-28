@@ -231,6 +231,17 @@ The full gate is **mandatory before a task is marked done / before merge** — n
 
 A bot test declares itself by **filename**: `search.bot.test.ts`, not `search.test.ts`. Bot tests run real searches over full game states, so mixed into the ~580-file application suite they lose the CPU race and their heavy episodes time out; separate invocations (not merely separate vitest projects — projects share one worker pool) give the bot suite an uncontended run. **Name any new bot/AI test `*.bot.test.ts`** — `scripts/__tests__/bot-suite-boundary.test.ts` fails the app suite when a plain `*.test.ts` imports a bot-only module. Config and rationale: `vitest.config.ts`.
 
+**CPU admission control — the gate is machine-wide serialized (`scripts/gate.ts`).** Several sessions/subagents work this repo concurrently, each in its own worktree, and each used to spawn `ncpu - 1` vitest workers plus a `tsc -b` plus an eslint. On 8 cores that measured a load average of 45, made every gate 1.5–3× slower than solo, and pushed the bot suite past its 60s per-test ceiling — false reds whose debugging cost dwarfs the slowdown. Two tiers now:
+
+| Tier      | Commands                                               | Behaviour                                                                                                                                                  |
+| --------- | ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **heavy** | `bun run test`, `test:app`, `test:bot`, `check:all`    | hold a machine-wide exclusive mutex (`~/.cache/tolaria/gate.lock`), run at `ncpu - 1` workers. One at a time — callers queue and print `[gate] waiting …`. |
+| **light** | `bunx vitest run <path>`, `check:ts`, `lint`, `format` | no lock, vitest capped at **2 workers** (`TOLARIA_VITEST_WORKERS`, default in `vitest.config.ts`). Four concurrent light jobs fit in `ncpu`.               |
+
+A queued heavy gate is _not_ a hang: it is the machine refusing to run two full suites at 1/2 speed each. Stale locks (dead pid, or held > 45 min) are pruned automatically. Override the cap for a one-off solo run with `TOLARIA_VITEST_WORKERS=7 bunx vitest run <path>`.
+
+**The full gate is blocked inside an issue worktree.** In a `feat/issue-N` / `fix/issue-N` worktree, `bun run test` and `bun run check:all` exit 1 with a pointer to the light gate. The full suite is orchestrator-owned: it runs once per landing tree in the merge-train (`/process-gh-issues` §4 step 4), on the rebased state that actually lands, so a per-branch run is re-paid there anyway. The merge-train gates from a dedicated **gate worktree** (detached HEAD, not an issue branch) or prefixes its command with `TOLARIA_ALLOW_FULL_SUITE=1` — that env var is the escape hatch for any genuine exception.
+
 **Zero-red is absolute (green-main invariant).** `main` is always green — zero failing tests, no exceptions. "Not my test" / "this failure is unrelated to my change" is **not** an exemption: a red suite blocks the merge regardless of who caused it. If the baseline is red before you start, fix the reds first (or stop and surface them) — never branch off red, never merge on top of red, never silence a test to go green. The full gate is the only done/not-done signal; a red baseline poisons it for every subsequent change.
 
 Browser visual verification is NOT a default gate. Run it only when the user explicitly asks for a Chrome check.

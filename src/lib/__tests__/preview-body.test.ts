@@ -184,3 +184,47 @@ describe("buildEmblemPreviewBody — command-zone emblem face (CR 114, issue #12
         ]);
     });
 });
+
+// CR 700.2c — a permanent that locked in a mode as it entered (Chromatic Armor
+// / Prismatic Ward: "As this Aura enters, choose a color") must SAY which one
+// in its live rules box. The printed text only says "the last chosen color",
+// and on Chromatic Armor that colour changes during the game via its {X}
+// re-choose, so the board had no way to read the current answer.
+describe("buildPreviewBody — chosen mode in the live oracle text", () => {
+    const CHROMATIC_ARMOR_ID = "2657e85b-8f77-41fa-9df2-233443efef43";
+
+    function armor(chosenModeId?: string): CardInstance {
+        return {
+            id: "armor-1",
+            card: { id: CHROMATIC_ARMOR_ID },
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+            isTapped: false,
+            types: ["Enchantment"],
+            subtypes: ["Aura"],
+            ...(chosenModeId ? { chosenModeId } : {}),
+        } as CardInstance;
+    }
+
+    it("names the chosen colour next to the printed phrase", () => {
+        const body = buildPreviewBody(CHROMATIC_ARMOR_ID, armor("W"));
+        const line = body.oracleParagraphs?.find((p) =>
+            /chosen color/i.test(p)
+        );
+        expect(line).toBeDefined();
+        expect(line).toContain("(white)");
+    });
+
+    it("tracks a re-choose", () => {
+        const body = buildPreviewBody(CHROMATIC_ARMOR_ID, armor("R"));
+        expect(
+            body.oracleParagraphs?.find((p) => /chosen color/i.test(p))
+        ).toContain("(red)");
+    });
+
+    it("leaves the printed text alone before a colour is chosen", () => {
+        const body = buildPreviewBody(CHROMATIC_ARMOR_ID, armor());
+        expect(body.oracleParagraphs?.some((p) => p.includes("("))).toBe(false);
+    });
+});

@@ -3,6 +3,7 @@ import { useGameContext } from "~/hooks/useGameContext";
 import { usePendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
 import { useMinimizedChoice } from "~/hooks/useMinimizedChoice";
 import { isExileChoiceActive } from "~/lib/exile-choice";
+import { orderLibrarySearchCards } from "~/lib/library-search-order";
 import CardsPile from "./cards-pile";
 import ExileIcon from "../icons/exile-icon";
 import ExileCastButton from "./exile-cast-button";
@@ -67,7 +68,12 @@ export default function PlayerExile({
     // the pile the de-dup is lifted: a pinned card stays a legal pick (the
     // choice's `candidateIds` decides eligibility, not the pin).
     const pileCards = isExileChoice
-        ? player.exile
+        ? // Filtered pick: eligible cards first (then type, then name), the
+          // SAME ordering the filtered library search and the revealed-hand
+          // pick use — the ring alone leaves the chooser hunting the legal
+          // picks in a large pile. Exile is an unordered zone, so reordering
+          // its display costs nothing.
+          orderLibrarySearchCards(player.exile, eligibleIds)
         : player.exile.filter((c) => !c.exiledByPermanentId);
 
     return (

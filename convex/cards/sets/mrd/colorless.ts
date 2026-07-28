@@ -73,13 +73,17 @@ export const chromeMox: CardDefinition = {
                 const cardId = picks[0];
                 if (!cardId) return;
                 const card = candidates.find((c) => c.id === cardId);
-                // CR 406.3 — exiled hidden to the opponent, known to controller.
-                ctx.exileFaceDown(
-                    ctx.controller,
-                    cardId,
-                    "hand",
-                    ctx.controller
-                );
+                // CR 406.2 — the imprinted card is exiled FACE UP (Chrome Mox
+                // names no face-down exile), so both players can read which
+                // colours the Mox now taps for.
+                ctx.moveCardById(ctx.controller, cardId, "hand", "exile");
+                // CR 111 (issue #791) — pin the imprinted card to the Mox so
+                // the board renders it attached to its permanent (Banishing
+                // Light treatment) instead of loose in the exile pile. This is
+                // what makes "imprint" legible at a glance; the `imprint-*`
+                // counters below stay the machine-readable colour store the
+                // mana ability reads, and are hidden from the counter badges.
+                ctx.linkExileToSource(cardId, ctx.sourceInstanceId);
                 for (const color of card?.colors ?? []) {
                     ctx.addCounter(
                         { type: "permanent", id: ctx.sourceInstanceId },

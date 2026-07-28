@@ -26,7 +26,8 @@ import {
     pushSpell,
 } from "../../../__tests__/setup";
 import { projectPublicState } from "../../../../gameProjections";
-import { resolveTopOfStack } from "../../../../gre/state";
+import { resolveTopOfStack, type GameState } from "../../../../gre/state";
+import { applyRandomRevealAck } from "../../../../gre/pendingChoiceSubmit";
 import {
     getEffectivePower,
     getEffectiveToughness,
@@ -236,6 +237,22 @@ describe("Artifact Blast (counter target artifact spell, CR 701.5a / 114.1)", ()
 // Goblin Artisans (CR 705 coin flip → draw / counter own artifact spell)
 describe("Goblin Artisans ({T}: flip → draw / counter own artifact spell)", () => {
     // Seeds verified in arn.test.ts: rngSeed 1 → first flip wins; 7 → loses.
+    //
+    // The flip is a SUSPENDING `coinFlip` (CR 705.2 / ADR 0023): resolution
+    // parks on a `random-reveal` Pending Choice — which is what drives the
+    // client's coin-flip animation — and the branch runs only after the ack.
+    // A card whose entire text is "Flip a coin" must show the flip.
+    /** Acknowledge the head random-reveal choice to resume resolution. */
+    function ack(state: GameState) {
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("random-reveal");
+        expect(head.randomKind).toBe("coin");
+        applyRandomRevealAck(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            choiceId: head.choiceId,
+        });
+    }
     it("on a winning flip, draws a card (no counter)", () => {
         const artisans = makeInstance(goblinArtisans.id, {
             id: "artisans",
@@ -269,6 +286,7 @@ describe("Goblin Artisans ({T}: flip → draw / counter own artifact spell)", ()
         resolveActivated(state, artisans, "goblin-artisans-flip", [
             { type: "spell", id: "art-spell" },
         ]);
+        ack(state);
         // Drew the card; the targeted spell is NOT countered (still on stack).
         expect(state.players[0].hand).toHaveLength(1);
         expect(state.stack.some((s) => s.id === "art-spell")).toBe(true);
@@ -306,6 +324,7 @@ describe("Goblin Artisans ({T}: flip → draw / counter own artifact spell)", ()
         resolveActivated(state, artisans, "goblin-artisans-flip", [
             { type: "spell", id: "art-spell" },
         ]);
+        ack(state);
         // Did NOT draw; the targeted artifact spell is countered (off stack).
         expect(state.players[0].hand).toHaveLength(0);
         expect(state.stack.some((s) => s.id === "art-spell")).toBe(false);

@@ -63,3 +63,21 @@ describe("counters display (CR 122)", () => {
         expect(c.label).toBe("Wind");
     });
 });
+
+// `imprint-<color>` is the machine-readable colour store Chrome Mox's mana
+// ability reads (CR 605.1a) — not a CR 122 counter. Rendering it produced an
+// unexplained "I*" chip on the card while the actual imprint (the exiled card,
+// pinned to the permanent) told the whole story.
+describe("getCounterDisplays hides internal bookkeeping counters", () => {
+    it("drops imprint-<color> entries", () => {
+        const out = getCounterDisplays(
+            makeCard({ "imprint-G": 1, "imprint-U": 1 })
+        );
+        expect(out).toEqual([]);
+    });
+
+    it("still shows real counters alongside an imprint", () => {
+        const out = getCounterDisplays(makeCard({ "imprint-R": 1, charge: 2 }));
+        expect(out.map((c) => c.type)).toEqual(["charge"]);
+    });
+});

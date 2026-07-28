@@ -3052,8 +3052,20 @@ export const OP_EXECUTORS: {
         // #677 — "you may…", "up to N…") clamps its max down to what's
         // available and floors its min at that same clamped max (so a
         // 0-available "you may" never asks for more than exists).
+        //
+        // CR 401.4 / 701.19a — the LIBRARY is the exception: searching it is
+        // itself an action with an outcome the player is entitled to (they get
+        // to LOOK at the whole library, and it then gets shuffled). Skipping
+        // the choice because the filter matched nothing silently denied the
+        // look — a fetchland with no basic left never showed the library at
+        // all. So a library search with zero eligible cards still raises the
+        // choice, as a 0-pick one: the client renders the full library with
+        // every card inert and a Done that only shuffles.
+        const searchWithNoHit = op.zone === "library" && available === 0;
         let count: number | { min: number; max: number };
-        if (typeof op.count === "number") {
+        if (searchWithNoHit) {
+            count = { min: 0, max: 0 };
+        } else if (typeof op.count === "number") {
             count = Math.min(op.count, available);
             if (count <= 0) return;
         } else {
@@ -3075,7 +3087,14 @@ export const OP_EXECUTORS: {
             filter: toPermanentFilter(op.filter),
             count,
             prompt: op.prompt,
-            ...(candidateIds ? { candidateIds } : {}),
+            // A no-hit library search carries an EMPTY allow-list, so the
+            // client dims every card rather than making them all pickable
+            // (an absent `candidateIds` means "unfiltered, all eligible").
+            ...(searchWithNoHit
+                ? { candidateIds: [] }
+                : candidateIds
+                  ? { candidateIds }
+                  : {}),
             ...(op.zoneOwnerId !== undefined ? { zoneOwnerId } : {}),
         });
         if (picks === undefined) return "suspend"; // enqueued — wait

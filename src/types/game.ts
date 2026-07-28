@@ -229,6 +229,13 @@ export interface CardInstance {
      *  card preview to render the chosen-subtype text. Mirrors
      *  `CardInstanceState.chosenSubtypes` in `convex/gre/state.ts`. */
     chosenSubtypes?: string[];
+    /** CR 700.2c — the mode this PERMANENT locked in as it entered, and keeps
+     *  for the rest of its time on the battlefield (Prismatic Ward / Chromatic
+     *  Armor: "As this Aura enters, choose a color"). Forwarded by `slimCard`
+     *  (the projection only strips `card`/`knownTo`); read by the card preview
+     *  so the live oracle text names the colour actually chosen. Mirrors
+     *  `CardInstanceState.chosenModeId` in `convex/gre/state.ts`. */
+    chosenModeId?: string;
     /** Layer 5 color override (CR 305.7, 613.1d). Set by lace instants. */
     colorOverride?: string[];
     /** Copy effect anchor (CR 707.2). When set, this permanent is a copy and

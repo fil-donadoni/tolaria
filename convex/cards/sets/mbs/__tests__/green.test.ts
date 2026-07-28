@@ -109,9 +109,21 @@ describe("Green Sun's Zenith (CR 701.23 search / 400.7 / 701.24 shuffle / 608.2m
         const item = pushSpell(state, greenSunsZenith.id, "p1");
         item.chosenX = 0; // no chosen X — the default
         const resolved = resolveTopOfStack(state);
-        // Zero candidates auto-resolves without suspending (CR 608.2b).
-        expect(resolved).not.toBeNull();
-        expect(state.pendingChoices).toBeUndefined();
+        // CR 401.4 / 701.19a — a library search with nothing matching STILL
+        // shows the library (the look is the searcher's entitlement), so the
+        // resolution suspends on a 0-pick choice with an empty allow-list; the
+        // chooser confirms and the shuffle follows.
+        expect(resolved).toBeNull();
+        const head = state.pendingChoices![0];
+        expect(head.candidateIds).toEqual([]);
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: [],
+        });
+        expect(state.pendingChoices ?? []).toEqual([]);
         // Nothing entered the battlefield.
         expect(state.players[0].battlefield.length).toBe(0);
         // Green Sun's Zenith still redirects itself into the (shuffled)

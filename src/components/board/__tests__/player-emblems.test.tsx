@@ -149,3 +149,25 @@ describe("PlayerEmblems (command-zone emblem UI, issue #1221)", () => {
         expect(badge!.textContent).toBe("×5");
     });
 });
+
+// A fan is wider than one card but exactly ONE CARD TALL. Deriving the
+// wrapper's height from its full fan width (`aspect-5/7`) made the slot taller
+// than the cards inside it — and in the stretch-aligned pile row that re-shaped
+// every neighbouring tile, cropping the companion card's `object-cover` art.
+describe("an emblem fan stays one card tall", () => {
+    it("sizes the fan slot's height from ONE card width, not the fan width", () => {
+        const me = makePlayer("me");
+        renderEmblems(
+            me,
+            Array.from({ length: 3 }, (_, i) => sorin({ id: `emblem-${i}` }))
+        );
+        const stack = screen
+            .getByTestId("emblems-me")
+            .querySelector<HTMLElement>("[data-emblem-stack]")!;
+        expect(stack.style.height).toBe("calc(var(--card-w-sm) * 7 / 5)");
+        expect(stack.style.width).toContain("var(--card-w-sm) +");
+        // The aspect utility must NOT also be applied, or it would fight the
+        // explicit height.
+        expect(stack.className).not.toContain("aspect-");
+    });
+});

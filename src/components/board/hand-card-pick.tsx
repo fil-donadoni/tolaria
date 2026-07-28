@@ -2,6 +2,7 @@ import type { CardInstance } from "~/types/game";
 import { useGameContext } from "~/hooks/useGameContext";
 import { usePendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
 import { useMinimizedChoice } from "~/hooks/useMinimizedChoice";
+import { orderLibrarySearchCards } from "~/lib/library-search-order";
 import CardsPile from "./cards-pile";
 import LibrarySearchConfirm from "./library-search-confirm";
 
@@ -51,6 +52,14 @@ export default function HandCardPick() {
         ? new Set(head.candidateIds)
         : undefined;
 
+    // Eligible cards first (then type line, then name) — the SAME ordering the
+    // filtered library search uses. The ring alone left the chooser scanning a
+    // seven-card grid for the two legal picks (Inquisition of Kozilek's
+    // "nonland card with mana value 3 or less"); front-loading them makes the
+    // legal set readable at a glance. A hand has no game-significant order, so
+    // reordering it costs nothing.
+    const orderedCards = orderLibrarySearchCards(cards, eligibleIds);
+
     const count = head.count;
     const min = typeof count === "number" ? count : count.min;
     const max = typeof count === "number" ? count : count.max;
@@ -76,7 +85,7 @@ export default function HandCardPick() {
 
     return (
         <CardsPile
-            cards={cards}
+            cards={orderedCards}
             isFaceDown={false}
             layout="grid"
             title={head.prompt ?? "Choose a card"}

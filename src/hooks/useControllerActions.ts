@@ -343,13 +343,25 @@ export function useControllerActions(): ControllerState {
                     // "Attack with all" here would silently widen a
                     // deliberate, hand-picked attack.
                     confirmAttackers({ gameId, playerId });
-                } else if (isSelectingAttackers && eligibleIds.length > 0) {
+                } else if (
+                    isSelectingAttackers &&
+                    eligibleIds.length > 0 &&
+                    !hasPendingIntent
+                ) {
                     // Nothing declared yet: Space offers "Attack with all"
                     // rather than skipping the attack — but behind a
                     // confirmation, since it is the same reflex keystroke that
                     // used to mean "Skip Attack".
+                    //
+                    // Gated on "no intent in flight" because `attackerIds` is
+                    // SERVER state: a Space pressed between clicking a creature
+                    // and its `toggleAttacker` landing still saw an empty
+                    // declaration and offered "Attack with all" — silently
+                    // widening a deliberate, hand-picked attack, which is
+                    // exactly what the branch above exists to prevent. Dropping
+                    // the keystroke keeps the two branches consistent.
                     setAttackAllConfirmOpen(true);
-                } else if (isSelectingAttackers) {
+                } else if (isSelectingAttackers && !hasPendingIntent) {
                     // Nothing can attack, so the only thing Space can mean is
                     // skipping the attack step.
                     confirmAttackers({ gameId, playerId });

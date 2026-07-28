@@ -1110,7 +1110,7 @@ const ABILITY_AI_EFFECTS_ALLOWLIST: readonly AbilityAllowlistEntry[] = [
         note: "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519",
     },
     {
-        cardId: "5a46239c-3de7-48ca-8f5c-b51f307fd0e5",
+        cardId: "f2c82741-2869-41f9-82f4-6ed88756e2fd",
         name: "Crown of Flames",
         abilityId: "crown-of-flames-pump",
         note: "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519",
@@ -1440,7 +1440,7 @@ const ABILITY_AI_EFFECTS_ALLOWLIST: readonly AbilityAllowlistEntry[] = [
         note: "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519",
     },
     {
-        cardId: "789e3582-b541-4916-ac7e-015214d7a27a",
+        cardId: "091dda35-59e5-456d-8804-61513a610aed",
         name: "Fertile Ground",
         abilityId: "fertile-ground-extra-mana",
         note: "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519",

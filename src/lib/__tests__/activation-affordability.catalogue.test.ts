@@ -121,6 +121,26 @@ function makeSource(
     };
 }
 
+/** A do-nothing permanent that exists purely so a TARGETING ability has a legal
+ *  target candidate (CR 602.2b — `getStackAbilities` hides a targeting ability
+ *  with none, so without this every such ability would read as "unaffordable"
+ *  and the sweep would be measuring the wrong gate). Carries every permanent
+ *  card type so it satisfies any `type` / `"any"` requirement; one is placed on
+ *  EACH battlefield so `controller: "you" | "opponent" | "any"` all resolve. */
+function targetDummy(id: string, ownerId: string): CardInstance {
+    return {
+        id,
+        card: { id: "dummy" },
+        controllerId: ownerId,
+        ownerId,
+        zone: "battlefield",
+        isTapped: false,
+        isSummoningSick: false,
+        types: ["Creature", "Artifact", "Enchantment", "Land", "Planeswalker"],
+        subtypes: [],
+    };
+}
+
 /** A graveyard card carrying the `types` the `cardType` filter may read. */
 function gvCard(id: string, ownerId: string): CardInstance {
     return {
@@ -154,6 +174,13 @@ function shapesOf(a: ActivatedAbility): Shape[] {
 function skipReason(a: ActivatedAbility): string | null {
     if (a.canActivate) return "canActivate predicate";
     if (a.getTargetRequirement) return "getTargetRequirement predicate";
+    // CR 602.2b — the no-legal-target gate needs a candidate on the board. The
+    // generic `targetDummy` covers every card TYPE, but not a subtype-narrowed
+    // requirement ("target Goblin"), so those are an explicit skip rather than
+    // a failure of the affordability gate under test.
+    if (a.targetRequirement?.subtypeFilter) {
+        return "subtype-narrowed targetRequirement";
+    }
     return null;
 }
 
@@ -249,14 +276,14 @@ function env(c: Case, broken: boolean) {
                 id: VIEWER,
                 life: payerLife,
                 hand: [],
-                battlefield: [source],
+                battlefield: [source, targetDummy("dummy-you", VIEWER)],
                 graveyard: viewerGrave,
             },
             {
                 id: OPP,
                 life: 20,
                 hand: [],
-                battlefield: [],
+                battlefield: [targetDummy("dummy-opp", OPP)],
                 graveyard: oppGrave,
             },
         ],

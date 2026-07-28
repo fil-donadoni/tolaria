@@ -119,6 +119,10 @@ describe("Upheaval (return all permanents to hand — mass bounce, CR 400.7, iss
         expect(projected.players[0].battlefield).toHaveLength(0);
         expect(projected.players[1].battlefield).toHaveLength(0);
         expect(projected.players[0].hand).toHaveLength(1);
-        expect(projected.players[1].hand).toEqual([null]);
+        // ADR 0026 — a permanent bounced from the battlefield stays PUBLIC
+        // knowledge (every player watched it move), so the opponent's slot
+        // carries its real identity rather than a hidden `null`.
+        expect(projected.players[1].hand).toHaveLength(1);
+        expect(projected.players[1].hand[0]).not.toBeNull();
     });
 });

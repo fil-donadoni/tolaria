@@ -187,3 +187,27 @@ describe("HandCardPick (Thoughtseize opponent-hand pick, CR 608.2)", () => {
         expect(queryByTestId("cards-pile")).toBeNull();
     });
 });
+
+// The eligibility ring alone left the chooser scanning a seven-card grid for
+// the two legal picks (Inquisition of Kozilek's "nonland card with mana value
+// 3 or less"). Filtered picks front-load the legal set, exactly like the
+// filtered library search.
+describe("HandCardPick orders eligible cards first", () => {
+    it("hoists the allow-listed cards to the front of the pile", () => {
+        cardsPileSpy.mockClear();
+        const opp = makePlayer("opp", [
+            makeCard("land-1", "opp"),
+            makeCard("land-2", "opp"),
+            makeCard("c1", "opp"), // the only eligible pick
+            makeCard("land-3", "opp"),
+        ]);
+        renderWith({
+            allPlayers: [makePlayer("me", []), opp],
+            pendingChoices: thoughtseizeChoice(),
+        });
+        const props = cardsPileSpy.mock.calls.at(-1)?.[0];
+        expect(props.cards[0].id).toBe("c1");
+        // Nothing is dropped — the whole hand is still shown.
+        expect(props.cards).toHaveLength(4);
+    });
+});

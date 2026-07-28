@@ -103,12 +103,15 @@ export const artifactBlast: CardDefinition = {
 // targets an artifact spell you control); on a coin-flip WIN the counter is
 // simply not performed and you draw instead.
 //
-// DSL (issue #1281): migrated onto `coinFlipSync` — the synchronous sibling
-// of `coinFlip` (no CR 705.2/ADR 0023 reveal-ack suspend), added specifically
-// to unblock this card. Its per-card test (`atq/__tests__/red.test.ts`)
-// resolves the ability in a single `resolveActivated` call and asserts the
-// outcome immediately with no ack step; `coinFlipSync` preserves that exact
-// resolution shape, so the existing test stayed byte-for-byte unchanged.
+// DSL (issue #1281): uses `coinFlip` — the SUSPENDING flip that raises the CR
+// 705.2 / ADR 0023 `random-reveal` Pending Choice, i.e. the one every other
+// coin-flip card in the catalogue uses (Chaos Orb, Goblin Bomb, Ice Cauldron,
+// Rejuvenate) and the one the client animates (`random-reveal-overlay.tsx`).
+// It was briefly migrated onto the synchronous sibling `coinFlipSync`, which
+// skips that reveal — the flip resolved invisibly and the animation was gone.
+// `coinFlipSync` draws from the SAME seeded PRNG, so the only difference is
+// whether the player gets to see the flip; for a card whose whole text is
+// "Flip a coin", that is the card.
 //
 // DIVERGENCE (flagged, tracked #974): the printed "that isn't the target of an
 // ability from another creature named Goblin Artisans" multi-copy clause is
@@ -140,7 +143,7 @@ export const goblinArtisans: CardDefinition = {
             },
             effects: [
                 {
-                    op: "coinFlipSync",
+                    op: "coinFlip",
                     win: {
                         consequence: "Draw a card.",
                         effects: [

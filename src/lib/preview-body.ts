@@ -120,9 +120,13 @@ export function buildPreviewBody(
     const isCreatureCard = types.includes("Creature");
     const showOracleText = shouldShowOracleText(def, types, subtypes);
     const oracleParagraphs = showOracleText
-        ? resolveChosenSubtypes(
-              def!.oracleText!.split("\n").filter((p) => p.length > 0),
-              cardInstance?.chosenSubtypes
+        ? resolveChosenMode(
+              resolveChosenSubtypes(
+                  def!.oracleText!.split("\n").filter((p) => p.length > 0),
+                  cardInstance?.chosenSubtypes
+              ),
+              def ?? undefined,
+              cardInstance?.chosenModeId
           )
         : null;
     const basePower = def?.power;
@@ -325,6 +329,45 @@ function resolveChosenSubtypes(
             .replace(/first chosen type/g, `${first} type`)
             .replace(/second chosen type/g, `${second} type`)
     );
+}
+
+/** CR 700.2c — names the mode a PERMANENT locked in as it entered, in its own
+ *  printed oracle text.
+ *
+ *  "Prevent all damage … by sources of the last chosen color" says nothing
+ *  about WHICH colour is currently chosen, and on Chromatic Armor that colour
+ *  changes during the game (its `{X}` re-choose). The chosen mode is stored on
+ *  the instance as `chosenModeId`, and the definition's matching mode carries
+ *  the human label, so the preview annotates the phrase in place — the printed
+ *  wording is preserved, the live answer added: "… the last chosen color
+ *  (white)".
+ *
+ *  Falls back to a trailing "Chosen: white" line when the text speaks of a
+ *  choice the phrase-match didn't catch. A card whose text never says "chosen"
+ *  is left alone — a spell's cast-time mode is not a live characteristic of a
+ *  permanent and has no business in its rules box. */
+function resolveChosenMode(
+    paragraphs: string[],
+    def: { modes?: ReadonlyArray<{ id: string; label: string }> } | undefined,
+    chosenModeId: string | undefined
+): string[] {
+    if (!chosenModeId || !def?.modes) return paragraphs;
+    const mode = def.modes.find((m) => m.id === chosenModeId);
+    if (!mode) return paragraphs;
+    const label = mode.label || mode.id;
+    const phrase = /chosen colou?r/i;
+    if (paragraphs.some((p) => phrase.test(p))) {
+        return paragraphs.map((p) =>
+            p.replace(
+                new RegExp(phrase.source, "gi"),
+                (match) => `${match} (${label})`
+            )
+        );
+    }
+    if (paragraphs.some((p) => /\bchosen\b/i.test(p))) {
+        return [...paragraphs, `Chosen: ${label}`];
+    }
+    return paragraphs;
 }
 
 /** Graveyard milestones (delirium/threshold) read from the CONTROLLER's

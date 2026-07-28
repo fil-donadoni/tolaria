@@ -3006,6 +3006,26 @@ describe("Lobotomy (CR 201.2 dynamic same-name filter + CR 400.7 multi-zone swee
 
         submitChoice(state, ["lb-hand1"]);
 
+        // CR 701.19a — the LIBRARY leg is an explicit search: resolution
+        // suspends again with the opponent's library open to the caster and
+        // only the same-named copies eligible, so the caster actually SEES the
+        // deck (the whole point of "search that player's library"). The count
+        // is clamped to the matching copies, so declining is not an option —
+        // the card says "exile them".
+        const librarySearch = state.pendingChoices![0];
+        expect(librarySearch.kind).toBe("search-library");
+        expect(librarySearch.zoneOwnerId).toBe("p2");
+        expect(librarySearch.candidateIds).toEqual(["lb-lib"]);
+        expect(librarySearch.count).toEqual({ min: 1, max: 1 });
+        // Wire format: the searched library is exposed face-up to the caster —
+        // ALL of it, not just the matching card.
+        const searchProjection = projectPublicState(state, 1, "p1");
+        expect(
+            searchProjection.players[1].librarySearch?.map((c) => c.id).sort()
+        ).toEqual(["lb-lib", "lb-lib2"]);
+
+        submitChoice(state, ["lb-lib"]);
+
         // Every Grizzly Bears across all three zones is exiled — the chosen
         // card itself, its hand duplicate, the graveyard copy, and the
         // library copy. The non-matching cards (basic land, Scathe Zombies)

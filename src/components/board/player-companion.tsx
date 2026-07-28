@@ -18,7 +18,11 @@ export default function PlayerCompanion({ player }: { player: Player }) {
     return (
         <div
             data-testid={`companion-${player.id}`}
-            className="relative w-(--card-w-sm) aspect-5/7"
+            // `shrink-0` so a crowded pile row narrows nothing: the tile is one
+            // card wide and `aspect-5/7` tall, exactly like the emblem tile
+            // beside it. Without it the flex row could squeeze the box and the
+            // `object-cover` art would crop.
+            className="relative w-(--card-w-sm) shrink-0 aspect-5/7"
         >
             <div
                 className={

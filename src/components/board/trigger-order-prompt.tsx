@@ -4,7 +4,7 @@ import { Minus } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import type { PendingChoice, StackItem } from "~/types/game";
-import { getTriggeredAbilityOracleText } from "~/lib/card-utils";
+import { getStackAbilityOracleText } from "~/lib/card-utils";
 import { useGameContext } from "~/hooks/useGameContext";
 import { useMinimizedChoice } from "~/hooks/useMinimizedChoice";
 import { SLOT_SPRING } from "~/lib/board-motion";
@@ -247,12 +247,14 @@ export default function TriggerOrderPrompt({
                         {order.map((id) => {
                             const item = batchById.get(id);
                             const cardId = item?.card.id ?? "";
-                            const abilityText = item?.triggeredAbilityId
-                                ? (getTriggeredAbilityOracleText(
-                                      cardId,
-                                      item.triggeredAbilityId,
-                                      item.grantedTriggeredAbilities
-                                  ) ?? "")
+                            // Every ability flavour, not just a card-def
+                            // `triggeredAbilityId`: a REFLEXIVE ability waiting
+                            // in the same batch (Inti's "When you do, …") is an
+                            // inline delayed trigger carrying its text on the
+                            // item, and rendered as a blank tile here until the
+                            // shared resolver was used (CR 603.3c / ADR 0048).
+                            const abilityText = item
+                                ? (getStackAbilityOracleText(item) ?? "")
                                 : "";
                             const x = view.place.get(id) ?? 0;
                             const isDrag = drag?.id === id;

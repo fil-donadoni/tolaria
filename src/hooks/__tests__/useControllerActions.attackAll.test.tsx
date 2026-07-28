@@ -68,6 +68,10 @@ vi.mock("~/hooks/usePendingChoiceBuffer", () => ({
 }));
 
 import { useControllerActions } from "../useControllerActions";
+import {
+    trackGameIntent,
+    resetPendingGameIntents,
+} from "~/lib/pending-intent-store";
 
 function creature(overrides: Partial<CardInstance> = {}): CardInstance {
     return {
@@ -411,5 +415,66 @@ describe("useControllerActions — Attack with all (design 2026-07-23)", () => {
 
         expect(calls.some((c) => c.ref === "confirmAttackers")).toBe(false);
         expect(seq.begin).not.toHaveBeenCalled();
+    });
+});
+
+// `combat.attackerIds` is SERVER state. A Space pressed between clicking a
+// creature and its `toggleAttacker` landing still saw an EMPTY declaration and
+// offered "Attack with all" — silently widening a deliberate, hand-picked
+// attack. That is the very thing the ">0 declared ⇒ Confirm" branch exists to
+// prevent, so the keystroke is dropped while a declaration is in flight.
+describe("useControllerActions — Space during DECLARE_ATTACKERS", () => {
+    beforeEach(() => {
+        calls.length = 0;
+        rejectedIds.clear();
+        resetPendingGameIntents();
+    });
+
+    function pressSpace() {
+        window.dispatchEvent(
+            new KeyboardEvent("keydown", { code: "Space", bubbles: true })
+        );
+    }
+
+    it("means Confirm Attackers once at least one attacker is declared", async () => {
+        const me = player("me", [creature({ id: "a" }), creature({ id: "b" })]);
+        const opp = player("opp", []);
+        renderCtrl(me, opp, makeSequence(), { attackerIds: ["a"] });
+        await act(async () => {
+            pressSpace();
+        });
+        expect(calls.map((c) => c.ref)).toContain("confirmAttackers");
+    });
+
+    it("offers Attack with all only when nothing is declared", async () => {
+        const me = player("me", [creature({ id: "a" })]);
+        const opp = player("opp", []);
+        renderCtrl(me, opp, makeSequence());
+        await act(async () => {
+            pressSpace();
+        });
+        // The dialog opens instead of confirming an empty attack.
+        expect(calls.map((c) => c.ref)).not.toContain("confirmAttackers");
+    });
+
+    it("drops the keystroke while a declaration is still round-tripping", async () => {
+        const me = player("me", [creature({ id: "a" })]);
+        const opp = player("opp", []);
+        renderCtrl(me, opp, makeSequence());
+        let settle!: () => void;
+        const dispatch = new Promise<void>((res) => {
+            settle = res;
+        });
+        await act(async () => {
+            void trackGameIntent(dispatch);
+        });
+        await act(async () => {
+            pressSpace();
+        });
+        expect(calls.map((c) => c.ref)).not.toContain("confirmAttackers");
+        await act(async () => {
+            settle();
+            await dispatch;
+        });
     });
 });

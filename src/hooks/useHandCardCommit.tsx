@@ -136,6 +136,18 @@ export function useHandCardCommit(
         /** CR 107.4f — how many `{C/P}` pips the caster chose to pay with life. */
         phyrexianLifePips?: number | undefined;
     }) {
+        // Every pre-cast picker is DONE the moment the cast is dispatched —
+        // clear them all here rather than trusting each picker to close itself.
+        // The cast's next step often opens its own surface immediately (Lorehold
+        // Charm's second mode announces a graveyard target, so the graveyard
+        // dialog appears at once); a picker left standing behind it re-offers a
+        // decision that has already been made, which reads as if the click
+        // hadn't registered. One clear-all at the single dispatch point closes
+        // the whole class, whichever picker opened it.
+        setModePickerState(null);
+        setAltCostPickerState(null);
+        setPhyrexianPickerState(null);
+        setCostDialogState(null);
         trackGameIntent(
             Promise.resolve(
                 announceCast({

@@ -198,3 +198,16 @@ describe("BoardPiles (slice #255)", () => {
         ).toBeGreaterThan(0);
     });
 });
+
+// Flex's default `stretch` overrides each tile's aspect-derived height with the
+// ROW's height, so one taller tile silently re-shaped every other one — and the
+// art is `object-cover`, so re-shaping crops it (the companion rendered
+// squashed next to a fanned emblem stack).
+describe("pile rows never stretch their tiles (companion crop)", () => {
+    it("pins both rows to the cross-axis start", () => {
+        renderPiles(makePlayer("opp"), makePlayer("me"));
+        for (const id of ["piles-player", "piles-opponent"]) {
+            expect(screen.getByTestId(id).className).toContain("items-start");
+        }
+    });
+});
