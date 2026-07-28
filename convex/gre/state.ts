@@ -61,6 +61,11 @@ import {
 import { checkStateBasedActions } from "./sba";
 import { getExtraLandDrops, getLegalTargets } from "./rules";
 import { resolveEntersTapped } from "../cards/entersTapped";
+import { resolveEntersWithCounters } from "../cards/entersWith";
+import type {
+    EntersWithCastValues,
+    EntersWithDeclaration,
+} from "../cards/entersWith";
 import { getAbilityEffectFn, getResolveFn } from "../cards/effectRegistry";
 import {
     INLINE_DELAYED_TRIGGER_ID,
@@ -4370,6 +4375,53 @@ export function shouldEnterTapped(
     );
 }
 
+/** CR 121.6 + 614.1c (issue #1693) — applies a permanent's declared
+ *  "enters with N counters on it" REPLACEMENT to `card`, AS it enters.
+ *
+ *  This is a replacement effect, NOT a triggered ability: it modifies how the
+ *  permanent enters, so it must run at the entry site — after the card is on
+ *  the battlefield but BEFORE `emitPermanentEntered` scans triggers and before
+ *  the first layer/SBA read. Nothing goes on the stack, nobody gets priority
+ *  with the permanent holding zero counters, and the clause never renders as
+ *  an ability. Modelling it as a `PERMANENT_ENTERED` trigger (the pre-#1693
+ *  shape) violated all three; the catalogue-wide guard
+ *  `convex/cards/__tests__/entersWithCounters.test.ts` keeps it from coming
+ *  back.
+ *
+ *  Shared by EVERY permanent-entry site — `finalizeSpellResolution` (a
+ *  resolving permanent spell) and `stageReanimatedOnBattlefield` (reanimation,
+ *  a library/hand tutor's "put it onto the battlefield") — so the sites cannot
+ *  drift, exactly as `shouldEnterTapped` unifies the tapped clause. The count
+ *  vocabulary itself lives in the frontend-safe oracle
+ *  `resolveEntersWithCounters` (`convex/cards/entersWith.ts`). */
+function applyEntersWithCounters(
+    card: CardInstanceState,
+    def: { entersWith?: EntersWithDeclaration } | undefined,
+    cast: EntersWithCastValues
+): void {
+    const delta = resolveEntersWithCounters(def, cast);
+    const types = Object.keys(delta);
+    if (types.length === 0) return;
+    const before = card.counters ?? {};
+    const counters: Record<string, number> = { ...before };
+    for (const type of types)
+        counters[type] = (counters[type] ?? 0) + delta[type];
+    card.counters = counters;
+    // CR 122.1c / 613.4d (issue #1194, closing an ETB gap for issue #1318) —
+    // an entry counter whose TYPE names an implemented keyword ability grants
+    // that keyword the same way `SpellContext.addCounter` does for a resolving
+    // effect (Arwen, Mortal Queen: "Arwen enters with an indestructible
+    // counter on it" must grant indestructible immediately, not just when a
+    // LATER `addCounter` call happens to touch the same type). Only fires on
+    // the 0 → present transition, one grant per type, mirroring `addCounter`'s
+    // `wasZero` guard.
+    for (const type of types) {
+        if ((before[type] ?? 0) === 0 && counters[type] > 0) {
+            applyKeywordCounterGrant(card, type);
+        }
+    }
+}
+
 /** CR 400.7-style hygiene for a spell that returns from the stack to its
  *  owner's HAND instead of the graveyard (CR 702.27a — Buyback). Strips every
  *  cast/announcement-time snapshot field the `StackItem` extension adds on
@@ -4595,43 +4647,17 @@ function finalizeSpellResolution(
             item.notedManaSpentOnCast = { ...item.notedManaSpent };
         }
         controller.battlefield.push(item);
-        // CR 122.1, 614.1c — apply ETB-counters before the layer system runs
-        // so effective P/T reads include them immediately (Clockwork Beast).
-        const etbCounters = cardDef?.entersWith?.counters;
-        if (etbCounters && etbCounters.length > 0) {
-            const before = item.counters ?? {};
-            const counters: Record<string, number> = { ...before };
-            for (const entry of etbCounters) {
-                const n =
-                    entry.count === "X"
-                        ? Math.max(0, item.chosenX ?? 0)
-                        : // CR 702.33e — "a charge counter for each time it was
-                          // kicked" (Everflowing Chalice) reads the Multikicker
-                          // tally snapshotted on the resolving stack item.
-                          entry.count === "kicker"
-                          ? Math.max(0, item.kickerCount ?? 0)
-                          : entry.count;
-                if (n <= 0) continue;
-                counters[entry.type] = (counters[entry.type] ?? 0) + n;
-            }
-            if (Object.keys(counters).length > 0) {
-                item.counters = counters;
-                // CR 122.1c / 613.4d (issue #1194, closing an ETB gap for
-                // issue #1318) — an ETB counter whose TYPE names an
-                // implemented keyword ability grants that keyword the same
-                // way `SpellContext.addCounter` does for a resolving effect
-                // (Arwen, Mortal Queen: "Arwen enters with an indestructible
-                // counter on it" must grant indestructible immediately, not
-                // just when a LATER `addCounter` call happens to touch the
-                // same type). Only fires on the 0 → present transition, one
-                // grant per type, mirroring `addCounter`'s `wasZero` guard.
-                for (const type of Object.keys(counters)) {
-                    if ((before[type] ?? 0) === 0 && counters[type] > 0) {
-                        applyKeywordCounterGrant(item, type);
-                    }
-                }
-            }
-        }
+        // CR 121.6 / 614.1c — apply the entry-counters REPLACEMENT before the
+        // layer system runs, so effective P/T reads include them immediately
+        // (Clockwork Beast) and before `emitPermanentEntered` below scans
+        // triggers, so nothing ever observes the permanent with zero counters.
+        applyEntersWithCounters(item, cardDef, {
+            chosenX: item.chosenX,
+            // CR 702.33e — "a charge counter for each time it was kicked"
+            // (Everflowing Chalice) reads the Multikicker tally snapshotted on
+            // the resolving stack item.
+            kickerCount: item.kickerCount,
+        });
         // CR 306.5b — a planeswalker enters with a number of loyalty counters
         // equal to its printed starting loyalty (`CardDefinition.loyalty`).
         // Loyalty counters reuse the generic `counters` map (same shape as the
@@ -8064,6 +8090,16 @@ function stageReanimatedOnBattlefield(
     // artifact/creature/land as it enters via reanimation / put-onto-battlefield.
     if (shouldEnterTapped(state, card)) card.isTapped = true;
     getPlayer(state, controllerId).battlefield.push(card);
+    // CR 121.6 / 614.1c (issue #1693) — the entry-counters replacement applies
+    // however the permanent enters, not only when it is CAST: a reanimated
+    // Clockwork Beast or a tutored Wishclaw Talisman enters with its counters
+    // too. `resetBattlefieldTransientState` above already cleared the previous
+    // object's counters (CR 400.7), so this is the fresh object's entry
+    // placement. No cast-time values exist on this path — CR 107.3b puts X at
+    // 0 off the stack, and an uncast permanent was never kicked — so a
+    // `count: "X"` / `count: "kicker"` entry contributes nothing, which is the
+    // correct outcome.
+    applyEntersWithCounters(card, putDef ?? undefined, {});
     return true;
 }
 

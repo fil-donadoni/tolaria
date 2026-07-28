@@ -379,8 +379,15 @@ export const vodalianMerchant: CardDefinition = {
 // creature can't attack unless defending player controls an Island. If this
 // creature was kicked, it enters with four +1/+1 counters on it." (CR 508.1c
 // attack restriction — the shipped Sea Serpent `attack-restriction` template,
-// lea/blue.ts — + CR 702.33 Kicker: an ETB `if(kickerCount>0)` adds the
-// counters, CR 122.1.)
+// lea/blue.ts — + CR 702.33 Kicker.) The kicked counters are a REPLACEMENT
+// effect (CR 121.6 / 614.1c, issue #1693), not a triggered ability: FOUR
+// `entersWith.counters` entries each `count: "kicker"` (kickerCount is 0/1 for
+// a single, non-multi Kicker) sum to exactly 0 or 4 as the creature enters —
+// the shipped Duskwalker / Llanowar Elite idiom (inv/black.ts, inv/green.ts),
+// reusing the per-kick counter primitive rather than adding a multiplier
+// field. Previously an `enteredTrigger` carrying an `if(kickerCount>=1)`
+// `counters` Op, which put the placement on the stack and let both players
+// see (and respond to) a 2/2 Serpent that should already have been a 6/6.
 export const vodalianSerpent: CardDefinition = {
     id: "92adcf6c-ab14-414c-a5cb-56feae048c84",
     name: "Vodalian Serpent",
@@ -393,6 +400,14 @@ export const vodalianSerpent: CardDefinition = {
     power: 2,
     toughness: 2,
     kicker: { cost: { X: 2 } },
+    entersWith: {
+        counters: [
+            { type: "+1/+1", count: "kicker" },
+            { type: "+1/+1", count: "kicker" },
+            { type: "+1/+1", count: "kicker" },
+            { type: "+1/+1", count: "kicker" },
+        ],
+    },
     staticEffects: [
         {
             kind: "attack-restriction",
@@ -402,37 +417,6 @@ export const vodalianSerpent: CardDefinition = {
             oracleText:
                 "Vodalian Serpent can't attack unless defending player controls an Island.",
         },
-    ],
-    triggeredAbilities: [
-        enteredTrigger({
-            id: "vodalian-serpent-kicked-counters",
-            oracleText:
-                "If this creature was kicked, it enters with four +1/+1 counters on it.",
-            scope: "self",
-            effects: [
-                {
-                    op: "if",
-                    // `EffectValue` literals are positive integers only
-                    // (0 is not a valid literal); kickerCount is 0 or 1 for
-                    // Vodalian Serpent's single (non-multi) Kicker, so
-                    // `>= 1` is equivalent to "was kicked" (`> 0`).
-                    predicate: {
-                        left: { kickerCount: true },
-                        op: "ge",
-                        right: 1,
-                    },
-                    then: [
-                        {
-                            op: "counters",
-                            action: "add",
-                            counter: "+1/+1",
-                            target: { ref: "$source" },
-                            count: 4,
-                        },
-                    ],
-                },
-            ],
-        }),
     ],
 };
 
