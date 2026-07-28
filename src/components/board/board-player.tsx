@@ -1,6 +1,7 @@
 import type { Player } from "~/types/game";
 import { usePlayerInteraction } from "~/hooks/usePlayerInteraction";
 import { useIsPortrait } from "~/hooks/useIsPortrait";
+import { PORTRAIT_MIDLINE_TOP } from "~/lib/portrait-board-bands";
 import PlayerNameplate from "./player-nameplate";
 import PlayerManaPool from "./player-mana-pool";
 
@@ -19,10 +20,16 @@ type BoardPlayerProps = {
  *  mirroring how the opponent's portrait pile chips sit at the top-left of
  *  theirs. Own life stays permanently visible on the bar's "You" tab, which is
  *  also the self-target surface; the nameplate keeps carrying the arrow anchor
- *  and the mana pool. Landscape/desktop are unchanged. */
+ *  and the mana pool. Landscape/desktop are unchanged.
+ *
+ *  "Midline" is the SHARED portrait band boundary ({@link PORTRAIT_MIDLINE_TOP},
+ *  #1760), not the geometric half of the viewport: the boundary sits half the
+ *  bottom bar's clearance above centre so both battlefields get equal height.
+ *  Anchoring to a literal `top-1/2` would drop the nameplate inside the
+ *  viewer's creature row instead of on its top edge. */
 function seatAnchorClass(side: "top" | "bottom", isPortrait: boolean): string {
     if (side === "top") return "play-area-center-x -translate-x-1/2 top-1";
-    if (isPortrait) return "left-2 top-1/2 mt-1";
+    if (isPortrait) return `left-2 ${PORTRAIT_MIDLINE_TOP} mt-1`;
     return "play-area-center-x -translate-x-1/2 bottom-1";
 }
 
