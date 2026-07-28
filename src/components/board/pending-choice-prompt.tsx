@@ -26,7 +26,9 @@ import PendingChoiceOptions from "~/components/board/pending-choice-options";
 import CardNameInput from "~/components/board/card-name-input";
 import CardImage from "~/components/cards/card-image";
 import RandomRevealOverlay from "~/components/board/random-reveal-overlay";
-import MinimizeChoiceButton from "~/components/board/minimize-choice-button";
+import MinimizeChoiceButton, {
+    MINIMIZE_BUTTON_INSET,
+} from "~/components/board/minimize-choice-button";
 import TriggerOrderPrompt from "~/components/board/trigger-order-prompt";
 
 /** Banner shown at the top-center of the board while a mid-resolution
@@ -258,15 +260,18 @@ export default function PendingChoicePrompt({
                 >
                     {isChooser ? (
                         <>
-                            {/* `top-2.5 right-2.5` (10px), not `top-1.5
-                                right-1.5` (6px, #1770 review): the button's
-                                own `before:-inset-2.5` pseudo-hit overhangs
-                                10px, and this Panel is `overflow-y-auto` — a
-                                6px inset clipped 4px of the hit box, shrinking
-                                the delivered target to ~40px. The inset must
-                                be >= the overhang for the full 44px target to
+                            {/* {@link MINIMIZE_BUTTON_INSET} (`top-2.5
+                                right-2.5`, 10px) — not `top-1.5 right-1.5`
+                                (6px, #1770 review): the button's own
+                                `before:-inset-2.5` pseudo-hit overhangs 10px,
+                                and this Panel is `overflow-y-auto` — a 6px
+                                inset clipped 4px of the hit box, shrinking the
+                                delivered target to ~40px. The inset must be
+                                >= the overhang for the full 44px target to
                                 survive the clip. */}
-                            <MinimizeChoiceButton className="absolute top-2.5 right-2.5" />
+                            <MinimizeChoiceButton
+                                className={`absolute ${MINIMIZE_BUTTON_INSET}`}
+                            />
                             <div className="flex flex-col items-center text-center gap-1">
                                 <p className="font-beleren text-sm tracking-wide text-parchment">
                                     {sourceLabel}

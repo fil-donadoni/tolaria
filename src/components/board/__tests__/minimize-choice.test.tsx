@@ -71,6 +71,7 @@ vi.mock("~/hooks/useIsPortrait", () => ({
 
 import PendingChoicePrompt from "../pending-choice-prompt";
 import MinimizedChoiceIndicator from "../minimized-choice-indicator";
+import { MINIMIZE_BUTTON_INSET } from "../minimize-choice-button";
 
 const CHOICE = {
     stackItemId: "s1",
@@ -185,6 +186,11 @@ describe("PendingChoicePrompt minimize control (issue #315)", () => {
             'button[aria-label="Minimize choice dialog"]'
         );
         expect(btn).not.toBeNull();
+        // Asserted on the REAL mount (not a test-local copy of the inset):
+        // catches a caller regression back to `top-1.5 right-1.5` even if it
+        // hardcodes the string instead of going through the shared constant
+        // (#1770 second review round).
+        expect(btn!.className).toContain(MINIMIZE_BUTTON_INSET);
     });
 
     it("clicking minimize invokes minimize() and does NOT submit / advance", () => {

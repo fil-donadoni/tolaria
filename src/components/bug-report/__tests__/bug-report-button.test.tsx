@@ -71,12 +71,19 @@ describe("BugReportButton anchoring + z-order (issue #1764)", () => {
     // exact `md:right-*` / `md:bottom-*` utilities present so a mutation of
     // either (e.g. swapping in a competing flat inset, or corrupting the
     // sanctioned one) fails this test instead of sliding through unnoticed.
-    it("carries no competing md: right/bottom utility beyond the sanctioned strip-aware anchor", () => {
+    // Reviewer hardening: the regex covers every Tailwind breakpoint prefix
+    // (`sm`/`md`/`lg`/`xl`/`2xl`), not just `md:`, so a competing override
+    // introduced at a DIFFERENT breakpoint is caught too, not just at md.
+    it("carries no competing breakpoint right/bottom utility beyond the sanctioned strip-aware anchor", () => {
         const { getByRole } = render(<BugReportButton />);
         const button = getByRole("button", { name: "Report a bug" });
         const classes = button.className.split(/\s+/).filter(Boolean);
-        const mdRight = classes.filter((c) => /^md:right-/.test(c));
-        const mdBottom = classes.filter((c) => /^md:bottom-/.test(c));
+        const mdRight = classes.filter((c) =>
+            /^(sm|md|lg|xl|2xl):right-/.test(c)
+        );
+        const mdBottom = classes.filter((c) =>
+            /^(sm|md|lg|xl|2xl):bottom-/.test(c)
+        );
         expect(mdRight).toEqual([
             "md:right-[calc(var(--controller-strip-w,0px)+1rem)]",
         ]);

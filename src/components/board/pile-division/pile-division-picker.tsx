@@ -22,7 +22,9 @@ import { formatOracleText } from "~/lib/oracle-text";
 import { usePromptBannerPosition } from "~/hooks/usePromptBannerPosition";
 import { Panel } from "~/components/ui/panel";
 import { Button } from "~/components/ui/button";
-import MinimizeChoiceButton from "~/components/board/minimize-choice-button";
+import MinimizeChoiceButton, {
+    MINIMIZE_BUTTON_INSET,
+} from "~/components/board/minimize-choice-button";
 import PileZone from "./pile-zone";
 import PileCard from "./pile-card";
 import { CARD_H, STAGE_W, computePileLayout } from "./layout";
@@ -226,15 +228,17 @@ export default function PileDivisionPicker({
                 size="wide"
                 className="flex flex-col items-center gap-2 px-5 py-3 pointer-events-auto"
             >
-                {/* `top-2.5 right-2.5` (10px), not `top-1.5 right-1.5` (6px,
-                    #1770 review): the button's own `before:-inset-2.5`
-                    pseudo-hit overhangs 10px past the visible glyph — a 6px
-                    inset clipped 4px of that hit box against the panel edge,
-                    shrinking the delivered target to ~40px. Same pairing as
-                    the `PendingChoicePrompt` mount (`pending-choice-prompt.tsx`)
-                    — the inset must be >= the overhang for the full 44px
-                    target to survive. */}
-                <MinimizeChoiceButton className="absolute top-2.5 right-2.5" />
+                {/* {@link MINIMIZE_BUTTON_INSET} (`top-2.5 right-2.5`, 10px)
+                    — not `top-1.5 right-1.5` (6px, #1770 review): the
+                    button's own `before:-inset-2.5` pseudo-hit overhangs 10px
+                    past the visible glyph — a 6px inset clipped 4px of that
+                    hit box against the panel edge, shrinking the delivered
+                    target to ~40px. Same pairing as the `PendingChoicePrompt`
+                    mount (`pending-choice-prompt.tsx`) — the inset must be
+                    >= the overhang for the full 44px target to survive. */}
+                <MinimizeChoiceButton
+                    className={`absolute ${MINIMIZE_BUTTON_INSET}`}
+                />
 
                 {/* Header — draggable handle for the whole dialog. */}
                 <div

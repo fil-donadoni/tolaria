@@ -6,20 +6,24 @@
 // #1770 second review round: `top-1.5 right-1.5` (6px inset, the ORIGINAL
 // real-mount className) clipped 4px off the 10px `before:-inset-2.5` overhang
 // against the panel edge, delivering a ~40px hit rather than 44px. Both real
-// mounts (`pending-choice-prompt.tsx`, `pile-division-picker.tsx`) now use
-// `top-2.5 right-2.5` (10px, matching the overhang exactly) — that is the
-// className exercised below, and the pairing test asserts the relationship
-// generically so a regression on either side (a smaller caller inset, or a
-// larger component overhang) goes red instead of sliding through.
+// mounts (`pending-choice-prompt.tsx`, `pile-division-picker.tsx`) now import
+// the shared `MINIMIZE_BUTTON_INSET` constant (`top-2.5 right-2.5`, 10px,
+// matching the overhang exactly) rather than each hardcoding their own copy —
+// this test imports the SAME constant, so a caller regressing back to a
+// smaller inset can only happen by editing the shared constant itself, which
+// this pairing test would still catch via the overhang comparison below.
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { MinimizedChoiceContext } from "~/hooks/useMinimizedChoice";
-import MinimizeChoiceButton from "../minimize-choice-button";
+import MinimizeChoiceButton, {
+    MINIMIZE_BUTTON_INSET,
+} from "../minimize-choice-button";
 
 // The real-mount className (`pending-choice-prompt.tsx`,
-// `pile-division-picker.tsx`) — kept as one constant so both tests below stay
-// pinned to what production actually renders.
-const REAL_MOUNT_CLASSNAME = "absolute top-2.5 right-2.5";
+// `pile-division-picker.tsx`) — built from the SAME shared constant the real
+// mounts import, so this test can't drift from production by hardcoding its
+// own copy of the inset value.
+const REAL_MOUNT_CLASSNAME = `absolute ${MINIMIZE_BUTTON_INSET}`;
 
 function renderButton(minimize = vi.fn()) {
     return render(

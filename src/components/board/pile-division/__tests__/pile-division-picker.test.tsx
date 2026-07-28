@@ -26,6 +26,7 @@ vi.mock("convex/react", () => ({
 // The minimize affordance needs the minimized-choice context; irrelevant here.
 vi.mock("~/components/board/minimize-choice-button", () => ({
     default: () => <button aria-label="Minimize" />,
+    MINIMIZE_BUTTON_INSET: "top-2.5 right-2.5",
 }));
 
 // The single seam under test for the positioning describe block below — drive

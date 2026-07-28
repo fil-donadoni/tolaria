@@ -1,6 +1,16 @@
 import { Minus } from "lucide-react";
 import { useMinimizedChoice } from "~/hooks/useMinimizedChoice";
 
+/** The caller-side `top-*`/`right-*` inset every real mount MUST pass as
+ *  `className` (`pending-choice-prompt.tsx`, `pile-division-picker.tsx`) —
+ *  a single source of truth for the value the inline contract comment below
+ *  documents, so the two real mounts and the pairing test in
+ *  `__tests__/minimize-choice-button.test.tsx` can never drift apart (#1770
+ *  second review round: they previously each hardcoded `top-2.5 right-2.5`
+ *  independently, which let a caller-side regression to `top-1.5 right-1.5`
+ *  slide through unnoticed). */
+export const MINIMIZE_BUTTON_INSET = "top-2.5 right-2.5";
+
 /** Minimize affordance shared by the blocking choice dialog surfaces (the
  *  `PendingChoicePrompt` banner and the library-pick modal — issue #315).
  *  Collapses the dialog to the board indicator; a pure view toggle that
@@ -38,7 +48,8 @@ export default function MinimizeChoiceButton({
             // before it reaches 44px (#1770 second review round: `top-1.5
             // right-1.5` = 6px inset clipped 4px, delivering ~40px —
             // `pending-choice-prompt.tsx` and `pile-division-picker.tsx` both
-            // now pass `top-2.5 right-2.5`, exactly matching the overhang).
+            // now pass the shared {@link MINIMIZE_BUTTON_INSET} constant
+            // (`top-2.5 right-2.5`), exactly matching the overhang).
             className={`relative flex h-6 w-6 items-center justify-center rounded-sm text-text-disabled hover:text-text-muted transition-colors cursor-pointer before:absolute before:-inset-2.5 before:content-[''] ${className}`}
         >
             <Minus className="h-4 w-4" />
