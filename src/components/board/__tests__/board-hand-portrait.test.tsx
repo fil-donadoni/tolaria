@@ -117,3 +117,41 @@ describe("BoardHandPortrait (#336)", () => {
         expect(screen.queryByTestId("hand-card-interactive")).toBeNull();
     });
 });
+
+// #1770 follow-up from #1790's review: a fixed 76px-wide (106.4px-tall) card
+// overflowed the 16%-of-board hand band's top edge on boards under ~665px,
+// leaking onto the battlefield's back row underneath. The card's footprint
+// now derives from the board height via `portraitHandMetrics` instead.
+describe("BoardHandPortrait derives its card size from board height (#1770)", () => {
+    it("keeps the historical 76px card when boardHeight is omitted", () => {
+        render(
+            <BoardHandPortrait
+                player={makePlayer(1)}
+                interactive={false}
+                data-testid="hand"
+            />
+        );
+        const wrapper = screen.getByTestId("hand-card-presentational")
+            .parentElement as HTMLElement;
+        expect(wrapper.style.width).toBe("76px");
+    });
+
+    it("shrinks the card on a short board so it never overflows the hand band", () => {
+        render(
+            <BoardHandPortrait
+                player={makePlayer(1)}
+                interactive={false}
+                boardHeight={500}
+                data-testid="hand"
+            />
+        );
+        const wrapper = screen.getByTestId("hand-card-presentational")
+            .parentElement as HTMLElement;
+        const width = Number(wrapper.style.width.replace("px", ""));
+        expect(width).toBeLessThan(76);
+        // The derived card's height (5:7 aspect) never exceeds the ACTUAL
+        // band height — the regression this closes.
+        const bandHeightPx = 500 * 0.16;
+        expect((width * 7) / 5).toBeLessThanOrEqual(bandHeightPx);
+    });
+});

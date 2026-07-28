@@ -155,10 +155,11 @@ describe("ControllerCommandRow — fits a 390px phone (#1759)", () => {
     });
 
     it("wraps to exactly two lines in the widest state — the bar's height budget", () => {
-        // The wrap is what makes the bar GROW: the side-pill line adds `h-9` +
-        // `gap-2`. Two lines is the height the reservation is sized for, so a
-        // future state that silently packs onto a THIRD line (a longer label, an
-        // extra secondary action) must fail here rather than on a phone.
+        // The wrap is what makes the bar GROW: the side-pill line adds `h-11`
+        // (#1770 mobile QA sweep touch-target floor) + `gap-2`. Two lines is
+        // the height the reservation is sized for, so a future state that
+        // silently packs onto a THIRD line (a longer label, an extra
+        // secondary action) must fail here rather than on a phone.
         //
         // The reservation itself no longer hard-codes any of this — the bar
         // publishes its measured height as `--controller-bar-h` and the hand /

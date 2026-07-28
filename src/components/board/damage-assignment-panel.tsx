@@ -42,6 +42,10 @@ function DamageRow({
             className={`flex items-center gap-2 ml-4 ${highlight ? "text-signal-pending" : ""}`}
         >
             <span className="flex-1 truncate">{label}</span>
+            {/* `w-11 h-11` (44px, #1770 mobile QA sweep touch-target audit):
+                was `w-6 h-6` (24px). Flex-centred rather than `leading-6`
+                (tuned to the old fixed height) so the glyph stays centred at
+                the new size. */}
             <button
                 onClick={(e) => {
                     e.stopPropagation();
@@ -56,7 +60,7 @@ function DamageRow({
                         },
                     });
                 }}
-                className="w-6 h-6 bg-surface-elevated hover:bg-surface-elevated/80 rounded text-center leading-6"
+                className="flex w-11 h-11 items-center justify-center bg-surface-elevated hover:bg-surface-elevated/80 rounded"
             >
                 -
             </button>
@@ -75,7 +79,7 @@ function DamageRow({
                         },
                     });
                 }}
-                className="w-6 h-6 bg-surface-elevated hover:bg-surface-elevated/80 rounded text-center leading-6"
+                className="flex w-11 h-11 items-center justify-center bg-surface-elevated hover:bg-surface-elevated/80 rounded"
             >
                 +
             </button>

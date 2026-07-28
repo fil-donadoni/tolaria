@@ -234,6 +234,7 @@ export default function BoardBattlefield({
                 onActivateAbility={(abilityId, keepPriority) =>
                     handleActivateAbility(card.id, abilityId, keepPriority)
                 }
+                compactCardHeight={compact?.cardHeight}
             />
         );
     }

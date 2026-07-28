@@ -101,3 +101,49 @@ export const PORTRAIT_VIEWER_HAND_BAND = `absolute left-0 right-0 ${ABOVE_CONTRO
 /** For board chrome that must sit ON the midline (viewer nameplate, stack
  *  chip) rather than at the geometric half of the viewport. */
 export const PORTRAIT_MIDLINE_TOP = "top-[var(--portrait-midline)]";
+
+// ── Portrait hand card metrics (#336, #1770 follow-up from #1790) ──────────
+//
+// `BoardHandPortrait` used to hard-code a 76px card width — 106.4px tall at
+// the standard 5:7 ratio — regardless of the hand band's actual height. That
+// is correct only when the band is at least as tall as the card: the band is
+// a flat {@link PORTRAIT_HAND_BAND_H} (16%) of the BOARD height, so below
+// `106.4 / 0.16 ≈ 665px` (an iOS small viewport, e.g. an iPhone SE in
+// Safari's compact toolbar state) the fixed card overflowed the band's TOP
+// edge by 10-18px, leaking onto the back row underneath — the exact zone
+// #1760 already fixed once, reopened from the other direction. Deriving the
+// card's footprint from the SAME band height this module already publishes
+// closes it: the card can never be taller than the band that hosts it.
+
+/** The portrait hand's card width above the band-height floor (px) — the
+ *  historical fixed size, now a ceiling rather than a constant. */
+export const PORTRAIT_HAND_CARD_W_MAX = 76;
+/** Overlap between adjacent cards, as a fraction of card width (26/76 at the
+ *  historical fixed size) — scales with the derived width instead of staying
+ *  a fixed px that would look wrong at a shrunk card size. */
+export const PORTRAIT_HAND_OVERLAP_FRAC = 26 / 76;
+
+export type PortraitHandMetrics = {
+    /** Card width (px). Height follows from the standard 5:7 aspect ratio. */
+    cardWidth: number;
+    /** Overlap between adjacent cards (px). */
+    overlap: number;
+};
+
+/** Derive the portrait hand's card width (and its overlap) from the board
+ *  height, so the card's height — `cardWidth * 7/5` — never exceeds the hand
+ *  band's actual height. Pure: the same `boardHeight` always yields the same
+ *  metrics, mirroring {@link landscapeCardMetrics}'s derivation for the
+ *  landscape-compact hand/battlefield footprint. */
+export function portraitHandMetrics(boardHeight: number): PortraitHandMetrics {
+    const bandHeightPx = boardHeight * (parseFloat(PORTRAIT_HAND_BAND_H) / 100);
+    // width <= bandHeight * 5/7 <=> width * 7/5 (height) <= bandHeight.
+    const maxWidthForBand = (bandHeightPx * 5) / 7;
+    const cardWidth = Math.floor(
+        Math.min(PORTRAIT_HAND_CARD_W_MAX, maxWidthForBand)
+    );
+    return {
+        cardWidth,
+        overlap: Math.round(cardWidth * PORTRAIT_HAND_OVERLAP_FRAC),
+    };
+}

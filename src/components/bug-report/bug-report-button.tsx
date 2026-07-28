@@ -1,7 +1,10 @@
 import { useState } from "react";
 import { Bug } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ABOVE_CONTROLLER_BAR } from "~/lib/controller-bar-metrics";
+import {
+    ABOVE_CONTROLLER_BAR,
+    BESIDE_CONTROLLER_STRIP,
+} from "~/lib/controller-bar-metrics";
 import BugReportDialog from "./bug-report-dialog";
 
 /**
@@ -31,7 +34,26 @@ export default function BugReportButton() {
                 // the router root AFTER the board, so an equal z-index still
                 // wins DOM-order ties and painted over the phase sheet,
                 // eating taps meant for the sheet's own controls (#1764).
-                className={`fixed ${ABOVE_CONTROLLER_BAR} right-3 z-dev-overlay rounded-full shadow-md md:bottom-4 md:right-4`}
+                //
+                // Horizontally it anchors {@link BESIDE_CONTROLLER_STRIP}
+                // rather than a flat `right-3`: that constant's own `0px`
+                // fallback evaluates to the SAME 12px `right-3` used when no
+                // strip is mounted (portrait, desktop, lobby), but slides
+                // clear of the landscape-compact control strip (#1769) when
+                // it IS mounted — ungated, this button used to float under
+                // the strip's own Pass Turn button (#1770 follow-up from
+                // #1802's review).
+                //
+                // The `md:` variant must spell the SAME strip-aware anchor,
+                // not a flat `md:right-4`: landscape-compact has no width
+                // bound, so every landscape phone >=768px hits `md:` too, and
+                // Tailwind emits breakpoint utilities after base ones — a
+                // flat `md:right-4` would always beat the unprefixed
+                // `BESIDE_CONTROLLER_STRIP` at that width and reintroduce the
+                // dead anchor (#1770 review). `+1rem` (not the base's
+                // `+0.75rem`) keeps the `0px` no-strip fallback equal to the
+                // old `right-4` desktop inset.
+                className={`fixed ${ABOVE_CONTROLLER_BAR} ${BESIDE_CONTROLLER_STRIP} z-dev-overlay rounded-full shadow-md md:bottom-4 md:right-[calc(var(--controller-strip-w,0px)+1rem)]`}
             >
                 <Bug />
             </Button>

@@ -16,8 +16,11 @@ export default function DivideTargetStepper({
     onMinus: () => void;
     onPlus: () => void;
 }) {
+    // `w-11 h-11` (44px, #1770 mobile QA sweep touch-target audit): was
+    // `w-6 h-6` (24px). Flex-centred rather than `leading-none` (which only
+    // mattered for the old fixed height) so the glyph stays centred.
     const btn =
-        "w-6 h-6 rounded-full text-sm font-beleren bg-accent-soft border border-accent text-accent-strong hover:bg-accent-soft/80 disabled:opacity-35 disabled:cursor-not-allowed transition-colors cursor-pointer leading-none";
+        "flex w-11 h-11 items-center justify-center rounded-full text-sm font-beleren bg-accent-soft border border-accent text-accent-strong hover:bg-accent-soft/80 disabled:opacity-35 disabled:cursor-not-allowed transition-colors cursor-pointer";
     const stop = (fn: () => void) => (e: React.MouseEvent) => {
         e.stopPropagation();
         fn();

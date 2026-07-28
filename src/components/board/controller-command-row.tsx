@@ -45,13 +45,16 @@ export default function ControllerCommandRow({
             data-controller-command-row
             className="mx-3 mb-2 flex flex-wrap items-center justify-center gap-2"
         >
+            {/* `h-11` (44px, #1770 mobile QA sweep): was `h-9` (36px), below
+                the touch-target floor the primary slot and Pass Turn already
+                meet below. */}
             {secondary.map((action) => (
                 <button
                     key={action.key}
                     type="button"
                     onClick={action.onClick}
                     disabled={action.disabled}
-                    className={`h-9 min-w-0 max-w-full truncate rounded-full border px-4 text-xs font-semibold shadow-lg backdrop-blur-md transition-opacity disabled:opacity-40 ${
+                    className={`h-11 min-w-0 max-w-full truncate rounded-full border px-4 text-xs font-semibold shadow-lg backdrop-blur-md transition-opacity disabled:opacity-40 ${
                         CONTROLLER_SECONDARY_TONE[action.tone]
                     }`}
                 >

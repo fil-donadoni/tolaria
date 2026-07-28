@@ -76,7 +76,11 @@ const NEUTRAL_VS: CardVisualState = {
     badge: null,
 };
 
-function renderCard(card: CardInstance, vs: CardVisualState) {
+function renderCard(
+    card: CardInstance,
+    vs: CardVisualState,
+    compactCardHeight?: number
+) {
     const me = makePlayer([card]);
     const value = {
         gameId: "game-id" as never,
@@ -93,7 +97,11 @@ function renderCard(card: CardInstance, vs: CardVisualState) {
     } as React.ContextType<typeof GameContext>;
     return render(
         <GameContext value={value}>
-            <BoardBattlefieldCard card={card} vs={vs} />
+            <BoardBattlefieldCard
+                card={card}
+                vs={vs}
+                compactCardHeight={compactCardHeight}
+            />
         </GameContext>
     );
 }
@@ -129,6 +137,40 @@ describe("BoardBattlefieldCard visual state + anchors (#256)", () => {
         // spatial board — the blocker → attacker arrows convey the grouping
         // (combat-read). The badge index would have shown "1".
         expect(queryByText("1")).toBeNull();
+    });
+
+    // #1770 follow-up from #1802's review: the desktop `-translate-y-8`
+    // (32px, tuned for a 168px card) overshoots the midline at the much
+    // smaller landscape-compact card scale. `compactCardHeight` re-derives it
+    // as a proportional inline `translate` instead of applying the class.
+    it("scales the combat lift proportionally in landscape-compact (compactCardHeight set)", () => {
+        const vs: CardVisualState = {
+            ...NEUTRAL_VS,
+            combatOffset: "-translate-y-8",
+        };
+        const { container } = renderCard(makeCreature(), vs, 64);
+        // The desktop Tailwind class never renders once a compact height is
+        // supplied — an inline `translate` replaces it.
+        expect(container.querySelector(".-translate-y-8")).toBeNull();
+        const anchor = container.querySelector<HTMLElement>(
+            "[data-arrow-anchor-permanent]"
+        );
+        // 32/168 desktop ratio applied to a 64px card ≈ 12px, and UP (toward
+        // the midline) for `-translate-y-8`'s direction.
+        expect(anchor?.style.translate).toBe("0 -12px");
+    });
+
+    it("keeps the desktop class untouched when compactCardHeight is omitted", () => {
+        const vs: CardVisualState = {
+            ...NEUTRAL_VS,
+            combatOffset: "translate-y-8",
+        };
+        const { container } = renderCard(makeCreature(), vs);
+        expect(container.querySelector(".translate-y-8")).toBeTruthy();
+        const anchor = container.querySelector<HTMLElement>(
+            "[data-arrow-anchor-permanent]"
+        );
+        expect(anchor?.style.translate).toBeFalsy();
     });
 
     it("rotates 90° when the permanent is tapped", () => {

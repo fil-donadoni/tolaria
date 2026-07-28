@@ -204,4 +204,16 @@ describe("DamageAssignmentPanel effective-power budget (issue #366)", () => {
         fireEvent.click(plusButtons[1]);
         expect(setDamageAssignment).not.toHaveBeenCalled();
     });
+
+    // #1770 mobile QA sweep touch-target audit: the +/- steppers rendered at
+    // `w-6 h-6` (24px) — well under the 44px floor every other bar/pill
+    // control in the mobile controls meets.
+    it("sizes the +/- steppers to the 44px touch-target floor", () => {
+        const { combat, allPlayers } = buffedScenario(0);
+        const { getAllByText } = renderPanel(combat, allPlayers);
+        for (const btn of [...getAllByText("-"), ...getAllByText("+")]) {
+            expect(btn.className).toContain("w-11");
+            expect(btn.className).toContain("h-11");
+        }
+    });
 });

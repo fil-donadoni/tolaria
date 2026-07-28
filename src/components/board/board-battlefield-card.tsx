@@ -7,6 +7,10 @@ import { isCreature } from "~/lib/card-utils";
 import { getColorOverrideDisplay } from "~/lib/color-override";
 import CardImage from "../cards/card-image";
 import CardTilt3D from "./card-tilt-3d";
+import {
+    landscapeAttackerLiftPx,
+    landscapeCombatLiftDirection,
+} from "~/lib/landscape-board-bands";
 import CounterBadges from "./counter-badges";
 import PlaneswalkerLoyaltyBadge from "./planeswalker-loyalty-badge";
 import NotedManaBadge from "./noted-mana-badge";
@@ -51,6 +55,14 @@ type BoardBattlefieldCardProps = {
      *  its controller's battlefield but rendered dimmed and fully inert: no
      *  click, no ability menu, a "Phased" tag instead of interaction. */
     phased?: boolean;
+    /** Landscape-compact's shared card height (#1768), for scaling the combat
+     *  lift (#1770 follow-up from #1802). `vs.combatOffset`'s fixed
+     *  `translate-y-8` (32px, tuned for the 168px desktop card) overshoots the
+     *  midline at the much smaller compact card scale; when set, the lift is
+     *  re-derived proportionally via {@link landscapeAttackerLiftPx} instead
+     *  of applying the desktop Tailwind class. Omitted ⇒ desktop/portrait,
+     *  unchanged. */
+    compactCardHeight?: number;
 };
 
 /** Battlefield card for the new spatial board (PRD #249, slice #256).
@@ -80,6 +92,7 @@ export default function BoardBattlefieldCard({
     activatableAbilities,
     onActivateAbility,
     phased = false,
+    compactCardHeight,
 }: BoardBattlefieldCardProps) {
     const { allPlayers, emblems, playerId } = useGameContext();
     const creature = isCreature(card);
@@ -201,6 +214,22 @@ export default function BoardBattlefieldCard({
     // the layout box, so rotation here never reflows neighbors.
     const tapTransform = card.isTapped ? "rotate(90deg)" : undefined;
 
+    // Combat lift (#1770 follow-up from #1802): landscape-compact re-derives
+    // the desktop `translate-y-8` class as a proportional inline `translate`
+    // instead of applying it, so a declared attacker's lift stays a constant
+    // fraction of the card it is lifting rather than overshooting a small
+    // card's midline. `combatOffset` itself still comes from the SHARED
+    // `useBattlefieldVisualState` (desktop/portrait/landscape all compute
+    // combat involvement identically) — only its rendering forks here.
+    const liftDirection = compactCardHeight
+        ? landscapeCombatLiftDirection(vs.combatOffset)
+        : 0;
+    const compactLiftTranslate =
+        liftDirection !== 0 && compactCardHeight
+            ? `0 ${liftDirection * landscapeAttackerLiftPx(compactCardHeight)}px`
+            : undefined;
+    const combatOffsetClassName = compactCardHeight ? "" : vs.combatOffset;
+
     // Cursor affordance mirrors the classic battlefield card: a pointer when
     // the permanent is interactive and enabled, not-allowed when interactive
     // but blocked, default otherwise (#272).
@@ -264,11 +293,12 @@ export default function BoardBattlefieldCard({
             data-arrow-anchor-permanent={card.id}
             data-tapped={card.isTapped ? "true" : undefined}
             data-phased={phased ? "true" : undefined}
-            className={`relative w-full h-full ${vs.combatOffset} ${
+            className={`relative w-full h-full ${combatOffsetClassName} ${
                 phased ? "cursor-default pointer-events-none" : cursorClass
             } transition duration-250`}
             style={{
                 transform: tapTransform,
+                translate: compactLiftTranslate,
                 opacity: phased ? 0.4 : litState === "unlit" ? 0.4 : 1,
                 filter: phased ? "grayscale(0.85)" : undefined,
             }}

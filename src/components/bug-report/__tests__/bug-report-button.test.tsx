@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { render } from "@testing-library/react";
+import { BESIDE_CONTROLLER_STRIP } from "~/lib/controller-bar-metrics";
 import BugReportButton from "../bug-report-button";
 
 // `BugReportButton` always mounts `BugReportDialog` (open or closed), which
@@ -46,7 +47,46 @@ describe("BugReportButton anchoring + z-order (issue #1764)", () => {
     it("stays bottom-right, never colliding with the left-anchored dev rail", () => {
         const { getByRole } = render(<BugReportButton />);
         const button = getByRole("button", { name: "Report a bug" });
-        expect(button.className).toContain("right-3");
         expect(button.className).not.toContain("left-");
+    });
+
+    // #1770 follow-up from #1802's review: the landscape-compact control
+    // strip (#1769) docks to the right edge too, and a flat `right-3` used to
+    // float the button underneath the strip's own Pass Turn button.
+    it("anchors beside the landscape-compact control strip, not a flat inset", () => {
+        const { getByRole } = render(<BugReportButton />);
+        const button = getByRole("button", { name: "Report a bug" });
+        expect(button.className).toContain(BESIDE_CONTROLLER_STRIP);
+        // The seam's own `0px` fallback reproduces the old `right-3` (12px)
+        // when no strip is mounted (portrait, desktop, lobby) — verified by
+        // `BESIDE_CONTROLLER_STRIP`'s own module tests, not re-derived here.
+        expect(button.className).not.toContain("right-3");
+    });
+
+    // #1770 second review round: `toContain(BESIDE_CONTROLLER_STRIP)` alone is
+    // blind to a LATER-cascade override — a flat `md:right-4` sat alongside
+    // the strip-aware anchor and won at md+ (Tailwind emits breakpoint
+    // utilities after base ones), so the `contain` assertion above stayed
+    // green while the button was dead in landscape-compact >=768px. Pin the
+    // exact `md:right-*` / `md:bottom-*` utilities present so a mutation of
+    // either (e.g. swapping in a competing flat inset, or corrupting the
+    // sanctioned one) fails this test instead of sliding through unnoticed.
+    // Reviewer hardening: the regex covers every Tailwind breakpoint prefix
+    // (`sm`/`md`/`lg`/`xl`/`2xl`), not just `md:`, so a competing override
+    // introduced at a DIFFERENT breakpoint is caught too, not just at md.
+    it("carries no competing breakpoint right/bottom utility beyond the sanctioned strip-aware anchor", () => {
+        const { getByRole } = render(<BugReportButton />);
+        const button = getByRole("button", { name: "Report a bug" });
+        const classes = button.className.split(/\s+/).filter(Boolean);
+        const mdRight = classes.filter((c) =>
+            /^(sm|md|lg|xl|2xl):right-/.test(c)
+        );
+        const mdBottom = classes.filter((c) =>
+            /^(sm|md|lg|xl|2xl):bottom-/.test(c)
+        );
+        expect(mdRight).toEqual([
+            "md:right-[calc(var(--controller-strip-w,0px)+1rem)]",
+        ]);
+        expect(mdBottom).toEqual(["md:bottom-4"]);
     });
 });
