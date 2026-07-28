@@ -243,26 +243,38 @@ type PlanSource = {
  *  ordered land taps to perform, or `null` when the cost cannot be paid.
  *  Mirrors `canPotentiallyPayCost` (rules.ts) — same one-source-one-mana
  *  model — but emits the concrete sources; the mirror is now closer than it
- *  used to be (issue #1751 finding 4): `getProducibleManaOptions` below is
- *  called with a real, if SELF-ONLY, `battlefields` view (`player.id` +
- *  `player.battlefield`), so a self-referential board-dependent mana source
- *  (Mox Opal's Metalcraft, Fanatic of Rhonas's Ferocious) is visible to the
- *  Bot's planner exactly like it is to the human castability gate — before
- *  this fix `getProducibleManaOptions` was always called with no board at
- *  all, so such a source's `canActivate` was permanently false here even
- *  when `getLegalActions` correctly offered "cast". The self-only view does
- *  NOT extend to an opponent-scanning chooser (Fellwar Stone) — the gate's
- *  `coloredCostLeftover` gets the FULL, both-players board via `opts.state`,
- *  while this planner has no `state` param to build one from, so that one
- *  case can still diverge. Pool mana is modelled as zero-tap sources and is
+ *  used to be (issue #1751 finding 4, closed fully by issue #1754):
+ *  `getProducibleManaOptions` below is called with a real, BOTH-PLAYERS
+ *  `battlefields` view built from `state` (every `players[].battlefield`,
+ *  the SAME shape `coloredCostLeftover`/rules.ts builds from `opts.state`),
+ *  so ANY board-dependent mana source's `canActivate` — self-referential
+ *  (Mox Opal's Metalcraft, Fanatic of Rhonas's Ferocious) or
+ *  opponent-scanning (Fellwar Stone, whose `getManaChoices` walks every
+ *  OTHER player's battlefield) — is evaluated against a real board here
+ *  exactly like it is by the human castability gate. Before issue #1751 this
+ *  planner passed no board at all; before issue #1754 it passed a SELF-ONLY
+ *  view (own controllerId + own battlefield alone), which covered the
+ *  self-referential case but still starved Fellwar Stone of any opponent
+ *  permanents to see. Pool mana is modelled as zero-tap sources and is
  *  consumed by the server at commit, so it never appears in the returned taps. */
 export function planManaPayment(
+    state: GameState,
     player: PlayerState,
     cost: Record<string, number>
 ): ManaTap[] | null {
     const totalRequired =
         (cost.X ?? 0) + MANA_COLORS.reduce((s, c) => s + (cost[c] ?? 0), 0);
     if (totalRequired === 0) return [];
+
+    // Issue #1754 — both-players view, built once per call and shared across
+    // every source below: identical shape/content to the gate's
+    // `coloredCostLeftover` board (rules.ts `opts.state?.players.map(...)`),
+    // so gate and planner agree for every board-dependent mana ability, not
+    // only the self-referential ones a self-only view already covered.
+    const boardBattlefields = state.players.map((p) => ({
+        playerId: p.id,
+        battlefield: p.battlefield,
+    }));
 
     const sources: PlanSource[] = [];
     for (const c of MANA_COLORS) {
@@ -275,12 +287,14 @@ export function planManaPayment(
         if (perm.isTapped) continue;
         // CR 302.1 — a summoning-sick creature can't pay {T}.
         if (isTapLockedBySummoningSickness(perm)) continue;
-        // Issue #1751 finding 4 — self-only board view (own controllerId +
-        // own battlefield): enough for Mox Opal / Fanatic of Rhonas, not for
-        // Fellwar Stone (see this function's own doc above).
-        const options = getProducibleManaOptions(perm, player.id, [
-            { playerId: player.id, battlefield: player.battlefield },
-        ]);
+        // Issue #1754 — full both-players board view: covers Mox Opal /
+        // Fanatic of Rhonas (self-referential) AND Fellwar Stone
+        // (opponent-scanning), matching the gate's board visibility exactly.
+        const options = getProducibleManaOptions(
+            perm,
+            player.id,
+            boardBattlefields
+        );
         if (options.size === 0) continue;
         sources.push({ cardInstanceId: perm.id, options });
     }
@@ -655,7 +669,7 @@ function enumerateCastMoves(
                     )
                 );
             }
-            const tapPlan = planManaPayment(player, normCost);
+            const tapPlan = planManaPayment(state, player, normCost);
             if (tapPlan === null) continue;
             for (const targets of enumerateTargetTuples(
                 state,
@@ -871,7 +885,7 @@ function enumerateAbilityMoves(
                 perm.counters?.[ability.cost.manaEqualToCounterCount.type] ?? 0;
             if (have > 0) manaCost.X = (manaCost.X ?? 0) + have;
         }
-        const tapPlan = planManaPayment(player, manaCost);
+        const tapPlan = planManaPayment(state, player, manaCost);
         if (tapPlan === null) continue;
 
         const tuples = enumerateTargetTuples(

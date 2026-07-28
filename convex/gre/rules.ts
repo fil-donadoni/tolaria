@@ -936,14 +936,15 @@ function hasEnoughLegalTargets(
  *  in the one-source planner).
  *
  *  `controllerId` / `battlefields`, when passed, flow straight into
- *  `getManaTapOptionsDetailed` (issue #1751 finding 4) so a board-dependent
- *  `canActivate` (Mox Opal's Metalcraft, Fanatic of Rhonas's Ferocious) is
- *  evaluated against a real board instead of the always-false
- *  `minimalManaGateView(undefined)`. `planManaPayment` (moves.ts) passes a
- *  SELF-ONLY view (`[{ playerId: player.id, battlefield: player.battlefield }]`),
- *  which is enough for a self-referential ability like Metalcraft or Ferocious
- *  but not for an opponent-scanning chooser (Fellwar Stone) — that one still
- *  resolves at tap time here, same as an omitted `battlefields`. */
+ *  `getManaTapOptionsDetailed` (issue #1751 finding 4, closed fully by issue
+ *  #1754) so a board-dependent `canActivate` (Mox Opal's Metalcraft, Fanatic
+ *  of Rhonas's Ferocious) is evaluated against a real board instead of the
+ *  always-false `minimalManaGateView(undefined)`. `planManaPayment`
+ *  (moves.ts) now builds and passes a FULL, both-players view
+ *  (`state.players.map((p) => ({ playerId: p.id, battlefield: p.battlefield
+ *  }))`) — the same shape `coloredCostLeftover` builds from `opts.state` —
+ *  so a self-referential ability like Metalcraft or Ferocious AND an
+ *  opponent-scanning chooser like Fellwar Stone are both visible here. */
 export function getProducibleManaOptions(
     card: CardInstanceState,
     controllerId?: string,
@@ -1078,14 +1079,15 @@ function getProducibleManaUnits(
 ): Set<Color>[] {
     // requireTap: only a genuine {T} ability counts as an auto-payable "unit"
     // — the SAME `requireTap: true` invariant `getProducibleManaOptions` (the
-    // real auto-tap planner) uses. Board view is NOT identical between the
-    // two, though (issue #1751 finding 4): this function is fed the FULL,
-    // both-players `battlefields` view built from `opts.state` (via
-    // `coloredCostLeftover`), while `getProducibleManaOptions`'s one caller
-    // (`planManaPayment`, moves.ts) only ever passes the controller's OWN
-    // entry — enough for a self-referential ability (Mox Opal's Metalcraft,
-    // Fanatic of Rhonas's Ferocious) but not for an opponent-scanning chooser
-    // (Fellwar Stone), where the two can still diverge.
+    // real auto-tap planner) uses. Board view is now identical between the
+    // two (issue #1751 finding 4, closed fully by issue #1754): this function
+    // is fed the FULL, both-players `battlefields` view built from
+    // `opts.state` (via `coloredCostLeftover`), and `getProducibleManaOptions`'s
+    // one caller (`planManaPayment`, moves.ts) now builds and passes the same
+    // FULL, both-players view from its own `state` param — so a
+    // self-referential ability (Mox Opal's Metalcraft, Fanatic of Rhonas's
+    // Ferocious) AND an opponent-scanning chooser (Fellwar Stone) are both
+    // visible to the two callers identically; they no longer diverge.
     const detailed = getManaTapOptionsDetailed(
         card,
         controllerId,
