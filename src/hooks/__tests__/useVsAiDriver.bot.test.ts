@@ -68,6 +68,7 @@ vi.mock("@convex/_generated/api", () => ({
             summonCompanion: "summonCompanion",
             announceCast: "announceCast",
             selectTarget: "selectTarget",
+            selectTargets: "selectTargets",
             confirmTargets: "confirmTargets",
             tapForPayment: "tapForPayment",
             activateAbility: "activateAbility",

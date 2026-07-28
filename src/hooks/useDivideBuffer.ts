@@ -16,11 +16,12 @@ import { extractMutationError, type MutationError } from "~/lib/mutation-error";
  *
  *  The distribution is held LOCALLY here (nothing hits the server until Done),
  *  mirroring {@link usePendingChoiceBuffer}. On Done, `submit` fires the
- *  fully-validated `selectTarget({amount})` mutation ONCE per assigned target;
- *  the final call brings the server's running divide sum to `divideTotal` and
- *  the engine auto-finalizes (CR 601.2d). Priority is held throughout target
- *  selection, so the sequence is effectively atomic — and it reuses the
- *  canonical per-target legality validation instead of duplicating it. */
+ *  fully-validated `selectTargets({targets})` mutation ONCE for the whole
+ *  distribution (issue #1779 / PRD #1776 T4 — was one `selectTarget` round-
+ *  trip per assigned target); the server applies each entry in order within
+ *  ONE transaction and auto-finalizes once the running divide sum reaches
+ *  `divideTotal` (CR 601.2d) — it reuses the canonical per-target legality
+ *  validation instead of duplicating it. */
 type DivideEntry = { type: "permanent" | "player"; n: number };
 
 export type DivideBuffer = {
@@ -100,7 +101,9 @@ export function useDivideBufferState(args: {
     const [buffer, setBuffer] = useState<Record<string, DivideEntry>>({});
     const [isPending, setIsPending] = useState(false);
     const [lastError, setLastError] = useState<MutationError | null>(null);
-    const selectTarget = useMutation(api.game.selectTarget);
+    // issue #1779 / PRD #1776 T4 — batched selectTargets (one call for the
+    // whole distribution instead of one per assigned target).
+    const selectTargets = useMutation(api.game.selectTargets);
 
     // Reset the buffer when the divide selection identity changes (render-time
     // "adjust state on prop change" pattern, same as usePendingChoiceBufferState
@@ -160,24 +163,25 @@ export function useDivideBufferState(args: {
         }
         setIsPending(true);
         try {
-            // Fire the fully-validated selectTarget once per assigned target;
-            // the final call brings the server's running divide sum to
-            // `divideTotal` and the engine auto-finalizes (CR 601.2d).
-            for (const [id, entry] of Object.entries(buffer)) {
-                await selectTarget({
-                    gameId,
-                    playerId: pendingTarget.playerId,
+            // issue #1779 / PRD #1776 T4 — one batched selectTargets call for
+            // the whole distribution; the server applies each entry in order
+            // within ONE transaction and auto-finalizes once the running
+            // divide sum reaches `divideTotal` (CR 601.2d).
+            await selectTargets({
+                gameId,
+                playerId: pendingTarget.playerId,
+                targets: Object.entries(buffer).map(([id, entry]) => ({
                     targetType: entry.type,
                     targetId: id,
                     amount: entry.n,
-                });
-            }
+                })),
+            });
         } catch (e) {
             setLastError(extractMutationError(e));
         } finally {
             setIsPending(false);
         }
-    }, [pendingTarget, isPending, buffer, total, gameId, selectTarget]);
+    }, [pendingTarget, isPending, buffer, total, gameId, selectTargets]);
 
     const dismissError = useCallback(() => setLastError(null), []);
 

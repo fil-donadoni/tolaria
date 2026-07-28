@@ -128,6 +128,11 @@ export function useVsAiDriver(
         summonCompanion: useMutation(api.game.summonCompanion),
         announceCast: useMutation(api.game.announceCast),
         selectTarget: useMutation(api.game.selectTarget),
+        // issue #1779 / PRD #1776 T4 — batched target selection: the bot
+        // already knows the whole target set upfront (search picks it before
+        // dispatch), so the executor drives this instead of looping
+        // `selectTarget`.
+        selectTargets: useMutation(api.game.selectTargets),
         confirmTargets: useMutation(api.game.confirmTargets),
         tapForPayment: useMutation(api.game.tapForPayment),
         activateAbility: useMutation(api.game.activateAbility),

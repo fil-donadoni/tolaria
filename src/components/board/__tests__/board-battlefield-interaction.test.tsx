@@ -288,10 +288,12 @@ describe("board battlefield tap/pay parity with the classic board (#272)", () =>
         );
         const spatialArgs = tapForPayment.mock.calls[0][0];
 
+        // issue #1779 / PRD #1776 T4 — tapForPayment now takes a `payments`
+        // batch; a single manual click submits it as a one-element array.
         expect(spatialArgs).toMatchObject({
             gameId: "game-id",
             playerId: "me",
-            cardInstanceId: "forest1",
+            payments: [{ cardInstanceId: "forest1" }],
         });
         expect(tapUntap).not.toHaveBeenCalled();
     });

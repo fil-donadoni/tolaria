@@ -7,8 +7,8 @@
 // Each Move kind maps to a fixed, ordered call sequence:
 //   play-land        → playCard
 //   summon-companion → summonCompanion (CR 116.2 / 702.139f, ADR 0064)
-//   cast-spell       → announceCast → selectTarget* [→ confirmTargets] → tapForPayment*
-//   activate-ability → activateAbility → selectTarget* [→ confirmTargets] → tapForActivationPayment*
+//   cast-spell       → announceCast → selectTargets? [→ confirmTargets] → tapForPayment?
+//   activate-ability → activateAbility → selectTargets? [→ confirmTargets] → tapForActivationPayment*
 //   declare-attackers→ toggleAttacker* → confirmAttackers
 //   declare-blockers → (selectBlocker → assignBlockerTarget)* → confirmBlockers
 //   mulligan         → declareMulligan
@@ -21,6 +21,14 @@
 // `tapPlan` computed by `planManaPayment`, and tapForPayment auto-commits the
 // spell once the pool covers the cost — so an empty tapPlan means the cost was
 // already covered by floating mana and no tap is fired.
+//
+// issue #1779 / PRD #1776 T4 — the bot already knows its whole target set and
+// tap plan BEFORE dispatch (both are computed by search up front), so the
+// cast-spell/activate-ability cases below submit them as ONE batched
+// `selectTargets` call and (for cast-spell) ONE batched `tapForPayment` call,
+// instead of one mutation per target/land — the "auto-tap path" collapse the
+// issue calls out. `tapForActivationPayment` stays per-item (out of this
+// issue's named scope).
 
 import type { Id } from "@convex/_generated/dataModel";
 import type { Move } from "@convex/gre";
@@ -49,9 +57,25 @@ export type MoveMutations = {
             targetPlayerId?: string;
         }
     ) => Promise<unknown>;
+    /** Batched form of `selectTarget` (issue #1779 / PRD #1776 T4): applies a
+     *  full ordered array of target selections in ONE mutation call instead
+     *  of one call per target. */
+    selectTargets: (
+        a: GP & {
+            targets: {
+                targetType: "permanent" | "player" | "spell" | "graveyard-card";
+                targetId: string;
+                targetPlayerId?: string;
+            }[];
+        }
+    ) => Promise<unknown>;
     confirmTargets: (a: GP) => Promise<unknown>;
+    /** Batched form (issue #1779 / PRD #1776 T4): applies a full ordered
+     *  `payments` array in ONE mutation call instead of one call per land. */
     tapForPayment: (
-        a: GP & { cardInstanceId: string; manaChoiceIndex?: number }
+        a: GP & {
+            payments: { cardInstanceId: string; manaChoiceIndex?: number }[];
+        }
     ) => Promise<unknown>;
     activateAbility: (
         a: GP & { cardInstanceId: string; abilityId: string; chosenX?: number }
@@ -228,30 +252,47 @@ export async function executeMove(
                 chosenX: move.chosenX,
                 chosenModeId: move.chosenModeId,
             });
+            // issue #1101 — `TargetSelection.type` grew a "hand-card" member
+            // for `digToHand`'s internal `bind` resolution, but it is never a
+            // real ANNOUNCED target (CR 601.2c): `getLegalTargets` /
+            // `enumerateTargetTuples` never produce it, so `move.targets`
+            // never actually carries one. Narrow it away here rather than
+            // widening `selectTargets`'s validator to accept a kind it must
+            // never receive.
+            const targetInputs: {
+                targetType: "permanent" | "player" | "spell" | "graveyard-card";
+                targetId: string;
+                targetPlayerId?: string;
+            }[] = [];
             for (const t of move.targets) {
-                // issue #1101 — `TargetSelection.type` grew a "hand-card"
-                // member for `digToHand`'s internal `bind` resolution, but
-                // it is never a real ANNOUNCED target (CR 601.2c):
-                // `getLegalTargets` / `enumerateTargetTuples` never produce
-                // it, so `move.targets` never actually carries one. Narrow
-                // it away here rather than widening `selectTarget`'s
-                // validator to accept a kind it must never receive.
                 if (t.type === "hand-card") continue;
-                await mutations.selectTarget({
-                    ...base,
+                targetInputs.push({
                     targetType: t.type,
                     targetId: t.id,
                     targetPlayerId: t.playerId,
                 });
             }
+            if (targetInputs.length > 0) {
+                // issue #1779 / PRD #1776 T4 — one batched call instead of N
+                // sequential `selectTarget` round-trips.
+                await mutations.selectTargets({
+                    ...base,
+                    targets: targetInputs,
+                });
+            }
             if (move.confirmTargets && move.targets.length > 0) {
                 await mutations.confirmTargets(base);
             }
-            for (const tap of move.tapPlan) {
+            if (move.tapPlan.length > 0) {
+                // issue #1779 / PRD #1776 T4 — one batched call instead of N
+                // sequential `tapForPayment` round-trips; `planManaPayment`
+                // already computed the whole plan before dispatch.
                 await mutations.tapForPayment({
                     ...base,
-                    cardInstanceId: tap.cardInstanceId,
-                    manaChoiceIndex: tap.manaChoiceIndex,
+                    payments: move.tapPlan.map((tap) => ({
+                        cardInstanceId: tap.cardInstanceId,
+                        manaChoiceIndex: tap.manaChoiceIndex,
+                    })),
                 });
             }
             return;
@@ -264,19 +305,33 @@ export async function executeMove(
                 abilityId: move.abilityId,
                 chosenX: move.chosenX,
             });
+            // See the matching comment in the "cast-spell" branch above.
+            const targetInputs: {
+                targetType: "permanent" | "player" | "spell" | "graveyard-card";
+                targetId: string;
+                targetPlayerId?: string;
+            }[] = [];
             for (const t of move.targets) {
-                // See the matching comment in the "cast-spell" branch above.
                 if (t.type === "hand-card") continue;
-                await mutations.selectTarget({
-                    ...base,
+                targetInputs.push({
                     targetType: t.type,
                     targetId: t.id,
                     targetPlayerId: t.playerId,
                 });
             }
+            if (targetInputs.length > 0) {
+                // issue #1779 / PRD #1776 T4 — `selectTargets` batches BOTH
+                // cast and activated-ability targeting (CR 601.2c / 602.2).
+                await mutations.selectTargets({
+                    ...base,
+                    targets: targetInputs,
+                });
+            }
             if (move.confirmTargets && move.targets.length > 0) {
                 await mutations.confirmTargets(base);
             }
+            // `tapForActivationPayment` batching is out of this issue's named
+            // scope (item 1 is `tapForPayment` only) — stays per-item.
             for (const tap of move.tapPlan) {
                 await mutations.tapForActivationPayment({
                     ...base,

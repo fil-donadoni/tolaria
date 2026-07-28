@@ -38,6 +38,7 @@ function engineMutations(state: GameState): MoveMutations {
         summonCompanion: reject,
         announceCast: reject,
         selectTarget: reject,
+        selectTargets: reject,
         confirmTargets: reject,
         tapForPayment: reject,
         activateAbility: reject,

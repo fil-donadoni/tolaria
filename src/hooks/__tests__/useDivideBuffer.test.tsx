@@ -1,15 +1,16 @@
 // Divide-as-you-choose distribution buffer (CR 601.2d / 120.4). The chosen
 // interaction (prototype variant B): dial each target's share freely via
 // on-card steppers, then "Deal damage" submits the whole split. The buffer is
-// local until submit; submit fires the fully-validated selectTarget once per
-// assigned target (the final call auto-finalizes server-side).
+// local until submit; submit fires ONE batched `selectTargets` call for the
+// whole distribution (issue #1779 / PRD #1776 T4 — the server auto-finalizes
+// once the running divide sum reaches the total).
 import { describe, it, expect, vi } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import type { PendingTarget } from "~/types/game";
 
-const selectTarget = vi.fn(() => Promise.resolve());
+const selectTargets = vi.fn(() => Promise.resolve());
 vi.mock("convex/react", () => ({
-    useMutation: () => selectTarget,
+    useMutation: () => selectTargets,
 }));
 
 import { useDivideBufferState } from "../useDivideBuffer";
@@ -74,8 +75,8 @@ describe("useDivideBuffer — local distribution (CR 601.2d)", () => {
         expect(result.current.canSubmit).toBe(true); // 4/4
     });
 
-    it("submit fires selectTarget once per target with its chosen amount", async () => {
-        selectTarget.mockClear();
+    it("submit fires ONE batched selectTargets call with every target's chosen amount", async () => {
+        selectTargets.mockClear();
         const { result } = render(dividePt(4));
         act(() => result.current.inc("a", "permanent")); // a: 3
         act(() => result.current.inc("a", "permanent"));
@@ -84,31 +85,25 @@ describe("useDivideBuffer — local distribution (CR 601.2d)", () => {
         await act(async () => {
             await result.current.submit();
         });
-        expect(selectTarget).toHaveBeenCalledTimes(2);
-        expect(selectTarget).toHaveBeenCalledWith({
+        expect(selectTargets).toHaveBeenCalledTimes(1);
+        expect(selectTargets).toHaveBeenCalledWith({
             gameId: GAME_ID,
             playerId: "me",
-            targetType: "permanent",
-            targetId: "a",
-            amount: 3,
-        });
-        expect(selectTarget).toHaveBeenCalledWith({
-            gameId: GAME_ID,
-            playerId: "me",
-            targetType: "permanent",
-            targetId: "b",
-            amount: 1,
+            targets: [
+                { targetType: "permanent", targetId: "a", amount: 3 },
+                { targetType: "permanent", targetId: "b", amount: 1 },
+            ],
         });
     });
 
     it("submit is a no-op until the budget is fully assigned", async () => {
-        selectTarget.mockClear();
+        selectTargets.mockClear();
         const { result } = render(dividePt(4));
         act(() => result.current.inc("a", "permanent")); // only 1/4
         await act(async () => {
             await result.current.submit();
         });
-        expect(selectTarget).not.toHaveBeenCalled();
+        expect(selectTargets).not.toHaveBeenCalled();
     });
 
     it("resets the buffer when the divide selection identity changes", () => {
