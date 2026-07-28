@@ -25,7 +25,7 @@ const noopBuffer: PendingChoiceBuffer = {
     dismissError: () => {},
 };
 
-function renderPrompt(choice: PendingChoice, playerId = "me") {
+function promptTree(choice: PendingChoice, playerId = "me") {
     const value = {
         gameId: "game-id" as never,
         playerId,
@@ -40,7 +40,7 @@ function renderPrompt(choice: PendingChoice, playerId = "me") {
         onSwitchGame: () => {},
         pendingChoices: [choice],
     } as unknown as React.ContextType<typeof GameContext>;
-    return render(
+    return (
         <GameContext value={value}>
             <PendingChoiceBufferContext value={noopBuffer}>
                 <MinimizedChoiceContext
@@ -59,6 +59,10 @@ function renderPrompt(choice: PendingChoice, playerId = "me") {
             </PendingChoiceBufferContext>
         </GameContext>
     );
+}
+
+function renderPrompt(choice: PendingChoice, playerId = "me") {
+    return render(promptTree(choice, playerId));
 }
 
 describe("PendingChoicePrompt suppression", () => {
@@ -258,6 +262,35 @@ describe("PendingChoicePrompt — madness-cast (CR 702.35d)", () => {
         expect(queryByText("Cast")).toBeNull();
         expect(queryByText("Decline")).toBeNull();
         expect(getByText(/Waiting for/)).toBeTruthy();
+    });
+});
+
+// Issue #1762 — `choice.prompt` is server-authored oracle-derived text with
+// no length cap (the true worst case for wrapping, unlike the other banners'
+// fixed literals). It must render in full at a 390px width without a
+// nowrap/truncate class clipping it.
+describe("PendingChoicePrompt — longest prompt renders without broken wrapping (issue #1762)", () => {
+    it("a long option-pick prompt renders in full at a 390px width", () => {
+        const longPrompt =
+            "Choose one — Destroy target creature; or Return target creature card from your graveyard to your hand; or Search your library for a basic land card, reveal it, put it into your hand, then shuffle.";
+        const choice: PendingChoice = {
+            stackItemId: "stk",
+            step: 0,
+            choiceId: "me",
+            playerId: "me",
+            kind: "option-pick",
+            count: 1,
+            prompt: longPrompt,
+            options: [],
+        } as PendingChoice;
+        const { container } = render(
+            <div style={{ width: "390px" }}>{promptTree(choice)}</div>
+        );
+        expect(container.textContent).toContain(longPrompt);
+        const promptEl = container.querySelector("p.text-text-muted");
+        expect(promptEl).not.toBeNull();
+        expect(promptEl!.className).not.toMatch(/whitespace-nowrap/);
+        expect(promptEl!.className).not.toMatch(/\btruncate\b/);
     });
 });
 

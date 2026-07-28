@@ -4,7 +4,7 @@ import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import type { PendingChoice } from "~/types/game";
 import { useGameContext } from "~/hooks/useGameContext";
-import { useDraggable } from "~/hooks/useDraggable";
+import { usePromptBannerPosition } from "~/hooks/usePromptBannerPosition";
 import { usePendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
 import { usePendingChoicePrimaryAction } from "~/hooks/usePendingChoicePrimaryAction";
 import {
@@ -51,7 +51,8 @@ export default function PendingChoicePrompt({
     gameId: Id<"games">;
 }) {
     const { allPlayers } = useGameContext();
-    const { offset, dragHandlers } = useDraggable();
+    const { outerClassName, outerStyle, innerClassName, dragHandlers } =
+        usePromptBannerPosition();
     const submitMayPay = useMutation(api.game.submitMayPay);
     const submitLandEntryChoice = useMutation(api.game.submitLandEntryChoice);
     const submitDrawReplacementPay = useMutation(
@@ -242,16 +243,14 @@ export default function PendingChoicePrompt({
 
     return (
         <div
-            className="absolute top-1/2 left-1/2 z-modal pointer-events-none"
-            style={{
-                transform: `translate(calc(-50% + ${offset.x}px), calc(-50% + ${offset.y}px))`,
-            }}
+            className={`${outerClassName} pointer-events-none`}
+            style={outerStyle}
         >
             {/* Drag chrome stays on a plain wrapper — Panel forwards no
                 handlers, so the frame lives inside it. */}
             <div
                 {...dragHandlers}
-                className="cursor-move select-none pointer-events-auto"
+                className={`cursor-move select-none pointer-events-auto ${innerClassName}`.trim()}
             >
                 <Panel
                     density="compact"

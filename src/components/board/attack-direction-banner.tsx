@@ -25,7 +25,7 @@ export default function AttackDirectionBanner({
             creatures to send them into combat.
             {planeswalkerPresent &&
                 " Click an enemy planeswalker to direct your most recent attacker at it — click the attacker again to send it back to the player."}
-            {" Confirm in the phase pod when done."}
+            {" Click Confirm Attackers when done."}
         </Banner>
     );
 }

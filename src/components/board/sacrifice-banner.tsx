@@ -1,5 +1,5 @@
 import type { SacrificeSelection } from "~/types/game";
-import { useDraggable } from "~/hooks/useDraggable";
+import { usePromptBannerPosition } from "~/hooks/usePromptBannerPosition";
 import { describeSacrificeChoice } from "~/lib/sacrifice-selection";
 import { Panel } from "~/components/ui/panel";
 
@@ -17,18 +17,17 @@ export default function SacrificeBanner({
 }: {
     selection: SacrificeSelection;
 }) {
-    const { offset, dragHandlers } = useDraggable();
+    const { outerClassName, outerStyle, innerClassName, dragHandlers } =
+        usePromptBannerPosition();
 
     return (
-        <div
-            className="absolute top-1/2 left-1/2 z-modal"
-            style={{
-                transform: `translate(calc(-50% + ${offset.x}px), calc(-50% + ${offset.y}px))`,
-            }}
-        >
+        <div className={outerClassName} style={outerStyle}>
             {/* Drag chrome stays on a plain wrapper — Panel forwards no
                 handlers, so the frame lives inside it. */}
-            <div {...dragHandlers} className="cursor-move select-none">
+            <div
+                {...dragHandlers}
+                className={`cursor-move select-none ${innerClassName}`.trim()}
+            >
                 <Panel density="compact" className="px-5 py-3">
                     <p className="font-beleren text-sm tracking-wide text-parchment">
                         Attack cost

@@ -172,3 +172,36 @@ describe("TargetSelectionBanner source-name resolution", () => {
         expect(screen.queryByText("spell")).toBeNull();
     });
 });
+
+// Issue #1762 — the composed multi-type / min-max hint
+// (`describeTargetProgress` + `formatTargetLabel`) is the longest realistic
+// prompt string this banner produces. It must render in full (not truncated)
+// and never force a single unbreakable line at a 390px portrait width.
+describe("TargetSelectionBanner — longest prompt renders without broken wrapping (issue #1762)", () => {
+    it("multi-type, min/max hint renders fully at a 390px width", () => {
+        const { container } = render(
+            <div style={{ width: "390px" }}>
+                <TargetSelectionBanner
+                    pendingTarget={pending({
+                        targetType: ["Creature", "Artifact", "Planeswalker"],
+                        count: { min: 1, max: 3 },
+                        selected: [],
+                    })}
+                    me={player()}
+                    stack={[]}
+                    gameId={"g1" as never}
+                    playerId="me"
+                />
+            </div>
+        );
+        expect(
+            screen.getByText(
+                "select up to 3 a creature, an artifact or a planeswalker (min 1)"
+            )
+        ).toBeTruthy();
+        const hint = container.querySelector("span.text-text-muted");
+        expect(hint).not.toBeNull();
+        expect(hint!.className).not.toMatch(/whitespace-nowrap/);
+        expect(hint!.className).not.toMatch(/\btruncate\b/);
+    });
+});
