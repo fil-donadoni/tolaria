@@ -2224,6 +2224,96 @@ describe("validateEffectScript — createTokenCopy `source` is an OBJECT positio
     });
 });
 
+// issue #1726 — the moveZone POSITIONAL LIBRARY INSERT: a battlefield
+// permanent target → library at a 1-based position from the top (Teferi,
+// Hero of Dominaria's −3 "third from the top"). Permanent schema coverage
+// for the new "position" field.
+describe("validateEffectScript — moveZone target → library position (issue #1726)", () => {
+    it("accepts a well-formed positional library insert", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "moveZone",
+                        target: { target: 0 },
+                        to: "library",
+                        position: 3,
+                    } as EffectOp,
+                ],
+            })
+        );
+        expect(errors).toEqual([]);
+    });
+
+    it('requires "position" with target and to: "library"', () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "moveZone",
+                        target: { target: 0 },
+                        to: "library",
+                    } as EffectOp,
+                ],
+            })
+        );
+        expect(errors.join("\n")).toContain('field "position" is required');
+    });
+
+    it('rejects "position" with a non-library destination', () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "moveZone",
+                        target: { target: 0 },
+                        to: "hand",
+                        position: 3,
+                    } as EffectOp,
+                ],
+            })
+        );
+        expect(errors.join("\n")).toContain(
+            'field "position" is only valid with "target" and to: "library"'
+        );
+    });
+
+    it('rejects "position" on a non-target shape', () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "moveZone",
+                        player: "controller",
+                        from: "hand",
+                        to: "library",
+                        position: 3,
+                    } as EffectOp,
+                ],
+            })
+        );
+        expect(errors.join("\n")).toContain(
+            'field "position" is only valid on the "target" shape'
+        );
+    });
+
+    it("rejects a non-positive position", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "moveZone",
+                        target: { target: 0 },
+                        to: "library",
+                        position: 0,
+                    } as EffectOp,
+                ],
+            })
+        );
+        expect(errors.length).toBeGreaterThan(0);
+    });
+});
+
 // issue #1104 — the moveZone FOURTH shape: a filter-driven bulk sweep across
 // one or more zones (Lobotomy). Permanent schema coverage for the new
 // "fromZones" discriminator.

@@ -3436,6 +3436,111 @@ describe("Effect Script Op: moveZone (CR 400.7, issue #839)", () => {
         expect(state.players[1].hand.map((c) => c.id)).toContain("bearMZ");
     });
 
+    // issue #1726 — the POSITIONAL LIBRARY INSERT: a permanent target →
+    // library at a 1-based position from the top (Teferi, Hero of
+    // Dominaria's −3 "Put target nonland permanent into its owner's library
+    // third from the top").
+    it("puts an announced battlefield permanent into its owner's library third from the top", () => {
+        const id = registerScript("test-op-movezone-lib-pos", [
+            { op: "moveZone", target: { target: 0 }, to: "library", position: 3 },
+        ]);
+        const bear = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "bearLP",
+        });
+        const library = ["libA", "libB", "libC", "libD"].map((lid) =>
+            makeInstance(BEAR_ID, {
+                controllerId: "p2",
+                ownerId: "p2",
+                id: lid,
+                zone: "library",
+            })
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear], library }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "bearLP" }]);
+        resolveTopOfStack(state);
+        expect(state.players[1].battlefield).toHaveLength(0);
+        // Index 0 is the top: third from the top = index 2.
+        expect(state.players[1].library.map((c) => c.id)).toEqual([
+            "libA",
+            "libB",
+            "bearLP",
+            "libC",
+            "libD",
+        ]);
+        // ADR 0026 — both players watched which card went in and where.
+        expect(state.players[1].library[2].knownTo).toEqual(
+            expect.arrayContaining(["p1", "p2"])
+        );
+    });
+
+    // issue #1726 — the official Teferi ruling: a library with two or fewer
+    // cards puts the card on the BOTTOM (the splice clamps).
+    it("clamps the library position to the bottom when the library is shorter", () => {
+        const id = registerScript("test-op-movezone-lib-clamp", [
+            { op: "moveZone", target: { target: 0 }, to: "library", position: 3 },
+        ]);
+        const bear = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "bearCL",
+        });
+        const only = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "libOnly",
+            zone: "library",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear], library: [only] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "bearCL" }]);
+        resolveTopOfStack(state);
+        expect(state.players[1].library.map((c) => c.id)).toEqual([
+            "libOnly",
+            "bearCL",
+        ]);
+    });
+
+    // issue #1726 wire format — the inserted card is knowledge-stamped for
+    // every player, and the projection's contiguous-run model exposes it to
+    // the OPPONENT viewer when it is contiguous with an end (here: a
+    // previously-empty library, so the card is both top and bottom).
+    it("exposes the inserted card on the wire once contiguous with a library end (wire format)", () => {
+        const id = registerScript("test-op-movezone-lib-wire", [
+            { op: "moveZone", target: { target: 0 }, to: "library", position: 3 },
+        ]);
+        const bear = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "bearLW",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "bearLW" }]);
+        resolveTopOfStack(state);
+        expect(state.players[1].library.map((c) => c.id)).toEqual(["bearLW"]);
+        // Viewer p1 (the opponent of the library's owner) sees the card.
+        const projected = projectPublicState(state, 1, "p1");
+        const known = projected.players[1].library.known;
+        expect(known).toHaveLength(1);
+        expect(known[0].index).toBe(0);
+        expect(known[0].card.id).toBe("bearLW");
+    });
+
     // A graveyard-card target → hand: the regrowth half (moveCardById,
     // Raise Dead / Regrowth).
     it("returns an announced graveyard card to its owner's hand", () => {

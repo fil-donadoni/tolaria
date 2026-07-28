@@ -1877,6 +1877,9 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             // across one or more zones (Lobotomy).
             fromZones: isMovableZoneArray,
             filter: isCardFilter,
+            // issue #1726 — battlefield → library at a 1-based position from
+            // the top (Teferi, Hero of Dominaria's −3 "third from the top").
+            position: isPositiveInt,
         },
         check: (entry) => {
             const hasTarget = "target" in entry;
@@ -1949,6 +1952,27 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
                         );
                     }
                 }
+                // issue #1726 — the positional library insert (battlefield →
+                // library, Teferi's −3 "third from the top"). `position` is
+                // REQUIRED with to: "library" (the destination alone doesn't
+                // say where in the library — an implicit default would
+                // silently mis-order) and meaningless with any other
+                // destination.
+                if (entry.to === "library" && !("position" in entry)) {
+                    errors.push(
+                        'field "position" is required with "target" and to: "library" (1-based from the top — "third from the top" = 3, issue #1726)'
+                    );
+                }
+                if ("position" in entry && entry.to !== "library") {
+                    errors.push(
+                        'field "position" is only valid with "target" and to: "library" (issue #1726)'
+                    );
+                }
+            }
+            if ("position" in entry && !hasTarget) {
+                errors.push(
+                    'field "position" is only valid on the "target" shape (issue #1726)'
+                );
             }
             // issue #1279 — the whole-zone bulk shape: required `player`/
             // `from`, and none of the single-object fields (`bind`,
