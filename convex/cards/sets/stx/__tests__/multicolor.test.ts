@@ -60,6 +60,12 @@ describe("Expressive Iteration (look 3: hand / bottom / exile-playable; CR 401.4
         expect(p1.hand.map((c) => c.id)).toEqual(["a"]);
         // c exiled and granted cast-from-exile.
         expect(p1.exile.map((c) => c.id)).toEqual(["c"]);
+        // CR 305.9 (issue #1689) — oracle says "you may PLAY the exiled
+        // card": a land drawn this way must be a legal land play, not merely
+        // castable (a land is never cast).
+        const exiledC = p1.exile.find((c) => c.id === "c")!;
+        expect(exiledC.castableFromExileBy).toBe("p1");
+        expect(exiledC.castableFromExileIncludesLand).toBe(true);
         // b sits at the very bottom; d, e (untouched) remain above it.
         const libIds = p1.library.map((c) => c.id);
         expect(libIds[libIds.length - 1]).toBe("b");

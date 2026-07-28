@@ -2333,6 +2333,9 @@ export function finalizeCleanup(state: GameState): void {
                 // issue #1156 — the free-cast waiver (Dauthi Voidwalker) rides
                 // the same turn-scoped window; expires together.
                 delete card.castFromExileWithoutPayingManaCost;
+                // CR 305.9 (issue #1689) — the land-inclusive marker rides
+                // the same turn-scoped window; expires together.
+                delete card.castableFromExileIncludesLand;
             }
         }
     }

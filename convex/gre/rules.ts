@@ -372,20 +372,61 @@ export function getLegalActions(
     // "Play" is for lands only — requires sorcery timing (main phase, empty stack, active player)
     // and the player must not have already used their per-turn land drops (CR 305.2).
     if (types.includes("Land")) {
-        // Worms of the Earth (CR 614) — "Players can't play lands." While the
-        // land-play lock is active, playing a land is illegal regardless of
-        // timing or remaining land drops. Suppressing the "play" action here
-        // also blocks the server path: `assertLegalAction` rejects the
-        // `playCard` mutation when "play" is absent.
-        const landsPlayed = player.landsPlayedThisTurn ?? 0;
-        const extraDrops = getExtraLandDrops(player);
-        const maxDrops = LAND_DROPS_PER_TURN + extraDrops;
-        if (
-            !landPlayLockActive(state) &&
-            isSorceryTiming(state) &&
-            landsPlayed < maxDrops
-        ) {
-            actions.push("play");
+        // CR 305.9 (issue #1689) — a land can be played ONLY from hand,
+        // unless an effect explicitly says otherwise. This branch must scope
+        // itself to a zone plus a permission exactly like every
+        // cast-from-elsewhere branch below (flashback/escape/exile-cast
+        // scan `player.graveyard`/`player.exile` before granting anything),
+        // rather than firing for a bare `types.includes("Land")` regardless
+        // of where the card actually lives (the bug: an opponent's-hand
+        // land, an unpermissioned graveyard land, or — the reported case —
+        // an exiled land under a CAST-ONLY grant like Ragavan's "you may
+        // cast that card" all used to render a "play" affordance).
+        //   - hand: the normal, unconditional land drop.
+        //   - graveyard: only while the player holds the unconditional,
+        //     player-wide play-lands-from-graveyard permission (Icetill
+        //     Explorer, `canPlayLandsFromGraveyard`).
+        //   - exile: only when `casterId` holds the exile-cast grant AND
+        //     that grant is explicitly land-inclusive
+        //     (`castableFromExileIncludesLand`, set only by a grant whose
+        //     Oracle text says "play" — Headliner Scarlett, Expressive
+        //     Iteration, Elkin Bottle, Inti, Laelia, Dauthi Voidwalker). A
+        //     CAST-only grant (Ice Cauldron, Robber of the Rich, Ragavan)
+        //     never sets this flag, so a land under one is correctly
+        //     excluded — CR 116.2a, a land can't be cast either. Scanned
+        //     across EVERY player's exile (not just `player`'s own): a
+        //     CROSS-PLAYER grant (Dauthi Voidwalker's opponent-exile land,
+        //     issue #1156's shape) means the card can sit in a DIFFERENT
+        //     player's exile than `player`, and `assertLegalAction`'s
+        //     mutation-boundary call (`convex/game.ts`) invokes this with
+        //     `player` = the CASTER, not necessarily the zone owner, with no
+        //     separate `casterId` — mirrors `findCastableExileCard`'s own
+        //     all-players scan (`convex/game.ts`).
+        const isPlayableLandSource =
+            player.hand.some((c) => c.id === card.id) ||
+            (player.graveyard.some((c) => c.id === card.id) &&
+                canPlayLandsFromGraveyard(state, player)) ||
+            (card.castableFromExileBy === casterId &&
+                card.castableFromExileIncludesLand === true &&
+                state.players.some((p) =>
+                    p.exile.some((c) => c.id === card.id)
+                ));
+        if (isPlayableLandSource) {
+            // Worms of the Earth (CR 614) — "Players can't play lands." While the
+            // land-play lock is active, playing a land is illegal regardless of
+            // timing or remaining land drops. Suppressing the "play" action here
+            // also blocks the server path: `assertLegalAction` rejects the
+            // `playCard` mutation when "play" is absent.
+            const landsPlayed = player.landsPlayedThisTurn ?? 0;
+            const extraDrops = getExtraLandDrops(player);
+            const maxDrops = LAND_DROPS_PER_TURN + extraDrops;
+            if (
+                !landPlayLockActive(state) &&
+                isSorceryTiming(state) &&
+                landsPlayed < maxDrops
+            ) {
+                actions.push("play");
+            }
         }
     }
 

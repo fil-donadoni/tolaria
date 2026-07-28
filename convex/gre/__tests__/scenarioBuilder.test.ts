@@ -14,6 +14,7 @@ import { buildStateFromScenario } from "../scenarioBuilder";
 import { makePlayer, makeState } from "../../cards/__tests__/setup";
 import { grizzlyBears } from "../../cards/sets/lea/green";
 import { shivanDragon } from "../../cards/sets/lea/red";
+import { forest } from "../../cards/sets/lea/colorless";
 import type { ScenarioSpec } from "../../debugScenarioSpec";
 
 describe("buildStateFromScenario (issue #1424)", () => {
@@ -201,5 +202,58 @@ describe("buildStateFromScenario (issue #1424)", () => {
         buildStateFromScenario(base, spec);
 
         expect(base).toEqual(baseSnapshot);
+    });
+
+    // #946 (CR 601.3e / 608.2g) — `castableFromExile` stamps a this-turn
+    // play/cast-from-exile grant so the Debug panel can stage the affordance
+    // directly. CR 305.9 (issue #1689) — the LAND-INCLUSIVE shape (Headliner
+    // Scarlett / Expressive Iteration: "you may PLAY that card") is now an
+    // explicit opt-in (`castableFromExileIncludesLand: true`) rather than
+    // always-on, so the Debug panel can ALSO stage the cast-only shape below.
+    it("`castableFromExile` + `castableFromExileIncludesLand` stamps a land-inclusive play/cast-from-exile grant (issue #1689)", () => {
+        const base = makeState({ turn: 4 });
+        const spec: ScenarioSpec = {
+            cards: [
+                {
+                    name: forest.name,
+                    owner: "me",
+                    zone: "exile",
+                    castableFromExile: true,
+                    castableFromExileIncludesLand: true,
+                },
+            ],
+        };
+
+        const state = buildStateFromScenario(base, spec);
+
+        const exiled = state.players[0].exile[0];
+        expect(exiled.castableFromExileBy).toBe(state.players[0].id);
+        expect(exiled.castableFromExileUntilTurn).toBe(4);
+        expect(exiled.castableFromExileIncludesLand).toBe(true);
+    });
+
+    // CR 305.9 (issue #1689) — the DEFAULT shape (no
+    // `castableFromExileIncludesLand`) is cast-only, mirroring the real-card
+    // default (Ice Cauldron / Robber of the Rich / Ragavan): a land staged
+    // this way must NOT be stamped land-inclusive, so the Debug panel can
+    // reproduce the exact "no action at all" case this issue is about.
+    it("`castableFromExile` alone (no includesLand) stamps a CAST-ONLY grant — a land gets no play permission", () => {
+        const base = makeState({ turn: 4 });
+        const spec: ScenarioSpec = {
+            cards: [
+                {
+                    name: forest.name,
+                    owner: "me",
+                    zone: "exile",
+                    castableFromExile: true,
+                },
+            ],
+        };
+
+        const state = buildStateFromScenario(base, spec);
+
+        const exiled = state.players[0].exile[0];
+        expect(exiled.castableFromExileBy).toBe(state.players[0].id);
+        expect(exiled.castableFromExileIncludesLand).toBeUndefined();
     });
 });

@@ -151,11 +151,24 @@ export function buildStateFromScenario(
                 // #946 (CR 601.3e / 608.2g) — grant "me" a this-turn play-
                 // from-exile permission so a Play (land) / Cast (spell)
                 // affordance appears; the current turn stamps the expiry so
-                // it lapses at cleanup.
+                // it lapses at cleanup. CR 305.9 (issue #1689) — a cast
+                // permission alone does NOT authorize playing a land (a land
+                // is never cast), so this stamps `castableFromExileIncludesLand`
+                // ONLY when the scenario explicitly asks for the LAND-
+                // INCLUSIVE grant shape (Headliner Scarlett / Expressive
+                // Iteration). Defaulting to cast-only (omitted) mirrors the
+                // real-card default (`grantCastFromExile`'s `includesLand`
+                // opts default false, Ice Cauldron / Robber of the Rich /
+                // Ragavan) — and lets the Debug panel stage BOTH shapes,
+                // including the cast-only-land dead-affordance case this
+                // issue is about.
                 if (entry.castableFromExile) {
                     const exiled = instance as CardInstanceState;
                     exiled.castableFromExileBy = player.id;
                     exiled.castableFromExileUntilTurn = state.turn;
+                    if (entry.castableFromExileIncludesLand) {
+                        exiled.castableFromExileIncludesLand = true;
+                    }
                 }
             } else {
                 if (entry.damageMarked && entry.damageMarked > 0) {

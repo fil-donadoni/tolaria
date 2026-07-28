@@ -1472,8 +1472,11 @@ export const OP_EXECUTORS: {
             playerId,
             zoneOwnerId,
             op.window,
-            op.withoutPayingManaCost
-                ? { withoutPayingManaCost: true }
+            op.withoutPayingManaCost || op.includesLand
+                ? {
+                      withoutPayingManaCost: !!op.withoutPayingManaCost,
+                      includesLand: !!op.includesLand,
+                  }
                 : undefined
         );
     },

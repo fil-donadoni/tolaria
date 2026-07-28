@@ -71,6 +71,10 @@ export const robberOfTheRich: CardDefinition = {
                 // Cross-player grant (issue #679 fix): the card is owned by
                 // (and stays exiled in) the DEFENDING player's zone, CR
                 // 400.7, but the ATTACKING player is granted cast permission.
+                // CR 305.9 (issue #1689) — oracle says "you may CAST that
+                // card" (not "play"): `includesLand` is deliberately omitted
+                // (defaults false) — an exiled LAND under this grant is
+                // simply unusable, never a legal land drop.
                 ctx.grantCastFromExile(cardId, ctx.controller, defenderId);
             },
         },

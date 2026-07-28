@@ -23,6 +23,12 @@ export type CardDraft = {
     faceDown: boolean;
     faceDownExile: boolean;
     castableFromExile: boolean;
+    /** CR 305.9 (issue #1689) — only meaningful alongside `castableFromExile`;
+     *  true stages the LAND-INCLUSIVE grant shape (Headliner Scarlett /
+     *  Expressive Iteration: "you may PLAY that card"), false/omitted stages
+     *  the cast-only shape (Ice Cauldron / Robber of the Rich / Ragavan)
+     *  under which a land in exile gets no play (or cast) affordance. */
+    castableFromExileIncludesLand: boolean;
     attackedLastTurn: boolean;
 };
 
@@ -44,6 +50,7 @@ export function emptyCardDraft(): CardDraft {
         faceDown: false,
         faceDownExile: false,
         castableFromExile: false,
+        castableFromExileIncludesLand: false,
         attackedLastTurn: false,
     };
 }
@@ -71,6 +78,8 @@ export function cardToDraft(card: ScenarioCard): CardDraft {
         faceDown: card.faceDown ?? false,
         faceDownExile: card.faceDownExile ?? false,
         castableFromExile: card.castableFromExile ?? false,
+        castableFromExileIncludesLand:
+            card.castableFromExileIncludesLand ?? false,
         attackedLastTurn: card.attackedLastTurn ?? false,
     };
 }
@@ -113,6 +122,8 @@ export function draftToCard(draft: CardDraft): ScenarioCard {
     if (draft.faceDown) card.faceDown = true;
     if (draft.faceDownExile) card.faceDownExile = true;
     if (draft.castableFromExile) card.castableFromExile = true;
+    if (draft.castableFromExileIncludesLand)
+        card.castableFromExileIncludesLand = true;
     if (draft.attackedLastTurn) card.attackedLastTurn = true;
 
     return card;

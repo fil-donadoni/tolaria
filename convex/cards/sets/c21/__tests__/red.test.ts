@@ -111,6 +111,10 @@ describe("Laelia, the Blade Reforged (issue #1558, CR 400.1 / 603.3b / 608.2i)",
             const exiled = state.players[0].exile.find((c) => c.id === "top")!;
             expect(exiled).toBeDefined();
             expect(exiled.castableFromExileBy).toBe("p1");
+            // CR 305.9 (issue #1689) — oracle says "you may PLAY that card
+            // this turn": a land drawn this way must be a legal land play,
+            // not merely castable (a land is never cast).
+            expect(exiled.castableFromExileIncludesLand).toBe(true);
             expect(exiled.knownTo).toEqual(["p1"]);
         });
 

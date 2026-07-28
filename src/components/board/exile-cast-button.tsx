@@ -35,6 +35,14 @@ export default function ExileCastButton({
     // matching projected legal action.
     const isLand = getDefinition(card.card.id).types.includes("Land");
 
+    // CR 305.9 (issue #1689) — a cast permission alone does NOT authorize
+    // playing a LAND; a land is never cast, so `castableFromExileBy` is
+    // meaningless for one unless `castableFromExileIncludesLand` is ALSO set
+    // (Headliner Scarlett / Expressive Iteration / Dauthi Voidwalker say
+    // "play", not "cast"). Render nothing rather than a permanently-disabled
+    // button with a misleading tooltip — the card genuinely has no action.
+    if (isLand && card.castableFromExileIncludesLand !== true) return null;
+
     // CR 601.3e / 601.2f / 305.2 — the projection attaches `legalActions` to the
     // viewer's own castable-from-exile card (gameProjections). "cast" is present
     // only when the cast is legal right now (correct timing AND affordable,

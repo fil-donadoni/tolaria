@@ -231,7 +231,11 @@ export const ragavanNimblePilferer: CardDefinition = {
                     // stays owned by (and exiled in) the DAMAGED player's zone
                     // (CR 400.7), but the ATTACKING player (Ragavan's
                     // controller) is granted cast permission "until end of
-                    // turn".
+                    // turn". CR 305.9 (issue #1689) — oracle says "you may
+                    // CAST that card" (not "play"): `includesLand` is
+                    // deliberately omitted (defaults false) — an exiled LAND
+                    // under this grant is simply unusable, never a legal
+                    // land drop (the reported bug this issue closes).
                     ctx.grantCastFromExile(
                         cardId,
                         ctx.controller,

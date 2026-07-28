@@ -285,6 +285,11 @@ export const dauthiVoidwalker: CardDefinition = {
                     player: "controller",
                     window: "this-turn",
                     withoutPayingManaCost: true,
+                    // CR 305.9 (issue #1689) — oracle says "you may PLAY it",
+                    // land-inclusive (a void-countered card need not be a
+                    // creature/artifact/planeswalker — any card redirected
+                    // to exile by the replacement effect above qualifies).
+                    includesLand: true,
                 },
             ],
         },

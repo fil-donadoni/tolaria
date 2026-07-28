@@ -250,6 +250,25 @@ export default function DebugScenarioCardFields({
                             />
                             castExile
                         </label>
+                        {/* CR 305.9 (issue #1689) — only meaningful alongside
+                            castExile; distinguishes the LAND-INCLUSIVE grant
+                            (Headliner Scarlett) from the cast-only default
+                            (Ice Cauldron) so this panel can stage BOTH the
+                            legal land-play case and the no-action-at-all
+                            case. */}
+                        <label className="flex items-center gap-1 text-text-muted">
+                            <input
+                                type="checkbox"
+                                checked={draft.castableFromExileIncludesLand}
+                                onChange={(e) =>
+                                    onPatch({
+                                        castableFromExileIncludesLand:
+                                            e.target.checked,
+                                    })
+                                }
+                            />
+                            +land
+                        </label>
                         <label className="flex items-center gap-1 text-text-muted">
                             <input
                                 type="checkbox"

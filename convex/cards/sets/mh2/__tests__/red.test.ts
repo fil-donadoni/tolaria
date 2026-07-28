@@ -16,6 +16,8 @@ import {
     getEffectivePower,
     getEffectiveToughness,
 } from "../../../../gre/layers";
+import { getLegalActions, assertLegalAction } from "../../../../gre/rules";
+import { projectPublicState } from "../../../../gameProjections";
 import { mineCollapse, blazingRootwalla, ragavanNimblePilferer } from "../red";
 
 // Mine Collapse — {3}{R} Instant. "If it's your turn, you may sacrifice a
@@ -307,6 +309,69 @@ describe("Ragavan, Nimble Pilferer (combat-damage impulse + Dash, CR 702.109a)",
         // CR 406.3 — hidden to the opponent (p2, the exile's own owner),
         // known only to Ragavan's controller (p1).
         expect(exiled.knownTo).toEqual(["p1"]);
+    });
+
+    // CR 305.9 / 116.2a (issue #1689) — Ragavan's oracle says "you may CAST
+    // that card" (not "play"): a LAND exiled this way must expose NO action
+    // at all — it can't be cast (CR 116.2a) and the cast-only grant never
+    // authorizes a land drop (CR 305.9 restricts land plays to hand unless
+    // an effect EXPLICITLY says "play" — this grant doesn't).
+    it("grants NO play/cast action when the damaged player's exiled top card is a LAND (CR 305.9 regression)", () => {
+        const ragavan = makeInstance(ragavanNimblePilferer.id, {
+            id: "ragavan",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const mountain = getCardByName("Mountain");
+        const oppTopLand = makeInstance(mountain.id, {
+            id: "opp-top-land",
+            ownerId: "p2",
+            zone: "library",
+        });
+        const state = makeState({
+            turn: 3,
+            players: [
+                makePlayer("p1", { battlefield: [ragavan] }),
+                makePlayer("p2", { library: [oppTopLand] }),
+            ],
+        });
+        ragavanDealsDamage(state);
+
+        const exiled = state.players[1].exile[0];
+        expect(exiled.id).toBe("opp-top-land");
+        expect(exiled.types).toContain("Land");
+
+        // The cast permission itself is still granted (Ragavan's oracle DOES
+        // say "you may cast that card") — but the land-inclusive marker
+        // never rides along, so no action of any kind ends up legal: a land
+        // can't be cast (CR 116.2a) and a bare cast grant doesn't authorize
+        // a play (CR 305.9).
+        expect(exiled.castableFromExileBy).toBe("p1");
+        expect(exiled.castableFromExileIncludesLand).toBeUndefined();
+        const p1 = state.players[0];
+        const p2 = state.players[1];
+        const actions = getLegalActions(state, p2, exiled, false, p1.id);
+        expect(actions).not.toContain("play");
+        expect(actions).not.toContain("cast");
+
+        // game.ts playCard mutation boundary — a hand-crafted client request
+        // is rejected server-side too (`assertLegalAction` re-derives via
+        // the same `getLegalActions` the mutation calls).
+        expect(() => assertLegalAction(state, p2, exiled, "play")).toThrow(
+            /Illegal action "play"/
+        );
+
+        // Wire boundary: neither viewer's projection surfaces an affordance.
+        const projectedForP1 = projectPublicState(state, 1, "p1");
+        const slimForP1 = projectedForP1.players[1].exile.find(
+            (c) => c.id === "opp-top-land"
+        )!;
+        expect(slimForP1.legalActions ?? []).toEqual([]);
+        const projectedForP2 = projectPublicState(state, 1, "p2");
+        const slimForP2 = projectedForP2.players[1].exile.find(
+            (c) => c.id === "opp-top-land"
+        )!;
+        expect(slimForP2.legalActions ?? []).toEqual([]);
     });
 
     it("no-ops (still creates the Treasure) when the damaged player's library is empty", () => {

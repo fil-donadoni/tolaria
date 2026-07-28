@@ -95,6 +95,10 @@ function makeExiledCard(
 
 // #946 — a LAND exiled with play permission (Headliner Scarlett / Expressive
 // Iteration) is PLAYED, not cast. Its projected legalActions carry "play".
+// #1689 (CR 305.9) — a cast-only grant does NOT authorize a land play, so
+// this land-inclusive fixture must ALSO stamp `castableFromExileIncludesLand`
+// — without it, `ExileCastButton` now renders nothing at all (see the
+// cast-only-grant coverage in `exile-cast-button-land-gate.test.tsx`).
 function makeExiledLand(
     legalActions: CardInstance["legalActions"] = ["play"]
 ): CardInstance {
@@ -106,6 +110,7 @@ function makeExiledLand(
         zone: "exile",
         isTapped: false,
         castableFromExileBy: "me",
+        castableFromExileIncludesLand: true,
         legalActions,
     };
 }
