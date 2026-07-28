@@ -5,7 +5,7 @@ import type { Id } from "@convex/_generated/dataModel";
 import type { CardInstance, Player } from "~/types/game";
 import type { Color } from "@convex/cards/types";
 import { getDefinition } from "@convex/cards";
-import { cardHasColor } from "@convex/cards/colors";
+import { isExileCostEligible } from "@convex/cards/exileCostEligibility";
 import GameDialog from "~/components/ui/game-dialog";
 import CardImage from "~/components/cards/card-image";
 
@@ -54,18 +54,22 @@ export default function CastExileCostDialog({
     const sourceCards = zone === "hand" ? me?.hand : me?.graveyard;
 
     // Eligible payment cards: the caster's own zone, matching the colour
-    // filter (CR 105.2), excluding the flashback card itself (CR 702.34e).
+    // filter (CR 105.2) and excluding the flashback card itself (CR 702.34e)
+    // via the shared `isExileCostEligible` — the server (`recordCastExileCostPick`,
+    // through `graveyardCardMatchesColor`, which delegates its colour leg
+    // straight to this function) and the bot's view builder
+    // (`buildCastExileChoiceView`) both call the SAME function, so the three
+    // can never drift apart (issue #1659).
     const eligible = useMemo(
         () =>
             (sourceCards ?? []).filter(
                 (card): card is CardInstance =>
                     card !== null &&
-                    card.id !== choice.excludeInstanceId &&
-                    // CR 105.2 / 202.2 — a card's COLOUR, not its colour
-                    // identity: an Island taps for blue but is colourless, so it
-                    // is NOT eligible to pay "exile a blue card".
-                    (choice.color === undefined ||
-                        cardHasColor(getDefinition(card.card.id), choice.color))
+                    isExileCostEligible(
+                        card,
+                        choice.excludeInstanceId,
+                        choice.color
+                    )
             ),
         [sourceCards, choice.color, choice.excludeInstanceId]
     );
