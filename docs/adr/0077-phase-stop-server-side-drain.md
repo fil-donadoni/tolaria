@@ -57,8 +57,7 @@ seat would inherit the human's preferences. Fixing that requires reading the
 currently do, in the majority game mode. The per-game key avoids it: the bot
 seat's row is **seeded at vs-AI game creation**, so decision 4 below is
 materialized as data instead of a conditional branch. Cleanup is the cron sweep
-
-- `deleteMatchCascade`, the same four lines #1778 adds for its tick row.
+plus `deleteMatchCascade` — the same four lines #1778 adds for its tick row.
 
 Rejected: storing the preferences on the `games` document to piggyback on an
 already-fetched doc. The premise is false — `passPriority` never reads it
