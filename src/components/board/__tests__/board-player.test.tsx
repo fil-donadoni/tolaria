@@ -21,6 +21,13 @@ vi.mock("convex/react", () => ({
     useMutation: () => selectTargetSpy,
 }));
 
+// Drive the portrait seam explicitly so jsdom's flaky matchMedia never decides
+// where the seat chrome anchors.
+let portrait = false;
+vi.mock("~/hooks/useIsPortrait", () => ({
+    useIsPortrait: () => portrait,
+}));
+
 import PlayerLife from "../player-life";
 import BoardPlayer from "../board-player";
 
@@ -102,7 +109,46 @@ function renderSpatial(
 
 beforeEach(() => {
     selectTargetSpy.mockClear();
+    portrait = false;
     cleanup();
+});
+
+/** The top-EDGE anchor exactly — `top-1`, never the midline `top-1/2`. */
+const TOP_EDGE_ANCHOR = /\btop-1\b(?!\/)/;
+
+describe("seat anchoring — nothing under the portrait bottom bar (#1759)", () => {
+    function anchorClass(side: "top" | "bottom") {
+        const { container } = renderSpatial(
+            makePlayer("p2"),
+            { playerId: "p2" },
+            side
+        );
+        return (container.firstElementChild as HTMLElement).className;
+    }
+
+    it("portrait lifts the VIEWER's chrome off the bottom edge the bar owns", () => {
+        portrait = true;
+        const className = anchorClass("bottom");
+        expect(className).not.toContain("bottom-1");
+        // It relocates to the top-left of the viewer's own half.
+        expect(className).toContain("top-1/2");
+    });
+
+    it("landscape/desktop keep the classic bottom-edge anchor", () => {
+        portrait = false;
+        expect(anchorClass("bottom")).toContain("bottom-1");
+    });
+
+    it("the opponent's chrome stays on the top edge either way", () => {
+        // `\btop-1\b(?!\/)` and NOT `toContain("top-1")`: the substring also
+        // matches the portrait viewer anchor `top-1/2`, so a regression that
+        // swapped the opponent onto the midline would still pass.
+        portrait = true;
+        expect(anchorClass("top")).toMatch(TOP_EDGE_ANCHOR);
+        cleanup();
+        portrait = false;
+        expect(anchorClass("top")).toMatch(TOP_EDGE_ANCHOR);
+    });
 });
 
 describe("board player target parity (#280)", () => {

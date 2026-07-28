@@ -121,30 +121,53 @@ function renderChips(
 beforeEach(() => cleanup());
 
 describe("BoardPortraitChips (#336)", () => {
-    it("renders a pile-chip row for each seat with zone labels + counts", () => {
+    it("renders the opponent's pile-chip row with zone labels + counts", () => {
         const me = makePlayer("me", {
             graveyard: [makeCard("g1", "graveyard")],
             library: { count: 24 },
         });
-        const opp = makePlayer("opp", { exile: [makeCard("x1", "exile")] });
+        const opp = makePlayer("opp", {
+            exile: [makeCard("x1", "exile")],
+            library: { count: 30 },
+        });
         renderChips(opp, me);
 
-        expect(screen.getByTestId("pile-chips-me")).toBeTruthy();
-        expect(screen.getByTestId("pile-chips-opp")).toBeTruthy();
-
-        // Counts come from the projected zones (graveyard/exile arrays;
-        // library via libraryCount).
-        const myChips = screen.getByTestId("pile-chips-me");
-        expect(
-            within(myChips).getByTestId("chip-graveyard-me").textContent
-        ).toContain("1");
-        expect(
-            within(myChips).getByTestId("chip-library-me").textContent
-        ).toContain("24");
         const oppChips = screen.getByTestId("pile-chips-opp");
         expect(
             within(oppChips).getByTestId("chip-exile-opp").textContent
         ).toContain("1");
+        expect(
+            within(oppChips).getByTestId("chip-library-opp").textContent
+        ).toContain("30");
+    });
+
+    it("relocates the VIEWER's chips off the bottom bar band without dropping them (#1759)", () => {
+        // The viewer's row used to sit at `bottom-24`, i.e. underneath the
+        // variant-D bottom bar — untappable. The fix RELOCATES it: the same
+        // BoardPileChips row is now mounted permanently by the bar's Zones
+        // drawer, which toggles visibility only (asserted through the REAL
+        // component in controller-portrait.test.tsx). Two things must hold
+        // HERE: this overlay carries exactly one row — the opponent's, so the
+        // viewer's piles are never mounted twice — and nothing it renders may
+        // be anchored into the band the bar owns.
+        const me = makePlayer("me", {
+            graveyard: [makeCard("g1", "graveyard")],
+        });
+        const { container } = renderChips(makePlayer("opp"), me);
+
+        const rows = [
+            ...container.querySelectorAll("[data-testid^='pile-chips-']"),
+        ]
+            .map((el) => el.getAttribute("data-testid"))
+            .filter((id) => id !== "pile-chips-row-opponent");
+        expect(rows).toEqual(["pile-chips-opp"]);
+
+        // No bottom-edge anchor anywhere on the overlay: the opponent row is
+        // pinned top-left, the stack chip to the midline.
+        expect(container.querySelectorAll("[class*='bottom-']").length).toBe(0);
+        expect(
+            screen.getByTestId("pile-chips-row-opponent").className
+        ).toContain("top-2");
     });
 
     it("no reveal dialog is open until a chip is tapped", () => {
@@ -156,17 +179,16 @@ describe("BoardPortraitChips (#336)", () => {
         expect(screen.queryByRole("dialog")).toBeNull();
     });
 
-    it("tapping the graveyard chip opens the EXISTING graveyard reveal view", () => {
-        const me = makePlayer("me", {
+    it("tapping the opponent's graveyard chip opens the EXISTING reveal view", () => {
+        const opp = makePlayer("opp", {
             graveyard: [
                 makeCard("g1", "graveyard"),
                 makeCard("g2", "graveyard"),
             ],
         });
-        const opp = makePlayer("opp");
-        renderChips(opp, me);
+        renderChips(opp, makePlayer("me"));
 
-        fireEvent.click(screen.getByTestId("chip-graveyard-me"));
+        fireEvent.click(screen.getByTestId("chip-graveyard-opp"));
 
         const dialog = screen.getByRole("dialog");
         // The reveal dialog is the same one the desktop pile opens — titled with

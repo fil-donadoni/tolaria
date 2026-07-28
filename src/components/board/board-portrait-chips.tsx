@@ -16,9 +16,17 @@ type BoardPortraitChipsProps = {
  *
  *  - opponent's graveyard / library / exile collapse to a chip row pinned
  *    top-left (clear of the opponent life pill on the top-right),
- *  - the viewer's pile chips + a stack chip sit just above the bottom action
- *    bar,
- *  - the stack chip toggles the EXISTING {@link GameStack} overlay.
+ *  - a stack chip sits at the right of the midline — the neutral band between
+ *    the two battlefields — and toggles the EXISTING {@link GameStack} overlay.
+ *
+ *  The VIEWER's own pile chips are RELOCATED, not removed: they used to float
+ *  at `bottom-24`, which the variant-D bottom bar (#1759) now covers, making
+ *  them untappable. The same {@link BoardPileChips} row — same component, same
+ *  reveal dialogs — is now mounted by that bar's Zones drawer
+ *  ({@link ControllerZonesDrawer}), permanently and for the whole game; the
+ *  Zones tab toggles only its VISIBILITY, because the row is the sole portrait
+ *  mount of the pile components that own the blocking choice surfaces.
+ *  Nothing on this overlay may sit in the bar's band any more.
  *
  *  Every chip opens the EXISTING reveal / stack view (the pile components in
  *  controlled-open mode, the stack panel toggled) — nothing is rebuilt. Mounted
@@ -28,7 +36,7 @@ export default function BoardPortraitChips({
     orderedPlayers,
     stackItems,
 }: BoardPortraitChipsProps) {
-    const [opponent, me] = orderedPlayers;
+    const [opponent] = orderedPlayers;
     const [stackOpen, setStackOpen] = useState(false);
 
     return (
@@ -43,15 +51,14 @@ export default function BoardPortraitChips({
             )}
 
             <div
-                className="absolute inset-x-2 bottom-24 z-30 flex items-center justify-end gap-1"
-                data-testid="pile-chips-row-player"
+                className="absolute right-2 top-1/2 z-30 -translate-y-1/2"
+                data-testid="stack-chip-row"
             >
                 <StackChip
                     count={stackItems.length}
                     open={stackOpen}
                     onToggle={() => setStackOpen((v) => !v)}
                 />
-                {me && <BoardPileChips player={me} />}
             </div>
 
             {/* The stack overlay is the EXISTING panel, toggled by the chip

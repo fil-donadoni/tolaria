@@ -28,6 +28,7 @@ import {
     useMinimizedChoiceState,
 } from "~/hooks/useMinimizedChoice";
 import { preloadCardImages } from "~/lib/image-preload";
+import { ABOVE_CONTROLLER_BAR } from "~/lib/controller-bar-metrics";
 import { computeSoloViewerId } from "~/lib/priority";
 import {
     fanLayout,
@@ -531,11 +532,17 @@ export default function Board({
                                                                 className={
                                                                     isPortrait
                                                                         ? // Lifted clear of the
-                                                                          // pile chips (bottom-24)
-                                                                          // + the bottom action bar
-                                                                          // (#335) so the hand stays
-                                                                          // fully thumb-reachable.
-                                                                          "absolute left-0 right-0 bottom-32 h-[16%]"
+                                                                          // variant-D bottom bar
+                                                                          // (#335/#1759) so the
+                                                                          // hand stays fully
+                                                                          // thumb-reachable — by
+                                                                          // the bar's MEASURED
+                                                                          // height, since its
+                                                                          // command row wraps and
+                                                                          // a fixed inset let the
+                                                                          // grown bar cover the
+                                                                          // hand's bottom edge.
+                                                                          `absolute left-0 right-0 ${ABOVE_CONTROLLER_BAR} h-[16%]`
                                                                         : "absolute left-0 right-[var(--right-piles-w)] bottom-0 h-[18%]"
                                                                 }
                                                             >
